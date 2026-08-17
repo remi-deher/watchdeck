@@ -14,6 +14,7 @@
       <div><span>Progression</span><strong>{{ Math.round(session.progress || 0) }} %</strong></div>
       <div class="progress-track"><i :style="{width:`${session.progress || 0}%`}"></i></div>
       <small>{{ formatDuration(session.progress_ms || session.watched_ms) }} / {{ formatDuration(session.duration_ms) }}</small>
+      <SessionTimelineBar :session="session"/>
     </div>
 
     <div class="session-kpis">
@@ -46,6 +47,7 @@
         <div><dt>Réseau</dt><dd>{{ networkLabel(session) }}</dd></div>
         <div><dt>Durée totale</dt><dd>{{ formatDuration(session.duration_ms) }}</dd></div>
         <div><dt>Temps visionné</dt><dd>{{ formatDuration(session.progress_ms || session.watched_ms) }}</dd></div>
+        <div v-if="session.paused_ms"><dt>Temps en pause</dt><dd>{{ formatDuration(session.paused_ms) }}</dd></div>
       </dl>
     </section>
 
@@ -72,6 +74,7 @@ import DrawerShell from '@/components/DrawerShell.vue';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 import SessionLocationMap from './SessionLocationMap.vue';
+import SessionTimelineBar from './SessionTimelineBar.vue';
 
 defineProps<{
   session: Record<string, any>;

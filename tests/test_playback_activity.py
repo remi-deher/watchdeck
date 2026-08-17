@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -8,7 +9,7 @@ from sqlalchemy.dialects.postgresql import asyncpg
 from app.database import get_db_async
 from app.dependencies import require_admin
 from app.main import app
-from app.models import PlaybackDailyAggregate, PlaybackIpLocation, PlaybackSession, Settings
+from app.models import PlaybackDailyAggregate, PlaybackIpLocation, PlaybackSession, PlaybackSessionSegment, Settings
 from app.services import playback_activity
 from app.services.playback_activity import (
     _analytics,
@@ -19,7 +20,9 @@ from app.services.playback_activity import (
     _miss_counts,
     _playback_method,
     _serialize,
+    _serialize_segment,
     _stop_session_atomic,
+    _sync_session_segment,
     _tautulli_values,
     handle_websocket_state,
     import_tautulli_history,
@@ -885,3 +888,201 @@ async def test_session_missing_from_one_poll_is_not_closed_immediately(async_db)
         await _collect_plex_activity_unlocked()
         await async_db.refresh(row)
         assert row.ended_at is not None, "deux ratés consécutifs doivent clôturer la session"
+
+
+@pytest.mark.asyncio
+async def test_session_segments_tracking_and_pause_resume(async_db):
+    start_time = datetime(2026, 8, 18, 20, 0, 0)
+    pause_time = start_time + timedelta(minutes=20)
+    resume_time = pause_time + timedelta(minutes=15)
+    stop_time = resume_time + timedelta(minutes=30)
+
+    session = PlaybackSession(
+        source="plex",
+        source_session_id="seg-session-1",
+        session_key=101,
+        rating_key="999",
+        title="Dune 2",
+        playback_method="direct_play",
+        started_at=start_time,
+        last_seen_at=start_time,
+        progress_ms=0,
+        initial_progress_ms=0,
+        duration_ms=7200000,
+    )
+    async_db.add(session)
+    async_db.commit()
+
+    # 1. Démarrage de lecture (00:00 -> 20:00)
+    _sync_session_segment(async_db, session, "playing", 0, start_time)
+    async_db.commit()
+    assert len(session.segments) == 1
+    assert session.segments[0].state == "playing"
+    assert session.segments[0].view_offset_start_ms == 0
+    assert session.segments[0].ended_at is None
+
+    # 2. Mise en pause à 20 min (offset = 1200000 ms)
+    session.progress_ms = 1200000
+    session.state = "paused"
+    _sync_session_segment(async_db, session, "paused", 1200000, pause_time)
+    async_db.commit()
+
+    assert len(session.segments) == 2
+    seg_play1 = session.segments[0]
+    seg_pause = session.segments[1]
+    assert seg_play1.ended_at == pause_time
+    assert seg_play1.duration_ms == 1200000
+    assert seg_play1.view_offset_end_ms == 1200000
+    assert seg_pause.state == "paused"
+    assert seg_pause.view_offset_start_ms == 1200000
+    assert seg_pause.ended_at is None
+
+    # 3. Reprise après 15 min de pause (offset reste à 1200000 ms)
+    session.state = "playing"
+    _sync_session_segment(async_db, session, "playing", 1200000, resume_time)
+    async_db.commit()
+
+    assert len(session.segments) == 3
+    assert seg_pause.ended_at == resume_time
+    assert seg_pause.duration_ms == 900000  # 15 minutes
+    seg_play2 = session.segments[2]
+    assert seg_play2.state == "playing"
+    assert seg_play2.view_offset_start_ms == 1200000
+    assert seg_play2.ended_at is None
+
+    # 4. Fin de lecture après 30 min (offset = 3000000 ms)
+    session.progress_ms = 3000000
+    await _stop_session_atomic(async_db, session, stopped_at=stop_time)
+    async_db.commit()
+
+    assert seg_play2.ended_at == stop_time
+    assert seg_play2.duration_ms == 1800000  # 30 minutes
+    assert seg_play2.view_offset_end_ms == 3000000
+
+    # Vérification des cumuls sérialisés
+    serialized = _serialize(session)
+    assert serialized["watched_ms"] == 3000000  # 20 min + 30 min = 50 min = 3 000 000 ms
+    assert serialized["paused_ms"] == 900000  # 15 min = 900 000 ms
+    assert len(serialized["segments"]) == 3
+    assert serialized["segments"][0]["state"] == "playing"
+    assert serialized["segments"][1]["state"] == "paused"
+    assert serialized["segments"][2]["state"] == "playing"
+
+
+@pytest.mark.asyncio
+async def test_session_segments_seek_detection(async_db):
+    start_time = datetime(2026, 8, 18, 21, 0, 0)
+    seek_time = start_time + timedelta(minutes=5)
+
+    session = PlaybackSession(
+        source="plex",
+        source_session_id="seek-session-1",
+        session_key=202,
+        rating_key="888",
+        title="Interstellar",
+        playback_method="direct_play",
+        started_at=start_time,
+        last_seen_at=start_time,
+        progress_ms=0,
+        initial_progress_ms=0,
+        duration_ms=10000000,
+    )
+    async_db.add(session)
+    async_db.commit()
+
+    # Démarrage à 00:00
+    _sync_session_segment(async_db, session, "playing", 0, start_time)
+    async_db.commit()
+
+    # Après 5 minutes réelles, l'utilisateur a sauté à 01:00:00 (3600000 ms au lieu de 300000 ms attendus)
+    session.progress_ms = 3600000
+    _sync_session_segment(async_db, session, "playing", 3600000, seek_time)
+    async_db.commit()
+
+    assert len(session.segments) == 2
+    seg1 = session.segments[0]
+    seg2 = session.segments[1]
+    assert seg1.ended_at == seek_time
+    assert seg1.duration_ms == 300000  # 5 min regardées
+    assert seg1.view_offset_end_ms == 300000  # Fin du premier segment avant le saut
+    assert seg2.state == "playing"
+    assert seg2.view_offset_start_ms == 3600000  # Début du nouveau segment après saut
+    assert seg2.ended_at is None
+
+
+@pytest.mark.asyncio
+async def test_session_segments_websocket_sync(async_db):
+    now = datetime(2026, 8, 18, 22, 0, 0)
+    session = PlaybackSession(
+        source="plex",
+        source_session_id="ws-session-1",
+        session_key=303,
+        rating_key="777",
+        title="Severance",
+        playback_method="direct_play",
+        started_at=now,
+        last_seen_at=now,
+        progress_ms=0,
+        duration_ms=3600000,
+    )
+    async_db.add(session)
+    async_db.commit()
+
+    with (
+        patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
+        patch.object(playback_activity, "publish", new=AsyncMock()),
+    ):
+        # 1. Notification websocket "playing" avec viewOffset = 60000
+        res1 = await handle_websocket_state(303, "777", "playing", view_offset_ms=60000)
+        assert res1["status"] == "handled"
+        assert len(session.segments) == 1
+        assert session.segments[0].state == "playing"
+        assert session.progress_ms == 60000
+
+        # 2. Notification websocket "paused"
+        res2 = await handle_websocket_state(303, "777", "paused", view_offset_ms=60000)
+        assert res2["status"] == "handled"
+        assert len(session.segments) == 2
+        assert session.segments[0].state == "playing"
+        assert session.segments[1].state == "paused"
+
+        # 3. Notification websocket "stopped"
+        res3 = await handle_websocket_state(303, "777", "stopped")
+        assert res3["status"] == "handled"
+        assert session.ended_at is not None
+        assert all(s.ended_at is not None for s in session.segments)
+
+
+@pytest.mark.asyncio
+async def test_session_segments_cascade_deletion(async_db):
+    session = PlaybackSession(
+        source="plex",
+        source_session_id="del-session-1",
+        title="Test Cascade",
+        started_at=datetime(2026, 8, 18, 22, 0, 0),
+    )
+    async_db.add(session)
+    async_db.commit()
+
+    seg = PlaybackSessionSegment(
+        session=session,
+        state="playing",
+        duration_ms=10000,
+        view_offset_start_ms=0,
+        view_offset_end_ms=10000,
+    )
+    async_db.add(seg)
+    async_db.commit()
+
+    seg_id = seg.id
+    assert seg_id is not None
+
+    async_db.delete(session)
+    async_db.commit()
+
+    remaining_seg = (
+        (await async_db.execute(select(PlaybackSessionSegment).filter(PlaybackSessionSegment.id == seg_id)))
+        .scalars()
+        .first()
+    )
+    assert remaining_seg is None
