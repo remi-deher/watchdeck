@@ -2,11 +2,16 @@
 
 ### 👷 CI/CD
 
+- durcit le diagnostic de pertinence contre les PR sans ancetre commun ([7b46be6](https://github.com/remi-deher/watchdeck/commit/7b46be6dfc928025e27c8c6d947996af994f8df7))
+
+### 👷 CI/CD
+
 - recentre les checks lourds sur test, allège dev et main ([9d1f19e](https://github.com/remi-deher/watchdeck/commit/9d1f19e56949e5bbca84634b567f24c8ceafb32b))
 
 ### 🔧 Maintenance
 
 - sync main into dev ([21022a1](https://github.com/remi-deher/watchdeck/commit/21022a168d5846f13d0b3d7e929fd8a2b8501d4c))
+- v1.1.4 (#36) ([fbe9e0e](https://github.com/remi-deher/watchdeck/commit/fbe9e0edcb4451db52afcecbed98a027bdd13de1))
 
 ### 🔧 Maintenance
 
