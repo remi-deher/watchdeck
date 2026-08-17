@@ -2,7 +2,10 @@ name: Dependency audit
 
 on:
   push:
-    branches: [main, test, dev]
+    # dev n'a pas de gate CI (push direct autorise) : ce scan tourne sur test/main
+    # et via pull_request sur les PR de promotion, pas besoin de le refaire a
+    # chaque push dev (voir la meme note dans codeql.yml).
+    branches: [main, test]
     paths:
       - "requirements*.txt"
       - "package*.json"
