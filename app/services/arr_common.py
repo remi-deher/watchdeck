@@ -557,7 +557,7 @@ async def get_wanted_missing(instance, page_size: int = 250) -> list[dict]:
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             page = 1
-            records = []
+            records: list[dict] = []
             total_records = None
             while total_records is None or len(records) < total_records:
                 res = await client.get(url, params={**params, "page": page}, headers=headers)

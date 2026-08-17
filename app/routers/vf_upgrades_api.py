@@ -579,7 +579,7 @@ async def vf_upgrade_audit_fix_streams(
 
     selected_users = body.users if body and body.users else None
     include_home_users = body.include_home_users if body else True
-    episode_refs = [tuple(pair) for pair in body.episodes] if body and body.episodes else None
+    episode_refs = [(pair[0], pair[1]) for pair in body.episodes] if body and body.episodes else None
     is_partial_scope = bool(episode_refs)
 
     res = await asyncio.to_thread(

@@ -316,9 +316,9 @@ def scan_media_vf(
     # possiblement un objet date) en valeurs directement persistables/serialisables --
     # voir vff_scanner._persist_episode_metadata.
     formatted_metadata: dict[int, dict[int, dict]] = {}
-    for sn, eps in episode_metadata.items():
+    for sn, ep_meta in episode_metadata.items():
         formatted_metadata[sn] = {}
-        for en, meta in eps.items():
+        for en, meta in ep_meta.items():
             thumb = meta.get("thumb")
             air_date = meta.get("air_date")
             formatted_metadata[sn][en] = {

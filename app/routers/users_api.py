@@ -1,6 +1,6 @@
 import json
 from datetime import timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import sqlalchemy
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -832,7 +832,7 @@ async def bulk_update_permissions(
     if not users:
         raise HTTPException(404, "Aucun utilisateur trouvé.")
 
-    update_fields = {}
+    update_fields: dict[str, Any] = {}
     if payload.can_login is not None:
         update_fields["can_login"] = payload.can_login
     if payload.auto_approve is not None:

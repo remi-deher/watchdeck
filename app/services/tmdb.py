@@ -14,7 +14,7 @@ sur les listes/détails, suffisant pour rester bien sous les limites de TMDB.
 import json
 import logging
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, cast
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -340,8 +340,8 @@ async def discover_genre_rail(
     mapping = GENRE_RAIL_MAPPING.get(genre_key)
     if not mapping:
         raise ValueError(f"Genre inconnu: {genre_key}")
-    movie_genre = mapping.get("movie")
-    tv_genre = mapping.get("show")
+    movie_genre = cast("Optional[int]", mapping.get("movie"))
+    tv_genre = cast("Optional[int]", mapping.get("show"))
     movie_res = await discover(db, "movie", movie_genre, "popularity.desc", page, region)
     tv_res = await discover(db, "show", tv_genre, "popularity.desc", page, region)
     return _merge_pages(movie_res, tv_res, page)
@@ -361,11 +361,12 @@ async def discovery_sources(db: AsyncSession, region: str = REGION) -> list[dict
     for source in CURATED_DISCOVERY_SOURCES:
         item = dict(source)
         if item["kind"] == "provider":
-            aliases = PROVIDER_ALIASES.get(item["id"], [item["id"]])
+            source_id = cast(int, item["id"])
+            aliases = PROVIDER_ALIASES.get(source_id, [source_id])
             provider = next((providers.get(aid) for aid in aliases if providers.get(aid)), None)
             if not provider:
                 continue
-            item["id"] = int(provider.get("provider_id") or item["id"])
+            item["id"] = int(provider.get("provider_id") or source_id)
             item["name"] = provider.get("provider_name") or item["name"]
             item["logo_url"] = _logo(provider.get("logo_path"))
         elif item["kind"] == "network":

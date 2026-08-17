@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
@@ -37,7 +37,7 @@ class TorrentMetadataRequest(BaseModel):
     new_name: Optional[str] = None
 
 
-_torrent_client_cache = {}
+_torrent_client_cache: dict[str, Any] = {}
 
 
 @router.get("/downloads/tracker-favicon")
@@ -499,7 +499,7 @@ async def get_global_stats_api(client_id: Optional[int] = None, db: AsyncSession
     connected = 0
     client_stats = []
     for client, stats in zip(clients, results):
-        if isinstance(stats, Exception):
+        if isinstance(stats, BaseException):
             client_stats.append({"client_id": client.id, "connected": False})
             continue
         is_connected = bool(stats.get("connected", True))

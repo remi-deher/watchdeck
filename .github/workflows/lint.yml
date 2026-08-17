@@ -66,6 +66,4 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Type check
-        run: >-
-          mypy app/job_queue.py app/jobs.py app/realtime.py app/routers/events_api.py
-          --ignore-missing-imports --no-strict-optional --follow-imports=skip
+        run: mypy app/ --ignore-missing-imports --no-strict-optional --follow-imports=skip

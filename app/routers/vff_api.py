@@ -116,8 +116,8 @@ async def _vf_detail_payload(db: AsyncSession, req):
             .scalars()
             .all()
         )
-        plex_eps = {}
-        plex_fr_default = {}
+        plex_eps: dict[int, dict[int, bool]] = {}
+        plex_fr_default: dict[int, dict[int, bool | None]] = {}
         for r in rows:
             plex_eps.setdefault(r.season_number, {})[r.episode_number] = r.has_vf
             plex_fr_default.setdefault(r.season_number, {})[r.episode_number] = r.fr_is_default
@@ -221,16 +221,16 @@ async def _vf_detail_payload(db: AsyncSession, req):
 
     out_seasons = []
     for sn in sorted(seasons):
-        eps = [seasons[sn][en] for en in sorted(seasons[sn])]
+        season_eps = [seasons[sn][en] for en in sorted(seasons[sn])]
         counts = {"vf": 0, "vf_secondary": 0, "vo": 0, "present": 0, "absent": 0, "unknown": 0}
-        for ep_out in eps:
+        for ep_out in season_eps:
             counts[ep_out["status"]] = counts.get(ep_out["status"], 0) + 1
         out_seasons.append(
             {
                 "season_number": sn,
                 "poster_url": wrap_local(season_posters.get(sn) or series_poster_url),
                 "counts": counts,
-                "episodes": eps,
+                "episodes": season_eps,
             }
         )
 
@@ -449,7 +449,7 @@ def _subtitle_flags(subtitles_json: str | None) -> dict:
         has_forced_fr_sub     : au moins un sous-titre FR forcé (sign/traduction) présent
         forced_fr_sub_is_default: ce sous-titre forcé est activé par défaut
     """
-    subs = []
+    subs: list[dict] = []
     if subtitles_json:
         try:
             subs = json.loads(subtitles_json) or []
