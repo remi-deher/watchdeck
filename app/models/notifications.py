@@ -40,6 +40,7 @@ class NotificationLog(Base):
     season_number: Mapped[Optional[int]] = mapped_column(default=None)
     episode_number: Mapped[Optional[int]] = mapped_column(default=None)
 
+
 class NotificationMilestone(Base):
     __tablename__ = "notification_milestones"
     __table_args__ = (
@@ -64,6 +65,7 @@ class NotificationMilestone(Base):
     is_upgrade: Mapped[bool] = mapped_column(default=False)
     season_number: Mapped[Optional[int]] = mapped_column(default=None)
     episode_number: Mapped[Optional[int]] = mapped_column(default=None)
+
 
 class PendingNotification(Base):
     """Notification empilée dans la queue asyncio mais pas encore envoyée.

@@ -239,7 +239,11 @@ async def _mark_available_and_notify(
                 if total_count and available_count < total_count:
                     event = "partially_available"
                 details.update(
-                    {"episodes_available": available_count, "episodes_aired": aired_count, "episodes_total": total_count}
+                    {
+                        "episodes_available": available_count,
+                        "episodes_aired": aired_count,
+                        "episodes_total": total_count,
+                    }
                 )
 
         await transition_request(
@@ -273,7 +277,9 @@ async def _mark_available_and_notify(
                 await _handle_show_progress_notification(settings, req, db)
         else:
             handled = await scan_and_notify_availability(req, settings, db) if settings else False
-            user_obj = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
+            user_obj = (
+                (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
+            )
             if (
                 not handled
                 and settings
@@ -418,7 +424,9 @@ async def _instance_name(db: AsyncSession, instance_id: int | None) -> str | Non
     return inst.name if inst else None
 
 
-async def _resolve_arr_connection(db: AsyncSession, service: str, instance_id: int | None) -> tuple[str, str, str] | None:
+async def _resolve_arr_connection(
+    db: AsyncSession, service: str, instance_id: int | None
+) -> tuple[str, str, str] | None:
     """Résout (url, api_key, cache_key) pour l'instance *arr concernée par ce webhook.
 
     Utilisé pour vérifier si Sonarr/Radarr a déjà un connecteur natif "Plex Media Server"
@@ -426,13 +434,27 @@ async def _resolve_arr_connection(db: AsyncSession, service: str, instance_id: i
     réglages globaux legacy, comme le reste des résolutions d'instance de l'app.
     """
     if instance_id:
-        inst = (await db.execute(select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == service))).scalars().first()
+        inst = (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == service)
+                )
+            )
+            .scalars()
+            .first()
+        )
         if inst:
             return inst.url, inst.api_key, f"{service}:{inst.id}"
         return None
-    inst = (await db.execute(
-        select(ArrInstance).filter(ArrInstance.arr_type == service, ArrInstance.enabled, ArrInstance.is_default)
-    )).scalars().first()
+    inst = (
+        (
+            await db.execute(
+                select(ArrInstance).filter(ArrInstance.arr_type == service, ArrInstance.enabled, ArrInstance.is_default)
+            )
+        )
+        .scalars()
+        .first()
+    )
     if inst:
         return inst.url, inst.api_key, f"{service}:{inst.id}"
     settings = (await db.execute(select(Settings))).scalars().first()
@@ -474,9 +496,7 @@ async def sonarr_webhook(request: Request):
 
         if event == "EpisodeFileDelete":
             series = data.get("series", {})
-            reconciled = await _reconcile_sonarr_episode_delete(
-                db, series, _query_instance_id(request)
-            )
+            reconciled = await _reconcile_sonarr_episode_delete(db, series, _query_instance_id(request))
             return {"status": "ok", "reconciled": reconciled, "deleted": 0}
 
         if event not in ("Download", "Import"):
@@ -514,6 +534,7 @@ async def sonarr_webhook(request: Request):
             arr_detected_vf=arr_detected_vf,
         )
         from ..services.arr_history import sync_instance_after_event
+
         asyncio.create_task(sync_instance_after_event(webhook_instance_id, "sonarr"))
         return {"status": "ok", "matched": matched}
     finally:
@@ -588,6 +609,7 @@ async def radarr_webhook(request: Request):
         )
         if event in ("Download", "Import"):
             from ..services.arr_history import sync_instance_after_event
+
             asyncio.create_task(sync_instance_after_event(instance_id, "radarr"))
         return {"status": "ok", "matched": matched}
     finally:
@@ -724,7 +746,9 @@ async def plex_webhook(request: Request):
             logger.info(f"Plex webhook: '{req.title}' marqué disponible")
             await mark_external_availability_event(req.id)
             handled = await scan_and_notify_availability(req, settings, db) if settings else False
-            user_obj = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
+            user_obj = (
+                (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
+            )
             if (
                 not handled
                 and settings
@@ -775,5 +799,3 @@ async def plex_webhook(request: Request):
         return {"status": "ok", "event": event, "matched": len(requests), "rescanned": rescanned, "title": title}
     finally:
         await db.close()
-
-

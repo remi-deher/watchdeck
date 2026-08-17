@@ -38,24 +38,30 @@ def _expected_scope(source: str | None) -> str:
 
 def _expected_seasons(record: dict, scope: str) -> list[int]:
     seasons = record.get("series_seasons") or []
-    return sorted({
-        int(season["season_number"])
-        for season in seasons
-        if season.get("season_number") not in (None, 0)
-        and (scope == "all_seasons" or season.get("monitored") is True)
-    })
+    return sorted(
+        {
+            int(season["season_number"])
+            for season in seasons
+            if season.get("season_number") not in (None, 0)
+            and (scope == "all_seasons" or season.get("monitored") is True)
+        }
+    )
 
 
 async def _open_batch(db, instance: ArrInstance, req: MediaRequest | None, arr_media_id: int):
     batch = (
-        await db.execute(
-            select(SeriesAcquisitionBatch).filter(
-                SeriesAcquisitionBatch.arr_instance_id == instance.id,
-                SeriesAcquisitionBatch.arr_id == arr_media_id,
-                SeriesAcquisitionBatch.status.in_(OPEN_BATCH_STATES),
+        (
+            await db.execute(
+                select(SeriesAcquisitionBatch).filter(
+                    SeriesAcquisitionBatch.arr_instance_id == instance.id,
+                    SeriesAcquisitionBatch.arr_id == arr_media_id,
+                    SeriesAcquisitionBatch.status.in_(OPEN_BATCH_STATES),
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if batch:
         return batch
     batch = SeriesAcquisitionBatch(
@@ -102,13 +108,17 @@ async def monitor_sonarr_queue() -> dict[str, int]:
                     batch.expected_seasons = json.dumps(expected_seasons)
 
                 observation = (
-                    await db.execute(
-                        select(SonarrQueueObservation).filter(
-                            SonarrQueueObservation.arr_instance_id == instance.id,
-                            SonarrQueueObservation.queue_id == queue_id,
+                    (
+                        await db.execute(
+                            select(SonarrQueueObservation).filter(
+                                SonarrQueueObservation.arr_instance_id == instance.id,
+                                SonarrQueueObservation.queue_id == queue_id,
+                            )
                         )
                     )
-                ).scalars().first()
+                    .scalars()
+                    .first()
+                )
                 if observation is None:
                     observation = SonarrQueueObservation(
                         batch_id=batch.id,

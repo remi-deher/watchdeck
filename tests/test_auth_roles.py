@@ -41,9 +41,7 @@ async def test_owner_session_passes_auth_and_admin():
 
 @pytest.mark.asyncio
 async def test_plex_user_passes_auth_but_not_admin():
-    request = _request(
-        {"authenticated": True, "is_owner": False, "role": "user", "plex_user_id": "alice"}
-    )
+    request = _request({"authenticated": True, "is_owner": False, "role": "user", "plex_user_id": "alice"})
     db = _db_with_token(None)
     await require_auth(request, db)
     with pytest.raises(HTTPException) as exc:
@@ -53,9 +51,7 @@ async def test_plex_user_passes_auth_but_not_admin():
 
 @pytest.mark.asyncio
 async def test_admin_role_session_passes_admin():
-    request = _request(
-        {"authenticated": True, "is_owner": False, "role": "admin", "plex_user_id": "bob"}
-    )
+    request = _request({"authenticated": True, "is_owner": False, "role": "admin", "plex_user_id": "bob"})
     await require_admin(request, _db_with_token(None))
 
 
@@ -77,9 +73,7 @@ def test_current_user_none_when_anonymous():
 
 @pytest.mark.asyncio
 async def test_moderator_role_passes_require_moderator_not_admin():
-    request = _request(
-        {"authenticated": True, "is_owner": False, "role": "moderator", "plex_user_id": "mod"}
-    )
+    request = _request({"authenticated": True, "is_owner": False, "role": "moderator", "plex_user_id": "mod"})
     db = _db_with_token(None)
     await require_auth(request, db)
     await require_moderator(request, db)
@@ -90,17 +84,13 @@ async def test_moderator_role_passes_require_moderator_not_admin():
 
 @pytest.mark.asyncio
 async def test_admin_passes_require_moderator_too():
-    request = _request(
-        {"authenticated": True, "is_owner": False, "role": "admin", "plex_user_id": "bob"}
-    )
+    request = _request({"authenticated": True, "is_owner": False, "role": "admin", "plex_user_id": "bob"})
     await require_moderator(request, _db_with_token(None))
 
 
 @pytest.mark.asyncio
 async def test_plain_user_rejected_by_require_moderator():
-    request = _request(
-        {"authenticated": True, "is_owner": False, "role": "user", "plex_user_id": "alice"}
-    )
+    request = _request({"authenticated": True, "is_owner": False, "role": "user", "plex_user_id": "alice"})
     db = _db_with_token(None)
     with pytest.raises(HTTPException) as exc:
         await require_moderator(request, db)

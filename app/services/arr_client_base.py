@@ -25,33 +25,23 @@ class BaseArrClient:
 
     async def check_connection(self) -> tuple[bool, str]:
         """Vérifie la joignabilité et la validité de la clé API."""
-        return await arr_common.check_connection(
-            self.url, self.api_key, product=self.product, timeout=self.timeout
-        )
+        return await arr_common.check_connection(self.url, self.api_key, product=self.product, timeout=self.timeout)
 
     async def get_quality_profiles(self) -> list[dict]:
         """Récupère les profils de qualité configurés."""
-        return await arr_common.get_quality_profiles(
-            self.url, self.api_key, timeout=self.timeout
-        )
+        return await arr_common.get_quality_profiles(self.url, self.api_key, timeout=self.timeout)
 
     async def get_root_folders(self) -> list[dict]:
         """Récupère les dossiers racine disponibles."""
-        return await arr_common.get_root_folders(
-            self.url, self.api_key, timeout=self.timeout
-        )
+        return await arr_common.get_root_folders(self.url, self.api_key, timeout=self.timeout)
 
     async def get_tags(self) -> list[dict]:
         """Récupère les tags déclarés."""
-        return await arr_common.get_tags(
-            self.url, self.api_key, timeout=self.timeout
-        )
+        return await arr_common.get_tags(self.url, self.api_key, timeout=self.timeout)
 
     async def get_disk_space(self) -> list[dict]:
         """Récupère l'état de l'espace disque."""
-        return await arr_common.get_disk_space(
-            self.url, self.api_key, timeout=self.timeout
-        )
+        return await arr_common.get_disk_space(self.url, self.api_key, timeout=self.timeout)
 
     async def get_calendar(
         self,
@@ -72,9 +62,7 @@ class BaseArrClient:
 
     async def get_notifications(self) -> list[dict]:
         """Récupère les connecteurs de notification configurés."""
-        return await arr_common.get_notifications(
-            self.url, self.api_key, timeout=self.timeout
-        )
+        return await arr_common.get_notifications(self.url, self.api_key, timeout=self.timeout)
 
     async def delete_queue_item(
         self,

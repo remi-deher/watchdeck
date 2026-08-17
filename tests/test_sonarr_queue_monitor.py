@@ -59,7 +59,9 @@ def _record(**changes):
 
 
 def test_queue_classification_keeps_active_download_active():
-    result = classify_queue_record(_record(status="downloading", progress=55, sizeleft=450, tracked_state="downloading"))
+    result = classify_queue_record(
+        _record(status="downloading", progress=55, sizeleft=450, tracked_state="downloading")
+    )
     assert result.state == "downloading"
     assert result.blocked_candidate is False
 
@@ -83,14 +85,16 @@ async def test_monitor_confirms_block_on_second_minute_and_resolves_when_missing
         )
         db.add(instance)
         await db.flush()
-        db.add(MediaRequest(
-            plex_user_id="alice",
-            title="Show",
-            media_type="show",
-            source="rss",
-            arr_instance_id=instance.id,
-            arr_id=42,
-        ))
+        db.add(
+            MediaRequest(
+                plex_user_id="alice",
+                title="Show",
+                media_type="show",
+                source="rss",
+                arr_instance_id=instance.id,
+                arr_id=42,
+            )
+        )
         await db.commit()
 
     queue = AsyncMock(return_value=[_record()])
@@ -133,12 +137,14 @@ async def test_monitor_does_not_resolve_observations_when_sonarr_is_unreachable(
         instance = ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="secret", enabled=True)
         db.add(instance)
         await db.flush()
-        db.add(SonarrQueueObservation(
-            arr_instance_id=instance.id,
-            queue_id=99,
-            state="import_blocked",
-            consecutive_blocked_checks=2,
-        ))
+        db.add(
+            SonarrQueueObservation(
+                arr_instance_id=instance.id,
+                queue_id=99,
+                state="import_blocked",
+                consecutive_blocked_checks=2,
+            )
+        )
         await db.commit()
 
     with (
@@ -179,10 +185,25 @@ def test_batch_summary_combines_vo_vf_and_blocked_imports():
     [
         ([{"scope": "episode", "season_number": 2, "episode_number": 4}], [1, 2], "episode_available"),
         ([{"scope": "season_start", "season_number": 2, "episode_number": 1}], [1, 2], "season_started"),
-        ([{"scope": "episode", "season_number": 2, "episode_number": 1}, {"scope": "episode", "season_number": 2, "episode_number": 2}], [1, 2], "season_partial"),
+        (
+            [
+                {"scope": "episode", "season_number": 2, "episode_number": 1},
+                {"scope": "episode", "season_number": 2, "episode_number": 2},
+            ],
+            [1, 2],
+            "season_partial",
+        ),
         ([{"scope": "season_complete", "season_number": 2}], [1, 2, 3], "season_complete"),
-        ([{"scope": "season_complete", "season_number": 1}, {"scope": "season_complete", "season_number": 2}], [1, 2, 3], "series_partial"),
-        ([{"scope": "season_complete", "season_number": 1}, {"scope": "season_complete", "season_number": 2}], [1, 2], "series_complete"),
+        (
+            [{"scope": "season_complete", "season_number": 1}, {"scope": "season_complete", "season_number": 2}],
+            [1, 2, 3],
+            "series_partial",
+        ),
+        (
+            [{"scope": "season_complete", "season_number": 1}, {"scope": "season_complete", "season_number": 2}],
+            [1, 2],
+            "series_complete",
+        ),
     ],
 )
 def test_batch_availability_classification(events, expected, variant):

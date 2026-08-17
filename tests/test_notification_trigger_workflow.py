@@ -33,36 +33,48 @@ IMMEDIATE_TRIGGER_CASES = (
 BATCH_TRIGGER_CASES = (
     pytest.param(
         [{"scope": "episode", "season_number": 1, "episode_number": 1}],
-        [1, 2], "episode_available", id="lot-episode-unique",
+        [1, 2],
+        "episode_available",
+        id="lot-episode-unique",
     ),
     pytest.param(
         [
             {"scope": "episode", "season_number": 1, "episode_number": 1},
             {"scope": "episode", "season_number": 1, "episode_number": 2},
         ],
-        [1, 2], "season_partial", id="lot-saison-partielle",
+        [1, 2],
+        "season_partial",
+        id="lot-saison-partielle",
     ),
     pytest.param(
         [{"scope": "season_start", "season_number": 1, "episode_number": 1}],
-        [1, 2], "season_started", id="lot-saison-demarree",
+        [1, 2],
+        "season_started",
+        id="lot-saison-demarree",
     ),
     pytest.param(
         [{"scope": "season_complete", "season_number": 1}],
-        [1, 2], "season_complete", id="lot-une-saison-complete",
+        [1, 2],
+        "season_complete",
+        id="lot-une-saison-complete",
     ),
     pytest.param(
         [
             {"scope": "season_complete", "season_number": 1},
             {"scope": "season_complete", "season_number": 2},
         ],
-        [1, 2, 3], "series_partial", id="lot-plusieurs-saisons-completes",
+        [1, 2, 3],
+        "series_partial",
+        id="lot-plusieurs-saisons-completes",
     ),
     pytest.param(
         [
             {"scope": "season_complete", "season_number": 1},
             {"scope": "season_complete", "season_number": 2},
         ],
-        [1, 2], "series_complete", id="lot-serie-complete",
+        [1, 2],
+        "series_complete",
+        id="lot-serie-complete",
     ),
 )
 

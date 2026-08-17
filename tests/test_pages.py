@@ -164,13 +164,15 @@ def test_privacy_page_is_public_without_gdpr_contact(client):
 
 
 def test_privacy_page_shows_configured_gdpr_contact_and_live_settings(client, db):
-    db.add(Settings(
-        id=1,
-        gdpr_contact_name="Jean Dupont",
-        gdpr_contact_email="jean@example.fr",
-        notification_log_retention_days=30,
-        email_enabled=True,
-    ))
+    db.add(
+        Settings(
+            id=1,
+            gdpr_contact_name="Jean Dupont",
+            gdpr_contact_email="jean@example.fr",
+            notification_log_retention_days=30,
+            email_enabled=True,
+        )
+    )
     db.commit()
 
     response = client.get("/privacy")

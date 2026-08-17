@@ -26,7 +26,5 @@ def test_does_not_stamp_for_non_sent_to_arr_statuses():
 
 
 def test_stamps_when_constructed_directly_with_sent_to_arr():
-    req = MediaRequest(
-        plex_user_id="system", title="Dune", media_type="movie", status=RequestStatus.sent_to_arr
-    )
+    req = MediaRequest(plex_user_id="system", title="Dune", media_type="movie", status=RequestStatus.sent_to_arr)
     assert req.arr_processed_at is not None

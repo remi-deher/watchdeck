@@ -23,6 +23,7 @@ class ArrInstance(Base):
     is_default: Mapped[bool] = mapped_column(default=False)
     indexer_ids: Mapped[Optional[str]]  # JSON list d'int, indexeurs à utiliser (null = tous)
 
+
 class DownloadClient(Base):
     __tablename__ = "download_clients"
 
@@ -36,6 +37,7 @@ class DownloadClient(Base):
     tags: Mapped[Optional[str]]  # comma-separated tags
     is_default: Mapped[bool] = mapped_column(default=False)
     enabled: Mapped[bool] = mapped_column(default=True)
+
 
 class EmailProvider(Base):
     """Un moyen d'envoyer des emails (SMTP classique, SMTP+OAuth2 Microsoft, ou API Brevo).

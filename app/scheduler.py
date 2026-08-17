@@ -147,7 +147,11 @@ async def start_scheduler(poll_seconds: int = 300):
     # series suivies, pour que la fiche detail lise EpisodeAvailability en base au lieu
     # d'appeler Sonarr en direct a chaque affichage (voir services/episode_availability.py).
     scheduler.add_job(
-        check_episode_availability, "interval", minutes=vff_interval, id="episode_availability_check", replace_existing=True
+        check_episode_availability,
+        "interval",
+        minutes=vff_interval,
+        id="episode_availability_check",
+        replace_existing=True,
     )
     # Scan léger et fréquent, restreint aux médias jamais analysés (has_vf IS NULL) :
     # comble le trou laissé par un scan eager raté (scan_and_notify_availability) sans

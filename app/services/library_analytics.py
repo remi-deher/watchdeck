@@ -56,7 +56,9 @@ def parse_plex_item(item: dict, library: str, section_type: str) -> dict[str, An
         "library": library,
         "studio": item.get("studio") or "Inconnu",
         "year": _int(item.get("year")) or None,
-        "added_at": datetime.fromtimestamp(_int(item.get("addedAt"))).isoformat() if _int(item.get("addedAt")) else None,
+        "added_at": datetime.fromtimestamp(_int(item.get("addedAt"))).isoformat()
+        if _int(item.get("addedAt"))
+        else None,
         "duration_ms": _int(item.get("duration") or media.get("duration")),
         "size_bytes": _int(part.get("size")),
         "container": part.get("container") or media.get("container") or "Inconnu",
@@ -129,8 +131,7 @@ def apply_filters(rows: list[dict], filters: dict[str, Any]) -> list[dict]:
                 break
         else:
             if search and search not in " ".join(
-                str(row.get(key) or "").lower()
-                for key in ("title", "parent_title", "grandparent_title", "studio")
+                str(row.get(key) or "").lower() for key in ("title", "parent_title", "grandparent_title", "studio")
             ):
                 continue
             subtitle = filters.get("subtitle")
@@ -140,7 +141,9 @@ def apply_filters(rows: list[dict], filters: dict[str, Any]) -> list[dict]:
                 continue
             if filters.get("subtitle_type") and filters["subtitle_type"] not in row.get("subtitle_types", []):
                 continue
-            if filters.get("subtitle_language") and filters["subtitle_language"] not in row.get("subtitle_languages", []):
+            if filters.get("subtitle_language") and filters["subtitle_language"] not in row.get(
+                "subtitle_languages", []
+            ):
                 continue
             if filters.get("audio_language") and filters["audio_language"] not in row.get("audio_languages", []):
                 continue
@@ -175,8 +178,18 @@ def _build_payload(rows: list[dict], generated_at: str, filters: dict[str, Any])
         },
         "insights": [
             {"kind": "storage", "title": "Poids du catalogue filtré", "value": total_size, "unit": "bytes"},
-            {"kind": "unwatched", "title": "Jamais visionnés", "value": sum(not row["play_count"] for row in filtered), "unit": "items"},
-            {"kind": "subtitles", "title": "Sans sous-titres", "value": sum(not row["subtitle_count"] for row in filtered), "unit": "items"},
+            {
+                "kind": "unwatched",
+                "title": "Jamais visionnés",
+                "value": sum(not row["play_count"] for row in filtered),
+                "unit": "items",
+            },
+            {
+                "kind": "subtitles",
+                "title": "Sans sous-titres",
+                "value": sum(not row["subtitle_count"] for row in filtered),
+                "unit": "items",
+            },
         ],
         "distributions": {
             "types": _distribution(filtered, "media_type"),
@@ -191,19 +204,17 @@ def _build_payload(rows: list[dict], generated_at: str, filters: dict[str, Any])
         "options": {
             key: sorted({str(row.get(key)) for row in all_rows if row.get(key)})
             for key in ("library", "studio", "video_codec", "audio_codec", "container")
-        } | {
-            "audio_language": sorted({
-                language for row in all_rows for language in row.get("audio_languages", []) if language
-            }),
-            "subtitle_language": sorted({
-                language for row in all_rows for language in row.get("subtitle_languages", []) if language
-            }),
-            "subtitle_type": sorted({
-                subtitle_type
-                for row in all_rows
-                for subtitle_type in row.get("subtitle_types", [])
-                if subtitle_type
-            })
+        }
+        | {
+            "audio_language": sorted(
+                {language for row in all_rows for language in row.get("audio_languages", []) if language}
+            ),
+            "subtitle_language": sorted(
+                {language for row in all_rows for language in row.get("subtitle_languages", []) if language}
+            ),
+            "subtitle_type": sorted(
+                {subtitle_type for row in all_rows for subtitle_type in row.get("subtitle_types", []) if subtitle_type}
+            ),
         },
         "items": filtered,
     }
@@ -310,7 +321,7 @@ async def analytics_items_payload(
     if insight_kind in (None, "storage"):
         rows.sort(key=lambda row: row.get("size_bytes") or 0, reverse=True)
     total = len(rows)
-    page = rows[offset:offset + limit]
+    page = rows[offset : offset + limit]
     return paginated_response(
         items=page,
         total=total,

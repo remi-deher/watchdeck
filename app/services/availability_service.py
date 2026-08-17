@@ -27,32 +27,44 @@ async def find_plex_library_item(db: AsyncSession, req: MediaRequest) -> Library
     suivi VF, il n'est simplement pas retenu comme preuve de disponibilite.
     """
     if req.library_item_id:
-        item = (await db.execute(
-            select(LibraryItem).filter(
-                LibraryItem.id == req.library_item_id,
-                LibraryItem.plex_guid.isnot(None),
+        item = (
+            (
+                await db.execute(
+                    select(LibraryItem).filter(
+                        LibraryItem.id == req.library_item_id,
+                        LibraryItem.plex_guid.isnot(None),
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
         if item:
             return item
 
     identity_filter = library_identity_filter(req)
     item = (
-        (await db.execute(
-            select(LibraryItem).filter(identity_filter, LibraryItem.plex_guid.isnot(None))
-        )).scalars().first()
+        (await db.execute(select(LibraryItem).filter(identity_filter, LibraryItem.plex_guid.isnot(None))))
+        .scalars()
+        .first()
         if identity_filter is not None
         else None
     )
     if not item and req.title and req.year:
-        item = (await db.execute(
-            select(LibraryItem).filter(
-                LibraryItem.media_type == req.media_type,
-                LibraryItem.title.ilike(req.title),
-                LibraryItem.year == req.year,
-                LibraryItem.plex_guid.isnot(None),
+        item = (
+            (
+                await db.execute(
+                    select(LibraryItem).filter(
+                        LibraryItem.media_type == req.media_type,
+                        LibraryItem.title.ilike(req.title),
+                        LibraryItem.year == req.year,
+                        LibraryItem.plex_guid.isnot(None),
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
     if item:
         req.library_item_id = item.id
     return item
@@ -97,9 +109,7 @@ async def availability_confirmed(
     if mode == "plex" or require_plex:
         return False, "plex_pending"
 
-    timeout_minutes = max(
-        1, int(getattr(settings, "availability_confirmation_timeout_minutes", None) or 30)
-    )
+    timeout_minutes = max(1, int(getattr(settings, "availability_confirmation_timeout_minutes", None) or 30))
     arr_at = req.arr_processed_at
     if arr_confirmed and arr_at and now_utc_naive() - arr_at >= timedelta(minutes=timeout_minutes):
         return True, "hybrid_arr_timeout"
@@ -187,9 +197,7 @@ async def _set_available(
     available_at: datetime | None = None,
     require_plex: bool = True,
 ) -> bool:
-    if require_plex and not await should_confirm_available(
-        db, req, require_plex=True, arr_confirmed=False
-    ):
+    if require_plex and not await should_confirm_available(db, req, require_plex=True, arr_confirmed=False):
         logger.info(
             "Disponibilite refusee pour '%s': aucune preuve Plex associee a la demande.",
             req.title,

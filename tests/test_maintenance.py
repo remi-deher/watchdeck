@@ -331,8 +331,13 @@ async def test_run_resync_availability_calls_check_arr_statuses_full_resync():
     db = make_test_session()
     db.add(Settings())
     req = MediaRequest(
-        plex_user_id="alice", plex_user="alice", title="Ink Master", media_type="show",
-        status=RequestStatus.available, episodes_available_count=None, episodes_total_count=None,
+        plex_user_id="alice",
+        plex_user="alice",
+        title="Ink Master",
+        media_type="show",
+        status=RequestStatus.available,
+        episodes_available_count=None,
+        episodes_total_count=None,
     )
     db.add(req)
     db.commit()

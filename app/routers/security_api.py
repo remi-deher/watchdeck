@@ -157,7 +157,9 @@ async def register_options(
         rp_id = "localhost"
 
     # Récupérer les clés existantes pour les exclure
-    existing_keys = (await db.execute(select(PasskeyCredential).filter(PasskeyCredential.user_id == user.id))).scalars().all()
+    existing_keys = (
+        (await db.execute(select(PasskeyCredential).filter(PasskeyCredential.user_id == user.id))).scalars().all()
+    )
     exclude_credentials = []
     for k in existing_keys:
         try:
@@ -257,9 +259,17 @@ async def delete_passkey(
     curr: dict = Depends(current_user),
 ):
     _check_permission(id, curr)
-    key = (await db.execute(
-        select(PasskeyCredential).filter(PasskeyCredential.user_id == id, PasskeyCredential.credential_id == credential_id)
-    )).scalars().first()
+    key = (
+        (
+            await db.execute(
+                select(PasskeyCredential).filter(
+                    PasskeyCredential.user_id == id, PasskeyCredential.credential_id == credential_id
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
     if not key:
         raise HTTPException(status_code=404, detail="Passkey introuvable.")
 

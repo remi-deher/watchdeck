@@ -58,7 +58,9 @@ class MediaIdentifiers:
             except (ValueError, TypeError):
                 return None
 
-        arr_id_raw = _get("arr_id") or _get("id") if isinstance(_get("id"), int) and not _get("plex_guid") else _get("arr_id")
+        arr_id_raw = (
+            _get("arr_id") or _get("id") if isinstance(_get("id"), int) and not _get("plex_guid") else _get("arr_id")
+        )
 
         return cls(
             plex_guid=_str(_get("plex_guid") or _get("guid")),
@@ -120,7 +122,8 @@ class MediaIdentifiers:
     def as_dict(self) -> dict[str, Any]:
         """Exporte les identifiants sous forme de dictionnaire épuré."""
         return {
-            k: v for k, v in {
+            k: v
+            for k, v in {
                 "plex_guid": self.plex_guid,
                 "tmdb_id": self.tmdb_id,
                 "tvdb_id": self.tvdb_id,
@@ -129,5 +132,6 @@ class MediaIdentifiers:
                 "title": self.title,
                 "year": self.year,
                 "media_type": self.media_type,
-            }.items() if v is not None
+            }.items()
+            if v is not None
         }

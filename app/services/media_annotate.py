@@ -40,16 +40,18 @@ async def annotate_media_items(db: AsyncSession, items: list[dict]) -> list[dict
     if library_filters:
         library_rows = (await db.execute(select(LibraryItem).filter(or_(*library_filters)))).scalars().all()
         request_rows = (
-            await db.execute(
-                select(MediaRequest)
-                .filter(or_(*request_filters))
-                .order_by(MediaRequest.requested_at.desc(), MediaRequest.id.desc())
+            (
+                await db.execute(
+                    select(MediaRequest)
+                    .filter(or_(*request_filters))
+                    .order_by(MediaRequest.requested_at.desc(), MediaRequest.id.desc())
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
-    lib: dict[tuple[str, str], LibraryItem] = {
-        (li.media_type, li.tmdb_id): li for li in library_rows if li.tmdb_id
-    }
+    lib: dict[tuple[str, str], LibraryItem] = {(li.media_type, li.tmdb_id): li for li in library_rows if li.tmdb_id}
     reqs: dict[tuple[str, str], MediaRequest] = {}
     status_priority = {
         "available": 6,

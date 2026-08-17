@@ -42,9 +42,7 @@ class MediaRequest(Base):
     # Etat technique du traitement. `status` reste l'etat metier/API historique : les
     # deux colonnes sont volontairement separees afin que "demande acceptee" ne soit
     # plus confondu avec "telechargement en cours" ou "attente d'indexation Plex".
-    fulfillment_status: Mapped[str] = mapped_column(
-        default=FulfillmentStatus.not_submitted, index=True
-    )
+    fulfillment_status: Mapped[str] = mapped_column(default=FulfillmentStatus.not_submitted, index=True)
     fulfillment_updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive)
     fulfillment_error: Mapped[Optional[str]] = mapped_column(Text, default=None)
     source: Mapped[Optional[str]]
@@ -177,6 +175,7 @@ class MediaRequest(Base):
             self.fulfillment_updated_at = now_utc_naive()
         return value
 
+
 class LibraryItem(Base):
     """Média réellement présent dans la bibliothèque Plex (issu de la synchronisation).
 
@@ -250,6 +249,7 @@ class LibraryItem(Base):
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive)
 
+
 class RequestSeasonStatus(Base):
     """Disponibilité brute (fichier présent ou non côté Sonarr) par saison d'une demande.
 
@@ -265,9 +265,7 @@ class RequestSeasonStatus(Base):
     """
 
     __tablename__ = "request_season_status"
-    __table_args__ = (
-        UniqueConstraint("request_id", "season_number", name="uq_request_season"),
-    )
+    __table_args__ = (UniqueConstraint("request_id", "season_number", name="uq_request_season"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     request_id: Mapped[int] = mapped_column(ForeignKey("media_requests.id", ondelete="CASCADE"), index=True)
@@ -277,6 +275,7 @@ class RequestSeasonStatus(Base):
     # "pending" | "partially_available" | "available"
     status: Mapped[str] = mapped_column(default="pending")
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive)
+
 
 class VfEpisodeStatus(Base):
     """Cache du statut VF par épisode, pour éviter de re-scanner Plex à chaque cycle.
@@ -371,7 +370,11 @@ class VfUpgradeSuggestion(Base):
     __tablename__ = "vf_upgrade_suggestions"
     __table_args__ = (
         UniqueConstraint(
-            "source_type", "source_id", "scope", "season_number", "episode_number",
+            "source_type",
+            "source_id",
+            "scope",
+            "season_number",
+            "episode_number",
             name="uq_vf_upgrade_suggestion",
         ),
     )
@@ -432,6 +435,7 @@ class EpisodeAvailability(Base):
     has_file: Mapped[bool] = mapped_column(default=False)
     air_date_utc: Mapped[Optional[str]]
     checked_at: Mapped[Optional[datetime]]
+
 
 class MediaIssue(Base):
     __tablename__ = "media_issues"

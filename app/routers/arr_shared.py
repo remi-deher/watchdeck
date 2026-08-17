@@ -60,20 +60,35 @@ async def invalidate_direct_downloads_cache() -> None:
     _direct_cache["ts"] = 0.0
 
 
-async def _set_single_default(db: AsyncSession, model, type_col: str, type_val: str, exclude_id: Optional[int] = None) -> None:
+async def _set_single_default(
+    db: AsyncSession, model, type_col: str, type_val: str, exclude_id: Optional[int] = None
+) -> None:
     """Remet is_default=False sur toutes les instances du même type, sauf exclude_id."""
     conditions = [getattr(model, type_col) == type_val]
     if exclude_id is not None:
         conditions.append(model.id != exclude_id)
     await db.execute(sqlalchemy.update(model).where(*conditions).values(is_default=False))
 
+
 async def _resolve_arr_instance(db: AsyncSession, instance_id: Optional[int], arr_type: str) -> ArrInstance:
     if instance_id is not None:
-        inst = (await db.execute(select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == arr_type))).scalars().first()
+        inst = (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == arr_type)
+                )
+            )
+            .scalars()
+            .first()
+        )
         if not inst:
             raise HTTPException(404, f"Instance {instance_id} ({arr_type}) introuvable")
         return inst
-    inst = (await db.execute(select(ArrInstance).filter(ArrInstance.is_default, ArrInstance.arr_type == arr_type))).scalars().first()
+    inst = (
+        (await db.execute(select(ArrInstance).filter(ArrInstance.is_default, ArrInstance.arr_type == arr_type)))
+        .scalars()
+        .first()
+    )
     if not inst:
         # Fallback de compatibilité avec settings globales
         settings = (await db.execute(select(Settings))).scalars().first()
@@ -93,6 +108,7 @@ async def _resolve_arr_instance(db: AsyncSession, instance_id: Optional[int], ar
         raise HTTPException(400, f"Aucune instance par défaut configurée pour {arr_type}")
     return inst
 
+
 async def _arr_call(
     url: Optional[str],
     api_key: Optional[str],
@@ -106,6 +122,7 @@ async def _arr_call(
         return await coro_fn(url, api_key)
     inst = await _resolve_arr_instance(db, instance_id, arr_type)
     return await coro_fn(inst.url, inst.api_key)
+
 
 async def _arr_folders(
     url: Optional[str],

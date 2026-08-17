@@ -86,9 +86,7 @@ async def test_update_user_allows_demoting_someone_else(db):
 @pytest.mark.asyncio
 async def test_update_user_allows_other_self_edits(db):
     admin = _user(db)
-    result = await update_user(
-        admin.id, _payload(role="admin", display_name="Alice B"), _request(user_id=admin.id), db
-    )
+    result = await update_user(admin.id, _payload(role="admin", display_name="Alice B"), _request(user_id=admin.id), db)
     assert result.display_name == "Alice B"
     assert result.role == "admin"
 

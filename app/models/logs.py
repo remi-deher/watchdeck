@@ -22,6 +22,7 @@ class AdminActionLog(Base):
     target_count: Mapped[int] = mapped_column(default=0)
     details: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
+
 class DeletedMediaLog(Base):
     """Trace d'une suppression volontaire par un admin (demande ou orpheline arr).
 
@@ -54,6 +55,7 @@ class DeletedMediaLog(Base):
     # retirer une entrée de la watchlist depuis le serveur).
     blocked: Mapped[bool] = mapped_column(default=False)
 
+
 class DiagnosticEvent(Base):
     """Événement persistant du parcours Demande → Arr → Plex → Notification."""
 
@@ -76,6 +78,7 @@ class DiagnosticEvent(Base):
     message: Mapped[str] = mapped_column(Text, default="")
     details: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
+
 class PollHistory(Base):
     __tablename__ = "poll_history"
     __table_args__ = (
@@ -91,6 +94,7 @@ class PollHistory(Base):
     newly_available: Mapped[int] = mapped_column(default=0)
     errors: Mapped[int] = mapped_column(default=0)
     error_detail: Mapped[Optional[str]]
+
 
 class JobRunLog(Base):
     """Historique générique d'exécution des tâches planifiées (app/jobs.py:_run).

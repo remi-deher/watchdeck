@@ -45,9 +45,7 @@ def _media_payload(
         "library_id": library_item.id if library_item else None,
         "request_id": selected_request.id if selected_request else None,
         "vf_source_type": "library" if library_item else "request",
-        "vf_source_id": library_item.id if library_item else (
-            selected_request.id if selected_request else None
-        ),
+        "vf_source_id": library_item.id if library_item else (selected_request.id if selected_request else None),
         "title": media_obj.title,
         "year": media_obj.year,
         "media_type": media_obj.media_type,
@@ -97,14 +95,10 @@ async def build_media_detail(
     selected_request = None
     library_item = None
     if library_id:
-        library_item = await async_get_or_404(
-            db, LibraryItem, library_id, "Library item not found"
-        )
+        library_item = await async_get_or_404(db, LibraryItem, library_id, "Library item not found")
         media_obj = library_item
     else:
-        selected_request = await async_get_or_404(
-            db, MediaRequest, request_id, "Request not found"
-        )
+        selected_request = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
         if selected_request.library_item_id:
             library_item = await db.get(LibraryItem, selected_request.library_item_id)
         media_obj = library_item or selected_request
@@ -117,11 +111,7 @@ async def build_media_detail(
             arr_url = f"{instance.url.rstrip('/')}/{entity}/{media_obj.arr_slug}"
 
     if core_only:
-        operational = (
-            serialize_media_request(selected_request, {})
-            if selected_request
-            else plex_library_projection()
-        )
+        operational = serialize_media_request(selected_request, {}) if selected_request else plex_library_projection()
         return {
             "media": _media_payload(
                 media_obj,
@@ -137,55 +127,74 @@ async def build_media_detail(
         related_requests.insert(0, selected_request)
 
     all_users = (await db.execute(select(PlexUser))).scalars().all()
-    users = {
-        user.plex_user_id: user.custom_name or user.display_name or user.plex_user_id
-        for user in all_users
-    }
+    users = {user.plex_user_id: user.custom_name or user.display_name or user.plex_user_id for user in all_users}
     user_by_id = {user.plex_user_id: user for user in all_users}
     request_ids = [row.id for row in related_requests]
     last_mail: dict[tuple[int, str], dict] = {}
     recipients: dict[tuple[int, str], set[str]] = {}
     history = []
     if request_ids:
-        logs = (await db.execute(
-            select(NotificationLog)
-            .filter(NotificationLog.req_id.in_(request_ids))
-            .order_by(NotificationLog.sent_at.desc())
-            .limit(50)
-        )).scalars().all()
-        history = [{
-            "id": log.id, "event": log.event, "channel": log.channel,
-            "recipient": log.recipient, "sent_at": format_datetime(log.sent_at),
-            "success": log.success, "error_msg": log.error_msg,
-            "triggered_by": log.triggered_by, "scope": log.scope,
-            "language": log.language, "season_number": log.season_number,
-            "episode_number": log.episode_number,
-        } for log in logs]
+        logs = (
+            (
+                await db.execute(
+                    select(NotificationLog)
+                    .filter(NotificationLog.req_id.in_(request_ids))
+                    .order_by(NotificationLog.sent_at.desc())
+                    .limit(50)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        history = [
+            {
+                "id": log.id,
+                "event": log.event,
+                "channel": log.channel,
+                "recipient": log.recipient,
+                "sent_at": format_datetime(log.sent_at),
+                "success": log.success,
+                "error_msg": log.error_msg,
+                "triggered_by": log.triggered_by,
+                "scope": log.scope,
+                "language": log.language,
+                "season_number": log.season_number,
+                "episode_number": log.episode_number,
+            }
+            for log in logs
+        ]
         for log in logs:
             if log.channel != "email" or log.event not in ("request", "available"):
                 continue
             key = (log.req_id, log.event)
-            last_mail.setdefault(key, {
-                "sent_at": format_datetime(log.sent_at),
-                "triggered_by": log.triggered_by,
-                "success": log.success,
-            })
+            last_mail.setdefault(
+                key,
+                {
+                    "sent_at": format_datetime(log.sent_at),
+                    "triggered_by": log.triggered_by,
+                    "success": log.success,
+                },
+            )
             if log.success:
                 recipients.setdefault(key, set()).add((log.recipient or "").strip().lower())
 
     seasons: dict[int, list[dict]] = {}
     show_ids = [row.id for row in related_requests if row.media_type == "show"]
     if show_ids:
-        rows = (await db.execute(
-            select(RequestSeasonStatus).filter(RequestSeasonStatus.request_id.in_(show_ids))
-        )).scalars().all()
+        rows = (
+            (await db.execute(select(RequestSeasonStatus).filter(RequestSeasonStatus.request_id.in_(show_ids))))
+            .scalars()
+            .all()
+        )
         for row in rows:
-            seasons.setdefault(row.request_id, []).append({
-                "season_number": row.season_number,
-                "episodes_available_count": row.episodes_available_count,
-                "episodes_total_count": row.episodes_total_count,
-                "status": row.status,
-            })
+            seasons.setdefault(row.request_id, []).append(
+                {
+                    "season_number": row.season_number,
+                    "episodes_available_count": row.episodes_available_count,
+                    "episodes_total_count": row.episodes_total_count,
+                    "status": row.status,
+                }
+            )
         for values in seasons.values():
             values.sort(key=lambda value: value["season_number"])
 
@@ -213,16 +222,13 @@ async def build_media_detail(
     issue_query = select(MediaIssue).filter(MediaIssue.status != "closed")
     if library_item and request_ids:
         issue_query = issue_query.filter(
-            (MediaIssue.library_item_id == library_item.id)
-            | (MediaIssue.request_id.in_(request_ids))
+            (MediaIssue.library_item_id == library_item.id) | (MediaIssue.request_id.in_(request_ids))
         )
     elif library_item:
         issue_query = issue_query.filter(MediaIssue.library_item_id == library_item.id)
     else:
         issue_query = issue_query.filter(MediaIssue.request_id == selected_request.id)
-    issues = (await db.execute(
-        issue_query.order_by(MediaIssue.created_at.desc())
-    )).scalars().all()
+    issues = (await db.execute(issue_query.order_by(MediaIssue.created_at.desc()))).scalars().all()
 
     # Historique post-disponibilite ("Parcours du media") : upgrades VF, fichiers remplaces
     # par *ARR, signalements -- toutes lignes deja existantes (VfUpgradeSuggestion,
@@ -231,38 +237,42 @@ async def build_media_detail(
     vf_suggestion_filters = []
     if library_item:
         vf_suggestion_filters.append(
-            (VfUpgradeSuggestion.source_type == "library_item")
-            & (VfUpgradeSuggestion.source_id == library_item.id)
+            (VfUpgradeSuggestion.source_type == "library_item") & (VfUpgradeSuggestion.source_id == library_item.id)
         )
     for rid in request_ids:
         vf_suggestion_filters.append(
-            (VfUpgradeSuggestion.source_type == "request")
-            & (VfUpgradeSuggestion.source_id == rid)
+            (VfUpgradeSuggestion.source_type == "request") & (VfUpgradeSuggestion.source_id == rid)
         )
     vf_suggestions = []
     if vf_suggestion_filters:
         combined = vf_suggestion_filters[0]
         for extra in vf_suggestion_filters[1:]:
             combined = combined | extra
-        vf_suggestions = (await db.execute(
-            select(VfUpgradeSuggestion).filter(combined).limit(200)
-        )).scalars().all()
+        vf_suggestions = (await db.execute(select(VfUpgradeSuggestion).filter(combined).limit(200))).scalars().all()
 
     diagnostic_events = []
     if request_ids:
-        diagnostic_events = (await db.execute(
-            select(DiagnosticEvent).filter(
-                DiagnosticEvent.request_id.in_(request_ids),
-                DiagnosticEvent.category == "arr",
-                DiagnosticEvent.action == "availability_detected",
-            ).order_by(DiagnosticEvent.created_at.asc()).limit(200)
-        )).scalars().all()
+        diagnostic_events = (
+            (
+                await db.execute(
+                    select(DiagnosticEvent)
+                    .filter(
+                        DiagnosticEvent.request_id.in_(request_ids),
+                        DiagnosticEvent.category == "arr",
+                        DiagnosticEvent.action == "availability_detected",
+                    )
+                    .order_by(DiagnosticEvent.created_at.asc())
+                    .limit(200)
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     all_issues_query = select(MediaIssue)
     if library_item and request_ids:
         all_issues_query = all_issues_query.filter(
-            (MediaIssue.library_item_id == library_item.id)
-            | (MediaIssue.request_id.in_(request_ids))
+            (MediaIssue.library_item_id == library_item.id) | (MediaIssue.request_id.in_(request_ids))
         )
     elif library_item:
         all_issues_query = all_issues_query.filter(MediaIssue.library_item_id == library_item.id)
@@ -272,9 +282,9 @@ async def build_media_detail(
         all_issues_query = None
     all_issues = []
     if all_issues_query is not None:
-        all_issues = (await db.execute(
-            all_issues_query.order_by(MediaIssue.created_at.desc()).limit(50)
-        )).scalars().all()
+        all_issues = (
+            (await db.execute(all_issues_query.order_by(MediaIssue.created_at.desc()).limit(50))).scalars().all()
+        )
 
     media_history = build_media_history(vf_suggestions, diagnostic_events, all_issues)
 
@@ -308,13 +318,22 @@ async def build_media_detail(
     if media_obj.media_type in ("artist", "album"):
         stmt = select(LibraryItem).filter(
             LibraryItem.media_type == "album",
-            (LibraryItem.overview.ilike(f"%{media_obj.title}%") | LibraryItem.title.ilike(f"%{media_obj.title}%"))
+            (LibraryItem.overview.ilike(f"%{media_obj.title}%") | LibraryItem.title.ilike(f"%{media_obj.title}%")),
         )
         album_rows = (await db.execute(stmt.order_by(LibraryItem.year.desc().nulls_last()).limit(50))).scalars().all()
         if not album_rows:
-            album_rows = (await db.execute(
-                select(LibraryItem).filter(LibraryItem.media_type == "album").order_by(LibraryItem.year.desc().nulls_last()).limit(50)
-            )).scalars().all()
+            album_rows = (
+                (
+                    await db.execute(
+                        select(LibraryItem)
+                        .filter(LibraryItem.media_type == "album")
+                        .order_by(LibraryItem.year.desc().nulls_last())
+                        .limit(50)
+                    )
+                )
+                .scalars()
+                .all()
+            )
 
         if album_rows:
             albums = [
@@ -332,26 +351,31 @@ async def build_media_detail(
         else:
             try:
                 from ..models import Settings
+
                 s = (await db.execute(select(Settings))).scalars().first()
                 if s and s.plex_url and s.plex_token:
                     from .plex_finder import connect
+
                     plex = connect(s.plex_url, s.plex_token)
                     for section in plex.library.sections():
                         if section.type in ("artist", "music") or getattr(section, "kind", None) == "music":
                             for artist in section.search(title=media_obj.title, libtype="artist"):
                                 for alb in artist.albums():
-                                    albums.append({
-                                        "id": getattr(alb, "ratingKey", hash(alb.title)),
-                                        "_kind": "library",
-                                        "title": alb.title,
-                                        "year": getattr(alb, "year", None),
-                                        "media_type": "album",
-                                        "poster_url": wrap_image_proxy(
-                                            f"{s.plex_url.rstrip('/')}{alb.thumb}?X-Plex-Token={s.plex_token}"
-                                            if getattr(alb, "thumb", None) else None
-                                        ),
-                                        "overview": getattr(alb, "summary", None),
-                                    })
+                                    albums.append(
+                                        {
+                                            "id": getattr(alb, "ratingKey", hash(alb.title)),
+                                            "_kind": "library",
+                                            "title": alb.title,
+                                            "year": getattr(alb, "year", None),
+                                            "media_type": "album",
+                                            "poster_url": wrap_image_proxy(
+                                                f"{s.plex_url.rstrip('/')}{alb.thumb}?X-Plex-Token={s.plex_token}"
+                                                if getattr(alb, "thumb", None)
+                                                else None
+                                            ),
+                                            "overview": getattr(alb, "summary", None),
+                                        }
+                                    )
             except Exception as exc:
                 logger.debug("Plex direct album fetch error: %s", exc)
 
@@ -359,7 +383,7 @@ async def build_media_detail(
     if media_obj.media_type == "album":
         stmt_tr = select(LibraryItem).filter(
             LibraryItem.media_type == "track",
-            (LibraryItem.overview.ilike(f"%{media_obj.title}%") | LibraryItem.title.ilike(f"%{media_obj.title}%"))
+            (LibraryItem.overview.ilike(f"%{media_obj.title}%") | LibraryItem.title.ilike(f"%{media_obj.title}%")),
         )
         track_rows = (await db.execute(stmt_tr.order_by(LibraryItem.title).limit(100))).scalars().all()
         if track_rows:
@@ -373,7 +397,8 @@ async def build_media_detail(
                     "plex_guid": item.plex_guid,
                     "duration_str": (
                         f"{item.duration_ms // 60000}:{(item.duration_ms % 60000) // 1000:02d}"
-                        if item.duration_ms else "--:--"
+                        if item.duration_ms
+                        else "--:--"
                     ),
                     "codec": item.audio_codec,
                     "bitrate": f"{item.audio_bitrate} kbps" if item.audio_bitrate else None,
@@ -385,9 +410,11 @@ async def build_media_detail(
         else:
             try:
                 from ..models import Settings
+
                 s = (await db.execute(select(Settings))).scalars().first()
                 if s and s.plex_url and s.plex_token:
                     from .plex_finder import connect
+
                     plex = connect(s.plex_url, s.plex_token)
                     albums_found = []
                     for section in plex.library.sections():
@@ -403,7 +430,9 @@ async def build_media_detail(
                             channels = None
                             if hasattr(t, "media") and t.media:
                                 m = t.media[0]
-                                codec = (getattr(m, "audioCodec", None) or getattr(m, "container", None) or "FLAC").upper()
+                                codec = (
+                                    getattr(m, "audioCodec", None) or getattr(m, "container", None) or "FLAC"
+                                ).upper()
                                 bitrate = getattr(m, "bitrate", None)
                                 if hasattr(m, "parts") and m.parts:
                                     p = m.parts[0]
@@ -419,24 +448,26 @@ async def build_media_detail(
                             secs = (dur_ms % 60000) // 1000
                             dur_str = f"{mins}:{secs:02d}" if dur_ms else "--:--"
 
-                            tracks.append({
-                                "id": getattr(t, "ratingKey", idx + 1),
-                                "track_number": getattr(t, "trackNumber", idx + 1),
-                                "title": t.title,
-                                "artist": getattr(t, "grandparentTitle", None) or getattr(t, "originalTitle", None) or media_obj.title,
-                                "duration_str": dur_str,
-                                "codec": codec,
-                                "bitrate": f"{bitrate} kbps" if bitrate else None,
-                                "sample_rate": f"{round(sample_rate/1000, 1)} kHz" if sample_rate else None,
-                                "channels": f"{channels}.0" if channels else "Stereo",
-                                "plex_guid": getattr(t, "guid", None),
-                            })
+                            tracks.append(
+                                {
+                                    "id": getattr(t, "ratingKey", idx + 1),
+                                    "track_number": getattr(t, "trackNumber", idx + 1),
+                                    "title": t.title,
+                                    "artist": getattr(t, "grandparentTitle", None)
+                                    or getattr(t, "originalTitle", None)
+                                    or media_obj.title,
+                                    "duration_str": dur_str,
+                                    "codec": codec,
+                                    "bitrate": f"{bitrate} kbps" if bitrate else None,
+                                    "sample_rate": f"{round(sample_rate / 1000, 1)} kHz" if sample_rate else None,
+                                    "channels": f"{channels}.0" if channels else "Stereo",
+                                    "plex_guid": getattr(t, "guid", None),
+                                }
+                            )
             except Exception as exc:
                 logger.debug("Plex direct tracks fetch error: %s", exc)
 
-    operational = request_payloads[0] if request_payloads else (
-        plex_library_projection() if library_item else {}
-    )
+    operational = request_payloads[0] if request_payloads else (plex_library_projection() if library_item else {})
     return {
         "media": _media_payload(
             media_obj,

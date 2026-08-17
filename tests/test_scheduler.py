@@ -286,9 +286,7 @@ async def test_poll_releases_distributed_lock_after_run(db):
         _patch_watchlist([_movie_item()]),
         _patch_submit(),
         _patch_enqueue(),
-        patch(
-            "app.services.watchlist_poller._acquire_distributed_poll_lock", new=AsyncMock(return_value="tok")
-        ),
+        patch("app.services.watchlist_poller._acquire_distributed_poll_lock", new=AsyncMock(return_value="tok")),
         patch("app.services.watchlist_poller._release_distributed_poll_lock", new=AsyncMock()) as mock_release,
     ):
         await poll_watchlists()
@@ -643,7 +641,9 @@ async def test_check_arr_statuses_skipped_when_distributed_lock_held_elsewhere(d
 
     with (
         _patch_session_arr(db),
-        patch("app.services.arr_tracker.is_movie_available", new=AsyncMock(return_value=(True, 42, None))) as mock_check,
+        patch(
+            "app.services.arr_tracker.is_movie_available", new=AsyncMock(return_value=(True, 42, None))
+        ) as mock_check,
         patch("app.services.arr_tracker.acquire_distributed_lock", new=AsyncMock(return_value=None)),
     ):
         await check_arr_statuses()
@@ -830,11 +830,25 @@ async def test_check_arr_seer_actor_show_still_populates_episode_stats(db):
     directement à `available` (complète) dès le premier épisode importé, avant même que
     la saison ait fini de diffuser — d'où un faux mail "saison complète" prématuré.
     """
-    db.add(_settings(availability_confirmation_mode="arr", seer_enabled=True, seer_url="http://seer.local", seer_api_key="key", seer_mode="actor"))
-    db.add(_sent_request(
-        title="Please Excuse My Younger Brothers", media_type="show", tvdb_id="81189",
-        source="seer", arr_id=99, tmdb_id=None,
-    ))
+    db.add(
+        _settings(
+            availability_confirmation_mode="arr",
+            seer_enabled=True,
+            seer_url="http://seer.local",
+            seer_api_key="key",
+            seer_mode="actor",
+        )
+    )
+    db.add(
+        _sent_request(
+            title="Please Excuse My Younger Brothers",
+            media_type="show",
+            tvdb_id="81189",
+            source="seer",
+            arr_id=99,
+            tmdb_id=None,
+        )
+    )
     db.commit()
 
     series_stats = {
@@ -847,7 +861,9 @@ async def test_check_arr_seer_actor_show_still_populates_episode_stats(db):
     with (
         _patch_session_arr(db),
         patch("app.services.arr_tracker.seer_available", new=AsyncMock(return_value=(True, 7, "slug"))),
-        patch("app.services.arr_tracker.get_series_episode_stats", new=AsyncMock(return_value=series_stats)) as mock_stats,
+        patch(
+            "app.services.arr_tracker.get_series_episode_stats", new=AsyncMock(return_value=series_stats)
+        ) as mock_stats,
         _patch_enqueue(),
     ):
         await check_arr_statuses()

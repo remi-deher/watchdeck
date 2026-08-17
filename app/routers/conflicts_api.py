@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 _IGNORED_FILE = "data/ignored_conflicts.json"
 
+
 def _load_ignored() -> set[str]:
     try:
         with open(_IGNORED_FILE) as f:
@@ -28,10 +29,12 @@ def _load_ignored() -> set[str]:
     except Exception:
         return set()
 
+
 def _save_ignored(keys: set[str]):
     _os.makedirs("data", exist_ok=True)
     with open(_IGNORED_FILE, "w") as f:
         _json.dump(sorted(keys), f)
+
 
 def _req_dict(r: MediaRequest) -> dict:
     return {
@@ -48,6 +51,7 @@ def _req_dict(r: MediaRequest) -> dict:
         "requested_at": format_datetime(r.requested_at),
         "available_at": format_datetime(r.available_at),
     }
+
 
 async def _merge_entries(keeper: MediaRequest, dup: MediaRequest, db: AsyncSession):
     """Fusionne dup dans keeper : co-demandeurs + champs manquants."""
@@ -70,6 +74,7 @@ async def _merge_entries(keeper: MediaRequest, dup: MediaRequest, db: AsyncSessi
         keeper.poster_url = dup.poster_url
     keeper.extra_requesters = _json.dumps(extras, ensure_ascii=False)
     await db.delete(dup)
+
 
 @router.get("/conflicts")
 async def list_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)):
@@ -133,6 +138,7 @@ async def list_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Dep
         "long_pending": long_pending,
     }
 
+
 @router.post("/conflicts/resolve")
 async def resolve_conflict(body: dict, db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)):
     keep_id: int = body.get("keep_id")
@@ -148,6 +154,7 @@ async def resolve_conflict(body: dict, db: AsyncSession = Depends(get_db_async),
             await _merge_entries(keeper, dup, db)
     await db.commit()
     return {"ok": True, "kept": keep_id, "deleted": delete_ids}
+
 
 @router.post("/conflicts/auto-resolve")
 async def auto_resolve_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)):
@@ -173,6 +180,7 @@ async def auto_resolve_conflicts(db: AsyncSession = Depends(get_db_async), _: No
     await db.commit()
     return {"ok": True, "resolved": resolved}
 
+
 @router.post("/conflicts/ignore")
 def ignore_conflict(body: dict, _: None = Depends(require_moderator)):
     """Marque un conflit comme ignoré (ne réapparaîtra plus)."""
@@ -184,6 +192,7 @@ def ignore_conflict(body: dict, _: None = Depends(require_moderator)):
     _save_ignored(ignored)
     return {"ok": True}
 
+
 @router.delete("/conflicts/ignore/{key:path}")
 def unignore_conflict(key: str, _: None = Depends(require_moderator)):
     """Retire un conflit de la liste des ignorés."""
@@ -192,8 +201,11 @@ def unignore_conflict(key: str, _: None = Depends(require_moderator)):
     _save_ignored(ignored)
     return {"ok": True}
 
+
 @router.delete("/conflicts/no-tmdb/{request_id}")
-async def delete_no_tmdb(request_id: int, db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)):
+async def delete_no_tmdb(
+    request_id: int, db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)
+):
     req = await db.get(MediaRequest, request_id)
     if not req:
         raise HTTPException(404, "Entrée introuvable")
@@ -204,8 +216,11 @@ async def delete_no_tmdb(request_id: int, db: AsyncSession = Depends(get_db_asyn
     await db.commit()
     return {"ok": True}
 
+
 @router.delete("/conflicts/orphan/{request_id}")
-async def delete_orphan(request_id: int, db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)):
+async def delete_orphan(
+    request_id: int, db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)
+):
     req = await db.get(MediaRequest, request_id)
     if not req:
         raise HTTPException(404, "Entrée introuvable")

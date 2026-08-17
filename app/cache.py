@@ -123,7 +123,9 @@ class Cache:
         await self.set_json(key, {"value": value, "cached_at": now}, ttl_seconds=hard_ttl_seconds)
         return value
 
-    async def _refresh_and_release(self, key: str, hard_ttl_seconds: int, compute: Callable[[], Awaitable[Any]]) -> None:
+    async def _refresh_and_release(
+        self, key: str, hard_ttl_seconds: int, compute: Callable[[], Awaitable[Any]]
+    ) -> None:
         try:
             value = await compute()
             await self.set_json(key, {"value": value, "cached_at": time.time()}, ttl_seconds=hard_ttl_seconds)

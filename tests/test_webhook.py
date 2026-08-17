@@ -72,7 +72,9 @@ def _db_patch(db):
         stack.enter_context(patch("app.routers.webhook.AsyncSessionLocal", return_value=db))
         stack.enter_context(patch("app.routers.webhook.should_confirm_available", new=AsyncMock(return_value=True)))
         stack.enter_context(patch("app.routers.webhook.trigger_plex_library_refresh", new=AsyncMock()))
-        stack.enter_context(patch("app.routers.webhook.scan_and_notify_availability", new=AsyncMock(return_value=False)))
+        stack.enter_context(
+            patch("app.routers.webhook.scan_and_notify_availability", new=AsyncMock(return_value=False))
+        )
         stack.enter_context(patch("app.routers.webhook.record_completed", new=AsyncMock()))
         stack.enter_context(patch("app.routers.webhook.resolve_and_notify_availability", new=AsyncMock()))
         yield
@@ -500,6 +502,7 @@ def test_plex_webhook_json_direct_fallback():
 # POST /webhook/configure/{service} — auto-configuration du connecteur Sonarr/Radarr
 # ---------------------------------------------------------------------------
 
+
 def _arr_instance(arr_type="sonarr"):
     return ArrInstance(name=arr_type.capitalize(), arr_type=arr_type, url="http://arr.local", api_key="key123")
 
@@ -552,7 +555,9 @@ def test_configure_webhook_fixes_existing_connector_missing_events():
         patch("app.services.sonarr.update_notification", new=AsyncMock(return_value=existing)) as update_mock,
         patch("app.services.sonarr.create_notification", new=AsyncMock()) as create_mock,
     ):
-        response = client.post("/webhook/configure/sonarr", json={"webhook_url": "https://app.local/webhook/sonarr?secret=new"})
+        response = client.post(
+            "/webhook/configure/sonarr", json={"webhook_url": "https://app.local/webhook/sonarr?secret=new"}
+        )
     assert response.status_code == 200
     result = response.json()["results"][0]
     assert result["success"] is True
@@ -587,7 +592,9 @@ def test_configure_webhook_already_correct_skips_update():
         patch("app.services.sonarr.get_notifications", new=AsyncMock(return_value=[existing])),
         patch("app.services.sonarr.update_notification", new=AsyncMock()) as update_mock,
     ):
-        response = client.post("/webhook/configure/sonarr", json={"webhook_url": "https://app.local/webhook/sonarr?secret=new"})
+        response = client.post(
+            "/webhook/configure/sonarr", json={"webhook_url": "https://app.local/webhook/sonarr?secret=new"}
+        )
     assert response.status_code == 200
     result = response.json()["results"][0]
     assert result["success"] is True
@@ -623,7 +630,9 @@ def test_configure_webhook_radarr_ignores_unsupported_import_complete_field():
         patch("app.services.radarr.get_notifications", new=AsyncMock(return_value=[existing])),
         patch("app.services.radarr.update_notification", new=AsyncMock()) as update_mock,
     ):
-        response = client.post("/webhook/configure/radarr", json={"webhook_url": "https://app.local/webhook/radarr?secret=new"})
+        response = client.post(
+            "/webhook/configure/radarr", json={"webhook_url": "https://app.local/webhook/radarr?secret=new"}
+        )
     assert response.status_code == 200
     result = response.json()["results"][0]
     assert result["success"] is True
@@ -640,7 +649,9 @@ def test_configure_webhook_creates_new_connector_when_missing():
         patch("app.services.radarr.get_webhook_schema", new=AsyncMock(return_value=schema)),
         patch("app.services.radarr.create_notification", new=AsyncMock(return_value={"id": 9})) as create_mock,
     ):
-        response = client.post("/webhook/configure/radarr", json={"webhook_url": "https://app.local/webhook/radarr?secret=new"})
+        response = client.post(
+            "/webhook/configure/radarr", json={"webhook_url": "https://app.local/webhook/radarr?secret=new"}
+        )
     assert response.status_code == 200
     result = response.json()["results"][0]
     assert result["success"] is True
@@ -648,4 +659,7 @@ def test_configure_webhook_creates_new_connector_when_missing():
     create_mock.assert_awaited_once()
     created_payload = create_mock.call_args[0][2]
     assert created_payload["onDownload"] is True
-    assert any(f["name"] == "url" and f["value"] == "https://app.local/webhook/radarr?secret=new" for f in created_payload["fields"])
+    assert any(
+        f["name"] == "url" and f["value"] == "https://app.local/webhook/radarr?secret=new"
+        for f in created_payload["fields"]
+    )

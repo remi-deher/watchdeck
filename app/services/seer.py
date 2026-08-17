@@ -169,7 +169,7 @@ async def _resolve_tmdb_id(seer_url: str, api_key: str, item: dict) -> str | Non
         resp = await client.get(
             "/api/v1/search",
             params={"query": term, "page": 1, "language": "fr"},
-            )
+        )
         resp.raise_for_status()
         results = resp.json().get("results", [])
         for r in results:
@@ -201,7 +201,7 @@ async def get_users(seer_url: str, api_key: str) -> dict[str, dict]:
             resp = await client.get(
                 "/api/v1/user",
                 params={"take": take, "skip": skip},
-                )
+            )
             resp.raise_for_status()
             data = resp.json()
             users = data.get("results", [])
@@ -248,7 +248,7 @@ async def get_user_requests(seer_url: str, api_key: str, seer_user_id: int) -> l
             resp = await client.get(
                 f"/api/v1/user/{seer_user_id}/requests",
                 params={"take": take, "skip": skip},
-                )
+            )
             if resp.status_code == 404:
                 break
             resp.raise_for_status()
@@ -273,9 +273,7 @@ async def get_user_requests(seer_url: str, api_key: str, seer_user_id: int) -> l
                 if r.status_code == 200:
                     d = r.json()
                     return (media_type, tmdb_id), {
-                        "title": (
-                            d.get("title") or d.get("name") or d.get("originalTitle") or d.get("originalName")
-                        ),
+                        "title": (d.get("title") or d.get("name") or d.get("originalTitle") or d.get("originalName")),
                         "poster_url": (
                             f"https://image.tmdb.org/t/p/w200{d['posterPath']}" if d.get("posterPath") else None
                         ),
@@ -335,11 +333,11 @@ async def delete_request_by_tmdb(
     tmdb_id: str | int,
 ) -> tuple[bool, str]:
     """Tente de supprimer toutes les demandes associées à ce média dans Seer.
-    
+
     Args:
         media_type: 'movie' ou 'tv'
         tmdb_id: ID TMDB du média
-        
+
     Returns:
         (success, message)
     """
@@ -388,7 +386,6 @@ async def check_connection(seer_url: str, api_key: str) -> tuple[bool, str]:
         client = ArrClient(seer_url, api_key, timeout=10)
         resp = await client.get(
             "/api/v1/auth/me",
-
         )
         resp.raise_for_status()
         data = resp.json()

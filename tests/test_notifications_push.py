@@ -107,7 +107,9 @@ def test_build_message_unknown_event():
 
 def test_build_message_failed_uses_context_reason_when_present():
     """Le contexte structuré (cible réelle résolue par l'appelant) prime sur le texte générique."""
-    title, body = _build_message("failed", _req(media_type="movie"), context={"reason": "Impossible de transmettre a Seer."})
+    title, body = _build_message(
+        "failed", _req(media_type="movie"), context={"reason": "Impossible de transmettre a Seer."}
+    )
     assert body == "Impossible de transmettre a Seer."
     assert "Radarr" not in body
 

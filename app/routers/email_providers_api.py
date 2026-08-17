@@ -124,7 +124,10 @@ async def reorder_email_providers(body: ReorderBody, db: AsyncSession = Depends(
 
 @router.post("/test/email-provider/{provider_id}")
 async def test_email_provider(
-    provider_id: int, body: TestProviderBody, db: AsyncSession = Depends(get_db_async), s: Settings = Depends(get_settings_or_404)
+    provider_id: int,
+    body: TestProviderBody,
+    db: AsyncSession = Depends(get_db_async),
+    s: Settings = Depends(get_settings_or_404),
 ):
     provider = await async_get_or_404(db, EmailProvider, provider_id, "Fournisseur introuvable")
     ok, msg = await email_providers.test_provider(provider, s.smtp_from, body.recipient)
@@ -171,7 +174,9 @@ async def email_provider_oauth_callback(
         params = {"email_oauth": status}
         if message:
             params["msg"] = message
-        return RedirectResponse(f"/settings?tab=notifications-channels&{urllib.parse.urlencode(params)}", status_code=302)
+        return RedirectResponse(
+            f"/settings?tab=notifications-channels&{urllib.parse.urlencode(params)}", status_code=302
+        )
 
     if error:
         logger.warning("Email provider OAuth Microsoft: refus/erreur (%s): %s", error, error_description)

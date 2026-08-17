@@ -21,21 +21,33 @@ async def find_active_media_arr(db, media_type: str, user: PlexUser | None = Non
     if user:
         assigned_id = user.sonarr_instance_id if expected_type == "sonarr" else user.radarr_instance_id
     if assigned_id:
-        assigned = (await db.execute(
-            select(ArrInstance).filter(
-                ArrInstance.id == assigned_id,
-                ArrInstance.arr_type == expected_type,
-                ArrInstance.enabled,
+        assigned = (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(
+                        ArrInstance.id == assigned_id,
+                        ArrInstance.arr_type == expected_type,
+                        ArrInstance.enabled,
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
         if assigned:
             return assigned
 
-    instances = (await db.execute(
-        select(ArrInstance)
-        .filter(ArrInstance.arr_type == expected_type, ArrInstance.enabled)
-        .order_by(ArrInstance.is_default.desc(), ArrInstance.id.asc())
-    )).scalars().all()
+    instances = (
+        (
+            await db.execute(
+                select(ArrInstance)
+                .filter(ArrInstance.arr_type == expected_type, ArrInstance.enabled)
+                .order_by(ArrInstance.is_default.desc(), ArrInstance.id.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return instances[0] if instances else None
 
 

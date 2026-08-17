@@ -115,10 +115,31 @@ def _preview_context(event_type: str, preview_variant: Optional[str]):
 
 def _preview_availability_details(event_type: str) -> tuple[str, dict]:
     samples = {
-        "season_partial": ("La saison 2 est partiellement disponible : 6 episodes sont presents.", {"available_seasons": [2], "partial_seasons": [2], "expected_seasons": [1, 2, 3], "episode_count": 6}),
-        "season_complete": ("La saison 2 est disponible integralement.", {"available_seasons": [2], "complete_seasons": [2], "expected_seasons": [1, 2, 3]}),
-        "series_partial": ("3 saisons completes sont disponibles. 2 saisons restent attendues.", {"available_seasons": [1, 2, 3], "complete_seasons": [1, 2, 3], "missing_seasons": [4, 5], "expected_seasons": [1, 2, 3, 4, 5]}),
-        "series_complete": ("Les 5 saisons attendues sont disponibles integralement.", {"available_seasons": [1, 2, 3, 4, 5], "complete_seasons": [1, 2, 3, 4, 5], "expected_seasons": [1, 2, 3, 4, 5]}),
+        "season_partial": (
+            "La saison 2 est partiellement disponible : 6 episodes sont presents.",
+            {"available_seasons": [2], "partial_seasons": [2], "expected_seasons": [1, 2, 3], "episode_count": 6},
+        ),
+        "season_complete": (
+            "La saison 2 est disponible integralement.",
+            {"available_seasons": [2], "complete_seasons": [2], "expected_seasons": [1, 2, 3]},
+        ),
+        "series_partial": (
+            "3 saisons completes sont disponibles. 2 saisons restent attendues.",
+            {
+                "available_seasons": [1, 2, 3],
+                "complete_seasons": [1, 2, 3],
+                "missing_seasons": [4, 5],
+                "expected_seasons": [1, 2, 3, 4, 5],
+            },
+        ),
+        "series_complete": (
+            "Les 5 saisons attendues sont disponibles integralement.",
+            {
+                "available_seasons": [1, 2, 3, 4, 5],
+                "complete_seasons": [1, 2, 3, 4, 5],
+                "expected_seasons": [1, 2, 3, 4, 5],
+            },
+        ),
     }
     summary, details = samples.get(event_type, ("", {}))
     details["availability_variant"] = event_type
@@ -534,7 +555,9 @@ def get_templates(s: Settings = Depends(get_settings_or_404)):
 
 
 @router.put("/api/email-templates")
-async def save_templates(body: SaveTemplates, db: AsyncSession = Depends(get_db_async), s: Settings = Depends(get_settings_or_404)):
+async def save_templates(
+    body: SaveTemplates, db: AsyncSession = Depends(get_db_async), s: Settings = Depends(get_settings_or_404)
+):
     s.email_templates_backup = json.dumps({field: getattr(s, field) for field in TEMPLATE_FIELDS})
     for field in TEMPLATE_FIELDS:
         setattr(s, field, getattr(body, field, None))
@@ -543,7 +566,9 @@ async def save_templates(body: SaveTemplates, db: AsyncSession = Depends(get_db_
 
 
 @router.post("/api/email-templates/restore-previous")
-async def restore_previous_templates(db: AsyncSession = Depends(get_db_async), s: Settings = Depends(get_settings_or_404)):
+async def restore_previous_templates(
+    db: AsyncSession = Depends(get_db_async), s: Settings = Depends(get_settings_or_404)
+):
     if not s.email_templates_backup:
         raise HTTPException(status_code=404, detail="Aucune sauvegarde précédente disponible")
     backup = json.loads(s.email_templates_backup)

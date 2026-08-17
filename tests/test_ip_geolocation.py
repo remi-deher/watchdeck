@@ -15,9 +15,11 @@ from app.services.ip_geolocation import (
 
 
 def test_parse_network_info_extracts_operator_and_asn():
-    result = _parse_network_info({
-        "connection": {"asn": 12322, "org": "Free SAS", "isp": "Free"},
-    })
+    result = _parse_network_info(
+        {
+            "connection": {"asn": 12322, "org": "Free SAS", "isp": "Free"},
+        }
+    )
 
     assert result == {
         "geo_isp": "Free",
@@ -44,10 +46,18 @@ def test_parse_plex_geoip_extracts_location_and_coordinates():
 
 
 def test_needs_network_enrichment_only_for_resolved_status_without_network():
-    assert _needs_network_enrichment({"geo_status": "resolved", "geo_isp": None, "geo_organization": None, "geo_asn": None})
-    assert not _needs_network_enrichment({"geo_status": "resolved", "geo_isp": "Orange S.A.", "geo_organization": None, "geo_asn": None})
-    assert not _needs_network_enrichment({"geo_status": "local", "geo_isp": None, "geo_organization": None, "geo_asn": None})
-    assert not _needs_network_enrichment({"geo_status": "anonymized", "geo_isp": None, "geo_organization": None, "geo_asn": None})
+    assert _needs_network_enrichment(
+        {"geo_status": "resolved", "geo_isp": None, "geo_organization": None, "geo_asn": None}
+    )
+    assert not _needs_network_enrichment(
+        {"geo_status": "resolved", "geo_isp": "Orange S.A.", "geo_organization": None, "geo_asn": None}
+    )
+    assert not _needs_network_enrichment(
+        {"geo_status": "local", "geo_isp": None, "geo_organization": None, "geo_asn": None}
+    )
+    assert not _needs_network_enrichment(
+        {"geo_status": "anonymized", "geo_isp": None, "geo_organization": None, "geo_asn": None}
+    )
 
 
 @pytest.mark.asyncio

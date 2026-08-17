@@ -190,9 +190,7 @@ async def build_export_payload(db: AsyncSession, include_secrets: bool = False) 
 
     season_statuses_by_request: dict[int, list[dict]] = {}
     for status in season_statuses:
-        season_statuses_by_request.setdefault(status.request_id, []).append(
-            _row(status, exclude={"id", "request_id"})
-        )
+        season_statuses_by_request.setdefault(status.request_id, []).append(_row(status, exclude={"id", "request_id"}))
 
     def _request_row(r: MediaRequest) -> dict:
         return {**_row(r), "season_statuses": season_statuses_by_request.get(r.id, [])}
@@ -217,7 +215,10 @@ async def build_export_payload(db: AsyncSession, include_secrets: bool = False) 
         "email_branding": _row(email_branding, exclude={"settings_id"}) if email_branding else {},
         "email_templates": [_row(t, exclude={"id", "settings_id"}) for t in email_templates],
         # Référence seulement — non réimportées (voir _REFERENCE_ONLY_MODELS).
-        **{key: [_row(o) for o in (await db.execute(select(model))).scalars().all()] for key, model in _REFERENCE_ONLY_MODELS.items()},
+        **{
+            key: [_row(o) for o in (await db.execute(select(model))).scalars().all()]
+            for key, model in _REFERENCE_ONLY_MODELS.items()
+        },
     }
 
 
@@ -455,12 +456,18 @@ async def import_data(
 
         async def _do_request(r_data=r_data, season_statuses_data=season_statuses_data):
             existing = (
-                await db.execute(select(MediaRequest).filter(
-                    MediaRequest.plex_user_id == r_data.get("plex_user_id"),
-                    MediaRequest.title == r_data.get("title"),
-                    MediaRequest.media_type == r_data.get("media_type"),
-                ))
-            ).scalars().first()
+                (
+                    await db.execute(
+                        select(MediaRequest).filter(
+                            MediaRequest.plex_user_id == r_data.get("plex_user_id"),
+                            MediaRequest.title == r_data.get("title"),
+                            MediaRequest.media_type == r_data.get("media_type"),
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if not existing:
                 existing = MediaRequest()
                 db.add(existing)
@@ -474,7 +481,9 @@ async def import_data(
                         await db.execute(
                             select(RequestSeasonStatus).filter(RequestSeasonStatus.request_id == existing.id)
                         )
-                    ).scalars().all()
+                    )
+                    .scalars()
+                    .all()
                 }
                 for st_data in season_statuses_data:
                     season_number = st_data.get("season_number")
@@ -497,7 +506,15 @@ async def import_data(
             continue
 
         async def _do_arr(a_data=a_data, name=name, arr_type=arr_type):
-            inst = (await db.execute(select(ArrInstance).filter(ArrInstance.name == name, ArrInstance.arr_type == arr_type))).scalars().first()
+            inst = (
+                (
+                    await db.execute(
+                        select(ArrInstance).filter(ArrInstance.name == name, ArrInstance.arr_type == arr_type)
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if not inst:
                 inst = ArrInstance()
                 db.add(inst)
@@ -513,9 +530,17 @@ async def import_data(
             continue
 
         async def _do_client(c_data=c_data, name=name, client_type=client_type):
-            client = (await db.execute(
-                select(DownloadClient).filter(DownloadClient.name == name, DownloadClient.client_type == client_type)
-            )).scalars().first()
+            client = (
+                (
+                    await db.execute(
+                        select(DownloadClient).filter(
+                            DownloadClient.name == name, DownloadClient.client_type == client_type
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if not client:
                 client = DownloadClient()
                 db.add(client)
@@ -531,9 +556,17 @@ async def import_data(
             continue
 
         async def _do_email_provider(e_data=e_data, name=name, provider_type=provider_type):
-            provider = (await db.execute(
-                select(EmailProvider).filter(EmailProvider.name == name, EmailProvider.provider_type == provider_type)
-            )).scalars().first()
+            provider = (
+                (
+                    await db.execute(
+                        select(EmailProvider).filter(
+                            EmailProvider.name == name, EmailProvider.provider_type == provider_type
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if not provider:
                 provider = EmailProvider()
                 db.add(provider)
@@ -552,8 +585,8 @@ async def import_data(
                 db.add(s)
                 await db.flush()
             branding = (
-                await db.execute(select(EmailBranding).filter(EmailBranding.settings_id == s.id))
-            ).scalars().first()
+                (await db.execute(select(EmailBranding).filter(EmailBranding.settings_id == s.id))).scalars().first()
+            )
             if not branding:
                 branding = EmailBranding(settings_id=s.id)
                 db.add(branding)
@@ -577,12 +610,16 @@ async def import_data(
 
             async def _do_template(t_data=t_data, event=event, settings_id=settings_id):
                 tpl = (
-                    await db.execute(
-                        select(EmailTemplate).filter(
-                            EmailTemplate.settings_id == settings_id, EmailTemplate.event == event
+                    (
+                        await db.execute(
+                            select(EmailTemplate).filter(
+                                EmailTemplate.settings_id == settings_id, EmailTemplate.event == event
+                            )
                         )
                     )
-                ).scalars().first()
+                    .scalars()
+                    .first()
+                )
                 if not tpl:
                     tpl = EmailTemplate(settings_id=settings_id, event=event)
                     db.add(tpl)
@@ -603,7 +640,11 @@ async def import_data(
             continue
 
         async def _do_passkey(p_data=p_data, credential_id=credential_id, target_user_id=target_user_id):
-            cred = (await db.execute(select(PasskeyCredential).filter(PasskeyCredential.credential_id == credential_id))).scalars().first()
+            cred = (
+                (await db.execute(select(PasskeyCredential).filter(PasskeyCredential.credential_id == credential_id)))
+                .scalars()
+                .first()
+            )
             if not cred:
                 cred = PasskeyCredential(credential_id=credential_id, user_id=target_user_id)
                 db.add(cred)

@@ -61,10 +61,18 @@ async def discover_requesters(request: Request, db: AsyncSession = Depends(get_d
         raise HTTPException(403, "Une session utilisateur est requise.")
     if not _is_moderator(caller):
         uid = caller.get("plex_user_id")
-        user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid, PlexUser.enabled))).scalars().first()
+        user = (
+            (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid, PlexUser.enabled)))
+            .scalars()
+            .first()
+        )
         users = [user] if user else []
     else:
-        users = (await db.execute(select(PlexUser).filter(PlexUser.enabled).order_by(PlexUser.display_name))).scalars().all()
+        users = (
+            (await db.execute(select(PlexUser).filter(PlexUser.enabled).order_by(PlexUser.display_name)))
+            .scalars()
+            .all()
+        )
     return [
         {
             "id": user.id,
@@ -126,12 +134,14 @@ async def _fetch_home_section(db: AsyncSession, section: str, region: str) -> di
 
 async def _recent_plex_section(db: AsyncSession, limit: int = 20) -> dict:
     rows = (
-        await db.execute(
-            select(LibraryItem)
-            .order_by(LibraryItem.added_at.desc(), LibraryItem.id.desc())
-            .limit(limit)
+        (
+            await db.execute(
+                select(LibraryItem).order_by(LibraryItem.added_at.desc(), LibraryItem.id.desc()).limit(limit)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return {
         "items": [serialize_media_summary(row) for row in rows],
         "page": 1,
@@ -142,13 +152,17 @@ async def _recent_plex_section(db: AsyncSession, limit: int = 20) -> dict:
 
 async def _most_requested_section(db: AsyncSession, limit: int = 20) -> dict:
     rows = (
-        await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.extra_requesters.isnot(None),
-                MediaRequest.extra_requesters != "[]",
+        (
+            await db.execute(
+                select(MediaRequest).filter(
+                    MediaRequest.extra_requesters.isnot(None),
+                    MediaRequest.extra_requesters != "[]",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     ranked = []
     for row in rows:
         try:
@@ -189,16 +203,20 @@ def _merge_unique_media(groups: list[list[dict]], excluded: set[tuple[str, str]]
 
 async def _personalization_seeds(db: AsyncSession, plex_user_id: str, limit: int = PERSONALIZATION_SEED_LIMIT):
     sessions = (
-        await db.execute(
-            select(PlaybackSession)
-            .filter(
-                PlaybackSession.plex_user_id == plex_user_id,
-                PlaybackSession.ended_at.isnot(None),
+        (
+            await db.execute(
+                select(PlaybackSession)
+                .filter(
+                    PlaybackSession.plex_user_id == plex_user_id,
+                    PlaybackSession.ended_at.isnot(None),
+                )
+                .order_by(PlaybackSession.started_at.desc(), PlaybackSession.id.desc())
+                .limit(60)
             )
-            .order_by(PlaybackSession.started_at.desc(), PlaybackSession.id.desc())
-            .limit(60)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     if not sessions:
         return [], set()
 
@@ -209,9 +227,7 @@ async def _personalization_seeds(db: AsyncSession, plex_user_id: str, limit: int
         if row.title and row.tmdb_id
     }
     library_by_title = {
-        (row.media_type, row.title.casefold().strip()): row
-        for row in library_rows
-        if row.title and row.tmdb_id
+        (row.media_type, row.title.casefold().strip()): row for row in library_rows if row.title and row.tmdb_id
     }
     seeds = []
     seed_keys: set[tuple[str, str]] = set()
@@ -390,10 +406,7 @@ async def get_home(
         payloads["most_requested"] = await _most_requested_section(db)
 
     all_items = [
-        item
-        for source, payload in payloads.items()
-        if source in external_sections
-        for item in payload.get("items", [])
+        item for source, payload in payloads.items() if source in external_sections for item in payload.get("items", [])
     ]
     await _annotate(db, all_items)
 
@@ -404,11 +417,7 @@ async def get_home(
             result[section] = {"error": errors[source], "items": []}
             continue
         payload = payloads[source]
-        result[section] = (
-            {"items": payload.get("items", [])[:5]}
-            if section == "hero"
-            else payload
-        )
+        result[section] = {"items": payload.get("items", [])[:5]} if section == "hero" else payload
 
     return {"sections": result}
 
@@ -499,11 +508,7 @@ async def get_provider_home(
             payloads[section] = payload
 
     # Annoter tous les items en une seule passe
-    all_items = [
-        item
-        for payload in payloads.values()
-        for item in payload.get("items", [])
-    ]
+    all_items = [item for payload in payloads.values() for item in payload.get("items", [])]
     await _annotate(db, all_items)
 
     result: dict[str, dict] = {}
@@ -513,11 +518,7 @@ async def get_provider_home(
             result[section] = {"error": errors[source], "items": []}
             continue
         payload = payloads[source]
-        result[section] = (
-            {"items": payload.get("items", [])[:5]}
-            if section == "hero"
-            else payload
-        )
+        result[section] = {"items": payload.get("items", [])[:5]} if section == "hero" else payload
 
     return {"sections": result}
 
@@ -668,12 +669,16 @@ async def get_detail(
                 d["episodes_total_count"] = serialized["episodes_total_count"]
                 if req.media_type == "show":
                     season_rows = (
-                        await db.execute(
-                            select(RequestSeasonStatus)
-                            .filter(RequestSeasonStatus.request_id == req.id)
-                            .order_by(RequestSeasonStatus.season_number)
+                        (
+                            await db.execute(
+                                select(RequestSeasonStatus)
+                                .filter(RequestSeasonStatus.request_id == req.id)
+                                .order_by(RequestSeasonStatus.season_number)
+                            )
                         )
-                    ).scalars().all()
+                        .scalars()
+                        .all()
+                    )
                     d["seasons"] = [
                         {
                             "season_number": row.season_number,

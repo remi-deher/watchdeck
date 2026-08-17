@@ -58,8 +58,13 @@ def test_approve_failure_transitions_and_dispatches_failure_notification(client,
     db.commit()
 
     with (
-        patch("app.services.watchlist_poller._submit_to_arr", new=AsyncMock(side_effect=RuntimeError("Radarr indisponible"))),
-        patch("app.services.notification_policy.dispatch_transition_notification", new=AsyncMock(return_value=True)) as dispatch,
+        patch(
+            "app.services.watchlist_poller._submit_to_arr",
+            new=AsyncMock(side_effect=RuntimeError("Radarr indisponible")),
+        ),
+        patch(
+            "app.services.notification_policy.dispatch_transition_notification", new=AsyncMock(return_value=True)
+        ) as dispatch,
     ):
         response = client.post(f"/api/requests/{req.id}/approve")
 
@@ -135,10 +140,12 @@ def test_list_requests_does_not_truncate_old_open_requests(client, db):
 
 
 def test_compact_request_list_is_paginated_and_exposes_facets(client, db):
-    db.add_all([
-        _req(title="Movie A", source="rss"),
-        _req(title="Show B", media_type="show", source="seer"),
-    ])
+    db.add_all(
+        [
+            _req(title="Movie A", source="rss"),
+            _req(title="Show B", media_type="show", source="seer"),
+        ]
+    )
     db.commit()
 
     response = client.get("/api/requests-list?limit=1")
@@ -160,11 +167,23 @@ def test_compact_request_list_is_paginated_and_exposes_facets(client, db):
 
 def _sonarr_series(**kwargs) -> dict:
     defaults = dict(
-        id=501, title="Orphan Show", year=2020, tvdbId=999, monitored=True,
+        id=501,
+        title="Orphan Show",
+        year=2020,
+        tvdbId=999,
+        monitored=True,
         images=[{"coverType": "poster", "remoteUrl": "https://example/poster.jpg"}],
-        seasons=[{"seasonNumber": 1, "monitored": True, "statistics": {
-            "episodeFileCount": 5, "episodeCount": 10, "totalEpisodeCount": 12,
-        }}],
+        seasons=[
+            {
+                "seasonNumber": 1,
+                "monitored": True,
+                "statistics": {
+                    "episodeFileCount": 5,
+                    "episodeCount": 10,
+                    "totalEpisodeCount": 12,
+                },
+            }
+        ],
     )
     defaults.update(kwargs)
     return defaults
@@ -172,7 +191,13 @@ def _sonarr_series(**kwargs) -> dict:
 
 def _radarr_movie(**kwargs) -> dict:
     defaults = dict(
-        id=601, title="Orphan Movie", year=2021, tmdbId=777, imdbId=None, monitored=True, hasFile=False,
+        id=601,
+        title="Orphan Movie",
+        year=2021,
+        tmdbId=777,
+        imdbId=None,
+        monitored=True,
+        hasFile=False,
         images=[{"coverType": "poster", "remoteUrl": "https://example/movie.jpg"}],
     )
     defaults.update(kwargs)
@@ -183,6 +208,7 @@ def test_list_orphan_requests_returns_sonarr_and_radarr(client, db):
     """Les series/films surveilles sans MediaRequest associee remontent bien, avec
     leur badge de source et leur progression."""
     from app.cache import cache
+
     cache._memory.clear()
     db.add(ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True))
     db.add(ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="x", enabled=True))
@@ -205,12 +231,15 @@ def test_list_orphan_requests_returns_sonarr_and_radarr(client, db):
 def test_list_orphan_requests_excludes_known_show(client, db):
     """Une serie deja liee a une demande (par tvdb_id) n'apparait pas comme orpheline."""
     from app.cache import cache
+
     cache._memory.clear()
     db.add(ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True))
     db.add(_req(title="Already Requested", media_type="show", tvdb_id="999", arr_id=None))
     db.commit()
 
-    with patch("app.services.arr_orphans.sonarr.get_all_series", new=AsyncMock(return_value=[_sonarr_series(tvdbId=999)])):
+    with patch(
+        "app.services.arr_orphans.sonarr.get_all_series", new=AsyncMock(return_value=[_sonarr_series(tvdbId=999)])
+    ):
         resp = client.get("/api/requests/orphans")
     assert resp.status_code == 200
     assert resp.json() == []
@@ -221,14 +250,19 @@ def test_list_orphan_requests_is_cached_between_calls(client, db):
     arr_orphans.py) -- c'est ce qui evite de recharger tout le catalogue *arr a
     chaque affichage de la page Bibliotheque."""
     from app.cache import cache
+
     cache._memory.clear()
     db.add(ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True))
     db.add(ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="x", enabled=True))
     db.commit()
 
     with (
-        patch("app.services.arr_orphans.sonarr.get_all_series", new=AsyncMock(return_value=[_sonarr_series()])) as mock_series,
-        patch("app.services.arr_orphans.radarr.get_all_movies", new=AsyncMock(return_value=[_radarr_movie()])) as mock_movies,
+        patch(
+            "app.services.arr_orphans.sonarr.get_all_series", new=AsyncMock(return_value=[_sonarr_series()])
+        ) as mock_series,
+        patch(
+            "app.services.arr_orphans.radarr.get_all_movies", new=AsyncMock(return_value=[_radarr_movie()])
+        ) as mock_movies,
     ):
         first = client.get("/api/requests/orphans")
         second = client.get("/api/requests/orphans")
@@ -242,21 +276,29 @@ def test_delete_orphan_invalidates_cache(client, db):
     """Apres suppression, un item ne doit pas rester visible jusqu'a expiration du
     cache -- la suppression doit forcer une resynchronisation immediate."""
     from app.cache import cache
+
     cache._memory.clear()
     inst = ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True)
     db.add(inst)
     db.commit()
     db.refresh(inst)
 
-    with patch("app.services.arr_orphans.sonarr.get_all_series", new=AsyncMock(return_value=[_sonarr_series()])) as mock_series:
+    with patch(
+        "app.services.arr_orphans.sonarr.get_all_series", new=AsyncMock(return_value=[_sonarr_series()])
+    ) as mock_series:
         resp = client.get("/api/requests/orphans")
         assert resp.status_code == 200
         assert len(resp.json()) == 1
         mock_series.assert_awaited_once()
 
     with (
-        patch("app.routers.requests_api.sonarr.lookup_series", new=AsyncMock(return_value={"title": "Orphan Show", "tvdbId": 999})),
-        patch("app.routers.requests_api.sonarr.delete_series", new=AsyncMock(return_value=(True, "Supprime de Sonarr"))),
+        patch(
+            "app.routers.requests_api.sonarr.lookup_series",
+            new=AsyncMock(return_value={"title": "Orphan Show", "tvdbId": 999}),
+        ),
+        patch(
+            "app.routers.requests_api.sonarr.delete_series", new=AsyncMock(return_value=(True, "Supprime de Sonarr"))
+        ),
     ):
         del_resp = client.delete(f"/api/requests/orphans/sonarr/{inst.id}/501")
     assert del_resp.status_code == 200
@@ -292,6 +334,7 @@ def test_delete_orphan_calls_sonarr_delete_series(client, db):
     mock_delete.assert_awaited_once_with("http://sonarr", "x", 501, delete_files=False)
 
     from app.models import DeletedMediaLog
+
     log = db.query(DeletedMediaLog).filter(DeletedMediaLog.tvdb_id == "999").first()
     assert log is not None
     assert log.title == "Orphan Show"
@@ -336,6 +379,7 @@ def test_open_orphan_creates_library_item(client, db):
     library_item_id = resp.json()["library_item_id"]
 
     from app.models import LibraryItem
+
     li = db.query(LibraryItem).filter(LibraryItem.id == library_item_id).first()
     assert li is not None
     assert li.title == "Orphan Show"
@@ -570,6 +614,7 @@ def test_delete_request_records_tombstone(client, db):
     assert resp.status_code == 200
 
     from app.models import DeletedMediaLog
+
     log = db.query(DeletedMediaLog).filter(DeletedMediaLog.tmdb_id == "27205").first()
     assert log is not None
     assert log.title == "Inception"
@@ -586,6 +631,7 @@ def test_delete_request_without_stable_id_skips_tombstone(client, db):
     assert resp.status_code == 200
 
     from app.models import DeletedMediaLog
+
     assert db.query(DeletedMediaLog).count() == 0
 
 
@@ -656,9 +702,7 @@ def test_mark_request_processed_stop_vf_tracking(client, db):
     db.refresh(req)
 
     with patch("app.routers.requests_api._notify", new_callable=AsyncMock):
-        resp = client.post(
-            f"/api/requests/{req.id}/mark-processed?event=available&notify=false&stop_vf_tracking=true"
-        )
+        resp = client.post(f"/api/requests/{req.id}/mark-processed?event=available&notify=false&stop_vf_tracking=true")
 
     assert resp.status_code == 200
     data = resp.json()
@@ -781,6 +825,7 @@ def test_update_requesters_sets_primary_and_extras(client, db):
     db.refresh(req)
     assert req.plex_user_id == "alice"
     import json as _json
+
     assert _json.loads(req.extra_requesters) == [{"plex_user_id": "bob", "display_name": "Bob"}]
 
 
@@ -792,9 +837,10 @@ def test_update_requesters_does_not_send_any_mail(client, db):
     db.commit()
     db.refresh(req)
 
-    with patch("app.routers.requests_api._notify") as mock_notify, patch(
-        "app.routers.requests_api.notify_single_user"
-    ) as mock_notify_single:
+    with (
+        patch("app.routers.requests_api._notify") as mock_notify,
+        patch("app.routers.requests_api.notify_single_user") as mock_notify_single,
+    ):
         resp = client.put(f"/api/requests/{req.id}/requesters", json={"requester_ids": ["alice", "bob"]})
 
     assert resp.status_code == 200
@@ -973,5 +1019,6 @@ def test_bulk_delete_records_tombstones(client, db):
     assert resp.status_code == 200
 
     from app.models import DeletedMediaLog
+
     tmdb_ids = {row.tmdb_id for row in db.query(DeletedMediaLog).all()}
     assert tmdb_ids == {"111", "222"}

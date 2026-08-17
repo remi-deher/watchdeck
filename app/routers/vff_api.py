@@ -105,12 +105,17 @@ async def _vf_detail_payload(db: AsyncSession, req):
         return {"enabled": True, "media_type": "movie", "vf_available": True, "release_date": release_date, **res}
 
     if vf_detected:
-        rows = (await db.execute(
-            select(VfEpisodeStatus).filter(
-                VfEpisodeStatus.source_type == source_type,
-                VfEpisodeStatus.source_id == req.id
+        rows = (
+            (
+                await db.execute(
+                    select(VfEpisodeStatus).filter(
+                        VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id == req.id
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
         plex_eps = {}
         plex_fr_default = {}
         for r in rows:
@@ -127,12 +132,14 @@ async def _vf_detail_payload(db: AsyncSession, req):
     season_posters: dict[int, str] = {}
     try:
         inst = await _resolve_arr_instance(db, req.arr_instance_id, "sonarr")
+
         def wrap_local(url: Optional[str]) -> Optional[str]:
             if not url:
                 return url
             if url.startswith("/"):
                 url = f"{inst.url.rstrip('/')}{url}"
             return wrap_image_proxy(url)
+
         series_id = None
         data = None
         if req.tvdb_id:
@@ -160,7 +167,6 @@ async def _vf_detail_payload(db: AsyncSession, req):
 
     # Les épisodes sont déjà stockés en BDD par le poll background,
     # on n'a plus besoin d'écrire en DB ici lors du GET.
-
 
     def _status(in_plex, has_file, fr_is_default=None):
         if vf_detected:
@@ -346,12 +352,19 @@ async def _season_episodes_payload(db: AsyncSession, req, season_number: int) ->
         source_type = "library_item" if isinstance(req, LibraryItem) else "request"
         cached_meta = {
             r.episode_number: r
-            for r in (await db.execute(select(EpisodeMetadata).filter(
-                EpisodeMetadata.source_type == source_type,
-                EpisodeMetadata.source_id == req.id,
-                EpisodeMetadata.season_number == season_number,
-            ))).scalars().all()
+            for r in (
+                await db.execute(
+                    select(EpisodeMetadata).filter(
+                        EpisodeMetadata.source_type == source_type,
+                        EpisodeMetadata.source_id == req.id,
+                        EpisodeMetadata.season_number == season_number,
+                    )
+                )
+            )
+            .scalars()
+            .all()
         }
+
         def _merge(ep: dict) -> dict:
             en = ep.get("episodeNumber")
             cached = cached_meta.get(en)
@@ -404,15 +417,22 @@ async def _availability_payload(db: AsyncSession, req, force: bool = False) -> d
             logger.warning(f"episodes-availability: resynchronisation Sonarr impossible pour '{req.title}': {e}")
 
     source_type = "request" if isinstance(req, MediaRequest) else "library_item"
-    rows = (await db.execute(
-        select(EpisodeAvailability).filter(
-            EpisodeAvailability.source_type == source_type, EpisodeAvailability.source_id == req.id
+    rows = (
+        (
+            await db.execute(
+                select(EpisodeAvailability).filter(
+                    EpisodeAvailability.source_type == source_type, EpisodeAvailability.source_id == req.id
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     seasons: dict[int, dict[int, dict]] = {}
     for r in rows:
         seasons.setdefault(r.season_number, {})[r.episode_number] = {
-            "has_file": r.has_file, "air_date_utc": r.air_date_utc,
+            "has_file": r.has_file,
+            "air_date_utc": r.air_date_utc,
         }
     return {"seasons": [{"season_number": sn, "episodes": eps} for sn, eps in seasons.items()]}
 
@@ -454,18 +474,30 @@ async def _vf_status_payload(db: AsyncSession, req) -> dict:
     if req.media_type != "show":
         return {"seasons": []}
     source_type = "request" if isinstance(req, MediaRequest) else "library_item"
-    rows = (await db.execute(
-        select(VfEpisodeStatus).filter(
-            VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id == req.id
+    rows = (
+        (
+            await db.execute(
+                select(VfEpisodeStatus).filter(
+                    VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id == req.id
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # Charger les métadonnées sous-titres depuis EpisodeMetadata en une seule requête.
-    meta_rows = (await db.execute(
-        select(EpisodeMetadata).filter(
-            EpisodeMetadata.source_type == source_type, EpisodeMetadata.source_id == req.id
+    meta_rows = (
+        (
+            await db.execute(
+                select(EpisodeMetadata).filter(
+                    EpisodeMetadata.source_type == source_type, EpisodeMetadata.source_id == req.id
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     meta_by_season_ep: dict[tuple[int, int], str | None] = {
         (m.season_number, m.episode_number): m.subtitles for m in meta_rows
     }
@@ -490,12 +522,18 @@ async def vff_counts(db: AsyncSession = Depends(get_db_async)):
     son has_vf reste toujours None (jamais scanne, voir vff_scanner._run_vf_scan) et
     gonflerait "unchecked" sans rapport avec une vraie couverture VF en attente.
     """
+
     async def count_where(condition) -> int:
-        return int((await db.execute(
-            select(sqlalchemy.func.count()).select_from(LibraryItem).filter(
-                condition, LibraryItem.media_type.notin_(("artist", "album", "track"))
-            )
-        )).scalar() or 0)
+        return int(
+            (
+                await db.execute(
+                    select(sqlalchemy.func.count())
+                    .select_from(LibraryItem)
+                    .filter(condition, LibraryItem.media_type.notin_(("artist", "album", "track")))
+                )
+            ).scalar()
+            or 0
+        )
 
     vo_pending = await count_where(LibraryItem.has_vf.is_(False))
     vf_available = await count_where(LibraryItem.has_vf.is_(True))
@@ -624,7 +662,9 @@ async def vff_scan_single_request(
     episode_status = res.get("episode_status")
     known_episode_status = res.get("known_episode_status")
     if episode_status:
-        await _persist_episode_status(db, "request", req.id, episode_status, now, res.get("french_default"), known_episode_status)
+        await _persist_episode_status(
+            db, "request", req.id, episode_status, now, res.get("french_default"), known_episode_status
+        )
         await _persist_episode_metadata(db, "request", req.id, res.get("episode_metadata"), now)
 
     has_vf_new = res["has_vf"]
@@ -822,13 +862,19 @@ async def library_vff_scan(
     item.has_vf = bool(res["has_vf"])
     item.fr_is_default = res.get("fr_is_default")
     known_episode_status = res.get("known_episode_status")
-    item.vf_granularity = "full" if item.has_vf else audio_analyzer.compute_vf_granularity(res.get("episode_status"), known_episode_status)
+    item.vf_granularity = (
+        "full"
+        if item.has_vf
+        else audio_analyzer.compute_vf_granularity(res.get("episode_status"), known_episode_status)
+    )
     if item.has_vf and prev is False:
         item.vf_available_at = now
     item.updated_at = now
     episode_status = res.get("episode_status")
     if episode_status:
-        await _persist_episode_status(db, "library_item", item.id, episode_status, now, res.get("french_default"), known_episode_status)
+        await _persist_episode_status(
+            db, "library_item", item.id, episode_status, now, res.get("french_default"), known_episode_status
+        )
         await _persist_episode_metadata(db, "library_item", item.id, res.get("episode_metadata"), now)
     await db.commit()
     return {"status": "ok", "has_vf": item.has_vf, "vf_category": item.vf_category}

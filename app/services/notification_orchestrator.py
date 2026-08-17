@@ -43,21 +43,33 @@ async def _send_digest():
                 return
 
             cutoff = now_utc_naive() - timedelta(hours=24)
-            recent = (await db.execute(
-                select(MediaRequest)
-                .filter(MediaRequest.requested_at >= cutoff)
-                .order_by(MediaRequest.requested_at.desc())
-            )).scalars().all()
+            recent = (
+                (
+                    await db.execute(
+                        select(MediaRequest)
+                        .filter(MediaRequest.requested_at >= cutoff)
+                        .order_by(MediaRequest.requested_at.desc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
             if not recent:
                 logger.info("Digest : aucune demande dans les 24h, skip")
                 return
 
-            users = (await db.execute(
-                select(PlexUser).filter(
-                    PlexUser.enabled.is_(True),
-                    PlexUser.notify_digest.is_(True),
+            users = (
+                (
+                    await db.execute(
+                        select(PlexUser).filter(
+                            PlexUser.enabled.is_(True),
+                            PlexUser.notify_digest.is_(True),
+                        )
+                    )
                 )
-            )).scalars().all()
+                .scalars()
+                .all()
+            )
             if not users:
                 return
 
@@ -143,9 +155,7 @@ async def _purge_notification_logs():
             ip_days = settings.login_attempt_retention_days
             if ip_days:
                 ip_cutoff = now_utc_naive() - timedelta(days=ip_days)
-                result = await db.execute(
-                    sqlalchemy.delete(LoginAttempt).filter(LoginAttempt.attempted_at < ip_cutoff)
-                )
+                result = await db.execute(sqlalchemy.delete(LoginAttempt).filter(LoginAttempt.attempted_at < ip_cutoff))
                 deleted_ip = int(result.rowcount or 0)
                 if deleted_ip:
                     await db.commit()
@@ -453,9 +463,7 @@ async def resolve_and_notify_availability(
         return False
     if req.notify_suppressed:
         return False
-    user_obj = (
-        await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))
-    ).scalars().first()
+    user_obj = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
     unique_candidates = list({_candidate_key(candidate): candidate for candidate in candidates}.values())
     if not unique_candidates:
         return False
@@ -479,21 +487,25 @@ async def resolve_and_notify_availability(
     for candidate in eligible:
         direction = candidate.language or "simple"
         existing = (
-            await db.execute(
-                select(NotificationMilestone).filter(
-                    NotificationMilestone.req_id == req.id,
-                    NotificationMilestone.plex_user_id == req.plex_user_id,
-                    NotificationMilestone.direction == direction,
-                    NotificationMilestone.milestone_type == candidate.scope,
-                    NotificationMilestone.season_number.is_(None)
-                    if candidate.season_number is None
-                    else NotificationMilestone.season_number == candidate.season_number,
-                    NotificationMilestone.episode_number.is_(None)
-                    if candidate.episode_number is None
-                    else NotificationMilestone.episode_number == candidate.episode_number,
+            (
+                await db.execute(
+                    select(NotificationMilestone).filter(
+                        NotificationMilestone.req_id == req.id,
+                        NotificationMilestone.plex_user_id == req.plex_user_id,
+                        NotificationMilestone.direction == direction,
+                        NotificationMilestone.milestone_type == candidate.scope,
+                        NotificationMilestone.season_number.is_(None)
+                        if candidate.season_number is None
+                        else NotificationMilestone.season_number == candidate.season_number,
+                        NotificationMilestone.episode_number.is_(None)
+                        if candidate.episode_number is None
+                        else NotificationMilestone.episode_number == candidate.episode_number,
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if existing:
             continue
         db.add(
@@ -540,9 +552,7 @@ async def resolve_and_notify_availability(
         notification_context["allow_during_resync"] = True
     # Avec `db`, enqueue persiste le jalon déjà ajouté et PendingNotification dans le
     # même commit, puis planifie le worker seulement après ce commit.
-    pending_id = await enqueue(
-        "available", req.id, recipients, notification_context, db=db
-    )
+    pending_id = await enqueue("available", req.id, recipients, notification_context, db=db)
     # Les tests et intégrations peuvent fournir un adaptateur de queue sans transaction
     # (retour non numérique). Ils conservent l'ancien contrat de commit ; le refresh
     # maintient l'objet utilisable même avec une session configurée expire_on_commit.
@@ -595,9 +605,7 @@ async def _queue_show_milestones(
     season_aired_counts: dict[int, int] | None = None,
     is_upgrade: bool | None = None,
 ) -> int:
-    user_obj = (await db.execute(
-        select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id)
-    )).scalars().first()
+    user_obj = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
     if language is not None and not _user_wants_vf(user_obj, req.vf_category):
         return 0
     granularity = _resolve_series_granularity(settings, user_obj)
@@ -671,7 +679,10 @@ async def _notify(
         # silencieusement ne rien envoyer selon les préférences VF de l'utilisateur, ce
         # qui serait surprenant pour une action explicite déclenchée par un admin.
         await enqueue(
-            "available", req.id, recipients, {"scope": scope, "language": language, "is_upgrade": False},
+            "available",
+            req.id,
+            recipients,
+            {"scope": scope, "language": language, "is_upgrade": False},
             triggered_by=triggered_by,
         )
         return
@@ -711,7 +722,10 @@ async def notify_single_user(
         language = "vf" if req.has_vf is True else ("vo" if req.has_vf is False else None)
         scope = "movie" if req.media_type == "movie" else "series_complete"
         await enqueue(
-            "available", req.id, recipients, {"scope": scope, "language": language, "is_upgrade": False},
+            "available",
+            req.id,
+            recipients,
+            {"scope": scope, "language": language, "is_upgrade": False},
             triggered_by="manual",
         )
     return True
@@ -767,20 +781,31 @@ async def _handle_show_progress_notification(settings: Settings, req: MediaReque
     # alimenté par check_arr_statuses), dédupliqué par NotificationMilestone comme le
     # reste du système de jalons (aucun envoi en double d'un cycle à l'autre).
     from ..models import RequestSeasonStatus
-    season_rows = (await db.execute(
-        select(RequestSeasonStatus).filter(RequestSeasonStatus.request_id == req.id)
-    )).scalars().all()
+
+    season_rows = (
+        (await db.execute(select(RequestSeasonStatus).filter(RequestSeasonStatus.request_id == req.id))).scalars().all()
+    )
     if season_rows:
         candidates = []
         for row in sorted(season_rows, key=lambda r: r.season_number):
             if row.status == "available":
-                candidates.append(AvailabilityCandidate(
-                    scope="season_complete", language=None, is_upgrade=False, season_number=row.season_number,
-                ))
+                candidates.append(
+                    AvailabilityCandidate(
+                        scope="season_complete",
+                        language=None,
+                        is_upgrade=False,
+                        season_number=row.season_number,
+                    )
+                )
             elif row.status == "partially_available":
-                candidates.append(AvailabilityCandidate(
-                    scope="season_start", language=None, is_upgrade=False, season_number=row.season_number,
-                ))
+                candidates.append(
+                    AvailabilityCandidate(
+                        scope="season_start",
+                        language=None,
+                        is_upgrade=False,
+                        season_number=row.season_number,
+                    )
+                )
         if candidates:
             await resolve_and_notify_availability(settings, req, db, candidates=candidates)
         return

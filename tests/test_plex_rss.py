@@ -31,8 +31,6 @@ def test_parse_rss_entry_uses_pubdate_as_requested_at():
 
 
 def test_parse_rss_entry_no_pubdate_leaves_requested_at_none():
-    feed = feedparser.parse(
-        RSS_ITEM.replace("<pubDate>Sun, 24 May 2026 21:02:57 GMT</pubDate>", "")
-    )
+    feed = feedparser.parse(RSS_ITEM.replace("<pubDate>Sun, 24 May 2026 21:02:57 GMT</pubDate>", ""))
     item = _parse_rss_entry(feed.entries[0])
     assert item["requested_at"] is None

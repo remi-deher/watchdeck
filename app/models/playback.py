@@ -110,7 +110,11 @@ class PlaybackDailyAggregate(Base):
     __tablename__ = "playback_daily_aggregates"
     __table_args__ = (
         UniqueConstraint(
-            "day", "user_name", "media_type", "media_label", "playback_method",
+            "day",
+            "user_name",
+            "media_type",
+            "media_label",
+            "playback_method",
             name="uq_playback_daily_dimensions",
         ),
         Index("ix_playback_daily_day", "day"),
@@ -126,6 +130,7 @@ class PlaybackDailyAggregate(Base):
     sessions: Mapped[int] = mapped_column(default=0)
     watch_ms: Mapped[int] = mapped_column(default=0)
     transcodes: Mapped[int] = mapped_column(default=0)
+
 
 class LibraryAnalyticsSnapshot(Base):
     """Dernier calcul complet des insights médiathèque, prêt à être servi."""

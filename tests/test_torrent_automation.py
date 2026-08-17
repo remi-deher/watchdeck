@@ -131,7 +131,7 @@ async def test_watchlist_torrent_automation_fallback(db):
             new=AsyncMock(return_value=(True, "Added", "inception_hash")),
         ),
         patch(
-                "app.services.notification_orchestrator._notify",
+            "app.services.notification_orchestrator._notify",
             new=AsyncMock(return_value=True),
         ) as mock_notify,
     ):
@@ -150,21 +150,25 @@ async def test_watchlist_torrent_automation_fallback(db):
 async def test_active_non_default_radarr_has_priority_over_direct_torrent(db):
     settings = _settings()
     db.add(settings)
-    db.add(ArrInstance(
-        name="Radarr secondaire",
-        arr_type="radarr",
-        url="http://radarr.local",
-        api_key="key",
-        enabled=True,
-        is_default=False,
-    ))
+    db.add(
+        ArrInstance(
+            name="Radarr secondaire",
+            arr_type="radarr",
+            url="http://radarr.local",
+            api_key="key",
+            enabled=True,
+            is_default=False,
+        )
+    )
     db.add(ArrInstance(name="Prowlarr", arr_type="prowlarr", url="http://prowlarr", api_key="key", enabled=True))
     db.add(DownloadClient(name="qBittorrent", client_type="qbittorrent", url="http://qbit", enabled=True))
     db.commit()
     item = {"title": "Inception", "year": 2010, "media_type": "movie", "tmdb_id": "27205"}
 
     with (
-        patch("app.services.watchlist_poller.add_movie", new=AsyncMock(return_value=(42, False, "inception"))) as add_movie,
+        patch(
+            "app.services.watchlist_poller.add_movie", new=AsyncMock(return_value=(42, False, "inception"))
+        ) as add_movie,
         patch("app.services.watchlist_poller._submit_to_torrent", new=AsyncMock()) as direct_download,
     ):
         result = await _submit_to_arr(settings, item, db=db)

@@ -78,13 +78,19 @@ async def find_library_item_by_ids(
         if found:
             return found
 
-    return (await db.execute(
-        select(LibraryItem).filter(
-            LibraryItem.title.ilike(title),
-            LibraryItem.year == year,
-            LibraryItem.media_type == media_type,
+    return (
+        (
+            await db.execute(
+                select(LibraryItem).filter(
+                    LibraryItem.title.ilike(title),
+                    LibraryItem.year == year,
+                    LibraryItem.media_type == media_type,
+                )
+            )
         )
-    )).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 async def link_request_to_library_item(db: AsyncSession, req: MediaRequest) -> "LibraryItem | None":

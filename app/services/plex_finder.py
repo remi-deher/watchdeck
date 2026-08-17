@@ -13,6 +13,7 @@ from .audio_analyzer import (
 
 logger = logging.getLogger(__name__)
 
+
 def connect(plex_url: str, plex_token: str, timeout: int = 30) -> PlexServer:
     """Ouvre une connexion au serveur Plex local (lève une exception si échec)."""
     return PlexServer(plex_url, plex_token, timeout=timeout)
@@ -274,12 +275,16 @@ def scan_media_vf(
             return {"found": False}
         audio_state = movie_french_audio_state(item)
         return {
-            "found": True, "has_vf": audio_state["has_fr"], "category": "movie",
+            "found": True,
+            "has_vf": audio_state["has_fr"],
+            "category": "movie",
             # None (pas de VF du tout) plutot que False : "secondaire" n'a de sens que
             # si la VF existe (voir apply_plex_metadata et le badge front qui distingue
             # VO de VF-secondaire).
             "fr_is_default": audio_state["fr_is_default"] if audio_state["has_fr"] else None,
-            "title": item.title, "year": item.year, "overview": item.summary,
+            "title": item.title,
+            "year": item.year,
+            "overview": item.summary,
         }
 
     item = None
@@ -290,8 +295,8 @@ def scan_media_vf(
             break
     if not item:
         return {"found": False}
-    complete, should_track, _, _, episode_status, french_default, episode_metadata, known_episode_status = show_has_full_french_audio(
-        item, known_vf=known_vf, known_episode_numbers=known_episodes
+    complete, should_track, _, _, episode_status, french_default, episode_metadata, known_episode_status = (
+        show_has_full_french_audio(item, known_vf=known_vf, known_episode_numbers=known_episodes)
     )
     has_vf = complete or (not should_track)
     # Agrege le detail par episode (french_default) en un seul indicateur serie : False
@@ -329,7 +334,9 @@ def scan_media_vf(
         "has_vf": has_vf,
         "category": category,
         "fr_is_default": fr_is_default,
-        "title": item.title, "year": item.year, "overview": item.summary,
+        "title": item.title,
+        "year": item.year,
+        "overview": item.summary,
         "episode_status": episode_status,
         "french_default": french_default,
         "episode_metadata": formatted_metadata,
@@ -398,7 +405,9 @@ def _plex_item_to_dict(m, lib: dict, plex_url: str, plex_token: str) -> dict:
         audio_codec = "FLAC"
         media_item = (getattr(m, "media", None) or [None])[0]
         if media_item is not None:
-            audio_codec = (getattr(media_item, "audioCodec", None) or getattr(media_item, "container", None) or audio_codec).upper()
+            audio_codec = (
+                getattr(media_item, "audioCodec", None) or getattr(media_item, "container", None) or audio_codec
+            ).upper()
             audio_bitrate = getattr(media_item, "bitrate", None)
             part = (getattr(media_item, "parts", None) or [None])[0]
             for stream in getattr(part, "streams", []) or []:
@@ -417,12 +426,8 @@ def _plex_item_to_dict(m, lib: dict, plex_url: str, plex_token: str) -> dict:
         "tmdb_id": tmdb_id,
         "tvdb_id": tvdb_id,
         "imdb_id": imdb_id,
-        "poster_url": f"{plex_url.rstrip('/')}{thumb}?X-Plex-Token={plex_token}"
-        if thumb
-        else None,
-        "art_url": f"{plex_url.rstrip('/')}{art}?X-Plex-Token={plex_token}"
-        if art
-        else None,
+        "poster_url": f"{plex_url.rstrip('/')}{thumb}?X-Plex-Token={plex_token}" if thumb else None,
+        "art_url": f"{plex_url.rstrip('/')}{art}?X-Plex-Token={plex_token}" if art else None,
         "genres": genres,
         "overview": overview or None,
         "added_at": getattr(m, "addedAt", None),
@@ -497,7 +502,9 @@ def sync_plex_library_recent_blocking(plex_url: str, plex_token: str, libs: list
                 try:
                     items.append(_plex_item_to_dict(m, lib, plex_url, plex_token))
                 except Exception as item_exc:
-                    logger.warning(f"VFF sync (recent) : erreur lecture média '{getattr(m, 'title', '?')}' : {item_exc}")
+                    logger.warning(
+                        f"VFF sync (recent) : erreur lecture média '{getattr(m, 'title', '?')}' : {item_exc}"
+                    )
         except Exception as lib_exc:
             logger.warning(f"VFF sync (recent) : impossible de lire la bibliothèque '{lib['name']}' : {lib_exc}")
 

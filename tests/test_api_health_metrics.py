@@ -504,6 +504,7 @@ def test_disk_space_is_cached_between_calls(client, db):
     """Deuxieme appel : ne doit pas retaper Sonarr -- c'est ce qui evite de bloquer
     le dashboard derriere cet appel a chaque chargement."""
     from app.cache import cache
+
     cache._memory.clear()
     db.add(ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True))
     db.commit()

@@ -15,6 +15,7 @@ async def test_pwa_manifest_serving():
         assert data["display"] == "standalone"
         assert len(data.get("shortcuts", [])) >= 4
 
+
 @pytest.mark.asyncio
 async def test_pwa_service_worker_serving():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -22,6 +23,7 @@ async def test_pwa_service_worker_serving():
         assert response.status_code == 200
         assert "application/javascript" in response.headers.get("content-type", "")
         assert response.headers.get("service-worker-allowed") == "/"
+
 
 @pytest.mark.asyncio
 async def test_pwa_icons_serving():

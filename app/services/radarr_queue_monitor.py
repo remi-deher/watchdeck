@@ -35,9 +35,7 @@ async def monitor_radarr_queue() -> dict[str, int]:
     async with AsyncSessionLocal() as db:
         instances, request_by_key = await load_monitor_context(db, "radarr")
         settings = (await db.execute(select(Settings))).scalars().first()
-        alerts_enabled = bool(
-            settings and settings.admin_notification_email and settings.notify_import_blocked
-        )
+        alerts_enabled = bool(settings and settings.admin_notification_email and settings.notify_import_blocked)
         admin_recipients = parse_email_list(settings.admin_notification_email) if settings else []
 
         for instance in instances:
@@ -60,13 +58,17 @@ async def monitor_radarr_queue() -> dict[str, int]:
                 req = request_by_key.get((instance.id, arr_media_id))
 
                 observation = (
-                    await db.execute(
-                        select(RadarrQueueObservation).filter(
-                            RadarrQueueObservation.arr_instance_id == instance.id,
-                            RadarrQueueObservation.queue_id == queue_id,
+                    (
+                        await db.execute(
+                            select(RadarrQueueObservation).filter(
+                                RadarrQueueObservation.arr_instance_id == instance.id,
+                                RadarrQueueObservation.queue_id == queue_id,
+                            )
                         )
                     )
-                ).scalars().first()
+                    .scalars()
+                    .first()
+                )
                 if observation is None:
                     observation = RadarrQueueObservation(arr_instance_id=instance.id, queue_id=queue_id)
                     db.add(observation)

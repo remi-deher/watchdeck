@@ -52,19 +52,16 @@ def _snapshot_calls() -> dict[str, Callable]:
         "recently_available": lambda db: metrics_api.stats_recently_available(db, limit=5),
         "recent_requests": lambda db: metrics_api.stats_recent_requests(db, limit=10),
         "upcoming": lambda db: calendar_api.upcoming_releases(db=db, limit=8),
-        "notifications": lambda db: notifications_api.list_notification_logs(pagination=PaginationParams(offset=0, limit=5), db=db),
+        "notifications": lambda db: notifications_api.list_notification_logs(
+            pagination=PaginationParams(offset=0, limit=5), db=db
+        ),
     }
 
 
 async def _compute_snapshot(sections: set[str] | None = None) -> dict:
     all_calls = _snapshot_calls()
-    calls = {
-        name: call for name, call in all_calls.items()
-        if sections is None or name in sections
-    }
-    results = await asyncio.gather(
-        *(_with_session(call) for call in calls.values()), return_exceptions=True
-    )
+    calls = {name: call for name, call in all_calls.items() if sections is None or name in sections}
+    results = await asyncio.gather(*(_with_session(call) for call in calls.values()), return_exceptions=True)
     payload: dict = {"errors": []}
     if sections is None or "next_poll" in sections:
         payload["next_poll"] = metrics_api.next_poll_info()
@@ -96,11 +93,7 @@ async def _stream_sections(sections: set[str] | None = None) -> AsyncIterator[st
     if sections is None or "next_poll" in sections:
         yield _frame({"next_poll": metrics_api.next_poll_info()})
 
-    calls = {
-        name: call
-        for name, call in _snapshot_calls().items()
-        if sections is None or name in sections
-    }
+    calls = {name: call for name, call in _snapshot_calls().items() if sections is None or name in sections}
     tasks = [asyncio.create_task(_named(name, call)) for name, call in calls.items()]
     collected: dict = {}
     errors: list[str] = []

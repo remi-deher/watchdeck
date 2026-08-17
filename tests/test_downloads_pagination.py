@@ -35,11 +35,19 @@ async def test_download_history_honors_limit_and_offset(async_db):
 
 @pytest.mark.asyncio
 async def test_arr_history_is_read_from_database_without_live_instance(async_db):
-    async_db.add(DownloadHistory(
-        title="Film archivé", year=2026, media_type="movie", source="radarr",
-        instance_name="Radarr", arr_instance_id=2, arr_history_id=91,
-        processing_mode="automatic", completed_at=datetime.now(),
-    ))
+    async_db.add(
+        DownloadHistory(
+            title="Film archivé",
+            year=2026,
+            media_type="movie",
+            source="radarr",
+            instance_name="Radarr",
+            arr_instance_id=2,
+            arr_history_id=91,
+            processing_mode="automatic",
+            completed_at=datetime.now(),
+        )
+    )
     async_db.commit()
 
     response = await downloads_history(limit=100, offset=0, source="radarr", instance_id=2, db=async_db)

@@ -164,6 +164,7 @@ def wrap_image_proxy(url: str | None) -> str | None:
         return url
 
     import urllib.parse
+
     return f"/api/image-proxy?url={urllib.parse.quote_plus(url)}&width=600&quality=82&format=webp"
 
 
@@ -208,5 +209,3 @@ async def run_section_safe(
         else:
             err_msg = "Section temporairement indisponible."
         return default, err_msg
-
-

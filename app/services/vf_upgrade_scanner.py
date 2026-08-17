@@ -149,13 +149,29 @@ async def _resolve_instance_for(db: AsyncSession, obj, arr_type: str) -> Optiona
     arr_instance_id = getattr(obj, "arr_instance_id", None)
     inst = None
     if arr_instance_id:
-        inst = (await db.execute(select(ArrInstance).filter(
-            ArrInstance.id == arr_instance_id, ArrInstance.arr_type == arr_type, ArrInstance.enabled
-        ))).scalars().first()
+        inst = (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(
+                        ArrInstance.id == arr_instance_id, ArrInstance.arr_type == arr_type, ArrInstance.enabled
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
     if not inst:
-        inst = (await db.execute(select(ArrInstance).filter(
-            ArrInstance.arr_type == arr_type, ArrInstance.enabled, ArrInstance.is_default
-        ))).scalars().first()
+        inst = (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(
+                        ArrInstance.arr_type == arr_type, ArrInstance.enabled, ArrInstance.is_default
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
     return inst
 
 
@@ -165,17 +181,21 @@ async def _recent_scan_keys(db: AsyncSession, settings: Settings | None = None) 
     now = now_utc_naive()
     regular_cutoff = now - timedelta(hours=max(1, _setting(settings, "vf_upgrade_cooldown_hours", 24)))
     retry_cutoff = now - timedelta(hours=max(1, _setting(settings, "vf_upgrade_retry_hours", 6)))
-    rows = (await db.execute(
-        select(
-            VfUpgradeSuggestion.source_type, VfUpgradeSuggestion.source_id, VfUpgradeSuggestion.scope,
-            VfUpgradeSuggestion.season_number, VfUpgradeSuggestion.episode_number,
-            VfUpgradeSuggestion.status, VfUpgradeSuggestion.scanned_at,
-        ).filter(VfUpgradeSuggestion.scanned_at.isnot(None))
-    )).all()
+    rows = (
+        await db.execute(
+            select(
+                VfUpgradeSuggestion.source_type,
+                VfUpgradeSuggestion.source_id,
+                VfUpgradeSuggestion.scope,
+                VfUpgradeSuggestion.season_number,
+                VfUpgradeSuggestion.episode_number,
+                VfUpgradeSuggestion.status,
+                VfUpgradeSuggestion.scanned_at,
+            ).filter(VfUpgradeSuggestion.scanned_at.isnot(None))
+        )
+    ).all()
     return {
-        tuple(row[:5])
-        for row in rows
-        if row.scanned_at > (retry_cutoff if row.status == "failed" else regular_cutoff)
+        tuple(row[:5]) for row in rows if row.scanned_at > (retry_cutoff if row.status == "failed" else regular_cutoff)
     }
 
 
@@ -183,33 +203,58 @@ async def _skip_statuses(db: AsyncSession, settings: Settings | None = None) -> 
     """{(source_type, source_id, scope, season_number, episode_number)} à ne jamais
     re-scanner en tâche de fond : déjà grabbée, ou explicitement ignorée par
     l'utilisateur -- seul le bouton "Chercher" (force=True) passe outre."""
-    rows = (await db.execute(
-        select(
-            VfUpgradeSuggestion.source_type, VfUpgradeSuggestion.source_id, VfUpgradeSuggestion.scope,
-            VfUpgradeSuggestion.season_number, VfUpgradeSuggestion.episode_number,
-        ).filter(VfUpgradeSuggestion.status.in_((
-            "grabbed", "accepted", "downloading", "importing",
-            "awaiting_verification", "verified", "dismissed",
-        )))
-    )).all()
+    rows = (
+        await db.execute(
+            select(
+                VfUpgradeSuggestion.source_type,
+                VfUpgradeSuggestion.source_id,
+                VfUpgradeSuggestion.scope,
+                VfUpgradeSuggestion.season_number,
+                VfUpgradeSuggestion.episode_number,
+            ).filter(
+                VfUpgradeSuggestion.status.in_(
+                    (
+                        "grabbed",
+                        "accepted",
+                        "downloading",
+                        "importing",
+                        "awaiting_verification",
+                        "verified",
+                        "dismissed",
+                    )
+                )
+            )
+        )
+    ).all()
     skipped = {tuple(r) for r in rows}
     max_retries = max(0, _setting(settings, "vf_upgrade_max_retries", 3))
-    exhausted = (await db.execute(
-        select(
-            VfUpgradeSuggestion.source_type, VfUpgradeSuggestion.source_id, VfUpgradeSuggestion.scope,
-            VfUpgradeSuggestion.season_number, VfUpgradeSuggestion.episode_number,
-        ).filter(
-            VfUpgradeSuggestion.status == "failed",
-            VfUpgradeSuggestion.retry_count >= max_retries,
+    exhausted = (
+        await db.execute(
+            select(
+                VfUpgradeSuggestion.source_type,
+                VfUpgradeSuggestion.source_id,
+                VfUpgradeSuggestion.scope,
+                VfUpgradeSuggestion.season_number,
+                VfUpgradeSuggestion.episode_number,
+            ).filter(
+                VfUpgradeSuggestion.status == "failed",
+                VfUpgradeSuggestion.retry_count >= max_retries,
+            )
         )
-    )).all()
+    ).all()
     return skipped | {tuple(r) for r in exhausted}
 
 
-async def _build_movie_tasks(db: AsyncSession, force: bool, skip: set, recent: set, settings: Settings | None = None) -> list[_SearchTask]:
+async def _build_movie_tasks(
+    db: AsyncSession, force: bool, skip: set, recent: set, settings: Settings | None = None
+) -> list[_SearchTask]:
     tasks: list[_SearchTask] = []
     for model in (MediaRequest, LibraryItem):
-        rows = (await db.execute(select(model).filter(model.media_type == "movie", model.arr_id.isnot(None)))).scalars().all()
+        rows = (
+            (await db.execute(select(model).filter(model.media_type == "movie", model.arr_id.isnot(None))))
+            .scalars()
+            .all()
+        )
         source_type = "request" if model is MediaRequest else "library_item"
         for row in rows:
             # Une demande deja liee a un LibraryItem (voir _link_request_to_library_item,
@@ -236,11 +281,18 @@ async def _build_movie_tasks(db: AsyncSession, force: bool, skip: set, recent: s
             inst = await _resolve_instance_for(db, row, "radarr")
             if not inst:
                 continue
-            tasks.append(_SearchTask(
-                source_type=source_type, source_id=row.id, scope="movie", arr_type="radarr",
-                inst=inst, arr_id=row.arr_id, title=row.title,
-                target_kind="vf" if row.has_vf is True else "vo",
-            ))
+            tasks.append(
+                _SearchTask(
+                    source_type=source_type,
+                    source_id=row.id,
+                    scope="movie",
+                    arr_type="radarr",
+                    inst=inst,
+                    arr_id=row.arr_id,
+                    title=row.title,
+                    target_kind="vf" if row.has_vf is True else "vo",
+                )
+            )
     return tasks
 
 
@@ -248,10 +300,19 @@ async def _season_vf_status(db: AsyncSession, source_type: str, source_id: int) 
     """{season_number: {episode_number: has_vf}} d'une série, épisodes connus de
     Sonarr/TheTVDB uniquement (voir VfEpisodeStatus.is_known_episode -- un épisode
     fantôme Plex n'a pas de release Sonarr à chercher)."""
-    rows = (await db.execute(select(VfEpisodeStatus).filter(
-        VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id == source_id,
-        VfEpisodeStatus.is_known_episode.is_(True),
-    ))).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(VfEpisodeStatus).filter(
+                    VfEpisodeStatus.source_type == source_type,
+                    VfEpisodeStatus.source_id == source_id,
+                    VfEpisodeStatus.is_known_episode.is_(True),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     out: dict[int, dict[int, bool]] = {}
     for r in rows:
         out.setdefault(r.season_number, {})[r.episode_number] = bool(r.has_vf)
@@ -288,10 +349,16 @@ def classify_vf_target(
     return "vo"
 
 
-async def _build_show_tasks(db: AsyncSession, force: bool, skip: set, recent: set, settings: Settings | None = None) -> list[_SearchTask]:
+async def _build_show_tasks(
+    db: AsyncSession, force: bool, skip: set, recent: set, settings: Settings | None = None
+) -> list[_SearchTask]:
     tasks: list[_SearchTask] = []
     for model in (MediaRequest, LibraryItem):
-        rows = (await db.execute(select(model).filter(model.media_type == "show", model.arr_id.isnot(None)))).scalars().all()
+        rows = (
+            (await db.execute(select(model).filter(model.media_type == "show", model.arr_id.isnot(None))))
+            .scalars()
+            .all()
+        )
         source_type = "request" if model is MediaRequest else "library_item"
         for row in rows:
             # Voir le meme garde-fou dans _build_movie_tasks : une demande deja liee a un
@@ -317,7 +384,19 @@ async def _build_show_tasks(db: AsyncSession, force: bool, skip: set, recent: se
                         continue
                     key = (source_type, row.id, "season", sn, None)
                     if force or (key not in skip and key not in recent):
-                        tasks.append(_SearchTask(source_type=source_type, source_id=row.id, scope="season", arr_type="sonarr", inst=inst, arr_id=row.arr_id, season_number=sn, title=f"{row.title} - Saison {sn}", target_kind="vf"))
+                        tasks.append(
+                            _SearchTask(
+                                source_type=source_type,
+                                source_id=row.id,
+                                scope="season",
+                                arr_type="sonarr",
+                                inst=inst,
+                                arr_id=row.arr_id,
+                                season_number=sn,
+                                title=f"{row.title} - Saison {sn}",
+                                target_kind="vf",
+                            )
+                        )
                     continue
                 if not any(eps.values()):
                     if not _setting(settings, "vf_upgrade_include_vo", True):
@@ -325,28 +404,50 @@ async def _build_show_tasks(db: AsyncSession, force: bool, skip: set, recent: se
                     # Saison entierement VO : un seul season pack a chercher.
                     key = (source_type, row.id, "season", sn, None)
                     if force or (key not in skip and key not in recent):
-                        tasks.append(_SearchTask(
-                            source_type=source_type, source_id=row.id, scope="season", arr_type="sonarr",
-                            inst=inst, arr_id=row.arr_id, season_number=sn,
-                            title=f"{row.title} - Saison {sn}",
-                        ))
+                        tasks.append(
+                            _SearchTask(
+                                source_type=source_type,
+                                source_id=row.id,
+                                scope="season",
+                                arr_type="sonarr",
+                                inst=inst,
+                                arr_id=row.arr_id,
+                                season_number=sn,
+                                title=f"{row.title} - Saison {sn}",
+                            )
+                        )
                     continue
                 if not _setting(settings, "vf_upgrade_include_mixed", True):
                     continue
-                if (
-                    _setting(settings, "vf_upgrade_mixed_mode", "episodes") == "season"
-                    and not _setting(settings, "vf_upgrade_protect_existing_vf", True)
+                if _setting(settings, "vf_upgrade_mixed_mode", "episodes") == "season" and not _setting(
+                    settings, "vf_upgrade_protect_existing_vf", True
                 ):
                     key = (source_type, row.id, "season", sn, None)
                     if force or (key not in skip and key not in recent):
-                        tasks.append(_SearchTask(source_type=source_type, source_id=row.id, scope="season", arr_type="sonarr", inst=inst, arr_id=row.arr_id, season_number=sn, title=f"{row.title} - Saison {sn}", target_kind="mixed"))
+                        tasks.append(
+                            _SearchTask(
+                                source_type=source_type,
+                                source_id=row.id,
+                                scope="season",
+                                arr_type="sonarr",
+                                inst=inst,
+                                arr_id=row.arr_id,
+                                season_number=sn,
+                                title=f"{row.title} - Saison {sn}",
+                                target_kind="mixed",
+                            )
+                        )
                     continue
                 # Saison mixte : seulement les episodes encore VO de CETTE saison.
                 missing = [en for en, has_vf in eps.items() if not has_vf]
                 pending_keys = [
-                    en for en in missing
-                    if force or ((source_type, row.id, "episode", sn, en) not in skip
-                                 and (source_type, row.id, "episode", sn, en) not in recent)
+                    en
+                    for en in missing
+                    if force
+                    or (
+                        (source_type, row.id, "episode", sn, en) not in skip
+                        and (source_type, row.id, "episode", sn, en) not in recent
+                    )
                 ]
                 if pending_keys:
                     episode_ids_needed.setdefault(sn, []).extend(pending_keys)
@@ -359,18 +460,28 @@ async def _build_show_tasks(db: AsyncSession, force: bool, skip: set, recent: se
                     episodes = []
                 by_season_ep = {
                     (ep.get("seasonNumber"), ep.get("episodeNumber")): ep.get("id")
-                    for ep in episodes if ep.get("id") is not None
+                    for ep in episodes
+                    if ep.get("id") is not None
                 }
                 for sn, ens in episode_ids_needed.items():
                     for en in ens:
                         episode_id = by_season_ep.get((sn, en))
                         if not episode_id:
                             continue
-                        tasks.append(_SearchTask(
-                            source_type=source_type, source_id=row.id, scope="episode", arr_type="sonarr",
-                            inst=inst, episode_id=episode_id, season_number=sn, episode_number=en,
-                            title=f"{row.title} - S{sn:02d}E{en:02d}", target_kind="mixed",
-                        ))
+                        tasks.append(
+                            _SearchTask(
+                                source_type=source_type,
+                                source_id=row.id,
+                                scope="episode",
+                                arr_type="sonarr",
+                                inst=inst,
+                                episode_id=episode_id,
+                                season_number=sn,
+                                episode_number=en,
+                                title=f"{row.title} - S{sn:02d}E{en:02d}",
+                                target_kind="mixed",
+                            )
+                        )
     return tasks
 
 
@@ -386,8 +497,16 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
     releases, current_titles = await asyncio.gather(release_call, _current_release_titles(task))
     task.current_release_titles = current_titles
     matched = []
-    markers = [value.strip().lower() for value in _setting(settings, "vf_upgrade_markers", "truefrench,vff,multi,vfi,vfq").split(",") if value.strip()]
-    preferences = [value.strip().lower() for value in _setting(settings, "vf_upgrade_preference", "truefrench,vff,multi,vfi,vfq").split(",") if value.strip()]
+    markers = [
+        value.strip().lower()
+        for value in _setting(settings, "vf_upgrade_markers", "truefrench,vff,multi,vfi,vfq").split(",")
+        if value.strip()
+    ]
+    preferences = [
+        value.strip().lower()
+        for value in _setting(settings, "vf_upgrade_preference", "truefrench,vff,multi,vfi,vfq").split(",")
+        if value.strip()
+    ]
     for release in releases:
         rel_title = release.get("title") or ""
         matches_target, _mismatch_reason = release_matches_target(
@@ -407,16 +526,24 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
             # indefiniment. Ne s'applique pas au usenet, qui n'a pas ce concept.
             if release.get("protocol") == "torrent" and not release.get("seeders"):
                 continue
-            size_gb = (release.get("size") or 0) / (1024 ** 3)
+            size_gb = (release.get("size") or 0) / (1024**3)
             min_size = _setting(settings, "vf_upgrade_min_size_gb", None)
             max_size = _setting(settings, "vf_upgrade_max_size_gb", None)
             if min_size is not None and size_gb < min_size:
                 continue
             if max_size is not None and size_gb > max_size:
                 continue
-            enriched["vf_preference_rank"] = next((index for index, marker in enumerate(preferences) if marker in title), len(preferences))
+            enriched["vf_preference_rank"] = next(
+                (index for index, marker in enumerate(preferences) if marker in title), len(preferences)
+            )
             matched.append(enriched)
-    matched.sort(key=lambda release: (release.get("vf_preference_rank", 99), -release.get("vf_confidence", 0), -release.get("custom_format_score", 0)))
+    matched.sort(
+        key=lambda release: (
+            release.get("vf_preference_rank", 99),
+            -release.get("vf_confidence", 0),
+            -release.get("custom_format_score", 0),
+        )
+    )
     return ReleaseResults(matched, raw_count=len(releases))
 
 
@@ -431,26 +558,35 @@ async def _persist_result(
 ) -> bool:
     """Upsert (ou supprime si plus rien trouvé) la suggestion pour `task`. Retourne True
     si une suggestion avec des releases existe après l'opération."""
-    existing = (await db.execute(select(VfUpgradeSuggestion).filter(
-        VfUpgradeSuggestion.source_type == task.source_type,
-        VfUpgradeSuggestion.source_id == task.source_id,
-        VfUpgradeSuggestion.scope == task.scope,
-        VfUpgradeSuggestion.season_number == task.season_number,
-        VfUpgradeSuggestion.episode_number == task.episode_number,
-    ))).scalars().first()
+    existing = (
+        (
+            await db.execute(
+                select(VfUpgradeSuggestion).filter(
+                    VfUpgradeSuggestion.source_type == task.source_type,
+                    VfUpgradeSuggestion.source_id == task.source_id,
+                    VfUpgradeSuggestion.scope == task.scope,
+                    VfUpgradeSuggestion.season_number == task.season_number,
+                    VfUpgradeSuggestion.episode_number == task.episode_number,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
 
-    if existing and existing.status == "failed" and existing.grabbed_release_guid and _setting(settings, "vf_upgrade_blacklist_failed", True):
+    if (
+        existing
+        and existing.status == "failed"
+        and existing.grabbed_release_guid
+        and _setting(settings, "vf_upgrade_blacklist_failed", True)
+    ):
         releases = [release for release in releases if release.get("guid") != existing.grabbed_release_guid]
 
     if not releases:
         # Plus rien de VF disponible chez l'indexeur (delisting, etc) : on ne garde pas
         # une suggestion "pending" perimee. Une suggestion deja grabbee/ignoree n'est
         # jamais atteinte ici (filtree en amont par _skip_statuses).
-        if (
-            existing
-            and existing.status == "pending"
-            and (origin == "auto" or existing.origin != "auto")
-        ):
+        if existing and existing.status == "pending" and (origin == "auto" or existing.origin != "auto"):
             await db.delete(existing)
         return False
 
@@ -470,14 +606,22 @@ async def _persist_result(
             existing.status = "pending"
             existing.failed_at = None
     else:
-        db.add(VfUpgradeSuggestion(
-            source_type=task.source_type, source_id=task.source_id, scope=task.scope,
-            season_number=task.season_number, episode_number=task.episode_number,
-            releases_json=json.dumps(releases),
-            current_release_titles_json=json.dumps(task.current_release_titles),
-            origin=origin, target_kind=task.target_kind,
-            status="pending", scanned_at=now, updated_at=now,
-        ))
+        db.add(
+            VfUpgradeSuggestion(
+                source_type=task.source_type,
+                source_id=task.source_id,
+                scope=task.scope,
+                season_number=task.season_number,
+                episode_number=task.episode_number,
+                releases_json=json.dumps(releases),
+                current_release_titles_json=json.dumps(task.current_release_titles),
+                origin=origin,
+                target_kind=task.target_kind,
+                status="pending",
+                scanned_at=now,
+                updated_at=now,
+            )
+        )
     return True
 
 
@@ -490,8 +634,13 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
     par le cycle de fond.
     """
     vf_upgrade_scan_state.update(
-        status="running", started_at=now_utc().isoformat(), finished_at=None,
-        items_scanned=0, total_items=0, suggestions_found=0, error=None,
+        status="running",
+        started_at=now_utc().isoformat(),
+        finished_at=None,
+        items_scanned=0,
+        total_items=0,
+        suggestions_found=0,
+        error=None,
     )
     db: AsyncSession = AsyncSessionLocal()
     try:
@@ -500,11 +649,21 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
             vf_upgrade_scan_state["status"] = "idle"
             return {"status": "idle", "reason": "vff_disabled"}
 
-        retention_cutoff = now_utc_naive() - timedelta(days=max(1, _setting(settings, "vf_upgrade_history_retention_days", 90)))
-        expired = (await db.execute(select(VfUpgradeSuggestion).filter(
-            VfUpgradeSuggestion.status.in_(("verified", "failed", "dismissed")),
-            VfUpgradeSuggestion.updated_at < retention_cutoff,
-        ))).scalars().all()
+        retention_cutoff = now_utc_naive() - timedelta(
+            days=max(1, _setting(settings, "vf_upgrade_history_retention_days", 90))
+        )
+        expired = (
+            (
+                await db.execute(
+                    select(VfUpgradeSuggestion).filter(
+                        VfUpgradeSuggestion.status.in_(("verified", "failed", "dismissed")),
+                        VfUpgradeSuggestion.updated_at < retention_cutoff,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         for row in expired:
             await db.delete(row)
 
@@ -524,7 +683,7 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         tasks = _order_tasks(tasks, settings)
 
         if not force:
-            tasks = tasks[:max(1, settings.vf_upgrade_max_searches_per_run or 40)]
+            tasks = tasks[: max(1, settings.vf_upgrade_max_searches_per_run or 40)]
         vf_upgrade_scan_state["total_items"] = len(tasks)
         if not tasks:
             vf_upgrade_scan_state["status"] = "idle"
@@ -556,7 +715,10 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         vf_upgrade_scan_state["suggestions_found"] = found
         logger.info(f"VF upgrade : {len(tasks)} recherche(s), {found} suggestion(s) VF trouvee(s)")
         from ..realtime import publish
-        await publish("vf_upgrade.updated", {"action": "scan_completed", "scanned": len(tasks), "found": found}, admin_only=True)
+
+        await publish(
+            "vf_upgrade.updated", {"action": "scan_completed", "scanned": len(tasks), "found": found}, admin_only=True
+        )
         return {"status": "idle", "scanned": len(tasks), "found": found}
     except Exception as e:
         vf_upgrade_scan_state["status"] = "failed"
@@ -568,8 +730,12 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
 
 
 async def scan_single_target(
-    db: AsyncSession, source_type: str, source_id: int, scope: str,
-    season_number: Optional[int] = None, episode_number: Optional[int] = None,
+    db: AsyncSession,
+    source_type: str,
+    source_id: int,
+    scope: str,
+    season_number: Optional[int] = None,
+    episode_number: Optional[int] = None,
 ) -> list[dict]:
     """Recherche immediate pour UNE cible precise (bouton "Chercher" d'une fiche media) --
     toujours force=True implicite (bypass cooldown/statut), pas de plafond de volume
@@ -584,8 +750,13 @@ async def scan_single_target(
         if not inst:
             raise ValueError("Instance Radarr introuvable")
         task = _SearchTask(
-            source_type=source_type, source_id=source_id, scope="movie", arr_type="radarr",
-            inst=inst, arr_id=row.arr_id, title=row.title,
+            source_type=source_type,
+            source_id=source_id,
+            scope="movie",
+            arr_type="radarr",
+            inst=inst,
+            arr_id=row.arr_id,
+            title=row.title,
             target_kind=classify_vf_target(row, "movie"),
         )
     else:
@@ -596,20 +767,28 @@ async def scan_single_target(
         if scope == "episode":
             episodes = await sonarr.get_episodes(inst.url, inst.api_key, row.arr_id)
             episode_id = next(
-                (ep.get("id") for ep in episodes
-                 if ep.get("seasonNumber") == season_number and ep.get("episodeNumber") == episode_number),
+                (
+                    ep.get("id")
+                    for ep in episodes
+                    if ep.get("seasonNumber") == season_number and ep.get("episodeNumber") == episode_number
+                ),
                 None,
             )
             if not episode_id:
                 raise ValueError("Episode introuvable cote Sonarr")
         seasons = await _season_vf_status(db, source_type, source_id)
         task = _SearchTask(
-            source_type=source_type, source_id=source_id, scope=scope, arr_type="sonarr",
-            inst=inst, arr_id=row.arr_id, episode_id=episode_id, season_number=season_number,
-            episode_number=episode_number, title=row.title,
-            target_kind=classify_vf_target(
-                row, scope, season_number, episode_number, seasons
-            ),
+            source_type=source_type,
+            source_id=source_id,
+            scope=scope,
+            arr_type="sonarr",
+            inst=inst,
+            arr_id=row.arr_id,
+            episode_id=episode_id,
+            season_number=season_number,
+            episode_number=episode_number,
+            title=row.title,
+            target_kind=classify_vf_target(row, scope, season_number, episode_number, seasons),
         )
 
     settings = (await db.execute(select(Settings))).scalars().first()
@@ -619,15 +798,18 @@ async def scan_single_target(
     # La modale recoit toujours les releases. Seules les recherches qui corrigent une
     # cible VO ou mixte alimentent le tableau global des ameliorations.
     if task.target_kind in {"vo", "mixed"}:
-        await _persist_result(
-            db, task, releases, now_utc_naive(), settings, origin="manual"
-        )
+        await _persist_result(db, task, releases, now_utc_naive(), settings, origin="manual")
         await db.commit()
     from ..realtime import publish
-    await publish("vf_upgrade.updated", {
-        "action": "single_scan_completed",
-        "source_type": source_type,
-        "source_id": source_id,
-        "scope": scope,
-    }, admin_only=True)
+
+    await publish(
+        "vf_upgrade.updated",
+        {
+            "action": "single_scan_completed",
+            "source_type": source_type,
+            "source_id": source_id,
+            "scope": scope,
+        },
+        admin_only=True,
+    )
     return releases

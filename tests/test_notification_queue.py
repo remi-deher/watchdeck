@@ -136,9 +136,7 @@ async def test_resync_suppresses_only_old_state_and_allows_real_progress(monkeyp
     await set_resync_notification_baselines({7: baseline})
     try:
         assert await availability_notification_is_historical(7, baseline)
-        assert await availability_notification_is_historical(
-            7, {**baseline, "has_vf": True}
-        )
+        assert await availability_notification_is_historical(7, {**baseline, "has_vf": True})
         assert not await availability_notification_is_historical(999, baseline)
     finally:
         await clear_resync_notification_baselines([7])
@@ -1000,8 +998,19 @@ async def test_process_pending_id_keeps_row_and_raises_on_failure(pending_db):
 # ---------------------------------------------------------------------------
 
 
-def _insert_notification_log(db, req_id, recipient, *, event="available", scope="movie", language="vf",
-                              season_number=None, episode_number=None, success=True, sent_at=None):
+def _insert_notification_log(
+    db,
+    req_id,
+    recipient,
+    *,
+    event="available",
+    scope="movie",
+    language="vf",
+    season_number=None,
+    episode_number=None,
+    success=True,
+    sent_at=None,
+):
     from app.utils import now_utc_naive
 
     if sent_at is None:
@@ -1015,8 +1024,15 @@ def _insert_notification_log(db, req_id, recipient, *, event="available", scope=
             "0, :season_number, :episode_number)"
         ),
         {
-            "sent_at": sent_at, "event": event, "recipient": recipient, "success": success, "req_id": req_id,
-            "scope": scope, "language": language, "season_number": season_number, "episode_number": episode_number,
+            "sent_at": sent_at,
+            "event": event,
+            "recipient": recipient,
+            "success": success,
+            "req_id": req_id,
+            "scope": scope,
+            "language": language,
+            "season_number": season_number,
+            "episode_number": episode_number,
         },
     )
     db.commit()
@@ -1062,7 +1078,9 @@ async def test_process_pending_id_still_sends_to_recipients_not_yet_delivered(pe
     pending_db.add(MediaRequest(id=1, plex_user_id="alice", title="Barbie", media_type="movie"))
     pending_db.commit()
     pending_db.insert(
-        "available", 1, ["alice@example.com", "bob@example.com"],
+        "available",
+        1,
+        ["alice@example.com", "bob@example.com"],
         reason='{"scope": "movie", "language": "vf"}',
     )
     _insert_notification_log(pending_db, 1, "alice@example.com")  # bob absent : pas encore livre
@@ -1117,7 +1135,9 @@ async def test_process_pending_id_different_scope_is_not_treated_as_duplicate(pe
     pending_db.add(MediaRequest(id=1, plex_user_id="alice", title="The Simpsons", media_type="show"))
     pending_db.commit()
     pending_db.insert(
-        "available", 1, ["alice@example.com"],
+        "available",
+        1,
+        ["alice@example.com"],
         reason='{"scope": "season_complete", "language": "vf", "season_number": 2}',
     )
     _insert_notification_log(pending_db, 1, "alice@example.com", scope="season_complete", season_number=1)

@@ -21,7 +21,11 @@ logger = logging.getLogger(__name__)
 
 
 async def list_providers(db: AsyncSession) -> list[EmailProvider]:
-    return (await db.execute(select(EmailProvider).order_by(EmailProvider.priority.asc(), EmailProvider.id.asc()))).scalars().all()
+    return (
+        (await db.execute(select(EmailProvider).order_by(EmailProvider.priority.asc(), EmailProvider.id.asc())))
+        .scalars()
+        .all()
+    )
 
 
 async def get_enabled_providers(db: AsyncSession) -> list[EmailProvider]:

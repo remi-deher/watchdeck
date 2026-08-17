@@ -64,8 +64,12 @@ async def test_send_transactional_email_without_sender_name_omits_field(monkeypa
     monkeypatch.setattr(brevo_email.httpx, "AsyncClient", lambda **kw: _Client(resp, captured))
 
     await brevo_email.send_transactional_email(
-        api_key="key-1", sender_email="from@example.com", sender_name=None,
-        to_email="dest@example.com", subject="Hi", html_content="<p>x</p>",
+        api_key="key-1",
+        sender_email="from@example.com",
+        sender_name=None,
+        to_email="dest@example.com",
+        subject="Hi",
+        html_content="<p>x</p>",
     )
 
     assert captured["json"]["sender"] == {"email": "from@example.com"}
@@ -79,6 +83,10 @@ async def test_send_transactional_email_raises_on_error_response(monkeypatch):
 
     with pytest.raises(RuntimeError, match="401"):
         await brevo_email.send_transactional_email(
-            api_key="bad-key", sender_email="from@example.com", sender_name=None,
-            to_email="dest@example.com", subject="Hi", html_content="<p>x</p>",
+            api_key="bad-key",
+            sender_email="from@example.com",
+            sender_name=None,
+            to_email="dest@example.com",
+            subject="Hi",
+            html_content="<p>x</p>",
         )

@@ -31,17 +31,21 @@ async def upcoming_releases(db: AsyncSession = Depends(get_db_async), limit: int
     le premier épisode importé.
     """
     rows = (
-        await db.execute(
-            select(MediaRequest)
-            .filter(
-                MediaRequest.status.in_([RequestStatus.sent_to_arr, RequestStatus.partially_available]),
-                MediaRequest.next_release_at.isnot(None),
-                MediaRequest.next_release_at > now_utc_naive(),
+        (
+            await db.execute(
+                select(MediaRequest)
+                .filter(
+                    MediaRequest.status.in_([RequestStatus.sent_to_arr, RequestStatus.partially_available]),
+                    MediaRequest.next_release_at.isnot(None),
+                    MediaRequest.next_release_at > now_utc_naive(),
+                )
+                .order_by(MediaRequest.next_release_at.asc())
+                .limit(limit)
             )
-            .order_by(MediaRequest.next_release_at.asc())
-            .limit(limit)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [
         {
             "id": r.id,
@@ -91,7 +95,9 @@ def _arr_rating(entity: dict) -> Optional[float]:
     """Extrait la note moyenne d'une ressource Sonarr/Radarr."""
     ratings = entity.get("ratings") or {}
     if isinstance(ratings, dict):
-        val = ratings.get("value") or (ratings.get("imdb") or {}).get("value") or (ratings.get("tmdb") or {}).get("value")
+        val = (
+            ratings.get("value") or (ratings.get("imdb") or {}).get("value") or (ratings.get("tmdb") or {}).get("value")
+        )
         if val:
             try:
                 return round(float(val), 1)
@@ -164,8 +170,14 @@ def _calendar_cache_key(start: Optional[str], end: Optional[str]) -> str:
 
 
 def _filter_calendar_events(
-    events: list[dict], tracked_only: bool, type: Optional[str], search: Optional[str],
-    user: Optional[str], status: Optional[str], vf: Optional[str], source: Optional[str],
+    events: list[dict],
+    tracked_only: bool,
+    type: Optional[str],
+    search: Optional[str],
+    user: Optional[str],
+    status: Optional[str],
+    vf: Optional[str],
+    source: Optional[str],
 ) -> list[dict]:
     filtered = []
     for event in events:
@@ -216,7 +228,9 @@ async def unified_calendar(
             return await _compute_calendar(fresh_db, start, end, False, None, None, None, None, None, None)
 
     raw_events = await cache.get_or_refresh(
-        key, _CALENDAR_SOFT_TTL, _CALENDAR_HARD_TTL,
+        key,
+        _CALENDAR_SOFT_TTL,
+        _CALENDAR_HARD_TTL,
         compute_sync=lambda: _compute_calendar(db, start, end, False, None, None, None, None, None, None),
         compute_background=_background,
     )
@@ -225,8 +239,15 @@ async def unified_calendar(
 
 async def _compute_calendar(
     db: AsyncSession,
-    start: Optional[str], end: Optional[str], tracked_only: bool, type: Optional[str],
-    search: Optional[str], user: Optional[str], status: Optional[str], vf: Optional[str], source: Optional[str],
+    start: Optional[str],
+    end: Optional[str],
+    tracked_only: bool,
+    type: Optional[str],
+    search: Optional[str],
+    user: Optional[str],
+    status: Optional[str],
+    vf: Optional[str],
+    source: Optional[str],
 ) -> list[dict]:
     now = now_utc()
     start_dt = datetime.fromisoformat(start) if start else now - timedelta(days=7)
@@ -299,13 +320,24 @@ async def _compute_calendar(
             elif r.media_type == "movie" and r.tmdb_id:
                 movies_by_tmdb[r.tmdb_id] = entry
 
-    instances = (await db.execute(select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type.in_(["sonarr", "radarr"])))).scalars().all()
-    remote_results = await asyncio.gather(*(
-        sonarr.get_calendar(inst.url, inst.api_key, start_dt.isoformat(), end_dt.isoformat())
-        if inst.arr_type == "sonarr"
-        else radarr.get_calendar(inst.url, inst.api_key, start_dt.isoformat(), end_dt.isoformat())
-        for inst in instances
-    ), return_exceptions=True)
+    instances = (
+        (
+            await db.execute(
+                select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type.in_(["sonarr", "radarr"]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    remote_results = await asyncio.gather(
+        *(
+            sonarr.get_calendar(inst.url, inst.api_key, start_dt.isoformat(), end_dt.isoformat())
+            if inst.arr_type == "sonarr"
+            else radarr.get_calendar(inst.url, inst.api_key, start_dt.isoformat(), end_dt.isoformat())
+            for inst in instances
+        ),
+        return_exceptions=True,
+    )
     events = []
     for inst, remote_result in zip(instances, remote_results):
         try:
@@ -330,7 +362,11 @@ async def _compute_calendar(
                         added_str = series.get("added")
                         if added_str:
                             try:
-                                added_date = datetime.fromisoformat(added_str.replace("Z", "+00:00")).astimezone(timezone.utc).replace(tzinfo=None)
+                                added_date = (
+                                    datetime.fromisoformat(added_str.replace("Z", "+00:00"))
+                                    .astimezone(timezone.utc)
+                                    .replace(tzinfo=None)
+                                )
                             except ValueError:
                                 pass
 
@@ -384,7 +420,8 @@ async def _compute_calendar(
                             "title": series.get("title") or "",
                             "subtitle": f"S{ep.get('seasonNumber', 0):02d}E{ep.get('episodeNumber', 0):02d}"
                             + (f" — {ep.get('title')}" if ep.get("title") else ""),
-                            "poster_url": wrap_image_proxy((tracked or {}).get("poster_url")) or _arr_poster(series, inst.url),
+                            "poster_url": wrap_image_proxy((tracked or {}).get("poster_url"))
+                            or _arr_poster(series, inst.url),
                             "fanart_url": _arr_fanart(series, inst.url),
                             "rating": _arr_rating(series),
                             "genres": _arr_genres(series),
@@ -417,7 +454,11 @@ async def _compute_calendar(
                         added_str = m.get("added")
                         if added_str:
                             try:
-                                added_date = datetime.fromisoformat(added_str.replace("Z", "+00:00")).astimezone(timezone.utc).replace(tzinfo=None)
+                                added_date = (
+                                    datetime.fromisoformat(added_str.replace("Z", "+00:00"))
+                                    .astimezone(timezone.utc)
+                                    .replace(tzinfo=None)
+                                )
                             except ValueError:
                                 pass
 
