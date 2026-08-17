@@ -1,8 +1,18 @@
 
 
+### 🔧 Maintenance
+
+- bump python from 3.12-alpine to 3.14-alpine (#1) ([10093e0](https://github.com/remi-deher/watchdeck/commit/10093e03e2ec4ec597042a41011f244d685c5190))
+- sync main into dev ([7cbbf53](https://github.com/remi-deher/watchdeck/commit/7cbbf5334c1738969c13fef8ae5fa958320fb21d))
+- sync main into dev ([4dc4055](https://github.com/remi-deher/watchdeck/commit/4dc4055c3cd526f503983cdf7bbc578d135ecf56))
+
 ### 👷 CI/CD
 
 - durcit le diagnostic de pertinence contre les PR sans ancetre commun ([7b46be6](https://github.com/remi-deher/watchdeck/commit/7b46be6dfc928025e27c8c6d947996af994f8df7))
+
+### 🔧 Maintenance
+
+- v1.1.5 (#42) ([5ee27f4](https://github.com/remi-deher/watchdeck/commit/5ee27f4217b7ff232c04b2566d6b864264c1f7d4))
 
 ### 👷 CI/CD
 
