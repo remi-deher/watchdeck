@@ -55,7 +55,15 @@ jobs:
             echo "relevant=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          CHANGED="$(git diff --name-only $RANGE)"
+          # Voir la note equivalente dans tests.yml : une PR non rebasee depuis
+          # longtemps peut ne plus avoir d'ancetre commun avec $BASE_REF en fetch
+          # superficiel, "git diff" echoue alors avec "fatal: no merge base" --
+          # on traite ce cas comme pertinent par securite plutot que de planter.
+          if ! CHANGED="$(git diff --name-only $RANGE 2>&1)"; then
+            echo "::warning::git diff a echoue ($CHANGED) -- traite comme pertinent par securite."
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "$CHANGED"
           if echo "$CHANGED" | grep -qE '^(frontend/|app/main\.py|e2e/|index\.html|public/|package.*\.json|playwright\.config\.js|vite\.config\.ts|\.github/workflows/e2e\.yml)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
