@@ -1,0 +1,508 @@
+"""Régressions de sécurité, validation et annotation du catalogue Découvrir."""
+
+import json
+from unittest.mock import ANY, AsyncMock, patch
+
+import pytest
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+
+from app.database import get_db_async
+from app.dependencies import require_auth
+from app.main import app
+from app.models import (
+    FulfillmentStatus,
+    LibraryItem,
+    MediaRequest,
+    PlaybackSession,
+    PlexUser,
+    RequestSeasonStatus,
+    RequestStatus,
+)
+from app.routers.discover_api import (
+    _annotate,
+    _guard,
+    _most_requested_section,
+    _personalization_seeds,
+    _personalized_sections,
+    _recent_plex_section,
+)
+from app.routers.requests_api import join_request
+from app.utils import now_utc_naive
+
+
+@pytest.fixture()
+def db(async_db):
+    return async_db
+
+
+@pytest.fixture()
+def client(db):
+    app.dependency_overrides[require_auth] = lambda: None
+    app.dependency_overrides[get_db_async] = lambda: db
+    test_client = TestClient(app, raise_server_exceptions=False, follow_redirects=False)
+    yield test_client
+    app.dependency_overrides.clear()
+
+
+def _request(db, *, status, requested_at, plex_user_id):
+    row = MediaRequest(
+        plex_user_id=plex_user_id,
+        plex_user=plex_user_id,
+        title="Film",
+        year=2025,
+        media_type="movie",
+        tmdb_id="42",
+        status=status,
+        requested_at=requested_at,
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+def test_guard_preserves_expected_http_errors():
+    expected = HTTPException(404, "Absent")
+    with pytest.raises(HTTPException) as caught:
+        _guard(expected)
+    assert caught.value is expected
+    assert caught.value.status_code == 404
+
+
+def test_invalid_catalog_parameters_are_rejected(client):
+    assert client.get("/api/discover/popular?media_type=person").status_code == 422
+    assert client.get("/api/discover/popular?page=0").status_code == 422
+    assert client.get("/api/discover/discover?sort_by=unsupported").status_code == 422
+
+
+def test_api_token_style_request_cannot_list_requesters(client):
+    response = client.get("/api/discover/requesters")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_annotation_prefers_most_advanced_request_status(db):
+    from datetime import timedelta
+
+    recent = _request(
+        db,
+        status=RequestStatus.failed,
+        requested_at=now_utc_naive(),
+        plex_user_id="recent",
+    )
+    advanced = _request(
+        db,
+        status=RequestStatus.sent_to_arr,
+        requested_at=now_utc_naive() - timedelta(days=1),
+        plex_user_id="advanced",
+    )
+    advanced.fulfillment_status = FulfillmentStatus.submitted
+    advanced.plex_guid = "plex://movie/advanced"
+    db.commit()
+
+    result = await _annotate(db, [{"tmdb_id": 42, "media_type": "movie"}])
+
+    assert result[0]["request_id"] == advanced.id
+    assert result[0]["request_id"] != recent.id
+    assert result[0]["request_status"] == "sent_to_arr"
+    assert result[0]["operational_status"] == "submitted"
+    assert result[0]["plex_guid"] == "plex://movie/advanced"
+
+
+@pytest.mark.asyncio
+async def test_join_request_adds_current_user_without_admin_access(db):
+    row = _request(db, status=RequestStatus.sent_to_arr, requested_at=now_utc_naive(), plex_user_id="alice")
+    db.add(PlexUser(plex_user_id="bob", display_name="Bob", enabled=True))
+    db.commit()
+
+    with patch("app.routers.requests_api.current_user", return_value={"plex_user_id": "bob", "role": "user"}):
+        result = await join_request(row.id, object(), db)
+        duplicate = await join_request(row.id, object(), db)
+
+    assert result == {"ok": True, "already_joined": False, "requester_ids": ["alice", "bob"]}
+    assert duplicate == {"ok": True, "already_joined": True, "requester_ids": ["alice", "bob"]}
+    assert json.loads(row.extra_requesters) == [{"plex_user_id": "bob", "display_name": "Bob"}]
+
+
+def test_discover_detail_includes_request_timeline_and_season_progress(client, db):
+    row = MediaRequest(
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Série",
+        media_type="show",
+        tmdb_id="1396",
+        status=RequestStatus.sent_to_arr,
+        fulfillment_status=FulfillmentStatus.downloading,
+        episodes_available_count=6,
+        episodes_total_count=10,
+    )
+    db.add(row)
+    db.flush()
+    db.add(
+        RequestSeasonStatus(
+            request_id=row.id,
+            season_number=1,
+            episodes_available_count=6,
+            episodes_total_count=10,
+            status="partially_available",
+        )
+    )
+    db.commit()
+    tmdb_detail = {
+        "tmdb_id": 1396,
+        "media_type": "show",
+        "title": "Série",
+        "recommendations": [],
+        "similar": [],
+    }
+
+    with patch("app.routers.discover_api.tmdb.detail", new=AsyncMock(return_value=tmdb_detail)):
+        response = client.get("/api/discover/detail?media_type=show&tmdb_id=1396")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["operational_status"] == "downloading"
+    assert any(step["state"] == "current" and step["key"] == "downloading" for step in payload["workflow_timeline"])
+    assert payload["episodes_available_count"] == 6
+    assert payload["episodes_total_count"] == 10
+    assert payload["seasons"] == [
+        {
+            "season_number": 1,
+            "episodes_available_count": 6,
+            "episodes_total_count": 10,
+            "status": "partially_available",
+        }
+    ]
+
+
+def test_person_detail_returns_annotated_filmography(client):
+    person = {
+        "tmdb_id": 287,
+        "name": "Brad Pitt",
+        "biography": "Biographie",
+        "credits": [{"tmdb_id": 550, "media_type": "movie", "title": "Fight Club"}],
+    }
+    with patch("app.routers.discover_api.tmdb.person_detail", new=AsyncMock(return_value=person)):
+        response = client.get("/api/discover/person/287")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["name"] == "Brad Pitt"
+    assert payload["credits"][0]["tmdb_id"] == 550
+    assert "in_library" in payload["credits"][0]
+
+
+def test_trending_returns_paginated_annotated_envelope(client):
+    payload = {
+        "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film"}],
+        "page": 1,
+        "total_pages": 3,
+        "total_results": 55,
+    }
+    with patch("app.routers.discover_api.tmdb.trending", new=AsyncMock(return_value=payload)):
+        response = client.get("/api/discover/trending?media_type=all&page=1&paginated=true")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_pages"] == 3
+    assert body["items"][0]["requested"] is False
+
+
+def test_trending_keeps_legacy_list_shape_by_default(client):
+    payload = {
+        "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film"}],
+        "page": 1,
+        "total_pages": 3,
+        "total_results": 55,
+    }
+    with patch("app.routers.discover_api.tmdb.trending", new=AsyncMock(return_value=payload)):
+        response = client.get("/api/discover/trending?media_type=all&page=1")
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert response.json()[0]["title"] == "Film"
+
+
+def test_home_reuses_trending_for_hero_and_rail(client):
+    payload = {
+        "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film"}],
+        "page": 1,
+        "total_pages": 1,
+        "total_results": 1,
+    }
+    trending = AsyncMock(return_value=payload)
+    with patch("app.routers.discover_api.tmdb.trending", new=trending):
+        response = client.get("/api/discover/home?sections=hero,trending")
+
+    assert response.status_code == 200
+    sections = response.json()["sections"]
+    assert sections["hero"]["items"][0]["title"] == "Film"
+    assert sections["trending"]["items"][0]["title"] == "Film"
+    assert sections["trending"]["items"][0]["requested"] is False
+    trending.assert_awaited_once_with(ANY, "all", "day", 1)
+
+
+def test_home_caches_external_catalog_but_refreshes_local_status(client, db):
+    payload = {
+        "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film"}],
+        "page": 1,
+        "total_pages": 1,
+        "total_results": 1,
+    }
+    trending = AsyncMock(return_value=payload)
+    with patch("app.routers.discover_api.tmdb.trending", new=trending):
+        first = client.get("/api/discover/home?sections=trending")
+        _request(db, status=RequestStatus.pending, requested_at=now_utc_naive(), plex_user_id="user")
+        second = client.get("/api/discover/home?sections=trending")
+
+    assert first.json()["sections"]["trending"]["items"][0]["requested"] is False
+    assert second.json()["sections"]["trending"]["items"][0]["requested"] is True
+    trending.assert_awaited_once()
+
+
+def test_home_keeps_other_sections_when_one_fails(client):
+    payload = {
+        "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film"}],
+        "page": 1,
+        "total_pages": 1,
+        "total_results": 1,
+    }
+    with (
+        patch("app.routers.discover_api.tmdb.trending", new=AsyncMock(return_value=payload)),
+        patch("app.routers.discover_api.tmdb.popular", new=AsyncMock(side_effect=RuntimeError("TMDB down"))),
+    ):
+        response = client.get("/api/discover/home?sections=trending,popular_movies")
+
+    assert response.status_code == 200
+    sections = response.json()["sections"]
+    assert sections["trending"]["items"][0]["title"] == "Film"
+    assert sections["popular_movies"]["items"] == []
+    assert sections["popular_movies"]["error"] == "Section temporairement indisponible."
+
+
+def test_home_rejects_unknown_sections(client):
+    response = client.get("/api/discover/home?sections=trending,unknown")
+
+    assert response.status_code == 422
+
+
+def test_sources_return_configured_region_and_curated_items(client, db):
+    from app.models import Settings
+
+    db.add(Settings(tmdb_api_key="key", tmdb_region="BE"))
+    db.commit()
+    sources = [{"id": 8, "kind": "provider", "name": "Netflix", "logo_url": None}]
+    discover_sources = AsyncMock(return_value=sources)
+    with patch("app.routers.discover_api.tmdb.discovery_sources", new=discover_sources):
+        response = client.get("/api/discover/sources")
+
+    assert response.status_code == 200
+    assert response.json() == {"region": "BE", "items": sources}
+    discover_sources.assert_awaited_once_with(ANY, "BE")
+
+
+def test_source_media_is_annotated_and_paginated(client):
+    payload = {
+        "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film"}],
+        "page": 1,
+        "total_pages": 2,
+        "total_results": 21,
+    }
+    discover = AsyncMock(return_value=payload)
+    with patch("app.routers.discover_api.tmdb.discover_by_source", new=discover):
+        response = client.get("/api/discover/source/provider/8?media_type=movie&page=1")
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["requested"] is False
+    assert response.json()["total_pages"] == 2
+    discover.assert_awaited_once_with(ANY, "provider", 8, "movie", 1, "FR", sort_by="popularity.desc")
+
+
+@pytest.mark.asyncio
+async def test_personalization_uses_only_the_current_plex_users_history(db):
+    from datetime import timedelta
+
+    now = now_utc_naive()
+    db.add_all(
+        [
+            LibraryItem(title="Dune", year=2021, media_type="movie", tmdb_id="438631"),
+            LibraryItem(title="Arrival", year=2016, media_type="movie", tmdb_id="329865"),
+            PlaybackSession(
+                source="tautulli",
+                source_session_id="mine",
+                plex_user_id="user-1",
+                user_name="Moi",
+                media_type="movie",
+                title="Dune",
+                year=2021,
+                started_at=now,
+                ended_at=now + timedelta(hours=2),
+            ),
+            PlaybackSession(
+                source="tautulli",
+                source_session_id="other",
+                plex_user_id="user-2",
+                user_name="Autre",
+                media_type="movie",
+                title="Arrival",
+                year=2016,
+                started_at=now,
+                ended_at=now + timedelta(hours=2),
+            ),
+        ]
+    )
+    db.commit()
+
+    seeds, watched = await _personalization_seeds(db, "user-1")
+
+    assert [seed["title"] for seed in seeds] == ["Dune"]
+    assert watched == {("movie", "438631")}
+
+
+@pytest.mark.asyncio
+async def test_personalization_filters_watched_and_available_media(db):
+    from datetime import timedelta
+
+    now = now_utc_naive()
+    db.add_all(
+        [
+            LibraryItem(title="Dune", year=2021, media_type="movie", tmdb_id="438631"),
+            LibraryItem(title="Déjà dans Plex", year=2025, media_type="movie", tmdb_id="2"),
+            PlaybackSession(
+                source="plex",
+                source_session_id="seed",
+                plex_user_id="user-1",
+                user_name="Moi",
+                media_type="movie",
+                title="Dune",
+                year=2021,
+                started_at=now,
+                ended_at=now + timedelta(hours=2),
+            ),
+        ]
+    )
+    db.commit()
+    recommendations = [
+        {"tmdb_id": 2, "media_type": "movie", "title": "Déjà dans Plex", "genre_ids": [878]},
+        {"tmdb_id": 3, "media_type": "movie", "title": "Nouveau", "genre_ids": [878]},
+    ]
+    empty_page = {"items": [], "page": 1, "total_pages": 1, "total_results": 0}
+
+    with (
+        patch(
+            "app.routers.discover_api.tmdb.detail",
+            new=AsyncMock(return_value={"recommendations": recommendations}),
+        ),
+        patch("app.routers.discover_api.tmdb.discover", new=AsyncMock(return_value=empty_page)),
+        patch("app.routers.discover_api.tmdb.popular", new=AsyncMock(return_value=empty_page)),
+    ):
+        payload = await _personalized_sections(db, "user-1", hide_available=True, hide_watched=True)
+
+    assert payload["available"] is True
+    assert [item["title"] for item in payload["sections"]["recommended"]["items"]] == ["Nouveau"]
+
+
+@pytest.mark.asyncio
+async def test_personalization_keeps_followed_series_with_an_upcoming_episode(db):
+    from datetime import timedelta
+
+    now = now_utc_naive()
+    db.add_all(
+        [
+            LibraryItem(title="Breaking Bad", year=2008, media_type="show", tmdb_id="1396"),
+            PlaybackSession(
+                source="tautulli",
+                source_session_id="show-seed",
+                plex_user_id="user-1",
+                user_name="Moi",
+                media_type="episode",
+                title="Pilot",
+                grandparent_title="Breaking Bad",
+                year=2008,
+                started_at=now,
+                ended_at=now + timedelta(minutes=55),
+            ),
+        ]
+    )
+    db.commit()
+    detail = {
+        "tmdb_id": 1396,
+        "media_type": "show",
+        "title": "Breaking Bad",
+        "next_episode_to_air": {"air_date": "2026-08-10", "season_number": 6},
+        "recommendations": [],
+    }
+    empty_page = {"items": [], "page": 1, "total_pages": 1, "total_results": 0}
+
+    with (
+        patch("app.routers.discover_api.tmdb.detail", new=AsyncMock(return_value=detail)),
+        patch("app.routers.discover_api.tmdb.popular", new=AsyncMock(return_value=empty_page)),
+    ):
+        payload = await _personalized_sections(db, "user-1", hide_available=True, hide_watched=True)
+
+    followed = payload["sections"]["followed_series"]["items"]
+    assert [item["title"] for item in followed] == ["Breaking Bad"]
+    assert followed[0]["next_episode_to_air"]["season_number"] == 6
+
+
+@pytest.mark.asyncio
+async def test_recent_plex_uses_an_opaque_poster_url(db):
+    item = LibraryItem(
+        title="Film Plex",
+        media_type="movie",
+        poster_url="https://plex.local/library/metadata/42/thumb?X-Plex-Token=secret",
+    )
+    db.add(item)
+    db.commit()
+
+    payload = await _recent_plex_section(db)
+
+    poster_url = payload["items"][0]["poster_url"]
+    assert poster_url.startswith(f"/api/image-proxy/library/{item.id}?")
+    assert "X-Plex-Token" not in poster_url
+
+
+@pytest.mark.asyncio
+async def test_most_requested_uses_an_opaque_poster_url(db):
+    row = MediaRequest(
+        plex_user_id="user-1",
+        plex_user="Moi",
+        title="Film demandé",
+        media_type="movie",
+        poster_url="https://plex.local/library/metadata/42/thumb?X-Plex-Token=secret",
+        extra_requesters='["user-2"]',
+        status=RequestStatus.pending,
+    )
+    db.add(row)
+    db.commit()
+
+    payload = await _most_requested_section(db)
+
+    poster_url = payload["items"][0]["poster_url"]
+    assert poster_url.startswith(f"/api/image-proxy/request/{row.id}?")
+    assert "X-Plex-Token" not in poster_url
+
+
+@pytest.mark.asyncio
+async def test_fetch_home_genre_sections(db):
+    from app.routers.discover_api import _fetch_home_section
+
+    mock_genre_page = {
+        "items": [{"tmdb_id": 100, "media_type": "movie", "title": "Film Action"}],
+        "page": 1,
+        "total_pages": 1,
+        "total_results": 1,
+    }
+    with patch("app.routers.discover_api.tmdb.discover_genre_rail", new=AsyncMock(return_value=mock_genre_page)):
+        res = await _fetch_home_section(db, "genre_action", "FR")
+        assert res["items"][0]["title"] == "Film Action"
+
+
+def test_source_endpoint_supports_sorting(client):
+    mock_payload = {"items": [], "page": 1, "total_pages": 1, "total_results": 0}
+    with patch("app.routers.discover_api.tmdb.discover_by_source", new=AsyncMock(return_value=mock_payload)) as mock_call:
+        response = client.get("/api/discover/source/provider/8?sort_by=vote_average.desc")
+        assert response.status_code == 200
+        mock_call.assert_called_once()
+        assert mock_call.call_args.kwargs.get("sort_by") == "vote_average.desc"
+

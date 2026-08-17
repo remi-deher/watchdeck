@@ -1,0 +1,142 @@
+services:
+  api:
+    image: ${WATCHDECK_IMAGE:-mrcryllix/watchdeck:latest}
+    build: .
+    container_name: watchdeck-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    # Docker's default is 10s before SIGKILL — too short if a scheduler job (Plex/*arr
+    # network call) is mid-flight on shutdown. A process killed mid SQLite write is a
+    # real corruption risk, so give the graceful-shutdown path (see app/main.py lifespan)
+    # enough room to let the current job/notification finish and commit cleanly.
+    stop_grace_period: 30s
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+      DATABASE_URL: postgresql://watchdeck:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-watchdeck}
+      REDIS_URL: redis://redis:6379/0
+      ENABLE_ARQ: "1"
+      ENABLE_LEGACY_SCHEDULER: "0"
+      AUTO_MIGRATE_LEGACY_SQLITE: ${AUTO_MIGRATE_LEGACY_SQLITE:-1}
+      LEGACY_SQLITE_PATH: ${LEGACY_SQLITE_PATH:-/app/data/plex_rss.db}
+      LEGACY_IMPORT_MAX_BYTES: ${LEGACY_IMPORT_MAX_BYTES:-268435456}
+      # Optionnelle : si absente, une clé est générée au premier démarrage et persistée
+      # dans data/.encryption_key (voir app/crypto.py). La définir explicitement n'est
+      # utile que pour fixer la clé à l'avance ou la partager avec une autre instance.
+      WATCHDECK_ENCRYPTION_KEY: ${WATCHDECK_ENCRYPTION_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/favicon.ico')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    image: ${WATCHDECK_IMAGE:-mrcryllix/watchdeck:latest}
+    build: .
+    container_name: watchdeck-worker
+    command: ["arq", "app.jobs.WorkerSettings"]
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    stop_grace_period: 45s
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+      DATABASE_URL: postgresql://watchdeck:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-watchdeck}
+      REDIS_URL: redis://redis:6379/0
+      ENABLE_ARQ: "1"
+      AUTO_MIGRATE_LEGACY_SQLITE: "0"
+      # Optionnelle : si absente, une clé est générée au premier démarrage et persistée
+      # dans data/.encryption_key (voir app/crypto.py). La définir explicitement n'est
+      # utile que pour fixer la clé à l'avance ou la partager avec une autre instance.
+      WATCHDECK_ENCRYPTION_KEY: ${WATCHDECK_ENCRYPTION_KEY:-}
+      ARQ_MAX_JOBS: ${ARQ_MAX_JOBS:-15}
+      ARQ_JOB_TIMEOUT: ${ARQ_JOB_TIMEOUT:-3600}
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "arq", "--check", "app.jobs.WorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  db:
+    image: postgres:15-alpine
+    container_name: watchdeck-db
+    environment:
+      POSTGRES_USER: watchdeck
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-watchdeck}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watchdeck -d ${POSTGRES_DB:-watchdeck}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: watchdeck-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backup:
+    image: postgres:15-alpine
+    profiles: ["operations"]
+    environment:
+      PGHOST: db
+      PGUSER: watchdeck
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      PGDATABASE: ${POSTGRES_DB:-watchdeck}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+      - ./data:/app/data:ro
+      - ./scripts/postgres_backup.sh:/usr/local/bin/postgres_backup:ro
+    entrypoint: ["sh", "/usr/local/bin/postgres_backup"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  restore:
+    image: postgres:15-alpine
+    profiles: ["operations"]
+    environment:
+      PGHOST: db
+      PGUSER: watchdeck
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      PGDATABASE: ${POSTGRES_DB:-watchdeck}
+      RESTORE_FILE: ${RESTORE_FILE:-}
+      CONFIRM_RESTORE: ${CONFIRM_RESTORE:-}
+    volumes:
+      - ./backups:/backups:ro
+      - ./data:/app/data
+      - ./scripts/postgres_restore.sh:/usr/local/bin/postgres_restore:ro
+    entrypoint: ["sh", "/usr/local/bin/postgres_restore"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:

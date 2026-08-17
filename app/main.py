@@ -1,0 +1,507 @@
+"""
+Point d'entrée de l'application FastAPI.
+
+Responsabilités :
+- Initialisation de la base de données (migrations Alembic + seed)
+- Démarrage et arrêt du scheduler APScheduler
+- Montage de tous les routers (pages HTML, API REST, webhook, import/export, templates email)
+"""
+
+import asyncio
+import json
+import logging
+import os
+import time
+from base64 import b64decode, b64encode
+from contextlib import asynccontextmanager
+from urllib.parse import quote
+
+import itsdangerous
+import sqlalchemy
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from itsdangerous.exc import BadSignature
+from sqlalchemy.ext.asyncio import AsyncSession as SqlSession
+from sqlalchemy.future import select
+from starlette.datastructures import MutableHeaders
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.middleware.sessions import Session
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from .cache import cache
+from .database import get_db_async as get_db
+from .database import init_db
+from .dependencies import require_admin
+from .error_handlers import register_domain_exception_handlers
+from .log_buffer import install as install_log_buffer
+from .notification_queue import start_worker as start_notif_worker
+from .notification_queue import stop_worker as stop_notif_worker
+from .routers import (
+    activity_api,
+    api_v1,
+    arr_instances_api,
+    arr_queue_api,
+    arr_releases_api,
+    auth,
+    backup_api,
+    calendar_api,
+    client_capabilities_api,
+    conflicts_api,
+    corrections_api,
+    dashboard_api,
+    discover_api,
+    download_clients_api,
+    downloads_api,
+    email_providers_api,
+    email_templates,
+    events_api,
+    i18n_api,
+    image_proxy_api,
+    importexport,
+    issues_api,
+    library_analytics_api,
+    library_api,
+    maintenance,
+    manual_import_api,
+    metrics_api,
+    notifications_api,
+    onboarding_api,
+    prowlarr_api,
+    requests_api,
+    scheduled_tasks_api,
+    security_api,
+    settings_api,
+    system_api,
+    users_api,
+    vf_upgrades_api,
+    vff_api,
+    webhook,
+    webhook_admin,
+)
+from .scheduler import scheduler, start_scheduler
+from .services.auth import get_secret_key
+from .utils import safe_redirect_path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+install_log_buffer()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Gère le cycle de vie de l'application : démarrage et arrêt propre."""
+    try:
+        os.makedirs("data", exist_ok=True)
+        logging.info("Running DB migrations...")
+        await init_db()
+        logging.info("DB OK. Starting API services...")
+
+        # Lire l'intervalle de polling depuis la DB avant de lancer le scheduler
+        from .database import AsyncSessionLocal
+        from .models import Settings as _Settings
+
+        async with AsyncSessionLocal() as _db:
+            _s = (await _db.execute(select(_Settings))).scalars().first()
+            # Priorité à l'intervalle en secondes (polling sous la minute) ; repli sur les minutes.
+            if _s and _s.poll_interval_seconds:
+                _seconds = _s.poll_interval_seconds
+            elif _s and _s.poll_interval_minutes:
+                _seconds = _s.poll_interval_minutes * 60
+            else:
+                _seconds = 300
+        legacy_scheduler = os.getenv("ENABLE_LEGACY_SCHEDULER", "0").lower() in {"1", "true", "yes"}
+        if legacy_scheduler:
+            await start_scheduler(poll_seconds=_seconds)
+            await start_notif_worker()
+            logging.warning("Legacy APScheduler and notification worker enabled")
+        else:
+            logging.info("Background work delegated to ARQ")
+        app.state.legacy_scheduler = legacy_scheduler
+        from .services.arr_history import sync_all_enabled_instances
+        app.state.arr_history_sync = asyncio.create_task(sync_all_enabled_instances())
+        logging.info("App ready.")
+    except Exception:
+        logging.exception("STARTUP FAILED")
+        raise
+    yield
+    if getattr(app.state, "legacy_scheduler", False):
+        logging.info("Shutting down legacy background services...")
+        await stop_notif_worker()
+        scheduler.shutdown()
+    history_sync = getattr(app.state, "arr_history_sync", None)
+    if history_sync and not history_sync.done():
+        history_sync.cancel()
+    from .services.arr_http_client import close_arr_clients
+    await close_arr_clients()
+    await cache.close()
+    logging.info("Shutdown complete.")
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        started_at = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        response.headers["Server-Timing"] = f'app;dur={duration_ms:.1f}'
+        response.headers["X-Response-Time-Ms"] = f"{duration_ms:.1f}"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        return response
+
+
+class CacheControlledStaticFiles(StaticFiles):
+    """Cache long pour les chunks Vite hashés, revalidation pour le shell SPA."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        if path.startswith("assets/") or "/assets/" in scope.get("path", ""):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif path.endswith(".html"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+async def _sync_session_role(plex_user_id: str | None, username: str | None) -> dict | None:
+    """Corps synchrone de la résolution de rôle (exécuté hors event loop via to_thread)."""
+    from .database import AsyncSessionLocal
+    from .models import PlexUser, Settings
+
+    db = AsyncSessionLocal()
+    try:
+        if plex_user_id:
+            u = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == plex_user_id))).scalars().first()
+            if u:
+                return {"role": u.role or "user", "is_owner": u.role == "admin", "user_id": u.id}
+        else:
+            u = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == username))).scalars().first()
+            if u:
+                return {"role": u.role or "user", "is_owner": u.role == "admin", "user_id": u.id}
+            s = (await db.execute(select(Settings))).scalars().first()
+            if s and s.auth_username and username == s.auth_username:
+                return {"role": "admin", "is_owner": True}
+        return None
+    finally:
+        await db.close()
+
+_role_cache: dict[str, tuple[float, dict | None]] = {}
+_role_locks: dict[str, asyncio.Lock] = {}
+
+
+async def _cached_session_role(plex_user_id: str | None, username: str | None, ttl: int) -> dict | None:
+    """Dedoublonne aussi les rafales du premier affichage d'une page."""
+    key = plex_user_id or username or ""
+    cached = _role_cache.get(key)
+    now = time.monotonic()
+    if cached and now - cached[0] < ttl:
+        return cached[1]
+    lock = _role_locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        cached = _role_cache.get(key)
+        now = time.monotonic()
+        if cached and now - cached[0] < ttl:
+            return cached[1]
+        value = await _sync_session_role(plex_user_id, username)
+        _role_cache[key] = (now, value)
+        return value
+
+
+class SessionSyncMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # Les droits sont resynchronises periodiquement, pas sur chaque ressource/API.
+        # Une page comme le dashboard emet plusieurs appels concurrents : auparavant,
+        # chacun ajoutait inutilement une lecture PostgreSQL. Le delai reste court afin
+        # qu'une revocation de droits prenne effet rapidement.
+        now = int(time.time())
+        ttl = max(5, int(os.getenv("SESSION_ROLE_SYNC_TTL_SECONDS", "60")))
+        last_sync = int(request.session.get("role_synced_at") or 0)
+        if request.session.get("authenticated") and now - last_sync >= ttl:
+            try:
+                result = await _cached_session_role(
+                    request.session.get("plex_user_id"), request.session.get("username"), ttl
+                )
+                if result:
+                    request.session.update(result)
+                    request.session["role_synced_at"] = now
+            except Exception:
+                pass
+        return await call_next(request)
+
+def _request_is_https(scope: Scope) -> bool:
+    """Détecte si la requête d'origine était en HTTPS.
+
+    Couvre deux cas : TLS terminé directement par uvicorn (scope["scheme"]),
+    et TLS terminé en amont par un reverse-proxy (Traefik/Caddy/nginx) qui
+    transmet l'info via l'en-tête X-Forwarded-Proto.
+    """
+    if scope.get("scheme") == "https":
+        return True
+    headers = dict(scope.get("headers") or [])
+    proto = headers.get(b"x-forwarded-proto", b"").decode("latin-1").split(",")[0].strip().lower()
+    return proto == "https"
+
+class DynamicSecureSessionMiddleware:
+    """Équivalent de starlette.middleware.sessions.SessionMiddleware, mais le flag
+    `Secure` du cookie de session est déterminé par requête plutôt que figé au
+    démarrage. Cela permet un déploiement plug-and-play : le cookie reste
+    utilisable en HTTP direct (installation locale sans TLS) tout en devenant
+    `Secure` automatiquement dès que l'app est servie en HTTPS, y compris
+    derrière un reverse-proxy qui termine le TLS.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        secret_key: str,
+        session_cookie: str = "session",
+        max_age: int = 14 * 24 * 60 * 60,
+        path: str = "/",
+        # "strict" provoque des déconnexions intempestives sur Safari iOS : WebKit
+        # recharge parfois un onglet suspendu en arrière-plan (ou un lancement depuis
+        # l'écran d'accueil) d'une façon où le cookie Strict n'est pas renvoyé, alors
+        # qu'il ne s'agit pas d'une vraie navigation intersite. "lax" couvre ce cas
+        # (cookie envoyé sur les navigations top-level en GET) tout en bloquant le
+        # cookie sur les requêtes POST/fetch intersites forgées (protection CSRF).
+        same_site: str = "lax",
+    ) -> None:
+        self.app = app
+        self.signer = itsdangerous.TimestampSigner(secret_key)
+        self.session_cookie = session_cookie
+        self.max_age = max_age
+        self.path = path
+        self.base_flags = f"httponly; samesite={same_site}"
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        connection_cookies = Request(scope).cookies
+        initial_session_was_empty = True
+
+        if self.session_cookie in connection_cookies:
+            data = connection_cookies[self.session_cookie].encode("utf-8")
+            try:
+                data = self.signer.unsign(data, max_age=self.max_age)
+                scope["session"] = Session(json.loads(b64decode(data)))
+                initial_session_was_empty = False
+            except BadSignature:
+                scope["session"] = Session()
+        else:
+            scope["session"] = Session()
+
+        security_flags = self.base_flags + ("; secure" if _request_is_https(scope) else "")
+
+        async def send_wrapper(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                session: Session = scope["session"]
+                headers = MutableHeaders(scope=message)
+                if session.accessed:
+                    headers.add_vary_header("Cookie")
+                if session.modified and session:
+                    data = b64encode(json.dumps(session).encode("utf-8"))
+                    data = self.signer.sign(data)
+                    header_value = "{session_cookie}={data}; path={path}; {max_age}{security_flags}".format(
+                        session_cookie=self.session_cookie,
+                        data=data.decode("utf-8"),
+                        path=self.path,
+                        max_age=f"Max-Age={self.max_age}; " if self.max_age else "",
+                        security_flags=security_flags,
+                    )
+                    headers.append("Set-Cookie", header_value)
+                elif session.modified and not initial_session_was_empty:
+                    header_value = "{session_cookie}={data}; path={path}; {expires}{security_flags}".format(
+                        session_cookie=self.session_cookie,
+                        data="null",
+                        path=self.path,
+                        expires="expires=Thu, 01 Jan 1970 00:00:00 GMT; ",
+                        security_flags=security_flags,
+                    )
+                    headers.append("Set-Cookie", header_value)
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+app = FastAPI(title="Watchdeck", version="1.0.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+register_domain_exception_handlers(app)
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
+
+@app.get("/api/docs", include_in_schema=False)
+async def get_documentation(request: Request, db: SqlSession = Depends(get_db)):
+    await require_admin(request, db)
+    return get_swagger_ui_html(openapi_url="/api/openapi.json", title="Watchdeck API Docs")
+
+@app.get("/api/openapi.json", include_in_schema=False)
+async def get_open_api_endpoint(request: Request, db: SqlSession = Depends(get_db)):
+    await require_admin(request, db)
+    return get_openapi(title="Watchdeck", version="1.0.0", routes=app.routes)
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
+app.add_middleware(SessionSyncMiddleware)
+# Middleware de session (doit être ajouté avant les routers)
+app.add_middleware(DynamicSecureSessionMiddleware, secret_key=get_secret_key())
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/vue", CacheControlledStaticFiles(directory="app/static/vue"), name="vue")
+
+app.include_router(auth.router)
+app.include_router(activity_api.router)
+app.include_router(settings_api.router)
+app.include_router(system_api.router)
+app.include_router(arr_instances_api.router)
+app.include_router(download_clients_api.router)
+app.include_router(prowlarr_api.router)
+app.include_router(arr_releases_api.router)
+app.include_router(arr_queue_api.router)
+app.include_router(manual_import_api.router)
+app.include_router(downloads_api.router)
+app.include_router(users_api.router)
+app.include_router(security_api.router)
+app.include_router(requests_api.router)
+app.include_router(calendar_api.router)
+app.include_router(client_capabilities_api.router)
+app.include_router(dashboard_api.router)
+app.include_router(library_api.router)
+app.include_router(library_analytics_api.router)
+app.include_router(issues_api.router)
+app.include_router(corrections_api.router)
+app.include_router(discover_api.router)
+app.include_router(vff_api.router)
+app.include_router(vf_upgrades_api.router)
+app.include_router(metrics_api.router)
+app.include_router(notifications_api.router)
+app.include_router(scheduled_tasks_api.router)
+app.include_router(image_proxy_api.router)
+app.include_router(onboarding_api.router)
+app.include_router(conflicts_api.router)
+app.include_router(i18n_api.router)
+app.include_router(api_v1.router)
+app.include_router(webhook.router)
+app.include_router(webhook_admin.router)
+app.include_router(importexport.router)
+app.include_router(backup_api.router)
+app.include_router(email_templates.router)
+app.include_router(email_providers_api.router)
+app.include_router(maintenance.router)
+app.include_router(events_api.router)
+
+SPA_INDEX = os.path.join("app", "static", "vue", "index.html")
+SPA_ROOTS = {
+    "activity",
+    "dashboard",
+    "discover",
+    "downloads",
+    "requests",
+    "library",
+    "calendar",
+    "users",
+    "issues",
+    "notifications",
+    "logs",
+    "settings",
+    "maintenance",
+    "profile",
+    "releases",
+        "media",
+    "analytics",
+    "vf-upgrades",
+}
+
+PWA_STATIC_FILES = {
+    "manifest.webmanifest": ("app/static/vue/manifest.webmanifest", "application/manifest+json"),
+    "manifest.json": ("app/static/vue/manifest.webmanifest", "application/manifest+json"),
+    "sw.js": ("app/static/vue/sw.js", "application/javascript"),
+    "favicon.ico": ("app/static/vue/favicon.ico", "image/x-icon"),
+    "favicon.png": ("app/static/vue/favicon.png", "image/png"),
+    "apple-touch-icon.png": ("app/static/vue/apple-touch-icon.png", "image/png"),
+    "icon.svg": ("app/static/vue/icon.svg", "image/svg+xml"),
+    "icon-192.png": ("app/static/vue/icon-192.png", "image/png"),
+    "icon-512.png": ("app/static/vue/icon-512.png", "image/png"),
+}
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+@app.get("/manifest.json", include_in_schema=False)
+async def serve_manifest():
+    path = os.path.join("app", "static", "vue", "manifest.webmanifest")
+    if not os.path.exists(path):
+        path = os.path.join("public", "manifest.webmanifest")
+    if not os.path.exists(path):
+        raise HTTPException(404, "Manifest non trouvé")
+    return FileResponse(path, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=3600"})
+
+@app.get("/sw.js", include_in_schema=False)
+async def serve_service_worker():
+    path = os.path.join("app", "static", "vue", "sw.js")
+    if not os.path.exists(path):
+        path = os.path.join("public", "sw.js")
+    if not os.path.exists(path):
+        raise HTTPException(404, "Service worker non trouvé")
+    return FileResponse(
+        path,
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Service-Worker-Allowed": "/",
+        },
+    )
+
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.png", include_in_schema=False)
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/icon.svg", include_in_schema=False)
+async def serve_root_icon(request: Request):
+    filename = request.url.path.lstrip("/")
+    if filename in PWA_STATIC_FILES:
+        target_path, mime = PWA_STATIC_FILES[filename]
+        if not os.path.exists(target_path):
+            target_path = os.path.join("public", filename)
+        if os.path.exists(target_path):
+            return FileResponse(target_path, media_type=mime, headers={"Cache-Control": "public, max-age=86400"})
+    raise HTTPException(404, "Icône introuvable")
+
+@app.get("/app", include_in_schema=False)
+@app.get("/app/{legacy_path:path}", include_in_schema=False)
+async def redirect_legacy_spa(legacy_path: str = ""):
+    destination = f"/{legacy_path}" if legacy_path else "/dashboard"
+    return RedirectResponse(safe_redirect_path(destination, default="/dashboard"), status_code=308)
+
+@app.get("/templates", include_in_schema=False)
+async def redirect_legacy_templates():
+    return RedirectResponse("/settings?tab=templates", status_code=308)
+
+@app.get("/setup/wizard", include_in_schema=False)
+async def redirect_legacy_wizard():
+    return RedirectResponse("/settings?tab=connections", status_code=308)
+
+@app.get("/", include_in_schema=False)
+@app.get("/{spa_path:path}", include_in_schema=False)
+async def serve_spa(request: Request, spa_path: str = ""):
+    """Serve Vue history routes at the site root after every backend router."""
+    root = spa_path.split("/", 1)[0] if spa_path else ""
+    if root and root not in SPA_ROOTS:
+        raise HTTPException(404, "Route introuvable")
+    if not request.session.get("authenticated"):
+        if spa_path:
+            next_value = quote(safe_redirect_path(f"/{spa_path}"), safe="")
+            return RedirectResponse(f"/login?next={next_value}", status_code=302)
+        return RedirectResponse("/login", status_code=302)
+    if not os.path.exists(SPA_INDEX):
+        raise HTTPException(503, "Build Vue introuvable")
+    return FileResponse(
+        SPA_INDEX,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+        },
+    )

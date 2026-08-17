@@ -1,0 +1,75 @@
+name: Sync main down to test/dev
+
+# Le commit CHANGELOG.md d'une release n'existe que sur main (voir auto-version.yml),
+# jamais sur test/dev : sans resynchronisation, ces branches divergent de main a
+# chaque release et la promotion test -> main suivante reste bloquee (mergeStateStatus
+# "BEHIND"). Ce workflow refusionne main dans dev (push direct, dev n'est pas protegee)
+# et ouvre/auto-merge une PR main -> test des que main avance.
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: sync-main-down
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync-dev:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PROMOTION_PAT }}
+
+      - name: Merge main into dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin dev
+          if git merge-base --is-ancestor origin/main origin/dev; then
+            echo "dev contient deja main, rien a faire."
+            exit 0
+          fi
+          git checkout -B dev origin/dev
+          git merge origin/main --no-edit -m "chore: sync main into dev"
+          git push origin dev
+
+  sync-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PROMOTION_PAT }}
+
+      - name: Open and auto-merge sync PR into test
+        env:
+          GH_TOKEN: ${{ secrets.PROMOTION_PAT }}
+        run: |
+          git fetch origin main test
+          if git merge-base --is-ancestor origin/main origin/test; then
+            echo "test contient deja main, rien a faire."
+            exit 0
+          fi
+          gh pr create --base test --head main --title "chore: sync main -> test" --body "Resynchronisation automatique apres release." || true
+          gh pr merge main --auto --merge

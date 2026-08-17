@@ -1,0 +1,38 @@
+@use "sass:map";
+
+/* Canonical, mobile-first viewport boundaries.
+ * Local content-driven breakpoints remain allowed while legacy views migrate,
+ * but new shared components should use this map or container queries. */
+$breakpoints: (
+  mobile-wide: 420px,
+  phablet: 640px,
+  tablet: 768px,
+  desktop: 1025px,
+  wide: 1200px,
+);
+
+@function breakpoint($name) {
+  @if not map.has-key($breakpoints, $name) {
+    @error "Unknown responsive breakpoint: #{$name}";
+  }
+
+  @return map.get($breakpoints, $name);
+}
+
+@mixin from($name) {
+  @media (min-width: breakpoint($name)) {
+    @content;
+  }
+}
+
+@mixin until($name) {
+  @media (max-width: calc(#{breakpoint($name)} - 0.02px)) {
+    @content;
+  }
+}
+
+@mixin between($lower, $upper) {
+  @media (min-width: breakpoint($lower)) and (max-width: calc(#{breakpoint($upper)} - 0.02px)) {
+    @content;
+  }
+}

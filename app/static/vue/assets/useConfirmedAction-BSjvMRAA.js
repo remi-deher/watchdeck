@@ -1,0 +1,1 @@
+import{t as e}from"./useConfirm-B7qUefSB.js";import{t}from"./useAsyncAction-b1TUCddS.js";function n(n={}){let{dialog:r,askConfirm:i,resolveConfirm:a}=e(),o=t({askConfirm:i,busy:n.busy,error:n.error,onDone:n.onDone});function s(e,t,n={}){return o.run(e,{...n,confirm:t})}return{...o,dialog:r,askConfirm:i,resolveConfirm:a,runConfirmed:s}}export{n as t};

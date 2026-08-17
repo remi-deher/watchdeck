@@ -1,0 +1,41 @@
+name: Auto Tag
+
+# Une fois la PR "chore(release): vX.Y.Z" (creee par auto-version.yml) mergee dans
+# main, cree et pousse le tag correspondant sur le commit de merge. Ce tag declenche
+# a son tour release.yml (GitHub Release) et docker-publish.yml (image versionnee).
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.PROMOTION_PAT }}
+
+      - name: Create and push tag
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          VERSION="${HEAD_REF#release/}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" "$MERGE_SHA" -m "$VERSION"
+          git push origin "$VERSION"

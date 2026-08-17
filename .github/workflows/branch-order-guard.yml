@@ -1,0 +1,56 @@
+name: Branch Order Guard
+
+# Impose le pipeline de promotion dev -> test -> main : une PR vers test doit
+# venir de dev, une PR vers main doit venir de test. Ce job est ajoute comme
+# status check obligatoire sur les rulesets de test et main, donc son echec
+# bloque le merge (y compris pour les promotions automatiques).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Ce job ne fait ni checkout ni appel API : aucun acces necessaire.
+permissions: {}
+
+jobs:
+  guard:
+    name: Branch order guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify source branch
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD: ${{ github.event.pull_request.head.ref }}
+        run: |
+          case "$BASE" in
+            test)
+              # "dev" pour une promotion normale, "main" pour la resynchronisation
+              # automatique post-release (sync-main-down.yml) : sans ca, le commit
+              # CHANGELOG.md n'existant que sur main, test resterait "BEHIND" pour
+              # toujours et bloquerait la prochaine promotion vers main.
+              case "$HEAD" in
+                dev|main) ;;
+                *)
+                  echo "::error::Une PR vers 'test' doit venir de 'dev' (ou 'main' pour resync) (recu: '$HEAD')."
+                  exit 1
+                  ;;
+              esac
+              ;;
+            main)
+              # "test" pour une promotion normale, "release/*" pour la PR de
+              # CHANGELOG auto-generee par auto-version.yml juste apres coup
+              # (toujours creee depuis main par notre propre automatisation,
+              # jamais par un humain ou une feature branch).
+              case "$HEAD" in
+                test|release/*) ;;
+                *)
+                  echo "::error::Une PR vers 'main' doit venir de 'test' ou 'release/*' (recu: '$HEAD')."
+                  exit 1
+                  ;;
+              esac
+              ;;
+          esac
+          echo "OK: $HEAD -> $BASE"

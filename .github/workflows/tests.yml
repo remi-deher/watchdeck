@@ -1,0 +1,207 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main, test, dev]
+    tags: ["v*"]
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+      - "pytest.ini"
+      - "frontend/**"
+      - "package*.json"
+      - "alembic/**"
+      - "docker-compose.yml"
+  pull_request:
+    # Pas de filtre paths ici (contrairement a push) : ces jobs sont des status
+    # checks obligatoires sur les rulesets test/main (voir branch-order-guard.yml
+    # et .github/workflows/auto-version.yml), donc ils doivent toujours tourner
+    # et rapporter un statut, y compris sur une PR qui ne touche que CHANGELOG.md.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Lecture seule : aucun job de ce fichier n'ecrit sur le depot ou l'API GitHub.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: watchdeck
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: watchdeck_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U watchdeck -d watchdeck_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ENABLE_ARQ: "0"
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        env:
+          REDIS_URL: "redis://127.0.0.1:6379/0"
+        run: python -m pytest -v --cov=app --cov-report=term-missing --cov-fail-under=60
+
+      - name: Validate Redis
+        run: python -c "from redis import Redis; assert Redis.from_url('redis://127.0.0.1:6379/0').ping()"
+
+      - name: Validate PostgreSQL migrations
+        env:
+          DATABASE_URL: postgresql://watchdeck:ci-password@127.0.0.1:5432/watchdeck_test
+        run: alembic upgrade head
+
+  frontend:
+    name: Build Vue SPA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Run frontend unit tests
+        run: npm run test:unit
+      - run: npm run build
+
+  docker-smoke:
+    name: Docker upgrade smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Ce job doit toujours rapporter un statut (voir la note plus haut sur les
+      # status checks obligatoires), mais construire+booter deux fois la stack
+      # entiere n'a d'interet que si le diff touche vraiment a l'image ou au
+      # runtime. Sur une PR de changelog seul ou une bump de dependance, on saute
+      # directement a un succes plutot que de bruler ~15-20 min pour rien.
+      - name: Check for relevant changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git fetch origin "$BASE_REF" --depth=1
+            RANGE="origin/$BASE_REF...HEAD"
+          elif [ -n "$EVENT_BEFORE" ] && [ "$EVENT_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            RANGE="$EVENT_BEFORE...$CURRENT_SHA"
+          else
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED="$(git diff --name-only $RANGE)"
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(app/|Dockerfile|requirements.*\.txt|package.*\.json|frontend/|docker-compose\.yml|alembic/|scripts/|docker-entrypoint\.sh)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.changes.outputs.relevant == 'true'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Configure test secrets
+        if: steps.changes.outputs.relevant == 'true'
+        run: |
+          printf '%s\n' \
+            'POSTGRES_PASSWORD=ci-docker-password' \
+            'POSTGRES_DB=watchdeck' \
+            'WATCHDECK_ENCRYPTION_KEY=' > .env
+
+      # Image chargee localement (pas poussee) avec cache GHA : un rebuild sans
+      # changement de code (le cas juste en dessous, pour l'upgrade) devient
+      # quasi instantane au lieu de tout recompiler.
+      - name: Build image (cached)
+        if: steps.changes.outputs.relevant == 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          tags: mrcryllix/watchdeck:latest
+          cache-from: type=gha,scope=docker-smoke
+          cache-to: type=gha,mode=max,scope=docker-smoke
+
+      - name: Start stack
+        if: steps.changes.outputs.relevant == 'true'
+        run: docker compose up -d
+
+      - name: Verify first deployment
+        if: steps.changes.outputs.relevant == 'true'
+        run: |
+          timeout 120 sh -c 'until docker compose exec -T worker arq --check app.jobs.WorkerSettings; do sleep 3; done'
+          curl --fail http://127.0.0.1:8000/favicon.ico
+
+      - name: Rebuild image (cached)
+        if: steps.changes.outputs.relevant == 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          tags: mrcryllix/watchdeck:latest
+          cache-from: type=gha,scope=docker-smoke
+          cache-to: type=gha,mode=max,scope=docker-smoke
+
+      - name: Rebuild existing deployment
+        if: steps.changes.outputs.relevant == 'true'
+        run: docker compose up -d
+
+      - name: Verify upgraded deployment
+        if: steps.changes.outputs.relevant == 'true'
+        run: |
+          timeout 120 sh -c 'until docker compose exec -T worker arq --check app.jobs.WorkerSettings; do sleep 3; done'
+          curl --fail http://127.0.0.1:8000/favicon.ico
+          docker compose ps
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop stack
+        if: always() && steps.changes.outputs.relevant == 'true'
+        run: docker compose down -v

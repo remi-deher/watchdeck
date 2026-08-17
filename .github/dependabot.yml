@@ -1,0 +1,54 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+
+  - package-ecosystem: pip
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+    ignore:
+      # arq 0.28 exige redis < 6 : la majeure suivante casse l'installation.
+      - dependency-name: redis
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+
+  # Les images de base du Dockerfile sont epinglees par digest sha256 (durcissement
+  # supply-chain) : sans cette entree, elles ne recevraient plus jamais de mise a
+  # jour, y compris les correctifs de securite Alpine.
+  - package-ecosystem: docker
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore

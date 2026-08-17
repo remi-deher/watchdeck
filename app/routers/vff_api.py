@@ -1,0 +1,844 @@
+import asyncio
+import json
+import logging
+from typing import Optional
+
+import sqlalchemy
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from ..database import get_db_async
+from ..dependencies import require_admin, require_auth, require_moderator
+from ..models import (
+    EpisodeAvailability,
+    EpisodeMetadata,
+    LibraryItem,
+    MediaRequest,
+    RequestStatus,
+    Settings,
+    VfEpisodeStatus,
+)
+from ..scheduler import (
+    _invalidate_vf_cache,
+    _load_known_vf_episodes,
+    _parse_vff_libraries,
+    _persist_episode_metadata,
+    _persist_episode_status,
+    _sonarr_episode_numbers_for,
+    _trigger_vf_search,
+    plex_sync_state,
+    sync_plex_media,
+    vff_scan_state,
+)
+from ..serializers import format_datetime
+from ..services import audio_analyzer, tmdb
+from ..services import plex_finder as vff_svc
+from ..services.episode_availability import sync_episode_availability_for_show
+from ..services.notification_orchestrator import _notify, _queue_milestone
+from ..services.radarr import lookup_movie
+from ..services.sonarr import get_episodes, lookup_series
+from ..utils import async_get_or_404, now_utc_naive, wrap_image_proxy
+from .arr_shared import _resolve_arr_instance
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api", tags=["vff"], dependencies=[Depends(require_auth)])
+
+
+def _arr_image_url(images: list[dict] | None, *cover_types: str) -> str | None:
+    """Return the best public image URL exposed by Sonarr/Radarr."""
+    if not images:
+        return None
+    for cover_type in cover_types:
+        for img in images:
+            if img.get("coverType") != cover_type:
+                continue
+            url = img.get("remoteUrl") or img.get("url")
+            if url:
+                return url
+    for img in images:
+        url = img.get("remoteUrl") or img.get("url")
+        if url:
+            return url
+    return None
+
+
+async def _vf_detail_payload(db: AsyncSession, req):
+    """Détail VF (modale) : pistes audio (film) ou statut par saison/épisode (série)."""
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings:
+        return {"enabled": False}
+
+    source_type = "request" if isinstance(req, MediaRequest) else "library_item"
+    libs = _parse_vff_libraries(settings)
+    vf_detected = bool(settings.vff_enabled and settings.plex_url and settings.plex_token and libs)
+    movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
+
+    if req.media_type == "movie":
+        release_date = None
+        try:
+            radarr_inst = await _resolve_arr_instance(db, req.arr_instance_id, "radarr")
+            movie_data = await lookup_movie(
+                radarr_inst.url, radarr_inst.api_key, arr_id=req.arr_id, tmdb_id=req.tmdb_id, imdb_id=req.imdb_id
+            )
+            if movie_data:
+                release_date = (
+                    movie_data.get("inCinemas") or movie_data.get("digitalRelease") or movie_data.get("physicalRelease")
+                )
+        except Exception as e:
+            logger.debug(f"vf-detail: date de sortie Radarr indisponible pour '{req.title}': {e}")
+
+        if not vf_detected:
+            return {"enabled": True, "media_type": "movie", "vf_available": False, "release_date": release_date}
+        res = await asyncio.to_thread(
+            vff_svc.get_movie_audio_detail_blocking,
+            settings.plex_url,
+            settings.plex_token,
+            movie_libs,
+            req.title,
+            req.year,
+            req.tmdb_id,
+            req.tvdb_id,
+            req.imdb_id,
+        )
+        return {"enabled": True, "media_type": "movie", "vf_available": True, "release_date": release_date, **res}
+
+    if vf_detected:
+        rows = (await db.execute(
+            select(VfEpisodeStatus).filter(
+                VfEpisodeStatus.source_type == source_type,
+                VfEpisodeStatus.source_id == req.id
+            )
+        )).scalars().all()
+        plex_eps = {}
+        plex_fr_default = {}
+        for r in rows:
+            plex_eps.setdefault(r.season_number, {})[r.episode_number] = r.has_vf
+            plex_fr_default.setdefault(r.season_number, {})[r.episode_number] = r.fr_is_default
+    else:
+        plex_eps = {}
+        plex_fr_default = {}
+
+    sonarr_episodes = None
+    first_aired = None
+    next_episode_at = None
+    series_poster_url = getattr(req, "poster_url", None)
+    season_posters: dict[int, str] = {}
+    try:
+        inst = await _resolve_arr_instance(db, req.arr_instance_id, "sonarr")
+        def wrap_local(url: Optional[str]) -> Optional[str]:
+            if not url:
+                return url
+            if url.startswith("/"):
+                url = f"{inst.url.rstrip('/')}{url}"
+            return wrap_image_proxy(url)
+        series_id = None
+        data = None
+        if req.tvdb_id:
+            # arr_id transmis quand il est connu : /series/{id} en O(1) plutot que la
+            # resolution par catalogue, a chaque ouverture de fiche media.
+            known_arr_id = req.arr_id if getattr(req, "source", None) != "seer" else None
+            data = await lookup_series(inst.url, inst.api_key, arr_id=known_arr_id, tvdb_id=req.tvdb_id)
+            series_id = data.get("id") if data else None
+        if not series_id and getattr(req, "source", None) != "seer" and req.arr_id:
+            series_id = req.arr_id
+            data = data or await lookup_series(inst.url, inst.api_key, arr_id=series_id)
+        if data:
+            first_aired = data.get("firstAired")
+            next_episode_at = data.get("nextAiring")
+            series_poster_url = _arr_image_url(data.get("images"), "poster") or series_poster_url
+            for season in data.get("seasons") or []:
+                sn = season.get("seasonNumber")
+                poster_url = _arr_image_url(season.get("images"), "poster")
+                if sn is not None and poster_url:
+                    season_posters[sn] = poster_url
+        if series_id:
+            sonarr_episodes = await get_episodes(inst.url, inst.api_key, series_id)
+    except Exception as e:
+        logger.warning(f"vf-detail: liste épisodes Sonarr indisponible pour '{req.title}': {e}")
+
+    # Les épisodes sont déjà stockés en BDD par le poll background,
+    # on n'a plus besoin d'écrire en DB ici lors du GET.
+
+
+    def _status(in_plex, has_file, fr_is_default=None):
+        if vf_detected:
+            if in_plex is True:
+                if fr_is_default is False:
+                    return "vf_secondary"
+                return "vf"
+            if in_plex is False:
+                return "vo"
+            if has_file:
+                return "unknown"
+            return "absent"
+        return "present" if has_file else "absent"
+
+    seasons: dict[int, dict[int, dict]] = {}
+    if sonarr_episodes:
+        for ep in sonarr_episodes:
+            if not ep.get("monitored", True):
+                continue
+            sn = ep.get("seasonNumber")
+            en = ep.get("episodeNumber")
+            if sn is None or en is None or sn == 0:
+                continue
+            status = _status(
+                plex_eps.get(sn, {}).get(en),
+                ep.get("hasFile"),
+                plex_fr_default.get(sn, {}).get(en),
+            )
+            seasons.setdefault(sn, {})[en] = {
+                "episode": en,
+                "title": ep.get("title") or "",
+                "status": status,
+                "air_date": ep.get("airDateUtc") or ep.get("airDate"),
+                "has_file": bool(ep.get("hasFile")),
+                "thumb_url": _arr_image_url(ep.get("images"), "screenshot", "poster"),
+            }
+    else:
+        for sn, eps in plex_eps.items():
+            if sn == 0:
+                continue
+            for en, has_vf in eps.items():
+                seasons.setdefault(sn, {})[en] = {
+                    "episode": en,
+                    "title": "",
+                    "status": "vf_secondary"
+                    if has_vf and plex_fr_default.get(sn, {}).get(en) is False
+                    else ("vf" if has_vf else "vo"),
+                    "air_date": None,
+                    "has_file": True,
+                    "thumb_url": None,
+                }
+
+    out_seasons = []
+    for sn in sorted(seasons):
+        eps = [seasons[sn][en] for en in sorted(seasons[sn])]
+        counts = {"vf": 0, "vf_secondary": 0, "vo": 0, "present": 0, "absent": 0, "unknown": 0}
+        for ep_out in eps:
+            counts[ep_out["status"]] = counts.get(ep_out["status"], 0) + 1
+        out_seasons.append(
+            {
+                "season_number": sn,
+                "poster_url": wrap_local(season_posters.get(sn) or series_poster_url),
+                "counts": counts,
+                "episodes": eps,
+            }
+        )
+
+    return {
+        "enabled": True,
+        "media_type": "show",
+        "vf_available": vf_detected,
+        "found": bool(plex_eps) or bool(sonarr_episodes),
+        "sonarr_available": sonarr_episodes is not None,
+        "first_aired": first_aired,
+        "next_episode_at": next_episode_at,
+        "poster_url": wrap_local(series_poster_url),
+        "seasons": out_seasons,
+    }
+
+
+# --- Chargement progressif (façon Seerr) -------------------------------------
+#
+# `_vf_detail_payload` ci-dessus reste utilisé par la modale de détail VF (film :
+# scan Plex des pistes audio, inévitablement live). Pour l'accordéon saisons/
+# épisodes de la page de détail, on découpe désormais en trois appels indépendants
+# et parallélisables, chacun rendu dès qu'il répond, au lieu d'attendre que Sonarr
+# ET la BDD VF aient tous les deux répondu avant de pouvoir afficher quoi que ce
+# soit (voir Seerr : GET /tv/:id/season/:n ne renvoie que du TMDB pur, la
+# disponibilité vient d'une lecture DB locale séparée) :
+#   1. _episodes_envelope_payload : uniquement TMDB (titres/numéros), aucun appel
+#      Sonarr/Radarr/Plex — l'enveloppe s'affiche donc quasi instantanément.
+#   2. _availability_payload : uniquement Sonarr (episodeFileCount par épisode),
+#      mis en cache court pour éviter de re-taper Sonarr à chaque rechargement.
+#   3. _vf_status_payload : uniquement la lecture DB VfEpisodeStatus déjà
+#      alimentée par le poller en tâche de fond — aucun appel réseau du tout.
+
+
+async def _sonarr_episodes_for(db: AsyncSession, req) -> list[dict] | None:
+    """Episodes bruts Sonarr pour cette demande, si elle est liee a une instance Sonarr
+    connue -- None si aucun lien ou Sonarr injoignable (l'appelant retombe sur TMDB).
+
+    Sonarr (donc TheTVDB) fait foi pour la structure saisons/episodes plutot que TMDB :
+    Plex (et donc le scan VF, `show_has_full_french_audio`, qui itere `show.seasons()`)
+    suit le meme decoupage que Sonarr/TVDB, alors que TMDB fusionne parfois des saisons
+    que TVDB distingue (ex: certains animes en plusieurs "cours") -- des episodes bien
+    scannes pour la VF devenaient invisibles dans l'accordeon, leur numero de saison
+    TVDB n'ayant aucune entree correspondante dans l'enveloppe TMDB.
+    """
+    if not req.arr_id:
+        return None
+    try:
+        # _resolve_arr_instance leve une 404 si arr_instance_id pointe vers une instance
+        # supprimee/introuvable -- a intercepter ici, sans quoi une reference perimee
+        # faisait planter tout l'endpoint au lieu du repli TMDB documente ci-dessus.
+        inst = await _resolve_arr_instance(db, req.arr_instance_id, "sonarr")
+    except HTTPException:
+        return None
+    if not inst:
+        return None
+    try:
+        return await get_episodes(inst.url, inst.api_key, req.arr_id)
+    except Exception as e:
+        logger.warning(f"episodes: Sonarr indisponible pour '{req.title}': {e}")
+        return None
+
+
+async def _episodes_envelope_payload(db: AsyncSession, req) -> dict:
+    """Enveloppe saisons (titres, numéros, nombre d'épisodes) -- Sonarr en priorité
+    (numérotation cohérente avec Plex/le scan VF, voir `_sonarr_episodes_for`), TMDB en
+    repli si la demande n'est pas liée à une instance Sonarr. Un seul appel, jamais le
+    détail épisode par épisode de chaque saison (voir `_season_episodes_payload`, chargé
+    à la demande quand une saison est dépliée côté frontend)."""
+    if req.media_type != "show":
+        return {"media_type": "movie", "seasons": []}
+
+    sonarr_episodes = await _sonarr_episodes_for(db, req)
+    if sonarr_episodes is not None:
+        counts: dict[int, int] = {}
+        for ep in sonarr_episodes:
+            sn = ep.get("seasonNumber")
+            if sn is None or sn == 0:  # ignore les speciaux, meme convention que le scan VF
+                continue
+            counts[sn] = counts.get(sn, 0) + 1
+        return {
+            "media_type": "show",
+            "seasons": [
+                {"season_number": sn, "name": f"Saison {sn}", "episode_count": count}
+                for sn, count in sorted(counts.items())
+            ],
+        }
+
+    if not req.tmdb_id:
+        return {"media_type": "show", "seasons": []}
+    try:
+        overview = await tmdb.get_tv_seasons_overview(db, int(req.tmdb_id))
+    except Exception as e:
+        logger.warning(f"episodes-envelope: TMDB indisponible pour '{req.title}': {e}")
+        raise HTTPException(502, "TMDB indisponible pour les saisons/episodes") from e
+    return {
+        "media_type": "show",
+        "seasons": [
+            {"season_number": s["season_number"], "name": s["name"], "episode_count": s["episode_count"]}
+            for s in overview
+        ],
+    }
+
+
+async def _season_episodes_payload(db: AsyncSession, req, season_number: int) -> dict:
+    """Épisodes (titre, résumé, date de diffusion, miniature) d'UNE saison -- Sonarr fait
+    foi pour la structure (numéros, y compris épisodes pas encore sortis), mais chaque
+    champ texte/image est d'abord cherché dans le cache Plex (`episode_metadata`, voir
+    `vff_scanner._persist_episode_metadata`) avant de retomber sur Sonarr : Plex a la
+    bonne langue (celle de la bibliothèque, contrairement à Sonarr souvent en anglais) et
+    de vraies miniatures par épisode, mais ne connaît que les épisodes déjà indexés — un
+    épisode annoncé mais pas encore téléchargé n'a donc que ses infos Sonarr. TMDB reste
+    le repli complet si la demande n'est pas liée à une instance Sonarr. Chargé à la
+    demande quand la saison est dépliée, pas au chargement de la fiche."""
+    if req.media_type != "show":
+        return {"season_number": season_number, "episodes": []}
+
+    sonarr_episodes = await _sonarr_episodes_for(db, req)
+    if sonarr_episodes is not None:
+        source_type = "library_item" if isinstance(req, LibraryItem) else "request"
+        cached_meta = {
+            r.episode_number: r
+            for r in (await db.execute(select(EpisodeMetadata).filter(
+                EpisodeMetadata.source_type == source_type,
+                EpisodeMetadata.source_id == req.id,
+                EpisodeMetadata.season_number == season_number,
+            ))).scalars().all()
+        }
+        def _merge(ep: dict) -> dict:
+            en = ep.get("episodeNumber")
+            cached = cached_meta.get(en)
+            tracks = json.loads(cached.audio_tracks) if cached and cached.audio_tracks else []
+            subtitles = json.loads(cached.subtitles) if cached and cached.subtitles else []
+            return {
+                "episode_number": en,
+                "title": (cached.title if cached else None) or ep.get("title"),
+                "air_date": (cached.air_date if cached else None) or ep.get("airDateUtc") or ep.get("airDate"),
+                "overview": (cached.overview if cached else None) or ep.get("overview") or "",
+                "still_url": wrap_image_proxy(cached.still_url) if cached and cached.still_url else None,
+                "tracks": tracks,
+                "subtitles": subtitles,
+                # Sous-titre francais "force" (dialogues en langue etrangere uniquement,
+                # jamais selectionne par defaut) -- signal distinct de is_default, voir
+                # audio_analyzer.get_audio_info.
+                "has_forced_french_subtitle": any(s.get("is_fr") and s.get("is_forced") for s in subtitles),
+            }
+
+        episodes = sorted(
+            (_merge(ep) for ep in sonarr_episodes if ep.get("seasonNumber") == season_number),
+            key=lambda e: e["episode_number"] or 0,
+        )
+        return {"season_number": season_number, "episodes": episodes}
+
+    if not req.tmdb_id:
+        return {"season_number": season_number, "episodes": []}
+    try:
+        episodes = await tmdb.get_tv_season_episodes(db, int(req.tmdb_id), season_number)
+    except Exception as e:
+        logger.warning(f"season-episodes: TMDB indisponible pour '{req.title}' S{season_number}: {e}")
+        raise HTTPException(502, "TMDB indisponible pour cette saison") from e
+    return {"season_number": season_number, "episodes": episodes}
+
+
+async def _availability_payload(db: AsyncSession, req, force: bool = False) -> dict:
+    """Disponibilité par épisode -- lecture DB pure (EpisodeAvailability, alimentée en
+    arrière-plan par `services/episode_availability.py`), jamais d'appel Sonarr live
+    par défaut. `force=True` (bouton "Actualiser") resynchronise cette série
+    immédiatement avant de répondre, sans attendre le prochain cycle planifié."""
+    if req.media_type != "show":
+        return {"seasons": []}
+
+    if force:
+        try:
+            inst = await _resolve_arr_instance(db, req.arr_instance_id, "sonarr")
+            await sync_episode_availability_for_show(db, inst, req)
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"episodes-availability: resynchronisation Sonarr impossible pour '{req.title}': {e}")
+
+    source_type = "request" if isinstance(req, MediaRequest) else "library_item"
+    rows = (await db.execute(
+        select(EpisodeAvailability).filter(
+            EpisodeAvailability.source_type == source_type, EpisodeAvailability.source_id == req.id
+        )
+    )).scalars().all()
+    seasons: dict[int, dict[int, dict]] = {}
+    for r in rows:
+        seasons.setdefault(r.season_number, {})[r.episode_number] = {
+            "has_file": r.has_file, "air_date_utc": r.air_date_utc,
+        }
+    return {"seasons": [{"season_number": sn, "episodes": eps} for sn, eps in seasons.items()]}
+
+
+def _subtitle_flags(subtitles_json: str | None) -> dict:
+    """Calcule les flags sous-titre pertinents depuis le JSON stocké dans EpisodeMetadata.
+
+    Distingue sous-titres complets (is_forced=False) et sous-titres sign/traduction
+    (is_forced=True), qui servent à des usages très différents.
+
+    Returns:
+        has_full_fr_sub       : au moins un sous-titre FR complet présent
+        full_fr_sub_is_default: ce sous-titre complet est activé par défaut
+        has_forced_fr_sub     : au moins un sous-titre FR forcé (sign/traduction) présent
+        forced_fr_sub_is_default: ce sous-titre forcé est activé par défaut
+    """
+    subs = []
+    if subtitles_json:
+        try:
+            subs = json.loads(subtitles_json) or []
+        except Exception:
+            pass
+
+    full_fr = [s for s in subs if s.get("is_fr") and not s.get("is_forced")]
+    forced_fr = [s for s in subs if s.get("is_fr") and s.get("is_forced")]
+
+    return {
+        "has_any_sub_track": bool(subs),
+        "has_full_fr_sub": bool(full_fr),
+        "full_fr_sub_is_default": any(s.get("is_default") for s in full_fr),
+        "has_forced_fr_sub": bool(forced_fr),
+        "forced_fr_sub_is_default": any(s.get("is_default") for s in forced_fr),
+    }
+
+
+async def _vf_status_payload(db: AsyncSession, req) -> dict:
+    """Statut VF/VO par épisode — lecture DB pure (VfEpisodeStatus + EpisodeMetadata,
+    déjà alimentées par le poller en tâche de fond), jamais d'appel réseau ici."""
+    if req.media_type != "show":
+        return {"seasons": []}
+    source_type = "request" if isinstance(req, MediaRequest) else "library_item"
+    rows = (await db.execute(
+        select(VfEpisodeStatus).filter(
+            VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id == req.id
+        )
+    )).scalars().all()
+
+    # Charger les métadonnées sous-titres depuis EpisodeMetadata en une seule requête.
+    meta_rows = (await db.execute(
+        select(EpisodeMetadata).filter(
+            EpisodeMetadata.source_type == source_type, EpisodeMetadata.source_id == req.id
+        )
+    )).scalars().all()
+    meta_by_season_ep: dict[tuple[int, int], str | None] = {
+        (m.season_number, m.episode_number): m.subtitles for m in meta_rows
+    }
+
+    seasons: dict[int, dict[int, dict]] = {}
+    for r in rows:
+        status = "vf_secondary" if r.has_vf and r.fr_is_default is False else ("vf" if r.has_vf else "vo")
+        sub_flags = _subtitle_flags(meta_by_season_ep.get((r.season_number, r.episode_number)))
+        seasons.setdefault(r.season_number, {})[r.episode_number] = {
+            "status": status,
+            "is_known_episode": r.is_known_episode,
+            **sub_flags,
+        }
+    return {"seasons": [{"season_number": sn, "episodes": eps} for sn, eps in seasons.items()]}
+
+
+@router.get("/vff/counts")
+async def vff_counts(db: AsyncSession = Depends(get_db_async)):
+    """Compteurs VFF sur la bibliothèque.
+
+    La musique (artist/album/track) est exclue : aucune notion de piste VF/VO doublee,
+    son has_vf reste toujours None (jamais scanne, voir vff_scanner._run_vf_scan) et
+    gonflerait "unchecked" sans rapport avec une vraie couverture VF en attente.
+    """
+    async def count_where(condition) -> int:
+        return int((await db.execute(
+            select(sqlalchemy.func.count()).select_from(LibraryItem).filter(
+                condition, LibraryItem.media_type.notin_(("artist", "album", "track"))
+            )
+        )).scalar() or 0)
+
+    vo_pending = await count_where(LibraryItem.has_vf.is_(False))
+    vf_available = await count_where(LibraryItem.has_vf.is_(True))
+    unchecked = await count_where(LibraryItem.has_vf.is_(None))
+
+    return {"vo_pending": vo_pending, "vf_available": vf_available, "unchecked": unchecked}
+
+
+@router.post("/vff/scan", dependencies=[Depends(require_admin)])
+async def vff_scan_all(force: bool = False, db: AsyncSession = Depends(get_db_async)):
+    """Déclenche immédiatement le scan global VFF en arrière-plan.
+
+    `force` : vide le cache par épisode avant de lancer le scan, pour re-vérifier aussi
+    les médias déjà marqués VF (sinon `_run_vf_scan` les ignore, voir sa docstring).
+    """
+    from ..scheduler import trigger_vff_scan_background
+
+    if force:
+        await _invalidate_vf_cache(db)
+        await db.commit()
+
+    trigger_vff_scan_background(force=force)
+    return {"status": "started"}
+
+
+@router.get("/vff/scan-status")
+async def get_vff_scan_status():
+    """État actuel de l'analyse VFF, quel que soit le process qui la mène.
+
+    Le cron ARQ lance ce scan dans le conteneur worker : lire le dict local de ce
+    process-ci renverrait « inactif » pendant toute sa durée (voir services/scan_state.py).
+    """
+    from ..services import scan_state
+
+    return await scan_state.resolve("scan", vff_scan_state)
+
+
+@router.post("/vff/sync-plex", dependencies=[Depends(require_admin)])
+async def vff_sync_plex():
+    """Déclenche immédiatement la synchronisation de la bibliothèque Plex en arrière-plan."""
+    from ..services import scan_state
+
+    # Consulte aussi l'état partagé : une synchronisation menée par le worker ARQ n'est pas
+    # visible dans le dict local de ce process-ci, et on en lancerait une seconde en
+    # parallèle sur la même bibliothèque.
+    if await scan_state.is_running("sync", plex_sync_state):
+        return {"status": "already_running"}
+
+    asyncio.create_task(sync_plex_media())
+    return {"status": "started"}
+
+
+@router.get("/vff/sync-status")
+async def get_vff_sync_status():
+    """État actuel de la synchronisation Plex, quel que soit le process qui la mène."""
+    from ..services import scan_state
+
+    return await scan_state.resolve("sync", plex_sync_state)
+
+
+@router.post("/requests/{request_id}/vff-scan", dependencies=[Depends(require_moderator)])
+async def vff_scan_single_request(
+    request_id: int,
+    force: bool = False,
+    season: Optional[int] = None,
+    episode: Optional[int] = None,
+    db: AsyncSession = Depends(get_db_async),
+):
+    """Déclenche immédiatement une analyse VFF pour une demande spécifique."""
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings:
+        raise HTTPException(400, "Settings not initialized")
+    if not settings.vff_enabled:
+        raise HTTPException(400, "VFF tracking is disabled")
+    if not settings.plex_url or not settings.plex_token:
+        raise HTTPException(400, "Plex is not configured")
+
+    if force:
+        await _invalidate_vf_cache(db, "request", req.id, season_number=season, episode_number=episode)
+        await db.commit()
+
+    libs = _parse_vff_libraries(settings)
+    if not libs:
+        raise HTTPException(400, "No Plex libraries configured for VFF")
+
+    movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
+    show_libs = [(lib["name"], lib["kind"]) for lib in libs if lib["kind"] == "series"]
+    known_vf = (await _load_known_vf_episodes(db, "request", [req.id])).get(req.id, {})
+    known_episodes = await _sonarr_episode_numbers_for(db, req) if req.media_type == "show" else None
+
+    def _scan_single_blocking():
+        try:
+            plex = vff_svc.connect(settings.plex_url, settings.plex_token)
+        except Exception as exc:
+            return {"found": False, "error": f"Plex connection error: {exc}"}
+
+        try:
+            return vff_svc.scan_media_vf(
+                plex,
+                req.media_type,
+                movie_libs,
+                show_libs,
+                req.title,
+                req.year,
+                req.tmdb_id,
+                req.tvdb_id,
+                req.imdb_id,
+                plex_guid=req.plex_guid,
+                known_vf=known_vf,
+                known_episodes=known_episodes,
+            )
+        except Exception as exc:
+            return {"found": False, "error": str(exc)}
+
+    res = await asyncio.to_thread(_scan_single_blocking)
+    if not res.get("found"):
+        raise HTTPException(404, res.get("error", "Media not found in Plex libraries"))
+
+    now = now_utc_naive()
+    was_tracking = req.has_vf is False
+    vff_svc.apply_plex_metadata(req, res)
+    req.vf_category = res.get("category") or req.vf_category
+    req.vf_checked_at = now
+    req.fr_is_default = res.get("fr_is_default")
+    episode_status = res.get("episode_status")
+    known_episode_status = res.get("known_episode_status")
+    if episode_status:
+        await _persist_episode_status(db, "request", req.id, episode_status, now, res.get("french_default"), known_episode_status)
+        await _persist_episode_metadata(db, "request", req.id, res.get("episode_metadata"), now)
+
+    has_vf_new = res["has_vf"]
+    if has_vf_new:
+        req.has_vf = True
+        req.vf_granularity = "full"
+        if was_tracking:
+            req.vf_available_at = now
+            await db.commit()
+            scope = "movie" if req.media_type == "movie" else "series_complete"
+            await _queue_milestone(settings, req, db, scope=scope, language="vf")
+        else:
+            await db.commit()
+            await _notify("available", settings, req, db)
+    else:
+        req.has_vf = False
+        req.vf_granularity = audio_analyzer.compute_vf_granularity(episode_status, known_episode_status)
+        if not was_tracking:
+            if not req.available_mail_sent:
+                req.available_mail_sent = True
+                await db.commit()
+                scope = "movie" if req.media_type == "movie" else "series_complete"
+                await _queue_milestone(settings, req, db, scope=scope, language="vo")
+            else:
+                await db.commit()
+            if settings.vff_auto_search:
+                await _trigger_vf_search(db, settings, req)
+        else:
+            await db.commit()
+
+    if req.library_item_id:
+        li = (await db.execute(select(LibraryItem).filter(LibraryItem.id == req.library_item_id))).scalars().first()
+        if li:
+            prev_li_vf = li.has_vf
+            li.vf_category = req.vf_category or li.vf_category
+            li.vf_checked_at = now
+            li.has_vf = req.has_vf
+            li.fr_is_default = req.fr_is_default
+            li.vf_granularity = req.vf_granularity
+            if li.has_vf and prev_li_vf is False:
+                li.vf_available_at = now
+            await db.commit()
+
+    return {
+        "status": "ok",
+        "has_vf": req.has_vf,
+        "vf_category": req.vf_category,
+        "vf_checked_at": format_datetime(req.vf_checked_at),
+    }
+
+
+@router.post("/requests/{request_id}/vff-ignore", dependencies=[Depends(require_moderator)])
+async def vff_ignore_request(request_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Arrête manuellement le suivi VFF pour une demande spécifique."""
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    req.has_vf = True
+    await db.commit()
+    return {"status": "ok", "has_vf": req.has_vf}
+
+
+@router.get("/requests/{request_id}/vf-detail")
+async def request_vf_detail(request_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Détail VF d'une demande."""
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    return await _vf_detail_payload(db, req)
+
+
+@router.get("/library/{item_id}/vf-detail")
+async def library_vf_detail(item_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Détail VF d'un élément de bibliothèque."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    return await _vf_detail_payload(db, item)
+
+
+@router.get("/requests/{request_id}/episodes")
+async def request_episodes(request_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Enveloppe saisons (TMDB, sans les épisodes) d'une demande."""
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    return await _episodes_envelope_payload(db, req)
+
+
+@router.get("/library/{item_id}/episodes")
+async def library_episodes(item_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Enveloppe saisons (TMDB, sans les épisodes) d'un élément de bibliothèque."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    return await _episodes_envelope_payload(db, item)
+
+
+@router.get("/requests/{request_id}/episodes/{season_number}")
+async def request_season_episodes(request_id: int, season_number: int, db: AsyncSession = Depends(get_db_async)):
+    """Épisodes (TMDB) d'une saison d'une demande, chargés à la demande (saison dépliée)."""
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    return await _season_episodes_payload(db, req, season_number)
+
+
+@router.get("/library/{item_id}/episodes/{season_number}")
+async def library_season_episodes(item_id: int, season_number: int, db: AsyncSession = Depends(get_db_async)):
+    """Épisodes (TMDB) d'une saison d'un élément de bibliothèque, chargés à la demande."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    return await _season_episodes_payload(db, item, season_number)
+
+
+@router.get("/requests/{request_id}/episodes-availability")
+async def request_episodes_availability(request_id: int, force: bool = False, db: AsyncSession = Depends(get_db_async)):
+    """Disponibilité par épisode d'une demande -- lecture DB par défaut, `force=true`
+    resynchronise Sonarr immédiatement (bouton "Actualiser")."""
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    return await _availability_payload(db, req, force=force)
+
+
+@router.get("/library/{item_id}/episodes-availability")
+async def library_episodes_availability(item_id: int, force: bool = False, db: AsyncSession = Depends(get_db_async)):
+    """Disponibilité par épisode d'un élément de bibliothèque -- lecture DB par défaut,
+    `force=true` resynchronise Sonarr immédiatement (bouton "Actualiser")."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    return await _availability_payload(db, item, force=force)
+
+
+@router.get("/requests/{request_id}/episodes-vf-status")
+async def request_episodes_vf_status(request_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Statut VF/VO par épisode (BDD uniquement) d'une demande."""
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    return await _vf_status_payload(db, req)
+
+
+@router.get("/library/{item_id}/episodes-vf-status")
+async def library_episodes_vf_status(item_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Statut VF/VO par épisode (BDD uniquement) d'un élément de bibliothèque."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    return await _vf_status_payload(db, item)
+
+
+@router.post("/library/{item_id}/vff-scan", dependencies=[Depends(require_moderator)])
+async def library_vff_scan(
+    item_id: int,
+    force: bool = False,
+    season: Optional[int] = None,
+    episode: Optional[int] = None,
+    db: AsyncSession = Depends(get_db_async),
+):
+    """Analyse VFF immédiate d'un élément de bibliothèque (met à jour son état VF)."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    if item.media_type in ("artist", "album", "track"):
+        raise HTTPException(400, "VFF scan not applicable to music")
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings or not settings.vff_enabled:
+        raise HTTPException(400, "VFF tracking is disabled")
+    if not settings.plex_url or not settings.plex_token:
+        raise HTTPException(400, "Plex is not configured")
+
+    if force:
+        await _invalidate_vf_cache(db, "library_item", item.id, season_number=season, episode_number=episode)
+        await db.commit()
+
+    libs = _parse_vff_libraries(settings)
+    if not libs:
+        raise HTTPException(400, "No Plex libraries configured for VFF")
+    movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
+    show_libs = [(lib["name"], lib["kind"]) for lib in libs if lib["kind"] == "series"]
+    known_vf = (await _load_known_vf_episodes(db, "library_item", [item.id])).get(item.id, {})
+    known_episodes = await _sonarr_episode_numbers_for(db, item) if item.media_type == "show" else None
+
+    def _blocking():
+        try:
+            plex = vff_svc.connect(settings.plex_url, settings.plex_token)
+        except Exception as exc:
+            return {"found": False, "error": f"Plex connection error: {exc}"}
+        try:
+            return vff_svc.scan_media_vf(
+                plex,
+                item.media_type,
+                movie_libs,
+                show_libs,
+                item.title,
+                item.year,
+                item.tmdb_id,
+                item.tvdb_id,
+                item.imdb_id,
+                plex_guid=item.plex_guid,
+                known_vf=known_vf,
+                known_episodes=known_episodes,
+            )
+        except Exception as exc:
+            return {"found": False, "error": str(exc)}
+
+    res = await asyncio.to_thread(_blocking)
+    if not res.get("found"):
+        raise HTTPException(404, res.get("error", "Media not found in Plex libraries"))
+
+    now = now_utc_naive()
+    prev = item.has_vf
+    vff_svc.apply_plex_metadata(item, res)
+    item.vf_category = res.get("category") or item.vf_category
+    item.vf_checked_at = now
+    item.has_vf = bool(res["has_vf"])
+    item.fr_is_default = res.get("fr_is_default")
+    known_episode_status = res.get("known_episode_status")
+    item.vf_granularity = "full" if item.has_vf else audio_analyzer.compute_vf_granularity(res.get("episode_status"), known_episode_status)
+    if item.has_vf and prev is False:
+        item.vf_available_at = now
+    item.updated_at = now
+    episode_status = res.get("episode_status")
+    if episode_status:
+        await _persist_episode_status(db, "library_item", item.id, episode_status, now, res.get("french_default"), known_episode_status)
+        await _persist_episode_metadata(db, "library_item", item.id, res.get("episode_metadata"), now)
+    await db.commit()
+    return {"status": "ok", "has_vf": item.has_vf, "vf_category": item.vf_category}
+
+
+@router.post("/library/{item_id}/vff-ignore", dependencies=[Depends(require_moderator)])
+async def library_vff_ignore(item_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Arrête le suivi VFF d'un élément de bibliothèque (force has_vf = True)."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    item.has_vf = True
+    item.updated_at = now_utc_naive()
+    await db.commit()
+    return {"status": "ok", "has_vf": item.has_vf}

@@ -1,0 +1,75 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+      - test
+      - dev
+    tags: ["v*"]
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "alembic/**"
+      - "ruff.toml"
+      - "frontend/**"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+  pull_request:
+    # Pas de filtre paths ici : voir la note equivalente dans tests.yml.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Ruff
+        run: pip install ruff==0.16.3
+
+      - name: Lint
+        # Import/whitespace cleanup is adopted progressively on the legacy modules.
+        run: ruff check . --ignore I001,W293,E702
+
+      - name: Format check
+        run: >-
+          ruff format --check
+          app/job_queue.py app/jobs.py app/realtime.py app/routers/events_api.py
+          tests/test_jobs_realtime.py
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Type check
+        run: >-
+          mypy app/job_queue.py app/jobs.py app/realtime.py app/routers/events_api.py
+          --ignore-missing-imports --no-strict-optional --follow-imports=skip

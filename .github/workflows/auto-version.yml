@@ -1,0 +1,85 @@
+name: Auto Version
+
+# A chaque push sur main (donc a chaque merge de PR), calcule si les commits
+# conventionnels depuis le dernier tag justifient une nouvelle version. Si oui,
+# ouvre une PR "chore(release): vX.Y.Z" qui met a jour CHANGELOG.md et l'auto-merge.
+# Le tag est cree separement par auto-tag.yml une fois cette PR mergee, afin que
+# le commit sur main provienne toujours d'un merge de PR (main est protegee).
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: auto-version
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    # Evite la boucle infinie : le merge de la PR de release declenche lui-meme
+    # ce workflow, mais son commit "chore(release): ..." ne doit pas relancer une release.
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PROMOTION_PAT }}
+
+      - name: Compute next version
+        id: bump
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4
+        with:
+          config: .github/cliff.toml
+          args: --bumped-version
+
+      - name: Determine if a release is needed
+        id: check
+        run: |
+          NEXT="${{ steps.bump.outputs.content }}"
+          CURRENT="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          if [ -z "$NEXT" ] || [ "$NEXT" = "$CURRENT" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release branch
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "release/${{ steps.check.outputs.next }}"
+
+      - name: Generate CHANGELOG.md
+        if: steps.check.outputs.skip == 'false'
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4
+        with:
+          config: .github/cliff.toml
+          args: --tag ${{ steps.check.outputs.next }} --output CHANGELOG.md
+
+      - name: Commit and push release branch
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git add CHANGELOG.md
+          git commit -m "chore(release): ${{ steps.check.outputs.next }}"
+          git push -u origin "release/${{ steps.check.outputs.next }}"
+
+      - name: Open and auto-merge release PR
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.PROMOTION_PAT }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "release/${{ steps.check.outputs.next }}" \
+            --title "chore(release): ${{ steps.check.outputs.next }}" \
+            --body "Mise a jour automatique du CHANGELOG pour ${{ steps.check.outputs.next }}."
+          gh pr merge "release/${{ steps.check.outputs.next }}" --auto --squash --delete-branch

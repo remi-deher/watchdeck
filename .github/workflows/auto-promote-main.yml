@@ -1,0 +1,64 @@
+name: Auto Promote to Main
+
+# A chaque push sur test, ouvre (si besoin) puis auto-merge une PR test -> main,
+# mais seulement si les commits en attente justifient reellement une release
+# (memes regles que auto-version.yml : au moins un feat/fix/breaking depuis le
+# dernier tag). Le merge n'aboutit que lorsque les checks requis par le ruleset
+# "Protect main" passent (GitHub fait patienter l'auto-merge nativement).
+on:
+  push:
+    branches:
+      - test
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PROMOTION_PAT }}
+
+      - name: Compute next version from test
+        id: bump
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4
+        with:
+          config: .github/cliff.toml
+          args: --bumped-version
+
+      - name: Determine if a release is warranted
+        id: check
+        run: |
+          git fetch origin main test
+          AHEAD="$(git rev-list origin/main..origin/test --count)"
+          NEXT="${{ steps.bump.outputs.content }}"
+          CURRENT="$(git describe --tags --abbrev=0 origin/main 2>/dev/null || echo '')"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          if [ "$AHEAD" = "0" ] || [ -z "$NEXT" ] || [ "$NEXT" = "$CURRENT" ]; then
+            echo "promote=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "promote=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open and auto-merge promotion PR
+        if: steps.check.outputs.promote == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PROMOTION_PAT }}
+        run: |
+          gh pr create \
+            --base main \
+            --head test \
+            --title "Promotion test -> main (${{ steps.check.outputs.next }})" \
+            --body "Promotion automatique : release ${{ steps.check.outputs.next }} justifiee par les commits en attente." \
+            || true
+          gh pr merge test --auto --merge

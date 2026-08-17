@@ -1,0 +1,53 @@
+name: Auto Promote to Test
+
+# A chaque push sur dev, ouvre (si besoin) puis auto-merge une PR dev -> test.
+# Le merge n'aboutit que lorsque les checks requis par le ruleset "Protect test"
+# (tests, lint, smoke Docker, branch-order-guard) passent : c'est GitHub lui-meme
+# qui fait patienter l'auto-merge, pas ce workflow.
+#
+# Utilise PROMOTION_PAT (et non GITHUB_TOKEN) : un push/merge/PR fait avec le
+# token par defaut d'un workflow ne declenche aucun autre workflow (garde-fou
+# anti-boucle de GitHub), ce qui casserait toute la chaine dev -> test -> main.
+on:
+  push:
+    branches:
+      - dev
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PROMOTION_PAT }}
+
+      - name: Check if test is behind dev
+        id: check
+        run: |
+          git fetch origin test dev
+          AHEAD="$(git rev-list origin/test..origin/dev --count)"
+          echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Open and auto-merge promotion PR
+        if: steps.check.outputs.ahead != '0'
+        env:
+          GH_TOKEN: ${{ secrets.PROMOTION_PAT }}
+        run: |
+          gh pr create \
+            --base test \
+            --head dev \
+            --title "Promotion dev -> test" \
+            --body "Promotion automatique : ${{ steps.check.outputs.ahead }} commit(s) de dev en attente sur test." \
+            || true
+          gh pr merge dev --auto --merge

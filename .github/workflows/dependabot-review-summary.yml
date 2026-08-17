@@ -1,0 +1,61 @@
+name: Dependabot Review Summary
+
+# Pour les PR Dependabot exclues de l'auto-merge (majeures, ecosystem docker -
+# voir dependabot-auto-merge.yml), poste un commentaire resume une fois que
+# tous les checks du commit ont fini de tourner, pour decider en un coup d'oeil
+# plutot que de tester/build localement ou d'ouvrir l'onglet Actions.
+on:
+  workflow_run:
+    workflows: ["Unit Tests", "Lint", "CodeQL", "Dependency Review"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  summarize:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Post summary once every check has concluded
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          PR_NUMBER=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty')
+          [ -z "$PR_NUMBER" ] && exit 0
+
+          AUTHOR=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json author --jq '.author.login')
+          case "$AUTHOR" in
+            dependabot*|app/dependabot) ;;
+            *) exit 0 ;;
+          esac
+
+          # Attend que plus aucun check ne soit en attente (sinon on posterait
+          # un resume partiel des le premier des 4 workflows termine).
+          PENDING=$(gh api "repos/$REPO/commits/$SHA/check-runs" --jq '[.check_runs[] | select(.status != "completed")] | length')
+          [ "$PENDING" != "0" ] && exit 0
+
+          # Un seul commentaire par PR, meme si plusieurs workflows declenchent
+          # ce job a peu pres au meme moment.
+          EXISTING=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments --jq '[.comments[] | select(.body | startswith("### 🤖 Résumé automatique"))] | length')
+          [ "$EXISTING" != "0" ] && exit 0
+
+          FAILED=$(gh api "repos/$REPO/commits/$SHA/check-runs" --jq '[.check_runs[] | select(.conclusion=="failure" or .conclusion=="timed_out")] | map(.name) | join(", ")')
+
+          if [ -z "$FAILED" ]; then
+            BODY="### 🤖 Résumé automatique\n✅ Tous les checks sont verts (build, tests, lint, CodeQL). Semble sûr à merger, mais reste une montée majeure/image de base à valider par toi avant de cliquer."
+          else
+            BODY="### 🤖 Résumé automatique\n❌ Échec(s) : $FAILED. Ne pas merger sans investiguer."
+          fi
+          BODY="$(printf '%b' "$BODY")"
+
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$BODY"

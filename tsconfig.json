@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "allowJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./frontend/src/*"]
+    }
+  },
+  "include": [
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.d.ts",
+    "frontend/src/**/*.tsx",
+    "frontend/src/**/*.vue"
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

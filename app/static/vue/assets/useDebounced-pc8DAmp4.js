@@ -1,0 +1,1 @@
+import{N as e}from"./api-BydQxDSW.js";function t(t,n){let r,i=((...e)=>{r&&clearTimeout(r),r=setTimeout(()=>t(...e),n)});return i.cancel=()=>{r&&clearTimeout(r)},i.flush=(...e)=>{r&&clearTimeout(r),t(...e)},e(i.cancel),i}export{t};

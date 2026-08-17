@@ -1,0 +1,104 @@
+:root {
+  color-scheme: dark;
+  --bg: #09090b;
+  --surface-sunken: #0b0b0e;
+  --surface: #18181d;
+  --surface-2: #25252c;
+  --surface-3: #32323a;
+  --surface-glass: rgba(24, 24, 29, 0.92);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --text-muted: var(--muted);
+  --accent: #e5a00d;
+  --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+  --green: #22c55e;
+  --red: #ef4444;
+  --green-text: #86efac;
+  --red-text: #fecaca;
+  --blue: #38bdf8;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-md: 0.9375rem;
+  --fs-base: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.3125rem;
+  --fs-2xl: 1.625rem;
+  --fs-3xl: 2rem;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --panel-radius: var(--radius-lg);
+  --btn-radius: var(--radius-md);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  /* Responsive layout contracts. Breakpoints live in _breakpoints.scss because
+     CSS custom properties cannot be evaluated inside media queries. */
+  --content-max-width: 1800px;
+  --content-measure: 72ch;
+  --content-padding: 14px;
+  --grid-columns: 4;
+  --grid-gutter: 12px;
+  --touch-target: 44px;
+  --media-placeholder: var(--surface-2);
+  /* Source unique des dimensions d'affiches pour les grilles et les rails. */
+  --poster-grid-min: 220px;
+  --poster-grid-gap: var(--space-4);
+  --poster-badge-font-size: 0.875rem;
+  --poster-badge-min-height: 28px;
+  --poster-rail-min: 180px;
+  --poster-rail-fluid: 20vw;
+  --poster-rail-max: 245px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-inline-start: var(--safe-left);
+  --safe-inline-end: var(--safe-right);
+  --safe-block-start: var(--safe-top);
+  --safe-block-end: var(--safe-bottom);
+  --visual-viewport-height: 100dvh;
+  --visual-viewport-offset-top: 0px;
+  --visual-viewport-offset-left: 0px;
+  --keyboard-inset: 0px;
+  --viewport-segment-gap: 0px;
+  --mobile-nav-h: 64px;
+}
+
+@media (horizontal-viewport-segments: 2) {
+  :root { --viewport-segment-gap: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0)); }
+}
+
+@media (min-width: 420px) {
+  :root { --content-padding: 16px; }
+}
+
+@media (min-width: 640px) {
+  :root { --content-padding: 20px; --grid-gutter: 16px; }
+}
+
+@media (max-width: 767.98px) {
+  :root {
+    --poster-grid-gap: var(--space-3);
+    --poster-rail-min: 165px;
+    --poster-rail-fluid: 48vw;
+  }
+}
+
+@media (min-width: 768px) {
+  :root { --content-padding: 24px; --grid-columns: 8; }
+}
+
+@media (min-width: 1025px) {
+  :root { --content-padding: 28px; --grid-columns: 12; --grid-gutter: 20px; }
+}
+
+@media (min-width: 1200px) {
+  :root { --content-padding: 32px; --grid-gutter: 24px; }
+}

@@ -1,0 +1,41 @@
+[changelog]
+header = ""
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+{% for commit in commits %}
+- {{ commit.message | trim }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/remi-deher/watchdeck/commit/{{ commit.id }}))
+{%- endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+commit_parsers = [
+  # Les commits de merge ("Merge pull request #N from ...") produits par chaque
+  # promotion dev -> test -> main ne matchent aucun prefixe conventionnel : sans
+  # cette regle, ils tombaient dans le comportement par defaut de git-cliff (bump
+  # patch), ce qui recreait une promotion, qui recreait un merge commit, qui
+  # redeclenchait un bump... en boucle infinie. skip = true les exclut entierement
+  # (changelog ET calcul de bump).
+  { message = "^Merge ", skip = true },
+  { message = "^feat", group = "✨ Nouveautés" },
+  { message = "^fix", group = "🐛 Corrections" },
+  { message = "^perf", group = "⚡ Performance" },
+  { message = "^refactor", group = "♻️ Refactoring" },
+  { message = "^docs", group = "📖 Documentation" },
+  { message = "^chore", group = "🔧 Maintenance" },
+  { message = "^ci", group = "👷 CI/CD" },
+]
+filter_commits = false
+tag_pattern = "v[0-9]*"
+
+[bump]
+initial_tag = "v1.0.0"
+features_always_bump_minor = true
+breaking_always_bump_major = true
+# Seuls feat (minor) et fix (patch) declenchent un bump ; le reste (perf, refactor,
+# docs, chore, ci, style, test, build) ne justifie pas une nouvelle version a lui seul.
+no_increment_regex = "^(perf|refactor|docs|chore|ci|style|test|build)(\\(.+\\))?:|^Merge "

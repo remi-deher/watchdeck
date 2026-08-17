@@ -1,0 +1,81 @@
+:root {
+  --motion-duration-fast: 140ms;
+  --motion-duration-base: 220ms;
+  --motion-duration-reveal: 320ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Navigation between application views. The movement stays deliberately small so
+ * content feels continuous without slowing down frequent navigation. */
+.page-shift-enter-active,
+.page-shift-leave-active {
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-standard),
+    transform var(--motion-duration-base) var(--motion-ease-standard);
+}
+
+.page-shift-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-shift-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* PageShell provides a shared, capped stagger for headers, feedback and panels. */
+@keyframes page-content-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-motion > * {
+  animation: page-content-reveal var(--motion-duration-reveal) var(--motion-ease-emphasized) backwards;
+  animation-delay: calc(min(var(--motion-index, 0), 8) * 35ms);
+}
+
+.page-motion > :nth-child(1) { --motion-index: 0; }
+.page-motion > :nth-child(2) { --motion-index: 1; }
+.page-motion > :nth-child(3) { --motion-index: 2; }
+.page-motion > :nth-child(4) { --motion-index: 3; }
+.page-motion > :nth-child(5) { --motion-index: 4; }
+.page-motion > :nth-child(6) { --motion-index: 5; }
+.page-motion > :nth-child(7) { --motion-index: 6; }
+.page-motion > :nth-child(n + 8) { --motion-index: 7; }
+
+/* Reusable opt-in utilities for list-like content outside PageShell. */
+.motion-reveal {
+  animation: page-content-reveal var(--motion-duration-reveal) var(--motion-ease-emphasized) backwards;
+}
+
+.motion-stagger > * {
+  animation: page-content-reveal var(--motion-duration-reveal) var(--motion-ease-emphasized) backwards;
+  animation-delay: calc(min(var(--motion-index, 0), 12) * 28ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-shift-enter-active,
+  .page-shift-leave-active {
+    transition: opacity var(--motion-duration-fast) ease;
+  }
+
+  .page-shift-enter-from,
+  .page-shift-leave-to {
+    transform: none;
+  }
+
+  .page-motion > *,
+  .motion-reveal,
+  .motion-stagger > * {
+    animation: none;
+  }
+}

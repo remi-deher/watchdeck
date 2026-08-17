@@ -1,0 +1,212 @@
+"""Utilitaires partagés entre les modules de l'application."""
+
+from datetime import datetime
+from typing import Any, Protocol, TypeVar
+from urllib.parse import urlsplit, urlunsplit
+
+import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from .errors import ResourceNotFoundError
+
+
+class _HasId(Protocol):
+    id: Any
+
+
+_T = TypeVar("_T", bound=_HasId)
+
+
+def safe_error_message(exc: Exception) -> str:
+    """Message d'erreur sûr à renvoyer au client (API/UI) suite à une exception.
+
+    Le message brut d'une exception (str(exc)) peut porter un chemin de fichier, une
+    URL interne, un fragment de requête SQL ou tout autre détail d'implémentation —
+    CodeQL le signale à raison comme une fuite d'information (py/stack-trace-exposure).
+    On ne renvoie donc jamais `str(exc)` directement : seulement le type d'exception
+    (et le code HTTP le cas échéant), le détail complet restant dans les journaux
+    serveur via `logger.exception(...)` côté appelant.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"Erreur HTTP {exc.response.status_code}"
+    if isinstance(exc, httpx.TimeoutException):
+        return "Délai d'attente dépassé"
+    if isinstance(exc, httpx.ConnectError):
+        return "Connexion impossible (hôte injoignable)"
+    return type(exc).__name__
+
+
+def safe_redirect_path(value: str | None, default: str = "/") -> str:
+    """Ne renvoie qu'un chemin relatif interne sûr, jamais une valeur utilisable pour
+    rediriger vers un autre hôte.
+
+    Un simple `value.startswith("/")` (pattern historique de ce fichier) ne suffit pas :
+    `//evil.com` ou `/\\evil.com` commencent aussi par `/` mais sont interprétés par les
+    navigateurs comme des URLs "protocol-relative" vers un hôte externe — c'est
+    exactement ce que CodeQL signale (py/url-redirection) sur toute valeur utilisateur
+    utilisée telle quelle dans une redirection. `urlsplit` détecte ce cas (scheme/netloc
+    non vides) même quand le préfixe `/` seul ne le révèle pas.
+    """
+    if not value:
+        return default
+    value = value.strip()
+    if not value.startswith("/") or value.startswith("//") or value.startswith("/\\"):
+        return default
+    parsed = urlsplit(value)
+    if parsed.scheme or parsed.netloc:
+        return default
+    # La valeur retournée est reconstruite depuis les composants analysés plutôt que
+    # renvoyée telle quelle : ni scheme ni netloc ne peuvent survivre à urlunsplit ici,
+    # même si urlsplit et le navigateur devaient diverger sur une entrée exotique.
+    rebuilt = urlunsplit(("", "", parsed.path, parsed.query, parsed.fragment))
+    return rebuilt if rebuilt.startswith("/") and not rebuilt.startswith("//") else default
+
+
+async def async_get_or_404(
+    db: AsyncSession,
+    model: type[_T],
+    obj_id: Any,
+    detail: str = "Not found",
+) -> _T:
+    obj = (await db.execute(select(model).filter(model.id == obj_id))).scalars().first()
+    if not obj:
+        raise ResourceNotFoundError(detail)
+    return obj
+
+
+def mask_email(value: str | None) -> str:
+    """Masque une adresse email pour la journalisation (RGPD / minimisation).
+
+    `alice.dupont@example.com` -> `a***@example.com`. Conserve juste assez pour
+    diagnostiquer (initiale + domaine) sans écrire l'email en clair dans des logs
+    applicatifs qui, contrairement aux tables en base, échappent à la rétention
+    configurable. Toute valeur non-email est retournée telle quelle.
+    """
+    if not value or "@" not in value:
+        return value or ""
+    local, _, domain = value.partition("@")
+    prefix = local[0] if local else ""
+    return f"{prefix}***@{domain}"
+
+
+def parse_email_list(raw: str | None) -> list[str]:
+    """Parse une chaîne d'emails séparés par virgules en liste nettoyée.
+
+    Retourne une liste vide si raw est None ou ne contient que des espaces.
+    """
+    if not raw:
+        return []
+    return [e.strip() for e in raw.split(",") if e.strip()]
+
+
+def identity_keys(rec) -> list:
+    """Clés d'identité d'un média (pour rapprocher demande ↔ élément de bibliothèque).
+
+    Ordre de priorité au moment du rapprochement : GUID Plex, puis IDs externes
+    (TMDB/TVDB/IMDB), puis titre+année+type en dernier recours. Partagé entre la vue
+    Bibliothèque (rapprochement à l'affichage) et le scheduler (lien persistant
+    MediaRequest.library_item_id) pour ne pas dupliquer cette logique à deux endroits.
+    """
+    from .services.media_identifiers import MediaIdentifiers
+
+    return MediaIdentifiers.from_record(rec).identity_keys()
+
+
+def now_utc() -> datetime:
+    """Instant courant, aware UTC."""
+    from datetime import timezone
+
+    return datetime.now(timezone.utc)
+
+
+def now_utc_naive() -> datetime:
+    """Instant courant UTC sans tzinfo (colonnes DB stockées en naïf-UTC)."""
+    from datetime import timezone
+
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# Fuseau implicite de toute l'app : aucun réglage de fuseau n'est exposé côté Settings
+# (les heures saisies dans l'UI, ex. "digest_hour", sont toujours une heure murale locale
+# pour un unique utilisateur/foyer) — donc un seul fuseau assumé partout, plutôt qu'une
+# fausse généralité qui comparerait ces heures locales à l'UTC brut sans jamais convertir.
+APP_TIMEZONE = "Europe/Paris"
+
+
+def local_hour() -> int:
+    """Heure murale courante dans APP_TIMEZONE (gère automatiquement CET/CEST).
+
+    À utiliser partout où une heure réglée par l'utilisateur (ex. digest_hour) doit être
+    comparée à "maintenant" — comparer directement à now_utc().hour décale silencieusement
+    l'horaire réel de 1h (CET) ou 2h (CEST) par rapport à ce que l'utilisateur a réglé.
+    """
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(timezone.utc).astimezone(ZoneInfo(APP_TIMEZONE)).hour
+
+
+def local_minute() -> int:
+    """Minute murale courante dans APP_TIMEZONE — pendant de local_hour() pour les
+    réglages heure+minute (ex. digest_hour/digest_minute, plex_sync_hour/plex_sync_minute)."""
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(timezone.utc).astimezone(ZoneInfo(APP_TIMEZONE)).minute
+
+
+def wrap_image_proxy(url: str | None) -> str | None:
+    """Wraps HTTP, HTTPS and local IP image URLs through /api/image-proxy for local caching and WebP optimization."""
+    if not url:
+        return url
+    if url.startswith("/api/image-proxy"):
+        return url
+
+    import urllib.parse
+    return f"/api/image-proxy?url={urllib.parse.quote_plus(url)}&width=600&quality=82&format=webp"
+
+
+async def run_section_safe(
+    loader: Any,
+    section_name: str,
+    default: Any = None,
+    logger: Any = None,
+    log_message: str = "Section %s indisponible: %s",
+) -> tuple[Any, str | None]:
+    """Exécute un loader de section TMDB/Discover de manière résiliente.
+
+    Si le loader réussit, renvoie (résultat, None).
+    Si le loader lève une exception, logge un avertissement et renvoie (default, message_erreur).
+    """
+    import logging
+
+    _logger = logger or logging.getLogger(__name__)
+    try:
+        if callable(loader):
+            res = loader()
+        else:
+            res = loader
+        if hasattr(res, "__await__"):
+            res = await res
+        return res, None
+    except Exception as exc:
+        # log_message peut avoir 1 (juste %s pour exc) ou 2 (%s section, %s exc)
+        # espaces reservés : ne jamais laisser un mismatch remonter silencieusement
+        # dans le formatteur du module logging (qui avale l'erreur sans relancer).
+        placeholders = log_message.count("%s")
+        if placeholders >= 2:
+            _logger.warning(log_message, section_name, exc)
+        elif placeholders == 1:
+            _logger.warning(log_message, exc)
+        else:
+            _logger.warning("Section %s indisponible: %s", section_name, exc)
+        from .services import tmdb
+
+        if isinstance(exc, tmdb.TmdbNotConfigured):
+            err_msg = "Clé API TMDB non configurée."
+        else:
+            err_msg = "Section temporairement indisponible."
+        return default, err_msg
+
+

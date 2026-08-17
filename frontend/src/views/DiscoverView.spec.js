@@ -1,0 +1,293 @@
+import { flushPromises, mount } from '@vue/test-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMemoryHistory, createRouter } from 'vue-router';
+import DiscoverView from './DiscoverView.vue';
+import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
+
+const apiMock = vi.fn();
+vi.mock('@/api', () => ({ api: (...args) => apiMock(...args) }));
+
+const page = (items, current = 1, total = 1) => ({
+  items,
+  page: current,
+  total_pages: total,
+  total_results: items.length + (total - current) * 20,
+});
+
+function media(id, title = `Média ${id}`) {
+  return { tmdb_id: id, media_type: 'movie', title, year: 2025, vote: 7, poster_url: `/poster-${id}.jpg` };
+}
+
+async function mountView({ home = false, url = '', attachTo } = {}) {
+  const target = url || (home ? '/discover' : '/discover/explore');
+  window.history.replaceState({}, '', target);
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
+  });
+  await router.push(target);
+  await router.isReady();
+  return mount(DiscoverView, {
+    attachTo,
+    global: {
+      plugins: [router],
+      stubs: {
+        PageSearchHeader: {
+          props: ['query', 'modelValue'],
+          template: '<div class="page-search-header-stub"><input type="search" :value="query || modelValue" @input="$emit(\'update:query\', $event.target.value); $emit(\'update:modelValue\', $event.target.value); $emit(\'search\', $event.target.value)" /></div>',
+        },
+        UiFeedback: true,
+        RouterLink: {
+          props: ['to'],
+          template: '<a :href="to"><slot /></a>',
+        },
+      },
+    },
+  });
+}
+
+describe('DiscoverView', () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    window.matchMedia = vi.fn(() => ({ matches: false }));
+    window.history.replaceState({}, '', '/discover/explore');
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('charge progressivement les pages suivantes sans doublon', async () => {
+    apiMock.mockImplementation(path => {
+      if (path.includes('/genres')) return Promise.resolve([]);
+      if (path.includes('page=2')) return Promise.resolve(page([media(2), media(3)], 2, 2));
+      return Promise.resolve(page([media(1), media(2)], 1, 2));
+    });
+    const wrapper = await mountView();
+    await flushPromises();
+
+    expect(wrapper.findAll('.discover-card')).toHaveLength(2);
+    await wrapper.findComponent(InfiniteScrollTrigger).vm.$emit('load');
+    await flushPromises();
+
+    expect(wrapper.findAll('.discover-card')).toHaveLength(3);
+    expect(wrapper.findComponent(InfiniteScrollTrigger).props('hasMore')).toBe(false);
+  });
+
+  it('applique le type de média aux recherches et aux catalogues', async () => {
+    apiMock.mockImplementation(path => path.includes('/genres') ? Promise.resolve([]) : Promise.resolve(page([])));
+    const wrapper = await mountView();
+    await flushPromises();
+
+    const films = wrapper.findAll('.filter-badge').find(button => button.text() === 'Films');
+    await films.trigger('click');
+    await flushPromises();
+
+    expect(apiMock.mock.calls.some(([path]) => path.includes('/trending?media_type=movie'))).toBe(true);
+  });
+
+  it('ignore une réponse de recherche arrivée après une requête plus récente', async () => {
+    vi.useFakeTimers();
+    let resolveOld;
+    let resolveNew;
+    apiMock.mockImplementation(path => {
+      if (path.includes('/genres')) return Promise.resolve([]);
+      if (!path.includes('query=') && !path.includes('/search')) return Promise.resolve(page([]));
+      if (path.includes('ancien')) return new Promise(resolve => { resolveOld = resolve; });
+      return new Promise(resolve => { resolveNew = resolve; });
+    });
+    const wrapper = await mountView();
+    await flushPromises();
+    const input = wrapper.get('input[type="search"]');
+
+    await input.setValue('ancien');
+    await vi.advanceTimersByTimeAsync(300);
+    await input.setValue('nouveau');
+    await vi.advanceTimersByTimeAsync(300);
+
+    resolveNew(page([media(2, 'Nouveau')]));
+    await flushPromises();
+    resolveOld(page([media(1, 'Ancien')]));
+    await flushPromises();
+
+    expect(wrapper.find('img[alt="Affiche de Nouveau"]').exists()).toBe(true);
+    expect(wrapper.find('img[alt="Affiche de Ancien"]').exists()).toBe(false);
+  });
+
+  it('conserve le focus du champ partagé lors du passage de l’accueil à Explorer', async () => {
+    apiMock.mockImplementation(path => {
+      if (path.includes('/home')) {
+        return Promise.resolve({ sections: { hero: { items: [] }, trending: { items: [] }, popular_movies: { items: [] }, popular_tv: { items: [] }, upcoming: { items: [] }, recent_plex: { items: [] }, most_requested: { items: [] } } });
+      }
+      return path.includes('/genres') ? Promise.resolve([]) : Promise.resolve(page([]));
+    });
+    const wrapper = await mountView({ home: true, attachTo: document.body });
+    await flushPromises();
+    const input = wrapper.get('input[type="search"]');
+
+    input.element.focus();
+    await input.setValue('dune');
+
+    expect(wrapper.findAll('input[type="search"]')).toHaveLength(1);
+    expect(document.activeElement).toBe(input.element);
+    wrapper.unmount();
+  });
+
+  it('rend les cartes comme de vrais liens accessibles', async () => {
+    apiMock.mockImplementation(path => path.includes('/genres') ? Promise.resolve([]) : Promise.resolve(page([media(1, 'Film test')])));
+    const wrapper = await mountView();
+    await flushPromises();
+
+    const card = wrapper.get('.discover-card a.discover-poster-link');
+    expect(card.attributes('href')).toContain('/media/discover/1');
+    expect(card.attributes('aria-label')).toContain('Film test');
+    expect(wrapper.get('img').attributes('alt')).toBe('Affiche de Film test');
+  });
+
+  it('charge indépendamment le hero, les rangées et les diffuseurs de l’accueil', async () => {
+    apiMock.mockImplementation(path => {
+      if (path.includes('sections=hero,trending')) {
+        return Promise.resolve({ sections: { hero: { items: [media(1, 'À la une')] }, trending: { items: [media(1)] } } });
+      }
+      if (path.includes('/home?sections=')) {
+        const name = path.split('sections=')[1];
+        return Promise.resolve({ sections: { [name]: { items: name === 'popular_movies' ? [media(2, 'Populaire')] : [] } } });
+      }
+      if (path.includes('/sources')) {
+        return Promise.resolve({ region: 'FR', items: [{ id: 8, kind: 'provider', name: 'Netflix' }] });
+      }
+      return Promise.resolve(page([]));
+    });
+
+    const wrapper = await mountView({ home: true });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('À la une');
+    expect(wrapper.find('img[alt="Affiche de Populaire"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Plateformes de streaming & studios');
+    expect(wrapper.text()).toContain('Netflix');
+  });
+
+  it('demande directement un média sans langue, profil ni dossier', async () => {
+    apiMock.mockImplementation((path, options) => {
+      if (path.includes('/genres')) return Promise.resolve([]);
+      if (path === '/api/session') return Promise.resolve({ plex_user_id: 'user-1' });
+      if (path === '/api/media/add') return Promise.resolve({ request_id: 9, pending_approval: false });
+      return Promise.resolve(page([media(1, 'Film test')]));
+    });
+    const wrapper = await mountView();
+    await flushPromises();
+
+    await wrapper.get('button[aria-label="Demander Film test"]').trigger('click');
+    await flushPromises();
+
+    const [, options] = apiMock.mock.calls.find(([path]) => path === '/api/media/add');
+    const body = JSON.parse(options.body);
+    expect(body.plex_user_id).toBe('user-1');
+    expect(body.auto_search).toBe(true);
+    expect(body).not.toHaveProperty('quality_profile_id');
+    expect(body).not.toHaveProperty('root_folder');
+    expect(body).not.toHaveProperty('seasons');
+    expect(wrapper.text()).toContain('Demandé');
+  });
+
+  it('restaure les filtres Explorer depuis une URL partageable', async () => {
+    apiMock.mockImplementation(path => {
+      if (path.includes('/genres')) return Promise.resolve([]);
+      if (path.includes('/sources')) return Promise.resolve({ region: 'FR', items: [{ id: 8, kind: 'provider', name: 'Netflix' }] });
+      if (path.includes('/source/provider/8/home')) {
+        return Promise.resolve({
+          sections: {
+            hero: { items: [media(8, 'Netflix movie')] },
+            movies: { items: [media(8, 'Netflix movie')] },
+            shows: { items: [] },
+            genre_action: { items: [] },
+            genre_scifi: { items: [] },
+            genre_animation: { items: [] },
+            genre_comedy: { items: [] },
+            genre_thriller: { items: [] },
+            genre_horror: { items: [] },
+          },
+        });
+      }
+      return Promise.resolve(page([]));
+    });
+
+    const wrapper = await mountView({ url: '/discover/explore?type=movie&availability=new&source=provider%3A8' });
+    await flushPromises();
+
+    expect(wrapper.findAll('.filter-badge.active').some(badge => badge.text() === 'Netflix')).toBe(true);
+    expect(apiMock.mock.calls.some(([path]) => path.includes('/source/provider/8/home'))).toBe(true);
+    expect(window.location.pathname).toBe('/discover/explore');
+    expect(window.location.search).toContain('availability=new');
+  });
+
+  it('charge la vue source dédiée avec ses rails par provider', async () => {
+    apiMock.mockImplementation(path => {
+      if (path.includes('/sources')) {
+        return Promise.resolve({
+          region: 'FR',
+          items: [{ id: 8, name: 'Netflix', kind: 'provider' }],
+        });
+      }
+      if (path.includes('/source/provider/8/home')) {
+        return Promise.resolve({
+          sections: {
+            hero: { items: [media(10, 'Stranger Things')] },
+            movies: { items: [media(10, 'Stranger Things')] },
+            shows: { items: [media(11, 'Dark')] },
+            genre_action: { items: [] },
+            genre_scifi: { items: [] },
+            genre_animation: { items: [] },
+            genre_comedy: { items: [] },
+            genre_thriller: { items: [] },
+            genre_horror: { items: [] },
+          },
+        });
+      }
+      if (path.includes('/genres')) return Promise.resolve([]);
+      return Promise.resolve(page([]));
+    });
+
+    const wrapper = await mountView({ url: '/discover/source/provider/8?name=Netflix' });
+    await flushPromises();
+
+    expect(apiMock.mock.calls.some(([path]) => path.includes('/source/provider/8/home'))).toBe(true);
+    expect(wrapper.text()).toContain('Netflix');
+    // Mode provider affiche des rails (discover-home-rails) et pas de discover-heading
+    expect(wrapper.find('.discover-home-rails').exists()).toBe(true);
+    expect(wrapper.find('.discover-heading').exists()).toBe(false);
+  });
+
+  it('affiche les recommandations personnalisées sans bloquer les autres rangées', async () => {
+    apiMock.mockImplementation(path => {
+      if (path.includes('/personalized')) {
+        return Promise.resolve({
+          available: true,
+          seeds: [media(1, 'Dune')],
+          sections: {
+            recommended: { items: [media(2, 'Arrival')] },
+            preferred_genres: { items: [] },
+            unwatched_popular: { items: [] },
+            followed_series: { items: [] },
+          },
+        });
+      }
+      if (path.includes('sections=hero,trending')) return Promise.resolve({ sections: { hero: { items: [media(3)] }, trending: { items: [] } } });
+      if (path.includes('/home?sections=')) {
+        const name = path.split('sections=')[1];
+        return Promise.resolve({ sections: { [name]: { items: [] } } });
+      }
+      if (path.includes('/sources')) return Promise.resolve({ region: 'FR', items: [] });
+      return Promise.resolve(page([]));
+    });
+
+    const wrapper = await mountView({ home: true });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Pour vous');
+    expect(wrapper.text()).toContain('Inspiré par Dune');
+    expect(wrapper.find('img[alt="Affiche de Arrival"]').exists()).toBe(true);
+  });
+});

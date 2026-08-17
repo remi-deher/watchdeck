@@ -1,0 +1,43 @@
+name: Dependabot Auto-Merge
+
+on: pull_request_target
+
+permissions:
+  contents: read
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      # Les montées de version majeures sont fusionnées à la main : elles
+      # peuvent casser une contrainte transitive (ex. redis 8 vs arq < 6).
+      #
+      # Ecosystem "docker" toujours exclu : les tags des images de base (ex.
+      # python "3.12-alpine" -> "3.14-alpine") n'ont pas 3 composants, donc
+      # Dependabot les classe souvent en simple "minor" meme quand il s'agit
+      # d'un vrai saut de version majeure du langage/OS. Verifie a la main.
+      #
+      # PROMOTION_PAT (et non GITHUB_TOKEN) : un merge fait avec le token par
+      # defaut d'un workflow ne declenche aucun autre workflow, ce qui empecherait
+      # auto-promote-test.yml de prendre le relai une fois la PR mergee dans dev.
+      # --delete-branch est sans danger ici : la tete de cette PR est toujours une
+      # branche dependabot/* jetable, jamais dev/test/main (contrairement aux PR
+      # de promotion, ou la tete EST dev/test/main -- il ne faut surtout pas
+      # activer "Automatically delete head branches" au niveau du depot, ça les
+      # supprimerait aussi apres chaque promotion).
+      - name: Enable auto-merge for Dependabot PRs
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major' && steps.metadata.outputs.package-ecosystem != 'docker'
+        run: gh pr merge --auto --squash --delete-branch "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.PROMOTION_PAT }}

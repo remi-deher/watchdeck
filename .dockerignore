@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+node_modules/
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+tests/
+data/
+*.md
+*.toml
+*.yml
+!docker-compose.yml

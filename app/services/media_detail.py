@@ -1,0 +1,465 @@
+"""Agrégation métier de la fiche média unifiée."""
+
+import logging
+from typing import Awaitable, Callable, Optional
+
+from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from ..models import (
+    ArrInstance,
+    DiagnosticEvent,
+    LibraryItem,
+    MediaIssue,
+    MediaRequest,
+    NotificationLog,
+    PlexUser,
+    RequestSeasonStatus,
+    VfUpgradeSuggestion,
+)
+from ..serializers import format_datetime, serialize_media_request
+from ..utils import async_get_or_404, wrap_image_proxy
+from . import tmdb
+from .media_annotate import annotate_media_items
+from .operational_projection import build_media_history, plex_library_projection
+
+logger = logging.getLogger(__name__)
+
+
+def _media_payload(
+    media_obj,
+    library_item: LibraryItem | None,
+    selected_request: MediaRequest | None,
+    operational: dict,
+    *,
+    arr_url: str | None,
+    backdrop_url: str | None = None,
+    release_dates: dict | None = None,
+    first_air_date: str | None = None,
+    current_season_air_date: str | None = None,
+    next_episode_to_air: dict | None = None,
+) -> dict:
+    return {
+        "kind": "library" if library_item else "request",
+        "library_id": library_item.id if library_item else None,
+        "request_id": selected_request.id if selected_request else None,
+        "vf_source_type": "library" if library_item else "request",
+        "vf_source_id": library_item.id if library_item else (
+            selected_request.id if selected_request else None
+        ),
+        "title": media_obj.title,
+        "year": media_obj.year,
+        "media_type": media_obj.media_type,
+        "poster_url": wrap_image_proxy(media_obj.poster_url),
+        "backdrop_url": wrap_image_proxy(backdrop_url),
+        "overview": media_obj.overview,
+        "has_vf": media_obj.has_vf,
+        "vf_granularity": media_obj.vf_granularity,
+        "fr_is_default": media_obj.fr_is_default,
+        "arr_id": media_obj.arr_id,
+        "arr_slug": media_obj.arr_slug,
+        "arr_instance_id": media_obj.arr_instance_id,
+        "arr_url": arr_url,
+        "tmdb_id": media_obj.tmdb_id,
+        "tvdb_id": media_obj.tvdb_id,
+        "imdb_id": media_obj.imdb_id,
+        "plex_guid": media_obj.plex_guid,
+        "in_library": library_item is not None,
+        "added_at": format_datetime(library_item.added_at) if library_item else None,
+        "origin_kind": operational.get("origin_kind"),
+        "origin_label": operational.get("origin_label"),
+        "operational_status": operational.get("operational_status"),
+        "operational_status_label": operational.get("operational_status_label"),
+        "waiting_reason": operational.get("waiting_reason"),
+        "workflow_timeline": operational.get("workflow_timeline", []),
+        "release_dates": release_dates,
+        "first_air_date": first_air_date,
+        "current_season_air_date": current_season_air_date,
+        "next_episode_to_air": next_episode_to_air,
+    }
+
+
+async def build_media_detail(
+    db: AsyncSession,
+    *,
+    library_id: Optional[int],
+    request_id: Optional[int],
+    identity_filter: Callable[[AsyncSession, object], Awaitable[list[MediaRequest]]],
+    schedule_payload: Callable[[AsyncSession, object], Awaitable[dict]],
+    issue_serializer: Callable[[MediaIssue], dict],
+    core_only: bool = False,
+) -> dict:
+    """Fusionne DB, calendrier *arr et enrichissement TMDB pour l'endpoint de détail."""
+    if not library_id and not request_id:
+        raise HTTPException(400, "library_id or request_id is required")
+
+    selected_request = None
+    library_item = None
+    if library_id:
+        library_item = await async_get_or_404(
+            db, LibraryItem, library_id, "Library item not found"
+        )
+        media_obj = library_item
+    else:
+        selected_request = await async_get_or_404(
+            db, MediaRequest, request_id, "Request not found"
+        )
+        if selected_request.library_item_id:
+            library_item = await db.get(LibraryItem, selected_request.library_item_id)
+        media_obj = library_item or selected_request
+
+    arr_url = None
+    if media_obj.arr_instance_id and media_obj.arr_slug:
+        instance = await db.get(ArrInstance, media_obj.arr_instance_id)
+        if instance:
+            entity = "movie" if media_obj.media_type == "movie" else "series"
+            arr_url = f"{instance.url.rstrip('/')}/{entity}/{media_obj.arr_slug}"
+
+    if core_only:
+        operational = (
+            serialize_media_request(selected_request, {})
+            if selected_request
+            else plex_library_projection()
+        )
+        return {
+            "media": _media_payload(
+                media_obj,
+                library_item,
+                selected_request,
+                operational,
+                arr_url=arr_url,
+            )
+        }
+
+    related_requests = await identity_filter(db, media_obj)
+    if selected_request and selected_request.id not in {row.id for row in related_requests}:
+        related_requests.insert(0, selected_request)
+
+    all_users = (await db.execute(select(PlexUser))).scalars().all()
+    users = {
+        user.plex_user_id: user.custom_name or user.display_name or user.plex_user_id
+        for user in all_users
+    }
+    user_by_id = {user.plex_user_id: user for user in all_users}
+    request_ids = [row.id for row in related_requests]
+    last_mail: dict[tuple[int, str], dict] = {}
+    recipients: dict[tuple[int, str], set[str]] = {}
+    history = []
+    if request_ids:
+        logs = (await db.execute(
+            select(NotificationLog)
+            .filter(NotificationLog.req_id.in_(request_ids))
+            .order_by(NotificationLog.sent_at.desc())
+            .limit(50)
+        )).scalars().all()
+        history = [{
+            "id": log.id, "event": log.event, "channel": log.channel,
+            "recipient": log.recipient, "sent_at": format_datetime(log.sent_at),
+            "success": log.success, "error_msg": log.error_msg,
+            "triggered_by": log.triggered_by, "scope": log.scope,
+            "language": log.language, "season_number": log.season_number,
+            "episode_number": log.episode_number,
+        } for log in logs]
+        for log in logs:
+            if log.channel != "email" or log.event not in ("request", "available"):
+                continue
+            key = (log.req_id, log.event)
+            last_mail.setdefault(key, {
+                "sent_at": format_datetime(log.sent_at),
+                "triggered_by": log.triggered_by,
+                "success": log.success,
+            })
+            if log.success:
+                recipients.setdefault(key, set()).add((log.recipient or "").strip().lower())
+
+    seasons: dict[int, list[dict]] = {}
+    show_ids = [row.id for row in related_requests if row.media_type == "show"]
+    if show_ids:
+        rows = (await db.execute(
+            select(RequestSeasonStatus).filter(RequestSeasonStatus.request_id.in_(show_ids))
+        )).scalars().all()
+        for row in rows:
+            seasons.setdefault(row.request_id, []).append({
+                "season_number": row.season_number,
+                "episodes_available_count": row.episodes_available_count,
+                "episodes_total_count": row.episodes_total_count,
+                "status": row.status,
+            })
+        for values in seasons.values():
+            values.sort(key=lambda value: value["season_number"])
+
+    def requester_emails(user_id: str) -> set[str]:
+        user = user_by_id.get(user_id)
+        raw = (user.notification_email if user else None) or ""
+        return {address.strip().lower() for address in raw.split(",") if address.strip()}
+
+    request_payloads = [serialize_media_request(row, users) for row in related_requests]
+    for payload, row in zip(request_payloads, related_requests):
+        payload["seasons"] = seasons.get(row.id, [])
+        payload["last_request_mail"] = last_mail.get((row.id, "request"))
+        payload["last_available_mail"] = last_mail.get((row.id, "available"))
+        request_recipients = recipients.get((row.id, "request"), set())
+        available_recipients = recipients.get((row.id, "available"), set())
+        payload["requester_notifications"] = {}
+        for user_id in payload.get("requester_ids", []):
+            addresses = requester_emails(user_id)
+            payload["requester_notifications"][user_id] = {
+                "request": bool(addresses & request_recipients) if addresses else None,
+                "available": bool(addresses & available_recipients) if addresses else None,
+            }
+
+    schedule = await schedule_payload(db, media_obj)
+    issue_query = select(MediaIssue).filter(MediaIssue.status != "closed")
+    if library_item and request_ids:
+        issue_query = issue_query.filter(
+            (MediaIssue.library_item_id == library_item.id)
+            | (MediaIssue.request_id.in_(request_ids))
+        )
+    elif library_item:
+        issue_query = issue_query.filter(MediaIssue.library_item_id == library_item.id)
+    else:
+        issue_query = issue_query.filter(MediaIssue.request_id == selected_request.id)
+    issues = (await db.execute(
+        issue_query.order_by(MediaIssue.created_at.desc())
+    )).scalars().all()
+
+    # Historique post-disponibilite ("Parcours du media") : upgrades VF, fichiers remplaces
+    # par *ARR, signalements -- toutes lignes deja existantes (VfUpgradeSuggestion,
+    # DiagnosticEvent, MediaIssue), mises en forme par build_media_history (fonction pure,
+    # operational_projection.py). Voir ce module pour le detail de chaque source.
+    vf_suggestion_filters = []
+    if library_item:
+        vf_suggestion_filters.append(
+            (VfUpgradeSuggestion.source_type == "library_item")
+            & (VfUpgradeSuggestion.source_id == library_item.id)
+        )
+    for rid in request_ids:
+        vf_suggestion_filters.append(
+            (VfUpgradeSuggestion.source_type == "request")
+            & (VfUpgradeSuggestion.source_id == rid)
+        )
+    vf_suggestions = []
+    if vf_suggestion_filters:
+        combined = vf_suggestion_filters[0]
+        for extra in vf_suggestion_filters[1:]:
+            combined = combined | extra
+        vf_suggestions = (await db.execute(
+            select(VfUpgradeSuggestion).filter(combined).limit(200)
+        )).scalars().all()
+
+    diagnostic_events = []
+    if request_ids:
+        diagnostic_events = (await db.execute(
+            select(DiagnosticEvent).filter(
+                DiagnosticEvent.request_id.in_(request_ids),
+                DiagnosticEvent.category == "arr",
+                DiagnosticEvent.action == "availability_detected",
+            ).order_by(DiagnosticEvent.created_at.asc()).limit(200)
+        )).scalars().all()
+
+    all_issues_query = select(MediaIssue)
+    if library_item and request_ids:
+        all_issues_query = all_issues_query.filter(
+            (MediaIssue.library_item_id == library_item.id)
+            | (MediaIssue.request_id.in_(request_ids))
+        )
+    elif library_item:
+        all_issues_query = all_issues_query.filter(MediaIssue.library_item_id == library_item.id)
+    elif selected_request:
+        all_issues_query = all_issues_query.filter(MediaIssue.request_id == selected_request.id)
+    else:
+        all_issues_query = None
+    all_issues = []
+    if all_issues_query is not None:
+        all_issues = (await db.execute(
+            all_issues_query.order_by(MediaIssue.created_at.desc()).limit(50)
+        )).scalars().all()
+
+    media_history = build_media_history(vf_suggestions, diagnostic_events, all_issues)
+
+    backdrop_url = None
+    saga = None
+    recommendations = []
+    similar = []
+    cast = []
+    release_dates = None
+    first_air_date = None
+    current_season_air_date = None
+    next_episode_to_air = None
+    if media_obj.tmdb_id:
+        try:
+            detail = await tmdb.detail(db, media_obj.media_type, int(media_obj.tmdb_id))
+            backdrop_url = detail.get("backdrop_url")
+            saga = detail.get("saga")
+            recommendations = await annotate_media_items(db, detail.get("recommendations", []))
+            similar = await annotate_media_items(db, detail.get("similar", []))
+            cast = detail.get("cast", [])
+            release_dates = detail.get("release_dates")
+            first_air_date = detail.get("first_air_date")
+            current_season_air_date = detail.get("current_season_air_date")
+            next_episode_to_air = detail.get("next_episode_to_air")
+            if saga:
+                saga["items"] = await annotate_media_items(db, saga.get("items", []))
+        except Exception as exc:
+            logger.debug("TMDB backdrop unavailable: %s", exc)
+
+    albums = []
+    if media_obj.media_type in ("artist", "album"):
+        stmt = select(LibraryItem).filter(
+            LibraryItem.media_type == "album",
+            (LibraryItem.overview.ilike(f"%{media_obj.title}%") | LibraryItem.title.ilike(f"%{media_obj.title}%"))
+        )
+        album_rows = (await db.execute(stmt.order_by(LibraryItem.year.desc().nulls_last()).limit(50))).scalars().all()
+        if not album_rows:
+            album_rows = (await db.execute(
+                select(LibraryItem).filter(LibraryItem.media_type == "album").order_by(LibraryItem.year.desc().nulls_last()).limit(50)
+            )).scalars().all()
+
+        if album_rows:
+            albums = [
+                {
+                    "id": item.id,
+                    "_kind": "library",
+                    "title": item.title,
+                    "year": item.year,
+                    "media_type": item.media_type,
+                    "poster_url": wrap_image_proxy(item.poster_url),
+                    "overview": item.overview,
+                }
+                for item in album_rows
+            ]
+        else:
+            try:
+                from ..models import Settings
+                s = (await db.execute(select(Settings))).scalars().first()
+                if s and s.plex_url and s.plex_token:
+                    from .plex_finder import connect
+                    plex = connect(s.plex_url, s.plex_token)
+                    for section in plex.library.sections():
+                        if section.type in ("artist", "music") or getattr(section, "kind", None) == "music":
+                            for artist in section.search(title=media_obj.title, libtype="artist"):
+                                for alb in artist.albums():
+                                    albums.append({
+                                        "id": getattr(alb, "ratingKey", hash(alb.title)),
+                                        "_kind": "library",
+                                        "title": alb.title,
+                                        "year": getattr(alb, "year", None),
+                                        "media_type": "album",
+                                        "poster_url": wrap_image_proxy(
+                                            f"{s.plex_url.rstrip('/')}{alb.thumb}?X-Plex-Token={s.plex_token}"
+                                            if getattr(alb, "thumb", None) else None
+                                        ),
+                                        "overview": getattr(alb, "summary", None),
+                                    })
+            except Exception as exc:
+                logger.debug("Plex direct album fetch error: %s", exc)
+
+    tracks = []
+    if media_obj.media_type == "album":
+        stmt_tr = select(LibraryItem).filter(
+            LibraryItem.media_type == "track",
+            (LibraryItem.overview.ilike(f"%{media_obj.title}%") | LibraryItem.title.ilike(f"%{media_obj.title}%"))
+        )
+        track_rows = (await db.execute(stmt_tr.order_by(LibraryItem.title).limit(100))).scalars().all()
+        if track_rows:
+            tracks = [
+                {
+                    "id": item.id,
+                    "track_number": idx + 1,
+                    "title": item.title,
+                    "overview": item.overview,
+                    "year": item.year,
+                    "plex_guid": item.plex_guid,
+                    "duration_str": (
+                        f"{item.duration_ms // 60000}:{(item.duration_ms % 60000) // 1000:02d}"
+                        if item.duration_ms else "--:--"
+                    ),
+                    "codec": item.audio_codec,
+                    "bitrate": f"{item.audio_bitrate} kbps" if item.audio_bitrate else None,
+                    "sample_rate": f"{round(item.audio_sample_rate / 1000, 1)} kHz" if item.audio_sample_rate else None,
+                    "channels": f"{item.audio_channels}.0" if item.audio_channels else "Stereo",
+                }
+                for idx, item in enumerate(track_rows)
+            ]
+        else:
+            try:
+                from ..models import Settings
+                s = (await db.execute(select(Settings))).scalars().first()
+                if s and s.plex_url and s.plex_token:
+                    from .plex_finder import connect
+                    plex = connect(s.plex_url, s.plex_token)
+                    albums_found = []
+                    for section in plex.library.sections():
+                        if section.type in ("artist", "music") or getattr(section, "kind", None) == "music":
+                            albums_found.extend(section.search(title=media_obj.title, libtype="album"))
+
+                    if albums_found:
+                        alb = albums_found[0]
+                        for idx, t in enumerate(alb.tracks()):
+                            codec = "FLAC"
+                            bitrate = None
+                            sample_rate = None
+                            channels = None
+                            if hasattr(t, "media") and t.media:
+                                m = t.media[0]
+                                codec = (getattr(m, "audioCodec", None) or getattr(m, "container", None) or "FLAC").upper()
+                                bitrate = getattr(m, "bitrate", None)
+                                if hasattr(m, "parts") and m.parts:
+                                    p = m.parts[0]
+                                    for st in getattr(p, "streams", []):
+                                        if getattr(st, "streamType", None) == 2 or getattr(st, "type", None) == "audio":
+                                            codec = (getattr(st, "codec", None) or codec).upper()
+                                            bitrate = getattr(st, "bitrate", None) or bitrate
+                                            sample_rate = getattr(st, "samplingRate", None)
+                                            channels = getattr(st, "channels", None)
+
+                            dur_ms = getattr(t, "duration", 0) or 0
+                            mins = dur_ms // 60000
+                            secs = (dur_ms % 60000) // 1000
+                            dur_str = f"{mins}:{secs:02d}" if dur_ms else "--:--"
+
+                            tracks.append({
+                                "id": getattr(t, "ratingKey", idx + 1),
+                                "track_number": getattr(t, "trackNumber", idx + 1),
+                                "title": t.title,
+                                "artist": getattr(t, "grandparentTitle", None) or getattr(t, "originalTitle", None) or media_obj.title,
+                                "duration_str": dur_str,
+                                "codec": codec,
+                                "bitrate": f"{bitrate} kbps" if bitrate else None,
+                                "sample_rate": f"{round(sample_rate/1000, 1)} kHz" if sample_rate else None,
+                                "channels": f"{channels}.0" if channels else "Stereo",
+                                "plex_guid": getattr(t, "guid", None),
+                            })
+            except Exception as exc:
+                logger.debug("Plex direct tracks fetch error: %s", exc)
+
+    operational = request_payloads[0] if request_payloads else (
+        plex_library_projection() if library_item else {}
+    )
+    return {
+        "media": _media_payload(
+            media_obj,
+            library_item,
+            selected_request or (related_requests[0] if related_requests else None),
+            operational,
+            arr_url=arr_url,
+            backdrop_url=backdrop_url,
+            release_dates=release_dates,
+            first_air_date=first_air_date,
+            current_season_air_date=current_season_air_date,
+            next_episode_to_air=next_episode_to_air,
+        ),
+        "requests": request_payloads,
+        "issues": [issue_serializer(issue) for issue in issues],
+        "media_history": media_history,
+        "timeline": schedule["timeline"],
+        "calendar": schedule["events"],
+        "notification_history": history,
+        "saga": saga,
+        "recommendations": recommendations,
+        "similar": similar,
+        "cast": cast,
+        "albums": albums,
+        "tracks": tracks,
+    }

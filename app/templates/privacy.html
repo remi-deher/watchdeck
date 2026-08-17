@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Politique de confidentialité — Watchdeck</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%2322d3ee'/%3E%3Cpolygon points='13,9 25,16 13,23' fill='%23141414'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Inter', sans-serif;
+      background: #0d0d0d;
+      color: #e5e5e5;
+      line-height: 1.6;
+    }
+
+    .page-wrapper {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .brand-logo .logo-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, #22d3ee, #0e7490);
+      border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700;
+      color: #141414;
+      flex-shrink: 0;
+    }
+    .brand-logo .logo-text {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .brand-logo .logo-text span { color: #22d3ee; }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 0 8px;
+    }
+
+    .updated-note {
+      color: #888;
+      font-size: 0.85rem;
+      margin-bottom: 36px;
+    }
+
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #22d3ee;
+      margin: 32px 0 10px;
+    }
+
+    p, li { color: #c4c4c4; font-size: 0.94rem; }
+    ul { padding-left: 20px; margin: 8px 0; }
+    li { margin-bottom: 4px; }
+
+    a { color: #22d3ee; }
+
+    .notice-box {
+      background: rgba(34, 211, 238, .08);
+      border: 1px solid rgba(34, 211, 238, .25);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin: 24px 0;
+      font-size: 0.9rem;
+      color: #ddd;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-top: 40px;
+      font-size: 0.85rem;
+      color: #888;
+      text-decoration: none;
+    }
+    .back-link:hover { color: #22d3ee; }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <div class="brand-logo">
+      <div class="logo-icon">W</div>
+      <div class="logo-text">Watch<span>deck</span></div>
+    </div>
+
+    <h1>Politique de confidentialité</h1>
+    <p class="updated-note">Ce document décrit simplement, en langage clair, quelles données sont traitées par cette instance et pourquoi. Dernière mise à jour : 30 juillet 2026.</p>
+
+    <div class="notice-box">
+      Watchdeck est un logiciel auto-hébergé, développé et utilisé à titre strictement personnel,
+      sans finalité commerciale. Cette instance est gérée par son administrateur pour un usage
+      personnel ou entre proches — elle n'est affiliée ni à Plex Inc., ni à Sonarr/Radarr/Prowlarr,
+      ni à TMDB.
+    </div>
+
+    <h2>Responsable de traitement</h2>
+    {% if gdpr_contact_email %}
+    <p>Le responsable du traitement des données sur cette instance est
+    {% if gdpr_contact_name %}<strong>{{ gdpr_contact_name }}</strong>{% else %}l'administrateur de cette instance{% endif %},
+    joignable à l'adresse <a href="mailto:{{ gdpr_contact_email }}">{{ gdpr_contact_email }}</a> pour toute question
+    relative à vos données ou pour exercer les droits décrits plus bas.</p>
+    {% else %}
+    <div class="notice-box">
+      Aucun contact n'a été renseigné par l'administrateur de cette instance (réglages → RGPD).
+      Rapprochez-vous de la personne qui vous a invité·e sur ce service pour exercer vos droits.
+    </div>
+    {% endif %}
+
+    <h2>Quelles données sont traitées</h2>
+    <ul>
+      <li>Identifiant et adresse email Plex (pour créer votre compte et vous envoyer les notifications que vous avez demandées)</li>
+      <li>Historique de vos demandes de films/séries et leur statut</li>
+      <li>Signalements de problème sur un média (nom du rapporteur, description)</li>
+      <li>Secrets d'authentification (mot de passe haché, secret d'authentification à deux facteurs, clé publique de passkey) — jamais lisibles en clair, y compris par l'administrateur</li>
+      <li>Préférences de notification (canaux activés, granularité VF/VO)</li>
+      <li>Journaux techniques (connexions, erreurs) à des fins de diagnostic, avec une durée de conservation limitée et configurable</li>
+      <li>Adresse IP et horodatage de vos tentatives de connexion, à des fins de sécurité (protection contre les tentatives d'accès abusives),
+      {% if login_attempt_retention_days %}conservées <strong>{{ login_attempt_retention_days }} jour(s)</strong> puis supprimées automatiquement{% else %}conservées jusqu'à purge manuelle par l'administrateur{% endif %}</li>
+    </ul>
+
+    <h2>Base légale</h2>
+    <p>Le traitement repose sur l'exécution du service que vous avez explicitement demandé à
+    rejoindre (créer un compte pour suivre vos demandes de films/séries) et, à défaut, sur
+    l'intérêt légitime de l'administrateur à faire fonctionner correctement et de manière sécurisée
+    un service partagé entre proches. Aucune décision automatisée ni profilage n'est réalisé sur
+    vos données.</p>
+
+    <h2>Pourquoi</h2>
+    <p>Uniquement pour faire fonctionner le service : transmettre vos demandes à Sonarr/Radarr,
+    vous notifier quand un contenu devient disponible, et diagnostiquer les problèmes techniques.
+    Aucune donnée n'est vendue, partagée avec un tiers à des fins commerciales, ou utilisée pour de la publicité.</p>
+
+    <h2>Services tiers sollicités</h2>
+    <p>Pour fonctionner, cette instance échange des données avec :</p>
+    <ul>
+      <li><strong>Plex.tv</strong> — authentification de votre compte et lecture de votre liste de suivi</li>
+      <li><strong>TMDB</strong> (The Movie Database) — affiches, synopsis et informations des films/séries</li>
+      <li><strong>Sonarr / Radarr / Prowlarr</strong> de cette instance — transmission de vos demandes</li>
+      {% if active_channels %}<li><strong>{{ active_channels|join(', ') }}</strong> — canal(aux) de notification activé(s) sur cette instance</li>{% endif %}
+    </ul>
+    <p>Ces échanges se font uniquement avec les services que l'administrateur de cette instance a
+    configurés ci-dessus — aucune donnée n'est envoyée ailleurs.</p>
+    <p>Plex Inc. et TMDB (The Movie Database) sont des sociétés basées aux États-Unis : les données
+    échangées avec ces services (identifiant Plex, recherche d'affiches/synopsis) peuvent donc être
+    traitées hors de l'Union européenne, dans le cadre de leur propre politique de confidentialité.</p>
+
+    <h2>Cookies</h2>
+    <p>Cette instance dépose un unique cookie de session, strictement nécessaire pour vous garder
+    connecté·e (aucun cookie de mesure d'audience ou de publicité). Il expire à la déconnexion ou
+    après une période d'inactivité et n'est jamais transmis à un tiers.</p>
+
+    <h2>Combien de temps</h2>
+    <p>Sur cette instance, les journaux de notification sont conservés
+    {% if notification_retention_days %}<strong>{{ notification_retention_days }} jour(s)</strong>{% else %}<strong>indéfiniment</strong>{% endif %},
+    l'historique des tâches planifiées
+    {% if poll_history_retention_days %}<strong>{{ poll_history_retention_days }} jour(s)</strong>{% else %}<strong>indéfiniment</strong>{% endif %},
+    et les journaux d'audit et de diagnostic (actions admin, événements techniques)
+    {% if audit_log_retention_days %}<strong>{{ audit_log_retention_days }} jour(s)</strong>{% else %}<strong>indéfiniment</strong>{% endif %}
+    (réglages visibles et modifiables par l'administrateur dans les paramètres de l'application).
+    Vos données de compte et vos demandes sont conservées tant que votre compte existe.</p>
+
+    <h2>Sécurité</h2>
+    <p>Les jetons d'accès et clés API stockés par cette instance (Plex, Sonarr/Radarr, services de
+    notification...) sont chiffrés au repos en base de données. Votre mot de passe (si vous en
+    utilisez un) est haché, jamais stocké en clair.</p>
+
+    <h2>Vos droits</h2>
+    <p>Conformément au RGPD, vous disposez à tout moment des droits suivants sur vos données :</p>
+    <ul>
+      <li><strong>Accès et portabilité</strong> — obtenir une copie de vos données dans un format réutilisable (export JSON, sans secret)</li>
+      <li><strong>Rectification</strong> — corriger une information inexacte ou incomplète</li>
+      <li><strong>Effacement</strong> — demander la suppression de votre compte et des données rattachées</li>
+      <li><strong>Limitation</strong> — demander la suspension temporaire d'un traitement</li>
+      <li><strong>Opposition</strong> — vous opposer à un traitement fondé sur l'intérêt légitime</li>
+    </ul>
+    <p>
+      {% if gdpr_contact_email %}
+      Pour exercer l'un de ces droits, contactez <a href="mailto:{{ gdpr_contact_email }}">{{ gdpr_contact_email }}</a> : l'export et la suppression de vos données sont réalisables directement depuis l'administration de cette instance.
+      {% else %}
+      Pour exercer l'un de ces droits, contactez l'administrateur de cette instance.
+      {% endif %}
+      Si vous estimez, après nous avoir contactés, que vos droits ne sont pas respectés, vous
+      pouvez introduire une réclamation auprès de la
+      <a href="https://www.cnil.fr/fr/plaintes" target="_blank" rel="noopener noreferrer">CNIL</a>
+      (Commission Nationale de l'Informatique et des Libertés).
+    </p>
+
+    <a class="back-link" href="/login">&larr; Retour à la connexion</a>
+  </div>
+</body>
+</html>

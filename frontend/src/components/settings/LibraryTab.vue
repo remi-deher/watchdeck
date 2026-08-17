@@ -1,0 +1,133 @@
+﻿<template>
+  <div class="settings-grid">
+    <div class="settings-cards span-two">
+      <SettingsCard title="Watchlist" subtitle="Surveille les watchlists Plex et cree automatiquement les demandes correspondantes." :icon="Rss" status="active" :default-open="true">
+        <label>Frequence de synchronisation<IntervalPresetInput v-model="form.poll_interval_seconds" :presets="WATCHLIST_PRESETS"/><small>A quelle frequence Watchdeck relit la watchlist pour detecter de nouveaux ajouts.</small></label>
+        <label>Priorite<select v-model="form.watchlist_source_priority"><option value="api">API Plex</option><option value="rss">Universal Watchlist (RSS)</option></select><small>Universal Watchlist necessite un abonnement Plex Pass et agrege les watchlists de tous tes amis Plex sans qu'ils aient besoin de se connecter — voir la carte Plex ci-dessous.</small></label>
+        <label class="check"><input v-model="form.watchlist_fallback_enabled" type="checkbox"> Source de repli</label>
+        <small class="check-hint">Si la source prioritaire (API ou Universal Watchlist) echoue, Watchdeck bascule automatiquement sur l'autre plutot que d'ignorer le cycle de synchronisation.</small>
+        <label class="check"><input v-model="form.require_approval" type="checkbox"> Approbation admin requise</label>
+        <small class="check-hint">Chaque nouvelle demande (watchlist ou manuelle) reste en attente de validation par un administrateur avant transmission a Sonarr/Radarr.</small>
+      </SettingsCard>
+
+      <SettingsCard title="Analyse VF" subtitle="Detecte automatiquement la presence d'une piste VF dans les fichiers Plex (films/series), et synchronise la bibliotheque musique sans analyse VF." :icon="Languages" :status="form.vff_enabled ? 'active' : 'inactive'" :default-open="form.vff_enabled">
+        <label class="check"><input v-model="form.vff_enabled" type="checkbox"> Analyse active</label>
+        <small class="check-hint">Desactiver arrete l'analyse VO/VF : la bibliotheque et les notifications ne distingueront plus les langues disponibles.</small>
+        <label>Nouvelle analyse<IntervalPresetInput v-model="form.vff_recheck_interval_minutes" :presets="MINUTES_PRESETS"/><small>Frequence a laquelle un media deja detecte en VO uniquement est re-analyse (au cas ou la VF aurait ete ajoutee depuis).</small></label>
+        <label class="check"><input v-model="form.vff_auto_search" type="checkbox"> Recherche automatique</label>
+        <small class="check-hint">Relance automatiquement une recherche Sonarr/Radarr des qu'un media est detecte en VO uniquement, pour tenter de trouver une release avec VF.</small>
+        <label>Frequence de synchronisation Plex (complete)<IntervalPresetInput v-model="form.plex_sync_interval_hours" :presets="PLEX_SYNC_PRESETS"/><small>La bibliotheque Plex est resynchronisee en entier a cette frequence ; un scan incremental (medias recemment ajoutes) tourne en continu, voir l'onglet Planification</small></label>
+        <div>
+          <strong style="display:block;margin-bottom:8px;font-size:var(--fs-sm)">Bibliotheques analysees</strong>
+          <div v-if="plexSectionsLoading" class="notice">Chargement des bibliotheques Plex...</div>
+          <div v-else-if="!plexSections.length" class="notice warning-text">Aucune bibliotheque Plex trouvee. Verifiez la connexion Plex dans l'onglet Connexions.</div>
+          <div v-else class="vff-library-picker">
+            <div v-for="section in plexSections" :key="section.name" class="vff-library-row">
+              <label class="check vff-lib-check">
+                <input type="checkbox" :checked="isLibrarySelected(section.name)" @change="toggleLibrary(section.name, section.type, ($event.target as HTMLInputElement).checked)">
+                <span class="vff-lib-name">{{ section.name }}</span>
+                <span class="badge">{{ mediaTypeLabel(section.type) }}</span>
+              </label>
+              <div v-if="isLibrarySelected(section.name)" class="vff-lib-kind">
+                <div class="segmented small">
+                  <button :class="{active: getLibraryKind(section.name)==='series'}" @click="setLibraryKind(section.name, 'series')">Serie</button>
+                  <button :class="{active: getLibraryKind(section.name)==='movie'}" @click="setLibraryKind(section.name, 'movie')">Film</button>
+                  <button :class="{active: getLibraryKind(section.name)==='music'}" @click="setLibraryKind(section.name, 'music')">Musique</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="status-stack">
+          <span>Scan VF : {{ scanStatus.status||scanStatus.state||'inconnu' }}</span>
+          <span>Synchronisation Plex : {{ syncStatus.status||syncStatus.state||'inconnue' }}</span>
+          <span>Upgrades VF : {{ upgradeMetrics.found||0 }} trouve(s) · {{ upgradeMetrics.accepted||0 }} accepte(s) · {{ upgradeMetrics.verified||0 }} verifie(s) · {{ upgradeMetrics.failed||0 }} echec(s)</span>
+        </div>
+        <div class="actions">
+          <button class="secondary" @click="vff('/api/vff/scan?force=true')"><ScanSearch/>Scanner maintenant</button>
+          <button class="secondary" @click="vff('/api/vff/sync-plex')"><RefreshCw/>Synchroniser Plex</button>
+        </div>
+      </SettingsCard>
+    </div>
+  </div>
+</template>
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue';
+import { Languages, RefreshCw, Rss, ScanSearch } from '@lucide/vue';
+import { api } from '@/api';
+import { useRealtime } from '@/events';
+import { form } from '@/settingsForm';
+import { mediaTypeLabel } from '@/utils/labels';
+import SettingsCard from './SettingsCard.vue';
+import IntervalPresetInput from './IntervalPresetInput.vue';
+
+const WATCHLIST_PRESETS = [
+  { label: '30 secondes', value: 30 },
+  { label: '45 secondes', value: 45 },
+  { label: '1 minute', value: 60 },
+  { label: '2 minutes', value: 120 },
+  { label: '5 minutes', value: 300 },
+];
+const MINUTES_PRESETS = [
+  { label: '10 minutes', value: 10 },
+  { label: '15 minutes', value: 15 },
+  { label: '30 minutes', value: 30 },
+  { label: '1 heure', value: 60 },
+  { label: '3 heures', value: 180 },
+  { label: '6 heures', value: 360 },
+  { label: '12 heures', value: 720 },
+  { label: '24 heures', value: 1440 },
+];
+const PLEX_SYNC_PRESETS = [
+  { label: '1 heure', value: 1 },
+  { label: '2 heures', value: 2 },
+  { label: '3 heures', value: 3 },
+  { label: '4 heures', value: 4 },
+  { label: '6 heures', value: 6 },
+  { label: '8 heures', value: 8 },
+  { label: '12 heures', value: 12 },
+  { label: '24 heures', value: 24 },
+  { label: '48 heures', value: 48 },
+  { label: '72 heures', value: 72 },
+];
+
+const plexSections = ref<any[]>([]);
+const plexSectionsLoading = ref(false);
+async function loadPlexSections(): Promise<void> {
+  plexSectionsLoading.value = true;
+  try { plexSections.value = await api('/api/plex/sections'); }
+  catch (e) { plexSections.value = []; }
+  finally { plexSectionsLoading.value = false; }
+}
+
+const vffLibraryList = computed({
+  get(): any[] { try { const raw = form.vff_libraries; if (!raw) return []; const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch { return []; } },
+  set(arr: any[]) { form.vff_libraries = JSON.stringify(arr); },
+});
+function isLibrarySelected(name: string): boolean { return vffLibraryList.value.some((x: any) => x.name === name); }
+function getLibraryKind(name: string): string { return vffLibraryList.value.find((x: any) => x.name === name)?.kind || 'series'; }
+function toggleLibrary(name: string, plexType: string, checked: boolean): void {
+  const list = [...vffLibraryList.value];
+  if (checked) { const defaultKind = ({ show: 'series', artist: 'music' } as Record<string, string>)[plexType] || 'movie'; list.push({ name, kind: defaultKind }); }
+  else { const idx = list.findIndex((x: any) => x.name === name); if (idx >= 0) list.splice(idx, 1); }
+  vffLibraryList.value = list;
+}
+function setLibraryKind(name: string, kind: string): void { const list = [...vffLibraryList.value]; const entry = list.find((x: any) => x.name === name); if (entry) entry.kind = kind; vffLibraryList.value = list; }
+
+const scanStatus = ref<Record<string, any>>({});
+const syncStatus = ref<Record<string, any>>({});
+const upgradeMetrics = ref<Record<string, any>>({});
+async function loadVffStatus(): Promise<void> {
+  [scanStatus.value, syncStatus.value, upgradeMetrics.value] = await Promise.all([
+    api('/api/vff/scan-status').catch(() => ({})),
+    api('/api/vff/sync-status').catch(() => ({})),
+    api('/api/vf-upgrades/metrics').catch(() => ({})),
+  ]);
+}
+async function vff(path: string): Promise<void> {
+  await api(path, { method: 'POST' });
+}
+
+onMounted(() => { loadPlexSections(); loadVffStatus(); });
+useRealtime(['vff.updated'], () => loadVffStatus());
+</script>

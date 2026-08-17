@@ -1,0 +1,763 @@
+"""ARQ worker settings and idempotent wrappers for all periodic work."""
+
+import asyncio
+import contextlib
+import json
+import logging
+import os
+import time
+import uuid
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from arq import cron
+from arq.connections import RedisSettings
+from sqlalchemy.future import select
+
+from .database import AsyncSessionLocal, init_db
+from .models import JobRunLog, PendingNotification, Settings
+from .realtime import publish
+from .utils import local_hour, local_minute, now_utc, now_utc_naive
+
+# Le worker ARQ est un process séparé (commande `arq app.jobs.WorkerSettings`) qui
+# n'importe jamais app.main — sans ce basicConfig, aucun logger.info/warning/error de
+# tout le code exécuté par les jobs (radarr/sonarr/notifications/vff/plex_sync...)
+# n'apparaît dans `docker logs`, faute de handler sur le root logger.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+LOCK_TTL = 60 * 60
+STATE_TTL = 7 * 24 * 60 * 60
+MIGRATION_LOCK_KEY = "watchdeck:migration:lock"
+
+
+def redis_settings() -> RedisSettings:
+    return RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+
+
+async def _state(redis, name: str, **changes: Any) -> dict[str, Any]:
+    key = f"watchdeck:jobs:state:{name}"
+    current_raw = await redis.get(key)
+    current = json.loads(current_raw) if current_raw else {"name": name}
+    current.update(changes)
+    await redis.set(key, json.dumps(current, ensure_ascii=True), ex=STATE_TTL)
+    await publish("job.updated", current, admin_only=True)
+    return current
+
+
+async def _due(ctx: dict, name: str, interval_seconds: int, force: bool) -> bool:
+    if force:
+        return True
+    key = f"watchdeck:jobs:last-scheduled:{name}"
+    return bool(await ctx["redis"].set(key, str(time.time()), ex=max(interval_seconds, 1), nx=True))
+
+
+async def _log_job_run(name: str, started_at, duration_ms: float, status: str, error: str | None) -> None:
+    """Persiste une exécution réelle dans job_run_logs (voir JobRunLog / onglet
+    Réglages > Tâches planifiées). Best-effort : une erreur ici ne doit jamais faire
+    échouer le job qu'elle journalise."""
+    try:
+        async with AsyncSessionLocal() as db:
+            db.add(
+                JobRunLog(
+                    job=name,
+                    started_at=started_at,
+                    duration_ms=round(duration_ms),
+                    status=status,
+                    error=error,
+                )
+            )
+            await db.commit()
+    except Exception as e:
+        logger.warning("Impossible de journaliser l'execution de '%s' dans job_run_logs: %s", name, e)
+
+
+async def _invalidate_download_job_caches(name: str, result: Any) -> None:
+    from .routers.arr_shared import (
+        invalidate_arr_queue_cache,
+        invalidate_arr_wanted_cache,
+        invalidate_download_clients_cache,
+    )
+
+    arr_type = {"sonarr-queue-monitor": "sonarr", "radarr-queue-monitor": "radarr"}.get(name)
+    if arr_type:
+        await invalidate_arr_queue_cache()
+        if isinstance(result, dict) and result.get("resolved"):
+            await invalidate_arr_wanted_cache(arr_type)
+    elif name == "torrent-statuses":
+        await invalidate_download_clients_cache()
+
+
+async def _run(
+    ctx: dict,
+    name: str,
+    function: Callable[[], Awaitable[Any]],
+    *,
+    force: bool = False,
+    interval_seconds: int | None = None,
+    event_type: str | None = None,
+    log_history: bool = True,
+) -> dict[str, Any]:
+    redis = ctx["redis"]
+    if await redis.exists(MIGRATION_LOCK_KEY):
+        await _state(redis, name, status="skipped", progress=0, message="database migration in progress")
+        return {"status": "skipped", "reason": "migration_in_progress"}
+    if interval_seconds and not await _due(ctx, name, interval_seconds, force):
+        return {"status": "not_due"}
+    lock_key = f"watchdeck:jobs:lock:{name}"
+    token = uuid.uuid4().hex
+    if not await redis.set(lock_key, token, ex=LOCK_TTL, nx=True):
+        await _state(redis, name, status="skipped", progress=0, message="already running")
+        return {"status": "skipped"}
+    started = time.monotonic()
+    started_at_naive = now_utc_naive()
+    job_id = ctx.get("job_id")
+    await _state(
+        redis,
+        name,
+        job_id=job_id,
+        status="running",
+        progress=5,
+        started_at=now_utc().isoformat(),
+        finished_at=None,
+        last_error=None,
+    )
+    try:
+        result = await function()
+        duration_ms = (time.monotonic() - started) * 1000
+        state = await _state(
+            redis,
+            name,
+            status="complete",
+            progress=100,
+            finished_at=now_utc().isoformat(),
+            duration_ms=round(duration_ms, 1),
+        )
+        if log_history:
+            await _log_job_run(name, started_at_naive, duration_ms, "complete", None)
+        if event_type:
+            if event_type == "download.updated":
+                await _invalidate_download_job_caches(name, result)
+            public_signal = event_type in {"request.updated", "download.updated", "health.updated"}
+            await publish(
+                event_type,
+                {
+                    "source": "worker",
+                    "job": name,
+                    # Le client peut ainsi distinguer un simple passage périodique
+                    # d'une modification réelle, sans recharger toute la page.
+                    "result": result if isinstance(result, dict) else {},
+                },
+                admin_only=not public_signal,
+            )
+        return state | {"result": result}
+    except Exception as exc:
+        duration_ms = (time.monotonic() - started) * 1000
+        await _state(
+            redis,
+            name,
+            status="failed",
+            progress=100,
+            finished_at=now_utc().isoformat(),
+            duration_ms=round(duration_ms, 1),
+            last_error=str(exc),
+        )
+        if log_history:
+            await _log_job_run(name, started_at_naive, duration_ms, "failed", str(exc))
+        logger.exception("ARQ job %s failed", name)
+        raise
+    finally:
+        await redis.eval(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            1,
+            lock_key,
+            token,
+        )
+
+
+async def _settings() -> Settings | None:
+    async with AsyncSessionLocal() as db:
+        return (await db.execute(select(Settings))).scalars().first()
+
+
+async def _manual_result(run_id: str | None, action: str | None, operation):
+    if not run_id or not action:
+        return await operation
+    from .job_queue import set_json
+
+    key = f"watchdeck:maintenance:{run_id}"
+    try:
+        result = await operation
+        state = {
+            "run_id": run_id,
+            "action": action,
+            "status": "done",
+            "progress": 100,
+            "logs": ["[OK] Job ARQ termine."],
+            "started_at": "",
+            "finished_at": now_utc().isoformat(),
+        }
+        await set_json(key, state)
+        await publish("job.updated", state, admin_only=True)
+        return result
+    except Exception as exc:
+        state = {
+            "run_id": run_id,
+            "action": action,
+            "status": "error",
+            "progress": 100,
+            "logs": [f"[ERR] {exc}"],
+            "started_at": "",
+            "finished_at": now_utc().isoformat(),
+        }
+        await set_json(key, state)
+        await publish("job.updated", state, admin_only=True)
+        raise
+
+
+async def job_watchlist(ctx: dict, force: bool = False, run_id: str | None = None, action: str | None = None):
+    from .services.watchlist_poller import poll_watchlists
+
+    settings = await _settings()
+    interval = (settings.poll_interval_seconds if settings else None) or 300
+    return await _manual_result(
+        run_id,
+        action,
+        _run(ctx, "watchlist", poll_watchlists, force=force, interval_seconds=interval, event_type="request.updated"),
+    )
+
+
+async def job_arr_statuses(ctx: dict, force: bool = False, run_id: str | None = None, action: str | None = None):
+    from .services.arr_tracker import check_arr_statuses
+
+    settings = await _settings()
+    interval = (settings.arr_poll_interval_seconds if settings else None) or 900
+    # Déclenché depuis Maintenance ("Actualiser", run_id renseigné) : un vrai resync
+    # complet, silencieux. cron_arr_statuses (run_id absent) appelle cette même fonction
+    # sans run_id pour le cycle planifié normal — _run() ne transmet jamais force/
+    # interval_seconds à check_arr_statuses (ils ne pilotent que le throttling de _run
+    # elle-même), donc sans ceci le bouton "Actualiser" ne faisait qu'un cycle normal
+    # limité aux demandes sent_to_arr/partially_available, avec notify=True par défaut
+    # -- ni resync complet des séries "Disponible", ni suppression du risque de notifier.
+    is_manual_resync = run_id is not None
+
+    async def _call():
+        return await check_arr_statuses(full_resync=is_manual_resync, notify=not is_manual_resync)
+
+    return await _manual_result(
+        run_id,
+        action,
+        _run(
+            ctx,
+            "arr-statuses",
+            _call,
+            force=force,
+            interval_seconds=interval,
+            event_type="request.updated",
+        ),
+    )
+
+
+async def job_torrent_statuses(ctx: dict, force: bool = False):
+    from .services.arr_tracker import check_torrent_statuses
+
+    return await _run(
+        ctx,
+        "torrent-statuses",
+        check_torrent_statuses,
+        force=force,
+        interval_seconds=120,
+        event_type="download.updated",
+    )
+
+
+async def job_sonarr_queue_monitor(ctx: dict, force: bool = False):
+    from .services.sonarr_queue_monitor import monitor_sonarr_queue
+
+    return await _run_arr_queue_monitor(ctx, "sonarr", monitor_sonarr_queue, force)
+
+
+async def job_radarr_queue_monitor(ctx: dict, force: bool = False):
+    from .services.radarr_queue_monitor import monitor_radarr_queue
+
+    return await _run_arr_queue_monitor(ctx, "radarr", monitor_radarr_queue, force)
+
+
+async def _run_arr_queue_monitor(ctx: dict, arr_type: str, monitor, force: bool):
+    return await _run(
+        ctx,
+        f"{arr_type}-queue-monitor",
+        monitor,
+        force=force,
+        interval_seconds=60,
+        event_type="download.updated",
+    )
+
+
+async def job_vff_statuses(ctx: dict, force: bool = False):
+    from .services.vff_scanner import check_vf_statuses
+
+    settings = await _settings()
+    interval = ((settings.vff_recheck_interval_minutes if settings else None) or 360) * 60
+    return await _run(
+        ctx, "vff-statuses", check_vf_statuses, force=force, interval_seconds=interval, event_type="request.updated"
+    )
+
+
+async def job_episode_tracking(ctx: dict, force: bool = False):
+    from .services.vff_scanner import check_episode_tracking
+
+    settings = await _settings()
+    interval = ((settings.vff_recheck_interval_minutes if settings else None) or 360) * 60
+    return await _run(
+        ctx,
+        "episode-tracking",
+        check_episode_tracking,
+        force=force,
+        interval_seconds=interval,
+        event_type="request.updated",
+    )
+
+
+async def job_episode_availability(ctx: dict, force: bool = False):
+    from .services.episode_availability import check_episode_availability
+
+    settings = await _settings()
+    interval = ((settings.vff_recheck_interval_minutes if settings else None) or 360) * 60
+    return await _run(
+        ctx,
+        "episode-availability",
+        check_episode_availability,
+        force=force,
+        interval_seconds=interval,
+        event_type="request.updated",
+    )
+
+
+async def job_vf_upgrade_scan(ctx: dict, force: bool = False):
+    from .services.vf_upgrade_scanner import scan_vf_upgrades
+
+    settings = await _settings()
+    interval = max(1, getattr(settings, "vf_upgrade_retry_hours", None) or 6) * 3600
+    # Recherche interactive (indexeurs en direct, plusieurs secondes par appel) : cycle
+    # bien plus espace que les autres jobs VF -- voir vf_upgrade_scanner pour le cooldown
+    # par cible (24h) et le plafond par passage qui bornent deja le cout d'un cycle.
+    return await _run(
+        ctx,
+        "vf-upgrade-scan",
+        scan_vf_upgrades,
+        force=force,
+        interval_seconds=interval,
+        event_type="request.updated",
+    )
+
+
+async def job_new_vff(ctx: dict, force: bool = False):
+    from .services.vff_scanner import check_new_vf_availability
+
+    return await _run(
+        ctx, "new-vff", check_new_vf_availability, force=force, interval_seconds=60, event_type="request.updated"
+    )
+
+
+async def job_seer_sync(ctx: dict, force: bool = False):
+    from .services.seer_sync import _seer_full_sync
+
+    return await _run(
+        ctx, "seer-sync", _seer_full_sync, force=force, interval_seconds=3600, event_type="request.updated"
+    )
+
+
+async def job_plex_sync(ctx: dict, force: bool = False):
+    from .services.plex_sync import sync_plex_media
+
+    # plex_sync_interval_hours : intervalle periodique (comme les autres taches
+    # planifiees), pas une heure murale fixe -- plus simple a regler et ca evite la
+    # gymnastique CET/CEST de local_hour()/local_minute() (utile pour digest_hour, qui
+    # lui doit reellement partir a une heure precise, mais pas pour un scan de fond).
+    settings = await _settings()
+    interval_hours = settings.plex_sync_interval_hours if settings and settings.plex_sync_interval_hours else 24
+    return await _run(
+        ctx,
+        "plex-sync",
+        sync_plex_media,
+        force=force,
+        interval_seconds=interval_hours * 3600,
+        event_type="request.updated",
+    )
+
+
+async def job_plex_sync_recent(ctx: dict, force: bool = False):
+    """Scan Plex incremental (medias recemment ajoutes) : complement rapide du scan
+    complet (job_plex_sync), voir sync_plex_media_recent. Tourne frequemment -- un
+    media confirme disponible cote Radarr/Sonarr n'a plus a attendre le prochain scan
+    complet avant d'apparaitre dans la Bibliotheque."""
+    from .services.plex_sync import sync_plex_media_recent
+
+    settings = await _settings()
+    interval_minutes = (
+        settings.plex_sync_recent_interval_minutes if settings and settings.plex_sync_recent_interval_minutes else 5
+    )
+    return await _run(
+        ctx,
+        "plex-sync-recent",
+        sync_plex_media_recent,
+        force=force,
+        interval_seconds=interval_minutes * 60,
+        event_type="request.updated",
+    )
+
+
+async def job_playback_activity(ctx: dict, force: bool = False):
+    from .services.playback_activity import collect_plex_activity
+
+    return await _run(
+        ctx,
+        "playback-activity",
+        collect_plex_activity,
+        force=force,
+        interval_seconds=10,
+        log_history=False,
+    )
+
+
+async def job_library_analytics(ctx: dict, force: bool = False):
+    from .services.library_analytics import refresh_library_analytics
+
+    return await _run(
+        ctx,
+        "library-analytics",
+        refresh_library_analytics,
+        force=force,
+        interval_seconds=600,
+        event_type="library.analytics.updated",
+    )
+
+
+PURGE_LOCAL_HOUR = 3  # heure murale visee, hors heures d'utilisation habituelles
+
+
+async def job_notification_purge(ctx: dict, force: bool = False):
+    from .services.notification_orchestrator import _purge_notification_logs
+
+    # Meme decalage que le digest (voir job_digest) : hour=3 fixe sur le cron ARQ est
+    # une heure UTC, pas locale — decale de 1h/2h selon CET/CEST. Le cron tourne donc
+    # desormais toutes les heures (voir cron_notification_purge) et c'est ce garde-fou,
+    # comme pour job_digest, qui decide si c'est vraiment l'heure locale visee.
+    if not force and local_hour() != PURGE_LOCAL_HOUR:
+        return {"status": "not_due"}
+    return await _run(ctx, "notification-purge", _purge_notification_logs, force=force, interval_seconds=86400)
+
+
+async def job_digest(ctx: dict, force: bool = False):
+    from .services.notification_orchestrator import _send_digest
+
+    settings = await _settings()
+    # digest_hour/digest_minute est une heure murale (ex. "8h30" saisie dans les
+    # réglages) — la comparer à now_utc() la décale silencieusement de 1h/2h selon
+    # CET/CEST (incident réel : réglé à 8h, mail reçu à 10h). local_hour()/local_minute()
+    # convertissent dans le fuseau de l'app.
+    if not force and (
+        not settings
+        or not settings.digest_enabled
+        or settings.digest_hour != local_hour()
+        or (settings.digest_minute or 0) != local_minute()
+    ):
+        return {"status": "not_due"}
+    return await _run(
+        ctx, "digest", _send_digest, force=force, interval_seconds=3600, event_type="notification.updated"
+    )
+
+
+async def job_send_notification(ctx: dict, pending_id: int, force: bool = False):
+    from .notification_queue import process_pending_id
+
+    async def send():
+        return await process_pending_id(pending_id, force=force)
+
+    result = await _run(ctx, f"notification-{pending_id}", send, log_history=False)
+    user_id = result.get("result")
+    await publish("notification.updated", {"pending_id": pending_id}, user_id=user_id)
+    return result
+
+
+async def job_maintenance(ctx: dict, run_id: str, action: str):
+    from .job_queue import set_json
+    from .routers.maintenance import _ACTION_RUNNERS, MaintenanceRun
+
+    run = MaintenanceRun(action=action, status="running", started_at=now_utc().isoformat())
+    key = f"watchdeck:maintenance:{run_id}"
+    await set_json(key, {"run_id": run_id, **run.__dict__})
+    await publish("job.updated", {"run_id": run_id, "action": action, "status": "running"}, admin_only=True)
+
+    async def monitor():
+        last = None
+        while run.status == "running":
+            snapshot = {"run_id": run_id, **run.__dict__}
+            marker = (run.progress, len(run.logs))
+            if marker != last:
+                await set_json(key, snapshot)
+                await publish(
+                    "job.updated",
+                    {"run_id": run_id, "action": action, "status": run.status, "progress": run.progress},
+                    admin_only=True,
+                )
+                last = marker
+            await asyncio.sleep(0.5)
+
+    monitor_task = asyncio.create_task(monitor())
+    try:
+        await _ACTION_RUNNERS[action](run)
+        run.status = "done"
+    except Exception as exc:
+        run.status = "error"
+        run.logs.append(f"[ERR] {exc}")
+        raise
+    finally:
+        monitor_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await monitor_task
+        run.progress = 100
+        run.finished_at = now_utc().isoformat()
+        await set_json(key, {"run_id": run_id, **run.__dict__})
+        await publish(
+            "job.updated",
+            {"run_id": run_id, "action": action, "status": run.status, "progress": 100},
+            admin_only=True,
+        )
+
+
+async def record_worker_event(action: str, status: str, message: str, details: dict | None = None) -> None:
+    """Trace durable d'un évènement de cycle de vie du worker, lisible depuis l'interface.
+
+    Le worker est un process séparé (`arq app.jobs.WorkerSettings`) qui n'importe jamais
+    `app.main` : le tampon de logs consultable dans l'application est installé là-bas
+    (voir install_log_buffer) et ne capte donc rien de ce qui se passe ici. Sans cet
+    enregistrement en base, un échec de démarrage n'est visible que via `docker logs`,
+    c'est-à-dire seulement pour qui a un accès SSH à l'hôte.
+    """
+    try:
+        from .services.diagnostics import record_event
+
+        async with AsyncSessionLocal() as db:
+            await record_event(
+                db,
+                category="worker",
+                action=action,
+                status=status,
+                message=message,
+                details=details,
+            )
+            await db.commit()
+    except Exception:
+        logger.exception("Impossible de journaliser l'evenement worker '%s'", action)
+
+
+def _on_listener_exit(task: asyncio.Task) -> None:
+    """Relève la mort de l'écouteur websocket, que rien n'attend.
+
+    `asyncio.create_task` produit une tâche détachée : son exception n'est propagée
+    nulle part tant que personne ne l'attend, et le suivi temps réel de l'activité Plex
+    peut donc s'arrêter en silence. Ce callback est le seul endroit où cet échec devient
+    observable.
+    """
+    if task.cancelled():
+        return  # arrêt volontaire (shutdown), rien à signaler
+    exc = task.exception()
+    if exc is None:
+        message = "Ecouteur websocket Plex arrete sans erreur : le suivi temps reel est inactif"
+        logger.error(message)
+    else:
+        message = f"Ecouteur websocket Plex arrete sur erreur: {exc}"
+        logger.error(message, exc_info=exc)
+    with contextlib.suppress(RuntimeError):
+        # Pendant l'arrêt de la boucle, plus aucune tâche ne peut être planifiée.
+        asyncio.create_task(record_worker_event("websocket.stopped", "error", message))
+
+
+async def startup(ctx: dict):
+    try:
+        await init_db()
+    except Exception as exc:
+        # Migrations en échec : on préfère un conteneur qui redémarre visiblement à un
+        # worker qui tourne sur un schéma désynchronisé (toute requête sur une colonne
+        # manquante échouerait ensuite job par job, sans cause identifiable).
+        logger.exception("ARQ worker: initialisation base/migrations impossible")
+        await record_worker_event("startup.db", "error", f"Initialisation base/migrations echouee: {exc}")
+        raise
+
+    async with AsyncSessionLocal() as db:
+        pending_ids = (await db.execute(select(PendingNotification.id))).scalars().all()
+    for pending_id in pending_ids:
+        await ctx["redis"].enqueue_job(
+            "job_send_notification",
+            pending_id,
+            _job_id=f"notification:{pending_id}",
+            _queue_name="watchdeck:jobs",
+        )
+    logger.info("ARQ worker ready; recovered %d pending notification(s)", len(pending_ids))
+
+    try:
+        from .services.plex_activity_ws import run_alert_listener
+    except Exception as exc:
+        # Un import qui casse ici signale une image incomplète (dépendance absente) :
+        # c'est une erreur de build, pas un aléa réseau, donc on refuse de démarrer.
+        logger.exception("ARQ worker: ecouteur websocket Plex introuvable")
+        await record_worker_event("startup.websocket", "error", f"Import de l'ecouteur websocket impossible: {exc}")
+        raise
+
+    task = asyncio.create_task(run_alert_listener())
+    task.add_done_callback(_on_listener_exit)
+    ctx["ws_listener_task"] = task
+    await record_worker_event("startup.ready", "success", "Worker demarre, ecouteur websocket Plex lance")
+
+
+async def shutdown(ctx: dict):
+    task = ctx.get("ws_listener_task")
+    if task:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+# Cron wrappers have distinct names so the underlying jobs remain directly enqueueable.
+async def cron_watchlist(ctx: dict):
+    return await job_watchlist(ctx)
+
+
+async def cron_arr_statuses(ctx: dict):
+    return await job_arr_statuses(ctx)
+
+
+async def cron_torrent_statuses(ctx: dict):
+    return await job_torrent_statuses(ctx)
+
+
+async def cron_sonarr_queue_monitor(ctx: dict):
+    return await job_sonarr_queue_monitor(ctx)
+
+
+async def cron_radarr_queue_monitor(ctx: dict):
+    return await job_radarr_queue_monitor(ctx)
+
+
+async def cron_vff_statuses(ctx: dict):
+    return await job_vff_statuses(ctx)
+
+
+async def cron_episode_tracking(ctx: dict):
+    return await job_episode_tracking(ctx)
+
+
+async def cron_episode_availability(ctx: dict):
+    return await job_episode_availability(ctx)
+
+
+async def cron_new_vff(ctx: dict):
+    return await job_new_vff(ctx)
+
+
+async def cron_vf_upgrade_scan(ctx: dict):
+    return await job_vf_upgrade_scan(ctx)
+
+
+async def cron_seer_sync(ctx: dict):
+    return await job_seer_sync(ctx)
+
+
+async def cron_plex_sync(ctx: dict):
+    return await job_plex_sync(ctx)
+
+
+async def cron_plex_sync_recent(ctx: dict):
+    return await job_plex_sync_recent(ctx)
+
+
+async def cron_playback_activity(ctx: dict):
+    return await job_playback_activity(ctx)
+
+
+async def cron_library_analytics(ctx: dict):
+    return await job_library_analytics(ctx)
+
+
+async def cron_notification_purge(ctx: dict):
+    return await job_notification_purge(ctx)
+
+
+async def cron_digest(ctx: dict):
+    return await job_digest(ctx)
+
+
+class WorkerSettings:
+    functions = [
+        job_watchlist,
+        job_arr_statuses,
+        job_torrent_statuses,
+        job_sonarr_queue_monitor,
+        job_radarr_queue_monitor,
+        job_vff_statuses,
+        job_episode_tracking,
+        job_episode_availability,
+        job_new_vff,
+        job_vf_upgrade_scan,
+        job_seer_sync,
+        job_plex_sync,
+        job_plex_sync_recent,
+        job_playback_activity,
+        job_library_analytics,
+        job_notification_purge,
+        job_digest,
+        job_send_notification,
+        job_maintenance,
+    ]
+    cron_jobs = [
+        cron(cron_watchlist, second={0, 30}, unique=True, run_at_startup=True),
+        cron(cron_arr_statuses, minute={0, 15, 30, 45}, unique=True),
+        cron(cron_torrent_statuses, minute=set(range(0, 60, 2)), unique=True),
+        cron(cron_sonarr_queue_monitor, minute=None, second=5, unique=True),
+        cron(cron_radarr_queue_monitor, minute=None, second=35, unique=True),
+        cron(cron_vff_statuses, minute=None, unique=True),
+        cron(cron_episode_tracking, minute=None, second=10, unique=True),
+        cron(cron_episode_availability, minute=None, second=15, unique=True),
+        cron(cron_new_vff, minute=None, second=20, unique=True),
+        # Recherche interactive : declenchee chaque minute mais court-circuitee la
+        # plupart du temps par l'intervalle de 6h de job_vf_upgrade_scan (voir _run/_due).
+        cron(cron_vf_upgrade_scan, minute=None, second=40, unique=True),
+        cron(cron_seer_sync, minute=5, unique=True),
+        # Tourne toutes les 15 min (comme cron_arr_statuses) ; job_plex_sync decide via
+        # _run/_due si l'intervalle configure (plex_sync_interval_hours) est vraiment
+        # ecoule. Plus de run_at_startup : un sync a chaque redemarrage du conteneur
+        # declenchait une rafale de notifications VF a des heures aleatoires (incident
+        # signale par l'utilisateur).
+        cron(cron_plex_sync, minute={0, 15, 30, 45}, unique=True),
+        # Scan incremental (medias recemment ajoutes) : toutes les 5 minutes (plus fin
+        # que le preset le plus court, 5 min), cout quasi nul (filtre serveur addedAt,
+        # pas de parcours complet de bibliotheque)
+        # -- voir job_plex_sync_recent / sync_plex_media_recent.
+        cron(cron_plex_sync_recent, minute=set(range(0, 60, 5)), unique=True),
+        cron(cron_playback_activity, second={0, 10, 20, 30, 40, 50}, unique=True, run_at_startup=True),
+        cron(
+            cron_library_analytics,
+            minute=set(range(0, 60, 10)),
+            second=25,
+            unique=True,
+            run_at_startup=True,
+        ),
+        cron(cron_notification_purge, minute=0, unique=True),
+        cron(cron_digest, minute=None, unique=True),
+    ]
+    on_startup = startup
+    on_shutdown = shutdown
+    redis_settings = redis_settings()
+    queue_name = "watchdeck:jobs"
+    health_check_key = "watchdeck:worker:health"
+    health_check_interval = 30
+    max_jobs = int(os.getenv("ARQ_MAX_JOBS", "4"))
+    job_timeout = int(os.getenv("ARQ_JOB_TIMEOUT", "3600"))
+    job_completion_wait = 30
+    keep_result = 3600
+    max_tries = 3

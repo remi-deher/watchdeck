@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # CHANGELOG.md est deja a jour pour ce tag : il a ete commite via la PR
+      # "chore(release): ..." mergee par auto-version.yml/auto-tag.yml avant la
+      # creation de ce tag. Pas besoin de le regenerer ni de pousser sur main
+      # (main est protegee, seul un merge de PR peut y ecrire).
+      - name: Generate release notes
+        id: release_notes
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4
+        with:
+          config: .github/cliff.toml
+          args: --latest --strip header
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          body: ${{ steps.release_notes.outputs.content }}
+          generate_release_notes: false

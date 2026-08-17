@@ -1,0 +1,8 @@
+/* Ordre de cascade explicite : fondations, structure, composants et vues. */
+@use "./foundations/tokens";
+@use "./foundations/base";
+@use "./foundations/responsive";
+@use "./foundations/motion";
+@use "./layout/layout";
+@use "./components/components";
+@use "./views/views";

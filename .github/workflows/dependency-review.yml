@@ -1,0 +1,24 @@
+name: Dependency Review
+
+# Bloque une PR qui introduit une dependance a vulnerabilite connue (critique/haute)
+# ou a licence incompatible, directement dans le diff. Complementaire a pip-audit/
+# npm audit/Trivy (dependency-audit.yml, trivy.yml) qui scannent l'arbre complet
+# apres coup plutot que le changement propose.
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        with:
+          fail-on-severity: high

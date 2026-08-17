@@ -1,0 +1,31 @@
+name: Update Docker Hub description
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - DOCKER_HUB.md
+
+# Les identifiants Docker Hub sont des secrets externes, pas GITHUB_TOKEN :
+# seule la lecture du depot (pour le checkout) est necessaire.
+permissions:
+  contents: read
+
+jobs:
+  update-description:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Update Docker Hub description
+        if: env.DOCKERHUB_USERNAME != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: mrcryllix/watchdeck
+          readme-filepath: ./DOCKER_HUB.md
+          short-description: "Self-hosted Plex request and availability hub for Sonarr, Radarr, downloads, VO/VF tracking and grouped notifications"
