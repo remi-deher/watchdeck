@@ -18,7 +18,48 @@ permissions:
   contents: read
 
 jobs:
+  # Empeche de publier une image construite sur un commit dont la CI (tests,
+  # lint, smoke Docker, Trivy...) n'est pas encore verte. dev n'a pas de
+  # ruleset (push direct autorise pour iterer vite), donc rien d'autre ne
+  # garantit cet ordre pour cette branche -- ce job comble le trou en
+  # interrogeant les check-runs du commit plutot que d'imposer une liste figee,
+  # ce qui s'adapte automatiquement si des checks sont ajoutes/retires plus tard.
+  wait-for-ci:
+    name: Wait for CI
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Wait for sibling checks to complete
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          # Laisse le temps aux autres workflows declenches par le meme push
+          # de s'enregistrer avant de commencer a interroger leur statut.
+          sleep 45
+          DEADLINE=$((SECONDS + 1200))
+          while [ $SECONDS -lt $DEADLINE ]; do
+            PENDING=$(gh api "repos/$REPO/commits/$SHA/check-runs" --paginate --jq '[.check_runs[] | select(.name != "Wait for CI" and .status != "completed")] | length')
+            if [ "$PENDING" = "0" ]; then
+              FAILED=$(gh api "repos/$REPO/commits/$SHA/check-runs" --paginate --jq '[.check_runs[] | select(.name != "Wait for CI" and (.conclusion=="failure" or .conclusion=="timed_out"))] | map(.name) | join(", ")')
+              if [ -n "$FAILED" ]; then
+                echo "::error::Checks en echec, build/push Docker annule : $FAILED"
+                exit 1
+              fi
+              echo "Tous les checks sont verts, build/push autorise."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::Timeout en attendant la fin des checks CI."
+          exit 1
+
   build-and-push:
+    needs: wait-for-ci
+    if: always() && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: read
