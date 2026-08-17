@@ -1,8 +1,16 @@
 
 
+### ✨ Nouveautés
+
+- add playback session segments tracking and interactive timeline ([e413d9a](https://github.com/remi-deher/watchdeck/commit/e413d9a8f178346efdc9589a25572ec1d61ee98c))
+
 ### 👷 CI/CD
 
 - arrete de builder une image Docker sur chaque commit dev ([f73a397](https://github.com/remi-deher/watchdeck/commit/f73a3973c8fd7a9fb24994d7e83b886f85df8e71))
+
+### 🔧 Maintenance
+
+- v1.2.1 (#69) ([f6746e9](https://github.com/remi-deher/watchdeck/commit/f6746e9a522e8a1e1fbd219ac10abaac6cbd154f))
 
 ### ✨ Nouveautés
 
