@@ -2,7 +2,11 @@ name: CodeQL
 
 on:
   push:
-    branches: [main, test, dev]
+    # dev n'a pas de gate CI (push direct autorise, iteration rapide) : ce scan est
+    # couteux et n'est requis nulle part avant "test" (voir Protect test) -- inutile
+    # de le faire tourner a chaque push dev, le pull_request ci-dessous suffit pour
+    # les PR de promotion dev -> test et test -> main.
+    branches: [main, test]
   pull_request:
   schedule:
     - cron: "0 7 * * 2"

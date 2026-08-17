@@ -3,10 +3,12 @@ name: Security scan (Trivy)
 on:
   workflow_dispatch:
   push:
+    # dev n'a pas de gate CI (push direct autorise) : ce scan tourne sur test/main
+    # (voir la meme note dans codeql.yml), le scan hebdomadaire programme couvre
+    # le reste.
     branches:
       - main
       - test
-      - dev
     paths:
       - "app/**"
       - "Dockerfile"
