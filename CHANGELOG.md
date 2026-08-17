@@ -1,5 +1,9 @@
 
 
+### ✨ Nouveautés
+
+- améliore la page Version & mises à jour ([df82466](https://github.com/remi-deher/watchdeck/commit/df82466bfbe06d435d78d0da602b01e3db025259))
+
 ### 👷 CI/CD
 
 - auto-merge les Dependabot majeures + filet de rollback sur dev ([c614b58](https://github.com/remi-deher/watchdeck/commit/c614b586abf4046b22b88848a35c6bffc70f4ed4))
@@ -9,6 +13,7 @@
 
 - sync main into dev ([19b2a34](https://github.com/remi-deher/watchdeck/commit/19b2a34e451923c30b637921a31ed9b5b54bae26))
 - sync main into dev ([3a13458](https://github.com/remi-deher/watchdeck/commit/3a13458eccddb1497fbdd44a07c6ee4b95c91aa8))
+- v1.1.8 (#59) ([81524c6](https://github.com/remi-deher/watchdeck/commit/81524c6d42962f63caacf5c24fc9b69cb893f58b))
 
 ### 🔧 Maintenance
 
