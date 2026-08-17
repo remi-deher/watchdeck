@@ -1,0 +1,96 @@
+name: Dev Guard Rollback
+
+# Filet de securite pour l'auto-merge Dependabot elargi aux montees majeures
+# (voir dependabot-auto-merge.yml) : dev n'a pas de ruleset (push direct
+# autorise pour iterer vite), donc rien ne bloque un merge qui casse la CI
+# *apres coup*. Si "Unit Tests" ou "Lint" echouent sur un commit de dev qui
+# correspond a une PR Dependabot auto-mergee, ce workflow revert ce commit
+# automatiquement et laisse un message explicite sur la PR (toujours visible
+# meme fermee/mergee) plutot que de laisser dev dans un etat casse en
+# attendant qu'un humain s'en apercoive.
+#
+# Volontairement limite aux PR Dependabot : une regression sur un commit
+# humain normal ne doit jamais etre revert automatiquement sans revue.
+on:
+  workflow_run:
+    workflows: ["Unit Tests", "Lint"]
+    types: [completed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Find the Dependabot PR behind this commit
+        id: find-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          PR_JSON=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.user.login == "dependabot[bot]" and .merge_commit_sha == "'"$SHA"'")] | .[0]')
+          if [ -z "$PR_JSON" ] || [ "$PR_JSON" = "null" ]; then
+            echo "Pas de PR Dependabot associee a ce commit, rien a faire."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "number=$(echo "$PR_JSON" | jq -r '.number')" >> "$GITHUB_OUTPUT"
+          echo "title=$(echo "$PR_JSON" | jq -r '.title')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.find-pr.outputs.found == 'true'
+        with:
+          fetch-depth: 0
+          ref: dev
+          token: ${{ secrets.PROMOTION_PAT }}
+
+      - name: Revert on dev
+        id: revert
+        if: steps.find-pr.outputs.found == 'true'
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$SHA" ]; then
+            echo "::warning::dev a avance depuis ($SHA n'est plus HEAD), le revert automatique est annule pour eviter d'ecraser un commit plus recent."
+            echo "reverted=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git revert --no-edit "$SHA"
+          git push origin dev
+          echo "reverted=true" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on the Dependabot PR
+        if: steps.find-pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.find-pr.outputs.number }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          REVERTED: ${{ steps.revert.outputs.reverted }}
+        run: |
+          if [ "$REVERTED" = "true" ]; then
+            DETAIL="Le commit a été automatiquement reverté sur \`dev\` pour ne pas laisser la branche cassée. Cette mise à jour nécessite une revue manuelle avant d'être retentée."
+          else
+            DETAIL="Le revert automatique a été annulé car \`dev\` a avancé depuis (un autre commit est arrivé entre-temps) — vérification manuelle nécessaire."
+          fi
+          BODY="⚠️ **${WORKFLOW_NAME} a échoué sur \`dev\` après ce merge : [voir le run](${RUN_URL}).**\n\n${DETAIL}"
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$(printf '%b' "$BODY")"

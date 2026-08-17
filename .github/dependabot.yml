@@ -38,6 +38,17 @@ updates:
       - dependencies
     commit-message:
       prefix: chore
+    # Une seule PR groupee plutot que N PR independantes : elles se marchent
+    # souvent dessus (ex. checkout utilise dans presque tous les workflows),
+    # ce qui produit des conflits en cascade quand on les fusionne separement.
+    # Le diff groupe est calcule par Dependabot lui-meme, coherent des le
+    # depart. Risque faible + filet de rollback automatique (voir
+    # dev-guard-rollback.yml) : pas besoin de la granularite d'une PR par
+    # Action pour ce cas.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   # Les images de base du Dockerfile sont epinglees par digest sha256 (durcissement
   # supply-chain) : sans cette entree, elles ne recevraient plus jamais de mise a
