@@ -1,17 +1,19 @@
 name: Auto Promote to Test
 
-# A chaque push sur dev, ouvre (si besoin) puis auto-merge une PR dev -> test.
+# Declenchement manuel (bouton "Run workflow") : ouvre (si besoin) puis
+# auto-merge une PR dev -> test. Volontairement pas sur "push" -- dev sert a
+# iterer librement sans qu'un commit en cours de travail parte en cascade vers
+# test puis main. C'est vous qui decidez du moment ou dev est pret.
+#
 # Le merge n'aboutit que lorsque les checks requis par le ruleset "Protect test"
-# (tests, lint, smoke Docker, branch-order-guard) passent : c'est GitHub lui-meme
-# qui fait patienter l'auto-merge, pas ce workflow.
+# (tests, lint, smoke Docker, branch-order-guard, E2E...) passent : c'est
+# GitHub lui-meme qui fait patienter l'auto-merge, pas ce workflow.
 #
 # Utilise PROMOTION_PAT (et non GITHUB_TOKEN) : un push/merge/PR fait avec le
 # token par defaut d'un workflow ne declenche aucun autre workflow (garde-fou
 # anti-boucle de GitHub), ce qui casserait toute la chaine dev -> test -> main.
 on:
-  push:
-    branches:
-      - dev
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -48,6 +50,11 @@ jobs:
             --base test \
             --head dev \
             --title "Promotion dev -> test" \
-            --body "Promotion automatique : ${{ steps.check.outputs.ahead }} commit(s) de dev en attente sur test." \
+            --body "Promotion declenchee manuellement : ${{ steps.check.outputs.ahead }} commit(s) de dev en attente sur test." \
             || true
           gh pr merge dev --auto --merge
+          echo "PR dev -> test ouverte, auto-merge des que la CI est verte." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nothing to promote
+        if: steps.check.outputs.ahead == '0'
+        run: echo "test est deja a jour avec dev, rien a promouvoir." >> "$GITHUB_STEP_SUMMARY"
