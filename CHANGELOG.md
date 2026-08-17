@@ -2,9 +2,14 @@
 
 ### 🔧 Maintenance
 
+- bump 5 GitHub Actions majeures (checkout 7.0.1, action-gh-release 3.0.2, build-push-action 7.3.0, dependency-review-action 5.0.0, upload-artifact 7.0.1) ([d42432e](https://github.com/remi-deher/watchdeck/commit/d42432e7a38a2f7e3a00413e1036734087f0fc5c))
+
+### 🔧 Maintenance
+
 - bump python from 3.12-alpine to 3.14-alpine (#1) ([10093e0](https://github.com/remi-deher/watchdeck/commit/10093e03e2ec4ec597042a41011f244d685c5190))
 - sync main into dev ([7cbbf53](https://github.com/remi-deher/watchdeck/commit/7cbbf5334c1738969c13fef8ae5fa958320fb21d))
 - sync main into dev ([4dc4055](https://github.com/remi-deher/watchdeck/commit/4dc4055c3cd526f503983cdf7bbc578d135ecf56))
+- v1.1.6 (#45) ([29aeaa2](https://github.com/remi-deher/watchdeck/commit/29aeaa282cc85b01324253ce364757e33160f3d1))
 
 ### 👷 CI/CD
 
