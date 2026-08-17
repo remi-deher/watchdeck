@@ -41,7 +41,9 @@ _torrent_client_cache = {}
 
 
 @router.get("/downloads/tracker-favicon")
-async def tracker_favicon(tracker: str = Query(..., min_length=1, max_length=2048), db: AsyncSession = Depends(get_db_async)):
+async def tracker_favicon(
+    tracker: str = Query(..., min_length=1, max_length=2048), db: AsyncSession = Depends(get_db_async)
+):
     from ..services.tracker_favicons import get_tracker_favicon
 
     result = await get_tracker_favicon(db, tracker)
@@ -55,6 +57,7 @@ async def tracker_favicon(tracker: str = Query(..., min_length=1, max_length=204
 @router.get("/downloads/clients")
 async def download_client_queue(db: AsyncSession = Depends(get_db_async)):
     """File torrent complète, servie en SWR pour éviter une connexion à chaque navigation."""
+
     async def _background():
         async with AsyncSessionLocal() as fresh_db:
             return await _compute_download_client_queue(fresh_db)
@@ -74,9 +77,17 @@ async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
 
     from ..services.download_clients import list_client_torrents
 
-    clients = (await db.execute(
-        select(DownloadClient).filter(DownloadClient.enabled, DownloadClient.client_type.in_(("qbittorrent", "transmission")))
-    )).scalars().all()
+    clients = (
+        (
+            await db.execute(
+                select(DownloadClient).filter(
+                    DownloadClient.enabled, DownloadClient.client_type.in_(("qbittorrent", "transmission"))
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     requests = (await db.execute(select(MediaRequest).filter(MediaRequest.torrent_hash.isnot(None)))).scalars().all()
     requests_by_hash = {str(row.torrent_hash).lower(): row for row in requests if row.torrent_hash}
 
@@ -102,33 +113,37 @@ async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
         for torrent in torrents:
             torrent_hash = str(torrent.get("hash") or "").lower()
             request = requests_by_hash.get(torrent_hash)
-            output.append({
-                "client_id": client.id,
-                "client_name": client.name,
-                "client_type": client.client_type,
-                "hash": torrent_hash,
-                "title": torrent.get("name") or "Torrent sans nom",
-                "status": torrent.get("state") or "unknown",
-                "progress": round(float(torrent.get("progress") or 0) * 100, 1),
-                "size": torrent.get("size") or 0,
-                "download_speed": 0 if is_stale else (torrent.get("dlspeed") or 0),
-                "upload_speed": 0 if is_stale else (torrent.get("upspeed") or 0),
-                "ratio": torrent.get("ratio") or 0,
-                "eta": torrent.get("eta") or 0,
-                "category": torrent.get("category") or "",
-                "tags": torrent.get("tags") or "",
-                "comment": torrent.get("comment") or "",
-                "added_on": torrent.get("added_on") or torrent.get("addedDate"),
-                "completed_on": torrent.get("completed_on") or torrent.get("completion_on") or torrent.get("doneDate"),
-                "tracker": torrent.get("tracker") or "",
-                "trackers": torrent.get("trackers") or torrent.get("tracker") or "",
-                "request_id": request.id if request else None,
-                "library_id": request.library_item_id if request else None,
-                "managed_by": "watchdeck" if request else "external",
-                "is_stale": is_stale,
-                "stale_since_seconds": stale_sec,
-                "client_error": client_error if is_stale else None,
-            })
+            output.append(
+                {
+                    "client_id": client.id,
+                    "client_name": client.name,
+                    "client_type": client.client_type,
+                    "hash": torrent_hash,
+                    "title": torrent.get("name") or "Torrent sans nom",
+                    "status": torrent.get("state") or "unknown",
+                    "progress": round(float(torrent.get("progress") or 0) * 100, 1),
+                    "size": torrent.get("size") or 0,
+                    "download_speed": 0 if is_stale else (torrent.get("dlspeed") or 0),
+                    "upload_speed": 0 if is_stale else (torrent.get("upspeed") or 0),
+                    "ratio": torrent.get("ratio") or 0,
+                    "eta": torrent.get("eta") or 0,
+                    "category": torrent.get("category") or "",
+                    "tags": torrent.get("tags") or "",
+                    "comment": torrent.get("comment") or "",
+                    "added_on": torrent.get("added_on") or torrent.get("addedDate"),
+                    "completed_on": torrent.get("completed_on")
+                    or torrent.get("completion_on")
+                    or torrent.get("doneDate"),
+                    "tracker": torrent.get("tracker") or "",
+                    "trackers": torrent.get("trackers") or torrent.get("tracker") or "",
+                    "request_id": request.id if request else None,
+                    "library_id": request.library_item_id if request else None,
+                    "managed_by": "watchdeck" if request else "external",
+                    "is_stale": is_stale,
+                    "stale_since_seconds": stale_sec,
+                    "client_error": client_error if is_stale else None,
+                }
+            )
     return output
 
 
@@ -143,13 +158,19 @@ async def control_client_torrent(
 
     if body.action not in {"pause", "resume", "recheck", "reannounce", "set_category", "set_tags", "delete"}:
         raise HTTPException(400, f"Action client torrent inconnue : {body.action}")
-    client = (await db.execute(
-        select(DownloadClient).filter(
-            DownloadClient.id == client_id,
-            DownloadClient.enabled,
-            DownloadClient.client_type.in_(("qbittorrent", "transmission")),
+    client = (
+        (
+            await db.execute(
+                select(DownloadClient).filter(
+                    DownloadClient.id == client_id,
+                    DownloadClient.enabled,
+                    DownloadClient.client_type.in_(("qbittorrent", "transmission")),
+                )
+            )
         )
-    )).scalars().first()
+        .scalars()
+        .first()
+    )
     if not client:
         raise HTTPException(404, "Client torrent introuvable")
     try:
@@ -169,7 +190,9 @@ async def control_client_torrent(
     if not ok:
         raise HTTPException(502, "Commande client torrent refusée")
     await invalidate_download_clients_cache()
-    await publish("download.updated", {"client_id": client.id, "hash": torrent_hash, "action": body.action}, admin_only=True)
+    await publish(
+        "download.updated", {"client_id": client.id, "hash": torrent_hash, "action": body.action}, admin_only=True
+    )
     return {"ok": True, "action": body.action}
 
 
@@ -177,22 +200,34 @@ async def control_client_torrent(
 async def get_client_metadata(client_id: int, db: AsyncSession = Depends(get_db_async)):
     from ..services.download_clients import get_qbittorrent_metadata, list_client_torrents
 
-    client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled))).scalars().first()
+    client = (
+        (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled)))
+        .scalars()
+        .first()
+    )
     if not client:
         raise HTTPException(404, "Client torrent introuvable")
     try:
         if client.client_type == "qbittorrent":
             return await get_qbittorrent_metadata(client.url, client.username, client.password)
         torrents = await list_client_torrents(client.client_type, client.url, client.username, client.password)
-        tags = sorted({tag.strip() for row in torrents for tag in str(row.get("tags") or "").split(",") if tag.strip()}, key=str.casefold)
-        categories = sorted({str(row.get("category") or "").strip() for row in torrents if str(row.get("category") or "").strip()}, key=str.casefold)
+        tags = sorted(
+            {tag.strip() for row in torrents for tag in str(row.get("tags") or "").split(",") if tag.strip()},
+            key=str.casefold,
+        )
+        categories = sorted(
+            {str(row.get("category") or "").strip() for row in torrents if str(row.get("category") or "").strip()},
+            key=str.casefold,
+        )
         return {"categories": [{"name": name, "save_path": ""} for name in categories], "tags": tags, "mutable": False}
     except Exception as exc:
         raise HTTPException(502, f"Lecture des catégories et tags impossible : {exc}") from exc
 
 
 @router.post("/downloads/clients/{client_id}/metadata")
-async def mutate_client_metadata(client_id: int, body: TorrentMetadataRequest, db: AsyncSession = Depends(get_db_async)):
+async def mutate_client_metadata(
+    client_id: int, body: TorrentMetadataRequest, db: AsyncSession = Depends(get_db_async)
+):
     from ..services.download_clients import mutate_qbittorrent_metadata
 
     if body.kind not in {"category", "tag"} or body.action not in {"create", "rename", "delete"}:
@@ -201,7 +236,11 @@ async def mutate_client_metadata(client_id: int, body: TorrentMetadataRequest, d
     new_name = (body.new_name or "").strip() or None
     if not name or body.action == "rename" and not new_name:
         raise HTTPException(400, "Nom requis")
-    client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled))).scalars().first()
+    client = (
+        (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled)))
+        .scalars()
+        .first()
+    )
     if not client:
         raise HTTPException(404, "Client torrent introuvable")
     if client.client_type != "qbittorrent":
@@ -214,9 +253,19 @@ async def mutate_client_metadata(client_id: int, body: TorrentMetadataRequest, d
             return {"ok": True, "name": canonical[name.casefold()], "existing": True}
         if body.action == "rename" and new_name.casefold() in canonical and new_name.casefold() != name.casefold():
             raise HTTPException(409, "Une valeur portant ce nom existe déjà")
-        await mutate_qbittorrent_metadata(client.url, client.username, client.password, kind=body.kind, action=body.action, name=canonical.get(name.casefold(), name), new_name=new_name)
+        await mutate_qbittorrent_metadata(
+            client.url,
+            client.username,
+            client.password,
+            kind=body.kind,
+            action=body.action,
+            name=canonical.get(name.casefold(), name),
+            new_name=new_name,
+        )
         await invalidate_download_clients_cache()
-        await publish("download.updated", {"client_id": client.id, "action": f"metadata_{body.action}"}, admin_only=True)
+        await publish(
+            "download.updated", {"client_id": client.id, "action": f"metadata_{body.action}"}, admin_only=True
+        )
         return {"ok": True}
     except HTTPException:
         raise
@@ -234,13 +283,17 @@ async def direct_downloads(db: AsyncSession = Depends(get_db_async)):
         return _direct_cache["data"]
 
     reqs = (
-        await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.torrent_hash.isnot(None),
-                MediaRequest.download_client_id.isnot(None),
+        (
+            await db.execute(
+                select(MediaRequest).filter(
+                    MediaRequest.torrent_hash.isnot(None),
+                    MediaRequest.download_client_id.isnot(None),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     clients = {c.id: c for c in (await db.execute(select(DownloadClient))).scalars().all()}
     tracked = [(req, clients.get(req.download_client_id)) for req in reqs]
     tracked = [(req, client) for req, client in tracked if client and client.enabled]
@@ -287,6 +340,7 @@ async def direct_downloads(db: AsyncSession = Depends(get_db_async)):
     _direct_cache["ts"] = now
     return out
 
+
 @router.get("/downloads/history")
 async def downloads_history(
     limit: int = Query(100, ge=1, le=500),
@@ -318,8 +372,10 @@ async def downloads_history(
     if instance_id is not None:
         q = q.filter(DownloadHistory.arr_instance_id == instance_id)
     rows = (
-        await db.execute(q.order_by(DownloadHistory.completed_at.desc()).offset(eff_offset).limit(eff_limit))
-    ).scalars().all()
+        (await db.execute(q.order_by(DownloadHistory.completed_at.desc()).offset(eff_offset).limit(eff_limit)))
+        .scalars()
+        .all()
+    )
 
     req_ids = [h.request_id for h in rows if h.request_id]
     req_posters = {}
@@ -337,18 +393,20 @@ async def downloads_history(
             if poster.startswith("/") and h.arr_instance_id in arr_urls:
                 poster = f"{arr_urls[h.arr_instance_id].rstrip('/')}{poster}"
             poster = wrap_image_proxy(poster)
-        local_items.append({
-            "id": h.id,
-            "title": h.title,
-            "year": h.year,
-            "media_type": h.media_type,
-            "source": h.source,
-            "instance_name": h.instance_name,
-            "poster_url": poster,
-            "request_id": h.request_id,
-            "completed_at": h.completed_at.isoformat() if h.completed_at else None,
-            "processing_mode": h.processing_mode or "observed",
-        })
+        local_items.append(
+            {
+                "id": h.id,
+                "title": h.title,
+                "year": h.year,
+                "media_type": h.media_type,
+                "source": h.source,
+                "instance_name": h.instance_name,
+                "poster_url": poster,
+                "request_id": h.request_id,
+                "completed_at": h.completed_at.isoformat() if h.completed_at else None,
+                "processing_mode": h.processing_mode or "observed",
+            }
+        )
     return {"items": local_items, "errors": [], "authoritative": True}
 
 
@@ -360,19 +418,33 @@ class FilePriorityRequest(BaseModel):
 @router.get("/downloads/clients/{client_id}/{torrent_hash}/files")
 async def get_torrent_files_api(client_id: int, torrent_hash: str, db: AsyncSession = Depends(get_db_async)):
     from ..services.download_clients import list_torrent_files
-    client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled))).scalars().first()
+
+    client = (
+        (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled)))
+        .scalars()
+        .first()
+    )
     if not client:
         raise HTTPException(404, "Client torrent introuvable")
     return await list_torrent_files(client.client_type, client.url, client.username, client.password, torrent_hash)
 
 
 @router.post("/downloads/clients/{client_id}/{torrent_hash}/files/priority")
-async def set_torrent_file_priority_api(client_id: int, torrent_hash: str, body: FilePriorityRequest, db: AsyncSession = Depends(get_db_async)):
+async def set_torrent_file_priority_api(
+    client_id: int, torrent_hash: str, body: FilePriorityRequest, db: AsyncSession = Depends(get_db_async)
+):
     from ..services.download_clients import set_torrent_file_priority
-    client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled))).scalars().first()
+
+    client = (
+        (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled)))
+        .scalars()
+        .first()
+    )
     if not client:
         raise HTTPException(404, "Client torrent introuvable")
-    ok = await set_torrent_file_priority(client.client_type, client.url, client.username, client.password, torrent_hash, body.file_ids, body.priority)
+    ok = await set_torrent_file_priority(
+        client.client_type, client.url, client.username, client.password, torrent_hash, body.file_ids, body.priority
+    )
     if not ok:
         raise HTTPException(502, "Modification des priorités impossible")
     return {"ok": True}
@@ -381,7 +453,12 @@ async def set_torrent_file_priority_api(client_id: int, torrent_hash: str, body:
 @router.get("/downloads/clients/{client_id}/{torrent_hash}/trackers")
 async def get_torrent_trackers_api(client_id: int, torrent_hash: str, db: AsyncSession = Depends(get_db_async)):
     from ..services.download_clients import list_torrent_trackers
-    client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled))).scalars().first()
+
+    client = (
+        (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled)))
+        .scalars()
+        .first()
+    )
     if not client:
         raise HTTPException(404, "Client torrent introuvable")
     return await list_torrent_trackers(client.client_type, client.url, client.username, client.password, torrent_hash)
@@ -390,7 +467,12 @@ async def get_torrent_trackers_api(client_id: int, torrent_hash: str, db: AsyncS
 @router.get("/downloads/clients/{client_id}/{torrent_hash}/peers")
 async def get_torrent_peers_api(client_id: int, torrent_hash: str, db: AsyncSession = Depends(get_db_async)):
     from ..services.download_clients import list_torrent_peers
-    client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled))).scalars().first()
+
+    client = (
+        (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled)))
+        .scalars()
+        .first()
+    )
     if not client:
         raise HTTPException(404, "Client torrent introuvable")
     return await list_torrent_peers(client.client_type, client.url, client.username, client.password, torrent_hash)
@@ -399,6 +481,7 @@ async def get_torrent_peers_api(client_id: int, torrent_hash: str, db: AsyncSess
 @router.get("/downloads/global-stats")
 async def get_global_stats_api(client_id: Optional[int] = None, db: AsyncSession = Depends(get_db_async)):
     from ..services.download_clients import get_client_global_stats
+
     query = select(DownloadClient).filter(DownloadClient.enabled)
     if client_id is not None:
         query = query.filter(DownloadClient.id == client_id)
@@ -406,10 +489,13 @@ async def get_global_stats_api(client_id: Optional[int] = None, db: AsyncSession
     total_dl = 0
     total_up = 0
     alt_speed = False
-    results = await asyncio.gather(*(
-        get_client_global_stats(client.client_type, client.url, client.username, client.password)
-        for client in clients
-    ), return_exceptions=True)
+    results = await asyncio.gather(
+        *(
+            get_client_global_stats(client.client_type, client.url, client.username, client.password)
+            for client in clients
+        ),
+        return_exceptions=True,
+    )
     connected = 0
     client_stats = []
     for client, stats in zip(clients, results):
@@ -436,8 +522,14 @@ async def get_global_stats_api(client_id: Optional[int] = None, db: AsyncSession
 @router.post("/downloads/global-alt-speed")
 async def toggle_global_alt_speed_api(db: AsyncSession = Depends(get_db_async)):
     from ..services.download_clients import toggle_client_alt_speed
+
     clients = (await db.execute(select(DownloadClient).filter(DownloadClient.enabled))).scalars().all()
-    results = await asyncio.gather(*(toggle_client_alt_speed(client.client_type, client.url, client.username, client.password) for client in clients))
+    results = await asyncio.gather(
+        *(
+            toggle_client_alt_speed(client.client_type, client.url, client.username, client.password)
+            for client in clients
+        )
+    )
     await invalidate_download_clients_cache()
     return {"ok": any(results)}
 
@@ -454,7 +546,15 @@ async def add_torrent_api(body: AddTorrentApiRequest, db: AsyncSession = Depends
     from ..services.download_clients import add_torrent_to_client
 
     if body.client_id:
-        client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == body.client_id, DownloadClient.enabled))).scalars().first()
+        client = (
+            (
+                await db.execute(
+                    select(DownloadClient).filter(DownloadClient.id == body.client_id, DownloadClient.enabled)
+                )
+            )
+            .scalars()
+            .first()
+        )
     else:
         client = (await db.execute(select(DownloadClient).filter(DownloadClient.enabled))).scalars().first()
 
@@ -462,8 +562,13 @@ async def add_torrent_api(body: AddTorrentApiRequest, db: AsyncSession = Depends
         raise HTTPException(404, "Aucun client torrent actif trouvé")
 
     success, msg, info_hash = await add_torrent_to_client(
-        client.client_type, client.url, client.username, client.password,
-        body.torrent_url_or_magnet, body.category, body.tags
+        client.client_type,
+        client.url,
+        client.username,
+        client.password,
+        body.torrent_url_or_magnet,
+        body.category,
+        body.tags,
     )
     if not success:
         raise HTTPException(502, f"Erreur lors de l'ajout du torrent : {msg}")
@@ -483,7 +588,11 @@ async def add_torrent_file_api(
     from ..services.download_clients import add_torrent_file_to_client
 
     if client_id:
-        client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled))).scalars().first()
+        client = (
+            (await db.execute(select(DownloadClient).filter(DownloadClient.id == client_id, DownloadClient.enabled)))
+            .scalars()
+            .first()
+        )
     else:
         client = (await db.execute(select(DownloadClient).filter(DownloadClient.enabled))).scalars().first()
 
@@ -494,8 +603,7 @@ async def add_torrent_file_api(
     filename = file.filename or "upload.torrent"
 
     success, msg, info_hash = await add_torrent_file_to_client(
-        client.client_type, client.url, client.username, client.password,
-        content, filename, category, tags
+        client.client_type, client.url, client.username, client.password, content, filename, category, tags
     )
     if not success:
         raise HTTPException(502, f"Erreur lors de l'envoi du fichier torrent : {msg}")

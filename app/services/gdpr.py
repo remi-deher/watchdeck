@@ -37,11 +37,7 @@ def _row_without_secrets(obj) -> dict:
     """Sérialise une ligne ORM en dict, en excluant les colonnes chiffrées
     (EncryptedText) : un export de droit d'accès ne doit jamais révéler de secret
     (totp_secret, tokens...). Détection automatique, pas de liste codée en dur."""
-    return {
-        c.name: getattr(obj, c.name)
-        for c in obj.__table__.columns
-        if not isinstance(c.type, EncryptedText)
-    }
+    return {c.name: getattr(obj, c.name) for c in obj.__table__.columns if not isinstance(c.type, EncryptedText)}
 
 
 async def _scrub_co_requester(db: AsyncSession, plex_user_id: str) -> int:
@@ -51,12 +47,14 @@ async def _scrub_co_requester(db: AsyncSession, plex_user_id: str) -> int:
     filtrage exact se fait ensuite en Python, donc un faux positif LIKE est sans effet.
     """
     rows = (
-        await db.execute(
-            sqlalchemy.select(MediaRequest).where(
-                MediaRequest.extra_requesters.like(f"%{plex_user_id}%")
+        (
+            await db.execute(
+                sqlalchemy.select(MediaRequest).where(MediaRequest.extra_requesters.like(f"%{plex_user_id}%"))
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     scrubbed = 0
     for req in rows:
         try:
@@ -83,36 +81,26 @@ async def erase_user_data(db: AsyncSession, user: PlexUser) -> dict[str, int]:
 
     # Passkeys : la FK ondelete=CASCADE n'est pas garantie sous SQLite (PRAGMA
     # foreign_keys off par défaut), on supprime donc explicitement.
-    result = await db.execute(
-        sqlalchemy.delete(PasskeyCredential).where(PasskeyCredential.user_id == user.id)
-    )
+    result = await db.execute(sqlalchemy.delete(PasskeyCredential).where(PasskeyCredential.user_id == user.id))
     counts["passkeys"] = int(result.rowcount or 0)
 
-    result = await db.execute(
-        sqlalchemy.delete(MediaRequest).where(MediaRequest.plex_user_id == plex_user_id)
-    )
+    result = await db.execute(sqlalchemy.delete(MediaRequest).where(MediaRequest.plex_user_id == plex_user_id))
     counts["requests"] = int(result.rowcount or 0)
 
     counts["co_requester_scrubbed"] = await _scrub_co_requester(db, plex_user_id)
 
     result = await db.execute(
-        sqlalchemy.delete(NotificationMilestone).where(
-            NotificationMilestone.plex_user_id == plex_user_id
-        )
+        sqlalchemy.delete(NotificationMilestone).where(NotificationMilestone.plex_user_id == plex_user_id)
     )
     counts["milestones"] = int(result.rowcount or 0)
 
     if emails:
-        result = await db.execute(
-            sqlalchemy.delete(NotificationLog).where(NotificationLog.recipient.in_(emails))
-        )
+        result = await db.execute(sqlalchemy.delete(NotificationLog).where(NotificationLog.recipient.in_(emails)))
         counts["notification_logs"] = int(result.rowcount or 0)
     else:
         counts["notification_logs"] = 0
 
-    result = await db.execute(
-        sqlalchemy.delete(MediaIssue).where(MediaIssue.reporter_plex_user_id == plex_user_id)
-    )
+    result = await db.execute(sqlalchemy.delete(MediaIssue).where(MediaIssue.reporter_plex_user_id == plex_user_id))
     counts["media_issues"] = int(result.rowcount or 0)
 
     logger.info("Effacement RGPD user_id=%s : %s", user.id, counts)
@@ -130,23 +118,35 @@ async def export_user_data(db: AsyncSession, user: PlexUser) -> dict:
     emails = {e for e in (user.plex_email, user.notification_email) if e}
 
     requests = (
-        await db.execute(sqlalchemy.select(MediaRequest).where(MediaRequest.plex_user_id == plex_user_id))
-    ).scalars().all()
+        (await db.execute(sqlalchemy.select(MediaRequest).where(MediaRequest.plex_user_id == plex_user_id)))
+        .scalars()
+        .all()
+    )
     milestones = (
-        await db.execute(
-            sqlalchemy.select(NotificationMilestone).where(NotificationMilestone.plex_user_id == plex_user_id)
+        (
+            await db.execute(
+                sqlalchemy.select(NotificationMilestone).where(NotificationMilestone.plex_user_id == plex_user_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     issues = (
-        await db.execute(sqlalchemy.select(MediaIssue).where(MediaIssue.reporter_plex_user_id == plex_user_id))
-    ).scalars().all()
+        (await db.execute(sqlalchemy.select(MediaIssue).where(MediaIssue.reporter_plex_user_id == plex_user_id)))
+        .scalars()
+        .all()
+    )
     passkeys = (
-        await db.execute(sqlalchemy.select(PasskeyCredential).where(PasskeyCredential.user_id == user.id))
-    ).scalars().all()
+        (await db.execute(sqlalchemy.select(PasskeyCredential).where(PasskeyCredential.user_id == user.id)))
+        .scalars()
+        .all()
+    )
     if emails:
         logs = (
-            await db.execute(sqlalchemy.select(NotificationLog).where(NotificationLog.recipient.in_(emails)))
-        ).scalars().all()
+            (await db.execute(sqlalchemy.select(NotificationLog).where(NotificationLog.recipient.in_(emails))))
+            .scalars()
+            .all()
+        )
     else:
         logs = []
 

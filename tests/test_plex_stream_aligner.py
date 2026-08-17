@@ -21,7 +21,18 @@ from tests.async_support import TestSession
 
 
 class MockStream:
-    def __init__(self, id, languageCode=None, language=None, title=None, displayTitle=None, channels=2, forced=False, selected=False, codec="eac3"):
+    def __init__(
+        self,
+        id,
+        languageCode=None,
+        language=None,
+        title=None,
+        displayTitle=None,
+        channels=2,
+        forced=False,
+        selected=False,
+        codec="eac3",
+    ):
         self.id = id
         self.languageCode = languageCode
         self.language = language
@@ -49,7 +60,7 @@ class MockPart:
 
     def setSelectedAudioStream(self, s):
         for a in self._audio:
-            a.selected = (a.id == s.id)
+            a.selected = a.id == s.id
         self.selected_audio = s
 
     def setSelectedSubtitleStream(self, s):
@@ -132,7 +143,9 @@ def test_choose_best_subtitle_stream():
 
     # 4. Si audio VO mais AUCUN sous-titre FR -> Ne touche à rien (should_apply=False)
     sub_eng = MockStream(20, languageCode="eng")
-    chosen_doubt, apply_doubt = choose_best_subtitle_stream([sub_eng], is_french_audio=False, current_selected_sub=sub_eng)
+    chosen_doubt, apply_doubt = choose_best_subtitle_stream(
+        [sub_eng], is_french_audio=False, current_selected_sub=sub_eng
+    )
     assert apply_doubt is False
     assert chosen_doubt.id == 20
 

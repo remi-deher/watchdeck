@@ -329,8 +329,13 @@ def show_has_full_french_audio(
     known_vf: Optional[dict[int, set[int]]] = None,
     known_episode_numbers: Optional[dict[int, set[int]]] = None,
 ) -> tuple[
-    bool, bool, int, int,
-    dict[int, dict[int, bool]], dict[int, dict[int, bool]], dict[int, dict[int, dict]],
+    bool,
+    bool,
+    int,
+    int,
+    dict[int, dict[int, bool]],
+    dict[int, dict[int, bool]],
+    dict[int, dict[int, dict]],
     dict[int, dict[int, bool]],
 ]:
     """Analyse tous les épisodes d'une série.
@@ -446,7 +451,16 @@ def show_has_full_french_audio(
     complete = total > 0 and with_vf == total
 
     if complete:
-        return True, False, with_vf, total, episode_status, french_default_status, episode_metadata, known_episode_status
+        return (
+            True,
+            False,
+            with_vf,
+            total,
+            episode_status,
+            french_default_status,
+            episode_metadata,
+            known_episode_status,
+        )
 
     # Calcul du nombre de saisons qui ont au moins 1 VF
     vf_seasons = {sn for sn, info in seasons_info.items() if info["vf"] > 0}
@@ -471,7 +485,16 @@ def show_has_full_french_audio(
                 should_track = True
                 break
 
-    return complete, should_track, with_vf, total, episode_status, french_default_status, episode_metadata, known_episode_status
+    return (
+        complete,
+        should_track,
+        with_vf,
+        total,
+        episode_status,
+        french_default_status,
+        episode_metadata,
+        known_episode_status,
+    )
 
 
 def compute_vf_granularity(
@@ -513,4 +536,3 @@ def compute_vf_granularity(
     if any_vf:
         return "episode_partial"
     return "none"
-

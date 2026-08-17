@@ -29,7 +29,9 @@ async def create_arr_instance(db: AsyncSession, values: Mapping[str, Any]) -> Ar
         await _rollback_and_raise(db)
 
 
-async def update_arr_instance(db: AsyncSession, instance_id: int, values: Mapping[str, Any]) -> tuple[ArrInstance, set[str]]:
+async def update_arr_instance(
+    db: AsyncSession, instance_id: int, values: Mapping[str, Any]
+) -> tuple[ArrInstance, set[str]]:
     try:
         instance = await _arr_instance(db, instance_id)
         previous_type = instance.arr_type
@@ -97,7 +99,9 @@ async def update_download_client(db: AsyncSession, client_id: int, values: Mappi
     try:
         client = await _download_client(db, client_id)
         if values.get("is_default"):
-            await db.execute(sqlalchemy.update(DownloadClient).where(DownloadClient.id != client_id).values(is_default=False))
+            await db.execute(
+                sqlalchemy.update(DownloadClient).where(DownloadClient.id != client_id).values(is_default=False)
+            )
         for key, value in values.items():
             setattr(client, key, value)
         await db.commit()

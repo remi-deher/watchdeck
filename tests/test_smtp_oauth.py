@@ -32,9 +32,7 @@ def _provider(**kwargs) -> EmailProvider:
 
 def test_build_authorize_url_requires_client_id():
     with pytest.raises(ValueError):
-        microsoft_oauth.build_authorize_url(
-            _provider(oauth_client_id=None), "http://x/callback", "state", "challenge"
-        )
+        microsoft_oauth.build_authorize_url(_provider(oauth_client_id=None), "http://x/callback", "state", "challenge")
 
 
 def test_build_authorize_url_uses_consumers_tenant_and_pkce():
@@ -66,9 +64,7 @@ async def test_store_tokens_persists_and_updates_in_memory_object():
         await db.refresh(p)
 
     with patch("app.services.microsoft_oauth.AsyncSessionLocal", session_factory):
-        await microsoft_oauth.store_tokens(
-            p, {"access_token": "acc-1", "refresh_token": "ref-1", "expires_in": 3600}
-        )
+        await microsoft_oauth.store_tokens(p, {"access_token": "acc-1", "refresh_token": "ref-1", "expires_in": 3600})
 
     assert p.oauth_access_token == "acc-1"
     assert p.oauth_refresh_token == "ref-1"

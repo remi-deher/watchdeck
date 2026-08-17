@@ -228,9 +228,7 @@ def _merge_legacy_users(source_engine, target_engine) -> dict[str, Any]:
     source_users = source_meta.tables["plex_users"]
     target_users = target_meta.tables["plex_users"]
     common_columns = [
-        column.name
-        for column in target_users.columns
-        if column.name != "id" and column.name in source_users.c
+        column.name for column in target_users.columns if column.name != "id" and column.name in source_users.c
     ]
 
     inserted = 0

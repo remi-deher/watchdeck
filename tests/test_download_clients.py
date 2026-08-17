@@ -98,18 +98,20 @@ async def test_transmission_list_normalizes_torrents():
     payload = {
         "result": "success",
         "arguments": {
-            "torrents": [{
-                "hashString": "abc",
-                "name": "Film",
-                "status": 4,
-                "percentDone": 0.25,
-                "totalSize": 1024,
-                "rateDownload": 42,
-                "rateUpload": 2,
-                "uploadRatio": 0.5,
-                "eta": 60,
-                "labels": ["watchdeck", "films"],
-            }]
+            "torrents": [
+                {
+                    "hashString": "abc",
+                    "name": "Film",
+                    "status": 4,
+                    "percentDone": 0.25,
+                    "totalSize": 1024,
+                    "rateDownload": 42,
+                    "rateUpload": 2,
+                    "uploadRatio": 0.5,
+                    "eta": 60,
+                    "labels": ["watchdeck", "films"],
+                }
+            ]
         },
     }
     with patch("app.services.download_clients.transmission_rpc", new=AsyncMock(return_value=payload)):
@@ -139,9 +141,7 @@ async def test_transmission_list_normalizes_torrents():
 async def test_transmission_control_deletes_files_when_requested():
     rpc = AsyncMock(return_value={"result": "success"})
     with patch("app.services.download_clients.transmission_rpc", new=rpc):
-        ok = await control_transmission_torrent(
-            "http://transmission", None, None, "abc", "delete", delete_files=True
-        )
+        ok = await control_transmission_torrent("http://transmission", None, None, "abc", "delete", delete_files=True)
 
     assert ok is True
     assert rpc.await_args.args[4] == "torrent-remove"
@@ -312,7 +312,7 @@ async def test_delete_torrent_transmission():
 async def test_qbittorrent_control_and_full_queue():
     login = MagicMock(status_code=200, text="Ok.", cookies={"SID": "sid"})
     queue = MagicMock(status_code=200)
-    queue.json.return_value = [{"hash": "abc", "name": "Film", "progress": .5}]
+    queue.json.return_value = [{"hash": "abc", "name": "Film", "progress": 0.5}]
     command = MagicMock(status_code=200)
     with (
         patch("httpx.AsyncClient.post", new=AsyncMock(side_effect=[login, login, command])) as post,

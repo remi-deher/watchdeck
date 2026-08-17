@@ -33,7 +33,6 @@ from .services.email_service import (
     send_request_notification,
 )
 from .services.notification_catalog import event_mail_flags
-from .services.plex_links import resolve_plex_web_url
 from .services.notifications import (
     ChannelNotConfigured,
     send_discord,
@@ -43,6 +42,7 @@ from .services.notifications import (
     send_telegram,
     send_telegram_to_chat,
 )
+from .services.plex_links import resolve_plex_web_url
 from .utils import mask_email, now_utc, now_utc_naive, parse_email_list
 
 logger = logging.getLogger(__name__)
@@ -167,9 +167,7 @@ async def enqueue(
         except Exception:
             await db.rollback()
             raise
-        await schedule_pending_notification(
-            pending_id, normalized_event, req_id, recipients, normalized_context
-        )
+        await schedule_pending_notification(pending_id, normalized_event, req_id, recipients, normalized_context)
         return pending_id
 
     async with AsyncSessionLocal() as db:
@@ -184,9 +182,7 @@ async def enqueue(
             logger.error(f"Impossible de persister la notification en attente [{event}] req#{req_id}: {e}")
             return
 
-    await schedule_pending_notification(
-        pending_id, normalized_event, req_id, recipients, normalized_context
-    )
+    await schedule_pending_notification(pending_id, normalized_event, req_id, recipients, normalized_context)
     return pending_id
 
 
@@ -205,20 +201,27 @@ async def persist_pending_notification(
         normalized_context["triggered_by"] = triggered_by
     recipients_json = json.dumps(recipients)
     reason_json = json.dumps(normalized_context)
-    existing = (await db.execute(select(PendingNotification).filter(
-        PendingNotification.event == event,
-        PendingNotification.req_id == req_id,
-        PendingNotification.reason == reason_json,
-    ))).scalars().first()
+    existing = (
+        (
+            await db.execute(
+                select(PendingNotification).filter(
+                    PendingNotification.event == event,
+                    PendingNotification.req_id == req_id,
+                    PendingNotification.reason == reason_json,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
     if existing:
         logger.info(
             "Notification [%s] req#%s déjà en attente, ignorée pour éviter un doublon.",
-            event, req_id,
+            event,
+            req_id,
         )
         return None, event, normalized_context
-    row = PendingNotification(
-        event=event, req_id=req_id, recipients=recipients_json, reason=reason_json
-    )
+    row = PendingNotification(event=event, req_id=req_id, recipients=recipients_json, reason=reason_json)
     db.add(row)
     flush_result = db.flush()
     if inspect.isawaitable(flush_result):
@@ -299,25 +302,32 @@ async def cancel_pending_availability_notifications(request_ids: list[int] | Non
     async with AsyncSessionLocal() as db:
         try:
             if request_ids:
-                ids = [row[0] for row in (await db.execute(
-                    text(
-                        "SELECT id FROM pending_notifications "
-                        "WHERE event = 'available' AND req_id IN :request_ids"
-                    ).bindparams(bindparam("request_ids", expanding=True)),
-                    {"request_ids": [int(i) for i in request_ids]},
-                )).fetchall()]
+                ids = [
+                    row[0]
+                    for row in (
+                        await db.execute(
+                            text(
+                                "SELECT id FROM pending_notifications "
+                                "WHERE event = 'available' AND req_id IN :request_ids"
+                            ).bindparams(bindparam("request_ids", expanding=True)),
+                            {"request_ids": [int(i) for i in request_ids]},
+                        )
+                    ).fetchall()
+                ]
             else:
-                ids = [row[0] for row in (await db.execute(
-                    text("SELECT id FROM pending_notifications WHERE event = 'available'")
-                )).fetchall()]
+                ids = [
+                    row[0]
+                    for row in (
+                        await db.execute(text("SELECT id FROM pending_notifications WHERE event = 'available'"))
+                    ).fetchall()
+                ]
             _cancelled_pending_ids.update(int(i) for i in ids)
             if not ids:
                 return 0
             if request_ids:
                 result = await db.execute(
                     text(
-                        "DELETE FROM pending_notifications "
-                        "WHERE event = 'available' AND req_id IN :request_ids"
+                        "DELETE FROM pending_notifications WHERE event = 'available' AND req_id IN :request_ids"
                     ).bindparams(bindparam("request_ids", expanding=True)),
                     {"request_ids": [int(i) for i in request_ids]},
                 )
@@ -343,9 +353,11 @@ async def _load_pending():
     """
     async with AsyncSessionLocal() as db:
         try:
-            raw_rows = (await db.execute(
-                text("SELECT id, event, req_id, recipients, reason FROM pending_notifications ORDER BY id")
-            )).fetchall()
+            raw_rows = (
+                await db.execute(
+                    text("SELECT id, event, req_id, recipients, reason FROM pending_notifications ORDER BY id")
+                )
+            ).fetchall()
             loaded = 0
             skipped = 0
             for row_id, event, req_id, recipients_raw, reason_raw in raw_rows:
@@ -393,7 +405,9 @@ async def _send_with_retry(
             sender = EMAIL_SENDERS.get(event)
             if sender:
                 await sender(settings, req, recipient, context, display_name)
-            logger.info(f"Notification [{event}] envoyée à {mask_email(recipient)} pour '{req.title}' (tentative {attempt + 1})")
+            logger.info(
+                f"Notification [{event}] envoyée à {mask_email(recipient)} pour '{req.title}' (tentative {attempt + 1})"
+            )
             return True, None
         except Exception as e:
             error_msg = str(e)
@@ -440,9 +454,7 @@ class NotificationDeliveryError(Exception):
     """
 
 
-async def _process(
-    event: str, req_id: int, recipients: list[str], context: dict, *, force: bool = False
-) -> bool:
+async def _process(event: str, req_id: int, recipients: list[str], context: dict, *, force: bool = False) -> bool:
     """Traite une notification en attente.
 
     Returns:
@@ -475,7 +487,9 @@ async def _process(
 
             # Nom affiché dans le mail : le "Nom d'usage" (custom_name) prime sur
             # request.plex_user, pour être cohérent avec l'aperçu du template.
-            user_obj = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
+            user_obj = (
+                (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
+            )
             display_name = user_obj.custom_name if user_obj else None
 
             # Envoi email à chaque destinataire avec retry automatique. Le lien Plex
@@ -483,9 +497,7 @@ async def _process(
             all_ok = True
             delivery_context = dict(context)
             if event == "available":
-                delivery_context["_plex_deep_link"] = await resolve_plex_web_url(
-                    settings, req, db=db
-                )
+                delivery_context["_plex_deep_link"] = await resolve_plex_web_url(settings, req, db=db)
             for recipient in recipients:
                 success, error_msg = await _send_with_retry(
                     settings, req, event, recipient, delivery_context, display_name
@@ -527,7 +539,11 @@ async def _process(
             if all_ok and not context.get("admin_only"):
                 for attr in event_mail_flags(event):
                     setattr(req, attr, True)
-                if event == "available" and context.get("scope") == "episode" and req.episodes_available_count is not None:
+                if (
+                    event == "available"
+                    and context.get("scope") == "episode"
+                    and req.episodes_available_count is not None
+                ):
                     req.last_notified_episode_count = req.episodes_available_count
             await db.commit()
 
@@ -540,9 +556,13 @@ async def _process(
             push_targets: list[tuple[str, str, object]] = []
             suppress_push = bool(context.get("admin_only"))
             if not suppress_push and _push_allowed(settings, "discord", event):
-                push_targets.append(("discord", "discord (global)", lambda: send_discord(settings, req, event, context)))
+                push_targets.append(
+                    ("discord", "discord (global)", lambda: send_discord(settings, req, event, context))
+                )
             if not suppress_push and _push_allowed(settings, "telegram", event):
-                push_targets.append(("telegram", "telegram (global)", lambda: send_telegram(settings, req, event, context)))
+                push_targets.append(
+                    ("telegram", "telegram (global)", lambda: send_telegram(settings, req, event, context))
+                )
             if not suppress_push and _push_allowed(settings, "ntfy", event):
                 push_targets.append(("ntfy", "ntfy", lambda: send_ntfy_notif(settings, req, event, context)))
             if not suppress_push and _push_allowed(settings, "gotify", event):
@@ -550,16 +570,26 @@ async def _process(
             if user_obj and not suppress_push:
                 if user_obj.discord_webhook_url and _push_allowed(settings, "discord", event):
                     webhook_url = user_obj.discord_webhook_url
-                    push_targets.append((
-                        "discord", f"discord (utilisateur {req.plex_user_id})",
-                        lambda: send_discord_to_webhook(webhook_url, req, event, context),
-                    ))
-                if user_obj.telegram_chat_id and settings.telegram_bot_token and _push_allowed(settings, "telegram", event):
+                    push_targets.append(
+                        (
+                            "discord",
+                            f"discord (utilisateur {req.plex_user_id})",
+                            lambda: send_discord_to_webhook(webhook_url, req, event, context),
+                        )
+                    )
+                if (
+                    user_obj.telegram_chat_id
+                    and settings.telegram_bot_token
+                    and _push_allowed(settings, "telegram", event)
+                ):
                     bot_token, chat_id = settings.telegram_bot_token, user_obj.telegram_chat_id
-                    push_targets.append((
-                        "telegram", f"telegram (utilisateur {req.plex_user_id})",
-                        lambda: send_telegram_to_chat(bot_token, chat_id, req, event, context),
-                    ))
+                    push_targets.append(
+                        (
+                            "telegram",
+                            f"telegram (utilisateur {req.plex_user_id})",
+                            lambda: send_telegram_to_chat(bot_token, chat_id, req, event, context),
+                        )
+                    )
 
             for channel, recipient_label, coro_factory in push_targets:
                 success, error_msg = await _send_push_with_retry(coro_factory)
@@ -647,10 +677,7 @@ async def process_pending_id(pending_id: int, force: bool = False) -> str | int 
     async with AsyncSessionLocal() as db:
         row = (
             await db.execute(
-                text(
-                    "SELECT event, req_id, recipients, reason FROM pending_notifications "
-                    "WHERE id = :id"
-                ),
+                text("SELECT event, req_id, recipients, reason FROM pending_notifications WHERE id = :id"),
                 {"id": int(pending_id)},
             )
         ).first()
@@ -668,7 +695,10 @@ async def process_pending_id(pending_id: int, force: bool = False) -> str | int 
                 remaining = [r for r in recipients if r not in already]
                 logger.info(
                     "Notification #%s [%s] deja livree a %s/%s destinataire(s) (reprise apres redemarrage), ignores.",
-                    pending_id, event, len(recipients) - len(remaining), len(recipients),
+                    pending_id,
+                    event,
+                    len(recipients) - len(remaining),
+                    len(recipients),
                 )
                 recipients = remaining
 
@@ -711,7 +741,9 @@ async def _worker():
                     # retentera pas lui-même dans ce cycle de vie du process, mais
                     # _load_pending() la réenfilera au prochain démarrage de l'app —
                     # cohérent avec la garantie de survie déjà documentée sur ce modèle.
-                    logger.warning(f"Notification #{pending_id} [{event}] non livrée, conservée pour reprise ultérieure")
+                    logger.warning(
+                        f"Notification #{pending_id} [{event}] non livrée, conservée pour reprise ultérieure"
+                    )
         except asyncio.CancelledError:
             logger.info("Notification worker arrêté")
             break

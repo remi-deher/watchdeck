@@ -41,17 +41,27 @@ async def _resolve_sonarr_instance(db: AsyncSession, instance_id: int | None) ->
     lever une HTTPException) : ce module tourne en tâche de fond, une instance
     introuvable pour une série ne doit jamais faire échouer tout le cycle."""
     if instance_id is not None:
-        return (await db.execute(
-            select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == "sonarr")
-        )).scalars().first()
-    inst = (await db.execute(
-        select(ArrInstance).filter(ArrInstance.is_default, ArrInstance.arr_type == "sonarr")
-    )).scalars().first()
+        return (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == "sonarr")
+                )
+            )
+            .scalars()
+            .first()
+        )
+    inst = (
+        (await db.execute(select(ArrInstance).filter(ArrInstance.is_default, ArrInstance.arr_type == "sonarr")))
+        .scalars()
+        .first()
+    )
     if inst:
         return inst
     settings = (await db.execute(select(Settings))).scalars().first()
     if settings and settings.sonarr_url:
-        return ArrInstance(url=settings.sonarr_url, api_key=settings.sonarr_api_key, root_folder=settings.sonarr_root_folder)
+        return ArrInstance(
+            url=settings.sonarr_url, api_key=settings.sonarr_api_key, root_folder=settings.sonarr_root_folder
+        )
     return None
 
 
@@ -113,9 +123,15 @@ async def _upsert_availability(db: AsyncSession, req, seasons: dict[int, dict[in
     now = now_utc_naive()
     existing = {
         (r.season_number, r.episode_number): r
-        for r in (await db.execute(select(EpisodeAvailability).filter(
-            EpisodeAvailability.source_type == source_type, EpisodeAvailability.source_id == req.id
-        ))).scalars().all()
+        for r in (
+            await db.execute(
+                select(EpisodeAvailability).filter(
+                    EpisodeAvailability.source_type == source_type, EpisodeAvailability.source_id == req.id
+                )
+            )
+        )
+        .scalars()
+        .all()
     }
     for sn, eps in seasons.items():
         for en, info in eps.items():
@@ -126,10 +142,17 @@ async def _upsert_availability(db: AsyncSession, req, seasons: dict[int, dict[in
                     row.air_date_utc = info["air_date_utc"]
                 row.checked_at = now
             else:
-                db.add(EpisodeAvailability(
-                    source_type=source_type, source_id=req.id, season_number=sn, episode_number=en,
-                    has_file=info["has_file"], air_date_utc=info["air_date_utc"], checked_at=now,
-                ))
+                db.add(
+                    EpisodeAvailability(
+                        source_type=source_type,
+                        source_id=req.id,
+                        season_number=sn,
+                        episode_number=en,
+                        has_file=info["has_file"],
+                        air_date_utc=info["air_date_utc"],
+                        checked_at=now,
+                    )
+                )
 
 
 async def check_episode_availability() -> None:
@@ -141,18 +164,18 @@ async def check_episode_availability() -> None:
         return
 
     episode_availability_state.update(
-        status="running", started_at=now_utc().isoformat(), finished_at=None,
-        items_scanned=0, total_items=0, error=None,
+        status="running",
+        started_at=now_utc().isoformat(),
+        finished_at=None,
+        items_scanned=0,
+        total_items=0,
+        error=None,
     )
 
     db: AsyncSession = AsyncSessionLocal()
     try:
-        requests_q = (await db.execute(
-            select(MediaRequest).filter(MediaRequest.media_type == "show")
-        )).scalars().all()
-        library_q = (await db.execute(
-            select(LibraryItem).filter(LibraryItem.media_type == "show")
-        )).scalars().all()
+        requests_q = (await db.execute(select(MediaRequest).filter(MediaRequest.media_type == "show"))).scalars().all()
+        library_q = (await db.execute(select(LibraryItem).filter(LibraryItem.media_type == "show"))).scalars().all()
         candidates = [r for r in requests_q if r.arr_id or r.tvdb_id] + [r for r in library_q if r.arr_id or r.tvdb_id]
         episode_availability_state["total_items"] = len(candidates)
         if not candidates:

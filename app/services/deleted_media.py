@@ -36,15 +36,17 @@ async def record_deletion(
         existing.title = title
         existing.blocked = existing.blocked or blocked
         return
-    db.add(DeletedMediaLog(
-        media_type=media_type,
-        title=title,
-        tmdb_id=tmdb_id,
-        tvdb_id=tvdb_id,
-        imdb_id=imdb_id,
-        deleted_by=deleted_by,
-        blocked=blocked,
-    ))
+    db.add(
+        DeletedMediaLog(
+            media_type=media_type,
+            title=title,
+            tmdb_id=tmdb_id,
+            tvdb_id=tvdb_id,
+            imdb_id=imdb_id,
+            deleted_by=deleted_by,
+            blocked=blocked,
+        )
+    )
 
 
 async def is_tombstoned(
@@ -87,6 +89,8 @@ async def _find(
         conditions.append(DeletedMediaLog.tvdb_id == str(tvdb_id))
     if imdb_id:
         conditions.append(DeletedMediaLog.imdb_id == str(imdb_id))
-    return (await db.execute(
-        select(DeletedMediaLog).filter(DeletedMediaLog.media_type == media_type, or_(*conditions))
-    )).scalars().first()
+    return (
+        (await db.execute(select(DeletedMediaLog).filter(DeletedMediaLog.media_type == media_type, or_(*conditions))))
+        .scalars()
+        .first()
+    )

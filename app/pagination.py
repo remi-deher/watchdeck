@@ -10,7 +10,9 @@ class PaginationParams:
     limit: int
 
 
-def pagination_params(max_limit: int = 100, default_limit: int = 50, strict: bool = True) -> Callable[..., PaginationParams]:
+def pagination_params(
+    max_limit: int = 100, default_limit: int = 50, strict: bool = True
+) -> Callable[..., PaginationParams]:
     """Fabrique une dépendance FastAPI pour extraire offset et limit.
 
     Les endpoints existants n'avaient pas tous le même contrat avant factorisation :
@@ -24,12 +26,14 @@ def pagination_params(max_limit: int = 100, default_limit: int = 50, strict: boo
                               pour les endpoints qui avaient ce comportement avant.
     """
     if strict:
+
         def dependency(
             limit: int = Query(default_limit, ge=1, le=max_limit),
             offset: int = Query(0, ge=0),
         ) -> PaginationParams:
             return PaginationParams(offset=offset, limit=limit)
     else:
+
         def dependency(
             limit: int = Query(default_limit),
             offset: int = Query(0),

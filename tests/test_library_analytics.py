@@ -24,20 +24,24 @@ def sample_item():
         "studio": "Watchdeck Studio",
         "year": 2026,
         "duration": 3600000,
-        "Media": [{
-            "videoCodec": "hevc",
-            "audioCodec": "eac3",
-            "videoResolution": "4k",
-            "Part": [{
-                "size": 5 * 1024**3,
-                "container": "mkv",
-                "Stream": [
-                    {"streamType": 2, "codec": "eac3", "language": "Français", "channels": 6},
-                    {"streamType": 3, "language": "Français"},
-                    {"streamType": 3, "language": "English"},
+        "Media": [
+            {
+                "videoCodec": "hevc",
+                "audioCodec": "eac3",
+                "videoResolution": "4k",
+                "Part": [
+                    {
+                        "size": 5 * 1024**3,
+                        "container": "mkv",
+                        "Stream": [
+                            {"streamType": 2, "codec": "eac3", "language": "Français", "channels": 6},
+                            {"streamType": 3, "language": "Français"},
+                            {"streamType": 3, "language": "English"},
+                        ],
+                    }
                 ],
-            }],
-        }],
+            }
+        ],
     }
 
 
@@ -55,10 +59,17 @@ def test_parse_plex_item_extracts_raw_technical_metadata():
 def test_filters_combine_media_technical_storage_and_audience_fields():
     row = parse_plex_item(sample_item(), "Séries", "show")
     row.update(play_count=2, viewers=["Rémi"], watch_time_ms=1000)
-    assert apply_filters([row], {
-        "media_type": "episode", "video_codec": "HEVC", "subtitle": "with",
-        "watched": "yes", "min_size_gb": 4.5, "max_size_gb": 5.5,
-    }) == [row]
+    assert apply_filters(
+        [row],
+        {
+            "media_type": "episode",
+            "video_codec": "HEVC",
+            "subtitle": "with",
+            "watched": "yes",
+            "min_size_gb": 4.5,
+            "max_size_gb": 5.5,
+        },
+    ) == [row]
     assert apply_filters([row], {"subtitle": "without"}) == []
     assert apply_filters([row], {"watched": "no"}) == []
 
@@ -119,8 +130,12 @@ async def test_summary_and_items_do_not_return_the_whole_snapshot():
         rows.append(row)
     stored = {
         "generated_at": "2026-07-26T10:00:00",
-        "summary": {"items": 3}, "insights": [], "distributions": {},
-        "largest": [], "options": {}, "items": rows,
+        "summary": {"items": 3},
+        "insights": [],
+        "distributions": {},
+        "largest": [],
+        "options": {},
+        "items": rows,
     }
     db = SimpleNamespace(get=AsyncMock(return_value=LibraryAnalyticsSnapshot(payload_json=json.dumps(stored))))
 

@@ -25,6 +25,7 @@ _RELEASES_SOFT_TTL = 20
 
 _RELEASES_HARD_TTL = 120
 
+
 async def _resolve_release_target(
     db: AsyncSession,
     media_type: str,
@@ -58,7 +59,9 @@ async def _resolve_release_target(
             if media_type == "movie":
                 remote = await radarr.lookup_movie(inst.url, inst.api_key, tmdb_id=media.tmdb_id, imdb_id=media.imdb_id)
             else:
-                remote = await sonarr.lookup_series(inst.url, inst.api_key, tvdb_id=media.tvdb_id, tmdb_id=media.tmdb_id, imdb_id=media.imdb_id)
+                remote = await sonarr.lookup_series(
+                    inst.url, inst.api_key, tvdb_id=media.tvdb_id, tmdb_id=media.tmdb_id, imdb_id=media.imdb_id
+                )
             if remote and remote.get("id"):
                 return int(remote["id"]), inst.id
         raise HTTPException(404, f"Média non lié à {arr_type.capitalize()}")
@@ -81,9 +84,7 @@ async def _resolve_release_target(
         return req.arr_id, inst.id
 
     if media_type == "movie":
-        item = await radarr.lookup_movie(
-            inst.url, inst.api_key, tmdb_id=req.tmdb_id, imdb_id=req.imdb_id
-        )
+        item = await radarr.lookup_movie(inst.url, inst.api_key, tmdb_id=req.tmdb_id, imdb_id=req.imdb_id)
     else:
         item = await sonarr.lookup_series(
             inst.url,
@@ -97,7 +98,16 @@ async def _resolve_release_target(
     return int(item["id"]), inst.id
 
 
-async def _compute_releases(db: AsyncSession, media_type: str, arr_id: int, instance_id: Optional[int], episode_id: Optional[int], season_number: Optional[int], episode_number: Optional[int], prefer_french: bool = True) -> list[dict]:
+async def _compute_releases(
+    db: AsyncSession,
+    media_type: str,
+    arr_id: int,
+    instance_id: Optional[int],
+    episode_id: Optional[int],
+    season_number: Optional[int],
+    episode_number: Optional[int],
+    prefer_french: bool = True,
+) -> list[dict]:
     arr_type = "radarr" if media_type == "movie" else "sonarr"
     inst = await _resolve_arr_instance(db, instance_id, arr_type)
     if media_type == "movie":
@@ -105,15 +115,29 @@ async def _compute_releases(db: AsyncSession, media_type: str, arr_id: int, inst
     else:
         if episode_id is None and season_number is not None and episode_number is not None:
             episodes = await sonarr.get_episodes(inst.url, inst.api_key, arr_id)
-            episode_id = next((ep.get("id") for ep in episodes if ep.get("seasonNumber") == season_number and ep.get("episodeNumber") == episode_number), None)
+            episode_id = next(
+                (
+                    ep.get("id")
+                    for ep in episodes
+                    if ep.get("seasonNumber") == season_number and ep.get("episodeNumber") == episode_number
+                ),
+                None,
+            )
             if episode_id is None:
                 raise HTTPException(404, "Épisode introuvable dans Sonarr")
         releases = await sonarr.get_releases(
-            inst.url, inst.api_key, series_id=arr_id,
-            episode_id=episode_id, season_number=season_number,
+            inst.url,
+            inst.api_key,
+            series_id=arr_id,
+            episode_id=episode_id,
+            season_number=season_number,
         )
 
-    scope = "movie" if media_type == "movie" else ("episode" if episode_number is not None else ("season" if season_number is not None else "show"))
+    scope = (
+        "movie"
+        if media_type == "movie"
+        else ("episode" if episode_number is not None else ("season" if season_number is not None else "show"))
+    )
     for rel in releases:
         rel["is_french"] = _release_is_french(rel)
         rel["arr_instance_id"] = inst.id
@@ -126,8 +150,17 @@ async def _compute_releases(db: AsyncSession, media_type: str, arr_id: int, inst
                 rejections.append(reason)
             rel["rejections"] = rejections
     if prefer_french:
-        releases.sort(key=lambda r: (r.get("is_target_match", True), r["is_french"], r.get("custom_format_score", 0), r.get("seeders", 0)), reverse=True)
+        releases.sort(
+            key=lambda r: (
+                r.get("is_target_match", True),
+                r["is_french"],
+                r.get("custom_format_score", 0),
+                r.get("seeders", 0),
+            ),
+            reverse=True,
+        )
     return releases
+
 
 class ArrGrabRequest(BaseModel):
     media_type: str  # "movie" | "show"
@@ -135,6 +168,7 @@ class ArrGrabRequest(BaseModel):
     indexer_id: int
     instance_id: Optional[int] = None
     request_id: Optional[int] = None
+
 
 @router.get("/arr/releases")
 async def arr_interactive_releases(
@@ -168,9 +202,13 @@ async def arr_interactive_releases(
             return await _compute_releases(fresh_db, *args)
 
     return await cache.get_or_refresh(
-        key, _RELEASES_SOFT_TTL, _RELEASES_HARD_TTL,
-        compute_sync=lambda: _compute_releases(db, *args), compute_background=_background,
+        key,
+        _RELEASES_SOFT_TTL,
+        _RELEASES_HARD_TTL,
+        compute_sync=lambda: _compute_releases(db, *args),
+        compute_background=_background,
     )
+
 
 @router.post("/arr/grab")
 async def arr_grab_release(body: ArrGrabRequest, db: AsyncSession = Depends(get_db_async)):
@@ -186,6 +224,7 @@ async def arr_grab_release(body: ArrGrabRequest, db: AsyncSession = Depends(get_
     if not ok:
         raise HTTPException(500, msg)
     from .arr_shared import invalidate_arr_wanted_cache
+
     await invalidate_arr_wanted_cache(arr_type)
     if body.request_id:
         req = (await db.execute(select(MediaRequest).filter(MediaRequest.id == body.request_id))).scalars().first()

@@ -73,9 +73,7 @@ async def _fetch_latest_release() -> dict | None:
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             headers = {"Accept": "application/vnd.github+json"}
-            resp = await client.get(
-                f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", headers=headers
-            )
+            resp = await client.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", headers=headers)
             if resp.status_code != 200:
                 return _release_cache
             data = resp.json()

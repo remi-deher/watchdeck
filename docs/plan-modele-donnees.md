@@ -34,11 +34,11 @@ Pour faire entrer un élément de bibliothèque dans une table pensée pour des
 demandes, le code triche ([app/scheduler.py](../app/scheduler.py), `sync_plex_media`) :
 
 ```python
-plex_user_id="admin",          # ← il n'y a pas de demandeur
-plex_user="Plex Library",      # ← faux demandeur
-status=RequestStatus.available,# ← forcé, il n'y a pas de flux de demande
-available_mail_sent=True,      # ← pour couper les notifications
-request_mail_sent=True,        # ← idem
+plex_user_id = ("admin",)  # ← il n'y a pas de demandeur
+plex_user = ("Plex Library",)  # ← faux demandeur
+status = (RequestStatus.available,)  # ← forcé, il n'y a pas de flux de demande
+available_mail_sent = (True,)  # ← pour couper les notifications
+request_mail_sent = (True,)  # ← idem
 ```
 
 ### Symptômes concrets

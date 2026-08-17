@@ -40,14 +40,16 @@ async def test_monitor_confirms_block_on_second_minute_and_sends_admin_alert():
         instance = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="secret", enabled=True)
         db.add(instance)
         await db.flush()
-        db.add(MediaRequest(
-            plex_user_id="alice",
-            title="A Movie",
-            media_type="movie",
-            source="rss",
-            arr_instance_id=instance.id,
-            arr_id=42,
-        ))
+        db.add(
+            MediaRequest(
+                plex_user_id="alice",
+                title="A Movie",
+                media_type="movie",
+                source="rss",
+                arr_instance_id=instance.id,
+                arr_id=42,
+            )
+        )
         db.add(Settings(admin_notification_email="admin@example.com", notify_import_blocked=True))
         await db.commit()
 
@@ -109,14 +111,16 @@ async def test_monitor_skips_alert_when_toggle_disabled():
         instance = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="secret", enabled=True)
         db.add(instance)
         await db.flush()
-        db.add(MediaRequest(
-            plex_user_id="alice",
-            title="A Movie",
-            media_type="movie",
-            source="rss",
-            arr_instance_id=instance.id,
-            arr_id=42,
-        ))
+        db.add(
+            MediaRequest(
+                plex_user_id="alice",
+                title="A Movie",
+                media_type="movie",
+                source="rss",
+                arr_instance_id=instance.id,
+                arr_id=42,
+            )
+        )
         db.add(Settings(admin_notification_email="admin@example.com", notify_import_blocked=False))
         await db.commit()
 
@@ -142,12 +146,14 @@ async def test_monitor_does_not_resolve_observations_when_radarr_is_unreachable(
         instance = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="secret", enabled=True)
         db.add(instance)
         await db.flush()
-        db.add(RadarrQueueObservation(
-            arr_instance_id=instance.id,
-            queue_id=99,
-            state="import_blocked",
-            consecutive_blocked_checks=2,
-        ))
+        db.add(
+            RadarrQueueObservation(
+                arr_instance_id=instance.id,
+                queue_id=99,
+                state="import_blocked",
+                consecutive_blocked_checks=2,
+            )
+        )
         await db.commit()
 
     with (

@@ -140,4 +140,3 @@ def test_serialize_media_summary_dict():
     assert res["title"] == "Interstellar"
     assert res["in_library"] is True
     assert res["available"] is True
-

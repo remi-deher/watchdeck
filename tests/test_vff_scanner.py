@@ -78,15 +78,19 @@ async def test_trigger_plex_library_refresh_skips_when_arr_has_native_connector(
 
 
 def test_parse_vff_libraries_accepts_music_rejects_anime():
-    """"music" est maintenant une kind valide (bibliotheques musique, synchronisees mais
+    """ "music" est maintenant une kind valide (bibliotheques musique, synchronisees mais
     jamais scannees pour la VF) ; "anime" a ete retire (categorie de notification
     supprimee de l'application, voir migration 0098_drop_notify_vf_anime)."""
-    settings = _settings(vff_libraries=json.dumps([
-        {"name": "Films", "kind": "movie"},
-        {"name": "Series", "kind": "series"},
-        {"name": "Musique", "kind": "music"},
-        {"name": "Vieux dossier anime", "kind": "anime"},
-    ]))
+    settings = _settings(
+        vff_libraries=json.dumps(
+            [
+                {"name": "Films", "kind": "movie"},
+                {"name": "Series", "kind": "series"},
+                {"name": "Musique", "kind": "music"},
+                {"name": "Vieux dossier anime", "kind": "anime"},
+            ]
+        )
+    )
 
     libs = _parse_vff_libraries(settings)
 

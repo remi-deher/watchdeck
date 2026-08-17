@@ -15,13 +15,18 @@ from ..services import email_providers
 router = APIRouter(prefix="/api", tags=["misc"])
 logger = logging.getLogger(__name__)
 
+
 @router.get("/onboarding")
 async def onboarding_status(db: AsyncSession = Depends(get_db_async), _: None = Depends(require_admin)):
     """Retourne l'état d'avancement de la configuration initiale (checklist)."""
     s = (await db.execute(select(Settings))).scalars().first()
     users_count = (await db.execute(select(sqlalchemy.func.count()).select_from(PlexUser))).scalar()
-    has_sonarr = (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == "sonarr", ArrInstance.enabled))).scalars().first() is not None
-    has_radarr = (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == "radarr", ArrInstance.enabled))).scalars().first() is not None
+    has_sonarr = (
+        await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == "sonarr", ArrInstance.enabled))
+    ).scalars().first() is not None
+    has_radarr = (
+        await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == "radarr", ArrInstance.enabled))
+    ).scalars().first() is not None
     steps = [
         {"id": "rss", "label": "Flux RSS Plex configuré", "done": bool(s and s.plex_rss_url)},
         {"id": "sonarr", "label": "Sonarr configuré", "done": has_sonarr},
@@ -36,6 +41,7 @@ async def onboarding_status(db: AsyncSession = Depends(get_db_async), _: None = 
         },
     ]
     return {"steps": steps, "complete": all(s["done"] for s in steps if not s.get("optional"))}
+
 
 @router.get("/onboarding/context")
 async def onboarding_context(db: AsyncSession = Depends(get_db_async), _: None = Depends(require_admin)):
@@ -115,6 +121,7 @@ async def onboarding_context(db: AsyncSession = Depends(get_db_async), _: None =
         "tmdb": {"api_key_set": is_set("tmdb_api_key")},
     }
 
+
 @router.post("/plex/sso/pin")
 async def plex_sso_pin(request: Request, _: None = Depends(require_admin)):
     """Crée une demande de PIN Plex SSO et retourne l'URL d'authentification."""
@@ -127,6 +134,7 @@ async def plex_sso_pin(request: Request, _: None = Depends(require_admin)):
         return await get_auth_pin(forward_url=forward_url)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur d'initialisation SSO Plex : {str(e)}")
+
 
 @router.get("/plex/sso/check/{pin_id}")
 async def plex_sso_check(pin_id: int, _: None = Depends(require_admin)):

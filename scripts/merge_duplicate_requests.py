@@ -35,9 +35,7 @@ from app.models import MediaRequest
 
 async def merge_duplicates(dry_run: bool = False):
     async with AsyncSessionLocal() as db:
-        all_requests = (
-            await db.execute(select(MediaRequest).order_by(MediaRequest.requested_at))
-        ).scalars().all()
+        all_requests = (await db.execute(select(MediaRequest).order_by(MediaRequest.requested_at))).scalars().all()
 
         # Grouper par (media_type, tmdb_id) — ignorer les entrées sans tmdb_id
         groups: dict[tuple, list[MediaRequest]] = defaultdict(list)
@@ -200,6 +198,7 @@ async def merge_duplicates(dry_run: bool = False):
             print("Base de données mise à jour.")
         else:
             print("Mode dry-run : aucune modification effectuée.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fusionne les demandes en double dans media_requests.")

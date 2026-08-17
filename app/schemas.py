@@ -12,7 +12,9 @@ class RequestOut(BaseModel):
     year: Optional[int] = Field(description="Release year of the media")
     media_type: str = Field(description="Type of media: movie or show")
     status: str = Field(description="Current status of the request (pending, sent_to_arr, available, failed)")
-    fulfillment_status: str = Field(description="Technical fulfillment state (submitted, downloading, awaiting_plex, completed, failed)")
+    fulfillment_status: str = Field(
+        description="Technical fulfillment state (submitted, downloading, awaiting_plex, completed, failed)"
+    )
     fulfillment_updated_at: Optional[datetime] = Field(description="Timestamp of the last technical transition")
     fulfillment_error: Optional[str] = Field(description="Last fulfillment failure, when applicable")
     requested_at: Optional[datetime] = Field(description="Timestamp when the media was requested")

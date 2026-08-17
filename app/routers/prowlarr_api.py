@@ -34,11 +34,13 @@ async def _reject_direct_download_when_arr_is_available(db: AsyncSession, reques
             detail=f"{instance.name} est actif pour ce média : l’acquisition doit passer par {instance.arr_type.title()}.",
         )
 
+
 class ProwlarrGrabRequest(BaseModel):
     guid: str
     indexer_id: int
     instance_id: int
     request_id: Optional[int] = None
+
 
 class DownloadReleaseRequest(BaseModel):
     torrent_url_or_magnet: str
@@ -46,6 +48,7 @@ class DownloadReleaseRequest(BaseModel):
     category: Optional[str] = None
     tags: Optional[str] = None
     request_id: Optional[int] = None
+
 
 @router.get("/prowlarr/indexers")
 async def get_prowlarr_indexers(
@@ -61,6 +64,7 @@ async def get_prowlarr_indexers(
     indexers = await prowlarr.get_indexers(inst.url, inst.api_key)
     return [{"id": idx["id"], "name": idx["name"]} for idx in indexers]
 
+
 @router.get("/prowlarr/{instance_id}/download-client-status")
 async def get_prowlarr_download_client_status(instance_id: int, db: AsyncSession = Depends(get_db_async)):
     """Indique si Prowlarr a lui-même un client de téléchargement actif."""
@@ -75,6 +79,7 @@ async def get_prowlarr_overview(instance_id: int, db: AsyncSession = Depends(get
     if inst.arr_type != "prowlarr":
         raise HTTPException(400, "Cette instance n'est pas une instance Prowlarr")
     return await prowlarr.get_overview_stats(inst.url, inst.api_key)
+
 
 @router.post("/prowlarr/grab")
 async def prowlarr_grab_release(body: ProwlarrGrabRequest, db: AsyncSession = Depends(get_db_async)):
@@ -95,7 +100,9 @@ async def prowlarr_grab_release(body: ProwlarrGrabRequest, db: AsyncSession = De
             await dispatch_transition_notification(settings, req, db, "submitted")
     return {"success": True, "message": msg}
 
+
 _search_cache: dict[tuple[str, str, int | None], tuple[float, list[dict]]] = {}
+
 
 @router.get("/search")
 async def search_prowlarr(
@@ -148,6 +155,7 @@ async def search_prowlarr(
     _search_cache[cache_key] = (now, formatted_results)
     return formatted_results
 
+
 @router.post("/download")
 async def download_release(body: DownloadReleaseRequest, db: AsyncSession = Depends(get_db_async)):
     await _reject_direct_download_when_arr_is_available(db, body.request_id)
@@ -179,6 +187,7 @@ async def download_release(body: DownloadReleaseRequest, db: AsyncSession = Depe
             await dispatch_transition_notification(settings, req, db, "submitted")
 
     return {"success": True, "message": msg, "info_hash": info_hash}
+
 
 @router.post("/download/file")
 async def download_torrent_file(

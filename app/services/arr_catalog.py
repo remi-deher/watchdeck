@@ -53,9 +53,7 @@ def _lock_for(key: tuple[str, str]) -> asyncio.Lock:
     return lock
 
 
-async def get_catalog(
-    arr_type: str, url: str, api_key: str, *, force_refresh: bool = False
-) -> list[dict] | None:
+async def get_catalog(arr_type: str, url: str, api_key: str, *, force_refresh: bool = False) -> list[dict] | None:
     """Catalogue complet d'une instance *arr, servi depuis le cache quand il est frais.
 
     `force_refresh` ignore le cache (voir « rafraîchissement sur échec » ci-dessus), tout en
@@ -103,5 +101,7 @@ def invalidate(arr_type: str | None = None, url: str | None = None) -> None:
         _cache.clear()
         return
     normalized = url.rstrip("/") if url else None
-    for key in [k for k in _cache if (arr_type is None or k[0] == arr_type) and (normalized is None or k[1] == normalized)]:
+    for key in [
+        k for k in _cache if (arr_type is None or k[0] == arr_type) and (normalized is None or k[1] == normalized)
+    ]:
         _cache.pop(key, None)

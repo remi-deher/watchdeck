@@ -201,6 +201,7 @@ async def test_calendar_is_cached_between_calls_with_same_params():
     """Deuxieme appel avec les memes parametres : ne doit pas retaper Sonarr -- c'est
     ce qui evite de bloquer le calendrier a chaque affichage (voir cache.get_or_refresh)."""
     from app.cache import cache
+
     cache._memory.clear()
     db = _make_db()
     db.add(ArrInstance(id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="key", enabled=True))
@@ -208,8 +209,12 @@ async def test_calendar_is_cached_between_calls_with_same_params():
 
     episodes = [
         {
-            "seasonNumber": 1, "episodeNumber": 1, "airDateUtc": "2026-07-10T00:00:00Z",
-            "title": "Pilot", "hasFile": False, "series": {"title": "Breaking Bad", "tvdbId": 81189},
+            "seasonNumber": 1,
+            "episodeNumber": 1,
+            "airDateUtc": "2026-07-10T00:00:00Z",
+            "title": "Pilot",
+            "hasFile": False,
+            "series": {"title": "Breaking Bad", "tvdbId": 81189},
         }
     ]
     with patch("app.routers.calendar_api.sonarr.get_calendar", new=AsyncMock(return_value=episodes)) as mock_cal:
@@ -223,6 +228,7 @@ async def test_calendar_is_cached_between_calls_with_same_params():
 async def test_calendar_filters_share_the_same_raw_cache():
     """Les filtres s'appliquent apres le cache brut sans rappeler Sonarr."""
     from app.cache import cache
+
     cache._memory.clear()
     db = _make_db()
     db.add(ArrInstance(id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="key", enabled=True))
@@ -230,8 +236,12 @@ async def test_calendar_filters_share_the_same_raw_cache():
 
     episodes = [
         {
-            "seasonNumber": 1, "episodeNumber": 1, "airDateUtc": "2026-07-10T00:00:00Z",
-            "title": "Breaking Bad", "hasFile": False, "series": {"title": "Breaking Bad", "tvdbId": 81189},
+            "seasonNumber": 1,
+            "episodeNumber": 1,
+            "airDateUtc": "2026-07-10T00:00:00Z",
+            "title": "Breaking Bad",
+            "hasFile": False,
+            "series": {"title": "Breaking Bad", "tvdbId": 81189},
         }
     ]
     with patch("app.routers.calendar_api.sonarr.get_calendar", new=AsyncMock(return_value=episodes)) as mock_cal:

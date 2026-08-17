@@ -38,6 +38,7 @@ _STATIC_ALLOWED_IMAGE_HOSTS = {
 _allowed_hosts_cache: tuple[float, set[str]] = (0.0, set())
 _allowed_hosts_lock = asyncio.Lock()
 
+
 async def _allowed_image_hosts() -> set[str]:
     """Hôtes vers lesquels /api/image-proxy est autorisé à faire une requête.
 
@@ -71,10 +72,12 @@ async def _allowed_image_hosts() -> set[str]:
         _allowed_hosts_cache = (time.monotonic(), hosts)
         return set(hosts)
 
+
 _IMAGE_CACHE_DIR = _os.path.join("data", "image_cache")
 
 _IMAGE_CACHE_TTL = 86400  # aligné sur le Cache-Control déjà envoyé au navigateur
 _image_locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
+
 
 def _image_cache_paths(url: str) -> tuple[str, str]:
     digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
@@ -82,6 +85,7 @@ def _image_cache_paths(url: str) -> tuple[str, str]:
         _os.path.join(_IMAGE_CACHE_DIR, f"{digest}.bin"),
         _os.path.join(_IMAGE_CACHE_DIR, f"{digest}.meta"),
     )
+
 
 def _read_image_meta(url: str) -> tuple[str, float] | None:
     """Lit le seul fichier .meta (quelques octets), sans toucher a l'image elle-meme.
@@ -108,6 +112,7 @@ def _read_image_cache(url: str) -> tuple[bytes, str, float] | None:
         return content, content_type, float(cached_at)
     except Exception:
         return None
+
 
 def _write_image_cache(url: str, content: bytes, content_type: str, cached_at: float) -> None:
     """`cached_at` est fourni par l'appelant plutot que pris ici : il entre dans l'ETag,
@@ -166,6 +171,7 @@ def _variant_etag(variant_key: str, cached_at: float) -> str:
 def _image_response(content: bytes, content_type: str, etag: str) -> Response:
     return Response(content=content, media_type=content_type, headers={**_CACHE_HEADERS, "ETag": etag})
 
+
 @router.get("/image-proxy", dependencies=[Depends(require_auth)])
 async def image_proxy(
     request: Request,
@@ -214,9 +220,7 @@ async def image_proxy(
         source = await asyncio.to_thread(_read_image_cache, safe_url)
         if not source or time.time() - source[2] >= _IMAGE_CACHE_TTL:
             try:
-                async with httpx.AsyncClient(
-                    timeout=15, follow_redirects=False, verify=False
-                ) as client:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=False, verify=False) as client:
                     upstream = await client.get(safe_url)
                     if upstream.is_redirect:
                         # Plex redirige vers sa propre CDN (images.plex.tv, elle-meme
@@ -233,26 +237,23 @@ async def image_proxy(
                         else:
                             logger.warning(
                                 "Image proxy: redirection vers un hote non autorise refusee (%s -> %s)",
-                                safe_url, redirect_target,
+                                safe_url,
+                                redirect_target,
                             )
                     upstream.raise_for_status()
-                content_type = upstream.headers.get(
-                    "content-type", "application/octet-stream"
-                ).split(";")[0].strip().lower()
+                content_type = (
+                    upstream.headers.get("content-type", "application/octet-stream").split(";")[0].strip().lower()
+                )
                 if not content_type.startswith("image/"):
                     raise HTTPException(415, "La ressource n'est pas une image")
                 fetched_at = time.time()
                 source = (upstream.content, content_type, fetched_at)
-                await asyncio.to_thread(
-                    _write_image_cache, safe_url, upstream.content, content_type, fetched_at
-                )
+                await asyncio.to_thread(_write_image_cache, safe_url, upstream.content, content_type, fetched_at)
             except HTTPException:
                 raise
             except Exception as exc:
                 if not source:
-                    raise HTTPException(
-                        502, f"Image inaccessible: {safe_error_message(exc)}"
-                    ) from exc
+                    raise HTTPException(502, f"Image inaccessible: {safe_error_message(exc)}") from exc
                 logger.warning(
                     "Image inaccessible, repli sur le cache périmé pour %s: %s",
                     safe_url,
@@ -268,9 +269,7 @@ async def image_proxy(
             except ValueError as exc:
                 raise HTTPException(415, str(exc)) from exc
             variant_cached_at = time.time()
-            await asyncio.to_thread(
-                _write_image_cache, variant_key, content, content_type, variant_cached_at
-            )
+            await asyncio.to_thread(_write_image_cache, variant_key, content, content_type, variant_cached_at)
         return _image_response(content, content_type, _variant_etag(variant_key, variant_cached_at))
 
 
@@ -285,9 +284,7 @@ async def library_image_proxy(
 ):
     """Sert une affiche Plex sans révéler son URL signée au navigateur."""
     async with AsyncSessionLocal() as db:
-        item = (
-            await db.execute(select(LibraryItem).filter(LibraryItem.id == library_item_id))
-        ).scalars().first()
+        item = (await db.execute(select(LibraryItem).filter(LibraryItem.id == library_item_id))).scalars().first()
     if not item or not item.poster_url:
         raise HTTPException(404, "Affiche introuvable")
     return await image_proxy(
@@ -311,9 +308,7 @@ async def request_image_proxy(
 ):
     """Sert l'affiche d'une demande sans révéler son éventuelle URL Plex signée."""
     async with AsyncSessionLocal() as db:
-        media_request = (
-            await db.execute(select(MediaRequest).filter(MediaRequest.id == request_id))
-        ).scalars().first()
+        media_request = (await db.execute(select(MediaRequest).filter(MediaRequest.id == request_id))).scalars().first()
     if not media_request or not media_request.poster_url:
         raise HTTPException(404, "Affiche introuvable")
     return await image_proxy(

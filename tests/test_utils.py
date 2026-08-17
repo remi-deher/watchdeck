@@ -117,4 +117,3 @@ async def test_run_section_safe_fallback():
     res, err = await run_section_safe(_unconfigured_loader(), "trending", default=None)
     assert res is None
     assert err == "Clé API TMDB non configurée."
-

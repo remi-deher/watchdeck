@@ -23,6 +23,7 @@ from .seer import request_media as seer_request
 
 logger = logging.getLogger(__name__)
 
+
 def _parse_seer_dt(iso: str | None) -> datetime | None:
     """Convertit une chaîne ISO 8601 Seer en datetime UTC naïf."""
     if not iso:
@@ -37,9 +38,17 @@ def _parse_seer_dt(iso: str | None) -> datetime | None:
 async def _merge_seer_only_user(db: AsyncSession, target: PlexUser, info: dict) -> bool:
     """Fusionne l'ancien utilisateur synthetique seer:{id} dans le vrai PlexUser."""
     synthetic_id = f"seer:{info['id']}"
-    seer_user = (await db.execute(
-        select(PlexUser).filter(PlexUser.plex_user_id == synthetic_id, PlexUser.id != target.id, PlexUser.source == "seer")
-    )).scalars().first()
+    seer_user = (
+        (
+            await db.execute(
+                select(PlexUser).filter(
+                    PlexUser.plex_user_id == synthetic_id, PlexUser.id != target.id, PlexUser.source == "seer"
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
     if not seer_user:
         return False
 
@@ -97,7 +106,9 @@ async def sync_seer_users():
         updated = 0
         # Les utilisateurs source="seer" sont gérés en passe 4, pas ici
         matched_seer_ids: set[int] = {
-            u.seer_user_id for u in (await db.execute(select(PlexUser))).scalars().all() if u.seer_user_id and u.source != "seer"
+            u.seer_user_id
+            for u in (await db.execute(select(PlexUser))).scalars().all()
+            if u.seer_user_id and u.source != "seer"
         }
 
         all_plex_users = (await db.execute(select(PlexUser))).scalars().all()
@@ -165,12 +176,14 @@ async def sync_seer_users():
                     seer_media_map[seer_info["id"]] = tmdb_ids
 
             for user in unmatched_plex:
-                rows = (await db.execute(
-                    select(MediaRequest.tmdb_id).filter(
-                        MediaRequest.plex_user_id == user.plex_user_id,
-                        MediaRequest.tmdb_id.isnot(None),
+                rows = (
+                    await db.execute(
+                        select(MediaRequest.tmdb_id).filter(
+                            MediaRequest.plex_user_id == user.plex_user_id,
+                            MediaRequest.tmdb_id.isnot(None),
+                        )
                     )
-                )).all()
+                ).all()
                 user_tmdb_ids = {r[0] for r in rows}
                 if len(user_tmdb_ids) < 2:
                     continue
@@ -201,9 +214,9 @@ async def sync_seer_users():
             if info["id"] in matched_seer_ids:
                 continue
             synthetic_id = f"seer:{info['id']}"
-            existing = (await db.execute(
-                select(PlexUser).filter(PlexUser.plex_user_id == synthetic_id)
-            )).scalars().first()
+            existing = (
+                (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == synthetic_id))).scalars().first()
+            )
             if existing:
                 # Mettre à jour les infos si elles ont changé
                 changed = False
@@ -261,9 +274,7 @@ async def sync_seer_requests():
         if resolve_mode(settings) is None:
             return
 
-        matched_users = (await db.execute(
-            select(PlexUser).filter(PlexUser.seer_user_id.isnot(None))
-        )).scalars().all()
+        matched_users = (await db.execute(select(PlexUser).filter(PlexUser.seer_user_id.isnot(None)))).scalars().all()
         if not matched_users:
             logger.info("Seer sync requests: aucun utilisateur associé à Seer")
             return
@@ -331,9 +342,7 @@ async def sync_seer_requests():
                             f"createdAt absent — requested_at non corrigé (valeur actuelle: {existing.requested_at})"
                         )
                     plex_confirmed = (
-                        await should_confirm_available(db, existing, settings=settings)
-                        if is_available
-                        else False
+                        await should_confirm_available(db, existing, settings=settings) if is_available else False
                     )
                     if is_available and plex_confirmed and existing.status != RequestStatus.available:
                         existing.arr_id = existing.arr_id or req["seer_request_id"]

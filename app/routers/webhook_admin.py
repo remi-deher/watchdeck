@@ -41,6 +41,7 @@ def webhook_status():
         "plex": _fmt(_last_webhook_test["plex"]),
     }
 
+
 async def _check_live_plex() -> dict:
     """Vérifie l'état du webhook Plex à partir du dernier événement réellement reçu.
 
@@ -86,6 +87,7 @@ async def _check_live_plex() -> dict:
         ),
     }
 
+
 @router.post("/check-live/{service}", dependencies=[Depends(require_admin)])
 async def check_live_webhook(service: str, instance_id: int | None = None):
     """Déclenche depuis Sonarr/Radarr un test réel du connecteur Webhook pointant vers cette app.
@@ -108,12 +110,24 @@ async def check_live_webhook(service: str, instance_id: int | None = None):
     db: AsyncSession = AsyncSessionLocal()
     try:
         if instance_id is not None:
-            inst = (await db.execute(select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == service))).scalars().first()
+            inst = (
+                (
+                    await db.execute(
+                        select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == service)
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if not inst:
                 raise HTTPException(status_code=404, detail="Instance introuvable")
             instances = [inst]
         else:
-            instances = (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == service, ArrInstance.enabled))).scalars().all()
+            instances = (
+                (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == service, ArrInstance.enabled)))
+                .scalars()
+                .all()
+            )
             if not instances:
                 settings = (await db.execute(select(Settings))).scalars().first()
                 url = getattr(settings, f"{service}_url", None) if settings else None
@@ -169,6 +183,7 @@ async def check_live_webhook(service: str, instance_id: int | None = None):
     finally:
         await db.close()
 
+
 _WEBHOOK_EVENT_FLAGS: dict[str, dict[str, bool]] = {
     # Evenements requis pour que webhook.py traite correctement les notifications (voir
     # sonarr_webhook/radarr_webhook ci-dessus : eventType in ("Download", "Import") pour la
@@ -208,8 +223,10 @@ _WEBHOOK_EVENT_FLAGS: dict[str, dict[str, bool]] = {
     },
 }
 
+
 class ConfigureWebhookRequest(BaseModel):
     webhook_url: str
+
 
 @router.post("/configure/{service}", dependencies=[Depends(require_admin)])
 async def configure_webhook(service: str, body: ConfigureWebhookRequest, instance_id: int | None = None):
@@ -231,12 +248,24 @@ async def configure_webhook(service: str, body: ConfigureWebhookRequest, instanc
     db: AsyncSession = AsyncSessionLocal()
     try:
         if instance_id is not None:
-            inst = (await db.execute(select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == service))).scalars().first()
+            inst = (
+                (
+                    await db.execute(
+                        select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == service)
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if not inst:
                 raise HTTPException(status_code=404, detail="Instance introuvable")
             instances = [inst]
         else:
-            instances = (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == service, ArrInstance.enabled))).scalars().all()
+            instances = (
+                (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == service, ArrInstance.enabled)))
+                .scalars()
+                .all()
+            )
             if not instances:
                 settings = (await db.execute(select(Settings))).scalars().first()
                 url = getattr(settings, f"{service}_url", None) if settings else None
@@ -271,7 +300,9 @@ async def configure_webhook(service: str, body: ConfigureWebhookRequest, instanc
                             changed = True
                     if changed:
                         await client.update_notification(inst.url, inst.api_key, existing)
-                        entry.update({"success": True, "message": "Connecteur existant corrigé (événements manquants activés)."})
+                        entry.update(
+                            {"success": True, "message": "Connecteur existant corrigé (événements manquants activés)."}
+                        )
                     else:
                         entry.update({"success": True, "message": "Déjà correctement configuré."})
                 else:
@@ -291,6 +322,7 @@ async def configure_webhook(service: str, body: ConfigureWebhookRequest, instanc
     finally:
         await db.close()
 
+
 @router.get("/plex-connector-status/{service}", dependencies=[Depends(require_admin)])
 async def plex_connector_status(service: str, instance_id: int | None = None):
     """Vérifie si Sonarr/Radarr a déjà un connecteur natif "Plex Media Server" actif.
@@ -307,12 +339,24 @@ async def plex_connector_status(service: str, instance_id: int | None = None):
     db: AsyncSession = AsyncSessionLocal()
     try:
         if instance_id is not None:
-            inst = (await db.execute(select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == service))).scalars().first()
+            inst = (
+                (
+                    await db.execute(
+                        select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.arr_type == service)
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if not inst:
                 raise HTTPException(status_code=404, detail="Instance introuvable")
             instances = [inst]
         else:
-            instances = (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == service, ArrInstance.enabled))).scalars().all()
+            instances = (
+                (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == service, ArrInstance.enabled)))
+                .scalars()
+                .all()
+            )
             if not instances:
                 settings = (await db.execute(select(Settings))).scalars().first()
                 url = getattr(settings, f"{service}_url", None) if settings else None

@@ -11,11 +11,13 @@ from app.services.operational_projection import (
 
 
 def test_arr_origin_does_not_invent_user_request():
-    projection = request_operational_projection(SimpleNamespace(
-        source="arr_sync",
-        fulfillment_status=FulfillmentStatus.downloading,
-        fulfillment_error=None,
-    ))
+    projection = request_operational_projection(
+        SimpleNamespace(
+            source="arr_sync",
+            fulfillment_status=FulfillmentStatus.downloading,
+            fulfillment_error=None,
+        )
+    )
 
     assert projection["origin_kind"] == "arr"
     assert projection["origin_label"] == "Ajoute directement dans *ARR"
@@ -39,22 +41,26 @@ def test_plex_only_projection_is_immediately_available():
     assert projection["origin_kind"] == "plex"
     assert projection["operational_status"] == "completed"
     assert projection["waiting_reason"] is None
-    assert projection["workflow_timeline"] == [{
-        "key": "completed",
-        "label": "Deja present dans Plex",
-        "state": "completed",
-        "occurred_at": None,
-    }]
+    assert projection["workflow_timeline"] == [
+        {
+            "key": "completed",
+            "label": "Deja present dans Plex",
+            "state": "completed",
+            "occurred_at": None,
+        }
+    ]
 
 
 def test_pending_approval_timeline_has_only_one_current_step():
-    projection = request_operational_projection(SimpleNamespace(
-        source="rss",
-        fulfillment_status=FulfillmentStatus.not_submitted,
-        fulfillment_error=None,
-        requested_at=None,
-        approved_at=None,
-    ))
+    projection = request_operational_projection(
+        SimpleNamespace(
+            source="rss",
+            fulfillment_status=FulfillmentStatus.not_submitted,
+            fulfillment_error=None,
+            requested_at=None,
+            approved_at=None,
+        )
+    )
 
     current = [step["key"] for step in projection["workflow_timeline"] if step["state"] == "current"]
     assert current == ["approval"]
@@ -67,13 +73,15 @@ def test_occurred_at_carries_explicit_utc_offset():
     d'UTC, decalant l'affichage de l'ecart local (2h en France l'ete) -- voir
     app.serializers.format_datetime, deja utilise ailleurs pour ce meme motif."""
     naive_utc = datetime(2026, 8, 9, 22, 41, 32)
-    projection = request_operational_projection(SimpleNamespace(
-        source="rss",
-        fulfillment_status=FulfillmentStatus.not_submitted,
-        fulfillment_error=None,
-        requested_at=naive_utc,
-        approved_at=None,
-    ))
+    projection = request_operational_projection(
+        SimpleNamespace(
+            source="rss",
+            fulfillment_status=FulfillmentStatus.not_submitted,
+            fulfillment_error=None,
+            requested_at=naive_utc,
+            approved_at=None,
+        )
+    )
 
     requested_step = next(step for step in projection["workflow_timeline"] if step["key"] == "requested")
     assert requested_step["occurred_at"] == "2026-08-09T22:41:32+00:00"
@@ -120,8 +128,10 @@ def test_build_media_history_ignores_first_diagnostic_event_per_request():
 
 def test_build_media_history_open_issue_has_no_resolved_event():
     issue = SimpleNamespace(
-        issue_type="audio", created_at=datetime(2026, 8, 1, 9, 0, 0),
-        status="open", updated_at=datetime(2026, 8, 1, 9, 0, 0),
+        issue_type="audio",
+        created_at=datetime(2026, 8, 1, 9, 0, 0),
+        status="open",
+        updated_at=datetime(2026, 8, 1, 9, 0, 0),
     )
     events = build_media_history([], [], [issue])
     assert len(events) == 1
@@ -131,8 +141,10 @@ def test_build_media_history_open_issue_has_no_resolved_event():
 
 def test_build_media_history_closed_issue_has_two_events():
     issue = SimpleNamespace(
-        issue_type="audio", created_at=datetime(2026, 8, 1, 9, 0, 0),
-        status="closed", updated_at=datetime(2026, 8, 2, 9, 0, 0),
+        issue_type="audio",
+        created_at=datetime(2026, 8, 1, 9, 0, 0),
+        status="closed",
+        updated_at=datetime(2026, 8, 2, 9, 0, 0),
     )
     events = build_media_history([], [], [issue])
     assert [event["label"] for event in events] == ["Signalement resolu", "Signalement ouvert : audio"]
@@ -141,12 +153,17 @@ def test_build_media_history_closed_issue_has_two_events():
 
 def test_build_media_history_sorts_all_sources_by_date_descending():
     suggestion = SimpleNamespace(
-        accepted_at=datetime(2026, 8, 5), completed_at=None, failed_at=None,
+        accepted_at=datetime(2026, 8, 5),
+        completed_at=None,
+        failed_at=None,
     )
     diag = SimpleNamespace(request_id=1, created_at=datetime(2026, 8, 10))
     seen_first = SimpleNamespace(request_id=1, created_at=datetime(2026, 7, 1))
     issue = SimpleNamespace(
-        issue_type="video", created_at=datetime(2026, 8, 1), status="open", updated_at=datetime(2026, 8, 1),
+        issue_type="video",
+        created_at=datetime(2026, 8, 1),
+        status="open",
+        updated_at=datetime(2026, 8, 1),
     )
     events = build_media_history([suggestion], [seen_first, diag], [issue])
 

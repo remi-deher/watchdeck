@@ -48,13 +48,17 @@ async def manual_import_download(body: ManualImportRequest, db: AsyncSession = D
     tvdb_str = str(body.tvdb_id) if body.tvdb_id else None
 
     existing = (
-        await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.arr_instance_id == inst.id,
-                MediaRequest.arr_id == body.arr_id,
+        (
+            await db.execute(
+                select(MediaRequest).filter(
+                    MediaRequest.arr_instance_id == inst.id,
+                    MediaRequest.arr_id == body.arr_id,
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if not existing and tmdb_str:
         existing = (await db.execute(select(MediaRequest).filter(MediaRequest.tmdb_id == tmdb_str))).scalars().first()
     if not existing and tvdb_str:

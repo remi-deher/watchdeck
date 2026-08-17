@@ -58,11 +58,23 @@ async def _timed_check(coro) -> tuple[bool | None, str, float | None]:
 
 async def _preferred_instance(db: AsyncSession, arr_type: str) -> ArrInstance | None:
     inst = (
-        (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == arr_type, ArrInstance.enabled, ArrInstance.is_default))).scalars().first()
+        (
+            await db.execute(
+                select(ArrInstance).filter(
+                    ArrInstance.arr_type == arr_type, ArrInstance.enabled, ArrInstance.is_default
+                )
+            )
+        )
+        .scalars()
+        .first()
     )
     if inst:
         return inst
-    return (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == arr_type, ArrInstance.enabled))).scalars().first()
+    return (
+        (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == arr_type, ArrInstance.enabled)))
+        .scalars()
+        .first()
+    )
 
 
 def _not_configured(message: str = "Non configure") -> dict:
@@ -88,7 +100,9 @@ def _disabled(message: str = "Desactive") -> dict:
 
 
 async def _missing_arr_state(db: AsyncSession, arr_type: str) -> dict:
-    exists = (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == arr_type))).scalars().first() is not None
+    exists = (
+        await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == arr_type))
+    ).scalars().first() is not None
     return _disabled("Instance configuree mais desactivee") if exists else _not_configured("Aucune instance configuree")
 
 
@@ -194,9 +208,21 @@ async def health_check(db: AsyncSession = Depends(get_db_async)):
 async def get_metrics(db: AsyncSession = Depends(get_db_async)):
     """Métriques runtime (session courante) + agrégats DB (total historique)."""
     total = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest))).scalar()
-    available = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "available"))).scalar()
-    failed = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "failed"))).scalar()
-    notif_sent = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.available_mail_sent.is_(True)))).scalar()
+    available = (
+        await db.execute(
+            select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "available")
+        )
+    ).scalar()
+    failed = (
+        await db.execute(
+            select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "failed")
+        )
+    ).scalar()
+    notif_sent = (
+        await db.execute(
+            select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.available_mail_sent.is_(True))
+        )
+    ).scalar()
     notif_missed = (
         await db.execute(
             select(sqlalchemy.func.count())
@@ -277,10 +303,26 @@ async def prometheus_metrics(db: AsyncSession = Depends(get_db_async)):
     infrastructure = await _infrastructure_metrics()
 
     total = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest))).scalar()
-    available = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "available"))).scalar()
-    failed_db = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "failed"))).scalar()
-    pending = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "pending"))).scalar()
-    sent = (await db.execute(select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "sent_to_arr"))).scalar()
+    available = (
+        await db.execute(
+            select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "available")
+        )
+    ).scalar()
+    failed_db = (
+        await db.execute(
+            select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "failed")
+        )
+    ).scalar()
+    pending = (
+        await db.execute(
+            select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "pending")
+        )
+    ).scalar()
+    sent = (
+        await db.execute(
+            select(sqlalchemy.func.count()).select_from(MediaRequest).filter(MediaRequest.status == "sent_to_arr")
+        )
+    ).scalar()
 
     lines = [
         "# HELP plex_rss_poll_total Total number of watchlist polls since startup",
@@ -341,6 +383,7 @@ async def stats_timeline(db: AsyncSession = Depends(get_db_async)):
 
     days = 30
     start = now_utc_naive() - timedelta(days=days)
+
     async def daily_counts(column, *filters):
         rows = (
             await db.execute(
@@ -378,8 +421,16 @@ async def stats_by_user(db: AsyncSession = Depends(get_db_async)):
     """Retourne le nombre de demandes par utilisateur, trié par volume décroissant."""
     from sqlalchemy import func
 
-    rows = (await db.execute(select(MediaRequest.plex_user_id, func.count().label("total")).group_by(MediaRequest.plex_user_id).order_by(func.count().desc()))).all()
-    users = {u.plex_user_id: (u.display_name or u.plex_user_id) for u in (await db.execute(select(PlexUser))).scalars().all()}
+    rows = (
+        await db.execute(
+            select(MediaRequest.plex_user_id, func.count().label("total"))
+            .group_by(MediaRequest.plex_user_id)
+            .order_by(func.count().desc())
+        )
+    ).all()
+    users = {
+        u.plex_user_id: (u.display_name or u.plex_user_id) for u in (await db.execute(select(PlexUser))).scalars().all()
+    }
     return [
         {"plex_user_id": r.plex_user_id, "display_name": users.get(r.plex_user_id, r.plex_user_id), "total": r.total}
         for r in rows
@@ -441,20 +492,24 @@ async def _count_incomplete_show_requests(db: AsyncSession) -> int:
     """
     from sqlalchemy import and_, func, or_
 
-    return (await db.execute(
-        select(func.count()).select_from(MediaRequest).filter(
-            MediaRequest.media_type == "show",
-            or_(
-                MediaRequest.status == RequestStatus.sent_to_arr,
-                and_(
-                    MediaRequest.status == RequestStatus.partially_available,
-                    MediaRequest.episodes_aired_count.isnot(None),
-                    MediaRequest.episodes_aired_count > 0,
-                    MediaRequest.episodes_available_count < MediaRequest.episodes_aired_count,
+    return (
+        await db.execute(
+            select(func.count())
+            .select_from(MediaRequest)
+            .filter(
+                MediaRequest.media_type == "show",
+                or_(
+                    MediaRequest.status == RequestStatus.sent_to_arr,
+                    and_(
+                        MediaRequest.status == RequestStatus.partially_available,
+                        MediaRequest.episodes_aired_count.isnot(None),
+                        MediaRequest.episodes_aired_count > 0,
+                        MediaRequest.episodes_available_count < MediaRequest.episodes_aired_count,
+                    ),
                 ),
-            ),
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
 
 @router.get("/stats/counts")
@@ -462,7 +517,13 @@ async def stats_counts(db: AsyncSession = Depends(get_db_async)):
     """Retourne les compteurs par statut, globaux et ventilés par type de média."""
     from sqlalchemy import func
 
-    rows = (await db.execute(select(MediaRequest.media_type, MediaRequest.status, func.count().label("n")).group_by(MediaRequest.media_type, MediaRequest.status))).all()
+    rows = (
+        await db.execute(
+            select(MediaRequest.media_type, MediaRequest.status, func.count().label("n")).group_by(
+                MediaRequest.media_type, MediaRequest.status
+            )
+        )
+    ).all()
 
     def _empty():
         return {"failed": 0, "pending": 0, "sent_to_arr": 0, "available": 0, "total": 0}
@@ -499,9 +560,17 @@ async def stats_counts(db: AsyncSession = Depends(get_db_async)):
 @router.get("/stats/top-requested")
 async def stats_top_requested(db: AsyncSession = Depends(get_db_async), limit: int = 5):
     """Retourne les demandes ayant le plus de co-demandeurs (les plus réclamées)."""
-    rows = (await db.execute(
-        select(MediaRequest).filter(MediaRequest.extra_requesters.isnot(None), MediaRequest.extra_requesters != "[]")
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(MediaRequest).filter(
+                    MediaRequest.extra_requesters.isnot(None), MediaRequest.extra_requesters != "[]"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     items = []
     for r in rows:
         extras = _json.loads(r.extra_requesters or "[]")
@@ -525,12 +594,18 @@ async def stats_top_requested(db: AsyncSession = Depends(get_db_async), limit: i
 @router.get("/stats/recently-available")
 async def stats_recently_available(db: AsyncSession = Depends(get_db_async), limit: int = 5):
     """Retourne les dernieres demandes devenues disponibles."""
-    items = (await db.execute(
-        select(MediaRequest)
-        .filter(MediaRequest.status == "available")
-        .order_by(MediaRequest.available_at.desc(), MediaRequest.requested_at.desc())
-        .limit(limit)
-    )).scalars().all()
+    items = (
+        (
+            await db.execute(
+                select(MediaRequest)
+                .filter(MediaRequest.status == "available")
+                .order_by(MediaRequest.available_at.desc(), MediaRequest.requested_at.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [
         {
             "id": r.id,
@@ -548,13 +623,15 @@ async def stats_recently_available(db: AsyncSession = Depends(get_db_async), lim
 @router.get("/stats/recent-requests")
 async def stats_recent_requests(db: AsyncSession = Depends(get_db_async), limit: int = 10):
     """Retourne les dernières demandes enregistrées."""
-    items = (await db.execute(
-        select(MediaRequest)
-        .order_by(MediaRequest.requested_at.desc())
-        .limit(limit)
-    )).scalars().all()
+    items = (
+        (await db.execute(select(MediaRequest).order_by(MediaRequest.requested_at.desc()).limit(limit))).scalars().all()
+    )
     from ..serializers import serialize_media_request
-    users = {u.plex_user_id: (u.custom_name or u.display_name or u.plex_user_id) for u in (await db.execute(select(PlexUser))).scalars().all()}
+
+    users = {
+        u.plex_user_id: (u.custom_name or u.display_name or u.plex_user_id)
+        for u in (await db.execute(select(PlexUser))).scalars().all()
+    }
     return [serialize_media_request(r, users) for r in items]
 
 
@@ -578,7 +655,15 @@ async def _compute_disk_space(db: AsyncSession) -> list[dict]:
             pass
 
     instances = (
-        (await db.execute(select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type.in_(["sonarr", "radarr"])).order_by(ArrInstance.arr_type, ArrInstance.is_default.desc(), ArrInstance.name))).scalars().all()
+        (
+            await db.execute(
+                select(ArrInstance)
+                .filter(ArrInstance.enabled, ArrInstance.arr_type.in_(["sonarr", "radarr"]))
+                .order_by(ArrInstance.arr_type, ArrInstance.is_default.desc(), ArrInstance.name)
+            )
+        )
+        .scalars()
+        .all()
     )
     for inst in instances:
         label = f"{inst.name} ({inst.arr_type.title()})"
@@ -599,11 +684,15 @@ async def disk_space(db: AsyncSession = Depends(get_db_async)):
     tout le tableau de bord derrière lui (voir DashboardView.vue) alors que le reste
     du tableau de bord (stats/*, onboarding, etc.) n'est que des requêtes DB rapides.
     """
+
     async def _background():
         async with AsyncSessionLocal() as fresh_db:
             return await _compute_disk_space(fresh_db)
 
     return await cache.get_or_refresh(
-        _DISK_SPACE_CACHE_KEY, _DISK_SPACE_SOFT_TTL, _DISK_SPACE_HARD_TTL,
-        compute_sync=lambda: _compute_disk_space(db), compute_background=_background,
+        _DISK_SPACE_CACHE_KEY,
+        _DISK_SPACE_SOFT_TTL,
+        _DISK_SPACE_HARD_TTL,
+        compute_sync=lambda: _compute_disk_space(db),
+        compute_background=_background,
     )

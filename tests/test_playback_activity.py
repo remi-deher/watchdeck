@@ -170,16 +170,20 @@ async def test_tautulli_import_persists_anonymized_ip_and_geo_status(async_db):
     response.json.return_value = {
         "response": {
             "result": "success",
-            "data": {"data": [{
-                "reference_id": "tautulli-with-ip",
-                "title": "Film distant",
-                "media_type": "movie",
-                "ip_address": "82.64.10.20",
-                "location": "wan",
-                "started": 1_786_000_000,
-                "stopped": 1_786_003_600,
-                "play_duration": 3600,
-            }]},
+            "data": {
+                "data": [
+                    {
+                        "reference_id": "tautulli-with-ip",
+                        "title": "Film distant",
+                        "media_type": "movie",
+                        "ip_address": "82.64.10.20",
+                        "location": "wan",
+                        "started": 1_786_000_000,
+                        "stopped": 1_786_003_600,
+                        "play_duration": 3600,
+                    }
+                ]
+            },
         }
     }
     client = _mock_httpx_client(response)
@@ -199,9 +203,7 @@ async def test_tautulli_import_persists_anonymized_ip_and_geo_status(async_db):
 
 @pytest.mark.asyncio
 async def test_tautulli_import_expands_grouped_history_without_double_counting(async_db):
-    async_db.add(
-        Settings(id=1, tautulli_url="http://tautulli.local", tautulli_api_key="secret")
-    )
+    async_db.add(Settings(id=1, tautulli_url="http://tautulli.local", tautulli_api_key="secret"))
     async_db.add(
         PlaybackSession(
             source="tautulli",
@@ -271,29 +273,31 @@ async def test_location_recalculation_fills_missing_and_preserves_existing(async
     adresse -- sans jamais réécrire la ville/le pays déjà connus ni appeler le
     fournisseur pour l'adresse locale."""
     async_db.add(Settings(id=1, activity_anonymize_ips=False))
-    async_db.add_all([
-        PlaybackSession(
-            source="tautulli",
-            source_session_id="located",
-            title="Localisation historique",
-            player_address="82.64.10.20",
-            geo_status="resolved",
-            geo_city="Paris historique",
-            geo_country="France",
-        ),
-        PlaybackSession(
-            source="tautulli",
-            source_session_id="missing",
-            title="Sans localisation",
-            player_address="82.64.10.20",
-        ),
-        PlaybackSession(
-            source="plex",
-            source_session_id="local",
-            title="Lecture locale",
-            player_address="192.168.1.25",
-        ),
-    ])
+    async_db.add_all(
+        [
+            PlaybackSession(
+                source="tautulli",
+                source_session_id="located",
+                title="Localisation historique",
+                player_address="82.64.10.20",
+                geo_status="resolved",
+                geo_city="Paris historique",
+                geo_country="France",
+            ),
+            PlaybackSession(
+                source="tautulli",
+                source_session_id="missing",
+                title="Sans localisation",
+                player_address="82.64.10.20",
+            ),
+            PlaybackSession(
+                source="plex",
+                source_session_id="local",
+                title="Lecture locale",
+                player_address="192.168.1.25",
+            ),
+        ]
+    )
     async_db.commit()
 
     network = {"geo_isp": "Orange S.A.", "geo_organization": "POP DIJ", "geo_asn": "AS3215"}
@@ -427,9 +431,7 @@ def test_serialize_routes_relative_plex_thumb_through_authenticated_endpoint():
         title="Film",
         thumb_url="/library/metadata/123/thumb/456",
     )
-    assert _serialize(row)["thumb_url"] == (
-        "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F123%2Fthumb%2F456"
-    )
+    assert _serialize(row)["thumb_url"] == ("/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F123%2Fthumb%2F456")
 
 
 def test_serialize_rebuilds_missing_imported_thumb_from_rating_key():
@@ -439,9 +441,7 @@ def test_serialize_rebuilds_missing_imported_thumb_from_rating_key():
         title="Film importé",
         rating_key="987",
     )
-    assert _serialize(row)["thumb_url"] == (
-        "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F987%2Fthumb"
-    )
+    assert _serialize(row)["thumb_url"] == ("/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F987%2Fthumb")
 
 
 def test_serialize_extracts_plex_path_from_tautulli_image_proxy():
@@ -451,9 +451,7 @@ def test_serialize_extracts_plex_path_from_tautulli_image_proxy():
         title="Épisode importé",
         thumb_url="/pms_image_proxy?img=%2Flibrary%2Fmetadata%2F456%2Fthumb%2F789",
     )
-    assert _serialize(row)["thumb_url"] == (
-        "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F456%2Fthumb%2F789"
-    )
+    assert _serialize(row)["thumb_url"] == ("/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F456%2Fthumb%2F789")
 
 
 def test_playback_thumb_rejects_external_url(client):
@@ -644,9 +642,7 @@ PRODUCTION_PAUSED_SESSION_XML = """
 
 @pytest.mark.asyncio
 async def test_live_collection_persists_a_production_like_paused_plex_session(async_db):
-    async_db.add(
-        Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok")
-    )
+    async_db.add(Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"))
     async_db.commit()
 
     client = _mock_httpx_client(_plex_response(PRODUCTION_PAUSED_SESSION_XML))
@@ -670,9 +666,7 @@ async def test_live_collection_persists_a_production_like_paused_plex_session(as
 
 @pytest.mark.asyncio
 async def test_disabled_live_collection_does_not_hide_its_configuration_state(async_db):
-    async_db.add(
-        Settings(id=1, live_activity_enabled=False, plex_url="http://plex.local:32400", plex_token="tok")
-    )
+    async_db.add(Settings(id=1, live_activity_enabled=False, plex_url="http://plex.local:32400", plex_token="tok"))
     async_db.commit()
 
     client = _mock_httpx_client(_plex_response(PRODUCTION_PAUSED_SESSION_XML))
@@ -690,9 +684,7 @@ async def test_disabled_live_collection_does_not_hide_its_configuration_state(as
 
 @pytest.mark.asyncio
 async def test_session_id_rotation_adopts_existing_row_via_session_key(async_db):
-    async_db.add(
-        Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok")
-    )
+    async_db.add(Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"))
     async_db.add(
         PlaybackSession(
             source="plex",
@@ -711,9 +703,7 @@ async def test_session_id_rotation_adopts_existing_row_via_session_key(async_db)
     ):
         await _collect_plex_activity_unlocked()
 
-    rows = (
-        await async_db.execute(select(PlaybackSession).filter(PlaybackSession.source == "plex"))
-    ).scalars().all()
+    rows = (await async_db.execute(select(PlaybackSession).filter(PlaybackSession.source == "plex"))).scalars().all()
     assert len(rows) == 1
     assert rows[0].source_session_id == "new-key"
     assert rows[0].session_key == 5
@@ -743,10 +733,12 @@ async def test_stale_session_is_closed_and_resume_gets_a_new_row(async_db):
         started_at=now - timedelta(hours=1),
         last_seen_at=last_seen,
     )
-    async_db.add_all([
-        Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"),
-        old,
-    ])
+    async_db.add_all(
+        [
+            Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"),
+            old,
+        ]
+    )
     async_db.commit()
 
     client = _mock_httpx_client(_plex_response(PLEX_SESSIONS_XML))
@@ -791,10 +783,12 @@ async def test_resume_after_more_than_24_hours_starts_an_unrelated_group(async_d
         # dernier signal est recent, mais sa date de debut depasse la borne de 7 jours.
         last_seen_at=now,
     )
-    async_db.add_all([
-        Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"),
-        old,
-    ])
+    async_db.add_all(
+        [
+            Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"),
+            old,
+        ]
+    )
     async_db.commit()
 
     client = _mock_httpx_client(_plex_response(PLEX_SESSIONS_XML))
@@ -863,9 +857,7 @@ async def test_websocket_does_not_revive_a_stale_session(async_db):
 
 @pytest.mark.asyncio
 async def test_session_missing_from_one_poll_is_not_closed_immediately(async_db):
-    async_db.add(
-        Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok")
-    )
+    async_db.add(Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"))
     async_db.add(
         PlaybackSession(
             source="plex",
@@ -884,10 +876,10 @@ async def test_session_missing_from_one_poll_is_not_closed_immediately(async_db)
     ):
         await _collect_plex_activity_unlocked()
         row = (
-            await async_db.execute(
-                select(PlaybackSession).filter(PlaybackSession.source_session_id == "sess-1")
-            )
-        ).scalars().first()
+            (await async_db.execute(select(PlaybackSession).filter(PlaybackSession.source_session_id == "sess-1")))
+            .scalars()
+            .first()
+        )
         assert row.ended_at is None, "un seul poll manqué ne doit pas clôturer la session"
 
         await _collect_plex_activity_unlocked()

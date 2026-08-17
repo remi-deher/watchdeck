@@ -43,14 +43,10 @@ jobs:
         run: pip install ruff==0.16.3
 
       - name: Lint
-        # Import/whitespace cleanup is adopted progressively on the legacy modules.
-        run: ruff check . --ignore I001,W293,E702
+        run: ruff check .
 
       - name: Format check
-        run: >-
-          ruff format --check
-          app/job_queue.py app/jobs.py app/realtime.py app/routers/events_api.py
-          tests/test_jobs_realtime.py
+        run: ruff format --check .
 
   mypy:
     runs-on: ubuntu-latest

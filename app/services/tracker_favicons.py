@@ -64,7 +64,9 @@ def _safe_png(content: bytes) -> bytes | None:
 async def _download(host: str) -> tuple[bytes | None, str | None]:
     if not await _public_host(host):
         return None, None
-    async with httpx.AsyncClient(follow_redirects=False, headers={"User-Agent": "Watchdeck favicon cache/1.0"}) as client:
+    async with httpx.AsyncClient(
+        follow_redirects=False, headers={"User-Agent": "Watchdeck favicon cache/1.0"}
+    ) as client:
         for scheme in ("https", "http"):
             url = f"{scheme}://{host}/favicon.ico"
             try:

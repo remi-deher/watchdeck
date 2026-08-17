@@ -30,16 +30,28 @@ class _Client:
 
 @pytest.mark.asyncio
 async def test_wanted_missing_reads_every_page():
-    client = _Client([
-        _Response({"totalRecords": 3, "records": [
-            {"id": 1, "seriesId": 9, "title": "Épisode 1", "series": {
-                "title": "Série test",
-                "images": [{"coverType": "poster", "remoteUrl": "https://images.test/poster.jpg"}],
-            }},
-            {"id": 2, "title": "Film 2"},
-        ]}),
-        _Response({"totalRecords": 3, "records": [{"id": 3, "title": "Film 3"}]}),
-    ])
+    client = _Client(
+        [
+            _Response(
+                {
+                    "totalRecords": 3,
+                    "records": [
+                        {
+                            "id": 1,
+                            "seriesId": 9,
+                            "title": "Épisode 1",
+                            "series": {
+                                "title": "Série test",
+                                "images": [{"coverType": "poster", "remoteUrl": "https://images.test/poster.jpg"}],
+                            },
+                        },
+                        {"id": 2, "title": "Film 2"},
+                    ],
+                }
+            ),
+            _Response({"totalRecords": 3, "records": [{"id": 3, "title": "Film 3"}]}),
+        ]
+    )
     instance = SimpleNamespace(id=4, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="key")
 
     with patch("app.services.arr_common.httpx.AsyncClient", return_value=client):

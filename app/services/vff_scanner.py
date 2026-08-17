@@ -52,6 +52,7 @@ def _compute_subtitle_status(
     sub_fr_status    : "absent" | "no_track" | "forced_not_default" | "not_default" | "forced_default" | "ok" | None
     forced_fr_status : "not_default" | "ok" | None
     """
+
     def _episode_flags(ep_tracks, ep_subs):
         is_fr = any(t.get("is_fr") for t in ep_tracks)
         fr_subs = [s for s in ep_subs if s.get("is_fr")]
@@ -120,6 +121,7 @@ def _compute_subtitle_status(
 
     return sub_fr, forced_fr
 
+
 vff_scan_state: dict[str, Any] = {
     "status": "idle",  # "idle" | "running" | "failed"
     "started_at": None,
@@ -165,7 +167,9 @@ def _parse_vff_libraries(settings: Settings) -> list[dict]:
     return out
 
 
-async def _load_known_vf_episodes(db: AsyncSession, source_type: str, source_ids: list[int]) -> dict[int, dict[int, set[int]]]:
+async def _load_known_vf_episodes(
+    db: AsyncSession, source_type: str, source_ids: list[int]
+) -> dict[int, dict[int, set[int]]]:
     """Charge le cache des épisodes déjà confirmés VF pour une liste de médias.
 
     Retourne {source_id: {season_number: {episode_number, ...}}}. Ne contient que les
@@ -174,14 +178,20 @@ async def _load_known_vf_episodes(db: AsyncSession, source_type: str, source_ids
     """
     if not source_ids:
         return {}
-    rows = (await db.execute(
-        select(VfEpisodeStatus).filter(
-            VfEpisodeStatus.source_type == source_type,
-            VfEpisodeStatus.source_id.in_(source_ids),
-            VfEpisodeStatus.has_vf.is_(True),
-            VfEpisodeStatus.fr_is_default.is_(True),
+    rows = (
+        (
+            await db.execute(
+                select(VfEpisodeStatus).filter(
+                    VfEpisodeStatus.source_type == source_type,
+                    VfEpisodeStatus.source_id.in_(source_ids),
+                    VfEpisodeStatus.has_vf.is_(True),
+                    VfEpisodeStatus.fr_is_default.is_(True),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     out: dict[int, dict[int, set[int]]] = {}
     for r in rows:
         out.setdefault(r.source_id, {}).setdefault(r.season_number, set()).add(r.episode_number)
@@ -193,9 +203,17 @@ async def _load_episode_status_map(
 ) -> dict[int, dict[int, dict[int, bool]]]:
     if not source_ids:
         return {}
-    rows = (await db.execute(select(VfEpisodeStatus).filter(
-        VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id.in_(source_ids)
-    ))).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(VfEpisodeStatus).filter(
+                    VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id.in_(source_ids)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     out: dict[int, dict[int, dict[int, bool]]] = {}
     for row in rows:
         out.setdefault(row.source_id, {}).setdefault(row.season_number, {})[row.episode_number] = bool(row.has_vf)
@@ -221,9 +239,15 @@ async def _persist_episode_status(
         return
     existing = {
         (r.season_number, r.episode_number): r
-        for r in (await db.execute(select(VfEpisodeStatus).filter(
-            VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id == source_id
-        ))).scalars().all()
+        for r in (
+            await db.execute(
+                select(VfEpisodeStatus).filter(
+                    VfEpisodeStatus.source_type == source_type, VfEpisodeStatus.source_id == source_id
+                )
+            )
+        )
+        .scalars()
+        .all()
     }
     for sn, eps in episode_status.items():
         for en, has_vf in eps.items():
@@ -271,9 +295,15 @@ async def _persist_episode_metadata(
         return
     existing = {
         (r.season_number, r.episode_number): r
-        for r in (await db.execute(select(EpisodeMetadata).filter(
-            EpisodeMetadata.source_type == source_type, EpisodeMetadata.source_id == source_id
-        ))).scalars().all()
+        for r in (
+            await db.execute(
+                select(EpisodeMetadata).filter(
+                    EpisodeMetadata.source_type == source_type, EpisodeMetadata.source_id == source_id
+                )
+            )
+        )
+        .scalars()
+        .all()
     }
     for sn, eps in episode_metadata.items():
         for en, meta in eps.items():
@@ -411,14 +441,30 @@ def _scan_vf_blocking(
 async def _resolve_vf_arr_instance(db: AsyncSession, req: MediaRequest, arr_type: str) -> ArrInstance | None:
     """Résout l'instance Sonarr/Radarr à utiliser pour l'auto-search VFF d'une demande."""
     if req.arr_instance_id:
-        inst = (await db.execute(select(ArrInstance).filter(
-            ArrInstance.id == req.arr_instance_id, ArrInstance.arr_type == arr_type, ArrInstance.enabled
-        ))).scalars().first()
+        inst = (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(
+                        ArrInstance.id == req.arr_instance_id, ArrInstance.arr_type == arr_type, ArrInstance.enabled
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
         if inst:
             return inst
-    return (await db.execute(select(ArrInstance).filter(
-        ArrInstance.arr_type == arr_type, ArrInstance.enabled, ArrInstance.is_default
-    ))).scalars().first()
+    return (
+        (
+            await db.execute(
+                select(ArrInstance).filter(
+                    ArrInstance.arr_type == arr_type, ArrInstance.enabled, ArrInstance.is_default
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
 
 
 async def _prefetch_season_aired_counts(db: AsyncSession, requests: list[MediaRequest]) -> dict[int, dict[int, int]]:
@@ -464,7 +510,10 @@ async def _prefetch_season_aired_counts(db: AsyncSession, requests: list[MediaRe
                 # _series_milestones annoncait alors "saison complete" des que les episodes
                 # deja telecharges avaient tous leur VF, meme diffusion en cours.
                 series_id = await _resolve_sonarr_series_id(
-                    inst, req.arr_id, req.tvdb_id, req.source == "seer",
+                    inst,
+                    req.arr_id,
+                    req.tvdb_id,
+                    req.source == "seer",
                     await _series_list_cache_get(series_cache, inst),
                 )
                 if not series_id:
@@ -528,13 +577,29 @@ async def _resolve_sonarr_instance_for(db: AsyncSession, obj) -> ArrInstance | N
     arr_instance_id = getattr(obj, "arr_instance_id", None)
     inst = None
     if arr_instance_id:
-        inst = (await db.execute(select(ArrInstance).filter(
-            ArrInstance.id == arr_instance_id, ArrInstance.arr_type == "sonarr", ArrInstance.enabled
-        ))).scalars().first()
+        inst = (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(
+                        ArrInstance.id == arr_instance_id, ArrInstance.arr_type == "sonarr", ArrInstance.enabled
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
     if not inst:
-        inst = (await db.execute(select(ArrInstance).filter(
-            ArrInstance.arr_type == "sonarr", ArrInstance.enabled, ArrInstance.is_default
-        ))).scalars().first()
+        inst = (
+            (
+                await db.execute(
+                    select(ArrInstance).filter(
+                        ArrInstance.arr_type == "sonarr", ArrInstance.enabled, ArrInstance.is_default
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
     return inst
 
 
@@ -708,11 +773,7 @@ async def _queue_availability_progress(
             if not req.available_mail_sent:
                 await _notify("available", settings, req, db)
             return 0
-        return int(
-            await _queue_milestone(
-                settings, req, db, scope="movie", language=language, is_upgrade=is_upgrade
-            )
-        )
+        return int(await _queue_milestone(settings, req, db, scope="movie", language=language, is_upgrade=is_upgrade))
 
     if not _resolve_series_notify_language(settings, user_obj):
         return 0
@@ -796,7 +857,11 @@ async def _apply_vf_result(
     else:
         # VO uniquement
         req.has_vf = False
-        req.vf_granularity = granularity if granularity is not None else audio_analyzer.compute_vf_granularity(episode_status, known_episode_status)
+        req.vf_granularity = (
+            granularity
+            if granularity is not None
+            else audio_analyzer.compute_vf_granularity(episode_status, known_episode_status)
+        )
         if not was_tracking:
             if not req.available_mail_sent:
                 # Première détection VO : la notification « VO » tient lieu
@@ -876,8 +941,14 @@ async def scan_and_notify_availability(req: MediaRequest, settings: Settings, db
     known_episodes = await _sonarr_episode_numbers_for(db, req) if req.media_type == "show" else None
     try:
         results = await asyncio.to_thread(
-            _scan_vf_blocking, settings.plex_url, settings.plex_token, [candidate], libs, known_vf,
-            None, {req.id: known_episodes} if known_episodes is not None else None,
+            _scan_vf_blocking,
+            settings.plex_url,
+            settings.plex_token,
+            [candidate],
+            libs,
+            known_vf,
+            None,
+            {req.id: known_episodes} if known_episodes is not None else None,
         )
     except Exception as e:
         logger.warning(f"Scan eager VFF échec pour '{req.title}': {e}")
@@ -937,14 +1008,16 @@ vff_light_scan_state: dict[str, Any] = {
 
 
 def _start_scan_state(state: dict[str, Any]) -> None:
-    state.update({
-        "status": "running",
-        "started_at": now_utc().isoformat(),
-        "finished_at": None,
-        "items_scanned": 0,
-        "total_items": 0,
-        "error": None,
-    })
+    state.update(
+        {
+            "status": "running",
+            "started_at": now_utc().isoformat(),
+            "finished_at": None,
+            "items_scanned": 0,
+            "total_items": 0,
+            "error": None,
+        }
+    )
     # Apres le passage a "running" : la tache de diffusion s'arrete des qu'elle observe un
     # etat au repos (voir vff_progress.notify_vff_progress).
     from .vff_progress import notify_vff_progress
@@ -971,12 +1044,12 @@ def _vf_candidate_filters(only_unseen: bool, force: bool):
         library_filter = LibraryItem.has_vf.is_(None)
     else:
         library_filter = (
-            (LibraryItem.has_vf.is_(None)) |
-            (LibraryItem.has_vf.is_(False)) |
-            (
-                LibraryItem.has_vf.is_(True) &
-                (LibraryItem.media_type == "movie") &
-                LibraryItem.forced_fr_status.is_(None)
+            (LibraryItem.has_vf.is_(None))
+            | (LibraryItem.has_vf.is_(False))
+            | (
+                LibraryItem.has_vf.is_(True)
+                & (LibraryItem.media_type == "movie")
+                & LibraryItem.forced_fr_status.is_(None)
             )
         )
     return request_filter, library_filter
@@ -988,31 +1061,44 @@ async def _backfill_show_forced_fr_status(db: AsyncSession) -> int:
 
     Retourne le nombre d'items mis à jour.
     """
-    shows = (await db.execute(
-        select(LibraryItem).filter(
-            LibraryItem.has_vf.is_(True),
-            LibraryItem.media_type == "show",
-            LibraryItem.forced_fr_status.is_(None),
+    shows = (
+        (
+            await db.execute(
+                select(LibraryItem).filter(
+                    LibraryItem.has_vf.is_(True),
+                    LibraryItem.media_type == "show",
+                    LibraryItem.forced_fr_status.is_(None),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if not shows:
         return 0
 
     show_ids = [s.id for s in shows]
-    meta_rows = (await db.execute(
-        select(EpisodeMetadata).filter(
-            EpisodeMetadata.source_type == "library_item",
-            EpisodeMetadata.source_id.in_(show_ids),
+    meta_rows = (
+        (
+            await db.execute(
+                select(EpisodeMetadata).filter(
+                    EpisodeMetadata.source_type == "library_item",
+                    EpisodeMetadata.source_id.in_(show_ids),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     meta_by_show: dict[int, dict] = {}
     for row in meta_rows:
         tracks = json.loads(row.audio_tracks) if row.audio_tracks else []
         subs = json.loads(row.subtitles) if row.subtitles else []
         meta_by_show.setdefault(row.source_id, {}).setdefault(row.season_number, {})[row.episode_number] = {
-            "tracks": tracks, "subtitles": subs,
+            "tracks": tracks,
+            "subtitles": subs,
         }
 
     updated = 0
@@ -1104,9 +1190,7 @@ async def _scan_candidate_group(
     """Scan Plex bloquant + persistance du détail épisode pour un groupe homogène."""
     if not candidates:
         return {}
-    known = await _load_known_vf_episodes(
-        db, source_type, [candidate["id"] for candidate in candidates]
-    )
+    known = await _load_known_vf_episodes(db, source_type, [candidate["id"] for candidate in candidates])
     results = await asyncio.to_thread(
         _scan_vf_blocking,
         settings.plex_url,
@@ -1121,8 +1205,13 @@ async def _scan_candidate_group(
         episode_status = result.get("episode_status")
         if episode_status:
             await _persist_episode_status(
-                db, source_type, result["id"], episode_status, now,
-                result.get("french_default"), result.get("known_episode_status"),
+                db,
+                source_type,
+                result["id"],
+                episode_status,
+                now,
+                result.get("french_default"),
+                result.get("known_episode_status"),
             )
             await _persist_episode_metadata(db, source_type, result["id"], result.get("episode_metadata"), now)
     if any(result.get("episode_status") for result in results):
@@ -1200,12 +1289,18 @@ async def _run_vf_scan(
         # bibliothèque Plex prouve déjà sa présence réelle. La présence dans LibraryItem
         # devient donc un déclencheur de disponibilité à part entière, indépendant de ce
         # que rapporte *arr.
-        pending_q = (await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.status.notin_([RequestStatus.available, RequestStatus.failed]),
-                MediaRequest.library_item_id.is_(None),
+        pending_q = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.status.notin_([RequestStatus.available, RequestStatus.failed]),
+                        MediaRequest.library_item_id.is_(None),
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
         promoted = 0
         now_reconcile = now_utc_naive()
         for req in pending_q:
@@ -1214,9 +1309,7 @@ async def _run_vf_scan(
                 continue
             from .request_lifecycle import transition_request
 
-            await transition_request(
-                db, req, "available", source="plex_vff", available_at=now_reconcile
-            )
+            await transition_request(db, req, "available", source="plex_vff", available_at=now_reconcile)
             promoted += 1
             logger.info(f"VFF : '{req.title}' détecté disponible via la bibliothèque Plex (arr en retard/inconnu)")
             # Pas de notification "available" ici : cette fonction ne tourne que si VFF est
@@ -1229,28 +1322,42 @@ async def _run_vf_scan(
             logger.info(f"VFF ({label}) : {promoted} demande(s) promue(s) 'disponible' via la bibliothèque Plex")
 
         req_has_vf_filter, lib_has_vf_filter = _vf_candidate_filters(only_unseen, force)
-        candidates_q = (await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.status == RequestStatus.available,
-                # Une demande sans library_item_id reste candidate au rattachement meme si
-                # son has_vf est deja connu (VF confirmee) : sans ce filtre supplementaire,
-                # une demande dont le lien a echoue/n'a jamais eu lieu (ex: titre localise
-                # different entre *arr et Plex) ne repasse plus jamais dans cette boucle une
-                # fois has_vf resolu -- son nom de demandeur reste alors introuvable sur la
-                # fiche Bibliotheque (jointure via library_item_id), a jamais.
-                req_has_vf_filter | MediaRequest.library_item_id.is_(None),
-                MediaRequest.vf_tracking_disabled.is_(False),
+        candidates_q = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.status == RequestStatus.available,
+                        # Une demande sans library_item_id reste candidate au rattachement meme si
+                        # son has_vf est deja connu (VF confirmee) : sans ce filtre supplementaire,
+                        # une demande dont le lien a echoue/n'a jamais eu lieu (ex: titre localise
+                        # different entre *arr et Plex) ne repasse plus jamais dans cette boucle une
+                        # fois has_vf resolu -- son nom de demandeur reste alors introuvable sur la
+                        # fiche Bibliotheque (jointure via library_item_id), a jamais.
+                        req_has_vf_filter | MediaRequest.library_item_id.is_(None),
+                        MediaRequest.vf_tracking_disabled.is_(False),
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
         # La musique (artist/album/track) n'a pas de notion de piste VF/VO doublee : le
         # scan est ecarte ici, pas seulement documente en aval (voir scan_media_vf), sinon
         # chaque item musique (has_vf reste None indefiniment, jamais resolu) est reinjecte
         # comme candidat a chaque cycle, pour une recherche Plex qui echoue systematiquement
         # (scan_media_vf ne cherche que dans les bibliotheques films/series).
-        lib_q = (await db.execute(select(LibraryItem).filter(
-            lib_has_vf_filter,
-            LibraryItem.media_type.notin_(("artist", "album", "track")),
-        ))).scalars().all()
+        lib_q = (
+            (
+                await db.execute(
+                    select(LibraryItem).filter(
+                        lib_has_vf_filter,
+                        LibraryItem.media_type.notin_(("artist", "album", "track")),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         if not candidates_q and not lib_q:
             state["status"] = "idle"
             state["finished_at"] = now_utc().isoformat()
@@ -1342,7 +1449,13 @@ async def _run_vf_scan(
                 li.vf_checked_at = now
                 li.has_vf = bool(res["has_vf"])
                 li.fr_is_default = res.get("fr_is_default")
-                li.vf_granularity = "full" if li.has_vf else audio_analyzer.compute_vf_granularity(res.get("episode_status"), res.get("known_episode_status"))
+                li.vf_granularity = (
+                    "full"
+                    if li.has_vf
+                    else audio_analyzer.compute_vf_granularity(
+                        res.get("episode_status"), res.get("known_episode_status")
+                    )
+                )
                 li.sub_fr_status, li.forced_fr_status = _compute_subtitle_status(
                     li.media_type,
                     res.get("tracks") or [],
@@ -1355,15 +1468,22 @@ async def _run_vf_scan(
                 episode_status = res.get("episode_status")
                 if episode_status:
                     await _persist_episode_status(
-                        db, "library_item", li.id, episode_status, now,
-                        res.get("french_default"), res.get("known_episode_status"),
+                        db,
+                        "library_item",
+                        li.id,
+                        episode_status,
+                        now,
+                        res.get("french_default"),
+                        res.get("known_episode_status"),
                     )
                     await _persist_episode_metadata(db, "library_item", li.id, res.get("episode_metadata"), now)
             await db.commit()
 
         # --- Demandes liées à un LibraryItem : propager son has_vf, pas de re-scan Plex ---
         linked_updated = 0
-        linked_episode_status = await _load_episode_status_map(db, "library_item", list({li.id for _, li in linked_pairs}))
+        linked_episode_status = await _load_episode_status_map(
+            db, "library_item", list({li.id for _, li in linked_pairs})
+        )
         for req, li in linked_pairs:
             if li.has_vf is None:
                 continue  # LibraryItem pas encore résolu ; réessaiera au prochain cycle
@@ -1409,9 +1529,7 @@ async def check_vf_statuses(force: bool = False) -> None:
     """Scan complet : tous les médias en attente de VF (`has_vf IS NULL` ou `False`),
     sur l'intervalle long (`vff_recheck_interval_minutes`). `force=True` (scan manuel
     "Forcer l'analyse complète") re-scanne aussi les médias déjà marqués VF."""
-    await _run_vf_scan(
-        only_unseen=False, state=vff_scan_state, label="complet", force=force, section="scan"
-    )
+    await _run_vf_scan(only_unseen=False, state=vff_scan_state, label="complet", force=force, section="scan")
 
 
 async def check_new_vf_availability() -> None:
@@ -1456,9 +1574,17 @@ async def check_episode_tracking():
             return
 
         global_no_language = not _resolve_series_notify_language(settings, None)
-        candidates_q = (await db.execute(
-            select(MediaRequest).filter(MediaRequest.status == RequestStatus.available, MediaRequest.media_type == "show")
-        )).scalars().all()
+        candidates_q = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.status == RequestStatus.available, MediaRequest.media_type == "show"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         users_by_id = {u.plex_user_id: u for u in (await db.execute(select(PlexUser))).scalars().all()}
 
         def _wants_no_language(req: MediaRequest) -> bool:

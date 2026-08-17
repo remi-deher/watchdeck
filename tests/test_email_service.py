@@ -119,7 +119,9 @@ def test_season_template_variables_support_subjects_and_grouped_seasons():
     assert tags["{numero_saison}"] == "1"
     assert tags["{saison}"] == "Saison 1"
     assert tags["{saisons_concernees}"] == "Saison 1, 2 et 4"
-    assert render_subject("{titre} - {saisons_concernees}", tags, fallback="fallback") == f"{req.title} - Saison 1, 2 et 4"
+    assert (
+        render_subject("{titre} - {saisons_concernees}", tags, fallback="fallback") == f"{req.title} - Saison 1, 2 et 4"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -279,9 +281,7 @@ async def test_send_available_uses_an_already_resolved_plex_link():
         _patch_send() as mock_send,
         patch("app.services.email_service.resolve_plex_deep_link", new_callable=AsyncMock) as resolver,
     ):
-        await send_available_notification(
-            _settings(), _req(), "dest@example.com", plex_deep_link=link
-        )
+        await send_available_notification(_settings(), _req(), "dest@example.com", plex_deep_link=link)
 
     html = mock_send.call_args[0][4]
     assert f'href="{link}"' in html

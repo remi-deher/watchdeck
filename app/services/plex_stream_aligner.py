@@ -19,14 +19,34 @@ from app.services.plex_finder import connect, find_item_in_libraries
 logger = logging.getLogger(__name__)
 
 _AUDIO_EXCLUDE_WORDS = {
-    "commentary", "commentaire", "commentaires",
-    "director", "directors", "réalisateur", "realisateur",
-    "audiodescription", "audio description", "ad", "qad", "vf-ad", "vff-ad", "vf ad",
-    "visual impaired", "description audio", "malvoyant", "malvoyants",
+    "commentary",
+    "commentaire",
+    "commentaires",
+    "director",
+    "directors",
+    "réalisateur",
+    "realisateur",
+    "audiodescription",
+    "audio description",
+    "ad",
+    "qad",
+    "vf-ad",
+    "vff-ad",
+    "vf ad",
+    "visual impaired",
+    "description audio",
+    "malvoyant",
+    "malvoyants",
 }
 
 _SDH_WORDS = {
-    "sdh", "sme", "malentendant", "malentendants", "cc", "sourds", "deaf",
+    "sdh",
+    "sme",
+    "malentendant",
+    "malentendants",
+    "cc",
+    "sourds",
+    "deaf",
 }
 
 
@@ -36,10 +56,14 @@ def is_commentary_or_ad(stream) -> bool:
         val = (getattr(stream, attr, None) or "").lower().strip()
         if not val:
             continue
-        words = set(val.replace("-", " ").replace("(", " ").replace(")", " ").replace("/", " ").replace(".", " ").split())
+        words = set(
+            val.replace("-", " ").replace("(", " ").replace(")", " ").replace("/", " ").replace(".", " ").split()
+        )
         if words & _AUDIO_EXCLUDE_WORDS:
             return True
-        if any(term in val for term in ("audio description", "audiodescription", "commentaire", "commentaires", "director")):
+        if any(
+            term in val for term in ("audio description", "audiodescription", "commentaire", "commentaires", "director")
+        ):
             return True
     return False
 
@@ -50,7 +74,9 @@ def is_sdh_subtitle(stream) -> bool:
         val = (getattr(stream, attr, None) or "").lower().strip()
         if not val:
             continue
-        words = set(val.replace("-", " ").replace("(", " ").replace(")", " ").replace("/", " ").replace(".", " ").split())
+        words = set(
+            val.replace("-", " ").replace("(", " ").replace(")", " ").replace("/", " ").replace(".", " ").split()
+        )
         if words & _SDH_WORDS:
             return True
         if any(term in val for term in ("sourds et malentendants", "malentendant", "hearing impaired")):
@@ -83,10 +109,7 @@ def choose_best_audio_stream(streams: list) -> tuple[Any | None, bool]:
         return None, False
 
     # Filtrer les flux français valides (hors commentaires et audiodescription)
-    valid_fr_streams = [
-        s for s in streams
-        if _stream_is_french(s) and not is_commentary_or_ad(s)
-    ]
+    valid_fr_streams = [s for s in streams if _stream_is_french(s) and not is_commentary_or_ad(s)]
 
     if valid_fr_streams:
         if len(valid_fr_streams) == 1:
@@ -143,7 +166,9 @@ def choose_best_subtitle_stream(
             full = [s for s in fr_subs if not is_forced_subtitle(s)]
             if full:
                 # 1. Préférer SRT texte standard (non-SDH)
-                srt_standard = [s for s in full if (getattr(s, "codec", "") or "").lower() == "srt" and not is_sdh_subtitle(s)]
+                srt_standard = [
+                    s for s in full if (getattr(s, "codec", "") or "").lower() == "srt" and not is_sdh_subtitle(s)
+                ]
                 if srt_standard:
                     return srt_standard[0], True
                 # 2. Préférer SRT tout court
@@ -190,7 +215,9 @@ def apply_streams_to_part(part, target_audio, target_subtitle, should_apply_subt
 
     # 2. Sous-titre (uniquement si should_apply_subtitle est True)
     if should_apply_subtitle:
-        curr_sub_selected = next((s for s in part.subtitleStreams() if _truthy_attr(getattr(s, "selected", None))), None)
+        curr_sub_selected = next(
+            (s for s in part.subtitleStreams() if _truthy_attr(getattr(s, "selected", None))), None
+        )
         curr_sub_id = getattr(curr_sub_selected, "id", None) if curr_sub_selected else None
         target_sub_id = getattr(target_subtitle, "id", None) if target_subtitle else None
 
@@ -202,7 +229,9 @@ def apply_streams_to_part(part, target_audio, target_subtitle, should_apply_subt
                     try:
                         part.setSelectedSubtitleStream(0)
                     except Exception:
-                        part._server.query(f"/library/parts/{part.id}?subtitleStreamID=0&allParts=1", method=part._server._session.put)
+                        part._server.query(
+                            f"/library/parts/{part.id}?subtitleStreamID=0&allParts=1", method=part._server._session.put
+                        )
                 sub_changed = True
             except Exception as e:
                 logger.warning("Erreur setSelectedSubtitleStream pour part %s: %s", getattr(part, "id", "?"), e)
@@ -223,16 +252,23 @@ def get_plex_users_list(plex_url: str, plex_token: str) -> list[dict]:
             except Exception:
                 shared_users = []
             for u in shared_users:
-                uname = getattr(u, "title", None) or getattr(u, "name", None) or getattr(u, "username", None) or str(getattr(u, "id", ""))
+                uname = (
+                    getattr(u, "title", None)
+                    or getattr(u, "name", None)
+                    or getattr(u, "username", None)
+                    or str(getattr(u, "id", ""))
+                )
                 if uname and uname.lower() not in ("admin", "owner", "administrateur"):
-                    users.append({
-                        "id": str(getattr(u, "id", uname)),
-                        "name": uname,
-                        "title": getattr(u, "title", uname),
-                        "is_admin": False,
-                        "is_home": bool(getattr(u, "home", False)),
-                        "thumb": getattr(u, "thumb", None),
-                    })
+                    users.append(
+                        {
+                            "id": str(getattr(u, "id", uname)),
+                            "name": uname,
+                            "title": getattr(u, "title", uname),
+                            "is_admin": False,
+                            "is_home": bool(getattr(u, "home", False)),
+                            "thumb": getattr(u, "thumb", None),
+                        }
+                    )
         except Exception as e:
             logger.debug("Erreur interrogation compte MyPlex pour utilisateurs: %s", e)
         return users
@@ -263,7 +299,12 @@ def get_plex_target_servers(
             shared_users = []
 
         for user in shared_users:
-            uname = getattr(user, "title", None) or getattr(user, "name", None) or getattr(user, "username", None) or str(getattr(user, "id", ""))
+            uname = (
+                getattr(user, "title", None)
+                or getattr(user, "name", None)
+                or getattr(user, "username", None)
+                or str(getattr(user, "id", ""))
+            )
             if not uname or uname.lower() in ("admin", "owner", "administrateur"):
                 continue
             if selected_users and "all" not in selected_users and uname not in selected_users:
@@ -364,7 +405,10 @@ def preview_media_item_streams_blocking(
     audio_streams = sample_part.audioStreams()
     sub_streams = sample_part.subtitleStreams()
 
-    curr_audio = next((s for s in audio_streams if _truthy_attr(getattr(s, "selected", None))), audio_streams[0] if audio_streams else None)
+    curr_audio = next(
+        (s for s in audio_streams if _truthy_attr(getattr(s, "selected", None))),
+        audio_streams[0] if audio_streams else None,
+    )
     curr_sub = next((s for s in sub_streams if _truthy_attr(getattr(s, "selected", None))), None)
 
     target_audio, is_fr_audio = choose_best_audio_stream(audio_streams)
@@ -373,10 +417,19 @@ def preview_media_item_streams_blocking(
     def _stream_info(s, is_sub=False):
         if not s:
             return None
-        title_str = getattr(s, "displayTitle", None) or getattr(s, "title", None) or getattr(s, "extendedDisplayTitle", None) or ""
-        lang = getattr(s, "language", None) or getattr(s, "languageCode", None) or ("fr" if _stream_is_french(s) else "vo")
+        title_str = (
+            getattr(s, "displayTitle", None)
+            or getattr(s, "title", None)
+            or getattr(s, "extendedDisplayTitle", None)
+            or ""
+        )
+        lang = (
+            getattr(s, "language", None) or getattr(s, "languageCode", None) or ("fr" if _stream_is_french(s) else "vo")
+        )
         codec = getattr(s, "codec", None) or ""
-        channels = getattr(s, "audioChannelLayout", None) or (f"{getattr(s, 'channels', '')}ch" if getattr(s, "channels", None) else "")
+        channels = getattr(s, "audioChannelLayout", None) or (
+            f"{getattr(s, 'channels', '')}ch" if getattr(s, "channels", None) else ""
+        )
         forced = is_forced_subtitle(s) if is_sub else False
         return {
             "id": getattr(s, "id", None),
@@ -455,7 +508,9 @@ def align_media_item_streams_blocking(
                 user_item = user_plex.fetchItem(item.ratingKey)
             except Exception:
                 try:
-                    user_item = find_item_in_libraries(user_plex, library_names, title, year, tmdb_id, tvdb_id, imdb_id, plex_guid)
+                    user_item = find_item_in_libraries(
+                        user_plex, library_names, title, year, tmdb_id, tvdb_id, imdb_id, plex_guid
+                    )
                 except Exception:
                     continue
         if not user_item:
@@ -473,10 +528,14 @@ def align_media_item_streams_blocking(
                             total_episodes_or_parts += 1
                             audio_streams = part.audioStreams()
                             sub_streams = part.subtitleStreams()
-                            curr_sub = next((s for s in sub_streams if _truthy_attr(getattr(s, "selected", None))), None)
+                            curr_sub = next(
+                                (s for s in sub_streams if _truthy_attr(getattr(s, "selected", None))), None
+                            )
 
                             target_audio, is_fr_audio = choose_best_audio_stream(audio_streams)
-                            target_sub, should_apply_sub = choose_best_subtitle_stream(sub_streams, is_fr_audio, curr_sub)
+                            target_sub, should_apply_sub = choose_best_subtitle_stream(
+                                sub_streams, is_fr_audio, curr_sub
+                            )
 
                             a_ch, s_ch = apply_streams_to_part(part, target_audio, target_sub, should_apply_sub)
                             if a_ch:

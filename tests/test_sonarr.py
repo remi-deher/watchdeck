@@ -93,14 +93,17 @@ async def test_add_series_selected_seasons_payload():
 async def test_add_series_without_selection_disables_specials():
     """Un ajout par défaut surveille les saisons normales, pas les spéciaux."""
     existing_resp = _make_response(200, [])
-    add_resp = _make_response(201, {
-        "id": 42,
-        "titleSlug": "breaking-bad",
-        "seasons": [
-            {"seasonNumber": 0, "monitored": True},
-            {"seasonNumber": 1, "monitored": True},
-        ],
-    })
+    add_resp = _make_response(
+        201,
+        {
+            "id": 42,
+            "titleSlug": "breaking-bad",
+            "seasons": [
+                {"seasonNumber": 0, "monitored": True},
+                {"seasonNumber": 1, "monitored": True},
+            ],
+        },
+    )
     update_resp = _make_response(200, add_resp.json.return_value)
 
     client_mock = AsyncMock()
@@ -242,10 +245,26 @@ async def test_get_series_episode_stats_includes_per_season_breakdown():
         # Availability counters must be based on monitored seasons only.
         "statistics": {"episodeFileCount": 8, "episodeCount": 8, "totalEpisodeCount": 15},
         "seasons": [
-            {"seasonNumber": 0, "monitored": True, "statistics": {"episodeFileCount": 2, "episodeCount": 2, "totalEpisodeCount": 2}},
-            {"seasonNumber": 1, "monitored": True, "statistics": {"episodeFileCount": 6, "episodeCount": 6, "totalEpisodeCount": 6}},
-            {"seasonNumber": 2, "monitored": True, "statistics": {"episodeFileCount": 0, "episodeCount": 0, "totalEpisodeCount": 7}},
-            {"seasonNumber": 3, "monitored": False, "statistics": {"episodeFileCount": 4, "episodeCount": 4, "totalEpisodeCount": 4}},
+            {
+                "seasonNumber": 0,
+                "monitored": True,
+                "statistics": {"episodeFileCount": 2, "episodeCount": 2, "totalEpisodeCount": 2},
+            },
+            {
+                "seasonNumber": 1,
+                "monitored": True,
+                "statistics": {"episodeFileCount": 6, "episodeCount": 6, "totalEpisodeCount": 6},
+            },
+            {
+                "seasonNumber": 2,
+                "monitored": True,
+                "statistics": {"episodeFileCount": 0, "episodeCount": 0, "totalEpisodeCount": 7},
+            },
+            {
+                "seasonNumber": 3,
+                "monitored": False,
+                "statistics": {"episodeFileCount": 4, "episodeCount": 4, "totalEpisodeCount": 4},
+            },
             {"seasonNumber": 4, "statistics": {"episodeFileCount": 99, "episodeCount": 99, "totalEpisodeCount": 99}},
         ],
     }

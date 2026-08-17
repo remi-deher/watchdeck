@@ -40,11 +40,7 @@ def normalize_title(value: str | None) -> str:
 def poster_from_images(images: list[dict] | None) -> str | None:
     """URL de l'affiche parmi les images d'un média *arr (coverType == "poster")."""
     return next(
-        (
-            img.get("remoteUrl") or img.get("url")
-            for img in (images or [])
-            if img.get("coverType") == "poster"
-        ),
+        (img.get("remoteUrl") or img.get("url") for img in (images or []) if img.get("coverType") == "poster"),
         None,
     )
 
@@ -169,9 +165,7 @@ async def get_all_media(url: str, api_key: str, *, resource: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-async def grab_release(
-    url: str, api_key: str, guid: str, indexer_id: int, *, product: str
-) -> tuple[bool, str, bool]:
+async def grab_release(url: str, api_key: str, guid: str, indexer_id: int, *, product: str) -> tuple[bool, str, bool]:
     """Grab d'une release choisie manuellement : *arr télécharge ET importe.
 
     Returns (ok, message, stale_search) -- `stale_search` signale un 404 causé par
@@ -193,19 +187,21 @@ async def grab_release(
             # en memoire (cache cote *arr, distinct du notre) ; grabber un guid dont la
             # recherche source a expire renvoie 404. str(e) exposerait par ailleurs l'URL
             # interne de l'instance *arr au client (voir safe_error_message).
-            return False, (
-                f"Cette release n'est plus disponible côté {product} "
-                "(résultat de recherche expiré) — relance une recherche puis réessaie."
-            ), True
+            return (
+                False,
+                (
+                    f"Cette release n'est plus disponible côté {product} "
+                    "(résultat de recherche expiré) — relance une recherche puis réessaie."
+                ),
+                True,
+            )
         return False, safe_error_message(e), False
     except Exception as e:
         logger.warning(f"{product} grab_release échec (guid {guid}): {e}")
         return False, safe_error_message(e), False
 
 
-async def get_releases(
-    url: str, api_key: str, *, params: dict, product: str, log_context: str
-) -> list[dict]:
+async def get_releases(url: str, api_key: str, *, params: dict, product: str, log_context: str) -> list[dict]:
     """Recherche interactive *arr : releases scorées (GET /release)."""
     try:
         client = ArrClient(url, api_key, timeout=90)
@@ -217,9 +213,7 @@ async def get_releases(
         return []
 
 
-async def get_manual_import_candidates(
-    url: str, api_key: str, download_id: str, *, product: str
-) -> list[dict]:
+async def get_manual_import_candidates(url: str, api_key: str, download_id: str, *, product: str) -> list[dict]:
     """Fichiers en attente d'import manuel pour un téléchargement (GET /manualimport).
 
     Utilisé quand *arr ne peut pas matcher automatiquement le média (ex : épisode pas
@@ -239,9 +233,7 @@ async def get_manual_import_candidates(
         return []
 
 
-async def manual_import(
-    url: str, api_key: str, *, file_entry: dict, product: str
-) -> tuple[bool, str]:
+async def manual_import(url: str, api_key: str, *, file_entry: dict, product: str) -> tuple[bool, str]:
     """Force l'import d'un fichier téléchargé (commande ManualImport).
 
     `file_entry` est construit par l'appelant : les clés diffèrent entre séries
@@ -339,9 +331,7 @@ async def delete_queue_item(
         return False, str(e)
 
 
-async def get_queue_media_ids(
-    url: str, api_key: str, *, id_key: str, product: str, log_name: str
-) -> set[int]:
+async def get_queue_media_ids(url: str, api_key: str, *, id_key: str, product: str, log_name: str) -> set[int]:
     """IDs des médias ayant au moins un item actif dans la file de téléchargement *arr.
 
     Utilisé pour distinguer une vraie anomalie Plex (fichier importé mais introuvable
@@ -483,9 +473,7 @@ def find_plex_notification(notifications: list[dict]) -> dict | None:
     return None
 
 
-async def test_notification(
-    url: str, api_key: str, notification: dict, *, product: str
-) -> tuple[bool, str]:
+async def test_notification(url: str, api_key: str, notification: dict, *, product: str) -> tuple[bool, str]:
     """Déclenche depuis *arr un test réel du connecteur Webhook (round-trip vers notre endpoint).
 
     Réutilise l'endpoint /api/v3/notification/test, qui envoie une notification de test
@@ -498,11 +486,7 @@ async def test_notification(
             return True, f"Test envoyé et accepté par {product}"
         try:
             errors = resp.json()
-            msg = (
-                "; ".join(e.get("errorMessage", str(e)) for e in errors)
-                if isinstance(errors, list)
-                else str(errors)
-            )
+            msg = "; ".join(e.get("errorMessage", str(e)) for e in errors) if isinstance(errors, list) else str(errors)
         except Exception:
             msg = resp.text
         return False, msg or f"HTTP {resp.status_code}"
@@ -592,29 +576,33 @@ async def get_wanted_missing(instance, page_size: int = 250) -> list[dict]:
                 # Une entrée Sonarr est un épisode : ses images peuvent être des
                 # captures. L'affiche doit venir de la série, sinon on ne montre
                 # pas d'image plutôt qu'une couverture incohérente.
-                images = series_or_movie.get("images") or ([] if instance.arr_type == "sonarr" else (r.get("images") or []))
+                images = series_or_movie.get("images") or (
+                    [] if instance.arr_type == "sonarr" else (r.get("images") or [])
+                )
                 poster = poster_from_images(images)
                 ep_str = None
                 if "seasonNumber" in r and "episodeNumber" in r:
                     ep_str = f"S{r.get('seasonNumber', 0):02d}E{r.get('episodeNumber', 0):02d}"
-                out.append({
-                    "id": r.get("id"),
-                    # Pour Sonarr, `r.id` est l'identifiant de l'episode alors que
-                    # la fiche Watchdeck doit etre rattachee a la serie. Radarr renvoie
-                    # directement le film dans la liste des elements manquants.
-                    "arr_id": r.get("seriesId") if instance.arr_type == "sonarr" else r.get("id"),
-                    "title": title,
-                    "series_title": series_or_movie.get("title") if instance.arr_type == "sonarr" else None,
-                    "media_type": "movie" if instance.arr_type == "radarr" else "show",
-                    "arr_type": instance.arr_type,
-                    "instance_id": instance.id,
-                    "instance_name": instance.name,
-                    "poster_url": poster,
-                    "air_date": r.get("airDateUtc") or r.get("digitalRelease") or r.get("physicalRelease"),
-                    "episode_number": ep_str,
-                    "season_number": r.get("seasonNumber"),
-                    "episode_index": r.get("episodeNumber"),
-                })
+                out.append(
+                    {
+                        "id": r.get("id"),
+                        # Pour Sonarr, `r.id` est l'identifiant de l'episode alors que
+                        # la fiche Watchdeck doit etre rattachee a la serie. Radarr renvoie
+                        # directement le film dans la liste des elements manquants.
+                        "arr_id": r.get("seriesId") if instance.arr_type == "sonarr" else r.get("id"),
+                        "title": title,
+                        "series_title": series_or_movie.get("title") if instance.arr_type == "sonarr" else None,
+                        "media_type": "movie" if instance.arr_type == "radarr" else "show",
+                        "arr_type": instance.arr_type,
+                        "instance_id": instance.id,
+                        "instance_name": instance.name,
+                        "poster_url": poster,
+                        "air_date": r.get("airDateUtc") or r.get("digitalRelease") or r.get("physicalRelease"),
+                        "episode_number": ep_str,
+                        "season_number": r.get("seasonNumber"),
+                        "episode_index": r.get("episodeNumber"),
+                    }
+                )
             return out
         except Exception as exc:
             logger.warning("Impossible de lire les éléments manquants sur %s: %s", instance.name, exc)

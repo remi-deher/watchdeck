@@ -57,7 +57,9 @@ def _build_message(event: str, request: MediaRequest, context: dict | None = Non
     return title, body
 
 
-def _build_discord_embed(event: str, request: MediaRequest, context: dict | None = None, include_synopsis: bool = False) -> dict:
+def _build_discord_embed(
+    event: str, request: MediaRequest, context: dict | None = None, include_synopsis: bool = False
+) -> dict:
     """Construit un embed Discord pour un événement donné."""
     title, body = _build_message(event, request, context)
     embed: dict = {"title": title, "description": body, "color": event_color(event)}
@@ -114,7 +116,9 @@ async def send_telegram(settings: Settings, request: MediaRequest, event: str, c
     logger.info(f"Telegram notif sent for '{request.title}' ({event})")
 
 
-async def send_telegram_to_chat(bot_token: str, chat_id: str, request: MediaRequest, event: str, context: dict | None = None):
+async def send_telegram_to_chat(
+    bot_token: str, chat_id: str, request: MediaRequest, event: str, context: dict | None = None
+):
     """Envoie une notification Telegram vers un chat spécifique (par utilisateur)."""
     if not bot_token or not chat_id:
         raise ChannelNotConfigured("bot_token/chat_id utilisateur absent")

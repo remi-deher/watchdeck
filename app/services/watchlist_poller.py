@@ -272,9 +272,11 @@ async def _prowlarr_search_and_download(
     Returns: (info_hash, arr_slug, download_client_id) — info_hash est None si rien n'a
     été trouvé, filtré, ou envoyé avec succès.
     """
-    client = (await db.execute(
-        select(DownloadClient).filter(DownloadClient.enabled, DownloadClient.is_default)
-    )).scalars().first()
+    client = (
+        (await db.execute(select(DownloadClient).filter(DownloadClient.enabled, DownloadClient.is_default)))
+        .scalars()
+        .first()
+    )
     if not client:
         client = (await db.execute(select(DownloadClient).filter(DownloadClient.enabled))).scalars().first()
     if not client:
@@ -341,9 +343,11 @@ async def _submit_to_torrent(
     db: AsyncSession, settings: Settings, item: dict
 ) -> tuple[str | None, bool, str | None, int | None]:
     """Recherche un média sur Prowlarr et l'envoie au client torrent par défaut si Sonarr/Radarr sont inactifs."""
-    prowlarr_inst = (await db.execute(
-        select(ArrInstance).filter(ArrInstance.arr_type == "prowlarr", ArrInstance.enabled)
-    )).scalars().first()
+    prowlarr_inst = (
+        (await db.execute(select(ArrInstance).filter(ArrInstance.arr_type == "prowlarr", ArrInstance.enabled)))
+        .scalars()
+        .first()
+    )
     if not prowlarr_inst:
         logger.warning("Torrent automation: Aucune instance Prowlarr active trouvée")
         return None, False, None, None
@@ -377,9 +381,17 @@ async def _ensure_tmdb_id(item: dict, settings: Settings, user_obj, db: AsyncSes
     if item.get("media_type") == "movie" and item.get("imdb_id") and settings:
         radarr_url, radarr_api_key = settings.radarr_url, settings.radarr_api_key
         if not (radarr_url and radarr_api_key) and db is not None:
-            inst = (await db.execute(
-                select(ArrInstance).filter(ArrInstance.arr_type == "radarr", ArrInstance.enabled, ArrInstance.is_default)
-            )).scalars().first()
+            inst = (
+                (
+                    await db.execute(
+                        select(ArrInstance).filter(
+                            ArrInstance.arr_type == "radarr", ArrInstance.enabled, ArrInstance.is_default
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if inst:
                 radarr_url, radarr_api_key = inst.url, inst.api_key
         if radarr_url and radarr_api_key:
@@ -452,30 +464,48 @@ async def _find_global_request(
     différentes est presque toujours une œuvre différente (homonymie).
     """
     if tmdb_id:
-        found = (await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.media_type == media_type,
-                MediaRequest.tmdb_id == tmdb_id,
+        found = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.media_type == media_type,
+                        MediaRequest.tmdb_id == tmdb_id,
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
         if found:
             return found
     if tvdb_id:
-        found = (await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.media_type == media_type,
-                MediaRequest.tvdb_id == tvdb_id,
+        found = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.media_type == media_type,
+                        MediaRequest.tvdb_id == tvdb_id,
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
         if found:
             return found
     if imdb_id:
-        found = (await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.media_type == media_type,
-                MediaRequest.imdb_id == imdb_id,
+        found = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.media_type == media_type,
+                        MediaRequest.imdb_id == imdb_id,
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
         if found:
             return found
     if title:
@@ -604,7 +634,12 @@ async def _process_watchlist_item(
 
     # Dédup global : même média déjà demandé par un autre utilisateur ?
     global_req = await _find_global_request(
-        db, item["media_type"], item.get("tmdb_id"), item["title"], item.get("tvdb_id"), item.get("imdb_id"),
+        db,
+        item["media_type"],
+        item.get("tmdb_id"),
+        item["title"],
+        item.get("tvdb_id"),
+        item.get("imdb_id"),
         item.get("year"),
     )
     if global_req and global_req.plex_user_id != uid:
@@ -636,7 +671,11 @@ async def _process_watchlist_item(
             return "skip"
     else:
         if await deleted_media.is_blocked(
-            db, item["media_type"], tmdb_id=item.get("tmdb_id"), tvdb_id=item.get("tvdb_id"), imdb_id=item.get("imdb_id")
+            db,
+            item["media_type"],
+            tmdb_id=item.get("tmdb_id"),
+            tvdb_id=item.get("tvdb_id"),
+            imdb_id=item.get("imdb_id"),
         ):
             logger.info("'%s' ignoré (bloqué après annulation) — ne sera pas recréé.", item["title"])
             return "skip"
@@ -703,13 +742,19 @@ async def _process_watchlist_item(
     if seer_resolve_mode(settings) == "actor" and user_obj and user_obj.seer_user_id and user_obj.seer_active:
         tmdb_id = item.get("tmdb_id")
         seer_id_filter = (MediaRequest.tmdb_id == tmdb_id) if tmdb_id else (MediaRequest.title == item["title"])
-        seer_handled = (await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.plex_user_id == uid,
-                MediaRequest.source == "seer",
-                seer_id_filter,
+        seer_handled = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.plex_user_id == uid,
+                        MediaRequest.source == "seer",
+                        seer_id_filter,
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
         if seer_handled:
             logger.debug(f"Routage Hybride : '{item['title']}' déjà géré par Seer pour {uid}, RSS skip")
             await db.commit()
@@ -758,8 +803,11 @@ async def _process_watchlist_item(
         result = "failed"
         transition_event = "failed"
         target_labels = {
-            "seer": "Seer", "sonarr": "Sonarr", "radarr": "Radarr",
-            "prowlarr": "Prowlarr", "torrent": "Prowlarr/client torrent",
+            "seer": "Seer",
+            "sonarr": "Sonarr",
+            "radarr": "Radarr",
+            "prowlarr": "Prowlarr",
+            "torrent": "Prowlarr/client torrent",
         }
         default_target = "Sonarr" if item["media_type"] == "show" else "Radarr"
         target_name = target_labels.get(item.get("_attempted_target"), default_target)
@@ -769,9 +817,7 @@ async def _process_watchlist_item(
 
     from .notification_policy import dispatch_transition_notification
 
-    await dispatch_transition_notification(
-        settings, req, db, transition_event, reason=failure_reason
-    )
+    await dispatch_transition_notification(settings, req, db, transition_event, reason=failure_reason)
 
     return result
 
@@ -916,7 +962,12 @@ async def sync_plex_dates(db: AsyncSession):
             continue
 
         existing = await _find_global_request(
-            db, item["media_type"], item.get("tmdb_id"), item["title"], item.get("tvdb_id"), item.get("imdb_id"),
+            db,
+            item["media_type"],
+            item.get("tmdb_id"),
+            item["title"],
+            item.get("tvdb_id"),
+            item.get("imdb_id"),
             item.get("year"),
         )
         if existing and existing.requested_at != req_date:

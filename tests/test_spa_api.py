@@ -83,9 +83,7 @@ def test_spa_library_list_paginates_with_offset(async_db):
     troncature, et LibraryView.vue ne paginait jamais -> la majorite d'une grosse
     bibliotheque (ex: 1339 medias en prod) restait invisible dans l'UI alors que
     /api/library-metrics affichait le vrai total, sans lien apparent entre les deux."""
-    async_db.add_all(
-        [LibraryItem(title=f"Movie {i:02d}", media_type="movie", year=2000 + i) for i in range(5)]
-    )
+    async_db.add_all([LibraryItem(title=f"Movie {i:02d}", media_type="movie", year=2000 + i) for i in range(5)])
     async_db.commit()
     client = _client(async_db)
     try:
@@ -117,15 +115,12 @@ def test_spa_notification_feeds_are_async(async_db):
 
 
 def test_pending_notifications_are_paginated(async_db):
-    request = MediaRequest(
-        plex_user_id="alice", title="Dune", media_type="movie", status=RequestStatus.pending
-    )
+    request = MediaRequest(plex_user_id="alice", title="Dune", media_type="movie", status=RequestStatus.pending)
     async_db.add(request)
     async_db.flush()
-    async_db.add_all([
-        PendingNotification(event="request", req_id=request.id, recipients="[]", reason="{}")
-        for _ in range(3)
-    ])
+    async_db.add_all(
+        [PendingNotification(event="request", req_id=request.id, recipients="[]", reason="{}") for _ in range(3)]
+    )
     async_db.commit()
     client = _client(async_db)
     try:
@@ -260,13 +255,9 @@ def test_spa_arr_releases_resolves_seer_request_to_real_radarr_id(async_db):
                 new=AsyncMock(return_value=[]),
             ) as get_releases,
         ):
-            response = client.get(
-                f"/api/arr/releases?media_type=movie&request_id={request.id}"
-            )
+            response = client.get(f"/api/arr/releases?media_type=movie&request_id={request.id}")
         assert response.status_code == 200
-        lookup.assert_awaited_once_with(
-            "http://radarr", "secret", tmdb_id="1451398", imdb_id=None
-        )
+        lookup.assert_awaited_once_with("http://radarr", "secret", tmdb_id="1451398", imdb_id=None)
         get_releases.assert_awaited_once_with("http://radarr", "secret", 1289)
     finally:
         _cleanup()
@@ -283,8 +274,14 @@ def test_spa_arr_releases_resolves_library_episode_target(async_db):
     client = _client(async_db)
     try:
         with (
-            patch("app.routers.arr_releases_api.sonarr.get_episodes", new=AsyncMock(return_value=[{"id": 987, "seasonNumber": 2, "episodeNumber": 3}])),
-            patch("app.routers.arr_releases_api.sonarr.get_releases", new=AsyncMock(return_value=[{"guid": "r", "title": "Serie S02E03 MULTI", "indexer_id": 7}])) as releases,
+            patch(
+                "app.routers.arr_releases_api.sonarr.get_episodes",
+                new=AsyncMock(return_value=[{"id": 987, "seasonNumber": 2, "episodeNumber": 3}]),
+            ),
+            patch(
+                "app.routers.arr_releases_api.sonarr.get_releases",
+                new=AsyncMock(return_value=[{"guid": "r", "title": "Serie S02E03 MULTI", "indexer_id": 7}]),
+            ) as releases,
         ):
             response = client.get(
                 f"/api/arr/releases?media_type=show&source_type=library_item&source_id={item.id}&season_number=2&episode_number=3&prefer_french=false"
@@ -368,33 +365,50 @@ def test_spa_media_detail_exposes_post_availability_history(async_db):
     async_db.commit()
     async_db.refresh(item)
     request = MediaRequest(
-        plex_user_id="alice", title="Arrival", media_type="movie", year=2016,
-        status=RequestStatus.available, library_item_id=item.id,
+        plex_user_id="alice",
+        title="Arrival",
+        media_type="movie",
+        year=2016,
+        status=RequestStatus.available,
+        library_item_id=item.id,
     )
     async_db.add(request)
     async_db.commit()
     async_db.refresh(request)
 
-    async_db.add_all([
-        VfUpgradeSuggestion(
-            source_type="library_item", source_id=item.id, scope="movie",
-            status="verified", accepted_at=datetime(2026, 8, 1, 10, 0, 0),
-            completed_at=datetime(2026, 8, 1, 10, 30, 0),
-        ),
-        DiagnosticEvent(
-            request_id=request.id, category="arr", action="availability_detected",
-            created_at=datetime(2026, 7, 1, 9, 0, 0),
-        ),
-        DiagnosticEvent(
-            request_id=request.id, category="arr", action="availability_detected",
-            created_at=datetime(2026, 8, 5, 9, 0, 0),
-        ),
-        MediaIssue(
-            library_item_id=item.id, title="Arrival", media_type="movie",
-            issue_type="audio", status="closed",
-            created_at=datetime(2026, 8, 2, 9, 0, 0), updated_at=datetime(2026, 8, 3, 9, 0, 0),
-        ),
-    ])
+    async_db.add_all(
+        [
+            VfUpgradeSuggestion(
+                source_type="library_item",
+                source_id=item.id,
+                scope="movie",
+                status="verified",
+                accepted_at=datetime(2026, 8, 1, 10, 0, 0),
+                completed_at=datetime(2026, 8, 1, 10, 30, 0),
+            ),
+            DiagnosticEvent(
+                request_id=request.id,
+                category="arr",
+                action="availability_detected",
+                created_at=datetime(2026, 7, 1, 9, 0, 0),
+            ),
+            DiagnosticEvent(
+                request_id=request.id,
+                category="arr",
+                action="availability_detected",
+                created_at=datetime(2026, 8, 5, 9, 0, 0),
+            ),
+            MediaIssue(
+                library_item_id=item.id,
+                title="Arrival",
+                media_type="movie",
+                issue_type="audio",
+                status="closed",
+                created_at=datetime(2026, 8, 2, 9, 0, 0),
+                updated_at=datetime(2026, 8, 3, 9, 0, 0),
+            ),
+        ]
+    )
     async_db.commit()
 
     client = _client(async_db)
@@ -422,25 +436,46 @@ def test_spa_media_detail_exposes_last_mail_history(async_db):
     from app.models import NotificationLog
 
     request = MediaRequest(
-        plex_user_id="alice", title="Dune", media_type="movie", year=2021, status=RequestStatus.available,
+        plex_user_id="alice",
+        title="Dune",
+        media_type="movie",
+        year=2021,
+        status=RequestStatus.available,
     )
     async_db.add(request)
     async_db.flush()
-    async_db.add_all([
-        NotificationLog(
-            sent_at=datetime(2026, 1, 1, 10, 0, 0), event="request", channel="email", recipient="a@b.c",
-            req_id=request.id, success=True, triggered_by="auto",
-        ),
-        NotificationLog(
-            sent_at=datetime(2026, 1, 2, 10, 0, 0), event="available", channel="email", recipient="a@b.c",
-            req_id=request.id, success=True, triggered_by="manual",
-        ),
-        # Log push (non-email) sur le même req_id : ne doit pas polluer l'historique mail.
-        NotificationLog(
-            sent_at=datetime(2026, 1, 3, 10, 0, 0), event="available", channel="discord", recipient="webhook",
-            req_id=request.id, success=True, triggered_by="auto",
-        ),
-    ])
+    async_db.add_all(
+        [
+            NotificationLog(
+                sent_at=datetime(2026, 1, 1, 10, 0, 0),
+                event="request",
+                channel="email",
+                recipient="a@b.c",
+                req_id=request.id,
+                success=True,
+                triggered_by="auto",
+            ),
+            NotificationLog(
+                sent_at=datetime(2026, 1, 2, 10, 0, 0),
+                event="available",
+                channel="email",
+                recipient="a@b.c",
+                req_id=request.id,
+                success=True,
+                triggered_by="manual",
+            ),
+            # Log push (non-email) sur le même req_id : ne doit pas polluer l'historique mail.
+            NotificationLog(
+                sent_at=datetime(2026, 1, 3, 10, 0, 0),
+                event="available",
+                channel="discord",
+                recipient="webhook",
+                req_id=request.id,
+                success=True,
+                triggered_by="auto",
+            ),
+        ]
+    )
     async_db.commit()
     client = _client(async_db)
     try:
@@ -474,21 +509,38 @@ def test_spa_media_detail_exposes_per_requester_notification_status(async_db):
     )
     async_db.add_all([alice, bob, request])
     async_db.flush()
-    async_db.add_all([
-        NotificationLog(
-            sent_at=datetime(2026, 1, 1, 10, 0, 0), event="request", channel="email", recipient="alice@example.com",
-            req_id=request.id, success=True, triggered_by="auto",
-        ),
-        NotificationLog(
-            sent_at=datetime(2026, 1, 2, 10, 0, 0), event="available", channel="email", recipient="alice@example.com",
-            req_id=request.id, success=True, triggered_by="auto",
-        ),
-        # Envoi echoue pour bob : ne doit pas compter comme "notifie".
-        NotificationLog(
-            sent_at=datetime(2026, 1, 2, 10, 0, 0), event="request", channel="email", recipient="bob@example.com",
-            req_id=request.id, success=False, triggered_by="manual",
-        ),
-    ])
+    async_db.add_all(
+        [
+            NotificationLog(
+                sent_at=datetime(2026, 1, 1, 10, 0, 0),
+                event="request",
+                channel="email",
+                recipient="alice@example.com",
+                req_id=request.id,
+                success=True,
+                triggered_by="auto",
+            ),
+            NotificationLog(
+                sent_at=datetime(2026, 1, 2, 10, 0, 0),
+                event="available",
+                channel="email",
+                recipient="alice@example.com",
+                req_id=request.id,
+                success=True,
+                triggered_by="auto",
+            ),
+            # Envoi echoue pour bob : ne doit pas compter comme "notifie".
+            NotificationLog(
+                sent_at=datetime(2026, 1, 2, 10, 0, 0),
+                event="request",
+                channel="email",
+                recipient="bob@example.com",
+                req_id=request.id,
+                success=False,
+                triggered_by="manual",
+            ),
+        ]
+    )
     async_db.commit()
     client = _client(async_db)
     try:
@@ -585,9 +637,7 @@ def test_sonarr_episode_targets_are_available_without_download_id(async_db):
             patch("app.routers.manual_import_api.sonarr.get_episodes", new=AsyncMock(return_value=episodes)),
             patch("app.routers.manual_import_api.sonarr.get_manual_import_candidates", new=AsyncMock()) as candidates,
         ):
-            response = client.get(
-                f"/api/downloads/sonarr-manual-import?instance_id={instance.id}&series_id=42"
-            )
+            response = client.get(f"/api/downloads/sonarr-manual-import?instance_id={instance.id}&series_id=42")
         assert response.status_code == 200
         assert response.json() == {"candidates": [], "episodes": episodes}
         candidates.assert_not_awaited()
@@ -600,6 +650,7 @@ def test_media_detail_schedule_is_cached_between_calls(async_db):
     direct de la fiche detaillee, il ne doit plus bloquer la page a chaque ouverture
     (voir cache.get_or_refresh dans library_api._media_schedule_payload)."""
     from app.cache import cache
+
     cache._memory.clear()
 
     instance = ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="secret", enabled=True)
@@ -611,11 +662,15 @@ def test_media_detail_schedule_is_cached_between_calls(async_db):
     async_db.commit()
     async_db.refresh(item)
 
-    with patch(
-        "app.routers.library_api.sonarr.lookup_series",
-        new=AsyncMock(return_value={"id": 42, "firstAired": "2008-01-20T00:00:00Z", "status": "ended"}),
-    ) as mock_lookup, patch(
-        "app.routers.library_api.sonarr.get_episodes", new=AsyncMock(return_value=[]),
+    with (
+        patch(
+            "app.routers.library_api.sonarr.lookup_series",
+            new=AsyncMock(return_value={"id": 42, "firstAired": "2008-01-20T00:00:00Z", "status": "ended"}),
+        ) as mock_lookup,
+        patch(
+            "app.routers.library_api.sonarr.get_episodes",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         client = _client(async_db)
         try:

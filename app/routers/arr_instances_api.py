@@ -24,6 +24,7 @@ from .arr_shared import (
 router = APIRouter(prefix="/api", tags=["arr"], dependencies=[Depends(require_admin)])
 logger = logging.getLogger(__name__)
 
+
 class ArrInstanceCreate(BaseModel):
     name: str
     arr_type: str
@@ -36,14 +37,17 @@ class ArrInstanceCreate(BaseModel):
     is_default: Optional[bool] = False
     indexer_ids: Optional[str] = None
 
+
 class TestArrInstanceBody(BaseModel):
     url: str
     api_key: str
     arr_type: str
 
+
 @router.get("/arr-instances")
 async def list_arr_instances(db: AsyncSession = Depends(get_db_async)):
     return (await db.execute(select(ArrInstance))).scalars().all()
+
 
 @router.get("/arr/capabilities")
 async def arr_capabilities(db: AsyncSession = Depends(get_db_async)):
@@ -51,7 +55,9 @@ async def arr_capabilities(db: AsyncSession = Depends(get_db_async)):
     enabled_instances = [i for i in all_instances if i.enabled]
     configured_types = {i.arr_type for i in all_instances}
     enabled_types = {i.arr_type for i in enabled_instances}
-    has_enabled_clients = (await db.execute(select(DownloadClient).filter(DownloadClient.enabled))).scalars().first() is not None
+    has_enabled_clients = (
+        await db.execute(select(DownloadClient).filter(DownloadClient.enabled))
+    ).scalars().first() is not None
     has_clients = (await db.execute(select(DownloadClient))).scalars().first() is not None
     return {
         "has_sonarr": "sonarr" in enabled_types,
@@ -71,6 +77,7 @@ async def arr_capabilities(db: AsyncSession = Depends(get_db_async)):
         "download_clients_disabled": has_clients and not has_enabled_clients,
     }
 
+
 @router.post("/arr-instances")
 async def create_arr_instance(data: ArrInstanceCreate, db: AsyncSession = Depends(get_db_async)):
     inst = await configuration.create_arr_instance(db, data.model_dump())
@@ -79,8 +86,10 @@ async def create_arr_instance(data: ArrInstanceCreate, db: AsyncSession = Depend
         await invalidate_arr_wanted_cache(inst.arr_type)
     if inst.enabled and inst.arr_type in {"sonarr", "radarr"}:
         from ..services.arr_history import sync_instance_after_event
+
         asyncio.create_task(sync_instance_after_event(inst.id, inst.arr_type, delay=0))
     return inst
+
 
 @router.put("/arr-instances/{instance_id}")
 async def update_arr_instance(instance_id: int, data: ArrInstanceCreate, db: AsyncSession = Depends(get_db_async)):
@@ -91,8 +100,10 @@ async def update_arr_instance(instance_id: int, data: ArrInstanceCreate, db: Asy
             await invalidate_arr_wanted_cache(arr_type)
     if inst.enabled and inst.arr_type in {"sonarr", "radarr"}:
         from ..services.arr_history import sync_instance_after_event
+
         asyncio.create_task(sync_instance_after_event(inst.id, inst.arr_type, delay=0))
     return inst
+
 
 @router.delete("/arr-instances/{instance_id}")
 async def delete_arr_instance(instance_id: int, db: AsyncSession = Depends(get_db_async)):
@@ -102,6 +113,7 @@ async def delete_arr_instance(instance_id: int, db: AsyncSession = Depends(get_d
         await invalidate_arr_wanted_cache(arr_type)
     return {"status": "deleted"}
 
+
 @router.patch("/arr-instances/{instance_id}/toggle")
 async def toggle_arr_instance(instance_id: int, db: AsyncSession = Depends(get_db_async)):
     inst = await configuration.toggle_arr_instance(db, instance_id)
@@ -110,6 +122,7 @@ async def toggle_arr_instance(instance_id: int, db: AsyncSession = Depends(get_d
         await invalidate_arr_wanted_cache(inst.arr_type)
     if inst.enabled and inst.arr_type in {"sonarr", "radarr"}:
         from ..services.arr_history import sync_instance_after_event
+
         asyncio.create_task(sync_instance_after_event(inst.id, inst.arr_type, delay=0))
     return {"id": inst.id, "enabled": inst.enabled}
 
@@ -123,10 +136,12 @@ async def toggle_arr_instances_by_type(arr_type: str, db: AsyncSession = Depends
         await invalidate_arr_wanted_cache(arr_type)
     if new_state:
         from ..services.arr_history import sync_instance_after_event
+
         for inst in instances:
             if inst.arr_type in {"sonarr", "radarr"}:
                 asyncio.create_task(sync_instance_after_event(inst.id, inst.arr_type, delay=0))
     return {"arr_type": arr_type, "enabled": new_state, "count": len(instances)}
+
 
 @router.post("/test/arr-instance")
 async def test_arr_instance(body: TestArrInstanceBody):
@@ -141,6 +156,7 @@ async def test_arr_instance(body: TestArrInstanceBody):
         return {"success": ok, "message": msg}
     return {"success": False, "message": f"Type d'instance inconnu : {body.arr_type}"}
 
+
 @router.get("/sonarr/profiles")
 async def sonarr_profiles(
     instance_id: Optional[int] = None,
@@ -149,6 +165,7 @@ async def sonarr_profiles(
     db: AsyncSession = Depends(get_db_async),
 ):
     return await _arr_call(url, api_key, instance_id, "sonarr", db, sonarr.get_quality_profiles)
+
 
 @router.get("/sonarr/folders")
 async def sonarr_folders(
@@ -159,6 +176,7 @@ async def sonarr_folders(
 ):
     return await _arr_folders(url, api_key, instance_id, "sonarr", db, sonarr.get_root_folders)
 
+
 @router.get("/radarr/profiles")
 async def radarr_profiles(
     instance_id: Optional[int] = None,
@@ -167,6 +185,7 @@ async def radarr_profiles(
     db: AsyncSession = Depends(get_db_async),
 ):
     return await _arr_call(url, api_key, instance_id, "radarr", db, radarr.get_quality_profiles)
+
 
 @router.get("/radarr/folders")
 async def radarr_folders(
@@ -177,6 +196,7 @@ async def radarr_folders(
 ):
     return await _arr_folders(url, api_key, instance_id, "radarr", db, radarr.get_root_folders)
 
+
 @router.get("/sonarr/tags")
 async def sonarr_tags(
     instance_id: Optional[int] = None,
@@ -185,6 +205,7 @@ async def sonarr_tags(
     db: AsyncSession = Depends(get_db_async),
 ):
     return await _arr_call(url, api_key, instance_id, "sonarr", db, sonarr.get_tags)
+
 
 @router.get("/radarr/tags")
 async def radarr_tags(

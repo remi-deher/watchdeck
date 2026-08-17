@@ -41,16 +41,12 @@ get_root_folders = arr_common.get_root_folders
 get_tags = arr_common.get_tags
 get_disk_space = arr_common.get_disk_space
 # Sonarr a besoin de `includeSeries` pour le titre, les identifiants externes et l'affiche.
-get_calendar = partial(
-    arr_common.get_calendar, product=PRODUCT, extra_params={"includeSeries": "true"}
-)
+get_calendar = partial(arr_common.get_calendar, product=PRODUCT, extra_params={"includeSeries": "true"})
 get_all_series = partial(arr_common.get_all_media, resource="series")
 series_exists = partial(arr_common.media_exists, resource="series")
 grab_release = partial(arr_common.grab_release, product=PRODUCT)
 get_manual_import_candidates = partial(arr_common.get_manual_import_candidates, product=PRODUCT)
-trigger_import = partial(
-    arr_common.trigger_import, command="DownloadedEpisodesScan", product=PRODUCT
-)
+trigger_import = partial(arr_common.trigger_import, command="DownloadedEpisodesScan", product=PRODUCT)
 delete_queue_item = partial(arr_common.delete_queue_item, product=PRODUCT)
 get_queue_series_ids = partial(
     arr_common.get_queue_media_ids,
@@ -148,9 +144,17 @@ async def add_series(
         arr_catalog.invalidate("sonarr", url)
         return data.get("id"), False, data.get("titleSlug")
     except httpx.HTTPStatusError as e:
-        body = e.response.text if hasattr(e, 'response') else ''
+        body = e.response.text if hasattr(e, "response") else ""
         b_lower = body.lower()
-        if e.response.status_code == 400 and ("seriesexistsvalidator" in b_lower or "already been added" in b_lower or "already configured" in b_lower or "déjà été ajouté" in b_lower or "déjà configuré" in b_lower or "deja ete ajoute" in b_lower or "deja configure" in b_lower):
+        if e.response.status_code == 400 and (
+            "seriesexistsvalidator" in b_lower
+            or "already been added" in b_lower
+            or "already configured" in b_lower
+            or "déjà été ajouté" in b_lower
+            or "déjà configuré" in b_lower
+            or "deja ete ajoute" in b_lower
+            or "deja configure" in b_lower
+        ):
             logger.info(f"'{item['title']}' already in Sonarr (caught 400 Exists/PathConfigured)")
             return None, True, None
         logger.error(f"Sonarr error adding '{item['title']}': {e} — response: {body}")
@@ -235,7 +239,7 @@ async def _lookup_series_candidates(url: str, api_key: str, term: str) -> list[d
         resp = await client.get(
             "/api/v3/series/lookup",
             params={"term": term},
-            )
+        )
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -325,6 +329,7 @@ async def lookup_series(
                     imdb_id,
                 )
         if tvdb_id or tmdb_id or imdb_id:
+
             def _match(series: list[dict] | None) -> dict | None:
                 for s in series or []:
                     if tvdb_id and str(s.get("tvdbId")) == str(tvdb_id):
@@ -408,12 +413,14 @@ def aggregate_monitored_episode_stats(data: dict) -> dict:
         season_stats = season.get("statistics", {}) or {}
         for key in monitored_totals:
             monitored_totals[key] += season_stats.get(key, 0) or 0
-        seasons.append({
-            "season_number": season_number,
-            "episode_file_count": season_stats.get("episodeFileCount", 0),
-            "episode_count": season_stats.get("episodeCount", 0),
-            "total_episode_count": season_stats.get("totalEpisodeCount", 0),
-        })
+        seasons.append(
+            {
+                "season_number": season_number,
+                "episode_file_count": season_stats.get("episodeFileCount", 0),
+                "episode_count": season_stats.get("episodeCount", 0),
+                "total_episode_count": season_stats.get("totalEpisodeCount", 0),
+            }
+        )
     aggregate = monitored_totals if season_details else stats
     return {
         "episode_file_count": aggregate.get("episodeFileCount", 0),

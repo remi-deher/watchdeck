@@ -198,4 +198,3 @@ def french_release_evidence(rel: dict) -> dict:
         "vf_evidence": (["Langue French declaree par *arr"] if declared else [])
         + ([f"Marqueur titre: {', '.join(markers)}"] if markers else []),
     }
-

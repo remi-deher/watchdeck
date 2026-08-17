@@ -13,11 +13,19 @@ from .arr_queue_common import BLOCKED_CONFIRMATION_CHECKS, classify_queue_record
 
 async def load_monitor_context(db, arr_type: str) -> tuple[list[ArrInstance], dict[tuple[int, int], MediaRequest]]:
     instances = (
-        await db.execute(select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type == arr_type))
-    ).scalars().all()
+        (await db.execute(select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type == arr_type)))
+        .scalars()
+        .all()
+    )
     requests = (
-        await db.execute(select(MediaRequest).filter(MediaRequest.arr_instance_id.isnot(None), MediaRequest.arr_id.isnot(None)))
-    ).scalars().all()
+        (
+            await db.execute(
+                select(MediaRequest).filter(MediaRequest.arr_instance_id.isnot(None), MediaRequest.arr_id.isnot(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
     return list(instances), {(request.arr_instance_id, request.arr_id): request for request in requests}
 
 
@@ -37,9 +45,7 @@ async def fetch_queue_safely(
 
 def classify_observation(observation: Any, record: dict) -> tuple[str, int]:
     classification = classify_queue_record(record)
-    blocked_checks = (
-        (observation.consecutive_blocked_checks or 0) + 1 if classification.blocked_candidate else 0
-    )
+    blocked_checks = (observation.consecutive_blocked_checks or 0) + 1 if classification.blocked_candidate else 0
     state = (
         "import_blocked"
         if classification.blocked_candidate and blocked_checks >= BLOCKED_CONFIRMATION_CHECKS
@@ -79,13 +85,17 @@ async def resolve_missing_observations(
     now: datetime,
 ) -> int:
     unresolved = (
-        await db.execute(
-            select(observation_model).filter(
-                observation_model.arr_instance_id == instance_id,
-                observation_model.resolved_at.is_(None),
+        (
+            await db.execute(
+                select(observation_model).filter(
+                    observation_model.arr_instance_id == instance_id,
+                    observation_model.resolved_at.is_(None),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     resolved = 0
     for observation in unresolved:
         if observation.queue_id in seen_queue_ids:

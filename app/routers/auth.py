@@ -58,8 +58,7 @@ async def session_info(request: Request, db: AsyncSession = Depends(get_db_async
 async def _is_rate_limited(db: AsyncSession, ip: str) -> bool:
     cutoff = now_utc_naive() - timedelta(seconds=_WINDOW_SECONDS)
     res = await db.execute(
-        select(func.count(LoginAttempt.id))
-        .filter(
+        select(func.count(LoginAttempt.id)).filter(
             LoginAttempt.ip_address == ip,
             LoginAttempt.success == False,  # noqa: E712
             LoginAttempt.attempted_at >= cutoff,
@@ -69,7 +68,9 @@ async def _is_rate_limited(db: AsyncSession, ip: str) -> bool:
     return count >= _MAX_ATTEMPTS
 
 
-async def _record_login_attempt(db: AsyncSession, ip: str, username: str | None, success: bool, reason: str | None = None) -> None:
+async def _record_login_attempt(
+    db: AsyncSession, ip: str, username: str | None, success: bool, reason: str | None = None
+) -> None:
     db.add(LoginAttempt(ip_address=ip, username=username, success=success, reason=reason, attempted_at=now_utc_naive()))
     await db.commit()
 
@@ -314,13 +315,17 @@ async def login_plex_check(pin_id: int, request: Request, db: AsyncSession = Dep
     # Rattachement : uuid stable en priorité, sinon username (users legacy RSS/API).
     user = None
     if account["uuid"]:
-        user = (await db.execute(select(PlexUser).filter(PlexUser.plex_account_uuid == account["uuid"]))).scalars().first()
+        user = (
+            (await db.execute(select(PlexUser).filter(PlexUser.plex_account_uuid == account["uuid"]))).scalars().first()
+        )
         if user:
             logger.info(
                 "SSO Login check: matched existing user by UUID: id=%s, plex_user_id=%s", user.id, user.plex_user_id
             )
     if not user:
-        user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == account["username"]))).scalars().first()
+        user = (
+            (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == account["username"]))).scalars().first()
+        )
         if user:
             logger.info(
                 "SSO Login check: matched existing user by username: id=%s, plex_user_id=%s", user.id, user.plex_user_id
@@ -442,7 +447,11 @@ async def webauthn_login_verify(
     expected_origin = [f"https://{host}", f"http://{host}"]
 
     cred_id_str = credential.get("id")
-    db_cred = (await db.execute(select(PasskeyCredential).filter(PasskeyCredential.credential_id == cred_id_str))).scalars().first()
+    db_cred = (
+        (await db.execute(select(PasskeyCredential).filter(PasskeyCredential.credential_id == cred_id_str)))
+        .scalars()
+        .first()
+    )
     if not db_cred:
         raise HTTPException(status_code=401, detail="Passkey non reconnue.")
 

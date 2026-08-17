@@ -40,9 +40,7 @@ def test_every_published_event_type_is_declared():
     published = _published_event_types()
     # Garde-fou du garde-fou : si l'extraction ne trouve plus rien, le test ne prouve rien.
     assert published, "aucun appel publish() détecté — l'extraction AST est à revoir"
-    assert published <= EVENT_TYPES, (
-        f"types publiés mais absents de EVENT_TYPES : {sorted(published - EVENT_TYPES)}"
-    )
+    assert published <= EVENT_TYPES, f"types publiés mais absents de EVENT_TYPES : {sorted(published - EVENT_TYPES)}"
 
 
 def test_spa_listens_to_every_declared_event_type():
@@ -54,6 +52,4 @@ def test_spa_listens_to_every_declared_event_type():
     assert declaration, "déclaration `REALTIME_EVENT_TYPES = [...]` introuvable dans events.ts"
     listened = set(re.findall(r"'([^']+)'", declaration.group(1)))
 
-    assert EVENT_TYPES <= listened, (
-        f"types déclarés mais non écoutés par la SPA : {sorted(EVENT_TYPES - listened)}"
-    )
+    assert EVENT_TYPES <= listened, f"types déclarés mais non écoutés par la SPA : {sorted(EVENT_TYPES - listened)}"

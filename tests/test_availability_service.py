@@ -40,10 +40,15 @@ async def test_has_plex_proof_true_when_library_item_cache_matches(async_db):
     async_db.add(_settings())
     # Un LibraryItem issu d'un vrai sync Plex porte toujours un plex_guid : c'est ce qui
     # le distingue d'un orphelin materialise depuis *arr (cf. test ci-dessous).
-    async_db.add(LibraryItem(
-        title="Society of the Snow", media_type="movie", year=2023, tmdb_id="906126",
-        plex_guid="plex://movie/society-of-the-snow",
-    ))
+    async_db.add(
+        LibraryItem(
+            title="Society of the Snow",
+            media_type="movie",
+            year=2023,
+            tmdb_id="906126",
+            plex_guid="plex://movie/society-of-the-snow",
+        )
+    )
     req = _req()
     async_db.add(req)
     async_db.commit()
@@ -63,8 +68,13 @@ async def test_arr_materialized_orphan_is_not_plex_proof(async_db):
     y est deja liee. has_plex_proof doit l'ignorer et retomber sur une verif live Plex."""
     async_db.add(_settings())
     orphan = LibraryItem(
-        title="Society of the Snow", media_type="movie", year=2023, tmdb_id="906126",
-        plex_guid=None, arr_id=775, arr_slug="906126",
+        title="Society of the Snow",
+        media_type="movie",
+        year=2023,
+        tmdb_id="906126",
+        plex_guid=None,
+        arr_id=775,
+        arr_slug="906126",
     )
     async_db.add(orphan)
     async_db.commit()

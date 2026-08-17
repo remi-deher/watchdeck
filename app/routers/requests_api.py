@@ -340,6 +340,7 @@ async def list_requests_compact(
         )
     if query:
         filters.append(MediaRequest.title.ilike(f"%{query.strip()}%"))
+
     def _split(raw: Optional[str]) -> list[str]:
         return [value.strip() for value in (raw or "").split(",") if value.strip()]
 
@@ -354,9 +355,7 @@ async def list_requests_compact(
                 MediaRequest.episodes_available_count < MediaRequest.episodes_aired_count,
             )
             filters.append(
-                sqlalchemy.or_(MediaRequest.status.in_(others), partial_clause)
-                if others
-                else partial_clause
+                sqlalchemy.or_(MediaRequest.status.in_(others), partial_clause) if others else partial_clause
             )
         else:
             filters.append(MediaRequest.status.in_(status_values))
@@ -398,66 +397,82 @@ async def list_requests_compact(
     elif vf == "unchecked":
         filters.append(MediaRequest.has_vf.is_(None))
 
-    total = (await db.execute(
-        select(func.count(MediaRequest.id)).filter(*filters)
-    )).scalar() or 0
-    rows = (await db.execute(
-        select(
-            MediaRequest.id,
-            MediaRequest.title,
-            MediaRequest.year,
-            MediaRequest.media_type,
-            MediaRequest.status,
-            MediaRequest.source,
-            MediaRequest.plex_user_id,
-            MediaRequest.plex_user,
-            PlexUser.custom_name,
-            MediaRequest.poster_url,
-            MediaRequest.has_vf,
-            MediaRequest.fr_is_default,
-            MediaRequest.library_item_id,
-            MediaRequest.arr_instance_id,
-            MediaRequest.arr_id,
-            MediaRequest.episodes_available_count,
-            MediaRequest.episodes_aired_count,
-            MediaRequest.requested_at,
+    total = (await db.execute(select(func.count(MediaRequest.id)).filter(*filters))).scalar() or 0
+    rows = (
+        await db.execute(
+            select(
+                MediaRequest.id,
+                MediaRequest.title,
+                MediaRequest.year,
+                MediaRequest.media_type,
+                MediaRequest.status,
+                MediaRequest.source,
+                MediaRequest.plex_user_id,
+                MediaRequest.plex_user,
+                PlexUser.custom_name,
+                MediaRequest.poster_url,
+                MediaRequest.has_vf,
+                MediaRequest.fr_is_default,
+                MediaRequest.library_item_id,
+                MediaRequest.arr_instance_id,
+                MediaRequest.arr_id,
+                MediaRequest.episodes_available_count,
+                MediaRequest.episodes_aired_count,
+                MediaRequest.requested_at,
+            )
+            .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
+            .filter(*filters)
+            .order_by(MediaRequest.requested_at.desc(), MediaRequest.id.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
         )
-        .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
-        .filter(*filters)
-        .order_by(MediaRequest.requested_at.desc(), MediaRequest.id.desc())
-        .offset(pagination.offset)
-        .limit(pagination.limit)
-    )).all()
+    ).all()
 
     aggregate_filters = filters[:1] if uid else []
-    type_rows = (await db.execute(
-        select(MediaRequest.media_type, func.count(MediaRequest.id))
-        .filter(*aggregate_filters)
-        .group_by(MediaRequest.media_type)
-    )).all()
-    source_rows = (await db.execute(
-        select(MediaRequest.source).filter(*aggregate_filters, MediaRequest.source.isnot(None)).distinct()
-    )).scalars().all()
-    requester_rows = (await db.execute(
-        select(MediaRequest.plex_user_id, func.max(PlexUser.custom_name), func.max(MediaRequest.plex_user))
-        .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
-        .filter(*aggregate_filters)
-        .group_by(MediaRequest.plex_user_id)
-    )).all()
+    type_rows = (
+        await db.execute(
+            select(MediaRequest.media_type, func.count(MediaRequest.id))
+            .filter(*aggregate_filters)
+            .group_by(MediaRequest.media_type)
+        )
+    ).all()
+    source_rows = (
+        (
+            await db.execute(
+                select(MediaRequest.source).filter(*aggregate_filters, MediaRequest.source.isnot(None)).distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    requester_rows = (
+        await db.execute(
+            select(MediaRequest.plex_user_id, func.max(PlexUser.custom_name), func.max(MediaRequest.plex_user))
+            .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
+            .filter(*aggregate_filters)
+            .group_by(MediaRequest.plex_user_id)
+        )
+    ).all()
 
     return paginated_response(
         items=[
             {
-                "id": row.id, "title": row.title, "year": row.year,
+                "id": row.id,
+                "title": row.title,
+                "year": row.year,
                 "media_type": row.media_type,
                 "status": row.status.value if hasattr(row.status, "value") else row.status,
-                "source": row.source, "plex_user_id": row.plex_user_id,
-                "plex_user": row.plex_user, "custom_name": row.custom_name,
+                "source": row.source,
+                "plex_user_id": row.plex_user_id,
+                "plex_user": row.plex_user,
+                "custom_name": row.custom_name,
                 "requested_by": row.custom_name or row.plex_user or row.plex_user_id,
-                "poster_url": row.poster_url, "has_vf": row.has_vf,
+                "poster_url": row.poster_url,
+                "has_vf": row.has_vf,
                 "fr_is_default": row.fr_is_default,
                 "library_item_id": row.library_item_id,
-                "arr_instance_id": row.arr_instance_id, "arr_id": row.arr_id,
+                "arr_instance_id": row.arr_instance_id,
+                "arr_id": row.arr_id,
                 "episodes_available_count": row.episodes_available_count,
                 "episodes_aired_count": row.episodes_aired_count,
                 "requested_at": row.requested_at.isoformat() if row.requested_at else None,
@@ -470,9 +485,7 @@ async def list_requests_compact(
         facets={
             "by_type": {kind: count for kind, count in type_rows},
             "sources": sorted(source_rows),
-            "requesters": [
-                {"id": row[0], "label": row[1] or row[2] or row[0]} for row in requester_rows if row[0]
-            ],
+            "requesters": [{"id": row[0], "label": row[1] or row[2] or row[0]} for row in requester_rows if row[0]],
         },
     )
 
@@ -507,8 +520,12 @@ async def open_orphan_detail(arr_type: str, instance_id: int, arr_id: int, db: A
 
 @router.delete("/requests/orphans/{arr_type}/{instance_id}/{arr_id}", dependencies=[Depends(require_moderator)])
 async def delete_orphan_request(
-    arr_type: str, instance_id: int, arr_id: int, request: Request,
-    delete_files: bool = False, db: AsyncSession = Depends(get_db_async),
+    arr_type: str,
+    instance_id: int,
+    arr_id: int,
+    request: Request,
+    delete_files: bool = False,
+    db: AsyncSession = Depends(get_db_async),
 ):
     """Supprime une série/film orpheline directement dans Sonarr/Radarr (pas de
     MediaRequest à supprimer côté Watchdeck, il n'y en a jamais eu)."""
@@ -522,7 +539,12 @@ async def delete_orphan_request(
         title, tvdb_id, tmdb_id, imdb_id = (item or {}).get("title", "?"), (item or {}).get("tvdbId"), None, None
     else:
         item = await radarr.lookup_movie(inst.url, inst.api_key, arr_id=arr_id)
-        title, tvdb_id, tmdb_id, imdb_id = (item or {}).get("title", "?"), None, (item or {}).get("tmdbId"), (item or {}).get("imdbId")
+        title, tvdb_id, tmdb_id, imdb_id = (
+            (item or {}).get("title", "?"),
+            None,
+            (item or {}).get("tmdbId"),
+            (item or {}).get("imdbId"),
+        )
 
     if arr_type == "sonarr":
         ok, message = await sonarr.delete_series(inst.url, inst.api_key, arr_id, delete_files=delete_files)
@@ -533,8 +555,12 @@ async def delete_orphan_request(
 
     actor = current_user(request, db) or {}
     await deleted_media.record_deletion(
-        db, "show" if arr_type == "sonarr" else "movie", title,
-        tmdb_id=tmdb_id, tvdb_id=tvdb_id, imdb_id=imdb_id,
+        db,
+        "show" if arr_type == "sonarr" else "movie",
+        title,
+        tmdb_id=tmdb_id,
+        tvdb_id=tvdb_id,
+        imdb_id=imdb_id,
         deleted_by=actor.get("username") or actor.get("plex_user_id") or "api",
     )
     await db.commit()
@@ -549,9 +575,7 @@ async def list_deleted_media_log(db: AsyncSession = Depends(get_db_async)):
     """Médias volontairement supprimés par un admin (demande ou orpheline arr) —
     toute nouvelle demande pour l'un de ces titres est forcée en attente
     d'approbation tant qu'il figure ici. Voir app.services.deleted_media."""
-    rows = (await db.execute(
-        select(DeletedMediaLog).order_by(DeletedMediaLog.deleted_at.desc())
-    )).scalars().all()
+    rows = (await db.execute(select(DeletedMediaLog).order_by(DeletedMediaLog.deleted_at.desc()))).scalars().all()
     return rows
 
 
@@ -606,8 +630,21 @@ async def list_pending_requests(db: AsyncSession = Depends(get_db_async)):
     /requests/{request_id} pour ne pas être capté par le param int."""
     from ..serializers import serialize_media_request
 
-    reqs = (await db.execute(select(MediaRequest).filter(MediaRequest.status == RequestStatus.pending_approval).order_by(MediaRequest.requested_at.desc()))).scalars().all()
-    users = {u.plex_user_id: (u.custom_name or u.display_name or u.plex_user_id) for u in (await db.execute(select(PlexUser))).scalars().all()}
+    reqs = (
+        (
+            await db.execute(
+                select(MediaRequest)
+                .filter(MediaRequest.status == RequestStatus.pending_approval)
+                .order_by(MediaRequest.requested_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    users = {
+        u.plex_user_id: (u.custom_name or u.display_name or u.plex_user_id)
+        for u in (await db.execute(select(PlexUser))).scalars().all()
+    }
     return [serialize_media_request(r, users) for r in reqs]
 
 
@@ -630,7 +667,11 @@ async def get_request(request_id: int, request: Request, db: AsyncSession = Depe
     d["available_at"] = format_datetime(req.available_at)
 
     if req.torrent_hash and req.download_client_id:
-        client = (await db.execute(select(DownloadClient).filter(DownloadClient.id == req.download_client_id))).scalars().first()
+        client = (
+            (await db.execute(select(DownloadClient).filter(DownloadClient.id == req.download_client_id)))
+            .scalars()
+            .first()
+        )
         if client and client.enabled:
             try:
                 from ..services.download_clients import get_torrent_status
@@ -653,7 +694,10 @@ async def get_request(request_id: int, request: Request, db: AsyncSession = Depe
     d["_admin_emails"] = admin_emails
     d["_notify_admin"] = notify_admin
 
-    users = {u.plex_user_id: (u.custom_name or u.display_name or u.plex_user_id) for u in (await db.execute(select(PlexUser))).scalars().all()}
+    users = {
+        u.plex_user_id: (u.custom_name or u.display_name or u.plex_user_id)
+        for u in (await db.execute(select(PlexUser))).scalars().all()
+    }
     d["plex_user"] = users.get(req.plex_user_id, req.plex_user or req.plex_user_id)
     try:
         extras = _json.loads(req.extra_requesters or "[]")
@@ -738,8 +782,13 @@ async def bulk_delete_requests(body: BulkAction, request: Request, db: AsyncSess
                 skipped.append({"id": req.id, "title": req.title, "reason": msg})
                 continue
         await deleted_media.record_deletion(
-            db, req.media_type, req.title,
-            tmdb_id=req.tmdb_id, tvdb_id=req.tvdb_id, imdb_id=req.imdb_id, deleted_by=deleted_by,
+            db,
+            req.media_type,
+            req.title,
+            tmdb_id=req.tmdb_id,
+            tvdb_id=req.tvdb_id,
+            imdb_id=req.imdb_id,
+            deleted_by=deleted_by,
         )
         await delete_request_episode_cache(db, req.id)
         await db.delete(req)
@@ -892,8 +941,12 @@ async def delete_request(
             raise HTTPException(502, f"Suppression *arr impossible ({msg}) — rien n'a été supprimé.")
     actor = current_user(request, db) or {}
     await deleted_media.record_deletion(
-        db, req.media_type, req.title,
-        tmdb_id=req.tmdb_id, tvdb_id=req.tvdb_id, imdb_id=req.imdb_id,
+        db,
+        req.media_type,
+        req.title,
+        tmdb_id=req.tmdb_id,
+        tvdb_id=req.tvdb_id,
+        imdb_id=req.imdb_id,
         deleted_by=actor.get("username") or actor.get("plex_user_id") or "api",
     )
     await delete_request_episode_cache(db, req.id)
@@ -919,8 +972,12 @@ async def withdraw_request(request_id: int, request: Request, db: AsyncSession =
     is_plex_source = req.source in ("rss", "api")
     actor = current_user(request, db) or {}
     await deleted_media.record_deletion(
-        db, req.media_type, req.title,
-        tmdb_id=req.tmdb_id, tvdb_id=req.tvdb_id, imdb_id=req.imdb_id,
+        db,
+        req.media_type,
+        req.title,
+        tmdb_id=req.tmdb_id,
+        tvdb_id=req.tvdb_id,
+        imdb_id=req.imdb_id,
         deleted_by=actor.get("username") or actor.get("plex_user_id") or "api",
         blocked=is_plex_source,
     )

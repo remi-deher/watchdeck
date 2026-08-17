@@ -80,18 +80,25 @@ async def activity_log(db: AsyncSession = Depends(get_db_async)):
     """Retourne les 25 événements les plus récents (7 derniers jours) pour le journal."""
     cutoff = now_utc_naive() - timedelta(days=7)
     reqs = (
-        await db.execute(
-            select(MediaRequest)
-            .filter(
-                (MediaRequest.requested_at >= cutoff)
-                | (MediaRequest.available_at >= cutoff)
-                | (MediaRequest.vf_available_at >= cutoff)
+        (
+            await db.execute(
+                select(MediaRequest)
+                .filter(
+                    (MediaRequest.requested_at >= cutoff)
+                    | (MediaRequest.available_at >= cutoff)
+                    | (MediaRequest.vf_available_at >= cutoff)
+                )
+                .order_by(MediaRequest.requested_at.desc())
+                .limit(120)
             )
-            .order_by(MediaRequest.requested_at.desc())
-            .limit(120)
         )
-    ).scalars().all()
-    users = {u.plex_user_id: (u.custom_name or u.display_name or u.plex_user_id) for u in (await db.execute(select(PlexUser))).scalars().all()}
+        .scalars()
+        .all()
+    )
+    users = {
+        u.plex_user_id: (u.custom_name or u.display_name or u.plex_user_id)
+        for u in (await db.execute(select(PlexUser))).scalars().all()
+    }
 
     events: list[dict[str, Any]] = []
 
@@ -122,20 +129,30 @@ async def activity_log(db: AsyncSession = Depends(get_db_async)):
             elif r.status == "sent_to_arr":
                 add_event(r, "sent", r.requested_at, "Transmise", "Detection et envoi vers ARR")
             else:
-                add_event(r, "detected", r.requested_at, "Ajoutee a la watchlist", "Ajout a la watchlist Plex ou creation de la demande")
+                add_event(
+                    r,
+                    "detected",
+                    r.requested_at,
+                    "Ajoutee a la watchlist",
+                    "Ajout a la watchlist Plex ou creation de la demande",
+                )
         if r.available_at and r.available_at >= cutoff:
             add_event(r, "available", r.available_at, "Disponible", "Disponibilite confirmee")
         if r.vf_available_at and r.vf_available_at >= cutoff:
             add_event(r, "vf_available", r.vf_available_at, "VF disponible", "Upgrade VF detecte")
 
     logs = (
-        await db.execute(
-            select(NotificationLog)
-            .filter(NotificationLog.sent_at >= cutoff)
-            .order_by(NotificationLog.sent_at.desc())
-            .limit(80)
+        (
+            await db.execute(
+                select(NotificationLog)
+                .filter(NotificationLog.sent_at >= cutoff)
+                .order_by(NotificationLog.sent_at.desc())
+                .limit(80)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for log in logs:
         events.append(
             {
@@ -195,12 +212,14 @@ async def list_diagnostic_logs(
         q = q.filter(DiagnosticEvent.request_id == request_id)
     if search:
         pattern = f"%{search}%"
-        q = q.filter(sqlalchemy.or_(
-            DiagnosticEvent.title.ilike(pattern),
-            DiagnosticEvent.message.ilike(pattern),
-            DiagnosticEvent.action.ilike(pattern),
-            DiagnosticEvent.correlation_id.ilike(pattern),
-        ))
+        q = q.filter(
+            sqlalchemy.or_(
+                DiagnosticEvent.title.ilike(pattern),
+                DiagnosticEvent.message.ilike(pattern),
+                DiagnosticEvent.action.ilike(pattern),
+                DiagnosticEvent.correlation_id.ilike(pattern),
+            )
+        )
     q = q.order_by(DiagnosticEvent.created_at.desc())
     total = (await db.execute(sqlalchemy.select(sqlalchemy.func.count()).select_from(q.subquery()))).scalar()
     events = (await db.execute(q.offset(pagination.offset).limit(pagination.limit))).scalars().all()
@@ -229,7 +248,9 @@ async def list_diagnostic_logs(
 
 
 @router.get("/email/preview")
-async def preview_email_template(event: str = "request", user_id: Optional[int] = None, db: AsyncSession = Depends(get_db_async)):
+async def preview_email_template(
+    event: str = "request", user_id: Optional[int] = None, db: AsyncSession = Depends(get_db_async)
+):
     """Rend le template email avec des données fictives et retourne le HTML."""
     settings = (await db.execute(select(Settings))).scalars().first()
 
@@ -312,7 +333,7 @@ async def list_notification_logs(
     types: str = None,
     users: str = None,
     search: str = None,
-    db: AsyncSession = Depends(get_db_async)
+    db: AsyncSession = Depends(get_db_async),
 ):
     q = select(NotificationLog)
 
@@ -335,10 +356,7 @@ async def list_notification_logs(
                 else:
                     conditions.append(NotificationLog.event.startswith(t))
                     if t == "available":
-                        legacy_prefixes = [
-                            "episode_track", "vo_only",
-                            "partially_available", "language_"
-                        ]
+                        legacy_prefixes = ["episode_track", "vo_only", "partially_available", "language_"]
                         for lp in legacy_prefixes:
                             conditions.append(NotificationLog.event.startswith(lp))
             q = q.filter(sqlalchemy.or_(*conditions))
@@ -368,7 +386,7 @@ async def list_notification_logs(
                 NotificationLog.media_title.ilike(search_str),
                 NotificationLog.recipient.ilike(search_str),
                 NotificationLog.event.ilike(search_str),
-                NotificationLog.error_msg.ilike(search_str)
+                NotificationLog.error_msg.ilike(search_str),
             )
         )
 
@@ -433,7 +451,9 @@ async def preview_notification_log(log_id: int, db: AsyncSession = Depends(get_d
 
     user_obj = None
     if req.plex_user_id:
-        user_obj = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
+        user_obj = (
+            (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == req.plex_user_id))).scalars().first()
+        )
     display_name = (user_obj.custom_name if user_obj else None) or req.plex_user
 
     base_event = "failed" if log.event == "failure" else log.event
@@ -443,17 +463,34 @@ async def preview_notification_log(log_id: int, db: AsyncSession = Depends(get_d
             subject, html = await send_request_notification(settings, req, log.recipient, display_name, dry_run=True)
         elif base_event == "available":
             subject, html = await send_available_notification(
-                settings, req, log.recipient, display_name,
-                scope=log.scope or "movie", language=log.language, is_upgrade=bool(log.is_upgrade),
-                season_number=log.season_number, episode_number=log.episode_number, dry_run=True,
+                settings,
+                req,
+                log.recipient,
+                display_name,
+                scope=log.scope or "movie",
+                language=log.language,
+                is_upgrade=bool(log.is_upgrade),
+                season_number=log.season_number,
+                episode_number=log.episode_number,
+                dry_run=True,
             )
         elif base_event == "failed":
             subject, html = await send_failure_notification(
-                settings, req, log.recipient, log.error_msg or "", display_name, dry_run=True,
+                settings,
+                req,
+                log.recipient,
+                log.error_msg or "",
+                display_name,
+                dry_run=True,
             )
         elif base_event == "import_blocked":
             subject, html = await send_import_blocked_notification(
-                settings, req, log.recipient, log.error_msg or "", display_name, dry_run=True,
+                settings,
+                req,
+                log.recipient,
+                log.error_msg or "",
+                display_name,
+                dry_run=True,
             )
         elif base_event == "cancelled":
             subject, html = await send_cancelled_notification(settings, req, log.recipient, display_name, dry_run=True)
@@ -467,7 +504,11 @@ async def preview_notification_log(log_id: int, db: AsyncSession = Depends(get_d
     except Exception as e:
         raise HTTPException(500, f"Impossible de reconstruire cet email : {e}")
 
-    note = "Le média associé a été supprimé depuis l'envoi : aperçu partiel, sans jaquette ni synopsis." if degraded else None
+    note = (
+        "Le média associé a été supprimé depuis l'envoi : aperçu partiel, sans jaquette ni synopsis."
+        if degraded
+        else None
+    )
     return {"subject": subject, "html": html, "reconstructable": True, "note": note}
 
 
@@ -519,7 +560,9 @@ async def get_notification_hold(db: AsyncSession = Depends(get_db_async)):
 
 
 @router.put("/notifications/hold")
-async def update_notification_hold(body: NotificationHoldPayload, request: Request, db: AsyncSession = Depends(get_db_async)):
+async def update_notification_hold(
+    body: NotificationHoldPayload, request: Request, db: AsyncSession = Depends(get_db_async)
+):
     await set_notification_hold(body.enabled, db=db)
     pending_count = await db.scalar(text("SELECT COUNT(*) FROM pending_notifications"))
     await _log_admin_action(
@@ -548,9 +591,7 @@ async def list_pending_notifications(
     pagination: PaginationParams = Depends(pagination_params(max_limit=200, default_limit=50, strict=False)),
     db: AsyncSession = Depends(get_db_async),
 ):
-    total = int(
-        (await db.execute(text("SELECT COUNT(*) FROM pending_notifications"))).scalar() or 0
-    )
+    total = int((await db.execute(text("SELECT COUNT(*) FROM pending_notifications"))).scalar() or 0)
     rows = (
         await db.execute(
             text(
@@ -583,7 +624,14 @@ async def list_pending_notifications(
     for row in rows:
         recipients = _json_value(row.recipients, [])
         context = _json_value(row.reason, {})
-        is_valid = row.event in ("request", "available", "failed", "import_blocked", "correction", "request.correction") and isinstance(recipients, list)
+        is_valid = row.event in (
+            "request",
+            "available",
+            "failed",
+            "import_blocked",
+            "correction",
+            "request.correction",
+        ) and isinstance(recipients, list)
         if not is_valid:
             invalid += 1
         media = titles.get(row.req_id, {})
@@ -593,7 +641,6 @@ async def list_pending_notifications(
                 "created_at": str(row.created_at or ""),
                 "event": row.event,
                 "event_label": get_event(row.event).label,
-
                 "req_id": row.req_id,
                 "media_title": media.get("title"),
                 "media_type": media.get("media_type"),
@@ -642,7 +689,9 @@ async def _mark_pending_rows_handled(db: AsyncSession, rows: list) -> int:
 
     reqs = {
         req.id: req
-        for req in (await db.execute(select(MediaRequest).filter(MediaRequest.id.in_(sorted(set(req_ids)))))).scalars().all()
+        for req in (await db.execute(select(MediaRequest).filter(MediaRequest.id.in_(sorted(set(req_ids))))))
+        .scalars()
+        .all()
     }
     handled = 0
     for row in rows:
@@ -757,7 +806,9 @@ async def resend_notification(log_id: int, db: AsyncSession = Depends(get_db_asy
     # Les anciens évènements de disponibilité (available_vf, vo_only, vf_available,
     # episode_track, partially_available, available_vo_tracking — retirés du catalogue,
     # voir notification_catalog.py) sont tous fusionnés dans "available" aujourd'hui.
-    event = log.event if log.event in ("request", "available", "failed", "import_blocked", "correction") else "available"
+    event = (
+        log.event if log.event in ("request", "available", "failed", "import_blocked", "correction") else "available"
+    )
     context = (
         {
             "scope": log.scope,

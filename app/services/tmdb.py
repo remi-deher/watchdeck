@@ -92,7 +92,6 @@ GENRE_RAIL_MAPPING = {
 }
 
 
-
 class TmdbNotConfigured(Exception):
     """Levée quand aucune clé API TMDB n'est configurée."""
 
@@ -124,9 +123,11 @@ def _profile(path: Optional[str], size: str = "w185") -> Optional[str]:
 
 
 async def _cache_get(db: AsyncSession, key: str) -> Optional[dict]:
-    row = (await db.execute(
-        select(SearchCache).filter(SearchCache.query == key, SearchCache.category == "tmdb")
-    )).scalars().first()
+    row = (
+        (await db.execute(select(SearchCache).filter(SearchCache.query == key, SearchCache.category == "tmdb")))
+        .scalars()
+        .first()
+    )
     if not row:
         return None
     if row.cached_at and (now_utc_naive() - row.cached_at) > CACHE_TTL:
@@ -138,9 +139,11 @@ async def _cache_get(db: AsyncSession, key: str) -> Optional[dict]:
 
 
 async def _cache_put(db: AsyncSession, key: str, payload: dict) -> None:
-    row = (await db.execute(
-        select(SearchCache).filter(SearchCache.query == key, SearchCache.category == "tmdb")
-    )).scalars().first()
+    row = (
+        (await db.execute(select(SearchCache).filter(SearchCache.query == key, SearchCache.category == "tmdb")))
+        .scalars()
+        .first()
+    )
     if row:
         row.results_json = json.dumps(payload)
         row.cached_at = now_utc_naive()
@@ -401,7 +404,7 @@ async def _company_movies(db: AsyncSession, company_id: int, page: int = 1) -> d
     all_items.sort(key=lambda item: (item.get("popularity") or 0, item.get("year") or 0), reverse=True)
     per_page = 20
     start = (page - 1) * per_page
-    page_items = all_items[start: start + per_page]
+    page_items = all_items[start : start + per_page]
     total = len(all_items)
     return {
         "items": page_items,
@@ -534,7 +537,11 @@ def _norm_movie_release_dates(payload: dict) -> dict:
     for key, wanted_type in _MOVIE_RELEASE_TYPES.items():
         for region in ordered_regions:
             found = next(
-                (rd.get("release_date") for rd in by_region.get(region, []) if rd.get("type") == key and rd.get("release_date")),
+                (
+                    rd.get("release_date")
+                    for rd in by_region.get(region, [])
+                    if rd.get("type") == key and rd.get("release_date")
+                ),
                 None,
             )
             if found:
@@ -546,10 +553,9 @@ def _norm_movie_release_dates(payload: dict) -> dict:
 def _current_season_air_date(data: dict) -> Optional[str]:
     """Date de première diffusion de la saison en cours (celle de l'épisode
     suivant, ou à défaut du dernier épisode diffusé, ou la plus récente saison)."""
-    target_season = (
-        (data.get("next_episode_to_air") or {}).get("season_number")
-        or (data.get("last_episode_to_air") or {}).get("season_number")
-    )
+    target_season = (data.get("next_episode_to_air") or {}).get("season_number") or (
+        data.get("last_episode_to_air") or {}
+    ).get("season_number")
     seasons = [s for s in data.get("seasons", []) if s.get("season_number") and s.get("season_number") > 0]
     if not seasons:
         return None
@@ -628,7 +634,9 @@ async def get_collection(db: AsyncSession, collection_id: int) -> dict:
     """Collection TMDB (saga) : tous les volets d'une franchise cinéma. Pas d'équivalent
     TMDB pour les séries (belongs_to_collection n'existe que côté films)."""
     data = await _get(db, f"/collection/{collection_id}")
-    items = [item for item in (_norm(part, "movie") for part in data.get("parts", []) or []) if item and item["tmdb_id"]]
+    items = [
+        item for item in (_norm(part, "movie") for part in data.get("parts", []) or []) if item and item["tmdb_id"]
+    ]
     items.sort(key=lambda item: item["year"] or 0)
     return {
         "id": data.get("id"),

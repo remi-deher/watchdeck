@@ -25,9 +25,7 @@ def classify_queue_record(record: dict) -> QueueClassification:
     tracked_state = str(record.get("tracked_state") or "").strip().lower()
     tracked_status = str(record.get("tracked_status") or "").strip().lower()
     has_diagnostic = bool(
-        record.get("error")
-        or record.get("status_messages")
-        or tracked_status in {"warning", "error", "failed"}
+        record.get("error") or record.get("status_messages") or tracked_status in {"warning", "error", "failed"}
     )
 
     if not complete:
