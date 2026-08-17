@@ -14,6 +14,7 @@ import httpx
 from fastapi import APIRouter, Depends
 
 from ..dependencies import require_admin
+from ..utils import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ router = APIRouter(prefix="/api/system", tags=["system"], dependencies=[Depends(
 
 VERSION_FILE = Path(__file__).resolve().parent.parent / "version.json"
 GITHUB_REPO = "remi-deher/watchdeck"
+GITHUB_REPO_URL = f"https://github.com/{GITHUB_REPO}"
 DOCKER_REPOSITORIES = ["mrcryllix/watchdeck", "ghcr.io/remi-deher/watchdeck"]
 
 # Le taux limite non-authentifié de l'API GitHub est bas (60/h) : on met en cache
@@ -29,6 +31,7 @@ DOCKER_REPOSITORIES = ["mrcryllix/watchdeck", "ghcr.io/remi-deher/watchdeck"]
 _RELEASE_CACHE_TTL_SECONDS = 600
 _release_cache: dict | None = None
 _release_cache_at: float = 0.0
+_release_cache_checked_at: str | None = None
 
 
 def _read_local_version() -> dict:
@@ -66,10 +69,11 @@ async def _fetch_main_comparison(git_sha: str) -> dict | None:
 
 
 async def _fetch_latest_release() -> dict | None:
-    global _release_cache, _release_cache_at
+    global _release_cache, _release_cache_at, _release_cache_checked_at
     now = time.monotonic()
     if _release_cache is not None and now - _release_cache_at < _RELEASE_CACHE_TTL_SECONDS:
         return _release_cache
+    _release_cache_checked_at = now_utc().isoformat()
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             headers = {"Accept": "application/vnd.github+json"}
@@ -122,9 +126,11 @@ async def get_version_info():
         "git_sha": git_sha,
         "build_date": local.get("build_date"),
         "branch": branch,
+        "repo_url": GITHUB_REPO_URL,
         "docker_repositories": DOCKER_REPOSITORIES,
         "latest_release": latest_release,
         "is_latest": is_latest,
         "commit_matches_release": commit_matches_release,
         "main_comparison": main_comparison,
+        "release_checked_at": _release_cache_checked_at,
     }
