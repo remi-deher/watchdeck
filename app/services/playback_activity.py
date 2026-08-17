@@ -15,12 +15,12 @@ from xml.etree import ElementTree
 import httpx
 from sqlalchemy import and_, case, delete, func, or_, update
 from sqlalchemy.future import select
-from sqlalchemy.orm import load_only
+from sqlalchemy.orm import load_only, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from ..cache import cache
 from ..database import AsyncSessionLocal
-from ..models import PlaybackDailyAggregate, PlaybackSession, Settings
+from ..models import PlaybackDailyAggregate, PlaybackIpLocation, PlaybackSession, PlaybackSessionSegment, Settings
 from ..realtime import publish
 from ..utils import now_utc_naive, wrap_image_proxy
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
@@ -474,8 +474,22 @@ def _plex_thumb_path(row: PlaybackSession) -> str | None:
     return None
 
 
+def _serialize_segment(segment: PlaybackSessionSegment) -> dict:
+    return {
+        "id": segment.id,
+        "state": segment.state,
+        "playback_method": segment.playback_method,
+        "started_at": segment.started_at.isoformat() if segment.started_at else None,
+        "ended_at": segment.ended_at.isoformat() if segment.ended_at else None,
+        "duration_ms": segment.duration_ms,
+        "view_offset_start_ms": segment.view_offset_start_ms,
+        "view_offset_end_ms": segment.view_offset_end_ms,
+    }
+
+
 def _serialize(row: PlaybackSession) -> dict:
     thumb_url = _thumb_url(row)
+    segments = list(row.segments or [])
     return {
         "id": row.id,
         "source": row.source,
@@ -519,6 +533,7 @@ def _serialize(row: PlaybackSession) -> dict:
         "initial_progress_ms": row.initial_progress_ms,
         "duration_ms": row.duration_ms,
         "watched_ms": row.watched_ms,
+        "paused_ms": sum(s.duration_ms for s in segments if s.state == "paused"),
         "progress": (
             round(row.progress_percent, 1)
             if row.progress_percent is not None
@@ -535,6 +550,7 @@ def _serialize(row: PlaybackSession) -> dict:
         "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
         "ended_at": row.ended_at.isoformat() if row.ended_at else None,
         "media_request_id": row.media_request_id,
+        "segments": [_serialize_segment(s) for s in segments],
     }
 
 
@@ -668,6 +684,111 @@ def _deduplicate_plex_sessions(snapshots: list[dict]) -> list[dict]:
     return list({item["source_session_id"]: item for item in snapshots}.values())
 
 
+def _sync_session_segment(
+    db,
+    row: PlaybackSession,
+    new_state: str,
+    current_offset_ms: int,
+    now: datetime,
+    *,
+    is_stopped: bool = False,
+) -> None:
+    """Synchronise les segments de lecture de la session selon l'état et l'offset observés."""
+    segments = list(row.segments or [])
+    state = "stopped" if is_stopped else (new_state or "playing")
+
+    # Recherche du segment actif non clos
+    active_segment = next((s for s in reversed(segments) if s.ended_at is None), None)
+
+    if active_segment is None:
+        if not is_stopped:
+            new_segment = PlaybackSessionSegment(
+                session=row,
+                state=state,
+                playback_method=row.playback_method,
+                started_at=row.started_at or now,
+                ended_at=None,
+                duration_ms=0,
+                view_offset_start_ms=current_offset_ms,
+                view_offset_end_ms=current_offset_ms,
+            )
+            db.add(new_segment)
+            if row.segments is not None and new_segment not in row.segments:
+                row.segments.append(new_segment)
+        elif not segments:
+            # Session arrêtée immédiatement sans segment existant
+            start = row.started_at or now
+            dur = max(0, int((now - start).total_seconds() * 1000))
+            single_segment = PlaybackSessionSegment(
+                session=row,
+                state="playing",
+                playback_method=row.playback_method,
+                started_at=start,
+                ended_at=now,
+                duration_ms=dur,
+                view_offset_start_ms=row.initial_progress_ms or 0,
+                view_offset_end_ms=current_offset_ms,
+            )
+            db.add(single_segment)
+            if row.segments is not None:
+                row.segments.append(single_segment)
+    else:
+        elapsed_real_ms = max(0, int((now - active_segment.started_at).total_seconds() * 1000))
+        if active_segment.state == "playing":
+            expected_offset = active_segment.view_offset_start_ms + elapsed_real_ms
+        else:
+            expected_offset = active_segment.view_offset_start_ms
+
+        state_changed = active_segment.state != state
+        method_changed = bool(
+            row.playback_method
+            and active_segment.playback_method
+            and active_segment.playback_method != row.playback_method
+        )
+        # Détection d'un saut de timeline (> 10s d'écart entre offset attendu et offset réel en lecture)
+        is_seek = bool(
+            active_segment.state == "playing"
+            and state == "playing"
+            and abs(current_offset_ms - expected_offset) > 10000
+        )
+
+        if is_stopped or state_changed or method_changed or is_seek:
+            # Clôture du segment actif
+            active_segment.ended_at = now
+            active_segment.duration_ms = elapsed_real_ms
+            if active_segment.state == "paused":
+                active_segment.view_offset_end_ms = active_segment.view_offset_start_ms
+            elif is_seek:
+                active_segment.view_offset_end_ms = expected_offset
+            else:
+                active_segment.view_offset_end_ms = current_offset_ms
+
+            # Si la session continue, on démarre un nouveau segment
+            if not is_stopped:
+                new_segment = PlaybackSessionSegment(
+                    session=row,
+                    state=state,
+                    playback_method=row.playback_method,
+                    started_at=now,
+                    ended_at=None,
+                    duration_ms=0,
+                    view_offset_start_ms=current_offset_ms,
+                    view_offset_end_ms=current_offset_ms,
+                )
+                db.add(new_segment)
+                if row.segments is not None and new_segment not in row.segments:
+                    row.segments.append(new_segment)
+        else:
+            # Segment en cours continu : mise à jour
+            active_segment.duration_ms = elapsed_real_ms
+            active_segment.view_offset_end_ms = current_offset_ms
+
+    # Recalcul de watched_ms basé sur la somme des segments 'playing'
+    playing_ms = sum(s.duration_ms for s in (row.segments or []) if s.state == "playing")
+    fallback_progress = max(0, int(row.progress_ms or 0) - int(row.initial_progress_ms or 0))
+    row.watched_ms = max(row.watched_ms or 0, playing_ms, fallback_progress)
+
+
 async def _stop_session_atomic(
     db,
     row: PlaybackSession,
@@ -696,6 +817,7 @@ async def _stop_session_atomic(
         set_committed_value(row, "ended_at", stopped_at)
         set_committed_value(row, "state", "stopped")
         set_committed_value(row, "force_stopped", force_stopped)
+        _sync_session_segment(db, row, "stopped", row.progress_ms or 0, stopped_at, is_stopped=True)
     return was_updated
 
 
@@ -710,7 +832,9 @@ async def _sweep_stale_sessions(db, now: datetime) -> int:
     stale_rows = (
         (
             await db.execute(
-                select(PlaybackSession).filter(
+                select(PlaybackSession)
+                .options(selectinload(PlaybackSession.segments))
+                .filter(
                     PlaybackSession.source == "plex",
                     PlaybackSession.ended_at.is_(None),
                     or_(
@@ -822,7 +946,9 @@ async def _collect_plex_activity_unlocked() -> dict:
         rows = (
             (
                 await db.execute(
-                    select(PlaybackSession).filter(
+                    select(PlaybackSession)
+                    .options(selectinload(PlaybackSession.segments))
+                    .filter(
                         PlaybackSession.source == "plex",
                         PlaybackSession.ended_at.is_(None),
                     )
@@ -871,11 +997,13 @@ async def _collect_plex_activity_unlocked() -> dict:
                 setattr(row, key, value)
             row.last_seen_at = now
             row.ended_at = None
-            observed_progress = max(
-                0,
-                int(snapshot["progress_ms"] or 0) - int(row.initial_progress_ms or 0),
+            _sync_session_segment(
+                db,
+                row,
+                snapshot.get("state") or "playing",
+                int(snapshot.get("progress_ms") or 0),
+                now,
             )
-            row.watched_ms = max(row.watched_ms or 0, observed_progress)
             row.watched_status = 1 if (row.progress_percent or 0) >= 85 else 0
         for row in previously_active:
             if row.last_seen_at == now:
@@ -889,10 +1017,6 @@ async def _collect_plex_activity_unlocked() -> dict:
                 continue
             _miss_counts.pop(row.id, None)
             await _stop_session_atomic(db, row, stopped_at=now)
-            row.watched_ms = max(
-                row.watched_ms or 0,
-                max(0, int(row.progress_ms or 0) - int(row.initial_progress_ms or 0)),
-            )
         if settings.activity_retention_days:
             cutoff = now - timedelta(days=settings.activity_retention_days)
             await db.execute(delete(PlaybackSession).where(PlaybackSession.ended_at < cutoff))
@@ -923,7 +1047,12 @@ async def collect_plex_activity() -> dict:
             await release_distributed_lock(_PLEX_COLLECTION_LOCK_KEY, token)
 
 
-async def handle_websocket_state(session_key: int, rating_key: str | None, state: str) -> dict:
+async def handle_websocket_state(
+    session_key: int,
+    rating_key: str | None,
+    state: str,
+    view_offset_ms: int | None = None,
+) -> dict:
     """Traite un évènement d'état poussé par le websocket Plex (plex_activity_ws.py).
 
     Signal faisant autorité : un "stopped" ferme la session immédiatement, sans
@@ -938,7 +1067,9 @@ async def handle_websocket_state(session_key: int, rating_key: str | None, state
         row = (
             (
                 await db.execute(
-                    select(PlaybackSession).filter(
+                    select(PlaybackSession)
+                    .options(selectinload(PlaybackSession.segments))
+                    .filter(
                         PlaybackSession.source == "plex",
                         PlaybackSession.ended_at.is_(None),
                         PlaybackSession.session_key == session_key,
@@ -952,7 +1083,9 @@ async def handle_websocket_state(session_key: int, rating_key: str | None, state
             row = (
                 (
                     await db.execute(
-                        select(PlaybackSession).filter(
+                        select(PlaybackSession)
+                        .options(selectinload(PlaybackSession.segments))
+                        .filter(
                             PlaybackSession.source == "plex",
                             PlaybackSession.ended_at.is_(None),
                             PlaybackSession.rating_key == rating_key,
@@ -967,14 +1100,15 @@ async def handle_websocket_state(session_key: int, rating_key: str | None, state
         if state == "stopped":
             if not await _stop_session_atomic(db, row, stopped_at=now):
                 return {"status": "already_stopped"}
-            row.watched_ms = max(
-                row.watched_ms or 0,
-                max(0, int(row.progress_ms or 0) - int(row.initial_progress_ms or 0)),
-            )
             _miss_counts.pop(row.id, None)
         else:
             row.last_seen_at = now
             row.state = state
+            if view_offset_ms is not None:
+                row.progress_ms = view_offset_ms
+                if row.duration_ms:
+                    row.progress_percent = round(view_offset_ms / row.duration_ms * 100, 1)
+            _sync_session_segment(db, row, state, row.progress_ms or 0, now)
         await db.commit()
         if row.started_at:
             await _rebuild_daily_aggregates(db, {row.started_at.date()})
@@ -1071,6 +1205,17 @@ async def import_tautulli_history(*, length: int = 1000) -> dict:
                     **session_values,
                 )
                 db.add(session)
+                seg = PlaybackSessionSegment(
+                    session=session,
+                    state="playing",
+                    playback_method=session_values.get("playback_method"),
+                    started_at=session_values["started_at"],
+                    ended_at=session_values["ended_at"],
+                    duration_ms=session_values.get("watched_ms") or 0,
+                    view_offset_start_ms=0,
+                    view_offset_end_ms=session_values.get("progress_ms") or session_values.get("watched_ms") or 0,
+                )
+                db.add(seg)
                 existing_by_reference[reference] = session
                 imported += 1
                 imported_days.add(session_values["started_at"].date())
@@ -1446,6 +1591,7 @@ async def activity_snapshot(days: int = 30, db=None) -> dict:
         (
             await db.execute(
                 select(PlaybackSession)
+                .options(selectinload(PlaybackSession.segments))
                 .filter(PlaybackSession.ended_at.is_(None))
                 .order_by(PlaybackSession.started_at.desc())
             )
@@ -1457,6 +1603,7 @@ async def activity_snapshot(days: int = 30, db=None) -> dict:
         (
             await db.execute(
                 select(PlaybackSession)
+                .options(selectinload(PlaybackSession.segments))
                 .filter(PlaybackSession.started_at >= cutoff)
                 .order_by(PlaybackSession.started_at.desc())
                 .limit(100)
@@ -1559,6 +1706,7 @@ async def live_activity_snapshot(db=None) -> dict:
         (
             await db.execute(
                 select(PlaybackSession)
+                .options(selectinload(PlaybackSession.segments))
                 .filter(PlaybackSession.ended_at.is_(None))
                 .order_by(PlaybackSession.started_at.desc())
             )

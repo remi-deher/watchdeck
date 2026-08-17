@@ -3,8 +3,8 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Index, Text, UniqueConstraint, text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import BigInteger, ForeignKey, Index, Text, UniqueConstraint, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..utils import now_utc_naive
 from .base import Base
@@ -81,6 +81,36 @@ class PlaybackSession(Base):
     last_seen_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
     ended_at: Mapped[Optional[datetime]]
     media_request_id: Mapped[Optional[int]] = mapped_column(index=True)
+
+    segments: Mapped[list["PlaybackSessionSegment"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="PlaybackSessionSegment.started_at",
+    )
+
+
+class PlaybackSessionSegment(Base):
+    """Segment temporel homogène rattaché à une session de lecture (play, pause, transcode...)."""
+
+    __tablename__ = "playback_session_segments"
+    __table_args__ = (
+        Index("ix_playback_session_segments_session_id", "session_id"),
+        Index("ix_playback_session_segments_started_at", "started_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("playback_sessions.id", ondelete="CASCADE"),
+    )
+    state: Mapped[str] = mapped_column(default="playing")
+    playback_method: Mapped[Optional[str]]
+    started_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+    ended_at: Mapped[Optional[datetime]]
+    duration_ms: Mapped[int] = mapped_column(BigInteger, default=0)
+    view_offset_start_ms: Mapped[int] = mapped_column(BigInteger, default=0)
+    view_offset_end_ms: Mapped[Optional[int]] = mapped_column(BigInteger)
+
+    session: Mapped["PlaybackSession"] = relationship(back_populates="segments")
 
 
 class PlaybackIpLocation(Base):

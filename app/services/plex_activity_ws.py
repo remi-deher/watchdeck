@@ -67,8 +67,14 @@ async def _handle_message(raw: str | bytes) -> None:
         state = str(item.get("state") or "").lower()
         if not state:
             continue
+        view_offset = None
+        if item.get("viewOffset") is not None:
+            try:
+                view_offset = int(item.get("viewOffset"))
+            except (TypeError, ValueError):
+                pass
         try:
-            result = await handle_websocket_state(session_key, rating_key, state)
+            result = await handle_websocket_state(session_key, rating_key, state, view_offset_ms=view_offset)
             if state != "stopped" and result.get("status") == "unknown":
                 # Session jamais vue par le polling : on déclenche une collecte complète
                 # plutôt que de dupliquer le parsing/l'enrichissement XML avec les seuls
