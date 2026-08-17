@@ -1,5 +1,7 @@
 """Tests pour BaseArrClient et MediaIdentifiers."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from app.services.arr_client_base import BaseArrClient
@@ -76,3 +78,34 @@ def test_base_arr_client_init():
     http_cli = client.http_client()
     assert http_cli.base == "http://localhost:8989"
     assert http_cli.headers["X-Api-Key"] == "fake-api-key"
+
+
+@pytest.mark.asyncio
+async def test_base_arr_client_delegates_with_matching_signatures():
+    """Regression : chaque methode de delegation doit appeler sa fonction
+    arr_common correspondante avec des arguments qu'elle accepte vraiment
+    (le seul test precedent ne couvrait que le constructeur, ce qui avait
+    laisse passer plusieurs TypeError silencieux : timeout/unmonitored/
+    remove_from_client n'existent pas cote arr_common)."""
+    client = BaseArrClient("http://localhost:8989/", "fake-api-key", product="Sonarr")
+
+    with patch(
+        "app.services.arr_client_base.arr_common.check_connection", new=AsyncMock(return_value=(True, "ok"))
+    ) as m:
+        assert await client.check_connection() == (True, "ok")
+        m.assert_awaited_once_with("http://localhost:8989", "fake-api-key", product="Sonarr")
+
+    with patch("app.services.arr_client_base.arr_common.get_calendar", new=AsyncMock(return_value=[])) as m:
+        await client.get_calendar("2026-01-01", "2026-01-31")
+        m.assert_awaited_once_with(
+            "http://localhost:8989", "fake-api-key", "2026-01-01", "2026-01-31", product="Sonarr"
+        )
+
+    with patch(
+        "app.services.arr_client_base.arr_common.delete_queue_item", new=AsyncMock(return_value=(True, "ok"))
+    ) as m:
+        result = await client.delete_queue_item(42, blocklist=True)
+        assert result == (True, "ok")
+        m.assert_awaited_once_with(
+            "http://localhost:8989", "fake-api-key", 42, blocklist=True, search=True, product="Sonarr"
+        )

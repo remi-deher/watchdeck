@@ -4,7 +4,7 @@ import json as _json
 import os
 import time
 from datetime import timedelta
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 import sqlalchemy
 from fastapi import APIRouter, Depends
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api", tags=["metrics"], dependencies=[Depends(requir
 
 
 async def _infrastructure_metrics() -> dict:
-    result = {"redis_up": 0, "worker_up": 0, "queue_depth": 0, "jobs": []}
+    result: dict[str, Any] = {"redis_up": 0, "worker_up": 0, "queue_depth": 0, "jobs": []}
     redis_url = os.getenv("REDIS_URL")
     if not redis_url:
         return result

@@ -1,7 +1,7 @@
 """Cas d'usage transactionnels pour la configuration des intégrations."""
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, NoReturn
 
 import sqlalchemy
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,7 @@ from ..errors import ResourceNotFoundError
 from ..models import ArrInstance, DownloadClient
 
 
-async def _rollback_and_raise(db: AsyncSession) -> None:
+async def _rollback_and_raise(db: AsyncSession) -> NoReturn:
     await db.rollback()
     raise
 

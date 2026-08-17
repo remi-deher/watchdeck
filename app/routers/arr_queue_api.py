@@ -48,7 +48,7 @@ async def _compute_arr_download_queue(db: AsyncSession) -> list[dict]:
     records_by_instance = []
     lookup_keys: set[tuple[int, int]] = set()
     for instance, result in zip(instances, results):
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             logger.warning("Lecture de la file %s impossible: %s", instance.name, result)
             continue
         records_by_instance.append((instance, result))

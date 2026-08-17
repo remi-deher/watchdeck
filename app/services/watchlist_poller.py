@@ -22,7 +22,6 @@ from .download_clients import add_torrent_to_client
 from .notification_orchestrator import _add_co_requester
 from .radarr import add_movie, lookup_movie, resolve_tmdb_id
 from .request_lifecycle import transition_request
-from .seer import _headers as _seer_headers
 from .seer import _resolve_tmdb_id as _seer_resolve_tmdb_id
 from .seer import request_media as seer_request
 from .seer import resolve_mode as seer_resolve_mode
@@ -402,10 +401,12 @@ async def _ensure_tmdb_id(item: dict, settings: Settings, user_obj, db: AsyncSes
 
         if db is not None:
             try:
-                resolved = await tmdb_find_by_external_id(db, "imdb_id", item["imdb_id"])
-                if resolved:
-                    logger.info(f"tmdb_id résolu via TMDB pour '{item['title']}' (imdb {item['imdb_id']}): {resolved}")
-                    return {**item, "tmdb_id": str(resolved)}
+                tmdb_resolved = await tmdb_find_by_external_id(db, "imdb_id", item["imdb_id"])
+                if tmdb_resolved:
+                    logger.info(
+                        f"tmdb_id résolu via TMDB pour '{item['title']}' (imdb {item['imdb_id']}): {tmdb_resolved}"
+                    )
+                    return {**item, "tmdb_id": str(tmdb_resolved)}
             except TmdbNotConfigured:
                 pass
 
@@ -417,10 +418,9 @@ async def _ensure_tmdb_id(item: dict, settings: Settings, user_obj, db: AsyncSes
         and seer_resolve_mode(settings) is not None
     ):
         base = settings.seer_url.rstrip("/")
-        headers = _seer_headers(settings.seer_api_key)
         try:
             search_item = {**item, "title": _clean_title(item["title"])}
-            resolved = await _seer_resolve_tmdb_id(base, headers, search_item)
+            resolved = await _seer_resolve_tmdb_id(base, settings.seer_api_key, search_item)
             if resolved:
                 logger.debug(f"tmdb_id résolu via Seer pour '{item['title']}': {resolved}")
                 return {**item, "tmdb_id": resolved}

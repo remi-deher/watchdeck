@@ -803,7 +803,11 @@ async def _needs_approval(
     if not caller or caller.get("is_owner") or caller.get("role") in ("admin", "moderator"):
         return False
     if body and await deleted_media.is_tombstoned(
-        db, body.media_type, tmdb_id=body.tmdb_id, tvdb_id=body.tvdb_id, imdb_id=body.imdb_id
+        db,
+        body.media_type,
+        tmdb_id=str(body.tmdb_id) if body.tmdb_id is not None else None,
+        tvdb_id=str(body.tvdb_id) if body.tvdb_id is not None else None,
+        imdb_id=body.imdb_id,
     ):
         return True
     if not (settings and settings.require_approval):

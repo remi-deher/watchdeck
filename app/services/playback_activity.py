@@ -116,7 +116,7 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
     previous_total = len(previous_rows)
     previous_watch_ms = sum(row.watched_ms or 0 for row in previous_rows)
 
-    heatmap = defaultdict(lambda: {"sessions": 0, "watch_ms": 0})
+    heatmap: dict[tuple[int, int], dict[str, int]] = defaultdict(lambda: {"sessions": 0, "watch_ms": 0})
     for row in rows:
         if row.started_at:
             key = (row.started_at.weekday(), row.started_at.hour)
@@ -274,7 +274,7 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
         for chain in sorted(binges, key=lambda value: sum(row.watched_ms or 0 for row in value), reverse=True)[:10]
     ]
 
-    previous_users = defaultdict(lambda: {"sessions": 0, "watch_ms": 0})
+    previous_users: dict[str, dict[str, int]] = defaultdict(lambda: {"sessions": 0, "watch_ms": 0})
     for row in previous_rows:
         if row.user_name:
             previous_users[row.user_name]["sessions"] += 1
@@ -303,14 +303,14 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             item["last_seen_at"] = seen
     user_trends = []
     for item in user_groups.values():
-        previous = previous_users[item["name"]]
+        previous_user = previous_users[item["name"]]
         user_trends.append(
             {
                 "name": item["name"],
                 "sessions": item["sessions"],
                 "watch_ms": item["watch_ms"],
-                "watch_change": _percent(item["watch_ms"] - previous["watch_ms"], previous["watch_ms"])
-                if previous["watch_ms"]
+                "watch_change": _percent(item["watch_ms"] - previous_user["watch_ms"], previous_user["watch_ms"])
+                if previous_user["watch_ms"]
                 else (100 if item["watch_ms"] else 0),
                 "favorite_title": item["titles"].most_common(1)[0][0] if item["titles"] else None,
                 "favorite_device": item["devices"].most_common(1)[0][0] if item["devices"] else None,
@@ -319,7 +319,7 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
         )
     user_trends.sort(key=lambda item: item["watch_ms"], reverse=True)
 
-    known_storage = {}
+    known_storage: dict[str, int] = {}
     for row in rows:
         if row.rating_key and row.media_size_bytes:
             known_storage[row.rating_key] = max(known_storage.get(row.rating_key, 0), row.media_size_bytes)
@@ -1197,7 +1197,7 @@ async def recalculate_playback_locations() -> dict:
             .all()
         )
         addresses = {str(row.player_address).strip() for row in rows if str(row.player_address or "").strip()}
-        seeds = {}
+        seeds: dict[str, dict] = {}
         for row in rows:
             address = str(row.player_address or "").strip()
             if address and row.geo_status in {"resolved", "local"}:
