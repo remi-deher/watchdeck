@@ -19,13 +19,17 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      # Les montées de version majeures sont fusionnées à la main : elles
-      # peuvent casser une contrainte transitive (ex. redis 8 vs arq < 6).
+      # Les montees majeures sont desormais auto-mergees comme le reste : la CI
+      # (tests, lint, smoke Docker...) est le vrai filet, pas le numero de
+      # version. Si une majeure casse dev une fois fusionnee, dev-guard-rollback.yml
+      # revert automatiquement et laisse un message explicite sur la PR.
       #
-      # Ecosystem "docker" toujours exclu : les tags des images de base (ex.
+      # Ecosystem "docker" reste exclu : les tags des images de base (ex.
       # python "3.12-alpine" -> "3.14-alpine") n'ont pas 3 composants, donc
       # Dependabot les classe souvent en simple "minor" meme quand il s'agit
-      # d'un vrai saut de version majeure du langage/OS. Verifie a la main.
+      # d'un vrai saut de version majeure du langage/OS -- la CI ne suffit pas
+      # a elle seule a couvrir ce cas (mauvaise classification, pas un echec
+      # detectable), verifie a la main.
       #
       # PROMOTION_PAT (et non GITHUB_TOKEN) : un merge fait avec le token par
       # defaut d'un workflow ne declenche aucun autre workflow, ce qui empecherait
@@ -36,7 +40,7 @@ jobs:
       # activer "Automatically delete head branches" au niveau du depot, ça les
       # supprimerait aussi apres chaque promotion).
       - name: Enable auto-merge for Dependabot PRs
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major' && steps.metadata.outputs.package-ecosystem != 'docker'
+        if: steps.metadata.outputs.package-ecosystem != 'docker'
         run: gh pr merge --auto --squash --delete-branch "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
