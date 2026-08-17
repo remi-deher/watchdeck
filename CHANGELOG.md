@@ -1,8 +1,16 @@
 
 
+### 👷 CI/CD
+
+- arrete de builder une image Docker sur chaque commit dev ([f73a397](https://github.com/remi-deher/watchdeck/commit/f73a3973c8fd7a9fb24994d7e83b886f85df8e71))
+
 ### ✨ Nouveautés
 
 - améliore la page Version & mises à jour ([df82466](https://github.com/remi-deher/watchdeck/commit/df82466bfbe06d435d78d0da602b01e3db025259))
+
+### 🔧 Maintenance
+
+- v1.2.0 (#65) ([d3dfd55](https://github.com/remi-deher/watchdeck/commit/d3dfd559598a5d9eef6975175a9e2a6b356a8117))
 
 ### 👷 CI/CD
 
