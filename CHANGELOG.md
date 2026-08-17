@@ -1,8 +1,19 @@
 
 
+### 👷 CI/CD
+
+- auto-merge les Dependabot majeures + filet de rollback sur dev ([c614b58](https://github.com/remi-deher/watchdeck/commit/c614b586abf4046b22b88848a35c6bffc70f4ed4))
+- groupe les mises a jour Dependabot github-actions en une seule PR ([1931881](https://github.com/remi-deher/watchdeck/commit/1931881b8aa523e2b022f06aceaed29091778274))
+
+### 🔧 Maintenance
+
+- sync main into dev ([19b2a34](https://github.com/remi-deher/watchdeck/commit/19b2a34e451923c30b637921a31ed9b5b54bae26))
+- sync main into dev ([3a13458](https://github.com/remi-deher/watchdeck/commit/3a13458eccddb1497fbdd44a07c6ee4b95c91aa8))
+
 ### 🔧 Maintenance
 
 - bump 5 GitHub Actions majeures (checkout 7.0.1, action-gh-release 3.0.2, build-push-action 7.3.0, dependency-review-action 5.0.0, upload-artifact 7.0.1) ([d42432e](https://github.com/remi-deher/watchdeck/commit/d42432e7a38a2f7e3a00413e1036734087f0fc5c))
+- v1.1.7 (#56) ([b1c6dbb](https://github.com/remi-deher/watchdeck/commit/b1c6dbbbd2339c516aa1127cfee5f45e15736d07))
 
 ### 🔧 Maintenance
 
