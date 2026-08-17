@@ -134,7 +134,17 @@ jobs:
             echo "relevant=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          CHANGED="$(git diff --name-only $RANGE)"
+          # Une PR non rebasee depuis longtemps (ou dont l'historique de base a ete
+          # reecrit, ex: reset du depot) peut ne plus avoir d'ancetre commun avec
+          # $BASE_REF en fetch superficiel : "git diff A...B" echoue alors avec
+          # "fatal: no merge base" plutot que de renvoyer une liste vide. Dans ce
+          # cas on considere le changement comme pertinent par defaut (on ne veut
+          # jamais sauter silencieusement un vrai check faute de diff calculable).
+          if ! CHANGED="$(git diff --name-only $RANGE 2>&1)"; then
+            echo "::warning::git diff a echoue ($CHANGED) -- traite comme pertinent par securite."
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "$CHANGED"
           if echo "$CHANGED" | grep -qE '^(app/|Dockerfile|requirements.*\.txt|package.*\.json|frontend/|docker-compose\.yml|alembic/|scripts/|docker-entrypoint\.sh)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
@@ -199,7 +209,11 @@ jobs:
           docker compose ps
 
       - name: Logs on failure
-        if: failure()
+        # Ne tourne que si la stack a reellement ete demarree (sinon .env
+        # n'existe pas et "docker compose logs" echoue lui-meme avec une erreur
+        # sans rapport, masquant la vraie cause de l'echec dans les steps
+        # precedentes -- ex: le "Check for relevant changes" ci-dessus).
+        if: failure() && steps.changes.outputs.relevant == 'true'
         run: docker compose logs --no-color
 
       - name: Stop stack
