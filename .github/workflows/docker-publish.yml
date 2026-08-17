@@ -3,10 +3,13 @@ name: Build & Push Docker image
 on:
   workflow_dispatch:
   push:
+    # dev exclu volontairement : une image par commit individuel sur dev n'a
+    # aucun interet (personne ne la pull), seul le resultat d'une promotion
+    # effective vers test merite un build. dev garde sa CI (tests/lint) sur
+    # chaque push, juste plus de build/push Docker associe.
     branches:
       - main
       - test
-      - dev
     tags:
       - "v*"
 
@@ -19,11 +22,13 @@ permissions:
 
 jobs:
   # Empeche de publier une image construite sur un commit dont la CI (tests,
-  # lint, smoke Docker, Trivy...) n'est pas encore verte. dev n'a pas de
-  # ruleset (push direct autorise pour iterer vite), donc rien d'autre ne
-  # garantit cet ordre pour cette branche -- ce job comble le trou en
-  # interrogeant les check-runs du commit plutot que d'imposer une liste figee,
-  # ce qui s'adapte automatiquement si des checks sont ajoutes/retires plus tard.
+  # lint, smoke Docker, Trivy...) n'est pas encore verte. Les autres workflows
+  # se declenchent en parallele sur le meme push : le ruleset qui protege test/
+  # main ne garantit l'ordre qu'au moment du merge de la PR, pas pour ce
+  # workflow qui tourne independamment sur le meme evenement push -- ce job
+  # comble le trou en interrogeant les check-runs du commit plutot que
+  # d'imposer une liste figee, ce qui s'adapte automatiquement si des checks
+  # sont ajoutes/retires plus tard.
   wait-for-ci:
     name: Wait for CI
     if: github.event_name != 'workflow_dispatch'
@@ -118,9 +123,7 @@ jobs:
           tags: |
             type=ref,event=tag
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=raw,value=test,enable=${{ github.ref == 'refs/heads/test' }}
-            type=sha,format=short,prefix=dev-,enable=${{ github.ref == 'refs/heads/dev' }}
             type=sha,format=short,prefix=test-,enable=${{ github.ref == 'refs/heads/test' }}
 
       - name: Build and push
