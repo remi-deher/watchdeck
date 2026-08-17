@@ -1,5 +1,13 @@
 
 
+### 👷 CI/CD
+
+- recentre les checks lourds sur test, allège dev et main ([9d1f19e](https://github.com/remi-deher/watchdeck/commit/9d1f19e56949e5bbca84634b567f24c8ceafb32b))
+
+### 🔧 Maintenance
+
+- sync main into dev ([21022a1](https://github.com/remi-deher/watchdeck/commit/21022a168d5846f13d0b3d7e929fd8a2b8501d4c))
+
 ### 🔧 Maintenance
 
 - bump typescript from 5.8.3 to 7.0.2 (#3) ([a6efb79](https://github.com/remi-deher/watchdeck/commit/a6efb7967d4b4b6b847d02b541a59f3a6fe0571f))
@@ -8,6 +16,7 @@
 - bump peter-evans/dockerhub-description from 4.0.2 to 5.0.0 (#7) ([875d9a6](https://github.com/remi-deher/watchdeck/commit/875d9a68ab4dccfca0639bbc6ab4e8793420aacf))
 - bump actions/setup-node from 4.4.0 to 7.0.0 (#8) ([5d473e7](https://github.com/remi-deher/watchdeck/commit/5d473e77371ec2408269e05acc2733d771f36b4b))
 - bump github/codeql-action/upload-sarif from 3.37.7 to 4.37.7 (#9) ([39ce612](https://github.com/remi-deher/watchdeck/commit/39ce612f42175f4c0534bc848a9cb569594a8dfb))
+- v1.1.3 (#32) ([a1c17dc](https://github.com/remi-deher/watchdeck/commit/a1c17dc65e7238521354f7a39595873ace118309))
 
 ### 🐛 Corrections
 
