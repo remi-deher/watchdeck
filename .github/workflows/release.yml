@@ -34,8 +34,26 @@ jobs:
           config: .github/cliff.toml
           args: --latest --strip header
 
+      - name: Build release body
+        id: body
+        env:
+          NOTES: ${{ steps.release_notes.outputs.content }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          DELIM="RELEASE_BODY_$(date +%s)_$RANDOM"
+          {
+            echo "body<<$DELIM"
+            echo "### 🐳 Images Docker"
+            echo ""
+            echo "- \`docker.io/mrcryllix/watchdeck:${TAG}\`"
+            echo "- \`ghcr.io/remi-deher/watchdeck:${TAG}\`"
+            echo ""
+            echo "$NOTES"
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          body: ${{ steps.release_notes.outputs.content }}
+          body: ${{ steps.body.outputs.body }}
           generate_release_notes: false

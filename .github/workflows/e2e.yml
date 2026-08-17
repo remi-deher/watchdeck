@@ -14,16 +14,12 @@ on:
       - "vite.config.ts"
       - ".github/workflows/e2e.yml"
   pull_request:
-    paths:
-      - "frontend/**"
-      - "app/main.py"
-      - "e2e/**"
-      - "index.html"
-      - "public/**"
-      - "package*.json"
-      - "playwright.config.js"
-      - "vite.config.ts"
-      - ".github/workflows/e2e.yml"
+    # Pas de filtre paths ici (contrairement a push) : ce check devient obligatoire
+    # sur le ruleset "Protect main" (voir cliff/ruleset), donc il doit toujours se
+    # declencher et rapporter un statut, y compris sur une PR qui ne touche pas au
+    # frontend -- sinon un check requis qui ne se declenche jamais bloque le merge
+    # indefiniment. Le job saute le vrai travail (voir "Check for relevant changes"
+    # plus bas) quand le diff ne concerne pas le frontend.
   workflow_dispatch:
 
 concurrency:
@@ -39,15 +35,48 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for relevant changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git fetch origin "$BASE_REF" --depth=1
+            RANGE="origin/$BASE_REF...HEAD"
+          elif [ -n "$EVENT_BEFORE" ] && [ "$EVENT_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            RANGE="$EVENT_BEFORE...$CURRENT_SHA"
+          else
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED="$(git diff --name-only $RANGE)"
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(frontend/|app/main\.py|e2e/|index\.html|public/|package.*\.json|playwright\.config\.js|vite\.config\.ts|\.github/workflows/e2e\.yml)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.changes.outputs.relevant == 'true'
         with:
           node-version: "22"
           cache: npm
       - run: npm ci
+        if: steps.changes.outputs.relevant == 'true'
       - run: npx playwright install --with-deps chromium webkit
+        if: steps.changes.outputs.relevant == 'true'
       - name: Run Chromium responsive tests
+        if: steps.changes.outputs.relevant == 'true'
         run: npm run test:e2e -- --project=desktop --project=tablet --project=mobile
       - name: Run iOS WebKit tests
+        if: steps.changes.outputs.relevant == 'true'
         run: npm run test:e2e -- --project=ios --workers=1
       - name: Upload Playwright traces
         if: failure()
