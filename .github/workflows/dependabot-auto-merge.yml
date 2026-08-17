@@ -33,7 +33,10 @@ jobs:
       #
       # PROMOTION_PAT (et non GITHUB_TOKEN) : un merge fait avec le token par
       # defaut d'un workflow ne declenche aucun autre workflow, ce qui empecherait
-      # auto-promote-test.yml de prendre le relai une fois la PR mergee dans dev.
+      # tests.yml/lint.yml de tourner sur le commit resultant -- necessaire pour
+      # que dev-guard-rollback.yml puisse detecter et revert un merge casse.
+      # (La promotion dev -> test n'est plus automatique sur push, voir
+      # auto-promote-test.yml, mais la CI sur dev doit quand meme tourner.)
       # --delete-branch est sans danger ici : la tete de cette PR est toujours une
       # branche dependabot/* jetable, jamais dev/test/main (contrairement aux PR
       # de promotion, ou la tete EST dev/test/main -- il ne faut surtout pas

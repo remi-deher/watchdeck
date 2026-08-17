@@ -1,14 +1,14 @@
 name: Auto Promote to Main
 
-# A chaque push sur test, ouvre (si besoin) puis auto-merge une PR test -> main,
-# mais seulement si les commits en attente justifient reellement une release
-# (memes regles que auto-version.yml : au moins un feat/fix/breaking depuis le
-# dernier tag). Le merge n'aboutit que lorsque les checks requis par le ruleset
-# "Protect main" passent (GitHub fait patienter l'auto-merge nativement).
+# Declenchement manuel (bouton "Run workflow") : ouvre (si besoin) puis
+# auto-merge une PR test -> main, mais seulement si les commits en attente
+# justifient reellement une release (memes regles que auto-version.yml : au
+# moins un feat/fix/breaking depuis le dernier tag) -- meme declenche a la
+# main, ca evite d'ouvrir une PR de release vide. Le merge n'aboutit que
+# lorsque les checks requis par le ruleset "Protect main" passent (GitHub
+# fait patienter l'auto-merge nativement).
 on:
-  push:
-    branches:
-      - test
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -59,6 +59,12 @@ jobs:
             --base main \
             --head test \
             --title "Promotion test -> main (${{ steps.check.outputs.next }})" \
-            --body "Promotion automatique : release ${{ steps.check.outputs.next }} justifiee par les commits en attente." \
+            --body "Promotion declenchee manuellement : release ${{ steps.check.outputs.next }} justifiee par les commits en attente." \
             || true
           gh pr merge test --auto --merge
+          echo "PR test -> main ouverte pour ${{ steps.check.outputs.next }}, auto-merge des que la CI est verte." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nothing to promote
+        if: steps.check.outputs.promote == 'false'
+        run: |
+          echo "Aucun commit feat/fix/breaking depuis le dernier tag sur main : pas de release a proposer pour l'instant." >> "$GITHUB_STEP_SUMMARY"
