@@ -1,8 +1,20 @@
 
 
+### 🐛 Corrections
+
+- corrige bugs réels + étend la couverture mypy à tout app/ ([0203492](https://github.com/remi-deher/watchdeck/commit/02034928e35e28e3529994a19c9123e17bd0aa56))
+
+### 👷 CI/CD
+
+- ajoute SBOM, provenance et signature Cosign keyless sur les images publiées ([85ddaf4](https://github.com/remi-deher/watchdeck/commit/85ddaf4bda025ee25e5dbeee9c6ad71a9f749966))
+
 ### style
 
 - full-repo ruff check + format, no more per-file allowlist ([e410ab6](https://github.com/remi-deher/watchdeck/commit/e410ab6eb7b9ac70a123dc46884d4cf54ddbb357))
+
+### 🔧 Maintenance
+
+- v1.1.1 (#21) ([758c211](https://github.com/remi-deher/watchdeck/commit/758c2117c0cb97181bee3968f690476d52b2afe8))
 
 ### ✨ Nouveautés
 
