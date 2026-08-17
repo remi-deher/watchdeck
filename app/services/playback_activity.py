@@ -196,11 +196,7 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
         item["abandoned"] += int(not completed and (progress or 0) < 21.25)
         item["resumed"] += int((row.group_count or 1) > 1)
 
-    repeat_counts = Counter(
-        (row.user_name, row.rating_key)
-        for row in rows
-        if row.user_name and row.rating_key
-    )
+    repeat_counts = Counter((row.user_name, row.rating_key) for row in rows if row.user_name and row.rating_key)
     for row in rows:
         key = (row.media_type or "other", _media_label(row))
         if row.user_name and row.rating_key and repeat_counts[(row.user_name, row.rating_key)] > 1:
@@ -256,7 +252,8 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             and previous.grandparent_title == row.grandparent_title
             and row.started_at
             and (previous.ended_at or previous.last_seen_at or previous.started_at)
-            and row.started_at - (previous.ended_at or previous.last_seen_at or previous.started_at) <= timedelta(hours=2)
+            and row.started_at - (previous.ended_at or previous.last_seen_at or previous.started_at)
+            <= timedelta(hours=2)
         )
         if not same_chain:
             if len(chain) >= 3:
@@ -288,7 +285,14 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             continue
         item = user_groups.setdefault(
             row.user_name,
-            {"name": row.user_name, "sessions": 0, "watch_ms": 0, "titles": Counter(), "devices": Counter(), "last_seen_at": None},
+            {
+                "name": row.user_name,
+                "sessions": 0,
+                "watch_ms": 0,
+                "titles": Counter(),
+                "devices": Counter(),
+                "last_seen_at": None,
+            },
         )
         item["sessions"] += 1
         item["watch_ms"] += row.watched_ms or 0
@@ -305,7 +309,9 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
                 "name": item["name"],
                 "sessions": item["sessions"],
                 "watch_ms": item["watch_ms"],
-                "watch_change": _percent(item["watch_ms"] - previous["watch_ms"], previous["watch_ms"]) if previous["watch_ms"] else (100 if item["watch_ms"] else 0),
+                "watch_change": _percent(item["watch_ms"] - previous["watch_ms"], previous["watch_ms"])
+                if previous["watch_ms"]
+                else (100 if item["watch_ms"] else 0),
                 "favorite_title": item["titles"].most_common(1)[0][0] if item["titles"] else None,
                 "favorite_device": item["devices"].most_common(1)[0][0] if item["devices"] else None,
                 "last_seen_at": item["last_seen_at"].isoformat() if item["last_seen_at"] else None,
@@ -321,13 +327,15 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
 
     return {
         "comparison": {
-            "sessions_change": _percent(total - previous_total, previous_total) if previous_total else (100 if total else 0),
-            "watch_change": _percent(watch_ms - previous_watch_ms, previous_watch_ms) if previous_watch_ms else (100 if watch_ms else 0),
+            "sessions_change": _percent(total - previous_total, previous_total)
+            if previous_total
+            else (100 if total else 0),
+            "watch_change": _percent(watch_ms - previous_watch_ms, previous_watch_ms)
+            if previous_watch_ms
+            else (100 if watch_ms else 0),
         },
         "heatmap": [
-            {"weekday": weekday, "hour": hour, **heatmap[(weekday, hour)]}
-            for weekday in range(7)
-            for hour in range(24)
+            {"weekday": weekday, "hour": hour, **heatmap[(weekday, hour)]} for weekday in range(7) for hour in range(24)
         ],
         "concurrency": {
             "peak": peak,
@@ -344,7 +352,10 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             "rewatches": sum(item["rewatches"] for item in ranked_media),
         },
         "quality": {
-            "methods": [{"key": key, "count": count, "rate": _percent(count, total)} for key, count in method_counts.most_common()],
+            "methods": [
+                {"key": key, "count": count, "rate": _percent(count, total)}
+                for key, count in method_counts.most_common()
+            ],
             "codecs": [{"label": key, "count": count} for key, count in codec_counts.most_common(8)],
             "resolutions": [{"label": key, "count": count} for key, count in resolution_counts.most_common(8)],
             "devices": devices,
@@ -364,7 +375,9 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
         "storage": {
             "known_items": len(known_storage),
             "known_bytes": storage_bytes,
-            "watch_hours_per_gb": round(watch_ms / 3_600_000 / (storage_bytes / (1024**3)), 2) if storage_bytes else None,
+            "watch_hours_per_gb": round(watch_ms / 3_600_000 / (storage_bytes / (1024**3)), 2)
+            if storage_bytes
+            else None,
         },
     }
 
@@ -547,9 +560,7 @@ def _tautulli_session_values(item: dict, settings: Settings, location: dict) -> 
         "player_title": item.get("player"),
         "platform": item.get("platform"),
         "product": item.get("product"),
-        "player_address": _masked_ip(
-            item.get("ip_address"), settings.activity_anonymize_ips
-        ),
+        "player_address": _masked_ip(item.get("ip_address"), settings.activity_anonymize_ips),
         "state": "stopped",
         "quality": item.get("quality_profile") or item.get("video_resolution"),
         "video_codec": item.get("video_codec"),
@@ -600,15 +611,9 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
             ),
             None,
         )
-        session_id = (
-            session_attrs.get("id")
-            or transcode_attrs.get("key")
-            or player_attrs.get("machineIdentifier")
-        )
+        session_id = session_attrs.get("id") or transcode_attrs.get("key") or player_attrs.get("machineIdentifier")
         if not session_id:
-            seed = "|".join(
-                [media.get("ratingKey", ""), user_attrs.get("title", ""), player_attrs.get("title", "")]
-            )
+            seed = "|".join([media.get("ratingKey", ""), user_attrs.get("title", ""), player_attrs.get("title", "")])
             session_id = hashlib.sha1(seed.encode()).hexdigest()
         decision_attrs = transcode_attrs or media_attrs
         video_decision = decision_attrs.get("videoDecision")
@@ -642,9 +647,7 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
                 "video_codec": media_attrs.get("videoCodec") or media.get("videoCodec"),
                 "audio_codec": media_attrs.get("audioCodec") or media.get("audioCodec"),
                 "container": media_attrs.get("container") or part_attrs.get("container"),
-                "subtitle_decision": (
-                    subtitle_stream.get("decision") if subtitle_stream is not None else None
-                ),
+                "subtitle_decision": (subtitle_stream.get("decision") if subtitle_stream is not None else None),
                 "stream_location": session_attrs.get("location"),
                 "bandwidth_kbps": _int(session_attrs.get("bandwidth") or transcode_attrs.get("bandwidth")),
                 "media_size_bytes": _int(part_attrs.get("size")),
@@ -662,10 +665,7 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
 
 def _deduplicate_plex_sessions(snapshots: list[dict]) -> list[dict]:
     """Une seule photographie par identifiant Plex, la plus récente gagnant."""
-    return list({
-        item["source_session_id"]: item
-        for item in snapshots
-    }.values())
+    return list({item["source_session_id"]: item for item in snapshots}.values())
 
 
 async def _stop_session_atomic(
@@ -708,20 +708,24 @@ async def _sweep_stale_sessions(db, now: datetime) -> int:
     cutoff = now - _STALE_SESSION_TIMEOUT
     oldest_active = now - _MAX_ACTIVE_SESSION_AGE
     stale_rows = (
-        await db.execute(
-            select(PlaybackSession).filter(
-                PlaybackSession.source == "plex",
-                PlaybackSession.ended_at.is_(None),
-                or_(
-                    PlaybackSession.last_seen_at <= cutoff,
-                    and_(
-                        PlaybackSession.started_at <= oldest_active,
-                        or_(PlaybackSession.media_type.is_(None), PlaybackSession.media_type != "live"),
+        (
+            await db.execute(
+                select(PlaybackSession).filter(
+                    PlaybackSession.source == "plex",
+                    PlaybackSession.ended_at.is_(None),
+                    or_(
+                        PlaybackSession.last_seen_at <= cutoff,
+                        and_(
+                            PlaybackSession.started_at <= oldest_active,
+                            or_(PlaybackSession.media_type.is_(None), PlaybackSession.media_type != "live"),
+                        ),
                     ),
-                ),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     affected_days: set[date] = set()
     stopped = 0
     for row in stale_rows:
@@ -764,13 +768,10 @@ async def _resume_group(db, snapshot: dict, now: datetime) -> tuple[int | None, 
     else:
         filters.append(PlaybackSession.user_name == snapshot.get("user_name"))
     previous = (
-        await db.execute(
-            select(PlaybackSession)
-            .filter(*filters)
-            .order_by(PlaybackSession.ended_at.desc())
-            .limit(1)
-        )
-    ).scalars().first()
+        (await db.execute(select(PlaybackSession).filter(*filters).order_by(PlaybackSession.ended_at.desc()).limit(1)))
+        .scalars()
+        .first()
+    )
     if previous is None:
         return None, 1, 0
     current_progress = int(snapshot.get("progress_ms") or 0)
@@ -781,15 +782,9 @@ async def _resume_group(db, snapshot: dict, now: datetime) -> tuple[int | None, 
     # commence a compter son temps a partir de cet offset et non depuis zero.
     baseline = current_progress
     legacy_overlong_session = bool(
-        previous.force_stopped
-        and previous.started_at
-        and previous.started_at < now - _MAX_ACTIVE_SESSION_AGE
+        previous.force_stopped and previous.started_at and previous.started_at < now - _MAX_ACTIVE_SESSION_AGE
     )
-    if (
-        previous.watched_status == 1
-        or previous.ended_at < now - _RESUME_WINDOW
-        or legacy_overlong_session
-    ):
+    if previous.watched_status == 1 or previous.ended_at < now - _RESUME_WINDOW or legacy_overlong_session:
         return None, 1, baseline
     return (
         previous.reference_id or previous.id,
@@ -822,17 +817,20 @@ async def _collect_plex_activity_unlocked() -> dict:
         for snapshot in snapshots:
             address = str(snapshot.get("player_address") or "").strip()
             snapshot.update(
-                locations.get(address)
-                or await lookup_ip_location(None, anonymized=settings.activity_anonymize_ips)
+                locations.get(address) or await lookup_ip_location(None, anonymized=settings.activity_anonymize_ips)
             )
         rows = (
-            await db.execute(
-                select(PlaybackSession).filter(
-                    PlaybackSession.source == "plex",
-                    PlaybackSession.ended_at.is_(None),
+            (
+                await db.execute(
+                    select(PlaybackSession).filter(
+                        PlaybackSession.source == "plex",
+                        PlaybackSession.ended_at.is_(None),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         existing = {row.source_session_id: row for row in rows}
         # Repli de corrélation : le Session/@id ou TranscodeSession/@key qui compose
         # source_session_id peut changer en cours de lecture (relance de transcodage,
@@ -899,14 +897,10 @@ async def _collect_plex_activity_unlocked() -> dict:
             cutoff = now - timedelta(days=settings.activity_retention_days)
             await db.execute(delete(PlaybackSession).where(PlaybackSession.ended_at < cutoff))
         await db.commit()
-        affected_days = {
-            row.started_at.date() for row in [*rows, *started_rows] if row.started_at
-        }
+        affected_days = {row.started_at.date() for row in [*rows, *started_rows] if row.started_at}
         await _rebuild_daily_aggregates(db, affected_days)
         if settings.activity_retention_days:
-            await db.execute(
-                delete(PlaybackDailyAggregate).where(PlaybackDailyAggregate.day < cutoff.date())
-            )
+            await db.execute(delete(PlaybackDailyAggregate).where(PlaybackDailyAggregate.day < cutoff.date()))
             await db.commit()
         started = [_serialize(row) for row in started_rows]
     await publish(
@@ -942,24 +936,32 @@ async def handle_websocket_state(session_key: int, rating_key: str | None, state
     async with AsyncSessionLocal() as db:
         await _sweep_stale_sessions(db, now)
         row = (
-            await db.execute(
-                select(PlaybackSession).filter(
-                    PlaybackSession.source == "plex",
-                    PlaybackSession.ended_at.is_(None),
-                    PlaybackSession.session_key == session_key,
-                )
-            )
-        ).scalars().first()
-        if row is None and rating_key:
-            row = (
+            (
                 await db.execute(
                     select(PlaybackSession).filter(
                         PlaybackSession.source == "plex",
                         PlaybackSession.ended_at.is_(None),
-                        PlaybackSession.rating_key == rating_key,
+                        PlaybackSession.session_key == session_key,
                     )
                 )
-            ).scalars().first()
+            )
+            .scalars()
+            .first()
+        )
+        if row is None and rating_key:
+            row = (
+                (
+                    await db.execute(
+                        select(PlaybackSession).filter(
+                            PlaybackSession.source == "plex",
+                            PlaybackSession.ended_at.is_(None),
+                            PlaybackSession.rating_key == rating_key,
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
         if row is None:
             return {"status": "unknown"}
         if state == "stopped":
@@ -1010,10 +1012,7 @@ async def _tautulli_locations(rows: list[dict], *, db, anonymized: bool) -> dict
     La deduplication et la limite de concurrence evitent toutefois de lancer des milliers
     d'appels simultanes lors d'un gros import.
     """
-    addresses = {
-        str(item.get("ip_address") or "").strip()
-        for item in rows
-    }
+    addresses = {str(item.get("ip_address") or "").strip() for item in rows}
     addresses.discard("")
     return await lookup_ip_locations(addresses, db=db, anonymized=anonymized)
 
@@ -1049,10 +1048,8 @@ async def import_tautulli_history(*, length: int = 1000) -> dict:
         updated = 0
         imported_days: set[date] = set()
         existing_rows = (
-            await db.execute(
-                select(PlaybackSession).filter(PlaybackSession.source == "tautulli")
-            )
-        ).scalars().all()
+            (await db.execute(select(PlaybackSession).filter(PlaybackSession.source == "tautulli"))).scalars().all()
+        )
         existing_by_reference = {row.source_session_id: row for row in existing_rows}
         for item in rows:
             reference = _tautulli_row_id(item)
@@ -1121,19 +1118,22 @@ async def normalize_tautulli_history(*, length: int = 10000) -> dict:
             db=db,
             anonymized=settings.activity_anonymize_ips,
         )
-        references = {
-            _tautulli_row_id(item): item
-            for item in rows
-        }
+        references = {_tautulli_row_id(item): item for item in rows}
         references.pop("", None)
         existing = (
-            await db.execute(
-                select(PlaybackSession).filter(
-                    PlaybackSession.source == "tautulli",
-                    PlaybackSession.source_session_id.in_(references),
+            (
+                await db.execute(
+                    select(PlaybackSession).filter(
+                        PlaybackSession.source == "tautulli",
+                        PlaybackSession.source_session_id.in_(references),
+                    )
                 )
             )
-        ).scalars().all() if references else []
+            .scalars()
+            .all()
+            if references
+            else []
+        )
         changed = 0
         changed_days: set[date] = set()
         for session in existing:
@@ -1158,11 +1158,13 @@ async def normalize_tautulli_history(*, length: int = 10000) -> dict:
                     # Ville/région/pays/coordonnées déjà valides : ne compléter que le
                     # FAI/l'organisation/l'ASN s'ils manquent encore.
                     location = locations[raw_address]
-                    updates.update({
-                        field: location.get(field)
-                        for field in _GEO_NETWORK_FIELDS
-                        if getattr(session, field) is None and location.get(field)
-                    })
+                    updates.update(
+                        {
+                            field: location.get(field)
+                            for field in _GEO_NETWORK_FIELDS
+                            if getattr(session, field) is None and location.get(field)
+                        }
+                    )
                 else:
                     updates.update(locations[raw_address])
             if any(getattr(session, key) != value for key, value in updates.items()):
@@ -1190,15 +1192,11 @@ async def recalculate_playback_locations() -> dict:
     async with AsyncSessionLocal() as db:
         settings = (await db.execute(select(Settings))).scalars().first()
         rows = (
-            await db.execute(
-                select(PlaybackSession).filter(PlaybackSession.player_address.is_not(None))
-            )
-        ).scalars().all()
-        addresses = {
-            str(row.player_address).strip()
-            for row in rows
-            if str(row.player_address or "").strip()
-        }
+            (await db.execute(select(PlaybackSession).filter(PlaybackSession.player_address.is_not(None))))
+            .scalars()
+            .all()
+        )
+        addresses = {str(row.player_address).strip() for row in rows if str(row.player_address or "").strip()}
         seeds = {}
         for row in rows:
             address = str(row.player_address or "").strip()
@@ -1271,21 +1269,24 @@ async def _rebuild_daily_aggregates(db, days: set[date]) -> None:
     if db.get_bind().dialect.name == "postgresql":
         for day in sorted(days):
             lock_key = f"watchdeck:playback-daily:{day.isoformat()}"
-            await db.execute(
-                select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0)))
-            )
+            await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
     await db.execute(delete(PlaybackDailyAggregate).where(PlaybackDailyAggregate.day.in_(days)))
-    rows = (
-        await db.execute(_daily_aggregate_query(days))
-    ).all()
-    db.add_all([
-        PlaybackDailyAggregate(
-            day=_as_date(row[0]), user_name=row[1], media_type=row[2], media_label=row[3],
-            playback_method=row[4], sessions=int(row[5] or 0), watch_ms=int(row[6] or 0),
-            transcodes=int(row[7] or 0),
-        )
-        for row in rows
-    ])
+    rows = (await db.execute(_daily_aggregate_query(days))).all()
+    db.add_all(
+        [
+            PlaybackDailyAggregate(
+                day=_as_date(row[0]),
+                user_name=row[1],
+                media_type=row[2],
+                media_label=row[3],
+                playback_method=row[4],
+                sessions=int(row[5] or 0),
+                watch_ms=int(row[6] or 0),
+                transcodes=int(row[7] or 0),
+            )
+            for row in rows
+        ]
+    )
     await db.commit()
 
 
@@ -1300,9 +1301,7 @@ def _daily_aggregate_query(days: set[date]):
     day_expr = func.date(PlaybackSession.started_at)
     user_expr = func.coalesce(PlaybackSession.user_name, "")
     media_type_expr = func.coalesce(PlaybackSession.media_type, "")
-    media_label_expr = func.coalesce(
-        PlaybackSession.grandparent_title, PlaybackSession.title, ""
-    )
+    media_label_expr = func.coalesce(PlaybackSession.grandparent_title, PlaybackSession.title, "")
     playback_method_expr = func.coalesce(PlaybackSession.playback_method, "unknown")
     dimensions = (
         day_expr,
@@ -1335,15 +1334,19 @@ async def _ensure_daily_aggregates(db, start_day: date, end_day: date) -> None:
     if aggregate_count:
         return
     session_days = (
-        await db.execute(
-            select(func.date(PlaybackSession.started_at))
-            .filter(
-                PlaybackSession.started_at >= datetime.combine(start_day, datetime_time.min),
-                PlaybackSession.started_at < datetime.combine(end_day + timedelta(days=1), datetime_time.min),
+        (
+            await db.execute(
+                select(func.date(PlaybackSession.started_at))
+                .filter(
+                    PlaybackSession.started_at >= datetime.combine(start_day, datetime_time.min),
+                    PlaybackSession.started_at < datetime.combine(end_day + timedelta(days=1), datetime_time.min),
+                )
+                .distinct()
             )
-            .distinct()
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     await _rebuild_daily_aggregates(db, {_as_date(day) for day in session_days if day})
 
 
@@ -1424,10 +1427,7 @@ async def _aggregate_overview(db, cutoff: datetime, previous_cutoff: datetime) -
             {"date": row[0].isoformat(), "sessions": int(row[1] or 0), "watch_ms": int(row[2] or 0)}
             for row in daily_rows
         ],
-        "users": [
-            {"name": row[0], "sessions": int(row[1] or 0), "watch_ms": int(row[2] or 0)}
-            for row in user_rows
-        ],
+        "users": [{"name": row[0], "sessions": int(row[1] or 0), "watch_ms": int(row[2] or 0)} for row in user_rows],
         "comparison": {
             "sessions": int(previous[0] or 0),
             "watch_ms": int(previous[1] or 0),
@@ -1443,85 +1443,103 @@ async def activity_snapshot(days: int = 30, db=None) -> dict:
         async with AsyncSessionLocal() as owned_db:
             return await activity_snapshot(days, db=owned_db)
     active = (
-        await db.execute(
-            select(PlaybackSession)
-            .filter(PlaybackSession.ended_at.is_(None))
-            .order_by(PlaybackSession.started_at.desc())
+        (
+            await db.execute(
+                select(PlaybackSession)
+                .filter(PlaybackSession.ended_at.is_(None))
+                .order_by(PlaybackSession.started_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     history = (
-        await db.execute(
-            select(PlaybackSession)
-            .filter(PlaybackSession.started_at >= cutoff)
-            .order_by(PlaybackSession.started_at.desc())
-            .limit(100)
+        (
+            await db.execute(
+                select(PlaybackSession)
+                .filter(PlaybackSession.started_at >= cutoff)
+                .order_by(PlaybackSession.started_at.desc())
+                .limit(100)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     analytics_rows = (
-        await db.execute(
-            select(PlaybackSession)
-            .options(
-                load_only(
-                    PlaybackSession.id,
-                    PlaybackSession.source,
-                    PlaybackSession.user_name,
-                    PlaybackSession.media_type,
-                    PlaybackSession.title,
-                    PlaybackSession.grandparent_title,
-                    PlaybackSession.rating_key,
-                    PlaybackSession.thumb_url,
-                    PlaybackSession.player_title,
-                    PlaybackSession.platform,
-                    PlaybackSession.product,
-                    PlaybackSession.playback_method,
-                    PlaybackSession.video_decision,
-                    PlaybackSession.audio_decision,
-                    PlaybackSession.quality,
-                    PlaybackSession.video_codec,
-                    PlaybackSession.container,
-                    PlaybackSession.subtitle_decision,
-                    PlaybackSession.bandwidth_kbps,
-                    PlaybackSession.media_size_bytes,
-                    PlaybackSession.progress_ms,
-                    PlaybackSession.duration_ms,
-                    PlaybackSession.progress_percent,
-                    PlaybackSession.watched_status,
-                    PlaybackSession.group_count,
-                    PlaybackSession.watched_ms,
-                    PlaybackSession.started_at,
-                    PlaybackSession.last_seen_at,
-                    PlaybackSession.ended_at,
+        (
+            await db.execute(
+                select(PlaybackSession)
+                .options(
+                    load_only(
+                        PlaybackSession.id,
+                        PlaybackSession.source,
+                        PlaybackSession.user_name,
+                        PlaybackSession.media_type,
+                        PlaybackSession.title,
+                        PlaybackSession.grandparent_title,
+                        PlaybackSession.rating_key,
+                        PlaybackSession.thumb_url,
+                        PlaybackSession.player_title,
+                        PlaybackSession.platform,
+                        PlaybackSession.product,
+                        PlaybackSession.playback_method,
+                        PlaybackSession.video_decision,
+                        PlaybackSession.audio_decision,
+                        PlaybackSession.quality,
+                        PlaybackSession.video_codec,
+                        PlaybackSession.container,
+                        PlaybackSession.subtitle_decision,
+                        PlaybackSession.bandwidth_kbps,
+                        PlaybackSession.media_size_bytes,
+                        PlaybackSession.progress_ms,
+                        PlaybackSession.duration_ms,
+                        PlaybackSession.progress_percent,
+                        PlaybackSession.watched_status,
+                        PlaybackSession.group_count,
+                        PlaybackSession.watched_ms,
+                        PlaybackSession.started_at,
+                        PlaybackSession.last_seen_at,
+                        PlaybackSession.ended_at,
+                    )
                 )
+                .filter(PlaybackSession.started_at >= cutoff)
+                .order_by(PlaybackSession.started_at)
             )
-            .filter(PlaybackSession.started_at >= cutoff)
-            .order_by(PlaybackSession.started_at)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     previous_rows = (
-        await db.execute(
-            select(PlaybackSession)
-            .options(
-                load_only(
-                    PlaybackSession.id,
-                    PlaybackSession.user_name,
-                    PlaybackSession.watched_ms,
+        (
+            await db.execute(
+                select(PlaybackSession)
+                .options(
+                    load_only(
+                        PlaybackSession.id,
+                        PlaybackSession.user_name,
+                        PlaybackSession.watched_ms,
+                    )
+                )
+                .filter(
+                    PlaybackSession.started_at >= previous_cutoff,
+                    PlaybackSession.started_at < cutoff,
                 )
             )
-            .filter(
-                PlaybackSession.started_at >= previous_cutoff,
-                PlaybackSession.started_at < cutoff,
-            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     overview = await _aggregate_overview(db, cutoff, previous_cutoff)
     analytics = _analytics(list(analytics_rows), list(previous_rows))
     previous = overview.pop("comparison")
     current = overview["summary"]
     analytics["comparison"] = {
         "sessions_change": _percent(current["sessions"] - previous["sessions"], previous["sessions"])
-        if previous["sessions"] else (100 if current["sessions"] else 0),
+        if previous["sessions"]
+        else (100 if current["sessions"] else 0),
         "watch_change": _percent(current["watch_ms"] - previous["watch_ms"], previous["watch_ms"])
-        if previous["watch_ms"] else (100 if current["watch_ms"] else 0),
+        if previous["watch_ms"]
+        else (100 if current["watch_ms"] else 0),
     }
     return {
         "active": [_serialize(row) for row in active],
@@ -1538,12 +1556,16 @@ async def live_activity_snapshot(db=None) -> dict:
             return await live_activity_snapshot(db=owned_db)
     settings = (await db.execute(select(Settings))).scalars().first()
     active = (
-        await db.execute(
-            select(PlaybackSession)
-            .filter(PlaybackSession.ended_at.is_(None))
-            .order_by(PlaybackSession.started_at.desc())
+        (
+            await db.execute(
+                select(PlaybackSession)
+                .filter(PlaybackSession.ended_at.is_(None))
+                .order_by(PlaybackSession.started_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     configured = bool(settings and settings.plex_url and settings.plex_token)
     return {
         "active": [_serialize(row) for row in active],
@@ -1556,6 +1578,7 @@ async def activity_statistics(days: int = 30, db=None, refresh: bool = False) ->
     """Retourne l'historique et les agrégats, mis en cache séparément du direct."""
     days = min(max(days, 1), 3650)
     cache_key = f"watchdeck:playback:statistics:{days}"
+
     async def _compute(session):
         snapshot = await activity_snapshot(days, db=session)
         snapshot.pop("active", None)
@@ -1567,9 +1590,7 @@ async def activity_statistics(days: int = 30, db=None, refresh: bool = False) ->
                 snapshot = await _compute(owned_db)
         else:
             snapshot = await _compute(db)
-        await cache.set_json(
-            cache_key, {"value": snapshot, "cached_at": time.time()}, ttl_seconds=600
-        )
+        await cache.set_json(cache_key, {"value": snapshot, "cached_at": time.time()}, ttl_seconds=600)
         return snapshot
 
     async def _background():
@@ -1578,7 +1599,5 @@ async def activity_statistics(days: int = 30, db=None, refresh: bool = False) ->
 
     if db is None:
         async with AsyncSessionLocal() as owned_db:
-            return await cache.get_or_refresh(
-                cache_key, 60, 600, lambda: _compute(owned_db), _background
-            )
+            return await cache.get_or_refresh(cache_key, 60, 600, lambda: _compute(owned_db), _background)
     return await cache.get_or_refresh(cache_key, 60, 600, lambda: _compute(db), _background)

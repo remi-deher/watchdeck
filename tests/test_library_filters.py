@@ -39,9 +39,7 @@ def _titles(response):
 
 def test_library_vf_filter_reaches_beyond_the_first_page(async_db):
     """Le cœur de la régression : un seul média VF, noyé après 250 médias VO."""
-    async_db.add_all(
-        [LibraryItem(title=f"VO {index:03d}", media_type="movie", has_vf=False) for index in range(250)]
-    )
+    async_db.add_all([LibraryItem(title=f"VO {index:03d}", media_type="movie", has_vf=False) for index in range(250)])
     async_db.add(LibraryItem(title="Le seul VF", media_type="movie", has_vf=True))
     async_db.commit()
     client = _client(async_db)
@@ -201,19 +199,28 @@ def test_strict_partial_excludes_shows_that_are_up_to_date(async_db):
     async_db.add_all(
         [
             MediaRequest(
-                title="Vraiment en retard", media_type="show", plex_user_id="alice",
+                title="Vraiment en retard",
+                media_type="show",
+                plex_user_id="alice",
                 status=RequestStatus.partially_available,
-                episodes_aired_count=10, episodes_available_count=4,
+                episodes_aired_count=10,
+                episodes_available_count=4,
             ),
             MediaRequest(
-                title="A jour", media_type="show", plex_user_id="alice",
+                title="A jour",
+                media_type="show",
+                plex_user_id="alice",
                 status=RequestStatus.partially_available,
-                episodes_aired_count=10, episodes_available_count=10,
+                episodes_aired_count=10,
+                episodes_available_count=10,
             ),
             MediaRequest(
-                title="Sans compteurs", media_type="show", plex_user_id="alice",
+                title="Sans compteurs",
+                media_type="show",
+                plex_user_id="alice",
                 status=RequestStatus.partially_available,
-                episodes_aired_count=None, episodes_available_count=None,
+                episodes_aired_count=None,
+                episodes_available_count=None,
             ),
         ]
     )
@@ -237,9 +244,12 @@ def test_strict_partial_keeps_the_other_selected_statuses(async_db):
     async_db.add_all(
         [
             MediaRequest(
-                title="Partielle a jour", media_type="show", plex_user_id="alice",
+                title="Partielle a jour",
+                media_type="show",
+                plex_user_id="alice",
                 status=RequestStatus.partially_available,
-                episodes_aired_count=5, episodes_available_count=5,
+                episodes_aired_count=5,
+                episodes_available_count=5,
             ),
             MediaRequest(title="En attente", media_type="movie", status=RequestStatus.pending, plex_user_id="alice"),
         ]
@@ -247,9 +257,7 @@ def test_strict_partial_keeps_the_other_selected_statuses(async_db):
     async_db.commit()
     client = _client(async_db)
     try:
-        response = client.get(
-            "/api/requests-list?statuses=partially_available,pending&strict_partial=true"
-        )
+        response = client.get("/api/requests-list?statuses=partially_available,pending&strict_partial=true")
         assert _request_titles(response) == ["En attente"]
     finally:
         _cleanup()
@@ -310,4 +318,3 @@ def test_requests_list_music_media_type_returns_no_requests(async_db):
         assert response.json()["items"] == []
     finally:
         _cleanup()
-

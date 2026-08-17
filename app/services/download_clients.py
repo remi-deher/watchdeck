@@ -220,9 +220,8 @@ async def get_qbittorrent_status(
 
             return {
                 "name": t.get("name", ""),
-                "content_path": t.get("content_path") or (
-                    os.path.join(t.get("save_path"), t.get("name", "")) if t.get("save_path") else None
-                ),
+                "content_path": t.get("content_path")
+                or (os.path.join(t.get("save_path"), t.get("name", "")) if t.get("save_path") else None),
                 "progress": t.get("progress", 0.0) * 100.0,
                 "status": status,
                 "ratio": t.get("ratio", 0.0),
@@ -258,9 +257,7 @@ async def delete_qbittorrent_torrent(
             return False
 
 
-async def list_qbittorrent_torrents(
-    url: str, username: Optional[str], password: Optional[str]
-) -> list[dict]:
+async def list_qbittorrent_torrents(url: str, username: Optional[str], password: Optional[str]) -> list[dict]:
     """Retourne la file qBittorrent complète pour le centre de contrôle."""
     async with httpx.AsyncClient() as client:
         cookies = await qbittorrent_auth_cookies(client, url, username, password)
@@ -276,9 +273,7 @@ async def list_qbittorrent_torrents(
         return response.json()
 
 
-async def get_qbittorrent_metadata(
-    url: str, username: Optional[str], password: Optional[str]
-) -> dict:
+async def get_qbittorrent_metadata(url: str, username: Optional[str], password: Optional[str]) -> dict:
     """Retourne les catégories et tags déclarés dans qBittorrent."""
     async with httpx.AsyncClient() as client:
         cookies = await qbittorrent_auth_cookies(client, url, username, password)
@@ -327,14 +322,23 @@ async def mutate_qbittorrent_metadata(
         elif action == "rename" and target:
             metadata = await get_qbittorrent_metadata(url, username, password)
             if kind == "category":
-                current = next((item for item in metadata["categories"] if item["name"].casefold() == name.casefold()), None)
-                create = await client.post(f"{base}/createCategory", data={"category": target, "savePath": (current or {}).get("save_path", "")}, cookies=cookies, timeout=15)
+                current = next(
+                    (item for item in metadata["categories"] if item["name"].casefold() == name.casefold()), None
+                )
+                create = await client.post(
+                    f"{base}/createCategory",
+                    data={"category": target, "savePath": (current or {}).get("save_path", "")},
+                    cookies=cookies,
+                    timeout=15,
+                )
                 create.raise_for_status()
                 info = await client.get(f"{base}/info", params={"category": name}, cookies=cookies, timeout=15)
                 info.raise_for_status()
                 hashes = "|".join(row.get("hash", "") for row in info.json() if row.get("hash"))
                 if hashes:
-                    move = await client.post(f"{base}/setCategory", data={"hashes": hashes, "category": target}, cookies=cookies, timeout=15)
+                    move = await client.post(
+                        f"{base}/setCategory", data={"hashes": hashes, "category": target}, cookies=cookies, timeout=15
+                    )
                     move.raise_for_status()
                 endpoint, data = "removeCategories", {"categories": name}
             else:
@@ -343,13 +347,19 @@ async def mutate_qbittorrent_metadata(
                 info = await client.get(f"{base}/info", cookies=cookies, timeout=15)
                 info.raise_for_status()
                 hashes = "|".join(
-                    row.get("hash", "") for row in info.json()
-                    if row.get("hash") and name.casefold() in {tag.strip().casefold() for tag in str(row.get("tags") or "").split(",")}
+                    row.get("hash", "")
+                    for row in info.json()
+                    if row.get("hash")
+                    and name.casefold() in {tag.strip().casefold() for tag in str(row.get("tags") or "").split(",")}
                 )
                 if hashes:
-                    add = await client.post(f"{base}/addTags", data={"hashes": hashes, "tags": target}, cookies=cookies, timeout=15)
+                    add = await client.post(
+                        f"{base}/addTags", data={"hashes": hashes, "tags": target}, cookies=cookies, timeout=15
+                    )
                     add.raise_for_status()
-                    remove = await client.post(f"{base}/removeTags", data={"hashes": hashes, "tags": name}, cookies=cookies, timeout=15)
+                    remove = await client.post(
+                        f"{base}/removeTags", data={"hashes": hashes, "tags": name}, cookies=cookies, timeout=15
+                    )
                     remove.raise_for_status()
                 endpoint, data = "deleteTags", {"tags": name}
         else:
@@ -563,42 +573,62 @@ async def delete_transmission_torrent(
             return False
 
 
-async def list_transmission_torrents(
-    url: str, username: Optional[str], password: Optional[str]
-) -> list[dict]:
+async def list_transmission_torrents(url: str, username: Optional[str], password: Optional[str]) -> list[dict]:
     """Retourne la file Transmission complète dans le format commun du centre de contrôle."""
     fields = [
-        "hashString", "name", "status", "percentDone", "totalSize", "rateDownload",
-        "rateUpload", "uploadRatio", "eta", "labels", "downloadDir",
-        "comment", "addedDate", "doneDate", "trackers",
+        "hashString",
+        "name",
+        "status",
+        "percentDone",
+        "totalSize",
+        "rateDownload",
+        "rateUpload",
+        "uploadRatio",
+        "eta",
+        "labels",
+        "downloadDir",
+        "comment",
+        "addedDate",
+        "doneDate",
+        "trackers",
     ]
     async with httpx.AsyncClient() as client:
         result = await transmission_rpc(client, url, username, password, "torrent-get", {"fields": fields})
     if result.get("result") != "success":
         raise RuntimeError(f"Erreur Transmission : {result.get('result')}")
-    status_names = {0: "paused", 1: "check-waiting", 2: "checking", 3: "download-waiting", 4: "downloading", 5: "seed-waiting", 6: "seeding"}
+    status_names = {
+        0: "paused",
+        1: "check-waiting",
+        2: "checking",
+        3: "download-waiting",
+        4: "downloading",
+        5: "seed-waiting",
+        6: "seeding",
+    }
     torrents_list = []
     for torrent in result.get("arguments", {}).get("torrents", []):
         trackers_raw = torrent.get("trackers") or []
         trackers_str = ", ".join([t.get("announce") for t in trackers_raw if isinstance(t, dict) and t.get("announce")])
-        torrents_list.append({
-            "hash": torrent.get("hashString") or "",
-            "name": torrent.get("name") or "Torrent sans nom",
-            "state": status_names.get(torrent.get("status"), "unknown"),
-            "progress": torrent.get("percentDone") or 0,
-            "size": torrent.get("totalSize") or 0,
-            "dlspeed": torrent.get("rateDownload") or 0,
-            "upspeed": torrent.get("rateUpload") or 0,
-            "ratio": torrent.get("uploadRatio") or 0,
-            "eta": torrent.get("eta") or 0,
-            "category": "",
-            "tags": ", ".join(torrent.get("labels") or []),
-            "save_path": torrent.get("downloadDir") or "",
-            "comment": torrent.get("comment") or "",
-            "added_on": torrent.get("addedDate"),
-            "completed_on": torrent.get("doneDate") if (torrent.get("doneDate") or 0) > 0 else None,
-            "trackers": trackers_str,
-        })
+        torrents_list.append(
+            {
+                "hash": torrent.get("hashString") or "",
+                "name": torrent.get("name") or "Torrent sans nom",
+                "state": status_names.get(torrent.get("status"), "unknown"),
+                "progress": torrent.get("percentDone") or 0,
+                "size": torrent.get("totalSize") or 0,
+                "dlspeed": torrent.get("rateDownload") or 0,
+                "upspeed": torrent.get("rateUpload") or 0,
+                "ratio": torrent.get("uploadRatio") or 0,
+                "eta": torrent.get("eta") or 0,
+                "category": "",
+                "tags": ", ".join(torrent.get("labels") or []),
+                "save_path": torrent.get("downloadDir") or "",
+                "comment": torrent.get("comment") or "",
+                "added_on": torrent.get("addedDate"),
+                "completed_on": torrent.get("doneDate") if (torrent.get("doneDate") or 0) > 0 else None,
+                "trackers": trackers_str,
+            }
+        )
     return torrents_list
 
 
@@ -909,13 +939,18 @@ async def delete_torrent(
 # Fonctions d'inspection avancée (Fichiers, Trackers, Peers, Vitesse globale)
 # -----------------------------------------------------------------------------
 
-async def get_qbittorrent_files(url: str, username: Optional[str], password: Optional[str], torrent_hash: str) -> list[dict]:
+
+async def get_qbittorrent_files(
+    url: str, username: Optional[str], password: Optional[str], torrent_hash: str
+) -> list[dict]:
     async with httpx.AsyncClient() as client:
         cookies = await qbittorrent_auth_cookies(client, url, username, password)
         if cookies is None:
             return []
         try:
-            r = await client.get(f"{url.rstrip('/')}/api/v2/torrents/files", params={"hash": torrent_hash}, cookies=cookies, timeout=10)
+            r = await client.get(
+                f"{url.rstrip('/')}/api/v2/torrents/files", params={"hash": torrent_hash}, cookies=cookies, timeout=10
+            )
             r.raise_for_status()
             raw_files = r.json()
             return [
@@ -955,13 +990,20 @@ async def set_qbittorrent_file_priority(
             return False
 
 
-async def get_qbittorrent_trackers(url: str, username: Optional[str], password: Optional[str], torrent_hash: str) -> list[dict]:
+async def get_qbittorrent_trackers(
+    url: str, username: Optional[str], password: Optional[str], torrent_hash: str
+) -> list[dict]:
     async with httpx.AsyncClient() as client:
         cookies = await qbittorrent_auth_cookies(client, url, username, password)
         if cookies is None:
             return []
         try:
-            r = await client.get(f"{url.rstrip('/')}/api/v2/torrents/trackers", params={"hash": torrent_hash}, cookies=cookies, timeout=10)
+            r = await client.get(
+                f"{url.rstrip('/')}/api/v2/torrents/trackers",
+                params={"hash": torrent_hash},
+                cookies=cookies,
+                timeout=10,
+            )
             r.raise_for_status()
             return [
                 {
@@ -979,13 +1021,20 @@ async def get_qbittorrent_trackers(url: str, username: Optional[str], password: 
             return []
 
 
-async def get_qbittorrent_peers(url: str, username: Optional[str], password: Optional[str], torrent_hash: str) -> list[dict]:
+async def get_qbittorrent_peers(
+    url: str, username: Optional[str], password: Optional[str], torrent_hash: str
+) -> list[dict]:
     async with httpx.AsyncClient() as client:
         cookies = await qbittorrent_auth_cookies(client, url, username, password)
         if cookies is None:
             return []
         try:
-            r = await client.get(f"{url.rstrip('/')}/api/v2/sync/torrentPeers", params={"hash": torrent_hash}, cookies=cookies, timeout=10)
+            r = await client.get(
+                f"{url.rstrip('/')}/api/v2/sync/torrentPeers",
+                params={"hash": torrent_hash},
+                cookies=cookies,
+                timeout=10,
+            )
             r.raise_for_status()
             peers_dict = r.json().get("peers", {})
             return [
@@ -1036,13 +1085,17 @@ async def get_qbittorrent_global_stats(url: str, username: Optional[str], passwo
             return {"connected": False, "download_speed": 0, "upload_speed": 0, "alt_speed_enabled": False}
 
 
-async def toggle_qbittorrent_alt_speed(url: str, username: Optional[str], password: Optional[str], enabled: Optional[bool] = None) -> bool:
+async def toggle_qbittorrent_alt_speed(
+    url: str, username: Optional[str], password: Optional[str], enabled: Optional[bool] = None
+) -> bool:
     async with httpx.AsyncClient() as client:
         cookies = await qbittorrent_auth_cookies(client, url, username, password)
         if cookies is None:
             return False
         try:
-            r = await client.post(f"{url.rstrip('/')}/api/v2/transfer/toggleSpeedLimitsMode", cookies=cookies, timeout=10)
+            r = await client.post(
+                f"{url.rstrip('/')}/api/v2/transfer/toggleSpeedLimitsMode", cookies=cookies, timeout=10
+            )
             r.raise_for_status()
             return True
         except Exception as e:
@@ -1052,27 +1105,40 @@ async def toggle_qbittorrent_alt_speed(url: str, username: Optional[str], passwo
 
 # --- Generic dispatch wrappers ---
 
-async def list_torrent_files(client_type: str, url: str, username: Optional[str], password: Optional[str], torrent_hash: str) -> list[dict]:
+
+async def list_torrent_files(
+    client_type: str, url: str, username: Optional[str], password: Optional[str], torrent_hash: str
+) -> list[dict]:
     if client_type == "qbittorrent":
         return await get_qbittorrent_files(url, username, password, torrent_hash)
     return []
 
 
 async def set_torrent_file_priority(
-    client_type: str, url: str, username: Optional[str], password: Optional[str], torrent_hash: str, file_ids: list[int], priority: int
+    client_type: str,
+    url: str,
+    username: Optional[str],
+    password: Optional[str],
+    torrent_hash: str,
+    file_ids: list[int],
+    priority: int,
 ) -> bool:
     if client_type == "qbittorrent":
         return await set_qbittorrent_file_priority(url, username, password, torrent_hash, file_ids, priority)
     return False
 
 
-async def list_torrent_trackers(client_type: str, url: str, username: Optional[str], password: Optional[str], torrent_hash: str) -> list[dict]:
+async def list_torrent_trackers(
+    client_type: str, url: str, username: Optional[str], password: Optional[str], torrent_hash: str
+) -> list[dict]:
     if client_type == "qbittorrent":
         return await get_qbittorrent_trackers(url, username, password, torrent_hash)
     return []
 
 
-async def list_torrent_peers(client_type: str, url: str, username: Optional[str], password: Optional[str], torrent_hash: str) -> list[dict]:
+async def list_torrent_peers(
+    client_type: str, url: str, username: Optional[str], password: Optional[str], torrent_hash: str
+) -> list[dict]:
     if client_type == "qbittorrent":
         return await get_qbittorrent_peers(url, username, password, torrent_hash)
     return []
@@ -1084,8 +1150,9 @@ async def get_client_global_stats(client_type: str, url: str, username: Optional
     return {"connected": True, "download_speed": 0, "upload_speed": 0, "alt_speed_enabled": False}
 
 
-async def toggle_client_alt_speed(client_type: str, url: str, username: Optional[str], password: Optional[str], enabled: Optional[bool] = None) -> bool:
+async def toggle_client_alt_speed(
+    client_type: str, url: str, username: Optional[str], password: Optional[str], enabled: Optional[bool] = None
+) -> bool:
     if client_type == "qbittorrent":
         return await toggle_qbittorrent_alt_speed(url, username, password, enabled)
     return False
-

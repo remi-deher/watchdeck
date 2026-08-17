@@ -34,9 +34,7 @@ def _frames(text):
     """Décode les trames SSE reçues, dans leur ordre d'arrivée."""
     payloads = []
     for block in text.split("\n\n"):
-        data = "".join(
-            line[len("data:") :].strip() for line in block.split("\n") if line.startswith("data:")
-        )
+        data = "".join(line[len("data:") :].strip() for line in block.split("\n") if line.startswith("data:"))
         if data:
             payloads.append(json.loads(data))
     return payloads
@@ -103,9 +101,7 @@ def test_stream_can_exclude_deferred_sections(async_db):
             "_snapshot_calls",
             _fake_calls({"primary": 0, "supervision": 0}),
         ):
-            response = client.get(
-                "/api/dashboard/snapshot/stream?sections=primary,next_poll"
-            )
+            response = client.get("/api/dashboard/snapshot/stream?sections=primary,next_poll")
 
         payloads = _frames(response.text)
         assert "next_poll" in payloads[0]
@@ -145,9 +141,7 @@ def test_stream_is_not_gzipped(async_db):
     client = _client(async_db)
     try:
         with patch.object(dashboard_api, "_snapshot_calls", _fake_calls({"a": 0})):
-            response = client.get(
-                "/api/dashboard/snapshot/stream", headers={"Accept-Encoding": "gzip"}
-            )
+            response = client.get("/api/dashboard/snapshot/stream", headers={"Accept-Encoding": "gzip"})
         assert response.headers.get("content-encoding") != "gzip"
         assert response.headers.get("x-accel-buffering") == "no"
     finally:
@@ -164,8 +158,9 @@ def test_successful_stream_warms_the_shared_cache(async_db):
 
     client = _client(async_db)
     try:
-        with patch.object(dashboard_api, "_snapshot_calls", _fake_calls({"a": 0, "b": 0})), patch.object(
-            dashboard_api.cache, "set_json", _set_json
+        with (
+            patch.object(dashboard_api, "_snapshot_calls", _fake_calls({"a": 0, "b": 0})),
+            patch.object(dashboard_api.cache, "set_json", _set_json),
         ):
             client.get("/api/dashboard/snapshot/stream")
 
@@ -197,8 +192,9 @@ def test_partial_failure_does_not_warm_the_cache(async_db):
 
     client = _client(async_db)
     try:
-        with patch.object(dashboard_api, "_snapshot_calls", _calls), patch.object(
-            dashboard_api.cache, "set_json", _set_json
+        with (
+            patch.object(dashboard_api, "_snapshot_calls", _calls),
+            patch.object(dashboard_api.cache, "set_json", _set_json),
         ):
             client.get("/api/dashboard/snapshot/stream")
         assert stored == {}

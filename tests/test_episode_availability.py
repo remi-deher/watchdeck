@@ -21,8 +21,15 @@ def _make_db():
 
 def _show_request(db, **kwargs):
     defaults = dict(
-        plex_user_id="alice", plex_user="Alice", title="Show", media_type="show",
-        status=RequestStatus.sent_to_arr, tmdb_id="123", tvdb_id="456", arr_id=42, arr_instance_id=1,
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Show",
+        media_type="show",
+        status=RequestStatus.sent_to_arr,
+        tmdb_id="123",
+        tvdb_id="456",
+        arr_id=42,
+        arr_instance_id=1,
     )
     defaults.update(kwargs)
     req = MediaRequest(**defaults)
@@ -38,8 +45,20 @@ async def test_sync_episode_availability_for_show_persists_rows():
     req = _show_request(db)
     inst = ArrInstance(id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True)
     sonarr_episodes = [
-        {"seasonNumber": 1, "episodeNumber": 1, "monitored": True, "hasFile": True, "airDateUtc": "2020-01-01T01:00:00Z"},
-        {"seasonNumber": 1, "episodeNumber": 2, "monitored": True, "hasFile": False, "airDateUtc": "2099-01-01T01:00:00Z"},
+        {
+            "seasonNumber": 1,
+            "episodeNumber": 1,
+            "monitored": True,
+            "hasFile": True,
+            "airDateUtc": "2020-01-01T01:00:00Z",
+        },
+        {
+            "seasonNumber": 1,
+            "episodeNumber": 2,
+            "monitored": True,
+            "hasFile": False,
+            "airDateUtc": "2099-01-01T01:00:00Z",
+        },
         {"seasonNumber": 0, "episodeNumber": 1, "monitored": True, "hasFile": True},  # saison 0 exclue
         {"seasonNumber": 1, "episodeNumber": 3, "monitored": False, "hasFile": True},  # non surveille, exclu
     ]
@@ -62,12 +81,27 @@ async def test_sync_episode_availability_for_show_persists_rows():
 async def test_sync_episode_availability_for_show_updates_existing_row():
     db = _make_db()
     req = _show_request(db)
-    db.add(EpisodeAvailability(source_type="request", source_id=req.id, season_number=1, episode_number=1, has_file=False, air_date_utc=None))
+    db.add(
+        EpisodeAvailability(
+            source_type="request",
+            source_id=req.id,
+            season_number=1,
+            episode_number=1,
+            has_file=False,
+            air_date_utc=None,
+        )
+    )
     db.commit()
 
     inst = ArrInstance(id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True)
     sonarr_episodes = [
-        {"seasonNumber": 1, "episodeNumber": 1, "monitored": True, "hasFile": True, "airDateUtc": "2020-01-01T01:00:00Z"},
+        {
+            "seasonNumber": 1,
+            "episodeNumber": 1,
+            "monitored": True,
+            "hasFile": True,
+            "airDateUtc": "2020-01-01T01:00:00Z",
+        },
     ]
     with (
         patch("app.services.episode_availability.lookup_series", new=AsyncMock(return_value={"id": 42})),
@@ -91,13 +125,23 @@ async def test_check_episode_availability_covers_requests_and_library_items():
     req = _show_request(db, title="Requested Show")
     lib = LibraryItem(title="Library Show", media_type="show", tvdb_id="789", arr_id=99, arr_instance_id=1)
     db.add(lib)
-    db.add(ArrInstance(id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True, is_default=True))
+    db.add(
+        ArrInstance(
+            id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True, is_default=True
+        )
+    )
     db.commit()
     db.refresh(lib)
     req_id, lib_id = req.id, lib.id
 
     sonarr_episodes = [
-        {"seasonNumber": 1, "episodeNumber": 1, "monitored": True, "hasFile": True, "airDateUtc": "2020-01-01T01:00:00Z"},
+        {
+            "seasonNumber": 1,
+            "episodeNumber": 1,
+            "monitored": True,
+            "hasFile": True,
+            "airDateUtc": "2020-01-01T01:00:00Z",
+        },
     ]
     with (
         patch("app.services.episode_availability.AsyncSessionLocal", return_value=db),
@@ -106,8 +150,16 @@ async def test_check_episode_availability_covers_requests_and_library_items():
     ):
         await check_episode_availability()
 
-    req_rows = db.query(EpisodeAvailability).filter(EpisodeAvailability.source_type == "request", EpisodeAvailability.source_id == req_id).all()
-    lib_rows = db.query(EpisodeAvailability).filter(EpisodeAvailability.source_type == "library_item", EpisodeAvailability.source_id == lib_id).all()
+    req_rows = (
+        db.query(EpisodeAvailability)
+        .filter(EpisodeAvailability.source_type == "request", EpisodeAvailability.source_id == req_id)
+        .all()
+    )
+    lib_rows = (
+        db.query(EpisodeAvailability)
+        .filter(EpisodeAvailability.source_type == "library_item", EpisodeAvailability.source_id == lib_id)
+        .all()
+    )
     assert len(req_rows) == 1
     assert len(lib_rows) == 1
 

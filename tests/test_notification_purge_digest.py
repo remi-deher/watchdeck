@@ -96,7 +96,11 @@ async def test_purge_deletes_only_expired_logs():
 @pytest.mark.asyncio
 async def test_purge_deletes_expired_login_attempts():
     db = make_test_session()
-    db.add(_settings(notification_log_retention_days=None, poll_history_retention_days=None, login_attempt_retention_days=90))
+    db.add(
+        _settings(
+            notification_log_retention_days=None, poll_history_retention_days=None, login_attempt_retention_days=90
+        )
+    )
     db.add_all(
         [
             LoginAttempt(ip_address="1.2.3.4", attempted_at=datetime.now() - timedelta(days=91)),
@@ -127,7 +131,14 @@ async def test_purge_keeps_login_attempts_when_retention_disabled():
 @pytest.mark.asyncio
 async def test_purge_deletes_expired_audit_logs():
     db = make_test_session()
-    db.add(_settings(notification_log_retention_days=None, poll_history_retention_days=None, login_attempt_retention_days=None, audit_log_retention_days=30))
+    db.add(
+        _settings(
+            notification_log_retention_days=None,
+            poll_history_retention_days=None,
+            login_attempt_retention_days=None,
+            audit_log_retention_days=30,
+        )
+    )
     old, recent = datetime.now() - timedelta(days=31), datetime.now() - timedelta(days=2)
     db.add_all(
         [
@@ -149,7 +160,14 @@ async def test_purge_deletes_expired_audit_logs():
 @pytest.mark.asyncio
 async def test_purge_keeps_audit_logs_when_retention_disabled():
     db = make_test_session()
-    db.add(_settings(notification_log_retention_days=None, poll_history_retention_days=None, login_attempt_retention_days=None, audit_log_retention_days=None))
+    db.add(
+        _settings(
+            notification_log_retention_days=None,
+            poll_history_retention_days=None,
+            login_attempt_retention_days=None,
+            audit_log_retention_days=None,
+        )
+    )
     db.add(AdminActionLog(action="delete", summary="kept", created_at=datetime.now() - timedelta(days=400)))
     db.commit()
     with patch("app.services.notification_orchestrator.AsyncSessionLocal", return_value=db):

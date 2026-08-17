@@ -8,9 +8,11 @@ from sqlalchemy.orm import DeclarativeBase
 class Base(DeclarativeBase):
     pass
 
+
 class WatchlistSource(str, enum.Enum):
     api = "api"
     rss = "rss"
+
 
 class RequestStatus(str, enum.Enum):
     pending_approval = "pending_approval"  # demande d'un utilisateur en attente de validation admin
@@ -23,6 +25,7 @@ class RequestStatus(str, enum.Enum):
     # "Disponible" trompeur tant qu'il manque des épisodes. Jamais utilisé pour les films.
     partially_available = "partially_available"
     failed = "failed"
+
 
 class FulfillmentStatus(str, enum.Enum):
     """Etat technique d'execution, distinct de la decision metier de la demande."""
@@ -38,6 +41,7 @@ class FulfillmentStatus(str, enum.Enum):
     completed = "completed"
     failed = "failed"
     removed = "removed"
+
 
 class VfCategory(str, enum.Enum):
     """Type de média du point de vue VFF, pour cibler les notifications.

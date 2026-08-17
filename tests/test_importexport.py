@@ -385,8 +385,18 @@ def test_import_upserts_request_season_statuses(client, db_session):
                     "media_type": "tv",
                     "status": "sent_to_arr",
                     "season_statuses": [
-                        {"season_number": 1, "episodes_available_count": 10, "episodes_total_count": 10, "status": "available"},
-                        {"season_number": 2, "episodes_available_count": 3, "episodes_total_count": 12, "status": "partially_available"},
+                        {
+                            "season_number": 1,
+                            "episodes_available_count": 10,
+                            "episodes_total_count": 10,
+                            "status": "available",
+                        },
+                        {
+                            "season_number": 2,
+                            "episodes_available_count": 3,
+                            "episodes_total_count": 12,
+                            "status": "partially_available",
+                        },
                     ],
                 }
             ],
@@ -398,7 +408,12 @@ def test_import_upserts_request_season_statuses(client, db_session):
     assert r.json()["stats"]["season_statuses_upserted"] == 2
 
     req = db_session.query(MediaRequest).filter(MediaRequest.title == "The Wire").first()
-    statuses = db_session.query(RequestSeasonStatus).filter(RequestSeasonStatus.request_id == req.id).order_by(RequestSeasonStatus.season_number).all()
+    statuses = (
+        db_session.query(RequestSeasonStatus)
+        .filter(RequestSeasonStatus.request_id == req.id)
+        .order_by(RequestSeasonStatus.season_number)
+        .all()
+    )
     assert len(statuses) == 2
     assert statuses[0].status == "available"
     assert statuses[1].episodes_available_count == 3
@@ -424,7 +439,13 @@ def test_export_roundtrips_request_with_season_statuses(client, db_session):
     requests = r.json()["requests"]
     wire = next(item for item in requests if item["title"] == "The Wire")
     assert wire["season_statuses"] == [
-        {"season_number": 1, "episodes_available_count": 0, "episodes_total_count": 0, "status": "available", "updated_at": wire["season_statuses"][0]["updated_at"]}
+        {
+            "season_number": 1,
+            "episodes_available_count": 0,
+            "episodes_total_count": 0,
+            "status": "available",
+            "updated_at": wire["season_statuses"][0]["updated_at"],
+        }
     ]
 
 

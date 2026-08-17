@@ -56,9 +56,15 @@ async def create_media_issue(
 ):
     if not body.library_id and not body.request_id:
         raise HTTPException(400, "library_id or request_id is required")
-    library_item = (await db.execute(select(LibraryItem).filter(LibraryItem.id == body.library_id))).scalars().first() if body.library_id else None
+    library_item = (
+        (await db.execute(select(LibraryItem).filter(LibraryItem.id == body.library_id))).scalars().first()
+        if body.library_id
+        else None
+    )
     media_request = (
-        (await db.execute(select(MediaRequest).filter(MediaRequest.id == body.request_id))).scalars().first() if body.request_id else None
+        (await db.execute(select(MediaRequest).filter(MediaRequest.id == body.request_id))).scalars().first()
+        if body.request_id
+        else None
     )
     if body.library_id and not library_item:
         raise HTTPException(404, "Library item not found")
@@ -91,7 +97,10 @@ async def list_media_issues(status: Optional[str] = "open", db: AsyncSession = D
     q = select(MediaIssue)
     if status:
         q = q.filter(MediaIssue.status == status)
-    return [_serialize_issue(issue) for issue in (await db.execute(q.order_by(MediaIssue.created_at.desc()).limit(200))).scalars().all()]
+    return [
+        _serialize_issue(issue)
+        for issue in (await db.execute(q.order_by(MediaIssue.created_at.desc()).limit(200))).scalars().all()
+    ]
 
 
 @router.patch("/media/issues/{issue_id}", dependencies=[Depends(require_moderator)])
@@ -116,7 +125,9 @@ async def retry_issue_media_search(issue_id: int, db: AsyncSession = Depends(get
     arr_instance_id = None
 
     if issue.library_item_id:
-        lib_item = (await db.execute(select(LibraryItem).filter(LibraryItem.id == issue.library_item_id))).scalars().first()
+        lib_item = (
+            (await db.execute(select(LibraryItem).filter(LibraryItem.id == issue.library_item_id))).scalars().first()
+        )
         if lib_item:
             arr_id = lib_item.arr_id
             arr_instance_id = lib_item.arr_instance_id

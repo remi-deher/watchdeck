@@ -116,14 +116,17 @@ def _queue_matches(item: dict, suggestion: VfUpgradeSuggestion, arr_id: int) -> 
     if item.get("arr_media_id") != arr_id:
         return False
     if suggestion.scope == "episode":
-        return item.get("season_number") == suggestion.season_number and item.get("episode_number") == suggestion.episode_number
+        return (
+            item.get("season_number") == suggestion.season_number
+            and item.get("episode_number") == suggestion.episode_number
+        )
     return True
 
 
 async def _scope_has_vf(db: AsyncSession, suggestion: VfUpgradeSuggestion, media, settings: Settings | None) -> bool:
-    require_default = bool(settings and (
-        settings.vf_upgrade_require_default is True or settings.vf_upgrade_accept_secondary is False
-    ))
+    require_default = bool(
+        settings and (settings.vf_upgrade_require_default is True or settings.vf_upgrade_accept_secondary is False)
+    )
     if suggestion.scope == "movie":
         # Une VF deja presente avant le grab ne prouve pas que la nouvelle release a
         # ete importee: l'analyse doit etre posterieure a l'acceptation *arr.
@@ -143,9 +146,16 @@ async def _scope_has_vf(db: AsyncSession, suggestion: VfUpgradeSuggestion, media
     if suggestion.scope == "episode":
         query = query.filter(VfEpisodeStatus.episode_number == suggestion.episode_number)
     values = list((await db.execute(query)).all())
-    return bool(values) and bool(suggestion.accepted_at) and all(
-        has_vf and (not require_default or fr_is_default is True)
-        and checked_at and checked_at >= suggestion.accepted_at for has_vf, fr_is_default, checked_at in values
+    return (
+        bool(values)
+        and bool(suggestion.accepted_at)
+        and all(
+            has_vf
+            and (not require_default or fr_is_default is True)
+            and checked_at
+            and checked_at >= suggestion.accepted_at
+            for has_vf, fr_is_default, checked_at in values
+        )
     )
 
 
@@ -181,8 +191,11 @@ async def _refresh_lifecycle(db: AsyncSession, suggestion: VfUpgradeSuggestion, 
                 cache_key=f"{arr_type}:{inst.id}",
             )
     elif (
-        settings and settings.vf_upgrade_verify_after_import and suggestion.accepted_at
-        and now_utc_naive() - suggestion.accepted_at > timedelta(minutes=max(15, settings.vf_upgrade_verification_timeout_minutes or 120))
+        settings
+        and settings.vf_upgrade_verify_after_import
+        and suggestion.accepted_at
+        and now_utc_naive() - suggestion.accepted_at
+        > timedelta(minutes=max(15, settings.vf_upgrade_verification_timeout_minutes or 120))
     ):
         suggestion.status = "failed"
         suggestion.failed_at = now_utc_naive()
@@ -191,14 +204,21 @@ async def _refresh_lifecycle(db: AsyncSession, suggestion: VfUpgradeSuggestion, 
 
 
 @router.get("/vf-upgrades")
-async def list_vf_upgrades(
-    source_type: str, source_id: int, db: AsyncSession = Depends(get_db_async)
-):
+async def list_vf_upgrades(source_type: str, source_id: int, db: AsyncSession = Depends(get_db_async)):
     """Suggestions VF en attente (ou déjà traitées) pour un média -- toutes portées
     confondues (film/saison/épisode), affichées sur la fiche média correspondante."""
-    rows = (await db.execute(select(VfUpgradeSuggestion).filter(
-        VfUpgradeSuggestion.source_type == source_type, VfUpgradeSuggestion.source_id == source_id,
-    ))).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(VfUpgradeSuggestion).filter(
+                    VfUpgradeSuggestion.source_type == source_type,
+                    VfUpgradeSuggestion.source_id == source_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     model = MediaRequest if source_type == "request" else LibraryItem
     media = (await db.execute(select(model).filter(model.id == source_id))).scalars().first()
     if media:
@@ -213,18 +233,26 @@ async def list_vf_upgrades(
 
 @router.get("/vf-upgrades/metrics")
 async def vf_upgrade_metrics(db: AsyncSession = Depends(get_db_async)):
-    rows = (await db.execute(
-        select(VfUpgradeSuggestion.status, func.count(VfUpgradeSuggestion.id)).group_by(VfUpgradeSuggestion.status)
-    )).all()
+    rows = (
+        await db.execute(
+            select(VfUpgradeSuggestion.status, func.count(VfUpgradeSuggestion.id)).group_by(VfUpgradeSuggestion.status)
+        )
+    ).all()
     counts = {status: count for status, count in rows}
 
     # Nombre d'éléments bibliothèque sans VF et sans suggestion active
-    active_suggestion_item_ids = set((await db.execute(
-        select(VfUpgradeSuggestion.source_id).filter(
-            VfUpgradeSuggestion.source_type == "library_item",
-            VfUpgradeSuggestion.status.in_(ACTIVE_UPGRADE_STATES + ("pending", "failed"))
+    active_suggestion_item_ids = set(
+        (
+            await db.execute(
+                select(VfUpgradeSuggestion.source_id).filter(
+                    VfUpgradeSuggestion.source_type == "library_item",
+                    VfUpgradeSuggestion.status.in_(ACTIVE_UPGRADE_STATES + ("pending", "failed")),
+                )
+            )
         )
-    )).scalars().all())
+        .scalars()
+        .all()
+    )
 
     waiting_query = select(func.count(LibraryItem.id)).filter(
         LibraryItem.has_vf.is_(False),
@@ -256,8 +284,24 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
     rows = list((await db.execute(query)).scalars().all()) if status != "waiting_release" else []
     request_ids = {row.source_id for row in rows if row.source_type == "request"}
     library_ids = {row.source_id for row in rows if row.source_type == "library_item"}
-    requests = {item.id: item for item in (await db.execute(select(MediaRequest).filter(MediaRequest.id.in_(request_ids)))).scalars().all()} if request_ids else {}
-    library = {item.id: item for item in (await db.execute(select(LibraryItem).filter(LibraryItem.id.in_(library_ids)))).scalars().all()} if library_ids else {}
+    requests = (
+        {
+            item.id: item
+            for item in (await db.execute(select(MediaRequest).filter(MediaRequest.id.in_(request_ids))))
+            .scalars()
+            .all()
+        }
+        if request_ids
+        else {}
+    )
+    library = (
+        {
+            item.id: item
+            for item in (await db.execute(select(LibraryItem).filter(LibraryItem.id.in_(library_ids)))).scalars().all()
+        }
+        if library_ids
+        else {}
+    )
     items = []
     vf_status_cache: dict[tuple[str, int], dict[int, dict[int, bool]]] = {}
     active_library_item_ids = set()
@@ -278,9 +322,7 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
                 if cache_key not in vf_status_cache:
                     vf_status_cache[cache_key] = await _season_vf_status(db, *cache_key)
                 seasons = vf_status_cache[cache_key]
-            target_kind = classify_vf_target(
-                media, row.scope, row.season_number, row.episode_number, seasons
-            )
+            target_kind = classify_vf_target(media, row.scope, row.season_number, row.episode_number, seasons)
             if target_kind not in {"vo", "mixed"}:
                 continue
         if row.status in ACTIVE_UPGRADE_STATES:
@@ -289,44 +331,54 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
             except Exception as exc:
                 logger.warning("Suivi dashboard VF indisponible pour suggestion %s: %s", row.id, exc)
         releases = json.loads(row.releases_json) if row.releases_json else []
-        items.append({
-            **_payload(row),
-            "media": _media_payload(media, row.source_type),
-            "release_count": len(releases),
-        })
+        items.append(
+            {
+                **_payload(row),
+                "media": _media_payload(media, row.source_type),
+                "release_count": len(releases),
+            }
+        )
 
     # 2. Médias VO / sans VF sans suggestion active (en attente de release chez les indexeurs)
     if not status or status in ("all", "waiting_release"):
-        waiting_stmt = select(LibraryItem).filter(
-            LibraryItem.has_vf.is_(False),
-        ).order_by(LibraryItem.title.asc())
+        waiting_stmt = (
+            select(LibraryItem)
+            .filter(
+                LibraryItem.has_vf.is_(False),
+            )
+            .order_by(LibraryItem.title.asc())
+        )
 
         waiting_media = list((await db.execute(waiting_stmt)).scalars().all())
         for media in waiting_media:
             if media.id in active_library_item_ids:
                 continue
             scope = "movie" if media.media_type == "movie" else "show"
-            target_kind = "mixed" if getattr(media, "vf_granularity", None) in ("episode_partial", "season_partial") else "vo"
+            target_kind = (
+                "mixed" if getattr(media, "vf_granularity", None) in ("episode_partial", "season_partial") else "vo"
+            )
 
-            items.append({
-                "id": f"waiting-{media.id}",
-                "source_type": "library_item",
-                "source_id": media.id,
-                "scope": scope,
-                "season_number": None,
-                "episode_number": None,
-                "status": "waiting_release",
-                "target_kind": target_kind,
-                "origin": "auto",
-                "arr_message": "Aucune release VF disponible pour le moment chez les indexeurs",
-                "scanned_at": media.vf_checked_at.isoformat() if media.vf_checked_at else None,
-                "updated_at": media.vf_checked_at.isoformat() if media.vf_checked_at else None,
-                "media": _media_payload(media, "library_item"),
-                "release_count": 0,
-                "releases_data": [],
-                "releases_json": "[]",
-                "current_release_titles": [],
-            })
+            items.append(
+                {
+                    "id": f"waiting-{media.id}",
+                    "source_type": "library_item",
+                    "source_id": media.id,
+                    "scope": scope,
+                    "season_number": None,
+                    "episode_number": None,
+                    "status": "waiting_release",
+                    "target_kind": target_kind,
+                    "origin": "auto",
+                    "arr_message": "Aucune release VF disponible pour le moment chez les indexeurs",
+                    "scanned_at": media.vf_checked_at.isoformat() if media.vf_checked_at else None,
+                    "updated_at": media.vf_checked_at.isoformat() if media.vf_checked_at else None,
+                    "media": _media_payload(media, "library_item"),
+                    "release_count": 0,
+                    "releases_data": [],
+                    "releases_json": "[]",
+                    "current_release_titles": [],
+                }
+            )
 
     await db.commit()
     return {"items": items, "scan": vf_upgrade_scan_state}
@@ -349,10 +401,15 @@ async def vf_upgrade_audit(
     rows = list((await db.execute(stmt)).scalars().all())
 
     # Suggestions actives en cours pour savoir si une recherche / un grab est déjà en attente
-    active_suggestions_raw = list((await db.execute(
-        select(VfUpgradeSuggestion.source_id, VfUpgradeSuggestion.status)
-        .filter(VfUpgradeSuggestion.source_type == "library_item")
-    )).all())
+    active_suggestions_raw = list(
+        (
+            await db.execute(
+                select(VfUpgradeSuggestion.source_id, VfUpgradeSuggestion.status).filter(
+                    VfUpgradeSuggestion.source_type == "library_item"
+                )
+            )
+        ).all()
+    )
     active_by_id: dict[int, list[str]] = {}
     for sid, st in active_suggestions_raw:
         active_by_id.setdefault(sid, []).append(st)
@@ -380,14 +437,16 @@ async def vf_upgrade_audit(
             continue
 
         item_payload = _media_payload(row, "library_item")
-        items.append({
-            **item_payload,
-            "issues": issues,
-            "arr_id": row.arr_id,
-            "arr_instance_id": row.arr_instance_id,
-            "suggestions_status": active_by_id.get(row.id, []),
-            "added_at": row.added_at.isoformat() if row.added_at else None,
-        })
+        items.append(
+            {
+                **item_payload,
+                "issues": issues,
+                "arr_id": row.arr_id,
+                "arr_instance_id": row.arr_instance_id,
+                "suggestions_status": active_by_id.get(row.id, []),
+                "added_at": row.added_at.isoformat() if row.added_at else None,
+            }
+        )
 
     return {
         "items": items,
@@ -609,7 +668,9 @@ async def vf_upgrade_audit_fix_streams_batch(
 
     for item in rows:
         issues = _qualify_audit_issues(item)
-        if not req_ids and not any(i in issues for i in ("audio_secondary", "forced_sub_not_default", "sub_fr_not_default")):
+        if not req_ids and not any(
+            i in issues for i in ("audio_secondary", "forced_sub_not_default", "sub_fr_not_default")
+        ):
             continue
 
         res = await asyncio.to_thread(
@@ -670,7 +731,15 @@ class VfUpgradeMaintenanceRequest(BaseModel):
 async def maintain_vf_upgrades(body: VfUpgradeMaintenanceRequest, db: AsyncSession = Depends(get_db_async)):
     settings = (await db.execute(select(Settings))).scalars().first()
     if body.action == "recompute":
-        rows = (await db.execute(select(VfUpgradeSuggestion).filter(VfUpgradeSuggestion.status.in_(("failed", "dismissed"))))).scalars().all()
+        rows = (
+            (
+                await db.execute(
+                    select(VfUpgradeSuggestion).filter(VfUpgradeSuggestion.status.in_(("failed", "dismissed")))
+                )
+            )
+            .scalars()
+            .all()
+        )
         for row in rows:
             row.status = "pending"
             row.failed_at = None
@@ -682,10 +751,18 @@ async def maintain_vf_upgrades(body: VfUpgradeMaintenanceRequest, db: AsyncSessi
     if body.action == "purge":
         retention = max(1, settings.vf_upgrade_history_retention_days if settings else 90)
         cutoff = now_utc_naive() - timedelta(days=retention)
-        rows = (await db.execute(select(VfUpgradeSuggestion).filter(
-            VfUpgradeSuggestion.status.in_(("verified", "failed", "dismissed")),
-            VfUpgradeSuggestion.updated_at < cutoff,
-        ))).scalars().all()
+        rows = (
+            (
+                await db.execute(
+                    select(VfUpgradeSuggestion).filter(
+                        VfUpgradeSuggestion.status.in_(("verified", "failed", "dismissed")),
+                        VfUpgradeSuggestion.updated_at < cutoff,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         for row in rows:
             await db.delete(row)
         await db.commit()
@@ -731,9 +808,11 @@ class VfUpgradeGrabRequest(BaseModel):
 async def grab_vf_upgrade(suggestion_id: int, body: VfUpgradeGrabRequest, db: AsyncSession = Depends(get_db_async)):
     """Grab d'une release choisie dans la liste proposée -- marque la suggestion
     "grabbed", jamais re-proposée ensuite (voir vf_upgrade_scanner._skip_statuses)."""
-    suggestion = (await db.execute(select(VfUpgradeSuggestion).filter(
-        VfUpgradeSuggestion.id == suggestion_id
-    ))).scalars().first()
+    suggestion = (
+        (await db.execute(select(VfUpgradeSuggestion).filter(VfUpgradeSuggestion.id == suggestion_id)))
+        .scalars()
+        .first()
+    )
     if not suggestion:
         raise HTTPException(404, "Suggestion introuvable")
 
@@ -766,7 +845,11 @@ async def grab_vf_upgrade(suggestion_id: int, body: VfUpgradeGrabRequest, db: As
         suggestion.queue_confirmed_at = suggestion.queue_confirmed_at or now_utc_naive()
         suggestion.arr_message = f"Un telechargement est deja actif dans {inst.name}"
         await db.commit()
-        await publish("vf_upgrade.updated", {"id": suggestion.id, "status": suggestion.status, "action": "queue_matched"}, admin_only=True)
+        await publish(
+            "vf_upgrade.updated",
+            {"id": suggestion.id, "status": suggestion.status, "action": "queue_matched"},
+            admin_only=True,
+        )
         raise HTTPException(409, suggestion.arr_message)
     ok, msg, stale = await svc.grab_release(inst.url, inst.api_key, body.guid, body.indexer_id)
     if not ok and stale:
@@ -776,8 +859,12 @@ async def grab_vf_upgrade(suggestion_id: int, body: VfUpgradeGrabRequest, db: As
         # silencieuse suffit a repeupler le cache *arr avant de retenter le grab.
         try:
             await scan_single_target(
-                db, suggestion.source_type, suggestion.source_id, suggestion.scope,
-                suggestion.season_number, suggestion.episode_number,
+                db,
+                suggestion.source_type,
+                suggestion.source_id,
+                suggestion.scope,
+                suggestion.season_number,
+                suggestion.episode_number,
             )
         except ValueError as e:
             logger.warning(f"vf-upgrades grab: relance de recherche impossible ({e})")
@@ -807,14 +894,18 @@ async def grab_vf_upgrade(suggestion_id: int, body: VfUpgradeGrabRequest, db: As
             await dispatch_transition_notification(settings, req, db, "submitted")
 
     await db.commit()
-    await publish("vf_upgrade.updated", {
-        "id": suggestion.id,
-        "status": suggestion.status,
-        "source_type": suggestion.source_type,
-        "source_id": suggestion.source_id,
-        "scope": suggestion.scope,
-        "action": "grab",
-    }, admin_only=True)
+    await publish(
+        "vf_upgrade.updated",
+        {
+            "id": suggestion.id,
+            "status": suggestion.status,
+            "source_type": suggestion.source_type,
+            "source_id": suggestion.source_id,
+            "scope": suggestion.scope,
+            "action": "grab",
+        },
+        admin_only=True,
+    )
     return {"success": True, "accepted": True, "status": suggestion.status, "message": suggestion.arr_message}
 
 
@@ -822,20 +913,26 @@ async def grab_vf_upgrade(suggestion_id: int, body: VfUpgradeGrabRequest, db: As
 async def dismiss_vf_upgrade(suggestion_id: int, db: AsyncSession = Depends(get_db_async)):
     """Ignore une suggestion -- ne sera plus jamais re-proposée par le scan de fond,
     seul un nouveau clic manuel sur "Chercher" peut la faire réapparaître."""
-    suggestion = (await db.execute(select(VfUpgradeSuggestion).filter(
-        VfUpgradeSuggestion.id == suggestion_id
-    ))).scalars().first()
+    suggestion = (
+        (await db.execute(select(VfUpgradeSuggestion).filter(VfUpgradeSuggestion.id == suggestion_id)))
+        .scalars()
+        .first()
+    )
     if not suggestion:
         raise HTTPException(404, "Suggestion introuvable")
     suggestion.status = "dismissed"
     await db.commit()
-    await publish("vf_upgrade.updated", {
-        "id": suggestion.id,
-        "status": "dismissed",
-        "source_type": suggestion.source_type,
-        "source_id": suggestion.source_id,
-        "action": "dismiss",
-    }, admin_only=True)
+    await publish(
+        "vf_upgrade.updated",
+        {
+            "id": suggestion.id,
+            "status": "dismissed",
+            "source_type": suggestion.source_type,
+            "source_id": suggestion.source_id,
+            "action": "dismiss",
+        },
+        admin_only=True,
+    )
     return {"success": True}
 
 

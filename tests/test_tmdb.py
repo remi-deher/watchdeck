@@ -166,14 +166,18 @@ def test_norm_list_empty_when_no_results_key():
 
 
 def test_norm_cast_keeps_profile_and_character():
-    result = tmdb._norm_cast({"cast": [{"id": 287, "name": "Brad Pitt", "character": "Tyler", "profile_path": "/portrait.jpg"}]})
-    assert result == [{
-        "tmdb_id": 287,
-        "name": "Brad Pitt",
-        "character": "Tyler",
-        "profile_url": "https://image.tmdb.org/t/p/w185/portrait.jpg",
-        "order": 0,
-    }]
+    result = tmdb._norm_cast(
+        {"cast": [{"id": 287, "name": "Brad Pitt", "character": "Tyler", "profile_path": "/portrait.jpg"}]}
+    )
+    assert result == [
+        {
+            "tmdb_id": 287,
+            "name": "Brad Pitt",
+            "character": "Tyler",
+            "profile_url": "https://image.tmdb.org/t/p/w185/portrait.jpg",
+            "order": 0,
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -182,11 +186,13 @@ async def test_person_detail_normalizes_and_deduplicates_credits(db):
         "id": 287,
         "name": "Brad Pitt",
         "profile_path": "/portrait.jpg",
-        "combined_credits": {"cast": [
-            {"id": 550, "media_type": "movie", "title": "Fight Club", "character": "Tyler", "popularity": 9},
-            {"id": 550, "media_type": "movie", "title": "Fight Club", "character": "Tyler", "popularity": 9},
-            {"id": 1399, "media_type": "tv", "name": "Une série", "character": "Lui", "popularity": 7},
-        ]},
+        "combined_credits": {
+            "cast": [
+                {"id": 550, "media_type": "movie", "title": "Fight Club", "character": "Tyler", "popularity": 9},
+                {"id": 550, "media_type": "movie", "title": "Fight Club", "character": "Tyler", "popularity": 9},
+                {"id": 1399, "media_type": "tv", "name": "Une série", "character": "Lui", "popularity": 7},
+            ]
+        },
     }
     with patch("app.services.tmdb._get", new=AsyncMock(return_value=payload)):
         result = await tmdb.person_detail(db, 287)
@@ -410,16 +416,24 @@ async def test_get_tv_season_episodes_maps_fields(db):
     db.commit()
     payload = {
         "episodes": [
-            {"episode_number": 1, "name": "Pilot", "air_date": "2020-01-01", "overview": "Intro", "still_path": "/x.jpg"},
+            {
+                "episode_number": 1,
+                "name": "Pilot",
+                "air_date": "2020-01-01",
+                "overview": "Intro",
+                "still_path": "/x.jpg",
+            },
         ]
     }
     client = _mock_client(get_return=_mock_response(payload))
     with patch("app.services.tmdb.httpx.AsyncClient", return_value=client):
         result = await tmdb.get_tv_season_episodes(db, 123, 1)
-    assert result == [{
-        "episode_number": 1,
-        "title": "Pilot",
-        "air_date": "2020-01-01",
-        "overview": "Intro",
-        "still_url": "https://image.tmdb.org/t/p/w300/x.jpg",
-    }]
+    assert result == [
+        {
+            "episode_number": 1,
+            "title": "Pilot",
+            "air_date": "2020-01-01",
+            "overview": "Intro",
+            "still_url": "https://image.tmdb.org/t/p/w300/x.jpg",
+        }
+    ]

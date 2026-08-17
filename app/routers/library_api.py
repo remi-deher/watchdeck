@@ -62,7 +62,9 @@ async def _media_identity_filter(db: AsyncSession, item) -> list[MediaRequest]:
     """Retourne les demandes qui représentent le même média qu'un LibraryItem ou une demande."""
     matches: dict[int, MediaRequest] = {}
     if isinstance(item, LibraryItem):
-        for req in (await db.execute(select(MediaRequest).filter(MediaRequest.library_item_id == item.id))).scalars().all():
+        for req in (
+            (await db.execute(select(MediaRequest).filter(MediaRequest.library_item_id == item.id))).scalars().all()
+        ):
             matches[req.id] = req
     for key in identity_keys(item):
         kind = key[0]
@@ -105,7 +107,9 @@ _EMPTY_SCHEDULE_TIMELINE = {
 
 
 def _schedule_cache_key(item) -> str:
-    return f"watchdeck:media-schedule:{item.media_type}:{item.arr_instance_id}:{item.arr_id}:{item.tvdb_id}:{item.tmdb_id}"
+    return (
+        f"watchdeck:media-schedule:{item.media_type}:{item.arr_instance_id}:{item.arr_id}:{item.tvdb_id}:{item.tmdb_id}"
+    )
 
 
 async def _media_schedule_payload(db: AsyncSession, item) -> dict:
@@ -127,8 +131,11 @@ async def _media_schedule_payload(db: AsyncSession, item) -> dict:
             return await _compute_media_schedule(fresh_db, fresh_item)
 
     return await cache.get_or_refresh(
-        key, _SCHEDULE_SOFT_TTL, _SCHEDULE_HARD_TTL,
-        compute_sync=lambda: _compute_media_schedule(db, item), compute_background=_background,
+        key,
+        _SCHEDULE_SOFT_TTL,
+        _SCHEDULE_HARD_TTL,
+        compute_sync=lambda: _compute_media_schedule(db, item),
+        compute_background=_background,
     )
 
 
@@ -272,7 +279,9 @@ async def list_library(
     stmt = select(LibraryItem)
     if query:
         stmt = stmt.filter(LibraryItem.title.ilike(f"%{query.strip()}%"))
-    selected_types = [value for value in _split_values(media_types) if value in ("movie", "show", "artist", "album", "track")]
+    selected_types = [
+        value for value in _split_values(media_types) if value in ("movie", "show", "artist", "album", "track")
+    ]
     if media_type in ("movie", "show", "artist", "album", "track") and media_type not in selected_types:
         selected_types.append(media_type)
     if selected_types:
@@ -287,12 +296,17 @@ async def list_library(
         # Serie avec VF et VO melangees (au moins une saison/episode en VF sans que la
         # serie entiere le soit) -- has_vf reste False dans ce cas, vf_granularity est
         # le seul champ qui distingue ca d'une serie entierement en VO.
-        stmt = stmt.filter(LibraryItem.has_vf.is_(False), LibraryItem.vf_granularity.in_(["season_partial", "episode_partial"]))
+        stmt = stmt.filter(
+            LibraryItem.has_vf.is_(False), LibraryItem.vf_granularity.in_(["season_partial", "episode_partial"])
+        )
     elif vf == "vo":
         # vf_granularity vaut la chaine "none" (pas NULL) des qu'une serie entierement en
         # VO a ete scannee (voir audio_analyzer.compute_vf_granularity) -- NULL ne
         # subsiste que pour les films (jamais de notion de granularite par episode).
-        stmt = stmt.filter(LibraryItem.has_vf.is_(False), sqlalchemy.or_(LibraryItem.vf_granularity.is_(None), LibraryItem.vf_granularity == "none"))
+        stmt = stmt.filter(
+            LibraryItem.has_vf.is_(False),
+            sqlalchemy.or_(LibraryItem.vf_granularity.is_(None), LibraryItem.vf_granularity == "none"),
+        )
     elif vf == "unchecked":
         stmt = stmt.filter(LibraryItem.has_vf.is_(None))
     if subtitle == "sub_fr_absent":
@@ -325,11 +339,21 @@ async def list_library(
     if genre:
         stmt = stmt.filter(LibraryItem.genres.ilike(f"%{genre.strip()}%"))
     if audio_format:
-        stmt = stmt.filter(LibraryItem.overview.ilike(f"%{audio_format.strip()}%") | LibraryItem.title.ilike(f"%{audio_format.strip()}%"))
+        stmt = stmt.filter(
+            LibraryItem.overview.ilike(f"%{audio_format.strip()}%")
+            | LibraryItem.title.ilike(f"%{audio_format.strip()}%")
+        )
     if release_type:
-        stmt = stmt.filter(LibraryItem.overview.ilike(f"%{release_type.strip()}%") | LibraryItem.title.ilike(f"%{release_type.strip()}%"))
+        stmt = stmt.filter(
+            LibraryItem.overview.ilike(f"%{release_type.strip()}%")
+            | LibraryItem.title.ilike(f"%{release_type.strip()}%")
+        )
     if hi_res == "hi_res":
-        stmt = stmt.filter(LibraryItem.overview.ilike("%24-bit%") | LibraryItem.overview.ilike("%hi-res%") | LibraryItem.overview.ilike("%flac%"))
+        stmt = stmt.filter(
+            LibraryItem.overview.ilike("%24-bit%")
+            | LibraryItem.overview.ilike("%hi-res%")
+            | LibraryItem.overview.ilike("%flac%")
+        )
     elif hi_res == "standard":
         stmt = stmt.filter(~LibraryItem.overview.ilike("%24-bit%"))
     selected_requesters = _split_values(requesters)
@@ -351,26 +375,24 @@ async def list_library(
         order_clause = [LibraryItem.added_at.desc().nulls_last(), LibraryItem.title, LibraryItem.id]
 
     items = (
-        await db.execute(
-            stmt.order_by(*order_clause)
-            .offset(max(offset, 0))
-            .limit(min(limit, 500))
-        )
-    ).scalars().all()
+        (await db.execute(stmt.order_by(*order_clause).offset(max(offset, 0)).limit(min(limit, 500)))).scalars().all()
+    )
     requester_by_library: dict[int, tuple[Optional[str], Optional[str], Optional[str]]] = {}
     item_ids = [item.id for item in items]
     if item_ids:
-        requester_rows = (await db.execute(
-            select(
-                MediaRequest.library_item_id,
-                sqlalchemy.func.max(PlexUser.custom_name),
-                sqlalchemy.func.max(MediaRequest.plex_user),
-                sqlalchemy.func.max(MediaRequest.plex_user_id),
+        requester_rows = (
+            await db.execute(
+                select(
+                    MediaRequest.library_item_id,
+                    sqlalchemy.func.max(PlexUser.custom_name),
+                    sqlalchemy.func.max(MediaRequest.plex_user),
+                    sqlalchemy.func.max(MediaRequest.plex_user_id),
+                )
+                .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
+                .filter(MediaRequest.library_item_id.in_(item_ids))
+                .group_by(MediaRequest.library_item_id)
             )
-            .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
-            .filter(MediaRequest.library_item_id.in_(item_ids))
-            .group_by(MediaRequest.library_item_id)
-        )).all()
+        ).all()
         requester_by_library = {row[0]: (row[1], row[2], row[3]) for row in requester_rows}
     return [
         {
@@ -445,6 +467,7 @@ async def media_detail(
         core_only=core,
     )
 
+
 @router.get("/library-metrics")
 async def library_metrics(media_type: Optional[str] = None, db: AsyncSession = Depends(get_db_async)):
     """Compteurs rapides de la bibliotheque, exploitables par une UI ou un dashboard."""
@@ -456,51 +479,77 @@ async def library_metrics(media_type: Optional[str] = None, db: AsyncSession = D
         lib_filter.append(LibraryItem.media_type == media_type)
         req_filter.append(MediaRequest.media_type == media_type)
 
-    lib = (await db.execute(
-        select(
-            func.count(LibraryItem.id),
-            func.sum(case((LibraryItem.media_type == "movie", 1), else_=0)),
-            func.sum(case((LibraryItem.media_type == "show", 1), else_=0)),
-            func.sum(case((LibraryItem.media_type == "artist", 1), else_=0)),
-            func.sum(case((LibraryItem.has_vf.is_(True), 1), else_=0)),
-            func.sum(case((LibraryItem.has_vf.is_(False), 1), else_=0)),
-            func.sum(case((LibraryItem.has_vf.is_(None), 1), else_=0)),
-            func.sum(case((sqlalchemy.and_(LibraryItem.has_vf.is_(False), LibraryItem.vf_granularity == "season_partial"), 1), else_=0)),
-            func.sum(case((sqlalchemy.and_(LibraryItem.has_vf.is_(False), LibraryItem.vf_granularity == "episode_partial"), 1), else_=0)),
-        ).filter(*lib_filter)
-    )).one()
+    lib = (
+        await db.execute(
+            select(
+                func.count(LibraryItem.id),
+                func.sum(case((LibraryItem.media_type == "movie", 1), else_=0)),
+                func.sum(case((LibraryItem.media_type == "show", 1), else_=0)),
+                func.sum(case((LibraryItem.media_type == "artist", 1), else_=0)),
+                func.sum(case((LibraryItem.has_vf.is_(True), 1), else_=0)),
+                func.sum(case((LibraryItem.has_vf.is_(False), 1), else_=0)),
+                func.sum(case((LibraryItem.has_vf.is_(None), 1), else_=0)),
+                func.sum(
+                    case(
+                        (
+                            sqlalchemy.and_(
+                                LibraryItem.has_vf.is_(False), LibraryItem.vf_granularity == "season_partial"
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                func.sum(
+                    case(
+                        (
+                            sqlalchemy.and_(
+                                LibraryItem.has_vf.is_(False), LibraryItem.vf_granularity == "episode_partial"
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+            ).filter(*lib_filter)
+        )
+    ).one()
 
-    request_total = (await db.execute(
-        select(func.count(MediaRequest.id)).filter(*req_filter)
-    )).scalar() or 0
-    status_rows = (await db.execute(
-        select(MediaRequest.status, func.count(MediaRequest.id)).filter(*req_filter).group_by(MediaRequest.status)
-    )).all()
+    request_total = (await db.execute(select(func.count(MediaRequest.id)).filter(*req_filter))).scalar() or 0
+    status_rows = (
+        await db.execute(
+            select(MediaRequest.status, func.count(MediaRequest.id)).filter(*req_filter).group_by(MediaRequest.status)
+        )
+    ).all()
     status_counts = {"failed": 0, "pending": 0, "sent_to_arr": 0, "available": 0}
     for status, count in status_rows:
         key = status.value if hasattr(status, "value") else status
         if key in status_counts:
             status_counts[key] = count
 
-    plex_anomaly = (await db.execute(
-        select(func.count(MediaRequest.id)).filter(
-            *req_filter,
-            MediaRequest.status == "available",
-            MediaRequest.library_item_id.is_(None),
-            MediaRequest.is_downloading.is_not(True),
+    plex_anomaly = (
+        await db.execute(
+            select(func.count(MediaRequest.id)).filter(
+                *req_filter,
+                MediaRequest.status == "available",
+                MediaRequest.library_item_id.is_(None),
+                MediaRequest.is_downloading.is_not(True),
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
-    secondary = (await db.execute(
-        select(func.count(func.distinct(VfEpisodeStatus.source_id)), func.count(VfEpisodeStatus.id))
-        .join(LibraryItem, LibraryItem.id == VfEpisodeStatus.source_id)
-        .filter(
-            VfEpisodeStatus.source_type == "library_item",
-            VfEpisodeStatus.has_vf.is_(True),
-            VfEpisodeStatus.fr_is_default.is_(False),
-            *lib_filter,
+    secondary = (
+        await db.execute(
+            select(func.count(func.distinct(VfEpisodeStatus.source_id)), func.count(VfEpisodeStatus.id))
+            .join(LibraryItem, LibraryItem.id == VfEpisodeStatus.source_id)
+            .filter(
+                VfEpisodeStatus.source_type == "library_item",
+                VfEpisodeStatus.has_vf.is_(True),
+                VfEpisodeStatus.fr_is_default.is_(False),
+                *lib_filter,
+            )
         )
-    )).one()
+    ).one()
 
     return {
         "media_type": media_type if media_type in ("movie", "show", "artist") else "all",
@@ -735,7 +784,10 @@ async def media_lookup(query: str, type: str = "movie", db: AsyncSession = Depen
 
 
 async def _needs_approval(
-    db: AsyncSession, settings: Optional[Settings], caller: Optional[dict], plex_user_id: Optional[str],
+    db: AsyncSession,
+    settings: Optional[Settings],
+    caller: Optional[dict],
+    plex_user_id: Optional[str],
     body: Optional["MediaAddRequest"] = None,
 ) -> bool:
     """Détermine si une demande doit passer par la file de validation admin.
@@ -775,12 +827,16 @@ async def _create_pending_request(db: AsyncSession, body: "MediaAddRequest") -> 
         existing = (await db.execute(select(MediaRequest).filter(MediaRequest.tvdb_id == tvdb_str))).scalars().first()
     if not existing and not tmdb_str and not tvdb_str:
         existing = (
-            await db.execute(
-                select(MediaRequest).filter(
-                    MediaRequest.title == body.title, MediaRequest.media_type == body.media_type
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.title == body.title, MediaRequest.media_type == body.media_type
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
     if existing:
         # Média déjà connu : on ne recrée pas de doublon en attente.
         return {
@@ -937,13 +993,17 @@ async def media_add(body: MediaAddRequest, request: Request, db: AsyncSession = 
         existing = (await db.execute(select(MediaRequest).filter(MediaRequest.tvdb_id == tvdb_str))).scalars().first()
     if not existing and not tmdb_str and not tvdb_str:
         existing = (
-            await db.execute(
-                select(MediaRequest).filter(
-                    MediaRequest.title == body.title,
-                    MediaRequest.media_type == body.media_type,
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.title == body.title,
+                        MediaRequest.media_type == body.media_type,
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
     # Source de suivi : "seer" → suivi par seer_sync (interroge Overseerr) ;
     # sinon → suivi par check_arr_statuses via l'instance *arr enregistrée.
@@ -954,7 +1014,11 @@ async def media_add(body: MediaAddRequest, request: Request, db: AsyncSession = 
         user_id = body.plex_user_id or "manual"
         user_label = "Recherche manuelle"
         if body.plex_user_id:
-            pu = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == body.plex_user_id))).scalars().first()
+            pu = (
+                (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == body.plex_user_id)))
+                .scalars()
+                .first()
+            )
             if pu:
                 user_label = pu.display_name or pu.plex_user_id
         req = MediaRequest(
@@ -1010,7 +1074,11 @@ async def media_add(body: MediaAddRequest, request: Request, db: AsyncSession = 
         # Ré-attribue un demandeur réel si la demande était orpheline ("manual")
         if body.plex_user_id and existing.plex_user_id == "manual":
             existing.plex_user_id = body.plex_user_id
-            pu = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == body.plex_user_id))).scalars().first()
+            pu = (
+                (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == body.plex_user_id)))
+                .scalars()
+                .first()
+            )
             existing.plex_user = (pu.display_name or pu.plex_user_id) if pu else body.plex_user_id
         if existing.status in (RequestStatus.failed, RequestStatus.pending):
             await transition_request(db, existing, "submitted", source=via)

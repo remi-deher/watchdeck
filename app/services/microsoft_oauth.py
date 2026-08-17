@@ -78,7 +78,11 @@ async def _token_request(provider: EmailProvider, data: dict) -> dict:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
     if resp.status_code >= 400:
-        detail = resp.json().get("error_description", resp.text) if resp.headers.get("content-type", "").startswith("application/json") else resp.text
+        detail = (
+            resp.json().get("error_description", resp.text)
+            if resp.headers.get("content-type", "").startswith("application/json")
+            else resp.text
+        )
         raise RuntimeError(f"Echec de la requête OAuth Microsoft ({resp.status_code}): {detail}")
     return resp.json()
 

@@ -9,10 +9,12 @@ from app.routers.downloads_api import download_client_queue
 
 @pytest.mark.asyncio
 async def test_wanted_missing_is_shared_and_filtered_after_cache(async_db):
-    async_db.add_all([
-        ArrInstance(id=1, name="Sonarr A", arr_type="sonarr", url="http://a", api_key="x", enabled=True),
-        ArrInstance(id=2, name="Sonarr B", arr_type="sonarr", url="http://b", api_key="x", enabled=True),
-    ])
+    async_db.add_all(
+        [
+            ArrInstance(id=1, name="Sonarr A", arr_type="sonarr", url="http://a", api_key="x", enabled=True),
+            ArrInstance(id=2, name="Sonarr B", arr_type="sonarr", url="http://b", api_key="x", enabled=True),
+        ]
+    )
     async_db.commit()
 
     async def wanted(instance):
@@ -29,12 +31,19 @@ async def test_wanted_missing_is_shared_and_filtered_after_cache(async_db):
 
 @pytest.mark.asyncio
 async def test_torrent_clients_are_not_requeried_inside_soft_ttl(async_db):
-    async_db.add(DownloadClient(
-        id=7, name="qBit", client_type="qbittorrent", url="http://qbit",
-        username=None, password=None, enabled=True,
-    ))
+    async_db.add(
+        DownloadClient(
+            id=7,
+            name="qBit",
+            client_type="qbittorrent",
+            url="http://qbit",
+            username=None,
+            password=None,
+            enabled=True,
+        )
+    )
     async_db.commit()
-    torrents = [{"hash": "abc", "name": "Film", "progress": .5, "state": "downloading"}]
+    torrents = [{"hash": "abc", "name": "Film", "progress": 0.5, "state": "downloading"}]
 
     with patch("app.services.download_clients.list_client_torrents", new=AsyncMock(return_value=torrents)) as fetch:
         first = await download_client_queue(async_db)

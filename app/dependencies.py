@@ -16,6 +16,7 @@ async def get_settings_or_404(db: AsyncSession = Depends(get_db_async)) -> Setti
         raise HTTPException(status_code=404, detail="Paramètres non initialisés")
     return s
 
+
 async def _valid_api_key(request: Request, db: AsyncSession) -> bool:
     """Vrai si l'en-tête X-Api-Key correspond au token API (niveau admin)."""
     token = request.headers.get("X-Api-Key")
@@ -44,7 +45,7 @@ async def _api_key_has_scope(request: Request, db: AsyncSession, required_scope:
 
 def current_user(request: Request, db: AsyncSession = Depends(get_db_async)) -> dict | None:
     """Décrit l'appelant authentifié par session (pour les pages et l'affichage conditionnel).
-    
+
     Retourne None si non authentifié. L'API token n'accorde plus le statut d'admin global
     sur l'interface interne (voir require_api_scope pour les routes d'API externes).
     """

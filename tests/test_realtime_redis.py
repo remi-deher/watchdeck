@@ -9,10 +9,12 @@ from app.realtime import EVENT_TYPES, STREAM_KEY, publish, subscribe
 
 pytestmark = pytest.mark.asyncio
 
+
 @pytest.fixture
 async def redis_client():
     redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
     from redis.asyncio import Redis
+
     try:
         client = Redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
         await client.ping()
@@ -22,10 +24,12 @@ async def redis_client():
     except Exception:
         pytest.skip("Redis server not available for test")
 
+
 @pytest.fixture
 def mock_env():
     with mock.patch.dict(os.environ, {"REDIS_URL": "redis://127.0.0.1:6379/0"}):
         yield
+
 
 async def test_publish_and_subscribe(redis_client, mock_env):
     user = {"role": "admin"}
@@ -55,9 +59,11 @@ async def test_publish_and_subscribe(redis_client, mock_env):
     assert events[0]["payload"] == {"test": "data"}
     assert events[0]["id"] == event_id
 
+
 async def test_publish_invalid_type(mock_env):
     with pytest.raises(ValueError, match="Unsupported event type"):
         await publish("invalid.type")
+
 
 async def test_subscribe_permissions(redis_client, mock_env):
     admin_user = {"role": "admin"}
@@ -78,4 +84,4 @@ async def test_subscribe_permissions(redis_client, mock_env):
         await asyncio.wait_for(anext(normal_iterator), timeout=0.5)
         pytest.fail("Normal user should not receive admin event")
     except asyncio.TimeoutError:
-        pass # Expected
+        pass  # Expected

@@ -2,6 +2,7 @@
 Générateur d'icônes PWA haute résolution pour Watchdeck.
 Produit les icônes PNG requises par les spécifications PWA (Android, iOS, Desktop).
 """
+
 import math
 import os
 
@@ -13,9 +14,9 @@ def draw_watchdeck_master(size: int = 1024, is_maskable: bool = False) -> Image.
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    bg_dark = (9, 9, 11, 255)          # #09090b
+    bg_dark = (9, 9, 11, 255)  # #09090b
     teal_primary = (8, 145, 178, 255)  # #0891b2
-    teal_bright = (103, 232, 249, 255) # #67e8f9
+    teal_bright = (103, 232, 249, 255)  # #67e8f9
 
     if is_maskable:
         draw.rectangle([0, 0, size, size], fill=bg_dark)
@@ -46,9 +47,10 @@ def draw_watchdeck_master(size: int = 1024, is_maskable: bool = False) -> Image.
     ring_width = max(4, int(size * 0.04))
     draw.arc(
         [center_x - ring_radius, center_y - ring_radius, center_x + ring_radius, center_y + ring_radius],
-        start=35, end=325,
+        start=35,
+        end=325,
         fill=teal_primary,
-        width=ring_width
+        width=ring_width,
     )
 
     # Point lumineux sur l'arc (signal)
@@ -56,10 +58,7 @@ def draw_watchdeck_master(size: int = 1024, is_maskable: bool = False) -> Image.
     dot_angle = math.radians(35)
     dot_x = center_x + ring_radius * math.cos(dot_angle)
     dot_y = center_y + ring_radius * math.sin(dot_angle)
-    draw.ellipse(
-        [dot_x - dot_radius, dot_y - dot_radius, dot_x + dot_radius, dot_y + dot_radius],
-        fill=teal_bright
-    )
+    draw.ellipse([dot_x - dot_radius, dot_y - dot_radius, dot_x + dot_radius, dot_y + dot_radius], fill=teal_bright)
 
     # Dessin vectoriel du 'W' stylisé Watchdeck
     w_height = int(size * scale * 0.52)
@@ -83,10 +82,7 @@ def draw_watchdeck_master(size: int = 1024, is_maskable: bool = False) -> Image.
     draw.line(points, fill=teal_bright, width=stroke_width, joint="curve")
     cap_radius = stroke_width / 2
     for px, py in points:
-        draw.ellipse(
-            [px - cap_radius, py - cap_radius, px + cap_radius, py + cap_radius],
-            fill=teal_bright
-        )
+        draw.ellipse([px - cap_radius, py - cap_radius, px + cap_radius, py + cap_radius], fill=teal_bright)
 
     return img
 

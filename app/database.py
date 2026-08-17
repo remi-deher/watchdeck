@@ -40,11 +40,14 @@ AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False, cla
 
 Base = declarative_base()
 
+
 async def get_db_async():
     async with AsyncSessionLocal() as db:
         yield db
 
+
 if DATABASE_URL.startswith("sqlite"):
+
     @event.listens_for(async_engine.sync_engine, "connect")
     def _sqlite_pragmas(dbapi_conn, _record):
         """Use SQLite settings that behave well on Windows/Docker bind mounts."""
@@ -74,7 +77,9 @@ def run_migrations():
             if attempt == max_retries:
                 logging.error(f"Failed to run migrations after {max_retries} attempts.")
                 raise e
-            logging.warning(f"Database not ready or migration failed, retrying in 5 seconds (attempt {attempt}/{max_retries})...")
+            logging.warning(
+                f"Database not ready or migration failed, retrying in 5 seconds (attempt {attempt}/{max_retries})..."
+            )
             time.sleep(5)
 
 
@@ -95,8 +100,8 @@ async def seed_defaults():
 
         if s.auth_username:
             admin_user = (
-                await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == s.auth_username))
-            ).scalars().first()
+                (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == s.auth_username))).scalars().first()
+            )
             if not admin_user:
                 admin_user = PlexUser(
                     plex_user_id=s.auth_username,

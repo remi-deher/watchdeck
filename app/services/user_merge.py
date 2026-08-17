@@ -10,9 +10,19 @@ from ..errors import ValidationError
 from ..models import MediaIssue, MediaRequest, NotificationMilestone, PasskeyCredential, PlexUser
 
 MERGE_FILL_FIELDS = (
-    "notification_email", "plex_email", "plex_account_uuid", "discord_webhook_url",
-    "telegram_chat_id", "custom_name", "display_name", "avatar_url", "locale",
-    "seer_user_id", "sonarr_instance_id", "radarr_instance_id", "last_login_at",
+    "notification_email",
+    "plex_email",
+    "plex_account_uuid",
+    "discord_webhook_url",
+    "telegram_chat_id",
+    "custom_name",
+    "display_name",
+    "avatar_url",
+    "locale",
+    "seer_user_id",
+    "sonarr_instance_id",
+    "radarr_instance_id",
+    "last_login_at",
 )
 
 
@@ -31,10 +41,14 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
         .values({"plex_user_id": new, "plex_user": new_name})
     )
     requests_moved = result.rowcount
-    await db.execute(sqlalchemy.update(MediaRequest).where(MediaRequest.approved_by == old).values({"approved_by": new}))
+    await db.execute(
+        sqlalchemy.update(MediaRequest).where(MediaRequest.approved_by == old).values({"approved_by": new})
+    )
 
     extras_updated = 0
-    requests = (await db.execute(select(MediaRequest).filter(MediaRequest.extra_requesters.like(f"%{old}%")))).scalars().all()
+    requests = (
+        (await db.execute(select(MediaRequest).filter(MediaRequest.extra_requesters.like(f"%{old}%")))).scalars().all()
+    )
     for request in requests:
         try:
             extras = json.loads(request.extra_requesters or "[]")
@@ -61,15 +75,33 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
             extras_updated += 1
 
     keeper_keys = {
-        (milestone.req_id, milestone.direction, milestone.milestone_type, milestone.season_number, milestone.episode_number)
-        for milestone in (await db.execute(select(NotificationMilestone).filter(NotificationMilestone.plex_user_id == new))).scalars().all()
+        (
+            milestone.req_id,
+            milestone.direction,
+            milestone.milestone_type,
+            milestone.season_number,
+            milestone.episode_number,
+        )
+        for milestone in (
+            await db.execute(select(NotificationMilestone).filter(NotificationMilestone.plex_user_id == new))
+        )
+        .scalars()
+        .all()
     }
     milestones_moved = 0
     source_milestones = (
-        await db.execute(select(NotificationMilestone).filter(NotificationMilestone.plex_user_id == old))
-    ).scalars().all()
+        (await db.execute(select(NotificationMilestone).filter(NotificationMilestone.plex_user_id == old)))
+        .scalars()
+        .all()
+    )
     for milestone in source_milestones:
-        key = (milestone.req_id, milestone.direction, milestone.milestone_type, milestone.season_number, milestone.episode_number)
+        key = (
+            milestone.req_id,
+            milestone.direction,
+            milestone.milestone_type,
+            milestone.season_number,
+            milestone.episode_number,
+        )
         if key in keeper_keys:
             await db.delete(milestone)
         else:
@@ -77,8 +109,16 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
             keeper_keys.add(key)
             milestones_moved += 1
 
-    await db.execute(sqlalchemy.update(MediaIssue).where(MediaIssue.reporter_plex_user_id == old).values({"reporter_plex_user_id": new}))
-    await db.execute(sqlalchemy.update(PasskeyCredential).where(PasskeyCredential.user_id == source.id).values({"user_id": keeper.id}))
+    await db.execute(
+        sqlalchemy.update(MediaIssue)
+        .where(MediaIssue.reporter_plex_user_id == old)
+        .values({"reporter_plex_user_id": new})
+    )
+    await db.execute(
+        sqlalchemy.update(PasskeyCredential)
+        .where(PasskeyCredential.user_id == source.id)
+        .values({"user_id": keeper.id})
+    )
 
     for field in MERGE_FILL_FIELDS:
         if not getattr(keeper, field, None) and getattr(source, field, None):
@@ -93,9 +133,13 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
 
     await db.delete(source)
     return {
-        "status": "merged", "keeper_id": keeper.id, "keeper_plex_user_id": new,
-        "requests_moved": requests_moved, "extra_requesters_updated": extras_updated,
-        "milestones_moved": milestones_moved, "seer_user_id": keeper.seer_user_id,
+        "status": "merged",
+        "keeper_id": keeper.id,
+        "keeper_plex_user_id": new,
+        "requests_moved": requests_moved,
+        "extra_requesters_updated": extras_updated,
+        "milestones_moved": milestones_moved,
+        "seer_user_id": keeper.seer_user_id,
     }
 
 

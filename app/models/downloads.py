@@ -20,9 +20,7 @@ class DownloadHistory(Base):
     """
 
     __tablename__ = "download_history"
-    __table_args__ = (
-        UniqueConstraint("arr_instance_id", "arr_history_id", name="uq_download_history_arr_event"),
-    )
+    __table_args__ = (UniqueConstraint("arr_instance_id", "arr_history_id", name="uq_download_history_arr_event"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str]
@@ -40,21 +38,16 @@ class DownloadHistory(Base):
     processing_mode: Mapped[Optional[str]]
     completed_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
 
+
 class SeriesAcquisitionBatch(Base):
     """Vague d'acquisition d'une serie, independante des futurs emails agreges."""
 
     __tablename__ = "series_acquisition_batches"
-    __table_args__ = (
-        Index("ix_series_acquisition_batch_lookup", "arr_instance_id", "arr_id", "status"),
-    )
+    __table_args__ = (Index("ix_series_acquisition_batch_lookup", "arr_instance_id", "arr_id", "status"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    request_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("media_requests.id", ondelete="SET NULL"), index=True
-    )
-    arr_instance_id: Mapped[int] = mapped_column(
-        ForeignKey("arr_instances.id", ondelete="CASCADE"), index=True
-    )
+    request_id: Mapped[Optional[int]] = mapped_column(ForeignKey("media_requests.id", ondelete="SET NULL"), index=True)
+    arr_instance_id: Mapped[int] = mapped_column(ForeignKey("arr_instances.id", ondelete="CASCADE"), index=True)
     arr_id: Mapped[int] = mapped_column(index=True)
     source: Mapped[Optional[str]]
     # all_seasons : API/RSS, monitored_seasons : autres points d'entree.
@@ -69,6 +62,7 @@ class SeriesAcquisitionBatch(Base):
     summary_queued_at: Mapped[Optional[datetime]] = mapped_column(default=None)
     closed_at: Mapped[Optional[datetime]] = mapped_column(default=None)
 
+
 class SonarrQueueObservation(Base):
     """Dernier etat durable d'un element de queue Sonarr observe chaque minute."""
 
@@ -82,12 +76,8 @@ class SonarrQueueObservation(Base):
     batch_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("series_acquisition_batches.id", ondelete="SET NULL"), index=True
     )
-    request_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("media_requests.id", ondelete="SET NULL"), index=True
-    )
-    arr_instance_id: Mapped[int] = mapped_column(
-        ForeignKey("arr_instances.id", ondelete="CASCADE"), index=True
-    )
+    request_id: Mapped[Optional[int]] = mapped_column(ForeignKey("media_requests.id", ondelete="SET NULL"), index=True)
+    arr_instance_id: Mapped[int] = mapped_column(ForeignKey("arr_instances.id", ondelete="CASCADE"), index=True)
     queue_id: Mapped[int]
     download_id: Mapped[Optional[str]] = mapped_column(index=True)
     arr_media_id: Mapped[Optional[int]] = mapped_column(index=True)
@@ -107,6 +97,7 @@ class SonarrQueueObservation(Base):
     admin_alert_queued_at: Mapped[Optional[datetime]] = mapped_column(default=None)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(default=None)
 
+
 class RadarrQueueObservation(Base):
     """Dernier etat durable d'un element de queue Radarr observe chaque minute.
 
@@ -122,12 +113,8 @@ class RadarrQueueObservation(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    request_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("media_requests.id", ondelete="SET NULL"), index=True
-    )
-    arr_instance_id: Mapped[int] = mapped_column(
-        ForeignKey("arr_instances.id", ondelete="CASCADE"), index=True
-    )
+    request_id: Mapped[Optional[int]] = mapped_column(ForeignKey("media_requests.id", ondelete="SET NULL"), index=True)
+    arr_instance_id: Mapped[int] = mapped_column(ForeignKey("arr_instances.id", ondelete="CASCADE"), index=True)
     queue_id: Mapped[int]
     arr_media_id: Mapped[Optional[int]] = mapped_column(index=True)
     title: Mapped[Optional[str]]

@@ -37,7 +37,6 @@ def _validate_notify_settings(payload: dict):
     if granularity is not None and granularity not in GRANULARITY_MODES:
         raise HTTPException(status_code=400, detail=f"Granularité de notification invalide: {granularity}")
 
-
     confirmation_mode = payload.get("availability_confirmation_mode")
     if confirmation_mode is not None and confirmation_mode not in AVAILABILITY_CONFIRMATION_MODES:
         raise HTTPException(status_code=400, detail=f"Mode de confirmation invalide: {confirmation_mode}")
@@ -252,7 +251,9 @@ def get_settings(s: Settings = Depends(get_settings_or_404)):
 
 
 @router.put("/settings")
-async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_db_async), s: Settings = Depends(get_settings_or_404)):
+async def update_settings(
+    data: SettingsUpdate, db: AsyncSession = Depends(get_db_async), s: Settings = Depends(get_settings_or_404)
+):
     """Met à jour la configuration. Ignore la valeur masquée du mot de passe SMTP."""
     # Champs qui peuvent être explicitement effacés avec null (template custom → retour au défaut)
     # NB: les champs email_*_template / email_*_subject / email_templates_backup ne sont PAS
@@ -289,13 +290,17 @@ async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_d
         # par l'utilisateur) ne doit jamais ecraser le secret reel stocke en base.
         if key in _MASKED_SECRET_FIELDS and val == "••••••••":
             continue
-        if key in (
-            "notification_log_retention_days",
-            "poll_history_retention_days",
-            "login_attempt_retention_days",
-            "audit_log_retention_days",
-            "activity_retention_days",
-        ) and val == 0:
+        if (
+            key
+            in (
+                "notification_log_retention_days",
+                "poll_history_retention_days",
+                "login_attempt_retention_days",
+                "audit_log_retention_days",
+                "activity_retention_days",
+            )
+            and val == 0
+        ):
             val = None
         if key == "seer_mode" and val not in ("observer", "actor"):
             continue

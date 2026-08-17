@@ -145,9 +145,17 @@ async def add_movie(
         arr_catalog.invalidate("radarr", url)
         return data.get("id"), False, data.get("titleSlug")
     except httpx.HTTPStatusError as e:
-        body = e.response.text if hasattr(e, 'response') else ''
+        body = e.response.text if hasattr(e, "response") else ""
         b_lower = body.lower()
-        if e.response.status_code == 400 and ("movieexistsvalidator" in b_lower or "already been added" in b_lower or "already configured" in b_lower or "déjà été ajouté" in b_lower or "déjà configuré" in b_lower or "deja ete ajoute" in b_lower or "deja configure" in b_lower):
+        if e.response.status_code == 400 and (
+            "movieexistsvalidator" in b_lower
+            or "already been added" in b_lower
+            or "already configured" in b_lower
+            or "déjà été ajouté" in b_lower
+            or "déjà configuré" in b_lower
+            or "deja ete ajoute" in b_lower
+            or "deja configure" in b_lower
+        ):
             logger.info(f"'{item['title']}' already in Radarr (caught 400 Exists/PathConfigured)")
             return None, True, None
         logger.error(f"Radarr error adding '{item['title']}': {e} — response: {body}")
@@ -193,11 +201,11 @@ async def _search_tmdb_id(url: str, api_key: str, title: str, year: int | None) 
     """
     try:
         client = ArrClient(url, api_key, timeout=15)
-        for term in ([f"{title} {year}", title] if year else [title]):
+        for term in [f"{title} {year}", title] if year else [title]:
             resp = await client.get(
                 "/api/v3/movie/lookup",
                 params={"term": term},
-                )
+            )
             resp.raise_for_status()
             results = resp.json()
             for candidate in results:
@@ -205,8 +213,7 @@ async def _search_tmdb_id(url: str, api_key: str, title: str, year: int | None) 
                     return str(candidate["tmdbId"])
         if results:
             logger.warning(
-                "Radarr lookup for '%s' (%s) returned no result matching title/year; "
-                "refusing ambiguous match",
+                "Radarr lookup for '%s' (%s) returned no result matching title/year; refusing ambiguous match",
                 title,
                 year,
             )
@@ -240,6 +247,7 @@ async def lookup_movie(
             if resp.status_code == 200:
                 return resp.json()
         if tmdb_id or imdb_id:
+
             def _match(movies: list[dict] | None) -> dict | None:
                 for m in movies or []:
                     if tmdb_id and str(m.get("tmdbId")) == str(tmdb_id):
@@ -273,9 +281,7 @@ async def is_movie_available(
     Returns:
         (is_available, arr_id, title_slug)
     """
-    data = await lookup_movie(
-        url, api_key, arr_id=arr_id, tmdb_id=tmdb_id, imdb_id=imdb_id, movies_list=movies_list
-    )
+    data = await lookup_movie(url, api_key, arr_id=arr_id, tmdb_id=tmdb_id, imdb_id=imdb_id, movies_list=movies_list)
     if not data:
         return False, None, None
     return data.get("hasFile", False), data.get("id"), data.get("titleSlug")

@@ -14,6 +14,7 @@ from ..models import PlexUser, Settings
 router = APIRouter(prefix="/api", tags=["misc"])
 logger = logging.getLogger(__name__)
 
+
 @router.get("/i18n/catalog", dependencies=[Depends(require_auth)])
 async def i18n_catalog(
     request: Request, db: AsyncSession = Depends(get_db_async), user: PlexUser | None = Depends(get_current_plex_user)

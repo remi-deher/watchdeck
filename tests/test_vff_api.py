@@ -185,8 +185,15 @@ def _show_request(db, **kwargs):
     from app.models import MediaRequest, RequestStatus
 
     defaults = dict(
-        plex_user_id="alice", plex_user="Alice", title="Show", media_type="show",
-        status=RequestStatus.sent_to_arr, tmdb_id="123", tvdb_id="456", arr_id=42, arr_instance_id=1,
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Show",
+        media_type="show",
+        status=RequestStatus.sent_to_arr,
+        tmdb_id="123",
+        tvdb_id="456",
+        arr_id=42,
+        arr_instance_id=1,
     )
     defaults.update(kwargs)
     req = MediaRequest(**defaults)
@@ -228,7 +235,11 @@ def test_episodes_envelope_movie_returns_empty_seasons(db, client):
     from app.models import MediaRequest, RequestStatus
 
     req = MediaRequest(
-        plex_user_id="alice", plex_user="Alice", title="Movie", media_type="movie", status=RequestStatus.sent_to_arr,
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Movie",
+        media_type="movie",
+        status=RequestStatus.sent_to_arr,
     )
     db.add(req)
     db.commit()
@@ -268,8 +279,26 @@ def test_episodes_availability_is_pure_db_read_by_default(db, client):
     from app.models import EpisodeAvailability
 
     req = _show_request(db)
-    db.add(EpisodeAvailability(source_type="request", source_id=req.id, season_number=1, episode_number=1, has_file=True, air_date_utc="2020-01-01T01:00:00Z"))
-    db.add(EpisodeAvailability(source_type="request", source_id=req.id, season_number=1, episode_number=2, has_file=False, air_date_utc="2099-01-01T01:00:00Z"))
+    db.add(
+        EpisodeAvailability(
+            source_type="request",
+            source_id=req.id,
+            season_number=1,
+            episode_number=1,
+            has_file=True,
+            air_date_utc="2020-01-01T01:00:00Z",
+        )
+    )
+    db.add(
+        EpisodeAvailability(
+            source_type="request",
+            source_id=req.id,
+            season_number=1,
+            episode_number=2,
+            has_file=False,
+            air_date_utc="2099-01-01T01:00:00Z",
+        )
+    )
     db.commit()
 
     with patch("app.routers.vff_api.lookup_series") as mock_sonarr:
@@ -277,10 +306,15 @@ def test_episodes_availability_is_pure_db_read_by_default(db, client):
         mock_sonarr.assert_not_called()
     assert resp.status_code == 200
     data = resp.json()
-    assert data["seasons"] == [{"season_number": 1, "episodes": {
-        "1": {"has_file": True, "air_date_utc": "2020-01-01T01:00:00Z"},
-        "2": {"has_file": False, "air_date_utc": "2099-01-01T01:00:00Z"},
-    }}]
+    assert data["seasons"] == [
+        {
+            "season_number": 1,
+            "episodes": {
+                "1": {"has_file": True, "air_date_utc": "2020-01-01T01:00:00Z"},
+                "2": {"has_file": False, "air_date_utc": "2099-01-01T01:00:00Z"},
+            },
+        }
+    ]
 
 
 def test_episodes_availability_force_resyncs_before_reading(db, client):
@@ -289,7 +323,10 @@ def test_episodes_availability_force_resyncs_before_reading(db, client):
     req = _show_request(db)
 
     with (
-        patch("app.routers.vff_api._resolve_arr_instance", new=AsyncMock(return_value=type("I", (), {"url": "http://sonarr", "api_key": "x"})())),
+        patch(
+            "app.routers.vff_api._resolve_arr_instance",
+            new=AsyncMock(return_value=type("I", (), {"url": "http://sonarr", "api_key": "x"})()),
+        ),
         patch("app.routers.vff_api.sync_episode_availability_for_show", new=AsyncMock(return_value={})) as mock_sync,
     ):
         resp = client.get(f"/api/requests/{req.id}/episodes-availability?force=true")
@@ -308,7 +345,11 @@ def test_episodes_vf_status_is_pure_db_read(db, client):
     from app.models import VfEpisodeStatus
 
     req = _show_request(db)
-    db.add(VfEpisodeStatus(source_type="request", source_id=req.id, season_number=1, episode_number=1, has_vf=True, fr_is_default=True))
+    db.add(
+        VfEpisodeStatus(
+            source_type="request", source_id=req.id, season_number=1, episode_number=1, has_vf=True, fr_is_default=True
+        )
+    )
     db.add(VfEpisodeStatus(source_type="request", source_id=req.id, season_number=1, episode_number=2, has_vf=False))
     db.commit()
 
@@ -365,9 +406,10 @@ def test_sync_plex_refuses_when_another_process_is_already_syncing(client):
     lancée par le cron du worker, sur la même bibliothèque Plex."""
     from app.services import scan_state
 
-    with patch.object(
-        scan_state, "read_section", AsyncMock(return_value={"status": "running"})
-    ), patch("app.routers.vff_api.sync_plex_media", AsyncMock()) as sync:
+    with (
+        patch.object(scan_state, "read_section", AsyncMock(return_value={"status": "running"})),
+        patch("app.routers.vff_api.sync_plex_media", AsyncMock()) as sync,
+    ):
         resp = client.post("/api/vff/sync-plex")
 
     assert resp.json() == {"status": "already_running"}

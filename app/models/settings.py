@@ -75,9 +75,7 @@ class Settings(Base):
     email_branding: Mapped[Optional["EmailBranding"]] = relationship(
         cascade="all, delete-orphan", lazy="selectin", uselist=False
     )
-    email_templates: Mapped[list["EmailTemplate"]] = relationship(
-        cascade="all, delete-orphan", lazy="selectin"
-    )
+    email_templates: Mapped[list["EmailTemplate"]] = relationship(cascade="all, delete-orphan", lazy="selectin")
 
     # --- Notifications avancées ---
     notification_log_retention_days: Mapped[Optional[int]] = mapped_column(default=None)
@@ -297,9 +295,18 @@ _EMAIL_BRANDING_FIELDS = {
     "email_show_plex_button": "show_plex_button",
 }
 _EMAIL_EVENTS = (
-    "request", "available", "upgrade", "failure", "correction", "cancelled",
-    "episode_available", "season_started", "season_partial",
-    "season_complete", "series_partial", "series_complete",
+    "request",
+    "available",
+    "upgrade",
+    "failure",
+    "correction",
+    "cancelled",
+    "episode_available",
+    "season_started",
+    "season_partial",
+    "season_complete",
+    "series_partial",
+    "series_complete",
 )
 
 
@@ -310,6 +317,7 @@ def _branding_property(field):
     def set_(self, value):
         if self.email_branding is None:
             from .email_config import EmailBranding
+
             self.email_branding = EmailBranding()
         setattr(self.email_branding, field, value)
 
@@ -321,6 +329,7 @@ def _template_property(event, field):
         found = next((item for item in self.email_templates if item.event == event), None)
         if found is None and create:
             from .email_config import EmailTemplate
+
             found = EmailTemplate(event=event)
             self.email_templates.append(found)
         return found

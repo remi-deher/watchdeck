@@ -601,9 +601,7 @@ async def send_available_notification(
 
     extra_ctx["_tmdb_url"] = build_tmdb_url(request)
     extra_ctx["_plex_deep_link"] = (
-        await resolve_plex_deep_link(settings, request)
-        if plex_deep_link is _UNRESOLVED_PLEX_LINK
-        else plex_deep_link
+        await resolve_plex_deep_link(settings, request) if plex_deep_link is _UNRESOLVED_PLEX_LINK else plex_deep_link
     )
 
     return await _send_templated(
@@ -636,8 +634,13 @@ async def _send(settings: Settings, recipient: str, subject: str, html: str):
 
 
 async def send_failure_notification(
-    settings: Settings, request: MediaRequest, recipient: str, reason: str = "", display_name: str | None = None,
-    *, dry_run: bool = False,
+    settings: Settings,
+    request: MediaRequest,
+    recipient: str,
+    reason: str = "",
+    display_name: str | None = None,
+    *,
+    dry_run: bool = False,
 ) -> tuple[str, str]:
     tags = _build_tags(request, display_name, reason=reason)
     extra_ctx = get_shared_email_parts(settings)

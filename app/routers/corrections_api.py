@@ -181,30 +181,36 @@ async def send_media_correction(body: MediaCorrectionRequest, db: AsyncSession =
                 episode_number=episode_number,
             )
             sent.append({"user_id": user_id, "recipient": recipient, "name": display_name})
-            db.add(NotificationLog(
-                sent_at=now_utc_naive(),
-                event="correction",
-                recipient=recipient,
-                success=True,
-                media_title=media.title,
-                media_type=media.media_type,
-                req_id=body.request_id,
-                is_admin=True
-            ))
+            db.add(
+                NotificationLog(
+                    sent_at=now_utc_naive(),
+                    event="correction",
+                    recipient=recipient,
+                    success=True,
+                    media_title=media.title,
+                    media_type=media.media_type,
+                    req_id=body.request_id,
+                    is_admin=True,
+                )
+            )
         except Exception as exc:
             logger.exception("Envoi de correction échoué pour %s", recipient)
-            errors.append({"user_id": user_id, "recipient": recipient, "name": display_name, "error": safe_error_message(exc)})
-            db.add(NotificationLog(
-                sent_at=now_utc_naive(),
-                event="correction",
-                recipient=recipient,
-                success=False,
-                error_msg=str(exc),
-                media_title=media.title,
-                media_type=media.media_type,
-                req_id=body.request_id,
-                is_admin=True
-            ))
+            errors.append(
+                {"user_id": user_id, "recipient": recipient, "name": display_name, "error": safe_error_message(exc)}
+            )
+            db.add(
+                NotificationLog(
+                    sent_at=now_utc_naive(),
+                    event="correction",
+                    recipient=recipient,
+                    success=False,
+                    error_msg=str(exc),
+                    media_title=media.title,
+                    media_type=media.media_type,
+                    req_id=body.request_id,
+                    is_admin=True,
+                )
+            )
     await db.commit()
 
     if errors and not sent:

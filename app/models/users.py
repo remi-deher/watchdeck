@@ -68,6 +68,7 @@ class PlexUser(Base):
     totp_secret: Mapped[Optional[str]] = mapped_column(EncryptedText, default=None)
     totp_enabled: Mapped[bool] = mapped_column(default=False)
 
+
 class PasskeyCredential(Base):
     __tablename__ = "passkey_credentials"
 
@@ -78,6 +79,7 @@ class PasskeyCredential(Base):
     sign_count: Mapped[int] = mapped_column(default=0, nullable=False)
     name: Mapped[str] = mapped_column(default="Passkey")
     created_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+
 
 class LoginAttempt(Base):
     __tablename__ = "login_attempts"

@@ -60,13 +60,12 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
         "request_id": req.id,
         "library_id": req.library_item_id,
         "in_library": req.library_item_id is not None,
-        "available": req.library_item_id is not None or request_status_value(req.status) in ("available", "partially_available"),
+        "available": req.library_item_id is not None
+        or request_status_value(req.status) in ("available", "partially_available"),
         "requested": True,
         "request_status": request_status_value(req.status),
         "poster_url": (
-            f"/api/image-proxy/request/{req.id}?width=500&quality=82&format=webp"
-            if req.poster_url
-            else None
+            f"/api/image-proxy/request/{req.id}?width=500&quality=82&format=webp" if req.poster_url else None
         ),
         "arr_processed_at": format_datetime(req.arr_processed_at),
         "available_at": format_datetime(req.available_at),
@@ -151,8 +150,10 @@ def serialize_media_summary(
         status = request_status_value(item.status) if request_status is None else request_status
         req_in_lib = (item.library_item_id is not None) if in_library is None else in_library
         req_avail = (
-            item.library_item_id is not None or status in ("available", "partially_available")
-        ) if available is None else available
+            (item.library_item_id is not None or status in ("available", "partially_available"))
+            if available is None
+            else available
+        )
         summary = {
             "tmdb_id": item.tmdb_id,
             "media_type": item.media_type,
@@ -192,7 +193,9 @@ def serialize_media_summary(
         if "request_status" in item or request_status is not None:
             summary["request_status"] = request_status if request_status is not None else item.get("request_status")
         if "is_downloading" in item or is_downloading is not None:
-            summary["is_downloading"] = is_downloading if is_downloading is not None else item.get("is_downloading", False)
+            summary["is_downloading"] = (
+                is_downloading if is_downloading is not None else item.get("is_downloading", False)
+            )
         if requester_count is not None or "requester_count" in item:
             summary["requester_count"] = requester_count if requester_count is not None else item.get("requester_count")
         return summary

@@ -112,14 +112,17 @@ def test_release_matches_target_season_scope():
     assert "Saison" in reason2
 
 
-@pytest.mark.parametrize("title", [
-    "Some.Show.S01E04.MULTI.1080p.WEB-DL",
-    "Movie.2020.FRENCH.1080p.WEB",
-    "Movie.2020.TRUEFRENCH.720p",
-    "Movie.2020.VFF.1080p",
-    "Movie.2020.VFF2.1080p",
-    "Movie.2020.VFI.1080p",
-])
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Some.Show.S01E04.MULTI.1080p.WEB-DL",
+        "Movie.2020.FRENCH.1080p.WEB",
+        "Movie.2020.TRUEFRENCH.720p",
+        "Movie.2020.VFF.1080p",
+        "Movie.2020.VFF2.1080p",
+        "Movie.2020.VFI.1080p",
+    ],
+)
 def test_release_is_french_matches_known_tags(title):
     assert release_is_french({"title": title, "languages": []}) is True
 
@@ -128,10 +131,13 @@ def test_release_is_french_via_declared_language():
     assert release_is_french({"title": "Some.Show.S01E01.720p", "languages": ["French"]}) is True
 
 
-@pytest.mark.parametrize("title", [
-    "Some.Show.S01E01.ENGLISH.1080p",
-    "Multiverse.Saga.2020.1080p",  # "multi" pas isole (multiverse), ne doit pas matcher
-])
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Some.Show.S01E01.ENGLISH.1080p",
+        "Multiverse.Saga.2020.1080p",  # "multi" pas isole (multiverse), ne doit pas matcher
+    ],
+)
 def test_release_is_french_rejects_unrelated_titles(title):
     assert release_is_french({"title": title, "languages": []}) is False
 
@@ -142,13 +148,36 @@ async def test_search_task_drops_zero_seed_torrents_but_keeps_usenet():
     liste proposee. Le usenet n'a pas cette notion de seeds, jamais exclu pour ce motif."""
     inst = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr.local", api_key="key")
     task = _SearchTask(
-        source_type="library_item", source_id=1, scope="movie", arr_type="radarr",
-        inst=inst, arr_id=99, title="Some Movie",
+        source_type="library_item",
+        source_id=1,
+        scope="movie",
+        arr_type="radarr",
+        inst=inst,
+        arr_id=99,
+        title="Some Movie",
     )
     releases = [
-        {"guid": "dead-torrent", "title": "Some.Movie.MULTI.1080p", "protocol": "torrent", "seeders": 0, "languages": []},
-        {"guid": "alive-torrent", "title": "Some.Movie.MULTI.720p", "protocol": "torrent", "seeders": 3, "languages": []},
-        {"guid": "usenet-no-seeds", "title": "Some.Movie.MULTI.2160p", "protocol": "usenet", "seeders": 0, "languages": []},
+        {
+            "guid": "dead-torrent",
+            "title": "Some.Movie.MULTI.1080p",
+            "protocol": "torrent",
+            "seeders": 0,
+            "languages": [],
+        },
+        {
+            "guid": "alive-torrent",
+            "title": "Some.Movie.MULTI.720p",
+            "protocol": "torrent",
+            "seeders": 3,
+            "languages": [],
+        },
+        {
+            "guid": "usenet-no-seeds",
+            "title": "Some.Movie.MULTI.2160p",
+            "protocol": "usenet",
+            "seeders": 0,
+            "languages": [],
+        },
     ]
     with (
         patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=releases)),
@@ -176,7 +205,9 @@ def db():
 
 
 def _sonarr_instance(db, **kwargs):
-    defaults = dict(name="Sonarr", arr_type="sonarr", url="http://sonarr.local", api_key="key", enabled=True, is_default=True)
+    defaults = dict(
+        name="Sonarr", arr_type="sonarr", url="http://sonarr.local", api_key="key", enabled=True, is_default=True
+    )
     defaults.update(kwargs)
     inst = ArrInstance(**defaults)
     db.add(inst)
@@ -186,7 +217,9 @@ def _sonarr_instance(db, **kwargs):
 
 
 def _radarr_instance(db, **kwargs):
-    defaults = dict(name="Radarr", arr_type="radarr", url="http://radarr.local", api_key="key", enabled=True, is_default=True)
+    defaults = dict(
+        name="Radarr", arr_type="radarr", url="http://radarr.local", api_key="key", enabled=True, is_default=True
+    )
     defaults.update(kwargs)
     inst = ArrInstance(**defaults)
     db.add(inst)
@@ -252,13 +285,17 @@ async def test_manual_grab_can_force_arr_rejected_release_for_movie_and_season(d
         source_id=item.id,
         scope=scope,
         season_number=1 if scope == "season" else None,
-        releases_json=json.dumps([{
-            "guid": "manual-guid",
-            "indexer_id": 7,
-            "title": "Release MULTI",
-            "rejected": True,
-            "rejections": ["Quality for existing file on disk is of equal or higher preference"],
-        }]),
+        releases_json=json.dumps(
+            [
+                {
+                    "guid": "manual-guid",
+                    "indexer_id": 7,
+                    "title": "Release MULTI",
+                    "rejected": True,
+                    "rejections": ["Quality for existing file on disk is of equal or higher preference"],
+                }
+            ]
+        ),
         status="pending",
     )
     db.add(suggestion)
@@ -268,7 +305,9 @@ async def test_manual_grab_can_force_arr_rejected_release_for_movie_and_season(d
     service = "radarr" if scope == "movie" else "sonarr"
     with (
         patch(f"app.routers.vf_upgrades_api.{service}.get_queue", new=AsyncMock(return_value=[])),
-        patch(f"app.routers.vf_upgrades_api.{service}.grab_release", new=AsyncMock(return_value=(True, "accepted", False))) as grab,
+        patch(
+            f"app.routers.vf_upgrades_api.{service}.grab_release", new=AsyncMock(return_value=(True, "accepted", False))
+        ) as grab,
     ):
         result = await grab_vf_upgrade(
             suggestion.id,
@@ -299,10 +338,12 @@ async def test_grab_retries_once_after_relaunching_a_stale_search(db):
     db.commit()
     db.refresh(suggestion)
 
-    stale_then_ok = AsyncMock(side_effect=[
-        (False, "expire", True),
-        (True, "accepted", False),
-    ])
+    stale_then_ok = AsyncMock(
+        side_effect=[
+            (False, "expire", True),
+            (True, "accepted", False),
+        ]
+    )
     with (
         patch("app.routers.vf_upgrades_api.radarr.get_queue", new=AsyncMock(return_value=[])),
         patch("app.routers.vf_upgrades_api.radarr.grab_release", new=stale_then_ok),
@@ -358,13 +399,18 @@ async def test_grab_fails_when_retry_after_stale_search_still_fails(db):
 async def test_download_completion_triggers_one_plex_refresh(db):
     inst = _radarr_instance(db)
     item = _movie_item(db, arr_instance_id=inst.id)
-    db.add(Settings(
-        vff_enabled=True,
-        vf_upgrade_verify_after_import=True,
-        vf_upgrade_trigger_plex_scan=True,
-    ))
+    db.add(
+        Settings(
+            vff_enabled=True,
+            vf_upgrade_verify_after_import=True,
+            vf_upgrade_trigger_plex_scan=True,
+        )
+    )
     suggestion = VfUpgradeSuggestion(
-        source_type="library_item", source_id=item.id, scope="movie", status="downloading",
+        source_type="library_item",
+        source_id=item.id,
+        scope="movie",
+        status="downloading",
         accepted_at=now_utc_naive(),
     )
     db.add(suggestion)
@@ -447,8 +493,12 @@ def test_order_tasks_applies_configured_target_priority():
 async def test_failed_target_uses_retry_delay_instead_of_regular_cooldown(db):
     scanned_at = now_utc_naive() - timedelta(hours=8)
     row = VfUpgradeSuggestion(
-        source_type="library_item", source_id=12, scope="movie", status="failed",
-        retry_count=1, scanned_at=scanned_at,
+        source_type="library_item",
+        source_id=12,
+        scope="movie",
+        status="failed",
+        retry_count=1,
+        scanned_at=scanned_at,
     )
     db.add(row)
     db.commit()
@@ -462,7 +512,11 @@ async def test_failed_target_uses_retry_delay_instead_of_regular_cooldown(db):
 @pytest.mark.asyncio
 async def test_failed_target_is_skipped_after_max_retries(db):
     row = VfUpgradeSuggestion(
-        source_type="library_item", source_id=13, scope="movie", status="failed", retry_count=3,
+        source_type="library_item",
+        source_id=13,
+        scope="movie",
+        status="failed",
+        retry_count=3,
     )
     db.add(row)
     db.commit()
@@ -478,8 +532,14 @@ async def test_build_movie_tasks_skips_seer_requests(db):
     meme regle que _trigger_vf_search (vff_scanner.py)."""
     _radarr_instance(db)
     req = MediaRequest(
-        plex_user_id="alice", plex_user="Alice", title="Seer Movie", media_type="movie",
-        status=RequestStatus.available, has_vf=False, arr_id=7, source="seer",
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Seer Movie",
+        media_type="movie",
+        status=RequestStatus.available,
+        has_vf=False,
+        arr_id=7,
+        source="seer",
     )
     db.add(req)
     db.commit()
@@ -499,8 +559,14 @@ async def test_build_movie_tasks_skips_requests_already_linked_to_a_library_item
     _radarr_instance(db)
     item = _movie_item(db, title="Toy Story 5 (VOSTFR)")
     req = MediaRequest(
-        plex_user_id="alice", plex_user="Alice", title="Toy Story 5", media_type="movie",
-        status=RequestStatus.available, has_vf=False, arr_id=item.arr_id, library_item_id=item.id,
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Toy Story 5",
+        media_type="movie",
+        status=RequestStatus.available,
+        has_vf=False,
+        arr_id=item.arr_id,
+        library_item_id=item.id,
     )
     db.add(req)
     db.commit()
@@ -540,10 +606,16 @@ async def test_build_movie_tasks_force_bypasses_cooldown_and_skip(db):
 
 
 def _episode_status(db, source_id, season, episode, has_vf):
-    db.add(VfEpisodeStatus(
-        source_type="library_item", source_id=source_id, season_number=season, episode_number=episode,
-        has_vf=has_vf, is_known_episode=True,
-    ))
+    db.add(
+        VfEpisodeStatus(
+            source_type="library_item",
+            source_id=source_id,
+            season_number=season,
+            episode_number=episode,
+            has_vf=has_vf,
+            is_known_episode=True,
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -606,10 +678,12 @@ async def test_protection_forces_missing_episode_search_even_if_pack_mode_is_sel
 
     with patch(
         "app.services.vf_upgrade_scanner.sonarr.get_episodes",
-        new=AsyncMock(return_value=[
-            {"id": 10, "seasonNumber": 1, "episodeNumber": 1},
-            {"id": 11, "seasonNumber": 1, "episodeNumber": 2},
-        ]),
+        new=AsyncMock(
+            return_value=[
+                {"id": 10, "seasonNumber": 1, "episodeNumber": 1},
+                {"id": 11, "seasonNumber": 1, "episodeNumber": 2},
+            ]
+        ),
     ):
         tasks = await _build_show_tasks(db, False, set(), set(), settings)
 
@@ -639,8 +713,14 @@ async def test_build_show_tasks_skips_requests_already_linked_to_a_library_item(
     item = _show_item(db, title="Some Show (VOSTFR)")
     _episode_status(db, item.id, season=1, episode=1, has_vf=False)
     req = MediaRequest(
-        plex_user_id="alice", plex_user="Alice", title="Some Show", media_type="show",
-        status=RequestStatus.available, has_vf=False, arr_id=item.arr_id, library_item_id=item.id,
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Some Show",
+        media_type="show",
+        status=RequestStatus.available,
+        has_vf=False,
+        arr_id=item.arr_id,
+        library_item_id=item.id,
     )
     db.add(req)
     db.commit()
@@ -669,15 +749,17 @@ async def test_manual_mixed_season_search_uses_one_full_season_pack(db):
         ) as get_releases,
         patch(
             "app.services.vf_upgrade_scanner.sonarr.get_episode_files",
-            new=AsyncMock(return_value=[{
-                "seasonNumber": 2,
-                "sceneName": "Some.Show.S02.VO.2160p.WEB-DL.HDR.x265",
-            }]),
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "seasonNumber": 2,
+                        "sceneName": "Some.Show.S02.VO.2160p.WEB-DL.HDR.x265",
+                    }
+                ]
+            ),
         ),
     ):
-        found = await scan_single_target(
-            db, "library_item", item.id, "season", season_number=2
-        )
+        found = await scan_single_target(db, "library_item", item.id, "season", season_number=2)
 
     assert found[0]["guid"] == releases[0]["guid"]
     assert found[0]["vf_confidence"] > 0
@@ -685,9 +767,7 @@ async def test_manual_mixed_season_search_uses_one_full_season_pack(db):
     assert json.loads(persisted.current_release_titles_json) == ["Some.Show.S02.VO.2160p.WEB-DL.HDR.x265"]
     assert persisted.origin == "manual"
     assert persisted.target_kind == "mixed"
-    get_releases.assert_awaited_once_with(
-        "http://sonarr.local", "key", series_id=42, season_number=2
-    )
+    get_releases.assert_awaited_once_with("http://sonarr.local", "key", series_id=42, season_number=2)
 
 
 @pytest.mark.asyncio
@@ -704,9 +784,13 @@ async def test_manual_search_allows_movie_already_in_vf(db):
         ) as get_releases,
         patch(
             "app.services.vf_upgrade_scanner.radarr.get_movie_files",
-            new=AsyncMock(return_value=[{
-                "relativePath": "Some.Movie.VO.1080p.WEB-DL.x264.mkv",
-            }]),
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "relativePath": "Some.Movie.VO.1080p.WEB-DL.x264.mkv",
+                    }
+                ]
+            ),
         ),
     ):
         found = await scan_single_target(db, "library_item", item.id, "movie")
@@ -747,17 +831,27 @@ async def test_manual_vo_movie_search_is_persisted_as_relevant_upgrade(db):
 async def test_dashboard_hides_irrelevant_legacy_pending_but_keeps_auto_results(db):
     legacy_media = _movie_item(db, title="Ancienne recherche manuelle", has_vf=True)
     auto_media = _movie_item(db, title="Scan automatique", has_vf=True, arr_id=100)
-    db.add_all([
-        VfUpgradeSuggestion(
-            source_type="library_item", source_id=legacy_media.id, scope="movie",
-            releases_json='[{"guid":"legacy"}]', status="pending", origin="legacy",
-        ),
-        VfUpgradeSuggestion(
-            source_type="library_item", source_id=auto_media.id, scope="movie",
-            releases_json='[{"guid":"auto"}]', status="pending", origin="auto",
-            target_kind="vf",
-        ),
-    ])
+    db.add_all(
+        [
+            VfUpgradeSuggestion(
+                source_type="library_item",
+                source_id=legacy_media.id,
+                scope="movie",
+                releases_json='[{"guid":"legacy"}]',
+                status="pending",
+                origin="legacy",
+            ),
+            VfUpgradeSuggestion(
+                source_type="library_item",
+                source_id=auto_media.id,
+                scope="movie",
+                releases_json='[{"guid":"auto"}]',
+                status="pending",
+                origin="auto",
+                target_kind="vf",
+            ),
+        ]
+    )
     db.commit()
 
     payload = await vf_upgrade_dashboard(db=db)
@@ -774,21 +868,39 @@ async def test_dashboard_hides_request_suggestion_already_linked_to_a_library_it
     suggestions deja en base avant le correctif, pas seulement les futurs scans."""
     item = _movie_item(db, title="Toy Story 5 (VOSTFR)", has_vf=False)
     req = MediaRequest(
-        plex_user_id="alice", plex_user="Alice", title="Toy Story 5", media_type="movie",
-        status=RequestStatus.available, has_vf=False, arr_id=item.arr_id, library_item_id=item.id,
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Toy Story 5",
+        media_type="movie",
+        status=RequestStatus.available,
+        has_vf=False,
+        arr_id=item.arr_id,
+        library_item_id=item.id,
     )
     db.add(req)
     db.commit()
-    db.add_all([
-        VfUpgradeSuggestion(
-            source_type="request", source_id=req.id, scope="movie",
-            releases_json='[{"guid":"from-request"}]', status="pending", origin="auto", target_kind="vo",
-        ),
-        VfUpgradeSuggestion(
-            source_type="library_item", source_id=item.id, scope="movie",
-            releases_json='[{"guid":"from-library"}]', status="pending", origin="auto", target_kind="vo",
-        ),
-    ])
+    db.add_all(
+        [
+            VfUpgradeSuggestion(
+                source_type="request",
+                source_id=req.id,
+                scope="movie",
+                releases_json='[{"guid":"from-request"}]',
+                status="pending",
+                origin="auto",
+                target_kind="vo",
+            ),
+            VfUpgradeSuggestion(
+                source_type="library_item",
+                source_id=item.id,
+                scope="movie",
+                releases_json='[{"guid":"from-library"}]',
+                status="pending",
+                origin="auto",
+                target_kind="vo",
+            ),
+        ]
+    )
     db.commit()
 
     payload = await vf_upgrade_dashboard(db=db)
@@ -803,10 +915,16 @@ async def test_build_show_tasks_ignores_phantom_episodes(db):
     aucune release Sonarr ne peut de toute facon exister pour un episode qu'il ignore."""
     _sonarr_instance(db)
     item = _show_item(db)
-    db.add(VfEpisodeStatus(
-        source_type="library_item", source_id=item.id, season_number=1, episode_number=11,
-        has_vf=False, is_known_episode=False,
-    ))
+    db.add(
+        VfEpisodeStatus(
+            source_type="library_item",
+            source_id=item.id,
+            season_number=1,
+            episode_number=11,
+            has_vf=False,
+            is_known_episode=False,
+        )
+    )
     db.commit()
 
     tasks = await _build_show_tasks(db, force=False, skip=set(), recent=set())
@@ -852,18 +970,23 @@ async def test_persist_result_removes_stale_pending_when_nothing_found(db):
 @pytest.mark.asyncio
 async def test_empty_manual_search_does_not_remove_an_automatic_suggestion(db):
     task = _SearchTask(
-        source_type="library_item", source_id=1, scope="movie",
-        arr_type="radarr", inst=None, title="X",
+        source_type="library_item",
+        source_id=1,
+        scope="movie",
+        arr_type="radarr",
+        inst=None,
+        title="X",
     )
     await _persist_result(
-        db, task, [{"guid": "abc", "title": "X.FRENCH"}],
-        now_utc_naive(), origin="auto",
+        db,
+        task,
+        [{"guid": "abc", "title": "X.FRENCH"}],
+        now_utc_naive(),
+        origin="auto",
     )
     db.commit()
 
-    found = await _persist_result(
-        db, task, [], now_utc_naive(), origin="manual"
-    )
+    found = await _persist_result(db, task, [], now_utc_naive(), origin="manual")
     db.commit()
 
     assert found is False
@@ -876,8 +999,12 @@ async def test_persist_result_never_touches_dismissed_status(db):
     supprimer une suggestion deja ignoree par l'utilisateur -- seul le pending perime
     est nettoye (voir _skip_statuses, qui exclut deja grabbed/dismissed du scan de fond)."""
     row = VfUpgradeSuggestion(
-        source_type="library_item", source_id=1, scope="movie",
-        releases_json='[{"guid": "abc"}]', status="dismissed", scanned_at=now_utc_naive(),
+        source_type="library_item",
+        source_id=1,
+        scope="movie",
+        releases_json='[{"guid": "abc"}]',
+        status="dismissed",
+        scanned_at=now_utc_naive(),
     )
     db.add(row)
     db.commit()
@@ -930,6 +1057,7 @@ async def test_vf_upgrade_audit_detects_anomalies(db):
 
     # Test dashboard : item_vo_pure doit apparaître en waiting_release dans les Téléchargements
     from app.routers.vf_upgrades_api import vf_upgrade_dashboard
+
     dash = await vf_upgrade_dashboard(db=db)
     waiting_items = [it for it in dash["items"] if it.get("status") == "waiting_release"]
     waiting_ids = [it["source_id"] for it in waiting_items]
@@ -1006,4 +1134,3 @@ def test_choose_best_subtitle_stream_vo_single_forced():
     assert target_sub is not None
     assert target_sub.id == 44777
     assert should_apply is True
-

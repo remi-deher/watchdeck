@@ -88,9 +88,7 @@ async def _integrate_plex_items(plex_items: list[dict], arr_lookup: dict) -> tup
                 elif item["imdb_id"] and ("movie", "imdb", item["imdb_id"]) in arr_lookup:
                     arr_match = arr_lookup[("movie", "imdb", item["imdb_id"])]
                 elif item["year"] is not None:
-                    arr_match = arr_lookup.get(
-                        ("movie", "title", normalize_title(item["title"]), item["year"])
-                    )
+                    arr_match = arr_lookup.get(("movie", "title", normalize_title(item["title"]), item["year"]))
             elif item["media_type"] == "show":
                 if item["tvdb_id"] and ("show", "tvdb", item["tvdb_id"]) in arr_lookup:
                     arr_match = arr_lookup[("show", "tvdb", item["tvdb_id"])]
@@ -298,18 +296,26 @@ async def sync_plex_media():
         if seen_guids:
             from .request_lifecycle import transition_request
 
-            stale_items = (await db.execute(
-                select(LibraryItem).where(
-                    LibraryItem.plex_guid.isnot(None),
-                    LibraryItem.plex_guid.notin_(seen_guids),
+            stale_items = (
+                (
+                    await db.execute(
+                        select(LibraryItem).where(
+                            LibraryItem.plex_guid.isnot(None),
+                            LibraryItem.plex_guid.notin_(seen_guids),
+                        )
+                    )
                 )
-            )).scalars().all()
+                .scalars()
+                .all()
+            )
 
             if stale_items:
                 stale_ids = [item.id for item in stale_items]
-                linked_reqs = (await db.execute(
-                    select(MediaRequest).filter(MediaRequest.library_item_id.in_(stale_ids))
-                )).scalars().all()
+                linked_reqs = (
+                    (await db.execute(select(MediaRequest).filter(MediaRequest.library_item_id.in_(stale_ids))))
+                    .scalars()
+                    .all()
+                )
 
                 reverted = 0
                 for req in linked_reqs:

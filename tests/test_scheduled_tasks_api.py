@@ -77,19 +77,21 @@ def test_acquisition_batches_exposes_active_and_blocked_imports(client, db):
     )
     db.add(batch)
     db.flush()
-    db.add(SonarrQueueObservation(
-        batch_id=batch.id,
-        request_id=request.id,
-        arr_instance_id=instance.id,
-        queue_id=99,
-        arr_media_id=42,
-        season_number=2,
-        title="Serie test S02",
-        state="import_blocked",
-        progress=100,
-        consecutive_blocked_checks=2,
-        error_message="Unable to match release",
-    ))
+    db.add(
+        SonarrQueueObservation(
+            batch_id=batch.id,
+            request_id=request.id,
+            arr_instance_id=instance.id,
+            queue_id=99,
+            arr_media_id=42,
+            season_number=2,
+            title="Serie test S02",
+            state="import_blocked",
+            progress=100,
+            consecutive_blocked_checks=2,
+            error_message="Unable to match release",
+        )
+    )
     db.commit()
 
     response = client.get("/api/acquisition-batches")
@@ -126,11 +128,21 @@ def test_list_scheduled_tasks_merges_live_state(client, db):
 
 
 def test_scheduled_task_history_returns_recent_runs_desc(client, db):
-    db.add_all([
-        JobRunLog(job="arr-statuses", started_at=datetime(2026, 1, 1, 10, 0, 0), duration_ms=100, status="complete"),
-        JobRunLog(job="arr-statuses", started_at=datetime(2026, 1, 1, 10, 15, 0), duration_ms=200, status="failed", error="boom"),
-        JobRunLog(job="watchlist", started_at=datetime(2026, 1, 1, 10, 0, 0), duration_ms=50, status="complete"),
-    ])
+    db.add_all(
+        [
+            JobRunLog(
+                job="arr-statuses", started_at=datetime(2026, 1, 1, 10, 0, 0), duration_ms=100, status="complete"
+            ),
+            JobRunLog(
+                job="arr-statuses",
+                started_at=datetime(2026, 1, 1, 10, 15, 0),
+                duration_ms=200,
+                status="failed",
+                error="boom",
+            ),
+            JobRunLog(job="watchlist", started_at=datetime(2026, 1, 1, 10, 0, 0), duration_ms=50, status="complete"),
+        ]
+    )
     db.commit()
 
     resp = client.get("/api/scheduled-tasks/arr-statuses/history")
@@ -143,10 +155,12 @@ def test_scheduled_task_history_returns_recent_runs_desc(client, db):
 
 
 def test_scheduled_task_history_limit_capped(client, db):
-    db.add_all([
-        JobRunLog(job="watchlist", started_at=datetime(2026, 1, 1, 10, i, 0), duration_ms=10, status="complete")
-        for i in range(5)
-    ])
+    db.add_all(
+        [
+            JobRunLog(job="watchlist", started_at=datetime(2026, 1, 1, 10, i, 0), duration_ms=10, status="complete")
+            for i in range(5)
+        ]
+    )
     db.commit()
 
     resp = client.get("/api/scheduled-tasks/watchlist/history?limit=2")

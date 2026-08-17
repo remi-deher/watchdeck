@@ -11,9 +11,7 @@ from .base import Base
 class EmailBranding(Base):
     __tablename__ = "email_branding"
 
-    settings_id: Mapped[int] = mapped_column(
-        ForeignKey("settings.id", ondelete="CASCADE"), primary_key=True
-    )
+    settings_id: Mapped[int] = mapped_column(ForeignKey("settings.id", ondelete="CASCADE"), primary_key=True)
     header_brand: Mapped[Optional[str]]
     header_subtitle: Mapped[Optional[str]]
     footer_template: Mapped[Optional[str]] = mapped_column(Text)

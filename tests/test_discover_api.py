@@ -500,9 +500,10 @@ async def test_fetch_home_genre_sections(db):
 
 def test_source_endpoint_supports_sorting(client):
     mock_payload = {"items": [], "page": 1, "total_pages": 1, "total_results": 0}
-    with patch("app.routers.discover_api.tmdb.discover_by_source", new=AsyncMock(return_value=mock_payload)) as mock_call:
+    with patch(
+        "app.routers.discover_api.tmdb.discover_by_source", new=AsyncMock(return_value=mock_payload)
+    ) as mock_call:
         response = client.get("/api/discover/source/provider/8?sort_by=vote_average.desc")
         assert response.status_code == 200
         mock_call.assert_called_once()
         assert mock_call.call_args.kwargs.get("sort_by") == "vote_average.desc"
-

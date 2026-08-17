@@ -54,12 +54,7 @@ async def _library_counts() -> dict[str, int] | None:
 
             async def count_where(condition) -> int:
                 return int(
-                    (
-                        await db.execute(
-                            select(func.count()).select_from(LibraryItem).filter(condition)
-                        )
-                    ).scalar()
-                    or 0
+                    (await db.execute(select(func.count()).select_from(LibraryItem).filter(condition))).scalar() or 0
                 )
 
             return {

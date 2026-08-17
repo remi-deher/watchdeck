@@ -77,28 +77,34 @@ def request_workflow_timeline(
     fulfillment = fulfillment or _value(getattr(req, "fulfillment_status", None)) or "not_submitted"
 
     if origin["kind"] == "plex":
-        return [{
-            "key": "completed",
-            "label": "Deja present dans Plex",
-            "state": "completed",
-            "occurred_at": format_datetime(getattr(req, "available_at", None)),
-        }]
+        return [
+            {
+                "key": "completed",
+                "label": "Deja present dans Plex",
+                "state": "completed",
+                "occurred_at": format_datetime(getattr(req, "available_at", None)),
+            }
+        ]
 
     steps: list[dict[str, Any]] = []
     if origin["kind"] == "request":
-        steps.append({
-            "key": "requested",
-            "label": origin["label"],
-            "state": "completed",
-            "occurred_at": format_datetime(getattr(req, "requested_at", None)),
-        })
+        steps.append(
+            {
+                "key": "requested",
+                "label": origin["label"],
+                "state": "completed",
+                "occurred_at": format_datetime(getattr(req, "requested_at", None)),
+            }
+        )
         if getattr(req, "approved_at", None) is not None or fulfillment == "not_submitted":
-            steps.append({
-                "key": "approval",
-                "label": "Approbation de la demande",
-                "state": "completed" if getattr(req, "approved_at", None) else "current",
-                "occurred_at": format_datetime(getattr(req, "approved_at", None)),
-            })
+            steps.append(
+                {
+                    "key": "approval",
+                    "label": "Approbation de la demande",
+                    "state": "completed" if getattr(req, "approved_at", None) else "current",
+                    "occurred_at": format_datetime(getattr(req, "approved_at", None)),
+                }
+            )
 
     technical_steps = [
         ("awaiting_submission", "En attente d'envoi vers *ARR"),
@@ -119,20 +125,26 @@ def request_workflow_timeline(
         for key, label in visible_steps:
             if completed_until is None:
                 break
-            steps.append({
-                "key": key,
-                "label": label,
-                "state": "completed",
-                "occurred_at": format_datetime(getattr(req, "arr_processed_at", None)) if key == "submitted" else None,
-            })
+            steps.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "state": "completed",
+                    "occurred_at": format_datetime(getattr(req, "arr_processed_at", None))
+                    if key == "submitted"
+                    else None,
+                }
+            )
             if key == completed_until:
                 break
-        steps.append({
-            "key": fulfillment,
-            "label": "Traitement en erreur" if fulfillment == "failed" else "Retire de *ARR",
-            "state": "error",
-            "occurred_at": format_datetime(getattr(req, "fulfillment_updated_at", None)),
-        })
+        steps.append(
+            {
+                "key": fulfillment,
+                "label": "Traitement en erreur" if fulfillment == "failed" else "Retire de *ARR",
+                "state": "error",
+                "occurred_at": format_datetime(getattr(req, "fulfillment_updated_at", None)),
+            }
+        )
         return steps
 
     current_index = next(
@@ -147,18 +159,20 @@ def request_workflow_timeline(
             occurred_at = format_datetime(getattr(req, "available_at", None))
         elif key == fulfillment:
             occurred_at = format_datetime(getattr(req, "fulfillment_updated_at", None))
-        steps.append({
-            "key": key,
-            "label": label,
-            "state": (
-                "completed"
-                if current_index >= 0 and index < current_index
-                else "current"
-                if index == current_index
-                else "upcoming"
-            ),
-            "occurred_at": occurred_at,
-        })
+        steps.append(
+            {
+                "key": key,
+                "label": label,
+                "state": (
+                    "completed"
+                    if current_index >= 0 and index < current_index
+                    else "current"
+                    if index == current_index
+                    else "upcoming"
+                ),
+                "occurred_at": occurred_at,
+            }
+        )
     return steps
 
 
@@ -177,28 +191,34 @@ def build_media_history(
     for suggestion in vf_suggestions:
         accepted_at = getattr(suggestion, "accepted_at", None)
         if accepted_at:
-            events.append({
-                "kind": "vf_upgrade",
-                "label": "Upgrade VF envoye a *ARR",
-                "state": "completed",
-                "occurred_at": format_datetime(accepted_at),
-            })
+            events.append(
+                {
+                    "kind": "vf_upgrade",
+                    "label": "Upgrade VF envoye a *ARR",
+                    "state": "completed",
+                    "occurred_at": format_datetime(accepted_at),
+                }
+            )
         completed_at = getattr(suggestion, "completed_at", None)
         failed_at = getattr(suggestion, "failed_at", None)
         if completed_at:
-            events.append({
-                "kind": "vf_upgrade",
-                "label": "VF verifiee",
-                "state": "completed",
-                "occurred_at": format_datetime(completed_at),
-            })
+            events.append(
+                {
+                    "kind": "vf_upgrade",
+                    "label": "VF verifiee",
+                    "state": "completed",
+                    "occurred_at": format_datetime(completed_at),
+                }
+            )
         elif failed_at:
-            events.append({
-                "kind": "vf_upgrade",
-                "label": "Verification VF echouee",
-                "state": "error",
-                "occurred_at": format_datetime(failed_at),
-            })
+            events.append(
+                {
+                    "kind": "vf_upgrade",
+                    "label": "Verification VF echouee",
+                    "state": "error",
+                    "occurred_at": format_datetime(failed_at),
+                }
+            )
 
     # Le premier `availability_detected` par demande correspond a l'etape "Disponible dans
     # Plex" deja affichee dans la pipeline fixe -- seuls les suivants sont de vrais
@@ -208,30 +228,36 @@ def build_media_history(
     for event in diagnostic_events:
         request_id = getattr(event, "request_id", None)
         if request_id in seen_requests:
-            events.append({
-                "kind": "file_replaced",
-                "label": "Fichier mis a jour par *ARR",
-                "state": "completed",
-                "occurred_at": format_datetime(getattr(event, "created_at", None)),
-            })
+            events.append(
+                {
+                    "kind": "file_replaced",
+                    "label": "Fichier mis a jour par *ARR",
+                    "state": "completed",
+                    "occurred_at": format_datetime(getattr(event, "created_at", None)),
+                }
+            )
         elif request_id is not None:
             seen_requests.add(request_id)
 
     for issue in issues:
         issue_type = getattr(issue, "issue_type", None) or "probleme"
-        events.append({
-            "kind": "issue",
-            "label": f"Signalement ouvert : {issue_type}",
-            "state": "error",
-            "occurred_at": format_datetime(getattr(issue, "created_at", None)),
-        })
-        if getattr(issue, "status", None) == "closed":
-            events.append({
+        events.append(
+            {
                 "kind": "issue",
-                "label": "Signalement resolu",
-                "state": "completed",
-                "occurred_at": format_datetime(getattr(issue, "updated_at", None)),
-            })
+                "label": f"Signalement ouvert : {issue_type}",
+                "state": "error",
+                "occurred_at": format_datetime(getattr(issue, "created_at", None)),
+            }
+        )
+        if getattr(issue, "status", None) == "closed":
+            events.append(
+                {
+                    "kind": "issue",
+                    "label": "Signalement resolu",
+                    "state": "completed",
+                    "occurred_at": format_datetime(getattr(issue, "updated_at", None)),
+                }
+            )
 
     events.sort(key=lambda event: event["occurred_at"] or "", reverse=True)
     return events
@@ -244,10 +270,12 @@ def plex_library_projection() -> dict[str, Any]:
         "operational_status": "completed",
         "operational_status_label": "Disponible dans Plex",
         "waiting_reason": None,
-        "workflow_timeline": [{
-            "key": "completed",
-            "label": "Deja present dans Plex",
-            "state": "completed",
-            "occurred_at": None,
-        }],
+        "workflow_timeline": [
+            {
+                "key": "completed",
+                "label": "Deja present dans Plex",
+                "state": "completed",
+                "occurred_at": None,
+            }
+        ],
     }

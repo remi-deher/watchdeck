@@ -17,7 +17,22 @@ from ..services.library_analytics import analytics_items_payload, analytics_payl
 router = APIRouter(prefix="/api/library-analytics", tags=["library-analytics"], dependencies=[Depends(require_admin)])
 
 
-def _filters(media_type, library, studio, video_codec, audio_codec, audio_language, container, subtitle, subtitle_language, subtitle_type, watched, search, min_size_gb, max_size_gb):
+def _filters(
+    media_type,
+    library,
+    studio,
+    video_codec,
+    audio_codec,
+    audio_language,
+    container,
+    subtitle,
+    subtitle_language,
+    subtitle_type,
+    watched,
+    search,
+    min_size_gb,
+    max_size_gb,
+):
     return locals()
 
 
@@ -41,63 +56,179 @@ async def _payload(
     refresh: bool = False,
 ):
     return await analytics_payload(
-        settings, db,
-        _filters(media_type, library, studio, video_codec, audio_codec, audio_language, container, subtitle, subtitle_language, subtitle_type, watched, search, min_size_gb, max_size_gb),
+        settings,
+        db,
+        _filters(
+            media_type,
+            library,
+            studio,
+            video_codec,
+            audio_codec,
+            audio_language,
+            container,
+            subtitle,
+            subtitle_language,
+            subtitle_type,
+            watched,
+            search,
+            min_size_gb,
+            max_size_gb,
+        ),
         refresh,
     )
 
 
 @router.get("")
 async def get_library_analytics(
-    media_type: Optional[str] = None, library: Optional[str] = None, studio: Optional[str] = None,
-    video_codec: Optional[str] = None, audio_codec: Optional[str] = None,
-    audio_language: Optional[str] = None, container: Optional[str] = None,
+    media_type: Optional[str] = None,
+    library: Optional[str] = None,
+    studio: Optional[str] = None,
+    video_codec: Optional[str] = None,
+    audio_codec: Optional[str] = None,
+    audio_language: Optional[str] = None,
+    container: Optional[str] = None,
     subtitle: Optional[str] = Query(None, pattern="^(with|without)$"),
     subtitle_language: Optional[str] = None,
     subtitle_type: Optional[str] = None,
-    watched: Optional[str] = Query(None, pattern="^(yes|no)$"), search: Optional[str] = None,
-    min_size_gb: Optional[float] = Query(None, ge=0), max_size_gb: Optional[float] = Query(None, ge=0),
-    refresh: bool = False, db: AsyncSession = Depends(get_db_async),
+    watched: Optional[str] = Query(None, pattern="^(yes|no)$"),
+    search: Optional[str] = None,
+    min_size_gb: Optional[float] = Query(None, ge=0),
+    max_size_gb: Optional[float] = Query(None, ge=0),
+    refresh: bool = False,
+    db: AsyncSession = Depends(get_db_async),
     settings: Settings = Depends(get_settings_or_404),
 ):
-    filters = _filters(media_type, library, studio, video_codec, audio_codec, audio_language, container, subtitle, subtitle_language, subtitle_type, watched, search, min_size_gb, max_size_gb)
+    filters = _filters(
+        media_type,
+        library,
+        studio,
+        video_codec,
+        audio_codec,
+        audio_language,
+        container,
+        subtitle,
+        subtitle_language,
+        subtitle_type,
+        watched,
+        search,
+        min_size_gb,
+        max_size_gb,
+    )
     return await analytics_summary_payload(settings, db, filters, refresh)
 
 
 @router.get("/items")
 async def get_library_analytics_items(
-    media_type: Optional[str] = None, library: Optional[str] = None, studio: Optional[str] = None,
-    video_codec: Optional[str] = None, audio_codec: Optional[str] = None,
-    audio_language: Optional[str] = None, container: Optional[str] = None,
+    media_type: Optional[str] = None,
+    library: Optional[str] = None,
+    studio: Optional[str] = None,
+    video_codec: Optional[str] = None,
+    audio_codec: Optional[str] = None,
+    audio_language: Optional[str] = None,
+    container: Optional[str] = None,
     subtitle: Optional[str] = Query(None, pattern="^(with|without)$"),
-    subtitle_language: Optional[str] = None, subtitle_type: Optional[str] = None,
-    watched: Optional[str] = Query(None, pattern="^(yes|no)$"), search: Optional[str] = None,
-    min_size_gb: Optional[float] = Query(None, ge=0), max_size_gb: Optional[float] = Query(None, ge=0),
+    subtitle_language: Optional[str] = None,
+    subtitle_type: Optional[str] = None,
+    watched: Optional[str] = Query(None, pattern="^(yes|no)$"),
+    search: Optional[str] = None,
+    min_size_gb: Optional[float] = Query(None, ge=0),
+    max_size_gb: Optional[float] = Query(None, ge=0),
     pagination: PaginationParams = Depends(pagination_params(max_limit=500, default_limit=100)),
-    insight_kind: Optional[str] = None, insight_field: Optional[str] = None,
+    insight_kind: Optional[str] = None,
+    insight_field: Optional[str] = None,
     insight_value: Optional[str] = None,
-    db: AsyncSession = Depends(get_db_async), settings: Settings = Depends(get_settings_or_404),
+    db: AsyncSession = Depends(get_db_async),
+    settings: Settings = Depends(get_settings_or_404),
 ):
-    filters = _filters(media_type, library, studio, video_codec, audio_codec, audio_language, container, subtitle, subtitle_language, subtitle_type, watched, search, min_size_gb, max_size_gb)
+    filters = _filters(
+        media_type,
+        library,
+        studio,
+        video_codec,
+        audio_codec,
+        audio_language,
+        container,
+        subtitle,
+        subtitle_language,
+        subtitle_type,
+        watched,
+        search,
+        min_size_gb,
+        max_size_gb,
+    )
     return await analytics_items_payload(
-        settings, db, filters, offset=pagination.offset, limit=pagination.limit,
-        insight_kind=insight_kind, insight_field=insight_field, insight_value=insight_value,
+        settings,
+        db,
+        filters,
+        offset=pagination.offset,
+        limit=pagination.limit,
+        insight_kind=insight_kind,
+        insight_field=insight_field,
+        insight_value=insight_value,
     )
 
 
 @router.get("/export.csv")
 async def export_library_analytics(
-    media_type: Optional[str] = None, library: Optional[str] = None, studio: Optional[str] = None,
-    video_codec: Optional[str] = None, audio_codec: Optional[str] = None,
-    audio_language: Optional[str] = None, container: Optional[str] = None,
-    subtitle: Optional[str] = None, subtitle_language: Optional[str] = None, subtitle_type: Optional[str] = None,
-    watched: Optional[str] = None, search: Optional[str] = None,
-    min_size_gb: Optional[float] = None, max_size_gb: Optional[float] = None,
-    db: AsyncSession = Depends(get_db_async), settings: Settings = Depends(get_settings_or_404),
+    media_type: Optional[str] = None,
+    library: Optional[str] = None,
+    studio: Optional[str] = None,
+    video_codec: Optional[str] = None,
+    audio_codec: Optional[str] = None,
+    audio_language: Optional[str] = None,
+    container: Optional[str] = None,
+    subtitle: Optional[str] = None,
+    subtitle_language: Optional[str] = None,
+    subtitle_type: Optional[str] = None,
+    watched: Optional[str] = None,
+    search: Optional[str] = None,
+    min_size_gb: Optional[float] = None,
+    max_size_gb: Optional[float] = None,
+    db: AsyncSession = Depends(get_db_async),
+    settings: Settings = Depends(get_settings_or_404),
 ):
-    payload = await _payload(db, settings, media_type, library, studio, video_codec, audio_codec, audio_language, container, subtitle, subtitle_language, subtitle_type, watched, search, min_size_gb, max_size_gb)
+    payload = await _payload(
+        db,
+        settings,
+        media_type,
+        library,
+        studio,
+        video_codec,
+        audio_codec,
+        audio_language,
+        container,
+        subtitle,
+        subtitle_language,
+        subtitle_type,
+        watched,
+        search,
+        min_size_gb,
+        max_size_gb,
+    )
     output = io.StringIO()
-    fields = ["title", "grandparent_title", "media_type", "library", "studio", "year", "size_bytes", "duration_ms", "container", "video_codec", "video_resolution", "audio_codec", "audio_channels", "audio_languages", "subtitle_languages", "subtitle_types", "audio_track_count", "subtitle_count", "play_count", "watch_time_ms", "viewers"]
+    fields = [
+        "title",
+        "grandparent_title",
+        "media_type",
+        "library",
+        "studio",
+        "year",
+        "size_bytes",
+        "duration_ms",
+        "container",
+        "video_codec",
+        "video_resolution",
+        "audio_codec",
+        "audio_channels",
+        "audio_languages",
+        "subtitle_languages",
+        "subtitle_types",
+        "audio_track_count",
+        "subtitle_count",
+        "play_count",
+        "watch_time_ms",
+        "viewers",
+    ]
     writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
     for row in payload["items"]:

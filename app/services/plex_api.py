@@ -205,6 +205,7 @@ def _parse_api_item(item: dict, username: str, user_id: str) -> dict:
     guids = {g["id"].split("://")[0]: g["id"].split("://")[1] for g in item.get("Guid", []) if "://" in g.get("id", "")}
 
     from datetime import datetime, timezone
+
     requested_at = None
     # We ignore "addedAt" because Plex API (discover.provider.plex.tv) often
     # populates it with the item's release date rather than the watchlist addition date.

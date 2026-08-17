@@ -149,9 +149,9 @@ ACTIONS_META = {
     "resync-availability": {
         "label": "Resynchroniser les états de disponibilité",
         "description": (
-            "Revérifie les séries déjà \"Disponible\" dont le détail par saison n'a jamais été "
+            'Revérifie les séries déjà "Disponible" dont le détail par saison n\'a jamais été '
             "renseigné (ex : passées disponibles avant l'introduction du suivi partiel) — les "
-            "repasse en \"Partiellement disponible\" si elles ne sont en réalité pas complètes. "
+            'repasse en "Partiellement disponible" si elles ne sont en réalité pas complètes. '
             "N'envoie aucune notification (rattrapage silencieux) — un vrai nouveau progrès "
             "sera notifié normalement dès le prochain cycle planifié."
         ),
@@ -188,7 +188,11 @@ async def _run_check_arr_statuses(run: MaintenanceRun):
             emit.warn("Aucun paramètre configuré.")
             return
 
-        candidates = (await db.execute(select(MediaRequest).filter(MediaRequest.status == RequestStatus.sent_to_arr))).scalars().all()
+        candidates = (
+            (await db.execute(select(MediaRequest).filter(MediaRequest.status == RequestStatus.sent_to_arr)))
+            .scalars()
+            .all()
+        )
 
         if not candidates:
             emit.info("Aucune demande en statut 'sent_to_arr' à vérifier.")
@@ -267,11 +271,15 @@ async def _run_resync_availability(run: MaintenanceRun):
                 "episodes_total_count": r.episodes_total_count,
                 "has_vf": r.has_vf,
             }
-            for r in (await db.execute(
-                select(MediaRequest).filter(
-                    MediaRequest.status == RequestStatus.available, MediaRequest.media_type == "show"
+            for r in (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.status == RequestStatus.available, MediaRequest.media_type == "show"
+                    )
                 )
-            )).scalars().all()
+            )
+            .scalars()
+            .all()
         }
         emit.info(f"{len(before)} série(s) 'Disponible' à revérifier…")
         run.progress = 10
@@ -290,9 +298,7 @@ async def _run_resync_availability(run: MaintenanceRun):
         try:
             cancelled_notifications = await cancel_pending_availability_notifications(list(before))
             if cancelled_notifications:
-                emit.info(
-                    f"{cancelled_notifications} notification(s) de disponibilité en attente supprimée(s)"
-                )
+                emit.info(f"{cancelled_notifications} notification(s) de disponibilité en attente supprimée(s)")
             await check_arr_statuses(full_resync=True, notify=False)
         finally:
             await clear_resync_notification_baselines(list(before))
@@ -302,12 +308,14 @@ async def _run_resync_availability(run: MaintenanceRun):
         # distincte) : sans expire_all(), cette session locale renverrait les objets mis en
         # cache lors de la requete `before` ci-dessus, pas leur etat reellement a jour en base.
         db.expire_all()
-        after = (await db.execute(
-            select(MediaRequest).filter(MediaRequest.id.in_(list(before.keys())))
-        )).scalars().all()
+        after = (
+            (await db.execute(select(MediaRequest).filter(MediaRequest.id.in_(list(before.keys()))))).scalars().all()
+        )
         demoted = [r for r in after if r.status == RequestStatus.partially_available]
         for r in demoted:
-            emit.info(f"'{r.title}' repassée en Partiellement disponible ({r.episodes_available_count}/{r.episodes_total_count})")
+            emit.info(
+                f"'{r.title}' repassée en Partiellement disponible ({r.episodes_available_count}/{r.episodes_total_count})"
+            )
 
         run.progress = 100
         emit.ok(f"Terminé — {len(demoted)} série(s) corrigée(s) sur {len(before)} revérifiée(s).")
@@ -333,7 +341,15 @@ async def _run_health_check(run: MaintenanceRun):
         if settings.plex_rss_url:
             services.append(("Plex RSS", "plex-rss"))
         for inst in (
-            (await db.execute(select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type.in_(["sonarr", "radarr"])).order_by(ArrInstance.arr_type, ArrInstance.is_default.desc(), ArrInstance.name))).scalars().all()
+            (
+                await db.execute(
+                    select(ArrInstance)
+                    .filter(ArrInstance.enabled, ArrInstance.arr_type.in_(["sonarr", "radarr"]))
+                    .order_by(ArrInstance.arr_type, ArrInstance.is_default.desc(), ArrInstance.name)
+                )
+            )
+            .scalars()
+            .all()
         ):
             services.append((inst.name or inst.arr_type.title(), inst))
         if settings.seer_url and settings.seer_api_key:
@@ -459,7 +475,9 @@ async def _run_retry_failed(run: MaintenanceRun):
         from ..models import MediaRequest, RequestStatus
         from ..scheduler import poll_watchlists
 
-        failed = (await db.execute(select(MediaRequest).filter(MediaRequest.status == RequestStatus.failed))).scalars().all()
+        failed = (
+            (await db.execute(select(MediaRequest).filter(MediaRequest.status == RequestStatus.failed))).scalars().all()
+        )
         if not failed:
             emit.info("Aucune demande en échec.")
             run.progress = 100
@@ -617,10 +635,12 @@ async def _run_recover_sqlite(run: MaintenanceRun):
     try:
         import asyncio
         import sys
+
         proc = await asyncio.create_subprocess_exec(
-            sys.executable, "scripts/recover_sqlite_data.py",
+            sys.executable,
+            "scripts/recover_sqlite_data.py",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
+            stderr=asyncio.subprocess.STDOUT,
         )
         while True:
             line = await proc.stdout.readline()
@@ -678,10 +698,12 @@ _ACTION_RUNNERS = {
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 async def _is_action_enabled(action: str, db: AsyncSession) -> tuple[bool, str | None]:
     from sqlalchemy import select
 
     from ..models import Settings
+
     settings = (await db.execute(select(Settings))).scalars().first()
     if not settings:
         return True, None
@@ -697,6 +719,7 @@ async def _is_action_enabled(action: str, db: AsyncSession) -> tuple[bool, str |
             return False, "Le flux RSS Plex n'est pas configuré."
 
     return True, None
+
 
 @router.get("/actions")
 async def list_actions(db: AsyncSession = Depends(get_db_async), _: None = Depends(require_admin)):

@@ -72,9 +72,7 @@ async def test_resolve_and_notify_availability_sends_one_and_consumes_all_candid
         "episode_number": 5,
     }
 
-    milestones = (
-        await db.execute(select(NotificationMilestone).filter_by(req_id=req.id))
-    ).scalars().all()
+    milestones = (await db.execute(select(NotificationMilestone).filter_by(req_id=req.id))).scalars().all()
     assert {(m.milestone_type, m.season_number, m.episode_number) for m in milestones} == {
         ("season_complete", 2, None),
         ("episode", 2, 5),
@@ -183,7 +181,10 @@ async def test_milestone_and_pending_notification_are_committed_together():
     settings = Settings(id=1, smtp_from="alice@example.com", email_on_available=True)
     user = PlexUser(plex_user_id="alice", enabled=True, notification_email="alice@example.com")
     req = MediaRequest(
-        plex_user_id="alice", title="Movie", media_type="movie", status=RequestStatus.available,
+        plex_user_id="alice",
+        title="Movie",
+        media_type="movie",
+        status=RequestStatus.available,
     )
     db.add_all([settings, user, req])
     await db.commit()
@@ -207,7 +208,10 @@ async def test_pending_persistence_failure_rolls_back_milestone():
     settings = Settings(id=1, smtp_from="alice@example.com", email_on_available=True)
     user = PlexUser(plex_user_id="alice", enabled=True, notification_email="alice@example.com")
     req = MediaRequest(
-        plex_user_id="alice", title="Movie", media_type="movie", status=RequestStatus.available,
+        plex_user_id="alice",
+        title="Movie",
+        media_type="movie",
+        status=RequestStatus.available,
     )
     db.add_all([settings, user, req])
     await db.commit()
@@ -217,9 +221,7 @@ async def test_pending_persistence_failure_rolls_back_milestone():
         new=AsyncMock(side_effect=RuntimeError("database unavailable")),
     ):
         with pytest.raises(RuntimeError, match="database unavailable"):
-            await resolve_and_notify_availability(
-                settings, req, db, candidates=[AvailabilityCandidate(scope="movie")]
-            )
+            await resolve_and_notify_availability(settings, req, db, candidates=[AvailabilityCandidate(scope="movie")])
 
     assert (await db.execute(select(NotificationMilestone))).scalars().all() == []
     assert (await db.execute(select(PendingNotification))).scalars().all() == []
@@ -257,9 +259,7 @@ async def test_resolve_and_notify_availability_skips_when_suppressed():
     assert sent is False
     mock_enqueue.assert_not_called()
 
-    milestones = (
-        await db.execute(select(NotificationMilestone).filter_by(req_id=req.id))
-    ).scalars().all()
+    milestones = (await db.execute(select(NotificationMilestone).filter_by(req_id=req.id))).scalars().all()
     assert milestones == []
     await db.close()
     await engine.dispose()
@@ -412,7 +412,9 @@ async def test_notify_single_user_targets_only_that_user():
 async def test_notify_single_user_unknown_plex_user_returns_false():
     engine, db = await _make_db()
     settings = Settings(id=1, email_on_request=True)
-    req = MediaRequest(plex_user_id="alice", plex_user="Alice", title="Dune", media_type="movie", status=RequestStatus.pending)
+    req = MediaRequest(
+        plex_user_id="alice", plex_user="Alice", title="Dune", media_type="movie", status=RequestStatus.pending
+    )
     db.add_all([settings, req])
     await db.commit()
 
@@ -432,20 +434,38 @@ async def test_handle_show_progress_notification_fires_season_milestones():
     "episode" pour la serie entiere -- regression du detail par saison (RequestSeasonStatus)."""
     engine, db = await _make_db()
     settings = Settings(
-        id=1, smtp_from="alice@example.com", email_on_available=True,
-        vff_enabled=False, series_notify_granularity="jalons",
+        id=1,
+        smtp_from="alice@example.com",
+        email_on_available=True,
+        vff_enabled=False,
+        series_notify_granularity="jalons",
     )
     user = PlexUser(plex_user_id="alice", enabled=True, notification_email="alice@example.com")
     req = MediaRequest(
-        plex_user_id="alice", plex_user="Alice", title="Breaking Bad", media_type="show",
-        status=RequestStatus.partially_available, episodes_available_count=6, episodes_total_count=13,
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Breaking Bad",
+        media_type="show",
+        status=RequestStatus.partially_available,
+        episodes_available_count=6,
+        episodes_total_count=13,
     )
     db.add_all([settings, user, req])
     await db.commit()
-    db.add_all([
-        RequestSeasonStatus(request_id=req.id, season_number=1, episodes_available_count=6, episodes_total_count=6, status="available"),
-        RequestSeasonStatus(request_id=req.id, season_number=2, episodes_available_count=0, episodes_total_count=7, status="pending"),
-    ])
+    db.add_all(
+        [
+            RequestSeasonStatus(
+                request_id=req.id,
+                season_number=1,
+                episodes_available_count=6,
+                episodes_total_count=6,
+                status="available",
+            ),
+            RequestSeasonStatus(
+                request_id=req.id, season_number=2, episodes_available_count=0, episodes_total_count=7, status="pending"
+            ),
+        ]
+    )
     await db.commit()
 
     with patch("app.services.notification_orchestrator.enqueue", new_callable=AsyncMock) as mock_enqueue:

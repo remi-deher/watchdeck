@@ -92,6 +92,7 @@ logging.basicConfig(
 )
 install_log_buffer()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gère le cycle de vie de l'application : démarrage et arrêt propre."""
@@ -123,6 +124,7 @@ async def lifespan(app: FastAPI):
             logging.info("Background work delegated to ARQ")
         app.state.legacy_scheduler = legacy_scheduler
         from .services.arr_history import sync_all_enabled_instances
+
         app.state.arr_history_sync = asyncio.create_task(sync_all_enabled_instances())
         logging.info("App ready.")
     except Exception:
@@ -137,16 +139,18 @@ async def lifespan(app: FastAPI):
     if history_sync and not history_sync.done():
         history_sync.cancel()
     from .services.arr_http_client import close_arr_clients
+
     await close_arr_clients()
     await cache.close()
     logging.info("Shutdown complete.")
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         started_at = time.perf_counter()
         response = await call_next(request)
         duration_ms = (time.perf_counter() - started_at) * 1000
-        response.headers["Server-Timing"] = f'app;dur={duration_ms:.1f}'
+        response.headers["Server-Timing"] = f"app;dur={duration_ms:.1f}"
         response.headers["X-Response-Time-Ms"] = f"{duration_ms:.1f}"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -169,6 +173,7 @@ class CacheControlledStaticFiles(StaticFiles):
             response.headers["Cache-Control"] = "no-cache"
         return response
 
+
 async def _sync_session_role(plex_user_id: str | None, username: str | None) -> dict | None:
     """Corps synchrone de la résolution de rôle (exécuté hors event loop via to_thread)."""
     from .database import AsyncSessionLocal
@@ -190,6 +195,7 @@ async def _sync_session_role(plex_user_id: str | None, username: str | None) -> 
         return None
     finally:
         await db.close()
+
 
 _role_cache: dict[str, tuple[float, dict | None]] = {}
 _role_locks: dict[str, asyncio.Lock] = {}
@@ -234,6 +240,7 @@ class SessionSyncMiddleware(BaseHTTPMiddleware):
                 pass
         return await call_next(request)
 
+
 def _request_is_https(scope: Scope) -> bool:
     """Détecte si la requête d'origine était en HTTPS.
 
@@ -246,6 +253,7 @@ def _request_is_https(scope: Scope) -> bool:
     headers = dict(scope.get("headers") or [])
     proto = headers.get(b"x-forwarded-proto", b"").decode("latin-1").split(",")[0].strip().lower()
     return proto == "https"
+
 
 class DynamicSecureSessionMiddleware:
     """Équivalent de starlette.middleware.sessions.SessionMiddleware, mais le flag
@@ -329,22 +337,27 @@ class DynamicSecureSessionMiddleware:
 
         await self.app(scope, receive, send_wrapper)
 
+
 app = FastAPI(title="Watchdeck", version="1.0.0", lifespan=lifespan, docs_url=None, redoc_url=None)
 register_domain_exception_handlers(app)
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return Response(status_code=204)
+
 
 @app.get("/api/docs", include_in_schema=False)
 async def get_documentation(request: Request, db: SqlSession = Depends(get_db)):
     await require_admin(request, db)
     return get_swagger_ui_html(openapi_url="/api/openapi.json", title="Watchdeck API Docs")
 
+
 @app.get("/api/openapi.json", include_in_schema=False)
 async def get_open_api_endpoint(request: Request, db: SqlSession = Depends(get_db)):
     await require_admin(request, db)
     return get_openapi(title="Watchdeck", version="1.0.0", routes=app.routes)
+
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
@@ -413,7 +426,7 @@ SPA_ROOTS = {
     "maintenance",
     "profile",
     "releases",
-        "media",
+    "media",
     "analytics",
     "vf-upgrades",
 }
@@ -430,6 +443,7 @@ PWA_STATIC_FILES = {
     "icon-512.png": ("app/static/vue/icon-512.png", "image/png"),
 }
 
+
 @app.get("/manifest.webmanifest", include_in_schema=False)
 @app.get("/manifest.json", include_in_schema=False)
 async def serve_manifest():
@@ -439,6 +453,7 @@ async def serve_manifest():
     if not os.path.exists(path):
         raise HTTPException(404, "Manifest non trouvé")
     return FileResponse(path, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=3600"})
+
 
 @app.get("/sw.js", include_in_schema=False)
 async def serve_service_worker():
@@ -456,6 +471,7 @@ async def serve_service_worker():
         },
     )
 
+
 @app.get("/favicon.ico", include_in_schema=False)
 @app.get("/favicon.png", include_in_schema=False)
 @app.get("/apple-touch-icon.png", include_in_schema=False)
@@ -470,19 +486,23 @@ async def serve_root_icon(request: Request):
             return FileResponse(target_path, media_type=mime, headers={"Cache-Control": "public, max-age=86400"})
     raise HTTPException(404, "Icône introuvable")
 
+
 @app.get("/app", include_in_schema=False)
 @app.get("/app/{legacy_path:path}", include_in_schema=False)
 async def redirect_legacy_spa(legacy_path: str = ""):
     destination = f"/{legacy_path}" if legacy_path else "/dashboard"
     return RedirectResponse(safe_redirect_path(destination, default="/dashboard"), status_code=308)
 
+
 @app.get("/templates", include_in_schema=False)
 async def redirect_legacy_templates():
     return RedirectResponse("/settings?tab=templates", status_code=308)
 
+
 @app.get("/setup/wizard", include_in_schema=False)
 async def redirect_legacy_wizard():
     return RedirectResponse("/settings?tab=connections", status_code=308)
+
 
 @app.get("/", include_in_schema=False)
 @app.get("/{spa_path:path}", include_in_schema=False)

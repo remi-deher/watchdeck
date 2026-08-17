@@ -106,9 +106,7 @@ async def _listen_once(settings: Settings, on_connected) -> None:
             ssl_context.verify_mode = ssl.CERT_NONE
 
     connected_at = asyncio.get_running_loop().time()
-    async with websockets.connect(
-        url, ssl=ssl_context, open_timeout=15, ping_interval=20, ping_timeout=20
-    ) as ws:
+    async with websockets.connect(url, ssl=ssl_context, open_timeout=15, ping_interval=20, ping_timeout=20) as ws:
         logger.info("Websocket Plex connecté (%s)", settings.plex_url)
         await on_connected()
         async for message in ws:
@@ -149,7 +147,9 @@ async def run_alert_listener() -> None:
             if not settings or not settings.live_activity_enabled or not settings.plex_url or not settings.plex_token:
                 if reported != "idle":
                     reported = "idle"
-                    logger.warning("Ecouteur websocket Plex inactif : activite temps reel desactivee ou Plex non configure")
+                    logger.warning(
+                        "Ecouteur websocket Plex inactif : activite temps reel desactivee ou Plex non configure"
+                    )
                     await _record(
                         "websocket.idle",
                         "warning",

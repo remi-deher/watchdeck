@@ -387,15 +387,17 @@ async def test_poll_no_duplicate_when_tmdb_resolution_fails_and_title_punctuatio
     seul — simule un échec de résolution Radarr)."""
     db.add(_settings())
     db.add(PlexUser(plex_user_id="alice", enabled=True))
-    db.add(_req(
-        plex_user_id="alice",
-        title="Spider-Man : Across the Spider-Verse",
-        tmdb_id="569094",
-        tvdb_id="132814",
-        imdb_id=None,
-        status=RequestStatus.available,
-        source="seer",
-    ))
+    db.add(
+        _req(
+            plex_user_id="alice",
+            title="Spider-Man : Across the Spider-Verse",
+            tmdb_id="569094",
+            tvdb_id="132814",
+            imdb_id=None,
+            status=RequestStatus.available,
+            source="seer",
+        )
+    )
     db.commit()
 
     item = {

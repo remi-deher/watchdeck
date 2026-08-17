@@ -157,7 +157,11 @@ async def test_check_vf_statuses_propagates_linked_library_item_without_rescanni
     db.add(settings)
 
     li = LibraryItem(
-        title="Dune", year=2021, media_type="movie", plex_guid="plex://movie/abc", has_vf=True,
+        title="Dune",
+        year=2021,
+        media_type="movie",
+        plex_guid="plex://movie/abc",
+        has_vf=True,
         forced_fr_status="ok",  # deja backfille -> exclu du candidat de re-scan dedie (voir _vf_candidate_filters)
     )
     db.add(li)
@@ -215,7 +219,11 @@ async def test_check_vf_statuses_relinks_available_request_with_resolved_vf():
     db.add(settings)
 
     li = LibraryItem(
-        title="Rebelles", year=2023, media_type="movie", tmdb_id="569814", has_vf=True,
+        title="Rebelles",
+        year=2023,
+        media_type="movie",
+        tmdb_id="569814",
+        has_vf=True,
         forced_fr_status="ok",  # deja backfille -> exclu du candidat de re-scan dedie (voir _vf_candidate_filters)
     )
     db.add(li)
@@ -265,7 +273,11 @@ async def test_check_vf_statuses_promotes_stuck_request_via_library_presence():
     db.add(settings)
 
     li = LibraryItem(
-        title="Dune", year=2021, media_type="movie", plex_guid="plex://movie/abc", has_vf=True,
+        title="Dune",
+        year=2021,
+        media_type="movie",
+        plex_guid="plex://movie/abc",
+        has_vf=True,
         forced_fr_status="ok",  # deja backfille -> exclu du candidat de re-scan dedie (voir _vf_candidate_filters)
     )
     db.add(li)

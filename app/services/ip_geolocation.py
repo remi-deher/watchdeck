@@ -64,9 +64,7 @@ def _needs_network_enrichment(location: dict) -> bool:
     Ne concerne jamais les statuts "local" ou "anonymized" : ces adresses ne sont
     jamais envoyees au fournisseur externe.
     """
-    return location.get("geo_status") == "resolved" and not any(
-        location.get(field) for field in _NETWORK_FIELDS
-    )
+    return location.get("geo_status") == "resolved" and not any(location.get(field) for field in _NETWORK_FIELDS)
 
 
 def _canonical_address(address: str | None) -> str | None:
@@ -232,27 +230,23 @@ async def lookup_ip_locations(
         return {address: value.copy() for address in originals}
 
     canonical_by_original = {
-        address: canonical
-        for address in originals
-        if (canonical := _canonical_address(address)) is not None
+        address: canonical for address in originals if (canonical := _canonical_address(address)) is not None
     }
     hashes = {_address_hash(address) for address in canonical_by_original.values()}
     existing = (
-        await db.execute(
-            select(PlaybackIpLocation).where(PlaybackIpLocation.address_hash.in_(hashes))
-        )
-    ).scalars().all() if hashes else []
+        (await db.execute(select(PlaybackIpLocation).where(PlaybackIpLocation.address_hash.in_(hashes))))
+        .scalars()
+        .all()
+        if hashes
+        else []
+    )
     stored = {row.address_hash: row for row in existing}
     now = now_utc_naive()
     for row in existing:
         row.last_used_at = now
 
     seed_locations = seed_locations or {}
-    missing = {
-        canonical
-        for canonical in canonical_by_original.values()
-        if _address_hash(canonical) not in stored
-    }
+    missing = {canonical for canonical in canonical_by_original.values() if _address_hash(canonical) not in stored}
     needs_enrichment = {
         canonical
         for canonical in canonical_by_original.values()
@@ -318,8 +312,6 @@ async def lookup_ip_locations(
             continue
         row = stored.get(_address_hash(canonical))
         result[original] = (
-            _persistent_location(row)
-            if row is not None
-            else resolved.get(canonical, _empty_location("unavailable"))
+            _persistent_location(row) if row is not None else resolved.get(canonical, _empty_location("unavailable"))
         )
     return result

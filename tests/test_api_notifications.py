@@ -106,18 +106,20 @@ def test_notification_hold_is_persisted_and_survives_local_state_reset(async_db,
 
 
 def test_diagnostic_logs_are_filterable(async_db):
-    async_db.add(DiagnosticEvent(
-        request_id=42,
-        correlation_id="request:42",
-        category="plex",
-        action="matched",
-        status="success",
-        title="Berceuse Mortelle",
-        media_type="movie",
-        source="manual_search",
-        message="Média Plex trouvé par tmdb.",
-        details='{"plex_guid":"plex://movie/test"}',
-    ))
+    async_db.add(
+        DiagnosticEvent(
+            request_id=42,
+            correlation_id="request:42",
+            category="plex",
+            action="matched",
+            status="success",
+            title="Berceuse Mortelle",
+            media_type="movie",
+            source="manual_search",
+            message="Média Plex trouvé par tmdb.",
+            details='{"plex_guid":"plex://movie/test"}',
+        )
+    )
     async_db.commit()
     client = _client_with_db(async_db)
     try:

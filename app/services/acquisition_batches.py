@@ -45,15 +45,19 @@ async def accumulate_batch_candidates(db, req: MediaRequest, candidates: list) -
     if not req.arr_instance_id or not req.arr_id:
         return False
     batch = (
-        await db.execute(
-            select(SeriesAcquisitionBatch).filter(
-                SeriesAcquisitionBatch.request_id == req.id,
-                SeriesAcquisitionBatch.arr_instance_id == req.arr_instance_id,
-                SeriesAcquisitionBatch.arr_id == req.arr_id,
-                SeriesAcquisitionBatch.status.in_(OPEN_BATCH_STATES),
+        (
+            await db.execute(
+                select(SeriesAcquisitionBatch).filter(
+                    SeriesAcquisitionBatch.request_id == req.id,
+                    SeriesAcquisitionBatch.arr_instance_id == req.arr_instance_id,
+                    SeriesAcquisitionBatch.arr_id == req.arr_id,
+                    SeriesAcquisitionBatch.status.in_(OPEN_BATCH_STATES),
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if not batch:
         return False
     try:
@@ -80,12 +84,14 @@ async def accumulate_batch_candidates(db, req: MediaRequest, candidates: list) -
     return True
 
 
-def build_batch_summary(
-    events: list[dict], blocked_count: int, expected_seasons: list[int] | None = None
-) -> str:
+def build_batch_summary(events: list[dict], blocked_count: int, expected_seasons: list[int] | None = None) -> str:
     """Produit une phrase courte couvrant VO, VF, partiel et imports bloques."""
-    vf_seasons = {e.get("season_number") for e in events if e.get("language") == "vf" and e.get("season_number") is not None}
-    vo_seasons = {e.get("season_number") for e in events if e.get("language") == "vo" and e.get("season_number") is not None}
+    vf_seasons = {
+        e.get("season_number") for e in events if e.get("language") == "vf" and e.get("season_number") is not None
+    }
+    vo_seasons = {
+        e.get("season_number") for e in events if e.get("language") == "vo" and e.get("season_number") is not None
+    }
     vf_complete = {
         e.get("season_number")
         for e in events
@@ -104,11 +110,7 @@ def build_batch_summary(
         parts.append(f"{len(vo_seasons)} saison(s) en VO")
     if not parts and events:
         parts.append(f"{len(events)} mise(s) a jour de disponibilite")
-    reported_seasons = {
-        event.get("season_number")
-        for event in events
-        if event.get("season_number") is not None
-    }
+    reported_seasons = {event.get("season_number") for event in events if event.get("season_number") is not None}
     complete_seasons = {
         event.get("season_number")
         for event in events
@@ -189,18 +191,24 @@ async def advance_acquisition_batches(db, settings: Settings | None, *, now=None
     now = now or now_utc_naive()
     counters = {"stabilizing": 0, "summaries": 0, "admin_alerts": 0, "closed": 0}
     batches = (
-        await db.execute(select(SeriesAcquisitionBatch).filter(SeriesAcquisitionBatch.status.in_(OPEN_BATCH_STATES)))
-    ).scalars().all()
+        (await db.execute(select(SeriesAcquisitionBatch).filter(SeriesAcquisitionBatch.status.in_(OPEN_BATCH_STATES))))
+        .scalars()
+        .all()
+    )
 
     for batch in batches:
         observations = (
-            await db.execute(
-                select(SonarrQueueObservation).filter(
-                    SonarrQueueObservation.batch_id == batch.id,
-                    SonarrQueueObservation.resolved_at.is_(None),
+            (
+                await db.execute(
+                    select(SonarrQueueObservation).filter(
+                        SonarrQueueObservation.batch_id == batch.id,
+                        SonarrQueueObservation.resolved_at.is_(None),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         active = [observation for observation in observations if observation.state in ACTIVE_QUEUE_STATES]
         blocked = [observation for observation in observations if observation.state == "import_blocked"]
 

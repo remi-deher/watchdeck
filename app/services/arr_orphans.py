@@ -64,26 +64,32 @@ def _poster_url(images: list[dict] | None) -> str | None:
 
 async def find_orphan_shows(db: AsyncSession) -> list[dict]:
     """Séries surveillées par Sonarr, non complètes, sans MediaRequest associée."""
+
     async def _background():
         async with AsyncSessionLocal() as fresh_db:
             return await _compute_orphan_shows(fresh_db)
 
     return await cache.get_or_refresh(
-        _ORPHAN_SHOWS_CACHE_KEY, _ORPHAN_SOFT_TTL, _ORPHAN_HARD_TTL,
-        compute_sync=lambda: _compute_orphan_shows(db), compute_background=_background,
+        _ORPHAN_SHOWS_CACHE_KEY,
+        _ORPHAN_SOFT_TTL,
+        _ORPHAN_HARD_TTL,
+        compute_sync=lambda: _compute_orphan_shows(db),
+        compute_background=_background,
     )
 
 
 async def _compute_orphan_shows(db: AsyncSession) -> list[dict]:
-    instances = (await db.execute(
-        select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type == "sonarr")
-    )).scalars().all()
+    instances = (
+        (await db.execute(select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type == "sonarr")))
+        .scalars()
+        .all()
+    )
     if not instances:
         return []
 
-    known_rows = (await db.execute(
-        select(MediaRequest.arr_id, MediaRequest.tvdb_id).filter(MediaRequest.media_type == "show")
-    )).all()
+    known_rows = (
+        await db.execute(select(MediaRequest.arr_id, MediaRequest.tvdb_id).filter(MediaRequest.media_type == "show"))
+    ).all()
     known_arr_ids = {r.arr_id for r in known_rows if r.arr_id is not None}
     known_tvdb_ids = {str(r.tvdb_id) for r in known_rows if r.tvdb_id}
 
@@ -105,46 +111,58 @@ async def _compute_orphan_shows(db: AsyncSession) -> list[dict]:
                 stats["episode_file_count"], stats["episode_count"], stats["total_episode_count"]
             ):
                 continue
-            results.append({
-                "id": f"orphan-show-{inst.id}-{series.get('id')}",
-                "title": series.get("title"),
-                "year": series.get("year"),
-                "media_type": "show",
-                "poster_url": _poster_url(series.get("images")),
-                "status": "sent_to_arr",
-                "orphan": True,
-                "orphan_source": "sonarr",
-                "arr_instance_id": inst.id,
-                "arr_id": series.get("id"),
-                "episodes_available_count": stats["episode_file_count"],
-                "episodes_aired_count": stats["episode_count"],
-                "episodes_total_count": stats["total_episode_count"],
-            })
+            results.append(
+                {
+                    "id": f"orphan-show-{inst.id}-{series.get('id')}",
+                    "title": series.get("title"),
+                    "year": series.get("year"),
+                    "media_type": "show",
+                    "poster_url": _poster_url(series.get("images")),
+                    "status": "sent_to_arr",
+                    "orphan": True,
+                    "orphan_source": "sonarr",
+                    "arr_instance_id": inst.id,
+                    "arr_id": series.get("id"),
+                    "episodes_available_count": stats["episode_file_count"],
+                    "episodes_aired_count": stats["episode_count"],
+                    "episodes_total_count": stats["total_episode_count"],
+                }
+            )
     return results
 
 
 async def find_orphan_movies(db: AsyncSession) -> list[dict]:
     """Films surveillés par Radarr, sans fichier, sans MediaRequest associée."""
+
     async def _background():
         async with AsyncSessionLocal() as fresh_db:
             return await _compute_orphan_movies(fresh_db)
 
     return await cache.get_or_refresh(
-        _ORPHAN_MOVIES_CACHE_KEY, _ORPHAN_SOFT_TTL, _ORPHAN_HARD_TTL,
-        compute_sync=lambda: _compute_orphan_movies(db), compute_background=_background,
+        _ORPHAN_MOVIES_CACHE_KEY,
+        _ORPHAN_SOFT_TTL,
+        _ORPHAN_HARD_TTL,
+        compute_sync=lambda: _compute_orphan_movies(db),
+        compute_background=_background,
     )
 
 
 async def _compute_orphan_movies(db: AsyncSession) -> list[dict]:
-    instances = (await db.execute(
-        select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type == "radarr")
-    )).scalars().all()
+    instances = (
+        (await db.execute(select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type == "radarr")))
+        .scalars()
+        .all()
+    )
     if not instances:
         return []
 
-    known_rows = (await db.execute(
-        select(MediaRequest.arr_id, MediaRequest.tmdb_id, MediaRequest.imdb_id).filter(MediaRequest.media_type == "movie")
-    )).all()
+    known_rows = (
+        await db.execute(
+            select(MediaRequest.arr_id, MediaRequest.tmdb_id, MediaRequest.imdb_id).filter(
+                MediaRequest.media_type == "movie"
+            )
+        )
+    ).all()
     known_arr_ids = {r.arr_id for r in known_rows if r.arr_id is not None}
     known_tmdb_ids = {str(r.tmdb_id) for r in known_rows if r.tmdb_id}
     known_imdb_ids = {r.imdb_id for r in known_rows if r.imdb_id}
@@ -165,18 +183,20 @@ async def _compute_orphan_movies(db: AsyncSession) -> list[dict]:
                 continue
             if movie.get("hasFile", False):
                 continue
-            results.append({
-                "id": f"orphan-movie-{inst.id}-{movie.get('id')}",
-                "title": movie.get("title"),
-                "year": movie.get("year"),
-                "media_type": "movie",
-                "poster_url": _poster_url(movie.get("images")),
-                "status": "sent_to_arr",
-                "orphan": True,
-                "orphan_source": "radarr",
-                "arr_instance_id": inst.id,
-                "arr_id": movie.get("id"),
-            })
+            results.append(
+                {
+                    "id": f"orphan-movie-{inst.id}-{movie.get('id')}",
+                    "title": movie.get("title"),
+                    "year": movie.get("year"),
+                    "media_type": "movie",
+                    "poster_url": _poster_url(movie.get("images")),
+                    "status": "sent_to_arr",
+                    "orphan": True,
+                    "orphan_source": "radarr",
+                    "arr_instance_id": inst.id,
+                    "arr_id": movie.get("id"),
+                }
+            )
     return results
 
 
@@ -220,11 +240,21 @@ async def materialize_orphan_library_item(
 
     now = now_utc_naive()
     li = LibraryItem(
-        title=title, year=year, media_type=media_type,
-        tmdb_id=tmdb_id, tvdb_id=tvdb_id, imdb_id=imdb_id, plex_guid=None,
-        poster_url=_poster_url(item.get("images")), overview=item.get("overview"),
-        arr_instance_id=inst.id, arr_id=arr_id, arr_slug=slug,
-        has_vf=None, created_at=now, updated_at=now,
+        title=title,
+        year=year,
+        media_type=media_type,
+        tmdb_id=tmdb_id,
+        tvdb_id=tvdb_id,
+        imdb_id=imdb_id,
+        plex_guid=None,
+        poster_url=_poster_url(item.get("images")),
+        overview=item.get("overview"),
+        arr_instance_id=inst.id,
+        arr_id=arr_id,
+        arr_slug=slug,
+        has_vf=None,
+        created_at=now,
+        updated_at=now,
     )
     db.add(li)
     await db.flush()

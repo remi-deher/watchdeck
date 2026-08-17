@@ -11,6 +11,7 @@ Revision ID: 0001_initial_schema
 Revises:
 Create Date: 2026-08-16
 """
+
 from alembic import op
 
 revision = "0001_initial_schema"

@@ -5,6 +5,7 @@ sont definies dans app/jobs.py) ; l'etat courant vient de Redis (watchdeck:jobs:
 ecrit par jobs._state) et l'historique d'execution de la table job_run_logs
 (ecrite par jobs._run des la premiere migration qui l'introduit).
 """
+
 import json
 import os
 
@@ -185,15 +186,19 @@ async def list_acquisition_batches(limit: int = 50, db: AsyncSession = Depends(g
     observations = []
     if batch_ids:
         observations = (
-            await db.execute(
-                select(SonarrQueueObservation)
-                .filter(
-                    SonarrQueueObservation.batch_id.in_(batch_ids),
-                    SonarrQueueObservation.resolved_at.is_(None),
+            (
+                await db.execute(
+                    select(SonarrQueueObservation)
+                    .filter(
+                        SonarrQueueObservation.batch_id.in_(batch_ids),
+                        SonarrQueueObservation.resolved_at.is_(None),
+                    )
+                    .order_by(SonarrQueueObservation.last_seen_at.desc())
                 )
-                .order_by(SonarrQueueObservation.last_seen_at.desc())
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     by_batch: dict[int, list[SonarrQueueObservation]] = {}
     for observation in observations:
         by_batch.setdefault(observation.batch_id, []).append(observation)
@@ -201,35 +206,37 @@ async def list_acquisition_batches(limit: int = 50, db: AsyncSession = Depends(g
     items = []
     for batch, request in batches:
         queue = by_batch.get(batch.id, [])
-        items.append({
-            "id": batch.id,
-            "request_id": batch.request_id,
-            "title": request.title if request else f"Serie Sonarr #{batch.arr_id}",
-            "source": batch.source,
-            "status": batch.status,
-            "expected_scope": batch.expected_scope,
-            "expected_seasons": _json_list(batch.expected_seasons),
-            "pending_events": _json_list(batch.pending_events),
-            "opened_at": format_datetime(batch.opened_at),
-            "last_sonarr_activity_at": format_datetime(batch.last_sonarr_activity_at),
-            "last_plex_change_at": format_datetime(batch.last_plex_change_at),
-            "stabilization_started_at": format_datetime(batch.stabilization_started_at),
-            "queue": [
-                {
-                    "id": observation.id,
-                    "title": observation.title,
-                    "season_number": observation.season_number,
-                    "episode_number": observation.episode_number,
-                    "state": observation.state,
-                    "progress": observation.progress,
-                    "blocked_checks": observation.consecutive_blocked_checks,
-                    "error": observation.error_message,
-                    "blocked_at": format_datetime(observation.blocked_at),
-                    "last_seen_at": format_datetime(observation.last_seen_at),
-                }
-                for observation in queue
-            ],
-        })
+        items.append(
+            {
+                "id": batch.id,
+                "request_id": batch.request_id,
+                "title": request.title if request else f"Serie Sonarr #{batch.arr_id}",
+                "source": batch.source,
+                "status": batch.status,
+                "expected_scope": batch.expected_scope,
+                "expected_seasons": _json_list(batch.expected_seasons),
+                "pending_events": _json_list(batch.pending_events),
+                "opened_at": format_datetime(batch.opened_at),
+                "last_sonarr_activity_at": format_datetime(batch.last_sonarr_activity_at),
+                "last_plex_change_at": format_datetime(batch.last_plex_change_at),
+                "stabilization_started_at": format_datetime(batch.stabilization_started_at),
+                "queue": [
+                    {
+                        "id": observation.id,
+                        "title": observation.title,
+                        "season_number": observation.season_number,
+                        "episode_number": observation.episode_number,
+                        "state": observation.state,
+                        "progress": observation.progress,
+                        "blocked_checks": observation.consecutive_blocked_checks,
+                        "error": observation.error_message,
+                        "blocked_at": format_datetime(observation.blocked_at),
+                        "last_seen_at": format_datetime(observation.last_seen_at),
+                    }
+                    for observation in queue
+                ],
+            }
+        )
     return {
         "items": items,
         "counts": {
@@ -280,31 +287,44 @@ async def list_scheduled_tasks(db: AsyncSession = Depends(get_db_async)):
             raw = getattr(settings, settings_field, None)
             if raw:
                 settings_value = raw
-                interval_seconds = raw * 3600 if settings_unit == "heures" else raw * 60 if settings_unit == "minutes" else raw
+                interval_seconds = (
+                    raw * 3600 if settings_unit == "heures" else raw * 60 if settings_unit == "minutes" else raw
+                )
         if settings_minute_field and settings:
             settings_minute_value = getattr(settings, settings_minute_field, None)
-        out.append({
-            "job": entry["job"],
-            "label": entry["label"],
-            "description": entry["description"],
-            "interval_seconds": interval_seconds,
-            "configurable": settings_field is not None and settings_unit in ("minutes", "secondes", "heures"),
-            "settings_field": settings_field,
-            "settings_unit": settings_unit,
-            "settings_value": settings_value,
-            "settings_minute_field": settings_minute_field,
-            "settings_minute_value": settings_minute_value,
-            "fixed_schedule": entry["fixed_schedule"],
-            "state": states.get(entry["job"]),
-        })
+        out.append(
+            {
+                "job": entry["job"],
+                "label": entry["label"],
+                "description": entry["description"],
+                "interval_seconds": interval_seconds,
+                "configurable": settings_field is not None and settings_unit in ("minutes", "secondes", "heures"),
+                "settings_field": settings_field,
+                "settings_unit": settings_unit,
+                "settings_value": settings_value,
+                "settings_minute_field": settings_minute_field,
+                "settings_minute_value": settings_minute_value,
+                "fixed_schedule": entry["fixed_schedule"],
+                "state": states.get(entry["job"]),
+            }
+        )
     return out
 
 
 @router.get("/scheduled-tasks/{job}/history")
 async def scheduled_task_history(job: str, limit: int = 50, db: AsyncSession = Depends(get_db_async)):
-    rows = (await db.execute(
-        select(JobRunLog).filter(JobRunLog.job == job).order_by(JobRunLog.started_at.desc()).limit(min(limit, 200))
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(JobRunLog)
+                .filter(JobRunLog.job == job)
+                .order_by(JobRunLog.started_at.desc())
+                .limit(min(limit, 200))
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [
         {
             "id": r.id,

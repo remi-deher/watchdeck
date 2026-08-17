@@ -56,9 +56,9 @@ async def _upsert_season_status(db: AsyncSession, request_id: int, seasons: list
         return
     existing = {
         row.season_number: row
-        for row in (await db.execute(
-            select(RequestSeasonStatus).filter(RequestSeasonStatus.request_id == request_id)
-        )).scalars().all()
+        for row in (await db.execute(select(RequestSeasonStatus).filter(RequestSeasonStatus.request_id == request_id)))
+        .scalars()
+        .all()
     }
     now = now_utc_naive()
     for season in seasons:
@@ -68,19 +68,17 @@ async def _upsert_season_status(db: AsyncSession, request_id: int, seasons: list
         status = _season_status_label(available, total)
         row = existing.get(season_number)
         if row is None:
-            db.add(RequestSeasonStatus(
-                request_id=request_id,
-                season_number=season_number,
-                episodes_available_count=available,
-                episodes_total_count=total,
-                status=status,
-                updated_at=now,
-            ))
-        elif (
-            row.episodes_available_count != available
-            or row.episodes_total_count != total
-            or row.status != status
-        ):
+            db.add(
+                RequestSeasonStatus(
+                    request_id=request_id,
+                    season_number=season_number,
+                    episodes_available_count=available,
+                    episodes_total_count=total,
+                    status=status,
+                    updated_at=now,
+                )
+            )
+        elif row.episodes_available_count != available or row.episodes_total_count != total or row.status != status:
             row.episodes_available_count = available
             row.episodes_total_count = total
             row.status = status
@@ -135,9 +133,7 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
         return
 
     await _arr_status_lock.acquire()
-    dist_lock_token = await acquire_distributed_lock(
-        _DISTRIBUTED_ARR_STATUS_LOCK_KEY, _DISTRIBUTED_ARR_STATUS_LOCK_TTL
-    )
+    dist_lock_token = await acquire_distributed_lock(_DISTRIBUTED_ARR_STATUS_LOCK_KEY, _DISTRIBUTED_ARR_STATUS_LOCK_TTL)
     if dist_lock_token is None:
         logger.info("check_arr_statuses déjà en cours ailleurs (verrou Redis), cycle ignoré")
         _arr_status_lock.release()
@@ -171,22 +167,28 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                 MediaRequest.episodes_available_count < MediaRequest.episodes_total_count,
             )
         )
-        candidates = (await db.execute(
-            select(MediaRequest).filter(
-                or_(
-                    MediaRequest.status == RequestStatus.sent_to_arr,
-                    # Séries en cours de diffusion (partiellement disponibles par définition,
-                    # voir RequestStatus.partially_available) : on continue de rafraîchir
-                    # leurs compteurs d'épisodes à chaque cycle, pour le badge et les notifs
-                    # de progression, jusqu'à disponibilité complète.
-                    MediaRequest.status == RequestStatus.partially_available,
-                    # Séries déjà "available" mais encore partiellement diffusées (nouveaux
-                    # épisodes chaque semaine) : on continue de rafraîchir leurs compteurs
-                    # tant qu'elles n'ont pas atteint episodes_total_count.
-                    availability_condition,
+        candidates = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        or_(
+                            MediaRequest.status == RequestStatus.sent_to_arr,
+                            # Séries en cours de diffusion (partiellement disponibles par définition,
+                            # voir RequestStatus.partially_available) : on continue de rafraîchir
+                            # leurs compteurs d'épisodes à chaque cycle, pour le badge et les notifs
+                            # de progression, jusqu'à disponibilité complète.
+                            MediaRequest.status == RequestStatus.partially_available,
+                            # Séries déjà "available" mais encore partiellement diffusées (nouveaux
+                            # épisodes chaque semaine) : on continue de rafraîchir leurs compteurs
+                            # tant qu'elles n'ont pas atteint episodes_total_count.
+                            availability_condition,
+                        )
+                    )
                 )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
 
         # Exclut les demandes routées vers un client torrent (filet Prowlarr) : elles n'ont
         # pas d'ID Sonarr/Radarr exploitable pour un lookup ici, leur disponibilité est
@@ -325,9 +327,7 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                         new_arr_id = new_arr_id or arr_new_id
                         new_slug = new_slug or arr_new_slug
 
-                    if seer_checked and available and not await should_confirm_available(
-                        db, req, settings=settings
-                    ):
+                    if seer_checked and available and not await should_confirm_available(db, req, settings=settings):
                         logger.info(
                             "Seer indique '%s' disponible, mais Plex ne confirme pas encore sa presence; "
                             "la demande reste en attente.",
@@ -412,9 +412,7 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                 was_already_available = req.status == RequestStatus.available
                 if available:
                     if not await should_confirm_available(db, req, settings=settings):
-                        await note_arr_processed(
-                            db, req, arr_id=new_arr_id, arr_slug=new_slug, arr_instance_id=inst.id
-                        )
+                        await note_arr_processed(db, req, arr_id=new_arr_id, arr_slug=new_slug, arr_instance_id=inst.id)
                         logger.info(
                             "'%s' est traite cote %s, en attente de confirmation Plex avant disponibilite.",
                             req.title,
@@ -429,7 +427,9 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                         if changed:
                             logger.info(
                                 "'%s' est partiellement disponible (%s/%s episodes)",
-                                req.title, req.episodes_available_count, req.episodes_total_count,
+                                req.title,
+                                req.episodes_available_count,
+                                req.episodes_total_count,
                             )
                         # Série en cours de diffusion : au moins un épisode déjà présent
                         # (available=True) donc on ne passe jamais par le else ci-dessous.
@@ -441,9 +441,7 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                         )
                         await db.commit()
                     elif not was_already_available:
-                        await transition_request(
-                            db, req, "available", source="plex_sync", instance_name=inst.name
-                        )
+                        await transition_request(db, req, "available", source="plex_sync", instance_name=inst.name)
                         newly_available += 1
                         logger.info(f"'{req.title}' is now available")
                         await db.commit()
@@ -532,12 +530,18 @@ async def check_torrent_statuses():
         if not settings:
             return
 
-        requests = (await db.execute(
-            select(MediaRequest).filter(
-                MediaRequest.torrent_hash.isnot(None),
-                MediaRequest.status != RequestStatus.available,
+        requests = (
+            (
+                await db.execute(
+                    select(MediaRequest).filter(
+                        MediaRequest.torrent_hash.isnot(None),
+                        MediaRequest.status != RequestStatus.available,
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
 
         clients = {c.id: c for c in (await db.execute(select(DownloadClient))).scalars().all()}
         for req in requests:

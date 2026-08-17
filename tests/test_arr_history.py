@@ -12,13 +12,17 @@ def instance(arr_type="radarr"):
 
 
 def test_automatic_radarr_import_keeps_instance_and_movie():
-    item = normalize_arr_import({
-        "id": 91,
-        "eventType": "downloadFolderImported",
-        "date": "2026-08-10T10:00:00Z",
-        "downloadId": "ABC123",
-        "movie": {"title": "Le Film", "year": 2026},
-    }, instance(), "radarr")
+    item = normalize_arr_import(
+        {
+            "id": 91,
+            "eventType": "downloadFolderImported",
+            "date": "2026-08-10T10:00:00Z",
+            "downloadId": "ABC123",
+            "movie": {"title": "Le Film", "year": 2026},
+        },
+        instance(),
+        "radarr",
+    )
 
     assert item["title"] == "Le Film"
     assert item["instance_id"] == 2
@@ -26,13 +30,17 @@ def test_automatic_radarr_import_keeps_instance_and_movie():
 
 
 def test_manual_sonarr_import_has_explicit_badge_mode():
-    item = normalize_arr_import({
-        "id": 92,
-        "eventType": "downloadFolderImported",
-        "date": "2026-08-10T10:00:00Z",
-        "series": {"title": "La Série", "year": 2025},
-        "episode": {"seasonNumber": 2, "episodeNumber": 4, "title": "Retour"},
-    }, instance("sonarr"), "sonarr")
+    item = normalize_arr_import(
+        {
+            "id": 92,
+            "eventType": "downloadFolderImported",
+            "date": "2026-08-10T10:00:00Z",
+            "series": {"title": "La Série", "year": 2025},
+            "episode": {"seasonNumber": 2, "episodeNumber": 4, "title": "Retour"},
+        },
+        instance("sonarr"),
+        "sonarr",
+    )
 
     assert item["title"] == "La Série · S02E04 · Retour"
     assert item["processing_mode"] == "manual"
@@ -48,8 +56,12 @@ async def test_instance_history_import_is_idempotent(async_db, monkeypatch):
     async_db.add(arr)
     async_db.commit()
     item = {
-        "arr_history_id": 91, "title": "Le Film", "year": 2026, "media_type": "movie",
-        "completed_at": "2026-08-10T10:00:00Z", "processing_mode": "manual",
+        "arr_history_id": 91,
+        "title": "Le Film",
+        "year": 2026,
+        "media_type": "movie",
+        "completed_at": "2026-08-10T10:00:00Z",
+        "processing_mode": "manual",
         "poster_url": "https://images.example/film.jpg",
     }
     fetch = AsyncMock(return_value=[item])
@@ -72,13 +84,19 @@ async def test_instance_history_sync_backfills_missing_poster(async_db, monkeypa
     async_db.add(arr)
     async_db.commit()
     base = {
-        "arr_history_id": 91, "title": "Le Film", "year": 2026, "media_type": "movie",
-        "completed_at": "2026-08-10T10:00:00Z", "processing_mode": "manual",
+        "arr_history_id": 91,
+        "title": "Le Film",
+        "year": 2026,
+        "media_type": "movie",
+        "completed_at": "2026-08-10T10:00:00Z",
+        "processing_mode": "manual",
     }
-    fetch = AsyncMock(side_effect=[
-        [base],
-        [{**base, "poster_url": "https://images.example/film.jpg"}],
-    ])
+    fetch = AsyncMock(
+        side_effect=[
+            [base],
+            [{**base, "poster_url": "https://images.example/film.jpg"}],
+        ]
+    )
     monkeypatch.setattr("app.services.arr_history.fetch_all_instance_history", fetch)
 
     await sync_instance_history(async_db, arr)

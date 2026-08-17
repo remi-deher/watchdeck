@@ -14,8 +14,4 @@ async def fetch_instance_queue(instance: ArrInstance) -> list[dict]:
 
 async def fetch_queue_entity_ids(instance: ArrInstance) -> set[int]:
     records = await fetch_instance_queue(instance)
-    return {
-        int(record["arr_media_id"])
-        for record in records
-        if record.get("arr_media_id") is not None
-    }
+    return {int(record["arr_media_id"]) for record in records if record.get("arr_media_id") is not None}
