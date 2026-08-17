@@ -1,5 +1,14 @@
 
 
+### 🔧 Maintenance
+
+- bump typescript from 5.8.3 to 7.0.2 (#3) ([a6efb79](https://github.com/remi-deher/watchdeck/commit/a6efb7967d4b4b6b847d02b541a59f3a6fe0571f))
+- bump dependabot/fetch-metadata from 2.5.0 to 3.1.0 (#5) ([08aecd9](https://github.com/remi-deher/watchdeck/commit/08aecd9b52fec0590748a35a6da7f27578c364fd))
+- bump docker/setup-buildx-action from 3.12.0 to 4.2.0 (#6) ([82e37eb](https://github.com/remi-deher/watchdeck/commit/82e37eba589d49faf4c35a84994d4d0f2cb91fea))
+- bump peter-evans/dockerhub-description from 4.0.2 to 5.0.0 (#7) ([875d9a6](https://github.com/remi-deher/watchdeck/commit/875d9a68ab4dccfca0639bbc6ab4e8793420aacf))
+- bump actions/setup-node from 4.4.0 to 7.0.0 (#8) ([5d473e7](https://github.com/remi-deher/watchdeck/commit/5d473e77371ec2408269e05acc2733d771f36b4b))
+- bump github/codeql-action/upload-sarif from 3.37.7 to 4.37.7 (#9) ([39ce612](https://github.com/remi-deher/watchdeck/commit/39ce612f42175f4c0534bc848a9cb569594a8dfb))
+
 ### 🐛 Corrections
 
 - corrige bugs réels + étend la couverture mypy à tout app/ ([0203492](https://github.com/remi-deher/watchdeck/commit/02034928e35e28e3529994a19c9123e17bd0aa56))
@@ -7,6 +16,10 @@
 ### 👷 CI/CD
 
 - ajoute SBOM, provenance et signature Cosign keyless sur les images publiées ([85ddaf4](https://github.com/remi-deher/watchdeck/commit/85ddaf4bda025ee25e5dbeee9c6ad71a9f749966))
+
+### 🔧 Maintenance
+
+- v1.1.2 (#26) ([41a2a80](https://github.com/remi-deher/watchdeck/commit/41a2a8059778a1f2110880d75a5c40abed5c0b99))
 
 ### style
 
