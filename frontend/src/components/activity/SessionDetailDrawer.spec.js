@@ -11,6 +11,7 @@ function factory(session) {
         MediaArtwork: true,
         PlaybackMethodBadge: true,
         SessionLocationMap: true,
+        SessionTimelineBar: true,
       },
     },
   });
@@ -76,5 +77,16 @@ describe('SessionDetailDrawer - connexion', () => {
       geo_organization: 'POP DIJ',
     });
     expect(connectionKpi(wrapper).text()).toContain('POP DIJ');
+  });
+
+  it('affiche le temps en pause quand paused_ms est présent', () => {
+    const wrapper = factory({
+      title: 'Film',
+      duration_ms: 7200000,
+      watched_ms: 3600000,
+      paused_ms: 900000,
+    });
+    expect(wrapper.text()).toContain('Temps en pause');
+    expect(wrapper.text()).toContain('15 min');
   });
 });

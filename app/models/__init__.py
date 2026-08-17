@@ -56,6 +56,7 @@ from .playback import (
     PlaybackDailyAggregate,
     PlaybackIpLocation,
     PlaybackSession,
+    PlaybackSessionSegment,
 )
 from .settings import (
     Settings,
@@ -93,6 +94,7 @@ __all__ = [
     "PlaybackDailyAggregate",
     "PlaybackIpLocation",
     "PlaybackSession",
+    "PlaybackSessionSegment",
     "PlexUser",
     "PollHistory",
     "RadarrQueueObservation",
