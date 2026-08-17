@@ -114,7 +114,7 @@ def _preview_context(event_type: str, preview_variant: Optional[str]):
 
 
 def _preview_availability_details(event_type: str) -> tuple[str, dict]:
-    samples = {
+    samples: dict[str, tuple[str, dict]] = {
         "season_partial": (
             "La saison 2 est partiellement disponible : 6 episodes sont presents.",
             {"available_seasons": [2], "partial_seasons": [2], "expected_seasons": [1, 2, 3], "episode_count": 6},

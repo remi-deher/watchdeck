@@ -87,7 +87,7 @@ async def fetch_instance_history(instance, *, page_size: int = 100, page: int = 
 async def fetch_all_instance_history(instance, *, page_size: int = 1000) -> list[dict]:
     """Charge tout l'historique par pages, sans supposer la limite de l'instance."""
     client = ArrClient(instance.url, instance.api_key, timeout=30, raise_for_status=True)
-    page, items = 1, []
+    page, items = 1, []  # type: int, list[dict]
     while True:
         response = await client.get(
             "/api/v3/history",

@@ -341,7 +341,7 @@ async def _compute_calendar(
     events = []
     for inst, remote_result in zip(instances, remote_results):
         try:
-            if isinstance(remote_result, Exception):
+            if isinstance(remote_result, BaseException):
                 raise remote_result
             if inst.arr_type == "sonarr":
                 episodes = remote_result

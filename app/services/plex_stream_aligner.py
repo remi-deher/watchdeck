@@ -336,7 +336,7 @@ def _episodes_in_scope(item, episode_refs: Optional[list[tuple[int, int]]] = Non
 
     wanted = set(episode_refs)
     seasons_needed = sorted({season_number for season_number, _ in wanted})
-    result = []
+    result: list = []
     for season_number in seasons_needed:
         try:
             season = item.season(season=season_number)

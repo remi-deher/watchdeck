@@ -221,7 +221,7 @@ async def _mark_available_and_notify(
                         conn[0],
                         conn[1],
                         arr_id=arr_id or req.arr_id,
-                        tvdb_id=tvdb_id or req.tvdb_id,
+                        tvdb_id=str(tvdb_id or req.tvdb_id) if (tvdb_id or req.tvdb_id) else None,
                         tmdb_id=req.tmdb_id,
                         imdb_id=req.imdb_id,
                     )
@@ -708,7 +708,7 @@ async def plex_webhook(request: Request):
     plex_match_method = "tmdb" if tmdb_id else "tvdb" if tvdb_id else "imdb" if imdb_id else "title"
 
     # Recherche et mise à jour des demandes correspondantes
-    db: AsyncSession = AsyncSessionLocal()
+    db = AsyncSessionLocal()
     try:
         settings = (await db.execute(select(Settings))).scalars().first()
         q = _identity_filter(

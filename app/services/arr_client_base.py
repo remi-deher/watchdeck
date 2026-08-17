@@ -13,10 +13,13 @@ from .arr_http_client import ArrClient
 class BaseArrClient:
     """Client orienté objet encapsulant les appels API v3 partagés."""
 
-    def __init__(self, url: str, api_key: str, product: str = "Servarr", timeout: float = 15.0):
+    def __init__(self, url: str, api_key: str, product: str = "Servarr", timeout: int = 15):
         self.url = url.rstrip("/")
         self.api_key = api_key
         self.product = product
+        # Vestige : chaque fonction arr_common gere son propre timeout en interne
+        # (10-20s selon l'appel), aucune ne l'accepte en parametre. Conserve pour
+        # ne pas casser la signature publique de http_client().
         self.timeout = timeout
 
     def http_client(self) -> ArrClient:
@@ -25,58 +28,50 @@ class BaseArrClient:
 
     async def check_connection(self) -> tuple[bool, str]:
         """Vérifie la joignabilité et la validité de la clé API."""
-        return await arr_common.check_connection(self.url, self.api_key, product=self.product, timeout=self.timeout)
+        return await arr_common.check_connection(self.url, self.api_key, product=self.product)
 
     async def get_quality_profiles(self) -> list[dict]:
         """Récupère les profils de qualité configurés."""
-        return await arr_common.get_quality_profiles(self.url, self.api_key, timeout=self.timeout)
+        return await arr_common.get_quality_profiles(self.url, self.api_key)
 
     async def get_root_folders(self) -> list[dict]:
         """Récupère les dossiers racine disponibles."""
-        return await arr_common.get_root_folders(self.url, self.api_key, timeout=self.timeout)
+        return await arr_common.get_root_folders(self.url, self.api_key)
 
     async def get_tags(self) -> list[dict]:
         """Récupère les tags déclarés."""
-        return await arr_common.get_tags(self.url, self.api_key, timeout=self.timeout)
+        return await arr_common.get_tags(self.url, self.api_key)
 
     async def get_disk_space(self) -> list[dict]:
         """Récupère l'état de l'espace disque."""
-        return await arr_common.get_disk_space(self.url, self.api_key, timeout=self.timeout)
+        return await arr_common.get_disk_space(self.url, self.api_key)
 
-    async def get_calendar(
-        self,
-        start: str | None = None,
-        end: str | None = None,
-        unmonitored: bool = False,
-    ) -> list[dict]:
-        """Récupère les sorties du calendrier."""
+    async def get_calendar(self, start: str, end: str) -> list[dict]:
+        """Récupère les sorties du calendrier entre deux dates ISO 8601."""
         return await arr_common.get_calendar(
             self.url,
             self.api_key,
-            start=start,
-            end=end,
-            unmonitored=unmonitored,
+            start,
+            end,
             product=self.product,
-            timeout=self.timeout,
         )
 
     async def get_notifications(self) -> list[dict]:
         """Récupère les connecteurs de notification configurés."""
-        return await arr_common.get_notifications(self.url, self.api_key, timeout=self.timeout)
+        return await arr_common.get_notifications(self.url, self.api_key)
 
     async def delete_queue_item(
         self,
         queue_id: int,
-        remove_from_client: bool = True,
         blocklist: bool = False,
-    ) -> bool:
+        search: bool = True,
+    ) -> tuple[bool, str]:
         """Supprime un élément de la file de téléchargement."""
         return await arr_common.delete_queue_item(
             self.url,
             self.api_key,
-            queue_id=queue_id,
-            remove_from_client=remove_from_client,
+            queue_id,
             blocklist=blocklist,
+            search=search,
             product=self.product,
-            timeout=self.timeout,
         )

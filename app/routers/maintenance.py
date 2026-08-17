@@ -531,7 +531,7 @@ async def _run_enrich_and_merge(run: MaintenanceRun):
     try:
         from ..models import MediaRequest, Settings
         from ..services.radarr import resolve_tmdb_id as radarr_resolve
-        from ..services.seer import _headers, _resolve_tmdb_id
+        from ..services.seer import _resolve_tmdb_id
 
         settings = (await db.execute(select(Settings))).scalars().first()
         radarr_ok = bool(settings and settings.radarr_url and settings.radarr_api_key)
@@ -548,7 +548,7 @@ async def _run_enrich_and_merge(run: MaintenanceRun):
         )
 
         base = settings.seer_url.rstrip("/") if seer_ok else None
-        headers = _headers(settings.seer_api_key) if seer_ok else None
+        seer_api_key = settings.seer_api_key if seer_ok else None
         enriched = 0
 
         for i, req in enumerate(no_tmdb):
@@ -565,7 +565,7 @@ async def _run_enrich_and_merge(run: MaintenanceRun):
                 # Sinon, repli sur Seer par titre (séries, films sans IMDB)
                 if not resolved and seer_ok:
                     item = {"title": _clean_title(req.title), "media_type": req.media_type}
-                    resolved = await _resolve_tmdb_id(base, headers, item)
+                    resolved = await _resolve_tmdb_id(base, seer_api_key, item)
                     if resolved:
                         emit.info(f"tmdb_id={resolved} via Seer → '{req.title}'")
                 if resolved:
@@ -792,10 +792,10 @@ async def get_run(run_id: str, _: None = Depends(require_admin)):
     from ..job_queue import arq_enabled, get_json
 
     if arq_enabled():
-        run = await get_json(f"watchdeck:maintenance:{run_id}")
-        if not run:
+        cached_run = await get_json(f"watchdeck:maintenance:{run_id}")
+        if not cached_run:
             raise HTTPException(404, "Run introuvable")
-        return run
+        return cached_run
     run = _runs.get(run_id)
     if not run:
         raise HTTPException(404, "Run introuvable")

@@ -229,7 +229,7 @@ async def _personalization_seeds(db: AsyncSession, plex_user_id: str, limit: int
     library_by_title = {
         (row.media_type, row.title.casefold().strip()): row for row in library_rows if row.title and row.tmdb_id
     }
-    seeds = []
+    seeds: list[dict] = []
     seed_keys: set[tuple[str, str]] = set()
     watched: set[tuple[str, str]] = set()
     for session in sessions:

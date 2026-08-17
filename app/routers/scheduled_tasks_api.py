@@ -8,6 +8,7 @@ ecrit par jobs._state) et l'historique d'execution de la table job_run_logs
 
 import json
 import os
+from typing import Optional, cast
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -277,9 +278,9 @@ async def list_scheduled_tasks(db: AsyncSession = Depends(get_db_async)):
 
     out = []
     for entry in JOB_CATALOG:
-        settings_field = entry["settings_field"]
+        settings_field = cast(Optional[str], entry["settings_field"])
         settings_unit = entry["settings_unit"]
-        settings_minute_field = entry.get("settings_minute_field")
+        settings_minute_field = cast(Optional[str], entry.get("settings_minute_field"))
         interval_seconds = entry["default_seconds"]
         settings_value = None
         settings_minute_value = None
@@ -305,7 +306,7 @@ async def list_scheduled_tasks(db: AsyncSession = Depends(get_db_async)):
                 "settings_minute_field": settings_minute_field,
                 "settings_minute_value": settings_minute_value,
                 "fixed_schedule": entry["fixed_schedule"],
-                "state": states.get(entry["job"]),
+                "state": states.get(cast(str, entry["job"])),
             }
         )
     return out
