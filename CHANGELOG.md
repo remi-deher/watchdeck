@@ -2,6 +2,10 @@
 
 ### 🔧 Maintenance
 
+- v1.3.3 (#89) ([cf710c9](https://github.com/remi-deher/watchdeck/commit/cf710c9debda4ca7c608885021c90f5c10ba8ff4))
+
+### 🔧 Maintenance
+
 - v1.3.2 (#85) ([6e51310](https://github.com/remi-deher/watchdeck/commit/6e513108853446aeb6431dd3bf2c39f7fe2e6fd6))
 
 ### 🔧 Maintenance
@@ -10,7 +14,6 @@
 
 ### ✨ Nouveautés
 
-- sélection personnalisée et alignement des flux Plex par média, saison et épisode pour un ou plusieurs utilisateurs
 - add playback session segments tracking and interactive timeline ([e413d9a](https://github.com/remi-deher/watchdeck/commit/e413d9a8f178346efdc9589a25572ec1d61ee98c))
 
 ### 🔧 Maintenance
