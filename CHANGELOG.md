@@ -10,6 +10,7 @@
 
 ### ✨ Nouveautés
 
+- sélection personnalisée et alignement des flux Plex par média, saison et épisode pour un ou plusieurs utilisateurs
 - add playback session segments tracking and interactive timeline ([e413d9a](https://github.com/remi-deher/watchdeck/commit/e413d9a8f178346efdc9589a25572ec1d61ee98c))
 
 ### 🔧 Maintenance

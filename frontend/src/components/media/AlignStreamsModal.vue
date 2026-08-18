@@ -115,16 +115,73 @@
         </span>
       </div>
 
+      <!-- Choix de la stratégie / Mode d'alignement -->
+      <section class="align-mode-section">
+        <header class="section-subtitle">
+          <SlidersHorizontal :size="16" />
+          <span>Mode d'alignement</span>
+        </header>
+
+        <div class="target-mode-options">
+          <label class="radio-option">
+            <input v-model="alignMode" type="radio" value="auto" :disabled="busy">
+            <div class="radio-content">
+              <strong>Automatique intelligent (PASTA)</strong>
+              <span>Sélectionne automatiquement la meilleure piste française (VFF prioritaire) et les sous-titres adaptés</span>
+            </div>
+          </label>
+
+          <label class="radio-option">
+            <input v-model="alignMode" type="radio" value="custom" :disabled="busy">
+            <div class="radio-content">
+              <strong>Personnalisé (Choix libre)</strong>
+              <span>Choisir manuellement n'importe quelle piste audio et sous-titre parmi les flux disponibles</span>
+            </div>
+          </label>
+        </div>
+
+        <!-- Sélecteurs manuels de flux (si mode personnalisé) -->
+        <div v-if="alignMode === 'custom'" class="custom-streams-pickers">
+          <div class="form-group">
+            <label for="custom-audio-select" class="form-label">
+              <Volume2 :size="14" /> Piste audio souhaitée
+            </label>
+            <select id="custom-audio-select" v-model="customAudioId" class="ui-select" :disabled="busy">
+              <option v-for="stream in (preview.all_audio_streams || [])" :key="stream.id" :value="stream.id">
+                {{ stream.title || stream.language?.toUpperCase() || 'Audio' }}
+                {{ stream.codec ? `(${stream.codec.toUpperCase()}${stream.channels ? ' ' + stream.channels : ''})` : '' }}
+                {{ stream.id === preview.current_audio?.id ? ' — [Actuelle]' : '' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="custom-sub-select" class="form-label">
+              <MessageSquare :size="14" /> Sous-titres souhaités
+            </label>
+            <select id="custom-sub-select" v-model="customSubtitleId" class="ui-select" :disabled="busy">
+              <option :value="0">Désactivés (Aucun sous-titre)</option>
+              <option v-for="stream in (preview.all_subtitle_streams || [])" :key="stream.id" :value="stream.id">
+                {{ stream.title || stream.language?.toUpperCase() || 'Sous-titre' }}
+                {{ stream.forced ? '(Forcé)' : '' }}
+                {{ stream.codec ? `[${stream.codec.toUpperCase()}]` : '' }}
+                {{ stream.id === preview.current_subtitle?.id ? ' — [Actuel]' : '' }}
+              </option>
+            </select>
+          </div>
+        </div>
+      </section>
+
       <!-- Matrice de comparaison des pistes -->
       <section class="streams-comparison-grid" aria-label="Comparatif des flux">
         <!-- Piste Audio -->
-        <article class="stream-diff-card" :class="{ 'has-change': preview.audio_will_change }">
+        <article class="stream-diff-card" :class="{ 'has-change': audioWillChange }">
           <header class="diff-head">
             <div class="diff-title">
               <Volume2 :size="18" />
               <strong>Piste Audio</strong>
             </div>
-            <span v-if="preview.audio_will_change" class="badge badge-warning">Changement</span>
+            <span v-if="audioWillChange" class="badge badge-warning">Changement</span>
             <span v-else class="badge badge-ok">Déjà optimale</span>
           </header>
 
@@ -145,14 +202,14 @@
             <div class="diff-arrow">➜</div>
 
             <div class="diff-col target">
-              <span class="diff-label">Cible (optimale)</span>
+              <span class="diff-label">Cible</span>
               <div class="diff-value">
-                <span v-if="preview.target_audio" class="stream-name highlight">
-                  {{ preview.target_audio.title || preview.target_audio.language?.toUpperCase() || 'Français' }}
+                <span v-if="effectiveTargetAudio" class="stream-name highlight">
+                  {{ effectiveTargetAudio.title || effectiveTargetAudio.language?.toUpperCase() || 'Piste audio' }}
                 </span>
                 <span v-else class="text-muted">Aucun changement</span>
-                <small v-if="preview.target_audio" class="stream-tech">
-                  {{ [preview.target_audio.codec, preview.target_audio.channels].filter(Boolean).join(' • ') }}
+                <small v-if="effectiveTargetAudio" class="stream-tech">
+                  {{ [effectiveTargetAudio.codec, effectiveTargetAudio.channels].filter(Boolean).join(' • ') }}
                 </small>
               </div>
             </div>
@@ -160,13 +217,13 @@
         </article>
 
         <!-- Piste Sous-titres -->
-        <article class="stream-diff-card" :class="{ 'has-change': preview.subtitle_will_change }">
+        <article class="stream-diff-card" :class="{ 'has-change': subtitleWillChange }">
           <header class="diff-head">
             <div class="diff-title">
               <MessageSquare :size="18" />
               <strong>Sous-titres</strong>
             </div>
-            <span v-if="preview.subtitle_will_change" class="badge badge-warning">Changement</span>
+            <span v-if="subtitleWillChange" class="badge badge-warning">Changement</span>
             <span v-else class="badge badge-ok">Déjà optimaux</span>
           </header>
 
@@ -188,15 +245,15 @@
             <div class="diff-arrow">➜</div>
 
             <div class="diff-col target">
-              <span class="diff-label">Cible (optimale)</span>
+              <span class="diff-label">Cible</span>
               <div class="diff-value">
-                <span v-if="preview.target_subtitle" class="stream-name highlight">
-                  {{ preview.target_subtitle.title || preview.target_subtitle.language?.toUpperCase() || 'Français' }}
-                  <small v-if="preview.target_subtitle.forced">(Forcés)</small>
+                <span v-if="effectiveTargetSubtitle" class="stream-name highlight">
+                  {{ effectiveTargetSubtitle.title || effectiveTargetSubtitle.language?.toUpperCase() || 'Sous-titres' }}
+                  <small v-if="effectiveTargetSubtitle.forced">(Forcés)</small>
                 </span>
-                <span v-else class="text-muted highlight-none">Désactivés (non requis)</span>
-                <small v-if="preview.target_subtitle?.codec" class="stream-tech">
-                  {{ preview.target_subtitle.codec }}
+                <span v-else class="text-muted highlight-none">Désactivés</span>
+                <small v-if="effectiveTargetSubtitle?.codec" class="stream-tech">
+                  {{ effectiveTargetSubtitle.codec }}
                 </small>
               </div>
             </div>
@@ -294,10 +351,16 @@ const props = withDefaults(
   defineProps<{
     open?: boolean;
     item?: any;
+    initialScope?: 'series' | 'season' | 'episode' | 'selection';
+    initialSeasonNumber?: number | null;
+    initialEpisodeNumber?: number | null;
   }>(),
   {
     open: false,
     item: null,
+    initialScope: 'selection',
+    initialSeasonNumber: null,
+    initialEpisodeNumber: null,
   }
 );
 
@@ -311,6 +374,10 @@ const busy = ref(false);
 const rescanning = ref(false);
 const error = ref('');
 const preview = ref<any | null>(null);
+
+const alignMode = ref<'auto' | 'custom'>('auto');
+const customAudioId = ref<number | null>(null);
+const customSubtitleId = ref<number | null>(null);
 
 const targetMode = ref<'all' | 'custom'>('all');
 const selectedUsers = ref<Set<string>>(new Set(['Admin']));
@@ -350,11 +417,39 @@ const hasAnyVisibleEpisode = computed(() =>
 
 const availableUsers = computed(() => preview.value?.available_users || [{ name: 'Admin', title: 'Administrateur', is_admin: true }]);
 
+const effectiveTargetAudio = computed(() => {
+  if (alignMode.value === 'auto') return preview.value?.target_audio;
+  return (preview.value?.all_audio_streams || []).find((s: any) => s.id === customAudioId.value) || null;
+});
+
+const effectiveTargetSubtitle = computed(() => {
+  if (alignMode.value === 'auto') return preview.value?.target_subtitle;
+  if (customSubtitleId.value === 0) return null;
+  return (preview.value?.all_subtitle_streams || []).find((s: any) => s.id === customSubtitleId.value) || null;
+});
+
+const audioWillChange = computed(() => {
+  const currId = preview.value?.current_audio?.id;
+  const targetId = effectiveTargetAudio.value?.id;
+  return Boolean(targetId && currId !== targetId);
+});
+
+const subtitleWillChange = computed(() => {
+  if (alignMode.value === 'auto') return preview.value?.subtitle_will_change;
+  const currId = preview.value?.current_subtitle?.id;
+  const targetId = effectiveTargetSubtitle.value?.id;
+  if (customSubtitleId.value === 0) return Boolean(currId);
+  return Boolean(targetId && currId !== targetId);
+});
+
 watch(
   () => [props.open, props.item?.id],
   async ([isOpen, itemId]) => {
     if (isOpen && itemId) {
-      scopeMode.value = 'selection';
+      alignMode.value = 'auto';
+      customAudioId.value = null;
+      customSubtitleId.value = null;
+      scopeMode.value = props.initialScope === 'series' ? 'series' : 'selection';
       showAllEpisodes.value = false;
       selectedEpisodeKeys.value = new Set();
       seasons.reset();
@@ -374,10 +469,30 @@ watch(
 watch(scopeMode, () => fetchPreview());
 watch(selectedEpisodeKeys, () => fetchPreview(), { deep: false });
 
-/** Charge le scan VF en cache puis déplie automatiquement les saisons ayant besoin d'un
- * alignement, afin de pouvoir présélectionner leurs épisodes sans tout charger. */
+/** Charge le scan VF en cache puis déplie automatiquement les saisons ciblées. */
 async function loadShowScopeData(): Promise<void> {
   await seasons.loadAll();
+  if (props.initialScope === 'season' && props.initialSeasonNumber != null) {
+    scopeMode.value = 'selection';
+    await seasons.loadSeason(props.initialSeasonNumber);
+    const season = seasonsData.value.find((s: any) => s.season_number === props.initialSeasonNumber);
+    const next = new Set<string>();
+    for (const ep of season?.episodes || []) {
+      next.add(epKey(props.initialSeasonNumber, ep.episode));
+    }
+    selectedEpisodeKeys.value = next;
+    return;
+  }
+  if (props.initialScope === 'episode' && props.initialSeasonNumber != null && props.initialEpisodeNumber != null) {
+    scopeMode.value = 'selection';
+    await seasons.loadSeason(props.initialSeasonNumber);
+    selectedEpisodeKeys.value = new Set([epKey(props.initialSeasonNumber, props.initialEpisodeNumber)]);
+    return;
+  }
+  if (props.initialScope === 'series') {
+    scopeMode.value = 'series';
+    return;
+  }
   let targetSeasons = seasonsData.value.filter((season: any) => {
     const c = season.counts || {};
     return (c.vf_secondary || 0) > 0 || (c.sub_fr_not_default || 0) > 0 || (c.forced_fr_not_default || 0) > 0 || (c.partial || 0) > 0;
@@ -421,6 +536,12 @@ async function fetchPreview(): Promise<void> {
     preview.value = data;
     const users = data.available_users || [];
     selectedUsers.value = new Set(users.map((u: any) => u.name));
+    if (customAudioId.value === null) {
+      customAudioId.value = data.target_audio?.id ?? data.current_audio?.id ?? data.all_audio_streams?.[0]?.id ?? null;
+    }
+    if (customSubtitleId.value === null) {
+      customSubtitleId.value = data.target_subtitle ? data.target_subtitle.id : 0;
+    }
   } catch (e: any) {
     error.value = e?.message || String(e);
   } finally {
@@ -482,7 +603,15 @@ async function confirmAlign(): Promise<void> {
     const payload: Record<string, unknown> = {
       users: targetMode.value === 'all' ? ['all'] : Array.from(selectedUsers.value),
       include_home_users: targetMode.value === 'all' || selectedUsers.value.size > 1,
+      mode: alignMode.value,
     };
+    if (alignMode.value === 'custom') {
+      payload.audio_stream_id = customAudioId.value;
+      payload.audio_language = effectiveTargetAudio.value?.language;
+      payload.subtitle_stream_id = customSubtitleId.value;
+      payload.subtitle_language = effectiveTargetSubtitle.value?.language;
+      payload.subtitle_forced = effectiveTargetSubtitle.value?.forced;
+    }
     const refs = currentEpisodeRefs();
     if (refs?.length) {
       payload.episodes = refs.map((ref) => ref.split(':').map(Number));
@@ -539,6 +668,57 @@ async function confirmAlign(): Promise<void> {
 
 .scope-notice strong {
   color: var(--accent);
+}
+
+.align-mode-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.custom-streams-pickers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ui-select {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-sm);
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: var(--accent);
+  }
 }
 
 /* Grille de comparaison */

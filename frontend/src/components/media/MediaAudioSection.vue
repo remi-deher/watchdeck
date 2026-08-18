@@ -2,6 +2,18 @@
   <div class="vf-summary">
     <div v-if="vfDetail">
       <div v-if="vfDetail.media_type === 'show'">
+        <div v-if="admin && sourceId" class="show-audio-head">
+          <button
+            type="button"
+            class="button btn-align-streams"
+            title="Aligner ou choisir les pistes audio et sous-titres par défaut pour toute la série"
+            @click="openAlignModal('series')"
+          >
+            <SlidersHorizontal :size="15" />
+            <span>Aligner toute la série</span>
+          </button>
+        </div>
+
         <SeasonEpisodeList
           :seasons="displayedSeasons"
           :episode-filter="episodeDisplayFilter"
@@ -23,6 +35,15 @@
                 <span v-if="season.counts?.sub_fr_absent" class="badge danger" title="Épisodes non-francophones sans sous-titre FR complet">Sub FR absent: {{ season.counts.sub_fr_absent }}</span>
                 <span v-if="season.counts?.sub_fr_not_default" class="badge pending" title="Épisodes avec sous-titre FR complet non activé par défaut">Sub FR non activé: {{ season.counts.sub_fr_not_default }}</span>
                 <span v-if="season.counts?.forced_fr_not_default" class="badge language-tag vf-secondary" title="Épisodes francophones avec sous-titre forcé FR (sign/trad) non activé par défaut">Forcé FR non activé: {{ season.counts.forced_fr_not_default }}</span>
+                <button
+                  v-if="admin && sourceId"
+                  class="icon-button"
+                  @click.prevent.stop="openAlignModal('season', season.season_number)"
+                  title="Aligner les pistes de cette saison sur Plex"
+                  aria-label="Aligner la saison"
+                >
+                  <SlidersHorizontal :size="15" />
+                </button>
                 <VfUpgradeButton
                   v-if="admin && sourceType && sourceId"
                   :source-type="sourceType"
@@ -52,6 +73,15 @@
                     <strong class="episode-title">{{ ep.episode }}. {{ ep.title || `Episode ${ep.episode}` }}</strong>
                     <span class="episode-actions">
                       <span v-if="ep.isKnownEpisode === false" class="badge pending" title="Non reconnu par Sonarr/TheTVDB : compté hors statut VF/VO/Mixte de la série">Hors TVDB</span>
+                      <button
+                        v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
+                        class="icon-button"
+                        @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)"
+                        title="Aligner les pistes de cet épisode sur Plex"
+                        aria-label="Aligner l'épisode"
+                      >
+                        <SlidersHorizontal :size="14" />
+                      </button>
                       <VfUpgradeButton
                         v-if="admin && sourceType && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
                         :source-type="sourceType"
@@ -119,14 +149,26 @@
       <div v-else>
         <div class="movie-audio-head">
           <h2>Pistes audio et sous-titres</h2>
-          <VfUpgradeButton
-            v-if="admin && sourceType && sourceId"
-            :source-type="sourceType"
-            :source-id="sourceId"
-            scope="movie"
-            :media-title="mediaTitle"
-            label="Rechercher"
-          />
+          <div class="movie-audio-actions">
+            <button
+              v-if="admin && sourceId"
+              type="button"
+              class="button btn-align-streams"
+              title="Aligner ou choisir les pistes audio et sous-titres par défaut sur Plex"
+              @click="openAlignModal('movie')"
+            >
+              <SlidersHorizontal :size="15" />
+              <span>Aligner les pistes</span>
+            </button>
+            <VfUpgradeButton
+              v-if="admin && sourceType && sourceId"
+              :source-type="sourceType"
+              :source-id="sourceId"
+              scope="movie"
+              :media-title="mediaTitle"
+              label="Rechercher"
+            />
+          </div>
         </div>
         <!-- Badges sous-titre film -->
         <div v-if="movieSubtitleAlerts" class="subtitle-alerts">
@@ -171,14 +213,26 @@
     </div>
     <p v-else-if="envelopeError" class="notice error-text">Échec du chargement de l'analyse VF.</p>
     <p v-else class="empty">Chargement de l'analyse VF...</p>
+
+    <!-- Modale commune d'alignement des pistes Plex -->
+    <AlignStreamsModal
+      :open="alignModalOpen"
+      :item="alignModalItem"
+      :initial-scope="alignInitialScope"
+      :initial-season-number="alignSeasonNumber"
+      :initial-episode-number="alignEpisodeNumber"
+      @close="alignModalOpen = false"
+      @applied="onStreamsAligned"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { MessageSquareWarning, ChevronDown } from "@lucide/vue";
+import { MessageSquareWarning, ChevronDown, SlidersHorizontal } from "@lucide/vue";
 import VfUpgradeButton from "@/components/media/VfUpgradeButton.vue";
 import SeasonEpisodeList from "@/components/media/SeasonEpisodeList.vue";
+import AlignStreamsModal from "@/components/media/AlignStreamsModal.vue";
 
 export interface SubtitleAlertsResult {
   subFrNoTrack: boolean;
@@ -212,6 +266,12 @@ const props = withDefaults(
   }
 );
 
+const emit = defineEmits<{
+  (e: 'correction', scope: string, seasonNumber: number | null, episodeNumber: number | null): void;
+  (e: 'expand-season', seasonNumber: number): void;
+  (e: 'aligned', payload: any): void;
+}>();
+
 function subtitleAlerts(tracks: any[] = [], subtitles: any[] = []): SubtitleAlertsResult {
   const isFrancophone = tracks.some((t) => t.is_fr);
   const fullFrSubs = subtitles.filter((s) => s.is_fr && !s.is_forced);
@@ -241,10 +301,38 @@ const movieSubtitleAlerts = computed(() => {
   return subtitleAlerts(props.vfDetail.tracks || [], props.vfDetail.subtitles || []);
 });
 
-defineEmits<{
-  (e: 'correction', scope: string, seasonNumber: number | null, episodeNumber: number | null): void;
-  (e: 'expand-season', seasonNumber: number): void;
-}>();
+const alignModalOpen = ref(false);
+const alignInitialScope = ref<'series' | 'season' | 'episode' | 'selection'>('selection');
+const alignSeasonNumber = ref<number | null>(null);
+const alignEpisodeNumber = ref<number | null>(null);
+
+const alignModalItem = computed(() => {
+  if (!props.sourceId) return null;
+  return {
+    id: props.sourceId,
+    source_type: props.sourceType === 'requests' ? 'request' : props.sourceType,
+    media_type: props.vfDetail?.media_type || (displayedSeasons.value.length ? 'show' : 'movie'),
+    title: props.mediaTitle || 'Média',
+  };
+});
+
+function openAlignModal(
+  scope: 'movie' | 'series' | 'season' | 'episode',
+  seasonNum: number | null = null,
+  epNum: number | null = null
+) {
+  alignInitialScope.value = scope === 'movie' ? 'selection' : scope;
+  alignSeasonNumber.value = seasonNum;
+  alignEpisodeNumber.value = epNum;
+  alignModalOpen.value = true;
+}
+
+function onStreamsAligned(payload: any) {
+  emit('aligned', payload);
+  if (alignSeasonNumber.value != null) {
+    emit('expand-season', alignSeasonNumber.value);
+  }
+}
 
 const EPISODE_STATUS_LABELS: Record<string, string> = { vf: 'VF', vf_secondary: 'VF (sec.)', vo: 'VO', absent: 'ABSENT', tba: 'TBA', unknown: '…' };
 const displayedSeasons = computed(() => {
@@ -449,12 +537,50 @@ function formatAirDate(airDate: string): string {
   gap: 6px;
   margin-bottom: 0.75rem;
 }
-.subtitle-alert-badge {
-  font-size: var(--fs-sm);
-}
 .episode-sub-alerts {
   margin-top: 4px;
   padding-top: 6px;
   border-top: 1px solid var(--border);
+}
+
+.show-audio-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+.movie-audio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.movie-audio-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-align-streams {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--surface-hover);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 </style>

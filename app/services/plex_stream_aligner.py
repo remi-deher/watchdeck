@@ -190,6 +190,72 @@ def choose_best_subtitle_stream(
         return current_selected_sub, False
 
 
+def find_matching_audio_stream(
+    streams: list,
+    target_id: Optional[int] = None,
+    target_language: Optional[str] = None,
+) -> Any | None:
+    """Trouve le flux audio le plus proche : par ID exact en priorité, sinon par correspondance de langue/titre."""
+    if not streams:
+        return None
+    if target_id is not None:
+        exact = next((s for s in streams if getattr(s, "id", None) == target_id), None)
+        if exact:
+            return exact
+    if target_language:
+        t_lang = target_language.lower().strip()
+        by_lang = [
+            s
+            for s in streams
+            if (getattr(s, "languageCode", None) or "").lower() == t_lang
+            or (getattr(s, "language", None) or "").lower() == t_lang
+        ]
+        if by_lang:
+            return by_lang[0]
+        by_title = [
+            s
+            for s in streams
+            if t_lang in ((getattr(s, "title", None) or "") + " " + (getattr(s, "displayTitle", None) or "")).lower()
+        ]
+        if by_title:
+            return by_title[0]
+    return streams[0]
+
+
+def find_matching_subtitle_stream(
+    streams: list,
+    target_id: Optional[int] = None,
+    target_language: Optional[str] = None,
+    target_forced: Optional[bool] = None,
+) -> Any | None:
+    """Trouve le flux de sous-titres le plus proche : 0 = désactivé, sinon ID exact ou langue/forced."""
+    if target_id == 0:
+        return None
+    if not streams:
+        return None
+    if target_id is not None and target_id > 0:
+        exact = next((s for s in streams if getattr(s, "id", None) == target_id), None)
+        if exact:
+            return exact
+    if target_language:
+        t_lang = target_language.lower().strip()
+        by_lang = [
+            s
+            for s in streams
+            if (getattr(s, "languageCode", None) or "").lower() == t_lang
+            or (getattr(s, "language", None) or "").lower() == t_lang
+            or t_lang
+            in ((getattr(s, "title", None) or "") + " " + (getattr(s, "displayTitle", None) or "")).lower()
+        ]
+        if by_lang:
+            if target_forced is not None:
+                by_forced = [s for s in by_lang if is_forced_subtitle(s) == target_forced]
+                if by_forced:
+                    return by_forced[0]
+            return by_lang[0]
+    return None
+
+
 def apply_streams_to_part(part, target_audio, target_subtitle, should_apply_subtitle: bool = True) -> tuple[bool, bool]:
     """Applique les flux cibles sur un media part Plex.
 
@@ -455,6 +521,8 @@ def preview_media_item_streams_blocking(
         "target_subtitle": _stream_info(target_sub, is_sub=True),
         "subtitle_will_change": should_apply_sub and (getattr(curr_sub, "id", None) != getattr(target_sub, "id", None)),
         "should_apply_subtitle": should_apply_sub,
+        "all_audio_streams": [_stream_info(s) for s in audio_streams if s],
+        "all_subtitle_streams": [_stream_info(s, is_sub=True) for s in sub_streams if s],
         "available_users": available_users,
     }
 
@@ -473,6 +541,12 @@ def align_media_item_streams_blocking(
     include_home_users: bool = True,
     selected_users: Optional[list[str]] = None,
     episode_refs: Optional[list[tuple[int, int]]] = None,
+    mode: str = "auto",
+    audio_stream_id: Optional[int] = None,
+    audio_language: Optional[str] = None,
+    subtitle_stream_id: Optional[int] = None,
+    subtitle_language: Optional[str] = None,
+    subtitle_forced: Optional[bool] = None,
 ) -> dict:
     """Réaligne les flux audio et sous-titres d'un film ou d'une série pour les profils Plex cibles.
 
@@ -532,10 +606,26 @@ def align_media_item_streams_blocking(
                                 (s for s in sub_streams if _truthy_attr(getattr(s, "selected", None))), None
                             )
 
-                            target_audio, is_fr_audio = choose_best_audio_stream(audio_streams)
-                            target_sub, should_apply_sub = choose_best_subtitle_stream(
-                                sub_streams, is_fr_audio, curr_sub
-                            )
+                            if mode == "custom":
+                                target_audio = find_matching_audio_stream(
+                                    audio_streams, audio_stream_id, audio_language
+                                )
+                                if subtitle_stream_id == 0:
+                                    target_sub = None
+                                    should_apply_sub = True
+                                elif subtitle_stream_id is not None or subtitle_language is not None:
+                                    target_sub = find_matching_subtitle_stream(
+                                        sub_streams, subtitle_stream_id, subtitle_language, subtitle_forced
+                                    )
+                                    should_apply_sub = True
+                                else:
+                                    target_sub = curr_sub
+                                    should_apply_sub = False
+                            else:
+                                target_audio, is_fr_audio = choose_best_audio_stream(audio_streams)
+                                target_sub, should_apply_sub = choose_best_subtitle_stream(
+                                    sub_streams, is_fr_audio, curr_sub
+                                )
 
                             a_ch, s_ch = apply_streams_to_part(part, target_audio, target_sub, should_apply_sub)
                             if a_ch:
@@ -554,8 +644,24 @@ def align_media_item_streams_blocking(
                         sub_streams = part.subtitleStreams()
                         curr_sub = next((s for s in sub_streams if _truthy_attr(getattr(s, "selected", None))), None)
 
-                        target_audio, is_fr_audio = choose_best_audio_stream(audio_streams)
-                        target_sub, should_apply_sub = choose_best_subtitle_stream(sub_streams, is_fr_audio, curr_sub)
+                        if mode == "custom":
+                            target_audio = find_matching_audio_stream(audio_streams, audio_stream_id, audio_language)
+                            if subtitle_stream_id == 0:
+                                target_sub = None
+                                should_apply_sub = True
+                            elif subtitle_stream_id is not None or subtitle_language is not None:
+                                target_sub = find_matching_subtitle_stream(
+                                    sub_streams, subtitle_stream_id, subtitle_language, subtitle_forced
+                                )
+                                should_apply_sub = True
+                            else:
+                                target_sub = curr_sub
+                                should_apply_sub = False
+                        else:
+                            target_audio, is_fr_audio = choose_best_audio_stream(audio_streams)
+                            target_sub, should_apply_sub = choose_best_subtitle_stream(
+                                sub_streams, is_fr_audio, curr_sub
+                            )
 
                         a_ch, s_ch = apply_streams_to_part(part, target_audio, target_sub, should_apply_sub)
                         if a_ch:

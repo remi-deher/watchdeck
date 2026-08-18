@@ -8,11 +8,13 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.models import Base, LibraryItem, Settings
-from app.routers.vf_upgrades_api import vf_upgrade_audit_fix_streams, vf_upgrade_audit_fix_streams_batch
+from app.routers.vf_upgrades_api import FixStreamsRequest, vf_upgrade_audit_fix_streams, vf_upgrade_audit_fix_streams_batch
 from app.services.plex_stream_aligner import (
     apply_streams_to_part,
     choose_best_audio_stream,
     choose_best_subtitle_stream,
+    find_matching_audio_stream,
+    find_matching_subtitle_stream,
     is_commentary_or_ad,
     is_forced_subtitle,
     is_sdh_subtitle,
@@ -252,3 +254,79 @@ async def test_vf_upgrade_audit_fix_streams_batch_endpoint(async_db):
     assert res["subtitles_changed"] == 2
     assert item1.fr_is_default is True
     assert item2.forced_fr_status == "ok"
+
+
+def test_find_matching_audio_stream():
+    s1 = MockStream(1, language="en", languageCode="eng", title="English 5.1")
+    s2 = MockStream(2, language="fr", languageCode="fra", title="French VFF 5.1")
+    s3 = MockStream(3, language="ja", languageCode="jpn", title="Japanese FLAC")
+    streams = [s1, s2, s3]
+
+    # Exact id
+    assert find_matching_audio_stream(streams, target_id=3).id == 3
+    # By language code
+    assert find_matching_audio_stream(streams, target_id=999, target_language="fr").id == 2
+    # By language name in title
+    assert find_matching_audio_stream(streams, target_id=999, target_language="japanese").id == 3
+    # Fallback to first
+    assert find_matching_audio_stream(streams, target_id=999, target_language="unknown").id == 1
+
+
+def test_find_matching_subtitle_stream():
+    sub1 = MockStream(10, language="fr", languageCode="fra", title="French Forced", forced=True)
+    sub2 = MockStream(11, language="fr", languageCode="fra", title="French Full", forced=False)
+    sub3 = MockStream(12, language="en", languageCode="eng", title="English Full", forced=False)
+    streams = [sub1, sub2, sub3]
+
+    # Disabled (0)
+    assert find_matching_subtitle_stream(streams, target_id=0) is None
+    # Exact id
+    assert find_matching_subtitle_stream(streams, target_id=12).id == 12
+    # By language and forced flag
+    assert find_matching_subtitle_stream(streams, target_id=999, target_language="fr", target_forced=True).id == 10
+    assert find_matching_subtitle_stream(streams, target_id=999, target_language="fr", target_forced=False).id == 11
+
+
+@pytest.mark.asyncio
+async def test_vf_upgrade_audit_fix_streams_custom_mode(async_db):
+    """L'endpoint fix-streams doit transmettre les paramètres custom."""
+    item = LibraryItem(
+        title="Film Custom",
+        year=2023,
+        media_type="movie",
+    )
+    settings = Settings(
+        id=1,
+        plex_url="http://plex:32400",
+        plex_token="secret",
+    )
+    async_db.add_all([item, settings])
+    async_db.commit()
+
+    captured_kwargs = {}
+
+    def mock_align(**kwargs):
+        captured_kwargs.update(kwargs)
+        return {"success": True, "title": "Film Custom", "audio_changed": 1, "subtitles_changed": 1}
+
+    with patch("app.services.plex_stream_aligner.align_media_item_streams_blocking", side_effect=mock_align):
+        req = FixStreamsRequest(
+            mode="custom",
+            audio_stream_id=5,
+            audio_language="ja",
+            subtitle_stream_id=10,
+            subtitle_language="fr",
+            subtitle_forced=False,
+            users=["Admin"],
+        )
+        res = await vf_upgrade_audit_fix_streams(library_item_id=item.id, body=req, db=async_db)
+
+    assert res["success"] is True
+    assert captured_kwargs["mode"] == "custom"
+    assert captured_kwargs["audio_stream_id"] == 5
+    assert captured_kwargs["audio_language"] == "ja"
+    assert captured_kwargs["subtitle_stream_id"] == 10
+    assert captured_kwargs["subtitle_language"] == "fr"
+    assert captured_kwargs["subtitle_forced"] is False
+    assert captured_kwargs["selected_users"] == ["Admin"]
+
