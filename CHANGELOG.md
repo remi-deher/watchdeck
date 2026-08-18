@@ -1,5 +1,9 @@
 
 
+### 🔧 Maintenance
+
+- v1.3.1 (#80) ([4cddedd](https://github.com/remi-deher/watchdeck/commit/4cddedd26cde82fb3f278bde471c06211c462b4b))
+
 ### ✨ Nouveautés
 
 - add playback session segments tracking and interactive timeline ([e413d9a](https://github.com/remi-deher/watchdeck/commit/e413d9a8f178346efdc9589a25572ec1d61ee98c))
