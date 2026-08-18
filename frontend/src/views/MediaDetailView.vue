@@ -62,6 +62,7 @@
             :missing-only="tab === 'missing'"
             @correction="openCorrection"
             @expand-season="seasons.loadSeason"
+            @aligned="onStreamsAligned"
           />
 
           <MediaSummaryTab
@@ -515,6 +516,11 @@ async function sendCorrection(formPayload: Record<string, any>): Promise<void> {
     showCorrectionForm.value = false;
     successMessage.value = 'Correction envoyée !';
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
+}
+
+function onStreamsAligned(): void {
+  successMessage.value = 'Alignement des flux Plex appliqué avec succès.';
+  seasons.rescan();
 }
 
 watch(tab, value => { if (value === 'requests') loadUsers().catch(() => {}); });
