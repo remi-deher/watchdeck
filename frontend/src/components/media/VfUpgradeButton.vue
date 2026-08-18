@@ -204,7 +204,7 @@ const modeOptions = computed(() => [
   { value: 'vf' as const, label: 'VF', count: vfReleaseCount.value },
 ]);
 const rejectedCount = computed(() => sortedReleases.value.filter(isRejected).length);
-const searching = computed(() => (mode.value === 'vf' ? scanning.value : normalLoading.value));
+const searching = computed(() => scanning.value || normalLoading.value);
 const grabDisabled = computed(() => mode.value === 'vf' && isActiveOrVerified.value);
 const arrName = computed(() => (props.scope === 'movie' ? 'Radarr' : 'Sonarr'));
 const scopeLabel = computed(() =>
@@ -287,9 +287,15 @@ async function grabNormal(release: any): Promise<void> {
         guid: release.guid,
         indexer_id: release.indexer_id,
         instance_id: release.arr_instance_id,
+        source_type: props.sourceType,
+        source_id: props.sourceId,
+        scope: props.scope,
+        season_number: props.seasonNumber,
+        episode_number: props.episodeNumber,
       }),
     });
     feedback.value = result.message || 'Release envoyée à *arr.';
+    await load({ preserveFeedback: true });
     emit('updated');
   } catch (e: any) {
     error.value = e?.message || String(e);
@@ -341,12 +347,8 @@ async function searchNormal(): Promise<void> {
   }
 }
 async function runSearch(): Promise<void> {
-  if (mode.value === 'vf') {
-    await scan();
-    emit('updated');
-  } else {
-    await searchNormal();
-  }
+  await Promise.allSettled([scan(), searchNormal()]);
+  emit('updated');
 }
 function handleModeChange(value: string | number): void {
   if (value === 'all' || value === 'vf') void selectMode(value);
@@ -364,7 +366,7 @@ async function toggle(): Promise<void> {
   open.value = true;
   if (!loaded) {
     loaded = true;
-    await searchNormal();
+    await Promise.allSettled([load(), searchNormal()]);
   }
 }
 onMounted(load);

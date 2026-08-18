@@ -33,6 +33,7 @@ from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from ..cache import cache
 from ..database import AsyncSessionLocal
 from ..models import ArrInstance, LibraryItem, MediaRequest, Settings, VfEpisodeStatus, VfUpgradeSuggestion
 from ..utils import now_utc, now_utc_naive
@@ -795,11 +796,16 @@ async def scan_single_target(
     if settings and not _setting(settings, "vf_upgrade_enabled", True):
         raise ValueError("Ameliorations VF desactivees")
     releases = await _search_task(task, settings)
-    # La modale recoit toujours les releases. Seules les recherches qui corrigent une
-    # cible VO ou mixte alimentent le tableau global des ameliorations.
+
+    # Invalidation du cache des releases interactives pour garantir la synchronisation
+    await cache.delete_prefix("watchdeck:releases:")
+
+    # La modale reçoit toujours les releases. Seules les recherches qui corrigent une
+    # cible VO ou mixte alimentent le tableau global des améliorations.
     if task.target_kind in {"vo", "mixed"}:
         await _persist_result(db, task, releases, now_utc_naive(), settings, origin="manual")
         await db.commit()
+
     from ..realtime import publish
 
     await publish(
