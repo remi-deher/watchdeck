@@ -8,7 +8,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.models import Base, LibraryItem, Settings
-from app.routers.vf_upgrades_api import FixStreamsRequest, vf_upgrade_audit_fix_streams, vf_upgrade_audit_fix_streams_batch
+from app.routers.vf_upgrades_api import (
+    FixStreamsRequest,
+    vf_upgrade_audit_fix_streams,
+    vf_upgrade_audit_fix_streams_batch,
+)
 from app.services.plex_stream_aligner import (
     apply_streams_to_part,
     choose_best_audio_stream,
@@ -329,4 +333,3 @@ async def test_vf_upgrade_audit_fix_streams_custom_mode(async_db):
     assert captured_kwargs["subtitle_language"] == "fr"
     assert captured_kwargs["subtitle_forced"] is False
     assert captured_kwargs["selected_users"] == ["Admin"]
-

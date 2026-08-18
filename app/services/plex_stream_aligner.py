@@ -244,8 +244,7 @@ def find_matching_subtitle_stream(
             for s in streams
             if (getattr(s, "languageCode", None) or "").lower() == t_lang
             or (getattr(s, "language", None) or "").lower() == t_lang
-            or t_lang
-            in ((getattr(s, "title", None) or "") + " " + (getattr(s, "displayTitle", None) or "")).lower()
+            or t_lang in ((getattr(s, "title", None) or "") + " " + (getattr(s, "displayTitle", None) or "")).lower()
         ]
         if by_lang:
             if target_forced is not None:
