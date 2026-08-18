@@ -74,4 +74,58 @@ describe('MediaHeroBanner', () => {
     expect(dots[0].classes()).toContain('active');
     expect(wrapper.text()).toContain('Film 1');
   });
+
+  it('génère le bon lien de fiche pour un élément de bibliothèque', () => {
+    const wrapper = mount(MediaHeroBanner, {
+      props: {
+        item: {
+          id: 42,
+          _kind: 'library',
+          title: 'Gladiator',
+          media_type: 'movie',
+        },
+        discoverContext: false,
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+          MediaStatusBadge: true,
+        },
+      },
+    });
+
+    const link = wrapper.find('a');
+    expect(link.exists()).toBe(true);
+    expect(link.attributes('href')).toBe('/library/media/library/42');
+  });
+
+  it('génère le bon lien de fiche pour une demande en cours', () => {
+    const wrapper = mount(MediaHeroBanner, {
+      props: {
+        item: {
+          id: 15,
+          _kind: 'request',
+          title: 'Dune 2',
+          media_type: 'movie',
+        },
+        discoverContext: false,
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+          MediaStatusBadge: true,
+        },
+      },
+    });
+
+    const link = wrapper.find('a');
+    expect(link.exists()).toBe(true);
+    expect(link.attributes('href')).toBe('/library/media/request/15');
+  });
 });

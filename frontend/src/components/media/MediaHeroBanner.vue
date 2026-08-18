@@ -130,8 +130,17 @@ const mediaTypeLabel = computed(() => {
 
 const to = computed(() => {
   if (!activeItem.value) return null;
-  const kind = activeItem.value.library_id ? 'library' : activeItem.value.request_id ? 'request' : 'discover';
-  return mediaDetailPath(activeItem.value, kind, { discover: props.discoverContext });
+  const item = activeItem.value;
+  const kind =
+    item._kind ||
+    (item.library_id
+      ? 'library'
+      : item.request_id
+      ? 'request'
+      : props.discoverContext
+      ? 'discover'
+      : 'library');
+  return mediaDetailPath(item, kind, { discover: props.discoverContext });
 });
 
 let timer: any = null;
