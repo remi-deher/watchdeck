@@ -459,6 +459,12 @@ class FixStreamsRequest(BaseModel):
     include_home_users: bool = True
     # Couples [saison, épisode] pouvant couvrir plusieurs saisons ; absent/vide = série entière.
     episodes: list[list[int]] | None = None
+    mode: str = "auto"  # "auto" | "custom"
+    audio_stream_id: int | None = None
+    audio_language: str | None = None
+    subtitle_stream_id: int | None = None
+    subtitle_language: str | None = None
+    subtitle_forced: bool | None = None
 
 
 class FixStreamsBatchRequest(BaseModel):
@@ -597,6 +603,12 @@ async def vf_upgrade_audit_fix_streams(
         include_home_users=include_home_users,
         selected_users=selected_users,
         episode_refs=episode_refs,
+        mode=body.mode if body else "auto",
+        audio_stream_id=body.audio_stream_id if body else None,
+        audio_language=body.audio_language if body else None,
+        subtitle_stream_id=body.subtitle_stream_id if body else None,
+        subtitle_language=body.subtitle_language if body else None,
+        subtitle_forced=body.subtitle_forced if body else None,
     )
 
     if not res.get("success"):
