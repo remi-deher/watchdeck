@@ -18,10 +18,10 @@ export function mediaDetailPath(
 ): string {
   const kind = kindHint || item._kind;
   const base = options.discover ? '/discover/media' : '/library/media';
-  if (kind === 'request' || item.request_id) {
+  if (kind === 'request' || (!kind && Boolean(item.request_id))) {
     return `${base}/request/${item.request_id || item.id}`;
   }
-  if (kind === 'library' || item.library_id) {
+  if (kind === 'library' || (!kind && Boolean(item.library_id))) {
     return `${base}/library/${item.library_id || item.id}`;
   }
   // Découvrir (pas encore suivi)
