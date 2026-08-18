@@ -143,6 +143,23 @@ class Cache:
             except Exception as exc:
                 logger.warning("Redis delete failed: %s", exc)
 
+    async def delete_prefix(self, prefix: str) -> None:
+        for k in list(self._memory.keys()):
+            if k.startswith(prefix):
+                self._memory.pop(k, None)
+        client = await self._client()
+        if client:
+            try:
+                cursor = 0
+                while True:
+                    cursor, keys = await client.scan(cursor=cursor, match=f"{prefix}*", count=100)
+                    if keys:
+                        await client.delete(*keys)
+                    if cursor == 0:
+                        break
+            except Exception as exc:
+                logger.warning("Redis delete_prefix failed: %s", exc)
+
     async def close(self) -> None:
         if self._redis:
             await self._redis.aclose()

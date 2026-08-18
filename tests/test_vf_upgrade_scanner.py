@@ -1134,3 +1134,46 @@ def test_choose_best_subtitle_stream_vo_single_forced():
     assert target_sub is not None
     assert target_sub.id == 44777
     assert should_apply is True
+
+
+@pytest.mark.asyncio
+async def test_arr_grab_synchronizes_vf_upgrade_suggestion(async_db):
+    from app.routers.arr_releases_api import ArrGrabRequest, arr_grab_release
+
+    inst = ArrInstance(
+        id=10,
+        name="Radarr Test",
+        arr_type="radarr",
+        url="http://radarr.local",
+        api_key="radkey",
+        enabled=True,
+        is_default=True,
+    )
+    async_db.add(inst)
+    item = LibraryItem(id=50, title="Film Test", media_type="movie", arr_id=99, arr_instance_id=10, has_vf=False)
+    async_db.add(item)
+    suggestion = VfUpgradeSuggestion(
+        source_type="library_item",
+        source_id=50,
+        scope="movie",
+        status="pending",
+        releases_json='[{"guid":"rel-123","indexer_id":1}]',
+    )
+    async_db.add(suggestion)
+    async_db.commit()
+
+    with patch("app.services.radarr.grab_release", new=AsyncMock(return_value=(True, "Release acceptée", False))):
+        body = ArrGrabRequest(
+            media_type="movie",
+            guid="rel-123",
+            indexer_id=1,
+            source_type="library_item",
+            source_id=50,
+            scope="movie",
+        )
+        res = await arr_grab_release(body, async_db)
+
+    assert res["success"] is True
+    assert suggestion.status == "accepted"
+    assert suggestion.grabbed_release_guid == "rel-123"
+    assert suggestion.accepted_at is not None

@@ -11,11 +11,13 @@ from sqlalchemy.future import select
 from ..cache import cache
 from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import require_admin
-from ..models import LibraryItem, MediaRequest, RequestStatus, Settings
+from ..models import LibraryItem, MediaRequest, RequestStatus, Settings, VfUpgradeSuggestion
+from ..realtime import publish
 from ..services import radarr, sonarr
 from ..services.release_matching import release_is_french as _release_is_french
 from ..services.release_matching import release_matches_target as _release_matches_target
 from ..services.request_lifecycle import transition_request
+from ..utils import now_utc_naive
 from .arr_shared import _resolve_arr_instance
 
 router = APIRouter(prefix="/api", tags=["arr"], dependencies=[Depends(require_admin)])
@@ -168,6 +170,11 @@ class ArrGrabRequest(BaseModel):
     indexer_id: int
     instance_id: Optional[int] = None
     request_id: Optional[int] = None
+    source_type: Optional[str] = None
+    source_id: Optional[int] = None
+    scope: Optional[str] = None
+    season_number: Optional[int] = None
+    episode_number: Optional[int] = None
 
 
 @router.get("/arr/releases")
@@ -226,6 +233,42 @@ async def arr_grab_release(body: ArrGrabRequest, db: AsyncSession = Depends(get_
     from .arr_shared import invalidate_arr_wanted_cache
 
     await invalidate_arr_wanted_cache(arr_type)
+
+    # Synchronisation immédiate avec les suggestions VF associées
+    src_type = body.source_type or ("request" if body.request_id else None)
+    src_id = body.source_id or body.request_id
+    if src_type and src_id:
+        stmt = select(VfUpgradeSuggestion).filter(
+            VfUpgradeSuggestion.source_type == src_type,
+            VfUpgradeSuggestion.source_id == src_id,
+        )
+        if body.scope:
+            stmt = stmt.filter(VfUpgradeSuggestion.scope == body.scope)
+        if body.season_number is not None:
+            stmt = stmt.filter(VfUpgradeSuggestion.season_number == body.season_number)
+        if body.episode_number is not None:
+            stmt = stmt.filter(VfUpgradeSuggestion.episode_number == body.episode_number)
+
+        suggestions = (await db.execute(stmt)).scalars().all()
+        for sug in suggestions:
+            if sug.status not in ("verified",):
+                sug.status = "accepted"
+                sug.grabbed_release_guid = body.guid
+                sug.arr_message = msg or f"Release acceptée par {inst.name}"
+                sug.accepted_at = now_utc_naive()
+                await publish(
+                    "vf_upgrade.updated",
+                    {
+                        "id": sug.id,
+                        "status": sug.status,
+                        "source_type": sug.source_type,
+                        "source_id": sug.source_id,
+                        "scope": sug.scope,
+                        "action": "grab",
+                    },
+                    admin_only=True,
+                )
+
     if body.request_id:
         req = (await db.execute(select(MediaRequest).filter(MediaRequest.id == body.request_id))).scalars().first()
         if req and req.status not in (RequestStatus.available,):
@@ -235,4 +278,8 @@ async def arr_grab_release(body: ArrGrabRequest, db: AsyncSession = Depends(get_
 
             settings = (await db.execute(select(Settings))).scalars().first()
             await dispatch_transition_notification(settings, req, db, "submitted")
+        else:
+            await db.commit()
+    else:
+        await db.commit()
     return {"success": True, "message": msg}
