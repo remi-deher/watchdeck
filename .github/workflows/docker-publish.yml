@@ -3,12 +3,17 @@ name: Build & Push Docker image
 on:
   workflow_dispatch:
   push:
-    # dev exclu volontairement : une image par commit individuel sur dev n'a
-    # aucun interet (personne ne la pull), seul le resultat d'une promotion
-    # effective vers test merite un build. dev garde sa CI (tests/lint) sur
-    # chaque push, juste plus de build/push Docker associe.
+    # UNE SEULE construction par cycle, sur `test`.
+    #
+    # - dev  : exclu, personne ne pull une image par commit de travail. dev garde
+    #          sa CI (tests/lint), sans build Docker associe.
+    # - test : c'est ICI qu'on construit. L'image produite est celle que le staging
+    #          fait tourner, puis exactement celle qui partira en production.
+    # - main : exclu. Un push sur main (merge de promotion ou commit de release) ne
+    #          reconstruit plus rien : le job `promote` ci-dessous reetiquette
+    #          l'image deja testee. Auparavant, main et le tag reconstruisaient le
+    #          MEME commit en parallele, soit deux images identiques jetees.
     branches:
-      - main
       - test
     tags:
       - "v*"
@@ -33,6 +38,8 @@ jobs:
   # elle-meme. D'ou le court-circuit explicite sur les tags ci-dessous.
   relevant-changes:
     name: Check for relevant changes
+    # Inutile sur un tag : celui-ci ne construit rien, il promeut (job `promote`).
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-latest
     outputs:
       build: ${{ steps.check.outputs.build }}
@@ -123,8 +130,10 @@ jobs:
     # always() reste necessaire pour le cas workflow_dispatch, ou wait-for-ci est
     # volontairement skip. La condition sur relevant-changes, elle, doit etre vraie
     # dans tous les cas : un push sans impact sur l'image ne publie rien.
+    # Les tags ne passent PAS par ici : ils sont promus (job `promote`), pas rebatis.
     if: >-
-      always() && needs.relevant-changes.outputs.build == 'true'
+      always() && github.ref_type != 'tag'
+      && needs.relevant-changes.outputs.build == 'true'
       && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
@@ -182,10 +191,9 @@ jobs:
             mrcryllix/watchdeck
             ghcr.io/remi-deher/watchdeck
           tags: |
-            type=ref,event=tag
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=test,enable=${{ github.ref == 'refs/heads/test' }}
             type=sha,format=short,prefix=test-,enable=${{ github.ref == 'refs/heads/test' }}
+            type=ref,event=branch,enable=${{ github.ref != 'refs/heads/test' }}
 
       - name: Build and push
         id: build
@@ -194,6 +202,10 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          # Indispensable a la promotion : `org.opencontainers.image.revision` grave
+          # le commit source dans l'image, et le job `promote` s'en sert pour verifier
+          # que l'image testee correspond bien au code qu'on s'apprete a publier.
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
             GIT_SHA=${{ github.sha }}
@@ -216,3 +228,145 @@ jobs:
           for image in mrcryllix/watchdeck ghcr.io/remi-deher/watchdeck; do
             cosign sign --yes "${image}@${DIGEST}"
           done
+
+  # PROMOTION (tags uniquement) : publie en production l'image DEJA construite et
+  # validee sur le staging, au lieu d'en reconstruire une nouvelle.
+  #
+  # Une reconstruction, meme depuis un code identique, produit un artefact que
+  # personne n'a jamais fait tourner. Ici, les couches applicatives publiees sous
+  # `latest`/`vX.Y.Z` sont les blobs exacts de l'image que le staging a exercee.
+  promote:
+    name: Promote tested image
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # signature Cosign keyless (OIDC Fulcio/Rekor)
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Resolve the tested image
+        id: tested
+        run: |
+          set -euo pipefail
+          REF="mrcryllix/watchdeck:test"
+          # On passe par un `pull` + `docker inspect` plutot que par
+          # `imagetools inspect --format` : nos images sont publiees sous forme de
+          # liste de manifestes (multi-plateforme + attestations), et dans ce cas le
+          # champ .Image de imagetools devient une map indexee par plateforme --
+          # `.Image.Config.Labels` n'y resout pas. `docker inspect` sur l'image tiree
+          # a, lui, une forme stable et documentee.
+          docker pull --quiet "$REF"
+          DIGEST="$(docker inspect --format '{{ index .RepoDigests 0 }}' "$REF" | cut -d@ -f2)"
+          REVISION="$(docker inspect \
+            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$REF")"
+          if [ -z "$DIGEST" ] || [ -z "$REVISION" ] || [ "$REVISION" = "<no value>" ]; then
+            echo "::error::Impossible de determiner l'image testee (digest='$DIGEST', revision='$REVISION')."
+            echo "::error::L'image :test doit avoir ete construite APRES l'ajout du label de revision"
+            echo "::error::(voir 'labels:' dans le job build-and-push). Promouvoir une image dont on ne"
+            echo "::error::peut pas prouver l'origine reviendrait a publier du code non verifie."
+            exit 1
+          fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
+          echo "Image testee : $REF@$DIGEST (commit $REVISION)"
+
+      - name: Verify the tested image matches this release
+        env:
+          REVISION: ${{ steps.tested.outputs.revision }}
+        run: |
+          set -euo pipefail
+          # Seuls ces chemins entrent dans l'image (voir les COPY du Dockerfile).
+          # On les compare volontairement plutot que l'arbre complet : le commit de
+          # release ajoute CHANGELOG.md, qui ne fait PAS partie de l'image -- une
+          # comparaison d'arbre entier echouerait donc systematiquement a tort.
+          PATHS="app alembic alembic.ini scripts docker-entrypoint.sh Dockerfile \
+                 frontend package.json package-lock.json vite.config.ts \
+                 tsconfig.json tsconfig.node.json index.html requirements.txt"
+          if ! git cat-file -e "$REVISION^{commit}" 2>/dev/null; then
+            echo "::error::Le commit $REVISION de l'image testee est introuvable dans ce depot."
+            exit 1
+          fi
+          if git diff --quiet "$REVISION" "${{ github.sha }}" -- $PATHS; then
+            echo "L'image testee correspond exactement au code de cette release."
+          else
+            echo "::error::Le code de cette release DIFFERE de l'image testee :"
+            git diff --name-only "$REVISION" "${{ github.sha }}" -- $PATHS
+            echo "::error::Promotion refusee -- publier cette image livrerait autre chose que le code tague."
+            echo "::error::Cause probable : un commit est arrive sur main sans passer par test (hotfix direct)."
+            echo "::error::Corriger en resynchronisant main dans test, puis en repromouvant test -> main."
+            exit 1
+          fi
+
+      - name: Stamp the release version onto the tested image
+        id: stamp
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile.release
+          push: true
+          tags: |
+            mrcryllix/watchdeck:${{ github.ref_name }}
+            mrcryllix/watchdeck:latest
+            ghcr.io/remi-deher/watchdeck:${{ github.ref_name }}
+            ghcr.io/remi-deher/watchdeck:latest
+          build-args: |
+            BASE_IMAGE=mrcryllix/watchdeck@${{ steps.tested.outputs.digest }}
+            APP_VERSION=${{ github.ref_name }}
+            GIT_SHA=${{ steps.tested.outputs.revision }}
+            BUILD_DATE=${{ github.event.repository.pushed_at }}
+            BRANCH=main
+          labels: |
+            org.opencontainers.image.revision=${{ steps.tested.outputs.revision }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+          provenance: true
+          sbom: true
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign promoted images (keyless)
+        env:
+          DIGEST: ${{ steps.stamp.outputs.digest }}
+        run: |
+          for image in mrcryllix/watchdeck ghcr.io/remi-deher/watchdeck; do
+            cosign sign --yes "${image}@${DIGEST}"
+          done
+
+      - name: Summary
+        run: |
+          {
+            echo "### Image promue sans reconstruction"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version publiee | \`${{ github.ref_name }}\` + \`latest\` |"
+            echo "| Commit source | \`${{ steps.tested.outputs.revision }}\` |"
+            echo "| Image testee reutilisee | \`${{ steps.tested.outputs.digest }}\` |"
+            echo ""
+            echo "Les couches applicatives sont celles exercees sur le staging ;"
+            echo "seule la version inscrite dans \`version.json\` a ete estampillee."
+          } >> "$GITHUB_STEP_SUMMARY"
