@@ -67,18 +67,28 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Run tests with coverage
-        env:
-          REDIS_URL: "redis://127.0.0.1:6379/0"
-        run: python -m pytest -v --cov=app --cov-report=term-missing --cov-fail-under=60
-
-      - name: Validate Redis
-        run: python -c "from redis import Redis; assert Redis.from_url('redis://127.0.0.1:6379/0').ping()"
-
+      # Volontairement AVANT les tests : ceux-ci s'executent ensuite sur le schema
+      # reellement produit par les migrations, et non sur un schema fabrique a part.
+      # (Dans l'autre sens, les tables creees par les tests faisaient echouer alembic.)
       - name: Validate PostgreSQL migrations
         env:
           DATABASE_URL: postgresql://watchdeck:ci-password@127.0.0.1:5432/watchdeck_test
         run: alembic upgrade head
+
+      - name: Run tests with coverage
+        env:
+          REDIS_URL: "redis://127.0.0.1:6379/0"
+          # Fait tourner la suite sur PostgreSQL, comme la production, au lieu de
+          # SQLite en memoire. SQLite n'applique pas les cles etrangeres, ignore les
+          # contraintes de longueur et n'a pas le modele de verrouillage de PostgreSQL :
+          # des defauts reels passaient inapercus (une ligne download_history orpheline
+          # etait acceptee, par exemple). Sans cette variable, la suite retombe sur
+          # SQLite pour rester lancable en local sans PostgreSQL.
+          TEST_DATABASE_URL: postgresql+psycopg2://watchdeck:ci-password@127.0.0.1:5432/watchdeck_test
+        run: python -m pytest -v --cov=app --cov-report=term-missing --cov-fail-under=60
+
+      - name: Validate Redis
+        run: python -c "from redis import Redis; assert Redis.from_url('redis://127.0.0.1:6379/0').ping()"
 
   frontend:
     name: Build Vue SPA
