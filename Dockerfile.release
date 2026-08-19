@@ -1,0 +1,28 @@
+# Estampillage de version d'une image DEJA construite et validee sur `test`.
+#
+# Pourquoi ce fichier existe : la promotion `test` -> `main` ne doit PAS
+# reconstruire l'application. L'image qui part en production doit etre celle qui a
+# reellement tourne sur le staging -- une reconstruction, meme depuis le meme code,
+# produit un artefact que personne n'a essaye.
+#
+# On ne peut cependant pas reutiliser l'image telle quelle : `app/version.json` y
+# est fige au build avec la version de la branche (`test-<sha>`), or
+# /api/system/version compare ce champ au dernier tag GitHub pour dire si
+# l'instance est a jour. Promue sans retouche, la production afficherait donc
+# "mise a jour disponible" en permanence.
+#
+# Ce Dockerfile ajoute donc UNE seule couche, minuscule, qui reecrit ce fichier.
+# Toutes les couches applicatives (dependances Python, code, front compile) sont
+# les blobs identiques de l'image testee : elles sont referencees, pas rebuties.
+# Aucune recompilation, aucun npm/pip, quelques secondes.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ARG APP_VERSION=unknown
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+ARG BRANCH=main
+
+# WORKDIR (/app) et les droits sont herites de l'image de base.
+RUN printf '{"version":"%s","git_sha":"%s","build_date":"%s","branch":"%s"}' \
+    "$APP_VERSION" "$GIT_SHA" "$BUILD_DATE" "$BRANCH" > app/version.json
