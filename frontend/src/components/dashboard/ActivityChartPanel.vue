@@ -300,6 +300,7 @@ const chartPoints = computed(() => {
 
 .activity-chart-wrapper {
   min-height: 170px;
+  min-width: 0;
   grid-column: 1;
 }
 

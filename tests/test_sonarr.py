@@ -12,6 +12,7 @@ from app.services.sonarr import (
     add_series,
     check_connection,
     get_calendar,
+    get_releases,
     get_series_episode_stats,
     is_series_available,
     lookup_series,
@@ -403,5 +404,38 @@ async def test_get_calendar_failure_returns_empty_list():
 
     with patch("app.services.arr_http_client.httpx.AsyncClient", return_value=client_mock):
         result = await get_calendar(URL, KEY, "2026-07-01", "2026-07-31")
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_releases_series_only_fans_out_per_season():
+    """Sonarr ne sait pas chercher au niveau de la série entière : sans season_number
+    ni episode_id, on doit interroger chaque saison (hors spéciaux) et fusionner."""
+    episodes = [
+        {"seasonNumber": 0, "episodeNumber": 1},
+        {"seasonNumber": 1, "episodeNumber": 1},
+        {"seasonNumber": 1, "episodeNumber": 2},
+        {"seasonNumber": 2, "episodeNumber": 1},
+    ]
+
+    async def fake_arr_common_get_releases(url, api_key, *, params, product, log_context):
+        season = params["seasonNumber"]
+        return [{"title": f"Release S{season}", "seasonNumber": season}]
+
+    with (
+        patch("app.services.sonarr.get_episodes", new=AsyncMock(return_value=episodes)),
+        patch("app.services.sonarr.arr_common.get_releases", new=fake_arr_common_get_releases),
+    ):
+        result = await get_releases(URL, KEY, series_id=42)
+
+    titles = {r["title"] for r in result}
+    assert titles == {"Release S1", "Release S2"}
+
+
+@pytest.mark.asyncio
+async def test_get_releases_series_only_failure_returns_empty_list():
+    with patch("app.services.sonarr.get_episodes", new=AsyncMock(side_effect=Exception("boom"))):
+        result = await get_releases(URL, KEY, series_id=42)
 
     assert result == []

@@ -60,6 +60,7 @@ async def download_full_backup(db: AsyncSession = Depends(get_db_async)):
 async def restore_full_backup(
     file: UploadFile = File(...),
     confirm: str = Form(...),
+    db: AsyncSession = Depends(get_db_async),
 ):
     """Remplace ENTIÈREMENT la base de données et la configuration actuelles par celles de
     l'archive fournie — rien n'est fusionné, rien de l'état courant n'est conservé au-delà de
@@ -71,6 +72,11 @@ async def restore_full_backup(
         raise HTTPException(400, "Saisissez REMPLACER pour confirmer le remplacement complet")
 
     content = await file.read()
+    # La session de `require_admin` (partagée via le cache de dépendances FastAPI) est encore
+    # ouverte ici et détient des verrous de lecture (ex: Settings -> email_templates). Sans ce
+    # commit, elle reste "idle in transaction" pendant tout `perform_full_restore` et bloque
+    # indéfiniment le `pg_restore --clean` qui a besoin d'un verrou exclusif sur ces mêmes tables.
+    await db.commit()
     try:
         report = await perform_full_restore(content, DATABASE_URL)
     except LegacyMigrationError as exc:
