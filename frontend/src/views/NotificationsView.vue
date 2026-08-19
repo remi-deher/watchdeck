@@ -344,13 +344,14 @@ onMounted(() => {
   order: 3;
   width: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 .notification-control.paused { border-color: rgba(229, 160, 13, .6); }
 .notification-control-icon { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border-radius: var(--radius-sm); color: var(--green-text); background: rgba(34, 197, 94, .12); }
 .notification-control-icon :deep(svg) { width: 17px; height: 17px; }
 .notification-control.paused .notification-control-icon { color: var(--accent); background: rgba(229, 160, 13, .14); }
-.notification-control-copy { display: grid; gap: 0; min-width: 0; flex: 1; }
-.notification-control-copy strong { font-size: var(--fs-sm); }
+.notification-control-copy { display: grid; gap: 0; min-width: 0; flex: 1; overflow: hidden; }
+.notification-control-copy strong { display: block; font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .notification-control-copy strong::before { content: 'Distribution globale'; margin-right: .4rem; color: var(--muted); font-size: var(--fs-xs); font-weight: 700; }
 .notification-control-copy span { display: none; }
 .notification-control-action { display: flex; align-items: center; gap: .65rem; padding-left: .75rem; border-left: 1px solid var(--border); }

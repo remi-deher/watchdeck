@@ -30,6 +30,7 @@ from app.services.playback_activity import (
     parse_plex_sessions,
     recalculate_playback_locations,
 )
+from app.utils import now_utc_naive
 
 
 @pytest.fixture()
@@ -1012,7 +1013,7 @@ async def test_session_segments_seek_detection(async_db):
 
 @pytest.mark.asyncio
 async def test_session_segments_websocket_sync(async_db):
-    now = datetime(2026, 8, 18, 22, 0, 0)
+    now = now_utc_naive()
     session = PlaybackSession(
         source="plex",
         source_session_id="ws-session-1",
