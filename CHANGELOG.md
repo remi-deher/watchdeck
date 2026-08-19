@@ -2,6 +2,10 @@
 
 ### 🔧 Maintenance
 
+- v1.3.4 (#93) ([64d2778](https://github.com/remi-deher/watchdeck/commit/64d277856f54c8b5891adebf62add1bcb5c79f33))
+
+### 🔧 Maintenance
+
 - v1.3.3 (#89) ([cf710c9](https://github.com/remi-deher/watchdeck/commit/cf710c9debda4ca7c608885021c90f5c10ba8ff4))
 
 ### 🔧 Maintenance
