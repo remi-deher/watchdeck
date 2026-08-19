@@ -144,6 +144,11 @@ async def setup_restore(
         raise HTTPException(403, "Un compte existe déjà sur cette instance")
 
     content = await file.read()
+    # La session ouverte ci-dessus (SELECT Settings, avec sa relation email_templates) reste
+    # "idle in transaction" et tient des verrous de lecture. Sans ce commit, elle bloque
+    # indéfiniment le `pg_restore --clean` de `perform_full_restore`, qui a besoin d'un verrou
+    # exclusif sur ces mêmes tables.
+    await db.commit()
     try:
         report = await perform_full_restore(content, DATABASE_URL)
     except LegacyMigrationError as exc:

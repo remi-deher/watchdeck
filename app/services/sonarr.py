@@ -11,6 +11,7 @@ Fonctions principales :
 - get_quality_profiles / get_root_folders : données de configuration UI
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from functools import partial
@@ -473,15 +474,21 @@ async def search_series(url: str, api_key: str, series_id: int) -> bool:
 async def get_releases(
     url: str, api_key: str, series_id: int = None, episode_id: int = None, season_number: int = None
 ) -> list[dict]:
-    """Recherche interactive Sonarr : releases scorées pour une série, une saison
-    (season pack, `season_number`) ou un épisode (`episode_id`, prioritaire sur les deux
-    autres)."""
+    """Recherche interactive Sonarr : releases scorées pour une saison (season pack,
+    `season_number`) ou un épisode (`episode_id`, prioritaire sur les deux autres).
+
+    Sonarr ne sait pas faire de recherche interactive au niveau de la série entière
+    (l'endpoint `/release` exige `episodeId`, ou `seriesId` + `seasonNumber`) : lui
+    passer seulement `seriesId` renvoie des résultats non filtrés/hors-sujet plutôt
+    qu'une erreur. Quand aucune saison n'est précisée, on interroge donc chaque saison
+    de la série et on fusionne les résultats.
+    """
     if episode_id:
         params = {"episodeId": episode_id}
     elif series_id and season_number is not None:
         params = {"seriesId": series_id, "seasonNumber": season_number}
     elif series_id:
-        params = {"seriesId": series_id}
+        return await _get_releases_all_seasons(url, api_key, series_id)
     else:
         return []
     return await arr_common.get_releases(
@@ -491,6 +498,34 @@ async def get_releases(
         product=PRODUCT,
         log_context=f"series {series_id}, season {season_number}, ep {episode_id}",
     )
+
+
+async def _get_releases_all_seasons(url: str, api_key: str, series_id: int) -> list[dict]:
+    """Fusionne les releases de chaque saison (hors spéciaux) quand la recherche
+    interactive porte sur la série entière sans saison précisée."""
+    try:
+        episodes = await get_episodes(url, api_key, series_id)
+    except Exception as e:
+        logger.warning(f"{PRODUCT} get_releases échec (series {series_id}, épisodes): {e}")
+        return []
+    season_numbers = sorted({ep.get("seasonNumber") for ep in episodes if (ep.get("seasonNumber") or 0) > 0})
+    if not season_numbers:
+        season_numbers = sorted({ep.get("seasonNumber") for ep in episodes if ep.get("seasonNumber") is not None})
+    if not season_numbers:
+        return []
+    results = await asyncio.gather(
+        *(
+            arr_common.get_releases(
+                url,
+                api_key,
+                params={"seriesId": series_id, "seasonNumber": season},
+                product=PRODUCT,
+                log_context=f"series {series_id}, season {season}",
+            )
+            for season in season_numbers
+        )
+    )
+    return [release for season_releases in results for release in season_releases]
 
 
 async def get_episodes(url: str, api_key: str, series_id: int) -> list[dict]:
