@@ -1,5 +1,43 @@
 
 
+### style
+
+- fix ruff formatting in stream aligner and tests ([5170fba](https://github.com/remi-deher/watchdeck/commit/5170fbacd9b3a2ce2c57de29623e82d3b65236f2))
+
+### ✨ Nouveautés
+
+- add interactive expandable playback timeline with segment log, ticks and ratios ([70fcee3](https://github.com/remi-deher/watchdeck/commit/70fcee313d524e9f4a1cc45422703860bd29ffe8))
+- synchronize release search and grab bidirectionally with vf upgrades ([81200ee](https://github.com/remi-deher/watchdeck/commit/81200eedb808bd57e29b4976cc95122917bc9e08))
+- alignement personnalisable des flux Plex par média, saison et épisode pour un ou plusieurs utilisateurs ([436d6da](https://github.com/remi-deher/watchdeck/commit/436d6da5b09aee8f9402f9da0ca32254da952380))
+
+### 🐛 Corrections
+
+- resolve correct library and request detail paths in hero banner ([49b9f94](https://github.com/remi-deher/watchdeck/commit/49b9f943d85cee8dd0159900a59bdaa9de51380f))
+- corrige le chevauchement des labels du graphique et le badge notifications en responsive tablette ([cf27a05](https://github.com/remi-deher/watchdeck/commit/cf27a05adb333148847aea95681f479069043f41))
+- remove hardcoded past date in websocket sync test to avoid stale-session sweep ([8b3bc2a](https://github.com/remi-deher/watchdeck/commit/8b3bc2ad1285e4adeac008f8689f878fccbfe7c7))
+- recherche interactive par saison quand la série entière est ciblée ([f2e386c](https://github.com/remi-deher/watchdeck/commit/f2e386c1d12be0a964460b292105f087ead84a56))
+- graphique d'activité défilable horizontalement sur mobile ([e5dd4e5](https://github.com/remi-deher/watchdeck/commit/e5dd4e51b946276f4a95a7fe2cac7f2b54de88fc))
+- commit la session avant pg_restore pour éviter un auto-deadlock ([a9f1c7e](https://github.com/remi-deher/watchdeck/commit/a9f1c7e71ee4a19b31d58c1e8539ebbe07285306))
+- force un miroir apt fiable avant l'installation Playwright ([5a82f65](https://github.com/remi-deher/watchdeck/commit/5a82f65bb34c0dcba496648170407cbdac588301))
+
+### 🔧 Maintenance
+
+- sync main into dev ([68dd742](https://github.com/remi-deher/watchdeck/commit/68dd742e51d4c17b7b90afa93e456cf6dfff142f))
+- sync main into dev ([a1b6123](https://github.com/remi-deher/watchdeck/commit/a1b612325794b8a50ef5d618d98c35452467ce41))
+- sync main into dev ([24e4d2d](https://github.com/remi-deher/watchdeck/commit/24e4d2da28672aa1abf87969d9fc90577d158046))
+- sync main into dev ([e585736](https://github.com/remi-deher/watchdeck/commit/e585736d30a4dfb4d4f46e5b855ae15dd61444a3))
+- sync main into dev ([364e8e6](https://github.com/remi-deher/watchdeck/commit/364e8e692a7cd87de23bc4774c37b5b40cf7825b))
+- sync main into dev ([42fb664](https://github.com/remi-deher/watchdeck/commit/42fb664c83b04879e7aa61c2a54cae03fb03e1f8))
+- sync main into dev ([fa2c85a](https://github.com/remi-deher/watchdeck/commit/fa2c85af0cf3bbaf93fef85ef136422d2900f550))
+- sync main into dev ([2888b2d](https://github.com/remi-deher/watchdeck/commit/2888b2d6cbc202cc117bec95340c934e80a9a977))
+- sync main into dev ([e30ddf4](https://github.com/remi-deher/watchdeck/commit/e30ddf4d4323094809fe9a439537c49cd9a7da0f))
+- sync main into dev ([8a31ed4](https://github.com/remi-deher/watchdeck/commit/8a31ed409aa468f8f00faa611660b829653765a3))
+- nettoie les artefacts de build Vue orphelins ([8132951](https://github.com/remi-deher/watchdeck/commit/8132951a04d92323b6315422875386dbbde89399))
+
+### 🔧 Maintenance
+
+- v1.3.5 (#98) ([e3f047a](https://github.com/remi-deher/watchdeck/commit/e3f047a40816aef4641d2d9aa59d7c461102dd33))
+
 ### 🔧 Maintenance
 
 - v1.3.4 (#93) ([64d2778](https://github.com/remi-deher/watchdeck/commit/64d277856f54c8b5891adebf62add1bcb5c79f33))
@@ -11,6 +49,14 @@
 ### 🔧 Maintenance
 
 - v1.3.2 (#85) ([6e51310](https://github.com/remi-deher/watchdeck/commit/6e513108853446aeb6431dd3bf2c39f7fe2e6fd6))
+
+### ✨ Nouveautés
+
+- add interactive expandable playback timeline with segment log, ticks and ratios (#78) ([e9d7ca0](https://github.com/remi-deher/watchdeck/commit/e9d7ca05830fcfcbb731e76eaa9af5a68ec56451))
+
+### 👷 CI/CD
+
+- rend les promotions dev->test et test->main manuelles (workflow_dispatch) ([8501574](https://github.com/remi-deher/watchdeck/commit/85015748d77c9917ab460866c32bfc293be79a8c))
 
 ### 🔧 Maintenance
 
