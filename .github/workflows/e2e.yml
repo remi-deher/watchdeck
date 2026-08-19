@@ -78,6 +78,16 @@ jobs:
           cache: npm
       - run: npm ci
         if: steps.changes.outputs.relevant == 'true'
+      - name: Pin a reliable apt mirror
+        # Le mecanisme de mirrorlist d'Ubuntu 24.04 pioche parfois azure.archive.ubuntu.com,
+        # qui timeout de facon repetee sur les runners GitHub (observe : apt-get reste bloque
+        # ~9 min sur l'index de paquets, faisant expirer le timeout du job avant meme le
+        # lancement des tests). On force le miroir principal, fiable, pour eviter ce hang.
+        if: steps.changes.outputs.relevant == 'true'
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            echo "http://archive.ubuntu.com/ubuntu" | sudo tee /etc/apt/apt-mirrors.txt
+          fi
       - run: npx playwright install --with-deps chromium webkit
         if: steps.changes.outputs.relevant == 'true'
       - name: Run Chromium responsive tests
