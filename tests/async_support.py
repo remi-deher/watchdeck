@@ -74,12 +74,22 @@ class TestSession:
         self.sync_session.delete(instance)
         return _AwaitableValue()
 
-    def close(self):
+    def _force_close(self) -> None:
+        """Fermeture reelle, insensible au remplacement de close() par un test.
+
+        Certains tests substituent `db.close = AsyncMock()` pour empecher le code
+        applicatif de fermer la session en cours d'exercice (voir test_webhook.py).
+        Le nettoyage de fin de test doit passer par ici, sinon il appelle le mock,
+        qui renvoie une coroutine jamais attendue -- et la session reste ouverte.
+        """
         _open_sessions.discard(self)
         self.sync_session.close()
         if self._dispose:
             self._dispose()
             self._dispose = None
+
+    def close(self):
+        self._force_close()
         return _AwaitableValue()
 
 
@@ -122,7 +132,7 @@ def close_leaked_sessions() -> int:
     leaked = list(_open_sessions)
     for session in leaked:
         try:
-            session.close()
+            session._force_close()
         except Exception:  # noqa: BLE001 - un test en echec peut laisser une session cassee
             _open_sessions.discard(session)
     _open_sessions.clear()

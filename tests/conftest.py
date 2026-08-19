@@ -1,15 +1,13 @@
 """Configuration pytest partagée : suppression des ResourceWarning SQLite et patch du démarrage."""
 
-import warnings
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from tests.async_support import close_leaked_sessions, make_test_session, reset_postgres_state
 
-# Les connexions SQLite non fermées viennent du pool SQLAlchemy créé à l'import de app.database.
-# Ce n'est pas un bug fonctionnel (l'OS récupère les ressources), on filtre le bruit.
-warnings.filterwarnings("ignore", "unclosed database", ResourceWarning)
+# Le filtre des ResourceWarning "unclosed database" vit desormais dans pytest.ini :
+# pose ici, il etait reinitialise par pytest avant chaque test et n'avait donc aucun effet.
 
 
 @pytest.fixture(autouse=True)

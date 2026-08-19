@@ -50,6 +50,9 @@ logs/
 
 # Coverage / tests
 .coverage
+# Rapport genere par --cov-report=xml (consomme par diff-cover en CI).
+coverage.xml
+diff-cover.md
 .pytest_cache/
 htmlcov/
 playwright-report/
