@@ -8,7 +8,7 @@
     </div>
 
     <!-- Zone principale de graphique -->
-    <div class="bar-chart-area" :class="{ 'has-scroll': enableScroll }">
+    <div class="bar-chart-area">
       <div
         v-for="(point, index) in normalizedData"
         :key="point.key || index"
@@ -84,7 +84,6 @@ const props = withDefaults(
     showLabels?: boolean;
     showValues?: boolean;
     showPeak?: boolean;
-    enableScroll?: boolean;
     labelInterval?: number;
   }>(),
   {
@@ -96,7 +95,6 @@ const props = withDefaults(
     showLabels: true,
     showValues: true,
     showPeak: false,
-    enableScroll: false,
     labelInterval: 0,
   }
 );
@@ -154,6 +152,7 @@ function shouldShowLabel(index: number): boolean {
   align-items: stretch;
   gap: var(--space-2);
   width: 100%;
+  min-width: 0;
   position: relative;
 }
 
@@ -175,14 +174,14 @@ function shouldShowLabel(index: number): boolean {
   align-items: flex-end;
   gap: var(--space-1);
   flex: 1;
+  min-width: 0;
   height: 100%;
-  padding-bottom: 22px;
-  position: relative;
-}
-
-.bar-chart-area.has-scroll {
-  overflow-x: auto;
   padding-bottom: 26px;
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .bar-item {
@@ -298,11 +297,8 @@ function shouldShowLabel(index: number): boolean {
 }
 
 @media (max-width: 640px) {
-  .bar-chart-area {
-    gap: 3px;
-  }
   .bar-item {
-    min-width: 10px;
+    min-width: 20px;
   }
 }
 </style>
