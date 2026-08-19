@@ -21,6 +21,61 @@ permissions:
   contents: read
 
 jobs:
+  # Evite de reconstruire et republier une image identique pour un push qui ne
+  # change rien de ce qui entre dedans. Cas concret : sync-main-down.yml refusionne
+  # main dans test apres chaque release, et ce merge ne porte que le CHANGELOG --
+  # il declenchait pourtant un build+push complet, parfois deux par cycle.
+  #
+  # ATTENTION : ne PAS remplacer ce job par un simple "paths-ignore: CHANGELOG.md"
+  # sur le declencheur. Le commit qu'un tag de release reference ne contient
+  # justement QUE CHANGELOG.md (genere par auto-version.yml) : un filtre de chemins
+  # s'applique aussi aux pushes de tags et supprimerait donc l'image de release
+  # elle-meme. D'ou le court-circuit explicite sur les tags ci-dessous.
+  relevant-changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether an image is needed
+        id: check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          # Un tag est l'artefact de release : toujours construit, quel que soit le diff.
+          if [ "$REF_TYPE" = "tag" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Premier push sur une branche (pas de "before" exploitable) : on construit.
+          if [ -z "$EVENT_BEFORE" ] || [ "$EVENT_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Un historique tronque peut faire echouer le diff : on construit par securite
+          # plutot que de rater une image (meme principe que dans e2e.yml).
+          if ! CHANGED="$(git diff --name-only "$EVENT_BEFORE...$CURRENT_SHA" 2>&1)"; then
+            echo "::warning::git diff a echoue ($CHANGED) -- build par securite."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Fichiers modifies :"
+          echo "$CHANGED"
+          # Au moins un fichier hors documentation => l'image change vraiment.
+          if echo "$CHANGED" | grep -qvE '^(CHANGELOG\.md|docs/.*|.*\.md)$'; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "Push sans impact sur l'image (documentation seule) : build ignore." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   # Empeche de publier une image construite sur un commit dont la CI (tests,
   # lint, smoke Docker, Trivy...) n'est pas encore verte. Les autres workflows
   # se declenchent en parallele sur le meme push : le ruleset qui protege test/
@@ -31,7 +86,8 @@ jobs:
   # sont ajoutes/retires plus tard.
   wait-for-ci:
     name: Wait for CI
-    if: github.event_name != 'workflow_dispatch'
+    needs: relevant-changes
+    if: github.event_name != 'workflow_dispatch' && needs.relevant-changes.outputs.build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -63,8 +119,13 @@ jobs:
           exit 1
 
   build-and-push:
-    needs: wait-for-ci
-    if: always() && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
+    needs: [relevant-changes, wait-for-ci]
+    # always() reste necessaire pour le cas workflow_dispatch, ou wait-for-ci est
+    # volontairement skip. La condition sur relevant-changes, elle, doit etre vraie
+    # dans tous les cas : un push sans impact sur l'image ne publie rien.
+    if: >-
+      always() && needs.relevant-changes.outputs.build == 'true'
+      && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: read
