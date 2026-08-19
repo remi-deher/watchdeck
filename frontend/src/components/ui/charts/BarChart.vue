@@ -139,12 +139,12 @@ const normalizedData = computed(() => {
 function shouldShowLabel(index: number): boolean {
   const total = normalizedData.value.length;
   if (props.labelInterval > 0) {
-    return index % props.labelInterval === 0 || index === total - 1;
+    return (total - 1 - index) % props.labelInterval === 0;
   }
   if (total <= 10) return true;
-  if (total <= 16) return index % 2 === 0 || index === total - 1;
-  if (total <= 32) return index % 4 === 0 || index === total - 1;
-  return index % 7 === 0 || index === total - 1;
+  if (total <= 16) return (total - 1 - index) % 2 === 0;
+  if (total <= 32) return (total - 1 - index) % 4 === 0;
+  return (total - 1 - index) % 7 === 0;
 }
 </script>
 
