@@ -18,6 +18,7 @@ from app.models import (
     RequestStatus,
     Settings,
     VfEpisodeStatus,
+    VfUpgradeScanRun,
     VfUpgradeSuggestion,
 )
 from app.routers.vf_upgrades_api import (
@@ -25,8 +26,10 @@ from app.routers.vf_upgrades_api import (
     _media_payload,
     _refresh_lifecycle,
     grab_vf_upgrade,
+    list_vf_upgrades,
     vf_upgrade_audit,
     vf_upgrade_dashboard,
+    vf_upgrade_scan_runs,
 )
 from app.services.release_matching import (
     french_release_evidence,
@@ -49,7 +52,9 @@ from app.services.vf_upgrade_scanner import (
     _series_is_ended,
     _skip_statuses,
     _sonarr_season_tasks,
+    get_backoff_snapshot,
     scan_single_target,
+    scan_vf_upgrades,
 )
 from app.utils import now_utc, now_utc_naive
 from tests.async_support import TestSession
@@ -1775,3 +1780,201 @@ async def test_no_result_backoff_movie_scope_uses_distinct_key_from_episode():
 
     assert await _no_result_backoff_active(movie_task) is True
     assert await _no_result_backoff_active(episode_task) is False
+
+
+# ---------------------------------------------------------------------------
+# get_backoff_snapshot (expose le backoff cote API pour la fiche media)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_backoff_snapshot_none_when_never_searched():
+    assert await get_backoff_snapshot("library_item", 920001, "movie") is None
+
+
+@pytest.mark.asyncio
+async def test_get_backoff_snapshot_returns_details_after_failure():
+    task = _backoff_task(source_id=920002, episode_number=3)
+    settings = Settings(vf_upgrade_no_result_backoff_base_hours=6, vf_upgrade_no_result_backoff_max_hours=48)
+    await _record_search_outcome(task, found=False, settings=settings)
+
+    snapshot = await get_backoff_snapshot("library_item", 920002, "episode", 1, 3)
+
+    assert snapshot is not None
+    assert snapshot["misses"] == 1
+    assert snapshot["cooldown_hours"] == 6
+    assert snapshot["on_cooldown"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_backoff_snapshot_none_after_success():
+    task = _backoff_task(source_id=920003, episode_number=1)
+    settings = Settings(vf_upgrade_no_result_backoff_base_hours=6, vf_upgrade_no_result_backoff_max_hours=48)
+    await _record_search_outcome(task, found=False, settings=settings)
+    await _record_search_outcome(task, found=True, settings=settings)
+
+    assert await get_backoff_snapshot("library_item", 920003, "episode", 1, 1) is None
+
+
+# ---------------------------------------------------------------------------
+# Historique des cycles de scan (VfUpgradeScanRun)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_vf_upgrade_scan_runs_empty(db):
+    payload = await vf_upgrade_scan_runs(limit=20, db=db)
+    assert payload == {"runs": []}
+
+
+@pytest.mark.asyncio
+async def test_vf_upgrade_scan_runs_returns_recent_first(db):
+    db.add_all(
+        [
+            VfUpgradeScanRun(status="success", trigger="auto", tasks_total=10, tasks_scanned=10, suggestions_found=2),
+            VfUpgradeScanRun(status="failed", trigger="manual", tasks_total=5, tasks_scanned=1, error="boom"),
+        ]
+    )
+    db.commit()
+
+    payload = await vf_upgrade_scan_runs(limit=20, db=db)
+
+    assert len(payload["runs"]) == 2
+    statuses = {run["status"] for run in payload["runs"]}
+    assert statuses == {"success", "failed"}
+    failed_run = next(r for r in payload["runs"] if r["status"] == "failed")
+    assert failed_run["error"] == "boom"
+    assert failed_run["trigger"] == "manual"
+
+
+@pytest.mark.asyncio
+async def test_vf_upgrade_scan_runs_respects_limit(db):
+    db.add_all([VfUpgradeScanRun(status="success") for _ in range(5)])
+    db.commit()
+
+    payload = await vf_upgrade_scan_runs(limit=2, db=db)
+
+    assert len(payload["runs"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_dashboard_waiting_release_movie_includes_backoff_snapshot(db):
+    """Un film VO sans suggestion active mais deja passe par un cycle infructueux
+    expose son backoff dans le dashboard (voir vf_upgrades_api.vf_upgrade_dashboard)."""
+    item = _movie_item(db, title="Backoff Movie", has_vf=False)
+    db.commit()
+
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=item.id,
+        scope="movie",
+        arr_type="radarr",
+        inst=ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr.local", api_key="key"),
+        arr_id=item.arr_id,
+        title=item.title,
+    )
+    settings = Settings(vf_upgrade_no_result_backoff_base_hours=6, vf_upgrade_no_result_backoff_max_hours=48)
+    await _record_search_outcome(task, found=False, settings=settings)
+
+    payload = await vf_upgrade_dashboard(db=db)
+
+    waiting = next(i for i in payload["items"] if i["source_id"] == item.id)
+    assert waiting["backoff"] is not None
+    assert waiting["backoff"]["misses"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_vf_upgrades_includes_backoff_snapshot(db):
+    item = _movie_item(db, title="List Backoff Movie", has_vf=False)
+    db.add(
+        VfUpgradeSuggestion(
+            source_type="library_item",
+            source_id=item.id,
+            scope="movie",
+            releases_json='[{"guid":"g1"}]',
+            status="pending",
+            origin="auto",
+            target_kind="vo",
+        )
+    )
+    db.commit()
+
+    payload = await list_vf_upgrades(source_type="library_item", source_id=item.id, db=db)
+
+    assert len(payload["suggestions"]) == 1
+    assert "backoff" in payload["suggestions"][0]
+    assert payload["suggestions"][0]["backoff"] is None
+
+
+# ---------------------------------------------------------------------------
+# scan_vf_upgrades (bout en bout) : creation/finalisation du VfUpgradeScanRun
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_creates_and_finalizes_run_on_success(db):
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True, vf_upgrade_max_searches_per_run=10)
+    db.add(settings_row)
+    _radarr_instance(db)
+    _movie_item(db, title="Scan Run Movie", has_vf=False)
+    db.commit()
+
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
+    ):
+        result = await scan_vf_upgrades(force=False)
+
+    assert result["status"] == "idle"
+    assert result["scanned"] == 1
+
+    runs = db.sync_session.query(VfUpgradeScanRun).all()
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].trigger == "auto"
+    assert runs[0].tasks_total == 1
+    assert runs[0].tasks_scanned == 1
+    assert runs[0].finished_at is not None
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_no_tasks_marks_run_success_with_zero_tasks(db):
+    """Bibliotheque vide (aucune tache a chercher) : le run est quand meme enregistre,
+    plutot que de disparaitre silencieusement de l'historique."""
+    db.add(Settings(vff_enabled=True, vf_upgrade_enabled=True))
+    db.commit()
+
+    with patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db):
+        result = await scan_vf_upgrades(force=False)
+
+    assert result == {"status": "idle", "scanned": 0}
+    runs = db.sync_session.query(VfUpgradeScanRun).all()
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].tasks_total == 0
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_records_failure_on_exception(db):
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True)
+    db.add(settings_row)
+    _radarr_instance(db)
+    _movie_item(db, title="Broken Scan Movie", has_vf=False)
+    db.commit()
+
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch(
+            "app.services.vf_upgrade_scanner._build_movie_tasks",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        await scan_vf_upgrades(force=False)
+
+    runs = db.sync_session.query(VfUpgradeScanRun).all()
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert "boom" in runs[0].error
+    assert runs[0].finished_at is not None

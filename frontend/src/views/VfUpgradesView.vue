@@ -39,34 +39,36 @@
       @update:model-value="selectTab"
     />
 
-    <VfUpgradeKpiBanner
-      :audit="activeTab === 'audit'"
-      :active-filter="activeTab === 'audit' ? auditIssueFilter : statusFilter"
-      :audit-counts="auditCounts"
-      :eligible-audit-fix-count="eligibleAuditFixCount"
-      :pending-count="pendingCount"
-      :waiting-release-count="waitingReleaseCount"
-      :in-progress-count="inProgressCount"
-      :failed-count="failedCount"
-      :history-count="historyCount"
-      @select="activeTab === 'audit' ? toggleAuditFilter($event) : toggleStatusFilter($event)"
-    />
+    <template v-if="activeTab !== 'history'">
+      <VfUpgradeKpiBanner
+        :audit="activeTab === 'audit'"
+        :active-filter="activeTab === 'audit' ? auditIssueFilter : statusFilter"
+        :audit-counts="auditCounts"
+        :eligible-audit-fix-count="eligibleAuditFixCount"
+        :pending-count="pendingCount"
+        :waiting-release-count="waitingReleaseCount"
+        :in-progress-count="inProgressCount"
+        :failed-count="failedCount"
+        :history-count="historyCount"
+        @select="activeTab === 'audit' ? toggleAuditFilter($event) : toggleStatusFilter($event)"
+      />
 
-    <VfUpgradeQuickFilters
-      :audit="activeTab === 'audit'"
-      :active-status="activeTab === 'audit' ? auditIssueFilter : statusFilter"
-      :media-type="activeTab === 'audit' ? auditMediaTypeFilter : mediaTypeFilter"
-      :total-audit-items="auditItems.length"
-      :audit-counts="auditCounts"
-      :eligible-audit-fix-count="eligibleAuditFixCount"
-      :pending-count="pendingCount"
-      :waiting-release-count="waitingReleaseCount"
-      :in-progress-count="inProgressCount"
-      :failed-count="failedCount"
-      :history-count="historyCount"
-      @status="activeTab === 'audit' ? toggleAuditFilter($event) : statusFilter = $event"
-      @media-type="setMediaTypeFilter"
-    />
+      <VfUpgradeQuickFilters
+        :audit="activeTab === 'audit'"
+        :active-status="activeTab === 'audit' ? auditIssueFilter : statusFilter"
+        :media-type="activeTab === 'audit' ? auditMediaTypeFilter : mediaTypeFilter"
+        :total-audit-items="auditItems.length"
+        :audit-counts="auditCounts"
+        :eligible-audit-fix-count="eligibleAuditFixCount"
+        :pending-count="pendingCount"
+        :waiting-release-count="waitingReleaseCount"
+        :in-progress-count="inProgressCount"
+        :failed-count="failedCount"
+        :history-count="historyCount"
+        @status="activeTab === 'audit' ? toggleAuditFilter($event) : statusFilter = $event"
+        @media-type="setMediaTypeFilter"
+      />
+    </template>
 
     <div class="psh-layout">
       <!-- Panneau latéral standard de filtres (tiroir de repli / maintenance) -->
@@ -176,7 +178,7 @@
 
       <!-- Panneau latéral standard pour l'onglet Audit -->
       <FilterSidebar
-        v-else
+        v-else-if="activeTab === 'audit'"
         :open="filtersOpen"
         :active-count="activeFilterCount"
         @close="closeFilters"
@@ -482,7 +484,7 @@
         </template>
 
         <!-- Onglet 2 : Releases & Remplacements (*arr) -->
-        <template v-else>
+        <template v-else-if="activeTab === 'upgrades'">
           <div v-if="loading && !groups.length" class="vf-skeletons" aria-hidden="true">
             <div v-for="i in 3" :key="`skel-${i}`" class="vf-skeleton-card">
               <div class="skeleton-poster" />
@@ -551,6 +553,9 @@
                       <div class="target-info">
                         <strong>Film complet</strong>
                         <span>Détecté le {{ formatDate(item.scanned_at) }}</span>
+                        <span v-if="item.status === 'waiting_release' && item.backoff" class="backoff-info" :title="`${item.backoff.misses} recherche(s) restée(s) sans résultat`">
+                          {{ formatBackoff(item.backoff) }}
+                        </span>
                       </div>
                       <div class="target-badges">
                         <StatusBadge :status="item.status" :label="statusLabel(item.status)" />
@@ -613,6 +618,9 @@
                         <div class="target-info">
                           <strong>{{ targetLabel(item) }}</strong>
                           <span>Détecté le {{ formatDate(item.scanned_at) }}</span>
+                        <span v-if="item.status === 'waiting_release' && item.backoff" class="backoff-info" :title="`${item.backoff.misses} recherche(s) restée(s) sans résultat`">
+                          {{ formatBackoff(item.backoff) }}
+                        </span>
                         </div>
                         <div class="target-badges">
                           <StatusBadge :status="item.status" :label="statusLabel(item.status)" />
@@ -654,6 +662,60 @@
             </p>
           </section>
         </template>
+
+        <!-- Onglet 3 : Historique des cycles de scan -->
+        <template v-else-if="activeTab === 'history'">
+          <section class="scan-history">
+            <div v-if="liveScan && liveScan.status === 'running'" class="scan-live-banner">
+              <span class="scan-live-dot" aria-hidden="true" />
+              <div class="scan-live-text">
+                <strong>Recherche en cours…</strong>
+                <span>{{ liveScan.items_scanned || 0 }} / {{ liveScan.total_items || 0 }} recherche(s) effectuée(s)</span>
+              </div>
+              <div class="scan-live-bar">
+                <div
+                  class="scan-live-bar-fill"
+                  :style="{ width: `${liveScan.total_items ? Math.min(100, (liveScan.items_scanned / liveScan.total_items) * 100) : 0}%` }"
+                />
+              </div>
+            </div>
+
+            <div v-if="scanRunsLoading && !scanRuns.length" class="vf-skeletons" aria-hidden="true">
+              <div v-for="i in 3" :key="`run-skel-${i}`" class="skeleton-line title" />
+            </div>
+
+            <table v-else-if="scanRuns.length" class="scan-runs-table">
+              <thead>
+                <tr>
+                  <th>Démarré le</th>
+                  <th>Durée</th>
+                  <th>Déclenchement</th>
+                  <th>Recherches</th>
+                  <th>Suggestions trouvées</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="run in scanRuns" :key="run.id" :class="`run-status-${run.status}`">
+                  <td>{{ formatDate(run.started_at) }}</td>
+                  <td>{{ formatDuration(run.started_at, run.finished_at) }}</td>
+                  <td>{{ run.trigger === 'manual' ? 'Manuel' : 'Automatique' }}</td>
+                  <td>{{ run.tasks_scanned }} / {{ run.tasks_total }}</td>
+                  <td>{{ run.suggestions_found }}</td>
+                  <td>
+                    <StatusBadge
+                      :status="run.status"
+                      :label="run.status === 'running' ? 'En cours' : (run.status === 'success' ? 'Terminé' : 'Échec')"
+                    />
+                    <span v-if="run.error" class="run-error" :title="run.error">⚠</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <p v-else class="empty">Aucun cycle de scan enregistré pour le moment.</p>
+          </section>
+        </template>
       </div>
     </div>
 
@@ -669,7 +731,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -718,6 +780,69 @@ const statusFilter = ref('pending');
 const mediaTypeFilter = ref('');
 const query = ref('');
 const { message: feedback, type: feedbackType, show, clear: clearFeedback } = useFeedback();
+
+// Onglet 3 : Historique des cycles de scan
+const scanRuns = ref([]);
+const scanRunsLoading = ref(false);
+const liveScan = ref(null);
+let livePollTimer = null;
+
+async function loadScanRuns() {
+  scanRunsLoading.value = true;
+  try {
+    const data = await api('/api/vf-upgrades/scan-runs?limit=20');
+    scanRuns.value = data.runs || [];
+  } catch (e) {
+    show(e.message || String(e), 'error');
+  } finally {
+    scanRunsLoading.value = false;
+  }
+}
+
+async function pollLiveScan() {
+  try {
+    liveScan.value = await api('/api/vf-upgrades/scan-status');
+    if (liveScan.value?.status !== 'running') {
+      // Le cycle vient de se terminer : rafraîchit la liste pour faire apparaître la ligne finale.
+      await loadScanRuns();
+    }
+  } catch {
+    // Silencieux : un échec de polling ponctuel ne doit pas interrompre l'affichage.
+  }
+}
+
+function startLivePolling() {
+  if (livePollTimer) return;
+  pollLiveScan();
+  livePollTimer = setInterval(pollLiveScan, 3000);
+}
+
+function stopLivePolling() {
+  if (livePollTimer) {
+    clearInterval(livePollTimer);
+    livePollTimer = null;
+  }
+}
+
+function formatBackoff(backoff) {
+  if (!backoff) return '';
+  const nextCheck = backoff.next_check_at ? new Date(backoff.next_check_at) : null;
+  if (!nextCheck) return `${backoff.misses} recherche(s) sans résultat`;
+  const diffMs = nextCheck.getTime() - Date.now();
+  if (diffMs <= 0) return `${backoff.misses} échec(s) — nouvelle tentative au prochain cycle`;
+  const hours = Math.round(diffMs / 3_600_000);
+  return `${backoff.misses} échec(s) — prochaine tentative dans ${hours < 1 ? '< 1h' : `~${hours}h`}`;
+}
+
+function formatDuration(startedAt, finishedAt) {
+  if (!startedAt) return '—';
+  const start = new Date(startedAt);
+  const end = finishedAt ? new Date(finishedAt) : new Date();
+  const seconds = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m${String(seconds % 60).padStart(2, '0')}s`;
+}
 
 // Onglet 2 : Audit & Alignement des flux (Plex)
 const auditItems = ref([]);
@@ -929,12 +1054,19 @@ const eligibleAuditFixCount = computed(() => {
 const tabs = computed(() => [
   { value: 'audit', label: 'Alignement des pistes (Plex)', count: eligibleAuditFixCount.value || auditTotalCount.value },
   { value: 'upgrades', label: 'Releases & Téléchargements (*arr)', count: pendingCount.value || waitingReleaseCount.value },
+  { value: 'history', label: 'Historique des scans' },
 ]);
 
 function selectTab(value) {
   activeTab.value = value;
   if (value === 'audit' && !auditItems.value.length) {
     loadAudit();
+  }
+  if (value === 'history') {
+    if (!scanRuns.value.length) loadScanRuns();
+    startLivePolling();
+  } else {
+    stopLivePolling();
   }
 }
 
@@ -1278,12 +1410,19 @@ useRealtime(['vf_upgrade.updated'], (_type, detail) => {
     if (activeTab.value === 'audit') {
       loadAudit({ silent: true });
     }
+    if (activeTab.value === 'history') {
+      loadScanRuns();
+    }
   }
 });
 
 onMounted(() => {
   load();
   loadAudit();
+});
+
+onUnmounted(() => {
+  stopLivePolling();
 });
 </script>
 
@@ -1863,5 +2002,101 @@ onMounted(() => {
   .audit-episode-row { align-items: stretch; flex-direction: column; }
   .audit-episode-actions { width: 100%; }
   .audit-episode-actions :deep(button) { width: 100%; min-height: 44px; }
+}
+
+.backoff-info {
+  color: var(--warning, #b45309);
+}
+
+.scan-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.scan-live-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.scan-live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: vf-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes vf-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.scan-live-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.scan-live-text span {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.scan-live-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-alt, color-mix(in srgb, var(--border) 60%, transparent));
+  overflow: hidden;
+}
+
+.scan-live-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.scan-runs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.scan-runs-table th,
+.scan-runs-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.scan-runs-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+}
+
+.run-status-failed td {
+  color: var(--danger, #b91c1c);
+}
+
+.run-error {
+  margin-left: 6px;
+  cursor: help;
+}
+
+@media (max-width: 767.98px) {
+  .scan-runs-table {
+    display: block;
+    overflow-x: auto;
+  }
 }
 </style>
