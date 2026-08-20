@@ -248,6 +248,10 @@ class Settings(Base):
     vf_upgrade_max_retries: Mapped[int] = mapped_column(default=3)
     vf_upgrade_blacklist_failed: Mapped[bool] = mapped_column(default=True)
     vf_upgrade_mixed_mode: Mapped[str] = mapped_column(default="episodes")
+    # Si True (defaut), une recherche episode-par-episode est ajoutee en complement du
+    # season pack pour les saisons entierement VO, couvrant les MULTI episodiques sans
+    # season pack indexe.  Peut multiplier le volume de recherches par N_episodes.
+    vf_upgrade_episodic_fallback: Mapped[bool] = mapped_column(default=True)
     vf_upgrade_protect_existing_vf: Mapped[bool] = mapped_column(default=True)
     vf_upgrade_notify_found: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_notify_accepted: Mapped[bool] = mapped_column(default=False)

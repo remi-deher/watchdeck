@@ -668,22 +668,48 @@ def _episode_status(db, source_id, season, episode, has_vf):
 
 
 @pytest.mark.asyncio
-async def test_build_show_tasks_fully_vo_season_uses_season_scope(db):
-    """Saison entierement VO -> une seule recherche season pack, pas d'appel episodes."""
+async def test_build_show_tasks_fully_vo_season_no_fallback(db):
+    """Saison entierement VO sans fallback episodique -> une seule tache season pack, pas d'appel episodes."""
     _sonarr_instance(db)
     item = _show_item(db)
     for ep in (1, 2, 3):
         _episode_status(db, item.id, season=1, episode=ep, has_vf=False)
     db.commit()
 
+    settings = Settings(vff_enabled=True, vf_upgrade_episodic_fallback=False)
     with patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock()) as mock_get_episodes:
-        tasks = await _build_show_tasks(db, force=False, skip=set(), recent=set())
+        tasks = await _build_show_tasks(db, force=False, skip=set(), recent=set(), settings=settings)
 
     mock_get_episodes.assert_not_awaited()
     assert len(tasks) == 1
     assert tasks[0].scope == "season"
     assert tasks[0].season_number == 1
     assert tasks[0].episode_number is None
+
+
+@pytest.mark.asyncio
+async def test_build_show_tasks_fully_vo_season_with_episodic_fallback(db):
+    """Saison entierement VO avec fallback episodique -> season pack + taches par episode."""
+    _sonarr_instance(db)
+    item = _show_item(db)
+    for ep in (1, 2, 3):
+        _episode_status(db, item.id, season=1, episode=ep, has_vf=False)
+    db.commit()
+
+    fake_episodes = [
+        {"id": 10 + ep, "seasonNumber": 1, "episodeNumber": ep, "hasFile": True}
+        for ep in (1, 2, 3)
+    ]
+    settings = Settings(vff_enabled=True, vf_upgrade_episodic_fallback=True)
+    with patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=fake_episodes)):
+        tasks = await _build_show_tasks(db, force=False, skip=set(), recent=set(), settings=settings)
+
+    # 1 season pack + 3 épisodes individuels
+    scopes = [t.scope for t in tasks]
+    assert scopes.count("season") == 1
+    assert scopes.count("episode") == 3
+    season_task = next(t for t in tasks if t.scope == "season")
+    assert season_task.season_number == 1
 
 
 @pytest.mark.asyncio
