@@ -321,6 +321,10 @@ jobs:
             exit 1
           fi
 
+      - name: Compute release metadata
+        id: meta
+        run: echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
       - name: Stamp the release version onto the tested image
         id: stamp
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -333,12 +337,28 @@ jobs:
             mrcryllix/watchdeck:latest
             ghcr.io/remi-deher/watchdeck:${{ github.ref_name }}
             ghcr.io/remi-deher/watchdeck:latest
+          # GIT_SHA porte le commit du TAG, et non celui depuis lequel l'image a ete
+          # batie. /api/system/version compare ce champ au commit de la derniere release
+          # GitHub pour signaler une instance desalignee : y mettre le commit de `test`
+          # affichait ce bandeau d'alerte a CHAQUE release, puisque la promotion reutilise
+          # l'image du commit teste alors que le tag pointe sur le commit de release cree
+          # juste apres (celui du CHANGELOG).
+          #
+          # Ce n'est pas un contournement : l'etape de verification ci-dessus a deja
+          # prouve que ces deux commits sont identiques sur tout ce qui entre dans
+          # l'image. Le commit reellement bati reste trace dans le label OCI ci-dessous.
+          #
+          # Ne PAS mettre de commentaires a l'interieur des blocs `|` ci-dessous : YAML
+          # les traite comme du texte litteral et ils seraient transmis a Docker comme
+          # des arguments.
           build-args: |
             BASE_IMAGE=mrcryllix/watchdeck@${{ steps.tested.outputs.digest }}
             APP_VERSION=${{ github.ref_name }}
-            GIT_SHA=${{ steps.tested.outputs.revision }}
-            BUILD_DATE=${{ github.event.repository.pushed_at }}
+            GIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
             BRANCH=main
+          # image.revision trace l'artefact d'origine : le commit reellement construit
+          # et teste, distinct du commit de release inscrit dans version.json.
           labels: |
             org.opencontainers.image.revision=${{ steps.tested.outputs.revision }}
             org.opencontainers.image.version=${{ github.ref_name }}
