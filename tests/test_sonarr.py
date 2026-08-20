@@ -439,3 +439,43 @@ async def test_get_releases_series_only_failure_returns_empty_list():
         result = await get_releases(URL, KEY, series_id=42)
 
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_releases_series_only_falls_back_to_specials():
+    """Une serie composee uniquement de specials (saison 0) doit quand meme etre
+    cherchee : sans ce repli, la liste de saisons serait vide et la recherche
+    interactive ne renverrait jamais rien pour ce type de serie."""
+    episodes = [{"seasonNumber": 0, "episodeNumber": 1}, {"seasonNumber": 0, "episodeNumber": 2}]
+
+    async def fake_get_releases(url, api_key, *, params, product, log_context):
+        return [{"title": f"Special S{params['seasonNumber']}"}]
+
+    with (
+        patch("app.services.sonarr.get_episodes", new=AsyncMock(return_value=episodes)),
+        patch("app.services.sonarr.arr_common.get_releases", new=fake_get_releases),
+    ):
+        result = await get_releases(URL, KEY, series_id=42)
+
+    assert [r["title"] for r in result] == ["Special S0"]
+
+
+@pytest.mark.asyncio
+async def test_get_releases_series_only_without_episodes_returns_empty_list():
+    """Serie sans aucun episode connu de Sonarr : rien a interroger, on ne doit pas
+    appeler l'indexeur a vide."""
+    called = False
+
+    async def fake_get_releases(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        return []
+
+    with (
+        patch("app.services.sonarr.get_episodes", new=AsyncMock(return_value=[])),
+        patch("app.services.sonarr.arr_common.get_releases", new=fake_get_releases),
+    ):
+        result = await get_releases(URL, KEY, series_id=42)
+
+    assert result == []
+    assert not called, "Aucune requete ne doit partir vers l'indexeur sans saison a chercher"

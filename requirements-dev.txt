@@ -2,6 +2,10 @@
 pytest
 pytest-asyncio
 pytest-cov
+# Mesure la couverture des seules lignes modifiees par rapport a la branche de base.
+# Complement du seuil global : celui-ci constate l'existant, diff-cover empeche que
+# du code neuf non teste s'ajoute (voir "Check coverage of changed lines" dans tests.yml).
+diff-cover
 httpx2
 ruff
 mypy

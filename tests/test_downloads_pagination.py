@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.models import DownloadHistory
+from app.models import ArrInstance, DownloadHistory
 from app.routers.downloads_api import downloads_history
 from app.utils import now_utc_naive
 
@@ -35,6 +35,14 @@ async def test_download_history_honors_limit_and_offset(async_db):
 
 @pytest.mark.asyncio
 async def test_arr_history_is_read_from_database_without_live_instance(async_db):
+    # « sans instance vivante » signifie qu'aucun appel reseau n'est fait vers Radarr,
+    # pas que la ligne d'instance est absente de la base : arr_instance_id porte une
+    # cle etrangere. SQLite ne l'appliquait pas et acceptait silencieusement une ligne
+    # orpheline ; PostgreSQL la rejette, comme le fait la production.
+    instance = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="secret", enabled=False)
+    async_db.add(instance)
+    async_db.commit()
+
     async_db.add(
         DownloadHistory(
             title="Film archivé",
@@ -42,7 +50,7 @@ async def test_arr_history_is_read_from_database_without_live_instance(async_db)
             media_type="movie",
             source="radarr",
             instance_name="Radarr",
-            arr_instance_id=2,
+            arr_instance_id=instance.id,
             arr_history_id=91,
             processing_mode="automatic",
             completed_at=datetime.now(),
@@ -50,7 +58,7 @@ async def test_arr_history_is_read_from_database_without_live_instance(async_db)
     )
     async_db.commit()
 
-    response = await downloads_history(limit=100, offset=0, source="radarr", instance_id=2, db=async_db)
+    response = await downloads_history(limit=100, offset=0, source="radarr", instance_id=instance.id, db=async_db)
 
     assert [row["title"] for row in response["items"]] == ["Film archivé"]
     assert response["items"][0]["processing_mode"] == "automatic"

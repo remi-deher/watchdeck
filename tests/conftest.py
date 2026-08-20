@@ -1,15 +1,13 @@
 """Configuration pytest partagée : suppression des ResourceWarning SQLite et patch du démarrage."""
 
-import warnings
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from tests.async_support import make_test_session
+from tests.async_support import close_leaked_sessions, make_test_session, reset_postgres_state
 
-# Les connexions SQLite non fermées viennent du pool SQLAlchemy créé à l'import de app.database.
-# Ce n'est pas un bug fonctionnel (l'OS récupère les ressources), on filtre le bruit.
-warnings.filterwarnings("ignore", "unclosed database", ResourceWarning)
+# Le filtre des ResourceWarning "unclosed database" vit desormais dans pytest.ini :
+# pose ici, il etait reinitialise par pytest avant chaque test et n'avait donc aucun effet.
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +71,22 @@ def _isolate_arr_catalog_cache():
     arr_catalog.invalidate()
     yield
     arr_catalog.invalidate()
+
+
+@pytest.fixture(autouse=True)
+def _close_leaked_sessions():
+    """Ferme les sessions ouvertes par un test sans avoir ete liberees.
+
+    Beaucoup de tests appellent make_test_session() a la volee sans fermer. Sous
+    SQLite en memoire c'etait invisible (chaque session avait sa propre base). Sous
+    PostgreSQL, une session fuitee retient une connexion avec une transaction
+    ouverte : le test suivant qui ecrit les memes lignes attend indefiniment le
+    verrou. Constate en pratique -- la suite se figeait des le deuxieme fichier.
+    """
+    yield
+    close_leaked_sessions()
+    # Annule la transaction PostgreSQL du test (sans effet en mode SQLite).
+    reset_postgres_state()
 
 
 @pytest.fixture()
