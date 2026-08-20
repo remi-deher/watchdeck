@@ -411,6 +411,27 @@ class VfUpgradeSuggestion(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive, onupdate=now_utc_naive)
 
 
+class VfUpgradeScanRun(Base):
+    """Historique des cycles du scanner d'ameliorations VF (`vf_upgrade_scanner.scan_vf_upgrades`).
+
+    Une ligne par execution -- `vf_upgrade_scan_state` (dict en memoire) donne l'etat
+    instantane du cycle en cours pour le suivi en direct, mais est ecrase a chaque
+    passage ; cette table conserve les cycles precedents pour l'onglet historique."""
+
+    __tablename__ = "vf_upgrade_scan_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    started_at: Mapped[datetime] = mapped_column(default=now_utc_naive, index=True)
+    finished_at: Mapped[Optional[datetime]]
+    # "running" -> "success" | "failed"
+    status: Mapped[str] = mapped_column(default="running")
+    trigger: Mapped[str] = mapped_column(default="auto")  # "auto" | "manual"
+    tasks_total: Mapped[int] = mapped_column(default=0)
+    tasks_scanned: Mapped[int] = mapped_column(default=0)
+    suggestions_found: Mapped[int] = mapped_column(default=0)
+    error: Mapped[Optional[str]] = mapped_column(Text)
+
+
 class EpisodeAvailability(Base):
     """Cache de la disponibilité Sonarr (fichier présent + date de diffusion) par
     épisode, alimenté en arrière-plan par `services/episode_availability.py`.

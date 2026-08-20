@@ -35,7 +35,15 @@ from sqlalchemy.future import select
 
 from ..cache import cache
 from ..database import AsyncSessionLocal
-from ..models import ArrInstance, LibraryItem, MediaRequest, Settings, VfEpisodeStatus, VfUpgradeSuggestion
+from ..models import (
+    ArrInstance,
+    LibraryItem,
+    MediaRequest,
+    Settings,
+    VfEpisodeStatus,
+    VfUpgradeScanRun,
+    VfUpgradeSuggestion,
+)
 from ..utils import now_utc, now_utc_naive
 from . import radarr, sonarr
 from .release_matching import french_release_evidence, release_is_french, release_matches_target
@@ -880,6 +888,40 @@ async def _record_search_outcome(task: "_SearchTask", found: bool, settings: Set
     )
 
 
+async def get_backoff_snapshot(
+    source_type: str,
+    source_id: int,
+    scope: str,
+    season_number: int | None = None,
+    episode_number: int | None = None,
+) -> dict[str, Any] | None:
+    """Etat du backoff progressif pour UNE cible precise (voir _record_search_outcome),
+    pour affichage cote fiche media -- "derniere recherche restee bredouille il y a Xh,
+    prochaine tentative dans Yh". None si la cible n'a jamais echoue ou vient de trouver
+    une release (cle supprimee)."""
+    key = f"{_NO_RESULT_CACHE_PREFIX}{source_type}:{source_id}:{scope}:{season_number}:{episode_number}"
+    cached = await cache.get_json(key)
+    if not cached:
+        return None
+    checked_at = cached.get("checked_at")
+    cooldown_hours = cached.get("cooldown_hours")
+    misses = cached.get("misses")
+    if not checked_at or not cooldown_hours or not misses:
+        return None
+    try:
+        checked_dt = datetime.fromisoformat(checked_at)
+    except ValueError:
+        return None
+    next_check_at = checked_dt + timedelta(hours=cooldown_hours)
+    return {
+        "checked_at": checked_at,
+        "misses": misses,
+        "cooldown_hours": cooldown_hours,
+        "next_check_at": next_check_at.isoformat(),
+        "on_cooldown": now_utc() < next_check_at,
+    }
+
+
 async def _persist_result(
     db: AsyncSession,
     task: _SearchTask,
@@ -976,11 +1018,16 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         error=None,
     )
     db: AsyncSession = AsyncSessionLocal()
+    run: VfUpgradeScanRun | None = None
     try:
         settings = (await db.execute(select(Settings))).scalars().first()
         if not settings or not settings.vff_enabled or not _setting(settings, "vf_upgrade_enabled", True):
             vf_upgrade_scan_state["status"] = "idle"
             return {"status": "idle", "reason": "vff_disabled"}
+
+        run = VfUpgradeScanRun(trigger="manual" if force else "auto")
+        db.add(run)
+        await db.commit()
 
         retention_cutoff = now_utc_naive() - timedelta(
             days=max(1, _setting(settings, "vf_upgrade_history_retention_days", 90))
@@ -1028,7 +1075,12 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         if not tasks:
             vf_upgrade_scan_state["status"] = "idle"
             vf_upgrade_scan_state["finished_at"] = now_utc().isoformat()
+            run.status = "success"
+            run.finished_at = now_utc_naive()
+            await db.commit()
             return {"status": "idle", "scanned": 0}
+
+        run.tasks_total = len(tasks)
 
         semaphore = asyncio.Semaphore(max(1, min(10, settings.vf_upgrade_search_concurrency or 3)))
 
@@ -1050,6 +1102,11 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
             if await _persist_result(db, task, releases, now, settings, origin="auto"):
                 found += 1
             vf_upgrade_scan_state["items_scanned"] += 1
+
+        run.tasks_scanned = len(tasks)
+        run.suggestions_found = found
+        run.status = "success"
+        run.finished_at = now
         await db.commit()
 
         vf_upgrade_scan_state["status"] = "idle"
@@ -1066,6 +1123,14 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         vf_upgrade_scan_state["status"] = "failed"
         vf_upgrade_scan_state["error"] = str(e)
         logger.exception("VF upgrade scan : echec")
+        if run is not None and run.id is not None:
+            try:
+                run.status = "failed"
+                run.error = str(e)[:2000]
+                run.finished_at = now_utc_naive()
+                await db.commit()
+            except Exception:
+                logger.warning("VF upgrade scan : impossible d'enregistrer l'echec du run en base")
         raise
     finally:
         await db.close()
