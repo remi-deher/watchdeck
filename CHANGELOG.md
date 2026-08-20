@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.9.1 — 2026-08-20
+
+
+### 🐛 Corrections
+
+- corrige le regroupement d'une serie sans saison precise ([b1b693a](https://github.com/remi-deher/watchdeck/commit/b1b693a4c73f14618dd71f5d81a9524f37c7bfe8))
 ## 1.9.0 — 2026-08-20
 
 
 ### ✨ Nouveautés
 
 - priorite configurable + scan sur selection de medias ([f878c33](https://github.com/remi-deher/watchdeck/commit/f878c331cd83193780fc0421914f614f5d97b4a2))
+
+### 🔧 Maintenance
+
+- v1.9.0 (#143) ([abbfb03](https://github.com/remi-deher/watchdeck/commit/abbfb039005fc8b6514c346e738cd6204b085d09))
 ## 1.8.0 — 2026-08-20
 
 
