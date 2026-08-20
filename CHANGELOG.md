@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.0 — 2026-08-20
+
+
+### ✨ Nouveautés
+
+- detail par media des scans + saison mixte terminee + corrections UI ([b93655b](https://github.com/remi-deher/watchdeck/commit/b93655bc2105ce23c97bc51278d764524cee07fc))
 ## 1.7.0 — 2026-08-20
 
 
@@ -10,6 +16,10 @@
 ### ✨ Nouveautés
 
 - historique des scans + backoff visible sur les fiches media ([50424e4](https://github.com/remi-deher/watchdeck/commit/50424e41a7d2d561d4ca22eca5187645aa891729))
+
+### 🔧 Maintenance
+
+- v1.7.0 (#133) ([851cb28](https://github.com/remi-deher/watchdeck/commit/851cb28b6c4d815078fe5858ae453b7c53863c22))
 ## 1.6.0 — 2026-08-20
 
 
