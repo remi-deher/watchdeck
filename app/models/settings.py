@@ -230,6 +230,10 @@ class Settings(Base):
     vf_upgrade_search_concurrency: Mapped[int] = mapped_column(default=3)
     vf_upgrade_retry_hours: Mapped[int] = mapped_column(default=6)
     vf_upgrade_priority: Mapped[str] = mapped_column(default="mixed,vo,vf")
+    # Par defaut, l'efficacite prime : season pack d'une serie terminee en tete (une
+    # seule recherche couvre toute la saison). Active, la fraicheur prime : les episodes
+    # recents d'une serie en cours de diffusion passent devant (VF la plus attendue).
+    vf_upgrade_prioritize_continuing: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_markers: Mapped[str] = mapped_column(default="truefrench,vff,multi,vfi,vfq")
     vf_upgrade_preference: Mapped[str] = mapped_column(default="truefrench,vff,multi,vfi,vfq")
     vf_upgrade_accept_secondary: Mapped[bool] = mapped_column(default=True)

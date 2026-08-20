@@ -24,10 +24,13 @@ from app.models import (
 )
 from app.routers.vf_upgrades_api import (
     VfUpgradeGrabRequest,
+    VfUpgradeMediaRef,
+    VfUpgradeScanSelectionRequest,
     _media_payload,
     _refresh_lifecycle,
     grab_vf_upgrade,
     list_vf_upgrades,
+    trigger_vf_upgrade_scan_selected,
     vf_upgrade_audit,
     vf_upgrade_dashboard,
     vf_upgrade_scan_run_items,
@@ -43,6 +46,7 @@ from app.services.vf_upgrade_scanner import (
     _build_movie_tasks,
     _build_show_tasks,
     _last_episodes,
+    _mixed_priority_tiers,
     _no_result_backoff_active,
     _order_tasks,
     _persist_result,
@@ -2124,3 +2128,101 @@ async def test_vf_upgrade_scan_run_items_404_when_run_missing(db):
     with pytest.raises(HTTPException) as exc_info:
         await vf_upgrade_scan_run_items(run_id=99999, db=db)
     assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Priorite configurable "series en cours" (vf_upgrade_prioritize_continuing)
+# ---------------------------------------------------------------------------
+
+
+def test_mixed_priority_tiers_default_favors_efficiency():
+    assert _mixed_priority_tiers(None) == (1, 2)
+    assert _mixed_priority_tiers(Settings(vf_upgrade_prioritize_continuing=False)) == (1, 2)
+
+
+def test_mixed_priority_tiers_inverted_when_prioritizing_continuing():
+    assert _mixed_priority_tiers(Settings(vf_upgrade_prioritize_continuing=True)) == (2, 1)
+
+
+@pytest.mark.asyncio
+async def test_sonarr_season_tasks_prioritizes_continuing_when_enabled(db):
+    """vf_upgrade_prioritize_continuing=True inverse les tiers : le fallback episodique
+    d'une serie en cours passe devant le season pack d'une serie terminee."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    fake_data = _fake_series_data([1])
+    fake_data["status"] = "ended"
+    now = now_utc()
+    fake_episodes = [
+        {"id": 20, "seasonNumber": 1, "episodeNumber": 1, "hasFile": True, "airDateUtc": now.isoformat()},
+    ]
+    settings = Settings(vf_upgrade_episodic_fallback=True, vf_upgrade_prioritize_continuing=True)
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)),
+        patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=fake_episodes)),
+    ):
+        tasks = await _sonarr_season_tasks(item, inst, "library_item", False, set(), set(), settings)
+
+    season_task = next(t for t in tasks if t.scope == "season")
+    # Serie terminee : sans inversion tier=1, avec inversion tier=2.
+    assert season_task.priority_tier == 2
+
+
+# ---------------------------------------------------------------------------
+# Scan restreint a une selection de medias (only=)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_only_filters_to_selected_media(db):
+    """`only` restreint le scan aux medias selectionnes -- l'autre film de la
+    bibliotheque, pourtant eligible, n'est pas touche."""
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True)
+    db.add(settings_row)
+    _radarr_instance(db)
+    selected_item = _movie_item(db, title="Selected Movie", has_vf=False)
+    _movie_item(db, title="Not Selected Movie", has_vf=False, arr_id=1234)
+    db.commit()
+
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
+    ):
+        result = await scan_vf_upgrades(force=True, only={("library_item", selected_item.id)})
+
+    assert result["scanned"] == 1
+    items = db.sync_session.query(VfUpgradeScanRunItem).all()
+    assert len(items) == 1
+    assert items[0].title == "Selected Movie"
+    runs = db.sync_session.query(VfUpgradeScanRun).all()
+    assert runs[0].trigger == "selection"
+
+
+@pytest.mark.asyncio
+async def test_trigger_vf_upgrade_scan_selected_rejects_empty_selection():
+    with pytest.raises(HTTPException) as exc_info:
+        await trigger_vf_upgrade_scan_selected(VfUpgradeScanSelectionRequest(media=[]))
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_trigger_vf_upgrade_scan_selected_calls_scan_with_only(db):
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True)
+    db.add(settings_row)
+    _radarr_instance(db)
+    item = _movie_item(db, title="Endpoint Selected Movie", has_vf=False)
+    db.commit()
+
+    body = VfUpgradeScanSelectionRequest(media=[VfUpgradeMediaRef(source_type="library_item", source_id=item.id)])
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
+    ):
+        result = await trigger_vf_upgrade_scan_selected(body)
+
+    assert result["scanned"] == 1
+    items = db.sync_session.query(VfUpgradeScanRunItem).all()
+    assert [i.title for i in items] == ["Endpoint Selected Movie"]

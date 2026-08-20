@@ -166,6 +166,7 @@ class SettingsUpdate(BaseModel):
     vf_upgrade_search_concurrency: Optional[int] = None
     vf_upgrade_retry_hours: Optional[int] = None
     vf_upgrade_priority: Optional[str] = None
+    vf_upgrade_prioritize_continuing: Optional[bool] = None
     vf_upgrade_markers: Optional[str] = None
     vf_upgrade_preference: Optional[str] = None
     vf_upgrade_accept_secondary: Optional[bool] = None
