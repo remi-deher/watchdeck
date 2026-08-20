@@ -1,14 +1,38 @@
+# Changelog
+
+## 1.4.1 — 2026-08-20
 
 
-### style
+### test
 
-- fix ruff formatting in stream aligner and tests ([5170fba](https://github.com/remi-deher/watchdeck/commit/5170fbacd9b3a2ce2c57de29623e82d3b65236f2))
+- execute la suite sur PostgreSQL, comme la production ([7086a73](https://github.com/remi-deher/watchdeck/commit/7086a73d1d7191445da52588b1202f2e6bf8dfb5))
+- verifie que chaque endpoint refuse un appelant anonyme ([0a3f64d](https://github.com/remi-deher/watchdeck/commit/0a3f64d0960540b19ab746d64f497b32d962f25d))
+- supprime les avertissements, verrouille la couverture et couvre l'anti-force-brute ([a3c477e](https://github.com/remi-deher/watchdeck/commit/a3c477ee7048432e382264adc826a29bb1c1d3a3))
+- couvre les protections des favicons et la selection des pistes Plex ([b804363](https://github.com/remi-deher/watchdeck/commit/b80436351b75aa81c0b202a92da383996291c550))
+- non-regression des debordements responsive signales ([d9ad3a4](https://github.com/remi-deher/watchdeck/commit/d9ad3a4222dc3bfd78ad0e20951c5630d174f726))
+
+### 🐛 Corrections
+
+- ajoute l'en-tete de version manquant dans le template ([14f6ef6](https://github.com/remi-deher/watchdeck/commit/14f6ef657e61889929c8745747949d6f7f15b2f7))
+- restaure les tests d'alignement ecrases par erreur ([18f9b21](https://github.com/remi-deher/watchdeck/commit/18f9b21c97ea6624824d6ec95624d9ff6a8aca0f))
+
+### 👷 CI/CD
+
+- supprime les branches release/* et les builds d'image sans objet ([bc810e2](https://github.com/remi-deher/watchdeck/commit/bc810e2091b6b25d6c34909b4cef4b2053af8bb9))
+- promeut l'image testee au lieu d'en reconstruire une pour la production ([e98a23f](https://github.com/remi-deher/watchdeck/commit/e98a23f44d47c6f572d65dbb8d08476115db0f2f))
+- detecte les secrets committes par accident (gitleaks) ([643fe7d](https://github.com/remi-deher/watchdeck/commit/643fe7dc972868836a6faee92cd982e103e71f15))
+## 1.4.0 — 2026-08-19
+
 
 ### ✨ Nouveautés
 
 - add interactive expandable playback timeline with segment log, ticks and ratios ([70fcee3](https://github.com/remi-deher/watchdeck/commit/70fcee313d524e9f4a1cc45422703860bd29ffe8))
 - synchronize release search and grab bidirectionally with vf upgrades ([81200ee](https://github.com/remi-deher/watchdeck/commit/81200eedb808bd57e29b4976cc95122917bc9e08))
 - alignement personnalisable des flux Plex par média, saison et épisode pour un ou plusieurs utilisateurs ([436d6da](https://github.com/remi-deher/watchdeck/commit/436d6da5b09aee8f9402f9da0ca32254da952380))
+
+### 🎨 Style
+
+- fix ruff formatting in stream aligner and tests ([5170fba](https://github.com/remi-deher/watchdeck/commit/5170fbacd9b3a2ce2c57de29623e82d3b65236f2))
 
 ### 🐛 Corrections
 
@@ -33,22 +57,33 @@
 - sync main into dev ([e30ddf4](https://github.com/remi-deher/watchdeck/commit/e30ddf4d4323094809fe9a439537c49cd9a7da0f))
 - sync main into dev ([8a31ed4](https://github.com/remi-deher/watchdeck/commit/8a31ed409aa468f8f00faa611660b829653765a3))
 - nettoie les artefacts de build Vue orphelins ([8132951](https://github.com/remi-deher/watchdeck/commit/8132951a04d92323b6315422875386dbbde89399))
+- v1.4.0 (#102) ([bef640c](https://github.com/remi-deher/watchdeck/commit/bef640c0528ce5935a8f6995d1696526a829269d))
+## 1.3.5 — 2026-08-19
+
 
 ### 🔧 Maintenance
 
 - v1.3.5 (#98) ([e3f047a](https://github.com/remi-deher/watchdeck/commit/e3f047a40816aef4641d2d9aa59d7c461102dd33))
+## 1.3.4 — 2026-08-18
+
 
 ### 🔧 Maintenance
 
 - v1.3.4 (#93) ([64d2778](https://github.com/remi-deher/watchdeck/commit/64d277856f54c8b5891adebf62add1bcb5c79f33))
+## 1.3.3 — 2026-08-18
+
 
 ### 🔧 Maintenance
 
 - v1.3.3 (#89) ([cf710c9](https://github.com/remi-deher/watchdeck/commit/cf710c9debda4ca7c608885021c90f5c10ba8ff4))
+## 1.3.2 — 2026-08-18
+
 
 ### 🔧 Maintenance
 
 - v1.3.2 (#85) ([6e51310](https://github.com/remi-deher/watchdeck/commit/6e513108853446aeb6431dd3bf2c39f7fe2e6fd6))
+## 1.3.1 — 2026-08-18
+
 
 ### ✨ Nouveautés
 
@@ -61,6 +96,8 @@
 ### 🔧 Maintenance
 
 - v1.3.1 (#80) ([4cddedd](https://github.com/remi-deher/watchdeck/commit/4cddedd26cde82fb3f278bde471c06211c462b4b))
+## 1.3.0 — 2026-08-17
+
 
 ### ✨ Nouveautés
 
@@ -69,6 +106,8 @@
 ### 🔧 Maintenance
 
 - v1.3.0 (#75) ([8ab5bc1](https://github.com/remi-deher/watchdeck/commit/8ab5bc1034b8652e4f74a8d3cd3afab942ecc99b))
+## 1.2.1 — 2026-08-17
+
 
 ### 👷 CI/CD
 
@@ -77,6 +116,8 @@
 ### 🔧 Maintenance
 
 - v1.2.1 (#69) ([f6746e9](https://github.com/remi-deher/watchdeck/commit/f6746e9a522e8a1e1fbd219ac10abaac6cbd154f))
+## 1.2.0 — 2026-08-17
+
 
 ### ✨ Nouveautés
 
@@ -85,6 +126,8 @@
 ### 🔧 Maintenance
 
 - v1.2.0 (#65) ([d3dfd55](https://github.com/remi-deher/watchdeck/commit/d3dfd559598a5d9eef6975175a9e2a6b356a8117))
+## 1.1.8 — 2026-08-17
+
 
 ### 👷 CI/CD
 
@@ -96,11 +139,15 @@
 - sync main into dev ([19b2a34](https://github.com/remi-deher/watchdeck/commit/19b2a34e451923c30b637921a31ed9b5b54bae26))
 - sync main into dev ([3a13458](https://github.com/remi-deher/watchdeck/commit/3a13458eccddb1497fbdd44a07c6ee4b95c91aa8))
 - v1.1.8 (#59) ([81524c6](https://github.com/remi-deher/watchdeck/commit/81524c6d42962f63caacf5c24fc9b69cb893f58b))
+## 1.1.7 — 2026-08-17
+
 
 ### 🔧 Maintenance
 
 - bump 5 GitHub Actions majeures (checkout 7.0.1, action-gh-release 3.0.2, build-push-action 7.3.0, dependency-review-action 5.0.0, upload-artifact 7.0.1) ([d42432e](https://github.com/remi-deher/watchdeck/commit/d42432e7a38a2f7e3a00413e1036734087f0fc5c))
 - v1.1.7 (#56) ([b1c6dbb](https://github.com/remi-deher/watchdeck/commit/b1c6dbbbd2339c516aa1127cfee5f45e15736d07))
+## 1.1.6 — 2026-08-17
+
 
 ### 🔧 Maintenance
 
@@ -108,6 +155,8 @@
 - sync main into dev ([7cbbf53](https://github.com/remi-deher/watchdeck/commit/7cbbf5334c1738969c13fef8ae5fa958320fb21d))
 - sync main into dev ([4dc4055](https://github.com/remi-deher/watchdeck/commit/4dc4055c3cd526f503983cdf7bbc578d135ecf56))
 - v1.1.6 (#45) ([29aeaa2](https://github.com/remi-deher/watchdeck/commit/29aeaa282cc85b01324253ce364757e33160f3d1))
+## 1.1.5 — 2026-08-17
+
 
 ### 👷 CI/CD
 
@@ -116,6 +165,8 @@
 ### 🔧 Maintenance
 
 - v1.1.5 (#42) ([5ee27f4](https://github.com/remi-deher/watchdeck/commit/5ee27f4217b7ff232c04b2566d6b864264c1f7d4))
+## 1.1.4 — 2026-08-17
+
 
 ### 👷 CI/CD
 
@@ -125,6 +176,8 @@
 
 - sync main into dev ([21022a1](https://github.com/remi-deher/watchdeck/commit/21022a168d5846f13d0b3d7e929fd8a2b8501d4c))
 - v1.1.4 (#36) ([fbe9e0e](https://github.com/remi-deher/watchdeck/commit/fbe9e0edcb4451db52afcecbed98a027bdd13de1))
+## 1.1.3 — 2026-08-17
+
 
 ### 🔧 Maintenance
 
@@ -135,6 +188,8 @@
 - bump actions/setup-node from 4.4.0 to 7.0.0 (#8) ([5d473e7](https://github.com/remi-deher/watchdeck/commit/5d473e77371ec2408269e05acc2733d771f36b4b))
 - bump github/codeql-action/upload-sarif from 3.37.7 to 4.37.7 (#9) ([39ce612](https://github.com/remi-deher/watchdeck/commit/39ce612f42175f4c0534bc848a9cb569594a8dfb))
 - v1.1.3 (#32) ([a1c17dc](https://github.com/remi-deher/watchdeck/commit/a1c17dc65e7238521354f7a39595873ace118309))
+## 1.1.2 — 2026-08-17
+
 
 ### 🐛 Corrections
 
@@ -147,14 +202,18 @@
 ### 🔧 Maintenance
 
 - v1.1.2 (#26) ([41a2a80](https://github.com/remi-deher/watchdeck/commit/41a2a8059778a1f2110880d75a5c40abed5c0b99))
+## 1.1.1 — 2026-08-17
 
-### style
+
+### 🎨 Style
 
 - full-repo ruff check + format, no more per-file allowlist ([e410ab6](https://github.com/remi-deher/watchdeck/commit/e410ab6eb7b9ac70a123dc46884d4cf54ddbb357))
 
 ### 🔧 Maintenance
 
 - v1.1.1 (#21) ([758c211](https://github.com/remi-deher/watchdeck/commit/758c2117c0cb97181bee3968f690476d52b2afe8))
+## 1.1.0 — 2026-08-17
+
 
 ### ✨ Nouveautés
 
@@ -164,11 +223,15 @@
 ### 🔧 Maintenance
 
 - v1.1.0 (#16) ([bb003ce](https://github.com/remi-deher/watchdeck/commit/bb003ce5ed083f2dd3f7050e69dc5e0556e8ebc9))
+## 1.0.1 — 2026-08-17
+
 
 ### 🔧 Maintenance
 
 - bump asyncpg from 0.30.0 to 0.31.0 (#2) ([826027f](https://github.com/remi-deher/watchdeck/commit/826027f89836f2d40e3fd986f5c879402bef3f34))
 - v1.0.1 (#11) ([e3c1506](https://github.com/remi-deher/watchdeck/commit/e3c150609aacffd2ee6335f9ba23ddf1ae758550))
+## 1.0.0 — 2026-08-17
+
 
 ### 🔧 Maintenance
 
