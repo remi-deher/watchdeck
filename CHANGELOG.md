@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0 — 2026-08-20
+
+
+### ✨ Nouveautés
+
+- priorise le scan selon le statut de diffusion des series ([daf97bc](https://github.com/remi-deher/watchdeck/commit/daf97bc7b40395c6c15b0cf1a884c688b2fc3f94))
 ## 1.4.4 — 2026-08-20
 
 
@@ -15,6 +21,10 @@
 
 - améliore la détection et la couverture des releases VF/MULTI ([5c9eeea](https://github.com/remi-deher/watchdeck/commit/5c9eeea2c3d024993ec48716826a90c5d2ff9079))
 - supprime variable total_rej non utilisée ([8d60ce4](https://github.com/remi-deher/watchdeck/commit/8d60ce49ec01996f9dbd614e75f9c7e1e9983529))
+
+### 🔧 Maintenance
+
+- v1.4.4 (#121) ([bd25f83](https://github.com/remi-deher/watchdeck/commit/bd25f83861f8fd281eddedb5c4abcaa0ad55dc78))
 ## 1.4.3 — 2026-08-20
 
 
