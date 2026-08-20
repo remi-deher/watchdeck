@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.9.0 — 2026-08-20
+
+
+### ✨ Nouveautés
+
+- priorite configurable + scan sur selection de medias ([f878c33](https://github.com/remi-deher/watchdeck/commit/f878c331cd83193780fc0421914f614f5d97b4a2))
 ## 1.8.0 — 2026-08-20
 
 
 ### ✨ Nouveautés
 
 - detail par media des scans + saison mixte terminee + corrections UI ([b93655b](https://github.com/remi-deher/watchdeck/commit/b93655bc2105ce23c97bc51278d764524cee07fc))
+
+### 🔧 Maintenance
+
+- v1.8.0 (#139) ([3ae84ce](https://github.com/remi-deher/watchdeck/commit/3ae84ceb53b6c68507f38479584e7909502e36c8))
 ## 1.7.0 — 2026-08-20
 
 
