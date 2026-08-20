@@ -655,7 +655,6 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
         matched.append(enriched)
 
     if logger.isEnabledFor(logging.DEBUG):
-        total_rej = sum(_rej.values())
         logger.debug(
             "VF search '%s' : %d/%d retenus — rejets: cible=%d non_fr=%d marker=%d conf=%d seed=%d taille=%d",
             task.title, len(matched), len(releases), _rej["target"], _rej["not_fr"],
