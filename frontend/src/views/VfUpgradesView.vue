@@ -545,7 +545,7 @@
                 </header>
 
                 <!-- Pour les films -->
-                <div v-if="group.media?.media_type === 'movie' || (group.seasons.length === 1 && group.seasons[0].label === 'Film')" class="movie-targets">
+                <div v-if="group.media?.media_type === 'movie' || (group.seasons.length === 1 && group.seasons[0].key === 'movie')" class="movie-targets">
                   <div
                     v-for="item in group.items"
                     :key="item.id"

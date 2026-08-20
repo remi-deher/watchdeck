@@ -64,13 +64,16 @@ export function groupVfUpgradeItems(items: VfUpgradeItem[] = []): VfUpgradeGroup
   for (const group of groups.values()) {
     const seasons = new Map<string, { key: string; number: number | null; label: string; items: VfUpgradeItem[] }>();
     for (const item of group.items) {
-      const seasonNumber = item.scope === 'movie' ? null : item.season_number ?? null;
-      const key = seasonNumber == null ? 'movie' : String(seasonNumber);
+      const seasonNumber = item.scope === 'movie' || item.scope === 'show' ? null : item.season_number ?? null;
+      // scope 'show' (suggestion/attente portant sur la serie entiere, sans saison
+      // precise) doit rester distinct de scope 'movie' -- les deux ont season_number
+      // null, mais melanges dans le meme groupe une serie s'affichait comme "Film".
+      const key = seasonNumber != null ? String(seasonNumber) : item.scope === 'movie' ? 'movie' : 'show';
       if (!seasons.has(key)) {
         seasons.set(key, {
           key,
           number: seasonNumber,
-          label: seasonNumber == null ? 'Film' : `Saison ${seasonNumber}`,
+          label: seasonNumber != null ? `Saison ${seasonNumber}` : key === 'movie' ? 'Film' : 'Série',
           items: [],
         });
       }
