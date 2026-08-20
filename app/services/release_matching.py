@@ -183,16 +183,19 @@ def release_is_french(rel: dict) -> bool:
 
 
 def french_release_evidence(rel: dict) -> dict:
-    """Explique et note la preuve VF sans pretendre connaitre les pistes du fichier.
+    """Explique la preuve VF sans pretendre connaitre les pistes du fichier.
 
-    Le score sert a ordonner l'aide a la decision. Seule l'analyse MediaInfo/Plex
-    apres import constitue une validation definitive.
+    Une langue French declaree par *arr ou un marqueur VF explicite et isole dans le
+    titre constitue une preuve suffisante pour proposer la release. Le score reste
+    expose pour compatibilite avec l'API et les reglages existants, mais la detection
+    est volontairement binaire. Seule l'analyse MediaInfo/Plex apres import constitue
+    une validation definitive.
     """
     title = (rel.get("title") or "").lower()
     words = set(re.sub(r"[.\-_]+", " ", title).split())
     declared = [lang for lang in rel.get("languages", []) if (lang or "").lower() in _FRENCH_LANG_NAMES]
     markers = sorted((words & _FRENCH_TITLE_WORDS) | {w for w in words if _VFF_VARIANT_RE.match(w)})
-    score = min(100, (65 if declared else 0) + (35 if markers else 0))
+    score = 100 if declared or markers else 0
     return {
         "vf_confidence": score,
         "vf_evidence": (["Langue French declaree par *arr"] if declared else [])
