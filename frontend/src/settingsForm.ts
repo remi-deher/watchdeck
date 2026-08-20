@@ -112,6 +112,8 @@ export const form = reactive<Record<string, any>>({
   vf_upgrade_episodic_fallback: true,
   vf_upgrade_episodic_fallback_limit: 5,
   vf_upgrade_episodic_fallback_days: 30,
+  vf_upgrade_no_result_backoff_base_hours: 6,
+  vf_upgrade_no_result_backoff_max_hours: 48,
   vf_upgrade_protect_existing_vf: true,
   vf_upgrade_notify_found: false,
   vf_upgrade_notify_accepted: false,

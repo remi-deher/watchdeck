@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.cache import cache
 from app.models import (
     ArrInstance,
     Base,
@@ -37,10 +38,12 @@ from app.services.vf_upgrade_scanner import (
     _build_movie_tasks,
     _build_show_tasks,
     _last_episodes,
+    _no_result_backoff_active,
     _order_tasks,
     _persist_result,
     _recent_episodes,
     _recent_scan_keys,
+    _record_search_outcome,
     _search_task,
     _SearchTask,
     _series_is_ended,
@@ -1685,3 +1688,90 @@ def test_order_tasks_ranks_ended_season_pack_before_continuing_fallback():
     )
     ordered = _order_tasks([continuing_episode, ended_pack], settings=None)
     assert ordered == [ended_pack, continuing_episode]
+
+
+# ---------------------------------------------------------------------------
+# Backoff progressif sur recherches restees bredouilles
+# ---------------------------------------------------------------------------
+
+
+def _backoff_task(source_id: int, episode_number: int | None = None) -> _SearchTask:
+    inst = ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr.local", api_key="key")
+    return _SearchTask(
+        source_type="library_item",
+        source_id=source_id,
+        scope="episode" if episode_number else "movie",
+        arr_type="sonarr" if episode_number else "radarr",
+        inst=inst,
+        arr_id=1,
+        season_number=1 if episode_number else None,
+        episode_number=episode_number,
+        title="Backoff Test Target",
+    )
+
+
+@pytest.mark.asyncio
+async def test_no_result_backoff_inactive_when_never_searched():
+    task = _backoff_task(source_id=910001, episode_number=1)
+    assert await _no_result_backoff_active(task) is False
+
+
+@pytest.mark.asyncio
+async def test_record_search_outcome_doubles_cooldown_until_capped():
+    """Chaque echec consecutif double le cooldown (base -> base*2 -> base*4 ...),
+    plafonne a vf_upgrade_no_result_backoff_max_hours."""
+    task = _backoff_task(source_id=910002, episode_number=1)
+    settings = Settings(vf_upgrade_no_result_backoff_base_hours=6, vf_upgrade_no_result_backoff_max_hours=48)
+
+    await _record_search_outcome(task, found=False, settings=settings)
+    assert (await cache.get_json("watchdeck:vf_upgrade:no_result:library_item:910002:episode:1:1"))[
+        "cooldown_hours"
+    ] == 6
+    assert await _no_result_backoff_active(task) is True
+
+    await _record_search_outcome(task, found=False, settings=settings)
+    assert (await cache.get_json("watchdeck:vf_upgrade:no_result:library_item:910002:episode:1:1"))[
+        "cooldown_hours"
+    ] == 12
+
+    await _record_search_outcome(task, found=False, settings=settings)
+    assert (await cache.get_json("watchdeck:vf_upgrade:no_result:library_item:910002:episode:1:1"))[
+        "cooldown_hours"
+    ] == 24
+
+    await _record_search_outcome(task, found=False, settings=settings)
+    assert (await cache.get_json("watchdeck:vf_upgrade:no_result:library_item:910002:episode:1:1"))[
+        "cooldown_hours"
+    ] == 48  # plafonne, aurait ete 48*2=96 sans le cap
+
+    await _record_search_outcome(task, found=False, settings=settings)
+    assert (await cache.get_json("watchdeck:vf_upgrade:no_result:library_item:910002:episode:1:1"))[
+        "cooldown_hours"
+    ] == 48
+
+
+@pytest.mark.asyncio
+async def test_record_search_outcome_found_resets_backoff():
+    """Une release trouvee (ex: upload tardif quelques heures apres la VO) efface le
+    compteur d'echecs -- la cible redevient immediatement recherchable."""
+    task = _backoff_task(source_id=910003, episode_number=1)
+    settings = Settings(vf_upgrade_no_result_backoff_base_hours=6, vf_upgrade_no_result_backoff_max_hours=48)
+
+    await _record_search_outcome(task, found=False, settings=settings)
+    assert await _no_result_backoff_active(task) is True
+
+    await _record_search_outcome(task, found=True, settings=settings)
+    assert await _no_result_backoff_active(task) is False
+
+
+@pytest.mark.asyncio
+async def test_no_result_backoff_movie_scope_uses_distinct_key_from_episode():
+    """Meme source_id mais scope different (film vs episode) -> cles independantes."""
+    movie_task = _backoff_task(source_id=910004, episode_number=None)
+    episode_task = _backoff_task(source_id=910004, episode_number=1)
+    settings = Settings(vf_upgrade_no_result_backoff_base_hours=6, vf_upgrade_no_result_backoff_max_hours=48)
+
+    await _record_search_outcome(movie_task, found=False, settings=settings)
+
+    assert await _no_result_backoff_active(movie_task) is True
+    assert await _no_result_backoff_active(episode_task) is False
