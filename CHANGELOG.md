@@ -1,11 +1,29 @@
 # Changelog
 
+## 1.4.3 — 2026-08-20
+
+
+### ♻️ Refactoring
+
+- passe les reglages en lignes plutot qu'en cartes ([bac981d](https://github.com/remi-deher/watchdeck/commit/bac981debf0798e3bd2c5b6a2209e4070f9732a3))
+
+### 🎨 Style
+
+- format release marker tests ([20375a5](https://github.com/remi-deher/watchdeck/commit/20375a583ac05736cb39aa35f7efbc511c9468fb))
+
+### 🐛 Corrections
+
+- trust explicit release language markers ([211f7a7](https://github.com/remi-deher/watchdeck/commit/211f7a7358ff8835ef1bd889eb39fec4f07c0dd6))
 ## 1.4.2 — 2026-08-20
 
 
 ### 🐛 Corrections
 
 - corrige la version affichee par l'image promue ([7aed84b](https://github.com/remi-deher/watchdeck/commit/7aed84baea3ff7757528cf28a9d12b54f3b86594))
+
+### 🔧 Maintenance
+
+- v1.4.2 (#112) ([0aa765f](https://github.com/remi-deher/watchdeck/commit/0aa765fbafb99ac71c91e579226a59d3dac63d4e))
 ## 1.4.1 — 2026-08-20
 
 
