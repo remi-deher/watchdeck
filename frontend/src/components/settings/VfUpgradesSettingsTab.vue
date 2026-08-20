@@ -111,6 +111,12 @@
       <SettingsRow label="Fenêtre de récence" description="En jours. Pour une série en cours de diffusion, seuls les épisodes diffusés dans cette fenêtre entrent dans le fallback." :disabled="!form.vf_upgrade_episodic_fallback">
         <input v-model.number="form.vf_upgrade_episodic_fallback_days" :disabled="!form.vf_upgrade_episodic_fallback" type="number" min="1" max="365">
       </SettingsRow>
+      <SettingsRow label="Cooldown après échec" description="En heures. Double à chaque recherche restée bredouille sur une même cible, pour ne pas la retenter en boucle.">
+        <input v-model.number="form.vf_upgrade_no_result_backoff_base_hours" type="number" min="1" max="168">
+      </SettingsRow>
+      <SettingsRow label="Cooldown maximal après échecs répétés" description="En heures. Plafond du cooldown progressif ci-dessus.">
+        <input v-model.number="form.vf_upgrade_no_result_backoff_max_hours" type="number" min="1" max="720">
+      </SettingsRow>
     </SettingsSection>
 
     <SettingsSection title="Validation et historique" subtitle="Confirme la VF après import et conserve une trace exploitable.">

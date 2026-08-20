@@ -187,6 +187,8 @@ class SettingsUpdate(BaseModel):
     vf_upgrade_episodic_fallback: Optional[bool] = None
     vf_upgrade_episodic_fallback_limit: Optional[int] = None
     vf_upgrade_episodic_fallback_days: Optional[int] = None
+    vf_upgrade_no_result_backoff_base_hours: Optional[int] = None
+    vf_upgrade_no_result_backoff_max_hours: Optional[int] = None
     vf_upgrade_protect_existing_vf: Optional[bool] = None
     vf_upgrade_notify_found: Optional[bool] = None
     vf_upgrade_notify_accepted: Optional[bool] = None

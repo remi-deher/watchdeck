@@ -823,6 +823,63 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
     return ReleaseResults(matched, raw_count=len(releases))
 
 
+_NO_RESULT_CACHE_PREFIX = "watchdeck:vf_upgrade:no_result:"
+
+
+def _no_result_cache_key(task: "_SearchTask") -> str:
+    return (
+        f"{_NO_RESULT_CACHE_PREFIX}{task.source_type}:{task.source_id}:{task.scope}:"
+        f"{task.season_number}:{task.episode_number}"
+    )
+
+
+async def _no_result_backoff_active(task: "_SearchTask") -> bool:
+    """True si cette cible a echoue recemment et son cooldown progressif (voir
+    _record_search_outcome) n'est pas encore ecoule.
+
+    Sans ce filtre, une recherche restee bredouille est retentee a chaque passage
+    (jusqu'a `vf_upgrade_max_searches_per_run` fois par cycle) pour rien : la plupart
+    des cibles sans VF disponible le restent pendant des heures, ce qui gaspille le
+    budget de recherches au detriment des cibles qui pourraient, elles, avoir une
+    nouvelle release. Le cooldown grandit avec le nombre d'echecs consecutifs plutot
+    qu'avec l'age de l'episode : une VF postee quelques heures apres la VO (upload
+    tardif d'un indexeur) reste trouvee des le 1er ou 2e cycle, alors qu'une serie au
+    doublage regulierement tardif (ex. simulcast) voit ses recherches s'espacer
+    naturellement apres plusieurs echecs."""
+    cached = await cache.get_json(_no_result_cache_key(task))
+    if not cached:
+        return False
+    checked_at = cached.get("checked_at")
+    cooldown_hours = cached.get("cooldown_hours")
+    if not checked_at or not cooldown_hours:
+        return False
+    try:
+        checked_dt = datetime.fromisoformat(checked_at)
+    except ValueError:
+        return False
+    return (now_utc() - checked_dt) < timedelta(hours=cooldown_hours)
+
+
+async def _record_search_outcome(task: "_SearchTask", found: bool, settings: Settings | None) -> None:
+    """Met a jour le compteur d'echecs consecutifs de la cible : remis a zero (cle
+    supprimee) des qu'une release est trouvee, sinon cooldown double a chaque echec
+    (plafonne), voir _no_result_backoff_active."""
+    key = _no_result_cache_key(task)
+    if found:
+        await cache.delete(key)
+        return
+    cached = await cache.get_json(key)
+    misses = (cached.get("misses", 0) if cached else 0) + 1
+    base_hours = max(1, _setting(settings, "vf_upgrade_no_result_backoff_base_hours", 6))
+    max_hours = max(base_hours, _setting(settings, "vf_upgrade_no_result_backoff_max_hours", 48))
+    cooldown_hours = min(base_hours * (2 ** (misses - 1)), max_hours)
+    await cache.set_json(
+        key,
+        {"misses": misses, "checked_at": now_utc().isoformat(), "cooldown_hours": cooldown_hours},
+        ttl_seconds=int(cooldown_hours * 3600),
+    )
+
+
 async def _persist_result(
     db: AsyncSession,
     task: _SearchTask,
@@ -961,6 +1018,11 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         tasks = _order_tasks(tasks, settings)
 
         if not force:
+            # Filtre les cibles encore en cooldown progressif (voir _no_result_backoff_active)
+            # avant de plafonner au budget du passage -- sinon elles occuperaient des places
+            # qui reviennent aux cibles jamais tentees ou dont le cooldown vient d'expirer.
+            blocked = await asyncio.gather(*(_no_result_backoff_active(t) for t in tasks))
+            tasks = [t for t, is_blocked in zip(tasks, blocked) if not is_blocked]
             tasks = tasks[: max(1, settings.vf_upgrade_max_searches_per_run or 40)]
         vf_upgrade_scan_state["total_items"] = len(tasks)
         if not tasks:
@@ -983,6 +1045,8 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         now = now_utc_naive()
         found = 0
         for task, releases in results:
+            if not force:
+                await _record_search_outcome(task, bool(releases), settings)
             if await _persist_result(db, task, releases, now, settings, origin="auto"):
                 found += 1
             vf_upgrade_scan_state["items_scanned"] += 1

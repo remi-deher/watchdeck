@@ -258,6 +258,10 @@ class Settings(Base):
     # Fenetre (jours) au-dela de laquelle un episode diffuse n'est plus considere comme
     # "recent" pour le fallback episodique d'une serie en cours de diffusion.
     vf_upgrade_episodic_fallback_days: Mapped[int] = mapped_column(default=30)
+    # Cooldown (heures) applique apres une recherche restee bredouille, double a chaque
+    # echec consecutif jusqu'au plafond ci-dessous (voir _record_search_outcome).
+    vf_upgrade_no_result_backoff_base_hours: Mapped[int] = mapped_column(default=6)
+    vf_upgrade_no_result_backoff_max_hours: Mapped[int] = mapped_column(default=48)
     vf_upgrade_protect_existing_vf: Mapped[bool] = mapped_column(default=True)
     vf_upgrade_notify_found: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_notify_accepted: Mapped[bool] = mapped_column(default=False)
