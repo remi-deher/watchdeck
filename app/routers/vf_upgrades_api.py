@@ -15,13 +15,22 @@ from sqlalchemy.future import select
 from ..database import get_db_async
 from ..dependencies import require_moderator
 from ..job_queue import arq_enabled, enqueue_job
-from ..models import LibraryItem, MediaRequest, RequestStatus, Settings, VfEpisodeStatus, VfUpgradeSuggestion
+from ..models import (
+    LibraryItem,
+    MediaRequest,
+    RequestStatus,
+    Settings,
+    VfEpisodeStatus,
+    VfUpgradeScanRun,
+    VfUpgradeSuggestion,
+)
 from ..realtime import publish
 from ..services import radarr, sonarr
 from ..services.request_lifecycle import transition_request
 from ..services.vf_upgrade_scanner import (
     _season_vf_status,
     classify_vf_target,
+    get_backoff_snapshot,
     scan_single_target,
     scan_vf_upgrades,
     vf_upgrade_scan_state,
@@ -228,7 +237,14 @@ async def list_vf_upgrades(source_type: str, source_id: int, db: AsyncSession = 
             except Exception as exc:
                 logger.warning("Suivi upgrade VF indisponible pour suggestion %s: %s", row.id, exc)
         await db.commit()
-    return {"suggestions": [_payload(r) for r in rows]}
+    suggestions = []
+    for row in rows:
+        payload = _payload(row)
+        payload["backoff"] = await get_backoff_snapshot(
+            row.source_type, row.source_id, row.scope, row.season_number, row.episode_number
+        )
+        suggestions.append(payload)
+    return {"suggestions": suggestions}
 
 
 @router.get("/vf-upgrades/metrics")
@@ -336,6 +352,9 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
                 **_payload(row),
                 "media": _media_payload(media, row.source_type),
                 "release_count": len(releases),
+                "backoff": await get_backoff_snapshot(
+                    row.source_type, row.source_id, row.scope, row.season_number, row.episode_number
+                ),
             }
         )
 
@@ -357,6 +376,11 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
             target_kind = (
                 "mixed" if getattr(media, "vf_granularity", None) in ("episode_partial", "season_partial") else "vo"
             )
+            # Le backoff progressif (voir vf_upgrade_scanner._record_search_outcome) est
+            # suivi par cible exacte (scope movie/season/episode) -- une serie ("show")
+            # n'a pas de cle unique puisque le scanner traite chaque saison/episode
+            # separement, seul le film a une correspondance directe ici.
+            backoff = await get_backoff_snapshot("library_item", media.id, "movie") if scope == "movie" else None
 
             items.append(
                 {
@@ -377,6 +401,7 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
                     "releases_data": [],
                     "releases_json": "[]",
                     "current_release_titles": [],
+                    "backoff": backoff,
                 }
             )
 
@@ -951,3 +976,30 @@ async def dismiss_vf_upgrade(suggestion_id: int, db: AsyncSession = Depends(get_
 @router.get("/vf-upgrades/scan-status")
 async def vf_upgrade_scan_status():
     return vf_upgrade_scan_state
+
+
+@router.get("/vf-upgrades/scan-runs")
+async def vf_upgrade_scan_runs(limit: int = Query(default=20, ge=1, le=200), db: AsyncSession = Depends(get_db_async)):
+    """Historique des cycles du scanner d'ameliorations VF (voir VfUpgradeScanRun) --
+    complementaire de /scan-status qui ne donne que l'etat instantane du cycle en cours."""
+    rows = (
+        (await db.execute(select(VfUpgradeScanRun).order_by(VfUpgradeScanRun.started_at.desc()).limit(limit)))
+        .scalars()
+        .all()
+    )
+    return {
+        "runs": [
+            {
+                "id": row.id,
+                "started_at": row.started_at.isoformat() if row.started_at else None,
+                "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+                "status": row.status,
+                "trigger": row.trigger,
+                "tasks_total": row.tasks_total,
+                "tasks_scanned": row.tasks_scanned,
+                "suggestions_found": row.suggestions_found,
+                "error": row.error,
+            }
+            for row in rows
+        ]
+    }
