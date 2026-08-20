@@ -76,7 +76,7 @@ function handleClick(event: MouseEvent) {
 .ui-button--primary:hover:not(:disabled):not([aria-disabled="true"]) { background: color-mix(in srgb, var(--accent) 88%, white); }
 .ui-button--secondary:hover:not(:disabled):not([aria-disabled="true"]),.ui-button--ghost:hover:not(:disabled):not([aria-disabled="true"]) { border-color: color-mix(in srgb, var(--border) 65%, white); background: var(--surface-3); color: var(--text); }
 .ui-button--danger:hover:not(:disabled):not([aria-disabled="true"]) { border-color: rgba(239,68,68,.58); background: rgba(239,68,68,.17); }
-.ui-button-label { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); }
+.ui-button-label { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); color: inherit; }
 .ui-button:active:not(:disabled) { transform: translateY(1px); }
 .ui-button:disabled,.ui-button[aria-disabled="true"] { cursor: not-allowed; opacity: .55; }
 .ui-button.is-icon-only { width: 40px; padding: 0; }
