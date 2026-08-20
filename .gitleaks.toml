@@ -1,0 +1,32 @@
+# Configuration gitleaks : detection de secrets committes par accident.
+#
+# Un secret pousse sur GitHub doit etre considere comme compromis meme s'il est
+# retire au commit suivant : il reste dans l'historique, dans les forks et dans les
+# caches. La seule parade utile est de l'attraper avant le push, d'ou ce scan.
+#
+# Le scan initial de l'historique (141 commits) n'a remonte aucun vrai secret --
+# uniquement les deux faux positifs neutralises ci-dessous.
+
+[extend]
+# Repart du jeu de regles officiel (cles AWS/GCP, jetons GitHub, cles privees...)
+# plutot que de maintenir une liste maison qui se perimerait.
+useDefault = true
+
+[allowlist]
+description = "Faux positifs verifies un par un"
+
+paths = [
+  # Modele de configuration : ne contient que des valeurs a remplacer, et n'est
+  # jamais lu par l'application. La ligne signalee est WATCHDECK_ENCRYPTION_KEY=,
+  # sans aucune valeur.
+  '''^\.env\.example$''',
+]
+
+# La regle generique s'applique ici au texte capture et non a une vraie valeur : dans
+# tests/test_discover_api.py, elle matche a cheval sur deux chaines Python
+# (`tmdb_api_key="key", tmdb_region="BE"`) et prend `tmdb_region=` pour un secret.
+# On cible donc le texte matche, pas la valeur extraite.
+regexTarget = "match"
+regexes = [
+  '''tmdb_region''',
+]

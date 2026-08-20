@@ -53,6 +53,8 @@ logs/
 # Rapport genere par --cov-report=xml (consomme par diff-cover en CI).
 coverage.xml
 diff-cover.md
+# Rapport du scan de secrets (voir .github/workflows/secret-scan.yml).
+gitleaks-report.json
 .pytest_cache/
 htmlcov/
 playwright-report/
