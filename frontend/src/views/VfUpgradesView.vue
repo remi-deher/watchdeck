@@ -13,7 +13,7 @@
     >
       <template #actions>
         <template v-if="activeTab === 'upgrades'">
-          <UiButton variant="primary" :loading="scanning" @click="scanAll"><template #icon><ScanSearch size="16" /></template>{{ scanning ? 'Recherche en cours…' : 'Rechercher maintenant' }}</UiButton>
+          <UiButton variant="primary" :loading="scanning" @click="scanTriggered"><template #icon><ScanSearch size="16" /></template>{{ scanning ? 'Recherche en cours…' : (selectedKeys.size > 0 ? `Rechercher la sélection (${selectedKeys.size})` : 'Rechercher maintenant') }}</UiButton>
         </template>
         <template v-else>
           <UiButton
@@ -497,8 +497,11 @@
           </div>
 
           <section v-else class="upgrade-list">
-            <article v-for="group in groups" :key="group.key" class="upgrade-card">
+            <article v-for="group in groups" :key="group.key" class="upgrade-card" :class="{ 'is-selected': selectedKeys.has(group.key) }">
               <div class="poster-col">
+                <label class="upgrade-select" :title="selectedKeys.has(group.key) ? 'Retirer de la sélection' : 'Sélectionner pour un scan groupé'">
+                  <input type="checkbox" :checked="selectedKeys.has(group.key)" @change="toggleGroupSelection(group)">
+                </label>
                 <img
                   v-if="hasPoster(group)"
                   :src="group.media.poster_url"
@@ -712,7 +715,7 @@
                       {{ formatDate(run.started_at) }}
                     </td>
                     <td>{{ formatDuration(run.started_at, run.finished_at) }}</td>
-                    <td>{{ run.trigger === 'manual' ? 'Manuel' : 'Automatique' }}</td>
+                    <td>{{ run.trigger === 'selection' ? 'Sélection manuelle' : (run.trigger === 'manual' ? 'Manuel' : 'Automatique') }}</td>
                     <td>{{ run.tasks_scanned }} / {{ run.tasks_total }}</td>
                     <td>{{ run.suggestions_found }}</td>
                     <td>
@@ -807,6 +810,7 @@ const items = ref([]);
 const scan = ref({});
 const loading = ref(true);
 const scanning = ref(false);
+const selectedKeys = ref(new Set());
 const statusFilter = ref('pending');
 const mediaTypeFilter = ref('');
 const query = ref('');
@@ -1140,6 +1144,9 @@ const tabs = computed(() => [
 
 function selectTab(value) {
   activeTab.value = value;
+  if (value !== 'upgrades') {
+    clearSelection();
+  }
   if (value === 'audit' && !auditItems.value.length) {
     loadAudit();
   }
@@ -1360,6 +1367,49 @@ async function scanAll() {
   } finally {
     scanning.value = false;
   }
+}
+
+function toggleGroupSelection(group) {
+  const next = new Set(selectedKeys.value);
+  if (next.has(group.key)) {
+    next.delete(group.key);
+  } else {
+    next.add(group.key);
+  }
+  selectedKeys.value = next;
+}
+
+function clearSelection() {
+  selectedKeys.value = new Set();
+}
+
+async function scanSelected() {
+  const media = [...selectedKeys.value].map(key => {
+    const [source_type, source_id] = key.split(':');
+    return { source_type, source_id: Number(source_id) };
+  });
+  if (!media.length) return;
+  scanning.value = true;
+  try {
+    const result = await api('/api/vf-upgrades/scan-selected', {
+      method: 'POST',
+      body: JSON.stringify({ media }),
+    });
+    show(`${result.scanned || 0} recherche(s), ${result.found || 0} suggestion(s) trouvée(s).`);
+    clearSelection();
+    await load({ silent: true });
+  } catch (e) {
+    show(e.message || String(e), 'error');
+  } finally {
+    scanning.value = false;
+  }
+}
+
+function scanTriggered() {
+  if (selectedKeys.value.size > 0) {
+    return scanSelected();
+  }
+  return scanAll();
 }
 
 async function dismiss(item) {
@@ -1826,11 +1876,36 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.upgrade-card.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
 }
 
 .poster-col {
+  position: relative;
   flex-shrink: 0;
   width: 85px;
+}
+
+.upgrade-select {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 1;
+  display: flex;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg, #09090b) 70%, transparent);
+  cursor: pointer;
+}
+
+.upgrade-select input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }
 
 .upgrade-poster {

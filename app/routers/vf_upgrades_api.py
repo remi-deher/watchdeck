@@ -768,6 +768,29 @@ async def trigger_all_vf_upgrade_scans():
     return await scan_vf_upgrades(force=True)
 
 
+class VfUpgradeMediaRef(BaseModel):
+    source_type: str
+    source_id: int
+
+
+class VfUpgradeScanSelectionRequest(BaseModel):
+    media: list[VfUpgradeMediaRef]
+
+
+@router.post("/vf-upgrades/scan-selected")
+async def trigger_vf_upgrade_scan_selected(body: VfUpgradeScanSelectionRequest):
+    """Recherche immediate pour une selection de medias precise (cases a cocher de
+    l'onglet "Releases & Téléchargements") -- construit les taches adaptatives (season
+    pack / episodes / fallback) comme le scan de fond, mais restreintes a la selection
+    et sans attendre le prochain cycle ni le cooldown (force=True implicite)."""
+    if vf_upgrade_scan_state.get("status") == "running":
+        raise HTTPException(409, "Un scan d'ameliorations VF est deja en cours")
+    if not body.media:
+        raise HTTPException(400, "Aucun media selectionne")
+    only = {(m.source_type, m.source_id) for m in body.media}
+    return await scan_vf_upgrades(force=True, only=only)
+
+
 class VfUpgradeMaintenanceRequest(BaseModel):
     action: str
 
