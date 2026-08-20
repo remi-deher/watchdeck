@@ -39,6 +39,29 @@ describe('regroupement des améliorations VF', () => {
     expect(groups).toHaveLength(2);
   });
 
+  it('distingue une serie sans saison precise (scope show) d\'un film', () => {
+    const showWaiting = item(1, null, null, {
+      scope: 'show',
+      status: 'waiting_release',
+      media: { title: 'Moi, quand je me réincarne en Slime', media_type: 'show' },
+    });
+    const movie = item(2, null, null, {
+      scope: 'movie',
+      source_id: 55,
+      media: { title: 'Un film', media_type: 'movie' },
+    });
+
+    const [showGroup, movieGroup] = groupVfUpgradeItems([showWaiting, movie]);
+
+    expect(showGroup.seasons).toHaveLength(1);
+    expect(showGroup.seasons[0].key).toBe('show');
+    expect(showGroup.seasons[0].label).toBe('Série');
+
+    expect(movieGroup.seasons).toHaveLength(1);
+    expect(movieGroup.seasons[0].key).toBe('movie');
+    expect(movieGroup.seasons[0].label).toBe('Film');
+  });
+
   it('filtre les cibles avant le regroupement par état ou titre de release', () => {
     const values = [
       item(1, 1, 1, { status: 'verified' }),
