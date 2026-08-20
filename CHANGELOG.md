@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.6.0 — 2026-08-20
+
+
+### ✨ Nouveautés
+
+- backoff progressif sur les recherches sans resultat ([9a8b571](https://github.com/remi-deher/watchdeck/commit/9a8b57150f3b4fff9ae3380d7bec2f5630c18028))
 ## 1.5.0 — 2026-08-20
 
 
 ### ✨ Nouveautés
 
 - priorise le scan selon le statut de diffusion des series ([daf97bc](https://github.com/remi-deher/watchdeck/commit/daf97bc7b40395c6c15b0cf1a884c688b2fc3f94))
+
+### 🔧 Maintenance
+
+- v1.5.0 (#125) ([28458bf](https://github.com/remi-deher/watchdeck/commit/28458bf588b8e46b05bf0c7518c63d899052099e))
 ## 1.4.4 — 2026-08-20
 
 
