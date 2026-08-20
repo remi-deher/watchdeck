@@ -369,7 +369,9 @@ async def _sonarr_season_tasks(
         if not series_data:
             return tasks
         stats = sonarr.aggregate_monitored_episode_stats(series_data)
-        seasons_with_files = [s for s in stats.get("seasons", []) if s.get("season_number") and s.get("episode_file_count", 0) > 0]
+        seasons_with_files = [
+            s for s in stats.get("seasons", []) if s.get("season_number") and s.get("episode_file_count", 0) > 0
+        ]
     except Exception as exc:
         logger.debug("VF upgrade : impossible de lire les saisons Sonarr pour '%s' : %s", row.title, exc)
         return tasks
@@ -606,9 +608,7 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
     ]
     # Fix #2 : word-boundary pour éviter les faux positifs ("multimedia", "multiple", etc.)
     _marker_re = (
-        re.compile(r"\b(?:" + "|".join(re.escape(m) for m in markers) + r")\b", re.IGNORECASE)
-        if markers
-        else None
+        re.compile(r"\b(?:" + "|".join(re.escape(m) for m in markers) + r")\b", re.IGNORECASE) if markers else None
     )
 
     # Fix #3 : compteurs de rejet pour le logging debug
@@ -657,14 +657,26 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(
             "VF search '%s' : %d/%d retenus — rejets: cible=%d non_fr=%d marker=%d conf=%d seed=%d taille=%d",
-            task.title, len(matched), len(releases), _rej["target"], _rej["not_fr"],
-            _rej["marker"], _rej["confidence"], _rej["seed"], _rej["size"],
+            task.title,
+            len(matched),
+            len(releases),
+            _rej["target"],
+            _rej["not_fr"],
+            _rej["marker"],
+            _rej["confidence"],
+            _rej["seed"],
+            _rej["size"],
         )
     elif not matched and releases:
         logger.info(
             "VF search '%s' : 0/%d retenus (non_fr=%d, marker=%d, cible=%d, seed=%d, taille=%d)",
-            task.title, len(releases), _rej["not_fr"], _rej["marker"],
-            _rej["target"], _rej["seed"], _rej["size"],
+            task.title,
+            len(releases),
+            _rej["not_fr"],
+            _rej["marker"],
+            _rej["target"],
+            _rej["seed"],
+            _rej["size"],
         )
 
     matched.sort(

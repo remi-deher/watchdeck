@@ -696,10 +696,7 @@ async def test_build_show_tasks_fully_vo_season_with_episodic_fallback(db):
         _episode_status(db, item.id, season=1, episode=ep, has_vf=False)
     db.commit()
 
-    fake_episodes = [
-        {"id": 10 + ep, "seasonNumber": 1, "episodeNumber": ep, "hasFile": True}
-        for ep in (1, 2, 3)
-    ]
+    fake_episodes = [{"id": 10 + ep, "seasonNumber": 1, "episodeNumber": ep, "hasFile": True} for ep in (1, 2, 3)]
     settings = Settings(vff_enabled=True, vf_upgrade_episodic_fallback=True)
     with patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=fake_episodes)):
         tasks = await _build_show_tasks(db, force=False, skip=set(), recent=set(), settings=settings)
