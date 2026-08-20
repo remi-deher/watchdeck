@@ -184,6 +184,7 @@ class SettingsUpdate(BaseModel):
     vf_upgrade_max_retries: Optional[int] = None
     vf_upgrade_blacklist_failed: Optional[bool] = None
     vf_upgrade_mixed_mode: Optional[str] = None
+    vf_upgrade_episodic_fallback: Optional[bool] = None
     vf_upgrade_protect_existing_vf: Optional[bool] = None
     vf_upgrade_notify_found: Optional[bool] = None
     vf_upgrade_notify_accepted: Optional[bool] = None

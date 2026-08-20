@@ -350,6 +350,90 @@ def classify_vf_target(
     return "vo"
 
 
+async def _sonarr_season_tasks(
+    row,
+    inst: ArrInstance,
+    source_type: str,
+    force: bool,
+    skip: set,
+    recent: set,
+    settings: Settings | None = None,
+) -> list[_SearchTask]:
+    """Crée des tâches de recherche à partir de la structure Sonarr quand aucun statut Plex
+    n'est disponible (série jamais scannée). Une tâche season-pack par saison avec fichiers ;
+    si `vf_upgrade_episodic_fallback` est activé, ajoute aussi des tâches par épisode pour
+    couvrir les releases MULTI épisodiques sans season pack indexé."""
+    tasks: list[_SearchTask] = []
+    try:
+        series_data = await sonarr.lookup_series(inst.url, inst.api_key, arr_id=row.arr_id)
+        if not series_data:
+            return tasks
+        stats = sonarr.aggregate_monitored_episode_stats(series_data)
+        seasons_with_files = [
+            s for s in stats.get("seasons", []) if s.get("season_number") and s.get("episode_file_count", 0) > 0
+        ]
+    except Exception as exc:
+        logger.debug("VF upgrade : impossible de lire les saisons Sonarr pour '%s' : %s", row.title, exc)
+        return tasks
+
+    episodic_fallback = _setting(settings, "vf_upgrade_episodic_fallback", True)
+
+    # Un seul appel Sonarr pour tous les épisodes de la série (peu importe le nombre de saisons).
+    all_episodes: list[dict] = []
+    if episodic_fallback and seasons_with_files:
+        try:
+            all_episodes = await sonarr.get_episodes(inst.url, inst.api_key, row.arr_id)
+        except Exception as exc:
+            logger.debug("VF upgrade : épisodes Sonarr indisponibles pour '%s' : %s", row.title, exc)
+
+    for season_info in seasons_with_files:
+        sn = season_info["season_number"]
+        key_pack = (source_type, row.id, "season", sn, None)
+        if force or (key_pack not in skip and key_pack not in recent):
+            tasks.append(
+                _SearchTask(
+                    source_type=source_type,
+                    source_id=row.id,
+                    scope="season",
+                    arr_type="sonarr",
+                    inst=inst,
+                    arr_id=row.arr_id,
+                    season_number=sn,
+                    title=f"{row.title} - Saison {sn}",
+                    target_kind="vo",
+                )
+            )
+
+        if not episodic_fallback:
+            continue
+        # Épisodes individuels en fallback pour capturer les MULTI sans season pack
+        for ep in all_episodes:
+            if ep.get("seasonNumber") != sn:
+                continue
+            ep_num = ep.get("episodeNumber")
+            ep_id = ep.get("id")
+            if not ep_num or not ep_id or not ep.get("hasFile"):
+                continue
+            key_ep = (source_type, row.id, "episode", sn, ep_num)
+            if force or (key_ep not in skip and key_ep not in recent):
+                tasks.append(
+                    _SearchTask(
+                        source_type=source_type,
+                        source_id=row.id,
+                        scope="episode",
+                        arr_type="sonarr",
+                        inst=inst,
+                        arr_id=row.arr_id,
+                        episode_id=ep_id,
+                        season_number=sn,
+                        episode_number=ep_num,
+                        title=f"{row.title} - S{sn:02d}E{ep_num:02d}",
+                        target_kind="vo",
+                    )
+                )
+    return tasks
+
+
 async def _build_show_tasks(
     db: AsyncSession, force: bool, skip: set, recent: set, settings: Settings | None = None
 ) -> list[_SearchTask]:
@@ -368,11 +452,16 @@ async def _build_show_tasks(
                 continue
             if getattr(row, "source", None) == "seer":
                 continue
-            seasons = await _season_vf_status(db, source_type, row.id)
-            if not seasons:
-                continue
+            # Instance resolue en premier : necessaire aussi pour le fallback Sonarr (#Fix1).
             inst = await _resolve_instance_for(db, row, "sonarr")
             if not inst:
+                continue
+            seasons = await _season_vf_status(db, source_type, row.id)
+            if not seasons:
+                # Fix #1 : aucun statut Plex (serie jamais scannee ou fichiers recemment
+                # importes). On interroge directement Sonarr pour decouvrir les saisons
+                # disponibles et creer des taches season-pack + episode fallback.
+                tasks.extend(await _sonarr_season_tasks(row, inst, source_type, force, skip, recent, settings))
                 continue
             episode_ids_needed: dict[int, list[int]] = {}
             for sn, eps in seasons.items():
@@ -402,7 +491,7 @@ async def _build_show_tasks(
                 if not any(eps.values()):
                     if not _setting(settings, "vf_upgrade_include_vo", True):
                         continue
-                    # Saison entierement VO : un seul season pack a chercher.
+                    # Saison entierement VO : season pack en priorite.
                     key = (source_type, row.id, "season", sn, None)
                     if force or (key not in skip and key not in recent):
                         tasks.append(
@@ -417,6 +506,15 @@ async def _build_show_tasks(
                                 title=f"{row.title} - Saison {sn}",
                             )
                         )
+                    # Fix #4 : fallback episodique pour capturer les MULTI sans season pack.
+                    # Les taches episode s'ajoutent avec une priorite inferieure (en fin de
+                    # liste avant tri) et ne sont generees que si le setting le permet.
+                    if _setting(settings, "vf_upgrade_episodic_fallback", True):
+                        for en, _has_vf in eps.items():
+                            key_ep = (source_type, row.id, "episode", sn, en)
+                            if not force and (key_ep in skip or key_ep in recent):
+                                continue
+                            episode_ids_needed.setdefault(sn, []).append(en)
                     continue
                 if not _setting(settings, "vf_upgrade_include_mixed", True):
                     continue
@@ -508,36 +606,79 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
         for value in _setting(settings, "vf_upgrade_preference", "truefrench,vff,multi,vfi,vfq").split(",")
         if value.strip()
     ]
+    # Fix #2 : word-boundary pour éviter les faux positifs ("multimedia", "multiple", etc.)
+    _marker_re = (
+        re.compile(r"\b(?:" + "|".join(re.escape(m) for m in markers) + r")\b", re.IGNORECASE) if markers else None
+    )
+
+    # Fix #3 : compteurs de rejet pour le logging debug
+    _rej: dict[str, int] = {"target": 0, "not_fr": 0, "marker": 0, "confidence": 0, "seed": 0, "size": 0}
+
     for release in releases:
         rel_title = release.get("title") or ""
         matches_target, _mismatch_reason = release_matches_target(
             rel_title, task.scope, task.season_number, task.episode_number
         )
         if not matches_target:
+            _rej["target"] += 1
             continue
-        if release_is_french(release):
-            enriched = {**release, **french_release_evidence(release)}
-            title = rel_title.lower()
-            if markers and not any(marker in title for marker in markers) and not release.get("languages"):
-                continue
-            if enriched["vf_confidence"] < _setting(settings, "vf_upgrade_min_confidence", 0):
-                continue
-            # Un torrent a 0 seed n'a personne pour l'uploader : *arr le grabberait quand
-            # meme (il n'a pas cette notion) mais le telechargement resterait bloque a 0%
-            # indefiniment. Ne s'applique pas au usenet, qui n'a pas ce concept.
-            if release.get("protocol") == "torrent" and not release.get("seeders"):
-                continue
-            size_gb = (release.get("size") or 0) / (1024**3)
-            min_size = _setting(settings, "vf_upgrade_min_size_gb", None)
-            max_size = _setting(settings, "vf_upgrade_max_size_gb", None)
-            if min_size is not None and size_gb < min_size:
-                continue
-            if max_size is not None and size_gb > max_size:
-                continue
-            enriched["vf_preference_rank"] = next(
-                (index for index, marker in enumerate(preferences) if marker in title), len(preferences)
-            )
-            matched.append(enriched)
+        if not release_is_french(release):
+            _rej["not_fr"] += 1
+            continue
+        enriched = {**release, **french_release_evidence(release)}
+        title = rel_title.lower()
+        # Fix #2 : correspondance exacte de mot (pas de sous-chaîne)
+        if _marker_re and not _marker_re.search(title) and not release.get("languages"):
+            _rej["marker"] += 1
+            continue
+        if enriched["vf_confidence"] < _setting(settings, "vf_upgrade_min_confidence", 0):
+            _rej["confidence"] += 1
+            continue
+        # Un torrent a 0 seed n'a personne pour l'uploader : *arr le grabberait quand
+        # meme (il n'a pas cette notion) mais le telechargement resterait bloque a 0%
+        # indefiniment. Ne s'applique pas au usenet, qui n'a pas ce concept.
+        if release.get("protocol") == "torrent" and not release.get("seeders"):
+            _rej["seed"] += 1
+            continue
+        size_gb = (release.get("size") or 0) / (1024**3)
+        min_size = _setting(settings, "vf_upgrade_min_size_gb", None)
+        max_size = _setting(settings, "vf_upgrade_max_size_gb", None)
+        if min_size is not None and size_gb < min_size:
+            _rej["size"] += 1
+            continue
+        if max_size is not None and size_gb > max_size:
+            _rej["size"] += 1
+            continue
+        enriched["vf_preference_rank"] = next(
+            (index for index, marker in enumerate(preferences) if marker in title), len(preferences)
+        )
+        matched.append(enriched)
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            "VF search '%s' : %d/%d retenus — rejets: cible=%d non_fr=%d marker=%d conf=%d seed=%d taille=%d",
+            task.title,
+            len(matched),
+            len(releases),
+            _rej["target"],
+            _rej["not_fr"],
+            _rej["marker"],
+            _rej["confidence"],
+            _rej["seed"],
+            _rej["size"],
+        )
+    elif not matched and releases:
+        logger.info(
+            "VF search '%s' : 0/%d retenus (non_fr=%d, marker=%d, cible=%d, seed=%d, taille=%d)",
+            task.title,
+            len(releases),
+            _rej["not_fr"],
+            _rej["marker"],
+            _rej["target"],
+            _rej["seed"],
+            _rej["size"],
+        )
+
     matched.sort(
         key=lambda release: (
             release.get("vf_preference_rank", 99),
