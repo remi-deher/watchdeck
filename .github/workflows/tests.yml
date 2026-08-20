@@ -57,6 +57,10 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Historique complet : diff-cover compare les lignes modifiees a la branche
+          # de base, ce qu'un clone superficiel ne permet pas.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -67,18 +71,53 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Run tests with coverage
-        env:
-          REDIS_URL: "redis://127.0.0.1:6379/0"
-        run: python -m pytest -v --cov=app --cov-report=term-missing --cov-fail-under=60
-
-      - name: Validate Redis
-        run: python -c "from redis import Redis; assert Redis.from_url('redis://127.0.0.1:6379/0').ping()"
-
+      # Volontairement AVANT les tests : ceux-ci s'executent ensuite sur le schema
+      # reellement produit par les migrations, et non sur un schema fabrique a part.
+      # (Dans l'autre sens, les tables creees par les tests faisaient echouer alembic.)
       - name: Validate PostgreSQL migrations
         env:
           DATABASE_URL: postgresql://watchdeck:ci-password@127.0.0.1:5432/watchdeck_test
         run: alembic upgrade head
+
+      - name: Run tests with coverage
+        env:
+          REDIS_URL: "redis://127.0.0.1:6379/0"
+          # Fait tourner la suite sur PostgreSQL, comme la production, au lieu de
+          # SQLite en memoire. SQLite n'applique pas les cles etrangeres, ignore les
+          # contraintes de longueur et n'a pas le modele de verrouillage de PostgreSQL :
+          # des defauts reels passaient inapercus (une ligne download_history orpheline
+          # etait acceptee, par exemple). Sans cette variable, la suite retombe sur
+          # SQLite pour rester lancable en local sans PostgreSQL.
+          TEST_DATABASE_URL: postgresql+psycopg2://watchdeck:ci-password@127.0.0.1:5432/watchdeck_test
+        # Seuil global remonte de 60 a 65 : c'est la couverture reellement atteinte,
+        # l'ecart precedent laissait de la marge pour regresser sans que rien n'alerte.
+        # A remonter au fil des campagnes de tests.
+        run: python -m pytest -v --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=65
+
+      # Le seuil global ne fait que constater l'existant : il resterait vert si du code
+      # neuf arrivait sans aucun test, tant que la moyenne tient. Cette etape regarde
+      # uniquement les lignes ajoutees ou modifiees par rapport a la branche de base,
+      # et empeche donc la dette de croitre sans exiger de rattraper le passe.
+      - name: Check coverage of changed lines
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF" --depth=1
+          python -m diff_cover.diff_cover_tool coverage.xml \
+            --compare-branch="origin/$BASE_REF" \
+            --fail-under=80 \
+            --markdown-report=diff-cover.md
+          cat diff-cover.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report uncovered changed lines
+        if: failure() && github.event_name == 'pull_request'
+        run: |
+          echo "### Lignes modifiees insuffisamment couvertes" >> "$GITHUB_STEP_SUMMARY"
+          cat diff-cover.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+      - name: Validate Redis
+        run: python -c "from redis import Redis; assert Redis.from_url('redis://127.0.0.1:6379/0').ping()"
 
   frontend:
     name: Build Vue SPA

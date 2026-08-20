@@ -35,9 +35,14 @@ def _cleanup():
 
 
 def test_spa_library_list_supports_search_and_type(async_db):
+    # L'identifiant est lu depuis l'objet cree plutot qu'ecrit en dur : les sequences
+    # PostgreSQL ne repartent pas de 1 a chaque test (contrairement a SQLite en memoire),
+    # et de toute facon la valeur exacte d'un identifiant auto-genere n'est pas ce que
+    # ce test cherche a verifier.
+    dune = LibraryItem(title="Dune", media_type="movie", year=2021, has_vf=True)
     async_db.add_all(
         [
-            LibraryItem(title="Dune", media_type="movie", year=2021, has_vf=True),
+            dune,
             LibraryItem(title="Dune Prophecy", media_type="show", year=2024, has_vf=False),
             LibraryItem(title="Arrival", media_type="movie", year=2016),
         ]
@@ -49,7 +54,7 @@ def test_spa_library_list_supports_search_and_type(async_db):
         assert response.status_code == 200
         assert response.json() == [
             {
-                "id": 1,
+                "id": dune.id,
                 "title": "Dune",
                 "year": 2021,
                 "media_type": "movie",

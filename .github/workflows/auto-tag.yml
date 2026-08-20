@@ -39,3 +39,16 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$VERSION" "$MERGE_SHA" -m "$VERSION"
           git push origin "$VERSION"
+
+      - name: Delete the release branch
+        # Le --delete-branch de "gh pr merge" (auto-version.yml) n'est pas fiable
+        # quand le merge est differe par --auto : 19 branches release/* s'etaient
+        # accumulees sur le depot avant ce correctif. On supprime ici, une fois le
+        # tag pose, donc apres que le contenu soit definitivement reference.
+        # Sans danger : la PR est squash-mergee, le CHANGELOG est regenere depuis
+        # l'historique git a chaque release, et le tag ci-dessus pointe sur main.
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git push origin --delete "$HEAD_REF" \
+            || echo "Branche $HEAD_REF deja supprimee, rien a faire."

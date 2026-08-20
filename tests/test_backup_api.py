@@ -101,3 +101,66 @@ def test_setup_restore_refuses_when_account_already_exists(anon_client, db_sessi
 
     r = anon_client.post("/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
     assert r.status_code == 403
+
+
+# --- Regression : auto-blocage de la restauration -----------------------------
+#
+# Incident reel : la session de la requete restait ouverte pendant toute la duree de
+# perform_full_restore. PostgreSQL la voyait "idle in transaction" et elle retenait des
+# verrous de lecture (Settings -> email_templates) que le `pg_restore --clean` doit
+# obtenir en exclusif pour ses DROP. La restauration attendait donc un verrou que la
+# requete elle-meme detenait : blocage de 13 minutes, jusqu'a tuer la session a la main.
+#
+# Les tests ci-dessus s'arretent tous au refus SQLite et n'atteignent jamais ce commit.
+
+
+def _restore_probe(monkeypatch, module, db_session):
+    """Instrumente la route : enregistre si la session est validee AVANT la restauration."""
+    observed = {}
+    committed = []
+
+    real_commit = db_session.commit
+    monkeypatch.setattr(db_session, "commit", lambda *a, **k: (committed.append(1), real_commit(*a, **k))[1])
+
+    async def fake_restore(*_args, **_kwargs):
+        observed["committed_before_restore"] = bool(committed)
+        return {"status": "ok", "safety_backup": "/tmp/x.dump", "restored_data_files": []}
+
+    monkeypatch.setattr(module, "DATABASE_URL", "postgresql://fake")
+    monkeypatch.setattr(module, "perform_full_restore", fake_restore)
+    # La route programme os._exit pour redemarrer le conteneur : sans neutralisation,
+    # elle tuerait le processus pytest deux secondes plus tard.
+    monkeypatch.setattr(module.os, "_exit", lambda _code: None)
+    return observed
+
+
+def test_full_restore_commits_session_before_touching_the_database(admin_client, db_session, monkeypatch):
+    from app.routers import backup_api
+
+    observed = _restore_probe(monkeypatch, backup_api, db_session)
+
+    r = admin_client.post(
+        "/api/backup/full/restore",
+        files={"file": ("backup.zip", b"fake", "application/zip")},
+        data={"confirm": "REMPLACER"},
+    )
+
+    assert r.status_code == 200
+    assert observed["committed_before_restore"], (
+        "La session doit etre validee AVANT perform_full_restore : sinon elle reste "
+        "'idle in transaction' et bloque le pg_restore sur ses propres verrous."
+    )
+
+
+def test_setup_restore_commits_session_before_touching_the_database(anon_client, db_session, monkeypatch):
+    db_session.query(Settings).delete()
+    db_session.commit()
+
+    observed = _restore_probe(monkeypatch, auth_router, db_session)
+
+    r = anon_client.post("/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
+
+    assert r.status_code == 200
+    assert observed["committed_before_restore"], (
+        "Meme regression que /api/backup/full/restore, sur le chemin d'installation initiale."
+    )

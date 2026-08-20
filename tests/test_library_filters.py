@@ -100,18 +100,34 @@ def test_library_accepts_several_media_types(async_db):
 def test_library_filters_by_requester_through_the_linked_requests(async_db):
     """Un média Plex n'a pas de demandeur en propre : il l'hérite des demandes qui
     pointent dessus."""
+    # Les liens sont etablis via les identifiants reellement attribues, et non ecrits
+    # en dur : les sequences PostgreSQL ne repartent pas de 1 a chaque test, si bien
+    # qu'un library_item_id=1 code en dur pointait dans le vide et la jointure ne
+    # remontait plus rien.
+    alice_item = LibraryItem(title="Demande par alice", media_type="movie")
+    bob_item = LibraryItem(title="Demande par bob", media_type="movie")
     async_db.add_all(
         [
-            LibraryItem(title="Demande par alice", media_type="movie"),
-            LibraryItem(title="Demande par bob", media_type="movie"),
+            alice_item,
+            bob_item,
             LibraryItem(title="Jamais demande", media_type="movie"),
         ]
     )
     async_db.commit()
     async_db.add_all(
         [
-            MediaRequest(title="Demande par alice", media_type="movie", plex_user_id="alice", library_item_id=1),
-            MediaRequest(title="Demande par bob", media_type="movie", plex_user_id="bob", library_item_id=2),
+            MediaRequest(
+                title="Demande par alice",
+                media_type="movie",
+                plex_user_id="alice",
+                library_item_id=alice_item.id,
+            ),
+            MediaRequest(
+                title="Demande par bob",
+                media_type="movie",
+                plex_user_id="bob",
+                library_item_id=bob_item.id,
+            ),
         ]
     )
     async_db.commit()

@@ -1,6 +1,17 @@
 [changelog]
-header = ""
+header = "# Changelog\n\n"
+# Ce corps est rendu UNE FOIS PAR VERSION puis concatene. Sans le titre
+# "## {{ version }}" ci-dessous, tous les blocs se collaient les uns aux autres
+# sans separateur : le fichier accumulait des "### Nouveautes" repetes sans qu'on
+# puisse savoir a quelle version ils appartenaient (constate : 175 lignes, zero
+# en-tete de version). git-cliff regenerant tout le fichier depuis l'historique a
+# chaque release, ce titre restructure aussi retroactivement les versions passees.
 body = """
+{% if version -%}
+## {{ version | trim_start_matches(pat="v") }} — {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+## Non publié
+{% endif %}
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group }}
 {% for commit in commits %}
@@ -28,6 +39,9 @@ commit_parsers = [
   { message = "^docs", group = "📖 Documentation" },
   { message = "^chore", group = "🔧 Maintenance" },
   { message = "^ci", group = "👷 CI/CD" },
+  # Sans cette ligne, "style:" n'etant declare nulle part et filter_unconventional
+  # etant a false, il apparaissait dans le changelog sous le nom brut "### style".
+  { message = "^style", group = "🎨 Style" },
 ]
 filter_commits = false
 tag_pattern = "v[0-9]*"
