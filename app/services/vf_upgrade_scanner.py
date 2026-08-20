@@ -265,7 +265,12 @@ async def _skip_statuses(db: AsyncSession, settings: Settings | None = None) -> 
 
 
 async def _build_movie_tasks(
-    db: AsyncSession, force: bool, skip: set, recent: set, settings: Settings | None = None
+    db: AsyncSession,
+    force: bool,
+    skip: set,
+    recent: set,
+    settings: Settings | None = None,
+    only: set[tuple[str, int]] | None = None,
 ) -> list[_SearchTask]:
     tasks: list[_SearchTask] = []
     for model in (MediaRequest, LibraryItem):
@@ -275,6 +280,8 @@ async def _build_movie_tasks(
             .all()
         )
         source_type = "request" if model is MediaRequest else "library_item"
+        if only is not None:
+            rows = [r for r in rows if (source_type, r.id) in only]
         for row in rows:
             # Une demande deja liee a un LibraryItem (voir _link_request_to_library_item,
             # vff_scanner.py) fait doublon avec lui : meme film, meme arr_id, mais un titre
@@ -414,6 +421,17 @@ async def _season_finished_airing(inst: ArrInstance, arr_id: int, season_number:
     return total > 0 and season_stats.get("episode_count") == total
 
 
+def _mixed_priority_tiers(settings: Settings | None) -> tuple[int, int]:
+    """(tier_ended, tier_continuing) pour le season pack "ended" et le fallback
+    episodique "continuing" (voir _sonarr_season_tasks / _build_show_tasks). Par
+    defaut l'efficacite prime (season pack termine = tier 1, couverture maximale pour
+    une seule recherche) ; vf_upgrade_prioritize_continuing inverse pour privilegier la
+    fraicheur (episodes recents d'une serie en cours = tier 1)."""
+    if _setting(settings, "vf_upgrade_prioritize_continuing", False):
+        return 2, 1
+    return 1, 2
+
+
 async def _series_episodes(inst: ArrInstance, arr_id: int, series_cache: dict) -> list[dict]:
     meta = await _series_meta(inst, arr_id, series_cache)
     if meta["episodes"] is None:
@@ -491,6 +509,7 @@ async def _sonarr_season_tasks(
 
     meta = await _series_meta(inst, row.arr_id, series_cache, series_data=series_data)
     ended = meta["ended"]
+    tier_ended, tier_continuing = _mixed_priority_tiers(settings)
     episodic_fallback = _setting(settings, "vf_upgrade_episodic_fallback", True)
     fallback_limit = max(0, _setting(settings, "vf_upgrade_episodic_fallback_limit", 5))
     fallback_days = max(1, _setting(settings, "vf_upgrade_episodic_fallback_days", 30))
@@ -515,7 +534,7 @@ async def _sonarr_season_tasks(
                     season_number=sn,
                     title=f"{row.title} - Saison {sn}",
                     target_kind="vo",
-                    priority_tier=1 if ended else 3,
+                    priority_tier=tier_ended if ended else 3,
                 )
             )
 
@@ -545,7 +564,7 @@ async def _sonarr_season_tasks(
                         episode_number=ep_num,
                         title=f"{row.title} - S{sn:02d}E{ep_num:02d}",
                         target_kind="vo",
-                        priority_tier=2 if not ended else 3,
+                        priority_tier=tier_continuing if not ended else 3,
                     )
                 )
     return tasks
@@ -558,6 +577,7 @@ async def _build_show_tasks(
     recent: set,
     settings: Settings | None = None,
     series_cache: dict | None = None,
+    only: set[tuple[str, int]] | None = None,
 ) -> list[_SearchTask]:
     tasks: list[_SearchTask] = []
     series_cache = series_cache if series_cache is not None else {}
@@ -568,6 +588,8 @@ async def _build_show_tasks(
             .all()
         )
         source_type = "request" if model is MediaRequest else "library_item"
+        if only is not None:
+            rows = [r for r in rows if (source_type, r.id) in only]
         for row in rows:
             # Voir le meme garde-fou dans _build_movie_tasks : une demande deja liee a un
             # LibraryItem fait doublon avec lui.
@@ -592,6 +614,7 @@ async def _build_show_tasks(
             # determine si le fallback episodique d'une saison VO privilegie les episodes
             # recents (serie en cours) ou sert de simple filet de securite (serie terminee).
             series_ended = (await _series_meta(inst, row.arr_id, series_cache))["ended"]
+            tier_ended, tier_continuing = _mixed_priority_tiers(settings)
             episode_ids_needed: dict[int, list[int]] = {}
             vo_fallback_needed: dict[int, list[int]] = {}
             for sn, eps in seasons.items():
@@ -636,7 +659,7 @@ async def _build_show_tasks(
                                 arr_id=row.arr_id,
                                 season_number=sn,
                                 title=f"{row.title} - Saison {sn}",
-                                priority_tier=1 if series_ended else 3,
+                                priority_tier=tier_ended if series_ended else 3,
                             )
                         )
                     # Fix #4 : fallback episodique pour capturer les MULTI sans season pack.
@@ -752,7 +775,7 @@ async def _build_show_tasks(
                                 episode_number=ep["episodeNumber"],
                                 title=f"{row.title} - S{sn:02d}E{ep['episodeNumber']:02d}",
                                 target_kind="vo",
-                                priority_tier=2 if not series_ended else 3,
+                                priority_tier=tier_continuing if not series_ended else 3,
                             )
                         )
     return tasks
@@ -1032,13 +1055,17 @@ async def _persist_result(
     return True
 
 
-async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
+async def scan_vf_upgrades(force: bool = False, only: set[tuple[str, int]] | None = None) -> dict[str, Any]:
     """Scan complet (films + séries) : construit les tâches de recherche adaptatives,
     les exécute avec une concurrence bornée, et persiste les suggestions VF trouvées.
 
     `force` : ignore le cooldown 24h ET les statuts grabbed/dismissed -- utilisé par le
     bouton "Chercher" d'une fiche média précise (voir routers/vf_upgrades_api.py), jamais
     par le cycle de fond.
+
+    `only` : restreint le scan a des medias precis ({(source_type, source_id)}) -- utilise
+    par la selection multiple de l'onglet "Releases & Téléchargements" (voir
+    /vf-upgrades/scan-selected), toujours combine a force=True cote appelant.
     """
     vf_upgrade_scan_state.update(
         status="running",
@@ -1057,7 +1084,7 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
             vf_upgrade_scan_state["status"] = "idle"
             return {"status": "idle", "reason": "vff_disabled"}
 
-        run = VfUpgradeScanRun(trigger="manual" if force else "auto")
+        run = VfUpgradeScanRun(trigger="selection" if only is not None else ("manual" if force else "auto"))
         db.add(run)
         await db.commit()
 
@@ -1082,10 +1109,10 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         skip = set() if force else await _skip_statuses(db, settings)
         recent = set() if force else await _recent_scan_keys(db, settings)
 
-        movie_tasks = await _build_movie_tasks(db, force, skip, recent, settings)
+        movie_tasks = await _build_movie_tasks(db, force, skip, recent, settings, only=only)
         # Cache par run : evite de relancer lookup_series/get_episodes pour la meme serie
         # entre la creation du season pack, du fallback episodique et le tri par priorite.
-        show_tasks = await _build_show_tasks(db, force, skip, recent, settings, series_cache={})
+        show_tasks = await _build_show_tasks(db, force, skip, recent, settings, series_cache={}, only=only)
         # Intercalage plutot que concatenation : sans lui, une bibliotheque avec plus de
         # films VO que de series VO monopolise le plafond par passage indefiniment (le
         # cooldown fait juste tourner le MEME sous-ensemble de films en boucle), les

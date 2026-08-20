@@ -102,6 +102,9 @@
           <option value="vf,vo,mixed">VF, puis VO, puis saisons mixtes</option>
         </select>
       </SettingsRow>
+      <SettingsRow label="Prioriser les séries en cours de diffusion" description="Par défaut, l'efficacité prime (season pack d'une série terminée en tête, une seule recherche couvre toute la saison). Activé, les épisodes récents d'une série en cours passent devant.">
+        <input v-model="form.vf_upgrade_prioritize_continuing" type="checkbox">
+      </SettingsRow>
       <SettingsRow label="Fallback épisodique" description="Complète le pack saison par des recherches par épisode pour capter les MULTI sans pack indexé. Pour une série terminée, sert de filet de sécurité ; pour une série en cours, cible les épisodes récemment diffusés.">
         <input v-model="form.vf_upgrade_episodic_fallback" type="checkbox">
       </SettingsRow>
