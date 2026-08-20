@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from itertools import zip_longest
 from typing import Any, Optional
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -42,6 +43,7 @@ from ..models import (
     Settings,
     VfEpisodeStatus,
     VfUpgradeScanRun,
+    VfUpgradeScanRunItem,
     VfUpgradeSuggestion,
 )
 from ..utils import now_utc, now_utc_naive
@@ -372,9 +374,10 @@ def _series_is_ended(series_data: dict) -> bool:
 
 
 async def _series_meta(inst: ArrInstance, arr_id: int, series_cache: dict, series_data: dict | None = None) -> dict:
-    """Statut "ended" + episodes bruts d'une serie Sonarr, mis en cache pour la duree du
-    scan (evite les appels lookup_series/get_episodes redondants quand une meme serie
-    est traversee plusieurs fois -- season pack, fallback episodique, etc.)."""
+    """Statut "ended" + stats par saison + episodes bruts d'une serie Sonarr, mis en
+    cache pour la duree du scan (evite les appels lookup_series/get_episodes redondants
+    quand une meme serie est traversee plusieurs fois -- season pack, fallback
+    episodique, saison mixte terminee, etc.)."""
     key = (inst.id, arr_id)
     meta = series_cache.get(key)
     if meta is None:
@@ -384,9 +387,31 @@ async def _series_meta(inst: ArrInstance, arr_id: int, series_cache: dict, serie
             except Exception as exc:
                 logger.debug("VF upgrade : statut Sonarr indisponible pour arr_id=%s : %s", arr_id, exc)
                 series_data = None
-        meta = {"ended": _series_is_ended(series_data) if series_data else False, "episodes": None}
+        seasons_by_number = {}
+        if series_data:
+            stats = sonarr.aggregate_monitored_episode_stats(series_data)
+            seasons_by_number = {s["season_number"]: s for s in stats.get("seasons", [])}
+        meta = {
+            "ended": _series_is_ended(series_data) if series_data else False,
+            "seasons": seasons_by_number,
+            "episodes": None,
+        }
         series_cache[key] = meta
     return meta
+
+
+async def _season_finished_airing(inst: ArrInstance, arr_id: int, season_number: int, series_cache: dict) -> bool:
+    """True si la serie est terminee, ou si CETTE saison n'a plus d'episode a venir
+    (episode_count == total_episode_count cote Sonarr) -- une saison ancienne d'une
+    serie encore en cours (ex. saison 3 sur 5) compte comme terminee elle aussi."""
+    meta = await _series_meta(inst, arr_id, series_cache)
+    if meta["ended"]:
+        return True
+    season_stats = meta["seasons"].get(season_number)
+    if not season_stats:
+        return False
+    total = season_stats.get("total_episode_count") or 0
+    return total > 0 and season_stats.get("episode_count") == total
 
 
 async def _series_episodes(inst: ArrInstance, arr_id: int, series_cache: dict) -> list[dict]:
@@ -629,9 +654,16 @@ async def _build_show_tasks(
                     continue
                 if not _setting(settings, "vf_upgrade_include_mixed", True):
                     continue
-                if _setting(settings, "vf_upgrade_mixed_mode", "episodes") == "season" and not _setting(
-                    settings, "vf_upgrade_protect_existing_vf", True
-                ):
+                # Saison mixte (au moins 1 episode deja VF) dont la diffusion est
+                # terminee (serie entiere ou juste cette saison) : un season pack
+                # couvre en une recherche les episodes VO restants, plutot que de les
+                # chercher un par un -- rentable uniquement une fois la saison figee
+                # (sinon un pack MULTI complet n'existe generalement pas encore).
+                season_finished = await _season_finished_airing(inst, row.arr_id, sn, series_cache)
+                mixed_wants_season = (
+                    _setting(settings, "vf_upgrade_mixed_mode", "episodes") == "season" or season_finished
+                )
+                if mixed_wants_season and not _setting(settings, "vf_upgrade_protect_existing_vf", True):
                     key = (source_type, row.id, "season", sn, None)
                     if force or (key not in skip and key not in recent):
                         tasks.append(
@@ -1081,28 +1113,57 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
             return {"status": "idle", "scanned": 0}
 
         run.tasks_total = len(tasks)
+        # Une ligne "running" par tache, visible immediatement via /scan-runs/{id}/items :
+        # l'onglet historique peut ainsi distinguer, pendant un cycle en cours, ce qui est
+        # deja passe de ce qui est en train d'etre cherche.
+        run_items = [
+            VfUpgradeScanRunItem(
+                run_id=run.id,
+                source_type=t.source_type,
+                source_id=t.source_id,
+                scope=t.scope,
+                season_number=t.season_number,
+                episode_number=t.episode_number,
+                title=t.title,
+                status="running",
+            )
+            for t in tasks
+        ]
+        db.add_all(run_items)
+        await db.commit()
 
         semaphore = asyncio.Semaphore(max(1, min(10, settings.vf_upgrade_search_concurrency or 3)))
+        # Serialise les seuls acces DB (la session n'est pas thread/task-safe pour des
+        # ecritures concurrentes) -- les appels indexeurs, eux, restent paralleles sous
+        # le semaphore ci-dessus, la section critique ne fait que persister le resultat.
+        db_lock = asyncio.Lock()
+        found_count = 0
 
-        async def _run_task(task: _SearchTask) -> tuple[_SearchTask, list[dict]]:
+        async def _run_task(task: _SearchTask, item: VfUpgradeScanRunItem) -> tuple[_SearchTask, list[dict]]:
+            nonlocal found_count
             async with semaphore:
                 try:
-                    return task, await _search_task(task, settings)
+                    releases = await _search_task(task, settings)
                 except Exception as e:
                     logger.warning(f"VF upgrade : recherche echouee pour '{task.title}': {e}")
-                    return task, []
+                    releases = []
+            async with db_lock:
+                item_now = now_utc_naive()
+                if not force:
+                    await _record_search_outcome(task, bool(releases), settings)
+                if await _persist_result(db, task, releases, item_now, settings, origin="auto"):
+                    found_count += 1
+                item.status = "found" if releases else "no_result"
+                item.release_count = len(releases)
+                item.finished_at = item_now
+                await db.commit()
+                vf_upgrade_scan_state["items_scanned"] += 1
+            return task, releases
 
-        results = await asyncio.gather(*(_run_task(t) for t in tasks))
+        await asyncio.gather(*(_run_task(t, item) for t, item in zip(tasks, run_items)))
+        found = found_count
 
         now = now_utc_naive()
-        found = 0
-        for task, releases in results:
-            if not force:
-                await _record_search_outcome(task, bool(releases), settings)
-            if await _persist_result(db, task, releases, now, settings, origin="auto"):
-                found += 1
-            vf_upgrade_scan_state["items_scanned"] += 1
-
         run.tasks_scanned = len(tasks)
         run.suggestions_found = found
         run.status = "success"
@@ -1128,6 +1189,11 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
                 run.status = "failed"
                 run.error = str(e)[:2000]
                 run.finished_at = now_utc_naive()
+                await db.execute(
+                    update(VfUpgradeScanRunItem)
+                    .filter(VfUpgradeScanRunItem.run_id == run.id, VfUpgradeScanRunItem.status == "running")
+                    .values(status="error", finished_at=now_utc_naive())
+                )
                 await db.commit()
             except Exception:
                 logger.warning("VF upgrade scan : impossible d'enregistrer l'echec du run en base")
