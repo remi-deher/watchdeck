@@ -42,6 +42,7 @@ from app.services.vf_upgrade_scanner import (
     _search_task,
     _SearchTask,
     _skip_statuses,
+    _sonarr_season_tasks,
     scan_single_target,
 )
 from app.utils import now_utc_naive
@@ -1249,3 +1250,261 @@ async def test_arr_grab_synchronizes_vf_upgrade_suggestion(async_db):
     assert suggestion.status == "accepted"
     assert suggestion.grabbed_release_guid == "rel-123"
     assert suggestion.accepted_at is not None
+
+
+# ---------------------------------------------------------------------------
+# _sonarr_season_tasks : fallback Fix #1 (série sans VfEpisodeStatus)
+# ---------------------------------------------------------------------------
+
+
+def _fake_series_data(season_numbers_with_files: list[int]) -> dict:
+    """Simule le dict retourné par sonarr.lookup_series."""
+    return {
+        "id": 42,
+        "title": "Some Show",
+        "statistics": {},
+        "seasons": [
+            {
+                "seasonNumber": sn,
+                "monitored": True,
+                "statistics": {"episodeFileCount": 2, "episodeCount": 2, "totalEpisodeCount": 2},
+            }
+            for sn in season_numbers_with_files
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_sonarr_season_tasks_season_pack_only(db):
+    """Sans fallback episodique : une tache season-pack par saison avec fichiers."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+
+    settings = Settings(vf_upgrade_episodic_fallback=False)
+    fake_data = _fake_series_data([1, 2])
+
+    with patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)):
+        tasks = await _sonarr_season_tasks(item, inst, "library_item", False, set(), set(), settings)
+
+    assert len(tasks) == 2
+    assert all(t.scope == "season" for t in tasks)
+    assert {t.season_number for t in tasks} == {1, 2}
+    assert all(t.target_kind == "vo" for t in tasks)
+
+
+@pytest.mark.asyncio
+async def test_sonarr_season_tasks_with_episodic_fallback(db):
+    """Avec fallback episodique : season-pack + épisodes individuels."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+
+    settings = Settings(vf_upgrade_episodic_fallback=True)
+    fake_data = _fake_series_data([1])
+    fake_episodes = [
+        {"id": 10, "seasonNumber": 1, "episodeNumber": 1, "hasFile": True},
+        {"id": 11, "seasonNumber": 1, "episodeNumber": 2, "hasFile": True},
+        {"id": 12, "seasonNumber": 1, "episodeNumber": 3, "hasFile": False},  # pas de fichier -> ignoré
+    ]
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)),
+        patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=fake_episodes)),
+    ):
+        tasks = await _sonarr_season_tasks(item, inst, "library_item", False, set(), set(), settings)
+
+    scopes = [t.scope for t in tasks]
+    assert scopes.count("season") == 1
+    assert scopes.count("episode") == 2  # seulement les épisodes avec hasFile=True
+    ep_tasks = [t for t in tasks if t.scope == "episode"]
+    assert {t.episode_number for t in ep_tasks} == {1, 2}
+    assert all(t.episode_id in {10, 11} for t in ep_tasks)
+
+
+@pytest.mark.asyncio
+async def test_sonarr_season_tasks_no_series_data(db):
+    """sonarr.lookup_series retourne None -> liste vide."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+
+    with patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=None)):
+        tasks = await _sonarr_season_tasks(item, inst, "library_item", False, set(), set())
+
+    assert tasks == []
+
+
+@pytest.mark.asyncio
+async def test_sonarr_season_tasks_lookup_exception(db):
+    """sonarr.lookup_series lève une exception -> liste vide sans crash."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+
+    with patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(side_effect=Exception("network"))):
+        tasks = await _sonarr_season_tasks(item, inst, "library_item", False, set(), set())
+
+    assert tasks == []
+
+
+@pytest.mark.asyncio
+async def test_build_show_tasks_fallback_when_no_vf_episode_status(db):
+    """Série sans VfEpisodeStatus -> _sonarr_season_tasks appelé -> taches créées."""
+    _sonarr_instance(db)
+    _show_item(db)
+    db.commit()
+
+    fake_data = _fake_series_data([1])
+    settings = Settings(vff_enabled=True, vf_upgrade_episodic_fallback=False)
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)),
+        patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=[])),
+    ):
+        tasks = await _build_show_tasks(db, force=False, skip=set(), recent=set(), settings=settings)
+
+    assert len(tasks) == 1
+    assert tasks[0].scope == "season"
+    assert tasks[0].season_number == 1
+    assert tasks[0].target_kind == "vo"
+
+
+@pytest.mark.asyncio
+async def test_search_task_logs_when_no_match(db):
+    """_search_task avec zéro release VF retournée : pas d'exception, matched=[]."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=item.id,
+        scope="season",
+        arr_type="sonarr",
+        inst=inst,
+        arr_id=item.arr_id,
+        season_number=1,
+        title="Some Show - Saison 1",
+    )
+    vo_only_releases = [
+        {"title": "Some.Show.S01.1080p.BluRay.x264-GROUP", "protocol": "torrent", "seeders": 10, "size": 5e9}
+    ]
+    settings = Settings(vff_enabled=True)
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=vo_only_releases)),
+        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+    ):
+        result = await _search_task(task, settings)
+
+    assert list(result) == []
+    assert result.raw_count == 1  # 1 release indexeur, 0 VF
+
+
+@pytest.mark.asyncio
+async def test_search_task_rejects_wrong_season(db):
+    """Release pour S02 rejetée quand la tache cible S01."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=item.id,
+        scope="season",
+        arr_type="sonarr",
+        inst=inst,
+        arr_id=item.arr_id,
+        season_number=1,
+        title="Some Show - Saison 1",
+    )
+    releases = [{"title": "Some.Show.S02.MULTI.1080p.BluRay", "protocol": "usenet", "size": 3e9, "seeders": 0}]
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=releases)),
+        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+    ):
+        result = await _search_task(task)
+
+    assert list(result) == []
+    assert result.raw_count == 1
+
+
+@pytest.mark.asyncio
+async def test_search_task_rejects_no_marker_no_language(db):
+    """Release FRENCH sans marker dans titre et sans langue declaree -> rejetée."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=item.id,
+        scope="season",
+        arr_type="sonarr",
+        inst=inst,
+        arr_id=item.arr_id,
+        season_number=1,
+        title="Some Show - Saison 1",
+    )
+    # Titre contient "french" (reconnu par release_is_french) mais markers= ne contient
+    # pas "french" -> rejeté par le filtre marker.
+    settings = Settings(vf_upgrade_markers="truefrench,vff,multi")
+    releases = [{"title": "Some.Show.S01.FRENCH.1080p.BluRay", "protocol": "usenet", "size": 3e9}]
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=releases)),
+        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+    ):
+        result = await _search_task(task, settings)
+
+    assert list(result) == []
+
+
+@pytest.mark.asyncio
+async def test_search_task_rejects_low_confidence(db):
+    """Release avec vf_confidence < min_confidence -> rejetée."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=item.id,
+        scope="season",
+        arr_type="sonarr",
+        inst=inst,
+        arr_id=item.arr_id,
+        season_number=1,
+        title="Some Show - Saison 1",
+    )
+    settings = Settings(vf_upgrade_min_confidence=100)  # exige 100
+    # vf_confidence sera 100 (marqueur titre) mais on simule un cas 0 via languages=[]
+    # En pratique on teste juste que le filtre confidence fonctionne :
+    # une release sans marqueur ET sans langue -> confidence=0 < 100
+    releases = [{"title": "Some.Show.S01.1080p.BluRay", "languages": [], "protocol": "usenet", "size": 3e9}]
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=releases)),
+        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+    ):
+        result = await _search_task(task, settings)
+
+    assert list(result) == []
+
+
+@pytest.mark.asyncio
+async def test_search_task_rejects_by_size_bounds(db):
+    """Release hors bornes de taille -> rejetée (min_size et max_size)."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=item.id,
+        scope="movie",
+        arr_type="radarr",
+        inst=inst,
+        arr_id=item.arr_id,
+        title="Some Movie",
+    )
+    settings_min = Settings(vf_upgrade_min_size_gb=10.0)
+    settings_max = Settings(vf_upgrade_max_size_gb=1.0)
+    releases = [{"title": "Some.Movie.MULTI.1080p.BluRay", "protocol": "usenet", "size": int(5e9)}]
+
+    for s in (settings_min, settings_max):
+        with (
+            patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=releases)),
+            patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+        ):
+            result = await _search_task(task, s)
+        assert list(result) == [], f"Attendu rejet avec {s}"
