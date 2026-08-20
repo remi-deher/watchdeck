@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.4 — 2026-08-20
+
+
+### test
+
+- couvre _sonarr_season_tasks et chemins de rejet _search_task ([85b054f](https://github.com/remi-deher/watchdeck/commit/85b054f1f648a08551d877250a512cd9620c9bbf))
+
+### 🎨 Style
+
+- ruff format ([64e0b07](https://github.com/remi-deher/watchdeck/commit/64e0b07719f950644ac1ad542e10a979d5719a06))
+
+### 🐛 Corrections
+
+- améliore la détection et la couverture des releases VF/MULTI ([5c9eeea](https://github.com/remi-deher/watchdeck/commit/5c9eeea2c3d024993ec48716826a90c5d2ff9079))
+- supprime variable total_rej non utilisée ([8d60ce4](https://github.com/remi-deher/watchdeck/commit/8d60ce49ec01996f9dbd614e75f9c7e1e9983529))
 ## 1.4.3 — 2026-08-20
 
 
@@ -14,6 +29,10 @@
 ### 🐛 Corrections
 
 - trust explicit release language markers ([211f7a7](https://github.com/remi-deher/watchdeck/commit/211f7a7358ff8835ef1bd889eb39fec4f07c0dd6))
+
+### 🔧 Maintenance
+
+- v1.4.3 (#116) ([de01541](https://github.com/remi-deher/watchdeck/commit/de01541f481b6dfdc05af30d6b6f648a632191c2))
 ## 1.4.2 — 2026-08-20
 
 
