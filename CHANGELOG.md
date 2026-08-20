@@ -1,11 +1,25 @@
 # Changelog
 
+## 1.7.0 — 2026-08-20
+
+
+### test
+
+- couvre scan_vf_upgrades et list_vf_upgrades ([78ab78e](https://github.com/remi-deher/watchdeck/commit/78ab78e3a9e3c60a507b710b66605acaf3f9ea77))
+
+### ✨ Nouveautés
+
+- historique des scans + backoff visible sur les fiches media ([50424e4](https://github.com/remi-deher/watchdeck/commit/50424e41a7d2d561d4ca22eca5187645aa891729))
 ## 1.6.0 — 2026-08-20
 
 
 ### ✨ Nouveautés
 
 - backoff progressif sur les recherches sans resultat ([9a8b571](https://github.com/remi-deher/watchdeck/commit/9a8b57150f3b4fff9ae3380d7bec2f5630c18028))
+
+### 🔧 Maintenance
+
+- v1.6.0 (#129) ([0cc5a1b](https://github.com/remi-deher/watchdeck/commit/0cc5a1b40de43d17cbdc9ea8274b67657915fa21))
 ## 1.5.0 — 2026-08-20
 
 
