@@ -26,7 +26,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from itertools import zip_longest
 from typing import Any, Optional
 
@@ -62,7 +62,10 @@ def _setting(settings: Settings | None, name: str, default):
 
 
 def _order_tasks(tasks: list["_SearchTask"], settings: Settings | None) -> list["_SearchTask"]:
-    """Applique la priorite configuree sans modifier l'ordre relatif d'une categorie."""
+    """Applique la priorite configuree (mixed/vo/vf), puis a categorie egale, le
+    `priority_tier` de chaque tache : les season packs de series terminees passent
+    devant leur propre fallback episodique (meilleure couverture pour un cout de
+    recherche identique -- voir _sonarr_season_tasks et _build_show_tasks)."""
     priority = [
         value.strip().lower()
         for value in _setting(settings, "vf_upgrade_priority", "mixed,vo,vf").split(",")
@@ -70,7 +73,7 @@ def _order_tasks(tasks: list["_SearchTask"], settings: Settings | None) -> list[
     ]
     priority.extend(value for value in ("mixed", "vo", "vf") if value not in priority)
     priority_rank = {value: index for index, value in enumerate(priority)}
-    return sorted(tasks, key=lambda task: priority_rank.get(task.target_kind, len(priority_rank)))
+    return sorted(tasks, key=lambda task: (priority_rank.get(task.target_kind, len(priority_rank)), task.priority_tier))
 
 
 @dataclass
@@ -87,6 +90,11 @@ class _SearchTask:
     title: str = ""
     target_kind: str = "vo"  # "mixed" | "vo" | "vf"
     current_release_titles: list[str] = field(default_factory=list)
+    # Rang secondaire au sein d'une meme categorie target_kind (plus petit = prioritaire).
+    # 1 = season pack d'une serie terminee (meilleure couverture par recherche) ;
+    # 2 = fallback episodique recent d'une serie en cours de diffusion ;
+    # 3 = tout le reste (season pack "continuing", fallback de secours "ended").
+    priority_tier: int = 3
 
 
 class ReleaseResults(list):
@@ -350,6 +358,71 @@ def classify_vf_target(
     return "vo"
 
 
+def _series_is_ended(series_data: dict) -> bool:
+    status = (series_data.get("status") or "").lower()
+    return status == "ended" or bool(series_data.get("ended"))
+
+
+async def _series_meta(inst: ArrInstance, arr_id: int, series_cache: dict, series_data: dict | None = None) -> dict:
+    """Statut "ended" + episodes bruts d'une serie Sonarr, mis en cache pour la duree du
+    scan (evite les appels lookup_series/get_episodes redondants quand une meme serie
+    est traversee plusieurs fois -- season pack, fallback episodique, etc.)."""
+    key = (inst.id, arr_id)
+    meta = series_cache.get(key)
+    if meta is None:
+        if series_data is None:
+            try:
+                series_data = await sonarr.lookup_series(inst.url, inst.api_key, arr_id=arr_id)
+            except Exception as exc:
+                logger.debug("VF upgrade : statut Sonarr indisponible pour arr_id=%s : %s", arr_id, exc)
+                series_data = None
+        meta = {"ended": _series_is_ended(series_data) if series_data else False, "episodes": None}
+        series_cache[key] = meta
+    return meta
+
+
+async def _series_episodes(inst: ArrInstance, arr_id: int, series_cache: dict) -> list[dict]:
+    meta = await _series_meta(inst, arr_id, series_cache)
+    if meta["episodes"] is None:
+        try:
+            meta["episodes"] = await sonarr.get_episodes(inst.url, inst.api_key, arr_id)
+        except Exception as exc:
+            logger.debug("VF upgrade : episodes Sonarr indisponibles pour arr_id=%s : %s", arr_id, exc)
+            meta["episodes"] = []
+    return meta["episodes"]
+
+
+def _recent_episodes(episodes: list[dict], max_age_days: int, limit: int) -> list[dict]:
+    """Episodes avec fichier, diffuses dans les `max_age_days` derniers jours, les plus
+    recents d'abord, plafonnes a `limit` -- fenetre pertinente pour une serie en cours de
+    diffusion (un season pack MULTI n'existe generalement pas avant la fin de saison)."""
+    now = now_utc()
+    dated: list[tuple[datetime, dict]] = []
+    for ep in episodes:
+        if not ep.get("hasFile") or not ep.get("episodeNumber") or not ep.get("id"):
+            continue
+        air = ep.get("airDateUtc")
+        if not air:
+            continue
+        try:
+            air_dt = datetime.fromisoformat(air.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if (now - air_dt).days > max_age_days:
+            continue
+        dated.append((air_dt, ep))
+    dated.sort(key=lambda pair: pair[0], reverse=True)
+    return [ep for _, ep in dated[:limit]]
+
+
+def _last_episodes(episodes: list[dict], limit: int) -> list[dict]:
+    """Filet de securite fallback pour une serie terminee : les derniers episodes par
+    numero, plafonnes a `limit` (le season pack reste la recherche principale)."""
+    candidates = [ep for ep in episodes if ep.get("hasFile") and ep.get("episodeNumber") and ep.get("id")]
+    candidates.sort(key=lambda ep: ep.get("episodeNumber") or 0, reverse=True)
+    return candidates[:limit]
+
+
 async def _sonarr_season_tasks(
     row,
     inst: ArrInstance,
@@ -358,12 +431,19 @@ async def _sonarr_season_tasks(
     skip: set,
     recent: set,
     settings: Settings | None = None,
+    series_cache: dict | None = None,
 ) -> list[_SearchTask]:
     """Crée des tâches de recherche à partir de la structure Sonarr quand aucun statut Plex
     n'est disponible (série jamais scannée). Une tâche season-pack par saison avec fichiers ;
     si `vf_upgrade_episodic_fallback` est activé, ajoute aussi des tâches par épisode pour
-    couvrir les releases MULTI épisodiques sans season pack indexé."""
+    couvrir les releases MULTI épisodiques sans season pack indexé.
+
+    Le fallback est adapte au statut de diffusion (voir _series_meta) : une serie terminee
+    n'a besoin que d'un filet de securite (derniers episodes), le season pack couvrant deja
+    l'essentiel ; une serie en cours de diffusion, ou un season pack MULTI existe rarement,
+    privilegie les episodes recemment diffuses."""
     tasks: list[_SearchTask] = []
+    series_cache = series_cache if series_cache is not None else {}
     try:
         series_data = await sonarr.lookup_series(inst.url, inst.api_key, arr_id=row.arr_id)
         if not series_data:
@@ -376,15 +456,16 @@ async def _sonarr_season_tasks(
         logger.debug("VF upgrade : impossible de lire les saisons Sonarr pour '%s' : %s", row.title, exc)
         return tasks
 
+    meta = await _series_meta(inst, row.arr_id, series_cache, series_data=series_data)
+    ended = meta["ended"]
     episodic_fallback = _setting(settings, "vf_upgrade_episodic_fallback", True)
+    fallback_limit = max(0, _setting(settings, "vf_upgrade_episodic_fallback_limit", 5))
+    fallback_days = max(1, _setting(settings, "vf_upgrade_episodic_fallback_days", 30))
 
     # Un seul appel Sonarr pour tous les épisodes de la série (peu importe le nombre de saisons).
     all_episodes: list[dict] = []
-    if episodic_fallback and seasons_with_files:
-        try:
-            all_episodes = await sonarr.get_episodes(inst.url, inst.api_key, row.arr_id)
-        except Exception as exc:
-            logger.debug("VF upgrade : épisodes Sonarr indisponibles pour '%s' : %s", row.title, exc)
+    if episodic_fallback and seasons_with_files and fallback_limit > 0:
+        all_episodes = await _series_episodes(inst, row.arr_id, series_cache)
 
     for season_info in seasons_with_files:
         sn = season_info["season_number"]
@@ -401,19 +482,21 @@ async def _sonarr_season_tasks(
                     season_number=sn,
                     title=f"{row.title} - Saison {sn}",
                     target_kind="vo",
+                    priority_tier=1 if ended else 3,
                 )
             )
 
-        if not episodic_fallback:
+        if not episodic_fallback or fallback_limit <= 0:
             continue
-        # Épisodes individuels en fallback pour capturer les MULTI sans season pack
-        for ep in all_episodes:
-            if ep.get("seasonNumber") != sn:
-                continue
-            ep_num = ep.get("episodeNumber")
-            ep_id = ep.get("id")
-            if not ep_num or not ep_id or not ep.get("hasFile"):
-                continue
+        season_eps = [ep for ep in all_episodes if ep.get("seasonNumber") == sn]
+        chosen = (
+            _recent_episodes(season_eps, fallback_days, fallback_limit)
+            if not ended
+            else _last_episodes(season_eps, fallback_limit)
+        )
+        for ep in chosen:
+            ep_num = ep["episodeNumber"]
+            ep_id = ep["id"]
             key_ep = (source_type, row.id, "episode", sn, ep_num)
             if force or (key_ep not in skip and key_ep not in recent):
                 tasks.append(
@@ -429,15 +512,22 @@ async def _sonarr_season_tasks(
                         episode_number=ep_num,
                         title=f"{row.title} - S{sn:02d}E{ep_num:02d}",
                         target_kind="vo",
+                        priority_tier=2 if not ended else 3,
                     )
                 )
     return tasks
 
 
 async def _build_show_tasks(
-    db: AsyncSession, force: bool, skip: set, recent: set, settings: Settings | None = None
+    db: AsyncSession,
+    force: bool,
+    skip: set,
+    recent: set,
+    settings: Settings | None = None,
+    series_cache: dict | None = None,
 ) -> list[_SearchTask]:
     tasks: list[_SearchTask] = []
+    series_cache = series_cache if series_cache is not None else {}
     for model in (MediaRequest, LibraryItem):
         rows = (
             (await db.execute(select(model).filter(model.media_type == "show", model.arr_id.isnot(None))))
@@ -461,9 +551,16 @@ async def _build_show_tasks(
                 # Fix #1 : aucun statut Plex (serie jamais scannee ou fichiers recemment
                 # importes). On interroge directement Sonarr pour decouvrir les saisons
                 # disponibles et creer des taches season-pack + episode fallback.
-                tasks.extend(await _sonarr_season_tasks(row, inst, source_type, force, skip, recent, settings))
+                tasks.extend(
+                    await _sonarr_season_tasks(row, inst, source_type, force, skip, recent, settings, series_cache)
+                )
                 continue
+            # Statut de diffusion mis en cache pour la duree du scan (voir _series_meta) --
+            # determine si le fallback episodique d'une saison VO privilegie les episodes
+            # recents (serie en cours) ou sert de simple filet de securite (serie terminee).
+            series_ended = (await _series_meta(inst, row.arr_id, series_cache))["ended"]
             episode_ids_needed: dict[int, list[int]] = {}
+            vo_fallback_needed: dict[int, list[int]] = {}
             for sn, eps in seasons.items():
                 if not eps:
                     continue
@@ -491,7 +588,9 @@ async def _build_show_tasks(
                 if not any(eps.values()):
                     if not _setting(settings, "vf_upgrade_include_vo", True):
                         continue
-                    # Saison entierement VO : season pack en priorite.
+                    # Saison entierement VO : season pack en priorite -- couverture maximale
+                    # pour une seule recherche, surtout rentable pour une serie terminee
+                    # (voir priority_tier, applique par _order_tasks).
                     key = (source_type, row.id, "season", sn, None)
                     if force or (key not in skip and key not in recent):
                         tasks.append(
@@ -504,17 +603,21 @@ async def _build_show_tasks(
                                 arr_id=row.arr_id,
                                 season_number=sn,
                                 title=f"{row.title} - Saison {sn}",
+                                priority_tier=1 if series_ended else 3,
                             )
                         )
                     # Fix #4 : fallback episodique pour capturer les MULTI sans season pack.
-                    # Les taches episode s'ajoutent avec une priorite inferieure (en fin de
-                    # liste avant tri) et ne sont generees que si le setting le permet.
-                    if _setting(settings, "vf_upgrade_episodic_fallback", True):
+                    # Filtre/plafonne plus loin (voir _recent_episodes/_last_episodes) une
+                    # fois le detail Sonarr des episodes disponible.
+                    if (
+                        _setting(settings, "vf_upgrade_episodic_fallback", True)
+                        and _setting(settings, "vf_upgrade_episodic_fallback_limit", 5) > 0
+                    ):
                         for en, _has_vf in eps.items():
                             key_ep = (source_type, row.id, "episode", sn, en)
                             if not force and (key_ep in skip or key_ep in recent):
                                 continue
-                            episode_ids_needed.setdefault(sn, []).append(en)
+                            vo_fallback_needed.setdefault(sn, []).append(en)
                     continue
                 if not _setting(settings, "vf_upgrade_include_mixed", True):
                     continue
@@ -551,9 +654,9 @@ async def _build_show_tasks(
                 if pending_keys:
                     episode_ids_needed.setdefault(sn, []).extend(pending_keys)
 
-            if episode_ids_needed:
+            if episode_ids_needed or vo_fallback_needed:
                 try:
-                    episodes = await sonarr.get_episodes(inst.url, inst.api_key, row.arr_id)
+                    episodes = await _series_episodes(inst, row.arr_id, series_cache)
                 except Exception as e:
                     logger.warning(f"VF upgrade : episodes Sonarr indisponibles pour '{row.title}': {e}")
                     episodes = []
@@ -579,6 +682,37 @@ async def _build_show_tasks(
                                 episode_number=en,
                                 title=f"{row.title} - S{sn:02d}E{en:02d}",
                                 target_kind="mixed",
+                                priority_tier=0,
+                            )
+                        )
+                # Fallback VO plafonne/filtre : episodes recents pour une serie en cours de
+                # diffusion, derniers episodes en filet de securite pour une serie terminee
+                # (voir _recent_episodes/_last_episodes -- meme logique que _sonarr_season_tasks).
+                fallback_limit = max(0, _setting(settings, "vf_upgrade_episodic_fallback_limit", 5))
+                fallback_days = max(1, _setting(settings, "vf_upgrade_episodic_fallback_days", 30))
+                for sn, ens in vo_fallback_needed.items():
+                    season_eps = [
+                        ep for ep in episodes if ep.get("seasonNumber") == sn and ep.get("episodeNumber") in ens
+                    ]
+                    chosen = (
+                        _recent_episodes(season_eps, fallback_days, fallback_limit)
+                        if not series_ended
+                        else _last_episodes(season_eps, fallback_limit)
+                    )
+                    for ep in chosen:
+                        tasks.append(
+                            _SearchTask(
+                                source_type=source_type,
+                                source_id=row.id,
+                                scope="episode",
+                                arr_type="sonarr",
+                                inst=inst,
+                                episode_id=ep["id"],
+                                season_number=sn,
+                                episode_number=ep["episodeNumber"],
+                                title=f"{row.title} - S{sn:02d}E{ep['episodeNumber']:02d}",
+                                target_kind="vo",
+                                priority_tier=2 if not series_ended else 3,
                             )
                         )
     return tasks
@@ -813,7 +947,9 @@ async def scan_vf_upgrades(force: bool = False) -> dict[str, Any]:
         recent = set() if force else await _recent_scan_keys(db, settings)
 
         movie_tasks = await _build_movie_tasks(db, force, skip, recent, settings)
-        show_tasks = await _build_show_tasks(db, force, skip, recent, settings)
+        # Cache par run : evite de relancer lookup_series/get_episodes pour la meme serie
+        # entre la creation du season pack, du fallback episodique et le tri par priorite.
+        show_tasks = await _build_show_tasks(db, force, skip, recent, settings, series_cache={})
         # Intercalage plutot que concatenation : sans lui, une bibliotheque avec plus de
         # films VO que de series VO monopolise le plafond par passage indefiniment (le
         # cooldown fait juste tourner le MEME sous-ensemble de films en boucle), les

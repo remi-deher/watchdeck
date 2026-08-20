@@ -252,6 +252,12 @@ class Settings(Base):
     # season pack pour les saisons entierement VO, couvrant les MULTI episodiques sans
     # season pack indexe.  Peut multiplier le volume de recherches par N_episodes.
     vf_upgrade_episodic_fallback: Mapped[bool] = mapped_column(default=True)
+    # Plafonne le nombre de taches episode-fallback generees par saison (evite qu'une
+    # seule serie de N episodes epuise le budget vf_upgrade_max_searches_per_run entier).
+    vf_upgrade_episodic_fallback_limit: Mapped[int] = mapped_column(default=5)
+    # Fenetre (jours) au-dela de laquelle un episode diffuse n'est plus considere comme
+    # "recent" pour le fallback episodique d'une serie en cours de diffusion.
+    vf_upgrade_episodic_fallback_days: Mapped[int] = mapped_column(default=30)
     vf_upgrade_protect_existing_vf: Mapped[bool] = mapped_column(default=True)
     vf_upgrade_notify_found: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_notify_accepted: Mapped[bool] = mapped_column(default=False)

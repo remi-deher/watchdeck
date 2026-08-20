@@ -36,16 +36,19 @@ from app.services.release_matching import (
 from app.services.vf_upgrade_scanner import (
     _build_movie_tasks,
     _build_show_tasks,
+    _last_episodes,
     _order_tasks,
     _persist_result,
+    _recent_episodes,
     _recent_scan_keys,
     _search_task,
     _SearchTask,
+    _series_is_ended,
     _skip_statuses,
     _sonarr_season_tasks,
     scan_single_target,
 )
-from app.utils import now_utc_naive
+from app.utils import now_utc, now_utc_naive
 from tests.async_support import TestSession
 
 # ---------------------------------------------------------------------------
@@ -697,9 +700,16 @@ async def test_build_show_tasks_fully_vo_season_with_episodic_fallback(db):
         _episode_status(db, item.id, season=1, episode=ep, has_vf=False)
     db.commit()
 
-    fake_episodes = [{"id": 10 + ep, "seasonNumber": 1, "episodeNumber": ep, "hasFile": True} for ep in (1, 2, 3)]
+    recent_air = now_utc().isoformat().replace("+00:00", "Z")
+    fake_episodes = [
+        {"id": 10 + ep, "seasonNumber": 1, "episodeNumber": ep, "hasFile": True, "airDateUtc": recent_air}
+        for ep in (1, 2, 3)
+    ]
     settings = Settings(vff_enabled=True, vf_upgrade_episodic_fallback=True)
-    with patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=fake_episodes)):
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=None)),
+        patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=fake_episodes)),
+    ):
         tasks = await _build_show_tasks(db, force=False, skip=set(), recent=set(), settings=settings)
 
     # 1 season pack + 3 épisodes individuels
@@ -1300,10 +1310,17 @@ async def test_sonarr_season_tasks_with_episodic_fallback(db):
 
     settings = Settings(vf_upgrade_episodic_fallback=True)
     fake_data = _fake_series_data([1])
+    recent_air = now_utc().isoformat().replace("+00:00", "Z")
     fake_episodes = [
-        {"id": 10, "seasonNumber": 1, "episodeNumber": 1, "hasFile": True},
-        {"id": 11, "seasonNumber": 1, "episodeNumber": 2, "hasFile": True},
-        {"id": 12, "seasonNumber": 1, "episodeNumber": 3, "hasFile": False},  # pas de fichier -> ignoré
+        {"id": 10, "seasonNumber": 1, "episodeNumber": 1, "hasFile": True, "airDateUtc": recent_air},
+        {"id": 11, "seasonNumber": 1, "episodeNumber": 2, "hasFile": True, "airDateUtc": recent_air},
+        {
+            "id": 12,
+            "seasonNumber": 1,
+            "episodeNumber": 3,
+            "hasFile": False,
+            "airDateUtc": recent_air,
+        },  # pas de fichier -> ignoré
     ]
 
     with (
@@ -1508,3 +1525,163 @@ async def test_search_task_rejects_by_size_bounds(db):
         ):
             result = await _search_task(task, s)
         assert list(result) == [], f"Attendu rejet avec {s}"
+
+
+# ---------------------------------------------------------------------------
+# Priorisation ended/continuing (fallback episodique)
+# ---------------------------------------------------------------------------
+
+
+def test_series_is_ended_from_status_field():
+    assert _series_is_ended({"status": "ended"}) is True
+    assert _series_is_ended({"status": "continuing"}) is False
+    assert _series_is_ended({"status": "continuing", "ended": True}) is True
+    assert _series_is_ended({}) is False
+
+
+def test_recent_episodes_filters_by_age_and_caps_to_limit():
+    now = now_utc()
+    episodes = [
+        {"id": 1, "episodeNumber": 1, "hasFile": True, "airDateUtc": (now - timedelta(days=45)).isoformat()},
+        {"id": 2, "episodeNumber": 2, "hasFile": True, "airDateUtc": (now - timedelta(days=5)).isoformat()},
+        {"id": 3, "episodeNumber": 3, "hasFile": True, "airDateUtc": (now - timedelta(days=2)).isoformat()},
+        {"id": 4, "episodeNumber": 4, "hasFile": False, "airDateUtc": (now - timedelta(days=1)).isoformat()},
+        {"id": 5, "episodeNumber": 5, "hasFile": True, "airDateUtc": None},
+    ]
+    chosen = _recent_episodes(episodes, max_age_days=30, limit=5)
+    # Episode 1 (45j) hors fenetre, 4 (pas de fichier) et 5 (pas de date) exclus.
+    assert [ep["id"] for ep in chosen] == [3, 2]
+
+    capped = _recent_episodes(episodes, max_age_days=30, limit=1)
+    assert [ep["id"] for ep in capped] == [3]
+
+
+def test_last_episodes_orders_by_number_and_caps_to_limit():
+    episodes = [
+        {"id": 1, "episodeNumber": 1, "hasFile": True},
+        {"id": 2, "episodeNumber": 2, "hasFile": True},
+        {"id": 3, "episodeNumber": 3, "hasFile": False},  # pas de fichier -> exclu
+        {"id": 4, "episodeNumber": 4, "hasFile": True},
+    ]
+    assert [ep["id"] for ep in _last_episodes(episodes, limit=2)] == [4, 2]
+    assert [ep["id"] for ep in _last_episodes(episodes, limit=10)] == [4, 2, 1]
+
+
+@pytest.mark.asyncio
+async def test_sonarr_season_tasks_ended_series_prioritizes_season_pack(db):
+    """Serie terminee : season pack en priority_tier=1, fallback episodique en filet de
+    securite seulement (derniers episodes, pas les plus recemment diffuses)."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    fake_data = _fake_series_data([1])
+    fake_data["status"] = "ended"
+    fake_episodes = [
+        {"id": 10 + ep, "seasonNumber": 1, "episodeNumber": ep, "hasFile": True, "airDateUtc": None}
+        for ep in range(1, 9)
+    ]
+    settings = Settings(vf_upgrade_episodic_fallback=True, vf_upgrade_episodic_fallback_limit=3)
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)),
+        patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=fake_episodes)),
+    ):
+        tasks = await _sonarr_season_tasks(item, inst, "library_item", False, set(), set(), settings)
+
+    season_task = next(t for t in tasks if t.scope == "season")
+    assert season_task.priority_tier == 1
+
+    episode_tasks = [t for t in tasks if t.scope == "episode"]
+    assert len(episode_tasks) == 3
+    assert {t.episode_number for t in episode_tasks} == {6, 7, 8}
+    assert all(t.priority_tier == 3 for t in episode_tasks)
+
+
+@pytest.mark.asyncio
+async def test_sonarr_season_tasks_continuing_series_uses_recent_episodes_only(db):
+    """Serie en cours de diffusion : season pack reste tier=3 (rarement disponible en
+    MULTI), fallback episodique restreint aux episodes recemment diffuses."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    fake_data = _fake_series_data([1])
+    fake_data["status"] = "continuing"
+    now = now_utc()
+    fake_episodes = [
+        {
+            "id": 20,
+            "seasonNumber": 1,
+            "episodeNumber": 1,
+            "hasFile": True,
+            "airDateUtc": (now - timedelta(days=90)).isoformat(),
+        },
+        {
+            "id": 21,
+            "seasonNumber": 1,
+            "episodeNumber": 2,
+            "hasFile": True,
+            "airDateUtc": (now - timedelta(days=2)).isoformat(),
+        },
+    ]
+    settings = Settings(vf_upgrade_episodic_fallback=True, vf_upgrade_episodic_fallback_days=30)
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)),
+        patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=fake_episodes)),
+    ):
+        tasks = await _sonarr_season_tasks(item, inst, "library_item", False, set(), set(), settings)
+
+    season_task = next(t for t in tasks if t.scope == "season")
+    assert season_task.priority_tier == 3
+
+    episode_tasks = [t for t in tasks if t.scope == "episode"]
+    assert {t.episode_number for t in episode_tasks} == {2}
+    assert episode_tasks[0].priority_tier == 2
+
+
+@pytest.mark.asyncio
+async def test_sonarr_season_tasks_fallback_limit_zero_skips_episodes(db):
+    """vf_upgrade_episodic_fallback_limit=0 -> aucune tache episodique, meme avec le
+    fallback active, et evite l'appel Sonarr get_episodes."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    fake_data = _fake_series_data([1])
+    settings = Settings(vf_upgrade_episodic_fallback=True, vf_upgrade_episodic_fallback_limit=0)
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)),
+        patch("app.services.vf_upgrade_scanner.sonarr.get_episodes", new=AsyncMock(return_value=[])) as get_eps,
+    ):
+        tasks = await _sonarr_season_tasks(item, inst, "library_item", False, set(), set(), settings)
+
+    assert [t.scope for t in tasks] == ["season"]
+    get_eps.assert_not_called()
+
+
+def test_order_tasks_ranks_ended_season_pack_before_continuing_fallback():
+    inst = ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr.local", api_key="key")
+    ended_pack = _SearchTask(
+        source_type="library_item",
+        source_id=1,
+        scope="season",
+        arr_type="sonarr",
+        inst=inst,
+        arr_id=1,
+        season_number=1,
+        title="Ended Show - Saison 1",
+        target_kind="vo",
+        priority_tier=1,
+    )
+    continuing_episode = _SearchTask(
+        source_type="library_item",
+        source_id=2,
+        scope="episode",
+        arr_type="sonarr",
+        inst=inst,
+        arr_id=2,
+        season_number=1,
+        episode_number=5,
+        title="Continuing Show - S01E05",
+        target_kind="vo",
+        priority_tier=2,
+    )
+    ordered = _order_tasks([continuing_episode, ended_pack], settings=None)
+    assert ordered == [ended_pack, continuing_episode]

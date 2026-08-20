@@ -102,6 +102,15 @@
           <option value="vf,vo,mixed">VF, puis VO, puis saisons mixtes</option>
         </select>
       </SettingsRow>
+      <SettingsRow label="Fallback épisodique" description="Complète le pack saison par des recherches par épisode pour capter les MULTI sans pack indexé. Pour une série terminée, sert de filet de sécurité ; pour une série en cours, cible les épisodes récemment diffusés.">
+        <input v-model="form.vf_upgrade_episodic_fallback" type="checkbox">
+      </SettingsRow>
+      <SettingsRow label="Épisodes max par saison" description="Plafonne les recherches par épisode générées en fallback, pour qu'une série ne monopolise pas le budget de recherches." :disabled="!form.vf_upgrade_episodic_fallback">
+        <input v-model.number="form.vf_upgrade_episodic_fallback_limit" :disabled="!form.vf_upgrade_episodic_fallback" type="number" min="0" max="50">
+      </SettingsRow>
+      <SettingsRow label="Fenêtre de récence" description="En jours. Pour une série en cours de diffusion, seuls les épisodes diffusés dans cette fenêtre entrent dans le fallback." :disabled="!form.vf_upgrade_episodic_fallback">
+        <input v-model.number="form.vf_upgrade_episodic_fallback_days" :disabled="!form.vf_upgrade_episodic_fallback" type="number" min="1" max="365">
+      </SettingsRow>
     </SettingsSection>
 
     <SettingsSection title="Validation et historique" subtitle="Confirme la VF après import et conserve une trace exploitable.">
