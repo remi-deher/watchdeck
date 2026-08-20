@@ -26,6 +26,7 @@ from app.routers.vf_upgrades_api import (
     _media_payload,
     _refresh_lifecycle,
     grab_vf_upgrade,
+    list_vf_upgrades,
     vf_upgrade_audit,
     vf_upgrade_dashboard,
     vf_upgrade_scan_runs,
@@ -53,6 +54,7 @@ from app.services.vf_upgrade_scanner import (
     _sonarr_season_tasks,
     get_backoff_snapshot,
     scan_single_target,
+    scan_vf_upgrades,
 )
 from app.utils import now_utc, now_utc_naive
 from tests.async_support import TestSession
@@ -1879,3 +1881,100 @@ async def test_dashboard_waiting_release_movie_includes_backoff_snapshot(db):
     waiting = next(i for i in payload["items"] if i["source_id"] == item.id)
     assert waiting["backoff"] is not None
     assert waiting["backoff"]["misses"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_vf_upgrades_includes_backoff_snapshot(db):
+    item = _movie_item(db, title="List Backoff Movie", has_vf=False)
+    db.add(
+        VfUpgradeSuggestion(
+            source_type="library_item",
+            source_id=item.id,
+            scope="movie",
+            releases_json='[{"guid":"g1"}]',
+            status="pending",
+            origin="auto",
+            target_kind="vo",
+        )
+    )
+    db.commit()
+
+    payload = await list_vf_upgrades(source_type="library_item", source_id=item.id, db=db)
+
+    assert len(payload["suggestions"]) == 1
+    assert "backoff" in payload["suggestions"][0]
+    assert payload["suggestions"][0]["backoff"] is None
+
+
+# ---------------------------------------------------------------------------
+# scan_vf_upgrades (bout en bout) : creation/finalisation du VfUpgradeScanRun
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_creates_and_finalizes_run_on_success(db):
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True, vf_upgrade_max_searches_per_run=10)
+    db.add(settings_row)
+    _radarr_instance(db)
+    _movie_item(db, title="Scan Run Movie", has_vf=False)
+    db.commit()
+
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
+    ):
+        result = await scan_vf_upgrades(force=False)
+
+    assert result["status"] == "idle"
+    assert result["scanned"] == 1
+
+    runs = db.sync_session.query(VfUpgradeScanRun).all()
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].trigger == "auto"
+    assert runs[0].tasks_total == 1
+    assert runs[0].tasks_scanned == 1
+    assert runs[0].finished_at is not None
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_no_tasks_marks_run_success_with_zero_tasks(db):
+    """Bibliotheque vide (aucune tache a chercher) : le run est quand meme enregistre,
+    plutot que de disparaitre silencieusement de l'historique."""
+    db.add(Settings(vff_enabled=True, vf_upgrade_enabled=True))
+    db.commit()
+
+    with patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db):
+        result = await scan_vf_upgrades(force=False)
+
+    assert result == {"status": "idle", "scanned": 0}
+    runs = db.sync_session.query(VfUpgradeScanRun).all()
+    assert len(runs) == 1
+    assert runs[0].status == "success"
+    assert runs[0].tasks_total == 0
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_records_failure_on_exception(db):
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True)
+    db.add(settings_row)
+    _radarr_instance(db)
+    _movie_item(db, title="Broken Scan Movie", has_vf=False)
+    db.commit()
+
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch(
+            "app.services.vf_upgrade_scanner._build_movie_tasks",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        await scan_vf_upgrades(force=False)
+
+    runs = db.sync_session.query(VfUpgradeScanRun).all()
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert "boom" in runs[0].error
+    assert runs[0].finished_at is not None
