@@ -143,9 +143,7 @@ def test_explicit_multi_marker_is_sufficient_despite_japanese_declared_language(
 
 
 def test_declared_french_language_is_sufficient_without_title_marker():
-    evidence = french_release_evidence(
-        {"title": "Some.Show.S01E01.720p.WEB-DL", "languages": ["French"]}
-    )
+    evidence = french_release_evidence({"title": "Some.Show.S01E01.720p.WEB-DL", "languages": ["French"]})
 
     assert evidence["vf_confidence"] == 100
 
