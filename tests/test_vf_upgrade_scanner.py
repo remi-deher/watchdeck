@@ -28,6 +28,7 @@ from app.routers.vf_upgrades_api import (
     vf_upgrade_dashboard,
 )
 from app.services.release_matching import (
+    french_release_evidence,
     parse_release_season_episode,
     release_is_french,
     release_matches_target,
@@ -131,6 +132,24 @@ def test_release_is_french_via_declared_language():
     assert release_is_french({"title": "Some.Show.S01E01.720p", "languages": ["French"]}) is True
 
 
+def test_explicit_multi_marker_is_sufficient_despite_japanese_declared_language():
+    release = {
+        "title": "Hana.Kimi.S02E04.MULTi.1080p.WEB-DL.AAC.2.0.x264-Tsundere-Raws",
+        "languages": ["Japanese"],
+    }
+
+    assert release_is_french(release) is True
+    assert french_release_evidence(release)["vf_confidence"] == 100
+
+
+def test_declared_french_language_is_sufficient_without_title_marker():
+    evidence = french_release_evidence(
+        {"title": "Some.Show.S01E01.720p.WEB-DL", "languages": ["French"]}
+    )
+
+    assert evidence["vf_confidence"] == 100
+
+
 @pytest.mark.parametrize(
     "title",
     [
@@ -187,6 +206,38 @@ async def test_search_task_drops_zero_seed_torrents_but_keeps_usenet():
 
     guids = {release["guid"] for release in matched}
     assert guids == {"alive-torrent", "usenet-no-seeds"}
+
+
+@pytest.mark.asyncio
+async def test_search_task_keeps_multi_release_at_default_confidence_threshold():
+    inst = ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr.local", api_key="key")
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=928,
+        scope="season",
+        arr_type="sonarr",
+        inst=inst,
+        arr_id=1156,
+        season_number=2,
+        title="Hana-Kimi - Saison 2",
+    )
+    release = {
+        "guid": "hana-kimi-s02e04-multi",
+        "title": "Hana.Kimi.S02E04.MULTi.1080p.WEB-DL.AAC.2.0.x264-Tsundere-Raws",
+        "protocol": "torrent",
+        "seeders": 23,
+        "languages": ["Japanese"],
+    }
+    settings = Settings(vf_upgrade_min_confidence=65)
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=[release])),
+        patch("app.services.vf_upgrade_scanner.sonarr.get_episode_files", new=AsyncMock(return_value=[])),
+    ):
+        matched = await _search_task(task, settings=settings)
+
+    assert [item["guid"] for item in matched] == [release["guid"]]
+    assert matched[0]["vf_confidence"] == 100
 
 
 # ---------------------------------------------------------------------------
