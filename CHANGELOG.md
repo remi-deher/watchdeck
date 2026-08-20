@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2 — 2026-08-20
+
+
+### 🐛 Corrections
+
+- corrige la version affichee par l'image promue ([7aed84b](https://github.com/remi-deher/watchdeck/commit/7aed84baea3ff7757528cf28a9d12b54f3b86594))
 ## 1.4.1 — 2026-08-20
 
 
@@ -21,6 +27,10 @@
 - supprime les branches release/* et les builds d'image sans objet ([bc810e2](https://github.com/remi-deher/watchdeck/commit/bc810e2091b6b25d6c34909b4cef4b2053af8bb9))
 - promeut l'image testee au lieu d'en reconstruire une pour la production ([e98a23f](https://github.com/remi-deher/watchdeck/commit/e98a23f44d47c6f572d65dbb8d08476115db0f2f))
 - detecte les secrets committes par accident (gitleaks) ([643fe7d](https://github.com/remi-deher/watchdeck/commit/643fe7dc972868836a6faee92cd982e103e71f15))
+
+### 🔧 Maintenance
+
+- v1.4.1 (#107) ([7e80c73](https://github.com/remi-deher/watchdeck/commit/7e80c736bbbea74de13f6f0268ab2d9591838aa7))
 ## 1.4.0 — 2026-08-19
 
 
