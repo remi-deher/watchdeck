@@ -22,6 +22,7 @@ from ..models import (
     Settings,
     VfEpisodeStatus,
     VfUpgradeScanRun,
+    VfUpgradeScanRunItem,
     VfUpgradeSuggestion,
 )
 from ..realtime import publish
@@ -41,6 +42,13 @@ from .arr_shared import _resolve_arr_instance
 router = APIRouter(prefix="/api", tags=["vf-upgrades"], dependencies=[Depends(require_moderator)])
 logger = logging.getLogger(__name__)
 ACTIVE_UPGRADE_STATES = ("accepted", "downloading", "importing", "awaiting_verification")
+
+
+def _iso_utc(value) -> str | None:
+    """Serialise un datetime naif UTC (voir now_utc_naive) avec le suffixe 'Z' -- sans
+    lui, `new Date(...)` cote navigateur interprete la chaine comme une heure LOCALE,
+    decalant l'affichage (et tout calcul de duree) de l'offset du fuseau du visiteur."""
+    return value.isoformat() + "Z" if value else None
 
 
 def _payload(row: VfUpgradeSuggestion) -> dict:
@@ -991,8 +999,8 @@ async def vf_upgrade_scan_runs(limit: int = Query(default=20, ge=1, le=200), db:
         "runs": [
             {
                 "id": row.id,
-                "started_at": row.started_at.isoformat() if row.started_at else None,
-                "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+                "started_at": _iso_utc(row.started_at),
+                "finished_at": _iso_utc(row.finished_at),
                 "status": row.status,
                 "trigger": row.trigger,
                 "tasks_total": row.tasks_total,
@@ -1002,4 +1010,49 @@ async def vf_upgrade_scan_runs(limit: int = Query(default=20, ge=1, le=200), db:
             }
             for row in rows
         ]
+    }
+
+
+@router.get("/vf-upgrades/scan-runs/{run_id}/items")
+async def vf_upgrade_scan_run_items(run_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Detail par media d'un cycle de scan (voir VfUpgradeScanRunItem) -- utilise en
+    complement de /scan-runs pour afficher, au clic sur un cycle, la progression en
+    direct (cycle en cours) ou le detail complet (cycle termine)."""
+    run = (await db.execute(select(VfUpgradeScanRun).filter(VfUpgradeScanRun.id == run_id))).scalars().first()
+    if not run:
+        raise HTTPException(404, "Cycle de scan introuvable")
+    items = (
+        (
+            await db.execute(
+                select(VfUpgradeScanRunItem)
+                .filter(VfUpgradeScanRunItem.run_id == run_id)
+                .order_by(VfUpgradeScanRunItem.started_at.asc(), VfUpgradeScanRunItem.id.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return {
+        "run": {
+            "id": run.id,
+            "status": run.status,
+            "tasks_total": run.tasks_total,
+            "tasks_scanned": run.tasks_scanned,
+        },
+        "items": [
+            {
+                "id": item.id,
+                "source_type": item.source_type,
+                "source_id": item.source_id,
+                "scope": item.scope,
+                "season_number": item.season_number,
+                "episode_number": item.episode_number,
+                "title": item.title,
+                "status": item.status,
+                "release_count": item.release_count,
+                "started_at": _iso_utc(item.started_at),
+                "finished_at": _iso_utc(item.finished_at),
+            }
+            for item in items
+        ],
     }

@@ -246,6 +246,8 @@ const releaseDates = computed(() => {
   background-color: var(--surface-2);
   margin: -28px calc(-1 * var(--main-pad-x, 28px)) 24px calc(-1 * var(--main-pad-x, 28px));
   padding-top: 24px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 .mdh-scrim {
   position: absolute;

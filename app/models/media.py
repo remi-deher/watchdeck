@@ -432,6 +432,34 @@ class VfUpgradeScanRun(Base):
     error: Mapped[Optional[str]] = mapped_column(Text)
 
 
+class VfUpgradeScanRunItem(Base):
+    """Detail par cible d'un cycle de scan (voir VfUpgradeScanRun) : une ligne par
+    recherche menee, inseree en "running" avant l'appel indexeur puis finalisee a son
+    retour -- permet a l'onglet historique d'afficher, pour un cycle en cours, quels
+    medias sont deja passes et lequel est en train d'etre cherche, et pour un cycle
+    termine le detail complet plutot que le seul total agrege."""
+
+    __tablename__ = "vf_upgrade_scan_run_items"
+    __table_args__ = (Index("ix_vf_upgrade_scan_run_items_run", "run_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("vf_upgrade_scan_runs.id", ondelete="CASCADE"))
+    source_type: Mapped[str]
+    source_id: Mapped[int]
+    scope: Mapped[str]
+    season_number: Mapped[Optional[int]]
+    episode_number: Mapped[Optional[int]]
+    # Titre fige au moment de la recherche (voir _SearchTask.title) : evite une jointure
+    # supplementaire pour l'affichage, au prix d'un intitule qui ne suit pas un
+    # renommage ulterieur du media -- acceptable pour un historique.
+    title: Mapped[str]
+    # "running" -> "found" | "no_result" | "error"
+    status: Mapped[str] = mapped_column(default="running")
+    release_count: Mapped[int] = mapped_column(default=0)
+    started_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+    finished_at: Mapped[Optional[datetime]]
+
+
 class EpisodeAvailability(Base):
     """Cache de la disponibilité Sonarr (fichier présent + date de diffusion) par
     épisode, alimenté en arrière-plan par `services/episode_availability.py`.

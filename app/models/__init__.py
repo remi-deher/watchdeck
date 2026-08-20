@@ -45,6 +45,7 @@ from .media import (
     RequestSeasonStatus,
     VfEpisodeStatus,
     VfUpgradeScanRun,
+    VfUpgradeScanRunItem,
     VfUpgradeSuggestion,
 )
 from .notifications import (
@@ -109,6 +110,7 @@ __all__ = [
     "VfCategory",
     "VfEpisodeStatus",
     "VfUpgradeScanRun",
+    "VfUpgradeScanRunItem",
     "VfUpgradeSuggestion",
     "WatchlistSource",
 ]

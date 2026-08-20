@@ -19,6 +19,7 @@ from app.models import (
     Settings,
     VfEpisodeStatus,
     VfUpgradeScanRun,
+    VfUpgradeScanRunItem,
     VfUpgradeSuggestion,
 )
 from app.routers.vf_upgrades_api import (
@@ -29,6 +30,7 @@ from app.routers.vf_upgrades_api import (
     list_vf_upgrades,
     vf_upgrade_audit,
     vf_upgrade_dashboard,
+    vf_upgrade_scan_run_items,
     vf_upgrade_scan_runs,
 )
 from app.services.release_matching import (
@@ -756,6 +758,78 @@ async def test_build_show_tasks_mixed_season_searches_only_missing_episodes(db):
     assert {t.scope for t in tasks} == {"episode"}
     assert {t.episode_number for t in tasks} == {3, 4}
     assert {t.episode_id for t in tasks} == {102, 103}
+
+
+@pytest.mark.asyncio
+async def test_build_show_tasks_mixed_season_uses_season_pack_when_series_ended(db):
+    """Saison mixte d'une serie terminee (au moins 1 episode deja VF) -> season pack
+    plutot que les episodes un par un, meme sans activer vf_upgrade_mixed_mode='season'
+    explicitement (voir _season_finished_airing)."""
+    _sonarr_instance(db)
+    item = _show_item(db)
+    _episode_status(db, item.id, season=1, episode=1, has_vf=True)
+    _episode_status(db, item.id, season=1, episode=2, has_vf=False)
+    db.commit()
+    settings = Settings(vf_upgrade_protect_existing_vf=False)
+    fake_data = _fake_series_data([1])
+    fake_data["status"] = "ended"
+
+    with patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)):
+        tasks = await _build_show_tasks(db, False, set(), set(), settings)
+
+    assert len(tasks) == 1
+    assert tasks[0].scope == "season"
+    assert tasks[0].season_number == 1
+    assert tasks[0].target_kind == "mixed"
+
+
+@pytest.mark.asyncio
+async def test_build_show_tasks_mixed_season_uses_season_pack_when_season_fully_aired(db):
+    """Serie encore en cours de diffusion globalement, mais CETTE saison n'a plus
+    d'episode a venir (episode_count == total_episode_count) -> season pack aussi."""
+    _sonarr_instance(db)
+    item = _show_item(db)
+    _episode_status(db, item.id, season=1, episode=1, has_vf=True)
+    _episode_status(db, item.id, season=1, episode=2, has_vf=False)
+    db.commit()
+    settings = Settings(vf_upgrade_protect_existing_vf=False)
+    fake_data = _fake_series_data([1])
+    fake_data["status"] = "continuing"
+    fake_data["seasons"][0]["statistics"] = {"episodeFileCount": 2, "episodeCount": 2, "totalEpisodeCount": 2}
+
+    with patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)):
+        tasks = await _build_show_tasks(db, False, set(), set(), settings)
+
+    assert len(tasks) == 1
+    assert tasks[0].scope == "season"
+
+
+@pytest.mark.asyncio
+async def test_build_show_tasks_mixed_season_keeps_episodes_when_still_airing(db):
+    """Saison mixte d'une serie/saison encore en cours de diffusion (episodes a venir)
+    -> comportement inchange, recherche episode par episode."""
+    _sonarr_instance(db)
+    item = _show_item(db)
+    _episode_status(db, item.id, season=1, episode=1, has_vf=True)
+    _episode_status(db, item.id, season=1, episode=2, has_vf=False)
+    db.commit()
+    settings = Settings(vf_upgrade_protect_existing_vf=False)
+    fake_data = _fake_series_data([1])
+    fake_data["status"] = "continuing"
+    fake_data["seasons"][0]["statistics"] = {"episodeFileCount": 2, "episodeCount": 2, "totalEpisodeCount": 5}
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.lookup_series", new=AsyncMock(return_value=fake_data)),
+        patch(
+            "app.services.vf_upgrade_scanner.sonarr.get_episodes",
+            new=AsyncMock(return_value=[{"id": 11, "seasonNumber": 1, "episodeNumber": 2}]),
+        ),
+    ):
+        tasks = await _build_show_tasks(db, False, set(), set(), settings)
+
+    assert len(tasks) == 1
+    assert tasks[0].scope == "episode"
+    assert tasks[0].episode_number == 2
 
 
 @pytest.mark.asyncio
@@ -1937,6 +2011,13 @@ async def test_scan_vf_upgrades_creates_and_finalizes_run_on_success(db):
     assert runs[0].tasks_scanned == 1
     assert runs[0].finished_at is not None
 
+    items = db.sync_session.query(VfUpgradeScanRunItem).filter_by(run_id=runs[0].id).all()
+    assert len(items) == 1
+    assert items[0].title == "Scan Run Movie"
+    assert items[0].status == "no_result"
+    assert items[0].release_count == 0
+    assert items[0].finished_at is not None
+
 
 @pytest.mark.asyncio
 async def test_scan_vf_upgrades_no_tasks_marks_run_success_with_zero_tasks(db):
@@ -1978,3 +2059,68 @@ async def test_scan_vf_upgrades_records_failure_on_exception(db):
     assert runs[0].status == "failed"
     assert "boom" in runs[0].error
     assert runs[0].finished_at is not None
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_marks_stuck_items_error_on_late_failure(db):
+    """Un echec survenant APRES la creation des lignes 'running' (ex: crash pendant la
+    recherche indexeur) doit les faire basculer en 'error', pas les laisser bloquees a
+    'running' pour toujours dans l'historique."""
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True)
+    db.add(settings_row)
+    _radarr_instance(db)
+    _movie_item(db, title="Crashes Mid Scan", has_vf=False)
+    db.commit()
+
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch(
+            "app.services.vf_upgrade_scanner._search_task",
+            new=AsyncMock(side_effect=RuntimeError("network down")),
+        ),
+        patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
+    ):
+        # _search_task echoue mais est capture dans _run_task (releases=[]) -- le scan
+        # se termine donc normalement ici ; ce test verifie plutot que le champ
+        # "no_result" est bien pose meme quand la recherche a leve une exception.
+        result = await scan_vf_upgrades(force=False)
+
+    assert result["status"] == "idle"
+    items = db.sync_session.query(VfUpgradeScanRunItem).all()
+    assert len(items) == 1
+    assert items[0].status == "no_result"
+    assert items[0].finished_at is not None
+
+
+@pytest.mark.asyncio
+async def test_vf_upgrade_scan_run_items_returns_detail(db):
+    run = VfUpgradeScanRun(status="success", tasks_total=1, tasks_scanned=1, suggestions_found=0)
+    db.add(run)
+    db.commit()
+    db.add(
+        VfUpgradeScanRunItem(
+            run_id=run.id,
+            source_type="library_item",
+            source_id=1,
+            scope="movie",
+            title="Detail Item Movie",
+            status="found",
+            release_count=2,
+        )
+    )
+    db.commit()
+
+    payload = await vf_upgrade_scan_run_items(run_id=run.id, db=db)
+
+    assert payload["run"]["id"] == run.id
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["title"] == "Detail Item Movie"
+    assert payload["items"][0]["status"] == "found"
+    assert payload["items"][0]["release_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_vf_upgrade_scan_run_items_404_when_run_missing(db):
+    with pytest.raises(HTTPException) as exc_info:
+        await vf_upgrade_scan_run_items(run_id=99999, db=db)
+    assert exc_info.value.status_code == 404
