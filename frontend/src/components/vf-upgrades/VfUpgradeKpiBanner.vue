@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   Clock,
   Download,
+  EyeOff,
   Globe,
   MessageSquareOff,
   ScanSearch,
@@ -55,6 +56,7 @@ const props = withDefaults(defineProps<{
   inProgressCount?: number;
   failedCount?: number;
   historyCount?: number;
+  ignoredCount?: number;
 }>(), {
   audit: false,
   activeFilter: '',
@@ -65,6 +67,7 @@ const props = withDefaults(defineProps<{
   inProgressCount: 0,
   failedCount: 0,
   historyCount: 0,
+  ignoredCount: 0,
 });
 
 const emit = defineEmits<{ select: [filter: string] }>();
@@ -79,7 +82,8 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
   { filter: 'waiting_release', label: 'En attente de release', value: props.waitingReleaseCount, description: 'Médias VO sans release VF trouvée', tone: 'kpi-neutral', icon: ScanSearch },
   { filter: 'in_progress', label: 'En cours', value: props.inProgressCount, description: 'Téléchargement & validation', tone: 'kpi-info', icon: Download },
   { filter: 'failed', label: 'Échecs', value: props.failedCount, description: 'Rejets ou erreurs *arr', tone: 'kpi-danger', icon: AlertTriangle },
-  { filter: 'history', label: 'Historique', value: props.historyCount, description: 'VF validées ou ignorées', tone: 'kpi-ok', icon: CheckCircle2 },
+  { filter: 'history', label: 'Historique', value: props.historyCount, description: 'VF validées ou rejetées', tone: 'kpi-ok', icon: CheckCircle2 },
+  { filter: 'ignored', label: 'Ignorées', value: props.ignoredCount, description: 'Séries/films exclus du scan', tone: 'kpi-muted', icon: EyeOff },
 ]);
 </script>
 

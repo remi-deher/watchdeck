@@ -18,18 +18,21 @@ from app.models import (
     RequestStatus,
     Settings,
     VfEpisodeStatus,
+    VfUpgradeIgnoredSeries,
     VfUpgradeScanRun,
     VfUpgradeScanRunItem,
     VfUpgradeSuggestion,
 )
 from app.routers.vf_upgrades_api import (
     VfUpgradeGrabRequest,
+    VfUpgradeIgnoreRequest,
     VfUpgradeMediaRef,
     VfUpgradeScanSelectionRequest,
     _media_payload,
     _refresh_lifecycle,
     grab_vf_upgrade,
     list_vf_upgrades,
+    set_vf_upgrade_ignored,
     trigger_vf_upgrade_scan_selected,
     vf_upgrade_audit,
     vf_upgrade_dashboard,
@@ -46,6 +49,7 @@ from app.services.vf_upgrade_scanner import (
     _build_movie_tasks,
     _build_show_tasks,
     _last_episodes,
+    _load_ignored,
     _mixed_priority_tiers,
     _no_result_backoff_active,
     _order_tasks,
@@ -523,6 +527,37 @@ async def test_build_movie_tasks_creates_task_for_vo_movie(db):
 
 
 @pytest.mark.asyncio
+async def test_build_movie_tasks_skips_ignored_media(db):
+    """Un media dans VfUpgradeIgnoredSeries n'a aucune tache generee, meme VO --
+    contrairement a un dismiss par suggestion, l'ignore bloque avant la creation
+    de la tache elle-meme (pas de ligne par scope a exclure)."""
+    _radarr_instance(db)
+    item = _movie_item(db)
+    db.add(VfUpgradeIgnoredSeries(source_type="library_item", source_id=item.id))
+    db.commit()
+
+    ignored = await _load_ignored(db)
+    tasks = await _build_movie_tasks(db, force=False, skip=set(), recent=set(), ignored=ignored)
+
+    assert tasks == []
+
+
+@pytest.mark.asyncio
+async def test_build_movie_tasks_force_still_respects_ignore(db):
+    """Contrairement au skip/recent (bypasse par force=True), l'ignore explicite
+    reste respecte meme lors d'un scan force -- seul un "Reactiver" leve le blocage."""
+    _radarr_instance(db)
+    item = _movie_item(db)
+    db.add(VfUpgradeIgnoredSeries(source_type="library_item", source_id=item.id))
+    db.commit()
+
+    ignored = await _load_ignored(db)
+    tasks = await _build_movie_tasks(db, force=True, skip=set(), recent=set(), ignored=ignored)
+
+    assert tasks == []
+
+
+@pytest.mark.asyncio
 async def test_build_movie_tasks_skips_already_vf(db):
     _radarr_instance(db)
     _movie_item(db, has_vf=True)
@@ -683,6 +718,23 @@ def _episode_status(db, source_id, season, episode, has_vf):
             is_known_episode=True,
         )
     )
+
+
+@pytest.mark.asyncio
+async def test_build_show_tasks_skips_ignored_series(db):
+    """Serie ignoree : aucune tache generee, meme avec une saison entierement VO --
+    l'ignore agit avant meme le lookup des saisons/episodes."""
+    _sonarr_instance(db)
+    item = _show_item(db)
+    for ep in (1, 2, 3):
+        _episode_status(db, item.id, season=1, episode=ep, has_vf=False)
+    db.add(VfUpgradeIgnoredSeries(source_type="library_item", source_id=item.id))
+    db.commit()
+
+    ignored = await _load_ignored(db)
+    tasks = await _build_show_tasks(db, force=False, skip=set(), recent=set(), ignored=ignored)
+
+    assert tasks == []
 
 
 @pytest.mark.asyncio
@@ -1075,6 +1127,85 @@ async def test_dashboard_hides_request_suggestion_already_linked_to_a_library_it
     payload = await vf_upgrade_dashboard(db=db)
 
     assert [item["media"]["title"] for item in payload["items"]] == ["Toy Story 5 (VOSTFR)"]
+
+
+@pytest.mark.asyncio
+async def test_set_vf_upgrade_ignored_bulk_dismisses_active_suggestions(db):
+    """Ignorer un media dismiss immediatement ses suggestions pending/waiting/failed
+    (visibles sans attendre le prochain scan) mais ne touche pas un etat deja en vol."""
+    item = _movie_item(db, title="Film VO")
+    pending = VfUpgradeSuggestion(source_type="library_item", source_id=item.id, scope="movie", status="pending")
+    downloading = VfUpgradeSuggestion(
+        source_type="library_item", source_id=item.id, scope="season", season_number=1, status="downloading"
+    )
+    db.add_all([pending, downloading])
+    db.commit()
+
+    result = await set_vf_upgrade_ignored(
+        VfUpgradeIgnoreRequest(source_type="library_item", source_id=item.id, ignored=True), db=db
+    )
+
+    assert result == {"success": True, "ignored": True}
+    db.sync_session.refresh(pending)
+    db.sync_session.refresh(downloading)
+    assert pending.status == "dismissed"
+    assert downloading.status == "downloading"
+    ignored_rows = db.sync_session.query(VfUpgradeIgnoredSeries).all()
+    assert len(ignored_rows) == 1
+    assert (ignored_rows[0].source_type, ignored_rows[0].source_id) == ("library_item", item.id)
+
+
+@pytest.mark.asyncio
+async def test_set_vf_upgrade_ignored_toggle_off_removes_row(db):
+    item = _movie_item(db)
+    db.add(VfUpgradeIgnoredSeries(source_type="library_item", source_id=item.id))
+    db.commit()
+
+    result = await set_vf_upgrade_ignored(
+        VfUpgradeIgnoreRequest(source_type="library_item", source_id=item.id, ignored=False), db=db
+    )
+
+    assert result == {"success": True, "ignored": False}
+    assert db.sync_session.query(VfUpgradeIgnoredSeries).count() == 0
+
+
+@pytest.mark.asyncio
+async def test_set_vf_upgrade_ignored_rejects_invalid_source_type(db):
+    with pytest.raises(HTTPException) as exc_info:
+        await set_vf_upgrade_ignored(VfUpgradeIgnoreRequest(source_type="bogus", source_id=1, ignored=True), db=db)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_dashboard_marks_ignored_items(db):
+    item = _movie_item(db, title="Film Ignore")
+    db.add(
+        VfUpgradeSuggestion(
+            source_type="library_item", source_id=item.id, scope="movie", status="dismissed", origin="auto"
+        )
+    )
+    db.add(VfUpgradeIgnoredSeries(source_type="library_item", source_id=item.id))
+    db.commit()
+
+    payload = await vf_upgrade_dashboard(db=db)
+
+    assert payload["items"][0]["is_ignored"] is True
+
+
+@pytest.mark.asyncio
+async def test_dashboard_synthesizes_ignored_entry_for_media_without_suggestion(db):
+    """Un media VO ignore avant tout scan (aucune ligne VfUpgradeSuggestion) doit quand
+    meme apparaitre -- sinon il disparait purement et simplement de tous les onglets."""
+    item = _movie_item(db, title="Jamais Scanne", has_vf=False)
+    db.add(VfUpgradeIgnoredSeries(source_type="library_item", source_id=item.id))
+    db.commit()
+
+    payload = await vf_upgrade_dashboard(db=db)
+
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["status"] == "ignored"
+    assert payload["items"][0]["is_ignored"] is True
+    assert payload["items"][0]["media"]["title"] == "Jamais Scanne"
 
 
 @pytest.mark.asyncio

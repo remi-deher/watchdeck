@@ -71,4 +71,24 @@ describe('regroupement des améliorations VF', () => {
     expect(filterVfUpgradeItems(values, '', 'downloading').map(entry => entry.id)).toEqual([2]);
     expect(filterVfUpgradeItems(values, 'cible', '').map(entry => entry.id)).toEqual([2]);
   });
+
+  it('le filtre "ignored" ne retient que les cibles marquees is_ignored', () => {
+    const values = [
+      item(1, 1, 1, { status: 'dismissed' }),
+      item(2, 1, 2, { status: 'dismissed', is_ignored: true }),
+      item(3, 1, 3, { status: 'pending' }),
+    ];
+
+    expect(filterVfUpgradeItems(values, '', 'ignored').map(entry => entry.id)).toEqual([2]);
+  });
+
+  it('le filtre "history" exclut les cibles ignorees via le bouton serie', () => {
+    const values = [
+      item(1, 1, 1, { status: 'dismissed' }),
+      item(2, 1, 2, { status: 'dismissed', is_ignored: true }),
+      item(3, 1, 3, { status: 'verified' }),
+    ];
+
+    expect(filterVfUpgradeItems(values, '', 'history').map(entry => entry.id)).toEqual([1, 3]);
+  });
 });

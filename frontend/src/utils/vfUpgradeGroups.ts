@@ -20,8 +20,12 @@ export function filterVfUpgradeItems(
       statusMatches = ACTIVE_STATES.has(item.status);
     } else if (status === 'failed') {
       statusMatches = item.status === 'failed';
+    } else if (status === 'ignored') {
+      statusMatches = Boolean(item.is_ignored);
     } else if (status === 'history' || status === 'verified') {
-      statusMatches = HISTORY_STATES.has(item.status) || item.status === 'verified';
+      // Un item ignore via le bouton serie passe par status='dismissed' comme un
+      // dismiss manuel classique -- exclu d'ici pour ne vivre que dans l'onglet dedie.
+      statusMatches = (HISTORY_STATES.has(item.status) && !item.is_ignored) || item.status === 'verified';
     } else if (status && status !== 'all') {
       statusMatches = item.status === status;
     }

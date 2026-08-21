@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -21,6 +21,7 @@ from ..models import (
     RequestStatus,
     Settings,
     VfEpisodeStatus,
+    VfUpgradeIgnoredSeries,
     VfUpgradeScanRun,
     VfUpgradeScanRunItem,
     VfUpgradeSuggestion,
@@ -29,6 +30,7 @@ from ..realtime import publish
 from ..services import radarr, sonarr
 from ..services.request_lifecycle import transition_request
 from ..services.vf_upgrade_scanner import (
+    _load_ignored,
     _season_vf_status,
     classify_vf_target,
     get_backoff_snapshot,
@@ -329,6 +331,7 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
     items = []
     vf_status_cache: dict[tuple[str, int], dict[int, dict[int, bool]]] = {}
     active_library_item_ids = set()
+    ignored = await _load_ignored(db)
 
     for row in rows:
         media = (requests if row.source_type == "request" else library).get(row.source_id)
@@ -363,6 +366,7 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
                 "backoff": await get_backoff_snapshot(
                     row.source_type, row.source_id, row.scope, row.season_number, row.episode_number
                 ),
+                "is_ignored": (row.source_type, row.source_id) in ignored,
             }
         )
 
@@ -379,6 +383,35 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
         waiting_media = list((await db.execute(waiting_stmt)).scalars().all())
         for media in waiting_media:
             if media.id in active_library_item_ids:
+                continue
+            if ("library_item", media.id) in ignored:
+                # Ignore sans jamais avoir eu de suggestion (media VO jamais scanne) :
+                # la ligne "waiting_release" habituelle disparaitrait sans etre remplacee
+                # par une ligne dans `rows` -- synthese une entree "ignored" pour que le
+                # media reste visible dans cet onglet plutot que de s'evaporer.
+                items.append(
+                    {
+                        "id": f"ignored-{media.id}",
+                        "source_type": "library_item",
+                        "source_id": media.id,
+                        "scope": "movie" if media.media_type == "movie" else "show",
+                        "season_number": None,
+                        "episode_number": None,
+                        "status": "ignored",
+                        "target_kind": "vo",
+                        "origin": "auto",
+                        "arr_message": None,
+                        "scanned_at": None,
+                        "updated_at": None,
+                        "media": _media_payload(media, "library_item"),
+                        "release_count": 0,
+                        "releases_data": [],
+                        "releases_json": "[]",
+                        "current_release_titles": [],
+                        "backoff": None,
+                        "is_ignored": True,
+                    }
+                )
                 continue
             scope = "movie" if media.media_type == "movie" else "show"
             target_kind = (
@@ -1002,6 +1035,64 @@ async def dismiss_vf_upgrade(suggestion_id: int, db: AsyncSession = Depends(get_
         admin_only=True,
     )
     return {"success": True}
+
+
+class VfUpgradeIgnoreRequest(BaseModel):
+    source_type: str
+    source_id: int
+    ignored: bool
+
+
+@router.post("/vf-upgrades/ignore")
+async def set_vf_upgrade_ignored(body: VfUpgradeIgnoreRequest, db: AsyncSession = Depends(get_db_async)):
+    """Ignore (ou reactive) un media entier -- contrairement au dismiss par suggestion,
+    ceci arrete le scan de fond pour TOUT le media (toutes saisons/episodes), pas
+    seulement la cible exacte deja proposee (voir VfUpgradeIgnoredSeries)."""
+    if body.source_type not in ("request", "library_item"):
+        raise HTTPException(400, "source_type invalide")
+
+    existing = (
+        (
+            await db.execute(
+                select(VfUpgradeIgnoredSeries).filter(
+                    VfUpgradeIgnoredSeries.source_type == body.source_type,
+                    VfUpgradeIgnoredSeries.source_id == body.source_id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    if body.ignored:
+        if not existing:
+            db.add(VfUpgradeIgnoredSeries(source_type=body.source_type, source_id=body.source_id))
+        # Fait disparaitre immediatement les suggestions actives (sans attendre le
+        # prochain cycle de scan) -- les etats deja en vol (accepted/downloading/...)
+        # sont laisses intacts, un grab en cours ne doit pas etre interrompu.
+        await db.execute(
+            update(VfUpgradeSuggestion)
+            .filter(
+                VfUpgradeSuggestion.source_type == body.source_type,
+                VfUpgradeSuggestion.source_id == body.source_id,
+                VfUpgradeSuggestion.status.in_(("pending", "waiting_release", "failed")),
+            )
+            .values(status="dismissed")
+        )
+    elif existing:
+        await db.delete(existing)
+
+    await db.commit()
+    await publish(
+        "vf_upgrade.updated",
+        {
+            "source_type": body.source_type,
+            "source_id": body.source_id,
+            "action": "ignore" if body.ignored else "unignore",
+        },
+        admin_only=True,
+    )
+    return {"success": True, "ignored": body.ignored}
 
 
 @router.get("/vf-upgrades/scan-status")
