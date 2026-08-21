@@ -1,11 +1,25 @@
 # Changelog
 
+## 1.11.0 — 2026-08-21
+
+
+### ✨ Nouveautés
+
+- cadence de lancement des recherches configurable ([97fd269](https://github.com/remi-deher/watchdeck/commit/97fd269318f181c90f28a358786009bb930649d3))
+
+### 🎨 Style
+
+- ruff format sur la migration 0009 ([c82eaaa](https://github.com/remi-deher/watchdeck/commit/c82eaaabe24b05d4ee0b2393fa8a73da8c5339f6))
 ## 1.10.0 — 2026-08-21
 
 
 ### ✨ Nouveautés
 
 - cartes plus aerees et saisons repliees par defaut ([cc4f1c0](https://github.com/remi-deher/watchdeck/commit/cc4f1c08b794a2d1ccf4b877f9bffe85d8d06428))
+
+### 🔧 Maintenance
+
+- v1.10.0 (#151) ([af017a9](https://github.com/remi-deher/watchdeck/commit/af017a90a45fa563078b39d0aa6c47a8439757f8))
 ## 1.9.1 — 2026-08-20
 
 
