@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.13.0 — 2026-08-21
+
+
+### ✨ Nouveautés
+
+- ignorer une serie/film et onglet dedie ([6091f80](https://github.com/remi-deher/watchdeck/commit/6091f80a8fb863841688387d3265da8592d01be3))
 ## 1.12.0 — 2026-08-21
 
 
 ### ✨ Nouveautés
 
 - affiche le dossier racine *arr sur la recherche de release ([d270dab](https://github.com/remi-deher/watchdeck/commit/d270dab28c093b2e2924bbf053336498fd0f3ddf))
+
+### 🔧 Maintenance
+
+- v1.12.0 (#161) ([47da132](https://github.com/remi-deher/watchdeck/commit/47da1323ec8aedd60015ad16b583d51f11297248))
 ## 1.11.0 — 2026-08-21
 
 
