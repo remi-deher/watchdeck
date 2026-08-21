@@ -17,9 +17,7 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("settings") as batch_op:
-        batch_op.add_column(
-            sa.Column("vf_upgrade_search_stagger_ms", sa.Integer(), nullable=False, server_default="0")
-        )
+        batch_op.add_column(sa.Column("vf_upgrade_search_stagger_ms", sa.Integer(), nullable=False, server_default="0"))
 
 
 def downgrade() -> None:
