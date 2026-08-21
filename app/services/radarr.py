@@ -40,6 +40,7 @@ get_disk_space = arr_common.get_disk_space
 get_calendar = partial(arr_common.get_calendar, product=PRODUCT)
 get_all_movies = partial(arr_common.get_all_media, resource="movie")
 movie_exists = partial(arr_common.media_exists, resource="movie")
+get_movie_by_id = partial(arr_common.get_media_by_id, resource="movie")
 grab_release = partial(arr_common.grab_release, product=PRODUCT)
 get_manual_import_candidates = partial(arr_common.get_manual_import_candidates, product=PRODUCT)
 trigger_import = partial(arr_common.trigger_import, command="DownloadedMoviesScan", product=PRODUCT)

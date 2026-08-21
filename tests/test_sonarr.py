@@ -13,6 +13,7 @@ from app.services.sonarr import (
     check_connection,
     get_calendar,
     get_releases,
+    get_series_by_id,
     get_series_episode_stats,
     is_series_available,
     lookup_series,
@@ -65,6 +66,34 @@ async def test_add_series_new():
     assert arr_id == 42
     assert already_existed is False
     assert slug == "breaking-bad"
+
+
+@pytest.mark.asyncio
+async def test_get_series_by_id_returns_root_folder_path():
+    resp = _make_response(200, {"id": 42, "rootFolderPath": "/tv"})
+    client_mock = AsyncMock()
+    client_mock.get = AsyncMock(return_value=resp)
+    client_mock.__aenter__ = AsyncMock(return_value=client_mock)
+    client_mock.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("app.services.arr_http_client.httpx.AsyncClient", return_value=client_mock):
+        series = await get_series_by_id(URL, KEY, 42)
+
+    assert series == {"id": 42, "rootFolderPath": "/tv"}
+
+
+@pytest.mark.asyncio
+async def test_get_series_by_id_returns_none_on_404():
+    resp = _make_response(404, None)
+    client_mock = AsyncMock()
+    client_mock.get = AsyncMock(return_value=resp)
+    client_mock.__aenter__ = AsyncMock(return_value=client_mock)
+    client_mock.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("app.services.arr_http_client.httpx.AsyncClient", return_value=client_mock):
+        series = await get_series_by_id(URL, KEY, 999)
+
+    assert series is None
 
 
 @pytest.mark.asyncio
