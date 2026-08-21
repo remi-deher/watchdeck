@@ -61,6 +61,7 @@ export interface VfUpgradeSeasonGroup {
   season_number?: number | null;
   items: VfUpgradeItem[];
   episodes?: VfUpgradeItem[];
+  open?: boolean;
 }
 
 export interface VfUpgradeGroup {

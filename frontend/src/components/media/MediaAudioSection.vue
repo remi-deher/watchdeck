@@ -337,7 +337,10 @@ function onStreamsAligned(payload: any) {
 const EPISODE_STATUS_LABELS: Record<string, string> = { vf: 'VF', vf_secondary: 'VF (sec.)', vo: 'VO', absent: 'ABSENT', tba: 'TBA', unknown: '…' };
 const displayedSeasons = computed(() => {
   const seasons = props.vfDetail?.seasons || [];
-  return props.missingOnly ? seasons.filter((season: any) => (season.counts?.absent || 0) > 0) : seasons;
+  const filtered = props.missingOnly ? seasons.filter((season: any) => (season.counts?.absent || 0) > 0) : seasons;
+  // Repliees par defaut (voir SeasonEpisodeList) : la fiche media deroulait toutes les
+  // saisons d'emblee, meme sur une longue serie -- l'utilisateur deplie au clic.
+  return filtered.map((season: any) => ({ ...season, open: season.open ?? false }));
 });
 function episodeDisplayFilter(ep: any): boolean {
   return props.missingOnly ? ep.status === 'absent' : true;
