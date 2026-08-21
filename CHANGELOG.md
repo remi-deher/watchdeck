@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.10.0 — 2026-08-21
+
+
+### ✨ Nouveautés
+
+- cartes plus aerees et saisons repliees par defaut ([cc4f1c0](https://github.com/remi-deher/watchdeck/commit/cc4f1c08b794a2d1ccf4b877f9bffe85d8d06428))
 ## 1.9.1 — 2026-08-20
 
 
 ### 🐛 Corrections
 
 - corrige le regroupement d'une serie sans saison precise ([b1b693a](https://github.com/remi-deher/watchdeck/commit/b1b693a4c73f14618dd71f5d81a9524f37c7bfe8))
+
+### 🔧 Maintenance
+
+- v1.9.1 (#147) ([d5bd53b](https://github.com/remi-deher/watchdeck/commit/d5bd53bac7f6689efa1fc85b7f76a6d5ca8e9037))
 ## 1.9.0 — 2026-08-20
 
 
