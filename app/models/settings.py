@@ -228,6 +228,11 @@ class Settings(Base):
     vf_upgrade_cooldown_hours: Mapped[int] = mapped_column(default=24)
     vf_upgrade_max_searches_per_run: Mapped[int] = mapped_column(default=40)
     vf_upgrade_search_concurrency: Mapped[int] = mapped_column(default=3)
+    # Delai (ms) entre le lancement de deux recherches successives, independant de la
+    # concurrence max : permet d'empiler plus de recherches en vol (plusieurs lancees
+    # avant que les premieres ne repondent) sans rafale brutale vers les indexeurs.
+    # 0 = comportement historique (toutes les taches se disputent le semaphore d'un coup).
+    vf_upgrade_search_stagger_ms: Mapped[int] = mapped_column(default=0)
     vf_upgrade_retry_hours: Mapped[int] = mapped_column(default=6)
     vf_upgrade_priority: Mapped[str] = mapped_column(default="mixed,vo,vf")
     # Par defaut, l'efficacite prime : season pack d'une serie terminee en tete (une

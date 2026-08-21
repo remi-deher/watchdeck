@@ -2201,6 +2201,57 @@ async def test_scan_vf_upgrades_only_filters_to_selected_media(db):
 
 
 @pytest.mark.asyncio
+async def test_scan_vf_upgrades_staggers_task_launch_when_configured(db):
+    """vf_upgrade_search_stagger_ms > 0 : une pause separe le lancement de chaque
+    recherche (sans attendre sa fin), independamment du plafond de concurrence."""
+    settings_row = Settings(
+        vff_enabled=True,
+        vf_upgrade_enabled=True,
+        vf_upgrade_search_stagger_ms=250,
+        vf_upgrade_search_concurrency=5,
+    )
+    db.add(settings_row)
+    _radarr_instance(db)
+    _movie_item(db, title="Stagger Movie One", has_vf=False)
+    _movie_item(db, title="Stagger Movie Two", has_vf=False, arr_id=4321)
+    db.commit()
+
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner.asyncio.sleep", new=AsyncMock()) as sleep_mock,
+    ):
+        result = await scan_vf_upgrades(force=True)
+
+    assert result["scanned"] == 2
+    stagger_calls = [c for c in sleep_mock.call_args_list if c.args and c.args[0] == 0.25]
+    assert len(stagger_calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_scan_vf_upgrades_no_stagger_by_default(db):
+    """vf_upgrade_search_stagger_ms=0 (defaut) : aucun sleep entre les lancements,
+    comportement historique preserve."""
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True)
+    db.add(settings_row)
+    _radarr_instance(db)
+    _movie_item(db, title="No Stagger Movie", has_vf=False)
+    db.commit()
+
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner.asyncio.sleep", new=AsyncMock()) as sleep_mock,
+    ):
+        result = await scan_vf_upgrades(force=True)
+
+    assert result["scanned"] == 1
+    sleep_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_trigger_vf_upgrade_scan_selected_rejects_empty_selection():
     with pytest.raises(HTTPException) as exc_info:
         await trigger_vf_upgrade_scan_selected(VfUpgradeScanSelectionRequest(media=[]))
