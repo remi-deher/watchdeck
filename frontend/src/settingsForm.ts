@@ -89,6 +89,7 @@ export const form = reactive<Record<string, any>>({
   vf_upgrade_cooldown_hours: 24,
   vf_upgrade_max_searches_per_run: 40,
   vf_upgrade_search_concurrency: 3,
+  vf_upgrade_search_stagger_ms: 0,
   vf_upgrade_retry_hours: 6,
   vf_upgrade_priority: 'mixed,vo,vf',
   vf_upgrade_prioritize_continuing: false,

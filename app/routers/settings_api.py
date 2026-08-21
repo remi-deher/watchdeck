@@ -164,6 +164,7 @@ class SettingsUpdate(BaseModel):
     vf_upgrade_cooldown_hours: Optional[int] = None
     vf_upgrade_max_searches_per_run: Optional[int] = None
     vf_upgrade_search_concurrency: Optional[int] = None
+    vf_upgrade_search_stagger_ms: Optional[int] = None
     vf_upgrade_retry_hours: Optional[int] = None
     vf_upgrade_priority: Optional[str] = None
     vf_upgrade_prioritize_continuing: Optional[bool] = None
