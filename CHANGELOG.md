@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.0 — 2026-08-21
+
+
+### ✨ Nouveautés
+
+- affiche le dossier racine *arr sur la recherche de release ([d270dab](https://github.com/remi-deher/watchdeck/commit/d270dab28c093b2e2924bbf053336498fd0f3ddf))
 ## 1.11.0 — 2026-08-21
 
 
@@ -10,6 +16,10 @@
 ### 🎨 Style
 
 - ruff format sur la migration 0009 ([c82eaaa](https://github.com/remi-deher/watchdeck/commit/c82eaaabe24b05d4ee0b2393fa8a73da8c5339f6))
+
+### 🔧 Maintenance
+
+- v1.11.0 (#155) ([76b2e69](https://github.com/remi-deher/watchdeck/commit/76b2e697cb95fda9857e6f526e78c2ee53c04fa1))
 ## 1.10.0 — 2026-08-21
 
 
