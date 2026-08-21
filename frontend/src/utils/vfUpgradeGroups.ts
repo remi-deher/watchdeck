@@ -91,6 +91,10 @@ export function groupVfUpgradeItems(items: VfUpgradeItem[] = []): VfUpgradeGroup
             season_number: season.number,
             items: sortedItems,
             episodes: sortedItems,
+            // Repliee par defaut (voir SeasonEpisodeList) : une carte avec toutes ses
+            // saisons/episodes deroules d'emblee etait le principal reproche de clarte
+            // sur cet onglet -- l'utilisateur deplie ce qui l'interesse au clic.
+            open: false,
           };
         }
       );
