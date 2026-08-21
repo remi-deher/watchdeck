@@ -54,6 +54,7 @@ const props = withDefaults(defineProps<{
   inProgressCount?: number;
   failedCount?: number;
   historyCount?: number;
+  ignoredCount?: number;
 }>(), {
   audit: false,
   activeStatus: '',
@@ -66,6 +67,7 @@ const props = withDefaults(defineProps<{
   inProgressCount: 0,
   failedCount: 0,
   historyCount: 0,
+  ignoredCount: 0,
 });
 
 const emit = defineEmits<{
@@ -86,6 +88,7 @@ const filters = computed<FilterOption[]>(() => props.audit ? [
   { value: 'in_progress', label: 'En cours', count: props.inProgressCount },
   { value: 'failed', label: 'Échecs', count: props.failedCount },
   { value: 'history', label: 'Historique', count: props.historyCount },
+  { value: 'ignored', label: 'Ignorées', count: props.ignoredCount },
   { value: 'all', label: 'Tous' },
 ]);
 

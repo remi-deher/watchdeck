@@ -50,6 +50,7 @@
         :in-progress-count="inProgressCount"
         :failed-count="failedCount"
         :history-count="historyCount"
+        :ignored-count="ignoredCount"
         @select="activeTab === 'audit' ? toggleAuditFilter($event) : toggleStatusFilter($event)"
       />
 
@@ -65,6 +66,7 @@
         :in-progress-count="inProgressCount"
         :failed-count="failedCount"
         :history-count="historyCount"
+        :ignored-count="ignoredCount"
         @status="activeTab === 'audit' ? toggleAuditFilter($event) : statusFilter = $event"
         @media-type="setMediaTypeFilter"
       />
@@ -124,6 +126,15 @@
           >
             <span>Historique</span>
             <small v-if="historyCount">({{ historyCount }})</small>
+          </button>
+          <button
+            class="filter-badge"
+            :class="{ active: statusFilter === 'ignored' }"
+            type="button"
+            @click="statusFilter = 'ignored'"
+          >
+            <span>Ignorées</span>
+            <small v-if="ignoredCount">({{ ignoredCount }})</small>
           </button>
           <button
             class="filter-badge"
@@ -541,6 +552,24 @@
                   <div class="media-meta-count">
                     <span v-if="group.releaseCount > 0">{{ group.releaseCount }} release{{ group.releaseCount > 1 ? 's' : '' }}</span>
                     <span v-else class="text-muted">VO sans release VF</span>
+                    <button
+                      v-if="groupIsIgnored(group)"
+                      class="secondary compact"
+                      type="button"
+                      title="Réactiver le scan pour ce média"
+                      @click="ignoreSeries(group, false)"
+                    >
+                      <Eye size="14" /> Réactiver
+                    </button>
+                    <button
+                      v-else
+                      class="secondary danger compact"
+                      type="button"
+                      :title="group.media?.media_type === 'movie' ? 'Ignorer ce film : ne sera plus proposé par le scan de fond' : 'Ignorer cette série : ne sera plus proposée par le scan de fond'"
+                      @click="ignoreSeries(group, true)"
+                    >
+                      <EyeOff size="14" /> Ignorer
+                    </button>
                   </div>
                 </header>
 
@@ -583,7 +612,12 @@
                         </button>
                       </div>
                     </div>
-                    <p v-if="item.arr_message" class="arr-message">{{ item.arr_message }}</p>
+                    <p v-if="item.arr_message" class="arr-message">
+                      {{ item.arr_message }}
+                      <span v-if="item.status === 'failed' && item.retry_count" class="retry-count">
+                        ({{ item.retry_count }} échec{{ item.retry_count > 1 ? 's' : '' }} consécutif{{ item.retry_count > 1 ? 's' : '' }})
+                      </span>
+                    </p>
                     <footer v-if="item.accepted_at" class="target-footer">
                       <span>Accepté le {{ formatDate(item.accepted_at) }}</span>
                     </footer>
@@ -650,7 +684,12 @@
                           </button>
                         </div>
                       </div>
-                      <p v-if="item.arr_message" class="arr-message">{{ item.arr_message }}</p>
+                      <p v-if="item.arr_message" class="arr-message">
+                      {{ item.arr_message }}
+                      <span v-if="item.status === 'failed' && item.retry_count" class="retry-count">
+                        ({{ item.retry_count }} échec{{ item.retry_count > 1 ? 's' : '' }} consécutif{{ item.retry_count > 1 ? 's' : '' }})
+                      </span>
+                    </p>
                       <footer v-if="item.accepted_at" class="target-footer">
                         <span>Accepté le {{ formatDate(item.accepted_at) }}</span>
                       </footer>
@@ -773,6 +812,8 @@ import {
   ChevronUp,
   Clock,
   Download,
+  Eye,
+  EyeOff,
   Film,
   Globe,
   MessageSquare,
@@ -1109,6 +1150,7 @@ const statusOptions = [
   { value: 'verified', label: 'VF validée' },
   { value: 'failed', label: 'Échec' },
   { value: 'dismissed', label: 'Ignoré' },
+  { value: 'ignored', label: 'Ignoré' },
 ];
 
 const ACTIVE_STATES = new Set(['accepted', 'downloading', 'importing', 'awaiting_verification']);
@@ -1119,7 +1161,8 @@ const pendingCount = computed(() => items.value.filter(i => i.status === 'pendin
 const waitingReleaseCount = computed(() => items.value.filter(i => i.status === 'waiting_release').length);
 const inProgressCount = computed(() => items.value.filter(i => ACTIVE_STATES.has(i.status)).length);
 const failedCount = computed(() => items.value.filter(i => i.status === 'failed').length);
-const historyCount = computed(() => items.value.filter(i => HISTORY_STATES.has(i.status)).length);
+const historyCount = computed(() => items.value.filter(i => HISTORY_STATES.has(i.status) && !i.is_ignored).length);
+const ignoredCount = computed(() => items.value.filter(i => i.is_ignored).length);
 const auditTotalCount = computed(() => auditCounts.value.total || auditItems.value.length || 0);
 
 function canFixStreams(item) {
@@ -1416,6 +1459,23 @@ async function dismiss(item) {
   await api(`/api/vf-upgrades/${item.id}/dismiss`, { method: 'POST' });
   show('Suggestion ignorée.');
   items.value = items.value.filter(i => i.id !== item.id);
+}
+
+function groupIsIgnored(group) {
+  return group.items.some(i => i.is_ignored);
+}
+
+async function ignoreSeries(group, ignored) {
+  try {
+    await api('/api/vf-upgrades/ignore', {
+      method: 'POST',
+      body: JSON.stringify({ source_type: group.source_type, source_id: group.source_id, ignored }),
+    });
+    show(ignored ? 'Média ignoré : le scan de fond ne le reproposera plus.' : 'Média réactivé.');
+    await load({ silent: true });
+  } catch (e) {
+    show(e.message || String(e), 'error');
+  }
 }
 
 async function maintenance(action) {
@@ -1960,6 +2020,13 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+.media-meta-count {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .media-meta-count span {
   color: var(--muted);
   font-size: var(--fs-xs);
@@ -2132,6 +2199,11 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--text);
   font-size: var(--fs-xs);
+}
+
+.retry-count {
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .target-footer {

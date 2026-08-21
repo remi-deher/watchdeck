@@ -353,6 +353,24 @@ class EpisodeMetadata(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive)
 
 
+class VfUpgradeIgnoredSeries(Base):
+    """Séries/films explicitement exclus du scan VF par l'utilisateur.
+
+    Contrairement à `VfUpgradeSuggestion.status == "dismissed"` (par cible exacte :
+    scope/saison/épisode, réévalué à chaque scan), une ligne ici arrête le scanner
+    *avant* même qu'il ne construise une tâche pour ce média -- ignorer une série
+    entière n'a donc pas besoin d'une ligne par saison/épisode.
+    """
+
+    __tablename__ = "vf_upgrade_ignored_series"
+    __table_args__ = (UniqueConstraint("source_type", "source_id", name="uq_vf_upgrade_ignored_series"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    source_type: Mapped[str]
+    source_id: Mapped[int]
+    ignored_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+
+
 class VfUpgradeSuggestion(Base):
     """Releases Sonarr/Radarr repérées comme VF (MULTI/VFF/TRUEFRENCH/...) pour un média
     encore VO ou partiellement VF, en attente de validation manuelle avant grab.
