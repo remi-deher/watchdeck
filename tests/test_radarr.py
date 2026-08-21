@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.radarr import add_movie, check_connection, get_calendar, is_movie_available
+from app.services.radarr import add_movie, check_connection, get_calendar, get_movie_by_id, is_movie_available
 
 URL = "http://radarr.local:7878"
 KEY = "testradarrkey"
@@ -59,6 +59,28 @@ async def test_add_movie_new():
     assert arr_id == 10
     assert already_existed is False
     assert slug == "inception-2010"
+
+
+@pytest.mark.asyncio
+async def test_get_movie_by_id_returns_root_folder_path():
+    resp = _resp(200, {"id": 10, "rootFolderPath": "/movies"})
+    client = _mock_client(get_return=resp)
+
+    with patch("app.services.arr_http_client.httpx.AsyncClient", return_value=client):
+        movie = await get_movie_by_id(URL, KEY, 10)
+
+    assert movie == {"id": 10, "rootFolderPath": "/movies"}
+
+
+@pytest.mark.asyncio
+async def test_get_movie_by_id_returns_none_on_404():
+    resp = _resp(404, None)
+    client = _mock_client(get_return=resp)
+
+    with patch("app.services.arr_http_client.httpx.AsyncClient", return_value=client):
+        movie = await get_movie_by_id(URL, KEY, 999)
+
+    assert movie is None
 
 
 @pytest.mark.asyncio

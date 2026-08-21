@@ -217,6 +217,35 @@ async def arr_interactive_releases(
     )
 
 
+@router.get("/arr/root-folder")
+async def arr_root_folder(
+    media_type: str,
+    arr_id: Optional[int] = None,
+    instance_id: Optional[int] = None,
+    request_id: Optional[int] = None,
+    source_type: Optional[str] = None,
+    source_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db_async),
+):
+    """Dossier racine reel du media cote Sonarr/Radarr (info seule, pas de selecteur).
+
+    Affiche sur la recherche de release pour verifier ou le fichier va atterrir --
+    endpoint dedie plutot que d'alourdir /arr/releases (deja mis en cache et
+    consomme telle quelle comme liste par plusieurs vues).
+    """
+    resolved_arr_id, resolved_instance_id = await _resolve_release_target(
+        db, media_type, arr_id, instance_id, request_id, source_type, source_id
+    )
+    arr_type = "radarr" if media_type == "movie" else "sonarr"
+    inst = await _resolve_arr_instance(db, resolved_instance_id, arr_type)
+    media = (
+        await radarr.get_movie_by_id(inst.url, inst.api_key, resolved_arr_id)
+        if media_type == "movie"
+        else await sonarr.get_series_by_id(inst.url, inst.api_key, resolved_arr_id)
+    )
+    return {"root_folder_path": (media or {}).get("rootFolderPath")}
+
+
 @router.post("/arr/grab")
 async def arr_grab_release(body: ArrGrabRequest, db: AsyncSession = Depends(get_db_async)):
     """Grab d'une release via Sonarr/Radarr."""

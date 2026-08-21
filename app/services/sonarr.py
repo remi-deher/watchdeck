@@ -45,6 +45,7 @@ get_disk_space = arr_common.get_disk_space
 get_calendar = partial(arr_common.get_calendar, product=PRODUCT, extra_params={"includeSeries": "true"})
 get_all_series = partial(arr_common.get_all_media, resource="series")
 series_exists = partial(arr_common.media_exists, resource="series")
+get_series_by_id = partial(arr_common.get_media_by_id, resource="series")
 grab_release = partial(arr_common.grab_release, product=PRODUCT)
 get_manual_import_candidates = partial(arr_common.get_manual_import_candidates, product=PRODUCT)
 trigger_import = partial(arr_common.trigger_import, command="DownloadedEpisodesScan", product=PRODUCT)
