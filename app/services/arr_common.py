@@ -160,6 +160,20 @@ async def get_all_media(url: str, api_key: str, *, resource: str) -> list[dict]:
     return resp.json()
 
 
+async def get_media_by_id(url: str, api_key: str, arr_id: int, *, resource: str) -> dict | None:
+    """Recupere la fiche complete d'un media (dont `rootFolderPath`) depuis *arr.
+
+    Retourne None sur 404 plutot que de lever, pour rester tolerant a un media
+    supprime cote *arr sans casser l'affichage cote Watchdeck.
+    """
+    client = ArrClient(url, api_key, timeout=15)
+    resp = await client.get(f"/api/v3/{resource}/{arr_id}")
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json()
+
+
 # ---------------------------------------------------------------------------
 # Releases et import
 # ---------------------------------------------------------------------------
