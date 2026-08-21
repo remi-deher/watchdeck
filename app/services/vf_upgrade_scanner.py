@@ -42,6 +42,7 @@ from ..models import (
     MediaRequest,
     Settings,
     VfEpisodeStatus,
+    VfUpgradeIgnoredSeries,
     VfUpgradeScanRun,
     VfUpgradeScanRunItem,
     VfUpgradeSuggestion,
@@ -264,6 +265,14 @@ async def _skip_statuses(db: AsyncSession, settings: Settings | None = None) -> 
     return skipped | {tuple(r) for r in exhausted}
 
 
+async def _load_ignored(db: AsyncSession) -> set[tuple[str, int]]:
+    """{(source_type, source_id)} explicitement ignores par l'utilisateur (voir
+    VfUpgradeIgnoredSeries) : exclus avant meme la construction des taches, contrairement
+    a `_skip_statuses` qui n'agit qu'au niveau d'une cible exacte deja scannee."""
+    rows = (await db.execute(select(VfUpgradeIgnoredSeries.source_type, VfUpgradeIgnoredSeries.source_id))).all()
+    return {(r.source_type, r.source_id) for r in rows}
+
+
 async def _build_movie_tasks(
     db: AsyncSession,
     force: bool,
@@ -271,6 +280,7 @@ async def _build_movie_tasks(
     recent: set,
     settings: Settings | None = None,
     only: set[tuple[str, int]] | None = None,
+    ignored: set[tuple[str, int]] | None = None,
 ) -> list[_SearchTask]:
     tasks: list[_SearchTask] = []
     for model in (MediaRequest, LibraryItem):
@@ -282,6 +292,8 @@ async def _build_movie_tasks(
         source_type = "request" if model is MediaRequest else "library_item"
         if only is not None:
             rows = [r for r in rows if (source_type, r.id) in only]
+        if ignored:
+            rows = [r for r in rows if (source_type, r.id) not in ignored]
         for row in rows:
             # Une demande deja liee a un LibraryItem (voir _link_request_to_library_item,
             # vff_scanner.py) fait doublon avec lui : meme film, meme arr_id, mais un titre
@@ -578,6 +590,7 @@ async def _build_show_tasks(
     settings: Settings | None = None,
     series_cache: dict | None = None,
     only: set[tuple[str, int]] | None = None,
+    ignored: set[tuple[str, int]] | None = None,
 ) -> list[_SearchTask]:
     tasks: list[_SearchTask] = []
     series_cache = series_cache if series_cache is not None else {}
@@ -590,6 +603,8 @@ async def _build_show_tasks(
         source_type = "request" if model is MediaRequest else "library_item"
         if only is not None:
             rows = [r for r in rows if (source_type, r.id) in only]
+        if ignored:
+            rows = [r for r in rows if (source_type, r.id) not in ignored]
         for row in rows:
             # Voir le meme garde-fou dans _build_movie_tasks : une demande deja liee a un
             # LibraryItem fait doublon avec lui.
@@ -1108,11 +1123,17 @@ async def scan_vf_upgrades(force: bool = False, only: set[tuple[str, int]] | Non
 
         skip = set() if force else await _skip_statuses(db, settings)
         recent = set() if force else await _recent_scan_keys(db, settings)
+        # L'ignore explicite bloque meme un scan force (force=True bypasse skip/recent,
+        # mais pas le choix delibere de l'utilisateur d'exclure ce media) -- seul un
+        # "Reactiver" leve le blocage.
+        ignored = await _load_ignored(db)
 
-        movie_tasks = await _build_movie_tasks(db, force, skip, recent, settings, only=only)
+        movie_tasks = await _build_movie_tasks(db, force, skip, recent, settings, only=only, ignored=ignored)
         # Cache par run : evite de relancer lookup_series/get_episodes pour la meme serie
         # entre la creation du season pack, du fallback episodique et le tri par priorite.
-        show_tasks = await _build_show_tasks(db, force, skip, recent, settings, series_cache={}, only=only)
+        show_tasks = await _build_show_tasks(
+            db, force, skip, recent, settings, series_cache={}, only=only, ignored=ignored
+        )
         # Intercalage plutot que concatenation : sans lui, une bibliotheque avec plus de
         # films VO que de series VO monopolise le plafond par passage indefiniment (le
         # cooldown fait juste tourner le MEME sous-ensemble de films en boucle), les

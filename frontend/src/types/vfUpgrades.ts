@@ -25,7 +25,8 @@ export type VfUpgradeStatus =
   | 'verified'
   | 'failed'
   | 'dismissed'
-  | 'grabbed';
+  | 'grabbed'
+  | 'ignored';
 
 export type AuditIssueType =
   | 'audio_secondary'
@@ -51,6 +52,7 @@ export interface VfUpgradeItem {
   updated_at?: string | null;
   accepted_at?: string | null;
   media?: LibraryItem | null;
+  is_ignored?: boolean;
   [key: string]: any;
 }
 
