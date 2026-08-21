@@ -1633,10 +1633,14 @@ onUnmounted(() => {
 }
 
 /* Listes */
-.audit-list,
-.upgrade-list {
+.audit-list {
   display: grid;
   gap: var(--space-3);
+}
+
+.upgrade-list {
+  display: grid;
+  gap: var(--space-4);
 }
 
 /* Cartes Audit épurées à 3 zones */
@@ -1870,8 +1874,8 @@ onUnmounted(() => {
 .upgrade-card {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-4);
-  padding: 16px;
+  gap: var(--space-5);
+  padding: 20px 22px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -1931,7 +1935,7 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .media-header {
@@ -1939,7 +1943,7 @@ onUnmounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
-  padding-bottom: 10px;
+  padding-bottom: 14px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
