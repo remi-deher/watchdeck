@@ -90,7 +90,10 @@
         <input v-model.number="form.vf_upgrade_max_searches_per_run" type="number" min="1" max="500">
       </SettingsRow>
       <SettingsRow label="Concurrence" description="Recherches menées en parallèle.">
-        <input v-model.number="form.vf_upgrade_search_concurrency" type="number" min="1" max="10">
+        <input v-model.number="form.vf_upgrade_search_concurrency" type="number" min="1" max="25">
+      </SettingsRow>
+      <SettingsRow label="Cadence de lancement" description="Délai (ms) entre le lancement de deux recherches, indépendant de la concurrence. Permet d'empiler plus de recherches en vol sans rafale brutale vers les indexeurs. 0 = désactivé.">
+        <input v-model.number="form.vf_upgrade_search_stagger_ms" type="number" min="0" max="60000" step="100">
       </SettingsRow>
       <SettingsRow label="Priorité des cibles" description="Détermine quelles recherches entrent dans la limite de chaque passage.">
         <select v-model="form.vf_upgrade_priority">

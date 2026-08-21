@@ -1159,7 +1159,8 @@ async def scan_vf_upgrades(force: bool = False, only: set[tuple[str, int]] | Non
         db.add_all(run_items)
         await db.commit()
 
-        semaphore = asyncio.Semaphore(max(1, min(10, settings.vf_upgrade_search_concurrency or 3)))
+        semaphore = asyncio.Semaphore(max(1, min(25, settings.vf_upgrade_search_concurrency or 3)))
+        stagger_seconds = max(0, settings.vf_upgrade_search_stagger_ms or 0) / 1000
         # Serialise les seuls acces DB (la session n'est pas thread/task-safe pour des
         # ecritures concurrentes) -- les appels indexeurs, eux, restent paralleles sous
         # le semaphore ci-dessus, la section critique ne fait que persister le resultat.
@@ -1187,7 +1188,15 @@ async def scan_vf_upgrades(force: bool = False, only: set[tuple[str, int]] | Non
                 vf_upgrade_scan_state["items_scanned"] += 1
             return task, releases
 
-        await asyncio.gather(*(_run_task(t, item) for t, item in zip(tasks, run_items)))
+        pending = []
+        for t, item in zip(tasks, run_items):
+            pending.append(asyncio.ensure_future(_run_task(t, item)))
+            if stagger_seconds:
+                # Lance la tache puis attend avant la suivante -- sans bloquer sur sa fin :
+                # plusieurs recherches restent ainsi en vol simultanement (empilees dans la
+                # limite du semaphore) meme avec un rythme de lancement volontairement lent.
+                await asyncio.sleep(stagger_seconds)
+        await asyncio.gather(*pending)
         found = found_count
 
         now = now_utc_naive()
