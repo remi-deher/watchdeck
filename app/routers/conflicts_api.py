@@ -82,9 +82,7 @@ async def list_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Dep
     """Retourne tous les conflits détectés, filtrés des ignorés."""
     ignored = _load_ignored()
     all_reqs = (await db.execute(select(MediaRequest))).scalars().all()
-    library_by_id = {
-        item.id: item for item in (await db.execute(select(LibraryItem))).scalars().all()
-    }
+    library_by_id = {item.id: item for item in (await db.execute(select(LibraryItem))).scalars().all()}
     known_user_ids = {u.plex_user_id for u in (await db.execute(select(PlexUser))).scalars().all()}
     now = now_utc_naive()
 
