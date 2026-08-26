@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.dependencies import require_admin
 from app.main import app
-from app.models import ArrInstance, MediaRequest, PlexUser, RequestStatus, Settings
+from app.models import ArrInstance, FulfillmentStatus, MediaRequest, PlexUser, RequestStatus, Settings
 from app.routers.webhook import _get_recipients, _mark_available_and_notify
 from tests.async_support import make_test_session
 
@@ -403,7 +403,7 @@ def test_radarr_webhook_download_with_french_media_info_sets_has_vf():
     assert req.has_vf is True
 
 
-def test_radarr_webhook_delete_event_removes_requests():
+def test_radarr_webhook_delete_event_retains_request_history():
     req = _req(arr_id=12, tmdb_id="438631")
     db = _make_db(settings=_settings(), requests=[req])
     with _db_patch(db):
@@ -412,8 +412,76 @@ def test_radarr_webhook_delete_event_removes_requests():
             json={"eventType": "MovieDelete", "movie": {"id": 12, "title": "Dune", "tmdbId": 438631}},
         )
     assert response.status_code == 200
-    assert response.json()["deleted"] == 1
-    assert db.query(MediaRequest).count() == 0
+    assert response.json() == {"status": "ok", "retained": 1, "deleted": 0}
+    assert db.query(MediaRequest).count() == 1
+    assert req.fulfillment_status == FulfillmentStatus.removed
+
+
+def test_radarr_movie_file_delete_detects_root_folder_move_without_deleting_or_resetting_mail_flags():
+    req = _req(arr_id=12, tmdb_id="438631", status_val=RequestStatus.available)
+    req.request_mail_sent = True
+    req.available_mail_sent = True
+    db = _make_db(settings=_settings(), requests=[req])
+    current = {
+        "id": 12,
+        "tmdbId": 438631,
+        "hasFile": True,
+        "monitored": True,
+        "movieFile": {"id": 99, "path": "/new-root/Dune (2021)/Dune.mkv"},
+    }
+    with (
+        _db_patch(db),
+        patch(
+            "app.routers.webhook._resolve_arr_connection",
+            new=AsyncMock(return_value=("http://radarr", "key", "radarr:legacy")),
+        ),
+        patch("app.routers.webhook.radarr.lookup_movie", new=AsyncMock(return_value=current)),
+    ):
+        response = client.post(
+            "/webhook/radarr",
+            json={
+                "eventType": "MovieFileDelete",
+                "movie": {"id": 12, "title": "Dune", "tmdbId": 438631},
+                "movieFile": {"id": 50, "path": "/old-root/Dune (2021)/Dune.mkv"},
+                "deleteReason": "Manual",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "reconciled": 1, "deleted": 0}
+    assert db.query(MediaRequest).count() == 1
+    assert req.status == RequestStatus.available
+    assert req.request_mail_sent is True
+    assert req.available_mail_sent is True
+
+
+def test_radarr_movie_file_delete_marks_temporary_loss_but_preserves_notification_history():
+    req = _req(arr_id=12, tmdb_id="438631", status_val=RequestStatus.available)
+    req.request_mail_sent = True
+    req.available_mail_sent = True
+    db = _make_db(settings=_settings(), requests=[req])
+    current = {"id": 12, "tmdbId": 438631, "hasFile": False, "monitored": True}
+    with (
+        _db_patch(db),
+        patch(
+            "app.routers.webhook._resolve_arr_connection",
+            new=AsyncMock(return_value=("http://radarr", "key", "radarr:legacy")),
+        ),
+        patch("app.routers.webhook.radarr.lookup_movie", new=AsyncMock(return_value=current)),
+    ):
+        response = client.post(
+            "/webhook/radarr",
+            json={
+                "eventType": "MovieFileDelete",
+                "movie": {"id": 12, "title": "Dune", "tmdbId": 438631},
+                "movieFile": {"path": "/old-root/Dune.mkv"},
+            },
+        )
+
+    assert response.status_code == 200
+    assert req.status == RequestStatus.sent_to_arr
+    assert req.request_mail_sent is True
+    assert req.available_mail_sent is True
 
 
 def _post_plex(db, payload=None, *, direct=False):
