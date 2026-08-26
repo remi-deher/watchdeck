@@ -19,7 +19,7 @@ from .acquisition_routing import find_active_media_arr
 from .diagnostics import record_event, update_request_context
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
 from .download_clients import add_torrent_to_client
-from .notification_orchestrator import _add_co_requester
+from .notification_orchestrator import _add_co_requester, catch_up_requester_notifications
 from .radarr import add_movie, lookup_movie, resolve_tmdb_id
 from .request_lifecycle import transition_request
 from .seer import _resolve_tmdb_id as _seer_resolve_tmdb_id
@@ -647,6 +647,16 @@ async def _process_watchlist_item(
         if added:
             await db.commit()
             logger.info(f"Co-demandeur ajouté : {display_name} → '{global_req.title}'")
+        # This also runs for co-requesters already stored before the per-user ledger
+        # existed. The receipt check makes every subsequent poll idempotent.
+        caught_up = await catch_up_requester_notifications(settings, global_req, db, uid)
+        if caught_up:
+            logger.info(
+                "Co-demandeur %s : notifications rattrapees pour '%s' (%s)",
+                display_name,
+                global_req.title,
+                ", ".join(caught_up),
+            )
         return "skip"
 
     # `_find_global_request` matche déjà tous utilisateurs confondus (y compris le

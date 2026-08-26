@@ -24,7 +24,14 @@ from sqlalchemy.future import select
 from . import metrics as app_metrics
 from .database import AsyncSessionLocal
 from .job_queue import availability_notification_is_historical, notification_hold_enabled
-from .models import MediaRequest, NotificationLog, PendingNotification, PlexUser, Settings
+from .models import (
+    MediaRequest,
+    NotificationLog,
+    PendingNotification,
+    PlexUser,
+    RequesterNotificationReceipt,
+    Settings,
+)
 from .services.diagnostics import record_event
 from .services.email_service import (
     send_available_notification,
@@ -116,6 +123,21 @@ def _event_group(event: str) -> str:
     if event in ("failed", "failure"):
         return "failure"
     return "available"
+
+
+def _receipt_event_key(event: str, context: dict) -> str:
+    if event != "available":
+        return event
+    return ":".join(
+        [
+            "available",
+            str(context.get("scope") or "generic"),
+            str(context.get("language") or "simple"),
+            str(context.get("season_number") or ""),
+            str(context.get("episode_number") or ""),
+            "upgrade" if context.get("is_upgrade") else "initial",
+        ]
+    )
 
 
 def _push_allowed(settings: Settings, channel: str, event: str) -> bool:
@@ -524,6 +546,27 @@ async def _process(event: str, req_id: int, recipients: list[str], context: dict
                         episode_number=context.get("episode_number"),
                     )
                 )
+                if success:
+                    identity_map = context.get("requester_ids_by_recipient") or {}
+                    event_key = _receipt_event_key(event, context)
+                    for plex_user_id in identity_map.get(recipient, []):
+                        exists = (
+                            await db.execute(
+                                select(RequesterNotificationReceipt.id).filter(
+                                    RequesterNotificationReceipt.req_id == req.id,
+                                    RequesterNotificationReceipt.plex_user_id == plex_user_id,
+                                    RequesterNotificationReceipt.event_key == event_key,
+                                )
+                            )
+                        ).first()
+                        if not exists:
+                            db.add(
+                                RequesterNotificationReceipt(
+                                    req_id=req.id,
+                                    plex_user_id=plex_user_id,
+                                    event_key=event_key,
+                                )
+                            )
 
             # Mise à jour des flags uniquement si tous les emails ont été envoyés avec succès
             app_metrics.record_notification(all_ok)
