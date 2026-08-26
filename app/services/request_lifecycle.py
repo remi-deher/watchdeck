@@ -44,6 +44,19 @@ async def transition_request(
         else str(req.fulfillment_status or FulfillmentStatus.not_submitted)
     )
 
+    # Late/repeated *arr events must not regress a request already proven available
+    # in Plex.  This used to create rows that were simultaneously business=available
+    # and fulfillment=awaiting_plex.
+    if old_business == RequestStatus.available.value and event in {
+        "queued",
+        "download_started",
+        "import_started",
+        "download_finished",
+        "arr_imported",
+        "plex_pending",
+    }:
+        return False
+
     mapping = {
         "created": (RequestStatus.pending, FulfillmentStatus.awaiting_submission),
         "approval_required": (RequestStatus.pending_approval, FulfillmentStatus.not_submitted),

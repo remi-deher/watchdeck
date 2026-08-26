@@ -210,7 +210,7 @@ async def _build_arr_lookup(db: AsyncSession) -> dict:
                     title_key = ("movie", "title", normalize_title(m.get("title")), m.get("year"))
                     if title_key[2] and title_key[3] is not None:
                         title_candidates.setdefault(title_key, []).append(value)
-            else:  # sonarr
+            elif inst.arr_type == "sonarr":
                 series = await get_all_series(inst.url, inst.api_key)
                 for s in series:
                     tvdb = str(s.get("tvdbId") or "")
@@ -224,6 +224,8 @@ async def _build_arr_lookup(db: AsyncSession) -> dict:
                         arr_lookup[("show", "tmdb", tmdb)] = (inst.id, arr_id, slug, tmdb or None, imdb or None)
                     if imdb:
                         arr_lookup[("show", "imdb", imdb)] = (inst.id, arr_id, slug, tmdb or None, imdb or None)
+            # Prowlarr is an indexer manager, not a media catalogue.  It must never be
+            # queried through Sonarr's /series endpoint.
         except Exception as inst_exc:
             logger.warning(f"VFF Sync : impossible de charger la bibliothèque de {inst.name} : {inst_exc}")
     # A title fallback is accepted only when title+year identifies exactly one Radarr
@@ -245,7 +247,8 @@ async def sync_plex_media():
     # ARQ cote worker, declenchement manuel cote web) est invisible du dict local.
     from . import scan_state
 
-    if await scan_state.is_running("sync", plex_sync_state):
+    lock_token = await scan_state.acquire_lock("sync")
+    if lock_token is None:
         logger.info("VFF Sync : une synchronisation est déjà en cours, skip")
         return
 
@@ -355,6 +358,7 @@ async def sync_plex_media():
         plex_sync_state["error"] = str(e)
     finally:
         await db.close()
+        await scan_state.release_lock("sync", lock_token)
 
 
 # Marge de securite soustraite au filigrane persiste, pour couvrir le decalage entre le
@@ -377,7 +381,8 @@ async def sync_plex_media_recent():
     _reset_if_stale()
     from . import scan_state
 
-    if await scan_state.is_running("sync", plex_sync_state):
+    lock_token = await scan_state.acquire_lock("sync")
+    if lock_token is None:
         logger.info("VFF Sync (recent) : une synchronisation est déjà en cours, skip")
         return
 
@@ -447,3 +452,4 @@ async def sync_plex_media_recent():
         plex_sync_state["error"] = str(e)
     finally:
         await db.close()
+        await scan_state.release_lock("sync", lock_token)

@@ -88,7 +88,9 @@ class MediaRequest(Base):
     rejected_reason: Mapped[Optional[str]] = mapped_column(default=None)
 
     # Instance tracking
-    arr_instance_id: Mapped[Optional[int]] = mapped_column(index=True)
+    arr_instance_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("arr_instances.id", ondelete="SET NULL"), index=True
+    )
     download_client_id: Mapped[Optional[int]]
     torrent_hash: Mapped[Optional[str]] = mapped_column(index=True)
     torrent_name: Mapped[Optional[str]] = mapped_column(default=None)
@@ -123,11 +125,12 @@ class MediaRequest(Base):
     # audio_analyzer.get_french_audio_state / show_has_full_french_audio.
     fr_is_default: Mapped[Optional[bool]] = mapped_column(default=None)
 
-    # Lien vers le LibraryItem correspondant, une fois synchronisé depuis Plex (pas de
-    # contrainte FK, convention du reste du modèle). Une fois lié, has_vf n'est plus
+    # Lien vers le LibraryItem correspondant, une fois synchronisé depuis Plex. Une fois lié, has_vf n'est plus
     # scanné indépendamment : il est propagé depuis le LibraryItem (source de vérité
     # unique), pour éviter deux scans Plex divergents du même média.
-    library_item_id: Mapped[Optional[int]] = mapped_column(index=True)
+    library_item_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("library_items.id", ondelete="SET NULL"), index=True
+    )
 
     # --- Disponibilité partielle (séries en cours de diffusion, Sonarr uniquement) ---
     # episodes_available_count : épisodes avec un fichier sur disque (episodeFileCount)
@@ -225,7 +228,9 @@ class LibraryItem(Base):
     duration_ms: Mapped[Optional[int]] = mapped_column(default=None)
 
     # Rapprochement Sonarr / Radarr (badges de suivi)
-    arr_instance_id: Mapped[Optional[int]] = mapped_column(index=True)
+    arr_instance_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("arr_instances.id", ondelete="SET NULL"), index=True
+    )
     arr_id: Mapped[Optional[int]]
     arr_slug: Mapped[Optional[str]]
 
