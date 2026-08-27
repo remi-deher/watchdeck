@@ -53,6 +53,7 @@ from .notifications import (
     NotificationLog,
     NotificationMilestone,
     PendingNotification,
+    RequesterNotificationReceipt,
 )
 from .playback import (
     LibraryAnalyticsSnapshot,
@@ -92,6 +93,7 @@ __all__ = [
     "MediaRequest",
     "NotificationLog",
     "NotificationMilestone",
+    "RequesterNotificationReceipt",
     "PasskeyCredential",
     "PendingNotification",
     "PlaybackDailyAggregate",

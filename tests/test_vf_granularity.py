@@ -244,6 +244,7 @@ async def test_check_vf_statuses_notifies_vf_season_start_once_for_partial_upgra
         "is_upgrade": True,
         "season_number": 1,
         "episode_number": 1,
+        "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
     }
     milestones = db.query(NotificationMilestone).filter_by(req_id=req_id).all()
     assert len(milestones) == 1
@@ -308,6 +309,7 @@ async def test_linked_request_notifies_vf_milestone_from_library_episode_cache()
         "is_upgrade": True,
         "season_number": 1,
         "episode_number": 1,
+        "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
     }
     milestone = db.query(NotificationMilestone).filter_by(req_id=req_id).one()
     assert milestone.direction == "vf"
@@ -363,6 +365,7 @@ async def test_check_vf_statuses_notifies_vo_every_episode_on_first_detection():
         "is_upgrade": False,
         "season_number": 1,
         "episode_number": 1,
+        "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
     }
     milestones = db.query(NotificationMilestone).filter_by(req_id=req_id, direction="vo").all()
     assert len(milestones) == 2
@@ -410,6 +413,7 @@ async def test_movie_first_vo_detection_uses_single_available_vo_tracking_event(
         "is_upgrade": False,
         "season_number": None,
         "episode_number": None,
+        "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
     }
 
 
@@ -457,6 +461,7 @@ async def test_movie_first_vf_detection_uses_single_available_vf_event():
         "is_upgrade": False,
         "season_number": None,
         "episode_number": None,
+        "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
     }
     req_fresh = db.query(MediaRequest).filter(MediaRequest.id == req_id).first()
     assert req_fresh.has_vf is True
@@ -601,6 +606,7 @@ async def test_movie_vo_to_vf_upgrade_uses_vf_upgrade_event_once():
         "is_upgrade": True,
         "season_number": None,
         "episode_number": None,
+        "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
     }
     req_fresh = db.query(MediaRequest).filter(MediaRequest.id == req_id).first()
     assert req_fresh.has_vf is True

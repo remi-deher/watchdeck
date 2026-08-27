@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth, require_moderator
 from app.main import app
-from app.models import Base, LibraryItem, Settings
+from app.models import ArrInstance, Base, LibraryItem, Settings
 from app.routers.vff_api import _arr_image_url
 from app.services.vff_scanner import vff_scan_state
 
@@ -184,6 +184,15 @@ def test_vff_scan_single_request_400_when_vff_disabled(db, client):
 def _show_request(db, **kwargs):
     from app.models import MediaRequest, RequestStatus
 
+    instance = ArrInstance(
+        name="Sonarr test",
+        arr_type="sonarr",
+        url="http://sonarr",
+        api_key="key",
+        enabled=True,
+    )
+    db.add(instance)
+    db.flush()
     defaults = dict(
         plex_user_id="alice",
         plex_user="Alice",
@@ -193,7 +202,7 @@ def _show_request(db, **kwargs):
         tmdb_id="123",
         tvdb_id="456",
         arr_id=42,
-        arr_instance_id=1,
+        arr_instance_id=instance.id,
     )
     defaults.update(kwargs)
     req = MediaRequest(**defaults)

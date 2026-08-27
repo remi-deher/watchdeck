@@ -513,6 +513,28 @@ async def test_poll_already_existed_still_notifies_new_request(db):
 
 
 @pytest.mark.asyncio
+async def test_poll_same_media_for_two_watchlists_catches_up_co_requester(db):
+    db.add(_settings())
+    db.add_all(
+        [
+            PlexUser(plex_user_id="alice", enabled=True, notification_email="alice@example.com"),
+            PlexUser(plex_user_id="bob", enabled=True, notification_email="bob@example.com"),
+        ]
+    )
+    db.commit()
+    items = [_movie_item(), _movie_item(plex_user="bob", plex_user_id="bob")]
+
+    with _patch_session(db), _patch_watchlist(items), _patch_submit(), _patch_enqueue() as mock_enqueue:
+        await poll_watchlists()
+
+    req = db.query(MediaRequest).one()
+    assert '"plex_user_id": "bob"' in req.extra_requesters
+    assert mock_enqueue.call_count == 2
+    assert mock_enqueue.call_args_list[0].args[2] == ["alice@example.com"]
+    assert mock_enqueue.call_args_list[1].args[2] == ["bob@example.com"]
+
+
+@pytest.mark.asyncio
 async def test_poll_disabled_user_is_skipped(db):
     """Utilisateur désactivé → son item est ignoré."""
     db.add(_settings())

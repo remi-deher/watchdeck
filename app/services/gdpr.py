@@ -27,6 +27,7 @@ from ..models import (
     NotificationMilestone,
     PasskeyCredential,
     PlexUser,
+    RequesterNotificationReceipt,
 )
 from ..utils import now_utc
 
@@ -94,6 +95,11 @@ async def erase_user_data(db: AsyncSession, user: PlexUser) -> dict[str, int]:
     )
     counts["milestones"] = int(result.rowcount or 0)
 
+    result = await db.execute(
+        sqlalchemy.delete(RequesterNotificationReceipt).where(RequesterNotificationReceipt.plex_user_id == plex_user_id)
+    )
+    counts["notification_receipts"] = int(result.rowcount or 0)
+
     if emails:
         result = await db.execute(sqlalchemy.delete(NotificationLog).where(NotificationLog.recipient.in_(emails)))
         counts["notification_logs"] = int(result.rowcount or 0)
@@ -131,6 +137,17 @@ async def export_user_data(db: AsyncSession, user: PlexUser) -> dict:
         .scalars()
         .all()
     )
+    receipts = (
+        (
+            await db.execute(
+                sqlalchemy.select(RequesterNotificationReceipt).where(
+                    RequesterNotificationReceipt.plex_user_id == plex_user_id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     issues = (
         (await db.execute(sqlalchemy.select(MediaIssue).where(MediaIssue.reporter_plex_user_id == plex_user_id)))
         .scalars()
@@ -157,6 +174,7 @@ async def export_user_data(db: AsyncSession, user: PlexUser) -> dict:
         "requests": [_row_without_secrets(r) for r in requests],
         "notification_logs": [_row_without_secrets(row) for row in logs],
         "notification_milestones": [_row_without_secrets(m) for m in milestones],
+        "notification_receipts": [_row_without_secrets(r) for r in receipts],
         "media_issues": [_row_without_secrets(i) for i in issues],
         # Passkeys : seulement le nom et la date, jamais la clé publique ni le compteur.
         "passkeys": [{"name": p.name, "created_at": p.created_at} for p in passkeys],

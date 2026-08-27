@@ -25,7 +25,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth, require_moderator
 from app.main import app
-from app.models import Base, MediaRequest, PlexUser, RequestStatus, Settings
+from app.models import Base, LibraryItem, MediaRequest, PlexUser, RequestStatus, Settings
 from app.routers import email_templates as email_templates_router
 
 # ---------------------------------------------------------------------------
@@ -111,6 +111,36 @@ def test_conflicts_tmdb_detected(client, db):
     conflict = data["tmdb_conflicts"][0]
     assert conflict["tvdb_id"] == "81763"
     assert len(conflict["entries"]) == 2
+
+
+def test_conflicts_detects_incompatible_library_link(client, db):
+    _user(db, plex_user_id="alice")
+    item = LibraryItem(
+        title="Ultramarine Magmell",
+        media_type="show",
+        tmdb_id="85841",
+        tvdb_id="358180",
+        plex_guid="plex://show/ultramarine",
+    )
+    db.add(item)
+    db.commit()
+    request = _req(
+        db,
+        plex_user_id="alice",
+        title="The Devil Wears Prada 2",
+        media_type="movie",
+        tmdb_id="1314481",
+        tvdb_id="358180",
+        library_item_id=item.id,
+    )
+
+    with _no_ignored():
+        response = client.get("/api/conflicts")
+
+    conflicts = response.json()["library_link_conflicts"]
+    assert len(conflicts) == 1
+    assert conflicts[0]["request"]["id"] == request.id
+    assert conflicts[0]["library_item"]["id"] == item.id
 
 
 def test_conflicts_recommended_id_is_seer_entry(client, db):

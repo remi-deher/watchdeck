@@ -7,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from ..errors import ValidationError
-from ..models import MediaIssue, MediaRequest, NotificationMilestone, PasskeyCredential, PlexUser
+from ..models import (
+    MediaIssue,
+    MediaRequest,
+    NotificationMilestone,
+    PasskeyCredential,
+    PlexUser,
+    RequesterNotificationReceipt,
+)
 
 MERGE_FILL_FIELDS = (
     "notification_email",
@@ -95,19 +102,48 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
         .all()
     )
     for milestone in source_milestones:
-        key = (
+        milestone_key = (
             milestone.req_id,
             milestone.direction,
             milestone.milestone_type,
             milestone.season_number,
             milestone.episode_number,
         )
-        if key in keeper_keys:
+        if milestone_key in keeper_keys:
             await db.delete(milestone)
         else:
             milestone.plex_user_id = new
-            keeper_keys.add(key)
+            keeper_keys.add(milestone_key)
             milestones_moved += 1
+
+    keeper_receipt_keys = {
+        (receipt.req_id, receipt.event_key)
+        for receipt in (
+            await db.execute(
+                select(RequesterNotificationReceipt).filter(RequesterNotificationReceipt.plex_user_id == new)
+            )
+        )
+        .scalars()
+        .all()
+    }
+    receipts_moved = 0
+    source_receipts = (
+        (
+            await db.execute(
+                select(RequesterNotificationReceipt).filter(RequesterNotificationReceipt.plex_user_id == old)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for receipt in source_receipts:
+        receipt_key = (receipt.req_id, receipt.event_key)
+        if receipt_key in keeper_receipt_keys:
+            await db.delete(receipt)
+        else:
+            receipt.plex_user_id = new
+            keeper_receipt_keys.add(receipt_key)
+            receipts_moved += 1
 
     await db.execute(
         sqlalchemy.update(MediaIssue)
@@ -139,6 +175,7 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
         "requests_moved": requests_moved,
         "extra_requesters_updated": extras_updated,
         "milestones_moved": milestones_moved,
+        "notification_receipts_moved": receipts_moved,
         "seer_user_id": keeper.seer_user_id,
     }
 

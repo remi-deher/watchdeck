@@ -151,25 +151,21 @@ async def test_immediate_trigger_is_persisted_through_notification_queue(
     pending = (await db.execute(select(PendingNotification))).scalars().one()
     assert pending.event == "available"
     assert json.loads(pending.recipients) == ["alice@example.com"]
-    assert json.loads(pending.reason) == {
+    expected_persisted_context = {
         "scope": scope,
         "language": language,
         "is_upgrade": is_upgrade,
         "season_number": season_number,
         "episode_number": episode_number,
+        "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
     }
+    assert json.loads(pending.reason) == expected_persisted_context
     schedule.assert_awaited_once_with(
         pending.id,
         "available",
         req.id,
         ["alice@example.com"],
-        {
-            "scope": scope,
-            "language": language,
-            "is_upgrade": is_upgrade,
-            "season_number": season_number,
-            "episode_number": episode_number,
-        },
+        expected_persisted_context,
     )
     await db.close()
     await engine.dispose()
@@ -200,7 +196,10 @@ async def test_generic_trigger_enters_notification_workflow(trigger, queued_even
         queued_event,
         req.id,
         ["alice@example.com"],
-        expected_context,
+        {
+            **(expected_context or {}),
+            "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
+        },
         triggered_by="auto",
     )
     await db.close()

@@ -22,8 +22,11 @@ class FakeRedis:
     def __init__(self, store):
         self.store = store
 
-    async def set(self, key, value, ex=None):
+    async def set(self, key, value, ex=None, nx=False):
+        if nx and key in self.store:
+            return False
         self.store[key] = (value, ex)
+        return True
 
     async def get(self, key):
         entry = self.store.get(key)
@@ -31,6 +34,12 @@ class FakeRedis:
 
     async def delete(self, key):
         self.store.pop(key, None)
+
+    async def eval(self, _script, _num_keys, key, token):
+        if await self.get(key) == token:
+            await self.delete(key)
+            return 1
+        return 0
 
     async def aclose(self):
         pass
@@ -134,3 +143,17 @@ async def test_written_payload_is_the_full_state(shared_redis):
     await scan_state.write_section("scan", RUNNING, running=True)
     raw, _ = shared_redis["watchdeck:scan-state:v1:scan"]
     assert json.loads(raw) == RUNNING
+
+
+async def test_scan_lock_is_atomic_and_owner_safe(shared_redis):
+    first = await scan_state.acquire_lock("sync")
+    second = await scan_state.acquire_lock("sync")
+
+    assert first is not None
+    assert second is None
+
+    await scan_state.release_lock("sync", "not-the-owner")
+    assert await scan_state.acquire_lock("sync") is None
+
+    await scan_state.release_lock("sync", first)
+    assert await scan_state.acquire_lock("sync") is not None
