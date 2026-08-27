@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.14.1 — 2026-08-27
+
+
+### 🐛 Corrections
+
+- proxy metadata posters and gate VF scans ([4eba5f9](https://github.com/remi-deher/watchdeck/commit/4eba5f96f4668abe4857e845ddc30fe154523304))
 ## 1.14.0 — 2026-08-27
 
 
@@ -28,6 +34,7 @@
 - bump vue-tsc from 3.3.9 to 3.3.11 (#172) ([4fdf75a](https://github.com/remi-deher/watchdeck/commit/4fdf75a641863ddd9ced840553317e8b6828e913))
 - bump sass from 1.102.0 to 1.103.1 (#174) ([8ab55cb](https://github.com/remi-deher/watchdeck/commit/8ab55cb5761fc6b0e86e51f6e28e7f03e9c16197))
 - bump the github-actions group with 4 updates (#175) ([274e36c](https://github.com/remi-deher/watchdeck/commit/274e36cffd617c951270e3de3f1394cae1866571))
+- v1.14.0 (#179) ([f777ac6](https://github.com/remi-deher/watchdeck/commit/f777ac642d1e90bdfb8acc289618784b85f8f7ef))
 ## 1.13.0 — 2026-08-21
 
 
