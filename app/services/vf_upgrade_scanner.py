@@ -49,7 +49,12 @@ from ..models import (
 )
 from ..utils import now_utc, now_utc_naive
 from . import radarr, sonarr
-from .release_matching import french_release_evidence, release_is_french, release_matches_target
+from .release_matching import (
+    french_release_evidence,
+    release_identity_mismatch,
+    release_is_french,
+    release_matches_target,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -824,10 +829,16 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
     )
 
     # Fix #3 : compteurs de rejet pour le logging debug
-    _rej: dict[str, int] = {"target": 0, "not_fr": 0, "marker": 0, "confidence": 0, "seed": 0, "size": 0}
+    _rej: dict[str, int] = {"identity": 0, "target": 0, "not_fr": 0, "marker": 0, "confidence": 0, "seed": 0, "size": 0}
 
     for release in releases:
         rel_title = release.get("title") or ""
+        if release_identity_mismatch(release):
+            # *arr a lui-meme identifie une mauvaise serie/film (voir
+            # release_identity_mismatch) -- l'indexeur a mal matche la requete de
+            # recherche, la release ne correspond pas du tout au media cible.
+            _rej["identity"] += 1
+            continue
         matches_target, _mismatch_reason = release_matches_target(
             rel_title, task.scope, task.season_number, task.episode_number
         )
@@ -868,10 +879,11 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
 
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(
-            "VF search '%s' : %d/%d retenus — rejets: cible=%d non_fr=%d marker=%d conf=%d seed=%d taille=%d",
+            "VF search '%s' : %d/%d retenus — rejets: identite=%d cible=%d non_fr=%d marker=%d conf=%d seed=%d taille=%d",
             task.title,
             len(matched),
             len(releases),
+            _rej["identity"],
             _rej["target"],
             _rej["not_fr"],
             _rej["marker"],
@@ -881,9 +893,10 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
         )
     elif not matched and releases:
         logger.info(
-            "VF search '%s' : 0/%d retenus (non_fr=%d, marker=%d, cible=%d, seed=%d, taille=%d)",
+            "VF search '%s' : 0/%d retenus (identite=%d, non_fr=%d, marker=%d, cible=%d, seed=%d, taille=%d)",
             task.title,
             len(releases),
+            _rej["identity"],
             _rej["not_fr"],
             _rej["marker"],
             _rej["target"],
