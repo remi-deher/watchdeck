@@ -1,11 +1,43 @@
 # Changelog
 
+## 1.14.0 — 2026-08-27
+
+
+### ✨ Nouveautés
+
+- import Plex users directly ([a2ffaa8](https://github.com/remi-deher/watchdeck/commit/a2ffaa8ea824877d35df3f48ed2bc1f1fee69a0a))
+
+### 🎨 Style
+
+- apply ruff formatting ([97212d8](https://github.com/remi-deher/watchdeck/commit/97212d815f26f2bf622d3fb977db94fba2a69357))
+
+### 🐛 Corrections
+
+- harden media identity consistency ([7c83052](https://github.com/remi-deher/watchdeck/commit/7c83052ee4be28acfa7613fbec9df103124ae471))
+- preserve requests during arr file moves ([f515ac6](https://github.com/remi-deher/watchdeck/commit/f515ac6f30e11024ee97208a9a8a4f24f0f3515e))
+- notify every media requester ([0e61a54](https://github.com/remi-deher/watchdeck/commit/0e61a54727e51aae4ef0a9554b6a21e20c30ffc0))
+- make CI checks database-safe ([1825e2f](https://github.com/remi-deher/watchdeck/commit/1825e2f2b1f70dda8ab35ae72b0a73507ee4dc78))
+- upgrade Alpine security packages ([2b57bfc](https://github.com/remi-deher/watchdeck/commit/2b57bfceccd45ca15d1662e54fa601bedb4102a9))
+
+### 🔧 Maintenance
+
+- bump uvicorn from 0.52.3 to 0.52.4 (#168) ([e1aafc3](https://github.com/remi-deher/watchdeck/commit/e1aafc3b3fdcb3240fc4e8a8ae26cad6111dbb94))
+- bump vitest from 4.1.10 to 4.1.11 (#170) ([558bf3b](https://github.com/remi-deher/watchdeck/commit/558bf3b06a03fa8a5f08b1c66309ff7cf68cb04a))
+- bump vite from 8.2.1 to 8.2.2 (#171) ([fe45138](https://github.com/remi-deher/watchdeck/commit/fe45138007d6a0ab8de770a83b4071aecb0dd71a))
+- bump @lucide/vue from 1.31.0 to 1.33.0 (#173) ([d24ed85](https://github.com/remi-deher/watchdeck/commit/d24ed8553a9c309e477a555ca2b4348e3f3c4c18))
+- bump vue-tsc from 3.3.9 to 3.3.11 (#172) ([4fdf75a](https://github.com/remi-deher/watchdeck/commit/4fdf75a641863ddd9ced840553317e8b6828e913))
+- bump sass from 1.102.0 to 1.103.1 (#174) ([8ab55cb](https://github.com/remi-deher/watchdeck/commit/8ab55cb5761fc6b0e86e51f6e28e7f03e9c16197))
+- bump the github-actions group with 4 updates (#175) ([274e36c](https://github.com/remi-deher/watchdeck/commit/274e36cffd617c951270e3de3f1394cae1866571))
 ## 1.13.0 — 2026-08-21
 
 
 ### ✨ Nouveautés
 
 - ignorer une serie/film et onglet dedie ([6091f80](https://github.com/remi-deher/watchdeck/commit/6091f80a8fb863841688387d3265da8592d01be3))
+
+### 🔧 Maintenance
+
+- v1.13.0 (#166) ([99ff493](https://github.com/remi-deher/watchdeck/commit/99ff493a8032f332d0364e3802ebe49bbafd926c))
 ## 1.12.0 — 2026-08-21
 
 
