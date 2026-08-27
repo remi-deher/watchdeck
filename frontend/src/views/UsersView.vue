@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <PageSearchHeader title="Utilisateurs" description="Comptes Plex, Seer, rôles et préférences de notification." eyebrow="Administration" v-model:query="query" placeholder="Nom, identifiant ou email" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
-      <template #actions><UiButton :loading="busy" @click="syncSeer"><template #icon><RefreshCw/></template>Synchroniser Seer</UiButton><UiButton variant="primary" @click="openCreate"><template #icon><UserPlus/></template>Ajouter</UiButton></template>
+      <template #actions><UiButton :loading="busy" @click="syncPlex"><template #icon><RefreshCw/></template>Synchroniser Plex</UiButton><UiButton :loading="busy" @click="syncSeer"><template #icon><RefreshCw/></template>Synchroniser Seer</UiButton><UiButton variant="primary" @click="openCreate"><template #icon><UserPlus/></template>Ajouter</UiButton></template>
     </PageSearchHeader>
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
@@ -114,6 +114,7 @@ async function setPassword(password) {
 async function toggle(user) { try { await api(`/api/users/${user.id}/enabled`, { method: 'PUT', body: JSON.stringify({ enabled: !user.enabled }) }); await load(); } catch (e) { error.value = e.message; } }
 async function deleteUser() { await runConfirmed(async () => { await api(`/api/users/${editing.value.id}`, { method: 'DELETE' }); closeEditor(); await load(); }, { title: 'Supprimer cet utilisateur ?', message: `${displayName(editing.value)} sera supprimé définitivement.`, confirmLabel: 'Supprimer', danger: true }, { reload: false }); }
 async function syncSeer() { busy.value = true; try { await api('/api/seer/sync', { method: 'POST' }); message.value = 'Synchronisation Seer terminee.'; await load(); } catch (e) { error.value = e.message; } finally { busy.value = false; } }
+async function syncPlex() { busy.value = true; try { const result = await api('/api/plex/sync/users', { method: 'POST' }); message.value = `Synchronisation Plex terminée : ${result.created || 0} ajouté(s), ${result.updated || 0} mis à jour.`; await load(); } catch (e) { error.value = e.message; } finally { busy.value = false; } }
 async function userAction(action) { busy.value = true; try { await api(`/api/users/${editing.value.id}/${action}`, { method: 'POST' }); await openUser(editing.value.id); } catch (e) { editorError.value = e.message; } finally { busy.value = false; } }
 async function unlinkSeer() { await api(`/api/users/${editing.value.id}/seer-link`, { method: 'DELETE' }); await openUser(editing.value.id); }
 async function testEmail() { const data = await api(`/api/users/${editing.value.id}/test-email`, { method: 'POST' }); message.value = `Email envoye a ${data.recipient}`; }
