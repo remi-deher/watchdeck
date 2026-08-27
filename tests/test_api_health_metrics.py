@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth
 from app.main import app
-from app.models import ArrInstance, Base, MediaRequest, RequestStatus, Settings
+from app.models import ArrInstance, Base, LibraryItem, MediaRequest, RequestStatus, Settings
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -476,13 +476,16 @@ def test_prometheus_help_and_type_lines(client, db):
 
 
 def test_stats_recently_available_exposes_request_and_library_ids(client, db):
+    library_item = LibraryItem(id=98, title="Film lié", media_type="movie")
+    db.add(library_item)
+    db.flush()
     item = MediaRequest(
         plex_user_id="u",
         plex_user="u",
         title="Film lié",
         media_type="movie",
         status=RequestStatus.available,
-        library_item_id=98,
+        library_item_id=library_item.id,
     )
     db.add(item)
     db.commit()
@@ -492,7 +495,7 @@ def test_stats_recently_available_exposes_request_and_library_ids(client, db):
     assert response.status_code == 200
     assert response.json()[0]["id"] == item.id
     assert response.json()[0]["request_id"] == item.id
-    assert response.json()[0]["library_id"] == 98
+    assert response.json()[0]["library_id"] == library_item.id
 
 
 # ---------------------------------------------------------------------------

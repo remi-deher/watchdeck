@@ -783,7 +783,7 @@ async def notify_single_user(
     if not recipients:
         return False
     if event == "request":
-        context = {"requester_ids_by_recipient": {recipient: [plex_user_id] for recipient in recipients}}
+        context: dict = {"requester_ids_by_recipient": {recipient: [plex_user_id] for recipient in recipients}}
         if await requester_has_receipt(db, req.id, plex_user_id, event, context):
             return False
         await enqueue("request", req.id, recipients, context, triggered_by=triggered_by)

@@ -102,18 +102,18 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
         .all()
     )
     for milestone in source_milestones:
-        key = (
+        milestone_key = (
             milestone.req_id,
             milestone.direction,
             milestone.milestone_type,
             milestone.season_number,
             milestone.episode_number,
         )
-        if key in keeper_keys:
+        if milestone_key in keeper_keys:
             await db.delete(milestone)
         else:
             milestone.plex_user_id = new
-            keeper_keys.add(key)
+            keeper_keys.add(milestone_key)
             milestones_moved += 1
 
     keeper_receipt_keys = {
@@ -137,12 +137,12 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
         .all()
     )
     for receipt in source_receipts:
-        key = (receipt.req_id, receipt.event_key)
-        if key in keeper_receipt_keys:
+        receipt_key = (receipt.req_id, receipt.event_key)
+        if receipt_key in keeper_receipt_keys:
             await db.delete(receipt)
         else:
             receipt.plex_user_id = new
-            keeper_receipt_keys.add(key)
+            keeper_receipt_keys.add(receipt_key)
             receipts_moved += 1
 
     await db.execute(
