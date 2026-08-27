@@ -1659,6 +1659,45 @@ async def test_search_task_rejects_wrong_season(db):
 
 
 @pytest.mark.asyncio
+async def test_search_task_rejects_arr_identity_mismatch(db):
+    """Release que *arr identifie lui-meme comme une mauvaise serie (rejections:
+    "Wrong series"/"Unknown Series") -- l'indexeur a mal matche la recherche, la
+    release ne concerne pas du tout la serie ciblee malgre des marqueurs VF valides."""
+    inst = _sonarr_instance(db)
+    item = _show_item(db)
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=item.id,
+        scope="season",
+        arr_type="sonarr",
+        inst=inst,
+        arr_id=item.arr_id,
+        season_number=2,
+        title="Some Show - Saison 2",
+    )
+    releases = [
+        {
+            "title": "Game.of.Thrones.S02.MULTI.VFF.1080p.BluRay",
+            "protocol": "torrent",
+            "size": 3e9,
+            "seeders": 5,
+            "languages": ["French"],
+            "rejected": True,
+            "rejections": ["Wrong series"],
+        }
+    ]
+
+    with (
+        patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=releases)),
+        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+    ):
+        result = await _search_task(task)
+
+    assert list(result) == []
+    assert result.raw_count == 1
+
+
+@pytest.mark.asyncio
 async def test_search_task_rejects_no_marker_no_language(db):
     """Release FRENCH sans marker dans titre et sans langue declaree -> rejetée."""
     inst = _sonarr_instance(db)
