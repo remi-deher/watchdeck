@@ -22,6 +22,72 @@ DISCOVER_BASE = "https://discover.provider.plex.tv"
 CLIENT_IDENTIFIER = "1c8e19c3-8824-4f2b-8a8b-3e5f2ea129a6"
 
 
+def _as_user_list(payload) -> list[dict]:
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    if isinstance(payload, dict):
+        for key in ("users", "friends", "items"):
+            if isinstance(payload.get(key), list):
+                return [row for row in payload[key] if isinstance(row, dict)]
+        return [payload] if payload else []
+    return []
+
+
+def _normalize_plex_user(row: dict, relationship: str) -> dict | None:
+    username = row.get("username") or row.get("title") or row.get("name") or row.get("email")
+    account_uuid = row.get("uuid") or row.get("accountId") or row.get("accountID") or row.get("id")
+    if not username and not account_uuid:
+        return None
+    return {
+        "plex_user_id": str(username or account_uuid),
+        "plex_account_uuid": str(account_uuid) if account_uuid is not None else None,
+        "display_name": row.get("title") or row.get("friendlyName") or username,
+        "email": row.get("email"),
+        "avatar_url": row.get("thumb") or row.get("avatar") or row.get("image"),
+        "relationship": relationship,
+    }
+
+
+async def get_server_users(plex_token: str) -> tuple[list[dict], list[str]]:
+    """Return owner, friends and Plex Home members visible to the server token.
+
+    Plex installations do not all expose the same account collections. Each source
+    is therefore best-effort: a retired or forbidden endpoint is reported without
+    hiding users returned by the other sources.
+    """
+    headers = {
+        "X-Plex-Token": plex_token,
+        "Accept": "application/json",
+        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER,
+    }
+    endpoints = (
+        ("owner", "/api/v2/user"),
+        ("friend", "/api/v2/friends"),
+        ("home", "/api/v2/home/users"),
+    )
+    users: list[dict] = []
+    warnings: list[str] = []
+    async with httpx.AsyncClient(timeout=15) as client:
+        for relationship, path in endpoints:
+            try:
+                response = await client.get(f"{PLEX_TV_BASE}{path}", headers=headers)
+                response.raise_for_status()
+                for row in _as_user_list(response.json()):
+                    normalized = _normalize_plex_user(row, relationship)
+                    if normalized:
+                        users.append(normalized)
+            except (httpx.HTTPError, ValueError) as exc:
+                warnings.append(f"{relationship}: {safe_error_message(exc)}")
+
+    deduplicated: dict[str, dict] = {}
+    for user in users:
+        key = user.get("plex_account_uuid") or user["plex_user_id"].casefold()
+        current = deduplicated.get(key)
+        if not current or current.get("relationship") != "owner":
+            deduplicated[key] = user
+    return list(deduplicated.values()), warnings
+
+
 async def _legacy_get_friends_watchlist(plex_url: str, plex_token: str) -> list[dict]:
     """Récupère les watchlists de tous les amis + du compte admin.
 

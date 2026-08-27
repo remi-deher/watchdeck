@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..utils import now_utc_naive
@@ -65,6 +65,21 @@ class NotificationMilestone(Base):
     is_upgrade: Mapped[bool] = mapped_column(default=False)
     season_number: Mapped[Optional[int]] = mapped_column(default=None)
     episode_number: Mapped[Optional[int]] = mapped_column(default=None)
+
+
+class RequesterNotificationReceipt(Base):
+    """Successful delivery ledger, keyed by requester rather than email address."""
+
+    __tablename__ = "requester_notification_receipts"
+    __table_args__ = (
+        UniqueConstraint("req_id", "plex_user_id", "event_key", name="uq_requester_notification_receipt"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc_naive, index=True)
+    req_id: Mapped[int] = mapped_column(ForeignKey("media_requests.id", ondelete="CASCADE"), index=True)
+    plex_user_id: Mapped[str] = mapped_column(index=True)
+    event_key: Mapped[str]
 
 
 class PendingNotification(Base):

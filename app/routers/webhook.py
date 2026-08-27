@@ -409,6 +409,140 @@ async def _reconcile_sonarr_episode_delete(
     return reconciled
 
 
+async def _reconcile_radarr_movie_file_delete(
+    db: AsyncSession,
+    movie: dict,
+    movie_file: dict,
+    instance_id: int | None,
+    *,
+    delete_reason: str | None = None,
+) -> int:
+    """Reconcile a Radarr file deletion without destroying request history.
+
+    Radarr emits ``MovieFileDelete`` during upgrades, renames and root-folder moves.
+    The webhook is therefore only a transient signal.  We immediately re-read the
+    movie from Radarr and preserve notification flags in every case; a later Import
+    or Plex scan can then confirm the final state without announcing the same media
+    as a brand-new request.
+    """
+    q = _arr_event_query(
+        db,
+        "movie",
+        arr_id=movie.get("id"),
+        tmdb_id=movie.get("tmdbId"),
+        imdb_id=movie.get("imdbId"),
+        title=movie.get("title", ""),
+        instance_id=instance_id,
+    )
+    requests = (await db.execute(q)).scalars().all()
+    if not requests:
+        return 0
+
+    conn = await _resolve_arr_connection(db, "radarr", instance_id)
+    if not conn:
+        logger.warning("MovieFileDelete: connexion Radarr introuvable, demandes conservees")
+        return 0
+
+    reconciled = 0
+    instance_name = await _instance_name(db, instance_id)
+    old_path = movie_file.get("path") or movie_file.get("relativePath")
+    for req in requests:
+        try:
+            current = await radarr.lookup_movie(
+                conn[0],
+                conn[1],
+                arr_id=movie.get("id") or req.arr_id,
+                tmdb_id=movie.get("tmdbId") or req.tmdb_id,
+                imdb_id=movie.get("imdbId") or req.imdb_id,
+            )
+        except Exception as exc:
+            logger.warning("MovieFileDelete: recalcul impossible pour '%s': %s", req.title, exc)
+            continue
+
+        # An API failure/not-found is not proof of removal. MovieDelete is the
+        # authoritative catalogue-removal event; here we keep the previous state.
+        if not current:
+            await record_event(
+                db,
+                category="arr",
+                action="movie_file_delete_pending",
+                request=req,
+                message="Fichier supprime signale par Radarr; verification differee.",
+                details={"old_path": old_path, "delete_reason": delete_reason},
+            )
+            reconciled += 1
+            continue
+
+        current_file = current.get("movieFile") or {}
+        new_path = current_file.get("path") or current_file.get("relativePath")
+        has_file = bool(current.get("hasFile") or current_file.get("id"))
+        relocated = has_file and bool(old_path and new_path and old_path != new_path)
+        event = "available" if has_file else "availability_lost"
+        await transition_request(
+            db,
+            req,
+            event,
+            source="radarr_movie_file_delete",
+            instance_name=instance_name,
+            details={
+                "classification": "relocated" if relocated else ("file_present" if has_file else "temporarily_missing"),
+                "old_path": old_path,
+                "new_path": new_path,
+                "delete_reason": delete_reason,
+                "monitored": current.get("monitored"),
+            },
+        )
+        await record_event(
+            db,
+            category="arr",
+            action="movie_relocated" if relocated else "movie_file_deleted",
+            request=req,
+            message=(
+                "Deplacement du fichier confirme par Radarr."
+                if relocated
+                else "Etat du film recalcule apres suppression du fichier."
+            ),
+            details={
+                "has_file": has_file,
+                "old_path": old_path,
+                "new_path": new_path,
+                "delete_reason": delete_reason,
+            },
+        )
+        reconciled += 1
+    await db.commit()
+    return reconciled
+
+
+async def _mark_arr_movie_removed(
+    db: AsyncSession,
+    movie: dict,
+    instance_id: int | None,
+) -> int:
+    """Soft-remove Radarr movies while retaining identity and mail history."""
+    q = _arr_event_query(
+        db,
+        "movie",
+        arr_id=movie.get("id"),
+        tmdb_id=movie.get("tmdbId"),
+        imdb_id=movie.get("imdbId"),
+        title=movie.get("title", ""),
+        instance_id=instance_id,
+    )
+    requests = (await db.execute(q)).scalars().all()
+    for req in requests:
+        await transition_request(
+            db,
+            req,
+            "arr_removed",
+            source="radarr_movie_delete",
+            instance_name=await _instance_name(db, instance_id),
+            details={"monitored": movie.get("monitored")},
+        )
+    await db.commit()
+    return len(requests)
+
+
 def _query_instance_id(request: Request) -> int | None:
     raw = request.query_params.get("instance_id")
     try:
@@ -558,18 +692,21 @@ async def radarr_webhook(request: Request):
             logger.info("Radarr webhook test reçu avec succès")
             return {"status": "ok", "event": "Test", "message": "Webhook Radarr opérationnel"}
 
-        if event in ("MovieDelete", "MovieFileDelete"):
+        if event == "MovieDelete":
             movie = data.get("movie", {})
-            deleted = await _delete_arr_requests(
+            retained = await _mark_arr_movie_removed(db, movie, _query_instance_id(request))
+            return {"status": "ok", "retained": retained, "deleted": 0}
+
+        if event == "MovieFileDelete":
+            movie = data.get("movie", {})
+            reconciled = await _reconcile_radarr_movie_file_delete(
                 db,
-                "movie",
-                arr_id=movie.get("id"),
-                tmdb_id=movie.get("tmdbId"),
-                imdb_id=movie.get("imdbId"),
-                title=movie.get("title", ""),
-                instance_id=_query_instance_id(request),
+                movie,
+                data.get("movieFile") or {},
+                _query_instance_id(request),
+                delete_reason=data.get("deleteReason"),
             )
-            return {"status": "ok", "deleted": deleted}
+            return {"status": "ok", "reconciled": reconciled, "deleted": 0}
 
         if event not in ("Download", "Import", "MovieAdded"):
             return {"status": "ignored"}

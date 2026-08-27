@@ -21,6 +21,7 @@ from ..models import (
 from ..serializers import format_datetime, request_status_value, serialize_plex_user
 from ..services.email_service import _send as smtp_send
 from ..services.gdpr import erase_user_data, export_user_data
+from ..services.plex_api import get_server_users as plex_get_server_users
 from ..services.seer import get_user_requests as seer_get_user_requests
 from ..services.seer import get_users as seer_get_users
 from ..services.user_merge import merge_user_records as _merge_users
@@ -744,6 +745,85 @@ async def discover_users(db: AsyncSession = Depends(get_db_async)):
         "users": [
             {"plex_user_id": u.plex_user_id, "display_name": u.display_name, "enabled": u.enabled} for u in all_users
         ],
+    }
+
+
+@router.post("/plex/sync/users")
+async def sync_plex_users(db: AsyncSession = Depends(get_db_async)):
+    """Importe et complète les comptes Plex sans fusionner de correspondance ambiguë."""
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings or not settings.plex_token:
+        raise HTTPException(400, "Token Plex non configuré")
+
+    plex_users, warnings = await plex_get_server_users(settings.plex_token)
+    existing = (await db.execute(select(PlexUser))).scalars().all()
+    created = 0
+    updated = 0
+    ambiguous: list[dict] = []
+
+    def _unique(candidates: list[PlexUser]) -> PlexUser | None:
+        unique = {candidate.id: candidate for candidate in candidates}
+        return next(iter(unique.values())) if len(unique) == 1 else None
+
+    for info in plex_users:
+        uuid = info.get("plex_account_uuid")
+        email = (info.get("email") or "").strip().casefold()
+        username = (info.get("plex_user_id") or "").strip()
+        candidates: list[PlexUser] = []
+        if uuid:
+            candidates = [user for user in existing if user.plex_account_uuid == uuid]
+        if not candidates and email:
+            candidates = [
+                user
+                for user in existing
+                if email
+                in {(user.plex_email or "").strip().casefold(), (user.notification_email or "").strip().casefold()}
+            ]
+        if not candidates and username:
+            folded = username.casefold()
+            candidates = [
+                user
+                for user in existing
+                if folded in {(user.plex_user_id or "").casefold(), (user.display_name or "").casefold()}
+            ]
+
+        user = _unique(candidates)
+        if len({candidate.id for candidate in candidates}) > 1:
+            ambiguous.append({"plex_user_id": username, "matches": [candidate.id for candidate in candidates]})
+            continue
+        if user is None:
+            user = PlexUser(plex_user_id=username or uuid, enabled=True, source="api")
+            db.add(user)
+            existing.append(user)
+            created += 1
+        changed = user.id is None
+
+        if uuid and not user.plex_account_uuid:
+            user.plex_account_uuid = uuid
+            changed = True
+        if info.get("display_name") and not user.display_name:
+            user.display_name = info["display_name"]
+            changed = True
+        if info.get("email"):
+            changed = changed or not user.plex_email or not user.notification_email
+            user.plex_email = user.plex_email or info["email"]
+            user.notification_email = user.notification_email or info["email"]
+        if info.get("avatar_url") and not user.avatar_url:
+            user.avatar_url = info["avatar_url"]
+            changed = True
+        if user.source in (None, "rss"):
+            user.source = "api"
+            changed = True
+        if changed and user.id is not None:
+            updated += 1
+
+    await db.commit()
+    return {
+        "found": len(plex_users),
+        "created": created,
+        "updated": updated,
+        "ambiguous": ambiguous,
+        "warnings": warnings,
     }
 
 

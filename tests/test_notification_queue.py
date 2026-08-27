@@ -10,7 +10,7 @@ from app.job_queue import (
     clear_resync_notification_baselines,
     set_resync_notification_baselines,
 )
-from app.models import MediaRequest, PlexUser, Settings
+from app.models import MediaRequest, PlexUser, RequesterNotificationReceipt, Settings
 from app.notification_queue import NotificationDeliveryError, _process, enqueue
 from tests.async_support import TestSession
 
@@ -167,6 +167,27 @@ async def test_process_request_all_ok_sets_flag():
     assert mock_send.call_count == 2
     assert req.request_mail_sent is True
     db.commit.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_process_success_records_each_requester_identity():
+    settings = _make_settings()
+    req = _make_req()
+    db = _make_db(settings, req, user=None)
+    context = {"requester_ids_by_recipient": {"shared@example.com": ["alice", "bob"]}}
+
+    with (
+        patch("app.notification_queue.AsyncSessionLocal", return_value=db),
+        patch("app.notification_queue.send_request_notification", new_callable=AsyncMock),
+        patch("app.notification_queue.send_discord", new_callable=AsyncMock),
+        patch("app.notification_queue.send_telegram", new_callable=AsyncMock),
+    ):
+        await _process("request", 1, ["shared@example.com"], context)
+
+    receipts = [
+        entry.args[0] for entry in db.add.call_args_list if isinstance(entry.args[0], RequesterNotificationReceipt)
+    ]
+    assert {(row.plex_user_id, row.event_key) for row in receipts} == {("alice", "request"), ("bob", "request")}
 
 
 @pytest.mark.asyncio

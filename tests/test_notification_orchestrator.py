@@ -12,6 +12,7 @@ from app.models import (
     NotificationMilestone,
     PendingNotification,
     PlexUser,
+    RequesterNotificationReceipt,
     RequestSeasonStatus,
     RequestStatus,
     SeriesAcquisitionBatch,
@@ -23,6 +24,7 @@ from app.services.notification_orchestrator import (
     _notify,
     _resolve_requester_users,
     _series_milestones,
+    catch_up_requester_notifications,
     notify_single_user,
     resolve_and_notify_availability,
 )
@@ -70,6 +72,7 @@ async def test_resolve_and_notify_availability_sends_one_and_consumes_all_candid
         "is_upgrade": False,
         "season_number": 2,
         "episode_number": 5,
+        "requester_ids_by_recipient": {"alice@example.com": ["alice"]},
     }
 
     milestones = (await db.execute(select(NotificationMilestone).filter_by(req_id=req.id))).scalars().all()
@@ -423,6 +426,61 @@ async def test_notify_single_user_unknown_plex_user_returns_false():
 
     assert result is False
     mock_enqueue.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_catch_up_late_co_requester_queues_missed_request_and_availability_once():
+    engine, db = await _make_db()
+    settings = Settings(id=1, smtp_from="fallback@example.com", email_on_request=True, email_on_available=True)
+    bob = PlexUser(plex_user_id="bob", enabled=True, notification_email="bob@example.com")
+    req = MediaRequest(
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Dune",
+        media_type="movie",
+        status=RequestStatus.available,
+        request_mail_sent=True,
+        available_mail_sent=True,
+        extra_requesters='[{"plex_user_id": "bob", "display_name": "Bob"}]',
+    )
+    db.add_all([settings, bob, req])
+    await db.commit()
+
+    with patch("app.services.notification_orchestrator.enqueue", new_callable=AsyncMock) as mock_enqueue:
+        queued = await catch_up_requester_notifications(settings, req, db, "bob")
+
+    assert queued == ["request", "available"]
+    assert [call.args[0] for call in mock_enqueue.call_args_list] == ["request", "available"]
+    assert all(call.args[2] == ["bob@example.com"] for call in mock_enqueue.call_args_list)
+    await db.close()
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_catch_up_skips_event_already_delivered_to_that_requester():
+    engine, db = await _make_db()
+    settings = Settings(id=1, smtp_from="fallback@example.com", email_on_request=True)
+    bob = PlexUser(plex_user_id="bob", enabled=True, notification_email="bob@example.com")
+    req = MediaRequest(
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Dune",
+        media_type="movie",
+        status=RequestStatus.sent_to_arr,
+        request_mail_sent=True,
+    )
+    db.add_all([settings, bob, req])
+    await db.flush()
+    db.add(RequesterNotificationReceipt(req_id=req.id, plex_user_id="bob", event_key="request"))
+    await db.commit()
+
+    with patch("app.services.notification_orchestrator.enqueue", new_callable=AsyncMock) as mock_enqueue:
+        queued = await catch_up_requester_notifications(settings, req, db, "bob")
+
+    assert queued == []
+    mock_enqueue.assert_not_called()
+    await db.close()
+    await engine.dispose()
     await db.close()
     await engine.dispose()
 

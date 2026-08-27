@@ -44,6 +44,41 @@ def library_identity_filter(req: MediaRequest):
     return and_(or_(*conditions), LibraryItem.media_type == plex_type)
 
 
+def identities_compatible(req: MediaRequest, item: LibraryItem) -> bool:
+    """Refuse a link when type or the majority of known identifiers disagree.
+
+    Plex can expose an erroneous external GUID (observed in production: a movie
+    carrying the TVDB id of an unrelated show).  One matching id must therefore not
+    be allowed to override both a media-type mismatch and contradictory identifiers.
+    An exact native Plex GUID remains authoritative.
+    """
+    expected_type = "movie" if req.media_type == "movie" else "show"
+    if item.media_type != expected_type:
+        return False
+
+    if req.plex_guid and item.plex_guid:
+        if req.plex_guid == item.plex_guid:
+            return True
+        if req.plex_guid.startswith("plex://") and item.plex_guid.startswith("plex://"):
+            return False
+
+    equal = 0
+    conflicting = 0
+    for attr in ("tmdb_id", "tvdb_id", "imdb_id"):
+        left = getattr(req, attr, None)
+        right = getattr(item, attr, None)
+        if left and right:
+            if str(left) == str(right):
+                equal += 1
+            else:
+                conflicting += 1
+    if equal == 0 and conflicting == 0:
+        same_title = (req.title or "").strip().casefold() == (item.title or "").strip().casefold()
+        same_year = req.year is None or item.year is None or req.year == item.year
+        return same_title and same_year
+    return equal > conflicting
+
+
 async def find_library_item_by_ids(
     db: AsyncSession,
     plex_guid: str | None,
@@ -74,7 +109,18 @@ async def find_library_item_by_ids(
     if imdb_id:
         conditions.append(LibraryItem.imdb_id == imdb_id)
     if conditions:
-        found = (await db.execute(select(LibraryItem).filter(or_(*conditions)))).scalars().first()
+        found = (
+            (
+                await db.execute(
+                    select(LibraryItem).filter(
+                        LibraryItem.media_type == media_type,
+                        or_(*conditions),
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
         if found:
             return found
 
@@ -104,12 +150,13 @@ async def link_request_to_library_item(db: AsyncSession, req: MediaRequest) -> "
     """
     if req.library_item_id:
         item = (await db.execute(select(LibraryItem).filter(LibraryItem.id == req.library_item_id))).scalars().first()
-        if item:
+        if item and identities_compatible(req, item):
             return item
-        req.library_item_id = None  # lien orphelin, on retente un rapprochement ci-dessous
+        req.library_item_id = None  # lien orphelin/incompatible, on retente un rapprochement ci-dessous
     item = await find_library_item_by_ids(
         db, req.plex_guid, req.tmdb_id, req.tvdb_id, req.imdb_id, req.title, req.year, req.media_type
     )
-    if item:
+    if item and identities_compatible(req, item):
         req.library_item_id = item.id
-    return item
+        return item
+    return None

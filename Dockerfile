@@ -29,7 +29,12 @@ WORKDIR /app
 # postgres:15-alpine de docker-compose.yml. Un client bien plus recent que le serveur peut
 # emettre une syntaxe de dump non reconnue (ex: "SET transaction_timeout", ajoute en v17) et
 # faire echouer toute restauration.
-RUN apk add --no-cache libffi su-exec postgresql16-client
+# L'image de base est epinglee pour la reproductibilite, mais ses paquets peuvent
+# recevoir des correctifs de securite entre deux mises a jour de digest. Appliquer les
+# mises a jour du depot Alpine au build evite notamment de conserver une libssl
+# vulnerable alors qu'une version corrigee est deja publiee.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache libffi su-exec postgresql16-client
 
 COPY --from=builder /install /usr/local
 

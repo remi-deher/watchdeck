@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 
 from ..models import LibraryItem, MediaRequest, Settings
 from ..utils import now_utc_naive
-from .media_matching import library_identity_filter
+from .media_matching import identities_compatible, library_identity_filter
 from .request_lifecycle import transition_request
 
 logger = logging.getLogger(__name__)
@@ -39,8 +39,10 @@ async def find_plex_library_item(db: AsyncSession, req: MediaRequest) -> Library
             .scalars()
             .first()
         )
-        if item:
+        if item and identities_compatible(req, item):
             return item
+        if item:
+            req.library_item_id = None
 
     identity_filter = library_identity_filter(req)
     item = (
@@ -65,6 +67,8 @@ async def find_plex_library_item(db: AsyncSession, req: MediaRequest) -> Library
             .scalars()
             .first()
         )
+    if item and not identities_compatible(req, item):
+        item = None
     if item:
         req.library_item_id = item.id
     return item
