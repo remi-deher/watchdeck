@@ -604,6 +604,11 @@ async def vff_scan_single_request(
 ):
     """Déclenche immédiatement une analyse VFF pour une demande spécifique."""
     req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    if req.library_item_id is None and req.status not in (
+        RequestStatus.available,
+        RequestStatus.partially_available,
+    ):
+        raise HTTPException(409, "Media not yet available in Plex")
     settings = (await db.execute(select(Settings))).scalars().first()
     if not settings:
         raise HTTPException(400, "Settings not initialized")

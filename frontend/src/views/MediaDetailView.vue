@@ -9,7 +9,7 @@
         :admin="admin"
         :season-summary="seasonSummary"
         :busy="busy"
-        :available="Boolean(detail?.plex_guid)"
+        :available="isInPlex"
         @back="goBack"
         @report-issue="showIssueForm = !showIssueForm"
         @scan="scanVff"
@@ -235,6 +235,7 @@ const inDiscoverShell = computed(() => route.path.startsWith('/discover/'));
 
 const statusLabel = computed(() => detail.value?.operational_status_label || (detail.value?.available || detail.value?.in_library ? 'Disponible' : detail.value?.requested ? 'Deja demande' : detail.value?.request_status || ''));
 const statusClass = computed(() => detail.value?.available || detail.value?.in_library ? 'available' : 'pending');
+const isInPlex = computed(() => Boolean(detail.value?.library_id || detail.value?.in_library));
 const seasonNumbers = computed(() => Array.from({ length: Number(detail.value?.number_of_seasons || 0) + 1 }, (_, i) => i));
 const addableUsers = computed(() => {
   const already = new Set((detail.value?.requests || []).flatMap((row: any) => row.requester_ids || [row.plex_user_id]));
@@ -397,7 +398,10 @@ async function load(): Promise<void> {
 
 function triggerBackgroundVfRescan(initialLoad: Promise<any>, generation: number): void {
   initialLoad
-    .then(() => { if (generation === loadGeneration) return seasons.rescan(); })
+    .then(() => {
+      if (generation !== loadGeneration || !isInPlex.value) return;
+      return seasons.rescan();
+    })
     .catch(() => {});
 }
 
