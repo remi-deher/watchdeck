@@ -1,11 +1,25 @@
 # Changelog
 
+## 1.14.2 — 2026-08-27
+
+
+### test
+
+- cover VF upgrade identity-mismatch rejection (Wrong series) ([3f2e115](https://github.com/remi-deher/watchdeck/commit/3f2e11543318d9d2833db097e27cd18b5e816bbb))
+
+### 🐛 Corrections
+
+- reject VF upgrade suggestions Sonarr/Radarr flagged as wrong series/movie ([9b5a579](https://github.com/remi-deher/watchdeck/commit/9b5a57930d23cd9089516e2bcf664e93e2729eff))
 ## 1.14.1 — 2026-08-27
 
 
 ### 🐛 Corrections
 
 - proxy metadata posters and gate VF scans ([4eba5f9](https://github.com/remi-deher/watchdeck/commit/4eba5f96f4668abe4857e845ddc30fe154523304))
+
+### 🔧 Maintenance
+
+- v1.14.1 (#183) ([cb0b62b](https://github.com/remi-deher/watchdeck/commit/cb0b62bed1e2692755f3cc84e58f15ba758426b6))
 ## 1.14.0 — 2026-08-27
 
 
