@@ -17,6 +17,20 @@ _FRENCH_TITLE_WORDS = {"french", "truefrench", "vff", "vf", "vfi", "vfq", "multi
 # la meme release (double doublage).
 _VFF_VARIANT_RE = re.compile(r"^vff\d+$")
 
+# Motifs de rejet Sonarr/Radarr (champ `rejections`, voir DownloadDecisionMaker) qui
+# signalent que la release ne correspond PAS au média demande (mauvaise serie/film
+# reconnue par *arr via son propre parsing de titre) -- a distinguer des rejets de
+# politique (quality profile, cutoff...) qui restent pertinents pour une recherche VF
+# manuelle. Sans ce filtre, un indexeur qui matche mal une requete de recherche large
+# (ex: "New Game" -> "Game of Thrones") remonte tel quel dans les suggestions.
+_IDENTITY_MISMATCH_RE = re.compile(r"\b(?:wrong|unknown)[ _-]?(?:series|movie|film)\b", re.IGNORECASE)
+
+
+def release_identity_mismatch(rel: dict) -> bool:
+    """True si *arr a lui-meme rejete la release comme ne correspondant pas au
+    media cible (mauvaise serie/film), d'apres `rel["rejections"]`."""
+    return any(_IDENTITY_MISMATCH_RE.search(reason or "") for reason in (rel.get("rejections") or []))
+
 
 @dataclass
 class ReleaseEpisodeInfo:
