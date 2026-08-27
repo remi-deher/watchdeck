@@ -144,6 +144,26 @@ def test_vff_scan_single_request_404_when_missing(client):
     assert resp.status_code == 404
 
 
+def test_vff_scan_single_request_409_when_not_yet_in_plex(db, client):
+    from app.models import MediaRequest, RequestStatus
+
+    req = MediaRequest(
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Incoming movie",
+        media_type="movie",
+        status=RequestStatus.sent_to_arr,
+        plex_guid="plex://movie/metadata-only",
+    )
+    db.add(req)
+    db.commit()
+
+    resp = client.post(f"/api/requests/{req.id}/vff-scan")
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Media not yet available in Plex"
+
+
 def test_vff_scan_single_request_400_without_settings(db, client):
     from app.models import MediaRequest, RequestStatus
 

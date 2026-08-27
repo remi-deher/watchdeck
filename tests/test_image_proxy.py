@@ -102,6 +102,19 @@ def test_image_proxy_disallowed_host_rejected(async_db):
         _cleanup()
 
 
+@pytest.mark.parametrize("host", ["metadata-static.plex.tv", "m.media-amazon.com"])
+def test_image_proxy_allows_metadata_poster_hosts(cache_dir, async_db, host):
+    client = _client(async_db)
+    fake = _fake_httpx_client(resp=_resp())
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get(f"/api/image-proxy?url=https://{host}/poster.jpg")
+        assert resp.status_code == 200
+        fake.get.assert_awaited_once_with(f"https://{host}/poster.jpg")
+    finally:
+        _cleanup()
+
+
 def test_image_proxy_follows_redirect_to_allowed_host(cache_dir, async_db):
     """Plex redirige vers sa propre CDN (images.plex.tv) pour une affiche qu'il n'a pas
     en cache local -- cas legitime frequent, doit aboutir en 200, pas en 502."""

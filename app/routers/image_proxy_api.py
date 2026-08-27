@@ -30,6 +30,10 @@ _STATIC_ALLOWED_IMAGE_HOSTS = {
     "banner.thetvdb.com",
     "media.themoviedb.org",
     "plex.tv",
+    # CDN d'affiches renvoyé par les métadonnées Plex (distinct de images.plex.tv).
+    "metadata-static.plex.tv",
+    # Certaines métadonnées IMDb/Plex conservent directement l'affiche Amazon.
+    "m.media-amazon.com",
     # Relais officiel de Plex pour les affiches qu'il n'a pas en cache local (l'agent
     # metadonnees n'a pas telecharge de copie) : Plex redirige alors vers sa propre CDN,
     # qui proxifie a son tour TMDB -- voir la gestion de redirection unique plus bas.
