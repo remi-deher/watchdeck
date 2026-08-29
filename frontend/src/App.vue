@@ -1,4 +1,5 @@
 <template>
+  <a href="#main-content" class="skip-link">Aller au contenu principal</a>
   <div class="shell" :class="{'sidebar-collapsed':collapsed,'discover-shell':Boolean(activeSpace)&&activeSpace?.slug!=='library'}">
     <!-- Espace à arbre dynamique (Téléchargements, Paramètres) : sa propre sidebar. -->
     <component
