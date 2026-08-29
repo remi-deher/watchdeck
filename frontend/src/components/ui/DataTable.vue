@@ -1,5 +1,5 @@
 <template>
-  <section class="panel table-wrap table-cards rich data-table">
+  <section class="panel table-wrap table-cards rich data-table" tabindex="0" role="region">
     <table>
       <thead>
         <tr>

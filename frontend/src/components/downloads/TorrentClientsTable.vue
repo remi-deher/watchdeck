@@ -56,7 +56,7 @@
       <button class="text-button" :disabled="busy" @click="clearSelection">Annuler la sélection</button>
     </div>
 
-    <div class="torrent-table-wrap" @dragover.prevent @drop.prevent="handleGlobalDrop">
+    <div class="torrent-table-wrap" tabindex="0" role="region" aria-label="Tableau des torrents, défilement horizontal" @dragover.prevent @drop.prevent="handleGlobalDrop">
       <table :class="['torrent-table', { 'compact-table': isCompact, 'incognito-mode': isIncognito }]">
         <thead>
           <tr>
@@ -246,7 +246,7 @@
         <section class="drawer-section">
           <h3>Contenu du torrent</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des fichiers...</div>
-          <div v-else-if="inspectorFiles.length" class="inspector-table-wrap">
+          <div v-else-if="inspectorFiles.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Contenu du torrent, défilement horizontal">
             <table class="inspector-table">
               <thead>
                 <tr>
@@ -281,7 +281,7 @@
         <section class="drawer-section">
           <h3>Annonces Trackers</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des trackers...</div>
-          <div v-else-if="inspectorTrackers.length" class="inspector-table-wrap">
+          <div v-else-if="inspectorTrackers.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Annonces trackers, défilement horizontal">
             <table class="inspector-table">
               <thead>
                 <tr>
@@ -310,7 +310,7 @@
         <section class="drawer-section">
           <h3>Paires connectées</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des paires...</div>
-          <div v-else-if="inspectorPeers.length" class="inspector-table-wrap">
+          <div v-else-if="inspectorPeers.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Paires connectées, défilement horizontal">
             <table class="inspector-table">
               <thead>
                 <tr>

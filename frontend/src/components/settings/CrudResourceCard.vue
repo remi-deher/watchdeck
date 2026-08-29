@@ -13,7 +13,7 @@
       <slot name="header-actions" />
     </template>
 
-    <div v-if="items.length" class="table-wrap table-cards rich">
+    <div v-if="items.length" class="table-wrap table-cards rich" tabindex="0" role="region" :aria-label="`Tableau ${title}, défilement horizontal`">
       <table>
         <thead>
           <tr>

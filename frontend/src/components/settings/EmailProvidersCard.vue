@@ -13,7 +13,7 @@
       Plusieurs fournisseurs peuvent être actifs en parallèle : en cas d'échec, l'envoi bascule
       automatiquement sur le suivant, par ordre de priorité (haut de liste = essayé en premier).
     </small>
-    <div v-if="providers.length" class="table-wrap table-cards rich">
+    <div v-if="providers.length" class="table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des fournisseurs d'envoi d'email, défilement horizontal">
       <table>
         <thead>
           <tr><th></th><th>Nom</th><th>Type</th><th>Statut</th><th></th></tr>
