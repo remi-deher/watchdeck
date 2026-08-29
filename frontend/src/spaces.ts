@@ -163,7 +163,7 @@ export const SPACES: SpaceConfig[] = [
           { key: 'shows', to: '/discover/shows', label: 'Séries', icon: Tv, mobile: true },
           { key: 'movies', to: '/discover/movies', label: 'Films', icon: Film, mobile: true },
           { key: 'requests', to: '/discover/requests', label: 'Demandes', icon: Inbox, mobile: true },
-          { key: 'calendar', to: '/discover/calendar', label: 'Calendrier', icon: CalendarDays, more: true },
+          { key: 'calendar', to: '/calendar', label: 'Calendrier', icon: CalendarDays, more: true },
         ],
       },
     ],
