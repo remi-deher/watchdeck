@@ -17,44 +17,12 @@
       :ariaLabel="activeSpace.ariaLabel || 'Navigation'"
       :brand-icon="activeSpace.brandIcon"
       :nav="activeSpace.nav"
-      :app-link-to="activeSpace.appLinkTo"
-      :show-app-link="!activeSpace.adminOnlyAppLink || isAdmin"
-      :mobile-menu-title="activeSpace.mobileMenuTitle || 'Menu'"
       :is-admin="activeSpace.slug === 'library' ? canModerate : isAdmin"
       :collapsed="collapsed"
       @toggle="toggleSidebar"
     />
-    <template v-else>
-    <!-- Mobile Navigation Bar -->
-    <nav class="mobile-nav-bar mobile-only" aria-label="Navigation principale">
-      <RouterLink v-if="isAdmin" to="/dashboard" @click="closeMoreMenu"><Gauge /><span>Dashboard</span></RouterLink>
-      <RouterLink to="/discover" @click="closeMoreMenu"><Compass /><span>Decouvrir</span></RouterLink>
-      <RouterLink v-if="canModerate" :to="libraryHomeTarget" @click="closeMoreMenu"><Library /><span>Bibliotheque</span></RouterLink>
-      <RouterLink to="/calendar" @click="closeMoreMenu"><CalendarDays /><span>Calendrier</span></RouterLink>
-      <button type="button" class="more-nav-btn" :class="{ active: isMoreOpen }" aria-label="Ouvrir le menu principal" aria-controls="mobile-more-menu" :aria-expanded="isMoreOpen" @click="toggleMoreMenu">
-        <Menu />
-        <span>Plus</span>
-      </button>
-    </nav>
 
-    <!-- Mobile More Menu Overlay -->
-    <MobileMoreSheet :open="isMoreOpen" sheet-id="mobile-more-menu" title="Menu" @close="closeMoreMenu">
-            <div class="menu-section">
-              <span class="menu-label">Principal</span>
-              <RouterLink v-if="isAdmin" to="/downloads" @click="closeMoreMenu"><Download />Telechargements</RouterLink>
-              <RouterLink v-if="isAdmin" to="/activity" @click="closeMoreMenu"><Activity />Activité &amp; Insights</RouterLink>
-              <RouterLink v-if="isAdmin" to="/users" @click="closeMoreMenu"><Wrench />Administration</RouterLink>
-              <RouterLink v-if="canModerate && !isAdmin" to="/issues" @click="closeMoreMenu"><MessageSquareWarning />Problèmes signalés</RouterLink>
-            </div>
-
-            <div class="menu-section">
-              <span class="menu-label">Compte</span>
-              <RouterLink to="/profile" @click="closeMoreMenu"><UserRound />Profil</RouterLink>
-              <a href="/privacy"><ShieldCheck />Confidentialite</a>
-              <a href="/logout" @click="clearCache"><LogOut />Deconnexion</a>
-            </div>
-    </MobileMoreSheet>
-    </template>
+    <MobileTabBar :is-admin="isAdmin" :can-moderate="canModerate" />
 
     <main id="main-content" class="main" tabindex="-1">
       <RouterView v-slot="{ Component, route: viewRoute }">
@@ -69,14 +37,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from 'vue-router';
-import { Activity, CalendarDays, Compass, Download, Gauge, Library, LogOut, MessageSquareWarning, ShieldCheck, UserRound, Wrench, Menu } from "@lucide/vue";
 import { api } from "@/api";
 import { clearCache, syncCacheOwner } from "@/cache";
 import { connectRealtime } from "@/events";
 import ToastStack from "@/components/ui/ToastStack.vue";
 import GlobalRail from "@/components/layout/GlobalRail.vue";
+import MobileTabBar from "@/components/layout/MobileTabBar.vue";
 import SpaceSidebar from "@/components/layout/SpaceSidebar.vue";
-import MobileMoreSheet from "@/components/layout/MobileMoreSheet.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
 import { useSpaceSidebar } from "@/composables/useSpaceSidebar";
 import { useVisualViewport } from "@/composables/useVisualViewport";
@@ -90,17 +57,9 @@ const canModerate=computed(()=>canModerateSession(session.value));
 // L'espace courant, son etat replie et sa bascule viennent tous de spaces.js : la sidebar
 // a monter, la cle localStorage et la classe du shell en decoulent (voir useSpaceSidebar).
 const {activeSpace,collapsed,toggle:toggleSidebar}=useSpaceSidebar(route);
-// Le lien global est affiche lorsque l'utilisateur se trouve hors de l'espace
-// Bibliotheque. Il constitue donc une nouvelle entree et doit toujours viser le hub
-// Accueil. Les retours navigateur depuis une fiche restent, eux, intacts et conservent
-// la grille ainsi que sa position de defilement.
-const libraryHomeTarget={path:'/library',query:{hub:'1'}};
-const isMoreOpen=ref(false);
 const toasts=ref<any[]>([]);
 const seenPlaybackEvents=new Set<string>();
 const toastTimers=new Map<string, ReturnType<typeof setTimeout>>();
-function toggleMoreMenu(): void {isMoreOpen.value=!isMoreOpen.value}
-function closeMoreMenu(): void {isMoreOpen.value=false}
 function dismissToast(id: string | number): void {toasts.value=toasts.value.filter(toast=>toast.id!==id);clearTimeout(toastTimers.get(String(id)));toastTimers.delete(String(id))}
 function showPlaybackToasts(event: any): void {
   const started=playbackStartsFromEvent(event);
@@ -126,7 +85,6 @@ function onSwUpdateAvailable(): void {
 const routeAnnouncement=ref('');
 let isFirstNavigation=true;
 watch(()=>route.fullPath,async()=>{
-  closeMoreMenu();
   // La premiere "navigation" est le chargement initial de la page : le focus y est
   // deja au bon endroit et il n'y a rien a annoncer.
   if(isFirstNavigation){isFirstNavigation=false;return}

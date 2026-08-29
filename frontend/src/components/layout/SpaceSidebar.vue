@@ -42,41 +42,22 @@
 
   </aside>
 
-  <nav v-if="hasMobileBar" class="mobile-nav-bar mobile-only space-mobile-nav" :aria-label="ariaLabel">
-    <RouterLink v-for="item in mobileItems" :key="item.key" v-bind="linkBindings(item)">
-      <component :is="item.icon" v-if="item.icon" /><span>{{ item.mobileLabel || item.label }}</span>
+  <!-- Contexte de l'espace : la barre du bas est desormais globale et stable. -->
+  <SpaceSubnav v-if="hasMobileBar" :aria-label="ariaLabel">
+    <RouterLink v-for="item in subnavItems" :key="item.key" v-bind="linkBindings(item)">
+      <component :is="item.icon" v-if="item.icon" aria-hidden="true" />{{ item.mobileLabel || item.label }}
     </RouterLink>
     <slot name="mobile-nav" />
-    <button type="button" class="more-nav-btn" :class="{ active: isMoreOpen }" aria-label="Ouvrir les options supplémentaires" :aria-controls="moreSheetId" :aria-expanded="isMoreOpen" @click="toggleMoreMenu">
-      <MoreHorizontal /><span>Plus</span>
-    </button>
-  </nav>
-
-  <MobileMoreSheet v-if="hasMobileBar" :open="isMoreOpen" :sheet-id="moreSheetId" :title="mobileMenuTitle" @close="closeMoreMenu">
-          <div v-for="(group, index) in moreGroups" :key="group.label || `more-${index}`" class="menu-section">
-            <span v-if="group.label" class="menu-label">{{ group.label }}</span>
-            <RouterLink v-for="item in group.items" :key="item.key" v-bind="linkBindings(item)" @click="closeMoreMenu">
-              <component :is="item.icon" v-if="item.icon" />{{ item.label }}
-            </RouterLink>
-          </div>
-          <slot name="mobile-more-extra" />
-          <div class="menu-section">
-            <span class="menu-label">Compte</span>
-            <RouterLink to="/profile" @click="closeMoreMenu"><UserRound />Profil</RouterLink>
-            <RouterLink v-if="showAppLink" :to="resolvedAppLink" @click="closeMoreMenu"><component :is="appLinkIcon || Compass" />{{ appLinkLabel }}</RouterLink>
-            <a href="/logout" @click="clearCache"><LogOut />Déconnexion</a>
-          </div>
-  </MobileMoreSheet>
+  </SpaceSubnav>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useSlots, watch } from 'vue';
+import { computed, useSlots } from 'vue';
 import type { Component } from 'vue';
 import { useRoute } from 'vue-router';
 import type { RouteLocationNormalizedLoaded } from 'vue-router';
-import { Compass, LogOut, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserRound } from '@lucide/vue';
-import { clearCache } from '@/cache';
-import MobileMoreSheet from '@/components/layout/MobileMoreSheet.vue';
+import { PanelLeftClose, PanelLeftOpen } from '@lucide/vue';
+import SpaceSubnav from '@/components/layout/SpaceSubnav.vue';
 
 export interface NavItem {
   key: string;
@@ -105,33 +86,20 @@ const props = withDefaults(
     ariaLabel: string;
     brandIcon: Component;
     slug: string;
-    appLinkTo?: string | null;
     isAdmin?: boolean;
-    showAppLink?: boolean;
-    appLinkLabel?: string;
-    appLinkIcon?: Component | null;
-    mobileMenuTitle?: string;
     nav?: NavSection[];
   }>(),
   {
     collapsed: false,
-    appLinkTo: null,
     isAdmin: false,
-    showAppLink: true,
-    appLinkLabel: 'Application principale',
-    appLinkIcon: null,
-    mobileMenuTitle: 'Menu',
     nav: () => [],
   }
 );
 defineEmits<{ (e: 'toggle'): void }>();
 
-const resolvedAppLink = computed(() => props.appLinkTo || (props.isAdmin ? '/dashboard' : '/discover'));
 
 const route = useRoute();
 const slots = useSlots();
-const isMoreOpen = ref(false);
-const moreSheetId = computed(() => `${props.slug}-mobile-more`);
 
 const visibleSections = computed(() =>
   props.nav
@@ -140,14 +108,11 @@ const visibleSections = computed(() =>
 );
 
 const allItems = computed(() => visibleSections.value.flatMap((section) => section.items));
-const mobileItems = computed(() => allItems.value.filter((item) => item.mobile));
-const hasMobileBar = computed(() => Boolean(mobileItems.value.length || slots['mobile-nav']));
+const hasMobileBar = computed(() => Boolean(subnavItems.value.length || slots['mobile-nav']));
 
-const moreGroups = computed(() =>
-  visibleSections.value
-    .map((section) => ({ label: section.moreLabel || '', items: section.items.filter((item) => item.more) }))
-    .filter((group) => group.items.length)
-);
+// La sous-nav mobile porte tout le contexte de l'espace : les entrees jadis reparties
+// entre la barre du bas (`mobile`) et la feuille « Plus » (`more`) y sont reunies.
+const subnavItems = computed(() => allItems.value.filter((item) => item.mobile || item.more));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function linkBindings(item: NavItem): any {
@@ -166,10 +131,6 @@ function linkBindings(item: NavItem): any {
   return { to };
 }
 
-function toggleMoreMenu(): void { isMoreOpen.value = !isMoreOpen.value; }
-function closeMoreMenu(): void { isMoreOpen.value = false; }
-
-watch(() => route.fullPath, closeMoreMenu);
 </script>
 
 <style scoped lang="scss">

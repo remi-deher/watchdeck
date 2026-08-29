@@ -403,6 +403,10 @@ button svg {
   .shell.sidebar-collapsed.no-context-panel {
     width: 100%;
     grid-template-columns: minmax(0, 1fr);
+    /* La sous-nav d'espace ajoute une 2e rangee en flux : sans cela, le min-height
+       100dvh de la grille serait reparti entre les rangees et la barre de pilules
+       s'etirerait sur la moitie de l'ecran. */
+    align-content: start;
     padding-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom));
   }
 
