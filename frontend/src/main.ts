@@ -51,7 +51,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/discover/movies', component: DiscoverView, meta: { title: 'Films' } },
   { path: '/discover/explore', component: DiscoverView, meta: { title: 'Explorer' } },
   { path: '/discover/requests', component: DiscoverView, meta: { title: 'Mes demandes' } },
-  { path: '/discover/calendar', component: CalendarView, meta: { title: 'Calendrier' } },
+  { path: '/discover/calendar', redirect: '/calendar' },
   { path: '/discover/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
   { path: '/discover/person/:id', component: PersonDetailView, meta: { title: 'Personne' } },
   { path: '/discover', component: DiscoverView, meta: { title: 'Découvrir' } },
