@@ -44,7 +44,7 @@
       >
         <slot />
       </div>
-      <span :id="railHintId" class="rail-a11y-hint">Utilisez les flèches gauche et droite pour parcourir ce contenu.</span>
+      <span :id="railHintId" class="sr-only">Utilisez les flèches gauche et droite pour parcourir ce contenu.</span>
       <RailEdgeControls :can-left="railState.canLeft" :can-right="railState.canRight" @scroll="scroll" />
     </div>
 
@@ -201,7 +201,6 @@ button.rail-title.as-button {
 }
 
 .rail-track > :deep(*) { content-visibility: auto; contain-intrinsic-size: 220px 330px; scroll-snap-align: start; }
-.rail-a11y-hint { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .rail-track::-webkit-scrollbar {
   display: none;
