@@ -119,9 +119,14 @@ function target(view: string, id: string | number = '') {
 function clientTableTarget() { return { path: '/downloads', query: { view: 'clients', sub: 'instances' } }; }
 function hasChildLinks(group: { key: string; items: any[] }): boolean { return group.key === 'clients' ? group.items.length > 0 : group.items.length > 1; }
 
+// Accordeon : seule la branche correspondant a la page courante reste ouverte. Sans la
+// remise a false, chaque groupe deplie le restait pour toute la session et l'arbre
+// s'allongeait au fil de la navigation.
 function revealCurrentGroup(): void {
-  if (isArrSection.value) openGroups.arr = true;
-  if (section.value in openGroups && hasChildLinks(sourceGroups.value.find(group => group.key === section.value) || { key: '', items: [] })) openGroups[section.value] = true;
+  openGroups.arr = isArrSection.value;
+  for (const group of sourceGroups.value) {
+    openGroups[group.key] = group.key === section.value && hasChildLinks(group);
+  }
 }
 
 watch([section, selectedSourceId, sourceGroups], revealCurrentGroup, { deep: true });
