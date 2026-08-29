@@ -8,3 +8,10 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
     disconnect() {}
   };
 }
+
+// Les dialogues (ModalShell, DrawerShell, MobileMoreSheet...) se Teleport vers <body>
+// pour que useBodyScrollLock puisse rendre le reste de l'app inert pendant qu'ils sont
+// ouverts. Sans ce stub, wrapper.find() ne verrait plus leur contenu puisqu'il ne
+// cherche pas hors du sous-arbre monté par @vue/test-utils.
+import { config } from "@vue/test-utils";
+config.global.stubs = { ...config.global.stubs, teleport: true };
