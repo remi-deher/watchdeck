@@ -69,6 +69,8 @@
   --keyboard-inset: 0px;
   --viewport-segment-gap: 0px;
   --mobile-nav-h: 64px;
+  /* Largeur du rail de navigation global ; 0 sur mobile ou la barre du bas le remplace. */
+  --rail-w: 60px;
 }
 
 @media (horizontal-viewport-segments: 2) {

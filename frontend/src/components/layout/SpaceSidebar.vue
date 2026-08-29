@@ -40,14 +40,6 @@
 
     <slot name="primary-nav" />
 
-    <details class="space-account desktop-only">
-      <summary><CircleUserRound /><span>Plus</span><ChevronUp /></summary>
-      <div class="space-account-popover">
-        <RouterLink to="/profile"><UserRound />Profil</RouterLink>
-        <RouterLink v-if="showAppLink" :to="resolvedAppLink"><component :is="appLinkIcon || Compass" />{{ appLinkLabel }}</RouterLink>
-        <a href="/logout" @click="clearCache"><LogOut />Déconnexion</a>
-      </div>
-    </details>
   </aside>
 
   <nav v-if="hasMobileBar" class="mobile-nav-bar mobile-only space-mobile-nav" :aria-label="ariaLabel">
@@ -82,7 +74,7 @@ import { computed, ref, useSlots, watch } from 'vue';
 import type { Component } from 'vue';
 import { useRoute } from 'vue-router';
 import type { RouteLocationNormalizedLoaded } from 'vue-router';
-import { ChevronUp, CircleUserRound, Compass, LogOut, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserRound } from '@lucide/vue';
+import { Compass, LogOut, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserRound } from '@lucide/vue';
 import { clearCache } from '@/cache';
 import MobileMoreSheet from '@/components/layout/MobileMoreSheet.vue';
 
@@ -192,27 +184,10 @@ watch(() => route.fullPath, closeMoreMenu);
 .space-brand strong { font-size: var(--fs-md); }
 .brand-mark { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #111; background: var(--accent); box-shadow: 0 8px 24px rgba(229,160,13,.18); }
 .brand-mark svg { width: 19px; }
-.space-account { position: relative; margin-top: auto; }
-.space-account summary { display: flex; align-items: center; gap: var(--space-3); min-height: 42px; padding: 0 12px; border-radius: var(--radius-sm); color: var(--muted); font-size: var(--fs-sm); cursor: pointer; list-style: none; }
-.space-account summary::-webkit-details-marker { display: none; }
-.space-account summary:hover, .space-account[open] summary { color: #fff; background: rgba(255,255,255,.04); }
-.space-account summary svg:last-child { width: 14px; margin-left: auto; transition: transform .2s ease; }
-.space-account[open] summary svg:last-child { transform: rotate(180deg); }
-.space-account-popover { position: absolute; right: 0; bottom: calc(100% + 8px); left: 0; display: grid; gap: 3px; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #17171c; box-shadow: 0 16px 38px rgba(0,0,0,.42); }
-.space-account-popover a { min-height: 38px; }
 .space-sidebar.collapsed .space-brand > span:not(.brand-mark),
-.space-sidebar.collapsed .space-account span,
-.space-sidebar.collapsed .space-account summary svg:last-child { display: none; }
 .space-sidebar.collapsed .space-brand { justify-content: center; padding-inline: 0; }
 .space-sidebar.collapsed .brand-mark { display: none; }
-.space-sidebar.collapsed .space-account summary { justify-content: center; padding: 0; }
-.space-sidebar.collapsed .space-account-popover { position: fixed; bottom: 24px; left: 76px; width: 240px; }
-.space-sidebar.collapsed .space-account-popover a { justify-content: flex-start; gap: var(--space-3); padding: 0 12px; font-size: var(--fs-sm); }
 @media (min-width: 768px) and (max-width: 1024px) {
   .space-sidebar .brand-mark { margin: auto; }
-  .space-sidebar .space-brand > span:last-child, .space-sidebar .menu-label, .space-sidebar .space-account span, .space-sidebar .space-account summary svg:last-child { display: none; }
-  .space-sidebar .space-account summary { justify-content: center; padding: 0; }
-  .space-account-popover { position: fixed; bottom: 24px; left: 76px; width: 240px; }
-  .space-account-popover a { justify-content: flex-start; gap: var(--space-3); padding: 0 12px; font-size: var(--fs-sm); }
 }
 </style>

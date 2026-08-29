@@ -17,6 +17,9 @@ import {
   Tv,
   Users,
   Wrench,
+  Gauge,
+  Download,
+  MessageSquareWarning,
 } from '@lucide/vue';
 
 import DownloadsNavigation from '@/components/downloads/DownloadsNavigation.vue';
@@ -188,6 +191,53 @@ export const SPACES: SpaceConfig[] = [
     ],
   },
 ];
+
+
+/**
+ * Destinations de premier niveau du rail global.
+ *
+ * Le rail reste affiche en permanence : avant lui, entrer dans un espace remplacait
+ * toute la navigation applicative, et revenir ailleurs imposait de passer par le
+ * popover « Plus » puis par la page d'accueil. Chaque entree pointe vers une zone de
+ * l'application et s'allume des que la route courante tombe dans son perimetre --
+ * reutilise le `match` de l'espace correspondant quand il en existe un.
+ */
+export interface RailDestination {
+  key: string;
+  label: string;
+  to: string | Record<string, any>;
+  icon: any;
+  /** 'admin' : reserve aux administrateurs. 'moderator' : admins et moderateurs. */
+  access?: 'admin' | 'moderator';
+  /** Affichee uniquement pour les moderateurs non-admins. */
+  moderatorOnly?: boolean;
+  match: (path: string) => boolean;
+}
+
+const spaceMatch = (slug: string) => (path: string) =>
+  Boolean(SPACES.find((space) => space.slug === slug)?.match(path));
+
+export const RAIL_DESTINATIONS: RailDestination[] = [
+  { key: 'dashboard', label: 'Tableau de bord', to: '/dashboard', icon: Gauge, access: 'admin', match: (p) => p.startsWith('/dashboard') },
+  { key: 'discover', label: 'Découvrir', to: '/discover', icon: Compass, match: spaceMatch('discover') },
+  { key: 'library', label: 'Bibliothèque', to: { path: '/library', query: { hub: '1' } }, icon: Library, access: 'moderator', match: spaceMatch('library') },
+  { key: 'calendar', label: 'Calendrier', to: '/calendar', icon: CalendarDays, match: (p) => p.startsWith('/calendar') },
+  { key: 'downloads', label: 'Téléchargements', to: '/downloads', icon: Download, access: 'admin', match: spaceMatch('downloads') },
+  { key: 'activity', label: 'Activité & Insights', to: '/activity', icon: Activity, access: 'admin', match: spaceMatch('activity') },
+  { key: 'issues', label: 'Problèmes signalés', to: '/issues', icon: MessageSquareWarning, access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues') },
+  { key: 'admin', label: 'Administration', to: '/users', icon: Wrench, access: 'admin', match: spaceMatch('admin') },
+  { key: 'settings', label: 'Paramètres', to: '/settings', icon: Settings, access: 'admin', match: spaceMatch('settings') },
+];
+
+/** Destinations visibles pour les droits donnes. */
+export function railDestinationsFor(isAdmin: boolean, canModerate: boolean): RailDestination[] {
+  return RAIL_DESTINATIONS.filter((item) => {
+    if (item.moderatorOnly && isAdmin) return false;
+    if (item.access === 'admin') return isAdmin;
+    if (item.access === 'moderator') return canModerate;
+    return true;
+  });
+}
 
 /** Espace couvrant `path`, ou `null` pour la sidebar principale. */
 export function spaceForPath(path: string): SpaceConfig | null {

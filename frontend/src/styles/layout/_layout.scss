@@ -5,8 +5,14 @@
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  /* rail global | panneau contextuel de l'espace | contenu */
+  grid-template-columns: var(--rail-w) 248px minmax(0, 1fr);
   background-color: #09090b;
+}
+
+/* Routes sans espace (tableau de bord, calendrier, profil...) : pas de panneau. */
+.shell.no-context-panel {
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
 }
 
 .mobile-only {
@@ -62,7 +68,11 @@
 .sidebar-toggle svg { width: 19px; height: 19px; }
 
 .shell.sidebar-collapsed {
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: var(--rail-w) 72px minmax(0, 1fr);
+}
+
+.shell.sidebar-collapsed.no-context-panel {
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
 }
 
 .sidebar.collapsed {
@@ -364,7 +374,8 @@ button svg {
   .tablet-fade-enter-from,.tablet-fade-leave-to { opacity: 0; }
 
   /* Le même bouton pilote désormais le rail compact sur tablette et ordinateur. */
-  .shell:not(.sidebar-collapsed) { grid-template-columns: 248px minmax(0, 1fr); }
+  .shell:not(.sidebar-collapsed) { grid-template-columns: var(--rail-w) 248px minmax(0, 1fr); }
+  .shell:not(.sidebar-collapsed).no-context-panel { grid-template-columns: var(--rail-w) minmax(0, 1fr); }
   .sidebar:not(.collapsed) { padding: 16px 12px; overflow-y: auto; }
   .sidebar:not(.collapsed) .brand { justify-content: flex-start; padding: 4px 10px 10px; }
   .sidebar:not(.collapsed) .brand-name,
@@ -384,8 +395,12 @@ button svg {
 }
 
 @media (max-width: 767.98px) {
+  :root { --rail-w: 0px; }
+
   .shell,
-  .shell.sidebar-collapsed {
+  .shell.sidebar-collapsed,
+  .shell.no-context-panel,
+  .shell.sidebar-collapsed.no-context-panel {
     width: 100%;
     grid-template-columns: minmax(0, 1fr);
     padding-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom));
