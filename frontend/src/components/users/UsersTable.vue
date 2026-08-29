@@ -12,7 +12,7 @@
     <UiButton variant="danger" size="sm" @click="$emit('bulk-delete')"><template #icon><Trash2/></template>Supprimer</UiButton>
   </BulkActionBar>
 
-  <section class="panel table-wrap table-cards rich">
+  <section class="panel table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des utilisateurs, défilement horizontal">
     <table>
       <thead>
         <tr><th><label class="select-tag"><input type="checkbox" :checked="allSelected" aria-label="Selectionner tous les utilisateurs" @change="toggleAll"></label></th><th>Utilisateur</th><th>Notifications</th><th>Source</th><th>Role</th><th>Demandes</th><th>Dernière activité</th><th></th></tr>

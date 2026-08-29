@@ -1,5 +1,5 @@
 <template>
-  <section class="panel table-wrap table-cards rich">
+  <section class="panel table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des notifications, défilement horizontal">
     <table>
       <thead>
         <tr>

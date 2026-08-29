@@ -11,7 +11,7 @@
       <div class="psh-main">
     <TabNav :model-value="tab" :tabs="tabItems" aria-label="Type de journal" @update:model-value="selectTab" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
-    <section class="panel table-wrap table-cards rich">
+    <section class="panel table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des journaux, défilement horizontal">
       <table><thead><tr><th>Date</th><th>Section</th><th>Description</th><th>Résultat</th></tr></thead>
         <tbody><tr v-for="row in shown" :key="keyOf(row)"><td data-label="Date">{{ dateOf(row) }}</td><td data-label="Section"><UiBadge :tone="badgeTone(row)">{{ typeOf(row) }}</UiBadge></td><td class="card-title"><strong>{{ titleOf(row) }}</strong><small class="table-detail">{{ detailOf(row) }}</small></td><td data-label="Résultat">{{ resultOf(row) }}</td></tr></tbody>
       </table><UiFeedback v-if="loading" type="loading" message="Chargement des journaux…"/><UiEmptyState v-else-if="!filtered.length" message="Aucune entrée pour ce filtre." />
