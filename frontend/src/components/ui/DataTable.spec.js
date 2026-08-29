@@ -55,6 +55,35 @@ describe('DataTable', () => {
     const wrapper = factory();
     const noteHeader = wrapper.findAll('thead th').find(th => th.text().includes('Note'));
     expect(noteHeader.find('button.sort-button').exists()).toBe(false);
+    // aria-sort doit porter sur le <th> lui-meme (obligatoire pour etre lu par les
+    // lecteurs d'ecran) et pas sur le bouton interne qui ne l'expose pas.
+    expect(noteHeader.attributes('aria-sort')).toBeUndefined();
+  });
+
+  it('porte aria-sort sur le <th> triable, pas sur son bouton', async () => {
+    const wrapper = factory();
+    const sizeHeader = wrapper.findAll('thead th').find(th => th.text().includes('Taille'));
+    expect(sizeHeader.attributes('aria-sort')).toBe('none');
+    await sizeHeader.find('button').trigger('click');
+    expect(sizeHeader.attributes('aria-sort')).toBe('ascending');
+  });
+
+  it('réordonne les colonnes au clavier via les boutons haut/bas (équivalent au glisser-déposer)', async () => {
+    const wrapper = factory();
+    await wrapper.vm.openColumnPicker();
+    await wrapper.vm.$nextTick();
+    const items = wrapper.findAll('.column-picker-item');
+    const [, titleDown] = items[0].findAll('.column-reorder-btn');
+    const [sizeUp] = items[1].findAll('.column-reorder-btn');
+    expect(items[0].findAll('.column-reorder-btn')[0].attributes('disabled')).toBeDefined();
+
+    await titleDown.trigger('click');
+    await wrapper.vm.$nextTick();
+
+    const headers = wrapper.findAll('thead th');
+    expect(headers[0].text()).toContain('Taille');
+    expect(headers[1].text()).toContain('Titre');
+    expect(sizeUp).toBeTruthy();
   });
 
   it('émet row-click quand clickableRows est activé', async () => {
