@@ -177,30 +177,26 @@
                Six rails identiques pour tous les utilisateurs poussaient le contenu a
                forte valeur (Pour vous, Ajouts recents) tres bas, et coutaient six
                appels API a chaque affichage de l'accueil. -->
-          <details class="discover-genre-explorer" :open="genresOpen" @toggle="onGenresToggle">
-            <summary>
-              <div>
-                <span class="eyebrow">Catalogue</span>
-                <strong>Explorer par genre</strong>
-              </div>
-              <ChevronDown aria-hidden="true" />
-            </summary>
-            <div v-if="genresLoaded" class="discover-genre-rails">
-              <MediaRail
-                v-for="rail in GENRE_RAILS"
-                :key="rail.key"
-                :title="rail.title"
-                :more-to="{ path: '/discover/explore', query: { genre: rail.genre } }"
-                :items="home[rail.key].items"
-                :loading="home[rail.key].loading"
-                :error="home[rail.key].error"
-                allow-request
-                :requesting="requesting"
-                @retry="loadHomeSection(rail.key)"
-                @request="requestMedia"
-              />
-            </div>
-          </details>
+          <UiDisclosure
+            title="Explorer par genre"
+            eyebrow="Catalogue"
+            storage-key="watchdeck.discoverGenresOpen"
+            @open="loadGenreRails"
+          >
+            <MediaRail
+              v-for="rail in GENRE_RAILS"
+              :key="rail.key"
+              :title="rail.title"
+              :more-to="{ path: '/discover/explore', query: { genre: rail.genre } }"
+              :items="home[rail.key].items"
+              :loading="home[rail.key].loading"
+              :error="home[rail.key].error"
+              allow-request
+              :requesting="requesting"
+              @retry="loadHomeSection(rail.key)"
+              @request="requestMedia"
+            />
+          </UiDisclosure>
 
           <MediaRail
             title="Prochainement"
@@ -423,7 +419,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { ArrowRight, ChevronDown } from '@lucide/vue';
+import { ArrowRight } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
 import MediaHeroBanner from '@/components/media/MediaHeroBanner.vue';
@@ -431,6 +427,7 @@ import DiscoverSourcesRail from '@/components/discover/DiscoverSourcesRail.vue';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaRail from '@/components/discover/MediaRail.vue';
 import MediaPosterCollection from '@/components/media/MediaPosterCollection.vue';
+import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import RequestOptionsModal from '@/components/media/RequestOptionsModal.vue';
@@ -825,25 +822,8 @@ const GENRE_RAILS = [
   { key: 'genre_thriller', title: 'Thrillers & Policiers', genre: '5388' },
   { key: 'genre_horror', title: 'Horreur & Mystère', genre: '27' },
 ];
-const GENRES_OPEN_KEY = 'watchdeck.discoverGenresOpen';
-const genresOpen = ref(localStorage.getItem(GENRES_OPEN_KEY) === '1');
-const genresLoaded = ref(false);
-
 function loadGenreRails(): void {
-  if (genresLoaded.value) return;
-  genresLoaded.value = true;
   for (const rail of GENRE_RAILS) loadHomeSection(rail.key);
-}
-
-function onGenresToggle(event: Event): void {
-  const open = (event.target as HTMLDetailsElement).open;
-  genresOpen.value = open;
-  try {
-    localStorage.setItem(GENRES_OPEN_KEY, open ? '1' : '0');
-  } catch {
-    /* Preference non persistable */
-  }
-  if (open) loadGenreRails();
 }
 
 async function loadHomeSection(name: string) {
@@ -879,7 +859,6 @@ function loadHome() {
     'recent_plex',
     'most_requested',
   ]) loadHomeSection(name);
-  if (genresOpen.value) loadGenreRails();
   loadSources();
   loadPersonalized();
 }
@@ -1070,6 +1049,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 </script>
 
 <style scoped lang="scss">
+.discover-home-rails :deep(.ui-disclosure-content) { gap: var(--space-5); }
 .discover-body { display: grid; gap: var(--space-5); }
 .discover-home-view,
 .discover-explore-view { display: grid; gap: var(--space-6); }

@@ -54,15 +54,22 @@
       </div>
     </section>
 
-    <section class="dashboard-section">
-      <header class="dashboard-section-head"><div><span>Tendance</span><h2>Activité</h2><p>Demandes, disponibilités et notifications sur la période.</p></div></header>
+    <UiDisclosure
+      title="Activité"
+      eyebrow="Tendance"
+      description="Demandes, disponibilités et notifications sur la période."
+      storage-key="dashboard.trendOpen"
+    >
       <ActivityChartPanel :timeline="timeline" />
-    </section>
+    </UiDisclosure>
 
-    <section class="dashboard-section dashboard-rails-section">
-      <header class="dashboard-section-head">
-        <div><span>Bibliothèque</span><h2>Nouveautés et mouvements</h2><p>Ce qui vient d'arriver, les demandes récentes et les sorties attendues.</p></div>
-      </header>
+    <UiDisclosure
+      title="Nouveautés et mouvements"
+      eyebrow="Bibliothèque"
+      description="Ce qui vient d'arriver, les demandes récentes et les sorties attendues."
+      storage-key="dashboard.libraryMovesOpen"
+      default-open
+    >
       <div class="dashboard-rails-list">
         <RecentlyAvailablePanel :items="recentlyAvailable" />
         <MediaRail
@@ -74,16 +81,19 @@
         />
         <UpcomingReleasesPanel :items="upcoming" />
       </div>
-    </section>
+    </UiDisclosure>
 
-    <details class="dashboard-secondary" :open="supervisionOpen" @toggle="onSupervisionToggle">
-      <summary><div><span>Supervision</span><strong>Vue d’ensemble</strong></div><ChevronDown/></summary>
-      <div v-if="supervisionLoaded" class="dashboard-secondary-content dashboard-supervision-groups">
-        <section><header><span>Santé</span><h3>Infrastructure</h3></header><div class="dashboard-grid"><HealthGrid/><DiskSpacePanel :volumes="diskSpace"/></div></section>
-        <section><header><span>Usage</span><h3>Bibliothèque et utilisateurs</h3></header><div class="dashboard-grid"><RequestsBreakdownPanel :counts="counts"/><TopRequestedPanel :items="topRequested"/></div></section>
-        <section><header><span>Communication</span><h3>Derniers envois</h3></header><div class="dashboard-grid"><RecentNotificationsPanel :notifications="recentNotifs"/></div></section>
-      </div>
-    </details>
+    <UiDisclosure
+      title="Vue d’ensemble"
+      eyebrow="Supervision"
+      storage-key="dashboard.supervisionOpen"
+      content-class="dashboard-supervision-groups"
+      @open="loadSupervision"
+    >
+      <section><header><span>Santé</span><h3>Infrastructure</h3></header><div class="dashboard-grid"><HealthGrid/><DiskSpacePanel :volumes="diskSpace"/></div></section>
+      <section><header><span>Usage</span><h3>Bibliothèque et utilisateurs</h3></header><div class="dashboard-grid"><RequestsBreakdownPanel :counts="counts"/><TopRequestedPanel :items="topRequested"/></div></section>
+      <section><header><span>Communication</span><h3>Derniers envois</h3></header><div class="dashboard-grid"><RecentNotificationsPanel :notifications="recentNotifs"/></div></section>
+    </UiDisclosure>
     <SessionDetailDrawer v-if="selectedSession" :session="selectedSession" @close="selectedSession=null"/>
   </PageShell>
 </template>
@@ -91,7 +101,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { usePolling } from '@/composables/usePolling';
-import { ChevronDown } from '@lucide/vue';
+import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import HealthGrid from '@/components/HealthGrid.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
 import DashboardActionCenter from '@/components/dashboard/DashboardActionCenter.vue';
@@ -115,7 +125,6 @@ import { useRealtime } from '@/events';
 import { queueCounts } from '@/downloads/queueRules';
 
 const SNAPSHOT_CACHE_KEY = 'dashboard:snapshot';
-const SUPERVISION_OPEN_KEY = 'dashboard.supervisionOpen';
 const PRIMARY_SECTIONS = [
   'pending', 'polls', 'timeline', 'onboarding', 'recently_available',
   'recent_requests', 'upcoming', 'next_poll',
@@ -151,7 +160,6 @@ const plexSync = ref<Record<string, any>>({ status: 'idle', items_synced: 0, tot
 const arrSync = ref<Record<string, any>>({ status: 'idle', finished_at: null });
 const watchlistSync = ref<Record<string, any>>({ status: 'idle', finished_at: null });
 const vffCounts = ref<Record<string, any>>({});
-const supervisionOpen = ref(localStorage.getItem(SUPERVISION_OPEN_KEY) === 'true');
 const supervisionLoaded = ref(false);
 const supervisionLoading = ref(false);
 
@@ -315,13 +323,6 @@ async function loadSupervision(): Promise<void> {
   }
 }
 
-function onSupervisionToggle(event: Event): void {
-  const open = (event.currentTarget as HTMLDetailsElement).open;
-  supervisionOpen.value = open;
-  localStorage.setItem(SUPERVISION_OPEN_KEY, String(open));
-  if (open && !supervisionLoaded.value) loadSupervision();
-}
-
 async function load(): Promise<void> {
   if (loading.value) return;
   loading.value = true;
@@ -420,6 +421,5 @@ onMounted(async () => {
   primeFromCache();
   await load();
   await loadVffStatus();
-  if (supervisionOpen.value) await loadSupervision();
 });
 </script>
