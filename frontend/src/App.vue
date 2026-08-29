@@ -2,7 +2,7 @@
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
   <div class="shell" :class="{'sidebar-collapsed':collapsed,'no-context-panel':!activeSpace,'discover-shell':Boolean(activeSpace)&&activeSpace?.slug!=='library'}">
     <!-- Rail global : toujours present, il porte les destinations de premier niveau. -->
-    <GlobalRail :is-admin="isAdmin" :can-moderate="canModerate" />
+    <GlobalRail :is-admin="isAdmin" :can-moderate="canModerate" @open-palette="palette?.open()" />
     <!-- Espace à arbre dynamique (Téléchargements, Paramètres) : sa propre sidebar. -->
     <component
       :is="activeSpace.component"
@@ -23,7 +23,7 @@
     />
 
     <MobileTabBar :is-admin="isAdmin" :can-moderate="canModerate" />
-    <CommandPalette :is-admin="isAdmin" :can-moderate="canModerate" />
+    <CommandPalette ref="palette" :is-admin="isAdmin" :can-moderate="canModerate" />
 
     <main id="main-content" class="main" tabindex="-1">
       <RouterView v-slot="{ Component, route: viewRoute }">
@@ -52,6 +52,7 @@ import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";
 import { canModerateSession, isAdminSession, loadSession } from "@/composables/useSession";
 const session=ref<any>(null);
+const palette=ref<{open:()=>void}|null>(null);
 useVisualViewport();
 const route=useRoute();
 const isAdmin=computed(()=>isAdminSession(session.value));

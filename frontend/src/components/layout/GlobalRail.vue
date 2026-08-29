@@ -31,6 +31,9 @@
     </ul>
 
     <div class="rail-footer">
+      <button type="button" class="rail-link" :title="`Rechercher (${shortcutLabel})`" @click="$emit('open-palette')">
+        <Search aria-hidden="true" /><span class="sr-only">Rechercher une destination ({{ shortcutLabel }})</span>
+      </button>
       <RouterLink class="rail-link" to="/profile" :class="{ active: route.path.startsWith('/profile') }" title="Profil">
         <UserRound aria-hidden="true" /><span class="sr-only">Profil</span>
       </RouterLink>
@@ -44,7 +47,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { Clapperboard, LogOut, UserRound } from '@lucide/vue';
+import { Clapperboard, LogOut, Search, UserRound } from '@lucide/vue';
 import { clearCache } from '@/cache';
 import { railDestinationsFor } from '@/spaces';
 
@@ -55,6 +58,13 @@ const props = withDefaults(
   }>(),
   { isAdmin: false, canModerate: false }
 );
+
+defineEmits<{ (e: 'open-palette'): void }>();
+
+// macOS affiche ⌘, le reste Ctrl : annoncer le mauvais raccourci vaut moins que rien.
+const shortcutLabel = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+  ? '⌘K'
+  : 'Ctrl+K';
 
 const route = useRoute();
 const destinations = computed(() => railDestinationsFor(props.isAdmin, props.canModerate));
@@ -113,6 +123,10 @@ const destinations = computed(() => railDestinationsFor(props.isAdmin, props.can
 
 .rail-link {
   position: relative;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   display: grid;
   place-items: center;
   width: 44px;
