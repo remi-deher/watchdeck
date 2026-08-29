@@ -1,6 +1,8 @@
 <template>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
-  <div class="shell" :class="{'sidebar-collapsed':collapsed,'discover-shell':Boolean(activeSpace)&&activeSpace?.slug!=='library'}">
+  <div class="shell" :class="{'sidebar-collapsed':collapsed,'no-context-panel':!activeSpace,'discover-shell':Boolean(activeSpace)&&activeSpace?.slug!=='library'}">
+    <!-- Rail global : toujours present, il porte les destinations de premier niveau. -->
+    <GlobalRail :is-admin="isAdmin" :can-moderate="canModerate" />
     <!-- Espace à arbre dynamique (Téléchargements, Paramètres) : sa propre sidebar. -->
     <component
       :is="activeSpace.component"
@@ -23,35 +25,6 @@
       @toggle="toggleSidebar"
     />
     <template v-else>
-    <!-- Desktop Sidebar -->
-    <aside class="sidebar desktop-only" :class="{collapsed}" aria-label="Navigation principale" :aria-expanded="!collapsed">
-      <div class="brand">
-        <span class="brand-name">Watchdeck</span>
-        <button class="sidebar-toggle" type="button" :aria-label="collapsed ? 'Afficher le menu' : 'Réduire le menu'" :title="collapsed ? 'Afficher le menu' : 'Réduire le menu'" @click="toggleSidebar">
-          <PanelLeftOpen v-if="collapsed"/><PanelLeftClose v-else/>
-        </button>
-      </div>
-      
-      <div class="menu-section">
-        <span class="menu-label">Principal</span>
-        <RouterLink v-if="isAdmin" to="/dashboard" title="Dashboard"><Gauge />Dashboard</RouterLink>
-        <RouterLink to="/discover" title="Decouvrir"><Compass />Decouvrir</RouterLink>
-        <RouterLink v-if="canModerate" :to="libraryHomeTarget" title="Bibliotheque"><Library />Bibliotheque</RouterLink>
-        <RouterLink to="/calendar" title="Calendrier"><CalendarDays />Calendrier</RouterLink>
-        <RouterLink v-if="isAdmin" to="/downloads" title="Telechargements"><Download />Telechargements</RouterLink>
-        <RouterLink v-if="isAdmin" to="/activity" title="Activité &amp; Insights"><Activity />Activité &amp; Insights</RouterLink>
-        <RouterLink v-if="isAdmin" to="/users" title="Administration"><Wrench />Administration</RouterLink>
-        <RouterLink v-if="canModerate && !isAdmin" to="/issues" title="Problèmes signalés"><MessageSquareWarning />Problèmes signalés</RouterLink>
-      </div>
-
-      <div class="menu-section mt-auto">
-        <span class="menu-label">Compte</span>
-        <RouterLink to="/profile" title="Profil"><UserRound />Profil</RouterLink>
-        <a href="/privacy" title="Confidentialite"><ShieldCheck />Confidentialite</a>
-        <a href="/logout" title="Deconnexion" @click="clearCache"><LogOut />Deconnexion</a>
-      </div>
-    </aside>
-
     <!-- Mobile Navigation Bar -->
     <nav class="mobile-nav-bar mobile-only" aria-label="Navigation principale">
       <RouterLink v-if="isAdmin" to="/dashboard" @click="closeMoreMenu"><Gauge /><span>Dashboard</span></RouterLink>
@@ -96,11 +69,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from 'vue-router';
-import { Activity, CalendarDays, Compass, Download, Gauge, Library, LogOut, MessageSquareWarning, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, Wrench, Menu } from "@lucide/vue";
+import { Activity, CalendarDays, Compass, Download, Gauge, Library, LogOut, MessageSquareWarning, ShieldCheck, UserRound, Wrench, Menu } from "@lucide/vue";
 import { api } from "@/api";
 import { clearCache, syncCacheOwner } from "@/cache";
 import { connectRealtime } from "@/events";
 import ToastStack from "@/components/ui/ToastStack.vue";
+import GlobalRail from "@/components/layout/GlobalRail.vue";
 import SpaceSidebar from "@/components/layout/SpaceSidebar.vue";
 import MobileMoreSheet from "@/components/layout/MobileMoreSheet.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
