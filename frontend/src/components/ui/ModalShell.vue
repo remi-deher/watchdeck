@@ -1,28 +1,30 @@
 <template>
-  <div v-if="open" class="drawer-backdrop" @click.self="requestClose">
-    <aside
-      ref="panelRef"
-      tabindex="-1"
-      class="modal-panel"
-      :class="panelClass"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="ariaLabel || title"
-    >
-      <div class="panel-head">
-        <div>
-          <h2><slot name="title">{{ title }}</slot></h2>
-          <p v-if="subtitle">{{ subtitle }}</p>
+  <Teleport to="body">
+    <div v-if="open" class="drawer-backdrop" @click.self="requestClose">
+      <aside
+        ref="panelRef"
+        tabindex="-1"
+        class="modal-panel"
+        :class="panelClass"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="ariaLabel || title"
+      >
+        <div class="panel-head">
+          <div>
+            <h2><slot name="title">{{ title }}</slot></h2>
+            <p v-if="subtitle">{{ subtitle }}</p>
+          </div>
+          <UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" :disabled="busy" @click="requestClose">
+            <X />
+          </UiButton>
         </div>
-        <UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" :disabled="busy" @click="requestClose">
-          <X />
-        </UiButton>
-      </div>
-      <UiFeedback v-if="error" type="error" :message="error" />
-      <slot />
-      <div v-if="$slots.actions" class="actions"><slot name="actions" /></div>
-    </aside>
-  </div>
+        <UiFeedback v-if="error" type="error" :message="error" />
+        <slot />
+        <div v-if="$slots.actions" class="actions"><slot name="actions" /></div>
+      </aside>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
