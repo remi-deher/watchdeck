@@ -64,18 +64,23 @@ describe('DashboardView supervision', () => {
     const wrapper = mountView();
     await flushPromises();
 
-    expect(wrapper.get('details').element.open).toBe(false);
+    // Le tableau de bord compte plusieurs sections repliables : on vise celle de
+    // Supervision par son intitule, pas par sa position dans le document.
+    const supervision = wrapper
+      .findAll('details')
+      .find((node) => node.text().includes('Supervision'));
+    expect(supervision).toBeTruthy();
+    expect(supervision.element.open).toBe(false);
     expect(streamEventsMock.mock.calls[0][0]).not.toContain('counts');
     expect(streamEventsMock.mock.calls[0][0]).not.toContain('top_requested');
     expect(apiMock).not.toHaveBeenCalledWith('/api/health');
     expect(apiMock).not.toHaveBeenCalledWith('/api/disk-space');
 
-    const details = wrapper.get('details');
-    details.element.open = true;
-    await details.trigger('toggle');
+    supervision.element.open = true;
+    await supervision.trigger('toggle');
     await flushPromises();
 
-    expect(localStorage.getItem('dashboard.supervisionOpen')).toBe('true');
+    expect(localStorage.getItem('dashboard.supervisionOpen')).toBe('1');
     expect(apiMock).toHaveBeenCalledWith('/api/health');
     expect(apiMock).toHaveBeenCalledWith('/api/disk-space');
     expect(apiMock).toHaveBeenCalledWith(
