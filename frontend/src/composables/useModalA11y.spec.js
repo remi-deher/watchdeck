@@ -116,4 +116,42 @@ describe('useModalA11y', () => {
     expect(document.activeElement).toBe(first);
     wrapper.unmount();
   });
+
+  // Ces deux tests espionnent l'API History plutot que de s'appuyer sur une vraie
+  // navigation jsdom : history.back() n'y declenche popstate que de facon
+  // asynchrone/non fiable d'un test a l'autre, ce qui rendait l'etat observe
+  // dependant de l'ordre d'execution des tests precedents.
+  it('ferme sur le bouton/geste retour du systeme (popstate) sans re-naviguer', async () => {
+    const pushSpy = vi.spyOn(window.history, 'pushState');
+    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    const { wrapper, onClose } = mountModal();
+    await nextTick();
+
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(pushSpy.mock.calls[0][0]).toHaveProperty('__modalOpen');
+
+    window.dispatchEvent(new PopStateEvent('popstate'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+    // Le retour a deja fait le travail de navigation : rappeler back() nous-memes
+    // consommerait une entree d'historique en trop.
+    expect(backSpy).not.toHaveBeenCalled();
+    pushSpy.mockRestore();
+    backSpy.mockRestore();
+  });
+
+  it('consomme sa propre entree d\'historique a la fermeture explicite (pas de retour fantome)', async () => {
+    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    const isOpenRef = ref(true);
+    const { wrapper } = mountModal({ isOpen: isOpenRef });
+    await nextTick();
+
+    isOpenRef.value = false;
+    await nextTick();
+
+    expect(backSpy).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+    backSpy.mockRestore();
+  });
 });
