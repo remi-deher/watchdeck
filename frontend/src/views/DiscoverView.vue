@@ -102,127 +102,6 @@
             @retry="loadHomeGroup"
             @request="requestMedia"
           />
-          <MediaRail
-            title="Films populaires"
-            :more-to="{ path: '/discover/movies', query: { section: 'popular' } }"
-            :items="home.popular_movies.items"
-            :loading="home.popular_movies.loading"
-            :error="home.popular_movies.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('popular_movies')"
-            @request="requestMedia"
-          />
-          <MediaRail
-            title="Séries populaires"
-            :more-to="{ path: '/discover/shows', query: { section: 'popular' } }"
-            :items="home.popular_tv.items"
-            :loading="home.popular_tv.loading"
-            :error="home.popular_tv.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('popular_tv')"
-            @request="requestMedia"
-          />
-
-          <!-- Rails thématiques par Genres (sans emojis) -->
-          <MediaRail
-            title="Action & Aventure"
-            :more-to="{ path: '/discover/explore', query: { genre: '28' } }"
-            :items="home.genre_action.items"
-            :loading="home.genre_action.loading"
-            :error="home.genre_action.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('genre_action')"
-            @request="requestMedia"
-          />
-          <MediaRail
-            title="Science-Fiction & Fantastique"
-            :more-to="{ path: '/discover/explore', query: { genre: '878' } }"
-            :items="home.genre_scifi.items"
-            :loading="home.genre_scifi.loading"
-            :error="home.genre_scifi.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('genre_scifi')"
-            @request="requestMedia"
-          />
-          <MediaRail
-            title="Animation"
-            :more-to="{ path: '/discover/explore', query: { genre: '16' } }"
-            :items="home.genre_animation.items"
-            :loading="home.genre_animation.loading"
-            :error="home.genre_animation.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('genre_animation')"
-            @request="requestMedia"
-          />
-          <MediaRail
-            title="Comédies"
-            :more-to="{ path: '/discover/explore', query: { genre: '35' } }"
-            :items="home.genre_comedy.items"
-            :loading="home.genre_comedy.loading"
-            :error="home.genre_comedy.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('genre_comedy')"
-            @request="requestMedia"
-          />
-          <MediaRail
-            title="Thrillers & Policiers"
-            :more-to="{ path: '/discover/explore', query: { genre: '5388' } }"
-            :items="home.genre_thriller.items"
-            :loading="home.genre_thriller.loading"
-            :error="home.genre_thriller.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('genre_thriller')"
-            @request="requestMedia"
-          />
-          <MediaRail
-            title="Horreur & Mystère"
-            :more-to="{ path: '/discover/explore', query: { genre: '27' } }"
-            :items="home.genre_horror.items"
-            :loading="home.genre_horror.loading"
-            :error="home.genre_horror.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('genre_horror')"
-            @request="requestMedia"
-          />
-
-          <MediaRail
-            title="Prochainement"
-            :more-to="{ path: '/discover/explore', query: { section: 'coming-soon' } }"
-            :items="home.upcoming.items"
-            :loading="home.upcoming.loading"
-            :error="home.upcoming.error"
-            allow-request
-            :requesting="requesting"
-            @retry="loadHomeSection('upcoming')"
-            @request="requestMedia"
-          />
-          <MediaRail
-            title="Ajouts récents dans Plex"
-            :more-to="{ path: '/discover/explore', query: { availability: 'available' } }"
-            :items="home.recent_plex.items"
-            :loading="home.recent_plex.loading"
-            :error="home.recent_plex.error"
-            :requesting="requesting"
-            @retry="loadHomeSection('recent_plex')"
-          />
-          <MediaRail
-            v-if="home.most_requested.loading || home.most_requested.items.length || home.most_requested.error"
-            title="Les plus demandés"
-            :more-to="{ path: '/discover/explore', query: { availability: 'requested' } }"
-            :items="home.most_requested.items"
-            :loading="home.most_requested.loading"
-            :error="home.most_requested.error"
-            :requesting="requesting"
-            @retry="loadHomeSection('most_requested')"
-          />
 
           <section v-if="personalized.loading || personalized.available || personalized.error" class="personalized-discovery" aria-labelledby="personalized-heading">
             <header class="personalized-header">
@@ -271,6 +150,89 @@
               @request="requestMedia"
             />
           </section>
+          <MediaRail
+            title="Films populaires"
+            :more-to="{ path: '/discover/movies', query: { section: 'popular' } }"
+            :items="home.popular_movies.items"
+            :loading="home.popular_movies.loading"
+            :error="home.popular_movies.error"
+            allow-request
+            :requesting="requesting"
+            @retry="loadHomeSection('popular_movies')"
+            @request="requestMedia"
+          />
+          <MediaRail
+            title="Séries populaires"
+            :more-to="{ path: '/discover/shows', query: { section: 'popular' } }"
+            :items="home.popular_tv.items"
+            :loading="home.popular_tv.loading"
+            :error="home.popular_tv.error"
+            allow-request
+            :requesting="requesting"
+            @retry="loadHomeSection('popular_tv')"
+            @request="requestMedia"
+          />
+
+          <!-- Genres generiques : replies par defaut et charges a l'ouverture seulement.
+               Six rails identiques pour tous les utilisateurs poussaient le contenu a
+               forte valeur (Pour vous, Ajouts recents) tres bas, et coutaient six
+               appels API a chaque affichage de l'accueil. -->
+          <details class="discover-genre-explorer" :open="genresOpen" @toggle="onGenresToggle">
+            <summary>
+              <div>
+                <span class="eyebrow">Catalogue</span>
+                <strong>Explorer par genre</strong>
+              </div>
+              <ChevronDown aria-hidden="true" />
+            </summary>
+            <div v-if="genresLoaded" class="discover-genre-rails">
+              <MediaRail
+                v-for="rail in GENRE_RAILS"
+                :key="rail.key"
+                :title="rail.title"
+                :more-to="{ path: '/discover/explore', query: { genre: rail.genre } }"
+                :items="home[rail.key].items"
+                :loading="home[rail.key].loading"
+                :error="home[rail.key].error"
+                allow-request
+                :requesting="requesting"
+                @retry="loadHomeSection(rail.key)"
+                @request="requestMedia"
+              />
+            </div>
+          </details>
+
+          <MediaRail
+            title="Prochainement"
+            :more-to="{ path: '/discover/explore', query: { section: 'coming-soon' } }"
+            :items="home.upcoming.items"
+            :loading="home.upcoming.loading"
+            :error="home.upcoming.error"
+            allow-request
+            :requesting="requesting"
+            @retry="loadHomeSection('upcoming')"
+            @request="requestMedia"
+          />
+          <MediaRail
+            title="Ajouts récents dans Plex"
+            :more-to="{ path: '/discover/explore', query: { availability: 'available' } }"
+            :items="home.recent_plex.items"
+            :loading="home.recent_plex.loading"
+            :error="home.recent_plex.error"
+            :requesting="requesting"
+            @retry="loadHomeSection('recent_plex')"
+          />
+          <MediaRail
+            v-if="home.most_requested.loading || home.most_requested.items.length || home.most_requested.error"
+            title="Les plus demandés"
+            :more-to="{ path: '/discover/explore', query: { availability: 'requested' } }"
+            :items="home.most_requested.items"
+            :loading="home.most_requested.loading"
+            :error="home.most_requested.error"
+            :requesting="requesting"
+            @retry="loadHomeSection('most_requested')"
+          />
+
         </div>
       </div>
 
@@ -461,7 +423,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { ArrowRight } from '@lucide/vue';
+import { ArrowRight, ChevronDown } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
 import MediaHeroBanner from '@/components/media/MediaHeroBanner.vue';
@@ -855,6 +817,35 @@ async function loadHomeGroup() {
     home.trending.loading = false;
   }
 }
+const GENRE_RAILS = [
+  { key: 'genre_action', title: 'Action & Aventure', genre: '28' },
+  { key: 'genre_scifi', title: 'Science-Fiction & Fantastique', genre: '878' },
+  { key: 'genre_animation', title: 'Animation', genre: '16' },
+  { key: 'genre_comedy', title: 'Comédies', genre: '35' },
+  { key: 'genre_thriller', title: 'Thrillers & Policiers', genre: '5388' },
+  { key: 'genre_horror', title: 'Horreur & Mystère', genre: '27' },
+];
+const GENRES_OPEN_KEY = 'watchdeck.discoverGenresOpen';
+const genresOpen = ref(localStorage.getItem(GENRES_OPEN_KEY) === '1');
+const genresLoaded = ref(false);
+
+function loadGenreRails(): void {
+  if (genresLoaded.value) return;
+  genresLoaded.value = true;
+  for (const rail of GENRE_RAILS) loadHomeSection(rail.key);
+}
+
+function onGenresToggle(event: Event): void {
+  const open = (event.target as HTMLDetailsElement).open;
+  genresOpen.value = open;
+  try {
+    localStorage.setItem(GENRES_OPEN_KEY, open ? '1' : '0');
+  } catch {
+    /* Preference non persistable */
+  }
+  if (open) loadGenreRails();
+}
+
 async function loadHomeSection(name: string) {
   home[name].loading = true;
   home[name].error = '';
@@ -884,16 +875,11 @@ function loadHome() {
   for (const name of [
     'popular_movies',
     'popular_tv',
-    'genre_action',
-    'genre_scifi',
-    'genre_animation',
-    'genre_comedy',
-    'genre_thriller',
-    'genre_horror',
     'upcoming',
     'recent_plex',
     'most_requested',
   ]) loadHomeSection(name);
+  if (genresOpen.value) loadGenreRails();
   loadSources();
   loadPersonalized();
 }
