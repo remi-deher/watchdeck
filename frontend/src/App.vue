@@ -88,12 +88,13 @@
         <component :is="Component" :key="viewRoute.path" />
       </RouterView>
     </main>
+    <div id="route-announcer" class="sr-only" role="status" aria-live="polite">{{ routeAnnouncement }}</div>
     <ToastStack :toasts="toasts" @dismiss="dismissToast"/>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from 'vue-router';
 import { Activity, CalendarDays, Compass, Download, Gauge, Library, LogOut, MessageSquareWarning, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, Wrench, Menu } from "@lucide/vue";
 import { api } from "@/api";
@@ -142,7 +143,18 @@ function showPlaybackToasts(event: any): void {
 // qu'il a mis en cache, reference des lignes qui n'existent plus. On purge et on recharge
 // plutot que de laisser l'utilisateur agir sur des donnees fantomes.
 function onMigrationCompleted(): void {clearCache();window.location.reload()}
-watch(()=>route.fullPath,closeMoreMenu);
+const routeAnnouncement=ref('');
+let isFirstNavigation=true;
+watch(()=>route.fullPath,async()=>{
+  closeMoreMenu();
+  // La premiere "navigation" est le chargement initial de la page : le focus y est
+  // deja au bon endroit et il n'y a rien a annoncer.
+  if(isFirstNavigation){isFirstNavigation=false;return}
+  await nextTick();
+  document.getElementById('main-content')?.focus({preventScroll:true});
+  const title=typeof route.meta.title==='string'?route.meta.title:'';
+  routeAnnouncement.value=title?`Page ${title} chargée`:'Page chargée';
+});
 onMounted(async()=>{
   window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);session.value=await loadSession();syncCacheOwner(session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
 onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);toastTimers.forEach(clearTimeout)});
