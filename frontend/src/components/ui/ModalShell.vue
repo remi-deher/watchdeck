@@ -44,6 +44,8 @@ const props = withDefaults(
     panelClass?: string;
     error?: string;
     busy?: boolean;
+    /** Sélecteur CSS de l'élément à focaliser à l'ouverture (défaut : premier focusable). */
+    initialFocus?: string;
   }>(),
   {
     open: true,
@@ -52,6 +54,7 @@ const props = withDefaults(
     panelClass: '',
     error: '',
     busy: false,
+    initialFocus: '',
   }
 );
 
@@ -66,5 +69,5 @@ function requestClose(): void {
 const panelRef = ref<HTMLElement | null>(null);
 const openRef = toRef(props, 'open');
 useBodyScrollLock(openRef);
-useModalA11y(panelRef, openRef, requestClose);
+useModalA11y(panelRef, openRef, requestClose, { initialFocus: props.initialFocus });
 </script>

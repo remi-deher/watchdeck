@@ -15,17 +15,22 @@ function focusableChildren(panel: HTMLElement): HTMLElement[] {
   );
 }
 
+const HISTORY_MARKER = '__modalOpen';
+
 /**
  * @param panelRef Ref sur l'élément racine de la modale (aside/div), doit porter tabindex="-1".
  * @param isOpenRef Ref booléenne si le composant reste monté avec un v-if interne ; null si le composant n'est monté que pendant l'ouverture.
  * @param onClose Appelé sur Échap.
+ * @param options.initialFocus Sélecteur CSS de l'élément à focaliser à l'ouverture.
+ *   Par défaut le premier élément focusable, ce qui convient aux dialogues classiques ;
+ *   une palette ou un formulaire veut son champ de saisie plutôt que la croix de
+ *   fermeture, et le préciser ici évite de courir après le focus depuis l'appelant.
  */
-const HISTORY_MARKER = '__modalOpen';
-
 export function useModalA11y(
   panelRef: Ref<HTMLElement | null>,
   isOpenRef: Ref<boolean> | null | undefined,
-  onClose: () => void
+  onClose: () => void,
+  options: { initialFocus?: string } = {}
 ): void {
   let previouslyFocused: HTMLElement | null = null;
   let dismissedByBackButton = false;
@@ -69,7 +74,10 @@ export function useModalA11y(
     await nextTick();
     const panel = panelRef.value;
     if (!panel) return;
-    const target = focusableChildren(panel)[0] || panel;
+    const preferred = options.initialFocus
+      ? panel.querySelector<HTMLElement>(options.initialFocus)
+      : null;
+    const target = preferred || focusableChildren(panel)[0] || panel;
     target.focus({ preventScroll: true });
   }
 

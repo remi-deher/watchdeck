@@ -23,6 +23,7 @@
     />
 
     <MobileTabBar :is-admin="isAdmin" :can-moderate="canModerate" />
+    <CommandPalette :is-admin="isAdmin" :can-moderate="canModerate" />
 
     <main id="main-content" class="main" tabindex="-1">
       <RouterView v-slot="{ Component, route: viewRoute }">
@@ -43,6 +44,7 @@ import { connectRealtime } from "@/events";
 import ToastStack from "@/components/ui/ToastStack.vue";
 import GlobalRail from "@/components/layout/GlobalRail.vue";
 import MobileTabBar from "@/components/layout/MobileTabBar.vue";
+import CommandPalette from "@/components/layout/CommandPalette.vue";
 import SpaceSidebar from "@/components/layout/SpaceSidebar.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
 import { useSpaceSidebar } from "@/composables/useSpaceSidebar";
