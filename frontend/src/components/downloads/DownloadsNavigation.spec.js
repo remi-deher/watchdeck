@@ -57,9 +57,13 @@ describe('DownloadsNavigation', () => {
     expect(wrapper.findAll('.arr-kind .source-toggle')).toHaveLength(1);
     const sonarrLink = wrapper.findAll('.source-parent>a:first-child').find(link => link.attributes('href').includes('instance=4'));
     expect(sonarrLink.text()).toContain('Sonarr');
-    expect(wrapper.text()).toContain('Radarr 4K');
-    expect(wrapper.text()).toContain('Radarr HD');
+    // Les noms d'instances apparaissent aussi dans la sous-nav mobile (rangee de
+    // pilules) : on n'observe donc que l'arbre de la sidebar de bureau, seul
+    // concerne par le pliage.
+    const desktopTree = () => wrapper.get('.space-sidebar').text();
+    expect(desktopTree()).toContain('Radarr 4K');
+    expect(desktopTree()).toContain('Radarr HD');
     await wrapper.get('.arr-kind .source-toggle').trigger('click');
-    expect(wrapper.text()).not.toContain('Radarr 4K');
+    expect(desktopTree()).not.toContain('Radarr 4K');
   });
 });

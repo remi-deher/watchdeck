@@ -83,11 +83,6 @@
       </template>
     </template>
 
-    <template #mobile-more-extra>
-      <div class="menu-section">
-        <RouterLink to="/dashboard"><House /><span>Accueil</span></RouterLink>
-      </div>
-    </template>
   </SpaceSidebar>
 </template>
 
