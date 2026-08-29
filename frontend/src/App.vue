@@ -143,6 +143,12 @@ function showPlaybackToasts(event: any): void {
 // qu'il a mis en cache, reference des lignes qui n'existent plus. On purge et on recharge
 // plutot que de laisser l'utilisateur agir sur des donnees fantomes.
 function onMigrationCompleted(): void {clearCache();window.location.reload()}
+// Sans ce toast, un nouveau service worker installe restait silencieux : l'utilisateur
+// continuait a utiliser une version perimee de l'app sans jamais etre invite a recharger.
+function onSwUpdateAvailable(): void {
+  if(toasts.value.some(toast=>toast.type==='update'))return;
+  toasts.value=[...toasts.value,{id:'sw-update',type:'update',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.'}];
+}
 const routeAnnouncement=ref('');
 let isFirstNavigation=true;
 watch(()=>route.fullPath,async()=>{
@@ -156,7 +162,7 @@ watch(()=>route.fullPath,async()=>{
   routeAnnouncement.value=title?`Page ${title} chargée`:'Page chargée';
 });
 onMounted(async()=>{
-  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);session.value=await loadSession();syncCacheOwner(session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
-onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);toastTimers.forEach(clearTimeout)});
+  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
+onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);toastTimers.forEach(clearTimeout)});
 </script>
 
