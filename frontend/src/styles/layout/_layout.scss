@@ -5,14 +5,17 @@
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
-  /* rail global | panneau contextuel de l'espace | contenu */
-  grid-template-columns: var(--rail-w) 248px minmax(0, 1fr);
+  /* rail | contenu. Il n'y a plus de troisieme colonne : le contexte vit dans la
+     navigation elle-meme, plus dans un arbre permanent. */
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
   background-color: #09090b;
 }
 
-/* Routes sans espace (tableau de bord, calendrier, profil...) : pas de panneau. */
-.shell.no-context-panel {
-  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+/* Sous le seuil, la navigation devient une barre fixe : une seule colonne, et la
+   hauteur de la barre (insets compris) est reservee sous le contenu. */
+.shell--bar {
+  grid-template-columns: minmax(0, 1fr);
+  padding-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom));
 }
 
 .mobile-only {
@@ -66,14 +69,6 @@
 }
 
 .sidebar-toggle svg { width: 19px; height: 19px; }
-
-.shell.sidebar-collapsed {
-  grid-template-columns: var(--rail-w) 72px minmax(0, 1fr);
-}
-
-.shell.sidebar-collapsed.no-context-panel {
-  grid-template-columns: var(--rail-w) minmax(0, 1fr);
-}
 
 .sidebar.collapsed {
   padding: 16px 8px;
@@ -374,8 +369,6 @@ button svg {
   .tablet-fade-enter-from,.tablet-fade-leave-to { opacity: 0; }
 
   /* Le même bouton pilote désormais le rail compact sur tablette et ordinateur. */
-  .shell:not(.sidebar-collapsed) { grid-template-columns: var(--rail-w) 248px minmax(0, 1fr); }
-  .shell:not(.sidebar-collapsed).no-context-panel { grid-template-columns: var(--rail-w) minmax(0, 1fr); }
   .sidebar:not(.collapsed) { padding: 16px 12px; overflow-y: auto; }
   .sidebar:not(.collapsed) .brand { justify-content: flex-start; padding: 4px 10px 10px; }
   .sidebar:not(.collapsed) .brand-name,
@@ -397,17 +390,9 @@ button svg {
 @media (max-width: 767.98px) {
   :root { --rail-w: 0px; }
 
-  .shell,
-  .shell.sidebar-collapsed,
-  .shell.no-context-panel,
-  .shell.sidebar-collapsed.no-context-panel {
+  .shell {
     width: 100%;
     grid-template-columns: minmax(0, 1fr);
-    /* La sous-nav d'espace ajoute une 2e rangee en flux : sans cela, le min-height
-       100dvh de la grille serait reparti entre les rangees et la barre de pilules
-       s'etirerait sur la moitie de l'ecran. */
-    align-content: start;
-    padding-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom));
   }
 
   .main {
@@ -786,13 +771,11 @@ button svg {
 }
 
 @media (horizontal-viewport-segments: 2) and (min-width: 768px) {
-  .shell,
-  .shell.sidebar-collapsed {
-    grid-template-columns: env(viewport-segment-width 0 0) env(viewport-segment-width 1 0);
+  /* Pliable ouvert : le contenu occupe le second volet, le rail restant sur le premier. */
+  .shell {
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
     column-gap: var(--viewport-segment-gap);
   }
-  .sidebar { grid-column: 1; width: calc(100% - 24px); }
-  .main { grid-column: 2; }
 }
 
 

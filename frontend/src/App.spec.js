@@ -54,7 +54,8 @@ describe('App.vue', () => {
           RouterView: {
             template: '<div class="router-view-stub" />',
           },
-          SpaceSidebar: true,
+          AppNav: true,
+          CommandPalette: true,
           FeedbackToast: true,
           PlaybackToast: true,
           PwaUpdateBanner: true,

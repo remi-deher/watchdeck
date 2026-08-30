@@ -42,7 +42,6 @@
 
     <div class="app-nav-footer">
       <button
-        ref="triggerRef"
         type="button"
         class="app-nav-link app-nav-burger"
         :class="{ active: menuOpen }"
@@ -86,7 +85,7 @@
             class="app-nav-menu-link"
             :class="{ active: section.key === activeSection }"
             :aria-current="section.key === activeSection ? 'page' : undefined"
-            @click="closeMenu"
+            @click="onMenuNavigate(section.key === activeSection)"
           >
             <component :is="section.icon" v-if="section.icon" aria-hidden="true" />
             <span>{{ section.label }}</span>
@@ -102,7 +101,7 @@
             class="app-nav-menu-link"
             :class="{ active: destination.key === activeDestinationKey }"
             :aria-current="destination.key === activeDestinationKey ? 'page' : undefined"
-            @click="closeMenu"
+            @click="onMenuNavigate(destination.key === activeDestinationKey)"
           >
             <component :is="destination.icon" aria-hidden="true" />
             <span>{{ destination.label }}</span>
@@ -113,7 +112,7 @@
         <button type="button" class="app-nav-menu-link" @click="openPalette">
           <Search aria-hidden="true" /><span>Rechercher</span><kbd>{{ shortcutLabel }}</kbd>
         </button>
-        <RouterLink to="/profile" class="app-nav-menu-link" @click="closeMenu">
+        <RouterLink to="/profile" class="app-nav-menu-link" @click="onMenuNavigate(false)">
           <UserRound aria-hidden="true" /><span>Profil</span>
         </RouterLink>
         <a href="/privacy" class="app-nav-menu-link"><ShieldCheck aria-hidden="true" /><span>Confidentialité</span></a>
@@ -216,9 +215,24 @@ function closeMenu(): void {
   menuOpen.value = false;
 }
 
+/**
+ * Fermer le menu consomme son entrée d'historique via `history.back()` (useModalA11y).
+ * Ce retour est asynchrone : s'il survient après la navigation du lien, il l'annule.
+ * On laisse donc le watcher de route fermer le menu une fois la navigation commitée, et
+ * on ne ferme tout de suite que lorsqu'aucune navigation n'aura lieu.
+ */
+function onMenuNavigate(isCurrent: boolean): void {
+  if (isCurrent) closeMenu();
+}
+
 function openPalette(): void {
+  if (!menuOpen.value) return emit('open-palette');
+  // Même raison : la palette pousse sa propre entrée d'historique. Ouverte trop tôt,
+  // le `back()` du menu la refermerait aussitôt.
+  const open = () => emit('open-palette');
+  const timer = setTimeout(open, 120);
+  window.addEventListener('popstate', () => { clearTimeout(timer); setTimeout(open, 0); }, { once: true });
   closeMenu();
-  emit('open-palette');
 }
 
 watch(() => route.fullPath, closeMenu);

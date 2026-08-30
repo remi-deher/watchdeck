@@ -61,10 +61,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Compass, Download, Server, Settings } from '@lucide/vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
-import { SPACES, railDestinationsFor } from '@/spaces';
-import { settingsSections } from '@/settingsSections';
+import { destinationsFor, sectionsFor } from '@/navigation';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 
 const props = withDefaults(
@@ -93,58 +91,31 @@ function fold(value: string): string {
 }
 
 const commands = computed<Command[]>(() => {
-  const items: Command[] = railDestinationsFor(props.isAdmin, props.canModerate).map((dest) => ({
-    id: `nav-${dest.key}`,
-    label: dest.label,
-    group: 'Navigation',
-    to: dest.to,
-    icon: dest.icon,
+  const context = {
+    isAdmin: props.isAdmin,
+    canModerate: props.canModerate,
+    arrInstances: arrInstances.value,
+    downloadClients: downloadClients.value,
+  };
+
+  const items: Command[] = destinationsFor(props.isAdmin, props.canModerate).map((destination) => ({
+    id: `nav-${destination.key}`,
+    label: destination.label,
+    group: destination.group,
+    to: destination.to,
+    icon: destination.icon,
   }));
 
-  // Sections internes de chaque espace (Series, Films, Demandes...).
-  for (const space of SPACES) {
-    for (const section of space.nav || []) {
-      for (const item of section.items) {
-        if (item.admin && !props.isAdmin) continue;
-        if (typeof item.to === 'function') continue;
-        items.push({
-          id: `space-${space.slug}-${item.key}`,
-          label: item.label,
-          group: section.label || space.slug,
-          to: item.to,
-          icon: item.icon || Compass,
-        });
-      }
-    }
-  }
-
-  if (props.isAdmin) {
-    for (const section of settingsSections) {
+  // Toute section est atteignable par son nom, y compris les instances *arr et les
+  // clients torrent : c'est ce qui permet a la navigation visible de rester sobre.
+  for (const destination of destinationsFor(props.isAdmin, props.canModerate)) {
+    for (const section of sectionsFor(destination.key, context)) {
       items.push({
-        id: `settings-${section.key}`,
+        id: `section-${destination.key}-${section.key}`,
         label: section.label,
-        group: 'Paramètres',
-        to: section.to || { path: '/settings', query: { tab: section.key } },
-        icon: section.icon || Settings,
-      });
-    }
-    for (const instance of arrInstances.value) {
-      if (!['radarr', 'sonarr'].includes(instance.arr_type)) continue;
-      items.push({
-        id: `arr-${instance.id}`,
-        label: instance.name,
-        group: instance.arr_type === 'radarr' ? 'Radarr' : 'Sonarr',
-        to: { path: '/downloads', query: { view: instance.arr_type, instance: String(instance.id) } },
-        icon: Download,
-      });
-    }
-    for (const client of downloadClients.value) {
-      items.push({
-        id: `client-${client.id}`,
-        label: client.name,
-        group: 'Client torrent',
-        to: { path: '/downloads', query: { view: 'clients', sub: 'instances', client: String(client.id) } },
-        icon: Server,
+        group: destination.label,
+        to: section.to,
+        icon: section.icon || destination.icon,
       });
     }
   }

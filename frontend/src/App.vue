@@ -1,28 +1,13 @@
 <template>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
-  <div class="shell" :class="{'sidebar-collapsed':collapsed,'no-context-panel':!activeSpace,'discover-shell':Boolean(activeSpace)&&activeSpace?.slug!=='library'}">
-    <!-- Rail global : toujours present, il porte les destinations de premier niveau. -->
-    <GlobalRail :is-admin="isAdmin" :can-moderate="canModerate" @open-palette="palette?.open()" />
-    <!-- Espace à arbre dynamique (Téléchargements, Paramètres) : sa propre sidebar. -->
-    <component
-      :is="activeSpace.component"
-      v-if="activeSpace?.component"
-      :collapsed="collapsed"
-      @toggle="toggleSidebar"
+  <div class="shell" :class="{ 'shell--bar': !isWide }">
+    <!-- Une seule navigation, deux orientations : rail à gauche ou barre en bas. -->
+    <AppNav
+      :orientation="isWide ? 'rail' : 'bar'"
+      :is-admin="isAdmin"
+      :can-moderate="canModerate"
+      @open-palette="palette?.open()"
     />
-    <!-- Espace déclaratif : SpaceSidebar rend les trois surfaces depuis spaces.js. -->
-    <SpaceSidebar
-      v-else-if="activeSpace"
-      :slug="activeSpace.slug"
-      :ariaLabel="activeSpace.ariaLabel || 'Navigation'"
-      :brand-icon="activeSpace.brandIcon"
-      :nav="activeSpace.nav"
-      :is-admin="activeSpace.slug === 'library' ? canModerate : isAdmin"
-      :collapsed="collapsed"
-      @toggle="toggleSidebar"
-    />
-
-    <MobileTabBar :is-admin="isAdmin" :can-moderate="canModerate" />
     <CommandPalette ref="palette" :is-admin="isAdmin" :can-moderate="canModerate" />
 
     <main id="main-content" class="main" tabindex="-1">
@@ -42,12 +27,10 @@ import { api } from "@/api";
 import { clearCache, syncCacheOwner } from "@/cache";
 import { connectRealtime } from "@/events";
 import ToastStack from "@/components/ui/ToastStack.vue";
-import GlobalRail from "@/components/layout/GlobalRail.vue";
-import MobileTabBar from "@/components/layout/MobileTabBar.vue";
+import AppNav from "@/components/layout/AppNav.vue";
 import CommandPalette from "@/components/layout/CommandPalette.vue";
-import SpaceSidebar from "@/components/layout/SpaceSidebar.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
-import { useSpaceSidebar } from "@/composables/useSpaceSidebar";
+import { useMediaQuery } from "@/composables/useMediaQuery";
 import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";
 import { canModerateSession, isAdminSession, loadSession } from "@/composables/useSession";
@@ -57,9 +40,8 @@ useVisualViewport();
 const route=useRoute();
 const isAdmin=computed(()=>isAdminSession(session.value));
 const canModerate=computed(()=>canModerateSession(session.value));
-// L'espace courant, son etat replie et sa bascule viennent tous de spaces.js : la sidebar
-// a monter, la cle localStorage et la classe du shell en decoulent (voir useSpaceSidebar).
-const {activeSpace,collapsed,toggle:toggleSidebar}=useSpaceSidebar(route);
+// Le seuil unique du shell : au-dela, la navigation est un rail ; en deca, une barre.
+const isWide=useMediaQuery('(min-width: 768px)');
 const toasts=ref<any[]>([]);
 const seenPlaybackEvents=new Set<string>();
 const toastTimers=new Map<string, ReturnType<typeof setTimeout>>();
