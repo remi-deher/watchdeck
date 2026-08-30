@@ -58,6 +58,37 @@ def upgrade() -> None:
         """
     )
 
+    # Les trois cles etrangeres ci-dessous sont declarees ON DELETE SET NULL : une
+    # reference vers une ligne supprimee devrait donc deja valoir NULL. Sans contrainte
+    # jusqu'ici, rien ne l'imposait, et toute base ayant vu disparaitre un library_item
+    # ou une instance *arr conserve des references pendantes qui font echouer le
+    # ALTER TABLE. On applique donc a posteriori la semantique que la contrainte
+    # garantira desormais, plutot que de faire echouer la migration.
+    op.execute(
+        """
+        UPDATE media_requests
+           SET library_item_id = NULL
+         WHERE library_item_id IS NOT NULL
+           AND library_item_id NOT IN (SELECT id FROM library_items)
+        """
+    )
+    op.execute(
+        """
+        UPDATE media_requests
+           SET arr_instance_id = NULL
+         WHERE arr_instance_id IS NOT NULL
+           AND arr_instance_id NOT IN (SELECT id FROM arr_instances)
+        """
+    )
+    op.execute(
+        """
+        UPDATE library_items
+           SET arr_instance_id = NULL
+         WHERE arr_instance_id IS NOT NULL
+           AND arr_instance_id NOT IN (SELECT id FROM arr_instances)
+        """
+    )
+
     op.create_foreign_key(
         "fk_media_requests_library_item",
         "media_requests",
