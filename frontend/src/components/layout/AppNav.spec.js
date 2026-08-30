@@ -1,8 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import { reactive } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AppNav from './AppNav.vue';
 
-let currentRoute = { path: '/discover', query: {}, fullPath: '/discover' };
+// Muté, jamais remplacé : le composant capture la référence au setup, et son watcher de
+// route ne verrait rien d'une simple réaffectation.
+const currentRoute = reactive({ path: '/discover', query: {}, fullPath: '/discover' });
+const goTo = (path, query = {}) => Object.assign(currentRoute, { path, query, fullPath: path });
 
 vi.mock('vue-router', () => ({
   useRoute: () => currentRoute,
@@ -43,7 +47,7 @@ async function openMenu(wrapper) {
 
 describe('AppNav', () => {
   beforeEach(() => {
-    currentRoute = { path: '/discover', query: {}, fullPath: '/discover' };
+    goTo('/discover');
     loadSources.mockClear();
     document.body.innerHTML = '';
   });
@@ -63,7 +67,7 @@ describe('AppNav', () => {
   });
 
   it('marque la section courante avec aria-current', () => {
-    currentRoute = { path: '/discover/shows', query: {}, fullPath: '/discover/shows' };
+    goTo('/discover/shows');
     const wrapper = factory();
     const active = wrapper.findAll('.app-nav-items .app-nav-link').filter((n) => n.classes('active'));
     expect(active).toHaveLength(1);
@@ -82,7 +86,7 @@ describe('AppNav', () => {
   });
 
   it('n’ajoute pas de groupe de sections quand la barre les affiche toutes', async () => {
-    currentRoute = { path: '/activity', query: {}, fullPath: '/activity' };
+    goTo('/activity');
     const wrapper = factory();
     await openMenu(wrapper);
     expect(menuGroups()).not.toContain('Activité & Insights');
@@ -98,7 +102,7 @@ describe('AppNav', () => {
   });
 
   it('construit les sections Téléchargements à partir des instances réelles', async () => {
-    currentRoute = { path: '/downloads', query: { view: 'overview' }, fullPath: '/downloads?view=overview' };
+    goTo('/downloads', { view: 'overview' });
     const wrapper = factory({ orientation: 'rail' });
     await flushPromises();
 
@@ -114,7 +118,7 @@ describe('AppNav', () => {
   });
 
   it('dérive la section active de la Bibliothèque depuis ?type=', () => {
-    currentRoute = { path: '/library', query: { type: 'show' }, fullPath: '/library?type=show' };
+    goTo('/library', { type: 'show' });
     const wrapper = factory({ orientation: 'rail' });
     const active = wrapper.findAll('.app-nav-items .app-nav-link').filter((n) => n.classes('active'));
     expect(active).toHaveLength(1);
@@ -132,7 +136,7 @@ describe('AppNav', () => {
     wrapper.unmount();
   });
 
-  it('émet open-palette depuis le ☰ et se referme', async () => {
+  it('ferme le ☰ avant d’ouvrir la palette, pour ne pas la refermer aussitôt', async () => {
     const wrapper = factory();
     await openMenu(wrapper);
 
@@ -140,7 +144,31 @@ describe('AppNav', () => {
     search.click();
     await flushPromises();
 
+    // Le menu part le premier ; la palette n'est demandée qu'ensuite, sinon le
+    // history.back() de la fermeture consommerait l'entrée que la palette vient de
+    // pousser et la refermerait dans la foulée.
+    expect(document.querySelector('.app-nav-menu')).toBeNull();
+    expect(wrapper.emitted('open-palette')).toBeUndefined();
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
     expect(wrapper.emitted('open-palette')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('laisse le watcher de route fermer le menu, sans annuler la navigation', async () => {
+    const wrapper = factory();
+    await openMenu(wrapper);
+
+    const target = [...document.querySelectorAll('.app-nav-menu-link')].find((n) => n.textContent.trim() === 'Téléchargements');
+    target.click();
+    await flushPromises();
+
+    // Toujours ouvert : fermer ici déclencherait un history.back() qui annulerait le
+    // router.push encore en vol. C'est le changement de route qui referme.
+    expect(document.querySelector('.app-nav-menu')).not.toBeNull();
+
+    goTo('/downloads');
+    await flushPromises();
     expect(document.querySelector('.app-nav-menu')).toBeNull();
     wrapper.unmount();
   });
