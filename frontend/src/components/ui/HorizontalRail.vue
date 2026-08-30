@@ -196,11 +196,10 @@ button.rail-title.as-button {
   overflow-x: auto;
   scroll-behavior: smooth;
   scrollbar-width: none;
-  scroll-snap-type: x proximity;
   overscroll-behavior-inline: contain;
 }
 
-.rail-track > :deep(*) { content-visibility: auto; contain-intrinsic-size: 220px 330px; scroll-snap-align: start; }
+.rail-track > :deep(*) { content-visibility: auto; contain-intrinsic-size: 220px 330px; }
 
 .rail-track::-webkit-scrollbar {
   display: none;
