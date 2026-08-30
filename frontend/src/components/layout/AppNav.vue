@@ -21,7 +21,7 @@
     :class="`app-nav--${orientation}`"
     aria-label="Navigation principale"
   >
-    <RouterLink v-if="orientation === 'rail'" class="app-nav-brand" to="/" aria-label="Watchdeck — accueil">
+    <RouterLink v-if="orientation === 'rail'" class="app-nav-brand" to="/" aria-label="Watchdeck">
       <Clapperboard aria-hidden="true" />
     </RouterLink>
 
