@@ -62,10 +62,10 @@ export interface NavSection {
 export interface NavDestination {
   key: string;
   label: string;
-  /** Libellé court pour la barre du bas, où la place manque. */
-  shortLabel?: string;
   to: string | Record<string, any>;
   icon: Component;
+  /** Regroupement dans le menu ☰. */
+  group: string;
   access?: Access;
   /** Réservée aux modérateurs non-admins. */
   moderatorOnly?: boolean;
@@ -76,24 +76,23 @@ export interface NavDestination {
 export interface NavContext {
   isAdmin: boolean;
   canModerate: boolean;
-  arrInstances: Array<{ id: number | string; name: string; arr_type: string; enabled?: boolean }>;
-  downloadClients: Array<{ id: number | string; name: string; enabled?: boolean }>;
+  arrInstances: Array<{ id?: number | string; name?: string; arr_type?: string; enabled?: boolean }>;
+  downloadClients: Array<{ id?: number | string; name?: string; enabled?: boolean }>;
 }
 
 /* ────────────────────────────── Destinations ────────────────────────────── */
 
 export const DESTINATIONS: NavDestination[] = [
-  { key: 'dashboard', label: 'Tableau de bord', shortLabel: 'Accueil', to: '/dashboard', icon: Gauge, access: 'admin', match: (p) => p.startsWith('/dashboard') },
-  { key: 'discover', label: 'Découvrir', to: '/discover', icon: Compass, match: (p) => p.startsWith('/discover') },
-  { key: 'library', label: 'Bibliothèque', shortLabel: 'Média', to: { path: '/library', query: { hub: '1' } }, icon: Library, access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades') },
-  { key: 'calendar', label: 'Calendrier', to: '/calendar', icon: CalendarDays, match: (p) => p.startsWith('/calendar') },
-  { key: 'downloads', label: 'Téléchargements', shortLabel: 'Transferts', to: '/downloads', icon: Download, access: 'admin', match: (p) => p.startsWith('/downloads') },
-  { key: 'activity', label: 'Activité & Insights', shortLabel: 'Activité', to: '/activity', icon: Activity, access: 'admin', match: (p) => p.startsWith('/activity') || p.startsWith('/analytics') },
-  { key: 'issues', label: 'Problèmes signalés', shortLabel: 'Problèmes', to: '/issues', icon: MessageSquareWarning, access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues') },
-  { key: 'admin', label: 'Administration', shortLabel: 'Admin', to: '/users', icon: Wrench, access: 'admin', match: (p) => p.startsWith('/users') || p.startsWith('/notifications') },
-  { key: 'settings', label: 'Paramètres', shortLabel: 'Réglages', to: '/settings', icon: Settings, access: 'admin', match: (p) => p.startsWith('/settings') || p.startsWith('/logs') || p.startsWith('/maintenance') },
+  { key: 'discover', label: 'Découvrir', icon: Compass, group: 'Explorer', match: (p) => p.startsWith('/discover') || p.startsWith('/calendar'), to: '/discover' },
+  { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
+  { key: 'dashboard', label: 'Tableau de bord', icon: Gauge, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/dashboard') || p.startsWith('/issues'), to: '/dashboard' },
+  { key: 'downloads', label: 'Téléchargements', icon: Download, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
+  { key: 'activity', label: 'Activité & Insights', icon: Activity, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/activity') || p.startsWith('/analytics'), to: '/activity' },
+  { key: 'admin', label: 'Administration', icon: Wrench, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/users') || p.startsWith('/notifications'), to: '/users' },
+  { key: 'settings', label: 'Paramètres', icon: Settings, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/settings') || p.startsWith('/logs') || p.startsWith('/maintenance'), to: '/settings' },
+  // Un moderateur sans acces au tableau de bord garde les signalements comme espace propre.
+  { key: 'issues', label: 'Problèmes signalés', icon: MessageSquareWarning, group: 'Gestion', access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues'), to: '/issues' },
 ];
-
 function permitted<T extends { access?: Access; moderatorOnly?: boolean }>(
   items: T[],
   isAdmin: boolean,
@@ -112,9 +111,14 @@ export function destinationsFor(isAdmin: boolean, canModerate: boolean): NavDest
   return permitted(DESTINATIONS, isAdmin, canModerate);
 }
 
-/** Destination correspondant au chemin courant, ou `null`. */
-export function destinationForPath(path: string): NavDestination | null {
-  return DESTINATIONS.find((destination) => destination.match(path)) || null;
+/**
+ * Destination couvrant `path` pour les droits donnés.
+ *
+ * Les droits comptent : `/issues` relève du tableau de bord pour un administrateur,
+ * mais constitue l'espace propre d'un modérateur, qui n'y a pas accès.
+ */
+export function destinationForPath(path: string, isAdmin: boolean, canModerate: boolean): NavDestination | null {
+  return destinationsFor(isAdmin, canModerate).find((destination) => destination.match(path)) || null;
 }
 
 /* ──────────────────────────────── Sections ──────────────────────────────── */
@@ -165,13 +169,14 @@ function downloadSections(context: NavContext): NavSection[] {
     { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered },
   ];
 
+  // Une instance sans identifiant n'a pas de route a cibler : on ne l'affiche pas.
   const enabledArr = context.arrInstances.filter(
-    (item) => item.enabled !== false && ['radarr', 'sonarr'].includes(item.arr_type)
+    (item) => item.id != null && item.enabled !== false && ['radarr', 'sonarr'].includes(String(item.arr_type))
   );
   for (const instance of enabledArr) {
     sections.push({
       key: `${instance.arr_type}-${instance.id}`,
-      label: instance.name,
+      label: instance.name || `Instance ${instance.id}`,
       group: 'Gestionnaires de médias',
       icon: instance.arr_type === 'radarr' ? Film : Tv,
       to: { path: '/downloads', query: { view: instance.arr_type, instance: String(instance.id) } },
@@ -185,10 +190,10 @@ function downloadSections(context: NavContext): NavSection[] {
     icon: Layers3,
     to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } },
   });
-  for (const client of context.downloadClients.filter((item) => item.enabled !== false)) {
+  for (const client of context.downloadClients.filter((item) => item.id != null && item.enabled !== false)) {
     sections.push({
       key: `client-${client.id}`,
-      label: client.name,
+      label: client.name || `Client ${client.id}`,
       group: 'Clients torrent',
       icon: Server,
       to: { path: '/downloads', query: { view: 'clients', sub: 'instances', client: String(client.id) } },
@@ -198,7 +203,12 @@ function downloadSections(context: NavContext): NavSection[] {
   return sections;
 }
 
-/** Sections contextuelles d'une destination, filtrées selon les droits. */
+/**
+ * Sections contextuelles d'une destination, filtrées selon les droits.
+ *
+ * Chaque destination en expose au moins une : la barre du bas les affiche, et une barre
+ * vide n'aurait aucun sens. Pour une page unique, sa propre racine fait la section.
+ */
 export function sectionsFor(destinationKey: string, context: NavContext): NavSection[] {
   const { isAdmin, canModerate } = context;
   let sections: NavSection[] = [];
@@ -209,7 +219,8 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'home', label: 'Accueil', to: '/discover', icon: House },
         { key: 'shows', label: 'Séries', to: '/discover/shows', icon: Tv },
         { key: 'movies', label: 'Films', to: '/discover/movies', icon: Film },
-        { key: 'requests', label: 'Mes demandes', to: '/discover/requests', icon: Inbox },
+        { key: 'requests', label: 'Demandes', to: '/discover/requests', icon: Inbox },
+        { key: 'calendar', label: 'Calendrier', to: '/calendar', icon: CalendarDays },
       ];
       break;
     case 'library':
@@ -221,10 +232,16 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'vf', label: 'Améliorations VF', to: '/vf-upgrades', icon: Languages, access: 'admin' },
       ];
       break;
+    case 'dashboard':
+      sections = [
+        { key: 'overview', label: 'Vue d’ensemble', to: '/dashboard', icon: Gauge },
+        { key: 'issues', label: 'Problèmes', to: '/issues', icon: MessageSquareWarning },
+      ];
+      break;
     case 'activity':
       sections = [
         { key: 'activity', label: 'Activité Plex', to: '/activity', icon: Activity },
-        { key: 'analytics', label: 'Insights médiathèque', to: '/analytics', icon: ChartNoAxesCombined },
+        { key: 'analytics', label: 'Insights', to: '/analytics', icon: ChartNoAxesCombined },
       ];
       break;
     case 'admin':
@@ -232,6 +249,9 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'users', label: 'Utilisateurs', to: '/users', icon: Users },
         { key: 'notifications', label: 'Notifications', to: '/notifications', icon: Bell },
       ];
+      break;
+    case 'issues':
+      sections = [{ key: 'issues', label: 'Problèmes', to: '/issues', icon: MessageSquareWarning }];
       break;
     case 'downloads':
       sections = downloadSections(context);
