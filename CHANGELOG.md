@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.15.0 — 2026-08-30
+
+
+### test
+
+- align navigation tests with the new shell ([379f344](https://github.com/remi-deher/watchdeck/commit/379f3444f0217a799ad52841b449093ff6a3dbfa))
+
+### ♻️ Refactoring
+
+- make /calendar the single canonical calendar route ([792a43e](https://github.com/remi-deher/watchdeck/commit/792a43e84a1607c98f2d4a7f62c56bd56321fba6))
+- extract UiDisclosure, defer two more dashboard sections ([a9d7dd0](https://github.com/remi-deher/watchdeck/commit/a9d7dd04b0c703f4e58b20e07a8b0e32695d6245))
+- single navigation model of destinations and sections ([0b78880](https://github.com/remi-deher/watchdeck/commit/0b78880b5430fa7befc4d725bd9e77a75ea5cbfd))
+
+### ⚡ Performance
+
+- collapse generic genre rails, surface personalised content first ([44c32d6](https://github.com/remi-deher/watchdeck/commit/44c32d6691dc127587309974524d815f9b6a25c3))
+
+### ✨ Nouveautés
+
+- persistent global rail alongside the contextual space panel ([9045113](https://github.com/remi-deher/watchdeck/commit/9045113e53221a7aeb0bbfe22d709edac3379bd3))
+- stable mobile tab bar, space context moves to a subnav ([45fbee1](https://github.com/remi-deher/watchdeck/commit/45fbee10a4ef4749d1f4d0349a9c19b94ff2dc25))
+- command palette on Ctrl/Cmd+K ([64a934b](https://github.com/remi-deher/watchdeck/commit/64a934b2ff4450919949e44b22063827fbfe8bb2))
+- discoverable search button in the global rail ([e99e1a6](https://github.com/remi-deher/watchdeck/commit/e99e1a6b29bcd128b5864876ed3529e7e3fd70b6))
+- AppNav puts the current area's sections in the bar, spaces behind the burger ([cc5ad3d](https://github.com/remi-deher/watchdeck/commit/cc5ad3d5b546e73b107f5c9c12ada7f1cc96262f))
+- replace the shell with one navigation, two orientations ([f895b27](https://github.com/remi-deher/watchdeck/commit/f895b27a5dbda18f8f71825a673b36c91458801a))
+
+### 🐛 Corrections
+
+- allow pinch-to-zoom by removing user-scalable=no ([874c680](https://github.com/remi-deher/watchdeck/commit/874c680211d12c8e7c1391dbf60b996df8f221c6))
+- define .sr-only globally to fix leaked visible text ([6d02b1b](https://github.com/remi-deher/watchdeck/commit/6d02b1b81f4bae3ea7a0dae72ec2388a0bb138de))
+- add skip link to main content ([e0cc33a](https://github.com/remi-deher/watchdeck/commit/e0cc33a5f3039e000d1c407c76c10c38dcb1ac50))
+- restore scroll position on back/forward navigation ([5507e83](https://github.com/remi-deher/watchdeck/commit/5507e83a618edc3fd6ca0f1d6eedd67d9b72f7e5))
+- announce route changes to title, focus, and screen readers ([18a33ab](https://github.com/remi-deher/watchdeck/commit/18a33ab6ef441c1294027518e2d985a36d06dcf1))
+- close modals/sheets on back button instead of leaving the page ([d00f4cb](https://github.com/remi-deher/watchdeck/commit/d00f4cb74cd43794e9559abb8e0782c9175ec1ba))
+- make background content inert while a dialog is open ([e33d576](https://github.com/remi-deher/watchdeck/commit/e33d5763a31a6085bd4a6a8752a32d4235ce1203))
+- keyboard/touch equivalents for column drag-and-drop, fix aria-sort ([ce2f369](https://github.com/remi-deher/watchdeck/commit/ce2f36955bd792b5eaf373554e80b7b05121af09))
+- make horizontally-scrolling data tables keyboard-reachable ([2adc1bc](https://github.com/remi-deher/watchdeck/commit/2adc1bc1979f6fef879b21b60c7f033816b5b927))
+- surface update-available toast, fix manifest start_url ([3dadd2a](https://github.com/remi-deher/watchdeck/commit/3dadd2ab555dfb391912927736c2bf40a55566e5))
+- collapse inactive branches in the downloads tree ([f755ce2](https://github.com/remi-deher/watchdeck/commit/f755ce2dfa53a72630453464b3cb97b63230e230))
+- clear orphan references before adding the media identity foreign keys ([fc2efd8](https://github.com/remi-deher/watchdeck/commit/fc2efd8fd8030044f0e98247f9049a5392112954))
+- drop the page title on mobile, make the search header opaque ([431a3af](https://github.com/remi-deher/watchdeck/commit/431a3affbd41649ff12a0c189d6083f77ce99ea3))
+- let poster rails scroll freely instead of snapping to each poster ([f9a1435](https://github.com/remi-deher/watchdeck/commit/f9a14353d6f316f049b87abc94cd84f5a2245e37))
 ## 1.14.2 — 2026-08-27
 
 
@@ -10,6 +52,10 @@
 ### 🐛 Corrections
 
 - reject VF upgrade suggestions Sonarr/Radarr flagged as wrong series/movie ([9b5a579](https://github.com/remi-deher/watchdeck/commit/9b5a57930d23cd9089516e2bcf664e93e2729eff))
+
+### 🔧 Maintenance
+
+- v1.14.2 (#188) ([248dddd](https://github.com/remi-deher/watchdeck/commit/248dddd8484ef2e98ea25b99fc4dbc2adc349a0f))
 ## 1.14.1 — 2026-08-27
 
 
