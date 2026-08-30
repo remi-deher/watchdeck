@@ -68,9 +68,10 @@ test("conserve le catalogue Films lors d'une recherche", async ({ page }) => {
 });
 
 test("affiche la navigation dédiée et replie les filtres", async ({ page }) => {
-  // La sidebar Découvrir partage désormais SpaceSidebar (voir DiscoverNavigation.vue) :
-  // .sidebar/.mobile-nav-bar sur desktop/mobile, plus de classes discover-* dédiées.
-  const navigation = page.locator('.sidebar:visible, .mobile-nav-bar:visible');
+  // Une seule navigation (AppNav) rendue en rail ou en barre selon la largeur, et qui
+  // porte les sections de l'espace courant -- ici celles de Découvrir.
+  // .app-nav-items : la liste des sections, sans la marque ni le bouton ☰.
+  const navigation = page.locator('.app-nav-items');
   await expect(navigation.getByRole("link", { name: "Accueil" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Séries" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Films" })).toBeVisible();
@@ -86,6 +87,16 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   await expect(reset).toBeVisible();
   const layoutFits = await filters.evaluate(element => element.scrollWidth <= element.clientWidth + 1);
   expect(layoutFits).toBe(true);
+
+  // Refermer avant de naviguer : sous 900px les filtres sont une modale, qui rend
+  // l'arriere-plan inert -- la navigation y est donc volontairement inatteignable.
+  if (page.viewportSize().width <= 900) {
+    await page.getByRole("button", { name: "Fermer" }).click();
+  } else {
+    await page.getByRole("button", { name: "Masquer les filtres" }).click();
+  }
+  await expect(filters).toBeHidden();
+
   await navigation.getByRole("link", { name: "Séries" }).click();
   await expect(page).toHaveURL(/\/discover\/shows$/);
   await expect(page.getByRole("searchbox", { name: "Rechercher une série" })).toBeVisible();
@@ -103,20 +114,23 @@ test("reste utilisable au clavier et sur mobile", async ({ page }, testInfo) => 
   }
 });
 
-test("centre la recherche et mémorise la sidebar rabattue", async ({ page }, testInfo) => {
+test("centre la recherche dans le contenu, sous un rail de largeur fixe", async ({ page }) => {
   const searchBox = await page.locator('.psh-search-wrap').boundingBox();
   const mainBox = await page.locator('#main-content').boundingBox();
   expect(Math.abs((searchBox.x + searchBox.width / 2) - (mainBox.x + mainBox.width / 2))).toBeLessThan(3);
 
   if (page.viewportSize().width > 640) {
-    // Voir la correction plus haut dans ce fichier : sidebar partagée (SpaceSidebar),
-    // classe .sidebar et non .discover-sidebar.
-    const sidebar = page.locator('.sidebar');
-    const isExpanded = await sidebar.getAttribute('aria-expanded') === 'true';
-    await page.getByRole('button', { name: isExpanded ? 'Réduire le menu' : 'Afficher le menu' }).click();
-    const expected = isExpanded ? 'false' : 'true';
-    await expect(sidebar).toHaveAttribute('aria-expanded', expected);
+    // Le rail a remplace la sidebar repliable : deja reduit a une colonne d'icones, il
+    // n'a plus de bascule ni d'etat a memoriser. Sa largeur ne bouge donc pas d'un
+    // chargement a l'autre, et le contenu garde la meme origine.
+    const rail = page.locator('.app-nav--rail');
+    await expect(rail).toBeVisible();
+    expect(await page.getByRole('button', { name: /Réduire le menu|Afficher le menu/ }).count()).toBe(0);
+
+    const widthBefore = (await rail.boundingBox()).width;
     await page.reload();
-    await expect(sidebar).toHaveAttribute('aria-expanded', expected);
+    await expect(rail).toBeVisible();
+    expect((await rail.boundingBox()).width).toBe(widthBefore);
+    expect((await page.locator('#main-content').boundingBox()).x).toBe(mainBox.x);
   }
 });

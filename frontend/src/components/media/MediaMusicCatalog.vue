@@ -15,7 +15,7 @@
 
   <section v-else-if="detail.media_type === 'album'" class="music-catalog-section">
     <h2 class="section-title">Pistes de l'album {{ detail.title ? `« ${detail.title} »` : '' }}</h2>
-    <div v-if="albumTracks.length" class="tracks-table-wrapper">
+    <div v-if="albumTracks.length" class="tracks-table-wrapper" tabindex="0" role="region" aria-label="Pistes de l'album, défilement horizontal">
       <table class="tracks-table">
         <thead><tr><th class="col-num">#</th><th class="col-title">Titre de la piste</th><th class="col-artist">Artiste</th><th class="col-duration">Durée</th><th class="col-tech">Format & Qualité audio</th><th class="col-action">Écoute</th></tr></thead>
         <tbody>

@@ -147,10 +147,24 @@ describe('TorrentClientsTable', () => {
     expect(JSON.parse(localStorage.getItem('watchdeck:torrent-table-columns:all')).order.slice(0, 2)).toEqual(['status', 'title']);
 
     const resizer = wrapper.findAll('.col-resize-handle')[1];
-    resizer.element.dispatchEvent(new MouseEvent('mousedown', { clientX: 100, bubbles: true }));
-    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 150, bubbles: true }));
-    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    resizer.element.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 150, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
     await nextTick();
     expect(JSON.parse(localStorage.getItem('watchdeck:torrent-table-columns:all')).widths.title).toBe(350);
+  });
+
+  it('réordonne les colonnes au clavier via les boutons haut/bas (équivalent au glisser-déposer)', async () => {
+    const wrapper = factory();
+    wrapper.vm.openColumnPicker();
+    await nextTick();
+    const firstItem = wrapper.findAll('.column-picker-item')[0];
+    const [up, down] = firstItem.findAll('.column-reorder-btn');
+    expect(up.attributes('disabled')).toBeDefined();
+
+    await down.trigger('click');
+    await nextTick();
+
+    expect(JSON.parse(localStorage.getItem('watchdeck:torrent-table-columns:all')).order.slice(0, 2)).toEqual(['status', 'title']);
   });
 });

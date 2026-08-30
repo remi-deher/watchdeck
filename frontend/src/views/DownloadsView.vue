@@ -274,7 +274,7 @@
         <div v-else-if="section==='clients'&&subview==='overview'" aria-hidden="true" />
 
         <!-- Vue Historique avec jaquettes posters -->
-        <section v-else class="panel table-wrap table-cards rich" role="tabpanel">
+        <section v-else class="panel table-wrap table-cards rich" role="tabpanel" tabindex="0" aria-label="Historique des téléchargements, défilement horizontal">
           <UiFeedback v-for="row in historyErrors" :key="row.instance_id" type="error" :title="row.instance_name" message="Historique temporairement indisponible pour cette instance."/>
           <table>
             <thead><tr><th>Titre</th><th>Type</th><th>Traitement</th><th>Source</th><th>Instance</th><th>Terminé</th></tr></thead>

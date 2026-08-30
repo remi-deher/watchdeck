@@ -1,25 +1,27 @@
 <template>
-  <Transition name="slide-up">
-    <div v-if="open" class="mobile-more-overlay" @click.self="$emit('close')">
-      <div
-        :id="sheetId"
-        ref="panelRef"
-        class="mobile-more-sheet"
-        role="dialog"
-        aria-modal="true"
-        :aria-labelledby="`${sheetId}-title`"
-        tabindex="-1"
-      >
-        <div class="sheet-header">
-          <h2 :id="`${sheetId}-title`">{{ title }}</h2>
-          <button type="button" class="close-sheet-btn" aria-label="Fermer le menu" @click="$emit('close')">
-            <X />
-          </button>
+  <Teleport to="body">
+    <Transition name="slide-up">
+      <div v-if="open" class="mobile-more-overlay" @click.self="$emit('close')">
+        <div
+          :id="sheetId"
+          ref="panelRef"
+          class="mobile-more-sheet"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="`${sheetId}-title`"
+          tabindex="-1"
+        >
+          <div class="sheet-header">
+            <h2 :id="`${sheetId}-title`">{{ title }}</h2>
+            <button type="button" class="close-sheet-btn" aria-label="Fermer le menu" @click="$emit('close')">
+              <X />
+            </button>
+          </div>
+          <div class="sheet-content"><slot /></div>
         </div>
-        <div class="sheet-content"><slot /></div>
       </div>
-    </div>
-  </Transition>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

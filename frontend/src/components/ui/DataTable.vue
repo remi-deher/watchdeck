@@ -1,18 +1,19 @@
 <template>
-  <section class="panel table-wrap table-cards rich data-table">
+  <section class="panel table-wrap table-cards rich data-table" tabindex="0" role="region">
     <table>
       <thead>
         <tr>
           <th v-for="column in visibleColumns" :key="column.key"
               :class="[column.className, { 'drag-over': dragOverKey === column.key, 'is-dragging': draggedKey === column.key }]"
               :data-priority="column.priority || (column.required ? 'primary' : 'secondary')"
+              :aria-sort="sortable && column.sortable !== false ? ariaSort(column.key) : undefined"
               draggable="true"
               @dragstart="startDrag(column.key, $event)"
               @dragover.prevent="dragOver(column.key, $event)"
               @dragleave="dragLeave(column.key)"
               @drop.prevent="drop(column.key)"
           >
-            <button v-if="sortable && column.sortable !== false" class="sort-button" :aria-sort="ariaSort(column.key)" @click="sortBy(column.key)">
+            <button v-if="sortable && column.sortable !== false" class="sort-button" @click="sortBy(column.key)">
               <span>{{ column.label }}</span>
               <ArrowUpDown />
             </button>
@@ -39,7 +40,7 @@
     <ModalShell :open="showColumnPicker" title="Personnaliser les colonnes" subtitle="Choisissez et réordonnez les colonnes affichées." @close="showColumnPicker = false">
       <div class="column-picker-grid">
         <div
-          v-for="column in orderedColumns"
+          v-for="(column, index) in orderedColumns"
           :key="column.key"
           class="column-picker-item"
           :class="{ dragging: draggedKey === column.key }"
@@ -55,6 +56,10 @@
             @change="toggleColumn(column.key)"
           />
           <span>{{ column.label }}</span>
+          <span class="column-reorder-buttons">
+            <button type="button" class="column-reorder-btn" :disabled="index === 0" :aria-label="`Déplacer ${column.label} vers le haut`" @click="moveColumn(column.key, -1)"><ChevronUp /></button>
+            <button type="button" class="column-reorder-btn" :disabled="index === orderedColumns.length - 1" :aria-label="`Déplacer ${column.label} vers le bas`" @click="moveColumn(column.key, 1)"><ChevronDown /></button>
+          </span>
           <span class="column-drag-handle" aria-hidden="true">⠿</span>
         </div>
       </div>
@@ -67,7 +72,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ArrowUpDown } from '@lucide/vue';
+import { ArrowUpDown, ChevronDown, ChevronUp } from '@lucide/vue';
 import ModalShell from './ModalShell.vue';
 import UiButton from './UiButton.vue';
 import UiEmptyState from './UiEmptyState.vue';
@@ -190,6 +195,17 @@ function drop(targetKey: string): void {
   columnOrder.value = next;
 }
 
+// Equivalent clavier/tactile au glisser-deposer des colonnes (le drag-and-drop HTML5
+// n'est operable ni au clavier ni au toucher : WCAG 2.1.1 et 2.5.7).
+function moveColumn(key: string, direction: -1 | 1): void {
+  const next = [...columnOrder.value];
+  const index = next.indexOf(key);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= next.length) return;
+  [next[index], next[target]] = [next[target], next[index]];
+  columnOrder.value = next;
+}
+
 const sortKey = ref(props.defaultSortKey);
 const sortDirection = ref<'asc' | 'desc'>('asc');
 
@@ -256,8 +272,13 @@ tbody tr.clickable:hover { background: var(--surface-2); }
 .column-picker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px 0; }
 .column-picker-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--fs-xs); user-select: none; cursor: grab; }
 .column-picker-item.dragging { opacity: .45; }
-.column-picker-item > span:not(.column-drag-handle) { flex: 1; }
+.column-picker-item > span:not(.column-drag-handle):not(.column-reorder-buttons) { flex: 1; }
 .column-picker-item input { cursor: pointer; }
+.column-reorder-buttons { display: inline-flex; gap: 2px; }
+.column-reorder-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--muted); cursor: pointer; }
+.column-reorder-btn:hover:not(:disabled) { color: var(--text); background: var(--surface-3); }
+.column-reorder-btn:disabled { opacity: .35; cursor: not-allowed; }
+.column-reorder-btn svg { width: 14px; height: 14px; }
 .column-drag-handle { color: var(--muted); font-size: 18px; line-height: 1; }
 @media (max-width: 620px) { .column-picker-grid { grid-template-columns: 1fr; } }
 </style>

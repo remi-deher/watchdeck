@@ -69,6 +69,9 @@
   --keyboard-inset: 0px;
   --viewport-segment-gap: 0px;
   --mobile-nav-h: 64px;
+  /* Largeur de la colonne du rail. L'inset gauche (encoche en paysage) s'y ajoute :
+     sans cela le rail garderait 60px et son contenu serait comprime d'autant. */
+  --rail-w: calc(60px + var(--safe-left));
 }
 
 @media (horizontal-viewport-segments: 2) {

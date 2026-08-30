@@ -78,6 +78,9 @@ test.describe("Graphique d'activite", () => {
   test.beforeEach(async ({ page }) => {
     await mockApi(page, { snapshot: { timeline: timeline() } });
     await page.goto("/dashboard");
+    // La section Activite est repliee par defaut (UiDisclosure) : son contenu n'est
+    // monte qu'a la premiere ouverture, donc le graphique n'existe pas avant ce clic.
+    await page.locator(".ui-disclosure summary").filter({ hasText: "Activité" }).first().click();
   });
 
   test("le graphique se defile horizontalement au lieu d'etre tronque", async ({ page }) => {

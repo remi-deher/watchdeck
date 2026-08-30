@@ -12,7 +12,7 @@
         :value="query"
         type="search"
         :placeholder="placeholder"
-        :aria-label="placeholder"
+        :aria-label="`${placeholder} — ${title}`"
         class="psh-input"
         v-bind="$attrs"
         @input="$emit('update:query', ($event.target as HTMLInputElement).value); $emit('search', $event)"
@@ -90,9 +90,7 @@ defineEmits<{
   top: var(--safe-top);
   z-index: 20;
   padding: 10px 0;
-  background: color-mix(in srgb, var(--page-bg, #09090b) 94%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--page-bg, #09090b);
 }
 
 /* ── Col 1 : Titre (aligné à gauche) ── */
@@ -177,13 +175,29 @@ defineEmits<{
   flex-wrap: nowrap;
 }
 
-/* ── Mobile : empilement vertical ── */
+/* ── Mobile : le titre est porte par la barre de navigation contextuelle, qui nomme
+   deja la section courante. Le repeter ici coutait une ligne pour rien. On le retire
+   donc du flux sans le retirer du document : il reste le h1 de la page pour les
+   lecteurs d'ecran et pour le plan du document. ── */
 @media (max-width: 768px) {
   .psh-root {
     grid-template-columns: 1fr;
     gap: var(--space-2);
   }
-  .psh-title h1 { font-size: var(--fs-xl); white-space: normal; }
+
+  .psh-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .psh-desc { display: none; }
+  .psh-search-wrap { width: 100%; }
   .psh-actions { flex-wrap: wrap; }
 }
 </style>

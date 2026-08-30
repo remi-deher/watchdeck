@@ -56,7 +56,7 @@
       <button class="text-button" :disabled="busy" @click="clearSelection">Annuler la sélection</button>
     </div>
 
-    <div class="torrent-table-wrap" @dragover.prevent @drop.prevent="handleGlobalDrop">
+    <div class="torrent-table-wrap" tabindex="0" role="region" aria-label="Tableau des torrents, défilement horizontal" @dragover.prevent @drop.prevent="handleGlobalDrop">
       <table :class="['torrent-table', { 'compact-table': isCompact, 'incognito-mode': isIncognito }]">
         <thead>
           <tr>
@@ -66,6 +66,7 @@
               :key="column.key"
               :class="[column.className, { 'drag-over': dragOverKey === column.key, 'is-dragging': draggedColumnKey === column.key }]"
               :style="{ width: columnWidths[column.key] ? columnWidths[column.key] + 'px' : undefined }"
+              :aria-sort="sortKey===column.key?(sortDirection==='asc'?'ascending':'descending'):'none'"
               draggable="true"
               @dragstart="startColumnDrag(column.key, $event)"
               @dragover.prevent="dragOverColumn(column.key, $event)"
@@ -73,12 +74,12 @@
               @drop.prevent="dropColumn(column.key)"
             >
               <div class="th-content">
-                <button class="sort-button" :aria-sort="sortKey===column.key?(sortDirection==='asc'?'ascending':'descending'):'none'" @click="sortBy(column.key)">
+                <button class="sort-button" @click="sortBy(column.key)">
                   <span>{{ column.label }}</span>
                   <ArrowUpDown />
                 </button>
               </div>
-              <div class="col-resize-handle" title="Redimensionner la colonne" @mousedown.prevent.stop="startColumnResize(column.key, $event)"></div>
+              <div class="col-resize-handle" title="Redimensionner la colonne" @pointerdown.prevent.stop="startColumnResize(column.key, $event)"></div>
             </th>
             <th class="actions-cell"><span class="sr-only">Actions</span></th>
           </tr>
@@ -154,7 +155,7 @@
     <!-- Modal Personnalisation des colonnes -->
     <ModalShell :open="showColumnPicker" title="Personnaliser les colonnes" subtitle="Sélectionnez les colonnes à afficher dans le tableau des torrents." @close="showColumnPicker = false">
       <div class="column-picker-grid">
-        <div v-for="col in orderedColumns" :key="col.key" class="column-picker-item" :class="{ dragging: draggedColumnKey===col.key }" draggable="true" @dragstart="startColumnDrag(col.key, $event)" @dragover.prevent @drop="dropColumn(col.key)">
+        <div v-for="(col, index) in orderedColumns" :key="col.key" class="column-picker-item" :class="{ dragging: draggedColumnKey===col.key }" draggable="true" @dragstart="startColumnDrag(col.key, $event)" @dragover.prevent @drop="dropColumn(col.key)">
           <input
             type="checkbox"
             :checked="col.required || visibleColumnKeys.has(col.key)"
@@ -162,6 +163,10 @@
             @change="toggleColumnKey(col.key)"
           />
           <span>{{ col.label }}</span>
+          <span class="column-reorder-buttons">
+            <button type="button" class="column-reorder-btn" :disabled="index === 0" :aria-label="`Déplacer ${col.label} vers le haut`" @click="moveColumnKey(col.key, -1)"><ChevronUp /></button>
+            <button type="button" class="column-reorder-btn" :disabled="index === orderedColumns.length - 1" :aria-label="`Déplacer ${col.label} vers le bas`" @click="moveColumnKey(col.key, 1)"><ChevronDown /></button>
+          </span>
           <span class="column-drag-handle" aria-hidden="true">⠿</span>
         </div>
       </div>
@@ -241,7 +246,7 @@
         <section class="drawer-section">
           <h3>Contenu du torrent</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des fichiers...</div>
-          <div v-else-if="inspectorFiles.length" class="inspector-table-wrap">
+          <div v-else-if="inspectorFiles.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Contenu du torrent, défilement horizontal">
             <table class="inspector-table">
               <thead>
                 <tr>
@@ -276,7 +281,7 @@
         <section class="drawer-section">
           <h3>Annonces Trackers</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des trackers...</div>
-          <div v-else-if="inspectorTrackers.length" class="inspector-table-wrap">
+          <div v-else-if="inspectorTrackers.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Annonces trackers, défilement horizontal">
             <table class="inspector-table">
               <thead>
                 <tr>
@@ -305,7 +310,7 @@
         <section class="drawer-section">
           <h3>Paires connectées</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des paires...</div>
-          <div v-else-if="inspectorPeers.length" class="inspector-table-wrap">
+          <div v-else-if="inspectorPeers.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Paires connectées, défilement horizontal">
             <table class="inspector-table">
               <thead>
                 <tr>
@@ -371,7 +376,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { AlertTriangle, ArrowUpDown, Download, Eye, EyeOff, FileText, FileX2, Gauge, Info, Maximize2, Minimize2, Pause, Play, Radio, RotateCcw, SlidersHorizontal, Tag, Trash2, Upload, Users } from '@lucide/vue';
+import { AlertTriangle, ArrowUpDown, ChevronDown, ChevronUp, Download, Eye, EyeOff, FileText, FileX2, Gauge, Info, Maximize2, Minimize2, Pause, Play, Radio, RotateCcw, SlidersHorizontal, Tag, Trash2, Upload, Users } from '@lucide/vue';
 import { api } from '@/api';
 import { useConfirm } from '@/composables/useConfirm';
 import ConfirmModal from '@/components/ConfirmModal.vue';
@@ -554,15 +559,17 @@ let resizingKey: string | null = null;
 let resizeStartX = 0;
 let resizeStartWidth = 0;
 
-function startColumnResize(key: string, event: MouseEvent): void {
+// pointerdown/move/up plutot que mousedown/mousemove/mouseup : le redimensionnement
+// fonctionne ainsi aussi au doigt sur tablette, pas seulement a la souris.
+function startColumnResize(key: string, event: PointerEvent): void {
   resizingKey = key;
   resizeStartX = event.clientX;
   resizeStartWidth = columnWidths.value[key] || DEFAULT_COLUMN_WIDTHS[key] || 100;
-  window.addEventListener('mousemove', onColumnResizeMove);
-  window.addEventListener('mouseup', onColumnResizeEnd);
+  window.addEventListener('pointermove', onColumnResizeMove);
+  window.addEventListener('pointerup', onColumnResizeEnd);
 }
 
-function onColumnResizeMove(event: MouseEvent): void {
+function onColumnResizeMove(event: PointerEvent): void {
   if (!resizingKey) return;
   const deltaX = event.clientX - resizeStartX;
   const newWidth = Math.max(50, resizeStartWidth + deltaX);
@@ -574,8 +581,19 @@ function onColumnResizeMove(event: MouseEvent): void {
 
 function onColumnResizeEnd(): void {
   resizingKey = null;
-  window.removeEventListener('mousemove', onColumnResizeMove);
-  window.removeEventListener('mouseup', onColumnResizeEnd);
+  window.removeEventListener('pointermove', onColumnResizeMove);
+  window.removeEventListener('pointerup', onColumnResizeEnd);
+}
+
+// Equivalent clavier/tactile au glisser-deposer des colonnes (le drag-and-drop HTML5
+// n'est operable ni au clavier ni au toucher : WCAG 2.1.1 et 2.5.7).
+function moveColumnKey(key: string, direction: -1 | 1): void {
+  const next = [...columnOrder.value];
+  const index = next.indexOf(key);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= next.length) return;
+  [next[index], next[target]] = [next[target], next[index]];
+  columnOrder.value = next;
 }
 
 const orderedColumns = computed(() => columnOrder.value.map(key => ALL_COLUMNS.find(column => column.key === key)).filter((column): column is TorrentColumn => Boolean(column)));
@@ -992,7 +1010,7 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 
 .column-picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px 0}
 .torrent-table tbody tr{user-select:none;-webkit-user-select:none}
-.column-picker-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--surface-2);font-size:var(--fs-xs);user-select:none;cursor:grab}.column-picker-item.dragging{opacity:.45}.column-picker-item>span:not(.column-drag-handle){flex:1}.column-picker-item input{cursor:pointer}.column-drag-handle{color:var(--muted);font-size:18px;line-height:1}
+.column-picker-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--surface-2);font-size:var(--fs-xs);user-select:none;cursor:grab}.column-picker-item.dragging{opacity:.45}.column-picker-item>span:not(.column-drag-handle):not(.column-reorder-buttons){flex:1}.column-picker-item input{cursor:pointer}.column-reorder-buttons{display:inline-flex;gap:2px}.column-reorder-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--radius-xs);background:transparent;color:var(--muted);cursor:pointer}.column-reorder-btn:hover:not(:disabled){color:var(--text);background:var(--surface-3)}.column-reorder-btn:disabled{opacity:.35;cursor:not-allowed}.column-reorder-btn svg{width:14px;height:14px}.column-drag-handle{color:var(--muted);font-size:18px;line-height:1}
 .column-picker-item.disabled{opacity:0.6;cursor:not-allowed}
 
 @media(min-width:761px){

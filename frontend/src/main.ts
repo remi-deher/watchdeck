@@ -45,45 +45,53 @@ if (import.meta.env.PROD) {
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/discover' },
-  { path: '/dashboard', component: DashboardView },
-  { path: '/discover/source/:kind/:id', component: DiscoverView },
-  { path: '/discover/shows', component: DiscoverView },
-  { path: '/discover/movies', component: DiscoverView },
-  { path: '/discover/explore', component: DiscoverView },
-  { path: '/discover/requests', component: DiscoverView },
-  { path: '/discover/calendar', component: CalendarView },
-  { path: '/discover/media/:kind/:id', component: MediaDetailView },
-  { path: '/discover/person/:id', component: PersonDetailView },
-  { path: '/discover', component: DiscoverView },
-  { path: '/downloads', component: DownloadsView },
-  { path: '/activity', component: ActivityView },
-  { path: '/analytics', component: LibraryAnalyticsView },
+  { path: '/dashboard', component: DashboardView, meta: { title: 'Dashboard' } },
+  { path: '/discover/source/:kind/:id', component: DiscoverView, meta: { title: 'Découvrir' } },
+  { path: '/discover/shows', component: DiscoverView, meta: { title: 'Séries' } },
+  { path: '/discover/movies', component: DiscoverView, meta: { title: 'Films' } },
+  { path: '/discover/explore', component: DiscoverView, meta: { title: 'Explorer' } },
+  { path: '/discover/requests', component: DiscoverView, meta: { title: 'Mes demandes' } },
+  { path: '/discover/calendar', redirect: '/calendar' },
+  { path: '/discover/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
+  { path: '/discover/person/:id', component: PersonDetailView, meta: { title: 'Personne' } },
+  { path: '/discover', component: DiscoverView, meta: { title: 'Découvrir' } },
+  { path: '/downloads', component: DownloadsView, meta: { title: 'Téléchargements' } },
+  { path: '/activity', component: ActivityView, meta: { title: 'Activité & Insights' } },
+  { path: '/analytics', component: LibraryAnalyticsView, meta: { title: 'Analytique bibliothèque' } },
   { path: '/requests', redirect: (to) => ({ path: '/library', query: to.query }) },
-  { path: '/library', component: LibraryView },
-  { path: '/vf-upgrades', component: VfUpgradesView },
-  { path: '/issues', component: IssuesView },
-  { path: '/calendar', component: CalendarView },
-  { path: '/users', component: UsersView },
-  { path: '/users/:userId', component: UsersView },
-  { path: '/notifications', component: NotificationsView },
-  { path: '/logs', component: LogsView },
-  { path: '/settings', component: SettingsView },
+  { path: '/library', component: LibraryView, meta: { title: 'Bibliothèque' } },
+  { path: '/vf-upgrades', component: VfUpgradesView, meta: { title: 'Améliorations VF' } },
+  { path: '/issues', component: IssuesView, meta: { title: 'Problèmes signalés' } },
+  { path: '/calendar', component: CalendarView, meta: { title: 'Calendrier' } },
+  { path: '/users', component: UsersView, meta: { title: 'Administration' } },
+  { path: '/users/:userId', component: UsersView, meta: { title: 'Administration' } },
+  { path: '/notifications', component: NotificationsView, meta: { title: 'Notifications' } },
+  { path: '/logs', component: LogsView, meta: { title: 'Journaux' } },
+  { path: '/settings', component: SettingsView, meta: { title: 'Paramètres' } },
   { path: '/maintenance', redirect: { path: '/settings', query: { tab: 'scheduled-tasks' } } },
-  { path: '/profile', component: ProfileView },
-  { path: '/releases/:requestId', component: ReleaseSearchView },
-  { path: '/library/media/:kind/:id', component: MediaDetailView },
-  { path: '/media/:kind/:id', component: MediaDetailView },
+  { path: '/profile', component: ProfileView, meta: { title: 'Profil' } },
+  { path: '/releases/:requestId', component: ReleaseSearchView, meta: { title: 'Recherche de version' } },
+  { path: '/library/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
+  { path: '/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
   { path: '/:pathMatch(.*)*', redirect: '/discover' },
 ];
 
 const router = createRouter({
   history: createWebHistory('/'),
   routes,
+  scrollBehavior(_to, _from, savedPosition) {
+    return savedPosition || { top: 0 };
+  },
 });
 
 if (import.meta.env.PROD) {
   router.onError((error) => { void recoverFromStaleAssets(error); });
 }
+
+router.afterEach((to) => {
+  const title = typeof to.meta.title === 'string' ? to.meta.title : '';
+  document.title = title ? `${title} · Watchdeck` : 'Watchdeck';
+});
 
 const PLAIN_USER_ALLOWED_PREFIXES = ['/discover', '/calendar', '/profile', '/media', '/releases'];
 router.beforeEach(async (to) => {

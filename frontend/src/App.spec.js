@@ -43,7 +43,7 @@ describe('App.vue', () => {
     vi.clearAllMocks();
   });
 
-  it('ne rend aucun bouton ni lien "Aller au contenu principal" (skip-link)', async () => {
+  it('rend un skip-link pointant vers #main-content', async () => {
     const wrapper = mount(App, {
       global: {
         stubs: {
@@ -54,7 +54,8 @@ describe('App.vue', () => {
           RouterView: {
             template: '<div class="router-view-stub" />',
           },
-          SpaceSidebar: true,
+          AppNav: true,
+          CommandPalette: true,
           FeedbackToast: true,
           PlaybackToast: true,
           PwaUpdateBanner: true,
@@ -79,7 +80,9 @@ describe('App.vue', () => {
     });
     await flushPromises();
 
-    expect(wrapper.find('.skip-link').exists()).toBe(false);
-    expect(wrapper.text()).not.toContain('Aller au contenu principal');
+    const skipLink = wrapper.find('.skip-link');
+    expect(skipLink.exists()).toBe(true);
+    expect(skipLink.attributes('href')).toBe('#main-content');
+    expect(skipLink.text()).toContain('Aller au contenu principal');
   });
 });
