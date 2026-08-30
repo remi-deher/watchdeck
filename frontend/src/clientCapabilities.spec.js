@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { collectClientCapabilities } from './clientCapabilities';
+import { collectClientCapabilities, reportClientCapabilities } from './clientCapabilities';
+import { api } from './api';
+
+vi.mock('./api', () => ({ api: vi.fn(() => Promise.resolve({})) }));
 
 describe('collectClientCapabilities', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -16,5 +19,41 @@ describe('collectClientCapabilities', () => {
     expect(result).not.toHaveProperty('model');
     expect(result).not.toHaveProperty('userAgent');
     vi.unstubAllGlobals();
+  });
+});
+
+describe('reportClientCapabilities', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    sessionStorage.clear();
+  });
+
+  it("n'envoie rien tant que l'onglet masque mesure un viewport de 0", async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    vi.stubGlobal('innerWidth', 0);
+    vi.stubGlobal('innerHeight', 0);
+    vi.stubGlobal('visualViewport', { width: 0, height: 0 });
+    api.mockClear();
+
+    await reportClientCapabilities();
+
+    expect(api).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('watchdeck:client-capabilities:v1')).toBeNull();
+  });
+
+  it('envoie le releve des que le viewport est mesurable', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    vi.stubGlobal('innerWidth', 1280);
+    vi.stubGlobal('innerHeight', 720);
+    vi.stubGlobal('visualViewport', { width: 1280, height: 720 });
+    api.mockClear();
+
+    await reportClientCapabilities();
+
+    expect(api).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(api.mock.calls[0][1].body);
+    expect(payload.viewport.width).toBe(1280);
+    expect(sessionStorage.getItem('watchdeck:client-capabilities:v1')).toBe('1');
   });
 });

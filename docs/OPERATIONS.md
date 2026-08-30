@@ -90,3 +90,26 @@ entierement la base et ne peuvent pas s'executer en parallele l'une de l'autre.
 `/api/events` est un flux SSE authentifie par cookie de session. Redis Streams conserve les 1 000
 derniers signaux et permet la reprise via `Last-Event-ID`. Les evenements ne contiennent pas de liste
 metier : le navigateur recharge l'endpoint REST soumis aux permissions de l'utilisateur.
+
+## Reverse-proxy : HTTP/2 et cache des assets
+
+Watchdeck sert une SPA : une navigation demande l'entree, les chunks de route et les feuilles
+de style, soit plusieurs dizaines de fichiers. En HTTP/1.1 le navigateur plafonne a six
+connexions par origine et la cascade s'allonge d'autant. Verifier le protocole reellement
+negocie :
+
+```bash
+curl -s -o /dev/null -w '%{http_version}\n' https://<domaine>/dashboard
+```
+
+La reponse doit etre `2`. Si elle vaut `1.1`, activer HTTP/2 sur le proxy.
+
+- **Nginx Proxy Manager** (`Server: openresty` et en-tete `X-Served-By` dans la reponse) :
+  *Hosts > Proxy Hosts > editer l'hote > onglet SSL > cocher `HTTP/2 Support` > Save*.
+  L'option n'apparait qu'une fois un certificat SSL attache.
+- **Nginx nu** : `listen 443 ssl; http2 on;` dans le `server` block.
+- **Caddy / Traefik** : actif par defaut, rien a faire.
+
+Les assets sous `/vue/assets/` portent un hash de contenu dans leur nom et ne changent jamais
+a URL constante : ils supportent `Cache-Control: public, max-age=31536000, immutable`. Un
+`max-age` court y fait revalider tout le bundle a chaque expiration sans aucun benefice.
