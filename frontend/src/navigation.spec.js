@@ -26,17 +26,32 @@ describe('navigation — destinations', () => {
   });
 
   it('résout la destination depuis le chemin, y compris ses routes annexes', () => {
-    expect(destinationForPath('/analytics')?.key).toBe('activity');
-    expect(destinationForPath('/vf-upgrades')?.key).toBe('library');
-    expect(destinationForPath('/logs')?.key).toBe('settings');
-    expect(destinationForPath('/notifications')?.key).toBe('admin');
-    expect(destinationForPath('/profile')).toBeNull();
+    expect(destinationForPath('/analytics', true, true)?.key).toBe('activity');
+    expect(destinationForPath('/vf-upgrades', true, true)?.key).toBe('library');
+    expect(destinationForPath('/logs', true, true)?.key).toBe('settings');
+    expect(destinationForPath('/notifications', true, true)?.key).toBe('admin');
+    expect(destinationForPath('/calendar', false, false)?.key).toBe('discover');
+    expect(destinationForPath('/profile', true, true)).toBeNull();
+  });
+
+  it('rattache /issues au tableau de bord pour un admin, mais pas pour un modérateur', () => {
+    expect(destinationForPath('/issues', true, true)?.key).toBe('dashboard');
+    expect(destinationForPath('/issues', false, true)?.key).toBe('issues');
+  });
+
+  it('expose au moins une section par destination, pour ne jamais vider la barre', () => {
+    for (const destination of destinationsFor(true, true)) {
+      expect(sectionsFor(destination.key, ctx()).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('regroupe chaque destination sous Explorer ou Gestion', () => {
+    expect(new Set(DESTINATIONS.map((d) => d.group))).toEqual(new Set(['Explorer', 'Gestion']));
   });
 
   it('réserve les destinations d’administration aux admins', () => {
     const plain = destinationsFor(false, false).map((d) => d.key);
     expect(plain).toContain('discover');
-    expect(plain).toContain('calendar');
     expect(plain).not.toContain('dashboard');
     expect(plain).not.toContain('settings');
   });
@@ -48,9 +63,16 @@ describe('navigation — destinations', () => {
 });
 
 describe('navigation — sections', () => {
-  it('donne à Découvrir ses sections, sans le Calendrier devenu destination', () => {
+  it('donne à Découvrir ses cinq sections, Calendrier compris', () => {
     const sections = sectionsFor('discover', ctx());
-    expect(keys(sections)).toEqual(['home', 'shows', 'movies', 'requests']);
+    expect(keys(sections)).toEqual(['home', 'shows', 'movies', 'requests', 'calendar']);
+  });
+
+  it('remplit la barre d’un utilisateur simple sans rien lui cacher', () => {
+    const plain = destinationsFor(false, false);
+    expect(keys(plain)).toEqual(['discover']);
+    // Cinq sections : la barre est pleine sans déborder dans le ☰.
+    expect(sectionsFor('discover', ctx({ isAdmin: false, canModerate: false }))).toHaveLength(5);
   });
 
   it('réserve Améliorations VF aux admins dans la Bibliothèque', () => {
@@ -89,8 +111,7 @@ describe('navigation — sections', () => {
     expect(keys(sections)).toEqual(['overview', 'queue', 'clients']);
   });
 
-  it('retourne une liste vide pour une destination sans sections', () => {
-    expect(sectionsFor('calendar', ctx())).toEqual([]);
+  it('retourne une liste vide pour une destination inconnue', () => {
     expect(sectionsFor('inconnue', ctx())).toEqual([]);
   });
 
