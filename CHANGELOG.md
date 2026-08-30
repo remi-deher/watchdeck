@@ -1,24 +1,41 @@
 # Changelog
 
+## 1.15.1 — 2026-08-30
+
+
+### ⚡ Performance
+
+- regroupe les chunks et corrige le releve de capacites en onglet masque ([ccbf076](https://github.com/remi-deher/watchdeck/commit/ccbf07668b4f7f4d6a26e7571781628275fe022e))
 ## 1.15.0 — 2026-08-30
 
 
 ### test
 
+- align navigation tests with the new shell ([ad4cad5](https://github.com/remi-deher/watchdeck/commit/ad4cad5713729baa64b9625c91ff1837ca4aa557))
 - align navigation tests with the new shell ([379f344](https://github.com/remi-deher/watchdeck/commit/379f3444f0217a799ad52841b449093ff6a3dbfa))
 
 ### ♻️ Refactoring
 
+- make /calendar the single canonical calendar route ([a1d333e](https://github.com/remi-deher/watchdeck/commit/a1d333ebf08c712ede75715e4372603831e9b9e3))
+- extract UiDisclosure, defer two more dashboard sections ([5ed9bd0](https://github.com/remi-deher/watchdeck/commit/5ed9bd0e1b63cdf7fa3ce2ec461b04566bbf0680))
+- single navigation model of destinations and sections ([74a8eb3](https://github.com/remi-deher/watchdeck/commit/74a8eb3a32dc8512b44f27b60a4113b48a97c6aa))
 - make /calendar the single canonical calendar route ([792a43e](https://github.com/remi-deher/watchdeck/commit/792a43e84a1607c98f2d4a7f62c56bd56321fba6))
 - extract UiDisclosure, defer two more dashboard sections ([a9d7dd0](https://github.com/remi-deher/watchdeck/commit/a9d7dd04b0c703f4e58b20e07a8b0e32695d6245))
 - single navigation model of destinations and sections ([0b78880](https://github.com/remi-deher/watchdeck/commit/0b78880b5430fa7befc4d725bd9e77a75ea5cbfd))
 
 ### ⚡ Performance
 
+- collapse generic genre rails, surface personalised content first ([16e1f9d](https://github.com/remi-deher/watchdeck/commit/16e1f9d321ada57a9ee10fe7cbd6a965a5ef9640))
 - collapse generic genre rails, surface personalised content first ([44c32d6](https://github.com/remi-deher/watchdeck/commit/44c32d6691dc127587309974524d815f9b6a25c3))
 
 ### ✨ Nouveautés
 
+- persistent global rail alongside the contextual space panel ([1770528](https://github.com/remi-deher/watchdeck/commit/17705283e04a853e75d69310bf0f52267ab7d42b))
+- stable mobile tab bar, space context moves to a subnav ([d077a4a](https://github.com/remi-deher/watchdeck/commit/d077a4aac41022921dcf7d34ce66fe67781a94ed))
+- command palette on Ctrl/Cmd+K ([0dac3c7](https://github.com/remi-deher/watchdeck/commit/0dac3c75ee4fa3764a201d6f828046468ba68828))
+- discoverable search button in the global rail ([6fb7f17](https://github.com/remi-deher/watchdeck/commit/6fb7f1742ec9fce2bb2eeaff6a3bdbf7742e9201))
+- AppNav puts the current area's sections in the bar, spaces behind the burger ([5557538](https://github.com/remi-deher/watchdeck/commit/55575383b4b93a586ac203f1301f435467ee287e))
+- replace the shell with one navigation, two orientations ([52708f7](https://github.com/remi-deher/watchdeck/commit/52708f73393040b156aaf1773caaa02be127eae0))
 - persistent global rail alongside the contextual space panel ([9045113](https://github.com/remi-deher/watchdeck/commit/9045113e53221a7aeb0bbfe22d709edac3379bd3))
 - stable mobile tab bar, space context moves to a subnav ([45fbee1](https://github.com/remi-deher/watchdeck/commit/45fbee10a4ef4749d1f4d0349a9c19b94ff2dc25))
 - command palette on Ctrl/Cmd+K ([64a934b](https://github.com/remi-deher/watchdeck/commit/64a934b2ff4450919949e44b22063827fbfe8bb2))
@@ -28,6 +45,20 @@
 
 ### 🐛 Corrections
 
+- allow pinch-to-zoom by removing user-scalable=no ([2434b00](https://github.com/remi-deher/watchdeck/commit/2434b00c5ba86a3c6881c24186dfcdef2f410615))
+- define .sr-only globally to fix leaked visible text ([4988093](https://github.com/remi-deher/watchdeck/commit/498809329d202a9073f37a988d0f1662b47bb1e8))
+- add skip link to main content ([46a2638](https://github.com/remi-deher/watchdeck/commit/46a26385ba6597924862e0415ccb4a44a7b2d522))
+- restore scroll position on back/forward navigation ([acbb454](https://github.com/remi-deher/watchdeck/commit/acbb4544ea8890378c8a3232660878f0344bd574))
+- announce route changes to title, focus, and screen readers ([b8bf7ff](https://github.com/remi-deher/watchdeck/commit/b8bf7ffac2f17cf417e7976ecec8654f90d0c127))
+- close modals/sheets on back button instead of leaving the page ([25b01df](https://github.com/remi-deher/watchdeck/commit/25b01dfd79ac0c507834ce38e0cc176b597e2bcd))
+- make background content inert while a dialog is open ([07851f1](https://github.com/remi-deher/watchdeck/commit/07851f1fcff03c9ea179c30545ee598fa5291149))
+- keyboard/touch equivalents for column drag-and-drop, fix aria-sort ([253c092](https://github.com/remi-deher/watchdeck/commit/253c0922ff75b801d7d7463010786d66bb7e4e8e))
+- make horizontally-scrolling data tables keyboard-reachable ([f761782](https://github.com/remi-deher/watchdeck/commit/f7617822e63ccfb7c31b7d5cb90e806003d0170d))
+- surface update-available toast, fix manifest start_url ([e3f87d7](https://github.com/remi-deher/watchdeck/commit/e3f87d73ea0db7c21c1c1c6a4692a477f1701669))
+- collapse inactive branches in the downloads tree ([7647040](https://github.com/remi-deher/watchdeck/commit/7647040c3b9394270bc0fb9ab22466efe472d1bb))
+- clear orphan references before adding the media identity foreign keys ([e35de51](https://github.com/remi-deher/watchdeck/commit/e35de5106fab61b2007a0ab7051b8b8fa885d2f0))
+- drop the page title on mobile, make the search header opaque ([9bc91ed](https://github.com/remi-deher/watchdeck/commit/9bc91ed4762b04b955181de1b6caa95f16897662))
+- let poster rails scroll freely instead of snapping to each poster ([461ec69](https://github.com/remi-deher/watchdeck/commit/461ec6969666846c17043f829f10accdfe5e89d8))
 - allow pinch-to-zoom by removing user-scalable=no ([874c680](https://github.com/remi-deher/watchdeck/commit/874c680211d12c8e7c1391dbf60b996df8f221c6))
 - define .sr-only globally to fix leaked visible text ([6d02b1b](https://github.com/remi-deher/watchdeck/commit/6d02b1b81f4bae3ea7a0dae72ec2388a0bb138de))
 - add skip link to main content ([e0cc33a](https://github.com/remi-deher/watchdeck/commit/e0cc33a5f3039e000d1c407c76c10c38dcb1ac50))
@@ -42,6 +73,10 @@
 - clear orphan references before adding the media identity foreign keys ([fc2efd8](https://github.com/remi-deher/watchdeck/commit/fc2efd8fd8030044f0e98247f9049a5392112954))
 - drop the page title on mobile, make the search header opaque ([431a3af](https://github.com/remi-deher/watchdeck/commit/431a3affbd41649ff12a0c189d6083f77ce99ea3))
 - let poster rails scroll freely instead of snapping to each poster ([f9a1435](https://github.com/remi-deher/watchdeck/commit/f9a14353d6f316f049b87abc94cd84f5a2245e37))
+
+### 🔧 Maintenance
+
+- v1.15.0 (#192) ([a7f7243](https://github.com/remi-deher/watchdeck/commit/a7f72437bb6d775eb7b9fb475501bd6c3c7beab5))
 ## 1.14.2 — 2026-08-27
 
 
