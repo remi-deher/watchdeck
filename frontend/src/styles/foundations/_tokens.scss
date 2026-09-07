@@ -68,10 +68,16 @@
   --visual-viewport-offset-left: 0px;
   --keyboard-inset: 0px;
   --viewport-segment-gap: 0px;
+  /* Reserve la place de la navigation haute aux overlays teleportes dans body. */
+  --app-top-nav-clearance: 0px;
   --mobile-nav-h: 64px;
   /* Largeur de la colonne du rail. L'inset gauche (encoche en paysage) s'y ajoute :
      sans cela le rail garderait 60px et son contenu serait comprime d'autant. */
-  --rail-w: calc(60px + var(--safe-left));
+  --rail-w: calc(232px + var(--safe-left));
+}
+
+@media (min-width: 900px) {
+  :root { --app-top-nav-clearance: 64px; }
 }
 
 @media (horizontal-viewport-segments: 2) {

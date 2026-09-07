@@ -1,13 +1,10 @@
 /**
  * Modèle de navigation unique de l'application.
  *
- * Un seul jeu d'éléments quel que soit l'appareil : les mêmes destinations, les mêmes
- * sections, la même logique d'état actif. Seule l'orientation change — rail vertical à
- * gauche sur grand écran, barre horizontale en bas sur mobile (voir AppNav.vue).
- *
- * Il n'y a donc plus ni « espaces » remplaçant la navigation, ni arbre de bureau
- * distinct de la liste mobile : une destination porte éventuellement des sections, et
- * ces sections se rendent identiquement partout.
+ * Un seul modèle quel que soit l'appareil : les destinations forment le premier niveau
+ * (sidebar ou barre basse), leurs sections métier le second (onglets contextuels).
+ * Les filtres et les périmètres techniques (instances *ARR, clients) restent dans les
+ * barres d'outils des pages : ils ne doivent jamais se faire passer pour des onglets.
  */
 import type { Component } from 'vue';
 import type { RouteLocationNormalizedLoaded } from 'vue-router';
@@ -16,9 +13,7 @@ import {
   Bell,
   CalendarDays,
   ChartNoAxesCombined,
-  Clock,
   Compass,
-  DatabaseZap,
   Download,
   Film,
   Gauge,
@@ -26,17 +21,10 @@ import {
   House,
   Inbox,
   Languages,
-  Layers3,
   Library,
-  Link,
   ListOrdered,
-  ListRestart,
   MessageSquareWarning,
-  Music2,
-  Plug,
   ScrollText,
-  Server,
-  ServerCog,
   Settings,
   Tv,
   Users,
@@ -83,15 +71,15 @@ export interface NavContext {
 /* ────────────────────────────── Destinations ────────────────────────────── */
 
 export const DESTINATIONS: NavDestination[] = [
-  { key: 'discover', label: 'Découvrir', icon: Compass, group: 'Explorer', match: (p) => p.startsWith('/discover') || p.startsWith('/calendar'), to: '/discover' },
+  { key: 'dashboard', label: 'Accueil', icon: Gauge, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/dashboard') || p.startsWith('/issues'), to: '/dashboard' },
+  { key: 'discover', label: 'Explorer', icon: Compass, group: 'Explorer', match: (p) => (p.startsWith('/discover') && !p.startsWith('/discover/requests')) || p.startsWith('/calendar'), to: '/discover' },
+  { key: 'requests', label: 'Demandes', icon: Inbox, group: 'Workflow', match: (p) => p.startsWith('/discover/requests') || p.startsWith('/releases/'), to: '/discover/requests' },
+  { key: 'downloads', label: 'Acquisition', icon: GitBranch, group: 'Workflow', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
   { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
-  { key: 'dashboard', label: 'Tableau de bord', icon: Gauge, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/dashboard') || p.startsWith('/issues'), to: '/dashboard' },
-  { key: 'downloads', label: 'Téléchargements', icon: Download, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
-  { key: 'activity', label: 'Activité & Insights', icon: Activity, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/activity') || p.startsWith('/analytics'), to: '/activity' },
-  { key: 'admin', label: 'Administration', icon: Wrench, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/users') || p.startsWith('/notifications'), to: '/users' },
-  { key: 'settings', label: 'Paramètres', icon: Settings, group: 'Gestion', access: 'admin', match: (p) => p.startsWith('/settings') || p.startsWith('/logs') || p.startsWith('/maintenance'), to: '/settings' },
+  { key: 'activity', label: 'Activité', icon: Activity, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/activity') || p.startsWith('/analytics'), to: '/activity' },
+  { key: 'admin', label: 'Administration', icon: Wrench, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/users') || p.startsWith('/notifications') || p.startsWith('/settings') || p.startsWith('/logs') || p.startsWith('/maintenance'), to: '/users' },
   // Un moderateur sans acces au tableau de bord garde les signalements comme espace propre.
-  { key: 'issues', label: 'Problèmes signalés', icon: MessageSquareWarning, group: 'Gestion', access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues'), to: '/issues' },
+  { key: 'issues', label: 'Problèmes signalés', icon: MessageSquareWarning, group: 'Pilotage', access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues'), to: '/issues' },
 ];
 function permitted<T extends { access?: Access; moderatorOnly?: boolean }>(
   items: T[],
@@ -142,65 +130,21 @@ function libraryFilter(key: string, label: string, icon: Component, types: strin
       // Une fiche média n'active aucun filtre de la grille.
       if (route?.path?.startsWith('/library/media')) return false;
       const selected = libraryTypeFilters(route);
-      return types.length ? types.some((type) => selected.includes(type)) : !selected.length;
+      // Le type de média est un filtre local, pas une sous-section : « Catalogue »
+      // reste donc actif quel que soit le filtre Séries/Films/Musique sélectionné.
+      return types.length ? types.some((type) => selected.includes(type)) : true;
     },
   };
 }
 
-const MUSIC_TYPES = ['artist', 'album', 'track'];
-
-const SETTINGS_SECTIONS: NavSection[] = [
-  { key: 'overview', label: 'Vue d’ensemble', to: { path: '/settings', query: { tab: 'overview' } }, icon: ServerCog },
-  { key: 'plex', label: 'Plex & Bibliothèque', group: 'Services', to: { path: '/settings', query: { tab: 'plex' } }, icon: Tv },
-  { key: 'services', label: 'Intégrations', group: 'Services', to: { path: '/settings', query: { tab: 'services' } }, icon: Plug },
-  { key: 'webhooks', label: 'Webhooks & API', group: 'Services', to: { path: '/settings', query: { tab: 'webhooks' } }, icon: Link },
-  { key: 'downloads', label: 'Téléchargements', group: 'Bibliothèque & acquisition', to: { path: '/settings', query: { tab: 'downloads' } }, icon: Download },
-  { key: 'vf-upgrades', label: 'Améliorations VF', group: 'Bibliothèque & acquisition', to: { path: '/settings', query: { tab: 'vf-upgrades' } }, icon: Languages },
-  { key: 'scheduled-tasks', label: 'Planification & Maintenance', group: 'Bibliothèque & acquisition', to: { path: '/settings', query: { tab: 'scheduled-tasks' } }, icon: Clock },
-  { key: 'acquisitions', label: 'Acquisitions & Conflits', group: 'Exploitation', to: { path: '/settings', query: { tab: 'acquisitions' } }, icon: ListRestart },
-  { key: 'logs', label: 'Journaux', group: 'Exploitation', to: '/logs', icon: ScrollText },
-  { key: 'data', label: 'Données & RGPD', group: 'Système', to: { path: '/settings', query: { tab: 'data' } }, icon: DatabaseZap },
-  { key: 'system-version', label: 'Version & mises à jour', group: 'Système', to: { path: '/settings', query: { tab: 'system-version' } }, icon: GitBranch },
-];
-
-function downloadSections(context: NavContext): NavSection[] {
-  const sections: NavSection[] = [
+function pipelineSections(): NavSection[] {
+  return [
     { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge },
     { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered },
+    { key: 'movies', label: 'Films', to: { path: '/downloads', query: { view: 'radarr' } }, icon: Film },
+    { key: 'shows', label: 'Séries', to: { path: '/downloads', query: { view: 'sonarr' } }, icon: Tv },
+    { key: 'clients', label: 'Clients', to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } }, icon: Download },
   ];
-
-  // Une instance sans identifiant n'a pas de route a cibler : on ne l'affiche pas.
-  const enabledArr = context.arrInstances.filter(
-    (item) => item.id != null && item.enabled !== false && ['radarr', 'sonarr'].includes(String(item.arr_type))
-  );
-  for (const instance of enabledArr) {
-    sections.push({
-      key: `${instance.arr_type}-${instance.id}`,
-      label: instance.name || `Instance ${instance.id}`,
-      group: 'Gestionnaires de médias',
-      icon: instance.arr_type === 'radarr' ? Film : Tv,
-      to: { path: '/downloads', query: { view: instance.arr_type, instance: String(instance.id) } },
-    });
-  }
-
-  sections.push({
-    key: 'clients',
-    label: 'Tous les torrents',
-    group: 'Clients torrent',
-    icon: Layers3,
-    to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } },
-  });
-  for (const client of context.downloadClients.filter((item) => item.id != null && item.enabled !== false)) {
-    sections.push({
-      key: `client-${client.id}`,
-      label: client.name || `Client ${client.id}`,
-      group: 'Clients torrent',
-      icon: Server,
-      to: { path: '/downloads', query: { view: 'clients', sub: 'instances', client: String(client.id) } },
-    });
-  }
-
-  return sections;
 }
 
 /**
@@ -219,16 +163,15 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'home', label: 'Accueil', to: '/discover', icon: House },
         { key: 'shows', label: 'Séries', to: '/discover/shows', icon: Tv },
         { key: 'movies', label: 'Films', to: '/discover/movies', icon: Film },
-        { key: 'requests', label: 'Demandes', to: '/discover/requests', icon: Inbox },
         { key: 'calendar', label: 'Calendrier', to: '/calendar', icon: CalendarDays },
       ];
       break;
+    case 'requests':
+      sections = [{ key: 'tracking', label: 'Suivi des demandes', to: '/discover/requests', icon: Inbox }];
+      break;
     case 'library':
       sections = [
-        libraryFilter('home', 'Tout', House, []),
-        libraryFilter('shows', 'Séries', Tv, ['show']),
-        libraryFilter('movies', 'Films', Film, ['movie']),
-        libraryFilter('music', 'Musiques', Music2, MUSIC_TYPES),
+        libraryFilter('catalog', 'Catalogue', Library, []),
         { key: 'vf', label: 'Améliorations VF', to: '/vf-upgrades', icon: Languages, access: 'admin' },
       ];
       break;
@@ -248,16 +191,15 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       sections = [
         { key: 'users', label: 'Utilisateurs', to: '/users', icon: Users },
         { key: 'notifications', label: 'Notifications', to: '/notifications', icon: Bell },
+        { key: 'settings', label: 'Paramètres', to: '/settings', icon: Settings },
+        { key: 'logs', label: 'Exploitation', to: '/logs', icon: ScrollText },
       ];
       break;
     case 'issues':
       sections = [{ key: 'issues', label: 'Problèmes', to: '/issues', icon: MessageSquareWarning }];
       break;
     case 'downloads':
-      sections = downloadSections(context);
-      break;
-    case 'settings':
-      sections = SETTINGS_SECTIONS;
+      sections = pipelineSections();
       break;
     default:
       sections = [];

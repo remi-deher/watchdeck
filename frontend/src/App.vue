@@ -1,9 +1,9 @@
 <template>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
-  <div class="shell" :class="{ 'shell--bar': !isWide }">
-    <!-- Une seule navigation, deux orientations : rail à gauche ou barre en bas. -->
+  <div class="shell" :class="isWide ? 'shell--top' : 'shell--bar'">
+    <!-- Navigation adaptative : destinations principales + sections contextuelles. -->
     <AppNav
-      :orientation="isWide ? 'rail' : 'bar'"
+      :orientation="isWide ? 'top' : 'bar'"
       :is-admin="isAdmin"
       :can-moderate="canModerate"
       @open-palette="palette?.open()"
@@ -40,8 +40,9 @@ useVisualViewport();
 const route=useRoute();
 const isAdmin=computed(()=>isAdminSession(session.value));
 const canModerate=computed(()=>canModerateSession(session.value));
-// Le seuil unique du shell : au-dela, la navigation est un rail ; en deca, une barre.
-const isWide=useMediaQuery('(min-width: 768px)');
+// Le shell garde la même hiérarchie, mais l'adapte à la portée : barre haute sur les
+// grands écrans, dock inférieur sur téléphone et tablette étroite.
+const isWide=useMediaQuery('(min-width: 900px)');
 const toasts=ref<any[]>([]);
 const seenPlaybackEvents=new Set<string>();
 const toastTimers=new Map<string, ReturnType<typeof setTimeout>>();
