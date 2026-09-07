@@ -68,14 +68,12 @@ test("conserve le catalogue Films lors d'une recherche", async ({ page }) => {
 });
 
 test("affiche la navigation dédiée et replie les filtres", async ({ page }) => {
-  // Une seule navigation (AppNav) rendue en rail ou en barre selon la largeur, et qui
-  // porte les sections de l'espace courant -- ici celles de Découvrir.
-  // .app-nav-items : la liste des sections, sans la marque ni le bouton ☰.
-  const navigation = page.locator('.app-nav-items');
-  await expect(navigation.getByRole("link", { name: "Accueil" })).toBeVisible();
+  // Une seule navigation contextuelle (AppNav), haute ou basse selon la largeur.
+  const navigation = page.locator('.app-primary-items');
   await expect(navigation.getByRole("link", { name: "Séries" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Films" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Demandes" })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Calendrier" })).toBeVisible();
   const filters = page.viewportSize().width <= 900
     ? page.locator('.modal-panel')
     : page.locator('.filter-sidebar');
@@ -100,8 +98,8 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   await navigation.getByRole("link", { name: "Séries" }).click();
   await expect(page).toHaveURL(/\/discover\/shows$/);
   await expect(page.getByRole("searchbox", { name: "Rechercher une série" })).toBeVisible();
-  await navigation.getByRole("link", { name: "Accueil" }).click();
-  await expect(page).toHaveURL(/\/discover$/);
+  await navigation.getByRole("link", { name: "Films" }).click();
+  await expect(page).toHaveURL(/\/discover\/movies$/);
 });
 
 test("reste utilisable au clavier et sur mobile", async ({ page }, testInfo) => {
@@ -114,23 +112,20 @@ test("reste utilisable au clavier et sur mobile", async ({ page }, testInfo) => 
   }
 });
 
-test("centre la recherche dans le contenu, sous un rail de largeur fixe", async ({ page }) => {
+test("centre la recherche dans le contenu, sous la navigation commune", async ({ page }) => {
   const searchBox = await page.locator('.psh-search-wrap').boundingBox();
   const mainBox = await page.locator('#main-content').boundingBox();
   expect(Math.abs((searchBox.x + searchBox.width / 2) - (mainBox.x + mainBox.width / 2))).toBeLessThan(3);
 
-  if (page.viewportSize().width > 640) {
-    // Le rail a remplace la sidebar repliable : deja reduit a une colonne d'icones, il
-    // n'a plus de bascule ni d'etat a memoriser. Sa largeur ne bouge donc pas d'un
-    // chargement a l'autre, et le contenu garde la meme origine.
-    const rail = page.locator('.app-nav--rail');
-    await expect(rail).toBeVisible();
+  if (page.viewportSize().width >= 900) {
+    const top = page.locator('.app-primary-nav--top');
+    await expect(top).toBeVisible();
     expect(await page.getByRole('button', { name: /Réduire le menu|Afficher le menu/ }).count()).toBe(0);
 
-    const widthBefore = (await rail.boundingBox()).width;
+    const widthBefore = (await top.boundingBox()).width;
     await page.reload();
-    await expect(rail).toBeVisible();
-    expect((await rail.boundingBox()).width).toBe(widthBefore);
+    await expect(top).toBeVisible();
+    expect((await top.boundingBox()).width).toBe(widthBefore);
     expect((await page.locator('#main-content').boundingBox()).x).toBe(mainBox.x);
   }
 });
