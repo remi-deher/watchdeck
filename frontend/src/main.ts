@@ -45,8 +45,8 @@ if (import.meta.env.PROD) {
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/discover' },
-  { path: '/dashboard', component: DashboardView, meta: { title: 'Dashboard' } },
-  { path: '/discover/source/:kind/:id', component: DiscoverView, meta: { title: 'Découvrir' } },
+  { path: '/dashboard', component: DashboardView, meta: { title: 'Accueil' } },
+  { path: '/discover/source/:kind/:id', component: DiscoverView, meta: { title: 'Explorer' } },
   { path: '/discover/shows', component: DiscoverView, meta: { title: 'Séries' } },
   { path: '/discover/movies', component: DiscoverView, meta: { title: 'Films' } },
   { path: '/discover/explore', component: DiscoverView, meta: { title: 'Explorer' } },
@@ -54,8 +54,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/discover/calendar', redirect: '/calendar' },
   { path: '/discover/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
   { path: '/discover/person/:id', component: PersonDetailView, meta: { title: 'Personne' } },
-  { path: '/discover', component: DiscoverView, meta: { title: 'Découvrir' } },
-  { path: '/downloads', component: DownloadsView, meta: { title: 'Téléchargements' } },
+  { path: '/discover', component: DiscoverView, meta: { title: 'Explorer' } },
+  { path: '/downloads', component: DownloadsView, meta: { title: 'Acquisition' } },
   { path: '/activity', component: ActivityView, meta: { title: 'Activité & Insights' } },
   { path: '/analytics', component: LibraryAnalyticsView, meta: { title: 'Analytique bibliothèque' } },
   { path: '/requests', redirect: (to) => ({ path: '/library', query: to.query }) },

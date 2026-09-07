@@ -11,7 +11,16 @@
       @toggle-filters="filtersOpen = !filtersOpen"
     >
       <template v-if="['radarr', 'sonarr'].includes(section)" #status>
-        <TabNav class="arr-title-tabs" :model-value="subview" :tabs="subnavTabs" :aria-label="`Navigation secondaire — ${pageTitle}`" @update:model-value="selectSubview" />
+        <div class="pipeline-scope">
+          <label v-if="sectionArrInstances.length > 1">
+            <span>Instance</span>
+            <select :value="selectedInstanceId" aria-label="Limiter à une instance" @change="selectInstanceScope">
+              <option value="">Toutes</option>
+              <option v-for="source in sectionArrInstances" :key="source.id" :value="String(source.id)">{{ source.name }}</option>
+            </select>
+          </label>
+          <TabNav class="arr-title-tabs" :model-value="subview" :tabs="subnavTabs" :aria-label="`Navigation secondaire — ${pageTitle}`" @update:model-value="selectSubview" />
+        </div>
       </template>
       <template v-if="section==='clients'&&subview==='instances'&&!sourceNeedsConfiguration" #actions>
         <div class="client-header-actions">
@@ -454,10 +463,13 @@ const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
 const HISTORY_PAGE_SIZE=100;
 const request=useLatestRequest();
 
-const filteredSectionArrInstances = computed(() => {
+const sectionArrInstances = computed(() => {
   if (!['radarr', 'sonarr'].includes(section.value)) return [];
-  return configuredArr.value.filter((inst: any) => inst.arr_type === section.value && (!selectedInstanceId.value || String(inst.id) === selectedInstanceId.value));
+  return configuredArr.value.filter((inst: any) => inst.arr_type === section.value);
 });
+const filteredSectionArrInstances = computed(() => sectionArrInstances.value.filter(
+  (inst: any) => !selectedInstanceId.value || String(inst.id) === selectedInstanceId.value
+));
 
 
 function extractQuality(row: any): string {
@@ -659,6 +671,12 @@ const activeClientFilterCount=computed(()=>[query.value,status.value,clientCateg
 const totalActiveFilterCount=computed(()=>section.value==='clients'?activeClientFilterCount.value:[query.value,instance.value,status.value||statusFilter.value].filter(Boolean).length);
 const resultCount=computed(()=>section.value==='clients'?filteredClients.value.length:subview.value==='missing'?missingItemCount.value:showHistory.value?filteredHistory.value.length:filteredQueue.value.length);
 function selectSubview(value: string){statusFilter.value='';router.replace({path:'/downloads',query:{...route.query,view:section.value,sub:value}})}
+function selectInstanceScope(event: Event){
+  const value=(event.target as HTMLSelectElement).value;
+  const next={...route.query,view:section.value};
+  if(value)next.instance=value;else delete next.instance;
+  router.replace({path:'/downloads',query:next});
+}
 function selectClientDashboard(client: any){router.replace({path:'/downloads',query:{view:'clients',sub:'instances',client:client.id}})}
 function openUnmatched(){router.replace({path:'/downloads',query:{view:'queue',sub:'intervention'}});statusFilter.value='unmatched'}
 function resetFilters(){query.value='';instance.value='';status.value='';statusFilter.value='';clientCategory.value='';clientOwnership.value='';clientTracker.value=''}
@@ -773,6 +791,9 @@ onMounted(async()=>{await loadConfigurations();if(section.value==='clients')load
 <style scoped lang="scss">
 
 .wanted-section{display:grid;gap:var(--space-3);padding:16px}
+.pipeline-scope{display:flex;align-items:center;gap:var(--space-2);min-width:0}
+.pipeline-scope label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--fs-xs);font-weight:650}
+.pipeline-scope select{max-width:180px;min-height:34px;padding:0 28px 0 10px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--surface);color:var(--text);font:inherit}
 .wanted-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--space-3)}
 .wanted-card{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}
 .wanted-poster-wrap{width:42px;height:62px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0}

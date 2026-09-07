@@ -28,7 +28,7 @@ describe('navigation — destinations', () => {
   it('résout la destination depuis le chemin, y compris ses routes annexes', () => {
     expect(destinationForPath('/analytics', true, true)?.key).toBe('activity');
     expect(destinationForPath('/vf-upgrades', true, true)?.key).toBe('library');
-    expect(destinationForPath('/logs', true, true)?.key).toBe('settings');
+    expect(destinationForPath('/logs', true, true)?.key).toBe('admin');
     expect(destinationForPath('/notifications', true, true)?.key).toBe('admin');
     expect(destinationForPath('/calendar', false, false)?.key).toBe('discover');
     expect(destinationForPath('/profile', true, true)).toBeNull();
@@ -45,15 +45,15 @@ describe('navigation — destinations', () => {
     }
   });
 
-  it('regroupe chaque destination sous Explorer ou Gestion', () => {
-    expect(new Set(DESTINATIONS.map((d) => d.group))).toEqual(new Set(['Explorer', 'Gestion']));
+  it('regroupe les destinations selon le workflow métier', () => {
+    expect(new Set(DESTINATIONS.map((d) => d.group))).toEqual(new Set(['Pilotage', 'Explorer', 'Workflow', 'Administration']));
   });
 
   it('réserve les destinations d’administration aux admins', () => {
     const plain = destinationsFor(false, false).map((d) => d.key);
     expect(plain).toContain('discover');
     expect(plain).not.toContain('dashboard');
-    expect(plain).not.toContain('settings');
+    expect(plain).not.toContain('admin');
   });
 
   it('n’affiche « Problèmes signalés » qu’aux modérateurs non-admins', () => {
@@ -63,16 +63,15 @@ describe('navigation — destinations', () => {
 });
 
 describe('navigation — sections', () => {
-  it('donne à Découvrir ses cinq sections, Calendrier compris', () => {
+  it('donne à Explorer quatre sections, Calendrier compris', () => {
     const sections = sectionsFor('discover', ctx());
-    expect(keys(sections)).toEqual(['home', 'shows', 'movies', 'requests', 'calendar']);
+    expect(keys(sections)).toEqual(['home', 'shows', 'movies', 'calendar']);
   });
 
   it('remplit la barre d’un utilisateur simple sans rien lui cacher', () => {
     const plain = destinationsFor(false, false);
-    expect(keys(plain)).toEqual(['discover']);
-    // Cinq sections : la barre est pleine sans déborder dans le ☰.
-    expect(sectionsFor('discover', ctx({ isAdmin: false, canModerate: false }))).toHaveLength(5);
+    expect(keys(plain)).toEqual(['discover', 'requests']);
+    expect(sectionsFor('discover', ctx({ isAdmin: false, canModerate: false }))).toHaveLength(4);
   });
 
   it('réserve Améliorations VF aux admins dans la Bibliothèque', () => {
@@ -80,7 +79,7 @@ describe('navigation — sections', () => {
     expect(keys(sectionsFor('library', ctx({ isAdmin: false })))).not.toContain('vf');
   });
 
-  it('construit les sections Téléchargements depuis les instances réelles', () => {
+  it('conserve des sections Acquisition stables indépendamment des instances', () => {
     const sections = sectionsFor(
       'downloads',
       ctx({
@@ -93,14 +92,10 @@ describe('navigation — sections', () => {
       })
     );
 
-    expect(keys(sections)).toEqual(['overview', 'queue', 'radarr-1', 'sonarr-4', 'clients', 'client-7']);
-    expect(sections.find((s) => s.key === 'radarr-1').to).toEqual({
-      path: '/downloads',
-      query: { view: 'radarr', instance: '1' },
-    });
+    expect(keys(sections)).toEqual(['overview', 'queue', 'movies', 'shows', 'clients']);
   });
 
-  it('ignore les instances désactivées', () => {
+  it('ne transforme pas les instances désactivées en navigation', () => {
     const sections = sectionsFor(
       'downloads',
       ctx({
@@ -108,7 +103,7 @@ describe('navigation — sections', () => {
         downloadClients: [{ id: 7, name: 'DATA', enabled: false }],
       })
     );
-    expect(keys(sections)).toEqual(['overview', 'queue', 'clients']);
+    expect(keys(sections)).toEqual(['overview', 'queue', 'movies', 'shows', 'clients']);
   });
 
   it('retourne une liste vide pour une destination inconnue', () => {
@@ -116,17 +111,18 @@ describe('navigation — sections', () => {
   });
 
   it('regroupe en conservant l’ordre de première apparition', () => {
-    const groups = groupedSections(sectionsFor('settings', ctx()));
-    expect(groups.map((g) => g.label)).toEqual(['', 'Services', 'Bibliothèque & acquisition', 'Exploitation', 'Système']);
+    const groups = groupedSections(sectionsFor('admin', ctx()));
+    expect(groups.map((g) => g.label)).toEqual(['']);
+    expect(keys(groups[0].items)).toEqual(['users', 'notifications', 'settings', 'logs']);
   });
 });
 
 describe('navigation — section active', () => {
-  it('dérive l’état actif de la Bibliothèque depuis ?type=', () => {
+  it('conserve Catalogue actif quand ?type= change', () => {
     const sections = sectionsFor('library', ctx());
-    expect(activeSectionKey(sections, route('/library'))).toBe('home');
-    expect(activeSectionKey(sections, route('/library', { type: 'show' }))).toBe('shows');
-    expect(activeSectionKey(sections, route('/library', { type: 'album' }))).toBe('music');
+    expect(activeSectionKey(sections, route('/library'))).toBe('catalog');
+    expect(activeSectionKey(sections, route('/library', { type: 'show' }))).toBe('catalog');
+    expect(activeSectionKey(sections, route('/library', { type: 'album' }))).toBe('catalog');
   });
 
   it('n’active aucun filtre sur une fiche média', () => {
@@ -145,7 +141,7 @@ describe('navigation — section active', () => {
     const all = route('/downloads', { view: 'clients', sub: 'instances' });
     const one = route('/downloads', { view: 'clients', sub: 'instances', client: '2' });
     expect(activeSectionKey(sections, all)).toBe('clients');
-    expect(activeSectionKey(sections, one)).toBe('client-2');
+    expect(activeSectionKey(sections, one)).toBe('clients');
   });
 
   it('n’active rien quand aucune section ne correspond', () => {

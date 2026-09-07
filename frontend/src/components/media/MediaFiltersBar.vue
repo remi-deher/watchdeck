@@ -1,7 +1,27 @@
 <template>
-  <div class="filters-panel">
+  <div class="filters-panel" :class="{ 'filters-panel--header': headerMode }">
+    <PageSearchHeader
+      v-if="headerMode"
+      title="Demandes"
+      :query="query"
+      placeholder="Rechercher une demande…"
+      has-filters
+      :active-count="activeFilterCount"
+      :filters-open="isModalOpen"
+      @update:query="$emit('update:query', $event)"
+      @search="$emit('search')"
+      @toggle-filters="openFilterModal"
+    >
+      <template #actions>
+        <div v-if="!hideViewToggle" class="view-toggle-segmented" role="tablist" aria-label="Mode d'affichage">
+          <button :class="{ active: view === 'grid' }" title="Grille" type="button" role="tab" :aria-selected="view === 'grid'" @click="$emit('update:view', 'grid')"><Grid2X2 /></button>
+          <button :class="{ active: view === 'list' }" title="Liste" type="button" role="tab" :aria-selected="view === 'list'" @click="$emit('update:view', 'list')"><List /></button>
+        </div>
+        <slot name="header-actions" />
+      </template>
+    </PageSearchHeader>
     <!-- Ligne de recherche contenant le bouton Filtres et les boutons Grille / Liste -->
-    <div class="search-input-container">
+    <div v-else class="search-input-container">
       <input
         :value="query"
         class="search-input"
@@ -34,7 +54,7 @@
     </div>
 
     <!-- Subnavbar de type de média (Tout / Séries / Films / Musiques) -->
-    <div v-if="!hideTypeTabs" class="subnav-row">
+    <div v-if="!headerMode && !hideTypeTabs" class="subnav-row">
       <div class="segmented type-segmented" role="tablist" aria-label="Type de média">
         <button :class="{ active: !typeFilters.length }" title="Tout" type="button" role="tab" :aria-selected="!typeFilters.length" @click="$emit('update:typeFilters', [])">
           <Layers /><span>Tout</span>
@@ -58,8 +78,17 @@
       subtitle="Sélectionnez vos critères puis cliquez sur Appliquer"
       @close="closeFilterModal"
     >
+      <div v-if="headerMode" class="form-group filter-media-type-group">
+        <label class="form-label" for="filter-media-type">Type de média</label>
+        <select id="filter-media-type" v-model="draftType" class="form-select">
+          <option value="">Tous les médias</option>
+          <option value="show">Séries</option>
+          <option value="movie">Films</option>
+          <option value="music">Musique</option>
+        </select>
+      </div>
       <!-- Formulaire Modale pour la Musique -->
-      <div v-if="isMusicOnly" class="filter-modal-form">
+      <div v-if="isDraftMusicOnly" class="filter-modal-form">
         <div class="form-group">
           <label class="form-label" for="filter-music-subtype">Sous-type</label>
           <select id="filter-music-subtype" class="form-select" v-model="draftMusicSubtype">
@@ -234,6 +263,7 @@ const props = withDefaults(
     requesters?: Array<{ id: string | number; label: string }>;
     hideTypeTabs?: boolean;
     hideViewToggle?: boolean;
+    headerMode?: boolean;
   }>(),
   {
     query: '',
@@ -253,6 +283,7 @@ const props = withDefaults(
     requesters: () => [],
     hideTypeTabs: false,
     hideViewToggle: false,
+    headerMode: false,
   }
 );
 const emit = defineEmits<{
@@ -291,6 +322,8 @@ const draftAudioFormat = ref('');
 const draftReleaseType = ref('');
 const draftHiRes = ref('');
 const draftMusicSubtype = ref('');
+const draftType = ref('');
+const isDraftMusicOnly = computed(() => draftType.value === 'music');
 
 const IN_PROGRESS_STATUSES = ['pending_approval', 'pending', 'sent_to_arr', 'partially_available'];
 
@@ -306,6 +339,7 @@ function openFilterModal(): void {
   draftReleaseType.value = props.releaseType;
   draftHiRes.value = props.hiRes;
   draftMusicSubtype.value = isArtistOnlySelected.value ? 'artist' : isAlbumOnlySelected.value ? 'album' : isTrackOnlySelected.value ? 'track' : '';
+  draftType.value = isMusicOnly.value ? 'music' : (props.typeFilters[0] || '');
   isModalOpen.value = true;
 }
 
@@ -351,6 +385,7 @@ function resetDraftFilters(): void {
   draftReleaseType.value = '';
   draftHiRes.value = '';
   draftMusicSubtype.value = '';
+  draftType.value = '';
 }
 
 function applyFilters(): void {
@@ -364,8 +399,10 @@ function applyFilters(): void {
   emit('update:audioFormat', draftAudioFormat.value);
   emit('update:releaseType', draftReleaseType.value);
   emit('update:hiRes', draftHiRes.value);
-  if (isMusicOnly.value) {
+  if (draftType.value === 'music') {
     emit('update:typeFilters', draftMusicSubtype.value ? [draftMusicSubtype.value] : ['artist', 'album', 'track']);
+  } else if (props.headerMode) {
+    emit('update:typeFilters', draftType.value ? [draftType.value] : []);
   }
   closeFilterModal();
 }
@@ -376,7 +413,7 @@ const activeFilterCount = computed(() => {
       + (props.audioFormat ? 1 : 0) + (props.releaseType ? 1 : 0) + (props.hiRes ? 1 : 0)
       + (isMusicSubtypeActive.value ? 1 : 0);
   }
-  return props.statusFilters.length + (props.vf ? 1 : 0)
+  return (props.headerMode && props.typeFilters.length ? 1 : 0) + props.statusFilters.length + (props.vf ? 1 : 0)
     + props.sourceFilters.length + props.requesterFilters.length;
 });
 </script>
@@ -387,6 +424,7 @@ const activeFilterCount = computed(() => {
   flex-direction: column;
   gap: 10px;
 }
+.filters-panel.filters-panel--header { display: contents; }
 
 .search-input-container {
   display: flex;

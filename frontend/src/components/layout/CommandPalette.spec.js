@@ -42,7 +42,7 @@ describe('CommandPalette', () => {
     await flushPromises();
 
     const texts = optionTexts(wrapper).join(' | ');
-    expect(texts).toContain('Découvrir');
+    expect(texts).toContain('Explorer');
     expect(texts).toContain('Paramètres');
     expect(texts).toContain('Sonarr principal');
     expect(texts).toContain('qBittorrent DATA');
@@ -58,7 +58,7 @@ describe('CommandPalette', () => {
 
     const texts = optionTexts(wrapper).join(' | ');
     expect(texts).toContain('Paramètres');
-    expect(texts).not.toContain('Découvrir');
+    expect(texts).not.toContain('Explorer');
     wrapper.unmount();
   });
 
@@ -112,7 +112,7 @@ describe('CommandPalette', () => {
     await flushPromises();
 
     const texts = optionTexts(wrapper).join(' | ');
-    expect(texts).toContain('Découvrir');
+    expect(texts).toContain('Explorer');
     expect(texts).not.toContain('Sonarr principal');
     expect(texts).not.toContain('Version & mises à jour');
     wrapper.unmount();

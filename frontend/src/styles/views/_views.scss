@@ -730,7 +730,7 @@ button:disabled {
   .detail-drawer,
   .detail-drawer.wide {
     --drawer-pad: 24px;
-    inset: max(12px,var(--safe-top)) max(12px,var(--safe-right)) max(12px,var(--safe-bottom)) auto;
+    inset: max(12px,calc(var(--safe-top) + var(--app-top-nav-clearance))) max(12px,var(--safe-right)) max(12px,var(--safe-bottom)) auto;
     width: min(680px, calc(100vw - 116px));
     height: auto;
     max-height: none;

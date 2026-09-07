@@ -1,51 +1,46 @@
 <template>
   <div class="psh-root">
-    <!-- Col 1 : titre -->
-    <div class="psh-title">
-      <h1>{{ title }}</h1>
-    </div>
-
-    <!-- Col 2 : barre de recherche (centrée) -->
-    <div v-if="!hideSearch" class="psh-search-wrap">
-      <Search aria-hidden="true" class="psh-search-icon" />
-      <input
-        :value="query"
-        type="search"
-        :placeholder="placeholder"
-        :aria-label="`${placeholder} — ${title}`"
-        class="psh-input"
-        v-bind="$attrs"
-        @input="$emit('update:query', ($event.target as HTMLInputElement).value); $emit('search', $event)"
-      >
-      <!-- Bouton filtre intégré dans la barre de recherche -->
-      <template v-if="hasFilters">
-        <span class="psh-search-sep" aria-hidden="true" />
-        <button
-          class="psh-filter-btn"
-          :class="{ active: filtersOpen || activeCount > 0 }"
-          type="button"
-          :aria-expanded="filtersOpen"
-          :aria-label="filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'"
-          @click="$emit('toggle-filters')"
+    <span ref="stickySentinel" class="psh-sticky-sentinel" aria-hidden="true" />
+    <!-- Seuls la recherche, les filtres et leurs actions suivent le défilement. -->
+    <div v-if="!hideSearch" class="psh-tools-sticky" :class="{ 'is-stuck': isStuck }">
+      <div v-if="$slots.status" class="psh-status"><slot name="status" /></div>
+      <div class="psh-search-wrap">
+        <Search aria-hidden="true" class="psh-search-icon" />
+        <input
+          :value="query"
+          type="search"
+          :placeholder="placeholder"
+          :aria-label="`${placeholder} — ${title}`"
+          class="psh-input"
+          v-bind="$attrs"
+          @input="$emit('update:query', ($event.target as HTMLInputElement).value); $emit('search', $event)"
         >
-          <SlidersHorizontal /><span>Filtres</span><strong v-if="activeCount" class="psh-filter-count">{{ activeCount }}</strong>
-        </button>
-      </template>
+        <template v-if="hasFilters">
+          <span class="psh-search-sep" aria-hidden="true" />
+          <button
+            class="psh-filter-btn"
+            :class="{ active: filtersOpen || activeCount > 0 }"
+            type="button"
+            :aria-expanded="filtersOpen"
+            :aria-label="filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'"
+            @click="$emit('toggle-filters')"
+          >
+            <SlidersHorizontal /><span>Filtres</span><strong v-if="activeCount" class="psh-filter-count">{{ activeCount }}</strong>
+          </button>
+        </template>
+      </div>
+      <div v-if="$slots['after-search'] || $slots.actions || $slots['icon-actions']" class="psh-actions">
+        <slot name="after-search" />
+        <slot name="actions" />
+        <slot name="icon-actions" />
+      </div>
     </div>
 
-    <!-- Col 3 : actions (badge + boutons) -->
-    <div v-if="!hideSearch" class="psh-actions">
-      <slot name="after-search" />
-      <slot name="actions" />
-      <slot name="icon-actions" />
-    </div>
-
-    <!-- Ligne 2 : description (pleine largeur, sous title/search/actions) -->
-    <p v-if="description" class="psh-desc">{{ description }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue';
 import { Search, SlidersHorizontal } from '@lucide/vue';
 
 defineOptions({ inheritAttrs: false });
@@ -77,31 +72,47 @@ defineEmits<{
   (e: 'search', event: Event): void;
   (e: 'toggle-filters'): void;
 }>();
+
+const stickySentinel = ref<HTMLElement | null>(null);
+const isStuck = ref(false);
+let stickyObserver: IntersectionObserver | null = null;
+
+onMounted(() => {
+  if (typeof IntersectionObserver === 'undefined' || !stickySentinel.value) return;
+  stickyObserver = new IntersectionObserver(([entry]) => { isStuck.value = !entry.isIntersecting; });
+  stickyObserver.observe(stickySentinel.value);
+});
+onUnmounted(() => stickyObserver?.disconnect());
 </script>
 
 <style scoped lang="scss">
-/* ── Root : grid 3 colonnes — titre | barre | actions ── */
+/* Le root ne dessine plus de panneau et ne suit plus le défilement. */
 .psh-root {
+  display: contents;
+  position: static;
+  background: transparent;
+}
+.psh-sticky-sentinel { display: block; width: 1px; height: 1px; margin-bottom: -1px; pointer-events: none; }
+
+/* ── Col 1 : Titre (aligné à gauche) ── */
+.psh-tools-sticky {
+  position: sticky;
+  top: calc(max(10px, var(--safe-top)) + 66px);
+  z-index: 20;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: var(--space-4);
-  position: sticky;
-  top: var(--safe-top);
-  z-index: 20;
-  padding: 10px 0;
-  background: var(--page-bg, #09090b);
+  min-height: 40px;
+  margin-top: 0;
+  pointer-events: none;
 }
-
-/* ── Col 1 : Titre (aligné à gauche) ── */
-.psh-title { display: grid; gap: 2px; min-width: 0; justify-self: start; }
-.psh-title h1 { margin: 0; font-size: var(--fs-2xl); font-weight: 700; white-space: nowrap; }
-
-/* ── Ligne 2 : description (pleine largeur, ne pousse plus la search bar) ── */
-.psh-desc { grid-column: 1 / -1; margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+.psh-tools-sticky > * { pointer-events: auto; }
+.psh-status { grid-column: 1; min-width: 0; }
 
 /* ── Col 2 : Barre de recherche (centrée par rapport à .psh-root) ── */
 .psh-search-wrap {
+  grid-column: 2;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -168,36 +179,41 @@ defineEmits<{
 
 /* ── Col 3 : Actions (alignées à droite) ── */
 .psh-actions {
+  grid-column: 3;
   display: flex;
   align-items: center;
   justify-self: end;
   gap: var(--space-2);
   flex-wrap: nowrap;
+  min-height: 40px;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.psh-tools-sticky.is-stuck .psh-actions {
+  border-color: color-mix(in srgb, var(--border) 88%, white 4%);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .3);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
 }
 
-/* ── Mobile : le titre est porte par la barre de navigation contextuelle, qui nomme
-   deja la section courante. Le repeter ici coutait une ligne pour rien. On le retire
-   donc du flux sans le retirer du document : il reste le h1 de la page pour les
-   lecteurs d'ecran et pour le plan du document. ── */
+/* ── Mobile : le shell n'ajoute plus de seconde barre contextuelle. Le titre de page
+   redevient donc le repère visible, au-dessus de la recherche et des filtres. ── */
 @media (max-width: 768px) {
   .psh-root {
-    grid-template-columns: 1fr;
+    display: contents;
+  }
+
+  .psh-tools-sticky {
+    top: max(8px, var(--safe-top));
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
+    margin-top: var(--space-2);
   }
-
-  .psh-title {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-
-  .psh-desc { display: none; }
-  .psh-search-wrap { width: 100%; }
+  .psh-status, .psh-search-wrap, .psh-actions { grid-column: 1; }
+  .psh-search-wrap { width: 100%; justify-self: stretch; }
   .psh-actions { flex-wrap: wrap; }
 }
 </style>

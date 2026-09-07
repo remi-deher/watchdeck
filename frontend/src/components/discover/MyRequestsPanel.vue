@@ -1,15 +1,15 @@
 <template>
   <div class="my-requests-panel">
-    <div class="sticky-stack">
-      <div class="my-requests-toolbar">
-        <MediaFiltersBar
-          v-model:query="query"
-          v-model:view="view"
-          v-model:status-filters="statusFilters"
-          v-model:type-filters="typeFilters"
-          v-model:vf="vf"
-          @search="onSearch"
-        />
+    <MediaFiltersBar
+      header-mode
+      v-model:query="query"
+      v-model:view="view"
+      v-model:status-filters="statusFilters"
+      v-model:type-filters="typeFilters"
+      v-model:vf="vf"
+      @search="onSearch"
+    >
+      <template #header-actions>
         <label class="sort-select">Trier par
           <select v-model="sort">
             <option value="recent">Plus récentes</option>
@@ -17,8 +17,8 @@
             <option value="title">Titre A→Z</option>
           </select>
         </label>
-      </div>
-    </div>
+      </template>
+    </MediaFiltersBar>
 
     <UiFeedback v-if="error" type="error" title="Impossible de charger vos demandes" :message="error" retry @retry="load" />
     <UiFeedback v-else-if="loading && !items.length" type="loading" message="Chargement de vos demandes…" />
