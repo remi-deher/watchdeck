@@ -1,11 +1,42 @@
 # Changelog
 
+## 1.16.0 — 2026-09-07
+
+
+### test
+
+- align responsive checks with adaptive navigation ([c7037c0](https://github.com/remi-deher/watchdeck/commit/c7037c0806adf517915f335ca1be888bd225cb05))
+
+### ⚡ Performance
+
+- regroupe les chunks et corrige le releve de capacites en onglet masque ([c50baa1](https://github.com/remi-deher/watchdeck/commit/c50baa1d07dc7702a6db00bdc3aadc2787e0597e))
+
+### ✨ Nouveautés
+
+- redesign adaptive application navigation ([23f63e5](https://github.com/remi-deher/watchdeck/commit/23f63e562bc13a2e205e573683592d875980e96c))
+
+### 🔧 Maintenance
+
+- sync main into dev ([518be17](https://github.com/remi-deher/watchdeck/commit/518be1746b0f3f5b09d99fe96d10ebeabb206de0))
+- sync main into dev ([a5c36e1](https://github.com/remi-deher/watchdeck/commit/a5c36e13d0053f583070aab3f73d74908c8360e2))
+- sync main into dev ([0a2c155](https://github.com/remi-deher/watchdeck/commit/0a2c15535c679f2e20b0d2683669c5438148947a))
+- sync main into dev ([2d7b73a](https://github.com/remi-deher/watchdeck/commit/2d7b73a9a53edb67877109e45f7e2d03d26ec43c))
+- bump websockets from 17.0.1 to 17.1 (#200) ([df34d8e](https://github.com/remi-deher/watchdeck/commit/df34d8e1e424b609e0a1b35424760f845043e24a))
+- bump @types/node from 26.2.0 to 26.4.0 (#203) ([5e7b295](https://github.com/remi-deher/watchdeck/commit/5e7b295bf2502ee0b2314773800bbc1bb2695a07))
+- bump vue from 3.5.41 to 3.5.42 (#205) ([6fe130f](https://github.com/remi-deher/watchdeck/commit/6fe130f6d40f0dd656da2231c7fd46f57a955ff3))
+- bump @vue/test-utils from 2.4.11 to 2.5.0 (#201) ([a657bec](https://github.com/remi-deher/watchdeck/commit/a657bec10768e913c7d682089298bc3fbe3cbb0b))
+- bump vue-router from 5.2.0 to 5.3.0 (#206) ([0836d1d](https://github.com/remi-deher/watchdeck/commit/0836d1dba96951cd5446f330d206c52bec97642f))
+- bump the github-actions group with 3 updates (#207) ([4ab4c5c](https://github.com/remi-deher/watchdeck/commit/4ab4c5cf636d4a35107dc892eb8c3314cce41a35))
 ## 1.15.1 — 2026-08-30
 
 
 ### ⚡ Performance
 
 - regroupe les chunks et corrige le releve de capacites en onglet masque ([ccbf076](https://github.com/remi-deher/watchdeck/commit/ccbf07668b4f7f4d6a26e7571781628275fe022e))
+
+### 🔧 Maintenance
+
+- v1.15.1 (#197) ([f659176](https://github.com/remi-deher/watchdeck/commit/f6591769e340b99e3ca9437f9b4c09c8b8eab66c))
 ## 1.15.0 — 2026-08-30
 
 
