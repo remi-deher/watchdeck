@@ -36,9 +36,9 @@ function factory(props = {}) {
   });
 }
 
-const tabs = (wrapper) => wrapper.findAll('.app-nav-items .app-nav-link').map((n) => n.text().trim());
+const destinations = (wrapper) => wrapper.findAll('.app-primary-items .app-primary-link').map((n) => n.text().trim());
 const menuLinks = () => [...document.querySelectorAll('.app-nav-menu-link')].map((n) => n.textContent.trim());
-const menuGroups = () => [...document.querySelectorAll('.app-nav-menu-group')].map((n) => n.textContent.trim());
+const menuCategories = () => [...document.querySelectorAll('.app-nav-menu-category summary')].map((n) => n.textContent.trim());
 
 async function openMenu(wrapper) {
   await wrapper.get('.app-nav-burger').trigger('click');
@@ -50,64 +50,73 @@ describe('AppNav', () => {
     goTo('/discover');
     loadSources.mockClear();
     document.body.innerHTML = '';
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
   });
 
-  it('met les sections de l’espace courant dans la barre, pas les espaces', () => {
+  it('met le workflow Découvrir dans la barre mobile', () => {
     const wrapper = factory();
-    // Quatre emplacements : la cinquième section part dans le ☰.
-    expect(tabs(wrapper)).toEqual(['Accueil', 'Séries', 'Films', 'Demandes']);
-    expect(tabs(wrapper)).not.toContain('Téléchargements');
+    expect(destinations(wrapper)).toEqual(['Films', 'Séries', 'Demandes', 'Calendrier']);
+    expect(wrapper.find('.app-context-header').exists()).toBe(false);
     wrapper.unmount();
   });
 
-  it('montre toutes les sections dans le rail, qui a la hauteur', () => {
-    const wrapper = factory({ orientation: 'rail' });
-    expect(tabs(wrapper)).toEqual(['Accueil', 'Séries', 'Films', 'Demandes', 'Calendrier']);
+  it('conserve le workflow Découvrir dans la barre haute', () => {
+    const wrapper = factory({ orientation: 'top' });
+    expect(destinations(wrapper)).toEqual(['Films', 'Séries', 'Demandes', 'Calendrier']);
+    expect(wrapper.find('.app-global-search').exists()).toBe(false);
     wrapper.unmount();
   });
 
-  it('marque la section courante avec aria-current', () => {
+  it('marque la section courante avec aria-current', async () => {
     goTo('/discover/shows');
-    const wrapper = factory();
-    const active = wrapper.findAll('.app-nav-items .app-nav-link').filter((n) => n.classes('active'));
+    const wrapper = factory({ orientation: 'top' });
+    const active = wrapper.findAll('.app-primary-items .app-primary-link').filter((n) => n.classes('active'));
     expect(active).toHaveLength(1);
     expect(active[0].text()).toContain('Séries');
     expect(active[0].attributes('aria-current')).toBe('page');
     wrapper.unmount();
   });
 
-  it('rend joignables depuis le ☰ les sections que la barre ne peut pas afficher', async () => {
-    const wrapper = factory();
-    await openMenu(wrapper);
-    // Calendrier est la 5e section : absente de la barre, présente dans le menu.
-    expect(menuLinks()).toContain('Calendrier');
-    expect(menuGroups()).toContain('Découvrir');
+  it('ne conserve aucune seconde barre contextuelle', () => {
+    const wrapper = factory({ orientation: 'top' });
+    expect(wrapper.find('.app-context-header').exists()).toBe(false);
+    expect(wrapper.find('.app-section-selector').exists()).toBe(false);
     wrapper.unmount();
   });
 
-  it('n’ajoute pas de groupe de sections quand la barre les affiche toutes', async () => {
+  it('affiche Films, Séries et VF dans le contexte Bibliothèque', () => {
+    goTo('/library', { hub: '1' });
+    const wrapper = factory();
+    expect(destinations(wrapper)).toEqual(['Films', 'Séries', 'VF']);
+    wrapper.unmount();
+  });
+
+  it('ne duplique pas les sections métier dans le menu Plus', async () => {
     goTo('/activity');
     const wrapper = factory();
     await openMenu(wrapper);
-    expect(menuGroups()).not.toContain('Activité & Insights');
+    expect(menuLinks()).not.toContain('Activité Plex');
     wrapper.unmount();
   });
 
-  it('groupe les espaces sous Explorer et Gestion dans le ☰', async () => {
+  it('groupe les espaces dans des catégories dépliables dans le ☰', async () => {
     const wrapper = factory();
     await openMenu(wrapper);
-    expect(menuGroups()).toEqual(expect.arrayContaining(['Explorer', 'Gestion', 'Compte']));
-    expect(menuLinks()).toEqual(expect.arrayContaining(['Bibliothèque', 'Téléchargements', 'Paramètres']));
+    expect(menuCategories()).toEqual(expect.arrayContaining(['Pilotage', 'Explorer', 'Workflow', 'Administration', 'Compte et outils']));
+    expect(menuLinks()).toEqual(expect.arrayContaining(['Bibliothèque', 'Acquisition', 'Administration']));
+    expect(menuLinks()).toEqual(expect.arrayContaining(['Accueil', 'Profil', 'Déconnexion']));
     wrapper.unmount();
   });
 
-  it('construit les sections Téléchargements à partir des instances réelles', async () => {
+  it('conserve des sections Acquisition stables indépendamment des instances', async () => {
     goTo('/downloads', { view: 'overview' });
-    const wrapper = factory({ orientation: 'rail' });
+    const wrapper = factory({ orientation: 'top' });
     await flushPromises();
-
-    expect(tabs(wrapper)).toEqual(['Vue d’ensemble', 'File d’attente', 'Radarr HD', 'Tous les torrents', 'DATA']);
-    expect(loadSources).toHaveBeenCalled();
+    const pipeline = wrapper.findAll('.app-primary-item').find((item) => item.text().includes('Acquisition'));
+    await pipeline.trigger('mouseenter');
+    expect(pipeline.findAll('.app-primary-subnav a').map((item) => item.text().trim()))
+      .toEqual(['Vue d’ensemble', 'File d’attente', 'Films', 'Séries', 'Clients']);
+    expect(loadSources).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 
@@ -117,22 +126,23 @@ describe('AppNav', () => {
     wrapper.unmount();
   });
 
-  it('dérive la section active de la Bibliothèque depuis ?type=', () => {
+  it('laisse Catalogue actif quand le type de média change', async () => {
     goTo('/library', { type: 'show' });
-    const wrapper = factory({ orientation: 'rail' });
-    const active = wrapper.findAll('.app-nav-items .app-nav-link').filter((n) => n.classes('active'));
+    const wrapper = factory({ orientation: 'top' });
+    const active = wrapper.findAll('.app-primary-items .app-primary-link').filter((n) => n.classes('active'));
     expect(active).toHaveLength(1);
     expect(active[0].text()).toContain('Séries');
     wrapper.unmount();
   });
 
-  it('n’expose à un utilisateur simple que Découvrir, sans rien lui cacher', async () => {
+  it('expose le workflow Découvrir à un utilisateur simple sans rien lui cacher', async () => {
     const wrapper = factory({ isAdmin: false, canModerate: false });
-    expect(tabs(wrapper)).toEqual(['Accueil', 'Séries', 'Films', 'Demandes']);
+    expect(destinations(wrapper)).toEqual(['Films', 'Séries', 'Demandes', 'Calendrier']);
+    expect(wrapper.find('.app-context-header').exists()).toBe(false);
 
     await openMenu(wrapper);
     expect(menuLinks()).not.toContain('Paramètres');
-    expect(menuLinks()).toContain('Calendrier');
+    expect(menuLinks()).toContain('Demandes');
     wrapper.unmount();
   });
 
@@ -140,7 +150,7 @@ describe('AppNav', () => {
     const wrapper = factory();
     await openMenu(wrapper);
 
-    const search = [...document.querySelectorAll('.app-nav-menu-link')].find((n) => n.textContent.includes('Rechercher'));
+    const search = [...document.querySelectorAll('.app-nav-menu-link')].find((n) => n.textContent.includes('Recherche globale'));
     search.click();
     await flushPromises();
 
@@ -159,7 +169,7 @@ describe('AppNav', () => {
     const wrapper = factory();
     await openMenu(wrapper);
 
-    const target = [...document.querySelectorAll('.app-nav-menu-link')].find((n) => n.textContent.trim() === 'Téléchargements');
+    const target = [...document.querySelectorAll('.app-nav-menu-link')].find((n) => n.textContent.trim() === 'Acquisition');
     target.click();
     await flushPromises();
 

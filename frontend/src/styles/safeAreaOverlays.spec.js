@@ -10,6 +10,8 @@ describe('safe area overlays', () => {
     expect(layout).toContain('padding-left: max(var(--drawer-pad), var(--safe-left))');
     expect(layout).toContain('padding-right: max(var(--drawer-pad), var(--safe-right))');
     expect(layout).toContain('max-height: calc(100dvh - var(--safe-top))');
+    expect(layout).toContain('padding-top: calc(var(--safe-top) + var(--app-top-nav-clearance))');
+    expect(source('styles', 'components', '_components.scss')).toContain('var(--app-top-nav-clearance)');
   });
 
   it('offsets sticky and floating controls from unsafe areas', () => {

@@ -61,9 +61,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { Film, Server, Tv } from '@lucide/vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import { destinationsFor, sectionsFor } from '@/navigation';
 import { useDownloadSources } from '@/composables/useDownloadSources';
+import { settingsSections } from '@/settingsSections';
 
 const props = withDefaults(
   defineProps<{ isAdmin?: boolean; canModerate?: boolean }>(),
@@ -116,6 +118,41 @@ const commands = computed<Command[]>(() => {
         group: destination.label,
         to: section.to,
         icon: section.icon || destination.icon,
+      });
+    }
+  }
+
+  // Les réglages détaillés et les instances sont des destinations de recherche, pas
+  // des onglets. La palette garde donc l'accès direct apprécié des utilisateurs
+  // avancés sans encombrer le shell visible.
+  if (props.isAdmin) {
+    for (const setting of settingsSections) {
+      items.push({
+        id: `setting-${setting.key}`,
+        label: setting.label,
+        group: setting.group || 'Paramètres',
+        to: setting.to || { path: '/settings', query: { tab: setting.key } },
+        icon: setting.icon,
+      });
+    }
+    for (const instance of arrInstances.value.filter((item) => item.id != null && item.enabled !== false)) {
+      const kind = String(instance.arr_type);
+      if (!['radarr', 'sonarr'].includes(kind)) continue;
+      items.push({
+        id: `scope-${kind}-${instance.id}`,
+        label: instance.name || `Instance ${instance.id}`,
+        group: 'Périmètres d’acquisition',
+        to: { path: '/downloads', query: { view: kind, instance: String(instance.id) } },
+        icon: kind === 'radarr' ? Film : Tv,
+      });
+    }
+    for (const client of downloadClients.value.filter((item) => item.id != null && item.enabled !== false)) {
+      items.push({
+        id: `scope-client-${client.id}`,
+        label: client.name || `Client ${client.id}`,
+        group: 'Périmètres d’acquisition',
+        to: { path: '/downloads', query: { view: 'clients', sub: 'instances', client: String(client.id) } },
+        icon: Server,
       });
     }
   }
