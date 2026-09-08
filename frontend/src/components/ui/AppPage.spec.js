@@ -30,7 +30,7 @@ describe('AppPage', () => {
   });
 
   it('fournit sa recherche a la barre de contexte plutot que de la rendre', () => {
-    const wrapper = mountPage({ placeholder: 'Rechercher un film', hasFilters: true, activeCount: 2 });
+    const wrapper = mountPage({ placeholder: 'Rechercher un film', searchScope: 'Catalogue', hasFilters: true, activeCount: 2 });
 
     // Le champ n'appartient plus a la page : elle en declare l'etat, la barre le rend.
     // C'est ce qui permet a une seule recherche d'exister a l'ecran.
@@ -39,6 +39,7 @@ describe('AppPage', () => {
     const search = usePageSearch().value;
     expect(search).not.toBeNull();
     expect(search.placeholder).toBe('Rechercher un film');
+    expect(search.scopeLabel).toBe('Catalogue');
     expect(search.hasFilters).toBe(true);
     expect(search.activeCount).toBe(2);
 

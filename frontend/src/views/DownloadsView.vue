@@ -2,6 +2,7 @@
     <AppPage
       :title="pageTitle"
       v-model:query="query"
+      search-scope="Acquisition"
       :placeholder="searchPlaceholder"
       has-filters
       :active-count="totalActiveFilterCount"

@@ -71,6 +71,8 @@ const props = withDefaults(
     hideSearch?: boolean;
     query?: string;
     placeholder?: string;
+    /** Libellé court affiché devant la recherche pour rendre son périmètre explicite. */
+    searchScope?: string;
     hasFilters?: boolean;
     filtersOpen?: boolean;
     activeCount?: number;
@@ -89,6 +91,7 @@ const props = withDefaults(
     hideSearch: false,
     query: '',
     placeholder: 'Rechercher…',
+    searchScope: '',
     hasFilters: false,
     filtersOpen: false,
     activeCount: 0,
@@ -125,6 +128,7 @@ providePageSearch(
       : {
           query: props.query,
           placeholder: props.placeholder,
+          scopeLabel: props.searchScope || props.title,
           hasFilters: props.hasFilters,
           filtersOpen: props.filtersOpen,
           activeCount: props.activeCount,

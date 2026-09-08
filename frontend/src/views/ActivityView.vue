@@ -2,6 +2,7 @@
     <AppPage
       :title="viewTitle"
       v-model:query="historySearch"
+      search-scope="Activité"
       placeholder="Filtrer par média, utilisateur ou appareil"
       :hide-search="currentView !== 'history'"
       :has-filters="currentView === 'history'"
