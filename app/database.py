@@ -33,7 +33,16 @@ else:
         ASYNC_DATABASE_URL = DATABASE_URL.split("://", 1)[-1]
         ASYNC_DATABASE_URL = f"postgresql+asyncpg://{ASYNC_DATABASE_URL}"
     connect_args = {}
-    engine_kwargs = {"pool_pre_ping": True}
+    # Keep enough headroom for bursts caused by slow external integrations
+    # without consuming PostgreSQL's whole connection budget. Values remain
+    # configurable for installations with a different database capacity.
+    engine_kwargs = {
+        "pool_pre_ping": True,
+        "pool_size": int(os.getenv("DB_POOL_SIZE", "15")),
+        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "15")),
+        "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "30")),
+        "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "1800")),
+    }
 
 async_engine = create_async_engine(ASYNC_DATABASE_URL, connect_args=connect_args, **engine_kwargs)
 AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
