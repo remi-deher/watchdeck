@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.17.1 — 2026-09-08
+
+
+### test
+
+- cover notification delivery review endpoints ([e125405](https://github.com/remi-deher/watchdeck/commit/e1254056060d027b145dc8e750f4a8e4c2ac3be2))
+- exercise invalid pending recipient payload ([41f3fb8](https://github.com/remi-deher/watchdeck/commit/41f3fb8db8bf3d4b6734b474ad5fc78ec7ca351b))
+- cover Brevo idempotency responses ([85c5a4f](https://github.com/remi-deher/watchdeck/commit/85c5a4f9b3c455ef6c256189638b69c588386843))
+- cover durable delivery failure paths ([1aafe12](https://github.com/remi-deher/watchdeck/commit/1aafe12dbd6aa9168c3ccb096175e651701b752c))
+
+### 🐛 Corrections
+
+- harden notification delivery and vf reconciliation ([d1ec7cd](https://github.com/remi-deher/watchdeck/commit/d1ec7cd110ce55a6248cb59588f4f81d1d9946ce))
+- satisfy notification quality checks ([fff2634](https://github.com/remi-deher/watchdeck/commit/fff2634370970a50839b9ecfd09e445cf377860a))
+
+### 👷 CI/CD
+
+- retry transient Cosign signatures ([265fbcc](https://github.com/remi-deher/watchdeck/commit/265fbcc0a78a68dc93bce1b6a53c4968d1d3c8fe))
 ## 1.17.0 — 2026-09-08
 
 
@@ -14,6 +32,7 @@
 - bump @types/node from 26.4.0 to 26.4.1 (#216) ([00a5a38](https://github.com/remi-deher/watchdeck/commit/00a5a3837f6cfedf6d4460e00ae8462a4431a9d5))
 - bump vitest from 4.1.11 to 5.0.0 (#217) ([7e5b9cb](https://github.com/remi-deher/watchdeck/commit/7e5b9cbcc07aa5520d52e1c5dce10dd04dcbb059))
 - bump the github-actions group with 3 updates (#218) ([d86edf5](https://github.com/remi-deher/watchdeck/commit/d86edf5391c69d258dff7f771b67fd5b146c9b48))
+- v1.17.0 (#221) ([47b50c4](https://github.com/remi-deher/watchdeck/commit/47b50c4370b8ec8eab7eca49b495004fa3c05a8c))
 ## 1.16.0 — 2026-09-07
 
 
