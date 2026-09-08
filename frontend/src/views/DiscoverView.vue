@@ -5,14 +5,14 @@
       search-scope="Explorer"
       :placeholder="searchPlaceholder"
       :hide-search="mode === 'requests'"
-      has-filters
+      :has-filters="mode !== 'requests'"
       :active-count="activeFilterCount"
       :filters-open="filtersOpen"
       @search="handleSearchInput"
       @toggle-filters="toggleFilters">
     
     <div class="psh-layout">
-      <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
+      <FilterSidebar v-if="mode !== 'requests'" :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <FilterGroup v-if="!isSourceMode" label="Section">
           <button
             v-for="entry in sections"
