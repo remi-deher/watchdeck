@@ -18,6 +18,7 @@ from sqlalchemy.orm import declarative_base
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/plex_rss.db")
 # Ajustement pour aiosqlite / asyncpg
 is_sqlite = DATABASE_URL.startswith("sqlite")
+engine_kwargs: dict[str, object]
 if is_sqlite:
     ASYNC_DATABASE_URL = (
         DATABASE_URL
