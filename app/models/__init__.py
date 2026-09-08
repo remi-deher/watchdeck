@@ -50,6 +50,7 @@ from .media import (
     VfUpgradeSuggestion,
 )
 from .notifications import (
+    NotificationDelivery,
     NotificationLog,
     NotificationMilestone,
     PendingNotification,
@@ -92,6 +93,7 @@ __all__ = [
     "MediaIssue",
     "MediaRequest",
     "NotificationLog",
+    "NotificationDelivery",
     "NotificationMilestone",
     "RequesterNotificationReceipt",
     "PasskeyCredential",

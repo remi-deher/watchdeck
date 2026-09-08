@@ -347,7 +347,7 @@ async def requester_has_receipt(
             select(RequesterNotificationReceipt.id).filter(
                 RequesterNotificationReceipt.req_id == req_id,
                 RequesterNotificationReceipt.plex_user_id == plex_user_id,
-                RequesterNotificationReceipt.event_key == event_key,
+                RequesterNotificationReceipt.event_key.in_((event_key, "cancelled:" + event_key)),
             )
         )
     ).first() is not None
@@ -762,12 +762,13 @@ async def notify_single_user(
     plex_user_id: str,
     *,
     triggered_by: str = "manual",
+    pending_batch: list | None = None,
 ) -> bool:
     """Envoie le mail "demande" ou "disponibilité" à UN SEUL utilisateur, indépendamment
     du reste du groupe — utilisé quand un co-demandeur est ajouté après coup à une
     demande déjà en cours et que l'admin choisit explicitement de lui renvoyer
-    rétroactivement le(s) mail(s) déjà partis (voir PUT /requests/{id}/requesters puis
-    POST /requests/{id}/notify-user, jamais déclenché automatiquement).
+    rétroactivement le(s) mail(s) déjà partis. Le poller utilise aussi ce parcours
+    lors de l'ajout initial d'un nouveau co-demandeur.
 
     Ignore volontairement `request_mail_sent`/`available_mail_sent` : ces flags suivent
     l'état du GROUPE (posé une fois pour la demande), pas d'un individu — un co-demandeur
@@ -786,7 +787,6 @@ async def notify_single_user(
         context: dict = {"requester_ids_by_recipient": {recipient: [plex_user_id] for recipient in recipients}}
         if await requester_has_receipt(db, req.id, plex_user_id, event, context):
             return False
-        await enqueue("request", req.id, recipients, context, triggered_by=triggered_by)
     else:
         language = "vf" if req.has_vf is True else ("vo" if req.has_vf is False else None)
         scope = "movie" if req.media_type == "movie" else "series_complete"
@@ -798,31 +798,50 @@ async def notify_single_user(
         }
         if await requester_has_receipt(db, req.id, plex_user_id, event, context):
             return False
-        await enqueue(
-            "available",
+    if pending_batch is not None:
+        from ..notification_queue import persist_pending_notification
+
+        pending_id, normalized_event, normalized_context = await persist_pending_notification(
+            db,
+            event,
             req.id,
             recipients,
             context,
             triggered_by=triggered_by,
         )
+        if pending_id is None:
+            return False
+        pending_batch.append((pending_id, normalized_event, req.id, recipients, normalized_context))
+    else:
+        await enqueue(event, req.id, recipients, context, triggered_by=triggered_by)
     return True
 
 
 async def catch_up_requester_notifications(
-    settings: Settings, req: MediaRequest, db: AsyncSession, plex_user_id: str
+    settings: Settings, req: MediaRequest, db: AsyncSession, plex_user_id: str, *, atomic: bool = False
 ) -> list[str]:
     """Queue only group notifications a newly discovered requester has missed."""
     queued: list[str] = []
+    batch = [] if atomic else None
     status = req.status.value if hasattr(req.status, "value") else str(req.status)
     request_reached_arr = status in {"sent_to_arr", "partially_available", "available"}
     if (req.request_mail_sent or request_reached_arr) and await notify_single_user(
-        "request", settings, req, db, plex_user_id, triggered_by="auto"
+        "request", settings, req, db, plex_user_id, triggered_by="auto", pending_batch=batch
     ):
         queued.append("request")
-    if (req.available_mail_sent or status == "available") and await notify_single_user(
-        "available", settings, req, db, plex_user_id, triggered_by="auto"
+    if status == "available" and await notify_single_user(
+        "available", settings, req, db, plex_user_id, triggered_by="auto", pending_batch=batch
     ):
         queued.append("available")
+    if atomic:
+        from ..notification_queue import schedule_pending_notification
+
+        await db.commit()  # requester membership and both pending events become durable together
+        for entry in batch:
+            try:
+                await schedule_pending_notification(*entry)
+            except Exception:
+                logger.exception("Rattrapage persisté ; planification à reprendre au redémarrage")
     return queued
 
 

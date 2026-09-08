@@ -249,7 +249,7 @@ def test_resend_queues_notification(async_db):
         assert data["status"] == "queued"
         assert data["recipient"] == "u@b.com"
         assert data["event"] == "request"
-        mock_enqueue.assert_called_once_with("request", 42, ["u@b.com"], None)
+        mock_enqueue.assert_called_once_with("request", 42, ["u@b.com"], None, triggered_by="manual")
     finally:
         _cleanup()
 
