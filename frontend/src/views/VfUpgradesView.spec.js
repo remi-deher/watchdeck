@@ -27,9 +27,11 @@ function mountView() {
   return mount(VfUpgradesView, {
     global: {
       stubs: {
-        PageSearchHeader: {
-          props: ['query', 'activeCount', 'filtersOpen'],
-          template: '<header class="psh-stub"><input :value="query" @input="$emit(\'update:query\', $event.target.value)" /><slot name="actions"/></header>',
+        AppPage: {
+          props: ['query', 'modelValue', 'title'],
+          // Le vrai AppPage rend h1, sous-navigation et retours d'etat ; ici seuls la
+          // recherche et le contenu comptent, et AppPage.spec.js couvre le reste.
+          template: `<div class="app-page-stub"><input type="search" :value="query || modelValue" @input="$emit('update:query', $event.target.value); $emit('update:modelValue', $event.target.value); $emit('search', $event.target.value)" /><slot name="tools" /><slot /></div>`,
         },
         FilterSidebar: {
           props: ['open', 'activeCount'],

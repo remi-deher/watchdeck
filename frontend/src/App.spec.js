@@ -22,21 +22,36 @@ vi.mock('@/composables/usePwaInstall', () => ({
   }),
 }));
 
+// Le shell monte RouterLink lui-meme (rail, dock, feuille) : le mock doit donc
+// l'exposer, sinon le composant echoue avant meme d'atteindre l'assertion.
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ path: '/dashboard', meta: {} }),
+  useRoute: () => ({ path: '/dashboard', fullPath: '/dashboard', meta: {}, query: {} }),
   useRouter: () => ({ push: vi.fn() }),
+  RouterLink: {
+    props: ['to'],
+    template: '<a :href="typeof to === \'string\' ? to : to.path"><slot /></a>',
+  },
 }));
 
 vi.mock('@/cache', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    cache: {
-      clear: vi.fn(),
-    },
+    cache: { clear: vi.fn() },
     syncCacheOwner: vi.fn(),
   };
 });
+
+function mountApp() {
+  return mount(App, {
+    global: {
+      stubs: {
+        RouterView: { template: '<div class="router-view-stub" />' },
+        CommandPalette: true,
+      },
+    },
+  });
+}
 
 describe('App.vue', () => {
   beforeEach(() => {
@@ -44,45 +59,32 @@ describe('App.vue', () => {
   });
 
   it('rend un skip-link pointant vers #main-content', async () => {
-    const wrapper = mount(App, {
-      global: {
-        stubs: {
-          RouterLink: {
-            props: ['to', 'title'],
-            template: '<a :href="to"><slot /></a>',
-          },
-          RouterView: {
-            template: '<div class="router-view-stub" />',
-          },
-          AppNav: true,
-          CommandPalette: true,
-          FeedbackToast: true,
-          PlaybackToast: true,
-          PwaUpdateBanner: true,
-          PanelLeftOpen: true,
-          PanelLeftClose: true,
-          Gauge: true,
-          Compass: true,
-          Library: true,
-          CalendarDays: true,
-          Download: true,
-          Activity: true,
-          Wrench: true,
-          MessageSquareWarning: true,
-          UserRound: true,
-          ShieldCheck: true,
-          LogOut: true,
-          MoreHorizontal: true,
-          DownloadIcon: true,
-          HelpCircle: true,
-        },
-      },
-    });
+    const wrapper = mountApp();
     await flushPromises();
 
     const skipLink = wrapper.find('.skip-link');
     expect(skipLink.exists()).toBe(true);
     expect(skipLink.attributes('href')).toBe('#main-content');
     expect(skipLink.text()).toContain('Aller au contenu principal');
+  });
+
+  it('expose la cible du skip-link comme region focalisable', async () => {
+    const wrapper = mountApp();
+    await flushPromises();
+
+    const main = wrapper.find('#main-content');
+    expect(main.exists()).toBe(true);
+    // Sans tabindex, deplacer le focus au changement de route est sans effet : le
+    // lecteur d'ecran reste sur l'ancienne page.
+    expect(main.attributes('tabindex')).toBe('-1');
+  });
+
+  it('annonce les changements de route dans une region live', async () => {
+    const wrapper = mountApp();
+    await flushPromises();
+
+    const announcer = wrapper.find('#route-announcer');
+    expect(announcer.exists()).toBe(true);
+    expect(announcer.attributes('aria-live')).toBe('polite');
   });
 });

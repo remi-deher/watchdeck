@@ -1,8 +1,6 @@
 <template>
-  <div class="page">
-    <PageSearchHeader
+    <AppPage
       :title="pageTitle"
-      :description="pageDescription"
       v-model:query="query"
       :placeholder="searchPlaceholder"
       :hide-search="mode === 'requests'"
@@ -10,8 +8,8 @@
       :active-count="activeFilterCount"
       :filters-open="filtersOpen"
       @search="handleSearchInput"
-      @toggle-filters="toggleFilters"
-    />
+      @toggle-filters="toggleFilters">
+    
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <FilterGroup v-if="!isSourceMode" label="Section">
@@ -414,7 +412,7 @@
     </div><!-- .discover-body -->
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">

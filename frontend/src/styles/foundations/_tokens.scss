@@ -1,3 +1,5 @@
+@use "breakpoints" as bp;
+
 :root {
   color-scheme: dark;
   --bg: #09090b;
@@ -68,31 +70,53 @@
   --visual-viewport-offset-left: 0px;
   --keyboard-inset: 0px;
   --viewport-segment-gap: 0px;
-  /* Reserve la place de la navigation haute aux overlays teleportes dans body. */
-  --app-top-nav-clearance: 0px;
-  --mobile-nav-h: 64px;
-  /* Largeur de la colonne du rail. L'inset gauche (encoche en paysage) s'y ajoute :
-     sans cela le rail garderait 60px et son contenu serait comprime d'autant. */
-  --rail-w: calc(232px + var(--safe-left));
+  /* ── Shell applicatif ──────────────────────────────────────────────────────
+     Trois contrats, et rien d'autre : la largeur du rail, la place prise en haut
+     par la barre de contexte, la place prise en bas par le dock. Tout ce qui doit
+     s'écarter du shell — pages, feuilles de filtres, toasts, overlays téléportés
+     dans <body> — lit ces trois variables et ne redéclare jamais la valeur.
+     Elles sont redéfinies par mode plus bas dans ce fichier. */
+  --app-rail-w: 0px;
+  --app-topbar-h: 56px;
+  --app-dock-h: 64px;
+  /* Hauteur réellement occupée en haut : la barre de contexte est fixe dans tous
+     les modes, l'encoche s'y ajoute. */
+  --app-shell-offset-top: calc(var(--app-topbar-h) + var(--safe-top));
+  /* Hauteur réellement occupée en bas : le dock n'existe qu'en mode compact. */
+  --app-shell-offset-bottom: calc(var(--app-dock-h) + var(--safe-bottom));
 }
 
-@media (min-width: 900px) {
-  :root { --app-top-nav-clearance: 64px; }
+@include bp.from(shell-medium) {
+  :root {
+    /* Le rail remplace le dock : plus rien n'est réservé en bas, et la colonne
+       de navigation encaisse l'encoche gauche du paysage. */
+    --app-rail-w: calc(72px + var(--safe-left));
+    --app-shell-offset-bottom: 0px;
+  }
+}
+
+@include bp.from(shell-expanded) {
+  :root { --app-rail-w: calc(248px + var(--safe-left)); }
+
+  /* Rail replié à la demande de l'utilisateur : la largeur redevient celle du mode
+     medium, sans changer de composant ni de mode. Repli possible uniquement ici :
+     en dessous, le rail est déjà à sa largeur minimale. */
+  :root:has(.app-shell[data-rail="collapsed"]) { --app-rail-w: calc(72px + var(--safe-left)); }
 }
 
 @media (horizontal-viewport-segments: 2) {
   :root { --viewport-segment-gap: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0)); }
 }
 
-@media (min-width: 420px) {
+@include bp.from(mobile-wide) {
   :root { --content-padding: 16px; }
 }
 
-@media (min-width: 640px) {
+@include bp.from(phablet) {
   :root { --content-padding: 20px; --grid-gutter: 16px; }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   :root {
     --poster-grid-gap: var(--space-3);
     --poster-rail-min: 165px;
@@ -100,14 +124,14 @@
   }
 }
 
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   :root { --content-padding: 24px; --grid-columns: 8; }
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   :root { --content-padding: 28px; --grid-columns: 12; --grid-gutter: 20px; }
 }
 
-@media (min-width: 1200px) {
+@include bp.from(wide) {
   :root { --content-padding: 32px; --grid-gutter: 24px; }
 }

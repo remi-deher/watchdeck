@@ -1,5 +1,5 @@
 <template>
-  <PageShell title="Releases" :description="request?.title||'Recherche Sonarr / Radarr'" :error="error" retry @retry="load">
+  <AppPage hide-search title="Releases" :error="error" retry @retry="load">
     <p v-if="rootFolder" class="root-folder-info"><FolderOpen :size="14" /> Dossier racine : <code>{{ rootFolder }}</code></p>
     <section class="panel release-list">
       <template v-for="(release,index) in releases" :key="release.guid">
@@ -12,7 +12,7 @@
       </template>
       <UiEmptyState v-if="!loading&&releases.length===0" message="Aucune release disponible." />
     </section>
-  </PageShell>
+  </AppPage>
 </template>
 <script setup lang="ts">import { computed,onMounted,ref } from "vue";import { Download,FolderOpen } from "@lucide/vue";import { useRoute } from "vue-router";import { api } from "@/api";import UiButton from '@/components/ui/UiButton.vue';import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 interface Release { guid: string; title?: string; indexer?: string; quality?: string; protocol?: string; size?: number; seeders?: number; custom_format_score?: number; rejections?: string[]; is_french?: boolean; indexer_id?: number | string; }

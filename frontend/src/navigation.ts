@@ -2,7 +2,8 @@
  * Modèle de navigation unique de l'application.
  *
  * Un seul modèle quel que soit l'appareil : les destinations forment le premier niveau
- * (sidebar ou barre basse), leurs sections métier le second (onglets contextuels).
+ * (rail latéral ou dock bas), leurs sections métier le second, affiché dans la page
+ * elle-même par `AppSubnav` et non plus dans le shell.
  * Les filtres et les périmètres techniques (instances *ARR, clients) restent dans les
  * barres d'outils des pages : ils ne doivent jamais se faire passer pour des onglets.
  */
@@ -46,7 +47,17 @@ export interface NavSection {
   active?: (route: RouteLocationNormalizedLoaded) => boolean;
 }
 
-/** Une destination de premier niveau, présente dans le rail comme dans la barre. */
+/**
+ * Destinations retenues par le dock du mode compact, dans l'ordre.
+ *
+ * Le dock n'a la place que de quatre cibles de 44px plus le bouton « Plus » : au-delà,
+ * les libellés se tronquent et les cibles passent sous le seuil tactile. Les autres
+ * destinations restent atteignables en entier depuis la feuille de navigation, qui
+ * n'en cache aucune.
+ */
+export const DOCK_DESTINATION_KEYS = ['dashboard', 'discover', 'requests', 'library'];
+
+/** Une destination de premier niveau, présente dans le rail comme dans le dock. */
 export interface NavDestination {
   key: string;
   label: string;

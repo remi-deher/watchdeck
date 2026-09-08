@@ -1,48 +1,25 @@
 <template>
-  <a href="#main-content" class="skip-link">Aller au contenu principal</a>
-  <div class="shell" :class="isWide ? 'shell--top' : 'shell--bar'">
-    <!-- Navigation adaptative : destinations principales + sections contextuelles. -->
-    <AppNav
-      :orientation="isWide ? 'top' : 'bar'"
-      :is-admin="isAdmin"
-      :can-moderate="canModerate"
-      @open-palette="palette?.open()"
-    />
-    <CommandPalette ref="palette" :is-admin="isAdmin" :can-moderate="canModerate" />
-
-    <main id="main-content" class="main" tabindex="-1">
-      <RouterView v-slot="{ Component, route: viewRoute }">
-        <component :is="Component" :key="viewRoute.path" />
-      </RouterView>
-    </main>
-    <div id="route-announcer" class="sr-only" role="status" aria-live="polite">{{ routeAnnouncement }}</div>
-    <ToastStack :toasts="toasts" @dismiss="dismissToast"/>
-  </div>
+  <AppShell :is-admin="isAdmin" :can-moderate="canModerate">
+    <RouterView v-slot="{ Component, route: viewRoute }">
+      <component :is="Component" :key="viewRoute.path" />
+    </RouterView>
+  </AppShell>
+  <ToastStack :toasts="toasts" @dismiss="dismissToast"/>
 </template>
-
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute } from 'vue-router';
-import { api } from "@/api";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { clearCache, syncCacheOwner } from "@/cache";
 import { connectRealtime } from "@/events";
 import ToastStack from "@/components/ui/ToastStack.vue";
-import AppNav from "@/components/layout/AppNav.vue";
-import CommandPalette from "@/components/layout/CommandPalette.vue";
+import AppShell from "@/components/layout/AppShell.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
-import { useMediaQuery } from "@/composables/useMediaQuery";
 import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";
 import { canModerateSession, isAdminSession, loadSession } from "@/composables/useSession";
 const session=ref<any>(null);
-const palette=ref<{open:()=>void}|null>(null);
 useVisualViewport();
-const route=useRoute();
 const isAdmin=computed(()=>isAdminSession(session.value));
 const canModerate=computed(()=>canModerateSession(session.value));
-// Le shell garde la même hiérarchie, mais l'adapte à la portée : barre haute sur les
-// grands écrans, dock inférieur sur téléphone et tablette étroite.
-const isWide=useMediaQuery('(min-width: 900px)');
 const toasts=ref<any[]>([]);
 const seenPlaybackEvents=new Set<string>();
 const toastTimers=new Map<string, ReturnType<typeof setTimeout>>();
@@ -68,17 +45,6 @@ function onSwUpdateAvailable(): void {
   if(toasts.value.some(toast=>toast.type==='update'))return;
   toasts.value=[...toasts.value,{id:'sw-update',type:'update',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.'}];
 }
-const routeAnnouncement=ref('');
-let isFirstNavigation=true;
-watch(()=>route.fullPath,async()=>{
-  // La premiere "navigation" est le chargement initial de la page : le focus y est
-  // deja au bon endroit et il n'y a rien a annoncer.
-  if(isFirstNavigation){isFirstNavigation=false;return}
-  await nextTick();
-  document.getElementById('main-content')?.focus({preventScroll:true});
-  const title=typeof route.meta.title==='string'?route.meta.title:'';
-  routeAnnouncement.value=title?`Page ${title} chargée`:'Page chargée';
-});
 onMounted(async()=>{
   window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
 onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);toastTimers.forEach(clearTimeout)});

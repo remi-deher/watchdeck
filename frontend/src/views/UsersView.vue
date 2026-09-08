@@ -1,8 +1,8 @@
 <template>
-  <div class="page">
-    <PageSearchHeader title="Utilisateurs" description="Comptes Plex, Seer, rôles et préférences de notification." eyebrow="Administration" v-model:query="query" placeholder="Nom, identifiant ou email" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
-      <template #actions><UiButton :loading="busy" @click="syncPlex"><template #icon><RefreshCw/></template>Synchroniser Plex</UiButton><UiButton :loading="busy" @click="syncSeer"><template #icon><RefreshCw/></template>Synchroniser Seer</UiButton><UiButton variant="primary" @click="openCreate"><template #icon><UserPlus/></template>Ajouter</UiButton></template>
-    </PageSearchHeader>
+    <AppPage title="Utilisateurs" v-model:query="query" placeholder="Filtrer par nom, identifiant ou email" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
+
+      <template #tools><UiButton :loading="busy" @click="syncPlex"><template #icon><RefreshCw/></template>Synchroniser Plex</UiButton><UiButton :loading="busy" @click="syncSeer"><template #icon><RefreshCw/></template>Synchroniser Seer</UiButton><UiButton variant="primary" @click="openCreate"><template #icon><UserPlus/></template>Ajouter</UiButton></template>
+    
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <select v-model="status"><option value="">Tous les statuts</option><option value="enabled">Actifs</option><option value="disabled">Désactivés</option></select>
@@ -38,7 +38,7 @@
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 <script setup>
 import { computed, markRaw, onMounted, reactive, ref } from 'vue';

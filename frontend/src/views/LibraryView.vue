@@ -1,6 +1,5 @@
 <template>
-  <div class="page">
-    <PageSearchHeader title="Bibliothèque" description="Catalogue Plex, demandes en cours et suivi des versions." v-model:query="query" placeholder="Rechercher un média…" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @search="onSearch" @toggle-filters="toggleFilters" />
+    <AppPage title="Bibliothèque" v-model:query="query" placeholder="Filtrer la bibliothèque…" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @search="onSearch" @toggle-filters="toggleFilters">
 
     <BulkActionBar v-if="canModerate" :count="selectedIds.length" singular="demande sélectionnée" plural="demandes sélectionnées" clear-label="Annuler" @clear="selectedIds=[]">
       <UiButton size="sm" @click="bulk('retry')"><template #icon><RotateCcw/></template>Relancer</UiButton>
@@ -153,7 +152,7 @@
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">

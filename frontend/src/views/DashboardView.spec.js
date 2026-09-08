@@ -22,7 +22,6 @@ function mountView() {
   return mount(DashboardView, {
     global: {
       stubs: {
-        PageHeader: true,
         UiFeedback: true,
         OnboardingChecklist: true,
         DashboardActionCenter: true,

@@ -6,7 +6,6 @@ import LoadMore from './LoadMore.vue';
 import MetricCard from './MetricCard.vue';
 import MetricGrid from './MetricGrid.vue';
 import PanelCard from './PanelCard.vue';
-import TabNav from './TabNav.vue';
 import ToggleSwitch from './ToggleSwitch.vue';
 import UiButton from './UiButton.vue';
 import UiEmptyState from './UiEmptyState.vue';
@@ -308,36 +307,6 @@ describe('PanelCard', () => {
   });
 });
 
-describe('TabNav', () => {
-  const tabs = [
-    { value: 'queue', label: 'File active', count: 3, badgeClass: 'error-badge' },
-    { value: 'history', label: 'Historique' },
-  ];
-
-  it('marque l’onglet courant et expose les rôles ARIA', () => {
-    const wrapper = mount(TabNav, { props: { tabs, modelValue: 'queue', ariaLabel: 'Téléchargements' } });
-    expect(wrapper.find('nav.detail-tabs').attributes('aria-label')).toBe('Téléchargements');
-    expect(wrapper.find('nav').attributes('role')).toBe('tablist');
-    const [active, other] = wrapper.findAll('button[role="tab"]');
-    expect(active.attributes('aria-selected')).toBe('true');
-    expect(active.classes()).toContain('active');
-    expect(other.attributes('aria-selected')).toBe('false');
-  });
-
-  it('affiche le compteur seulement là où il y en a un', () => {
-    const wrapper = mount(TabNav, { props: { tabs, modelValue: 'queue' } });
-    const badges = wrapper.findAll('.tab-badge');
-    expect(badges).toHaveLength(1);
-    expect(badges[0].text()).toBe('3');
-    expect(badges[0].classes()).toContain('error-badge');
-  });
-
-  it('émet la nouvelle valeur au clic', async () => {
-    const wrapper = mount(TabNav, { props: { tabs, modelValue: 'queue' } });
-    await wrapper.findAll('button')[1].trigger('click');
-    expect(wrapper.emitted('update:modelValue')).toEqual([['history']]);
-  });
-});
 
 describe('LoadMore', () => {
   it('ne s’affiche que s’il reste des pages', () => {

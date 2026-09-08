@@ -2,9 +2,8 @@ import { createApp } from 'vue';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import App from './App.vue';
 import { isAdminSession, isModeratorSession, loadSession } from './composables/useSession';
-import PageHeader from './components/ui/PageHeader.vue';
-import PageShell from './components/ui/PageShell.vue';
-import PageSearchHeader from './components/ui/PageSearchHeader.vue';
+import AppPage from '@/components/ui/AppPage.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import FilterSidebar from './components/ui/FilterSidebar.vue';
 import StatusBadge from './components/ui/StatusBadge.vue';
 import UiFeedback from './components/ui/UiFeedback.vue';
@@ -115,9 +114,8 @@ router.beforeEach(async (to) => {
 });
 
 createApp(App)
-  .component('PageHeader', PageHeader)
-  .component('PageShell', PageShell)
-  .component('PageSearchHeader', PageSearchHeader)
+  .component('AppPage', AppPage)
+  .component('AppSubnav', AppSubnav)
   .component('FilterSidebar', FilterSidebar)
   .component('StatusBadge', StatusBadge)
   .component('UiFeedback', UiFeedback)
