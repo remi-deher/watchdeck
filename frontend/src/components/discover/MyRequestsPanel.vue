@@ -1,24 +1,17 @@
 <template>
   <div class="my-requests-panel">
     <MediaFiltersBar
+      ref="filtersBar"
       header-mode
+      hide-toolbar
       v-model:query="query"
       v-model:view="view"
       v-model:status-filters="statusFilters"
       v-model:type-filters="typeFilters"
       v-model:vf="vf"
+      v-model:sort="sort"
       @search="onSearch"
-    >
-      <template #header-actions>
-        <label class="sort-select">Trier par
-          <select v-model="sort">
-            <option value="recent">Plus récentes</option>
-            <option value="oldest">Plus anciennes</option>
-            <option value="title">Titre A→Z</option>
-          </select>
-        </label>
-      </template>
-    </MediaFiltersBar>
+    />
 
     <UiFeedback v-if="error" type="error" title="Impossible de charger vos demandes" :message="error" retry @retry="load" />
     <UiFeedback v-else-if="loading && !items.length" type="loading" message="Chargement de vos demandes…" />
@@ -51,6 +44,7 @@ import { mediaDetailPath } from '@/mediaUrl';
 import { useDebounced } from '@/composables/useDebounced';
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useRealtimeList } from '@/composables/useRealtimeList';
+import { providePageSearch, type PageSearch } from '@/composables/usePageSearch';
 import { canModerateSession, loadSession } from '@/composables/useSession';
 import MediaFiltersBar from '@/components/media/MediaFiltersBar.vue';
 import LibraryCard from '@/components/library/LibraryCard.vue';
@@ -63,6 +57,7 @@ defineEmits<{
 
 const router = useRouter();
 const request = useLatestRequest();
+const filtersBar = ref<{ openFilterModal: () => void } | null>(null);
 
 const items = ref<any[]>([]);
 const canModerate = ref(false);
@@ -75,8 +70,22 @@ const query = ref('');
 const statusFilters = ref<string[]>([]);
 const typeFilters = ref<string[]>([]);
 const vf = ref('');
-const sort = ref('recent');
+const sort = ref('');
 const view = ref(localStorage.getItem('library.view') || 'grid');
+const activeFilterCount = computed(() => statusFilters.value.length + typeFilters.value.length + (vf.value ? 1 : 0) + (sort.value ? 1 : 0));
+
+providePageSearch(computed<PageSearch>(() => ({
+  showSearch: true,
+  query: query.value,
+  placeholder: 'Rechercher une demande…',
+  scopeLabel: 'Demandes',
+  hasFilters: true,
+  filtersOpen: false,
+  activeCount: activeFilterCount.value,
+  onQuery: (value: string) => { query.value = value; },
+  onSearch: () => onSearch(),
+  onToggleFilters: () => filtersBar.value?.openFilterModal(),
+})));
 
 function _params(): URLSearchParams {
   const p = new URLSearchParams({ limit: '500', requesters: plexUserId.value });

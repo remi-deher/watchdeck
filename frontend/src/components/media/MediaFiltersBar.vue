@@ -3,7 +3,7 @@
     <!-- Une barre d'outils, pas un en-tete de page : le titre et le h1 appartiennent
          a AppPage, qui enveloppe deja ce panneau. En rendre un second ici donnait
          deux h1 dans la meme page. -->
-    <div v-if="headerMode" class="media-filters-toolbar">
+    <div v-if="headerMode && !hideToolbar" class="media-filters-toolbar">
       <UiSearchField
         :query="query"
         placeholder="Rechercher une demande…"
@@ -21,6 +21,12 @@
           <button :class="{ active: view === 'list' }" title="Liste" type="button" role="tab" :aria-selected="view === 'list'" @click="$emit('update:view', 'list')"><List /></button>
         </div>
         <slot name="header-actions" />
+      </div>
+    </div>
+    <div v-else-if="headerMode && !hideViewToggle" class="media-filters-toolbar__actions media-filters-toolbar__actions--standalone">
+      <div class="view-toggle-segmented" role="tablist" aria-label="Mode d'affichage">
+        <button :class="{ active: view === 'grid' }" title="Grille" type="button" role="tab" :aria-selected="view === 'grid'" @click="$emit('update:view', 'grid')"><Grid2X2 /></button>
+        <button :class="{ active: view === 'list' }" title="Liste" type="button" role="tab" :aria-selected="view === 'list'" @click="$emit('update:view', 'list')"><List /></button>
       </div>
     </div>
     <!-- Ligne de recherche contenant le bouton Filtres et les boutons Grille / Liste -->
@@ -225,6 +231,15 @@
             <option v-for="r in requesters" :key="r.id" :value="r.id">{{ r.label }}</option>
           </select>
         </div>
+
+        <div v-if="headerMode" class="form-group">
+          <label class="form-label" for="filter-request-sort">Trier par</label>
+          <select id="filter-request-sort" v-model="draftSort" class="form-select">
+            <option value="">Plus récentes</option>
+            <option value="oldest">Plus anciennes</option>
+            <option value="title">Titre A→Z</option>
+          </select>
+        </div>
       </div>
 
       <template #actions>
@@ -268,6 +283,7 @@ const props = withDefaults(
     hideTypeTabs?: boolean;
     hideViewToggle?: boolean;
     headerMode?: boolean;
+    hideToolbar?: boolean;
   }>(),
   {
     query: '',
@@ -288,6 +304,7 @@ const props = withDefaults(
     hideTypeTabs: false,
     hideViewToggle: false,
     headerMode: false,
+    hideToolbar: false,
   }
 );
 const emit = defineEmits<{
@@ -346,6 +363,8 @@ function openFilterModal(): void {
   draftType.value = isMusicOnly.value ? 'music' : (props.typeFilters[0] || '');
   isModalOpen.value = true;
 }
+
+defineExpose({ openFilterModal });
 
 function closeFilterModal(): void {
   isModalOpen.value = false;
