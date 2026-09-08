@@ -2,7 +2,7 @@
   <nav class="app-rail" :data-density="density" aria-label="Navigation principale">
     <RouterLink class="app-rail__brand" to="/" :aria-label="`Watchdeck — accueil`">
       <Clapperboard aria-hidden="true" />
-      <span class="app-rail__brand-name" :class="{ 'sr-only': density === 'medium' }">Watchdeck</span>
+      <span class="app-rail__brand-name" :class="{ 'sr-only': density === 'medium' }">{{ pageTitle || 'Watchdeck' }}</span>
     </RouterLink>
 
     <div class="app-rail__scroll">
@@ -25,6 +25,22 @@
                    sans dépendre d'un aria-label à maintenir en double. -->
               <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">{{ destination.label }}</span>
             </RouterLink>
+            <ul
+              v-if="density === 'expanded' && destination.key === activeKey && sections.length > 1"
+              class="app-rail__subnav"
+              :aria-label="`Sections ${destination.label}`"
+            >
+              <li v-for="section in sections" :key="section.key">
+                <RouterLink
+                  class="app-rail__sublink"
+                  :to="section.to || destination.to"
+                  :aria-current="section.key === activeSectionKey ? 'page' : undefined"
+                >
+                  <component v-if="section.icon" :is="section.icon" aria-hidden="true" />
+                  <span>{{ section.label }}</span>
+                </RouterLink>
+              </li>
+            </ul>
           </li>
         </ul>
       </div>
@@ -50,19 +66,22 @@ import { RouterLink } from 'vue-router';
 import { Clapperboard, Search, UserRound } from '@lucide/vue';
 import { destinationsFor, type NavDestination } from '@/navigation';
 import { shortcutLabel } from '@/shortcut';
+import { usePageSections } from '@/composables/usePageSections';
 
 const props = withDefaults(
   defineProps<{
     /** `medium` : icônes seules sur 72px. `expanded` : libellés et groupes visibles. */
     density: 'medium' | 'expanded';
     activeKey?: string;
+    pageTitle?: string;
     isAdmin?: boolean;
     canModerate?: boolean;
   }>(),
-  { activeKey: '', isAdmin: false, canModerate: false }
+  { activeKey: '', pageTitle: 'Watchdeck', isAdmin: false, canModerate: false }
 );
 
 defineEmits<{ (e: 'open-palette'): void }>();
+const { sections, activeKey: activeSectionKey } = usePageSections();
 
 /** Un seul niveau, groupé par métier : le rail montre toujours tout ce qui est permis. */
 const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() => {
@@ -89,8 +108,8 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   padding: max(var(--space-3), var(--safe-top)) var(--space-2) max(var(--space-3), var(--safe-bottom));
   padding-left: max(var(--space-2), var(--safe-left));
   overflow: hidden;
-  border-right: 1px solid var(--border);
-  background: var(--surface-sunken);
+  border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--bg) 96%, var(--surface));
 }
 
 .app-rail__scroll {
@@ -161,6 +180,28 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   font-weight: 700;
 }
+
+.app-rail__subnav {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 var(--space-2) 20px !important;
+  padding: 0 0 0 var(--space-2) !important;
+  border-left: 1px solid var(--border);
+}
+.app-rail__sublink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-decoration: none;
+}
+.app-rail__sublink svg { flex: none; width: 15px; height: 15px; }
+.app-rail__sublink:hover { color: var(--text); background: var(--surface); }
+.app-rail__sublink[aria-current='page'] { color: var(--accent); font-weight: 700; }
 
 .app-rail__footer {
   display: grid;

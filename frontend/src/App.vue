@@ -1,7 +1,11 @@
 <template>
   <AppShell :is-admin="isAdmin" :can-moderate="canModerate">
-    <RouterView v-slot="{ Component, route: viewRoute }">
-      <component :is="Component" :key="viewRoute.path" />
+    <RouterView v-slot="{ Component }">
+      <!-- Vue Router reutilise naturellement une vue quand plusieurs chemins pointent
+           vers le meme composant. Ne pas la clef-er par chemin permet notamment a
+           /discover de devenir /discover/explore sans detruire le champ de recherche
+           apres la premiere lettre. -->
+      <component :is="Component" />
     </RouterView>
   </AppShell>
   <ToastStack :toasts="toasts" @dismiss="dismissToast"/>
