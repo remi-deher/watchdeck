@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.18.0 — 2026-09-08
+
+
+### test
+
+- align coverage with navigation shell ([22cacf7](https://github.com/remi-deher/watchdeck/commit/22cacf7b970868e2f6323d4f3035a8657e754d09))
+
+### ✨ Nouveautés
+
+- simplify navigation shell and harden database pool ([ce95f5d](https://github.com/remi-deher/watchdeck/commit/ce95f5d7824686d14f6b671413712624ac4915b8))
+
+### 🐛 Corrections
+
+- type database engine options ([3f8cf06](https://github.com/remi-deher/watchdeck/commit/3f8cf066fb46678034fe7528663bbf2c758608d8))
 ## 1.17.1 — 2026-09-08
 
 
@@ -18,6 +32,10 @@
 ### 👷 CI/CD
 
 - retry transient Cosign signatures ([265fbcc](https://github.com/remi-deher/watchdeck/commit/265fbcc0a78a68dc93bce1b6a53c4968d1d3c8fe))
+
+### 🔧 Maintenance
+
+- v1.17.1 (#226) ([9249f6e](https://github.com/remi-deher/watchdeck/commit/9249f6e4025d8eafd8644fc9723509a48734c09f))
 ## 1.17.0 — 2026-09-08
 
 
