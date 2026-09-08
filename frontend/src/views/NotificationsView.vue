@@ -26,6 +26,21 @@
   </Transition>
 
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
+  <details class="panel" @toggle="loadDeliveries">
+    <summary>Suivi des envois — clés uniques et confirmations</summary>
+    <p>Les envois sans confirmation restent bloqués pour vérification. Un Message-ID SMTP ne garantit pas à lui seul l'absence de doublon.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Demande</th><th>Événement</th><th>Destinataire</th><th>État</th><th>Clé d'envoi</th></tr></thead>
+        <tbody><tr v-for="delivery in deliveries" :key="delivery.send_key">
+          <td>#{{ delivery.req_id }}</td><td>{{ delivery.event }}</td><td>{{ delivery.recipient }}</td>
+          <td>{{ deliveryStateLabels[delivery.state] || delivery.state }}<small>{{ delivery.detail }}</small></td>
+          <td><code>{{ delivery.send_key }}</code></td>
+        </tr></tbody>
+      </table>
+      <p v-if="!deliveries.length">Aucun envoi enregistré dans le nouveau suivi.</p>
+    </div>
+  </details>
 
   <div class="psh-layout">
     <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
@@ -94,6 +109,13 @@ import UiButton from '@/components/ui/UiButton.vue';
 import BulkActionBar from '@/components/ui/BulkActionBar.vue';
 
 const rows = ref([]);
+const deliveries = ref([]);
+const deliveryStateLabels = { prepared: 'Préparé', sending: 'En cours / à vérifier', sent: 'Accepté par le fournisseur', uncertain: 'Sans confirmation — à vérifier', cancelled: 'Annulé', obsolete: 'Devenu inutile', failed: 'Refusé' };
+async function loadDeliveries(event) {
+  if (!event.target.open) return;
+  try { deliveries.value = (await api('/api/notifications/deliveries')).items; }
+  catch (e) { showFeedback('error', e.message); }
+}
 const users = ref([]);
 const route=useRoute(),router=useRouter();
 const tab = ref(route.query.tab==='pending'?'pending':'history');
@@ -164,8 +186,16 @@ function showFeedback(type, text) { showFeedbackMessage(text, type); }
 async function toggleHold(enabled) {
   const previous = holdEnabled.value;
   holdSaving.value = true;
-  holdEnabled.value = enabled;
   try {
+    if (!enabled) {
+      const { counts: c } = await api('/api/notifications/resume-preview');
+      const accepted = await askConfirm({
+        title: 'Réactiver les notifications ?',
+        message: `${c.ready} envoi(s) pertinent(s), ${c.old} de plus de 24 h, ${c.obsolete + c.cancelled + c.sent} déjà traité(s) ou devenu(s) inutile(s), ${c.uncertain} sans confirmation. Les notifications déjà en file resteront à examiner et à envoyer explicitement.`,
+        confirmLabel: 'Réactiver les nouveaux envois',
+      });
+      if (!accepted) return;
+    }
     const data = await api('/api/notifications/hold', { method: 'PUT', body: JSON.stringify({ enabled }) });
     holdEnabled.value = data.enabled;
     pendingTotal.value = data.pending_count ?? pendingTotal.value;

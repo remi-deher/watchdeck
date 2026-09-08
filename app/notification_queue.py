@@ -16,6 +16,7 @@ import inspect
 import json
 import logging
 from datetime import timedelta
+from uuid import uuid4
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,14 @@ from .services.email_service import (
     send_request_notification,
 )
 from .services.notification_catalog import event_mail_flags
+from .services.notification_delivery import (
+    DeliveryUncertain,
+    delivery_identity,
+    finish,
+    identity_for,
+    prepare,
+    recipient_status,
+)
 from .services.notifications import (
     ChannelNotConfigured,
     send_discord,
@@ -219,8 +228,11 @@ async def persist_pending_notification(
 ) -> tuple[int | None, str, dict]:
     """Ajoute une notification à la transaction courante, sans commit ni planification."""
     event, normalized_context = _normalize_event_context(event, context)
+    if await notification_hold_enabled():
+        normalized_context["held_for_review"] = True
     if triggered_by != "auto":
         normalized_context["triggered_by"] = triggered_by
+        normalized_context.setdefault("resend_id", str(uuid4()))
     recipients_json = json.dumps(recipients)
     reason_json = json.dumps(normalized_context)
     existing = (
@@ -244,6 +256,8 @@ async def persist_pending_notification(
         )
         return None, event, normalized_context
     row = PendingNotification(event=event, req_id=req_id, recipients=recipients_json, reason=reason_json)
+    for recipient in recipients:
+        await prepare(db, identity_for(req_id, event, recipient, normalized_context))
     db.add(row)
     flush_result = db.flush()
     if inspect.isawaitable(flush_result):
@@ -426,11 +440,17 @@ async def _send_with_retry(
         try:
             sender = EMAIL_SENDERS.get(event)
             if sender:
-                await sender(settings, req, recipient, context, display_name)
+                token = delivery_identity.set(identity_for(req.id, event, recipient, context))
+                try:
+                    await sender(settings, req, recipient, context, display_name)
+                finally:
+                    delivery_identity.reset(token)
             logger.info(
                 f"Notification [{event}] envoyée à {mask_email(recipient)} pour '{req.title}' (tentative {attempt + 1})"
             )
             return True, None
+        except DeliveryUncertain as e:
+            return False, str(e)
         except Exception as e:
             error_msg = str(e)
             if attempt < len(_RETRY_DELAYS):
@@ -503,6 +523,8 @@ async def _process(event: str, req_id: int, recipients: list[str], context: dict
                 return True
             if not force and await notification_hold_enabled():
                 return False
+            if context.get("held_for_review") and not force:
+                return False
 
             # Résolution des emails admin pour marquer is_admin dans les logs
             admin_emails = set(parse_email_list(settings.admin_notification_email))
@@ -517,13 +539,24 @@ async def _process(event: str, req_id: int, recipients: list[str], context: dict
             # Envoi email à chaque destinataire avec retry automatique. Le lien Plex
             # est résolu une seule fois pour toute la notification.
             all_ok = True
+            attempted = False
             delivery_context = dict(context)
             if event == "available":
                 delivery_context["_plex_deep_link"] = await resolve_plex_web_url(settings, req, db=db)
             for recipient in recipients:
+                state = await recipient_status(db, req, settings, event, recipient, context)
+                if state != "ready":
+                    if state == "uncertain":
+                        all_ok = False
+                    elif state == "obsolete":
+                        identity = identity_for(req_id, event, recipient, context)
+                        await prepare(db, identity)
+                        await finish(db, identity["send_key"], "obsolete", detail="Éligibilité modifiée avant envoi")
+                    continue
                 success, error_msg = await _send_with_retry(
                     settings, req, event, recipient, delivery_context, display_name
                 )
+                attempted = True
                 if not success:
                     all_ok = False
                 db.add(
@@ -568,6 +601,8 @@ async def _process(event: str, req_id: int, recipients: list[str], context: dict
                                 )
                             )
 
+            if recipients and not attempted:
+                return all_ok  # obsolete/previously sent emails must not trigger fresh push notifications
             # Mise à jour des flags uniquement si tous les emails ont été envoyés avec succès
             app_metrics.record_notification(all_ok)
             await record_event(
@@ -732,7 +767,7 @@ async def process_pending_id(pending_id: int, force: bool = False) -> str | int 
         req = (await db.execute(select(MediaRequest).filter(MediaRequest.id == int(req_id)))).scalars().first()
         user_id = req.plex_user_id if req else None
 
-        if not force and recipients:
+        if not force and recipients and context.get("triggered_by") != "manual":
             already = await _already_delivered_recipients(db, event, int(req_id), context)
             if already:
                 remaining = [r for r in recipients if r not in already]
@@ -769,24 +804,9 @@ async def _worker():
                 _cancelled_pending_ids.discard(pending_id)
                 await _delete_pending(pending_id)
             else:
-                if recipients:
-                    async with AsyncSessionLocal() as db:
-                        already = await _already_delivered_recipients(db, event, req_id, context)
-                    recipients = [r for r in recipients if r not in already]
-                if not recipients:
-                    await _delete_pending(pending_id)
-                    continue
-                ok = await _process(event, req_id, recipients, context)
-                if ok:
-                    await _delete_pending(pending_id)
-                else:
-                    # Conservée en base plutôt que perdue : ce worker en mémoire ne la
-                    # retentera pas lui-même dans ce cycle de vie du process, mais
-                    # _load_pending() la réenfilera au prochain démarrage de l'app —
-                    # cohérent avec la garantie de survie déjà documentée sur ce modèle.
-                    logger.warning(
-                        f"Notification #{pending_id} [{event}] non livrée, conservée pour reprise ultérieure"
-                    )
+                # Always re-read the persisted row: it may have been cancelled or
+                # held for review in another process since this tuple was queued.
+                await process_pending_id(pending_id)
         except asyncio.CancelledError:
             logger.info("Notification worker arrêté")
             break

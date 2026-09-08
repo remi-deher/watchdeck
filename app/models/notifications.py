@@ -98,3 +98,20 @@ class PendingNotification(Base):
     req_id: Mapped[int] = mapped_column(index=True)
     recipients: Mapped[str]  # JSON list[str]
     reason: Mapped[str] = mapped_column(default="")
+
+
+class NotificationDelivery(Base):
+    """Durable per-recipient send ledger, independent of the disposable queue."""
+
+    __tablename__ = "notification_deliveries"
+
+    send_key: Mapped[str] = mapped_column(primary_key=True)
+    req_id: Mapped[int] = mapped_column(index=True)
+    event: Mapped[str]
+    recipient: Mapped[str]
+    state: Mapped[str] = mapped_column(default="prepared", index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+    provider_id: Mapped[Optional[int]]
+    provider_message_id: Mapped[Optional[str]]
+    detail: Mapped[Optional[str]]

@@ -8,6 +8,8 @@ import logging
 
 import httpx
 
+from .notification_delivery import DeliveryRejected
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.brevo.com/v3"
@@ -30,6 +32,7 @@ async def send_transactional_email(
     subject: str,
     html_content: str,
     to_name: str | None = None,
+    send_key: str | None = None,
 ) -> str:
     """Envoie un email transactionnel via l'API Brevo. Retourne le messageId Brevo."""
     sender: dict[str, str] = {"email": sender_email}
@@ -45,6 +48,8 @@ async def send_transactional_email(
         "subject": subject,
         "htmlContent": html_content,
     }
+    if send_key:
+        payload["headers"] = {"idempotencyKey": send_key, "X-Watchdeck-Send-Key": send_key}
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
             f"{BASE_URL}/smtp/email",
@@ -52,5 +57,14 @@ async def send_transactional_email(
             headers={"api-key": api_key, "content-type": "application/json", "accept": "application/json"},
         )
     if resp.status_code >= 400:
-        raise RuntimeError(f"Échec de l'envoi via Brevo ({resp.status_code}): {_error_detail(resp)}")
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        if data.get("code") == "duplicate_parameter":
+            # No acceptance receipt/messageId: keep this ambiguous for manual verification.
+            raise RuntimeError("Clé Brevo déjà utilisée : vérifier le premier envoi")
+        if resp.status_code < 500:
+            raise DeliveryRejected(f"Échec de l'envoi via Brevo ({resp.status_code}): {_error_detail(resp)}")
+        raise RuntimeError(f"Réponse Brevo ambiguë ({resp.status_code})")
     return (resp.json() or {}).get("messageId", "")

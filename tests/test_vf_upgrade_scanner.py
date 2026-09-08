@@ -1049,7 +1049,7 @@ async def test_manual_vo_movie_search_is_persisted_as_relevant_upgrade(db):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_hides_irrelevant_legacy_pending_but_keeps_auto_results(db):
+async def test_dashboard_closes_stale_vo_suggestion_but_keeps_vf_upgrade_results(db):
     legacy_media = _movie_item(db, title="Ancienne recherche manuelle", has_vf=True)
     auto_media = _movie_item(db, title="Scan automatique", has_vf=True, arr_id=100)
     db.add_all(
@@ -1061,6 +1061,7 @@ async def test_dashboard_hides_irrelevant_legacy_pending_but_keeps_auto_results(
                 releases_json='[{"guid":"legacy"}]',
                 status="pending",
                 origin="legacy",
+                target_kind="vo",
             ),
             VfUpgradeSuggestion(
                 source_type="library_item",
@@ -1077,8 +1078,46 @@ async def test_dashboard_hides_irrelevant_legacy_pending_but_keeps_auto_results(
 
     payload = await vf_upgrade_dashboard(db=db)
 
-    assert [item["media"]["title"] for item in payload["items"]] == ["Scan automatique"]
-    assert payload["items"][0]["origin"] == "auto"
+    items = {item["media"]["title"]: item for item in payload["items"]}
+    assert items["Ancienne recherche manuelle"]["status"] == "verified"
+    assert "modification externe" in items["Ancienne recherche manuelle"]["arr_message"]
+    assert items["Scan automatique"]["status"] == "pending"
+    assert items["Scan automatique"]["origin"] == "auto"
+
+
+@pytest.mark.asyncio
+async def test_list_closes_external_episode_upgrade_after_audio_rescan(db):
+    item = _show_item(db, title="Serie amelioree hors application", has_vf=False)
+    db.add_all(
+        [
+            VfEpisodeStatus(
+                source_type="library_item",
+                source_id=item.id,
+                season_number=1,
+                episode_number=3,
+                has_vf=True,
+                is_known_episode=True,
+                checked_at=now_utc_naive(),
+            ),
+            VfUpgradeSuggestion(
+                source_type="library_item",
+                source_id=item.id,
+                scope="episode",
+                season_number=1,
+                episode_number=3,
+                releases_json='[{"guid":"vf"}]',
+                status="pending",
+                origin="auto",
+                target_kind="vo",
+            ),
+        ]
+    )
+    db.commit()
+
+    payload = await list_vf_upgrades("library_item", item.id, db=db)
+
+    assert payload["suggestions"][0]["status"] == "verified"
+    assert "modification externe" in payload["suggestions"][0]["arr_message"]
 
 
 @pytest.mark.asyncio

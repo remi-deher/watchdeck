@@ -457,7 +457,8 @@ async def test_catch_up_late_co_requester_queues_missed_request_and_availability
 
 
 @pytest.mark.asyncio
-async def test_catch_up_skips_event_already_delivered_to_that_requester():
+@pytest.mark.parametrize("event_key", ["request", "cancelled:request"])
+async def test_catch_up_skips_event_already_delivered_to_that_requester(event_key):
     engine, db = await _make_db()
     settings = Settings(id=1, smtp_from="fallback@example.com", email_on_request=True)
     bob = PlexUser(plex_user_id="bob", enabled=True, notification_email="bob@example.com")
@@ -471,7 +472,7 @@ async def test_catch_up_skips_event_already_delivered_to_that_requester():
     )
     db.add_all([settings, bob, req])
     await db.flush()
-    db.add(RequesterNotificationReceipt(req_id=req.id, plex_user_id="bob", event_key="request"))
+    db.add(RequesterNotificationReceipt(req_id=req.id, plex_user_id="bob", event_key=event_key))
     await db.commit()
 
     with patch("app.services.notification_orchestrator.enqueue", new_callable=AsyncMock) as mock_enqueue:
@@ -481,6 +482,76 @@ async def test_catch_up_skips_event_already_delivered_to_that_requester():
     mock_enqueue.assert_not_called()
     await db.close()
     await engine.dispose()
+    await db.close()
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_catch_up_is_persistent_and_scoped_to_recipient():
+    import json
+    from types import SimpleNamespace
+
+    from app.routers.notifications_api import _remember_cancelled_notifications
+    from app.services.notification_orchestrator import requester_has_receipt
+
+    engine, db = await _make_db()
+    req = MediaRequest(plex_user_id="alice", plex_user="Alice", title="Dune", media_type="movie")
+    db.add(req)
+    await db.flush()
+    row = SimpleNamespace(
+        req_id=req.id,
+        event="request",
+        recipients='["bob@example.com"]',
+        reason=json.dumps({"requester_ids_by_recipient": {"bob@example.com": ["bob"]}}),
+    )
+    await _remember_cancelled_notifications(db, [row, row])
+    await db.commit()
+    assert await requester_has_receipt(db, req.id, "bob", "request")
+    assert not await requester_has_receipt(db, req.id, "alice", "request")
+    assert not await requester_has_receipt(db, req.id, "bob", "available")
+    await db.close()
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_catch_up_does_not_announce_old_availability_after_status_regression():
+    engine, db = await _make_db()
+    req = MediaRequest(
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Dune",
+        media_type="movie",
+        status=RequestStatus.sent_to_arr,
+        available_mail_sent=True,
+    )
+    with patch("app.services.notification_orchestrator.notify_single_user", new_callable=AsyncMock) as notify:
+        await catch_up_requester_notifications(Settings(), req, db, "bob")
+    assert [call.args[0] for call in notify.call_args_list] == ["request"]
+    await db.close()
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_watchlist_catches_up_only_on_first_requester_addition():
+    from app.services.watchlist_poller import _process_watchlist_item
+
+    engine, db = await _make_db()
+    req = MediaRequest(
+        plex_user_id="alice", plex_user="Alice", title="Dune", media_type="movie", status=RequestStatus.available
+    )
+    db.add(req)
+    await db.commit()
+    item = {"title": "Dune", "media_type": "movie", "plex_user_id": "bob"}
+    with (
+        patch("app.services.watchlist_poller._ensure_tmdb_id", new=AsyncMock(return_value=item)),
+        patch("app.services.watchlist_poller._find_global_request", new=AsyncMock(return_value=req)),
+        patch(
+            "app.services.watchlist_poller.catch_up_requester_notifications", new=AsyncMock(return_value=[])
+        ) as catch_up,
+    ):
+        for _ in range(3):
+            await _process_watchlist_item(item, Settings(), db, {}, set(), False)
+    catch_up.assert_awaited_once()
     await db.close()
     await engine.dispose()
 

@@ -222,6 +222,42 @@ async def _refresh_lifecycle(db: AsyncSession, suggestion: VfUpgradeSuggestion, 
         suggestion.arr_message = "VF non confirmee avant la fin du delai de validation"
 
 
+async def _reconcile_external_vf(
+    db: AsyncSession,
+    suggestion: VfUpgradeSuggestion,
+    media,
+    seasons: dict[int, dict[int, bool]] | None = None,
+) -> bool:
+    """Clot une opportunite VO devenue obsolete apres un remplacement externe.
+
+    Le scanner audio Plex met bien ``has_vf``/``VfEpisodeStatus`` a jour lorsque le
+    fichier est remplace hors de Watchdeck. En revanche, aucune transition de cycle de
+    telechargement Watchdeck ne passe alors par ``_refresh_lifecycle`` : l'ancienne
+    suggestion restait donc affichee indefiniment. On ne touche pas aux recherches dont
+    la cible initiale etait deja VF (amelioration de qualite/VFF volontaire).
+    """
+    if suggestion.status not in ("pending", "waiting_release", "failed"):
+        return False
+    if suggestion.target_kind not in ("vo", "mixed", None):
+        return False
+    if suggestion.scope != "movie" and seasons is None:
+        seasons = await _season_vf_status(db, suggestion.source_type, suggestion.source_id)
+    target_kind = classify_vf_target(
+        media,
+        suggestion.scope,
+        suggestion.season_number,
+        suggestion.episode_number,
+        seasons,
+    )
+    if target_kind != "vf":
+        return False
+    suggestion.status = "verified"
+    suggestion.completed_at = now_utc_naive()
+    suggestion.failed_at = None
+    suggestion.arr_message = "VF detectee par l'analyse Plex apres une modification externe"
+    return True
+
+
 @router.get("/vf-upgrades")
 async def list_vf_upgrades(source_type: str, source_id: int, db: AsyncSession = Depends(get_db_async)):
     """Suggestions VF en attente (ou déjà traitées) pour un média -- toutes portées
@@ -241,8 +277,12 @@ async def list_vf_upgrades(source_type: str, source_id: int, db: AsyncSession = 
     model = MediaRequest if source_type == "request" else LibraryItem
     media = (await db.execute(select(model).filter(model.id == source_id))).scalars().first()
     if media:
+        seasons = None
         for row in rows:
             try:
+                if row.scope != "movie" and seasons is None:
+                    seasons = await _season_vf_status(db, source_type, source_id)
+                await _reconcile_external_vf(db, row, media, seasons)
                 await _refresh_lifecycle(db, row, media)
             except Exception as exc:
                 logger.warning("Suivi upgrade VF indisponible pour suggestion %s: %s", row.id, exc)
@@ -337,18 +377,25 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
         media = (requests if row.source_type == "request" else library).get(row.source_id)
         if not media:
             continue
-        if row.source_type == "library_item":
-            active_library_item_ids.add(row.source_id)
         # Une demande deja liee a un LibraryItem fait doublon avec lui
         if row.source_type == "request" and getattr(media, "library_item_id", None) is not None:
             continue
+        seasons = None
+        if row.scope != "movie":
+            cache_key = (row.source_type, row.source_id)
+            if cache_key not in vf_status_cache:
+                vf_status_cache[cache_key] = await _season_vf_status(db, *cache_key)
+            seasons = vf_status_cache[cache_key]
+        await _reconcile_external_vf(db, row, media, seasons)
+        if status and status not in ("all", "waiting_release") and row.status != status:
+            continue
+        if row.source_type == "library_item" and row.status in (
+            "pending",
+            "failed",
+            *ACTIVE_UPGRADE_STATES,
+        ):
+            active_library_item_ids.add(row.source_id)
         if row.origin != "auto" and row.status == "pending":
-            seasons = None
-            if row.scope != "movie":
-                cache_key = (row.source_type, row.source_id)
-                if cache_key not in vf_status_cache:
-                    vf_status_cache[cache_key] = await _season_vf_status(db, *cache_key)
-                seasons = vf_status_cache[cache_key]
             target_kind = classify_vf_target(media, row.scope, row.season_number, row.episode_number, seasons)
             if target_kind not in {"vo", "mixed"}:
                 continue
