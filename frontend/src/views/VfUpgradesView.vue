@@ -1,17 +1,14 @@
 <template>
-  <div class="page vf-upgrades-page">
-    <PageSearchHeader
+    <AppPage
       title="Améliorations VF & Flux"
-      description="Optimisation des pistes Plex (mode PASTA) et recherche d'opportunités d'upgrades francophones."
-      eyebrow="Bibliothèque"
       v-model:query="query"
-      :placeholder="activeTab === 'upgrades' ? 'Rechercher un film, une série ou une release…' : 'Rechercher un film ou une série…'"
+      :placeholder="activeTab === 'upgrades' ? 'Filtrer par film, série ou release…' : 'Filtrer par film ou série…'"
       has-filters
       :active-count="activeFilterCount"
       :filters-open="filtersOpen"
-      @toggle-filters="toggleFilters"
-    >
-      <template #actions>
+      @toggle-filters="toggleFilters" page-class="vf-upgrades-page">
+
+      <template #tools>
         <template v-if="activeTab === 'upgrades'">
           <UiButton variant="primary" :loading="scanning" @click="scanTriggered"><template #icon><ScanSearch size="16" /></template>{{ scanning ? 'Recherche en cours…' : (selectedKeys.size > 0 ? `Rechercher la sélection (${selectedKeys.size})` : 'Rechercher maintenant') }}</UiButton>
         </template>
@@ -29,14 +26,13 @@
           <UiButton :loading="auditLoading" :disabled="fixingAll" @click="() => loadAudit()"><template #icon><RotateCcw size="16" /></template>Actualiser l'audit</UiButton>
         </template>
       </template>
-    </PageSearchHeader>
 
     <!-- Navigation par onglets -->
-    <TabNav
-      :model-value="activeTab"
-      :tabs="tabs"
+    <AppSubnav variant="tabs"
+      :active="activeTab"
+      :items="tabs"
       aria-label="Modes des améliorations VF"
-      @update:model-value="selectTab"
+      @update:active="selectTab"
     />
 
     <template v-if="activeTab !== 'history'">
@@ -800,7 +796,7 @@
       @close="alignModalOpen = false"
       @applied="onStreamsAligned"
     />
-  </div>
+  </AppPage>
 </template>
 
 <script setup>
@@ -828,8 +824,7 @@ import {
 } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
-import PageSearchHeader from '@/components/ui/PageSearchHeader.vue';
-import TabNav from '@/components/ui/TabNav.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -1180,9 +1175,9 @@ const eligibleAuditFixCount = computed(() => {
 });
 
 const tabs = computed(() => [
-  { value: 'audit', label: 'Alignement des pistes (Plex)', count: eligibleAuditFixCount.value || auditTotalCount.value },
-  { value: 'upgrades', label: 'Releases & Téléchargements (*arr)', count: pendingCount.value || waitingReleaseCount.value },
-  { value: 'history', label: 'Historique des scans' },
+  { key: 'audit', label: 'Alignement des pistes (Plex)', count: eligibleAuditFixCount.value || auditTotalCount.value },
+  { key: 'upgrades', label: 'Releases & Téléchargements (*arr)', count: pendingCount.value || waitingReleaseCount.value },
+  { key: 'history', label: 'Historique des scans' },
 ]);
 
 function selectTab(value) {

@@ -1,5 +1,5 @@
 <template>
-  <PageShell
+  <AppPage hide-search
     title="Tableau de bord"
     :error="error"
     error-title="Actualisation partielle"
@@ -95,7 +95,7 @@
       <section><header><span>Communication</span><h3>Derniers envois</h3></header><div class="dashboard-grid"><RecentNotificationsPanel :notifications="recentNotifs"/></div></section>
     </UiDisclosure>
     <SessionDetailDrawer v-if="selectedSession" :session="selectedSession" @close="selectedSession=null"/>
-  </PageShell>
+  </AppPage>
 </template>
 
 <script setup lang="ts">

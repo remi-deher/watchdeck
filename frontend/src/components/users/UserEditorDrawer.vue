@@ -1,7 +1,7 @@
 ﻿<template>
   <DrawerShell wide eyebrow="Administration" :title="creating?'Nouvel utilisateur':displayName(editing)" :error="editorError" @close="$emit('close')">
     <section v-if="!creating" class="user-drawer-summary"><div><span :class="['user-state-dot',{active:editing.enabled}]"></span><div><strong>{{ editing.enabled?'Compte actif':'Compte désactivé' }}</strong><small>{{ editing.diagnostic?.source_label||editing.source||'Source inconnue' }}</small></div></div><span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ editing.role }}</span><span class="badge" :class="editing.can_login?'available':'failed'">{{ editing.can_login?'Connexion autorisée':'Connexion bloquée' }}</span></section>
-    <TabNav v-model="editorTab" :tabs="editorTabItems" aria-label="Sections de l’utilisateur" />
+    <AppSubnav variant="tabs" :active="editorTab" @update:active="editorTab = $event" :items="editorTabItems" aria-label="Sections de l’utilisateur" />
 
     <section v-if="editorTab==='profile'" class="drawer-section form-section">
       <label v-if="creating" class="check local-account-toggle"><input v-model="isLocalAccount" type="checkbox" @change="onLocalAccountToggle"> Compte local (sans Plex)</label>
@@ -125,7 +125,7 @@ import { formatDate, formatDateTime } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { Download, KeyRound, Languages, Link, Mail, MailCheck, Merge, RefreshCw, Save, Send, Trash2, Unlink } from '@lucide/vue';
 import DrawerShell from '@/components/DrawerShell.vue';
-import TabNav from '@/components/ui/TabNav.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 
@@ -157,7 +157,7 @@ const emit = defineEmits<{
 }>();
 
 const editorTabs = ['profile', 'notifications', 'seer', 'activity', 'diagnostic'];
-const editorTabItems = computed(() => editorTabs.map(value => ({ value, label: editorLabel(value) })));
+const editorTabItems = computed(() => editorTabs.map((key) => ({ key, label: editorLabel(key) })));
 const editorTab = ref('profile');
 const mergeTarget = ref('');
 const isLocalAccount = ref(false);

@@ -1,8 +1,6 @@
 <template>
-  <PageShell
+  <AppPage hide-search
     title="Problèmes signalés"
-    description="Gestion des signalements utilisateur et problèmes remontés."
-    eyebrow="Administration"
     :error="error"
     retry
     @retry="load"
@@ -48,7 +46,7 @@
       </table>
       <UiEmptyState v-if="!loading && !issues.length" message="Aucun signalement." />
     </section>
-  </PageShell>
+  </AppPage>
 </template>
 
 <script setup lang="ts">

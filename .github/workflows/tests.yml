@@ -133,6 +133,10 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Typecheck frontend
+        # Rien n'executait ce script : la rupture entre vue-tsc et TypeScript 7 est
+        # ainsi restee invisible, et avec elle des erreurs de types bien reelles.
+        run: npm run typecheck
       - name: Run frontend unit tests
         run: npm run test:unit
       - run: npm run build

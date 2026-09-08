@@ -1,7 +1,7 @@
 <template>
-<div class="page">
-    <PageSearchHeader title="Notifications" description="Historique des envois et file de distribution." eyebrow="Administration" v-model:query="search" placeholder="Média, destinataire ou événement" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
-      <template #actions>
+  <AppPage title="Notifications" v-model:query="search" placeholder="Filtrer par média, destinataire ou événement" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
+
+      <template #tools>
         <div class="notification-control" :class="{paused: holdEnabled}">
           <div class="notification-control-icon"><PauseCircle v-if="holdEnabled"/><PlayCircle v-else/></div>
           <div class="notification-control-copy">
@@ -20,7 +20,6 @@
           </div>
         </div>
       </template>
-    </PageSearchHeader>
 
   <Transition name="notification-feedback">
     <UiFeedback v-if="feedbackMessage" :type="feedbackType" :message="feedbackMessage" />
@@ -37,7 +36,7 @@
       </template>
     </FilterSidebar>
     <div class="psh-main">
-  <NotificationsSubnav :active="tab" :pending-count="pendingTotal"/>
+  <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
   <UiFeedback v-if="error" type="error" :message="error" />
   <BulkActionBar
     v-if="tab === 'pending'"
@@ -69,12 +68,13 @@
   </div>
     </div><!-- .psh-main -->
   </div><!-- .psh-layout -->
-</div>
+  </AppPage>
 </template>
 
 <script setup>
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import NotificationsSubnav from '@/components/settings/NotificationsSubnav.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
+import { notificationSections } from '@/notificationSections';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, ChevronLeft, ChevronRight, PauseCircle, PlayCircle, Send, Trash2 } from '@lucide/vue';
@@ -327,6 +327,17 @@ onMounted(() => {
   loadHold();
   load();
 });
+
+// Le compteur d'attente n'a de sens que sur la file : ailleurs il decrirait un etat
+// qui n'est pas celui de la section affichee.
+const notificationSubnavItems = computed(() =>
+  notificationSections.map((section) => ({
+    key: section.key,
+    label: section.label,
+    to: section.to,
+    count: section.key === 'pending' && pendingTotal.value ? pendingTotal.value : null,
+  }))
+);
 </script>
 
 <style scoped lang="scss">

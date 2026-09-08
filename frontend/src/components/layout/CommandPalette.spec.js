@@ -27,6 +27,17 @@ function pressCtrlK() {
 
 const optionTexts = (wrapper) => wrapper.findAll('[role="option"]').map((node) => node.text());
 
+/**
+ * La palette s'ouvre sur l'onglet le plus probable au vu de la page : depuis
+ * /discover, c'est « Médias ». Les tests qui verifient la navigation et les reglages
+ * basculent donc explicitement sur l'autre perimetre.
+ */
+async function selectAppScope(wrapper) {
+  const tabs = wrapper.findAll('[role="tab"]');
+  await tabs[tabs.length - 1].trigger('click');
+  await flushPromises();
+}
+
 describe('CommandPalette', () => {
   beforeEach(() => push.mockClear());
 
@@ -55,6 +66,7 @@ describe('CommandPalette', () => {
     await flushPromises();
 
     await wrapper.get('.palette-input').setValue('parametres');
+    await selectAppScope(wrapper);
 
     const texts = optionTexts(wrapper).join(' | ');
     expect(texts).toContain('Paramètres');
@@ -69,6 +81,7 @@ describe('CommandPalette', () => {
 
     const input = wrapper.get('.palette-input');
     await input.setValue('sonarr');
+    await selectAppScope(wrapper);
     await input.trigger('keydown', { key: 'Enter' });
     await flushPromises();
 
@@ -94,6 +107,7 @@ describe('CommandPalette', () => {
 
     const input = wrapper.get('.palette-input');
     await input.setValue('sonarr');
+    await selectAppScope(wrapper);
     await input.trigger('keydown', { key: 'Enter' });
     await flushPromises();
 
@@ -127,6 +141,31 @@ describe('CommandPalette', () => {
     pressCtrlK();
     await flushPromises();
     expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('ouvre l’onglet Médias depuis une page de contenu', async () => {
+    const wrapper = factory();
+    pressCtrlK();
+    await flushPromises();
+    await wrapper.get('.palette-input').setValue('dune');
+
+    // Route mockee : /discover. Chercher « dune » y designe presque toujours un film,
+    // pas un reglage — l'onglet ouvert doit epouser cette intention.
+    const tabs = wrapper.findAll('[role="tab"]');
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0].text()).toContain('Médias');
+    expect(tabs[0].attributes('aria-selected')).toBe('true');
+    wrapper.unmount();
+  });
+
+  it('n’affiche les onglets qu’une fois une recherche saisie', async () => {
+    const wrapper = factory();
+    pressCtrlK();
+    await flushPromises();
+    // Palette vide : la liste complete des destinations suffit, un selecteur de
+    // perimetre n'aurait rien a departager.
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0);
     wrapper.unmount();
   });
 });

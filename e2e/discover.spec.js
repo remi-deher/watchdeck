@@ -58,21 +58,36 @@ test("charge progressivement le catalogue et conserve des liens accessibles", as
   await expect(page.getByText("4 affichés / 4")).toBeVisible();
 });
 
+/** Champ de recherche de la page, deplie d'abord si la largeur l'impose. */
+async function pageSearchBox(page) {
+  // La barre ne rend le champ qu'une fois que la page le lui a fourni : cliquer avant
+  // ouvrirait la recherche globale a la place.
+  const field = page.locator(".app-topbar__field");
+  await expect(field).toHaveCount(1, { timeout: 15_000 });
+  const compact = page.locator(".app-topbar__search-compact");
+  if (await compact.isVisible()) await compact.click();
+  const input = field.locator('input[type="search"]');
+  await expect(input).toBeVisible();
+  return input;
+}
+
 test("conserve le catalogue Films lors d'une recherche", async ({ page }) => {
   const searchRequest = page.waitForRequest(request => (
     request.url().includes("/api/discover/search")
     && request.url().includes("media_type=movie")
   ));
-  await page.getByRole("searchbox", { name: "Rechercher un film" }).fill("Dune");
+  await (await pageSearchBox(page)).fill("Dune");
   await searchRequest;
 });
 
 test("affiche la navigation dédiée et replie les filtres", async ({ page }) => {
-  // Une seule navigation contextuelle (AppNav), haute ou basse selon la largeur.
-  const navigation = page.locator('.app-primary-items');
+  // Le second niveau vit desormais dans la page, sous son titre, au meme endroit
+  // quelle que soit la largeur : plus de sous-menu survolable dans le shell, dont la
+  // rangee principale changeait de contenu selon la section.
+  const navigation = page.locator('.app-subnav');
   await expect(navigation.getByRole("link", { name: "Séries" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Films" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "Demandes" })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Accueil" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Calendrier" })).toBeVisible();
   const filters = page.viewportSize().width <= 900
     ? page.locator('.modal-panel')
@@ -97,7 +112,9 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
 
   await navigation.getByRole("link", { name: "Séries" }).click();
   await expect(page).toHaveURL(/\/discover\/shows$/);
-  await expect(page.getByRole("searchbox", { name: "Rechercher une série" })).toBeVisible();
+  // Changer de section met a jour le champ de la barre : la page suivante fournit sa
+  // propre recherche, et le demontage de la precedente ne doit pas l'effacer.
+  await expect(await pageSearchBox(page)).toHaveAttribute("aria-label", /Rechercher une série/);
   await navigation.getByRole("link", { name: "Films" }).click();
   await expect(page).toHaveURL(/\/discover\/movies$/);
 });
@@ -112,20 +129,23 @@ test("reste utilisable au clavier et sur mobile", async ({ page }, testInfo) => 
   }
 });
 
-test("centre la recherche dans le contenu, sous la navigation commune", async ({ page }) => {
-  const searchBox = await page.locator('.psh-search-wrap').boundingBox();
-  const mainBox = await page.locator('#main-content').boundingBox();
-  expect(Math.abs((searchBox.x + searchBox.width / 2) - (mainBox.x + mainBox.width / 2))).toBeLessThan(3);
+test("place la recherche dans la barre, jamais dans le contenu", async ({ page }) => {
+  // Un seul champ de recherche a l'ecran, et il vit dans la barre : elle ne defile
+  // pas, et la page n'a plus a lui reserver une rangee.
+  await expect(page.locator("#main-content input[type=\"search\"]")).toHaveCount(0);
 
-  if (page.viewportSize().width >= 900) {
-    const top = page.locator('.app-primary-nav--top');
-    await expect(top).toBeVisible();
-    expect(await page.getByRole('button', { name: /Réduire le menu|Afficher le menu/ }).count()).toBe(0);
+  await expect(page.locator(".app-topbar__field")).toHaveCount(1, { timeout: 15_000 });
+  const main = await page.locator("#main-content").boundingBox();
+  const topbar = await page.locator(".app-topbar").boundingBox();
 
-    const widthBefore = (await top.boundingBox()).width;
-    await page.reload();
-    await expect(top).toBeVisible();
-    expect((await top.boundingBox()).width).toBe(widthBefore);
-    expect((await page.locator('#main-content').boundingBox()).x).toBe(mainBox.x);
-  }
+  // La barre est fixe : c'est le premier contenu de <main>, pas sa boite, qui doit
+  // commencer sous elle — la boite, elle, part de zero et se decale par son padding.
+  const firstChild = await page.locator("#main-content > *").first().boundingBox();
+  expect(firstChild.y).toBeGreaterThanOrEqual(topbar.y + topbar.height - 1);
+
+  // La geometrie du shell ne doit pas bouger d'un chargement a l'autre : c'est ce
+  // saut au rechargement qui trahissait les offsets recopies a plusieurs endroits.
+  await page.reload();
+  await expect(page.locator("#main-content")).toBeVisible();
+  expect((await page.locator("#main-content").boundingBox()).x).toBe(main.x);
 });

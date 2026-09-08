@@ -7,6 +7,11 @@
   page -- ce qui permet en retour d'assumer une navigation visuelle plus sobre, les
   utilisateurs avances ne dependant plus des menus.
 
+  Elle interroge aussi le catalogue : « trouver Dune » obligeait a rejoindre Explorer
+  d'abord, alors que c'est la recherche la plus courante. Les destinations restent
+  locales et instantanees ; les medias arrivent apres, sans jamais faire attendre le
+  reste de la liste.
+
   Bâtie sur ModalShell pour heriter du piege de focus, d'Echap, de l'inertie de
   l'arriere-plan et de la fermeture au bouton « retour ».
 -->
@@ -30,14 +35,28 @@
       aria-controls="command-palette-list"
       :aria-activedescendant="activeId"
       aria-label="Rechercher une destination"
-      placeholder="Rechercher une page, un réglage, une instance…"
+      placeholder="Rechercher une page, un réglage, un film ou une série…"
       autocomplete="off"
       @keydown.down.prevent="move(1)"
       @keydown.up.prevent="move(-1)"
       @keydown.enter.prevent="void activate(results[cursor])"
     />
 
-    <p v-if="!results.length" class="palette-empty">Aucun résultat pour « {{ query }} ».</p>
+    <!-- Deux perimetres, deux onglets. L'onglet ouvert suit la page d'ou l'on vient :
+         depuis Explorer on cherche un media, depuis Administration un reglage. -->
+    <AppSubnav
+      v-if="query.trim()"
+      class="palette-scopes"
+      variant="tabs"
+      :items="scopeTabs"
+      :active="scope"
+      aria-label="Périmètre de recherche"
+      @update:active="scope = ($event as Scope)"
+    />
+
+    <p v-if="!results.length && !searching" class="palette-empty">
+      Aucun résultat pour « {{ query }} » dans {{ scope === 'media' ? 'les médias' : 'la navigation et les réglages' }}.
+    </p>
 
     <ul v-else id="command-palette-list" class="palette-list" role="listbox" aria-label="Destinations">
       <li
@@ -55,6 +74,8 @@
         <span class="palette-group">{{ item.group }}</span>
       </li>
     </ul>
+
+    <p v-if="searching" class="palette-empty" role="status">Recherche dans le catalogue…</p>
   </ModalShell>
 </template>
 
@@ -62,7 +83,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Film, Server, Tv } from '@lucide/vue';
+import { api } from '@/api';
+import { mediaDetailPath } from '@/mediaUrl';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import { usePageSections } from '@/composables/usePageSections';
 import { destinationsFor, sectionsFor } from '@/navigation';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 import { settingsSections } from '@/settingsSections';
@@ -86,6 +111,58 @@ const isOpen = ref(false);
 const query = ref('');
 const cursor = ref(0);
 const inputRef = ref<HTMLInputElement | null>(null);
+const mediaResults = ref<Command[]>([]);
+type Scope = 'media' | 'app';
+const scope = ref<Scope>('media');
+
+/* Destinations dont on cherche d'abord un media ; ailleurs, on cherche d'abord une
+   page ou un reglage. C'est l'intention la plus probable, pas une regle stricte :
+   l'autre onglet reste a une touche. */
+const MEDIA_FIRST = new Set(['discover', 'requests', 'library']);
+const { destinationLabel } = usePageSections();
+const searching = ref(false);
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+let searchToken = 0;
+
+/**
+ * Recherche differee dans le catalogue.
+ *
+ * Trois garde-fous : un delai, pour ne pas lancer une requete par frappe ; un jeton,
+ * parce qu'une reponse lente arrivee apres une plus recente afficherait des resultats
+ * qui ne correspondent plus a la saisie ; et un echec silencieux, la palette devant
+ * rester utilisable pour naviguer meme si TMDB est injoignable.
+ */
+function scheduleMediaSearch(term: string): void {
+  if (searchTimer) clearTimeout(searchTimer);
+  const needle = term.trim();
+  if (needle.length < 2) {
+    mediaResults.value = [];
+    searching.value = false;
+    return;
+  }
+  searching.value = true;
+  searchTimer = setTimeout(async () => {
+    const token = ++searchToken;
+    try {
+      const payload = await api<any>(`/api/discover/search?query=${encodeURIComponent(needle)}&media_type=all`);
+      if (token !== searchToken) return;
+      const items = Array.isArray(payload) ? payload : (payload?.items ?? []);
+      mediaResults.value = items.slice(0, 8).map((item: any) => ({
+        id: `media-${item.media_type}-${item.tmdb_id || item.id}`,
+        label: item.year ? `${item.title || item.name} (${item.year})` : (item.title || item.name),
+        group: item.media_type === 'movie' ? 'Films' : 'Séries',
+        to: mediaDetailPath(item, undefined, { discover: true }),
+        icon: item.media_type === 'movie' ? Film : Tv,
+      }));
+    } catch {
+      if (token === searchToken) mediaResults.value = [];
+    } finally {
+      if (token === searchToken) searching.value = false;
+    }
+  }, 250);
+}
+
+watch(query, (value) => scheduleMediaSearch(value));
 
 /** Insensible a la casse et aux accents : « parametres » doit trouver « Paramètres ». */
 function fold(value: string): string {
@@ -160,7 +237,12 @@ const commands = computed<Command[]>(() => {
   return items;
 });
 
-const results = computed(() => {
+const scopeTabs = computed(() => [
+  { key: 'media', label: 'Médias', count: mediaResults.value.length || null },
+  { key: 'app', label: 'Navigation & réglages', count: appResults.value.length || null },
+]);
+
+const appResults = computed<Command[]>(() => {
   const needle = fold(query.value.trim());
   if (!needle) return commands.value;
   // Les libelles commencant par la saisie passent devant les simples correspondances.
@@ -170,6 +252,10 @@ const results = computed(() => {
     .sort((a, b) => a.at - b.at)
     .map((entry) => entry.item);
 });
+
+const results = computed<Command[]>(() =>
+  query.value.trim() && scope.value === 'media' ? mediaResults.value : appResults.value
+);
 
 const activeId = computed(() => (results.value.length ? `palette-option-${cursor.value}` : undefined));
 
@@ -193,15 +279,29 @@ async function activate(item?: Command): Promise<void> {
   close();
 }
 
-function open(): void {
+/** `prefill` reprend la saisie en cours dans la barre : passer du filtre de page a la
+ *  recherche globale ne doit pas obliger a retaper ce qu'on vient d'ecrire. */
+function open(prefill = ''): void {
   isOpen.value = true;
-  query.value = '';
+  scope.value = MEDIA_FIRST.has(currentDestinationKey()) ? 'media' : 'app';
+  query.value = prefill;
   cursor.value = 0;
+  mediaResults.value = [];
+  searching.value = false;
+  if (prefill.trim()) scheduleMediaSearch(prefill);
   if (props.isAdmin) void loadSources();
+}
+
+/** Cle de la destination courante, deduite de son libelle affiche. */
+function currentDestinationKey(): string {
+  const label = destinationLabel.value;
+  return destinationsFor(props.isAdmin, props.canModerate).find((item) => item.label === label)?.key || '';
 }
 
 function close(): void {
   isOpen.value = false;
+  if (searchTimer) clearTimeout(searchTimer);
+  searching.value = false;
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -229,6 +329,7 @@ defineExpose({ open, close });
   color: var(--text);
 }
 
+.palette-scopes { margin-bottom: var(--space-3); }
 .palette-empty { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 
 .palette-list {

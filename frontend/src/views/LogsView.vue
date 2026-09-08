@@ -1,6 +1,6 @@
 <template>
-  <div class="page">
-    <PageSearchHeader title="Journaux" description="Diagnostic applicatif, parcours des demandes et tâches planifiées." eyebrow="Administration" v-model:query="search" placeholder="Filtrer les journaux" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters" />
+    <AppPage title="Journaux" v-model:query="search" placeholder="Filtrer les journaux" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
+    
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <select v-if="tab === 'diagnostic'" v-model="category" @change="load"><option value="">Toutes les sections</option><option value="request">Demande</option><option value="arr">Arr</option><option value="plex">Plex</option><option value="vf_vo">VF / VO</option><option value="notification">Notification</option></select>
@@ -9,7 +9,7 @@
         <UiButton v-if="tab === 'pending' && rows.length" variant="danger" @click="purge"><Trash2 />Purger la file</UiButton>
       </FilterSidebar>
       <div class="psh-main">
-    <TabNav :model-value="tab" :tabs="tabItems" aria-label="Type de journal" @update:model-value="selectTab" />
+    <AppSubnav variant="tabs" :active="tab" :items="tabItems" aria-label="Type de journal" @update:active="selectTab" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
     <section class="panel table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des journaux, défilement horizontal">
       <table><thead><tr><th>Date</th><th>Section</th><th>Description</th><th>Résultat</th></tr></thead>
@@ -24,7 +24,7 @@
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">
@@ -47,7 +47,7 @@ const { loading, error, execute: executeLoad } = useFetchState();
 const search = ref(''), level = ref(''), category = ref(''), job = ref('');
 const { dialog: confirmDialog, resolveConfirm, runConfirmed } = useConfirmedAction({ error });
 const tabs = [{ id: 'diagnostic', label: 'Parcours demandes' }, { id: 'app', label: 'Application' }, { id: 'polls', label: 'Tâches planifiées' }, { id: 'audit', label: 'Audit admin' }, { id: 'pending', label: 'File notifications' }];
-const tabItems = tabs.map((item) => ({ value: item.id, label: item.label }));
+const tabItems = tabs.map((item) => ({ key: item.id, label: item.label }));
 function selectTab(value: string): void { tab.value = value; load(); }
 const jobs = computed(() => [...new Set(rows.value.map((x) => x.job).filter(Boolean))]);
 const filtered = computed(() => rows.value.filter((row) => (!level.value || row.level === level.value) && (!search.value || JSON.stringify(row).toLowerCase().includes(search.value.toLowerCase()))));
