@@ -11,17 +11,18 @@
       :page-title="pageTitle"
       :is-admin="isAdmin"
       :can-moderate="canModerate"
+      :collapsible="mode === 'expanded'"
+      :collapsed="collapsed"
       @open-palette="openPalette"
+      @toggle-rail="collapsed = !collapsed"
     />
 
     <AppTopBar
       :mode="mode"
       :page-title="pageTitle"
       :destination-label="destinationLabel"
-      :collapsed="collapsed"
       :sheet-open="sheetOpen"
       @open-sheet="openSheet"
-      @toggle-rail="collapsed = !collapsed"
       @open-palette="openPalette($event)"
     />
 

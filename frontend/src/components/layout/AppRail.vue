@@ -1,9 +1,22 @@
 <template>
   <nav class="app-rail" :data-density="density" aria-label="Navigation principale">
-    <RouterLink class="app-rail__brand" to="/" :aria-label="`Watchdeck — accueil`">
-      <Clapperboard aria-hidden="true" />
-      <span class="app-rail__brand-name" :class="{ 'sr-only': density === 'medium' }">{{ pageTitle || 'Watchdeck' }}</span>
-    </RouterLink>
+    <div class="app-rail__header">
+      <RouterLink class="app-rail__brand" to="/" :aria-label="`Watchdeck — accueil`">
+        <Clapperboard aria-hidden="true" />
+        <span class="app-rail__brand-name" :class="{ 'sr-only': density === 'medium' }">{{ pageTitle || 'Watchdeck' }}</span>
+      </RouterLink>
+      <button
+        v-if="collapsible"
+        type="button"
+        class="app-rail__collapse"
+        :aria-pressed="collapsed"
+        :aria-label="collapsed ? 'Déployer la navigation' : 'Replier la navigation'"
+        @click="$emit('toggle-rail')"
+      >
+        <PanelLeftOpen v-if="collapsed" aria-hidden="true" />
+        <PanelLeftClose v-else aria-hidden="true" />
+      </button>
+    </div>
 
     <div class="app-rail__scroll">
       <!-- Les groupes structurent le rail déployé. En mode compact ils deviennent de
@@ -63,7 +76,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
-import { Clapperboard, Search, UserRound } from '@lucide/vue';
+import { Clapperboard, PanelLeftClose, PanelLeftOpen, Search, UserRound } from '@lucide/vue';
 import { destinationsFor, type NavDestination } from '@/navigation';
 import { shortcutLabel } from '@/shortcut';
 import { usePageSections } from '@/composables/usePageSections';
@@ -76,11 +89,13 @@ const props = withDefaults(
     pageTitle?: string;
     isAdmin?: boolean;
     canModerate?: boolean;
+    collapsible?: boolean;
+    collapsed?: boolean;
   }>(),
-  { activeKey: '', pageTitle: 'Watchdeck', isAdmin: false, canModerate: false }
+  { activeKey: '', pageTitle: 'Watchdeck', isAdmin: false, canModerate: false, collapsible: false, collapsed: false }
 );
 
-defineEmits<{ (e: 'open-palette'): void }>();
+defineEmits<{ (e: 'open-palette'): void; (e: 'toggle-rail'): void }>();
 const { sections, activeKey: activeSectionKey } = usePageSections();
 
 /** Un seul niveau, groupé par métier : le rail montre toujours tout ce qui est permis. */
@@ -122,6 +137,7 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   overscroll-behavior: contain;
 }
 
+.app-rail__header { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
 .app-rail__brand {
   display: flex;
   align-items: center;
@@ -131,9 +147,26 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   color: var(--text);
   font-weight: 750;
   text-decoration: none;
+  min-width: 0;
+  flex: 1;
 }
 .app-rail__brand svg { flex: none; width: 22px; height: 22px; color: var(--accent); }
 .app-rail__brand-name { font-size: var(--fs-lg); white-space: nowrap; }
+.app-rail__collapse {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.app-rail__collapse:hover { border-color: var(--border); background: var(--surface); color: var(--text); }
+.app-rail__collapse svg { width: 19px; height: 19px; }
 
 .app-rail__group ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .app-rail__group + .app-rail__group { border-top: 1px solid var(--border); padding-top: var(--space-4); }
@@ -212,7 +245,8 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
 
 /* Icônes seules : la cible reste carrée et centrée, jamais plus étroite que 44px. */
 .app-rail[data-density='medium'] {
-  .app-rail__brand { justify-content: center; padding: 0; }
+  .app-rail__header { flex-direction: column; }
+  .app-rail__brand { flex: none; justify-content: center; width: var(--touch-target); padding: 0; }
   .app-rail__group + .app-rail__group { padding-top: var(--space-3); }
   .app-rail__link { justify-content: center; gap: 0; padding: 0; }
 }

@@ -1,6 +1,8 @@
 import { onUnmounted, ref, watchEffect, type Ref } from 'vue';
 
 export interface PageSearch {
+  /** Faux lorsqu'une page fournit uniquement des filtres contextuels. */
+  showSearch: boolean;
   query: string;
   placeholder: string;
   /** Périmètre lisible et clé stable de l'historique (Explorer, Bibliothèque…). */

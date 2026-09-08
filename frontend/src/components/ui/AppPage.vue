@@ -123,9 +123,10 @@ providePageTitle(computed(() => props.title));
    aucune, et la barre retombe alors sur le declencheur de la palette. */
 providePageSearch(
   computed<PageSearch | null>(() =>
-    props.hideSearch
+    props.hideSearch && !props.hasFilters
       ? null
       : {
+          showSearch: !props.hideSearch,
           query: props.query,
           placeholder: props.placeholder,
           scopeLabel: props.searchScope || props.title,
