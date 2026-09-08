@@ -3,6 +3,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 import sqlalchemy
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -822,7 +823,7 @@ async def catch_up_requester_notifications(
 ) -> list[str]:
     """Queue only group notifications a newly discovered requester has missed."""
     queued: list[str] = []
-    batch = [] if atomic else None
+    batch: list[tuple[int, str, int, list[str], dict[str, Any]]] | None = [] if atomic else None
     status = req.status.value if hasattr(req.status, "value") else str(req.status)
     request_reached_arr = status in {"sent_to_arr", "partially_available", "available"}
     if (req.request_mail_sent or request_reached_arr) and await notify_single_user(
