@@ -422,3 +422,21 @@ test("la recherche de page vit dans la barre, et s’y deploie en compact", asyn
   await page.locator('.app-topbar [aria-label="Fermer la recherche"]').click();
   await expect(expanded).toHaveCount(0);
 });
+
+test("la barre contextuelle est centrée et le raccourci barre oblique cible la page", async ({ page }) => {
+  await page.goto("/library");
+  await expect(page.locator(".app-topbar__field")).toHaveCount(1, { timeout: 15_000 });
+
+  await page.keyboard.press("/");
+  const input = page.locator('.app-topbar__field input[type="search"]');
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAttribute('aria-label', /Bibliothèque/);
+
+  if (page.viewportSize().width >= 768) {
+    const bar = await page.locator('.app-topbar').boundingBox();
+    const main = await page.locator('#main-content').boundingBox();
+    const barCenter = bar.x + bar.width / 2;
+    const mainCenter = main.x + main.width / 2;
+    expect(Math.abs(barCenter - mainCenter)).toBeLessThanOrEqual(2);
+  }
+});

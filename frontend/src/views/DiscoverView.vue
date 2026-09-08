@@ -2,6 +2,7 @@
     <AppPage
       :title="pageTitle"
       v-model:query="query"
+      search-scope="Explorer"
       :placeholder="searchPlaceholder"
       :hide-search="mode === 'requests'"
       has-filters

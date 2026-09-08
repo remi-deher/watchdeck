@@ -27,7 +27,14 @@
     <!-- La recherche de la page occupe la barre quand elle existe. Sur mobile, elle
          s'y deploie a la demande : le titre et un champ de 341px n'y tiennent pas
          ensemble (390px de large, moins deux boutons de 44px). -->
-    <div v-if="pageSearch" class="app-topbar__field" :class="{ 'is-expanded': searchExpanded }">
+    <div
+      v-if="pageSearch"
+      ref="searchContainer"
+      class="app-topbar__field"
+      :class="{ 'is-expanded': searchExpanded }"
+      @focusin="searchFocused = true"
+      @focusout="onSearchFocusOut"
+    >
       <!-- Deploye, le champ recouvre la barre entiere, boutons compris : sans ce
            retour, il n'y a plus aucun moyen d'en sortir au doigt (Echap suppose un
            clavier, et la croix native du champ ne fait qu'effacer la saisie). -->
@@ -52,6 +59,7 @@
         @search="pageSearch.onSearch($event)"
         @toggle-filters="pageSearch.onToggleFilters()"
         @keydown.escape="collapseSearch"
+        @keydown.enter="rememberCurrentSearch"
       />
       <!-- Echappee vers la recherche globale : la requete en cours ne trouve peut-etre
            rien ici parce qu'elle concerne une autre partie de l'application. -->
@@ -63,6 +71,12 @@
       >
         Rechercher « {{ pageSearch.query.trim() }} » partout
       </button>
+      <div v-if="showRecentSearches" class="app-topbar__recent" aria-label="Recherches récentes">
+        <small>Dans {{ pageSearch.scopeLabel }}</small>
+        <button v-for="item in recentSearches" :key="item" type="button" @click="applyRecentSearch(item)">
+          <History aria-hidden="true" /><span>{{ item }}</span>
+        </button>
+      </div>
     </div>
 
     <button
@@ -106,12 +120,13 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ArrowLeft, Menu, PanelLeft, Search, SlidersHorizontal } from '@lucide/vue';
+import { ArrowLeft, History, Menu, PanelLeft, Search, SlidersHorizontal } from '@lucide/vue';
 import UiSearchField from '@/components/ui/UiSearchField.vue';
 import { usePageSearch } from '@/composables/usePageSearch';
 import { usePageTitle } from '@/composables/usePageTitle';
 import { shortcutLabel } from '@/shortcut';
 import type { ShellMode } from '@/styles/breakpoints';
+import { readPageSearchHistory, rememberPageSearch } from '@/composables/pageSearchHistory';
 
 const props = withDefaults(
   defineProps<{
@@ -132,14 +147,17 @@ const emit = defineEmits<{
 
 const pageSearch = usePageSearch();
 const fieldRef = ref<any>(null);
+const searchContainer = ref<HTMLElement | null>(null);
 const searchExpanded = ref(false);
+const searchFocused = ref(false);
+const historyRevision = ref(0);
 const toolbarHidden = ref(false);
 let lastScrollY = 0;
 
 function handleScroll(): void {
   const current = Math.max(0, window.scrollY);
   const delta = current - lastScrollY;
-  if (current < 24 || delta < -5) toolbarHidden.value = false;
+  if (current < 24 || delta < -5 || searchFocused.value || pageSearch.value?.filtersOpen) toolbarHidden.value = false;
   else if (delta > 7 && current > 96 && !searchExpanded.value) toolbarHidden.value = true;
   lastScrollY = current;
 }
@@ -147,8 +165,12 @@ function handleScroll(): void {
 onMounted(() => {
   lastScrollY = window.scrollY;
   window.addEventListener('scroll', handleScroll, { passive: true });
+  window.addEventListener('keydown', focusContextSearch);
 });
-onUnmounted(() => window.removeEventListener('scroll', handleScroll));
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll);
+  window.removeEventListener('keydown', focusContextSearch);
+});
 
 /* En mode compact, la loupe deploie le champ de la page sur toute la barre ; sans
    champ de page, elle ouvre la recherche globale. Un seul bouton, deux roles selon
@@ -164,6 +186,42 @@ function onCompactSearch(): void {
 
 function collapseSearch(): void {
   searchExpanded.value = false;
+}
+
+function focusContextSearch(event: KeyboardEvent): void {
+  if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || !pageSearch.value) return;
+  const target = event.target as HTMLElement | null;
+  if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
+  event.preventDefault();
+  toolbarHidden.value = false;
+  searchExpanded.value = true;
+  nextTick(() => fieldRef.value?.$el?.querySelector('input')?.focus());
+}
+
+const recentSearches = computed(() => {
+  historyRevision.value;
+  return pageSearch.value ? readPageSearchHistory(pageSearch.value.scopeLabel) : [];
+});
+const showRecentSearches = computed(() => searchFocused.value && !pageSearch.value?.query && recentSearches.value.length > 0);
+
+function rememberCurrentSearch(): void {
+  if (!pageSearch.value) return;
+  rememberPageSearch(pageSearch.value.scopeLabel, pageSearch.value.query);
+  historyRevision.value += 1;
+}
+
+function applyRecentSearch(query: string): void {
+  if (!pageSearch.value) return;
+  pageSearch.value.onQuery(query);
+  pageSearch.value.onSearch(new Event('input'));
+  rememberPageSearch(pageSearch.value.scopeLabel, query);
+  historyRevision.value += 1;
+}
+
+function onSearchFocusOut(): void {
+  window.setTimeout(() => {
+    searchFocused.value = Boolean(searchContainer.value?.contains(document.activeElement));
+  }, 0);
 }
 
 // Le titre de la page prime sur celui de la route : les vues qui changent de
@@ -188,13 +246,13 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 .app-topbar {
   position: fixed;
   top: max(8px, var(--safe-top));
-  right: max(12px, var(--safe-right));
+  left: calc(var(--app-rail-w) + (100vw - var(--app-rail-w)) / 2);
   z-index: 40;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--app-topbar-h);
-  max-width: min(720px, calc(100vw - var(--app-rail-w) - 24px));
+  width: min(860px, calc(100vw - var(--app-rail-w) - 24px));
   padding: 3px;
   border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: var(--radius-pill);
@@ -202,9 +260,10 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
   box-shadow: 0 10px 32px rgba(0, 0, 0, .22);
   backdrop-filter: blur(18px) saturate(1.1);
   -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  transform: translateX(-50%);
   transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
 }
-.app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translateY(calc(-100% - 14px)); pointer-events: none; }
+.app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none; }
 .app-topbar__context {
   min-width: 0;
   overflow: hidden;
@@ -336,6 +395,26 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 }
 .app-topbar__escape:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 
+.app-topbar__recent {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 3;
+  display: grid;
+  width: min(100%, 420px);
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-sunken) 96%, transparent);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .38);
+  backdrop-filter: blur(18px);
+}
+.app-topbar__recent small { padding: 5px 8px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.app-topbar__recent button { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.app-topbar__recent button:hover { background: var(--surface); }
+.app-topbar__recent svg { flex: none; width: 14px; color: var(--muted); }
+.app-topbar__recent span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .app-topbar__filters-compact { position: relative; }
 .app-topbar__filters-compact.active { color: var(--accent); }
 .app-topbar__filters-compact strong {
@@ -366,7 +445,8 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 }
 
 @include bp.until(tablet) {
-  .app-topbar { left: max(10px, var(--safe-left)); max-width: none; }
+  .app-topbar { left: max(10px, var(--safe-left)); right: max(10px, var(--safe-right)); width: auto; transform: none; }
+  .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(-100% - 14px)); }
   .app-topbar__field.is-expanded {
     top: 0;
     right: 4px;

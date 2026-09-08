@@ -259,6 +259,8 @@ const releaseDates = computed(() => {
   padding: 12px 28px 28px;
   max-width: 1280px;
   margin: 0 auto;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 .mdh-back {
   margin-bottom: 16px;

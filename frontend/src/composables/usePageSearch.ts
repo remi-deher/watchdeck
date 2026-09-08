@@ -3,6 +3,8 @@ import { onUnmounted, ref, watchEffect, type Ref } from 'vue';
 export interface PageSearch {
   query: string;
   placeholder: string;
+  /** Périmètre lisible et clé stable de l'historique (Explorer, Bibliothèque…). */
+  scopeLabel: string;
   hasFilters: boolean;
   filtersOpen: boolean;
   activeCount: number;
