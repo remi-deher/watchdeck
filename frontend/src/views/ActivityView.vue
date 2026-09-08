@@ -1,23 +1,19 @@
 <template>
-  <div class="page activity-page">
-    <PageSearchHeader
+    <AppPage
       :title="viewTitle"
-      :description="viewDescription"
-      eyebrow="Activité Plex"
       v-model:query="historySearch"
-      placeholder="Média, utilisateur ou appareil"
+      placeholder="Filtrer par média, utilisateur ou appareil"
       :hide-search="currentView !== 'history'"
       :has-filters="currentView === 'history'"
       :active-count="historyFilterCount"
       :filters-open="filtersOpen"
-      @toggle-filters="filtersOpen = !filtersOpen"
-    >
-      <template #actions>
+      @toggle-filters="filtersOpen = !filtersOpen" page-class="activity-page">
+
+      <template #tools>
         <UiSegmentedControl v-if="currentView!=='live'" :model-value="days" :options="periodOptions" :ariaLabel="'Période d’analyse'" @update:model-value="setPeriod" />
       </template>
-    </PageSearchHeader>
 
-    <TabNav :model-value="currentView" :tabs="activityTabs" aria-label="Sections de l'activité Plex" @update:model-value="selectView" />
+    <AppSubnav variant="tabs" :active="currentView" :items="activityTabs" aria-label="Sections de l'activité Plex" @update:active="selectView" />
     <UiFeedback v-if="loading && !loaded" type="loading" message="Chargement de l'activité Plex…" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
 
@@ -160,7 +156,7 @@
     <SessionDetailDrawer v-if="selectedSession" :session="selectedSession" @close="selectedSession=null"/>
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">
@@ -177,7 +173,7 @@ import MetricCard from '@/components/ui/MetricCard.vue';
 import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import ActivityHeatmap from '@/components/activity/ActivityHeatmap.vue';
-import TabNav from '@/components/ui/TabNav.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
 import CompletionPanel from '@/components/activity/CompletionPanel.vue';
 import ConcurrencyPanel from '@/components/activity/ConcurrencyPanel.vue';
@@ -203,12 +199,12 @@ const analytics=computed(()=>data.value.analytics||{});
 const analyticsUsers=computed((): any[] =>analytics.value.users||[]);
 const chart=computed(()=>data.value.daily||[]);
 const activityTabs=computed(()=>[
-  {value:'overview',label:'Vue d’ensemble'},
-  {value:'live',label:'En direct',count:data.value.active.length},
-  {value:'history',label:'Historique'},
-  {value:'stats',label:'Statistiques'},
-  {value:'quality',label:'Qualité'},
-  {value:'users',label:'Utilisateurs'},
+  {key:'overview',label:'Vue d’ensemble'},
+  {key:'live',label:'En direct',count:data.value.active.length},
+  {key:'history',label:'Historique'},
+  {key:'stats',label:'Statistiques'},
+  {key:'quality',label:'Qualité'},
+  {key:'users',label:'Utilisateurs'},
 ]);
 const viewTitle=computed(()=>({overview:'Vue d’ensemble',live:'Activité en direct',history:'Historique des lectures',stats:'Statistiques',quality:'Qualité des flux',users:'Utilisateurs'} as Record<string, string>)[currentView.value]);
 const viewDescription=computed(()=>({

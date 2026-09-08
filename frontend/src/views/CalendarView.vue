@@ -1,14 +1,14 @@
 <template>
-  <div class="page calendar-page">
-    <PageSearchHeader title="Calendrier" :description="`Sorties de ${periodLabel}`" v-model:query="search" placeholder="Filtrer les titres" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
-      <template #actions>
+    <AppPage title="Calendrier" v-model:query="search" placeholder="Filtrer les titres" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters" page-class="calendar-page">
+
+      <template #tools>
         <div class="calendar-navigation">
           <UiButton variant="ghost" icon-only title="Mois précédent" aria-label="Mois précédent" @click="move(-1)"><ChevronLeft/></UiButton>
           <UiButton @click="today">Aujourd'hui</UiButton>
           <UiButton variant="ghost" icon-only title="Mois suivant" aria-label="Mois suivant" @click="move(1)"><ChevronRight/></UiButton>
         </div>
       </template>
-    </PageSearchHeader>
+    
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <select v-model="type"><option value="">Films et séries</option><option value="movie">Films</option><option value="episode">Séries</option></select>
@@ -121,7 +121,7 @@
     <UiEmptyState v-if="!loading && !filtered.length" title="Aucune sortie" message="Aucune sortie sur cette période." compact />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">

@@ -1,24 +1,18 @@
 <template>
-  <div class="page analytics-page">
-    <PageSearchHeader
+    <AppPage
       :title="activeTab === 'table' ? 'Inventaire médiathèque' : 'Insights médiathèque'"
-      :description="activeTab === 'table' ? 'Explorez les fichiers et caractéristiques techniques présents sur Plex.' : 'Analysez la composition, les usages et les particularités de votre catalogue.'"
-      eyebrow="Insights médiathèque"
       v-model:query="filters.search"
-      placeholder="Rechercher un titre, une série ou un studio…"
+      placeholder="Filtrer par titre, série ou studio…"
       :has-filters="activeTab === 'table'"
       :active-count="activeCount"
       :filters-open="filtersOpen"
-      @toggle-filters="filtersOpen = !filtersOpen"
-    >
-      <template #actions>
-        <TabNav :model-value="activeTab" :tabs="analyticsTabs" aria-label="Vues des insights médiathèque" @update:model-value="selectTab" />
+      @toggle-filters="filtersOpen = !filtersOpen" page-class="analytics-page">
+
+      <template #tools>
+        <AppSubnav variant="tabs" :active="activeTab" :items="analyticsTabs" aria-label="Vues des insights médiathèque" @update:active="selectTab" />
         <UiButton variant="primary" :href="exportUrl"><template #icon><FileDown /></template>Exporter CSV</UiButton>
-      </template>
-      <template #icon-actions>
         <UiButton v-if="activeTab === 'table'" icon-only title="Personnaliser les colonnes" aria-label="Personnaliser les colonnes" @click="mediaTable?.openColumnPicker()"><Columns /></UiButton>
       </template>
-    </PageSearchHeader>
 
     <UiFeedback v-if="loading && !data.summary" type="loading" message="Analyse du catalogue Plex…" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load()" />
@@ -105,7 +99,7 @@
     </section>
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">
@@ -117,7 +111,7 @@ import { api } from '@/api';
 import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
 import MetricGrid from '@/components/ui/MetricGrid.vue';
-import TabNav from '@/components/ui/TabNav.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import MediaRowsTable from '@/components/library/MediaRowsTable.vue';
@@ -137,7 +131,7 @@ import {
 } from '@/utils/format';
 
 const route=useRoute(),router=useRouter();
-const analyticsTabs=[{value:'table',label:'Inventaire'},{value:'insights',label:'Insights'}];
+const analyticsTabs=[{key:'table',label:'Inventaire'},{key:'insights',label:'Insights'}];
 const activeTab = computed(()=>route.query.view==='insights'?'insights':'table');
 const filtersOpen = ref(false);
 function selectTab(value: string): void {router.replace({path:'/analytics',query:value==='insights'?{view:'insights'}:{}});filtersOpen.value=false;}

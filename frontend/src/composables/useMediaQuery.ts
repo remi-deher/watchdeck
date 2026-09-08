@@ -4,7 +4,7 @@ import { getCurrentScope, onScopeDispose, ref, type Ref } from 'vue';
  * Suit une media query et se nettoie avec la portée appelante.
  *
  * Sert à choisir une *structure* de composant, pas une mise en forme : ce qui relève de
- * l'apparence reste en CSS. AppNav s'en sert pour ne monter qu'une seule navigation à la
+ * l'apparence reste en CSS. Le shell s'en sert pour ne monter qu'une seule navigation à
  * fois, plutôt que d'en rendre deux dont l'une serait masquée — ce qui dupliquerait son
  * état et ses repères ARIA.
  */

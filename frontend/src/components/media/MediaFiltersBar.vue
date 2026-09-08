@@ -1,25 +1,28 @@
 <template>
   <div class="filters-panel" :class="{ 'filters-panel--header': headerMode }">
-    <PageSearchHeader
-      v-if="headerMode"
-      title="Demandes"
-      :query="query"
-      placeholder="Rechercher une demande…"
-      has-filters
-      :active-count="activeFilterCount"
-      :filters-open="isModalOpen"
-      @update:query="$emit('update:query', $event)"
-      @search="$emit('search')"
-      @toggle-filters="openFilterModal"
-    >
-      <template #actions>
+    <!-- Une barre d'outils, pas un en-tete de page : le titre et le h1 appartiennent
+         a AppPage, qui enveloppe deja ce panneau. En rendre un second ici donnait
+         deux h1 dans la meme page. -->
+    <div v-if="headerMode" class="media-filters-toolbar">
+      <UiSearchField
+        :query="query"
+        placeholder="Rechercher une demande…"
+        aria-label="Rechercher une demande"
+        has-filters
+        :active-count="activeFilterCount"
+        :filters-open="isModalOpen"
+        @update:query="$emit('update:query', $event)"
+        @search="$emit('search')"
+        @toggle-filters="openFilterModal"
+      />
+      <div class="media-filters-toolbar__actions">
         <div v-if="!hideViewToggle" class="view-toggle-segmented" role="tablist" aria-label="Mode d'affichage">
           <button :class="{ active: view === 'grid' }" title="Grille" type="button" role="tab" :aria-selected="view === 'grid'" @click="$emit('update:view', 'grid')"><Grid2X2 /></button>
           <button :class="{ active: view === 'list' }" title="Liste" type="button" role="tab" :aria-selected="view === 'list'" @click="$emit('update:view', 'list')"><List /></button>
         </div>
         <slot name="header-actions" />
-      </template>
-    </PageSearchHeader>
+      </div>
+    </div>
     <!-- Ligne de recherche contenant le bouton Filtres et les boutons Grille / Liste -->
     <div v-else class="search-input-container">
       <input
@@ -240,6 +243,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSearchField from '@/components/ui/UiSearchField.vue';
 import { computed, ref } from 'vue';
 import { Film, Grid2X2, Layers, List, Music2, SlidersHorizontal, Tv } from '@lucide/vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -659,5 +663,19 @@ const activeFilterCount = computed(() => {
   .type-segmented button span {
     font-size: 11px;
   }
+}
+.media-filters-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.media-filters-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  flex-wrap: wrap;
 }
 </style>

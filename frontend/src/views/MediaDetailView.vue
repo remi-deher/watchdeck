@@ -22,7 +22,7 @@
         <UiFeedback v-if="successMessage" type="success" :message="successMessage" dismissible @dismiss="successMessage=''"/>
 
         <template v-if="!isMusic">
-          <TabNav v-if="tabs.length > 1" v-model="tab" :tabs="mediaTabItems" aria-label="Sections du média" />
+          <AppSubnav v-if="tabs.length > 1" variant="tabs" :items="mediaTabItems" :active="tab" aria-label="Sections du média" @update:active="tab = $event" />
 
           <MediaRequestsTab
             v-if="tab === 'requests'"
@@ -167,7 +167,7 @@ import MediaCast from "@/components/media/MediaCast.vue";
 import MediaSaga from "@/components/media/MediaSaga.vue";
 import MediaMusicCatalog from "@/components/media/MediaMusicCatalog.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
-import TabNav from "@/components/ui/TabNav.vue";
+import AppSubnav from "@/components/ui/AppSubnav.vue";
 import { useConfirm } from "@/composables/useConfirm";
 import { canModerateSession, loadSession } from "@/composables/useSession";
 import { useSeasonEpisodes } from "@/composables/useSeasonEpisodes";
@@ -211,7 +211,7 @@ const tabs = computed(() => {
   if (kind.value === 'discover') return ['summary'];
   return ['summary', ...(detail.value?.media_type === 'show' ? ['missing'] : []), 'audio', 'requests', 'calendar'];
 });
-const mediaTabItems = computed(() => tabs.value.map(value => ({ value, label: tabLabel(value) })));
+const mediaTabItems = computed(() => tabs.value.map((key) => ({ key, label: tabLabel(key) })));
 const admin = ref(false);
 const sessionUserId = ref('');
 const requestLabel = computed(() => (detail.value?.media_type === 'show' ? 'Demander la série' : 'Demander ce film'));
@@ -556,7 +556,7 @@ onMounted(load);
 @media (max-width: 767.98px) {
   .media-detail-body {
     padding-right: 16px;
-    padding-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 76px);
+    padding-bottom: calc(var(--app-shell-offset-bottom) + 76px);
     padding-left: 16px;
   }
 }

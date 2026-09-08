@@ -1024,7 +1024,7 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 
 @media(max-width:760px){
   .torrent-manager{min-width:0}
-  .global-speed-bar{left:0;bottom:calc(var(--mobile-nav-h,64px) + var(--safe-bottom));min-width:0;min-height:42px;padding:3px 8px}
+  .global-speed-bar{left:0;bottom:var(--app-shell-offset-bottom);min-width:0;min-height:42px;padding:3px 8px}
   .speed-counters{gap:12px}
   .speed-item{gap:5px}.speed-item small{display:none}.speed-item strong{font-size:12px}
   .speed-bar-actions{gap:4px}

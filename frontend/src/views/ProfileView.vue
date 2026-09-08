@@ -1,8 +1,6 @@
 ﻿<template>
-  <PageShell
+  <AppPage hide-search
     title="Profil"
-    description="Informations, mot de passe et méthodes de connexion."
-    eyebrow="Compte"
     :error="error"
     :success="message"
     @dismiss-success="message = ''"
@@ -109,7 +107,7 @@
         <p v-if="!canManageSecurity" class="hint">La double authentification et les passkeys nécessitent un compte lié à un utilisateur Plex.</p>
       </div>
     </div>
-  </PageShell>
+  </AppPage>
 </template>
 
 <script setup>

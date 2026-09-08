@@ -1,17 +1,18 @@
 <template>
-  <div class="page downloads-page">
-    <PageSearchHeader
+    <AppPage
       :title="pageTitle"
-      :description="['radarr', 'sonarr'].includes(section) ? '' : pageDescription"
       v-model:query="query"
       :placeholder="searchPlaceholder"
       has-filters
       :active-count="totalActiveFilterCount"
       :filters-open="filtersOpen"
-      @toggle-filters="filtersOpen = !filtersOpen"
-    >
-      <template v-if="['radarr', 'sonarr'].includes(section)" #status>
-        <div class="pipeline-scope">
+      @toggle-filters="filtersOpen = !filtersOpen" page-class="downloads-page">
+
+      <!-- Un seul slot `tools` : Vue n'en garde qu'un par nom, et deux declarations
+           successives faisaient disparaitre la premiere. Les conditions vivent donc
+           sur les blocs, a l'interieur. -->
+      <template #tools>
+        <div v-if="['radarr', 'sonarr'].includes(section)" class="pipeline-scope">
           <label v-if="sectionArrInstances.length > 1">
             <span>Instance</span>
             <select :value="selectedInstanceId" aria-label="Limiter à une instance" @change="selectInstanceScope">
@@ -19,22 +20,19 @@
               <option v-for="source in sectionArrInstances" :key="source.id" :value="String(source.id)">{{ source.name }}</option>
             </select>
           </label>
-          <TabNav class="arr-title-tabs" :model-value="subview" :tabs="subnavTabs" :aria-label="`Navigation secondaire — ${pageTitle}`" @update:model-value="selectSubview" />
+          <AppSubnav variant="tabs" class="arr-title-tabs" :active="subview" :items="subnavTabs" :aria-label="`Navigation secondaire — ${pageTitle}`" @update:active="selectSubview" />
         </div>
-      </template>
-      <template v-if="section==='clients'&&subview==='instances'&&!sourceNeedsConfiguration" #actions>
-        <div class="client-header-actions">
+        <div v-if="section==='clients'&&subview==='instances'&&!sourceNeedsConfiguration" class="client-header-actions">
           <span class="badge">{{ filteredClients.length }} torrent(s)</span>
           <UiButton variant="primary" size="sm" title="Ajouter un torrent" @click="showAddModal = true"><template #icon><Plus /></template>Ajouter un torrent</UiButton>
           <UiButton size="sm" icon-only title="Personnaliser les colonnes" aria-label="Personnaliser les colonnes" @click="clientTable?.openColumnPicker()"><Columns /></UiButton>
         </div>
       </template>
-    </PageSearchHeader>
 
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="totalActiveFilterCount" @close="filtersOpen=false" @reset="resetAllFilters">
         <FilterGroup v-if="!['clients', 'radarr', 'sonarr'].includes(section)" label="Affichage">
-          <button v-for="tab in subnavTabs" :key="tab.value" class="filter-badge" :class="{ active: subview === tab.value }" @click="selectSubview(tab.value)"><span>{{ tab.label }}</span></button>
+          <button v-for="tab in subnavTabs" :key="tab.key" class="filter-badge" :class="{ active: subview === tab.key }" @click="selectSubview(tab.key)"><span>{{ tab.label }}</span></button>
         </FilterGroup>
 
         <template v-if="section==='clients'">
@@ -328,14 +326,13 @@
     <AddTorrentModal :open="showAddModal" :clients="configuredClients" :initial-file="droppedFile" @close="showAddModal = false; droppedFile = null" @added="loadClients" />
     <ManualImportModal v-if="manualRow" :row="manualRow" @close="manualRow=null" @submitted="onManualSubmitted"/>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)"/>
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">
-import PageSearchHeader from '@/components/ui/PageSearchHeader.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
-import TabNav from '@/components/ui/TabNav.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import LoadMore from '@/components/ui/LoadMore.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
@@ -378,6 +375,15 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 
 const route=useRoute(),router=useRouter();
 const arrQueue=ref<any[]>([]),directQueue=ref<any[]>([]),clientQueue=shallowRef<any[]>([]),history=shallowRef<any[]>([]),diskSpaceVolumes=ref<any[]>([]),failedPosterIds=ref<Set<string>>(new Set());
+/**
+ * Une reponse mal formee ne doit pas se propager en liste.
+ *
+ * Ces refs sont consommees directement par des `computed` (`[...arrQueue.value]`,
+ * `clientQueue.value.filter(...)`). Une valeur non iterable y leve une TypeError, ce
+ * qui interrompt le cycle de rendu de Vue : ce n'est alors pas la page qui se degrade,
+ * c'est le shell entier qui reste a moitie rendu, sans rien a l'ecran pour l'expliquer.
+ */
+function asList<T>(value: unknown): T[] { return Array.isArray(value) ? (value as T[]) : []; }
 const prowlarrStats=ref<Record<string, any>>({}),clientOverviewStats=ref<Record<string, any>>({});
 const { arrInstances:configuredArr,downloadClients:configuredClients,loading:configurationsLoading,error:configurationError,load:loadDownloadSources }=useDownloadSources();
 const query=ref(''),instance=ref(''),status=ref<string | string[]>(''),statusFilter=ref(''),clientCategory=ref<string | string[]>(''),clientOwnership=ref(''),clientTracker=ref<string | string[]>('');
@@ -485,7 +491,7 @@ function extractQuality(row: any): string {
 
 async function loadDiskSpace(): Promise<void> {
   try {
-    diskSpaceVolumes.value = await api('/api/disk-space');
+    diskSpaceVolumes.value = asList(await api('/api/disk-space'));
     setSourceError('disk');
   } catch (e: any) {
     setSourceError('disk', `Stockage : ${e.message}`);
@@ -540,7 +546,7 @@ async function loadWanted(): Promise<void> {
     const params = new URLSearchParams({ arr_type: section.value });
     if (selectedInstanceId.value) params.set('instance_id', selectedInstanceId.value);
     const rows = await api(`/api/arr/wanted?${params}`);
-    if (loadVersion === wantedLoadVersion) { wantedItems.value = rows; setSourceError('wanted'); }
+    if (loadVersion === wantedLoadVersion) { wantedItems.value = asList(rows); setSourceError('wanted'); }
   } catch (e: any) {
     if (loadVersion === wantedLoadVersion) setSourceError('wanted', `Éléments manquants : ${e.message}`);
   } finally {
@@ -581,14 +587,14 @@ const pageTitle=computed(()=>{
 const pageDescription=computed(()=>({overview:'Vue d’ensemble de l’activité et des derniers téléchargements.',queue:'Suivi opérationnel consolidé de toutes les acquisitions.',radarr:'Téléchargements suivis par les instances Radarr.',sonarr:'Téléchargements suivis par les instances Sonarr.',clients:''})[section.value]);
 const sourceErrorCount=computed(()=>section.value==='clients'?clientErrors.value.length:errorItems.value.filter(row=>(!['radarr','sonarr'].includes(section.value)||row.arr_type===section.value)&&(!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value)).length);
 const standardTabs=computed(()=>[
-  {value:'all',label:'Vue d’ensemble'},
-  {value:'active',label:'En cours'},
-  {value:'waiting',label:'En attente'},
-  {value:'missing',label:'Éléments manquants',count:missingItemCount.value},
-  {value:'completed',label:'Terminés'},
-  {value:'errors',label:'Erreurs',count:sourceErrorCount.value,badgeClass:'error-badge'}
+  {key:'all',label:'Vue d’ensemble'},
+  {key:'active',label:'En cours'},
+  {key:'waiting',label:'En attente'},
+  {key:'missing',label:'Éléments manquants',count:missingItemCount.value},
+  {key:'completed',label:'Terminés'},
+  {key:'errors',label:'Erreurs',count:sourceErrorCount.value}
  ]);
-const subnavTabs=computed(()=>section.value==='overview'?[{value:'all',label:'Tous'},{value:'active',label:'En cours'},{value:'waiting',label:'En attente'},{value:'completed',label:'Terminés'},{value:'errors',label:'Erreurs',count:errorItems.value.length,badgeClass:'error-badge'}]:section.value==='queue'?[{value:'all',label:'Toute la file'},{value:'active',label:'En cours'},{value:'waiting',label:'En attente'},{value:'intervention',label:'Interventions',count:counts.value.intervention,badgeClass:'error-badge'}]:section.value==='clients'?[{value:'overview',label:'Vue d’ensemble'},{value:'instances',label:selectedClientName.value||'Instances'}]:standardTabs.value);
+const subnavTabs=computed(()=>section.value==='overview'?[{key:'all',label:'Tous'},{key:'active',label:'En cours'},{key:'waiting',label:'En attente'},{key:'completed',label:'Terminés'},{key:'errors',label:'Erreurs',count:errorItems.value.length}]:section.value==='queue'?[{key:'all',label:'Toute la file'},{key:'active',label:'En cours'},{key:'waiting',label:'En attente'},{key:'intervention',label:'Interventions',count:counts.value.intervention}]:section.value==='clients'?[{key:'overview',label:'Vue d’ensemble'},{key:'instances',label:selectedClientName.value||'Instances'}]:standardTabs.value);
 const showHistory=computed(()=>subview.value==='completed'&&section.value!=='clients'&&section.value!=='queue');
 
 const queue=computed(()=>[...arrQueue.value,...directQueue.value].filter((row: any)=>!hiddenItems.value.has(rowKey(row))).sort((a: any,b: any)=>(a.progress||0)-(b.progress||0)));
@@ -661,7 +667,7 @@ const sourceNeedsConfiguration=computed(()=>!configurationsLoading.value&&(secti
 const queueGroups=computed(()=>{const intervention=filteredQueue.value.filter(requiresIntervention),ids=new Set(intervention.map(rowKey)),remaining=filteredQueue.value.filter((row: any)=>!ids.has(rowKey(row)));return[{key:'intervention',title:'Intervention requise',description:'Import bloqué, erreur ou média à associer',icon:AlertTriangle,items:intervention},{key:'active',title:'En téléchargement',description:'Transferts actuellement en progression',icon:Download,items:remaining.filter((row: any)=>statusKey(row)==='downloading')},{key:'waiting',title:'En attente',description:'Éléments en file ou temporairement en pause',icon:Clock3,items:remaining.filter((row: any)=>['queued','paused','completed'].includes(statusKey(row)))}].filter(group=>group.items.length)});
 const counts=computed(()=>queueCounts(queue.value));
 const searchPlaceholder=computed(()=>{
-  if(section.value==='clients') return 'Rechercher un torrent (ex: cat:radarr is:downloading)…';
+  if(section.value==='clients') return 'Filtrer les torrents (ex: cat:radarr is:downloading)…';
   if(section.value==='radarr') return 'Filtrer les films…';
   if(section.value==='sonarr') return 'Filtrer les séries…';
   return 'Filtrer les téléchargements…';
@@ -673,7 +679,7 @@ const resultCount=computed(()=>section.value==='clients'?filteredClients.value.l
 function selectSubview(value: string){statusFilter.value='';router.replace({path:'/downloads',query:{...route.query,view:section.value,sub:value}})}
 function selectInstanceScope(event: Event){
   const value=(event.target as HTMLSelectElement).value;
-  const next={...route.query,view:section.value};
+  const next: Record<string, any>={...route.query,view:section.value};
   if(value)next.instance=value;else delete next.instance;
   router.replace({path:'/downloads',query:next});
 }
@@ -690,8 +696,8 @@ async function loadAll(): Promise<void>{
   if(!isCurrent())return;
   const labels=['File Sonarr/Radarr','Téléchargements directs'],failures: string[]=[];
   results.forEach((result,index)=>{if(result.status==='rejected'&&!request.isAbort(result.reason))failures.push(`${labels[index]} : ${result.reason.message}`)});
-  if(results[0].status==='fulfilled')arrQueue.value=results[0].value;
-  if(results[1].status==='fulfilled')directQueue.value=results[1].value;
+  if(results[0].status==='fulfilled')arrQueue.value=asList(results[0].value);
+  if(results[1].status==='fulfilled')directQueue.value=asList(results[1].value);
   setSourceError('queue',failures.join(' · '));loading.value=false;
 }
 let clientLoadVersion = 0;
@@ -701,7 +707,7 @@ async function loadClients(): Promise<void>{
     const rows = await api('/api/downloads/clients');
     // Les événements peuvent arriver en rafale : une réponse plus ancienne ne doit pas
     // écraser la liste plus récente et provoquer un clignotement du tableau.
-    if (loadVersion === clientLoadVersion) { clientQueue.value = rows; setSourceError('clients'); }
+    if (loadVersion === clientLoadVersion) { clientQueue.value = asList(rows); setSourceError('clients'); }
   } catch (e: any) {
     if (loadVersion === clientLoadVersion) setSourceError('clients', `Clients torrent : ${e.message}`);
   }
@@ -713,7 +719,7 @@ async function loadHistory(): Promise<void>{
   const url=historyUrl(0);
   if(!history.value.length)loadingHistory.value=true;
   try{
-    const payload=await api(url);if(loadVersion!==historyLoadVersion)return;const rows=payload.items||payload;
+    const payload=await api(url);if(loadVersion!==historyLoadVersion)return;const rows=asList(payload?.items||payload);
     history.value=rows;
     historyErrors.value=payload.errors||[];
     hasMoreHistory.value=rows.length===HISTORY_PAGE_SIZE;
@@ -724,7 +730,7 @@ async function loadHistory(): Promise<void>{
 function historyUrl(offset: number): string{const params=new URLSearchParams({limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});if(['radarr','sonarr'].includes(section.value))params.set('source',section.value);if(selectedInstanceId.value)params.set('instance_id',selectedInstanceId.value);return`/api/downloads/history?${params}`}
 function historyModeLabel(row: any): string{return row.processing_mode==='automatic'?'Automatique':row.processing_mode==='manual'?'Import manuel':'Détecté par Watchdeck'}
 function historyModeClass(row: any): string{return row.processing_mode==='automatic'?'available':row.processing_mode==='manual'?'pending':''}
-async function loadMoreHistory(): Promise<void>{if(loadingHistory.value||!hasMoreHistory.value)return;const loadVersion=historyLoadVersion;const url=historyUrl(history.value.length);loadingHistory.value=true;try{const payload=await api(url);if(loadVersion!==historyLoadVersion)return;const rows=payload.items||payload;history.value=[...history.value,...rows];historyErrors.value=payload.errors||[];hasMoreHistory.value=rows.length===HISTORY_PAGE_SIZE;setSourceError('history')}catch(e: any){if(loadVersion===historyLoadVersion)setSourceError('history',`Historique : ${e.message}`)}finally{if(loadVersion===historyLoadVersion)loadingHistory.value=false}}
+async function loadMoreHistory(): Promise<void>{if(loadingHistory.value||!hasMoreHistory.value)return;const loadVersion=historyLoadVersion;const url=historyUrl(history.value.length);loadingHistory.value=true;try{const payload=await api(url);if(loadVersion!==historyLoadVersion)return;const rows=asList(payload?.items||payload);history.value=[...history.value,...rows];historyErrors.value=payload.errors||[];hasMoreHistory.value=rows.length===HISTORY_PAGE_SIZE;setSourceError('history')}catch(e: any){if(loadVersion===historyLoadVersion)setSourceError('history',`Historique : ${e.message}`)}finally{if(loadVersion===historyLoadVersion)loadingHistory.value=false}}
 async function queueAction(row: any,blocklist: boolean,search: boolean): Promise<void>{if(!await askConfirm({title:blocklist?'Blocklister ce téléchargement ?':'Retirer ce téléchargement ?',message:blocklist?'Le fichier sera blocklisté et une nouvelle recherche sera lancée.':'Le téléchargement sera retiré de la file.',confirmLabel:blocklist?'Blocklister et rechercher':'Retirer',danger:true}))return;const key=rowKey(row);actingKeys.value=new Set([...actingKeys.value,key]);try{await api(`/api/arr/queue/${row.instance_id}/${row.queue_id}?blocklist=${blocklist}&search=${search}`,{method:'DELETE'});setSourceError('action');await loadAll()}catch(e: any){setSourceError('action',e.message)}finally{const next=new Set(actingKeys.value);next.delete(key);actingKeys.value=next}}
 function openManual(row: any): void{manualRow.value=row}
 async function onManualSubmitted(): Promise<void>{hiddenItems.value.add(rowKey(manualRow.value));manualRow.value=null;await loadAll()}
