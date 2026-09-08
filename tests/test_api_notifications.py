@@ -472,7 +472,7 @@ def test_notification_resume_preview_and_delivery_ledger(async_db):
         [
             _make_settings(),
             request,
-            PendingNotification(event="request", req_id=request.id, recipients="not-json", reason="{}"),
+            PendingNotification(event="request", req_id=request.id, recipients='"not-a-list"', reason="{}"),
             NotificationDelivery(
                 send_key="key-83",
                 req_id=request.id,
