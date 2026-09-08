@@ -33,6 +33,11 @@ class _Client:
         return self._response
 
 
+class _InvalidJsonResp(_Resp):
+    def json(self):
+        raise ValueError("invalid json")
+
+
 @pytest.mark.asyncio
 async def test_send_transactional_email_success_returns_message_id(monkeypatch):
     captured: dict = {}
@@ -126,6 +131,21 @@ async def test_send_transactional_email_marks_brevo_duplicate_key_as_ambiguous(m
     )
 
     with pytest.raises(RuntimeError, match="Clé Brevo déjà utilisée"):
+        await brevo_email.send_transactional_email(
+            api_key="key-1",
+            sender_email="from@example.com",
+            sender_name=None,
+            to_email="dest@example.com",
+            subject="Hi",
+            html_content="<p>x</p>",
+        )
+
+
+@pytest.mark.asyncio
+async def test_send_transactional_email_keeps_invalid_error_payload_ambiguous(monkeypatch):
+    monkeypatch.setattr(brevo_email.httpx, "AsyncClient", lambda **kw: _Client(_InvalidJsonResp(500), {}))
+
+    with pytest.raises(RuntimeError, match="Réponse Brevo ambiguë"):
         await brevo_email.send_transactional_email(
             api_key="key-1",
             sender_email="from@example.com",

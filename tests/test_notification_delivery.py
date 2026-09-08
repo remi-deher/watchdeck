@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.models import Base, EmailProvider, MediaRequest, NotificationDelivery, PlexUser, Settings
 from app.services.email_providers import send_with_fallback
 from app.services.notification_delivery import (
+    DeliveryRejected,
     DeliveryUncertain,
     claim,
     delivery_identity,
@@ -208,5 +209,26 @@ async def test_brevo_receives_stable_key():
             await send_via_provider(provider, "sender@example.com", "bob@example.com", "subject", "html")
             assert send.call_args.kwargs["send_key"] == identity["send_key"]
             assert identity["provider_message_id"] == "message-1"
+    finally:
+        delivery_identity.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_explicit_provider_rejections_exhaust_identity_without_fallback_retry(sessions):
+    """Chaque refus explicite est traçable comme un échec, sans devenir ambigu."""
+    async with sessions() as db:
+        db.add(EmailProvider(name="smtp", provider_type="smtp", enabled=True, priority=1))
+        await db.commit()
+    identity = identity_for(11, "request", "bob@example.com", {})
+    token = delivery_identity.set(identity)
+    try:
+        with patch(
+            "app.services.email_providers.send_via_provider", new=AsyncMock(side_effect=DeliveryRejected("rejeté"))
+        ):
+            async with sessions() as db:
+                with pytest.raises(DeliveryRejected, match="Tous les fournisseurs"):
+                    await send_with_fallback(db, "sender@example.com", "bob@example.com", "subject", "html")
+        async with sessions() as db:
+            assert (await db.get(NotificationDelivery, identity["send_key"])).state == "failed"
     finally:
         delivery_identity.reset(token)
