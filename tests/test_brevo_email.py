@@ -90,3 +90,47 @@ async def test_send_transactional_email_raises_on_error_response(monkeypatch):
             subject="Hi",
             html_content="<p>x</p>",
         )
+
+
+@pytest.mark.asyncio
+async def test_send_transactional_email_includes_recipient_name_and_idempotency_key(monkeypatch):
+    captured: dict = {}
+    monkeypatch.setattr(
+        brevo_email.httpx, "AsyncClient", lambda **kw: _Client(_Resp(201, {"messageId": "id"}), captured)
+    )
+
+    await brevo_email.send_transactional_email(
+        api_key="key-1",
+        sender_email="from@example.com",
+        sender_name=None,
+        to_email="dest@example.com",
+        to_name="Destinataire",
+        send_key="send-key-1",
+        subject="Hi",
+        html_content="<p>x</p>",
+    )
+
+    assert captured["json"]["to"] == [{"email": "dest@example.com", "name": "Destinataire"}]
+    assert captured["json"]["headers"] == {
+        "idempotencyKey": "send-key-1",
+        "X-Watchdeck-Send-Key": "send-key-1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_send_transactional_email_marks_brevo_duplicate_key_as_ambiguous(monkeypatch):
+    monkeypatch.setattr(
+        brevo_email.httpx,
+        "AsyncClient",
+        lambda **kw: _Client(_Resp(400, {"code": "duplicate_parameter"}), {}),
+    )
+
+    with pytest.raises(RuntimeError, match="Clé Brevo déjà utilisée"):
+        await brevo_email.send_transactional_email(
+            api_key="key-1",
+            sender_email="from@example.com",
+            sender_name=None,
+            to_email="dest@example.com",
+            subject="Hi",
+            html_content="<p>x</p>",
+        )
