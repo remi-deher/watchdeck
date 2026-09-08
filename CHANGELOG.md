@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.19.0 — 2026-09-08
+
+
+### ✨ Nouveautés
+
+- add contextual floating search ([a06a042](https://github.com/remi-deher/watchdeck/commit/a06a042bec2e8461ffe5b7fe04dc88808e66eae3))
 ## 1.18.0 — 2026-09-08
 
 
@@ -14,6 +20,10 @@
 ### 🐛 Corrections
 
 - type database engine options ([3f8cf06](https://github.com/remi-deher/watchdeck/commit/3f8cf066fb46678034fe7528663bbf2c758608d8))
+
+### 🔧 Maintenance
+
+- v1.18.0 (#230) ([d3a43de](https://github.com/remi-deher/watchdeck/commit/d3a43defbf4ef3129100cc66d275b5262ec71388))
 ## 1.17.1 — 2026-09-08
 
 
