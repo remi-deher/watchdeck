@@ -14,7 +14,15 @@ from fastapi.testclient import TestClient
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth
 from app.main import app
-from app.models import DiagnosticEvent, MediaRequest, NotificationLog, PlexUser, Settings
+from app.models import (
+    DiagnosticEvent,
+    MediaRequest,
+    NotificationDelivery,
+    NotificationLog,
+    PendingNotification,
+    PlexUser,
+    Settings,
+)
 from tests.async_support import AsyncSessionContext
 
 # ---------------------------------------------------------------------------
@@ -453,5 +461,47 @@ def test_preview_uses_custom_subject_and_user(async_db):
         # l'apostrophe devient une entité, toujours affichée normalement par le navigateur.
         assert "Alerte pour Bob L&#x27;Eponge - Dune" in r.text
         assert "bob@bikini.bottom" in r.text
+    finally:
+        _cleanup()
+
+
+def test_notification_resume_preview_and_delivery_ledger(async_db):
+    """Le rattrapage expose les entrées invalides et le journal durable par destinataire."""
+    request = _make_req(req_id=83, title="Dune", media_type="movie")
+    async_db.add_all(
+        [
+            _make_settings(),
+            request,
+            PendingNotification(event="request", req_id=request.id, recipients="not-json", reason="{}"),
+            NotificationDelivery(
+                send_key="key-83",
+                req_id=request.id,
+                event="request",
+                recipient="user@example.com",
+                state="sent",
+                detail=None,
+            ),
+        ]
+    )
+    async_db.commit()
+    client = _client_with_db(async_db)
+    try:
+        preview = client.get("/api/notifications/resume-preview")
+        assert preview.status_code == 200
+        assert preview.json()["counts"]["obsolete"] == 1
+
+        history = client.get("/api/notifications/deliveries")
+        assert history.status_code == 200
+        assert history.json()["items"] == [
+            {
+                "send_key": "key-83",
+                "req_id": 83,
+                "event": "request",
+                "recipient": "user@example.com",
+                "state": "sent",
+                "updated_at": history.json()["items"][0]["updated_at"],
+                "detail": None,
+            }
+        ]
     finally:
         _cleanup()
