@@ -246,7 +246,7 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
 /* Icônes seules : la cible reste carrée et centrée, jamais plus étroite que 44px. */
 .app-rail[data-density='medium'] {
   .app-rail__header { flex-direction: column; }
-  .app-rail__brand { justify-content: center; padding: 0; }
+  .app-rail__brand { flex: none; justify-content: center; width: var(--touch-target); padding: 0; }
   .app-rail__group + .app-rail__group { padding-top: var(--space-3); }
   .app-rail__link { justify-content: center; gap: 0; padding: 0; }
 }
