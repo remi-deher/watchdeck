@@ -19,6 +19,13 @@ from tests.async_support import TestSession
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def isolate_delivery_policy(monkeypatch):
+    """These tests isolate queue retry/logging. Real ledger/policy is tested separately."""
+    monkeypatch.setattr("app.notification_queue.recipient_status", AsyncMock(return_value="ready"))
+    monkeypatch.setattr("app.notification_queue.prepare", AsyncMock())
+
+
 def _make_settings(**kwargs):
     s = MagicMock()
     s.admin_notification_email = kwargs.get("admin_notification_email", None)

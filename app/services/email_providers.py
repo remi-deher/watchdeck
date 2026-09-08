@@ -16,6 +16,7 @@ from sqlalchemy.future import select
 
 from ..models import EmailProvider
 from . import brevo_email, microsoft_oauth
+from .notification_delivery import DeliveryRejected, DeliveryUncertain, claim, delivery_identity, finish
 
 logger = logging.getLogger(__name__)
 
@@ -52,20 +53,28 @@ async def send_via_provider(provider: EmailProvider, sender: str, recipient: str
     if provider.provider_type == "brevo":
         if not all([provider.brevo_api_key, sender]):
             raise RuntimeError("Configuration Brevo incomplète (clé API/expéditeur) — email non envoyé")
-        await brevo_email.send_transactional_email(
+        message_id = await brevo_email.send_transactional_email(
             api_key=provider.brevo_api_key,
             sender_email=sender,
             sender_name=None,
             to_email=recipient,
             subject=subject,
             html_content=html,
+            send_key=(delivery_identity.get() or {}).get("send_key"),
         )
+        identity = delivery_identity.get()
+        if identity is not None:
+            identity["provider_message_id"] = message_id
         return
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = recipient
+    identity = delivery_identity.get()
+    if identity:
+        msg["Message-ID"] = f"<{identity['send_key']}@watchdeck.local>"
+        msg["X-Watchdeck-Send-Key"] = identity["send_key"]
     msg.attach(MIMEText(html, "html"))
 
     if provider.provider_type == "smtp_oauth2":
@@ -124,6 +133,32 @@ async def send_with_fallback(db: AsyncSession, sender: str, recipient: str, subj
     providers = await get_enabled_providers(db)
     if not providers:
         raise RuntimeError("Aucun fournisseur d'email configuré et actif — email non envoyé")
+
+    identity = delivery_identity.get()
+    if identity:
+        if not await claim(db, {k: identity[k] for k in ("send_key", "req_id", "event", "recipient")}):
+            return
+        # A timeout after SMTP DATA / HTTP POST is ambiguous. Do not switch providers:
+        # their idempotency stores are independent and could both deliver the message.
+        for provider in providers:
+            try:
+                await send_via_provider(provider, sender, recipient, subject, html)
+            except (DeliveryRejected, aiosmtplib.errors.SMTPResponseException):
+                continue  # explicit negative response: this provider did not accept the email
+            except Exception as exc:
+                await finish(db, identity["send_key"], "uncertain", provider_id=provider.id, detail=type(exc).__name__)
+                raise DeliveryUncertain("Envoi sans confirmation ; reprise automatique suspendue") from exc
+            await finish(
+                db,
+                identity["send_key"],
+                "sent",
+                provider_id=provider.id,
+                provider_message_id=identity.get("provider_message_id"),
+                detail=None,
+            )
+            return
+        await finish(db, identity["send_key"], "failed", detail="Refus explicite des fournisseurs")
+        raise DeliveryRejected("Tous les fournisseurs ont refusé l'envoi")
 
     errors: list[str] = []
     for provider in providers:

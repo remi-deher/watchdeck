@@ -529,9 +529,13 @@ async def test_poll_same_media_for_two_watchlists_catches_up_co_requester(db):
 
     req = db.query(MediaRequest).one()
     assert '"plex_user_id": "bob"' in req.extra_requesters
-    assert mock_enqueue.call_count == 2
+    assert mock_enqueue.call_count == 1
     assert mock_enqueue.call_args_list[0].args[2] == ["alice@example.com"]
-    assert mock_enqueue.call_args_list[1].args[2] == ["bob@example.com"]
+
+    from app.models import PendingNotification
+
+    pending = db.query(PendingNotification).filter_by(req_id=req.id, event="request").one()
+    assert pending.recipients == '["bob@example.com"]'
 
 
 @pytest.mark.asyncio

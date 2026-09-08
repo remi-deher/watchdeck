@@ -645,11 +645,16 @@ async def _process_watchlist_item(
     if global_req and global_req.plex_user_id != uid:
         added = _add_co_requester(global_req, uid, display_name)
         if added:
-            await db.commit()
             logger.info(f"Co-demandeur ajouté : {display_name} → '{global_req.title}'")
-        # This also runs for co-requesters already stored before the per-user ledger
-        # existed. The receipt check makes every subsequent poll idempotent.
-        caught_up = await catch_up_requester_notifications(settings, global_req, db, uid)
+        # Only a newly added requester needs catch-up. Missing historical receipts
+        # are not evidence that an existing requester missed a notification.
+        try:
+            caught_up = (
+                await catch_up_requester_notifications(settings, global_req, db, uid, atomic=True) if added else []
+            )
+        except Exception:
+            await db.rollback()
+            raise
         if caught_up:
             logger.info(
                 "Co-demandeur %s : notifications rattrapees pour '%s' (%s)",
