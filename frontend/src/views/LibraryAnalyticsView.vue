@@ -2,6 +2,7 @@
     <AppPage
       :title="activeTab === 'table' ? 'Inventaire médiathèque' : 'Insights médiathèque'"
       v-model:query="filters.search"
+      search-scope="Bibliothèque"
       placeholder="Filtrer par titre, série ou studio…"
       :has-filters="activeTab === 'table'"
       :active-count="activeCount"
