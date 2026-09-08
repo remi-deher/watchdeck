@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.17.0 — 2026-09-08
+
+
+### ✨ Nouveautés
+
+- unify the application shell around one navigation and search model ([0fba5f7](https://github.com/remi-deher/watchdeck/commit/0fba5f7d990a8b97dcc65e8922a64f06f4bcaaef))
+
+### 🔧 Maintenance
+
+- bump sass from 1.103.1 to 1.104.0 (#213) ([48a03e6](https://github.com/remi-deher/watchdeck/commit/48a03e62355ddc49fd5f73037aab0a1a3c1b48bb))
+- bump @lucide/vue from 1.33.0 to 1.41.0 (#214) ([50f5837](https://github.com/remi-deher/watchdeck/commit/50f5837186b34c8dfab09387eec239ae4286ed75))
+- bump @types/node from 26.4.0 to 26.4.1 (#216) ([00a5a38](https://github.com/remi-deher/watchdeck/commit/00a5a3837f6cfedf6d4460e00ae8462a4431a9d5))
+- bump vitest from 4.1.11 to 5.0.0 (#217) ([7e5b9cb](https://github.com/remi-deher/watchdeck/commit/7e5b9cbcc07aa5520d52e1c5dce10dd04dcbb059))
+- bump the github-actions group with 3 updates (#218) ([d86edf5](https://github.com/remi-deher/watchdeck/commit/d86edf5391c69d258dff7f771b67fd5b146c9b48))
 ## 1.16.0 — 2026-09-07
 
 
@@ -27,37 +41,24 @@
 - bump @vue/test-utils from 2.4.11 to 2.5.0 (#201) ([a657bec](https://github.com/remi-deher/watchdeck/commit/a657bec10768e913c7d682089298bc3fbe3cbb0b))
 - bump vue-router from 5.2.0 to 5.3.0 (#206) ([0836d1d](https://github.com/remi-deher/watchdeck/commit/0836d1dba96951cd5446f330d206c52bec97642f))
 - bump the github-actions group with 3 updates (#207) ([4ab4c5c](https://github.com/remi-deher/watchdeck/commit/4ab4c5cf636d4a35107dc892eb8c3314cce41a35))
+- v1.16.0 (#210) ([7c8b2bf](https://github.com/remi-deher/watchdeck/commit/7c8b2bfdd5d8186bcdede308c3068d529d40c164))
 ## 1.15.1 — 2026-08-30
-
-
-### ⚡ Performance
-
-- regroupe les chunks et corrige le releve de capacites en onglet masque ([ccbf076](https://github.com/remi-deher/watchdeck/commit/ccbf07668b4f7f4d6a26e7571781628275fe022e))
-
-### 🔧 Maintenance
-
-- v1.15.1 (#197) ([f659176](https://github.com/remi-deher/watchdeck/commit/f6591769e340b99e3ca9437f9b4c09c8b8eab66c))
-## 1.15.0 — 2026-08-30
 
 
 ### test
 
 - align navigation tests with the new shell ([ad4cad5](https://github.com/remi-deher/watchdeck/commit/ad4cad5713729baa64b9625c91ff1837ca4aa557))
-- align navigation tests with the new shell ([379f344](https://github.com/remi-deher/watchdeck/commit/379f3444f0217a799ad52841b449093ff6a3dbfa))
 
 ### ♻️ Refactoring
 
 - make /calendar the single canonical calendar route ([a1d333e](https://github.com/remi-deher/watchdeck/commit/a1d333ebf08c712ede75715e4372603831e9b9e3))
 - extract UiDisclosure, defer two more dashboard sections ([5ed9bd0](https://github.com/remi-deher/watchdeck/commit/5ed9bd0e1b63cdf7fa3ce2ec461b04566bbf0680))
 - single navigation model of destinations and sections ([74a8eb3](https://github.com/remi-deher/watchdeck/commit/74a8eb3a32dc8512b44f27b60a4113b48a97c6aa))
-- make /calendar the single canonical calendar route ([792a43e](https://github.com/remi-deher/watchdeck/commit/792a43e84a1607c98f2d4a7f62c56bd56321fba6))
-- extract UiDisclosure, defer two more dashboard sections ([a9d7dd0](https://github.com/remi-deher/watchdeck/commit/a9d7dd04b0c703f4e58b20e07a8b0e32695d6245))
-- single navigation model of destinations and sections ([0b78880](https://github.com/remi-deher/watchdeck/commit/0b78880b5430fa7befc4d725bd9e77a75ea5cbfd))
 
 ### ⚡ Performance
 
 - collapse generic genre rails, surface personalised content first ([16e1f9d](https://github.com/remi-deher/watchdeck/commit/16e1f9d321ada57a9ee10fe7cbd6a965a5ef9640))
-- collapse generic genre rails, surface personalised content first ([44c32d6](https://github.com/remi-deher/watchdeck/commit/44c32d6691dc127587309974524d815f9b6a25c3))
+- regroupe les chunks et corrige le releve de capacites en onglet masque ([ccbf076](https://github.com/remi-deher/watchdeck/commit/ccbf07668b4f7f4d6a26e7571781628275fe022e))
 
 ### ✨ Nouveautés
 
@@ -67,12 +68,6 @@
 - discoverable search button in the global rail ([6fb7f17](https://github.com/remi-deher/watchdeck/commit/6fb7f1742ec9fce2bb2eeaff6a3bdbf7742e9201))
 - AppNav puts the current area's sections in the bar, spaces behind the burger ([5557538](https://github.com/remi-deher/watchdeck/commit/55575383b4b93a586ac203f1301f435467ee287e))
 - replace the shell with one navigation, two orientations ([52708f7](https://github.com/remi-deher/watchdeck/commit/52708f73393040b156aaf1773caaa02be127eae0))
-- persistent global rail alongside the contextual space panel ([9045113](https://github.com/remi-deher/watchdeck/commit/9045113e53221a7aeb0bbfe22d709edac3379bd3))
-- stable mobile tab bar, space context moves to a subnav ([45fbee1](https://github.com/remi-deher/watchdeck/commit/45fbee10a4ef4749d1f4d0349a9c19b94ff2dc25))
-- command palette on Ctrl/Cmd+K ([64a934b](https://github.com/remi-deher/watchdeck/commit/64a934b2ff4450919949e44b22063827fbfe8bb2))
-- discoverable search button in the global rail ([e99e1a6](https://github.com/remi-deher/watchdeck/commit/e99e1a6b29bcd128b5864876ed3529e7e3fd70b6))
-- AppNav puts the current area's sections in the bar, spaces behind the burger ([cc5ad3d](https://github.com/remi-deher/watchdeck/commit/cc5ad3d5b546e73b107f5c9c12ada7f1cc96262f))
-- replace the shell with one navigation, two orientations ([f895b27](https://github.com/remi-deher/watchdeck/commit/f895b27a5dbda18f8f71825a673b36c91458801a))
 
 ### 🐛 Corrections
 
@@ -90,6 +85,38 @@
 - clear orphan references before adding the media identity foreign keys ([e35de51](https://github.com/remi-deher/watchdeck/commit/e35de5106fab61b2007a0ab7051b8b8fa885d2f0))
 - drop the page title on mobile, make the search header opaque ([9bc91ed](https://github.com/remi-deher/watchdeck/commit/9bc91ed4762b04b955181de1b6caa95f16897662))
 - let poster rails scroll freely instead of snapping to each poster ([461ec69](https://github.com/remi-deher/watchdeck/commit/461ec6969666846c17043f829f10accdfe5e89d8))
+
+### 🔧 Maintenance
+
+- v1.15.1 (#197) ([f659176](https://github.com/remi-deher/watchdeck/commit/f6591769e340b99e3ca9437f9b4c09c8b8eab66c))
+## 1.15.0 — 2026-08-30
+
+
+### test
+
+- align navigation tests with the new shell ([379f344](https://github.com/remi-deher/watchdeck/commit/379f3444f0217a799ad52841b449093ff6a3dbfa))
+
+### ♻️ Refactoring
+
+- make /calendar the single canonical calendar route ([792a43e](https://github.com/remi-deher/watchdeck/commit/792a43e84a1607c98f2d4a7f62c56bd56321fba6))
+- extract UiDisclosure, defer two more dashboard sections ([a9d7dd0](https://github.com/remi-deher/watchdeck/commit/a9d7dd04b0c703f4e58b20e07a8b0e32695d6245))
+- single navigation model of destinations and sections ([0b78880](https://github.com/remi-deher/watchdeck/commit/0b78880b5430fa7befc4d725bd9e77a75ea5cbfd))
+
+### ⚡ Performance
+
+- collapse generic genre rails, surface personalised content first ([44c32d6](https://github.com/remi-deher/watchdeck/commit/44c32d6691dc127587309974524d815f9b6a25c3))
+
+### ✨ Nouveautés
+
+- persistent global rail alongside the contextual space panel ([9045113](https://github.com/remi-deher/watchdeck/commit/9045113e53221a7aeb0bbfe22d709edac3379bd3))
+- stable mobile tab bar, space context moves to a subnav ([45fbee1](https://github.com/remi-deher/watchdeck/commit/45fbee10a4ef4749d1f4d0349a9c19b94ff2dc25))
+- command palette on Ctrl/Cmd+K ([64a934b](https://github.com/remi-deher/watchdeck/commit/64a934b2ff4450919949e44b22063827fbfe8bb2))
+- discoverable search button in the global rail ([e99e1a6](https://github.com/remi-deher/watchdeck/commit/e99e1a6b29bcd128b5864876ed3529e7e3fd70b6))
+- AppNav puts the current area's sections in the bar, spaces behind the burger ([cc5ad3d](https://github.com/remi-deher/watchdeck/commit/cc5ad3d5b546e73b107f5c9c12ada7f1cc96262f))
+- replace the shell with one navigation, two orientations ([f895b27](https://github.com/remi-deher/watchdeck/commit/f895b27a5dbda18f8f71825a673b36c91458801a))
+
+### 🐛 Corrections
+
 - allow pinch-to-zoom by removing user-scalable=no ([874c680](https://github.com/remi-deher/watchdeck/commit/874c680211d12c8e7c1391dbf60b996df8f221c6))
 - define .sr-only globally to fix leaked visible text ([6d02b1b](https://github.com/remi-deher/watchdeck/commit/6d02b1b81f4bae3ea7a0dae72ec2388a0bb138de))
 - add skip link to main content ([e0cc33a](https://github.com/remi-deher/watchdeck/commit/e0cc33a5f3039e000d1c407c76c10c38dcb1ac50))
@@ -346,6 +373,7 @@
 
 ### ✨ Nouveautés
 
+- add interactive expandable playback timeline with segment log, ticks and ratios (#78) ([e9d7ca0](https://github.com/remi-deher/watchdeck/commit/e9d7ca05830fcfcbb731e76eaa9af5a68ec56451))
 - add interactive expandable playback timeline with segment log, ticks and ratios ([70fcee3](https://github.com/remi-deher/watchdeck/commit/70fcee313d524e9f4a1cc45422703860bd29ffe8))
 - synchronize release search and grab bidirectionally with vf upgrades ([81200ee](https://github.com/remi-deher/watchdeck/commit/81200eedb808bd57e29b4976cc95122917bc9e08))
 - alignement personnalisable des flux Plex par média, saison et épisode pour un ou plusieurs utilisateurs ([436d6da](https://github.com/remi-deher/watchdeck/commit/436d6da5b09aee8f9402f9da0ca32254da952380))
@@ -363,6 +391,10 @@
 - graphique d'activité défilable horizontalement sur mobile ([e5dd4e5](https://github.com/remi-deher/watchdeck/commit/e5dd4e51b946276f4a95a7fe2cac7f2b54de88fc))
 - commit la session avant pg_restore pour éviter un auto-deadlock ([a9f1c7e](https://github.com/remi-deher/watchdeck/commit/a9f1c7e71ee4a19b31d58c1e8539ebbe07285306))
 - force un miroir apt fiable avant l'installation Playwright ([5a82f65](https://github.com/remi-deher/watchdeck/commit/5a82f65bb34c0dcba496648170407cbdac588301))
+
+### 👷 CI/CD
+
+- rend les promotions dev->test et test->main manuelles (workflow_dispatch) ([8501574](https://github.com/remi-deher/watchdeck/commit/85015748d77c9917ab460866c32bfc293be79a8c))
 
 ### 🔧 Maintenance
 
@@ -404,14 +436,6 @@
 - v1.3.2 (#85) ([6e51310](https://github.com/remi-deher/watchdeck/commit/6e513108853446aeb6431dd3bf2c39f7fe2e6fd6))
 ## 1.3.1 — 2026-08-18
 
-
-### ✨ Nouveautés
-
-- add interactive expandable playback timeline with segment log, ticks and ratios (#78) ([e9d7ca0](https://github.com/remi-deher/watchdeck/commit/e9d7ca05830fcfcbb731e76eaa9af5a68ec56451))
-
-### 👷 CI/CD
-
-- rend les promotions dev->test et test->main manuelles (workflow_dispatch) ([8501574](https://github.com/remi-deher/watchdeck/commit/85015748d77c9917ab460866c32bfc293be79a8c))
 
 ### 🔧 Maintenance
 
