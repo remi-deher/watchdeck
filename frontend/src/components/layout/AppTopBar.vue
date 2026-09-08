@@ -11,6 +11,8 @@
     >
       <Menu aria-hidden="true" />
     </button>
+
+    <span v-if="mode !== 'expanded'" class="app-topbar__context" aria-current="page">{{ resolvedTitle }}</span>
     <button
       v-else
       type="button"
@@ -203,6 +205,15 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
   transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
 }
 .app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translateY(calc(-100% - 14px)); pointer-events: none; }
+.app-topbar__context {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .app-topbar__icon-btn {
   display: grid;

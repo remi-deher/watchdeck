@@ -84,7 +84,9 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   // Le second niveau vit desormais dans la page, sous son titre, au meme endroit
   // quelle que soit la largeur : plus de sous-menu survolable dans le shell, dont la
   // rangee principale changeait de contenu selon la section.
-  const navigation = page.locator('.app-subnav');
+  const navigation = page.viewportSize().width >= 1200
+    ? page.locator('.app-rail__subnav')
+    : page.locator('.app-subnav');
   await expect(navigation.getByRole("link", { name: "Séries" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Films" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Accueil" })).toBeVisible();

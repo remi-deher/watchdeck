@@ -16,6 +16,19 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import declarative_base
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/plex_rss.db")
+
+
+def postgres_engine_kwargs() -> dict[str, object]:
+    """Return the bounded, environment-configurable PostgreSQL pool settings."""
+    return {
+        "pool_pre_ping": True,
+        "pool_size": int(os.getenv("DB_POOL_SIZE", "15")),
+        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "15")),
+        "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "30")),
+        "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "1800")),
+    }
+
+
 # Ajustement pour aiosqlite / asyncpg
 is_sqlite = DATABASE_URL.startswith("sqlite")
 engine_kwargs: dict[str, object]
@@ -37,13 +50,7 @@ else:
     # Keep enough headroom for bursts caused by slow external integrations
     # without consuming PostgreSQL's whole connection budget. Values remain
     # configurable for installations with a different database capacity.
-    engine_kwargs = {
-        "pool_pre_ping": True,
-        "pool_size": int(os.getenv("DB_POOL_SIZE", "15")),
-        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "15")),
-        "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "30")),
-        "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "1800")),
-    }
+    engine_kwargs = postgres_engine_kwargs()  # pragma: no cover - selected before test import
 
 async_engine = create_async_engine(ASYNC_DATABASE_URL, connect_args=connect_args, **engine_kwargs)
 AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
