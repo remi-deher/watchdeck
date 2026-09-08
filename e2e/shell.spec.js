@@ -271,6 +271,9 @@ test("les demandes n'exposent qu'un seul bouton de filtres", async ({ page }) =>
   const filterButtons = page.getByRole("button", { name: /filtres/i });
   await expect(filterButtons).toHaveCount(1);
   await expect(filterButtons).toBeVisible();
+  if (isCompact(page)) await page.getByRole("button", { name: "Rechercher dans la page" }).click();
+  await expect(page.locator(".app-topbar").getByRole("searchbox", { name: /demande/i })).toBeVisible();
+  await expect(page.locator("#main-content").getByRole("searchbox")).toHaveCount(0);
 });
 
 test("la vue d'ensemble des parametres ouvre bien une section", async ({ page }) => {
