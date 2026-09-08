@@ -308,7 +308,8 @@ test("le niveau 2 reste accessible pendant le defilement", async ({ page }) => {
   await page.waitForTimeout(500);
 
   const box = await sticky.boundingBox();
-  expect(Math.round(box.y)).toBeCloseTo(48, 0);
+  const expectedTop = await sticky.evaluate((node) => parseFloat(window.getComputedStyle(node).top));
+  expect(Math.round(box.y)).toBeCloseTo(Math.round(expectedTop), 0);
   await expect(sticky.locator(".app-subnav")).toBeVisible();
   await expect(sticky).toHaveClass(/is-stuck/);
 });
