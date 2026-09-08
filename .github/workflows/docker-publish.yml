@@ -226,7 +226,21 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           for image in mrcryllix/watchdeck ghcr.io/remi-deher/watchdeck; do
-            cosign sign --yes "${image}@${DIGEST}"
+            signed=false
+            for attempt in 1 2 3; do
+              if cosign sign --yes "${image}@${DIGEST}"; then
+                signed=true
+                break
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "::warning::Signature Cosign de ${image} échouée (tentative ${attempt}/3), nouvelle tentative."
+                sleep $((attempt * 10))
+              fi
+            done
+            if [ "$signed" != "true" ]; then
+              echo "::error::Impossible de signer ${image}@${DIGEST} après 3 tentatives."
+              exit 1
+            fi
           done
 
   # PROMOTION (tags uniquement) : publie en production l'image DEJA construite et
@@ -373,7 +387,21 @@ jobs:
           DIGEST: ${{ steps.stamp.outputs.digest }}
         run: |
           for image in mrcryllix/watchdeck ghcr.io/remi-deher/watchdeck; do
-            cosign sign --yes "${image}@${DIGEST}"
+            signed=false
+            for attempt in 1 2 3; do
+              if cosign sign --yes "${image}@${DIGEST}"; then
+                signed=true
+                break
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "::warning::Signature Cosign de ${image} échouée (tentative ${attempt}/3), nouvelle tentative."
+                sleep $((attempt * 10))
+              fi
+            done
+            if [ "$signed" != "true" ]; then
+              echo "::error::Impossible de signer ${image}@${DIGEST} après 3 tentatives."
+              exit 1
+            fi
           done
 
       - name: Summary
