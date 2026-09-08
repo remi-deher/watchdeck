@@ -8,6 +8,7 @@
       v-if="mode !== 'compact'"
       :density="railDensity"
       :active-key="activeDestinationKey"
+      :page-title="pageTitle"
       :is-admin="isAdmin"
       :can-moderate="canModerate"
       @open-palette="openPalette"
@@ -61,6 +62,7 @@ import AppRail from './AppRail.vue';
 import AppTopBar from './AppTopBar.vue';
 import CommandPalette from './CommandPalette.vue';
 import { useRailCollapsed } from '@/composables/useRailCollapsed';
+import { usePageTitle } from '@/composables/usePageTitle';
 import { useShellMode } from '@/composables/useShellMode';
 import { destinationForPath } from '@/navigation';
 
@@ -88,8 +90,9 @@ const railDensity = computed<'medium' | 'expanded'>(() =>
 const destination = computed(() => destinationForPath(route.path, props.isAdmin, props.canModerate));
 const activeDestinationKey = computed(() => destination.value?.key || '');
 const destinationLabel = computed(() => destination.value?.label || '');
+const providedTitle = usePageTitle();
 const pageTitle = computed(() =>
-  typeof route.meta?.title === 'string' && route.meta.title ? route.meta.title : destinationLabel.value || 'Watchdeck'
+  providedTitle.value || (typeof route.meta?.title === 'string' && route.meta.title ? route.meta.title : destinationLabel.value || 'Watchdeck')
 );
 
 /* La feuille se ferme elle-meme au clic sur une destination ; elle n'est donc pas

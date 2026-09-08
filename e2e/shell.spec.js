@@ -72,7 +72,7 @@ test("la navigation primaire ne change pas de forme en changeant de domaine", as
   }
 });
 
-test("chaque page expose un h1 unique, et son titre reste visible dans la barre", async ({ page }) => {
+test("chaque page expose un h1 unique, et son titre reste visible dans le shell", async ({ page }) => {
   for (const path of ["/dashboard", "/discover", "/library", "/downloads", "/settings"]) {
     await page.goto(path);
     await expect(page.locator("#main-content")).toBeVisible();
@@ -86,10 +86,10 @@ test("chaque page expose un h1 unique, et son titre reste visible dans la barre"
     // titre annonce a l'oral differerait de celui qu'on lit a l'ecran.
     const title = (await heading.textContent()).trim();
     expect(title.length, `titre vide sur ${path}`).toBeGreaterThan(0);
-    await expect(
-      page.locator('.app-topbar__crumbs [aria-current="page"]'),
-      `la barre de contexte doit afficher "${title}" sur ${path}`,
-    ).toHaveText(title);
+    const visibleTitle = page.viewportSize().width >= 1200
+      ? page.locator('.app-rail__brand-name')
+      : page.locator('.app-topbar__context');
+    await expect(visibleTitle, `le shell doit afficher "${title}" sur ${path}`).toHaveText(title);
   }
 });
 
@@ -262,7 +262,7 @@ test("la vue d'ensemble des parametres ouvre bien une section", async ({ page })
   expect(page.url()).toMatch(/[?&]tab=/);
 });
 
-test("le niveau 2 reste visible au defilement et signale son decollement", async ({ page }) => {
+test("le niveau 2 reste accessible pendant le defilement", async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const p = new URL(route.request().url()).pathname;
     if (p === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
@@ -286,9 +286,8 @@ test("le niveau 2 reste visible au defilement et signale son decollement", async
   expect(scrollable, "la page doit defiler pour que le test ait un sens").toBe(true);
   await page.waitForTimeout(500);
 
-  const topbar = await page.locator(".app-topbar").boundingBox();
   const box = await sticky.boundingBox();
-  expect(Math.round(box.y)).toBeCloseTo(Math.round(topbar.y + topbar.height), 0);
+  expect(Math.round(box.y)).toBeCloseTo(48, 0);
   await expect(sticky.locator(".app-subnav")).toBeVisible();
   await expect(sticky).toHaveClass(/is-stuck/);
 });
@@ -366,7 +365,7 @@ test("les sections changent de surface selon la largeur, sans jamais se duplique
   // emulent un appareil, ne verifierait rien de plus et se heurterait a leur viewport.
   test.skip(testInfo.project.name !== "desktop", "test pilote par la largeur, pas par l'appareil");
   await page.goto("/downloads");
-  const inBar = page.locator(".app-subnav.app-topbar__sections");
+  const inRail = page.locator(".app-rail__subnav");
   const inPage = page.locator(".app-page__sticky .app-subnav");
 
   // Au-dela du seuil deploye, la barre de contexte les porte ; en dessous, la page.
@@ -375,17 +374,17 @@ test("les sections changent de surface selon la largeur, sans jamais se duplique
   // Les sections d'Acquisition sont reservees aux administrateurs : elles n'existent
   // qu'une fois la session revenue, d'ou le delai large sur cette premiere attente.
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(inBar).toBeVisible({ timeout: 15000 });
+  await expect(inRail).toBeVisible({ timeout: 15000 });
   await expect(inPage).toHaveCount(0);
 
   await page.setViewportSize({ width: 1100, height: 900 });
   await expect(inPage).toBeVisible();
-  await expect(inBar).toHaveCount(0);
+  await expect(inRail).toHaveCount(0);
 
   // Le titre de la page ne doit jamais ceder la place aux sections : c'est le seul
   // endroit ou il s'affiche depuis que le bandeau de titre a quitte la page.
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(page.locator('.app-topbar__crumbs [aria-current="page"]')).toBeVisible();
+  await expect(page.locator('.app-rail__brand-name')).toBeVisible();
 });
 
 test("la recherche de page vit dans la barre, et s’y deploie en compact", async ({ page }) => {

@@ -1,5 +1,5 @@
 <template>
-  <header class="app-topbar">
+  <header class="app-topbar" :class="{ 'is-hidden': toolbarHidden }">
     <button
       v-if="mode === 'compact'"
       type="button"
@@ -11,6 +11,8 @@
     >
       <Menu aria-hidden="true" />
     </button>
+
+    <span v-if="mode !== 'expanded'" class="app-topbar__context" aria-current="page">{{ resolvedTitle }}</span>
     <button
       v-else
       type="button"
@@ -21,28 +23,6 @@
     >
       <PanelLeft aria-hidden="true" />
     </button>
-
-    <!-- Le fil situe la page dans sa destination. Il double le rail, qui indique déjà
-         où l'on est, mais reste le seul repère disponible en mode compact. Sur grand
-         écran les sections tiennent le même rôle : le segment parent s'efface alors
-         pour leur laisser la largeur. -->
-    <nav class="app-topbar__crumbs" aria-label="Fil d’Ariane">
-      <ol>
-        <li v-if="!showSections && destinationLabel && destinationLabel !== resolvedTitle">
-          <span>{{ destinationLabel }}</span>
-        </li>
-        <li aria-current="page">{{ resolvedTitle }}</li>
-      </ol>
-    </nav>
-
-    <span v-if="showSections && sections.length > 1" class="app-topbar__divider" aria-hidden="true" />
-    <AppSubnav
-      v-if="showSections && sections.length > 1"
-      class="app-topbar__sections"
-      :items="sections"
-      :active="activeKey"
-      :aria-label="`Sections ${sectionsLabel || resolvedTitle}`"
-    />
 
     <!-- La recherche de la page occupe la barre quand elle existe. Sur mobile, elle
          s'y deploie a la demande : le titre et un champ de 341px n'y tiennent pas
@@ -125,12 +105,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ArrowLeft, Menu, PanelLeft, Search, SlidersHorizontal } from '@lucide/vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
 import UiSearchField from '@/components/ui/UiSearchField.vue';
 import { usePageSearch } from '@/composables/usePageSearch';
-import { usePageSections } from '@/composables/usePageSections';
 import { usePageTitle } from '@/composables/usePageTitle';
 import { shortcutLabel } from '@/shortcut';
 import type { ShellMode } from '@/styles/breakpoints';
@@ -155,12 +133,29 @@ const emit = defineEmits<{
 const pageSearch = usePageSearch();
 const fieldRef = ref<any>(null);
 const searchExpanded = ref(false);
+const toolbarHidden = ref(false);
+let lastScrollY = 0;
+
+function handleScroll(): void {
+  const current = Math.max(0, window.scrollY);
+  const delta = current - lastScrollY;
+  if (current < 24 || delta < -5) toolbarHidden.value = false;
+  else if (delta > 7 && current > 96 && !searchExpanded.value) toolbarHidden.value = true;
+  lastScrollY = current;
+}
+
+onMounted(() => {
+  lastScrollY = window.scrollY;
+  window.addEventListener('scroll', handleScroll, { passive: true });
+});
+onUnmounted(() => window.removeEventListener('scroll', handleScroll));
 
 /* En mode compact, la loupe deploie le champ de la page sur toute la barre ; sans
    champ de page, elle ouvre la recherche globale. Un seul bouton, deux roles selon
    ce que la page offre. */
 function onCompactSearch(): void {
   if (!pageSearch.value) return emit('open-palette');
+  toolbarHidden.value = false;
   searchExpanded.value = !searchExpanded.value;
   if (searchExpanded.value) {
     nextTick(() => fieldRef.value?.$el?.querySelector('input')?.focus());
@@ -179,8 +174,6 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
 /* Les sections ne remontent ici qu'en mode deploye : plus bas, la barre n'a pas la
    largeur de les porter sans chasser le titre, seul repere visible depuis que le
    bandeau de titre a quitte la page. */
-const { sections, activeKey, destinationLabel: sectionsLabel } = usePageSections();
-const showSections = computed(() => props.mode === 'expanded');
 
 /* On suit le titre, pas l'objet de recherche : celui-ci est recree a chaque frappe
    (la requete en fait partie), et le surveiller refermait le champ des la premiere
@@ -194,21 +187,32 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 
 .app-topbar {
   position: fixed;
-  top: 0;
-  right: 0;
-  /* La barre commence après le rail : elle ne le recouvre jamais, et sa largeur suit
-     donc automatiquement le repli, sans second calcul. */
-  left: var(--app-rail-w);
+  top: max(8px, var(--safe-top));
+  right: max(12px, var(--safe-right));
   z-index: 40;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: calc(var(--app-topbar-h) + var(--safe-top));
-  padding: var(--safe-top) max(var(--space-3), var(--safe-right)) 0 var(--space-3);
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  min-height: var(--app-topbar-h);
+  max-width: min(720px, calc(100vw - var(--app-rail-w) - 24px));
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface-sunken) 90%, transparent);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .22);
   backdrop-filter: blur(18px) saturate(1.1);
   -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+.app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translateY(calc(-100% - 14px)); pointer-events: none; }
+.app-topbar__context {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-topbar__icon-btn {
@@ -294,7 +298,8 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 .app-topbar__crumbs:has(~ .app-topbar__sections) { flex: 0 0 auto; max-width: 260px; }
 
 /* ── Recherche de page ──────────────────────────────────────────────────────── */
-.app-topbar__field { position: relative; display: none; flex: 0 1 341px; min-width: 0; }
+.app-topbar__field { position: relative; display: none; flex: 0 1 260px; min-width: 0; transition: flex-basis .2s ease; }
+.app-topbar__field:focus-within { flex-basis: 420px; }
 
 /* Deploiement en mode compact : le champ recouvre la barre entiere, titre compris. */
 .app-topbar__field.is-expanded {
@@ -358,5 +363,16 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
   /* `relative` conserve : c'est le bloc conteneur du bouton d'echappee, qui
      s'ancrait sinon au bord gauche de la barre. */
   .app-topbar__field { display: flex; position: relative; }
+}
+
+@include bp.until(tablet) {
+  .app-topbar { left: max(10px, var(--safe-left)); max-width: none; }
+  .app-topbar__field.is-expanded {
+    top: 0;
+    right: 4px;
+    bottom: 0;
+    left: 4px;
+    border-radius: inherit;
+  }
 }
 </style>

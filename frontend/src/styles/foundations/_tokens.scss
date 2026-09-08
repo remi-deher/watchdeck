@@ -77,7 +77,7 @@
      dans <body> — lit ces trois variables et ne redéclare jamais la valeur.
      Elles sont redéfinies par mode plus bas dans ce fichier. */
   --app-rail-w: 0px;
-  --app-topbar-h: 56px;
+  --app-topbar-h: 48px;
   --app-dock-h: 64px;
   /* Hauteur réellement occupée en haut : la barre de contexte est fixe dans tous
      les modes, l'encoche s'y ajoute. */
@@ -96,7 +96,7 @@
 }
 
 @include bp.from(shell-expanded) {
-  :root { --app-rail-w: calc(248px + var(--safe-left)); }
+  :root { --app-rail-w: calc(232px + var(--safe-left)); }
 
   /* Rail replié à la demande de l'utilisateur : la largeur redevient celle du mode
      medium, sans changer de composant ni de mode. Repli possible uniquement ici :

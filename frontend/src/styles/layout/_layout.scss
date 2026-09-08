@@ -36,7 +36,7 @@
      débordement horizontal (marge négative désalignée — vécu sur mobile). */
   --main-pad-x: 28px;
   padding:
-    calc(var(--app-shell-offset-top) + var(--space-5))
+    calc(var(--app-shell-offset-top) + var(--space-3))
     max(var(--main-pad-x), var(--safe-right))
     calc(var(--app-shell-offset-bottom) + var(--space-5))
     max(var(--main-pad-x), var(--safe-left));
