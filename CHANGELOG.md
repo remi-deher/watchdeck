@@ -1,11 +1,29 @@
 # Changelog
 
+## 1.24.0 — 2026-09-09
+
+
+### test
+
+- couvrir les filtres résolution et artiste ([4ba1ee7](https://github.com/remi-deher/watchdeck/commit/4ba1ee7c24ccf1b586321992211bfb4015449a8c))
+
+### ✨ Nouveautés
+
+- camemberts seuls, filtrage au clic, colonnes de tableau mutualisées ([66cfe0f](https://github.com/remi-deher/watchdeck/commit/66cfe0fb74d4ad9a9e4941c9155e326651adafb1))
+
+### 🐛 Corrections
+
+- résoudre les films que TMDB ignore, et dire au demandeur ce qui se passe ([7894103](https://github.com/remi-deher/watchdeck/commit/78941038f5c667e75a8b2f3b4e1b25f9b7dffc2e))
 ## 1.23.0 — 2026-09-09
 
 
 ### ✨ Nouveautés
 
 - studios des séries, camembert, inventaire par spectateur, historique au défilement ([653d0fe](https://github.com/remi-deher/watchdeck/commit/653d0fead2095e9f752593ed8fd828c45a9854e7))
+
+### 🔧 Maintenance
+
+- v1.23.0 (#258) ([44504cc](https://github.com/remi-deher/watchdeck/commit/44504cc434e185b954aada5bb2631d465c58db02))
 ## 1.22.1 — 2026-09-09
 
 
