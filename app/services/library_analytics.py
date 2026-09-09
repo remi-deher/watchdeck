@@ -143,7 +143,10 @@ def apply_filters(rows: list[dict], filters: dict[str, Any]) -> list[dict]:
     for row in rows:
         if filters.get("media_type") and row["media_type"] != filters["media_type"]:
             continue
-        for key in ("library", "studio", "video_codec", "audio_codec", "container"):
+        # `video_resolution` et l'artiste rejoignent les filtres serveur : les
+        # repartitions correspondantes se cliquent pour filtrer toute la page, il faut
+        # donc que le catalogue sache s'y restreindre.
+        for key in ("library", "studio", "video_codec", "audio_codec", "container", "video_resolution"):
             if filters.get(key) and str(row.get(key)) != str(filters[key]):
                 break
         else:
@@ -163,6 +166,10 @@ def apply_filters(rows: list[dict], filters: dict[str, Any]) -> list[dict]:
             ):
                 continue
             if filters.get("audio_language") and filters["audio_language"] not in row.get("audio_languages", []):
+                continue
+            # L'artiste d'une piste, comme la serie d'un episode, vit dans
+            # `grandparent_title` (voir `parse_plex_item`).
+            if filters.get("artist") and str(row.get("grandparent_title") or "") != str(filters["artist"]):
                 continue
             if filters.get("viewer") and filters["viewer"] not in row.get("viewers", []):
                 continue
@@ -222,7 +229,7 @@ def _build_payload(rows: list[dict], generated_at: str, filters: dict[str, Any])
         "largest": oversized,
         "options": {
             key: sorted({str(row.get(key)) for row in all_rows if row.get(key)})
-            for key in ("library", "studio", "video_codec", "audio_codec", "container")
+            for key in ("library", "studio", "video_codec", "audio_codec", "container", "video_resolution")
         }
         | {
             "audio_language": sorted(

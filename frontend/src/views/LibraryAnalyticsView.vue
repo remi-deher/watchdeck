@@ -25,6 +25,7 @@
         <select v-model="filters.video_codec" aria-label="Filtrer par codec vidéo"><option value="">Tous les codecs vidéo</option><option v-for="value in data.options?.video_codec || []" :key="value">{{ value }}</option></select>
         <select v-model="filters.audio_codec" aria-label="Filtrer par codec audio"><option value="">Tous les codecs audio</option><option v-for="value in data.options?.audio_codec || []" :key="value">{{ value }}</option></select>
         <select v-model="filters.audio_language" aria-label="Filtrer par langue audio"><option value="">Toutes les langues audio</option><option v-for="value in data.options?.audio_language || []" :key="value">{{ value }}</option></select>
+        <select v-model="filters.video_resolution" aria-label="Filtrer par résolution"><option value="">Toutes les résolutions</option><option v-for="value in data.options?.video_resolution || []" :key="value">{{ value }}</option></select>
         <select v-model="filters.container" aria-label="Filtrer par conteneur"><option value="">Tous les conteneurs</option><option v-for="value in data.options?.container || []" :key="value">{{ value }}</option></select>
         <select v-model="filters.subtitle" aria-label="Sous-titres"><option value="">Sous-titres : indifférent</option><option value="with">Avec sous-titres</option><option value="without">Sans sous-titres</option></select>
         <select v-model="filters.subtitle_language" aria-label="Langue sous-titres"><option value="">Toutes les langues de sous-titres</option><option v-for="value in data.options?.subtitle_language || []" :key="value">{{ value }}</option></select>
@@ -89,6 +90,7 @@
           :eyebrow="chart.eyebrow"
           :tone="chart.tone"
           :interactive="!!chart.field"
+          :selected="selectedFor(chart)"
           :items="breakdown(chart.key)"
           @select="selectDistribution(chart, $event)"
         />
@@ -149,7 +151,7 @@ const mediaTable = ref<any>(null);
 const filters = reactive<Record<string, any>>({
   search: '', media_type: '', library: '', studio: '', video_codec: '',
   audio_codec: '', audio_language: '', container: '', subtitle: '',
-  subtitle_language: '', subtitle_type: '', watched: '', viewer: '',
+  subtitle_language: '', subtitle_type: '', watched: '', viewer: '', artist: '', video_resolution: '',
   min_size_gb: '', max_size_gb: '',
 });
 const charts = [
@@ -192,7 +194,35 @@ function selectInsight(insight: any): void {
   selectedInsight.value = insightSelection(insight);
   loadInsight();
 }
+/* Chaque repartition dont le serveur sait filtrer se comporte en filtre de page :
+   cliquer « Toei Animation » restreint les autres camemberts, les compteurs et le
+   tableau, au lieu de ne changer que la liste du bas. Un second clic relache. */
+const DISTRIBUTION_FILTERS: Record<string, string> = {
+  media_type: 'media_type',
+  studio: 'studio',
+  grandparent_title: 'artist',
+  video_codec: 'video_codec',
+  audio_codec: 'audio_codec',
+  video_resolution: 'video_resolution',
+  container: 'container',
+};
+
+const selectedFor = (chart: any): string => {
+  const filterKey = DISTRIBUTION_FILTERS[chart.field];
+  if (!filterKey || !filters[filterKey]) return '';
+  // Le camembert des types affiche des libelles traduits ; le filtre garde la valeur
+  // brute. On rend donc l'etiquette telle qu'elle est dessinee.
+  return chart.key === 'types'
+    ? (MEDIA_TYPE_DISTRIBUTION_LABELS as Record<string, string>)[filters[filterKey]] || filters[filterKey]
+    : filters[filterKey];
+};
+
 function selectDistribution(chart: any, value: any): void {
+  const filterKey = DISTRIBUTION_FILTERS[chart.field];
+  if (filterKey) {
+    filters[filterKey] = filters[filterKey] === String(value) ? '' : String(value);
+    return;
+  }
   selectedInsight.value = distributionSelection(chart, value);
   loadInsight();
 }

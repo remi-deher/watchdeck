@@ -8,7 +8,7 @@
         v-for="(slice, index) in slices"
         :key="slice.label"
         class="pie-slice"
-        :class="{ interactive, dimmed: hovered !== null && hovered !== index }"
+        :class="{ interactive, dimmed: isDimmed(slice, index), selected: slice.label === selected }"
         :cx="C"
         :cy="C"
         :r="R"
@@ -34,14 +34,15 @@
         <button
           type="button"
           :disabled="!interactive || slice.grouped"
-          :class="{ dimmed: hovered !== null && hovered !== index }"
+          :class="{ dimmed: isDimmed(slice, index), selected: slice.label === selected }"
           @mouseenter="hovered = index"
           @mouseleave="hovered = null"
           @click="select(slice)"
         >
           <i :style="{ background: slice.color }"></i>
           <span :title="slice.label">{{ slice.label }}</span>
-          <strong>{{ slice.percentLabel }} %</strong>
+          <strong>{{ formatNumber(slice.value) }}</strong>
+          <small>{{ slice.percentLabel }} %</small>
         </button>
       </li>
     </ul>
@@ -66,8 +67,10 @@ const props = withDefaults(
     interactive?: boolean;
     ariaLabel?: string;
     centerLabel?: string;
+    /** Part actuellement retenue comme filtre : elle reste en avant, les autres reculent. */
+    selected?: string;
   }>(),
-  { items: () => [], interactive: false, ariaLabel: 'Répartition', centerLabel: 'total' }
+  { items: () => [], interactive: false, ariaLabel: 'Répartition', centerLabel: 'total', selected: '' }
 );
 
 /* La part entiere est emise, pas seulement sa valeur : l'appelant decide ce qu'il
@@ -107,6 +110,12 @@ const slices = computed(() => {
 
 const centerValue = computed(() => formatNumber(total.value));
 
+/* Le survol eclaire une part ; a defaut, c'est le filtre actif qui la designe. */
+function isDimmed(slice: PieSlice, index: number): boolean {
+  if (hovered.value !== null) return hovered.value !== index;
+  return Boolean(props.selected) && slice.label !== props.selected;
+}
+
 function select(slice: PieSlice): void {
   if (props.interactive && !slice.grouped) emit('select', slice);
 }
@@ -131,6 +140,7 @@ function select(slice: PieSlice): void {
 .pie-slice.interactive { cursor: pointer; }
 .pie-slice.interactive:hover, .pie-slice.interactive:focus-visible { stroke-width: 30; }
 .pie-slice.dimmed { opacity: .35; }
+.pie-slice.selected { stroke-width: 30; }
 
 /* Les deux textes du centre annulent la rotation du SVG, sinon ils s'affichent couches. */
 .pie-center-value, .pie-center-label {
@@ -142,10 +152,21 @@ function select(slice: PieSlice): void {
 .pie-center-value { font-size: 20px; font-weight: 700; }
 .pie-center-label { fill: var(--muted); font-size: 11px; }
 
-.pie-legend { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.pie-legend {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
 .pie-legend button {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
   gap: var(--space-2);
   align-items: center;
   width: 100%;
@@ -162,9 +183,14 @@ function select(slice: PieSlice): void {
 .pie-legend button:not(:disabled) { cursor: pointer; }
 .pie-legend button:not(:disabled):hover { background: var(--surface-2); }
 .pie-legend button.dimmed { opacity: .45; }
+.pie-legend button.selected { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .pie-legend i { width: 10px; height: 10px; border-radius: 3px; }
-.pie-legend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pie-legend strong { color: var(--muted); font-variant-numeric: tabular-nums; }
+/* La legende porte le nom en blanc et la valeur en gras orange : c'est elle qu'on lit,
+   pas les arcs, et le gris precedent la rendait secondaire alors qu'elle est le tableau
+   de lecture du camembert. */
+.pie-legend span { overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+.pie-legend strong { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.pie-legend small { min-width: 48px; color: var(--muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 640px) {
   .pie-chart { grid-template-columns: minmax(0, 1fr); justify-items: center; }
