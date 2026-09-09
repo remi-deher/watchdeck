@@ -264,12 +264,14 @@ async def job_arr_statuses(ctx: dict, force: bool = False, run_id: str | None = 
 async def job_torrent_statuses(ctx: dict, force: bool = False):
     from .services.arr_tracker import check_torrent_statuses
 
+    settings = await _settings()
+    interval = (settings.torrent_status_interval_seconds if settings else None) or 120
     return await _run(
         ctx,
         "torrent-statuses",
         check_torrent_statuses,
         force=force,
-        interval_seconds=120,
+        interval_seconds=interval,
         event_type="download.updated",
     )
 
@@ -287,12 +289,14 @@ async def job_radarr_queue_monitor(ctx: dict, force: bool = False):
 
 
 async def _run_arr_queue_monitor(ctx: dict, arr_type: str, monitor, force: bool):
+    settings = await _settings()
+    interval = (settings.arr_queue_interval_seconds if settings else None) or 60
     return await _run(
         ctx,
         f"{arr_type}-queue-monitor",
         monitor,
         force=force,
-        interval_seconds=60,
+        interval_seconds=interval,
         event_type="download.updated",
     )
 
@@ -358,16 +362,20 @@ async def job_vf_upgrade_scan(ctx: dict, force: bool = False):
 async def job_new_vff(ctx: dict, force: bool = False):
     from .services.vff_scanner import check_new_vf_availability
 
+    settings = await _settings()
+    interval = (settings.new_vff_interval_seconds if settings else None) or 60
     return await _run(
-        ctx, "new-vff", check_new_vf_availability, force=force, interval_seconds=60, event_type="request.updated"
+        ctx, "new-vff", check_new_vf_availability, force=force, interval_seconds=interval, event_type="request.updated"
     )
 
 
 async def job_seer_sync(ctx: dict, force: bool = False):
     from .services.seer_sync import _seer_full_sync
 
+    settings = await _settings()
+    interval = ((settings.seer_sync_interval_minutes if settings else None) or 60) * 60
     return await _run(
-        ctx, "seer-sync", _seer_full_sync, force=force, interval_seconds=3600, event_type="request.updated"
+        ctx, "seer-sync", _seer_full_sync, force=force, interval_seconds=interval, event_type="request.updated"
     )
 
 
@@ -427,17 +435,19 @@ async def job_playback_activity(ctx: dict, force: bool = False):
 async def job_library_analytics(ctx: dict, force: bool = False):
     from .services.library_analytics import refresh_library_analytics
 
+    settings = await _settings()
+    interval = ((settings.library_analytics_interval_minutes if settings else None) or 10) * 60
     return await _run(
         ctx,
         "library-analytics",
         refresh_library_analytics,
         force=force,
-        interval_seconds=600,
+        interval_seconds=interval,
         event_type="library.analytics.updated",
     )
 
 
-PURGE_LOCAL_HOUR = 3  # heure murale visee, hors heures d'utilisation habituelles
+PURGE_LOCAL_HOUR = 3  # repli quand aucun reglage n'est encore charge
 
 
 async def job_notification_purge(ctx: dict, force: bool = False):
@@ -447,7 +457,9 @@ async def job_notification_purge(ctx: dict, force: bool = False):
     # une heure UTC, pas locale — decale de 1h/2h selon CET/CEST. Le cron tourne donc
     # desormais toutes les heures (voir cron_notification_purge) et c'est ce garde-fou,
     # comme pour job_digest, qui decide si c'est vraiment l'heure locale visee.
-    if not force and local_hour() != PURGE_LOCAL_HOUR:
+    settings = await _settings()
+    target_hour = PURGE_LOCAL_HOUR if settings is None else settings.notification_purge_hour
+    if not force and local_hour() != target_hour:
         return {"status": "not_due"}
     return await _run(ctx, "notification-purge", _purge_notification_logs, force=force, interval_seconds=86400)
 

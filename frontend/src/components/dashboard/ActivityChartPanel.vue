@@ -33,12 +33,12 @@
       </div>
 
       <div class="activity-chart-wrapper">
-        <BarChart
+        <LineChart
           :points="chartPoints"
           :unit="activeOption.unit"
           :height="170"
-          :bar-color="activeColor"
-          show-peak
+          :color="activeColor"
+          :aria-label="`${activeOption.label} par jour`"
         />
       </div>
     <!-- Panneau latéral d'insights -->
@@ -80,7 +80,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { formatLongDay as formatLongDate, formatNumber } from '@/utils/format';
-import BarChart from '@/components/ui/charts/BarChart.vue';
+import LineChart from '@/components/ui/charts/LineChart.vue';
 import PanelCard from '@/components/ui/PanelCard.vue';
 
 export interface TimelineData {
@@ -108,7 +108,9 @@ const seriesOptions = [
 ];
 
 const activeOption = computed(() => seriesOptions.find((item) => item.key === activeSeries.value) || seriesOptions[0]);
-const activeColor = computed(() => activeOption.value.color);
+// Le trait prend la couleur pleine de la pastille : un `linear-gradient` ne peut pas
+// servir de `stroke`.
+const activeColor = computed(() => activeOption.value.indicatorColor);
 
 function getSeriesValues(key: string): number[] {
   return props.timeline.series?.[key] || (key === 'requests' ? props.timeline.values : []) || [];

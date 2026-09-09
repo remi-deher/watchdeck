@@ -8,7 +8,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 export interface Preset {
   label: string;
@@ -23,22 +23,24 @@ const emit = defineEmits<{ (e: 'update:modelValue', value: number): void }>();
 
 function matchesPreset(value: number): boolean { return props.presets.some((p) => p.value === value); }
 
-const customMode = ref(!matchesPreset(props.modelValue));
-const selectValue = ref(customMode.value ? 'custom' : String(props.modelValue));
-
-watch(() => props.modelValue, (val) => {
-  if (customMode.value) return;
-  selectValue.value = String(val);
-});
+/* Le mode se deduit de la valeur, il ne se fige pas au montage.
+   Le meme reglage se modifie depuis plusieurs ecrans -- la frequence de re-analyse VF
+   se regle depuis « Plex & Bibliotheque » comme depuis « Planification », et trois
+   taches partagent le meme champ. Avec un `customMode` decide une fois pour toutes, un
+   controle deja monte restait bloque en « Personnalise » apres qu'une valeur de la liste
+   avait ete choisie ailleurs, ou affichait un select vide dans le cas inverse.
+   `userChoseCustom` distingue le seul cas ou l'utilisateur veut rester en saisie libre
+   alors que sa valeur figure aussi dans la liste. */
+const userChoseCustom = ref(false);
+const customMode = computed(() => userChoseCustom.value || !matchesPreset(props.modelValue));
+const selectValue = computed(() => (customMode.value ? 'custom' : String(props.modelValue)));
 
 function onSelect(raw: string): void {
   if (raw === 'custom') {
-    customMode.value = true;
-    selectValue.value = 'custom';
+    userChoseCustom.value = true;
     return;
   }
-  customMode.value = false;
-  selectValue.value = raw;
+  userChoseCustom.value = false;
   emit('update:modelValue', Number(raw));
 }
 

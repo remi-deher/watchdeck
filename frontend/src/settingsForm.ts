@@ -130,6 +130,12 @@ export const form = reactive<Record<string, any>>({
   notification_log_retention_days: 30,
   poll_history_retention_days: 30,
   arr_poll_interval_seconds: 900,
+  arr_queue_interval_seconds: 60,
+  torrent_status_interval_seconds: 120,
+  new_vff_interval_seconds: 60,
+  seer_sync_interval_minutes: 60,
+  library_analytics_interval_minutes: 10,
+  notification_purge_hour: 3,
   digest_enabled: false,
   digest_hour: 8,
   digest_minute: 0,
@@ -151,9 +157,36 @@ export const form = reactive<Record<string, any>>({
 export const saving = ref(false);
 export const error = ref('');
 export const message = ref('');
-const savedSnapshot = ref('');
-const snapshot = () => JSON.stringify(form);
-export const isDirty = computed(() => Boolean(savedSnapshot.value) && snapshot() !== savedSnapshot.value);
+
+/* Etat du formulaire tel qu'il a ete charge, champ par champ.
+ *
+ * Conserve comme objet et non comme chaine JSON : c'est ce qui permet de savoir *quels*
+ * champs ont change, et donc de n'envoyer que ceux-la. Les reglages sont desormais
+ * repartis sur plusieurs pages ; envoyer les cent trente-six champs a chaque
+ * enregistrement, comme avant, avait deux consequences facheuses. D'abord une page
+ * reecrivait des reglages qu'elle n'affiche meme pas. Ensuite, deux administrateurs
+ * modifiant deux sections differentes se marchaient dessus : le second enregistrement
+ * ecrasait le premier avec sa propre copie, vieille du chargement de page.
+ *
+ * N'envoyer que le change resout les deux : la charge tombe a un ou deux champs, et
+ * deux modifications portant sur des sections distinctes ne peuvent plus se detruire.
+ */
+const savedSnapshot = ref<Record<string, any> | null>(null);
+
+/** Champs dont la valeur differe de celle chargee. */
+export function changedFields(): string[] {
+  const base = savedSnapshot.value;
+  if (!base) return [];
+  return Object.keys(form).filter((key) => !Object.is(form[key], base[key]));
+}
+
+export const isDirty = computed(() => {
+  // La lecture de `form` doit rester tracee par Vue : passer par `changedFields()` seul
+  // ne creerait aucune dependance reactive sur les champs inchangés.
+  const base = savedSnapshot.value;
+  if (!base) return false;
+  return Object.keys(form).some((key) => !Object.is(form[key], base[key]));
+});
 
 export const secretsPresent = reactive<Record<string, boolean>>(
   Object.fromEntries(secretFields.map((k) => [k, false]))
@@ -178,22 +211,44 @@ export async function load(): Promise<void> {
       secretsPresent[key] = Boolean(form[key]);
       form[key] = '';
     }
-    savedSnapshot.value = snapshot();
+    // Reference prise apres l'effacement des secrets : un secret non saisi vaut donc la
+    // chaine vide des deux cotes et ne compte pas comme une modification.
+    savedSnapshot.value = { ...form };
   } catch (e) {
     fail(e);
   }
 }
 
 export async function save(): Promise<void> {
-  saving.value = true;
-  const payload = { ...form };
-  for (const key of secretFields) {
-    if (!payload[key]) delete payload[key];
+  const changed = changedFields();
+  if (!changed.length) {
+    success('Aucune modification à enregistrer.');
+    return;
   }
+
+  saving.value = true;
+  const payload: Record<string, any> = {};
+  for (const key of changed) {
+    // Un secret laisse vide signifie « conserver l'existant », pas « effacer ».
+    if (secretFields.includes(key as SecretField) && !form[key]) continue;
+    payload[key] = form[key];
+  }
+
   try {
     await api('/api/settings', { method: 'PUT', body: JSON.stringify(payload) });
-    savedSnapshot.value = snapshot();
-    success('Configuration enregistree.');
+    for (const key of Object.keys(payload)) {
+      if (savedSnapshot.value) savedSnapshot.value[key] = form[key];
+    }
+    // Un secret vient d'etre enregistre : le champ se vide et l'interface indique
+    // desormais qu'une valeur est configuree.
+    for (const key of secretFields) {
+      if (payload[key]) {
+        secretsPresent[key] = true;
+        form[key] = '';
+        if (savedSnapshot.value) savedSnapshot.value[key] = '';
+      }
+    }
+    success('Configuration enregistrée.');
   } catch (e) {
     fail(e);
   } finally {

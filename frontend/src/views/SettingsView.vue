@@ -3,9 +3,11 @@
     <template #actions>
       <UiButton v-if="['plex','services','webhooks','notifications-channels','notifications-rules','downloads','vf-upgrades','scheduled-tasks','data'].includes(tab)" variant="primary" :loading="saving" @click="save"><template #icon><Save/></template>{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</UiButton>
     </template>
+    <!-- La colonne de navigation a disparu : ses groupes sont devenus des destinations
+         du rail et ses entrees leurs sections. Un seul panneau reste ici, sur toute la
+         largeur -- c'est ce qui rend enfin possibles les grilles a deux ou trois
+         colonnes des taches planifiees et de la maintenance. -->
     <div class="settings-layout">
-      <SettingsNav :sections="tabs" :active="tab" @select="selectTab" />
-
       <div class="settings-panel">
         <UiFeedback v-if="error" type="error" title="Enregistrement impossible" :message="error" />
         <UiFeedback v-if="message" type="success" :message="message" />
@@ -40,7 +42,7 @@ import { load, save, saving, error, message, isDirty } from '@/settingsForm';
 import { settingsSections } from '@/settingsSections';
 import { notificationSections } from '@/notificationSections';
 import UiButton from '@/components/ui/UiButton.vue';
-import SettingsNav from '@/components/settings/SettingsNav.vue';
+import { PANEL_PATHS, panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const ConnectionsTab = defineAsyncComponent(() => import('@/components/settings/ConnectionsTab.vue'));
@@ -59,7 +61,10 @@ const SystemVersionTab = defineAsyncComponent(() => import('@/components/setting
 const notificationTabDefs = notificationSections.filter((item) => typeof item.to === 'object' && 'path' in item.to && item.to.path === '/settings');
 const tabs = [...settingsSections.filter((item) => !item.to), ...notificationTabDefs];
 const route = useRoute(), router = useRouter();
-const tab = computed(() => tabs.some((item) => item.key === route.query.tab) ? route.query.tab as string : 'overview');
+// Le panneau se lit desormais dans le chemin. `?tab=` reste accepte le temps d'une
+// redirection : ces liens circulent dans les favoris et les echanges, les laisser tomber
+// sur la page d'accueil des reglages aurait ete une regression silencieuse.
+const tab = computed(() => panelForPath(route.path));
 const standaloneTabs = new Set(['acquisitions', 'templates', 'overview', 'system-version']);
 let settingsLoadPromise: Promise<void> | undefined;
 function ensureSettingsLoaded(value = tab.value): Promise<void> {
@@ -72,7 +77,7 @@ function ensureSettingsLoaded(value = tab.value): Promise<void> {
 }
 const currentTabLabel = computed(() => tabs.find((item) => item.key === tab.value)?.label || "Vue d'ensemble");
 function selectTab(value: string): void {
-  router.replace({ path: '/settings', query: { tab: value } });
+  router.push(PANEL_PATHS[value as SettingsPanel] || '/settings');
 }
 function warnUnsaved(event: BeforeUnloadEvent): void { if (!isDirty.value) return; event.preventDefault(); event.returnValue = ''; }
 onBeforeRouteLeave(() => !isDirty.value || askConfirm({ title: 'Quitter sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Quitter cette page ?', confirmLabel: 'Quitter', danger: true }));
@@ -82,16 +87,18 @@ onUnmounted(() => window.removeEventListener('beforeunload', warnUnsaved));
 
 watch(tab, (value) => ensureSettingsLoaded(value).catch(() => {}));
 onMounted(() => ensureSettingsLoaded().catch(() => {}));
+
+// Redirection des anciens liens `/settings?tab=...` vers leur chemin canonique.
+function redirectLegacyTab(): void {
+  const legacy = pathForLegacyTab(route.query.tab as string | undefined);
+  if (legacy && legacy !== route.path) router.replace(legacy);
+}
+watch(() => route.query.tab, redirectLegacyTab);
+onMounted(redirectLegacyTab);
 </script>
 <style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
-
+/* Une seule colonne, pleine largeur. La reserve de 232px pour la navigation interne n'a
+   plus lieu d'etre : c'est elle qui etranglait les grilles de cartes. */
 .settings-layout { display: grid; gap: var(--space-4); min-width: 0; }
 .settings-panel { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
-
-/* La colonne de navigation n'apparait qu'une fois la place disponible : plus bas,
-   SettingsNav se replie de lui-meme au-dessus du panneau. */
-@include bp.from(shell-expanded) {
-  .settings-layout { grid-template-columns: 232px minmax(0, 1fr); gap: var(--space-5); align-items: start; }
-}
 </style>

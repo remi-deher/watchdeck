@@ -15,6 +15,7 @@ from ..models import Settings
 from ..pagination import PaginationParams, pagination_params
 from ..realtime import publish
 from ..services.playback_activity import (
+    MAX_PERIOD_DAYS,
     _rebuild_daily_aggregates,
     activity_history,
     activity_snapshot,
@@ -38,7 +39,7 @@ class TautulliImportRequest(BaseModel):
 
 @router.get("")
 async def get_activity(
-    days: int = Query(30, ge=1, le=3650),
+    days: int = Query(30, ge=1, le=MAX_PERIOD_DAYS),
     user: str | None = Query(None, max_length=200),
     db: AsyncSession = Depends(get_db_async),
 ):
@@ -52,7 +53,7 @@ async def get_live_activity(db: AsyncSession = Depends(get_db_async)):
 
 @router.get("/statistics")
 async def get_activity_statistics(
-    days: int = Query(30, ge=1, le=3650),
+    days: int = Query(30, ge=1, le=MAX_PERIOD_DAYS),
     refresh: bool = False,
     user: str | None = Query(None, max_length=200, description="Restreint tous les agrégats à ce spectateur."),
     db: AsyncSession = Depends(get_db_async),
@@ -62,7 +63,7 @@ async def get_activity_statistics(
 
 @router.get("/history")
 async def get_activity_history(
-    days: int = Query(30, ge=1, le=3650),
+    days: int = Query(30, ge=1, le=MAX_PERIOD_DAYS),
     user: str | None = Query(None, max_length=200),
     method: str | None = Query(None, max_length=50),
     media_type: str | None = Query(None, max_length=50),
@@ -176,7 +177,7 @@ async def import_tracearr(
         raise HTTPException(400, "Tracearr n'est pas configuré.")
     since = None
     if data.days:
-        since = now_utc_naive() - timedelta(days=max(1, min(data.days, 3650)))
+        since = now_utc_naive() - timedelta(days=max(1, min(data.days, MAX_PERIOD_DAYS)))
     try:
         result = await import_tracearr_history(
             db,

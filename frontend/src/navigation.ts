@@ -14,7 +14,9 @@ import {
   Bell,
   CalendarDays,
   ChartNoAxesCombined,
+  Clock,
   Compass,
+  DatabaseZap,
   Download,
   Film,
   Gauge,
@@ -25,9 +27,13 @@ import {
   Languages,
   Library,
   Lightbulb,
+  Link2,
   ListOrdered,
+  ListRestart,
   MessageSquareWarning,
   MonitorPlay,
+  PackageSearch,
+  Plug,
   Radio,
   ScrollText,
   Table,
@@ -97,7 +103,20 @@ export const DESTINATIONS: NavDestination[] = [
   // rangee d'onglets sous celle de la destination.
   { key: 'activity', label: 'Activité', icon: Activity, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/activity'), to: '/activity' },
   { key: 'insights', label: 'Insights', icon: ChartNoAxesCombined, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/analytics'), to: '/analytics' },
-  { key: 'admin', label: 'Administration', icon: Wrench, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/users') || p.startsWith('/notifications') || p.startsWith('/settings') || p.startsWith('/logs') || p.startsWith('/maintenance'), to: '/users' },
+  // Les reglages formaient un troisieme niveau de navigation : le rail menait a
+  // « Administration », qui menait a « Parametres », qui portait sa propre colonne de
+  // dix-sept entrees en cinq groupes. Cette colonne refaisait le travail du rail et
+  // mangeait 300px de largeur -- la grille des taches planifiees s'y retrouvait coincee
+  // sur une seule colonne. Les cinq groupes deviennent donc des destinations a part
+  // entiere, et leurs entrees les sections de celles-ci : le modele a deux niveaux du
+  // reste de l'application, sans exception.
+  { key: 'admin-overview', label: 'Configuration', icon: Wrench, group: 'Administration', access: 'admin', match: (p) => p === '/settings' || p.startsWith('/maintenance'), to: '/settings' },
+  { key: 'admin-services', label: 'Services', icon: Plug, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/settings/services'), to: '/settings/services' },
+  { key: 'admin-automation', label: 'Automatisation', icon: Clock, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/settings/automation'), to: '/settings/automation' },
+  { key: 'admin-operations', label: 'Exploitation', icon: ListRestart, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/settings/operations') || p.startsWith('/logs'), to: '/settings/operations' },
+  { key: 'admin-notifications', label: 'Notifications', icon: Bell, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/notifications') || p.startsWith('/settings/notifications'), to: '/notifications' },
+  { key: 'admin-users', label: 'Utilisateurs', icon: Users, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/users'), to: '/users' },
+  { key: 'admin-system', label: 'Système', icon: DatabaseZap, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/settings/system'), to: '/settings/system' },
   // Un moderateur sans acces au tableau de bord garde les signalements comme espace propre.
   { key: 'issues', label: 'Problèmes signalés', icon: MessageSquareWarning, group: 'Pilotage', access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues'), to: '/issues' },
 ];
@@ -181,11 +200,18 @@ export function activitySections(): NavSection[] {
 }
 
 function pipelineSections(): NavSection[] {
+  // « Films » et « Séries » ont disparu : c'etaient deux fois la meme page, au type de
+  // media pres, et « File d'attente » etait deja cette page sans le filtre. Trois
+  // sections pour une seule liste, qui obligeaient a choisir une porte d'entree avant
+  // meme de savoir ce qu'on cherche. Le type est devenu un filtre de la file.
+  //
+  // « Elements manquants » sort en revanche de la file : ce n'est pas un etat de
+  // telechargement mais son complement -- ce qui devrait etre la et n'y est pas --,
+  // avec sa propre source et son propre gabarit.
   return [
     { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge },
     { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered },
-    { key: 'movies', label: 'Films', to: { path: '/downloads', query: { view: 'radarr' } }, icon: Film },
-    { key: 'shows', label: 'Séries', to: { path: '/downloads', query: { view: 'sonarr' } }, icon: Tv },
+    { key: 'missing', label: 'Éléments manquants', to: { path: '/downloads', query: { view: 'missing' } }, icon: PackageSearch },
     { key: 'clients', label: 'Clients', to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } }, icon: Download },
   ];
 }
@@ -233,12 +259,46 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'insights', label: 'Analyses', to: { path: '/analytics', query: { view: 'insights' } }, icon: Lightbulb },
       ];
       break;
-    case 'admin':
+    case 'admin-overview':
+      // Page d'etat, pas de navigation : elle dit ce qui est configure et ce qui manque.
+      // Une seule section, donc aucune rangee affichee.
+      sections = [{ key: 'overview', label: 'Configuration', to: '/settings', icon: Wrench }];
+      break;
+    case 'admin-services':
       sections = [
-        { key: 'users', label: 'Utilisateurs', to: '/users', icon: Users },
-        { key: 'notifications', label: 'Notifications', to: '/notifications', icon: Bell },
-        { key: 'settings', label: 'Paramètres', to: '/settings', icon: Settings },
-        { key: 'logs', label: 'Exploitation', to: '/logs', icon: ScrollText },
+        { key: 'plex', label: 'Plex & Bibliothèque', to: '/settings/services', icon: Tv },
+        { key: 'integrations', label: 'Intégrations', to: '/settings/services/integrations', icon: Plug },
+        { key: 'webhooks', label: 'Webhooks & API', to: '/settings/services/webhooks', icon: Link2 },
+      ];
+      break;
+    case 'admin-automation':
+      sections = [
+        { key: 'downloads', label: 'Téléchargements', to: '/settings/automation', icon: Download },
+        { key: 'vf-upgrades', label: 'Améliorations VF', to: '/settings/automation/vf-upgrades', icon: Languages },
+        { key: 'scheduled-tasks', label: 'Planification', to: '/settings/automation/scheduled-tasks', icon: Clock },
+      ];
+      break;
+    case 'admin-operations':
+      sections = [
+        { key: 'acquisitions', label: 'Acquisitions & conflits', to: '/settings/operations', icon: ListRestart },
+        { key: 'logs', label: 'Journaux', to: '/logs', icon: ScrollText },
+      ];
+      break;
+    case 'admin-notifications':
+      sections = [
+        { key: 'history', label: 'Historique', to: '/notifications', icon: Bell },
+        { key: 'channels', label: 'Canaux', to: '/settings/notifications/channels', icon: Plug },
+        { key: 'rules', label: 'Règles', to: '/settings/notifications/rules', icon: Settings },
+        { key: 'templates', label: 'Modèles d’emails', to: '/settings/notifications/templates', icon: Link2 },
+      ];
+      break;
+    case 'admin-users':
+      sections = [{ key: 'users', label: 'Utilisateurs', to: '/users', icon: Users }];
+      break;
+    case 'admin-system':
+      sections = [
+        { key: 'data', label: 'Données & RGPD', to: '/settings/system', icon: DatabaseZap },
+        { key: 'version', label: 'Version & mises à jour', to: '/settings/system/version', icon: GitBranch },
       ];
       break;
     case 'issues':

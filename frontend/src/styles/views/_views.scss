@@ -1324,6 +1324,92 @@ button:disabled {
   gap: var(--space-4);
 }
 
+/* Variante multi-colonnes, pour les listes de cartes courtes et comparables entre
+   elles -- les tâches planifiées, par exemple, dont on veut voir l'état d'ensemble
+   plutôt que de dérouler onze cartes pleine largeur l'une sous l'autre.
+   `align-items: start` est indispensable : sans lui les cartes d'une même rangée
+   s'étirent à la hauteur de la plus haute, et déplier un historique gonflerait ses
+   voisines pour rien. */
+.settings-cards--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  /* Toutes les cartes a la meme hauteur, pas seulement celles d'une meme rangee : une
+     grille dont les rangees ont chacune sa hauteur se lit encore en escalier. */
+  grid-auto-rows: 1fr;
+}
+
+/* Alignement interne des cartes d'une même rangée.
+   ────────────────────────────────────────────────
+   Une grille de cartes ne se lit que si les mêmes informations tombent à la même
+   hauteur d'une carte à l'autre. Trois choses s'y opposaient : des descriptions de
+   longueur variable qui décalaient tout ce qui suit, un bouton d'action qui flottait au
+   milieu de la carte, et des blocs de détail commençant chacun à une hauteur différente.
+
+   La réponse tient en trois règles : la carte occupe toute la hauteur de sa rangée, la
+   description est bornée à trois lignes pour que les en-têtes s'égalisent, et le bloc de
+   détail est poussé en bas — c'est lui qu'on compare d'une carte à l'autre. */
+.settings-cards--grid .settings-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* En-tête sur deux rangées : `icône | titre | action` d'abord, puis la description sur
+   toute la largeur. Coincée entre l'icône et le bouton, elle n'avait plus qu'un tiers de
+   la carte et se faisait tronquer au bout de trois mots.
+   `display: contents` sur les deux conteneurs intermédiaires fait participer leurs
+   enfants à cette grille sans toucher au balisage de SettingsCard, partagé avec les
+   cartes pleine largeur. */
+.settings-cards--grid .settings-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-3);
+  padding: 16px 18px 12px;
+}
+.settings-cards--grid .settings-card-title,
+.settings-cards--grid .settings-card-heading {
+  display: contents;
+}
+.settings-cards--grid .settings-card-icon {
+  grid-column: 1;
+  grid-row: 1;
+}
+.settings-cards--grid .settings-card-name-row {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+.settings-cards--grid .settings-card-head-actions {
+  grid-column: 3;
+  grid-row: 1;
+  flex: none;
+}
+.settings-cards--grid .settings-card-subtitle {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* Trois lignes puis l'ellipse : au-delà, une description ne décrit plus, elle décale.
+   Le titre complet reste lisible au survol. */
+.settings-cards--grid .settings-card-subtitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  min-height: calc(3 * 1.45em);
+}
+
+.settings-cards--grid .settings-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: 0 18px 18px;
+}
+
 .settings-card {
   position: relative;
   background: var(--surface);

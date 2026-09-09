@@ -1,10 +1,13 @@
 <template>
-  <div class="settings-grid">
-    <div class="settings-cards span-two">
-      <SettingsCard title="Historique" subtitle="Duree de conservation de l'historique d'execution des taches planifiees ci-dessous." :icon="Archive" status="active" :collapsible="false">
-        <label>Historique de polling (jours)<RetentionDaysInput v-model="form.poll_history_retention_days" :default-days="30"/></label>
-      </SettingsCard>
+  <div class="scheduled-tab">
+    <!-- Réglage global, pas une tâche : il garde toute la largeur, au-dessus de la grille. -->
+    <SettingsCard title="Historique" subtitle="Durée de conservation de l'historique d'exécution des tâches planifiées ci-dessous." :icon="Archive" status="active" :collapsible="false">
+      <label>Historique de polling (jours)<RetentionDaysInput v-model="form.poll_history_retention_days" :default-days="30"/></label>
+    </SettingsCard>
 
+    <!-- Les tâches se lisent en parallèle : une grille les rend comparables d'un coup
+         d'œil, là où onze cartes pleine largeur obligeaient à faire défiler. -->
+    <div class="settings-cards settings-cards--grid">
       <SettingsCard
         v-for="task in tasks"
         :key="task.job"
@@ -40,12 +43,20 @@
         </div>
 
         <label v-if="task.settings_unit === 'heure (0-23)'">
-          Heure de declenchement
-          <TimeOfDayInput v-model:hour="form[task.settings_field]" v-model:minute="form[task.settings_minute_field]"/>
+          Heure de déclenchement
+          <!-- Toutes les taches a heure murale n'ont pas de minute reglable : la purge des
+               journaux se declenche a l'heure pile. Sans ce repli, `form[undefined]`
+               laissait le champ horaire entierement vide. -->
+          <TimeOfDayInput
+            :hour="form[task.settings_field] ?? 0"
+            :minute="task.settings_minute_field ? (form[task.settings_minute_field] ?? 0) : 0"
+            @update:hour="form[task.settings_field] = $event"
+            @update:minute="task.settings_minute_field && (form[task.settings_minute_field] = $event)"
+          />
         </label>
-        <label v-else-if="jobPresets(task.job)">
+        <label v-else-if="presetsFor(task.settings_field)">
           Frequence
-          <IntervalPresetInput v-model="form[task.settings_field]" :presets="jobPresets(task.job)"/>
+          <IntervalPresetInput v-model="form[task.settings_field]" :presets="presetsFor(task.settings_field)!"/>
         </label>
 
         <div v-if="openHistory === task.job" class="scheduled-task-history">
@@ -70,6 +81,7 @@ import { onMounted, ref } from 'vue';
 import { Archive, Clock, History } from '@lucide/vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
+import { presetsFor } from '@/settingsPresets';
 import SettingsCard from './SettingsCard.vue';
 import IntervalPresetInput from './IntervalPresetInput.vue';
 import TimeOfDayInput from './TimeOfDayInput.vue';
@@ -77,58 +89,7 @@ import RetentionDaysInput from './RetentionDaysInput.vue';
 
 // Presets par tache : chaque job periodique a ses propres frequences pertinentes
 // (un scan leger n'a pas les memes echelles de temps qu'une synchro complete).
-const JOB_PRESETS: Record<string, Array<{ label: string; value: number }>> = {
-  'watchlist': [
-    { label: '30 secondes', value: 30 },
-    { label: '45 secondes', value: 45 },
-    { label: '1 minute', value: 60 },
-    { label: '2 minutes', value: 120 },
-    { label: '5 minutes', value: 300 },
-  ],
-  'arr-statuses': [
-    { label: '1 minute', value: 60 },
-    { label: '5 minutes', value: 300 },
-    { label: '10 minutes', value: 600 },
-    { label: '15 minutes', value: 900 },
-    { label: '30 minutes', value: 1800 },
-    { label: '1 heure', value: 3600 },
-  ],
-  'vff-statuses': [
-    { label: '10 minutes', value: 10 },
-    { label: '15 minutes', value: 15 },
-    { label: '30 minutes', value: 30 },
-    { label: '1 heure', value: 60 },
-    { label: '3 heures', value: 180 },
-    { label: '6 heures', value: 360 },
-    { label: '12 heures', value: 720 },
-    { label: '24 heures', value: 1440 },
-  ],
-  'plex-sync-recent': [
-    { label: '5 minutes', value: 5 },
-    { label: '10 minutes', value: 10 },
-    { label: '15 minutes', value: 15 },
-    { label: '20 minutes', value: 20 },
-    { label: '30 minutes', value: 30 },
-    { label: '1 heure', value: 60 },
-  ],
-  'plex-sync': [
-    { label: '1 heure', value: 1 },
-    { label: '2 heures', value: 2 },
-    { label: '3 heures', value: 3 },
-    { label: '4 heures', value: 4 },
-    { label: '6 heures', value: 6 },
-    { label: '8 heures', value: 8 },
-    { label: '12 heures', value: 12 },
-    { label: '24 heures', value: 24 },
-    { label: '48 heures', value: 48 },
-    { label: '72 heures', value: 72 },
-  ],
-};
-// episode-tracking/episode-availability partagent vff_recheck_interval_minutes avec vff-statuses
-JOB_PRESETS['episode-tracking'] = JOB_PRESETS['vff-statuses'];
-JOB_PRESETS['episode-availability'] = JOB_PRESETS['vff-statuses'];
 
-function jobPresets(job: string) { return JOB_PRESETS[job] || null; }
 
 const tasks = ref<any[]>([]);
 const openHistory = ref<string | null>(null);
@@ -180,24 +141,42 @@ async function toggleHistory(job: string): Promise<void> {
 onMounted(loadTasks);
 </script>
 <style scoped lang="scss">
-.scheduled-task-info {
+.scheduled-tab {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-4);
+}
+/* Deux colonnes libellé/valeur alignées d'une ligne à l'autre : en `flex` avec
+   `space-between`, chaque valeur se calait où le libellé la laissait, et rien ne
+   s'alignait verticalement d'une carte à l'autre. */
+.scheduled-task-info {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
   font-size: var(--fs-sm);
 }
+/* Chiffres alignes a la virgule d'une ligne a l'autre : des durees et des dates en
+   chasse proportionnelle donnent une colonne de droite en dents de scie. */
+.scheduled-task-info strong {
+  font-variant-numeric: tabular-nums;
+}
 .scheduled-task-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
+  display: contents;
+}
+.scheduled-task-row span {
   color: var(--muted);
+  white-space: nowrap;
 }
 .scheduled-task-row strong {
+  min-width: 0;
   color: var(--text);
-  font-weight: 500;
+  font-weight: 600;
   text-align: right;
 }
 .scheduled-task-error {
+  grid-column: 1 / -1;
   font-size: var(--fs-sm);
   color: var(--red-text);
   word-break: break-word;
@@ -207,6 +186,8 @@ onMounted(loadTasks);
   padding-top: 12px;
   margin-top: 4px;
 }
+/* Toutes les cartes partageant desormais la meme hauteur, un historique deplie les
+   ferait toutes grandir. On le borne et on le fait defiler sur lui-meme. */
 .scheduled-task-history ul {
   list-style: none;
   margin: 0;
@@ -214,6 +195,9 @@ onMounted(loadTasks);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  max-height: 190px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .scheduled-task-history li {
   display: flex;

@@ -254,13 +254,26 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 .app-topbar {
   position: fixed;
   top: max(8px, var(--safe-top));
-  left: calc(var(--app-rail-w) + (100vw - var(--app-rail-w)) / 2);
+  /* Centrage par insets plutot que par `left: 50% + translate`.
+     `100vw` inclut la barre de defilement : la moitie de sa largeur decalait la barre
+     d'environ 8px vers la droite par rapport au contenu, dans les deux etats du rail.
+     Borner la boite entre le rail et le bord droit, puis laisser `margin-inline: auto`
+     la centrer, donne un centrage exact quel que soit l'etat du rail -- et la position
+     s'anime au repliement au lieu de sauter. */
+  /* Les gouttieres vivent dans les insets, pas dans la largeur : pour un element
+     `fixed`, un `width: calc(100% - 24px)` se resout sur la FENETRE et non sur la bande
+     entre le rail et le bord droit. La barre debordait alors sa bande, la marge droite
+     passait en negatif et le centrage automatique ne pouvait plus s'appliquer. */
+  left: calc(var(--app-rail-w) + 12px);
+  right: 12px;
+  margin-inline: auto;
   z-index: 40;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--app-topbar-h);
-  width: min(860px, calc(100vw - var(--app-rail-w) - 24px));
+  width: auto;
+  max-width: 980px;
   padding: 3px;
   border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: var(--radius-pill);
@@ -268,10 +281,12 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
   box-shadow: 0 10px 32px rgba(0, 0, 0, .22);
   backdrop-filter: blur(18px) saturate(1.1);
   -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  transform: translateX(-50%);
+  /* Pas de transition sur `left` : la valeur vient d'une variable qui change au
+     repliement du rail, et l'animer figeait la position a l'ancienne valeur. Le rail
+     lui-meme n'anime pas sa largeur, la barre n'a donc rien a rattraper. */
   transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
 }
-.app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none; }
+.app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translateY(calc(-100% - 14px)); pointer-events: none; }
 .app-topbar__context {
   min-width: 0;
   overflow: hidden;
@@ -333,13 +348,18 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
   letter-spacing: -.01em;
 }
 
+/* Repli quand la page ne fournit aucune recherche (Accueil, Problemes).
+   Il occupe la meme place que le champ de page : `flex: none` a 280px le collait au
+   bord gauche d'une barre de 980, a 346px du centre, alors que partout ailleurs la
+   recherche s'etend sur toute la largeur. La barre changeait d'allure d'une page a
+   l'autre sans que rien ne le justifie. */
 .app-topbar__search {
   display: none;
-  flex: none;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-2);
-  width: min(280px, 30vw);
-  height: 36px;
+  min-width: 0;
+  height: 46px;
   padding: 0 var(--space-2) 0 var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
