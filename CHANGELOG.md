@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.21.0 — 2026-09-09
+
+
+### test
+
+- follow the activity period and subnav relocation ([041b9bf](https://github.com/remi-deher/watchdeck/commit/041b9bf304120204f6bf608734b9febfbe0b7c08))
+
+### ✨ Nouveautés
+
+- enrich playback history from Tracearr and fix activity stats ([f8df2e3](https://github.com/remi-deher/watchdeck/commit/f8df2e3d5f72a5a2355f75d0f4b2cdcecabc98b6))
+
+### 🎨 Style
+
+- apply ruff format to the new playback modules ([e751470](https://github.com/remi-deher/watchdeck/commit/e751470c6c550bd365d13fd864e1024864a65120))
 ## 1.20.0 — 2026-09-09
 
 
@@ -15,6 +29,10 @@
 
 - preserve shell spacing and touch targets ([402059a](https://github.com/remi-deher/watchdeck/commit/402059ac2c754f779fc7fc9782436a3005876098))
 - unify request search and filters ([6207a4f](https://github.com/remi-deher/watchdeck/commit/6207a4f5554fe7998cf5d3db8e473d6e99b933ee))
+
+### 🔧 Maintenance
+
+- v1.20.0 (#239) ([6cd0734](https://github.com/remi-deher/watchdeck/commit/6cd073484f9000c18c0ea54d933ba0ecce88142d))
 ## 1.19.0 — 2026-09-08
 
 
