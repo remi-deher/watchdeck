@@ -17,6 +17,13 @@ function isPrivateHost(hostname?: string | null): boolean {
   return !host.includes('.');
 }
 
+/* Hotes dont les URL d'affiches expirent : `metadata-static.plex.tv` finit par repondre
+   403 AccessDenied sur des objets qu'il servait auparavant. Le proxy garde une copie sur
+   disque, donc une affiche deja vue continue de s'afficher apres la disparition de la
+   source -- ce que le chargement direct ne peut pas faire. Celles qui n'ont jamais ete
+   mises en cache tombent, elles, sur le repli du composant. */
+const ALWAYS_PROXY_HOSTS = new Set(['metadata-static.plex.tv']);
+
 export interface ProxyUrlOptions {
   width?: number;
   quality?: number;
@@ -61,7 +68,8 @@ export function proxyUrl(url?: string | null, options: ProxyUrlOptions = {}): st
 
   const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
   const mixedContent = parsed.protocol === 'http:' && isHttps;
-  if (!options.forceProxy && !mixedContent && !isPrivateHost(parsed.hostname)) return url;
+  const hotlinkProtected = ALWAYS_PROXY_HOSTS.has(parsed.hostname.toLowerCase());
+  if (!options.forceProxy && !mixedContent && !hotlinkProtected && !isPrivateHost(parsed.hostname)) return url;
 
   return `/api/image-proxy?url=${encodeURIComponent(url)}&width=${width}&quality=${quality}&format=webp`;
 }
