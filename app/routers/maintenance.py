@@ -116,6 +116,15 @@ ACTIONS_META = {
         "icon": "bi-arrow-repeat",
         "color": "secondary",
     },
+    "repair-posters": {
+        "label": "Réparer les affiches",
+        "description": (
+            "Reconstruit depuis TMDB les affiches dont la source Plex a expiré "
+            "(metadata-static.plex.tv renvoie 403 sur d'anciennes URL)."
+        ),
+        "icon": "bi-image",
+        "color": "secondary",
+    },
     "retry-failed": {
         "label": "Relancer les échouées",
         "description": "Repasse toutes les demandes en échec en attente et déclenche un poll.",
@@ -629,6 +638,27 @@ async def _run_merge_duplicates(run: MaintenanceRun):
         raise
 
 
+async def _run_repair_posters(run: MaintenanceRun):
+    emit = _Emit(run, logging.getLogger("app.maintenance"))
+    from ..database import AsyncSessionLocal
+    from ..services.poster_repair import repair_posters
+
+    try:
+        emit.info("Recherche des affiches dont la source a expiré…")
+        run.progress = 20
+        async with AsyncSessionLocal() as db:
+            result = await repair_posters(db)
+        run.progress = 100
+        emit.ok(f"{result['repaired']} affiche(s) reconstruite(s) depuis TMDB sur {result['scanned']} examinée(s).")
+        if result["unresolved"]:
+            # Un media que TMDB ne connait pas garde son affiche morte : le composant
+            # affiche alors son repli plutot qu'un cadre vide.
+            emit.warn(f"{result['unresolved']} média(s) sans affiche TMDB : repli visuel conservé.")
+    except Exception as e:
+        emit.err(str(e))
+        raise
+
+
 async def _run_recover_sqlite(run: MaintenanceRun):
     emit = _Emit(run, logging.getLogger("app.maintenance"))
     emit.info("Démarrage de la récupération SQLite...")
@@ -689,6 +719,7 @@ _ACTION_RUNNERS = {
     "recalculate-dates": _run_recalculate_dates,
     "merge-duplicates": _run_merge_duplicates,
     "enrich-and-merge": _run_enrich_and_merge,
+    "repair-posters": _run_repair_posters,
     "recover-sqlite": _run_recover_sqlite,
     "resync-availability": _run_resync_availability,
 }

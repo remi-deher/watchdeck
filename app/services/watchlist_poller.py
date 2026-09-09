@@ -20,6 +20,7 @@ from .diagnostics import record_event, update_request_context
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
 from .download_clients import add_torrent_to_client
 from .notification_orchestrator import _add_co_requester, catch_up_requester_notifications
+from .poster_repair import poster_is_fragile
 from .radarr import add_movie, lookup_movie, resolve_tmdb_id, resolve_tmdb_id_by_title
 from .request_lifecycle import transition_request
 from .seer import _resolve_tmdb_id as _seer_resolve_tmdb_id
@@ -28,6 +29,7 @@ from .seer import resolve_mode as seer_resolve_mode
 from .sonarr import add_series, lookup_series
 from .tmdb import TmdbNotConfigured
 from .tmdb import find_by_external_id as tmdb_find_by_external_id
+from .tmdb import poster_url_for as tmdb_poster_url
 from .watchlist import fetch_watchlist
 
 logger = logging.getLogger(__name__)
@@ -750,6 +752,12 @@ async def _process_watchlist_item(
         ):
             logger.info("'%s' ignoré (bloqué après annulation) — ne sera pas recréé.", item["title"])
             return "skip"
+        # L'affiche fournie par Plex peut venir d'une source qui expire : quand TMDB
+        # connait le media, on retient d'emblee son affiche, reconstructible a tout moment.
+        poster = item.get("poster_url")
+        if item.get("tmdb_id") and poster_is_fragile(poster):
+            poster = await tmdb_poster_url(db, item["media_type"], item["tmdb_id"]) or poster
+
         req = MediaRequest(
             plex_user_id=uid,
             plex_user=display_name,
@@ -760,7 +768,7 @@ async def _process_watchlist_item(
             tvdb_id=item.get("tvdb_id"),
             imdb_id=item.get("imdb_id"),
             plex_guid=item.get("plex_guid"),
-            poster_url=item.get("poster_url"),
+            poster_url=poster,
             overview=item.get("overview", ""),
             source=item.get("source"),
             status=RequestStatus.pending,
