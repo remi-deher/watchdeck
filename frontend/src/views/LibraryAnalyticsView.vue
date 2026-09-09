@@ -29,6 +29,7 @@
         <select v-model="filters.subtitle" aria-label="Sous-titres"><option value="">Sous-titres : indifférent</option><option value="with">Avec sous-titres</option><option value="without">Sans sous-titres</option></select>
         <select v-model="filters.subtitle_language" aria-label="Langue sous-titres"><option value="">Toutes les langues de sous-titres</option><option v-for="value in data.options?.subtitle_language || []" :key="value">{{ value }}</option></select>
         <select v-model="filters.subtitle_type" aria-label="Format sous-titres"><option value="">Tous les formats de sous-titres</option><option v-for="value in data.options?.subtitle_type || []" :key="value">{{ value }}</option></select>
+        <select v-model="filters.viewer" aria-label="Filtrer par spectateur"><option value="">Tous les spectateurs</option><option v-for="value in data.options?.viewer || []" :key="value">{{ value }}</option></select>
         <select v-model="filters.watched" aria-label="Filtrer par visionnage"><option value="">Audience : indifférent</option><option value="yes">Visionnés</option><option value="no">Non visionnés</option></select>
         <input v-model.number="filters.min_size_gb" type="number" min="0" step="0.5" placeholder="Poids min. (Go)" aria-label="Poids minimal en Go">
         <input v-model.number="filters.max_size_gb" type="number" min="0" step="0.5" placeholder="Poids max. (Go)" aria-label="Poids maximal en Go">
@@ -40,7 +41,13 @@
         <div><span class="eyebrow">Inventaire</span><h2>Fichiers analysés</h2></div>
         <small>{{ date(data.generated_at) }}</small>
       </header>
-      <MediaRowsTable ref="mediaTable" :items="visibleItems" />
+      <MediaRowsTable
+        ref="mediaTable"
+        :items="visibleItems"
+        :sort-key="sort.key"
+        :sort-direction="sort.direction"
+        @update:sort="setSort"
+      />
       <UiButton v-if="tableHasMore" :loading="loadingMore" @click="loadTable(true)">Afficher 100 lignes de plus</UiButton>
       <UiEmptyState v-if="!loading && !tableItems.length" title="Aucun fichier" message="Aucun fichier ne correspond aux filtres." compact />
     </section>
@@ -92,7 +99,7 @@
           <div><span class="eyebrow">Sélection active</span><h2>{{ selectedInsight.title }}</h2></div>
           <strong>{{ number(insightTotal) }} fichier(s)</strong>
         </div>
-        <MediaRowsTable :items="selectedVisibleRows" />
+        <MediaRowsTable :items="selectedVisibleRows" :sort-key="sort.key" :sort-direction="sort.direction" @update:sort="setSort" />
         <UiButton v-if="insightHasMore" :loading="loadingMore" @click="loadInsight(true)">Afficher 100 lignes de plus</UiButton>
         <UiEmptyState v-if="!selectedRows.length" title="Aucun fichier" message="Aucun fichier pour cet insight." compact />
       </section>
@@ -142,7 +149,7 @@ const mediaTable = ref<any>(null);
 const filters = reactive<Record<string, any>>({
   search: '', media_type: '', library: '', studio: '', video_codec: '',
   audio_codec: '', audio_language: '', container: '', subtitle: '',
-  subtitle_language: '', subtitle_type: '', watched: '',
+  subtitle_language: '', subtitle_type: '', watched: '', viewer: '',
   min_size_gb: '', max_size_gb: '',
 });
 const charts = [
@@ -189,6 +196,15 @@ function selectDistribution(chart: any, value: any): void {
   selectedInsight.value = distributionSelection(chart, value);
   loadInsight();
 }
+/* Le tri vit ici et part au serveur : la table ne recoit que cent lignes sur plusieurs
+   milliers, les ordonner sur place repondrait « les plus regardes de la page ». */
+const sort = reactive<{ key: string; direction: 'asc' | 'desc' }>({ key: 'title', direction: 'asc' });
+function setSort(value: { key: string; direction: 'asc' | 'desc' }): void {
+  sort.key = value.key;
+  sort.direction = value.direction;
+  if (activeTab.value === 'table') loadTable();
+  else loadInsight();
+}
 function queryString(extra: Record<string, any> = {}): string {
   const value = new URLSearchParams(params.value);
   Object.entries(extra).forEach(([key, item]) => { if (item !== '' && item != null) value.set(key, item); });
@@ -198,7 +214,7 @@ async function loadTable(append = false): Promise<void> {
   const offset = append ? tableItems.value.length : 0;
   if (append) loadingMore.value = true;
   try {
-    const page = await api(`/api/library-analytics/items?${queryString({ offset, limit: 100 })}`);
+    const page = await api(`/api/library-analytics/items?${queryString({ offset, limit: 100, sort: sort.key, direction: sort.direction })}`);
     tableItems.value = append ? [...tableItems.value, ...(page.items || [])] : (page.items || []);
     tableTotal.value = page.total || 0;
     tableHasMore.value = Boolean(page.has_more);
@@ -210,7 +226,7 @@ async function loadInsight(append = false): Promise<void> {
   if (append) loadingMore.value = true;
   try {
     const page = await api(`/api/library-analytics/items?${queryString({
-      offset, limit: 100, insight_kind: selection.kind,
+      offset, limit: 100, sort: sort.key, direction: sort.direction, insight_kind: selection.kind,
       insight_field: selection.field, insight_value: selection.value,
     })}`);
     insightItems.value = append ? [...insightItems.value, ...(page.items || [])] : (page.items || []);

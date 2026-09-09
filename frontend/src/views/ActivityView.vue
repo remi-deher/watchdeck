@@ -131,6 +131,7 @@
           :loading-more="historyLoadingMore"
           :page-size="HISTORY_PAGE_SIZE"
           :sort="historySort"
+          :group-by-day="historySort!=='longest'"
           @select="selectedSession=$event"
           @load-more="loadHistory(true)"
           @update:sort="setHistorySort"

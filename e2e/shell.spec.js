@@ -339,6 +339,46 @@ test("le tiroir d'une session occupe toute la hauteur, sans barre de defilement"
   }
 });
 
+test("l'historique charge la suite au defilement", async ({ page }) => {
+  // Le seul moyen de descendre dans plusieurs milliers de lignes etait de cliquer
+  // « Afficher 100 de plus » a chaque page.
+  const row = (id) => ({
+    id,
+    source: "plex",
+    session_id: `s${id}`,
+    title: `Film ${id}`,
+    user_name: id % 2 ? "Lisa" : "Rémi",
+    media_type: "movie",
+    playback_method: "direct_play",
+    watched_ms: 3_600_000,
+    started_at: `2026-01-0${(id % 3) + 1}T20:00:00`,
+    ended_at: `2026-01-0${(id % 3) + 1}T21:00:00`,
+    segments: [],
+  });
+  await page.route("**/api/playback/history**", (route) => {
+    const offset = Number(new URL(route.request().url()).searchParams.get("offset") || 0);
+    route.fulfill({
+      json: {
+        items: Array.from({ length: 30 }, (_, index) => row(offset + index + 1)),
+        total: 60,
+        has_more: offset === 0,
+        facets: { users: [], devices: [] },
+      },
+    });
+  });
+
+  await page.goto("/activity?view=history");
+  const rows = page.locator(".history-table button");
+  await expect(rows).toHaveCount(30, { timeout: 15000 });
+
+  // On descend : la sentinelle placee sous la liste doit declencher la page suivante.
+  await page.locator(".history-sentinel").scrollIntoViewIfNeeded();
+
+  await expect(rows).toHaveCount(60, { timeout: 10000 });
+  // Et l'historique se lit par date : chaque journee porte son en-tete.
+  await expect(page.locator(".history-day").first()).toBeVisible();
+});
+
 test("la recherche est centree sur le contenu et occupe la barre", async ({ page }) => {
   test.skip(isCompact(page), "sur mobile la recherche se déploie à la demande");
   await page.goto("/discover");
