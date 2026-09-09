@@ -93,6 +93,45 @@ async def test_a_row_without_tmdb_id_is_not_even_looked_up(async_db, monkeypatch
     lookup.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_the_maintenance_action_reports_what_it_did(monkeypatch):
+    """Une action de maintenance qui ne dit rien laisse l'administrateur sans réponse."""
+    from app.routers.maintenance import MaintenanceRun, _run_repair_posters
+
+    monkeypatch.setattr(
+        "app.services.poster_repair.repair_posters",
+        AsyncMock(return_value={"scanned": 5, "repaired": 3, "unresolved": 2}),
+    )
+    run = MaintenanceRun(action="repair-posters")
+
+    await _run_repair_posters(run)
+
+    journal = chr(10).join(run.logs)
+    assert "3 affiche(s) reconstruite(s)" in journal
+    # Les médias que TMDB ne connaît pas gardent leur affiche morte : il faut le dire.
+    assert "2 média(s) sans affiche TMDB" in journal
+    assert run.progress == 100
+
+
+@pytest.mark.asyncio
+async def test_a_tmdb_failure_leaves_the_poster_alone(async_db, monkeypatch):
+    """TMDB injoignable ne doit pas effacer l'affiche existante."""
+    from app.services import tmdb
+
+    monkeypatch.setattr(tmdb, "_get", AsyncMock(side_effect=RuntimeError("TMDB injoignable")))
+
+    assert await tmdb.poster_url_for(async_db, "movie", 70160) is None
+    # Une série passe par /tv : se tromper de racine renverrait l'affiche d'un autre média.
+    monkeypatch.setattr(tmdb, "_get", AsyncMock(return_value={"poster_path": "/x.jpg"}))
+    assert (await tmdb.poster_url_for(async_db, "show", 1399)).endswith("/x.jpg")
+    assert tmdb._get.await_args.args[1] == "/tv/1399"
+
+
+def test_a_malformed_url_is_not_treated_as_fragile():
+    """Une URL illisible n'est pas une affiche Plex expirée : on n'y touche pas."""
+    assert poster_is_fragile("http://[::1") is False
+
+
 def test_the_maintenance_catalog_exposes_the_repair():
     """L'action doit être proposée dans Maintenance, sinon personne ne la déclenchera."""
     from app.routers.maintenance import _ACTION_RUNNERS, ACTIONS_META
