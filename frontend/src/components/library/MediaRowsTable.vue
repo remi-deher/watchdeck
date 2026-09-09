@@ -8,14 +8,19 @@
     default-sort-key="title"
     clickable-rows
     aria-label="Fichiers média"
+    :sort-key="sortKey"
+    :sort-direction="sortDirection"
     @row-click="details = $event"
+    @update:sort="$emit('update:sort', $event)"
   >
     <template #cell-title="{ row }"><strong>{{ title(row) }}</strong><small>{{ mediaTypeLabel(row.media_type) }}</small></template>
     <template #cell-video="{ row }">{{ row.video_resolution || '—' }} · {{ row.video_codec || '—' }}</template>
     <template #cell-audio="{ row }">{{ row.audio_codec || '—' }} · {{ (row.audio_languages || []).join(', ') || 'langue inconnue' }} · {{ row.audio_track_count || 0 }} piste(s)</template>
     <template #cell-subtitles="{ row }">{{ row.subtitle_count || 0 }} · {{ (row.subtitle_types || row.subtitle_languages || []).join(', ') || 'aucun' }}</template>
     <template #cell-size_bytes="{ row }">{{ bytes(row.size_bytes) }}</template>
-    <template #cell-plays="{ row }">{{ row.play_count || 0 }} lecture(s) · {{ (row.viewers || []).join(', ') || 'personne' }}</template>
+    <template #cell-plays="{ row }">{{ row.play_count || 0 }} lecture(s)</template>
+    <template #cell-viewer="{ row }">{{ (row.viewers || []).join(', ') || 'personne' }}</template>
+    <template #cell-last_viewed="{ row }">{{ row.last_viewed_at ? formatDate(row.last_viewed_at) : 'jamais' }}</template>
     <template #empty>Aucun fichier ne correspond aux filtres.</template>
   </DataTable>
 
@@ -48,7 +53,18 @@
         <div><dt>Lectures</dt><dd>{{ details.play_count || 0 }}</dd></div>
         <div><dt>Temps visionné</dt><dd>{{ duration(details.watch_time_ms) }}</dd></div>
         <div><dt>Spectateurs</dt><dd>{{ (details.viewers || []).join(', ') || 'personne' }}</dd></div>
+        <div><dt>Dernier visionnage</dt><dd>{{ details.last_viewed_at ? formatDate(details.last_viewed_at) : 'jamais' }}</dd></div>
       </dl>
+
+      <!-- La fiche disait combien de fois un media avait ete vu, jamais quand. -->
+      <ol v-if="(details.views || []).length" class="view-log">
+        <li v-for="(view, index) in details.views" :key="`${view.at}-${index}`">
+          <span>{{ view.user || 'Utilisateur Plex' }}</span>
+          <time :datetime="view.at">{{ formatDate(view.at) }}</time>
+          <strong>{{ duration(view.watched_ms) }}</strong>
+        </li>
+      </ol>
+      <p v-else class="view-log-empty">Aucun visionnage enregistré pour ce fichier.</p>
     </section>
   </DrawerShell>
 </template>
@@ -67,11 +83,20 @@ import {
 withDefaults(
   defineProps<{
     items?: any[];
+    /** Tri courant, applique par le serveur sur tout le catalogue filtre. */
+    sortKey?: string | null;
+    sortDirection?: 'asc' | 'desc';
   }>(),
   {
     items: () => [],
+    sortKey: undefined,
+    sortDirection: 'asc',
   }
 );
+
+defineEmits<{
+  (e: 'update:sort', value: { key: string; direction: 'asc' | 'desc' }): void;
+}>();
 
 const columns: DataTableColumn[] = [
   { key: 'title', label: 'Titre', required: true, className: 'card-title' },
@@ -82,7 +107,9 @@ const columns: DataTableColumn[] = [
   { key: 'container', label: 'Conteneur' },
   { key: 'subtitles', label: 'Sous-titres', sortable: false },
   { key: 'size_bytes', label: 'Poids' },
-  { key: 'plays', label: 'Audience', sortable: false },
+  { key: 'plays', label: 'Lectures' },
+  { key: 'viewer', label: 'Spectateurs' },
+  { key: 'last_viewed', label: 'Dernier visionnage' },
 ];
 
 const details = ref<any | null>(null);
@@ -102,5 +129,20 @@ const title = (row: any): string => (row.grandparent_title ? `${row.grandparent_
 .detail-grid dt, .detail-list dt { color: var(--muted); font-size: var(--fs-xs); }
 .detail-grid dd, .detail-list dd { margin: 4px 0 0; font-weight: 700; }
 .detail-list { display: grid; gap: var(--space-2); margin: 0; }
+.view-log { display: grid; gap: 2px; margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.view-log li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+.view-log li:last-child { border-bottom: 0; }
+.view-log span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-log time { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.view-log strong { font-variant-numeric: tabular-nums; }
+.view-log-empty { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 @media (max-width: 520px) { .detail-grid { grid-template-columns: 1fr; } }
 </style>

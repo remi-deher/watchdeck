@@ -96,6 +96,11 @@ const props = withDefaults(
     sortable?: boolean;
     defaultSortKey?: string;
     clickableRows?: boolean;
+    /** Tri pilote par le parent : la table n'ordonne plus ses lignes elle-meme et se
+     *  contente d'emettre le choix. Necessaire des que les lignes sont paginees --
+     *  trier la page affichee ne trie pas le jeu de donnees. */
+    sortKey?: string | null;
+    sortDirection?: 'asc' | 'desc';
   }>(),
   {
     rows: () => [],
@@ -105,11 +110,14 @@ const props = withDefaults(
     sortable: true,
     defaultSortKey: '',
     clickableRows: false,
+    sortKey: undefined,
+    sortDirection: undefined,
   }
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'row-click', row: any): void;
+  (e: 'update:sort', value: { key: string; direction: 'asc' | 'desc' }): void;
 }>();
 
 const STORAGE_KEY = `watchdeck:data-table-columns:${props.preferenceScope}`;
@@ -206,8 +214,11 @@ function moveColumn(key: string, direction: -1 | 1): void {
   columnOrder.value = next;
 }
 
-const sortKey = ref(props.defaultSortKey);
-const sortDirection = ref<'asc' | 'desc'>('asc');
+const controlled = computed(() => props.sortKey !== undefined);
+const localSortKey = ref(props.defaultSortKey);
+const localSortDirection = ref<'asc' | 'desc'>('asc');
+const sortKey = computed(() => (controlled.value ? props.sortKey || '' : localSortKey.value));
+const sortDirection = computed(() => (controlled.value ? props.sortDirection || 'asc' : localSortDirection.value));
 
 function ariaSort(key: string): 'none' | 'ascending' | 'descending' {
   if (sortKey.value !== key) return 'none';
@@ -215,16 +226,18 @@ function ariaSort(key: string): 'none' | 'ascending' | 'descending' {
 }
 
 function sortBy(key: string): void {
-  if (sortKey.value === key) {
-    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
-  } else {
-    sortKey.value = key;
-    sortDirection.value = 'asc';
+  const direction: 'asc' | 'desc' = sortKey.value === key && sortDirection.value === 'asc' ? 'desc' : 'asc';
+  if (controlled.value) {
+    emit('update:sort', { key, direction });
+    return;
   }
+  localSortKey.value = key;
+  localSortDirection.value = direction;
 }
 
 const sortedRows = computed(() => {
-  if (!props.sortable || !sortKey.value) return props.rows;
+  // En mode pilote, les lignes arrivent deja triees par le serveur.
+  if (controlled.value || !props.sortable || !sortKey.value) return props.rows;
   return [...props.rows].sort((left, right) => {
     const a = left[sortKey.value] ?? '';
     const b = right[sortKey.value] ?? '';
