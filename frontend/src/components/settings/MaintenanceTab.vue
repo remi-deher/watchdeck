@@ -1,5 +1,10 @@
 <template>
-  <div class="settings-grid">
+  <!-- Empilement simple, surtout pas `.settings-grid` : celle-ci est en
+       `repeat(auto-fit, minmax(280px, 1fr))` et découpait la page en deux colonnes de
+       434px, l'en-tête dans l'une et TOUTE la grille d'actions dans l'autre. Coincée
+       dans 435px, cette grille ne pouvait plus afficher qu'une seule carte de large,
+       et la moitié de la largeur disponible restait vide. -->
+  <div class="maintenance-tab">
     <div class="maintenance-head">
       <p>Opérations contrôlées et progression en direct.</p>
     </div>
@@ -87,6 +92,11 @@ onMounted(load);
 </script>
 
 <style scoped lang="scss">
+.maintenance-tab { display: flex; flex-direction: column; gap: var(--space-3); }
 .maintenance-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .maintenance-head p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+/* Les cartes d'action sont comparables : on les aligne en haut plutôt que de les
+   étirer à la hauteur de la plus bavarde de la rangée. */
+.maintenance-tab .action-grid { align-items: start; }
+.maintenance-tab .action-card { height: 100%; }
 </style>

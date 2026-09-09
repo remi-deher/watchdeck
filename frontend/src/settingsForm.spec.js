@@ -49,9 +49,13 @@ describe('settingsForm', () => {
   });
 
   it('save() omet un champ secret laisse vide (ne l\'ecrase pas cote serveur)', async () => {
+    // L'enregistrement n'envoie plus que ce qui a changé : on modifie donc un champ
+    // ordinaire pour déclencher l'appel, et on vérifie que le secret non saisi n'est pas
+    // du voyage. Un secret laissé vide signifie « conserver », jamais « effacer ».
     const { form, load, save } = await freshSettingsForm();
     apiMock.mockResolvedValueOnce({ plex_url: 'http://plex.local', plex_token: 'real-token' });
     await load();
+    form.plex_url = 'http://plex.local:32400';
     apiMock.mockResolvedValueOnce({ status: 'ok' });
 
     await save();
@@ -59,7 +63,7 @@ describe('settingsForm', () => {
     const [, options] = apiMock.mock.calls[1];
     const payload = JSON.parse(options.body);
     expect(payload).not.toHaveProperty('plex_token');
-    expect(payload.plex_url).toBe('http://plex.local');
+    expect(payload.plex_url).toBe('http://plex.local:32400');
   });
 
   it('save() inclut un champ secret si l\'utilisateur y a saisi une nouvelle valeur', async () => {

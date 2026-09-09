@@ -287,8 +287,9 @@ test("la vue d'ensemble des parametres ouvre bien une section", async ({ page })
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
   await page.waitForTimeout(500);
-  // Ouvrir une section depuis la vue d'ensemble doit changer l'onglet dans l'URL.
-  expect(page.url()).toMatch(/[?&]tab=/);
+  // Chaque section des reglages a desormais son chemin propre : les groupes sont
+  // devenus des destinations du rail, et `?tab=` n'est plus qu'une redirection.
+  expect(new URL(page.url()).pathname).toMatch(/^\/settings\/.+/);
 });
 
 test("le niveau 2 reste accessible pendant le defilement", async ({ page }) => {

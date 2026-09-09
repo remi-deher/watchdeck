@@ -60,11 +60,6 @@
     </div>
 
     <div class="app-rail__footer">
-      <button type="button" class="app-nav-link app-rail__link" @click="$emit('open-palette')">
-        <Search aria-hidden="true" />
-        <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">Rechercher</span>
-        <kbd v-if="density === 'expanded'">{{ shortcutLabel }}</kbd>
-      </button>
       <RouterLink class="app-nav-link app-rail__link" to="/profile" :title="density === 'medium' ? 'Profil' : undefined">
         <UserRound aria-hidden="true" />
         <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">Profil</span>
@@ -76,9 +71,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
-import { Clapperboard, PanelLeftClose, PanelLeftOpen, Search, UserRound } from '@lucide/vue';
+import { Clapperboard, PanelLeftClose, PanelLeftOpen, UserRound } from '@lucide/vue';
 import { destinationsFor, type NavDestination } from '@/navigation';
-import { shortcutLabel } from '@/shortcut';
 import { usePageSections } from '@/composables/usePageSections';
 
 const props = withDefaults(
@@ -135,7 +129,14 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   gap: var(--space-4);
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* La barre de defilement reste fonctionnelle mais invisible : sur une colonne de
+     72 a 232px, sa gouttiere rognait la largeur utile et coupait le rail en deux d'un
+     trait clair. Le defilement passe par la molette, le clavier et le tactile. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+
+.app-rail__scroll::-webkit-scrollbar { width: 0; height: 0; }
 
 .app-rail__header { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
 .app-rail__brand {

@@ -47,6 +47,14 @@ class Settings(Base):
     # derrière (setattr silencieusement perdu au commit) — jamais branché sur le job, qui
     # tournait toujours toutes les 15 min en dur (voir app/jobs.py:job_arr_statuses).
     arr_poll_interval_seconds: Mapped[int] = mapped_column(default=900)
+    # Cadences autrefois figees dans app/jobs.py. Chaque defaut reprend la constante
+    # qu'il remplace : rendre un reglage modifiable ne doit rien changer par defaut.
+    arr_queue_interval_seconds: Mapped[int] = mapped_column(default=60)
+    torrent_status_interval_seconds: Mapped[int] = mapped_column(default=120)
+    new_vff_interval_seconds: Mapped[int] = mapped_column(default=60)
+    seer_sync_interval_minutes: Mapped[int] = mapped_column(default=60)
+    library_analytics_interval_minutes: Mapped[int] = mapped_column(default=10)
+    notification_purge_hour: Mapped[int] = mapped_column(default=3)
 
     # --- Sonarr ---
     sonarr_url: Mapped[Optional[str]]

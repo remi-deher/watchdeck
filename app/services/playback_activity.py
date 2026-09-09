@@ -27,6 +27,10 @@ from .distributed_lock import acquire_distributed_lock, release_distributed_lock
 from .ip_geolocation import lookup_ip_location, lookup_ip_locations
 
 logger = logging.getLogger(__name__)
+
+#: Borne haute des périodes. « Tout l'historique » est demandé comme un siècle : la
+#: requête reste bornée, et aucun appelant n'a besoin d'un chemin sans date de coupe.
+MAX_PERIOD_DAYS = 36500
 _plex_collection_lock = asyncio.Lock()
 _PLEX_COLLECTION_LOCK_KEY = "watchdeck:locks:playback-activity"
 _STALE_SESSION_TIMEOUT = timedelta(minutes=5)
@@ -1669,7 +1673,7 @@ async def activity_snapshot(days: int = 30, db=None, user: str | None = None) ->
     qualite et comparaison avec la periode precedente comprises. Sans lui, rien ne
     change : c'est la vue de tout le monde.
     """
-    days = min(max(days, 1), 3650)
+    days = min(max(days, 1), MAX_PERIOD_DAYS)
     cutoff = datetime.combine((now_utc_naive() - timedelta(days=days)).date(), datetime_time.min)
     previous_cutoff = cutoff - timedelta(days=days)
     if db is None:
@@ -1826,7 +1830,7 @@ async def activity_history(
                 offset=offset,
                 limit=limit,
             )
-    days = min(max(days, 1), 3650)
+    days = min(max(days, 1), MAX_PERIOD_DAYS)
     cutoff = datetime.combine((now_utc_naive() - timedelta(days=days)).date(), datetime_time.min)
     device_expression = _device_expression()
 
@@ -1942,7 +1946,7 @@ async def activity_statistics(days: int = 30, db=None, refresh: bool = False, us
     spectateurs actifs multiplié par les quatre périodes de l'interface, et chacune
     expire au bout de dix minutes.
     """
-    days = min(max(days, 1), 3650)
+    days = min(max(days, 1), MAX_PERIOD_DAYS)
     user = (user or "").strip() or None
     cache_key = f"watchdeck:playback:statistics:{days}" + (f":user:{user}" if user else "")
 

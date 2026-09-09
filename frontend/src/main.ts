@@ -7,7 +7,6 @@ import AppSubnav from '@/components/ui/AppSubnav.vue';
 import FilterSidebar from './components/ui/FilterSidebar.vue';
 import StatusBadge from './components/ui/StatusBadge.vue';
 import UiFeedback from './components/ui/UiFeedback.vue';
-import FilterBar from './components/ui/FilterBar.vue';
 import FormSaveBar from './components/ui/FormSaveBar.vue';
 import { registerServiceWorker } from './pwa';
 import { recoverFromStaleAssets } from './assetRecovery';
@@ -66,8 +65,15 @@ const routes: RouteRecordRaw[] = [
   { path: '/users/:userId', component: UsersView, meta: { title: 'Administration' } },
   { path: '/notifications', component: NotificationsView, meta: { title: 'Notifications' } },
   { path: '/logs', component: LogsView, meta: { title: 'Journaux' } },
-  { path: '/settings', component: SettingsView, meta: { title: 'Paramètres' } },
-  { path: '/maintenance', redirect: { path: '/settings', query: { tab: 'scheduled-tasks' } } },
+  // Un chemin par section : partageable, marquable en favori, et coherent avec le reste
+  // de l'application. Le parametre `?tab=` reste accepte et redirige (voir SettingsView).
+  { path: '/settings', component: SettingsView, meta: { title: 'Configuration' } },
+  { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Services' } },
+  { path: '/settings/automation/:section?', component: SettingsView, meta: { title: 'Automatisation' } },
+  { path: '/settings/operations/:section?', component: SettingsView, meta: { title: 'Exploitation' } },
+  { path: '/settings/notifications/:section?', component: SettingsView, meta: { title: 'Notifications' } },
+  { path: '/settings/system/:section?', component: SettingsView, meta: { title: 'Système' } },
+  { path: '/maintenance', redirect: '/settings/automation/scheduled-tasks' },
   { path: '/profile', component: ProfileView, meta: { title: 'Profil' } },
   { path: '/releases/:requestId', component: ReleaseSearchView, meta: { title: 'Recherche de version' } },
   { path: '/library/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
@@ -119,7 +125,6 @@ createApp(App)
   .component('FilterSidebar', FilterSidebar)
   .component('StatusBadge', StatusBadge)
   .component('UiFeedback', UiFeedback)
-  .component('FilterBar', FilterBar)
   .component('FormSaveBar', FormSaveBar)
   .use(router)
   .mount('#app');
