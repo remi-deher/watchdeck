@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.23.0 — 2026-09-09
+
+
+### ✨ Nouveautés
+
+- studios des séries, camembert, inventaire par spectateur, historique au défilement ([653d0fe](https://github.com/remi-deher/watchdeck/commit/653d0fead2095e9f752593ed8fd828c45a9854e7))
 ## 1.22.1 — 2026-09-09
 
 
 ### 🐛 Corrections
 
 - trier l'historique en base et le séparer du direct ([b060285](https://github.com/remi-deher/watchdeck/commit/b060285988e95d4feee67703358e740af3611bf1))
+
+### 🔧 Maintenance
+
+- v1.22.1 (#253) ([1806219](https://github.com/remi-deher/watchdeck/commit/180621979ad478d89607b504ad34dcf94d1968aa))
 ## 1.22.0 — 2026-09-09
 
 
