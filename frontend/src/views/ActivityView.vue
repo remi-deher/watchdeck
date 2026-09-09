@@ -5,23 +5,30 @@
       search-scope="Activité"
       placeholder="Filtrer par média, utilisateur ou appareil"
       :hide-search="currentView !== 'history'"
-      :has-filters="currentView === 'history'"
-      :active-count="historyFilterCount"
+      :has-filters="currentView !== 'live'"
+      :active-count="activityFilterCount"
       :filters-open="filtersOpen"
       @toggle-filters="filtersOpen = !filtersOpen" page-class="activity-page">
-
-      <template #tools>
-        <UiSegmentedControl v-if="currentView!=='live'" :model-value="days" :options="periodOptions" :ariaLabel="'Période d’analyse'" @update:model-value="setPeriod" />
-      </template>
 
     <AppSubnav variant="tabs" :active="currentView" :items="activityTabs" aria-label="Sections de l'activité Plex" @update:active="selectView" />
     <UiFeedback v-if="loading && !loaded" type="loading" message="Chargement de l'activité Plex…" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
 
     <div class="psh-layout">
-      <FilterSidebar v-if="currentView === 'history'" :open="filtersOpen" :active-count="historyFilterCount" @close="filtersOpen=false" @reset="resetHistoryFilters">
-        <select v-model="methodFilter"><option value="">Toutes les lectures</option><option value="direct_play">Lecture directe</option><option value="direct_stream">Direct Stream</option><option value="transcode">Transcodage</option></select>
-        <select v-model="typeFilter"><option value="">Tous les types</option><option value="movie">Films</option><option value="episode">Séries</option><option value="track">Musique</option></select>
+      <FilterSidebar v-if="currentView !== 'live'" :open="filtersOpen" :active-count="activityFilterCount" @close="filtersOpen=false" @reset="resetActivityFilters">
+        <FilterGroup label="Période">
+          <UiSegmentedControl :model-value="days" :options="periodOptions" :ariaLabel="'Période d’analyse'" @update:model-value="setPeriod" />
+        </FilterGroup>
+        <template v-if="currentView === 'history'">
+          <FilterGroup label="Lecture">
+            <select v-model="methodFilter"><option value="">Tous les modes</option><option value="direct_play">Lecture directe</option><option value="direct_stream">Direct Stream</option><option value="transcode">Transcodage</option></select>
+            <select v-model="typeFilter"><option value="">Tous les types</option><option value="movie">Films</option><option value="episode">Séries</option><option value="track">Musique</option></select>
+          </FilterGroup>
+          <FilterGroup label="Contexte">
+            <select v-model="userFilter"><option value="">Tous les utilisateurs</option><option v-for="user in historyUsers" :key="user" :value="user">{{ user }}</option></select>
+            <select v-model="deviceFilter"><option value="">Tous les appareils</option><option v-for="device in historyDevices" :key="device" :value="device">{{ device }}</option></select>
+          </FilterGroup>
+        </template>
       </FilterSidebar>
       <div class="psh-main">
     <template v-if="loaded">
@@ -173,6 +180,7 @@ import { useRealtime } from '@/events';
 import MetricCard from '@/components/ui/MetricCard.vue';
 import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import FilterGroup from '@/components/ui/FilterGroup.vue';
 import ActivityHeatmap from '@/components/activity/ActivityHeatmap.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
@@ -193,7 +201,7 @@ const currentView=computed(()=>allowedViews.includes(String(route.query.view))?S
 const days=ref(Number(route.query.days)||30),loading=ref(false),loaded=ref(false),error=ref('');
 const periodOptions = [7, 30, 90, 365].map(value => ({ value, label: `${value} j` }));
 const data=ref<Record<string, any>>({active:[],liveEnabled:true,liveConfigured:true,history:[],daily:[],users:[],summary:{}});
-const selectedSession=ref<any>(null),historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),updatedAt=ref(Date.now()),clock=ref(Date.now());
+const selectedSession=ref<any>(null),historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),updatedAt=ref(Date.now()),clock=ref(Date.now());
 const filtersOpen=ref(false);
 const summary=computed(()=>data.value.summary||{});
 const analytics=computed(()=>data.value.analytics||{});
@@ -221,9 +229,12 @@ const relativeUpdate=computed(()=>{const seconds=Math.max(0,Math.floor((clock.va
 const filteredHistory=computed(()=>data.value.history.filter((item: any)=>{
   const needle=historySearch.value.trim().toLowerCase();
   const haystack=[displayTitle(item),item.user_name,item.player,item.product,item.platform,item.address,item.geo_city,item.geo_region,item.geo_country,item.geo_country_code].filter(Boolean).join(' ').toLowerCase();
-  return (!needle||haystack.includes(needle))&&(!methodFilter.value||item.playback_method===methodFilter.value)&&(!typeFilter.value||item.media_type===typeFilter.value);
+  return (!needle||haystack.includes(needle))&&(!methodFilter.value||item.playback_method===methodFilter.value)&&(!typeFilter.value||item.media_type===typeFilter.value)&&(!userFilter.value||item.user_name===userFilter.value)&&(!deviceFilter.value||deviceLabel(item)===deviceFilter.value);
 }));
-const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value].filter(Boolean).length);
+const historyUsers=computed(()=>uniqueHistoryValues((item: any)=>item.user_name));
+const historyDevices=computed(()=>uniqueHistoryValues(deviceLabel));
+const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value,userFilter.value,deviceFilter.value].filter(Boolean).length);
+const activityFilterCount=computed(()=>(days.value===30?0:1)+(currentView.value==='history'?historyFilterCount.value:0));
 const methodBreakdown=computed(()=>(analytics.value.quality?.methods||[]).map((item: any)=>({label:playbackMethodLabel(item.key,{fallback:item.key==='unknown'?'Inconnu':item.key}),value:item.count,suffix:` · ${item.rate} %`})));
 const resolutionBreakdown=computed(()=>(analytics.value.quality?.resolutions||[]).map((item: any)=>({label:item.label,value:item.count})));
 const codecBreakdown=computed(()=>(analytics.value.quality?.codecs||[]).map((item: any)=>({label:item.label,value:item.count})));
@@ -287,7 +298,12 @@ async function load(silent=false): Promise<void> {
 function setDays(value: number): void {days.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
 function setPeriod(value: string | number): void { if (typeof value === 'number') setDays(value); }
 function selectView(value: string): void {router.replace({path:'/activity',query:{view:value==='overview'?undefined:value,days:days.value===30?undefined:String(days.value)}})}
-function resetHistoryFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value=''}
+function deviceLabel(item: any): string {return String(item.player||item.product||item.platform||'').trim()}
+function uniqueHistoryValues(pick: (item: any)=>unknown): string[] {
+  const values: string[]=data.value.history.map((item: any)=>String(pick(item)||'').trim()).filter((value: string)=>Boolean(value));
+  return [...new Set<string>(values)].sort((a,b)=>a.localeCompare(b,'fr'));
+}
+function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value='';if(days.value!==30)setPeriod(30)}
 const formatDate=(value: string)=>formatDateTimeShort(value,'—');
 function comparisonLabel(value: number): string {return `${signedPercent(value)} vs période précédente`}
 function displayTitle(item: any): string {return item.grandparent_title?`${item.grandparent_title} · ${item.title}`:item.title}

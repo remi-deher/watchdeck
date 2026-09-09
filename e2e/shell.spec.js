@@ -235,6 +235,7 @@ test("la sous-navigation d'une page repond aux fleches", async ({ page }) => {
 
 test("le selecteur de periode de l'activite change bien de valeur", async ({ page }) => {
   await page.goto("/activity?view=stats");
+  await page.getByRole("button", { name: "Afficher les filtres" }).click();
   const segmented = page.locator('.ui-segmented-control, [class*="segmented"]').first();
   await expect(segmented).toBeVisible({ timeout: 15000 });
   const options = segmented.locator("button");
@@ -250,6 +251,29 @@ test("le selecteur de periode de l'activite change bien de valeur", async ({ pag
   await page.waitForTimeout(400);
   const activeAfter = await segmented.locator('[aria-pressed="true"], button.active').first().textContent();
   expect(activeAfter).not.toBe(activeBefore);
+});
+
+test("la recherche est centree sur le contenu et occupe la barre", async ({ page }) => {
+  test.skip(isCompact(page), "sur mobile la recherche se déploie à la demande");
+  await page.goto("/discover");
+
+  const field = page.locator(".app-topbar__field");
+  const main = page.locator("#main-content");
+  await expect(field).toBeVisible();
+  const [fieldBox, mainBox] = await Promise.all([field.boundingBox(), main.boundingBox()]);
+
+  expect(Math.abs((fieldBox.x + fieldBox.width / 2) - (mainBox.x + mainBox.width / 2))).toBeLessThan(2);
+  expect(fieldBox.width).toBeGreaterThanOrEqual(page.viewportSize().width >= 1200 ? 700 : 400);
+});
+
+test("les demandes n'exposent qu'un seul bouton de filtres", async ({ page }) => {
+  await page.goto("/discover/requests");
+  const filterButtons = page.getByRole("button", { name: /filtres/i });
+  await expect(filterButtons).toHaveCount(1);
+  await expect(filterButtons).toBeVisible();
+  if (isCompact(page)) await page.getByRole("button", { name: "Rechercher dans la page" }).click();
+  await expect(page.locator(".app-topbar").getByRole("searchbox", { name: /demande/i })).toBeVisible();
+  await expect(page.locator("#main-content").getByRole("searchbox")).toHaveCount(0);
 });
 
 test("la vue d'ensemble des parametres ouvre bien une section", async ({ page }) => {
@@ -287,7 +311,8 @@ test("le niveau 2 reste accessible pendant le defilement", async ({ page }) => {
   await page.waitForTimeout(500);
 
   const box = await sticky.boundingBox();
-  expect(Math.round(box.y)).toBeCloseTo(48, 0);
+  const expectedTop = await sticky.evaluate((node) => parseFloat(window.getComputedStyle(node).top));
+  expect(Math.round(box.y)).toBeCloseTo(Math.round(expectedTop), 0);
   await expect(sticky.locator(".app-subnav")).toBeVisible();
   await expect(sticky).toHaveClass(/is-stuck/);
 });

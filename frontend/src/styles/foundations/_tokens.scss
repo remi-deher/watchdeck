@@ -77,7 +77,8 @@
      dans <body> — lit ces trois variables et ne redéclare jamais la valeur.
      Elles sont redéfinies par mode plus bas dans ce fichier. */
   --app-rail-w: 0px;
-  --app-topbar-h: 48px;
+  /* 46px pour le champ, plus les bordures et le coussin interne de la capsule. */
+  --app-topbar-h: 54px;
   --app-dock-h: 64px;
   /* Hauteur réellement occupée en haut : la barre de contexte est fixe dans tous
      les modes, l'encoche s'y ajoute. */
