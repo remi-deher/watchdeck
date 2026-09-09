@@ -870,6 +870,27 @@ async def reject_request(request_id: int, body: RejectBody, request: Request, db
     return {"ok": True, "status": "rejected", "id": req.id}
 
 
+class AutoImportBody(BaseModel):
+    """`None` remet le média sous le réglage global : c'est un état à part entière."""
+
+    auto_import_reconciliation: Optional[bool] = None
+
+
+@router.put("/requests/{request_id}/auto-import", dependencies=[Depends(require_moderator)])
+async def set_auto_import_reconciliation(
+    request_id: int, body: AutoImportBody, db: AsyncSession = Depends(get_db_async)
+):
+    """Surcharge le rapprochement automatique pour ce média seul.
+
+    Un média dont les releases se rattachent mal peut rester en manuel sans qu'on
+    désactive le réglage pour tous les autres — et inversement.
+    """
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    req.auto_import_reconciliation = body.auto_import_reconciliation
+    await db.commit()
+    return {"status": "ok", "auto_import_reconciliation": req.auto_import_reconciliation}
+
+
 @router.post("/requests/{request_id}/retry", dependencies=[Depends(require_moderator)])
 async def retry_request(request_id: int, db: AsyncSession = Depends(get_db_async)):
     """Repasse une demande en `pending` et déclenche un polling immédiat."""

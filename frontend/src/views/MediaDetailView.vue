@@ -40,6 +40,7 @@
             @close-request="closeRequest"
             @delete-request="deleteRequest"
             @withdraw-request="withdrawRequest"
+            @set-auto-import="setAutoImport"
             @notify-user="notifyUser"
             @promote-requester="promoteRequester"
             @remove-requester="removeRequester"
@@ -437,6 +438,23 @@ function settleReason(value: string | null): void {
   withdrawTarget.value = null;
   resolveReason?.(value);
   resolveReason = null;
+}
+
+/* Surcharge par media du rapprochement automatique : `null` remet la demande sous le
+   reglage global, ce qui n'est pas la meme chose que « desactive ». */
+async function setAutoImport(row: any, value: boolean | null): Promise<void> {
+  busy.value = true;
+  try {
+    await api(`/api/requests/${row.id}/auto-import`, {
+      method: 'PUT',
+      body: JSON.stringify({ auto_import_reconciliation: value }),
+    });
+    row.auto_import_reconciliation = value;
+  } catch (e: any) {
+    error.value = e?.message || String(e);
+  } finally {
+    busy.value = false;
+  }
 }
 
 function goBack(): void {

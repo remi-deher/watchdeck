@@ -74,7 +74,10 @@ def test_an_empty_reason_is_refused(client):
     reason = client.get("/api/message-reasons").json()["items"][0]
 
     assert client.patch(f"/api/message-reasons/{reason['id']}", json={"label": "   "}).status_code == 400
-    assert client.post("/api/message-reasons", json={"event": "cancelled", "label": "x", "message": " "}).status_code == 400
+    assert (
+        client.post("/api/message-reasons", json={"event": "cancelled", "label": "x", "message": " "}).status_code
+        == 400
+    )
     assert (
         client.post("/api/message-reasons", json={"event": "inconnu", "label": "x", "message": "y"}).status_code == 400
     )

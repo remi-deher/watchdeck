@@ -12,7 +12,7 @@ from sqlalchemy import select
 from ..database import AsyncSessionLocal
 from ..models import ArrInstance, MediaRequest, SeriesAcquisitionBatch, Settings, SonarrQueueObservation
 from ..utils import now_utc_naive
-from . import sonarr
+from . import import_reconciliation, sonarr
 from .arr_queue_common import (
     FULL_PROGRESS,
     QueueClassification,
@@ -83,6 +83,9 @@ async def monitor_sonarr_queue() -> dict[str, int]:
     counters = {"instances": 0, "observed": 0, "blocked": 0, "resolved": 0}
     async with AsyncSessionLocal() as db:
         instances, request_by_key = await load_monitor_context(db, "sonarr")
+        # Les reglages sont relus une fois par cycle : le rapprochement automatique se
+        # decide element par element, dans la boucle.
+        settings = (await db.execute(select(Settings))).scalars().first()
 
         for instance in instances:
             # Une panne Sonarr ne doit jamais ressembler a une file vide et resoudre
@@ -141,6 +144,19 @@ async def monitor_sonarr_queue() -> dict[str, int]:
                 update_observation(observation, record, req, arr_media_id, state, blocked_checks, now)
                 if state == "import_blocked":
                     counters["blocked"] += 1
+                    # Le rapprochement automatique passe avant l'alerte : inutile de
+                    # reveiller un administrateur pour un choix que l'on sait faire.
+                    if await import_reconciliation.try_reconcile(
+                        product="sonarr",
+                        instance=instance,
+                        observation=observation,
+                        record=record,
+                        request=req,
+                        settings=settings,
+                    ):
+                        counters["auto_reconciled"] = counters.get("auto_reconciled", 0) + 1
+                        counters["observed"] += 1
+                        continue
                 counters["observed"] += 1
 
             counters["resolved"] += await resolve_missing_observations(

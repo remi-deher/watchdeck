@@ -1068,6 +1068,7 @@ def test_withdrawing_without_a_message_still_works(client, db):
     # Source non-Plex : rien à bloquer, donc pas de mail non plus.
     assert response.json()["plex_source"] is False
 
+
 def test_the_cancellation_email_is_written_to_the_notification_journal(client, db):
     """Le mail d'annulation partait sans laisser de trace.
 
@@ -1088,7 +1089,10 @@ def test_the_cancellation_email_is_written_to_the_notification_journal(client, d
         patch("app.routers.requests_api._get_recipients", return_value=["alice@example.com"]),
         patch("app.services.email_service.send_cancelled_notification", new=AsyncMock()),
     ):
-        assert client.post(f"/api/requests/{request_id}/withdraw", json={"reason": "Absent du catalogue."}).status_code == 200
+        assert (
+            client.post(f"/api/requests/{request_id}/withdraw", json={"reason": "Absent du catalogue."}).status_code
+            == 200
+        )
 
     logs = db.query(NotificationLog).filter_by(event="cancelled").all()
     assert [log.recipient for log in logs] == ["alice@example.com"]
@@ -1119,3 +1123,30 @@ def test_a_failed_cancellation_email_is_journalled_as_such(client, db):
     log = db.query(NotificationLog).filter_by(event="cancelled").one()
     assert log.success is False
     assert "SMTP indisponible" in log.error_msg
+
+
+def test_a_media_can_override_the_global_reconciliation_setting(client, db):
+    """`None` remet le média sous le réglage global : c'est un état à part entière.
+
+    Un média dont les releases se rattachent mal doit pouvoir rester en manuel sans
+    qu'on désactive le rapprochement automatique pour tous les autres.
+    """
+    req = _req()
+    db.add_all([Settings(id=1), req])
+    db.commit()
+    request_id = req.id
+
+    assert (
+        client.put(f"/api/requests/{request_id}/auto-import", json={"auto_import_reconciliation": False}).json()[
+            "auto_import_reconciliation"
+        ]
+        is False
+    )
+    assert (
+        client.put(f"/api/requests/{request_id}/auto-import", json={"auto_import_reconciliation": True}).json()[
+            "auto_import_reconciliation"
+        ]
+        is True
+    )
+    # Corps vide : retour au réglage global.
+    assert client.put(f"/api/requests/{request_id}/auto-import", json={}).json()["auto_import_reconciliation"] is None
