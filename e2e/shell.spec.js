@@ -258,6 +258,87 @@ test("le selecteur de periode de l'activite change bien de valeur", async ({ pag
   expect(activeAfter).not.toBe(activeBefore);
 });
 
+test("changer le tri de l'historique redemande la periode entiere", async ({ page }) => {
+  // Le tri vivait dans le navigateur, sur les cent lignes deja chargees : « Anciennes »
+  // retournait la premiere page au lieu d'aller chercher les plus anciennes lectures,
+  // et le changement ne declenchait aucune requete.
+  const sorts = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/playback/history") sorts.push(url.searchParams.get("sort"));
+  });
+
+  await page.goto("/activity?view=history");
+  const segmented = page.getByRole("tablist", { name: /Trier/ }).first();
+  await expect(segmented).toBeVisible({ timeout: 15000 });
+  await segmented.getByRole("tab", { name: "Anciennes" }).click();
+
+  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("oldest");
+});
+
+test("le tiroir d'une session occupe toute la hauteur, sans barre de defilement", async ({ page }) => {
+  test.skip(isCompact(page), "en compact le tiroir est une feuille ancree en bas");
+  // L'historique du serveur de test est vide : on fournit une lecture, seul moyen
+  // d'ouvrir le tiroir.
+  await page.route("**/api/playback/history**", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: 1,
+            source: "plex",
+            session_id: "s1",
+            title: "Le Voyage de Chihiro",
+            user_name: "Lisa",
+            media_type: "movie",
+            playback_method: "direct_play",
+            watched_ms: 3_600_000,
+            duration_ms: 7_200_000,
+            started_at: "2026-01-01T20:00:00",
+            ended_at: "2026-01-01T21:00:00",
+            segments: [],
+          },
+        ],
+        total: 1,
+        has_more: false,
+        facets: { users: ["Lisa"], devices: [] },
+      },
+    }),
+  );
+  await page.goto("/activity?view=history");
+  const row = page.locator(".history-table button").first();
+  await expect(row).toBeVisible({ timeout: 15000 });
+  await row.click();
+
+  const drawer = page.locator(".detail-drawer");
+  await expect(drawer).toBeVisible();
+  const metrics = await drawer.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    return {
+      top: box.top,
+      bottomGap: window.innerHeight - box.bottom,
+      // La difference entre largeur de bordure a bordure et largeur utile revient a la
+      // barre de defilement : masquee, elle ne prend plus rien.
+      scrollbar: node.offsetWidth - node.clientWidth - 2,
+      scrollable: node.scrollHeight > node.clientHeight,
+    };
+  });
+
+  // La feuille part du haut de la fenetre : elle passe devant la barre flottante au lieu
+  // de lui ceder sa hauteur.
+  expect(metrics.top).toBeLessThanOrEqual(12);
+  expect(metrics.bottomGap).toBeLessThanOrEqual(12);
+  expect(metrics.scrollbar).toBeLessThanOrEqual(0);
+  // Masquer la barre ne doit pas empecher de lire la suite.
+  if (metrics.scrollable) {
+    const moved = await drawer.evaluate((node) => {
+      node.scrollTop = 200;
+      return node.scrollTop;
+    });
+    expect(moved).toBeGreaterThan(0);
+  }
+});
+
 test("la recherche est centree sur le contenu et occupe la barre", async ({ page }) => {
   test.skip(isCompact(page), "sur mobile la recherche se déploie à la demande");
   await page.goto("/discover");
