@@ -223,6 +223,90 @@ async def _search_tmdb_id(url: str, api_key: str, title: str, year: int | None) 
     return None
 
 
+async def resolve_tmdb_id_by_title(url: str, api_key: str, title: str, year: int | None = None) -> str | None:
+    """Dernier recours : résout un TMDB ID à partir du seul titre, via Radarr.
+
+    Une watchlist Plex peut porter un film sans aucun identifiant externe — ni TMDB, ni
+    IMDB, ni TVDB. La demande partait alors en échec avec « métadonnées introuvables »
+    alors que Radarr, interrogé par titre, trouve le film : « Christmas in South Park »
+    y répond « Christmas Time in South Park » (2007, tmdb 148039).
+
+    Le titre est une clé approximative : deux films peuvent se ressembler, et se tromper
+    ici enverrait le mauvais film au téléchargement. `_accepts_title_match` décide donc
+    si la réponse de Radarr est assez sûre pour être retenue.
+    """
+    if not title:
+        return None
+    try:
+        client = ArrClient(url.rstrip("/"), api_key, timeout=15)
+        resp = await client.get("/api/v3/movie/lookup", params={"term": title})
+        resp.raise_for_status()
+        results = resp.json() or []
+    except Exception as e:
+        logger.warning(f"Radarr title→tmdb resolution failed for '{title}': {e}")
+        return None
+
+    match = _accepts_title_match(title, year, results)
+    if match and match.get("tmdbId"):
+        logger.info(f"tmdb_id résolu via le titre pour '{title}': {match['tmdbId']} ({match.get('title')})")
+        return str(match["tmdbId"])
+    return None
+
+
+def _normalize_title(value: str) -> str:
+    """Titre réduit à ses lettres et chiffres minuscules, pour comparer sans ponctuation."""
+    return "".join(char.lower() for char in (value or "") if char.isalnum() or char.isspace()).strip()
+
+
+def _accepts_title_match(title: str, year: int | None, results: list[dict]) -> dict | None:
+    """Décide si une réponse du lookup par titre est assez sûre pour être retenue.
+
+    Args:
+        title: le titre demandé, tel que Plex l'a fourni.
+        year: l'année si la watchlist la connaît, sinon None.
+        results: les films renvoyés par Radarr, du plus pertinent au moins pertinent.
+
+    Returns:
+        Le film retenu, ou None si aucun ne mérite qu'on lui fasse confiance.
+    """
+    if not results:
+        return None
+
+    wanted = _normalize_title(title)
+    candidates = []
+    for movie in results:
+        titles = {_normalize_title(movie.get("title"))}
+        titles.update(_normalize_title(alt.get("title")) for alt in movie.get("alternateTitles") or [])
+        candidates.append((movie, {value for value in titles if value}))
+
+    # Un titre identique tranche seul : peu importe combien de films Radarr propose.
+    for movie, titles in candidates:
+        if wanted in titles and _year_is_compatible(year, movie.get("year")):
+            return movie
+
+    # Sinon, on n'accepte que l'absence d'ambiguite : un seul film propose, et une annee
+    # qui concorde. C'est le cas d'un titre approchant -- « Christmas in South Park »
+    # pour « Christmas Time in South Park » (2007) -- et cela ecarte les recherches
+    # generiques, ou « South Park » ramene vingt films dont aucun n'est le bon.
+    if len(candidates) == 1:
+        movie, _ = candidates[0]
+        if year is not None and _year_is_compatible(year, movie.get("year")):
+            return movie
+
+    return None
+
+
+def _year_is_compatible(wanted: int | None, found: int | None) -> bool:
+    """Vrai si les annees concordent, ou si l'une des deux manque.
+
+    Un an d'ecart est tolere : les catalogues divergent entre l'annee de production et
+    celle de sortie, et Plex n'expose pas toujours la meme que TMDB.
+    """
+    if not wanted or not found:
+        return True
+    return abs(int(wanted) - int(found)) <= 1
+
+
 async def lookup_movie(
     url: str,
     api_key: str,

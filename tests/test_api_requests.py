@@ -1022,3 +1022,48 @@ def test_bulk_delete_records_tombstones(client, db):
 
     tmdb_ids = {row.tmdb_id for row in db.query(DeletedMediaLog).all()}
     assert tmdb_ids == {"111", "222"}
+
+
+def test_withdrawing_a_watchlist_request_carries_the_admin_message(client, db):
+    """Une annulation sans explication se solde par une nouvelle demande la semaine suivante.
+
+    Le média peut être définitivement hors de portée — absent du catalogue TMDB sur
+    lequel s'appuie Radarr — et le gabarit générique ne sait pas le dire. Le mot de
+    l'administrateur part donc avec le mail d'annulation.
+    """
+    settings = Settings(id=1)
+    user = PlexUser(plex_user_id="alice", enabled=True)
+    req = _req(status=RequestStatus.failed, source="rss", arr_id=None, title="South Park Playthrough")
+    db.add_all([settings, user, req])
+    db.commit()
+    request_id = req.id
+
+    with (
+        patch("app.routers.requests_api._delete_media_from_arr", new=AsyncMock(return_value=(True, ""))),
+        patch("app.routers.requests_api._get_recipients", return_value=["alice@example.com"]),
+        patch("app.services.email_service.send_cancelled_notification", new=AsyncMock()) as mail,
+    ):
+        response = client.post(
+            f"/api/requests/{request_id}/withdraw",
+            json={"reason": "Ce média n'existe pas dans le catalogue TMDB."},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["plex_source"] is True
+    assert mail.await_args.kwargs["reason"] == "Ce média n'existe pas dans le catalogue TMDB."
+
+
+def test_withdrawing_without_a_message_still_works(client, db):
+    """Le motif est facultatif : l'annulation ne doit pas en dépendre."""
+    settings = Settings(id=1)
+    req = _req(status=RequestStatus.failed, source="manual", arr_id=None)
+    db.add_all([settings, req])
+    db.commit()
+    request_id = req.id
+
+    with patch("app.routers.requests_api._delete_media_from_arr", new=AsyncMock(return_value=(True, ""))):
+        response = client.post(f"/api/requests/{request_id}/withdraw")
+
+    assert response.status_code == 200
+    # Source non-Plex : rien à bloquer, donc pas de mail non plus.
+    assert response.json()["plex_source"] is False
