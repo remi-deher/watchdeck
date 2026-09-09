@@ -39,7 +39,9 @@ def _subtitle_type(stream: dict) -> str:
     return f"{language} · {codec}{forced}"
 
 
-def parse_plex_item(item: dict, library: str, section_type: str) -> dict[str, Any]:
+def parse_plex_item(
+    item: dict, library: str, section_type: str, studios: dict[str, str] | None = None
+) -> dict[str, Any]:
     media = (_list(item.get("Media")) or [{}])[0]
     part = (_list(media.get("Part")) or [{}])[0]
     streams = _list(part.get("Stream"))
@@ -54,7 +56,10 @@ def parse_plex_item(item: dict, library: str, section_type: str) -> dict[str, An
         "grandparent_title": item.get("grandparentTitle"),
         "media_type": media_type,
         "library": library,
-        "studio": item.get("studio") or "Inconnu",
+        # Un episode ne porte pas de studio : Plex l'expose sur la serie. Sans ce repli
+        # par `grandparentRatingKey`, toute bibliotheque de series comptait pour
+        # « Inconnu » -- 96 % du catalogue en production.
+        "studio": item.get("studio") or (studios or {}).get(str(item.get("grandparentRatingKey") or "")) or "Inconnu",
         "year": _int(item.get("year")) or None,
         "added_at": datetime.fromtimestamp(_int(item.get("addedAt"))).isoformat()
         if _int(item.get("addedAt"))
@@ -91,6 +96,18 @@ async def fetch_plex_catalog(settings: Settings) -> dict[str, Any]:
                 continue
             name, key = section.get("title") or "Bibliothèque", section.get("key")
             libraries.append({"key": str(key), "name": name, "type": section_type})
+            # Le studio d'une serie, releve une fois, sert ensuite a tous ses episodes.
+            studios: dict[str, str] = {}
+            if section_type == "show":
+                shows_response = await client.get(
+                    f"{settings.plex_url.rstrip('/')}/library/sections/{key}/all",
+                    headers=headers,
+                    params={"type": 2},
+                )
+                shows_response.raise_for_status()
+                for show in _list(shows_response.json().get("MediaContainer", {}).get("Metadata")):
+                    if show.get("studio"):
+                        studios[str(show.get("ratingKey") or "")] = show["studio"]
             response = await client.get(
                 f"{settings.plex_url.rstrip('/')}/library/sections/{key}/all",
                 headers=headers,
@@ -99,7 +116,7 @@ async def fetch_plex_catalog(settings: Settings) -> dict[str, Any]:
             response.raise_for_status()
             container = response.json().get("MediaContainer", {})
             items = _list(container.get("Metadata") or container.get("Video") or container.get("Track"))
-            rows.extend(parse_plex_item(item, name, section_type) for item in items)
+            rows.extend(parse_plex_item(item, name, section_type, studios) for item in items)
     return {"items": rows, "generated_at": datetime.utcnow().isoformat(), "libraries": libraries}
 
 
@@ -146,6 +163,8 @@ def apply_filters(rows: list[dict], filters: dict[str, Any]) -> list[dict]:
             ):
                 continue
             if filters.get("audio_language") and filters["audio_language"] not in row.get("audio_languages", []):
+                continue
+            if filters.get("viewer") and filters["viewer"] not in row.get("viewers", []):
                 continue
             watched = filters.get("watched")
             if watched == "yes" and not row.get("play_count"):
@@ -215,6 +234,7 @@ def _build_payload(rows: list[dict], generated_at: str, filters: dict[str, Any])
             "subtitle_type": sorted(
                 {subtitle_type for row in all_rows for subtitle_type in row.get("subtitle_types", []) if subtitle_type}
             ),
+            "viewer": sorted({viewer for row in all_rows for viewer in row.get("viewers", []) if viewer}),
         },
         "items": filtered,
     }
@@ -227,20 +247,51 @@ async def refresh_library_analytics_snapshot(settings: Settings, db: AsyncSessio
     rows = [dict(item) for item in catalog["items"]]
     history = (await db.execute(select(PlaybackSession))).scalars().all()
     by_key: dict[str, list[PlaybackSession]] = defaultdict(list)
+    # Le repli par titre portait sur `grandparent_title` : pour un episode, cela le
+    # rattachait a *toutes* les lectures de la serie. Chaque episode affichait alors
+    # l'audience de la saison entiere. La paire serie + episode designe une seule ligne.
+    by_pair: dict[tuple[str, str], list[PlaybackSession]] = defaultdict(list)
     by_title: dict[str, list[PlaybackSession]] = defaultdict(list)
     for session in history:
         if session.rating_key:
             by_key[str(session.rating_key)].append(session)
-        for title in (session.title, session.grandparent_title):
-            if title:
-                by_title[title.casefold()].append(session)
+        if session.title:
+            title = session.title.casefold()
+            if session.grandparent_title:
+                by_pair[(session.grandparent_title.casefold(), title)].append(session)
+            else:
+                by_title[title].append(session)
     for row in rows:
-        sessions = by_key.get(row["rating_key"]) or by_title.get(
-            str(row.get("grandparent_title") or row["title"]).casefold(), []
+        grandparent = str(row.get("grandparent_title") or "").casefold()
+        title = str(row.get("title") or "").casefold()
+        sessions = (
+            by_key.get(row["rating_key"])
+            or (by_pair.get((grandparent, title)) if grandparent else None)
+            or by_title.get(title)
+            or []
         )
         row["play_count"] = len(sessions)
         row["watch_time_ms"] = sum(session.watched_ms or session.progress_ms or 0 for session in sessions)
         row["viewers"] = sorted({session.user_name for session in sessions if session.user_name})
+        # Les dates de visionnage, les plus recentes d'abord : la fiche disait combien de
+        # fois un media avait ete vu, jamais quand.
+        views = sorted(
+            (
+                {
+                    "user": session.user_name,
+                    "at": (session.started_at or session.last_seen_at).isoformat()
+                    if (session.started_at or session.last_seen_at)
+                    else None,
+                    "watched_ms": session.watched_ms or session.progress_ms or 0,
+                }
+                for session in sessions
+                if session.started_at or session.last_seen_at
+            ),
+            key=lambda view: view["at"] or "",
+            reverse=True,
+        )
+        row["views"] = views[:20]
+        row["last_viewed_at"] = views[0]["at"] if views else None
 
     payload = _build_payload(rows, catalog["generated_at"], {})
     now = now_utc_naive()
@@ -290,6 +341,21 @@ async def analytics_summary_payload(
     return {key: value for key, value in payload.items() if key != "items"}
 
 
+#: Tris de l'inventaire, appliques sur le catalogue filtre entier.
+ITEM_SORTS: dict[str, Any] = {
+    "title": lambda row: str(row.get("title") or "").casefold(),
+    "library": lambda row: str(row.get("library") or "").casefold(),
+    "studio": lambda row: str(row.get("studio") or "").casefold(),
+    "container": lambda row: str(row.get("container") or "").casefold(),
+    "size_bytes": lambda row: row.get("size_bytes") or 0,
+    "plays": lambda row: row.get("play_count") or 0,
+    "watch_time": lambda row: row.get("watch_time_ms") or 0,
+    # Un media jamais vu passe apres tous les autres en ordre decroissant.
+    "last_viewed": lambda row: row.get("last_viewed_at") or "",
+    "viewer": lambda row: (row.get("viewers") or [""])[0].casefold(),
+}
+
+
 async def analytics_items_payload(
     settings: Settings,
     db: AsyncSession,
@@ -300,6 +366,8 @@ async def analytics_items_payload(
     insight_kind: str | None = None,
     insight_field: str | None = None,
     insight_value: str | None = None,
+    sort: str | None = None,
+    direction: str = "asc",
 ) -> dict:
     snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
     if snapshot is None:
@@ -318,7 +386,11 @@ async def analytics_items_payload(
         allowed = {"media_type", "studio", "video_codec", "audio_codec", "video_resolution", "container"}
         if insight_field in allowed:
             rows = [row for row in rows if str(row.get(insight_field) or "Inconnu") == insight_value]
-    if insight_kind in (None, "storage"):
+    if sort in ITEM_SORTS:
+        # Le tri porte sur tout le catalogue filtre, pas sur la page affichee : trier
+        # cent lignes sur vingt-trois mille ne repond pas a « les plus regardes ».
+        rows.sort(key=ITEM_SORTS[sort], reverse=direction == "desc")
+    elif insight_kind in (None, "storage"):
         rows.sort(key=lambda row: row.get("size_bytes") or 0, reverse=True)
     total = len(rows)
     page = rows[offset : offset + limit]
