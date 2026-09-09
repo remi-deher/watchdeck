@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.25.0 — 2026-09-09
+
+
+### ✨ Nouveautés
+
+- journaliser les annulations et réutiliser leurs motifs ([5a5859e](https://github.com/remi-deher/watchdeck/commit/5a5859e110fb9afbf5b5593c2c1937c9ddbff47e))
+- rapprocher automatiquement les imports bloqués, sous conditions strictes ([25c7d82](https://github.com/remi-deher/watchdeck/commit/25c7d82c5a19ed4e1706061c432ccabf79774052))
+
+### 🐛 Corrections
+
+- rendre la barre du haut à la recherche sur mobile ([549efa2](https://github.com/remi-deher/watchdeck/commit/549efa218a47430b02d80a83108a36a81d9d1e27))
 ## 1.24.1 — 2026-09-09
 
 
@@ -10,6 +21,10 @@
 ### 🐛 Corrections
 
 - affiches expirées, et confirmations inatteignables derrière un tiroir ([19bcfd4](https://github.com/remi-deher/watchdeck/commit/19bcfd427199fcb727785ae314b7c60d1fa15851))
+
+### 🔧 Maintenance
+
+- v1.24.1 (#268) ([64c816a](https://github.com/remi-deher/watchdeck/commit/64c816a07a2a578c1f29dd23acd2618ac738d15b))
 ## 1.24.0 — 2026-09-09
 
 
