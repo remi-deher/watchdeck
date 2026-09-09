@@ -57,6 +57,16 @@
           <button class="icon-button danger" title="Annuler la demande (supprime aussi de Sonarr/Radarr)" aria-label="Annuler la demande" :disabled="busy" @click="$emit('withdraw-request', row)"><XCircle /></button>
           <button class="icon-button danger" title="Supprimer" aria-label="Supprimer" @click="$emit('delete-request', row.id)"><Trash2 /></button>
         </div>
+        <!-- Un media dont les releases se rattachent mal peut rester en manuel sans
+             qu'on desactive le reglage pour tous les autres, et inversement. -->
+        <label class="auto-import-choice">
+          <span>Rapprochement des imports bloques</span>
+          <select :value="autoImportValue(row)" :disabled="busy" @change="onAutoImportChange(row, $event)">
+            <option value="inherit">Suivre le reglage global</option>
+            <option value="on">Automatique pour ce media</option>
+            <option value="off">Toujours manuel pour ce media</option>
+          </select>
+        </label>
       </details>
     </article>
     <article v-if="!requests?.length && detail?.in_library" class="detail-row plex-origin-card">
@@ -80,6 +90,18 @@ import RequestMailHistory from './RequestMailHistory.vue';
 import RequestStatusStepper from './RequestStatusStepper.vue';
 import RequesterList from './RequesterList.vue';
 import { canClose, hasUnnotified, seasonsSummary } from './requestRules';
+
+/* Trois etats, pas deux : « suivre le reglage global » n'est pas « desactive ». */
+const autoImportValue = (row: any): string =>
+  row.auto_import_reconciliation === null || row.auto_import_reconciliation === undefined
+    ? 'inherit'
+    : row.auto_import_reconciliation
+      ? 'on'
+      : 'off';
+const autoImportFromChoice = (value: string): boolean | null => (value === 'inherit' ? null : value === 'on');
+function onAutoImportChange(row: any, event: Event): void {
+  emit('set-auto-import', row, autoImportFromChoice((event.target as HTMLSelectElement).value));
+}
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 
@@ -102,7 +124,7 @@ withDefaults(
   }
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'update:newRequesterId', value: string): void;
   (e: 'add-requester'): void;
   (e: 'open-release', rowId: any): void;
@@ -112,6 +134,7 @@ defineEmits<{
   (e: 'close-request', row: any): void;
   (e: 'delete-request', rowId: any): void;
   (e: 'withdraw-request', row: any): void;
+  (e: 'set-auto-import', row: any, value: boolean | null): void;
   (e: 'notify-user', rowId: any, uid: any, types: string[]): void;
   (e: 'promote-requester', row: any, uid: any): void;
   (e: 'remove-requester', row: any, uid: any): void;
@@ -148,6 +171,8 @@ defineEmits<{
   justify-content: space-between;
   gap: var(--space-2);
 }
+.auto-import-choice { display: grid; gap: 4px; margin-top: var(--space-3); }
+.auto-import-choice > span { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
 .request-admin-actions {
   align-self: start;
   min-width: 130px;

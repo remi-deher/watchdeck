@@ -47,3 +47,24 @@ class EmailTemplate(Base):
     badge_text: Mapped[Optional[str]]
     headline_text: Mapped[Optional[str]]
     show_synopsis: Mapped[Optional[bool]] = mapped_column(Boolean)
+
+
+class MessageReason(Base):
+    """Motif réutilisable et son message, pour les annulations et les corrections.
+
+    Un administrateur qui annule une demande écrivait son explication à la main, à chaque
+    fois : le même refus se formulait donc différemment d'une fois à l'autre, et les
+    tournures les plus utiles se perdaient. Un motif porte un libellé — ce qu'on choisit
+    dans la liste — et le message envoyé au demandeur, modifiable.
+    """
+
+    __tablename__ = "message_reasons"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    #: "cancelled" ou "correction" : un motif d'annulation n'a pas de sens sur une correction.
+    event: Mapped[str] = mapped_column(index=True)
+    label: Mapped[str]
+    message: Mapped[str] = mapped_column(Text)
+    #: Ordre d'affichage dans la liste ; à égalité, le libellé départage.
+    position: Mapped[int] = mapped_column(default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)

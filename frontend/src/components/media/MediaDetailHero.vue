@@ -1,8 +1,8 @@
 <template>
   <div class="mdh-backdrop" :style="detail.backdrop_url ? { backgroundImage: `url(${detail.backdrop_url})` } : {}">
     <div class="mdh-scrim"></div>
+    <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
     <div class="mdh-content">
-      <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
           <img v-if="detail.poster_url" :src="proxyUrl(detail.poster_url, { width: 500 }) ?? undefined" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
@@ -240,31 +240,46 @@ const releaseDates = computed(() => {
 </script>
 
 <style scoped lang="scss">
+/* Meme grammaire que la banniere d'Explorer : une hauteur qui laisse respirer le
+   backdrop, un contenu ancre en bas, et surtout un double degrade -- vertical pour
+   detacher le texte du bas de l'image, horizontal pour le detacher de la gauche. Le
+   voile unique precedent assombrissait l'affiche entiere sans jamais garantir le
+   contraste la ou le texte se pose. */
 .mdh-backdrop {
   position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(300px, 42vw, 460px);
   background-size: cover;
-  background-position: center top;
+  background-position: center 20%;
   background-color: var(--surface-2);
   margin: -28px calc(-1 * var(--main-pad-x, 28px)) 24px calc(-1 * var(--main-pad-x, 28px));
-  padding-top: 24px;
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
 .mdh-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(10,10,10,.55) 0%, rgba(10,10,10,.85) 70%, var(--bg, #0d0d0d) 100%);
+  background:
+    linear-gradient(to top, rgba(9, 9, 11, 0.98) 0%, rgba(9, 9, 11, 0.65) 45%, rgba(9, 9, 11, 0.15) 100%),
+    linear-gradient(to right, rgba(9, 9, 11, 0.88) 0%, rgba(9, 9, 11, 0.4) 50%, transparent 80%);
+  pointer-events: none;
 }
 .mdh-content {
   position: relative;
-  padding: 12px 28px 28px;
+  z-index: 2;
+  width: 100%;
+  padding: var(--space-6) 28px var(--space-5);
   max-width: 1280px;
   margin: 0 auto;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
 }
+/* Le contenu est ancre en bas : le retour doit rester en haut a gauche, hors du flux,
+   sinon il descend avec le titre au fond de la banniere. */
 .mdh-back {
-  margin-bottom: 16px;
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 3;
 }
 .mdh-row {
   display: flex;
@@ -310,10 +325,21 @@ const releaseDates = computed(() => {
   min-width: 0;
   padding-bottom: 4px;
 }
+.mdh-info > .eyebrow {
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .mdh-info h1 {
   margin: 4px 0 10px;
-  font-size: var(--fs-3xl);
-  line-height: 1.2;
+  color: #fff;
+  font-size: clamp(1.5rem, 3.5vw, 2.3rem);
+  font-weight: 800;
+  line-height: 1.15;
+  text-wrap: balance;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 .mdh-badges {
   display: flex;
@@ -347,11 +373,11 @@ const releaseDates = computed(() => {
   margin-bottom: 12px;
 }
 .mdh-overview {
-  color: var(--text);
-  opacity: .92;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
   font-size: var(--fs-md);
   line-height: 1.6;
-  margin: 0;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .mdh-overview.clamped {
   display: -webkit-box;
@@ -459,8 +485,16 @@ const releaseDates = computed(() => {
   .mdh-backdrop {
     margin: -16px calc(-1 * var(--main-pad-x, 18px)) 16px calc(-1 * var(--main-pad-x, 18px));
   }
+  .mdh-backdrop {
+    /* Sur telephone, le portrait et le texte empiles ont besoin de la hauteur d'ecran. */
+    min-height: clamp(320px, 58vh, 420px);
+  }
   .mdh-content {
-    padding: 8px 16px 20px;
+    padding: var(--space-5) 16px 20px;
+  }
+  .mdh-back {
+    top: var(--space-2);
+    left: var(--space-2);
   }
   .mdh-row {
     flex-direction: column;

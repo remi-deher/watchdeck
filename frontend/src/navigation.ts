@@ -37,6 +37,7 @@ import {
   Radio,
   ScrollText,
   Table,
+  MessageSquareText,
   Settings,
   Tv,
   Users,
@@ -290,6 +291,7 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'channels', label: 'Canaux', to: '/settings/notifications/channels', icon: Plug },
         { key: 'rules', label: 'Règles', to: '/settings/notifications/rules', icon: Settings },
         { key: 'templates', label: 'Modèles d’emails', to: '/settings/notifications/templates', icon: Link2 },
+        { key: 'reasons', label: 'Motifs de message', to: '/settings/notifications/reasons', icon: MessageSquareText },
       ];
       break;
     case 'admin-users':

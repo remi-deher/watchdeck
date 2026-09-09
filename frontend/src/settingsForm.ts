@@ -150,6 +150,7 @@ export const form = reactive<Record<string, any>>({
   torrent_ratio_limit: null,
   torrent_seed_time_limit_hours: null,
   torrent_auto_delete_files: false,
+  auto_import_reconciliation: false,
   availability_confirmation_mode: 'hybrid',
   availability_confirmation_timeout_minutes: 30,
 });

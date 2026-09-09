@@ -28,7 +28,7 @@ from .downloads import (
     SeriesAcquisitionBatch,
     SonarrQueueObservation,
 )
-from .email_config import EmailBranding, EmailTemplate
+from .email_config import EmailBranding, EmailTemplate, MessageReason
 from .logs import (
     AdminActionLog,
     DeletedMediaLog,
@@ -82,6 +82,7 @@ __all__ = [
     "DownloadHistory",
     "EmailBranding",
     "EmailTemplate",
+    "MessageReason",
     "EmailProvider",
     "EpisodeAvailability",
     "EpisodeMetadata",

@@ -139,4 +139,13 @@ describe('MediaDetailHero', () => {
 
     expect(wrapper.text()).not.toContain('Rechercher');
   });
+  it('sort le retour du flux, pour qu’il ne descende pas avec le titre', () => {
+    // La banniere ancre son contenu en bas, comme celle d'Explorer : un bouton reste
+    // dans le flux se retrouverait au fond de l'image, sous l'affiche.
+    const wrapper = mount(MediaDetailHero, { props: { detail: { title: 'Inception', media_type: 'movie' } } });
+
+    const backdrop = wrapper.get('.mdh-backdrop');
+    expect(backdrop.find(':scope > .mdh-back').exists()).toBe(true);
+    expect(wrapper.find('.mdh-content .mdh-back').exists()).toBe(false);
+  });
 });

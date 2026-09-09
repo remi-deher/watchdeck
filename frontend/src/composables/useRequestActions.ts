@@ -10,6 +10,8 @@ export interface UseRequestActionsContext {
   busy: Ref<boolean>;
   error: Ref<string>;
   onDeleted?: () => void;
+  /** Demande le motif d'annulation. Renvoie `null` si l'administrateur renonce. */
+  askReason?: (row: any) => Promise<string | null>;
 }
 
 export function useRequestActions({
@@ -20,6 +22,7 @@ export function useRequestActions({
   busy,
   error,
   onDeleted,
+  askReason,
 }: UseRequestActionsContext) {
   const { run } = useAsyncAction({ askConfirm, onDone: reload, busy, error });
 
@@ -145,11 +148,10 @@ export function useRequestActions({
   async function withdrawRequest(row: any): Promise<void> {
     const fromPlexWatchlist = ['rss', 'api'].includes(row.source);
     // Le mail d'annulation part avec ce mot : « ce media n'existe pas dans le catalogue
-    // TMDB » ne se devine pas depuis un gabarit generique.
-    const reason = fromPlexWatchlist
-      ? window.prompt('Message envoyé au demandeur (facultatif) :', row.fulfillment_error || '')
-      : '';
-    if (reason === null) return;
+    // TMDB » ne se devine pas depuis un gabarit generique. Le motif vient de la liste
+    // partagee (voir ReasonPickerModal) quand l'appelant en fournit un.
+    const reason = fromPlexWatchlist && askReason ? await askReason(row) : '';
+    if (reason === null || reason === undefined) return;
     const { ok } = await run(() => post(`/api/requests/${row.id}/withdraw`, { reason }), {
       reload: false,
       confirm: {
