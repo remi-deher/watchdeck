@@ -30,7 +30,7 @@
 import { Search, SlidersHorizontal } from '@lucide/vue';
 
 // Le champ de recherche de l'application, partage par le patron de page et par les
-// barres d'outils qui en ont besoin sans etre un en-tete de page (MediaFiltersBar).
+// barres d'outils qui en ont besoin sans etre un en-tete de page.
 // Sans ce composant, la meme quinzaine de lignes de markup et de style vivait en deux
 // exemplaires, et l'un des deux finissait toujours par diverger.
 defineOptions({ inheritAttrs: false });

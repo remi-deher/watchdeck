@@ -10,7 +10,7 @@
          lui, ne quitte jamais le champ visible, et l'etat "decolle" n'arrive jamais. -->
     <span ref="stickySentinel" class="app-page__sentinel" aria-hidden="true" />
     <div
-      v-if="(showSections && resolvedSections.length > 1) || $slots.tools || $slots.actions"
+      v-if="showStickyRow"
       class="app-page__sticky"
       :class="{ 'is-stuck': isStuck }"
     >
@@ -23,13 +23,23 @@
         @update:active="$emit('update:activeSection', $event)"
       />
 
-      <div v-if="$slots.tools || $slots.actions" class="app-page__tools">
-        <div v-if="$slots.tools || $slots.actions" class="app-page__tool-actions">
+      <div v-if="hasTools && !toolsInBar" class="app-page__tools">
+        <div class="app-page__tool-actions">
           <slot name="tools" />
           <slot name="actions" />
         </div>
       </div>
     </div>
+
+    <!-- En mode deploye les sections vivent dans le rail : garder ici une rangee collante
+         pour les seuls outils coutait une ligne entiere a un ou deux controles. Ils
+         rejoignent donc la barre du haut, contre la recherche. -->
+    <Teleport v-if="hasTools && toolsInBar" to="#app-page-tools">
+      <div class="app-page__tool-actions">
+        <slot name="tools" />
+        <slot name="actions" />
+      </div>
+    </Teleport>
 
     <UiFeedback
       v-if="error"
@@ -48,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, useSlots, watch } from 'vue';
 import AppSubnav, { type SubnavItem } from './AppSubnav.vue';
 import { providePageSearch, type PageSearch } from '@/composables/usePageSearch';
 import { usePageSections } from '@/composables/usePageSections';
@@ -144,8 +154,19 @@ providePageSearch(
    page ne les rend alors plus, sous peine de les afficher deux fois. En dessous, la
    barre n'a pas la largeur de les accueillir et elles restent ici. */
 const mode = useShellMode();
+const slots = useSlots();
+const hasTools = computed(() => Boolean(slots.tools || slots.actions));
+/* La cible du teleport appartient a la barre du haut, montee avant la page : elle est
+   donc la des le premier rendu. On la verifie quand meme, pour qu'un AppPage monte hors
+   du shell (tests isoles, tiroirs) retombe simplement sur sa rangee collante. */
+const toolsAnchor = ref(false);
+const syncToolsAnchor = () => { toolsAnchor.value = Boolean(document.getElementById('app-page-tools')); };
+const toolsInBar = computed(() => mode.value === 'expanded' && toolsAnchor.value);
 const { sections: derivedSections, activeKey, destinationLabel } = usePageSections();
 const showSections = computed(() => mode.value !== 'expanded');
+const showStickyRow = computed(
+  () => (showSections.value && resolvedSections.value.length > 1) || (hasTools.value && !toolsInBar.value)
+);
 const resolvedSections = computed<SubnavItem[]>(() =>
   props.sections.length ? props.sections : derivedSections.value
 );
@@ -157,7 +178,9 @@ const stickySentinel = ref<HTMLElement | null>(null);
 const isStuck = ref(false);
 let stickyObserver: IntersectionObserver | null = null;
 
+watch(mode, () => nextTick(syncToolsAnchor));
 onMounted(() => {
+  syncToolsAnchor();
   if (typeof IntersectionObserver === 'undefined' || !stickySentinel.value) return;
   stickyObserver = new IntersectionObserver(([entry]) => {
     isStuck.value = !entry.isIntersecting;

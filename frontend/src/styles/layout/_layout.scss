@@ -130,6 +130,13 @@
   gap: var(--space-3);
 }
 
+.drawer-head-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .drawer-head {
   position: sticky;
   top: calc(-1 * var(--drawer-pad, 24px));

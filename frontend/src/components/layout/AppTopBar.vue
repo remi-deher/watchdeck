@@ -94,6 +94,12 @@
       <kbd>{{ shortcutLabel }}</kbd>
     </button>
 
+    <!-- Ancre des outils de la page (periode, export, colonnes...). En mode deploye les
+         sections sont deja remontees dans le rail : la rangee collante de la page n'aurait
+         plus porte qu'un controle isole sur toute une ligne. Il vient donc ici, contre la
+         recherche, ou il ne coute aucune hauteur. AppPage y telporte son slot `tools`. -->
+    <div v-if="mode === 'expanded'" id="app-page-tools" class="app-topbar__page-tools" />
+
     <!-- En compact, les filtres sont dans le champ, donc derriere la loupe : deux tapes
          pour un controle qu'on ouvre souvent. On les ressort a cote, a portee directe. -->
     <button
@@ -290,6 +296,15 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 }
 .app-topbar__icon-btn:hover { color: var(--text); background: var(--surface); }
 .app-topbar__icon-btn svg { width: 19px; height: 19px; }
+
+.app-topbar__page-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.app-topbar__page-tools:empty { display: none; }
 
 .app-topbar__crumbs { min-width: 0; flex: 1; }
 .app-topbar__crumbs ol {

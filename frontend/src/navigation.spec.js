@@ -26,7 +26,8 @@ describe('navigation — destinations', () => {
   });
 
   it('résout la destination depuis le chemin, y compris ses routes annexes', () => {
-    expect(destinationForPath('/analytics', true, true)?.key).toBe('activity');
+    expect(destinationForPath('/activity', true, true)?.key).toBe('activity');
+    expect(destinationForPath('/analytics', true, true)?.key).toBe('insights');
     expect(destinationForPath('/vf-upgrades', true, true)?.key).toBe('library');
     expect(destinationForPath('/logs', true, true)?.key).toBe('admin');
     expect(destinationForPath('/notifications', true, true)?.key).toBe('admin');

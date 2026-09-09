@@ -540,6 +540,163 @@ def test_statistics_builds_and_uses_daily_aggregates(client, async_db):
     assert aggregate.media_label == "Film agrégé"
 
 
+def test_statistics_user_scope_restricts_every_aggregate(client, async_db):
+    """`?user=` doit porter sur les agrégats, pas seulement sur les listes.
+
+    Sans filtre côté serveur, les cartes de la Vue d'ensemble affichaient les chiffres de
+    tout le monde sous un titre nominatif : c'est précisément ce que ce test interdit.
+    """
+    from app.utils import now_utc_naive
+
+    for name, title, watched in (("Rémi", "Film A", 3_600_000), ("Lisa", "Film B", 1_800_000)):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"scope-{name}",
+                title=title,
+                user_name=name,
+                media_type="movie",
+                playback_method="direct_play",
+                watched_ms=watched,
+                started_at=now_utc_naive(),
+                last_seen_at=now_utc_naive(),
+                ended_at=now_utc_naive(),
+            )
+        )
+    async_db.commit()
+
+    everyone = client.get("/api/playback/statistics?days=7").json()
+    assert everyone["summary"]["sessions"] == 2
+    assert everyone["summary"]["watch_ms"] == 5_400_000
+
+    scoped = client.get("/api/playback/statistics?days=7&user=R%C3%A9mi").json()
+    assert scoped["summary"]["sessions"] == 1
+    assert scoped["summary"]["watch_ms"] == 3_600_000
+    assert scoped["summary"]["users"] == 1
+    assert [row["name"] for row in scoped["users"]] == ["Rémi"]
+    assert [row["title"] for row in scoped["history"]] == ["Film A"]
+    assert {row["title"] for row in scoped["analytics"]["popular"]} == {"Film A"}
+    # La courbe quotidienne vient des agrégats journaliers : elle doit suivre elle aussi.
+    assert sum(point["watch_ms"] for point in scoped["daily"]) == 3_600_000
+
+
+def test_history_filters_run_in_the_database_not_on_the_last_hundred_rows(client, async_db):
+    """Filtrer l'historique doit interroger la période, pas la fenêtre déjà chargée.
+
+    L'instantané d'activité ne porte que les cent dernières lectures toutes personnes
+    confondues. Filtrer côté client sur cette fenêtre donnait « les lectures d'Untel
+    parmi les cent dernières » au lieu de ses cent dernières — faux, et invisible.
+    """
+    from app.utils import now_utc_naive
+
+    base = now_utc_naive()
+    # 120 lectures de Lisa, plus récentes, puis 5 de Rémi repoussées hors de la fenêtre.
+    for index in range(120):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"lisa-{index}",
+                title=f"Série Lisa {index}",
+                user_name="Lisa",
+                media_type="episode",
+                playback_method="direct_play",
+                player_title="Chromecast",
+                watched_ms=60_000,
+                started_at=base - timedelta(minutes=index),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    for index in range(5):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"remi-{index}",
+                title=f"Film Rémi {index}",
+                user_name="Rémi",
+                media_type="movie",
+                playback_method="transcode",
+                player_title="Apple TV",
+                watched_ms=60_000,
+                started_at=base - timedelta(days=2, minutes=index),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    async_db.commit()
+
+    # Les 5 lectures de Rémi sont hors des 100 dernières : seul un filtre en base les voit.
+    snapshot = client.get("/api/playback/statistics?days=7").json()
+    assert len(snapshot["history"]) == 100
+    assert not [row for row in snapshot["history"] if row["user_name"] == "Rémi"]
+
+    scoped = client.get("/api/playback/history?days=7&user=R%C3%A9mi").json()
+    assert scoped["total"] == 5
+    assert {row["user_name"] for row in scoped["items"]} == {"Rémi"}
+
+    # Les listes de choix couvrent la période entière, pas la sélection courante.
+    assert scoped["facets"]["users"] == ["Lisa", "Rémi"]
+    assert scoped["facets"]["devices"] == ["Apple TV", "Chromecast"]
+
+    paged = client.get("/api/playback/history?days=7&user=Lisa&limit=50&offset=100").json()
+    assert paged["total"] == 120
+    assert len(paged["items"]) == 20
+    assert paged["has_more"] is False
+
+    assert client.get("/api/playback/history?days=7&method=transcode").json()["total"] == 5
+    assert client.get("/api/playback/history?days=7&media_type=movie").json()["total"] == 5
+    assert client.get("/api/playback/history?days=7&device=Apple+TV").json()["total"] == 5
+    assert client.get("/api/playback/history?days=7&query=Film+R%C3%A9mi").json()["total"] == 5
+
+
+def test_daily_aggregates_follow_new_sessions_instead_of_freezing(client, async_db):
+    """Les agrégats journaliers doivent suivre les lectures qui arrivent après leur calcul.
+
+    Ils n'étaient construits que lorsque la fenêtre n'en contenait aucun : la première
+    consultation figeait la courbe et les totaux, et tout ce qui se lisait ensuite
+    disparaissait des « lectures quotidiennes » alors que les analyses, calculées en
+    direct sur les sessions, continuaient d'en tenir compte. Les deux moitiés de la même
+    page se contredisaient.
+    """
+    from app.utils import now_utc_naive
+
+    base = now_utc_naive().replace(hour=12, minute=0, second=0, microsecond=0)
+
+    def add_session(index: str, user: str) -> None:
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"stale-{index}",
+                title=f"Film {index}",
+                user_name=user,
+                media_type="movie",
+                playback_method="direct_play",
+                watched_ms=600_000,
+                started_at=base,
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+
+    add_session("1", "Lisa")
+    async_db.commit()
+
+    first = client.get("/api/playback/statistics?days=7&refresh=true").json()
+    assert first["summary"]["sessions"] == 1
+    assert sum(point["sessions"] for point in first["daily"]) == 1
+
+    # Deux lectures de plus arrivent après ce premier calcul.
+    add_session("2", "Lisa")
+    add_session("3", "Rémi")
+    async_db.commit()
+
+    second = client.get("/api/playback/statistics?days=7&refresh=true").json()
+    assert second["summary"]["sessions"] == 3
+    assert sum(point["sessions"] for point in second["daily"]) == 3
+    # La courbe doit dire la même chose que les analyses calculées en direct.
+    assert sum(point["sessions"] for point in second["daily"]) == len(second["history"])
+
+    scoped = client.get("/api/playback/statistics?days=7&refresh=true&user=Lisa").json()
+    assert scoped["summary"]["sessions"] == 2
+    assert sum(point["sessions"] for point in scoped["daily"]) == 2
+
+
 def test_daily_aggregate_query_reuses_grouping_parameters_for_postgresql():
     from datetime import date
 
@@ -626,6 +783,60 @@ ROTATED_SESSION_XML = """
 """
 
 EMPTY_SESSIONS_XML = '<MediaContainer size="0"></MediaContainer>'
+
+DIRECT_PLAY_SESSION_XML = """
+<MediaContainer size="2">
+  <Video sessionKey="11" ratingKey="5001" title="Lecture directe" type="movie"
+         viewOffset="600000" duration="5400000" year="2024">
+    <Media audioCodec="ac3" videoCodec="h264" videoResolution="1080" container="mkv">
+      <Part id="9001" size="1234567890" container="mkv" decision="directplay">
+        <Stream streamType="1" selected="1" decision="directplay" codec="h264" />
+        <Stream streamType="2" selected="1" decision="directplay" codec="ac3" />
+      </Part>
+    </Media>
+    <User id="7" title="Lisa" />
+    <Player address="192.168.1.30" machineIdentifier="apple-tv" platform="tvOS"
+            product="Plex for Apple TV" state="playing" title="Apple TV" />
+    <Session bandwidth="9000" id="direct-play-session" location="lan" />
+  </Video>
+  <Video sessionKey="12" ratingKey="5002" title="Audio converti" type="movie"
+         viewOffset="300000" duration="4800000" year="2023">
+    <Media audioCodec="truehd" videoCodec="hevc" videoResolution="4k" container="mkv">
+      <Part id="9002" size="987654321" container="mkv" decision="transcode">
+        <Stream streamType="1" selected="1" decision="copy" codec="hevc" />
+        <Stream streamType="2" selected="1" decision="transcode" codec="truehd" />
+      </Part>
+    </Media>
+    <User id="8" title="Rémi" />
+    <Player address="192.168.1.31" machineIdentifier="shield" platform="Android"
+            product="Plex for Android (TV)" state="playing" title="Shield" />
+    <Session bandwidth="24000" id="audio-transcode-session" location="lan" />
+  </Video>
+</MediaContainer>
+"""
+
+
+def test_direct_play_is_not_recorded_as_unknown():
+    """Une lecture directe doit être reconnue comme telle.
+
+    Plex ne décrit la décision qu'à l'endroit où elle a lieu : `TranscodeSession` n'existe
+    que lorsqu'il y a conversion, et `Media` ne porte pas toujours `videoDecision` /
+    `audioDecision`. En s'arrêtant à ces deux sources, toute lecture directe arrivait sans
+    décision et finissait en « inconnu » — ce qui donnait 84 sessions inconnues sur 107 et
+    pas une seule « lecture directe » en base.
+    """
+    direct, audio_transcode = parse_plex_sessions(DIRECT_PLAY_SESSION_XML, anonymize_ips=False)
+
+    assert direct["playback_method"] == "direct_play"
+    assert direct["video_decision"] == "directplay"
+    assert direct["audio_decision"] == "directplay"
+
+    # L'audio converti sous une vidéo copiée reste un transcodage : la décision de la
+    # `Part` ne doit pas primer sur celle des flux.
+    assert audio_transcode["playback_method"] == "transcode"
+    assert audio_transcode["video_decision"] == "copy"
+    assert audio_transcode["audio_decision"] == "transcode"
+
 
 PRODUCTION_PAUSED_SESSION_XML = """
 <MediaContainer size="1">
