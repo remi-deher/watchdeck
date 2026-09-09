@@ -1311,3 +1311,85 @@ def test_the_period_can_cover_the_whole_history(client):
     assert client.get("/api/playback/history?days=36500").status_code == 200
     assert client.get("/api/playback?days=36500").status_code == 200
     assert client.get("/api/playback/statistics?days=36501").status_code == 422
+
+
+def test_history_sorting_covers_the_period_not_the_loaded_page(client, async_db):
+    """Les trois tris doivent porter sur toute la période, pas sur la page affichée.
+
+    Le tri vivait dans le navigateur, sur les cent lignes déjà chargées : « Anciennes »
+    ne faisait que retourner les cent lectures les plus récentes — la plus ancienne de
+    la période n'apparaissait jamais — et le changement de tri ne déclenchait même pas
+    de rechargement.
+    """
+    base = now_utc_naive()
+    for index in range(150):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"sort-{index}",
+                title=f"Film {index}",
+                user_name="Lisa",
+                media_type="movie",
+                # La plus longue est aussi la plus ancienne : un tri limité à la première
+                # page ne peut la trouver ni par « oldest » ni par « longest ».
+                watched_ms=1_000 + index,
+                started_at=base - timedelta(minutes=index),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    async_db.commit()
+
+    recent = client.get("/api/playback/history?days=7&sort=recent").json()
+    oldest = client.get("/api/playback/history?days=7&sort=oldest").json()
+    longest = client.get("/api/playback/history?days=7&sort=longest").json()
+
+    assert recent["items"][0]["title"] == "Film 0"
+    assert oldest["items"][0]["title"] == "Film 149"
+    assert longest["items"][0]["title"] == "Film 149"
+    # Le tri s'applique avant la pagination : la deuxième page suit le même ordre.
+    page_two = client.get("/api/playback/history?days=7&sort=oldest&offset=100").json()
+    assert page_two["items"][0]["title"] == "Film 49"
+    assert client.get("/api/playback/history?days=7&sort=nimporte").status_code == 422
+
+
+def test_history_leaves_the_running_playback_to_the_live_view(client, async_db):
+    """Une lecture en cours n'est pas encore une trace d'historique.
+
+    Elle figurait en tête de l'historique — c'est la plus récente — et le tiroir ouvert
+    sur cette ligne se réécrivait tout seul à chaque sondage du direct : on croyait
+    consulter une trace, on regardait le direct.
+    """
+    base = now_utc_naive()
+    async_db.add(
+        PlaybackSession(
+            source_session_id="finie",
+            title="Lecture terminée",
+            user_name="Lisa",
+            media_type="movie",
+            watched_ms=60_000,
+            started_at=base - timedelta(hours=2),
+            last_seen_at=base,
+            ended_at=base - timedelta(hours=1),
+        )
+    )
+    async_db.add(
+        PlaybackSession(
+            source_session_id="en-cours",
+            title="Lecture en cours",
+            user_name="Rémi",
+            media_type="movie",
+            started_at=base - timedelta(minutes=5),
+            last_seen_at=base,
+            ended_at=None,
+        )
+    )
+    async_db.commit()
+
+    history = client.get("/api/playback/history?days=7").json()
+
+    assert [row["title"] for row in history["items"]] == ["Lecture terminée"]
+    assert history["total"] == 1
+    # Les listes de choix suivent : proposer « Rémi » ne renverrait aucune ligne.
+    assert history["facets"]["users"] == ["Lisa"]
+    # La lecture en cours reste visible là où elle a un sens.
+    assert [row["title"] for row in client.get("/api/playback/live").json()["active"]] == ["Lecture en cours"]

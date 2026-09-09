@@ -550,7 +550,15 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   padding: var(--drawer-pad);
   transform: translateX(-50%);
   overscroll-behavior: contain;
+  /* La barre de defilement est masquee, pas le defilement : sur une feuille pleine
+     hauteur elle longeait tout l'ecran pour quelques centaines de pixels de contenu.
+     L'en-tete collant et le bord du contenu suffisent a dire qu'il reste a lire. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+
+.detail-drawer::-webkit-scrollbar,
+.modal-panel::-webkit-scrollbar { width: 0; height: 0; }
 
 @media (max-width: 767.98px) {
   .modal-panel > .actions,
