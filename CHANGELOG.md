@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.22.1 — 2026-09-09
+
+
+### 🐛 Corrections
+
+- trier l'historique en base et le séparer du direct ([b060285](https://github.com/remi-deher/watchdeck/commit/b060285988e95d4feee67703358e740af3611bf1))
 ## 1.22.0 — 2026-09-09
 
 
 ### ✨ Nouveautés
 
 - éclater les paramètres, refondre Problèmes et étendre l'historique ([1eb0392](https://github.com/remi-deher/watchdeck/commit/1eb03924318a706a982bfdbafcd270ef2ef42175))
+
+### 🔧 Maintenance
+
+- v1.22.0 (#250) ([15c99a8](https://github.com/remi-deher/watchdeck/commit/15c99a8b348a26e6df5e3facaae65e3c2484d800))
 ## 1.21.0 — 2026-09-09
 
 
