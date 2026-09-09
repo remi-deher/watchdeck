@@ -28,6 +28,13 @@ class Settings(Base):
     tautulli_enabled: Mapped[bool] = mapped_column(default=False)
     tautulli_url: Mapped[Optional[str]]
     tautulli_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
+    # Tracearr : meme role que Tautulli -- observer les sessions en direct et en garder
+    # la decision de lecture -- mais son API publique v2 expose aussi le debit, les codecs
+    # source et flux, et les identifiants IMDb/TMDb/TVDb. C'est la source d'enrichissement
+    # preferee quand les deux sont configurees (voir SOURCE_PRECEDENCE).
+    tracearr_enabled: Mapped[bool] = mapped_column(default=False)
+    tracearr_url: Mapped[Optional[str]]
+    tracearr_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
     watchlist_source_priority: Mapped[str] = mapped_column(default="api")
     watchlist_fallback_enabled: Mapped[bool] = mapped_column(default=True)
     poll_interval_minutes: Mapped[int] = mapped_column(default=5)

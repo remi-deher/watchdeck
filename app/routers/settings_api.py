@@ -55,6 +55,9 @@ class SettingsUpdate(BaseModel):
     tautulli_enabled: Optional[bool] = None
     tautulli_url: Optional[str] = None
     tautulli_api_key: Optional[str] = None
+    tracearr_enabled: Optional[bool] = None
+    tracearr_url: Optional[str] = None
+    tracearr_api_key: Optional[str] = None
     plex_rss_url: Optional[str] = None
     watchlist_source_priority: Optional[str] = None
     watchlist_fallback_enabled: Optional[bool] = None
@@ -233,6 +236,7 @@ class TotpEnableRequest(BaseModel):
 _MASKED_SECRET_FIELDS = (
     "plex_token",
     "tautulli_api_key",
+    "tracearr_api_key",
     "sonarr_api_key",
     "radarr_api_key",
     "tmdb_api_key",

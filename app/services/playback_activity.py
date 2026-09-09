@@ -352,6 +352,14 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             "rewatches": sum(item["rewatches"] for item in ranked_media),
         },
         "quality": {
+            # Couverture des mesures : `playback_method` et `bandwidth_kbps` ne sont pas
+            # toujours renseignes par Plex. Sans ce denominateur, une moyenne calculee sur
+            # un cinquieme des lectures se lisait comme une moyenne sur tout.
+            "coverage": {
+                "sessions": total,
+                "method_known": total - method_counts.get("unknown", 0),
+                "bandwidth_measured": len(bandwidth_values),
+            },
             "methods": [
                 {"key": key, "count": count, "rate": _percent(count, total)}
                 for key, count in method_counts.most_common()
@@ -362,6 +370,8 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             "transcode_reasons": [{"label": key, "count": count} for key, count in transcode_reasons.most_common()],
         },
         "bandwidth": {
+            "measured": len(bandwidth_values),
+            "sessions": total,
             "average_kbps": round(sum(bandwidth_values) / len(bandwidth_values)) if bandwidth_values else 0,
             "peak_kbps": max(bandwidth_values, default=0),
             "p95_kbps": _percentile(bandwidth_values, 0.95),
@@ -619,21 +629,51 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
         transcode_attrs = transcode.attrib if transcode is not None else {}
         media_attrs = media_info.attrib if media_info is not None else {}
         part_attrs = part.attrib if part is not None else {}
+        part_streams = part.findall("Stream") if part is not None else []
+
+        def _stream(stream_type: str):
+            """Flux retenu pour ce type : celui marqué `selected`, sinon le premier.
+
+            Le test doit rester `is not None` : un Element sans enfant est falsy, et un
+            `or` aurait silencieusement ignoré le flux sélectionné au profit du premier.
+            """
+            candidates = [stream for stream in part_streams if stream.get("streamType") == stream_type]
+            selected = next((stream for stream in candidates if stream.get("selected") == "1"), None)
+            if selected is not None:
+                return selected
+            return candidates[0] if candidates else None
+
         subtitle_stream = next(
-            (
-                stream
-                for stream in (part.findall("Stream") if part is not None else [])
-                if stream.get("streamType") == "3" and stream.get("selected") == "1"
-            ),
+            (stream for stream in part_streams if stream.get("streamType") == "3" and stream.get("selected") == "1"),
             None,
         )
         session_id = session_attrs.get("id") or transcode_attrs.get("key") or player_attrs.get("machineIdentifier")
         if not session_id:
             seed = "|".join([media.get("ratingKey", ""), user_attrs.get("title", ""), player_attrs.get("title", "")])
             session_id = hashlib.sha1(seed.encode()).hexdigest()
-        decision_attrs = transcode_attrs or media_attrs
-        video_decision = decision_attrs.get("videoDecision")
-        audio_decision = decision_attrs.get("audioDecision")
+        # Plex ne decrit la decision de lecture qu'a l'endroit ou elle a lieu.
+        # `TranscodeSession` n'existe QUE lorsqu'il y a conversion : sur une lecture
+        # directe il n'y a rien a lire la, et `Media` ne porte pas toujours les attributs
+        # `videoDecision` / `audioDecision`. Se limiter a ces deux sources laissait donc
+        # toute lecture directe sans decision, enregistree en « inconnu » -- 84 des 107
+        # lectures de cette instance, et pas une seule « lecture directe » en base.
+        # On descend donc jusqu'ou Plex ecrit vraiment l'information, comme le fait
+        # Tautulli : le flux selectionne de la `Part`, puis la `Part` elle-meme.
+        part_decision = part_attrs.get("decision")
+        video_stream = _stream("1")
+        audio_stream = _stream("2")
+        video_decision = (
+            transcode_attrs.get("videoDecision")
+            or media_attrs.get("videoDecision")
+            or (video_stream.get("decision") if video_stream is not None else None)
+            or part_decision
+        )
+        audio_decision = (
+            transcode_attrs.get("audioDecision")
+            or media_attrs.get("audioDecision")
+            or (audio_stream.get("decision") if audio_stream is not None else None)
+            or part_decision
+        )
         sessions.append(
             {
                 "source_session_id": session_id,
@@ -1468,40 +1508,79 @@ def _daily_aggregate_query(days: set[date]):
 
 
 async def _ensure_daily_aggregates(db, start_day: date, end_day: date) -> None:
-    aggregate_count = (
+    """Remet a niveau les jours dont l'agregat ne correspond plus aux sessions.
+
+    La version precedente sortait des qu'un seul agregat existait dans la fenetre. Le
+    premier calcul figeait donc la courbe et les totaux : toute lecture arrivee ensuite
+    par une voie qui ne reconstruit pas son jour (mise a jour de progression par le
+    websocket, import Tautulli, cloture tardive) restait invisible dans les « lectures
+    quotidiennes » alors que les analyses, elles, sont calculees en direct sur les
+    sessions. Les deux moities de la meme page se contredisaient, et l'ecart se voyait
+    surtout une fois la page restreinte a un spectateur.
+
+    On compare donc jour par jour ce que disent les sessions et ce que disent les
+    agregats, et on ne reconstruit que ce qui a derive. Sur un historique stable, aucune
+    ecriture n'a lieu ; le cache de `activity_statistics` limite par ailleurs cette
+    comparaison a une fois par minute et par perimetre.
+    """
+    window_start = datetime.combine(start_day, datetime_time.min)
+    window_end = datetime.combine(end_day + timedelta(days=1), datetime_time.min)
+    day_expr = func.date(PlaybackSession.started_at)
+
+    session_rows = (
         await db.execute(
-            select(func.count(PlaybackDailyAggregate.id)).filter(
-                PlaybackDailyAggregate.day >= start_day,
-                PlaybackDailyAggregate.day <= end_day,
+            select(
+                day_expr,
+                func.count(PlaybackSession.id),
+                func.coalesce(func.sum(PlaybackSession.watched_ms), 0),
+                func.sum(case((PlaybackSession.playback_method == "transcode", 1), else_=0)),
             )
+            .filter(PlaybackSession.started_at >= window_start, PlaybackSession.started_at < window_end)
+            .group_by(day_expr)
         )
-    ).scalar() or 0
-    if aggregate_count:
-        return
-    session_days = (
-        (
-            await db.execute(
-                select(func.date(PlaybackSession.started_at))
-                .filter(
-                    PlaybackSession.started_at >= datetime.combine(start_day, datetime_time.min),
-                    PlaybackSession.started_at < datetime.combine(end_day + timedelta(days=1), datetime_time.min),
-                )
-                .distinct()
+    ).all()
+    aggregate_rows = (
+        await db.execute(
+            select(
+                PlaybackDailyAggregate.day,
+                func.coalesce(func.sum(PlaybackDailyAggregate.sessions), 0),
+                func.coalesce(func.sum(PlaybackDailyAggregate.watch_ms), 0),
+                func.coalesce(func.sum(PlaybackDailyAggregate.transcodes), 0),
             )
+            .filter(PlaybackDailyAggregate.day >= start_day, PlaybackDailyAggregate.day <= end_day)
+            .group_by(PlaybackDailyAggregate.day)
         )
-        .scalars()
-        .all()
-    )
-    await _rebuild_daily_aggregates(db, {_as_date(day) for day in session_days if day})
+    ).all()
+
+    def _totals(rows) -> dict[date, tuple[int, int, int]]:
+        return {
+            _as_date(row[0]): (int(row[1] or 0), int(row[2] or 0), int(row[3] or 0)) for row in rows if row[0] is not None
+        }
+
+    from_sessions = _totals(session_rows)
+    from_aggregates = _totals(aggregate_rows)
+    # Les jours presents d'un cote seulement comptent aussi : un jour purge de ses
+    # sessions doit voir son agregat disparaitre, sans quoi le total resterait gonfle.
+    stale = {
+        day
+        for day in set(from_sessions) | set(from_aggregates)
+        if from_sessions.get(day, (0, 0, 0)) != from_aggregates.get(day, (0, 0, 0))
+    }
+    await _rebuild_daily_aggregates(db, stale)
 
 
-async def _aggregate_overview(db, cutoff: datetime, previous_cutoff: datetime) -> dict:
+async def _aggregate_overview(db, cutoff: datetime, previous_cutoff: datetime, user: str | None = None) -> dict:
     start_day, cutoff_day = previous_cutoff.date(), cutoff.date()
     end_day = now_utc_naive().date()
     await _ensure_daily_aggregates(db, start_day, end_day)
+    # Restreindre a un utilisateur porte sur les memes agregats journaliers : les totaux,
+    # la courbe et la periode precedente restent donc exacts, la ou un filtrage cote
+    # client n'aurait pu corriger que les listes.
+    scope = (PlaybackDailyAggregate.user_name == user,) if user else ()
     current_filter = (
         PlaybackDailyAggregate.day >= cutoff_day,
         PlaybackDailyAggregate.day <= end_day,
+        *scope,
     )
     user_count = (
         await db.execute(
@@ -1554,6 +1633,7 @@ async def _aggregate_overview(db, cutoff: datetime, previous_cutoff: datetime) -
             ).filter(
                 PlaybackDailyAggregate.day >= start_day,
                 PlaybackDailyAggregate.day < cutoff_day,
+                *scope,
             )
         )
     ).one()
@@ -1580,19 +1660,26 @@ async def _aggregate_overview(db, cutoff: datetime, previous_cutoff: datetime) -
     }
 
 
-async def activity_snapshot(days: int = 30, db=None) -> dict:
+async def activity_snapshot(days: int = 30, db=None, user: str | None = None) -> dict:
+    """Historique, agregats et analyses de la periode.
+
+    `user` restreint tout le calcul a un seul spectateur -- cartes, courbe, medias,
+    qualite et comparaison avec la periode precedente comprises. Sans lui, rien ne
+    change : c'est la vue de tout le monde.
+    """
     days = min(max(days, 1), 3650)
     cutoff = datetime.combine((now_utc_naive() - timedelta(days=days)).date(), datetime_time.min)
     previous_cutoff = cutoff - timedelta(days=days)
     if db is None:
         async with AsyncSessionLocal() as owned_db:
-            return await activity_snapshot(days, db=owned_db)
+            return await activity_snapshot(days, db=owned_db, user=user)
+    session_scope = (PlaybackSession.user_name == user,) if user else ()
     active = (
         (
             await db.execute(
                 select(PlaybackSession)
                 .options(selectinload(PlaybackSession.segments))
-                .filter(PlaybackSession.ended_at.is_(None))
+                .filter(PlaybackSession.ended_at.is_(None), *session_scope)
                 .order_by(PlaybackSession.started_at.desc())
             )
         )
@@ -1604,7 +1691,7 @@ async def activity_snapshot(days: int = 30, db=None) -> dict:
             await db.execute(
                 select(PlaybackSession)
                 .options(selectinload(PlaybackSession.segments))
-                .filter(PlaybackSession.started_at >= cutoff)
+                .filter(PlaybackSession.started_at >= cutoff, *session_scope)
                 .order_by(PlaybackSession.started_at.desc())
                 .limit(100)
             )
@@ -1649,7 +1736,7 @@ async def activity_snapshot(days: int = 30, db=None) -> dict:
                         PlaybackSession.ended_at,
                     )
                 )
-                .filter(PlaybackSession.started_at >= cutoff)
+                .filter(PlaybackSession.started_at >= cutoff, *session_scope)
                 .order_by(PlaybackSession.started_at)
             )
         )
@@ -1670,13 +1757,14 @@ async def activity_snapshot(days: int = 30, db=None) -> dict:
                 .filter(
                     PlaybackSession.started_at >= previous_cutoff,
                     PlaybackSession.started_at < cutoff,
+                    *session_scope,
                 )
             )
         )
         .scalars()
         .all()
     )
-    overview = await _aggregate_overview(db, cutoff, previous_cutoff)
+    overview = await _aggregate_overview(db, cutoff, previous_cutoff, user)
     analytics = _analytics(list(analytics_rows), list(previous_rows))
     previous = overview.pop("comparison")
     current = overview["summary"]
@@ -1693,6 +1781,121 @@ async def activity_snapshot(days: int = 30, db=None) -> dict:
         "history": [_serialize(row) for row in history],
         **overview,
         "analytics": analytics,
+    }
+
+
+def _device_expression():
+    """Libellé d'appareil tel que l'interface l'affiche : lecteur, sinon produit, sinon plateforme."""
+    return func.coalesce(
+        func.nullif(PlaybackSession.player_title, ""),
+        func.nullif(PlaybackSession.product, ""),
+        func.nullif(PlaybackSession.platform, ""),
+    )
+
+
+async def activity_history(
+    days: int = 30,
+    db=None,
+    user: str | None = None,
+    method: str | None = None,
+    media_type: str | None = None,
+    device: str | None = None,
+    query: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> dict:
+    """Historique filtré et paginé, avec les valeurs disponibles pour chaque filtre.
+
+    Le filtrage vit ici et non dans le navigateur : l'instantané d'activité ne porte que
+    les cent dernières lectures toutes personnes confondues, et affiner cette page-là
+    donnait « les lectures d'Untel parmi les cent dernières » au lieu de ses cent
+    dernières -- un résultat faux que le compteur affiché ne trahissait pas.
+    """
+    if db is None:
+        async with AsyncSessionLocal() as owned_db:
+            return await activity_history(
+                days, db=owned_db, user=user, method=method, media_type=media_type,
+                device=device, query=query, offset=offset, limit=limit,
+            )
+    days = min(max(days, 1), 3650)
+    cutoff = datetime.combine((now_utc_naive() - timedelta(days=days)).date(), datetime_time.min)
+    device_expression = _device_expression()
+
+    filters = [PlaybackSession.started_at >= cutoff]
+    if user:
+        filters.append(PlaybackSession.user_name == user)
+    if method:
+        filters.append(PlaybackSession.playback_method == method)
+    if media_type:
+        filters.append(PlaybackSession.media_type == media_type)
+    if device:
+        filters.append(device_expression == device)
+    if query and query.strip():
+        needle = f"%{query.strip()}%"
+        filters.append(
+            or_(
+                PlaybackSession.title.ilike(needle),
+                PlaybackSession.grandparent_title.ilike(needle),
+                PlaybackSession.user_name.ilike(needle),
+                PlaybackSession.player_title.ilike(needle),
+                PlaybackSession.product.ilike(needle),
+                PlaybackSession.platform.ilike(needle),
+                PlaybackSession.player_address.ilike(needle),
+                PlaybackSession.geo_city.ilike(needle),
+                PlaybackSession.geo_country.ilike(needle),
+            )
+        )
+
+    total = (await db.execute(select(func.count(PlaybackSession.id)).filter(*filters))).scalar() or 0
+    rows = (
+        (
+            await db.execute(
+                select(PlaybackSession)
+                .options(selectinload(PlaybackSession.segments))
+                .filter(*filters)
+                .order_by(PlaybackSession.started_at.desc(), PlaybackSession.id.desc())
+                .offset(max(offset, 0))
+                .limit(min(max(limit, 1), 500))
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    # Les listes de choix portent sur la période, pas sur la sélection courante : sinon
+    # choisir un utilisateur faisait disparaître tous les autres du menu.
+    period_filter = (PlaybackSession.started_at >= cutoff,)
+    users = (
+        (
+            await db.execute(
+                select(PlaybackSession.user_name)
+                .filter(*period_filter, PlaybackSession.user_name.is_not(None), PlaybackSession.user_name != "")
+                .distinct()
+                .order_by(PlaybackSession.user_name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    devices = (
+        (
+            await db.execute(
+                select(device_expression)
+                .filter(*period_filter, device_expression.is_not(None))
+                .distinct()
+                .order_by(device_expression)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return {
+        "items": [_serialize(row) for row in rows],
+        "total": int(total),
+        "offset": max(offset, 0),
+        "limit": limit,
+        "has_more": max(offset, 0) + len(rows) < int(total),
+        "facets": {"users": [value for value in users if value], "devices": [value for value in devices if value]},
     }
 
 
@@ -1722,13 +1925,20 @@ async def live_activity_snapshot(db=None) -> dict:
     }
 
 
-async def activity_statistics(days: int = 30, db=None, refresh: bool = False) -> dict:
-    """Retourne l'historique et les agrégats, mis en cache séparément du direct."""
+async def activity_statistics(days: int = 30, db=None, refresh: bool = False, user: str | None = None) -> dict:
+    """Retourne l'historique et les agrégats, mis en cache séparément du direct.
+
+    `user` entre dans la clé de cache : une vue restreinte à un spectateur ne doit ni
+    lire ni écraser l'entrée globale. Le nombre d'entrées reste borné par le nombre de
+    spectateurs actifs multiplié par les quatre périodes de l'interface, et chacune
+    expire au bout de dix minutes.
+    """
     days = min(max(days, 1), 3650)
-    cache_key = f"watchdeck:playback:statistics:{days}"
+    user = (user or "").strip() or None
+    cache_key = f"watchdeck:playback:statistics:{days}" + (f":user:{user}" if user else "")
 
     async def _compute(session):
-        snapshot = await activity_snapshot(days, db=session)
+        snapshot = await activity_snapshot(days, db=session, user=user)
         snapshot.pop("active", None)
         return snapshot
 
