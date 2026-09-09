@@ -92,6 +92,22 @@ function onInput(event: Event): void {
 }
 .ui-search-field__sep { flex: none; width: 1px; height: 18px; background: var(--border); }
 
+/* Sur telephone, le champ se confondait avec le fond de la barre : meme gris pour le
+   contour, la barre et la page. Le contour prend donc la couleur de l'application, et
+   la loupe avec lui -- c'est le seul repere qui dit ou taper. */
+@media (max-width: 767.98px) {
+  .ui-search-field {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  }
+  .ui-search-field:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .ui-search-field__icon { color: var(--accent); }
+  .ui-search-field input::placeholder { color: color-mix(in srgb, var(--text) 62%, transparent); }
+}
+
 .ui-search-field__filter {
   display: inline-flex;
   flex: none;

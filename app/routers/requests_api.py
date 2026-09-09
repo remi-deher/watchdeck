@@ -20,6 +20,7 @@ from ..models import (
     DownloadClient,
     LibraryItem,
     MediaRequest,
+    NotificationLog,
     PlexUser,
     RequestStatus,
     Settings,
@@ -869,6 +870,27 @@ async def reject_request(request_id: int, body: RejectBody, request: Request, db
     return {"ok": True, "status": "rejected", "id": req.id}
 
 
+class AutoImportBody(BaseModel):
+    """`None` remet le média sous le réglage global : c'est un état à part entière."""
+
+    auto_import_reconciliation: Optional[bool] = None
+
+
+@router.put("/requests/{request_id}/auto-import", dependencies=[Depends(require_moderator)])
+async def set_auto_import_reconciliation(
+    request_id: int, body: AutoImportBody, db: AsyncSession = Depends(get_db_async)
+):
+    """Surcharge le rapprochement automatique pour ce média seul.
+
+    Un média dont les releases se rattachent mal peut rester en manuel sans qu'on
+    désactive le réglage pour tous les autres — et inversement.
+    """
+    req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    req.auto_import_reconciliation = body.auto_import_reconciliation
+    await db.commit()
+    return {"status": "ok", "auto_import_reconciliation": req.auto_import_reconciliation}
+
+
 @router.post("/requests/{request_id}/retry", dependencies=[Depends(require_moderator)])
 async def retry_request(request_id: int, db: AsyncSession = Depends(get_db_async)):
     """Repasse une demande en `pending` et déclenche un polling immédiat."""
@@ -998,10 +1020,26 @@ async def withdraw_request(
             requester_users = await _resolve_requester_users(req, db)
             recipients = _get_recipients(requester_users, settings, "cancelled")
             for recipient in recipients:
+                # Le mail d'annulation partait sans laisser de trace : le journal des
+                # notifications ne montrait que « request » et « available », et rien ne
+                # permettait de verifier qu'un demandeur avait bien ete prevenu.
+                log = NotificationLog(
+                    sent_at=now_utc_naive(),
+                    event="cancelled",
+                    recipient=recipient,
+                    success=True,
+                    media_title=req.title,
+                    media_type=req.media_type,
+                    req_id=req.id,
+                    is_admin=True,
+                )
                 try:
                     await email_service.send_cancelled_notification(settings, req, recipient, reason=reason)
                 except Exception as e:
                     logger.warning(f"Envoi du mail 'cancelled' échoué pour {recipient} (req#{req.id}): {e}")
+                    log.success = False
+                    log.error_msg = str(e)
+                db.add(log)
 
     await delete_request_episode_cache(db, req.id)
     await db.delete(req)

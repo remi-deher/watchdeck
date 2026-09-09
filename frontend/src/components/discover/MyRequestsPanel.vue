@@ -94,6 +94,16 @@
         </template>
       </UiEmptyState>
     </div>
+
+    <ReasonPickerModal
+      :open="!!pendingWithdraw"
+      event="cancelled"
+      :subtitle="pendingWithdraw ? `« ${pendingWithdraw.title} » sera retiré de Sonarr/Radarr et empêché de revenir automatiquement.` : ''"
+      :initial="pendingWithdraw?.fulfillment_error || ''"
+      :busy="busy"
+      @cancel="pendingWithdraw = null"
+      @confirm="confirmWithdraw"
+    />
   </div>
 </template>
 
@@ -111,6 +121,7 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import LibraryCard from '@/components/library/LibraryCard.vue';
+import ReasonPickerModal from '@/components/requests/ReasonPickerModal.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
@@ -282,20 +293,26 @@ function openDetail(item: any): void {
   router.push(mediaDetailPath(item, 'request', { discover: true }));
 }
 
-async function act(row: any, action: string): Promise<void> {
-  /* L'annulation demande une explication : elle bloque le retour automatique du media
-     et previent le demandeur par mail. Sans un mot, il redemande la semaine suivante. */
-  let body: string | undefined;
-  if (action === 'withdraw') {
-    const reason = window.prompt(
-      `Annuler « ${row.title} » et empêcher son retour automatique ?
+/* L'annulation demande une explication : elle bloque le retour automatique du media et
+   previent le demandeur par mail. Le motif se choisit dans une liste partagee plutot que
+   de se ressaisir a chaque fois. */
+const pendingWithdraw = ref<any | null>(null);
 
-Message envoyé au demandeur (facultatif) :`,
-      row.fulfillment_error || ''
-    );
-    if (reason === null) return;
-    body = JSON.stringify({ reason });
+function act(row: any, action: string): void {
+  if (action === 'withdraw') {
+    pendingWithdraw.value = row;
+    return;
   }
+  void runAction(row, action);
+}
+
+async function confirmWithdraw(reason: string): Promise<void> {
+  const row = pendingWithdraw.value;
+  pendingWithdraw.value = null;
+  if (row) await runAction(row, 'withdraw', JSON.stringify({ reason }));
+}
+
+async function runAction(row: any, action: string, body?: string): Promise<void> {
   busy.value = true;
   try {
     await api(`/api/requests/${row.id}/${action}`, { method: 'POST', body });

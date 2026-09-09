@@ -87,6 +87,11 @@ class Settings(Base):
     # (fichier telecharge mais non importable). Frequent avec les episodes "TBA" -- bascule
     # dediee pour pouvoir la couper sans desactiver les vraies alertes d'echec de transmission.
     notify_import_blocked: Mapped[bool] = mapped_column(default=True)
+    # Rapprochement automatique des imports bloques : quand *arr n'associe pas seul un
+    # telechargement termine a son media, l'application tente l'import a sa place --
+    # mais seulement quand le choix est sans ambiguite (voir import_reconciliation).
+    # Reglage par defaut : chaque media peut le surcharger.
+    auto_import_reconciliation: Mapped[bool] = mapped_column(default=False)
     email_branding: Mapped[Optional["EmailBranding"]] = relationship(
         cascade="all, delete-orphan", lazy="selectin", uselist=False
     )

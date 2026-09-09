@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, Index, Text, UniqueConstraint, desc, text
+from sqlalchemy import Boolean, ForeignKey, Index, Text, UniqueConstraint, desc, text
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from ..utils import now_utc_naive
@@ -62,6 +62,10 @@ class MediaRequest(Base):
     # échoue à nouveau doit pouvoir renotifier. Voir requests_api.py (retry*) et
     # watchlist_poller.py (reset au succès).
     failure_mail_sent: Mapped[bool] = mapped_column(default=False)
+    # Surcharge du rapprochement automatique pour ce media seul. `None` suit le reglage
+    # global : un media capricieux peut ainsi rester manuel sans desactiver le reste,
+    # et inversement.
+    auto_import_reconciliation: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
     # True si `requested_at` (date réelle d'ajout à la watchlist Plex, via <pubDate> RSS ou
     # l'API) dépassait déjà 24h au moment où l'app a détecté cet item — cas d'un vieil item

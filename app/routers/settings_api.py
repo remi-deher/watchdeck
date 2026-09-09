@@ -159,6 +159,7 @@ class SettingsUpdate(BaseModel):
     torrent_ratio_limit: Optional[float] = None
     torrent_seed_time_limit_hours: Optional[int] = None
     torrent_auto_delete_files: Optional[bool] = None
+    auto_import_reconciliation: Optional[bool] = None
     availability_confirmation_mode: Optional[str] = None
     availability_confirmation_timeout_minutes: Optional[int] = None
     # --- VFF ---

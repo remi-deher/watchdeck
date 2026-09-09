@@ -40,6 +40,7 @@
             @close-request="closeRequest"
             @delete-request="deleteRequest"
             @withdraw-request="withdrawRequest"
+            @set-auto-import="setAutoImport"
             @notify-user="notifyUser"
             @promote-requester="promoteRequester"
             @remove-requester="removeRequester"
@@ -148,6 +149,15 @@
     @confirm="confirmRecOptions"
   />
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
+  <ReasonPickerModal
+    :open="!!withdrawTarget"
+    event="cancelled"
+    :subtitle="withdrawTarget ? `« ${withdrawTarget.title || detail.title} » sera retiré de Sonarr/Radarr et empêché de revenir automatiquement.` : ''"
+    :initial="withdrawTarget?.fulfillment_error || ''"
+    :busy="busy"
+    @cancel="settleReason(null)"
+    @confirm="settleReason"
+  />
 </template>
 
 <script setup lang="ts">
@@ -167,6 +177,7 @@ import MediaCast from "@/components/media/MediaCast.vue";
 import MediaSaga from "@/components/media/MediaSaga.vue";
 import MediaMusicCatalog from "@/components/media/MediaMusicCatalog.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import ReasonPickerModal from "@/components/requests/ReasonPickerModal.vue";
 import AppSubnav from "@/components/ui/AppSubnav.vue";
 import { useConfirm } from "@/composables/useConfirm";
 import { canModerateSession, loadSession } from "@/composables/useSession";
@@ -412,7 +423,39 @@ const {
   detail, newRequesterId, askConfirm, busy, error,
   reload: load,
   onDeleted: () => router.push('/library'),
+  askReason: (row) => askWithdrawReason(row),
 });
+
+/* Le motif d'annulation se choisit dans la liste partagee : la promesse n'est tenue
+   qu'une fois la modale refermee, ce qui laisse l'action attendre la reponse. */
+const withdrawTarget = ref<any | null>(null);
+let resolveReason: ((value: string | null) => void) | null = null;
+function askWithdrawReason(row: any): Promise<string | null> {
+  withdrawTarget.value = row;
+  return new Promise((resolve) => { resolveReason = resolve; });
+}
+function settleReason(value: string | null): void {
+  withdrawTarget.value = null;
+  resolveReason?.(value);
+  resolveReason = null;
+}
+
+/* Surcharge par media du rapprochement automatique : `null` remet la demande sous le
+   reglage global, ce qui n'est pas la meme chose que « desactive ». */
+async function setAutoImport(row: any, value: boolean | null): Promise<void> {
+  busy.value = true;
+  try {
+    await api(`/api/requests/${row.id}/auto-import`, {
+      method: 'PUT',
+      body: JSON.stringify({ auto_import_reconciliation: value }),
+    });
+    row.auto_import_reconciliation = value;
+  } catch (e: any) {
+    error.value = e?.message || String(e);
+  } finally {
+    busy.value = false;
+  }
+}
 
 function goBack(): void {
   if (window.history.state?.back) router.back();

@@ -23,6 +23,7 @@
         <PlanningMaintenanceTab v-else-if="tab==='scheduled-tasks'"/>
         <AcquisitionsConflictsTab v-else-if="tab==='acquisitions'"/>
         <EmailTemplatesPanel v-else-if="tab==='templates'"/>
+        <MessageReasonsPanel v-else-if="tab==='reasons'"/>
         <SystemVersionTab v-else-if="tab==='system-version'"/>
         <DataPrivacyTab v-else/>
       </div>
@@ -55,6 +56,7 @@ const VfUpgradesSettingsTab = defineAsyncComponent(() => import('@/components/se
 const PlanningMaintenanceTab = defineAsyncComponent(() => import('@/components/settings/PlanningMaintenanceTab.vue'));
 const AcquisitionsConflictsTab = defineAsyncComponent(() => import('@/components/settings/AcquisitionsConflictsTab.vue'));
 const EmailTemplatesPanel = defineAsyncComponent(() => import('@/components/EmailTemplatesPanel.vue'));
+const MessageReasonsPanel = defineAsyncComponent(() => import('@/components/settings/MessageReasonsPanel.vue'));
 const DataPrivacyTab = defineAsyncComponent(() => import('@/components/settings/DataPrivacyTab.vue'));
 const SystemVersionTab = defineAsyncComponent(() => import('@/components/settings/SystemVersionTab.vue'));
 
