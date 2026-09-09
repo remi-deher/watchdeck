@@ -174,9 +174,7 @@ class TestReconciliation:
         async_db.add(_session(user_name="Lisa", started_at=start))
         async_db.commit()
 
-        found = await find_existing_session(
-            async_db, MatchKey(user_name="Rémi", rating_key="5001", started_at=start)
-        )
+        found = await find_existing_session(async_db, MatchKey(user_name="Rémi", rating_key="5001", started_at=start))
 
         assert found is None
 
@@ -207,8 +205,13 @@ class TestOverlapBeatsProximity:
         """
         base = now_utc_naive().replace(hour=11, minute=33, second=0, microsecond=0)
         first_end = base + timedelta(hours=1, minutes=32)
-        async_db.add(_session(source_session_id="deuxieme", started_at=first_end + timedelta(seconds=17),
-                              ended_at=first_end + timedelta(minutes=3)))
+        async_db.add(
+            _session(
+                source_session_id="deuxieme",
+                started_at=first_end + timedelta(seconds=17),
+                ended_at=first_end + timedelta(minutes=3),
+            )
+        )
         async_db.commit()
 
         found = await find_existing_session(
@@ -268,14 +271,20 @@ class TestPlexHistoryAnchoring:
         async_db.commit()
 
         # Ancré sur la fin : rapproché.
-        assert await find_existing_session(
-            async_db, MatchKey(user_name="Lisa", rating_key="5001", ended_at=end + timedelta(seconds=30))
-        ) is not None
+        assert (
+            await find_existing_session(
+                async_db, MatchKey(user_name="Lisa", rating_key="5001", ended_at=end + timedelta(seconds=30))
+            )
+            is not None
+        )
 
         # Le même instant lu comme un début : hors fenêtre, donc pas de rapprochement.
-        assert await find_existing_session(
-            async_db, MatchKey(user_name="Lisa", rating_key="5001", started_at=end + timedelta(seconds=30))
-        ) is None
+        assert (
+            await find_existing_session(
+                async_db, MatchKey(user_name="Lisa", rating_key="5001", started_at=end + timedelta(seconds=30))
+            )
+            is None
+        )
 
 
 @pytest.mark.asyncio

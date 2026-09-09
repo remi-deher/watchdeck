@@ -286,13 +286,17 @@ async def find_existing_session(
     """
     if source and key.source_id:
         same_source = (
-            await db.execute(
-                select(PlaybackSession).filter(
-                    PlaybackSession.source == source,
-                    PlaybackSession.source_session_id == key.source_id,
+            (
+                await db.execute(
+                    select(PlaybackSession).filter(
+                        PlaybackSession.source == source,
+                        PlaybackSession.source_session_id == key.source_id,
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if same_source is not None:
             return same_source
 

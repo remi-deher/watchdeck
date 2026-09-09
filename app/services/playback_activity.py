@@ -1554,7 +1554,9 @@ async def _ensure_daily_aggregates(db, start_day: date, end_day: date) -> None:
 
     def _totals(rows) -> dict[date, tuple[int, int, int]]:
         return {
-            _as_date(row[0]): (int(row[1] or 0), int(row[2] or 0), int(row[3] or 0)) for row in rows if row[0] is not None
+            _as_date(row[0]): (int(row[1] or 0), int(row[2] or 0), int(row[3] or 0))
+            for row in rows
+            if row[0] is not None
         }
 
     from_sessions = _totals(session_rows)
@@ -1814,8 +1816,15 @@ async def activity_history(
     if db is None:
         async with AsyncSessionLocal() as owned_db:
             return await activity_history(
-                days, db=owned_db, user=user, method=method, media_type=media_type,
-                device=device, query=query, offset=offset, limit=limit,
+                days,
+                db=owned_db,
+                user=user,
+                method=method,
+                media_type=media_type,
+                device=device,
+                query=query,
+                offset=offset,
+                limit=limit,
             )
     days = min(max(days, 1), 3650)
     cutoff = datetime.combine((now_utc_naive() - timedelta(days=days)).date(), datetime_time.min)
