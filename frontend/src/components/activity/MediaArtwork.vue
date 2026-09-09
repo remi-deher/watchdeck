@@ -1,11 +1,12 @@
 <template>
   <div class="media-artwork" :class="size">
-    <img v-if="src && !failed" :src="src" :alt="alt" loading="lazy" decoding="async" @error="failed=true">
+    <img v-if="src && !failed" :src="proxyUrl(src, { width: 200 }) ?? undefined" :alt="alt" loading="lazy" decoding="async" @error="failed=true">
     <component :is="fallbackIcon" v-else />
   </div>
 </template>
 
 <script setup lang="ts">
+import { proxyUrl } from '@/utils/mediaImage';
 import { Clapperboard, Music2 } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 

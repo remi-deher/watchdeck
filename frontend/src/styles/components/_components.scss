@@ -560,6 +560,14 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 .detail-drawer::-webkit-scrollbar,
 .modal-panel::-webkit-scrollbar { width: 0; height: 0; }
 
+/* Une boite de dialogue ouverte depuis un tiroir doit passer devant lui. Les deux
+   partageaient le meme z-index : seul l'ordre du DOM les departageait, et la modale --
+   montee avec sa page, donc teleportee avant le tiroir ouvert plus tard -- se retrouvait
+   dessous. Cliquer « Fusionner » ouvrait bien la confirmation, mais elle etait
+   inatteignable : le geste n'avait aucun effet visible. */
+.drawer-backdrop:has(> .modal-panel) { z-index: 50; }
+.modal-panel { z-index: 51; }
+
 @media (max-width: 767.98px) {
   .modal-panel > .actions,
   .detail-drawer > .drawer-actions {

@@ -72,4 +72,16 @@ describe('proxyUrl', () => {
     expect(proxyUrl(undefined)).toBe(undefined);
     expect(proxyUrl('pas-une-url')).toBe('pas-une-url');
   });
+  it("passe par le proxy pour un hote qui refuse le chargement direct", () => {
+    // Les URL de metadata-static.plex.tv expirent (403 AccessDenied). Le proxy en garde
+    // une copie sur disque : passer par lui fait survivre l'affiche a la disparition de
+    // sa source, ce qui etait le cas de « The Hunger Games » en production.
+    expect(isProxied('https://metadata-static.plex.tv/6/gracenote/673b1b58.jpg')).toBe(true);
+  });
+
+  it("laisse tranquilles les hotes publics qui se chargent normalement", () => {
+    // Proxifier ce qui marche deja ferait transiter tout le catalogue par le serveur.
+    expect(isProxied('https://image.tmdb.org/t/p/w342/abc.jpg')).toBe(false);
+    expect(isProxied('https://artworks.thetvdb.com/banners/v4/series/1/posters/x.jpg')).toBe(false);
+  });
 });

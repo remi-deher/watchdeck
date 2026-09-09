@@ -379,6 +379,53 @@ test("l'historique charge la suite au defilement", async ({ page }) => {
   await expect(page.locator(".history-day").first()).toBeVisible();
 });
 
+test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page }) => {
+  // Le tiroir et la modale partageaient le meme z-index : seul l'ordre du DOM les
+  // departageait, et la modale -- montee avec sa page, donc teleportee avant le tiroir
+  // ouvert plus tard -- passait dessous. Le bouton « Fusionner » ouvrait bien la
+  // confirmation, mais aucun clic ne l'atteignait.
+  const user = (id, name) => ({
+    id,
+    plex_user_id: name.toLowerCase(),
+    username: name,
+    display_name: name,
+    friendly_name: name,
+    enabled: true,
+    role: "user",
+    seer_user_id: null,
+  });
+  await page.route("**/api/users**", (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== "GET") return route.continue();
+    // La fiche d'un utilisateur et la liste passent par la meme racine d'URL.
+    const match = url.pathname.match(/\/api\/users\/(\d+)$/);
+    if (match) return route.fulfill({ json: user(Number(match[1]), match[1] === "1" ? "Alice" : "Bob") });
+    if (url.pathname !== "/api/users") return route.fulfill({ json: [] });
+    route.fulfill({ json: [user(1, "Alice"), user(2, "Bob")] });
+  });
+  await page.goto("/users");
+
+  const row = page.getByRole("button", { name: /Alice/ }).first();
+  await expect(row).toBeVisible({ timeout: 15000 });
+  await row.click();
+
+  const drawer = page.locator(".detail-drawer");
+  await expect(drawer).toBeVisible();
+  await drawer.getByText("Seer", { exact: true }).click();
+  await drawer.locator("select").selectOption({ label: "Bob" });
+  await drawer.getByRole("button", { name: "Fusionner" }).click();
+
+  // La confirmation doit etre au premier plan : c'est elle qui doit recevoir le clic.
+  const modal = page.locator(".modal-panel");
+  await expect(modal).toBeVisible();
+  const reachable = await modal.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return node.contains(top);
+  });
+  expect(reachable, "la confirmation est recouverte par le tiroir").toBe(true);
+});
+
 test("la recherche est centree sur le contenu et occupe la barre", async ({ page }) => {
   test.skip(isCompact(page), "sur mobile la recherche se déploie à la demande");
   await page.goto("/discover");

@@ -5,7 +5,7 @@
       <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
-          <img v-if="detail.poster_url" :src="detail.poster_url" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
+          <img v-if="detail.poster_url" :src="proxyUrl(detail.poster_url, { width: 500 }) ?? undefined" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
             <Music2 v-if="isMusic" />
             <Film v-else />
@@ -103,6 +103,7 @@
 </template>
 
 <script setup lang="ts">
+import { proxyUrl } from '@/utils/mediaImage';
 import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
 import { computed, ref } from 'vue';
 import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';

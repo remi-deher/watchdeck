@@ -3,7 +3,7 @@
     <PanelList :items="items">
       <template #default="{ item }">
       <div class="inline-row gap-10">
-        <img v-if="item.poster_url" :src="item.poster_url" class="mini-poster" alt="" loading="lazy" decoding="async" />
+        <img v-if="item.poster_url" :src="proxyUrl(item.poster_url, { width: 120 }) ?? undefined" class="mini-poster" alt="" loading="lazy" decoding="async" />
         <div v-else class="mini-poster"><Film style="width: 14px; height: 20px; margin: 8px 5px;" /></div>
         <div>
           <strong>{{ item.title }}</strong>
@@ -17,6 +17,7 @@
 </template>
 
 <script setup lang="ts">
+import { proxyUrl } from '@/utils/mediaImage';
 import PanelCard from '@/components/ui/PanelCard.vue';
 import PanelList from '@/components/ui/PanelList.vue';
 import { mediaTypeLabel } from '@/utils/labels';
