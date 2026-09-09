@@ -24,6 +24,7 @@ export type SettingsPanel =
   | 'notifications-channels'
   | 'notifications-rules'
   | 'templates'
+  | 'reasons'
   | 'data'
   | 'system-version';
 
@@ -40,6 +41,7 @@ export const PANEL_PATHS: Record<SettingsPanel, string> = {
   'notifications-channels': '/settings/notifications/channels',
   'notifications-rules': '/settings/notifications/rules',
   templates: '/settings/notifications/templates',
+  reasons: '/settings/notifications/reasons',
   data: '/settings/system',
   'system-version': '/settings/system/version',
 };

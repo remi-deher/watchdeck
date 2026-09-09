@@ -20,6 +20,7 @@ from ..models import (
     DownloadClient,
     LibraryItem,
     MediaRequest,
+    NotificationLog,
     PlexUser,
     RequestStatus,
     Settings,
@@ -998,10 +999,26 @@ async def withdraw_request(
             requester_users = await _resolve_requester_users(req, db)
             recipients = _get_recipients(requester_users, settings, "cancelled")
             for recipient in recipients:
+                # Le mail d'annulation partait sans laisser de trace : le journal des
+                # notifications ne montrait que « request » et « available », et rien ne
+                # permettait de verifier qu'un demandeur avait bien ete prevenu.
+                log = NotificationLog(
+                    sent_at=now_utc_naive(),
+                    event="cancelled",
+                    recipient=recipient,
+                    success=True,
+                    media_title=req.title,
+                    media_type=req.media_type,
+                    req_id=req.id,
+                    is_admin=True,
+                )
                 try:
                     await email_service.send_cancelled_notification(settings, req, recipient, reason=reason)
                 except Exception as e:
                     logger.warning(f"Envoi du mail 'cancelled' échoué pour {recipient} (req#{req.id}): {e}")
+                    log.success = False
+                    log.error_msg = str(e)
+                db.add(log)
 
     await delete_request_episode_cache(db, req.id)
     await db.delete(req)

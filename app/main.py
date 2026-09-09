@@ -67,6 +67,7 @@ from .routers import (
     library_api,
     maintenance,
     manual_import_api,
+    message_reasons_api,
     metrics_api,
     notifications_api,
     onboarding_api,
@@ -388,6 +389,7 @@ app.include_router(dashboard_api.router)
 app.include_router(library_api.router)
 app.include_router(library_analytics_api.router)
 app.include_router(issues_api.router)
+app.include_router(message_reasons_api.router)
 app.include_router(corrections_api.router)
 app.include_router(discover_api.router)
 app.include_router(vff_api.router)

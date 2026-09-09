@@ -1067,3 +1067,55 @@ def test_withdrawing_without_a_message_still_works(client, db):
     assert response.status_code == 200
     # Source non-Plex : rien à bloquer, donc pas de mail non plus.
     assert response.json()["plex_source"] is False
+
+def test_the_cancellation_email_is_written_to_the_notification_journal(client, db):
+    """Le mail d'annulation partait sans laisser de trace.
+
+    Le journal ne montrait que « request » et « available » : rien ne permettait de
+    vérifier qu'un demandeur avait bien été prévenu, ni de retrouver ce qui lui avait
+    été dit.
+    """
+    from app.models import NotificationLog
+
+    settings = Settings(id=1)
+    req = _req(status=RequestStatus.failed, source="rss", arr_id=None, title="Playthrough")
+    db.add_all([settings, req])
+    db.commit()
+    request_id = req.id
+
+    with (
+        patch("app.routers.requests_api._delete_media_from_arr", new=AsyncMock(return_value=(True, ""))),
+        patch("app.routers.requests_api._get_recipients", return_value=["alice@example.com"]),
+        patch("app.services.email_service.send_cancelled_notification", new=AsyncMock()),
+    ):
+        assert client.post(f"/api/requests/{request_id}/withdraw", json={"reason": "Absent du catalogue."}).status_code == 200
+
+    logs = db.query(NotificationLog).filter_by(event="cancelled").all()
+    assert [log.recipient for log in logs] == ["alice@example.com"]
+    assert logs[0].success is True
+    assert logs[0].media_title == "Playthrough"
+
+
+def test_a_failed_cancellation_email_is_journalled_as_such(client, db):
+    """Un envoi échoué doit se voir : c'est justement là qu'il faut relancer à la main."""
+    from app.models import NotificationLog
+
+    settings = Settings(id=1)
+    req = _req(status=RequestStatus.failed, source="rss", arr_id=None)
+    db.add_all([settings, req])
+    db.commit()
+    request_id = req.id
+
+    with (
+        patch("app.routers.requests_api._delete_media_from_arr", new=AsyncMock(return_value=(True, ""))),
+        patch("app.routers.requests_api._get_recipients", return_value=["alice@example.com"]),
+        patch(
+            "app.services.email_service.send_cancelled_notification",
+            new=AsyncMock(side_effect=RuntimeError("SMTP indisponible")),
+        ),
+    ):
+        assert client.post(f"/api/requests/{request_id}/withdraw").status_code == 200
+
+    log = db.query(NotificationLog).filter_by(event="cancelled").one()
+    assert log.success is False
+    assert "SMTP indisponible" in log.error_msg
