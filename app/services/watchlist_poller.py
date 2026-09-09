@@ -20,7 +20,7 @@ from .diagnostics import record_event, update_request_context
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
 from .download_clients import add_torrent_to_client
 from .notification_orchestrator import _add_co_requester, catch_up_requester_notifications
-from .radarr import add_movie, lookup_movie, resolve_tmdb_id
+from .radarr import add_movie, lookup_movie, resolve_tmdb_id, resolve_tmdb_id_by_title
 from .request_lifecycle import transition_request
 from .seer import _resolve_tmdb_id as _seer_resolve_tmdb_id
 from .seer import request_media as seer_request
@@ -357,6 +357,62 @@ async def _submit_to_torrent(
     return info_hash, False, arr_slug, client_id
 
 
+class MediaNotInCatalog(Exception):
+    """Le media n'existe pas dans le catalogue sur lequel s'appuie Sonarr/Radarr.
+
+    Distinct d'un echec de transmission : rien n'est en panne, et retenter ne changera
+    rien. Le demandeur doit l'apprendre autrement -- sa demande passe en examen manuel.
+    """
+
+
+def _unresolved_metadata_message(item: dict) -> str:
+    """Explique pourquoi un media n'a pas pu partir, plutot que d'enumerer les causes.
+
+    Le message d'origine -- « metadonnees introuvables (TMDB/TVDB) ou instance
+    inaccessible » -- melangeait deux situations opposees : un catalogue qui ignore le
+    media (definitif, rien a reparer) et un service en panne (temporaire, a retenter).
+    Il citait meme TVDB pour un film. On dit desormais ce qui a ete essaye.
+    """
+    identifiers = [
+        f"{label} {item[key]}"
+        for label, key in (("TMDB", "tmdb_id"), ("IMDB", "imdb_id"), ("TVDB", "tvdb_id"))
+        if item.get(key)
+    ]
+    tried = (
+        f" (identifiants essayes : {', '.join(identifiers)})" if identifiers else " (aucun identifiant fourni par Plex)"
+    )
+    kind = "film" if item.get("media_type") == "movie" else "serie"
+    catalog = "TMDB" if item.get("media_type") == "movie" else "TVDB"
+    return (
+        f"Ce {kind} est absent du catalogue {catalog} sur lequel s'appuie Sonarr/Radarr{tried}. "
+        "Le catalogue Plex est plus large : certaines fiches n'ont pas d'equivalent telechargeable."
+    )
+
+
+async def _default_radarr_credentials(settings: Settings, db: AsyncSession | None) -> tuple[str | None, str | None]:
+    """URL et cle de Radarr : champs historiques d'abord, instance par defaut ensuite.
+
+    Sans ce repli, une installation configuree uniquement via les instances sautait
+    silencieusement la normalisation TMDB.
+    """
+    if settings and settings.radarr_url and settings.radarr_api_key:
+        return settings.radarr_url, settings.radarr_api_key
+    if db is None:
+        return None, None
+    instance = (
+        (
+            await db.execute(
+                select(ArrInstance).filter(
+                    ArrInstance.arr_type == "radarr", ArrInstance.enabled, ArrInstance.is_default
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    return (instance.url, instance.api_key) if instance else (None, None)
+
+
 async def _ensure_tmdb_id(item: dict, settings: Settings, user_obj, db: AsyncSession | None = None) -> dict:
     """Garantit un tmdb_id sur l'item quand c'est possible (normalisation déduplication).
 
@@ -378,21 +434,7 @@ async def _ensure_tmdb_id(item: dict, settings: Settings, user_obj, db: AsyncSes
         return item
 
     if item.get("media_type") == "movie" and item.get("imdb_id") and settings:
-        radarr_url, radarr_api_key = settings.radarr_url, settings.radarr_api_key
-        if not (radarr_url and radarr_api_key) and db is not None:
-            inst = (
-                (
-                    await db.execute(
-                        select(ArrInstance).filter(
-                            ArrInstance.arr_type == "radarr", ArrInstance.enabled, ArrInstance.is_default
-                        )
-                    )
-                )
-                .scalars()
-                .first()
-            )
-            if inst:
-                radarr_url, radarr_api_key = inst.url, inst.api_key
+        radarr_url, radarr_api_key = await _default_radarr_credentials(settings, db)
         if radarr_url and radarr_api_key:
             resolved = await resolve_tmdb_id(radarr_url, radarr_api_key, item["imdb_id"])
             if resolved:
@@ -409,6 +451,20 @@ async def _ensure_tmdb_id(item: dict, settings: Settings, user_obj, db: AsyncSes
                     return {**item, "tmdb_id": str(tmdb_resolved)}
             except TmdbNotConfigured:
                 pass
+
+    # Dernier recours : demander a Radarr ce qu'il connait sous ce titre.
+    #
+    # Un IMDB id ne garantit rien : le flux RSS de Plex en porte que TMDB ignore -- son
+    # catalogue est plus large que celui de TMDB. « Christmas in South Park » (tt0263206)
+    # ne resout ni via Radarr ni via TMDB /find, alors que le meme film existe chez eux
+    # sous « Christmas Time in South Park ». On tente donc le titre meme quand un
+    # identifiant existait, des lors qu'aucun n'a abouti.
+    if item.get("media_type") == "movie" and settings:
+        radarr_url, radarr_api_key = await _default_radarr_credentials(settings, db)
+        if radarr_url and radarr_api_key:
+            resolved = await resolve_tmdb_id_by_title(radarr_url, radarr_api_key, item["title"], item.get("year"))
+            if resolved:
+                return {**item, "tmdb_id": resolved}
 
     if (
         not item.get("tvdb_id")
@@ -785,7 +841,7 @@ async def _process_watchlist_item(
         # Si aucun ID Radarr/Sonarr n'est retourné, et que ce n'est pas un film pré-existant,
         # et que le fallback torrent n'a pas non plus retourné de hash, c'est un échec.
         if arr_id is None and not already_existed and not item.get("_torrent_hash"):
-            raise Exception("Transmission échouée : métadonnées introuvables (TMDB/TVDB) ou instance inaccessible.")
+            raise MediaNotInCatalog(_unresolved_metadata_message(item))
 
         await transition_request(
             db,
@@ -826,7 +882,17 @@ async def _process_watchlist_item(
         }
         default_target = "Sonarr" if item["media_type"] == "show" else "Radarr"
         target_name = target_labels.get(item.get("_attempted_target"), default_target)
-        failure_reason = f"Impossible de transmettre a {target_name}. Verifiez la configuration."
+        if isinstance(e, MediaNotInCatalog):
+            # Ecrit pour le demandeur, pas pour l'administrateur : rien n'est en panne
+            # chez lui, et « verifiez la configuration » ne lui apprend rien. Sa demande
+            # reste visible cote administration, ou elle attend un examen manuel.
+            failure_reason = (
+                f"{item['title']} n'a pas ete trouve dans le catalogue utilise pour les telechargements. "
+                "Votre demande a ete transmise a l'administrateur du serveur pour un examen manuel : "
+                "il vous dira si ce media peut etre ajoute autrement."
+            )
+        else:
+            failure_reason = f"Impossible de transmettre a {target_name}. Verifiez la configuration."
 
     await db.commit()
 

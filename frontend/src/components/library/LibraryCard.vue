@@ -55,6 +55,19 @@
       <div class="badge-row card-badges">
         <span v-for="badge in badges" :key="badge.key" :class="badge.cls">{{ badge.label }}</span>
       </div>
+      <!-- Une demande en echec n'affichait que son badge : ni la raison, ni le moyen de
+           la clore. Un media absent du catalogue TMDB ne partira jamais, et sans cette
+           action il revient a chaque cycle de la watchlist. -->
+      <template v-if="item._kind === 'request' && item.status === 'failed'">
+        <small v-if="item.fulfillment_error" class="card-failure">{{ item.fulfillment_error }}</small>
+        <button
+          v-if="canModerate"
+          type="button"
+          class="secondary text-xs card-withdraw"
+          :disabled="busy"
+          @click.stop="$emit('act', item, 'withdraw')"
+        >Annuler et bloquer…</button>
+      </template>
     </div>
   </article>
 </template>
@@ -213,6 +226,8 @@ const badges = computed(() => {
   white-space: nowrap;
 }
 
+.card-failure { color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }
+.card-withdraw { justify-self: start; margin-top: 4px; }
 .media-card.list {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);

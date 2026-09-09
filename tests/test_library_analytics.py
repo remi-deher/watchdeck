@@ -298,6 +298,22 @@ async def test_each_item_carries_its_viewing_dates(monkeypatch):
     assert row["last_viewed_at"] == "2026-06-02T21:00:00"
 
 
+def test_the_distributions_that_are_clickable_are_also_filterable():
+    """Chaque camembert filtre la page entière : le serveur doit savoir s'y restreindre.
+
+    La résolution et l'artiste n'étaient pas des filtres serveur ; cliquer leur part
+    n'aurait donc rien filtré, alors que les cinq autres répartitions le faisaient.
+    """
+    piste = parse_plex_item({**sample_item(), "type": "track", "grandparentTitle": "Daft Punk"}, "Musique", "artist")
+    episode = parse_plex_item(sample_item(), "Séries", "show")
+
+    assert apply_filters([piste, episode], {"artist": "Daft Punk"}) == [piste]
+    assert apply_filters([piste, episode], {"artist": "Personne"}) == []
+    # `video_resolution` vaut « 4k » sur l'échantillon (voir `sample_item`).
+    assert apply_filters([episode], {"video_resolution": "4k"}) == [episode]
+    assert apply_filters([episode], {"video_resolution": "1080"}) == []
+
+
 def test_the_inventory_can_be_filtered_by_viewer():
     row = parse_plex_item(sample_item(), "Séries", "show")
     row.update(play_count=2, viewers=["Lisa", "Rémi"], watch_time_ms=0)

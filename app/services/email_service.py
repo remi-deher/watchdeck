@@ -143,6 +143,8 @@ DEFAULT_FAILURE_TEMPLATE = """Une erreur est survenue lors de la transmission à
 
 DEFAULT_CANCELLED_TEMPLATE = """Votre demande pour **{media_type_et_titre}** a été annulée par un administrateur et supprimée de Sonarr/Radarr.
 
+{motif}
+
 Comme cette demande provenait de votre liste d'envies Plex, elle a aussi été bloquée pour empêcher qu'elle ne soit resoumise automatiquement.
 
 **Pensez à retirer ce média de votre liste d'envies Plex** : sans cela, il continuera d'y apparaître, mais ne sera plus traité par Watchdeck."""
@@ -404,6 +406,9 @@ def _build_tags(
         or "",
         "{synopsis}": request.overview or "",
         "{raison}": reason or "Erreur inconnue",
+        # Distinct de `{raison}` : vide quand l'administrateur n'a rien ecrit, pour que
+        # le gabarit puisse omettre le paragraphe au lieu d'afficher un motif invente.
+        "{motif}": reason or "",
         "{corrections}": _format_corrections(corrections) or "- Correction effectuée",
         "{note_correction}": correction_note.strip() if correction_note else "",
         "{media_type_et_titre}": f"{type_media} {request.title or ''}".strip(),
@@ -708,12 +713,16 @@ async def send_cancelled_notification(
     recipient: str,
     display_name: str | None = None,
     *,
+    reason: str = "",
     dry_run: bool = False,
 ) -> tuple[str, str]:
     """Demande annulée par un admin (voir requests_api.withdraw_request) — envoyée
     uniquement quand la demande provenait de la watchlist Plex, pour prévenir
-    l'utilisateur qu'elle a aussi été bloquée côté Watchdeck."""
-    tags = _build_tags(request, display_name)
+    l'utilisateur qu'elle a aussi été bloquée côté Watchdeck.
+
+    `reason` porte l'explication ecrite par l'administrateur : « ce media n'existe pas
+    dans le catalogue TMDB » ne se devine pas depuis un gabarit generique."""
+    tags = _build_tags(request, display_name, reason=reason)
     extra_ctx = get_shared_email_parts(settings)
     extra_ctx.update(get_event_visuals(settings, "cancelled"))
     extra_ctx["_tmdb_url"] = build_tmdb_url(request)
