@@ -1,38 +1,99 @@
 <template>
-  <div class="my-requests-panel">
-    <MediaFiltersBar
-      ref="filtersBar"
-      header-mode
-      hide-toolbar
-      v-model:query="query"
-      v-model:view="view"
-      v-model:status-filters="statusFilters"
-      v-model:type-filters="typeFilters"
-      v-model:vf="vf"
-      v-model:sort="sort"
-      @search="onSearch"
-    />
+  <div class="my-requests-panel psh-layout">
+    <!-- Les filtres passent par la sidebar commune, comme Explorer, Bibliotheque ou
+         Activite : la modale maison des demandes etait la seule surface de
+         filtrage a diverger du reste de l'application. -->
+    <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
+      <FilterGroup label="Statut">
+        <button
+          v-for="entry in statusOptions"
+          :key="entry.value || 'all'"
+          class="filter-badge"
+          type="button"
+          :class="{ active: statusKey === entry.value }"
+          @click="setStatus(entry.value)"
+        ><span>{{ entry.label }}</span></button>
+      </FilterGroup>
 
-    <UiFeedback v-if="error" type="error" title="Impossible de charger vos demandes" :message="error" retry @retry="load" />
-    <UiFeedback v-else-if="loading && !items.length" type="loading" message="Chargement de vos demandes…" />
-    <p v-else class="my-requests-count" aria-live="polite">{{ sorted.length }} demande{{ sorted.length > 1 ? 's' : '' }} affichée{{ sorted.length > 1 ? 's' : '' }}</p>
+      <FilterGroup label="Type de média">
+        <button
+          v-for="entry in typeOptions"
+          :key="entry.value || 'all'"
+          class="filter-badge"
+          type="button"
+          :class="{ active: typeKey === entry.value }"
+          @click="setType(entry.value)"
+        ><span>{{ entry.label }}</span></button>
+      </FilterGroup>
 
-    <section v-if="sorted.length" :class="view === 'grid' ? 'media-grid library-grid' : 'panel media-list'" :aria-busy="loading">
-      <LibraryCard
-        v-for="item in sorted"
-        :key="item.id"
-        :item="{ ...item, _kind: 'request' }"
-        :view="view"
-        :can-moderate="canModerate"
-        :busy="busy"
-        @open="openDetail"
-        @act="act"
-      />
-    </section>
+      <FilterGroup v-if="requesterOptions.length > 1" label="Demandeur">
+        <button
+          v-for="entry in requesterOptions"
+          :key="entry.value || 'me'"
+          class="filter-badge"
+          type="button"
+          :class="{ active: requesterKey === entry.value }"
+          @click="requesterKey = entry.value"
+        ><span>{{ entry.label }}</span></button>
+      </FilterGroup>
 
-    <UiEmptyState v-else-if="!loading" title="Aucune demande" message="Vous n'avez pas encore fait de demande.">
-      <template #action><UiButton variant="primary" @click="$emit('explore')">Explorer le catalogue</UiButton></template>
-    </UiEmptyState>
+      <FilterGroup label="Version française">
+        <button
+          v-for="entry in vfOptions"
+          :key="entry.value || 'all'"
+          class="filter-badge"
+          type="button"
+          :class="{ active: vf === entry.value }"
+          @click="vf = entry.value"
+        ><span>{{ entry.label }}</span></button>
+      </FilterGroup>
+
+      <FilterGroup label="Tri">
+        <button
+          v-for="entry in sortOptions"
+          :key="entry.value || 'recent'"
+          class="filter-badge"
+          type="button"
+          :class="{ active: sort === entry.value }"
+          @click="sort = entry.value"
+        ><span>{{ entry.label }}</span></button>
+      </FilterGroup>
+
+      <FilterGroup label="Affichage" :default-open="false">
+        <UiSegmentedControl
+          :model-value="view"
+          :options="viewOptions"
+          :ariaLabel="'Mode d’affichage'"
+          @update:model-value="view = String($event)"
+        />
+      </FilterGroup>
+    </FilterSidebar>
+
+    <div class="psh-main">
+      <UiFeedback v-if="error" type="error" title="Impossible de charger vos demandes" :message="error" retry @retry="load" />
+      <UiFeedback v-else-if="loading && !items.length" type="loading" message="Chargement de vos demandes…" />
+      <p v-else class="my-requests-count" aria-live="polite">{{ sorted.length }} demande{{ sorted.length > 1 ? 's' : '' }} affichée{{ sorted.length > 1 ? 's' : '' }}</p>
+
+      <section v-if="sorted.length" :class="view === 'grid' ? 'media-grid library-grid' : 'panel media-list'" :aria-busy="loading">
+        <LibraryCard
+          v-for="item in sorted"
+          :key="item.id"
+          :item="{ ...item, _kind: 'request' }"
+          :view="view"
+          :can-moderate="canModerate"
+          :busy="busy"
+          @open="openDetail"
+          @act="act"
+        />
+      </section>
+
+      <UiEmptyState v-else-if="!loading" title="Aucune demande" :message="emptyMessage">
+        <template #action>
+          <UiButton v-if="activeFilterCount || query.trim()" @click="resetFilters">Réinitialiser les filtres</UiButton>
+          <UiButton v-else variant="primary" @click="$emit('explore')">Explorer le catalogue</UiButton>
+        </template>
+      </UiEmptyState>
+    </div>
   </div>
 </template>
 
@@ -46,10 +107,13 @@ import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useRealtimeList } from '@/composables/useRealtimeList';
 import { providePageSearch, type PageSearch } from '@/composables/usePageSearch';
 import { canModerateSession, loadSession } from '@/composables/useSession';
-import MediaFiltersBar from '@/components/media/MediaFiltersBar.vue';
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import FilterSidebar from '@/components/ui/FilterSidebar.vue';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import LibraryCard from '@/components/library/LibraryCard.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
+import UiFeedback from '@/components/ui/UiFeedback.vue';
 
 defineEmits<{
   (e: 'explore'): void;
@@ -57,22 +121,96 @@ defineEmits<{
 
 const router = useRouter();
 const request = useLatestRequest();
-const filtersBar = ref<{ openFilterModal: () => void } | null>(null);
 
 const items = ref<any[]>([]);
 const canModerate = ref(false);
 const plexUserId = ref('');
+/* La session porte l'identite du demandeur : tant qu'elle n'est pas resolue, charger
+   reviendrait a demander « les demandes de personne ». Un compte sans `plex_user_id`
+   (owner local, compte admin non lie a Plex) reste servi : il voit alors tout ce que
+   l'API lui autorise, au lieu d'une page vide et sans explication. */
+const sessionReady = ref(false);
 const loading = ref(false);
 const busy = ref(false);
 const error = ref('');
 
 const query = ref('');
-const statusFilters = ref<string[]>([]);
-const typeFilters = ref<string[]>([]);
+const statusKey = ref('');
+const typeKey = ref('');
 const vf = ref('');
+const requesterKey = ref('');
 const sort = ref('');
+/* Facette renvoyee par `/api/requests-list`. Elle est globale pour un administrateur et
+   reduite au seul appelant sinon : le groupe « Demandeur » se montre donc tout seul,
+   uniquement la ou il y a vraiment le choix. */
+const requesters = ref<Array<{ id: string; label: string }>>([]);
 const view = ref(localStorage.getItem('library.view') || 'grid');
-const activeFilterCount = computed(() => statusFilters.value.length + typeFilters.value.length + (vf.value ? 1 : 0) + (sort.value ? 1 : 0));
+const filtersOpen = ref(false);
+
+/* Un seul statut a la fois, mais certains libelles couvrent plusieurs valeurs du
+   backend : « En cours » est le seul regroupement qui ait un sens pour un demandeur,
+   qui ne fait pas la difference entre `pending` et `sent_to_arr`.
+   Les pseudo-statuts `library` / `orphan` de la Bibliotheque ont disparu de la liste :
+   ce ne sont pas des `MediaRequest.status`, les selectionner ne renvoyait jamais rien. */
+const STATUS_BUCKETS: Record<string, string[]> = {
+  in_progress: ['pending_approval', 'pending', 'sent_to_arr'],
+  pending_approval: ['pending_approval'],
+  partially_available: ['partially_available'],
+  available: ['available'],
+  failed: ['failed'],
+  rejected: ['rejected'],
+};
+const statusOptions = [
+  { value: '', label: 'Tous les statuts' },
+  { value: 'in_progress', label: 'En cours' },
+  { value: 'pending_approval', label: 'À approuver' },
+  { value: 'partially_available', label: 'Partiellement disponible' },
+  { value: 'available', label: 'Disponible' },
+  { value: 'failed', label: 'Échec' },
+  { value: 'rejected', label: 'Refusée' },
+];
+const typeOptions = [
+  { value: '', label: 'Tous les médias' },
+  { value: 'movie', label: 'Films' },
+  { value: 'show', label: 'Séries' },
+];
+const vfOptions = [
+  { value: '', label: 'Toutes les pistes' },
+  { value: 'vf', label: 'VF disponible' },
+  { value: 'vf_secondary', label: 'VF non prioritaire' },
+  { value: 'mixed', label: 'VF partielle' },
+  { value: 'vo', label: 'VO uniquement' },
+  { value: 'unchecked', label: 'Non analysée' },
+];
+const sortOptions = [
+  { value: '', label: 'Plus récentes' },
+  { value: 'oldest', label: 'Plus anciennes' },
+  { value: 'title', label: 'Titre A→Z' },
+];
+/* « Mes demandes » reste le defaut : le filtre sert a l'elargir, pas a le remplacer. */
+const requesterOptions = computed(() => [
+  plexUserId.value
+    ? { value: '', label: 'Mes demandes' }
+    : { value: '', label: 'Tous les demandeurs' },
+  ...(plexUserId.value ? [{ value: 'all', label: 'Tous les demandeurs' }] : []),
+  ...requesters.value
+    .filter((entry) => entry.id && entry.id !== plexUserId.value)
+    .map((entry) => ({ value: entry.id, label: entry.label })),
+]);
+const viewOptions = [
+  { value: 'grid', label: 'Grille' },
+  { value: 'list', label: 'Liste' },
+];
+
+const activeFilterCount = computed(
+  () => (statusKey.value ? 1 : 0) + (typeKey.value ? 1 : 0) + (vf.value ? 1 : 0)
+    + (requesterKey.value ? 1 : 0) + (sort.value ? 1 : 0)
+);
+const emptyMessage = computed(() =>
+  activeFilterCount.value || query.value.trim()
+    ? 'Aucune demande ne correspond à ces filtres.'
+    : "Vous n'avez pas encore fait de demande."
+);
 
 providePageSearch(computed<PageSearch>(() => ({
   showSearch: true,
@@ -80,32 +218,51 @@ providePageSearch(computed<PageSearch>(() => ({
   placeholder: 'Rechercher une demande…',
   scopeLabel: 'Demandes',
   hasFilters: true,
-  filtersOpen: false,
+  filtersOpen: filtersOpen.value,
   activeCount: activeFilterCount.value,
   onQuery: (value: string) => { query.value = value; },
   onSearch: () => onSearch(),
-  onToggleFilters: () => filtersBar.value?.openFilterModal(),
+  onToggleFilters: () => { filtersOpen.value = !filtersOpen.value; },
 })));
 
+function setStatus(value: string): void { statusKey.value = statusKey.value === value ? '' : value; }
+function setType(value: string): void { typeKey.value = typeKey.value === value ? '' : value; }
+function closeFilters(): void { filtersOpen.value = false; }
+function resetFilters(): void {
+  statusKey.value = '';
+  typeKey.value = '';
+  vf.value = '';
+  requesterKey.value = '';
+  sort.value = '';
+  if (query.value) { query.value = ''; onSearch(); }
+}
+
 function _params(): URLSearchParams {
-  const p = new URLSearchParams({ limit: '500', requesters: plexUserId.value });
+  const p = new URLSearchParams({ limit: '500' });
+  if (!requesterKey.value) { if (plexUserId.value) p.set('requesters', plexUserId.value); }
+  else if (requesterKey.value !== 'all') p.set('requesters', requesterKey.value);
   const q = query.value.trim();
   if (q) p.set('query', q);
-  if (statusFilters.value.length) p.set('statuses', statusFilters.value.join(','));
-  if (typeFilters.value.length) p.set('media_types', typeFilters.value.join(','));
+  const statuses = STATUS_BUCKETS[statusKey.value];
+  if (statuses) p.set('statuses', statuses.join(','));
+  if (typeKey.value) p.set('media_types', typeKey.value);
   if (vf.value) p.set('vf', vf.value);
   return p;
 }
 
 async function load(): Promise<void> {
-  if (!plexUserId.value) return;
+  if (!sessionReady.value) return;
   const { signal, isCurrent } = request.begin();
   loading.value = true;
   error.value = '';
   try {
-    const payload = await api<{ items?: any[] }>(`/api/requests-list?${_params()}`, { signal });
+    const payload = await api<{ items?: any[]; facets?: { requesters?: Array<{ id: string; label: string }> } }>(
+      `/api/requests-list?${_params()}`,
+      { signal }
+    );
     if (!isCurrent()) return;
     items.value = payload.items || [];
+    requesters.value = payload.facets?.requesters || [];
   } catch (e: any) {
     if (!request.isAbort(e) && isCurrent()) error.value = e?.message || String(e);
   } finally {
@@ -144,7 +301,7 @@ function onSearch(): void {
 }
 
 watch(view, (value) => localStorage.setItem('library.view', value));
-watch([statusFilters, typeFilters, vf], () => load(), { deep: true });
+watch([statusKey, typeKey, vf, requesterKey], () => load());
 
 useRealtimeList(items, ['request.updated', 'download.updated'], {
   keyFields: ['request_id', 'id'],
@@ -155,48 +312,22 @@ onMounted(async () => {
   const session = await loadSession();
   canModerate.value = canModerateSession(session);
   plexUserId.value = session?.plex_user_id || '';
+  sessionReady.value = true;
   await load();
 });
 </script>
 
 <style scoped lang="scss">
-.my-requests-panel {
+.my-requests-panel .psh-main {
   display: grid;
   gap: var(--space-4);
-}
-.my-requests-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-.my-requests-toolbar .filters-panel {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.sort-select {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  white-space: nowrap;
+  align-content: start;
 }
 .my-requests-count {
   margin: 0;
   color: var(--muted);
   font-size: var(--fs-sm);
   text-align: right;
-}
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 40px 0;
-  color: var(--muted);
-  text-align: center;
 }
 :deep(.select-tag) {
   display: none;

@@ -1,6 +1,7 @@
 <template>
   <div class="settings-grid">
     <div class="settings-cards span-two">
+      <TracearrConnectionCard/>
       <TautulliConnectionCard/>
       <SeerConnectionCard/>
       <TmdbConnectionCard/>
@@ -11,6 +12,7 @@
 </template>
 <script setup lang="ts">
 import TautulliConnectionCard from './connections/TautulliConnectionCard.vue';
+import TracearrConnectionCard from './connections/TracearrConnectionCard.vue';
 import SeerConnectionCard from './connections/SeerConnectionCard.vue';
 import TmdbConnectionCard from './connections/TmdbConnectionCard.vue';
 import ArrInstancesCard from './connections/ArrInstancesCard.vue';

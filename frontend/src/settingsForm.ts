@@ -4,6 +4,7 @@ import { api } from '@/api';
 export const secretFields = [
   'plex_token',
   'tautulli_api_key',
+  'tracearr_api_key',
   'seer_api_key',
   'tmdb_api_key',
   'discord_webhook_url',
@@ -25,6 +26,9 @@ export const form = reactive<Record<string, any>>({
   tautulli_enabled: false,
   tautulli_url: '',
   tautulli_api_key: '',
+  tracearr_enabled: false,
+  tracearr_url: '',
+  tracearr_api_key: '',
   seer_enabled: false,
   seer_url: '',
   seer_api_key: '',

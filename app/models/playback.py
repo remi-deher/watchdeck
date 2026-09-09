@@ -76,7 +76,14 @@ class PlaybackSession(Base):
     source_group_ids: Mapped[Optional[str]]
     reference_id: Mapped[Optional[int]] = mapped_column(index=True)
     force_stopped: Mapped[bool] = mapped_column(default=False)
-    watched_ms: Mapped[int] = mapped_column(BigInteger, default=0)
+    # Nullable a dessein : « aucune duree mesuree » n'est pas « duree nulle ». Une source
+    # de couverture sans duree (l'historique Plex n'en fournit aucune) doit laisser le
+    # champ vide plutot que de peser zero dans le temps regarde moyen.
+    watched_ms: Mapped[Optional[int]] = mapped_column(BigInteger)
+    # Carte champ -> source ayant fourni la valeur, en JSON. Rend verifiable la regle
+    # « aucune source n'ecrase l'autre » et dit a un import ulterieur ce qu'il peut
+    # ameliorer sans deviner.
+    enrichment_sources: Mapped[Optional[str]] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
     last_seen_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
     ended_at: Mapped[Optional[datetime]]

@@ -3,120 +3,153 @@
       :title="viewTitle"
       v-model:query="historySearch"
       search-scope="Activité"
-      placeholder="Filtrer par média, utilisateur ou appareil"
-      :hide-search="currentView !== 'history'"
-      :has-filters="currentView !== 'live'"
-      :active-count="activityFilterCount"
+      :placeholder="searchPlaceholder"
+      :has-filters="currentView === 'history'"
+      :active-count="historyFilterCount"
       :filters-open="filtersOpen"
+      :sections="sections"
+      :active-section="currentView"
       @toggle-filters="filtersOpen = !filtersOpen" page-class="activity-page">
 
-    <AppSubnav variant="tabs" :active="currentView" :items="activityTabs" aria-label="Sections de l'activité Plex" @update:active="selectView" />
+    <!-- La periode n'est pas un filtre : c'est le cadre de lecture de toute la page, et
+         l'enfermer derriere le bouton « Filtres » donnait un tiroir a une seule entree,
+         invisible depuis les chiffres qu'elle commande. Elle partage donc la rangee
+         collante des sections, ou elle ne coute aucune hauteur tant qu'il reste de la
+         place. La vue « En direct » n'a pas de periode : elle montre l'instant. -->
+    <template v-if="currentView !== 'live'" #tools>
+      <UiSegmentedControl :model-value="days" :options="periodOptions" :ariaLabel="'Période d’analyse'" @update:model-value="setPeriod" />
+    </template>
+
     <UiFeedback v-if="loading && !loaded" type="loading" message="Chargement de l'activité Plex…" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
 
     <div class="psh-layout">
-      <FilterSidebar v-if="currentView !== 'live'" :open="filtersOpen" :active-count="activityFilterCount" @close="filtersOpen=false" @reset="resetActivityFilters">
-        <FilterGroup label="Période">
-          <UiSegmentedControl :model-value="days" :options="periodOptions" :ariaLabel="'Période d’analyse'" @update:model-value="setPeriod" />
+      <FilterSidebar v-if="currentView === 'history'" :open="filtersOpen" :active-count="historyFilterCount" @close="filtersOpen=false" @reset="resetActivityFilters">
+        <FilterGroup label="Lecture">
+          <select v-model="methodFilter"><option value="">Tous les modes</option><option value="direct_play">Lecture directe</option><option value="direct_stream">Direct Stream</option><option value="transcode">Transcodage</option></select>
+          <select v-model="typeFilter"><option value="">Tous les types</option><option value="movie">Films</option><option value="episode">Séries</option><option value="track">Musique</option></select>
         </FilterGroup>
-        <template v-if="currentView === 'history'">
-          <FilterGroup label="Lecture">
-            <select v-model="methodFilter"><option value="">Tous les modes</option><option value="direct_play">Lecture directe</option><option value="direct_stream">Direct Stream</option><option value="transcode">Transcodage</option></select>
-            <select v-model="typeFilter"><option value="">Tous les types</option><option value="movie">Films</option><option value="episode">Séries</option><option value="track">Musique</option></select>
-          </FilterGroup>
-          <FilterGroup label="Contexte">
-            <select v-model="userFilter"><option value="">Tous les utilisateurs</option><option v-for="user in historyUsers" :key="user" :value="user">{{ user }}</option></select>
-            <select v-model="deviceFilter"><option value="">Tous les appareils</option><option v-for="device in historyDevices" :key="device" :value="device">{{ device }}</option></select>
-          </FilterGroup>
-        </template>
+        <FilterGroup label="Contexte">
+          <select v-model="userFilter"><option value="">Tous les utilisateurs</option><option v-for="user in historyUsers" :key="user" :value="user">{{ user }}</option></select>
+          <select v-model="deviceFilter"><option value="">Tous les appareils</option><option v-for="device in historyDevices" :key="device" :value="device">{{ device }}</option></select>
+        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
     <template v-if="loaded">
       <template v-if="currentView==='overview'">
-        <MetricGrid grid-class="activity-metrics overview-metrics">
-          <MetricCard card-class="activity-metric-card overview-metric-card accent" label="En direct" :value="data.active.length" detail="lectures maintenant" :icon="Radio"/>
-          <MetricCard card-class="activity-metric-card overview-metric-card" label="Sessions" :value="summary.sessions||0" :detail="`sur ${days} jours`" :icon="PlayCircle"/>
-          <MetricCard card-class="activity-metric-card overview-metric-card" label="Temps regardé" :value="formatDuration(summary.watch_ms)" detail="durée cumulée" :icon="Clock3"/>
-          <MetricCard card-class="activity-metric-card overview-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="`${summary.transcodes||0} sessions`" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
-        </MetricGrid>
-        <LiveSessionsPanel :sessions="data.active" :collection-enabled="data.liveEnabled" interactive @select="selectedSession=$event"/>
-        <div class="activity-grid">
-          <DailyActivityChart :points="chart"/>
-          <UserRankingPanel :users="data.users" :format-duration="formatDuration"/>
-        </div>
+        <!-- Vue d’ensemble et Statistiques etaient deux pages dont la premiere etait le
+             sous-ensemble strict de la seconde : meme courbe, meme heatmap, memes medias,
+             meme classement. Une seule page desormais, ordonnee de l’instant present vers
+             l’analyse de fond.
+             La recherche y designe un utilisateur, pas un texte. Le filtre part au serveur
+             (`?user=`), qui recalcule tout sur ce seul spectateur -- engagement, marathons
+             et simultaneite compris. Rien n’est masque ici, parce que plus rien n’est
+             global. -->
+        <UiEmptyState v-if="needle && !matchedUser" title="Aucun utilisateur" :message="`Aucun utilisateur ne correspond à « ${historySearch.trim()} » sur cette période.`" compact />
+        <template v-else>
+          <section v-if="scopedUser" class="scope-note">
+            <span><UsersIcon aria-hidden="true" /> Toute la page est limitée à <strong>{{ scopedUser }}</strong> sur cette période.</span>
+            <UiButton @click="historySearch=''">Revenir à tout le monde</UiButton>
+          </section>
+
+          <MetricGrid grid-class="activity-metrics overview-metrics">
+            <MetricCard card-class="activity-metric-card overview-metric-card accent" label="En direct" :value="liveSessions.length" detail="lectures maintenant" :icon="Radio"/>
+            <MetricCard
+              card-class="activity-metric-card overview-metric-card"
+              label="Sessions"
+              :value="summary.sessions||0"
+              :detail="`sur ${days} jours`"
+              :trend="trendOf(analytics.comparison?.sessions_change)"
+              :icon="PlayCircle"
+            />
+            <MetricCard
+              card-class="activity-metric-card overview-metric-card"
+              label="Temps regardé"
+              :value="formatDuration(summary.watch_ms)"
+              detail="durée cumulée"
+              :trend="trendOf(analytics.comparison?.watch_change)"
+              :icon="Clock3"
+            />
+            <MetricCard card-class="activity-metric-card overview-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="`${summary.transcodes||0} sessions`" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
+          </MetricGrid>
+
+          <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" interactive @select="selectedSession=$event"/>
+
+          <div class="activity-grid">
+            <DailyActivityChart :points="chart"/>
+            <ConcurrencyPanel :daily="analytics.concurrency?.daily" :peak="analytics.concurrency?.peak" :peak-at="analytics.concurrency?.peak_at"/>
+          </div>
+
+          <MetricGrid grid-class="activity-metrics engagement-metrics">
+            <MetricCard card-class="activity-metric-card accent" label="Terminées" :value="analytics.engagement?.completed||0" detail="seuil Tautulli ou générique" :icon="CheckCircle2"/>
+            <MetricCard card-class="activity-metric-card" label="Abandonnées" :value="analytics.engagement?.abandoned||0" detail="avant le premier quart du seuil" :icon="CircleStop"/>
+            <MetricCard card-class="activity-metric-card" label="Reprises" :value="analytics.engagement?.resumed||0" detail="sessions regroupées" :icon="History"/>
+            <MetricCard card-class="activity-metric-card" label="Revisionnages" :value="analytics.engagement?.rewatches||0" detail="nouvelle lecture du même média" :icon="Repeat2"/>
+            <MetricCard card-class="activity-metric-card" label="Durée moyenne" :value="formatDuration(averageWatch)" detail="par session" :icon="Timer"/>
+          </MetricGrid>
+
+          <div class="activity-grid analytics-secondary">
+            <CompletionPanel :items="analytics.completion"/>
+            <BreakdownPanel title="Types de lecture" eyebrow="Qualité" :items="methodBreakdown"/>
+          </div>
+
+          <div class="activity-grid analytics-secondary media-rankings">
+            <PopularMediaPanel :items="analytics.popular" title="Médias les plus regardés" eyebrow="Durée cumulée"/>
+            <PopularMediaPanel :items="analytics.popular_by_audience" title="Médias les plus populaires" eyebrow="Audience distincte"/>
+          </div>
+
+          <div class="activity-grid analytics-secondary user-rankings">
+            <UserRankingPanel :users="data.users" :format-duration="formatDuration"/>
+          </div>
+
+          <ActivityHeatmap :points="analytics.heatmap"/>
+
+          <section class="panel binge-panel">
+            <div class="panel-head"><div><span class="eyebrow">Habitudes</span><h2>Marathons détectés</h2></div><small>3 épisodes ou plus</small></div>
+            <div class="binge-list">
+              <article v-for="item in analytics.binges||[]" :key="`${item.user_name}:${item.started_at}`"><Tv/><span><strong>{{ item.title }}</strong><small>{{ item.user_name }} · {{ formatDate(item.started_at) }}</small></span><em>{{ item.episodes }} épisodes<strong>{{ formatDuration(item.watch_ms) }}</strong></em></article>
+              <p v-if="!analytics.binges?.length" class="empty">Aucun marathon détecté sur cette période.</p>
+            </div>
+          </section>
+        </template>
       </template>
 
       <template v-else-if="currentView==='live'">
         <section class="live-heading">
-          <div><span class="live-indicator"><i></i>{{ data.active.length }} active{{ data.active.length>1?'s':'' }}</span><h2>Flux en direct</h2><p>Suivez la progression et ouvrez une session pour consulter son diagnostic complet.</p></div>
+          <div><span class="live-indicator"><i></i>{{ liveSessions.length }} active{{ liveSessions.length>1?'s':'' }}</span><h2>Flux en direct</h2><p>Suivez la progression et ouvrez une session pour consulter son diagnostic complet.</p></div>
           <span class="live-updated">Actualisé {{ relativeUpdate }}</span>
         </section>
-        <LiveSessionsPanel :sessions="data.active" :collection-enabled="data.liveEnabled" :show-link="false" interactive @select="selectedSession=$event"/>
+        <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" :show-link="false" interactive @select="selectedSession=$event"/>
       </template>
 
       <template v-else-if="currentView==='history'">
-        <HistoryTable :items="filteredHistory" @select="selectedSession=$event"/>
-      </template>
-
-      <template v-else-if="currentView==='stats'">
-        <MetricGrid grid-class="activity-metrics">
-          <MetricCard
-            card-class="activity-metric-card accent"
-            label="Sessions"
-            :value="summary.sessions||0"
-            :detail="comparisonLabel(analytics.comparison?.sessions_change)"
-            :trend="analytics.comparison?.sessions_change != null ? { direction: analytics.comparison.sessions_change > 0 ? 'up' : analytics.comparison.sessions_change < 0 ? 'down' : 'stable', label: comparisonLabel(analytics.comparison.sessions_change) } : null"
-            :icon="PlayCircle"
-          />
-          <MetricCard
-            card-class="activity-metric-card"
-            label="Temps regardé"
-            :value="formatDuration(summary.watch_ms)"
-            :detail="comparisonLabel(analytics.comparison?.watch_change)"
-            :trend="analytics.comparison?.watch_change != null ? { direction: analytics.comparison.watch_change > 0 ? 'up' : analytics.comparison.watch_change < 0 ? 'down' : 'stable', label: comparisonLabel(analytics.comparison.watch_change) } : null"
-            :icon="Clock3"
-          />
-          <MetricCard card-class="activity-metric-card" label="Simultanéité max." :value="analytics.concurrency?.peak||0" detail="flux au même moment" :icon="Users"/>
-          <MetricCard card-class="activity-metric-card" label="Moyenne" :value="formatDuration(averageWatch)" detail="par session" :icon="Timer"/>
-        </MetricGrid>
-        <div class="activity-grid">
-          <DailyActivityChart :points="chart"/>
-          <ConcurrencyPanel :daily="analytics.concurrency?.daily" :peak="analytics.concurrency?.peak" :peak-at="analytics.concurrency?.peak_at"/>
-        </div>
-        <ActivityHeatmap :points="analytics.heatmap"/>
-        <MetricGrid grid-class="activity-metrics engagement-metrics">
-          <MetricCard card-class="activity-metric-card accent" label="Terminées" :value="analytics.engagement?.completed||0" detail="seuil Tautulli ou générique" :icon="CheckCircle2"/>
-          <MetricCard card-class="activity-metric-card" label="Abandonnées" :value="analytics.engagement?.abandoned||0" detail="avant le premier quart du seuil" :icon="CircleStop"/>
-          <MetricCard card-class="activity-metric-card" label="Reprises" :value="analytics.engagement?.resumed||0" detail="sessions regroupées" :icon="History"/>
-          <MetricCard card-class="activity-metric-card" label="Revisionnages" :value="analytics.engagement?.rewatches||0" detail="nouvelle lecture du même média" :icon="Repeat2"/>
-        </MetricGrid>
-        <div class="activity-grid analytics-secondary">
-          <CompletionPanel :items="analytics.completion"/>
-          <BreakdownPanel title="Types de lecture" eyebrow="Qualité" :items="methodBreakdown"/>
-        </div>
-        <div class="activity-grid analytics-secondary media-rankings">
-          <PopularMediaPanel :items="analytics.popular" title="Médias les plus regardés" eyebrow="Durée cumulée"/>
-          <PopularMediaPanel :items="analytics.popular_by_audience" title="Médias les plus populaires" eyebrow="Audience distincte"/>
-        </div>
-        <div class="activity-grid analytics-secondary user-rankings">
-          <UserRankingPanel :users="data.users" :format-duration="formatDuration"/>
-        </div>
-        <section class="panel binge-panel">
-          <div class="panel-head"><div><span class="eyebrow">Habitudes</span><h2>Marathons détectés</h2></div><small>3 épisodes ou plus</small></div>
-          <div class="binge-list">
-            <article v-for="item in analytics.binges||[]" :key="`${item.user_name}:${item.started_at}`"><Tv/><span><strong>{{ item.title }}</strong><small>{{ item.user_name }} · {{ formatDate(item.started_at) }}</small></span><em>{{ item.episodes }} épisodes<strong>{{ formatDuration(item.watch_ms) }}</strong></em></article>
-            <p v-if="!analytics.binges?.length" class="empty">Aucun marathon détecté sur cette période.</p>
-          </div>
-        </section>
+        <UiFeedback v-if="historyError" type="error" :message="historyError" retry @retry="loadHistory()" />
+        <HistoryTable
+          :items="sortedHistoryItems"
+          :total="history.total"
+          :has-more="history.hasMore"
+          :loading-more="historyLoadingMore"
+          :page-size="HISTORY_PAGE_SIZE"
+          :sort="historySort"
+          @select="selectedSession=$event"
+          @load-more="loadHistory(true)"
+          @update:sort="setHistorySort"
+        />
       </template>
 
       <template v-else-if="currentView==='quality'">
         <MetricGrid grid-class="activity-metrics quality-metrics">
-          <MetricCard card-class="activity-metric-card accent" label="Débit moyen" :value="formatBandwidth(analytics.bandwidth?.average_kbps)" detail="toutes sessions" :icon="Gauge"/>
-          <MetricCard card-class="activity-metric-card" label="Débit P95" :value="formatBandwidth(analytics.bandwidth?.p95_kbps)" detail="95 % sous ce seuil" :icon="Activity"/>
+          <MetricCard card-class="activity-metric-card accent" label="Débit moyen" :value="formatBandwidth(analytics.bandwidth?.average_kbps)" :detail="bandwidthCoverageLabel" :icon="Gauge"/>
+          <MetricCard card-class="activity-metric-card" label="Débit P95" :value="formatBandwidth(analytics.bandwidth?.p95_kbps)" :detail="`95 % sous ce seuil · ${bandwidthMeasured} mesurées`" :icon="Activity"/>
           <MetricCard card-class="activity-metric-card" label="Débit maximal" :value="formatBandwidth(analytics.bandwidth?.peak_kbps)" detail="pic observé" :icon="Zap"/>
           <MetricCard card-class="activity-metric-card" label="Rendement stockage" :value="analytics.storage?.watch_hours_per_gb==null?'—':`${analytics.storage.watch_hours_per_gb} h/Go`" :detail="`${analytics.storage?.known_items||0} fichiers mesurés`" :icon="HardDrive"/>
         </MetricGrid>
+        <!-- Plex ne renseigne ni la decision de lecture ni le debit sur toutes les
+             sessions. Sans ce rappel, « 78 % Inconnu » se lisait comme une mesure de la
+             qualite alors que c'est une mesure de ce qu'on ne sait pas. -->
+        <section v-if="qualityCoverage.sessions" class="coverage-note">
+          <span><Info aria-hidden="true" /> Mode de lecture connu sur <strong>{{ qualityCoverage.method_known }}</strong> des {{ qualityCoverage.sessions }} lectures de la période ({{ methodCoverageRate }} %) · débit mesuré sur <strong>{{ bandwidthMeasured }}</strong>.</span>
+        </section>
         <div class="quality-grid">
           <BreakdownPanel title="Résolutions" eyebrow="Source" :items="resolutionBreakdown"/>
           <BreakdownPanel title="Codecs vidéo" eyebrow="Source" :items="codecBreakdown"/>
@@ -136,32 +169,43 @@
         <section class="panel">
           <div class="panel-head"><div><span class="eyebrow">Diagnostic</span><h2>Derniers modes de lecture</h2></div></div>
           <div class="quality-list">
-            <button v-for="item in data.history.slice(0,20)" :key="`${item.source}:${item.session_id}`" @click="selectedSession=item">
+            <button v-for="item in qualityHistory" :key="sessionKey(item)" @click="selectedSession=item">
               <MediaArtwork :src="item.thumb_url" :alt="displayTitle(item)" :type="item.media_type" size="small"/>
               <span><strong>{{ displayTitle(item) }}</strong><small>{{ item.player||item.platform||'Plex' }} · {{ item.quality||'Auto' }}</small></span>
               <PlaybackMethodBadge :method="item.playback_method"/>
             </button>
-            <p v-if="!data.history.length" class="empty">Aucune donnée de qualité sur cette période.</p>
+            <p v-if="!qualityHistory.length" class="empty">Aucune donnée de qualité sur cette période.</p>
           </div>
         </section>
       </template>
 
       <template v-else-if="currentView==='users'">
+        <!-- Chaque carte ouvre la Vue d'ensemble restreinte a cette personne : c'est le
+             seul ecran qui les liste toutes, il sert donc d'annuaire vers le perimetre. -->
         <div class="user-cards">
-          <article v-for="(user,index) in analyticsUsers" :key="user.name" class="panel user-card">
+          <article v-for="(user,index) in filteredAnalyticsUsers" :key="user.name" class="panel user-card">
+            <button type="button" class="user-card-open" :aria-label="`Voir l’activité de ${user.name}`" @click="openUserScope(user.name)"></button>
             <div class="user-avatar">{{ initials(user.name) }}</div>
             <div><h3>{{ user.name }}</h3><p>{{ user.sessions }} session{{ user.sessions>1?'s':'' }} sur {{ days }} jours</p></div>
             <strong>{{ formatDuration(user.watch_ms) }}</strong>
             <div class="user-share"><i :style="{width:`${userShare(user.sessions)}%`}"></i></div>
             <small>#{{ index+1 }} · {{ userShare(user.sessions) }} % des lectures · <b :class="{down:user.watch_change<0}">{{ signedPercent(user.watch_change) }}</b></small>
             <dl><div><dt>Média favori</dt><dd>{{ user.favorite_title||'—' }}</dd></div><div><dt>Appareil habituel</dt><dd>{{ user.favorite_device||'—' }}</dd></div><div><dt>Dernière activité</dt><dd>{{ formatDate(user.last_seen_at) }}</dd></div></dl>
+            <span class="user-card-cue"><ArrowRight aria-hidden="true" />Voir son activité</span>
           </article>
-          <p v-if="!analytics.users?.length" class="panel empty">Aucun utilisateur actif sur cette période.</p>
+          <p v-if="!filteredAnalyticsUsers.length" class="panel empty">Aucun utilisateur actif sur cette période.</p>
         </div>
       </template>
     </template>
 
-    <SessionDetailDrawer v-if="selectedSession" :session="selectedSession" @close="selectedSession=null"/>
+    <SessionDetailDrawer
+      v-if="selectedSession"
+      :session="selectedSession"
+      :has-previous="selectedIndex > 0"
+      :has-next="selectedIndex >= 0 && selectedIndex < siblingSessions.length - 1"
+      @navigate="navigateSession"
+      @close="selectedSession=null"
+    />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
   </AppPage>
@@ -170,19 +214,23 @@
 <script setup lang="ts">
 import { playbackMethodLabel } from '@/utils/labels';
 import { formatBandwidth, formatDateTimeShort, formatDuration, signedPercent } from '@/utils/format';
-import { computed,onMounted,ref,watch } from 'vue';
+import { computed,onMounted,onUnmounted,ref,watch } from 'vue';
+import { useDebounced } from '@/composables/useDebounced';
+import { useLatestRequest } from '@/composables/useLatestRequest';
 import { usePolling } from '@/composables/usePolling';
 import { useRoute,useRouter } from 'vue-router';
-import { Activity, CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Zap } from '@lucide/vue';
+import { Activity, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
+import { activitySections } from '@/navigation';
 import { api } from '@/api';
 import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
+import UiButton from '@/components/ui/UiButton.vue';
+import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
 import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import ActivityHeatmap from '@/components/activity/ActivityHeatmap.vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
 import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
 import CompletionPanel from '@/components/activity/CompletionPanel.vue';
 import ConcurrencyPanel from '@/components/activity/ConcurrencyPanel.vue';
@@ -196,26 +244,71 @@ import SessionDetailDrawer from '@/components/activity/SessionDetailDrawer.vue';
 import UserRankingPanel from '@/components/activity/UserRankingPanel.vue';
 
 const route=useRoute(),router=useRouter();
-const allowedViews=['overview','live','history','stats','quality','users'];
+const allowedViews=['overview','live','history','quality','users'];
 const currentView=computed(()=>allowedViews.includes(String(route.query.view))?String(route.query.view):'overview');
-const days=ref(Number(route.query.days)||30),loading=ref(false),loaded=ref(false),error=ref('');
-const periodOptions = [7, 30, 90, 365].map(value => ({ value, label: `${value} j` }));
+// La periode ne vit plus que dans l'URL : les sections de la destination (rail, barre
+// de contexte, page) pointent vers `/activity?view=...` sans la porter, et sans memoire
+// locale chaque changement de vue serait retombe sur 30 jours.
+const PERIOD_STORAGE_KEY='activity.days';
+const storedDays=Number(localStorage.getItem(PERIOD_STORAGE_KEY))||30;
+const days=ref(Number(route.query.days)||storedDays),loading=ref(false),loaded=ref(false),error=ref('');
+const periodOptions = [
+  { value: 7, label: '7 j' },
+  { value: 30, label: '30 j' },
+  { value: 90, label: '90 j' },
+  { value: 365, label: '1 an' },
+];
 const data=ref<Record<string, any>>({active:[],liveEnabled:true,liveConfigured:true,history:[],daily:[],users:[],summary:{}});
 const selectedSession=ref<any>(null),historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),updatedAt=ref(Date.now()),clock=ref(Date.now());
 const filtersOpen=ref(false);
 const summary=computed(()=>data.value.summary||{});
 const analytics=computed(()=>data.value.analytics||{});
 const analyticsUsers=computed((): any[] =>analytics.value.users||[]);
+// Les sections de la destination sont reprises telles quelles, la vue « En direct »
+// portant en plus le nombre de lectures en cours.
+const sections=computed(()=>activitySections().map(section=>section.key==='live'?{...section,count:data.value.active.length}:section));
 const chart=computed(()=>data.value.daily||[]);
-const activityTabs=computed(()=>[
-  {key:'overview',label:'Vue d’ensemble'},
-  {key:'live',label:'En direct',count:data.value.active.length},
-  {key:'history',label:'Historique'},
-  {key:'stats',label:'Statistiques'},
-  {key:'quality',label:'Qualité'},
-  {key:'users',label:'Utilisateurs'},
-]);
-const viewTitle=computed(()=>({overview:'Vue d’ensemble',live:'Activité en direct',history:'Historique des lectures',stats:'Statistiques',quality:'Qualité des flux',users:'Utilisateurs'} as Record<string, string>)[currentView.value]);
+
+/* Une seule recherche pour toute la page, et elle filtre ce que la vue affichee liste
+   reellement : lectures en cours, historique, medias, utilisateurs, marathons. Les
+   cartes de synthese restent calculees par le serveur sur la periode complete -- les
+   faire varier avec une saisie locale aurait laisse croire a un recalcul qui n'a pas
+   lieu. */
+const needle=computed(()=>historySearch.value.trim().toLowerCase());
+function matches(...parts: Array<unknown>): boolean {
+  if(!needle.value)return true;
+  return parts.filter(Boolean).join(' ').toLowerCase().includes(needle.value);
+}
+/* Vue d'ensemble : la saisie designe un utilisateur, et ce nom part au serveur, qui
+   recalcule toute la periode sur lui. On ne retient que le premier qui corresponde -- un
+   « filtre » qui en garderait plusieurs ne saurait plus quels chiffres afficher dans des
+   cartes qui n'existent que par utilisateur.
+   `knownUsers` n'est rafraichi qu'hors perimetre : une fois la page restreinte, la
+   reponse ne contient plus qu'un seul nom, et s'y fier aurait interdit d'en viser un
+   autre sans tout effacer d'abord. */
+const knownUsers=ref<string[]>([]);
+const scopedUser=ref('');
+const matchedUser=computed((): string|null=>{
+  if(currentView.value!=='overview'||!needle.value)return null;
+  return knownUsers.value.find(name=>name.toLowerCase().includes(needle.value))||null;
+});
+const searchPlaceholder=computed(()=>({
+  overview:'Filtrer par utilisateur',
+  live:'Filtrer les lectures en cours',
+  history:'Filtrer par média, utilisateur ou appareil',
+  quality:'Filtrer par média, utilisateur ou appareil',
+  users:'Filtrer par utilisateur',
+} as Record<string, string>)[currentView.value] || 'Filtrer');
+/* Le direct ne depend pas de la periode, donc d'aucun recalcul serveur : c'est la seule
+   surface que l'on restreint encore ici, sur le nom deja retenu. */
+const liveSessions=computed(()=>{
+  const sessions=data.value.active||[];
+  if(currentView.value==='overview')return scopedUser.value?sessions.filter((item: any)=>item.user_name===scopedUser.value):sessions;
+  return sessions.filter((item: any)=>matches(displayTitle(item),item.user_name,item.player,item.product,item.platform));
+});
+const filteredAnalyticsUsers=computed(()=>analyticsUsers.value.filter((user: any)=>matches(user.name,user.favorite_title,user.favorite_device)));
+const qualityHistory=computed(()=>(data.value.history||[]).slice(0,20));
+const viewTitle=computed(()=>({overview:'Vue d’ensemble',live:'Activité en direct',history:'Historique des lectures',quality:'Qualité des flux',users:'Utilisateurs'} as Record<string, string>)[currentView.value]);
 const viewDescription=computed(()=>({
   overview:'Vue synthétique des lectures, tendances et utilisateurs.',
   live:'Lectures en cours et diagnostic détaillé des flux.',
@@ -226,26 +319,89 @@ const viewDescription=computed(()=>({
 } as Record<string, string>)[currentView.value]);
 const averageWatch=computed(()=>summary.value.sessions?Math.round((summary.value.watch_ms||0)/summary.value.sessions):0);
 const relativeUpdate=computed(()=>{const seconds=Math.max(0,Math.floor((clock.value-updatedAt.value)/1000));return seconds<5?'à l’instant':`il y a ${seconds} s`});
-const filteredHistory=computed(()=>data.value.history.filter((item: any)=>{
-  const needle=historySearch.value.trim().toLowerCase();
-  const haystack=[displayTitle(item),item.user_name,item.player,item.product,item.platform,item.address,item.geo_city,item.geo_region,item.geo_country,item.geo_country_code].filter(Boolean).join(' ').toLowerCase();
-  return (!needle||haystack.includes(needle))&&(!methodFilter.value||item.playback_method===methodFilter.value)&&(!typeFilter.value||item.media_type===typeFilter.value)&&(!userFilter.value||item.user_name===userFilter.value)&&(!deviceFilter.value||deviceLabel(item)===deviceFilter.value);
-}));
-const historyUsers=computed(()=>uniqueHistoryValues((item: any)=>item.user_name));
-const historyDevices=computed(()=>uniqueHistoryValues(deviceLabel));
+/* L'historique ne vient plus de l'instantane d'activite -- borne a cent lignes toutes
+   personnes confondues -- mais de son propre endpoint filtre et pagine. Filtrer cette
+   fenetre-la donnait « les lectures d'Untel parmi les cent dernieres » au lieu de ses
+   cent dernieres, sans que le compteur affiche ne le trahisse. */
+const HISTORY_PAGE_SIZE=100;
+const history=ref<{items: any[]; total: number; hasMore: boolean; facets: {users: string[]; devices: string[]}}>(
+  {items:[],total:0,hasMore:false,facets:{users:[],devices:[]}}
+);
+const historyError=ref('');
+const historyLoadingMore=ref(false);
+const historySort=ref('recent');
+const historyRequest=useLatestRequest();
+
+function historyParams(offset: number): URLSearchParams {
+  const params=new URLSearchParams({days:String(days.value),limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});
+  const needle=historySearch.value.trim();
+  if(needle)params.set('query',needle);
+  if(methodFilter.value)params.set('method',methodFilter.value);
+  if(typeFilter.value)params.set('media_type',typeFilter.value);
+  if(userFilter.value)params.set('user',userFilter.value);
+  if(deviceFilter.value)params.set('device',deviceFilter.value);
+  return params;
+}
+
+async function loadHistory(more=false): Promise<void> {
+  const offset=more?history.value.items.length:0;
+  const {signal,isCurrent}=historyRequest.begin();
+  if(more)historyLoadingMore.value=true;
+  historyError.value='';
+  try{
+    const payload=await api<any>(`/api/playback/history?${historyParams(offset)}`,{signal});
+    if(!isCurrent())return;
+    history.value={
+      items:more?[...history.value.items,...(payload.items||[])]:(payload.items||[]),
+      total:payload.total||0,
+      hasMore:Boolean(payload.has_more),
+      facets:{users:payload.facets?.users||[],devices:payload.facets?.devices||[]},
+    };
+  }catch(e: any){
+    if(!historyRequest.isAbort(e)&&isCurrent())historyError.value=e?.message||String(e);
+  }finally{
+    if(isCurrent())historyLoadingMore.value=false;
+  }
+}
+const scheduleHistory=useDebounced(()=>loadHistory(),250);
+
+/* Le tri « duree » n'a pas de sens en base sur une page : il ordonnerait les lignes
+   chargees, pas la periode. Il reste donc local et le dit -- « Recentes » et
+   « Anciennes » passent, eux, par le serveur. */
+const sortedHistoryItems=computed(()=>{
+  if(historySort.value!=='longest')return history.value.items;
+  return [...history.value.items].sort((a: any,b: any)=>(b.watched_ms||0)-(a.watched_ms||0));
+});
+function setHistorySort(value: string): void {historySort.value=value}
+const historyUsers=computed(()=>history.value.facets.users);
+const historyDevices=computed(()=>history.value.facets.devices);
 const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value,userFilter.value,deviceFilter.value].filter(Boolean).length);
-const activityFilterCount=computed(()=>(days.value===30?0:1)+(currentView.value==='history'?historyFilterCount.value:0));
 const methodBreakdown=computed(()=>(analytics.value.quality?.methods||[]).map((item: any)=>({label:playbackMethodLabel(item.key,{fallback:item.key==='unknown'?'Inconnu':item.key}),value:item.count,suffix:` · ${item.rate} %`})));
 const resolutionBreakdown=computed(()=>(analytics.value.quality?.resolutions||[]).map((item: any)=>({label:item.label,value:item.count})));
 const codecBreakdown=computed(()=>(analytics.value.quality?.codecs||[]).map((item: any)=>({label:item.label,value:item.count})));
 const transcodeReasonBreakdown=computed(()=>(analytics.value.quality?.transcode_reasons||[]).map((item: any)=>({label:item.label,value:item.count})));
+const qualityCoverage=computed(()=>analytics.value.quality?.coverage||{sessions:0,method_known:0,bandwidth_measured:0});
+const bandwidthMeasured=computed(()=>analytics.value.bandwidth?.measured??qualityCoverage.value.bandwidth_measured??0);
+const methodCoverageRate=computed(()=>{
+  const total=qualityCoverage.value.sessions||0;
+  return total?Math.round((qualityCoverage.value.method_known||0)/total*100):0;
+});
+const bandwidthCoverageLabel=computed(()=>{
+  const measured=bandwidthMeasured.value;
+  const total=qualityCoverage.value.sessions||0;
+  return measured?`mesuré sur ${measured} lecture${measured>1?'s':''} sur ${total}`:'aucun débit communiqué par Plex';
+});
+function openUserScope(name: string): void {
+  historySearch.value=name;
+  router.replace({path:'/activity',query:{...route.query,view:undefined}});
+}
 const bandwidthBreakdown=computed(()=>(analytics.value.bandwidth?.by_user||[]).map((item: any)=>({label:item.name,value:Math.round(item.average_kbps/100)/10,suffix:' Mb/s',detail:`Pic ${formatBandwidth(item.peak_kbps)}`})));
 
 // Seules les statistiques sont mises en cache, jamais les sessions `active` : repeindre
 // une lecture « en cours » terminee depuis serait un contresens, alors qu'une tendance
 // sur 30 jours vieille de quelques minutes reste juste.
 const STATISTICS_CACHE_MAX_AGE_MS=6*60*60*1000;
-const statisticsCacheKey=()=>`activity:statistics:${days.value}`;
+const statisticsCacheKey=()=>`activity:statistics:${days.value}${scopedUser.value?`:${scopedUser.value}`:''}`;
 
 function applySnapshot(snapshot: any,{savedAt=Date.now()}: {savedAt?: number}={}){
   data.value={
@@ -255,11 +411,15 @@ function applySnapshot(snapshot: any,{savedAt=Date.now()}: {savedAt?: number}={}
   };
   if(selectedSession.value){
     const candidates=[...(snapshot.active||[]),...(snapshot.history||[])];
-    const fresh=candidates.find((item: any)=>item.source===selectedSession.value.source&&item.session_id===selectedSession.value.session_id);
+    const fresh=candidates.find((item: any)=>sessionKey(item)===sessionKey(selectedSession.value));
     if(fresh)selectedSession.value=fresh;
   }
   loaded.value=true;
   updatedAt.value=savedAt;
+  if(!scopedUser.value){
+    const names=[...(snapshot.users||[]),...(snapshot.analytics?.users||[])].map((user: any)=>String(user.name||'')).filter(Boolean);
+    if(names.length)knownUsers.value=[...new Set(names)];
+  }
 }
 function applyLive(snapshot: any): void {
   data.value={
@@ -269,7 +429,7 @@ function applyLive(snapshot: any): void {
     liveConfigured:snapshot.configured!==false,
   };
   if(selectedSession.value){
-    const fresh=(snapshot.active||[]).find((item: any)=>item.source===selectedSession.value.source&&item.session_id===selectedSession.value.session_id);
+    const fresh=(snapshot.active||[]).find((item: any)=>sessionKey(item)===sessionKey(selectedSession.value));
     if(fresh)selectedSession.value=fresh;
   }
   updatedAt.value=Date.now();
@@ -279,8 +439,13 @@ function primeFromCache(): void {
   const entry=readCacheEntry(statisticsCacheKey(),{maxAgeMs:STATISTICS_CACHE_MAX_AGE_MS});
   if(entry)applyStatistics(entry.data,{savedAt:entry.savedAt});
 }
+function statisticsUrl(): string {
+  const params=new URLSearchParams({days:String(days.value)});
+  if(scopedUser.value)params.set('user',scopedUser.value);
+  return `/api/playback/statistics?${params}`;
+}
 async function loadLive(silent=true): Promise<void> {try{applyLive(await api('/api/playback/live'))}catch(e: any){if(!silent)error.value=e.message}}
-async function loadStatistics(silent=true,refresh=false): Promise<void> {try{const statistics=await api(`/api/playback/statistics?days=${days.value}${refresh?'&refresh=true':''}`);applyStatistics(statistics);writeCache(statisticsCacheKey(),statistics)}catch(e: any){if(!silent)error.value=e.message}}
+async function loadStatistics(silent=true,refresh=false): Promise<void> {try{const statistics=await api(`${statisticsUrl()}${refresh?'&refresh=true':''}`);applyStatistics(statistics);writeCache(statisticsCacheKey(),statistics)}catch(e: any){if(!silent)error.value=e.message}}
 async function load(silent=false): Promise<void> {
   if(loading.value)return;
   if(!silent){loading.value=true;error.value=''}
@@ -289,37 +454,94 @@ async function load(silent=false): Promise<void> {
       applyLive(await api('/api/playback/live'));
       loaded.value=true;
     }else{
-      const [statistics,live]=await Promise.all([api(`/api/playback/statistics?days=${days.value}`),api('/api/playback/live')]);
+      const [statistics,live]=await Promise.all([api(statisticsUrl()),api('/api/playback/live')]);
       applyStatistics(statistics);writeCache(statisticsCacheKey(),statistics);applyLive(live);
     }
   }catch(e: any){if(!silent)error.value=e.message}
   finally{if(!silent)loading.value=false}
 }
-function setDays(value: number): void {days.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
+function setDays(value: number): void {days.value=value;localStorage.setItem(PERIOD_STORAGE_KEY,String(value));router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
 function setPeriod(value: string | number): void { if (typeof value === 'number') setDays(value); }
-function selectView(value: string): void {router.replace({path:'/activity',query:{view:value==='overview'?undefined:value,days:days.value===30?undefined:String(days.value)}})}
-function deviceLabel(item: any): string {return String(item.player||item.product||item.platform||'').trim()}
-function uniqueHistoryValues(pick: (item: any)=>unknown): string[] {
-  const values: string[]=data.value.history.map((item: any)=>String(pick(item)||'').trim()).filter((value: string)=>Boolean(value));
-  return [...new Set<string>(values)].sort((a,b)=>a.localeCompare(b,'fr'));
-}
-function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value='';if(days.value!==30)setPeriod(30)}
+function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value=''}
 const formatDate=(value: string)=>formatDateTimeShort(value,'—');
 function comparisonLabel(value: number): string {return `${signedPercent(value)} vs période précédente`}
+// Les cartes de tete portent la tendance : sans comparaison disponible, aucun chevron
+// plutot qu'un « stable » qui affirmerait une mesure qu'on n'a pas faite.
+function trendOf(change?: number|null): {direction: string; label: string}|null {
+  if(change==null)return null;
+  return {direction:change>0?'up':change<0?'down':'stable',label:comparisonLabel(change)};
+}
+/* Plex reutilise la meme cle de session sur plusieurs lectures successives (cinq lignes
+   d'affilee peuvent partager `session_id`) : seule la cle de la ligne en base identifie
+   vraiment une lecture. S'en remettre a `session_id` donnait des cles de liste dupliquees
+   et bloquait la navigation « suivante » du tiroir sur la premiere ligne homonyme. */
+function sessionKey(item: any): string {
+  if (!item) return '';
+  return item.id != null ? `row:${item.id}` : `${item.source}:${item.session_id}`;
+}
 function displayTitle(item: any): string {return item.grandparent_title?`${item.grandparent_title} · ${item.title}`:item.title}
+/* Les sessions voisines sont celles de la liste effectivement affichee : passer de
+   l'une a l'autre depuis le tiroir doit suivre l'ordre que l'on avait sous les yeux. */
+const siblingSessions=computed((): any[]=>{
+  if(currentView.value==='history')return sortedHistoryItems.value;
+  if(currentView.value==='quality')return qualityHistory.value;
+  return liveSessions.value;
+});
+const selectedIndex=computed(()=>{
+  if(!selectedSession.value)return -1;
+  const key=sessionKey(selectedSession.value);
+  return siblingSessions.value.findIndex((item: any)=>sessionKey(item)===key);
+});
+function navigateSession(direction: number): void {
+  const next=siblingSessions.value[selectedIndex.value+direction];
+  if(next)selectedSession.value=next;
+}
+function onSessionKey(event: KeyboardEvent): void {
+  if(!selectedSession.value)return;
+  const target=event.target as HTMLElement|null;
+  if(target&&/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))return;
+  if(event.key==='j')navigateSession(1);
+  else if(event.key==='k')navigateSession(-1);
+}
 function initials(name: string): string {return String(name||'?').split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase()}
 function userShare(sessions: number): number {return Math.round(Number(sessions||0)/Math.max(1,summary.value.sessions||0)*100)}
-watch(()=>route.query.days,value=>{const next=Number(value)||30;if(next!==days.value){days.value=next;loadStatistics(false)}});
+watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!==days.value){days.value=next;loadStatistics(false)}});
 useRealtime(['activity.updated'],()=>currentView.value==='live'?loadLive():Promise.allSettled([loadLive(),loadStatistics()]));
 // Horloge locale du libelle « actualise il y a N s » : doit tourner meme onglet masque,
 // sinon l'age affiche au retour sur l'onglet est faux.
 usePolling(()=>clock.value=Date.now(),1000,{whenVisible:false});
-watch(currentView,(next,previous)=>{if(next===previous)return;if(next==='live')loadLive(false);else if(!data.value.history?.length)loadStatistics(false)});
-onMounted(()=>{primeFromCache();load()});
+// Une frappe ne doit pas declencher une requete par lettre : on n'appelle le serveur que
+// lorsque le nom retenu change vraiment, et apres une pause de saisie.
+const applyScope=useDebounced(()=>{
+  const next=matchedUser.value||'';
+  if(next===scopedUser.value)return;
+  scopedUser.value=next;
+  primeFromCache();
+  loadStatistics(false);
+},350);
+watch(matchedUser,()=>applyScope());
+watch(currentView,(next,previous)=>{
+  if(next===previous)return;
+  if(next==='live'){loadLive(false);return}
+  if(next==='history'&&!history.value.items.length)loadHistory();
+  if(!data.value.history?.length)loadStatistics(false);
+});
+// Chaque filtre d'historique repart en base : la recherche apres une pause de saisie,
+// les listes deroulantes immediatement.
+watch([methodFilter,typeFilter,userFilter,deviceFilter],()=>{if(currentView.value==='history')loadHistory()});
+watch(historySearch,()=>{if(currentView.value==='history')scheduleHistory()});
+watch(days,()=>{if(currentView.value==='history')loadHistory()});
+onMounted(()=>{
+  primeFromCache();
+  load();
+  if(currentView.value==='history')loadHistory();
+  window.addEventListener('keydown',onSessionKey);
+});
+onUnmounted(()=>window.removeEventListener('keydown',onSessionKey));
 </script>
 
 <style scoped lang="scss">
-.activity-title-tabs{margin:0}
+.activity-title-tabs{margin:0}.coverage-note{display:flex;align-items:center;gap:var(--space-2);margin:0 0 14px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--muted);font-size:var(--fs-xs)}.coverage-note svg{flex:none;width:15px}.coverage-note strong{color:var(--text)}.user-card{position:relative}.user-card-open{position:absolute;inset:0;z-index:1;border:0;border-radius:inherit;background:transparent;cursor:pointer}.user-card-open:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.user-card>*:not(.user-card-open){position:relative;z-index:2;pointer-events:none}.user-card-cue{display:inline-flex;align-items:center;gap:6px;grid-column:1/-1;margin-top:2px;color:var(--muted);font-size:var(--fs-xs);font-weight:600}.user-card-cue svg{width:14px}.user-card:hover .user-card-cue{color:var(--accent)}.scope-note{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;margin:0 0 4px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--muted);font-size:var(--fs-xs)}.scope-note span{display:inline-flex;align-items:center;gap:var(--space-2)}.scope-note svg{width:15px}.scope-note strong{color:var(--text)}
 .period-picker{display:flex;padding:2px;border:1px solid var(--border);border-radius:var(--radius-pill)}.period-picker button{border:0;border-radius:var(--radius-pill);background:transparent;color:var(--muted);padding:6px 9px}.period-picker button.active{background:var(--accent);color:#111}.activity-metrics{margin:0 0 14px}.overview-metrics{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap: var(--space-2)}.overview-metric-card{padding:12px!important;gap: var(--space-2)!important}.overview-metric-card :deep(svg){width:17px!important}.overview-metric-card :deep(strong){font-size:var(--fs-lg)!important;white-space:nowrap}.overview-metric-card :deep(span),.overview-metric-card :deep(small){font-size:10px!important}.activity-grid{display:grid;grid-template-columns:2fr 1fr;gap: var(--space-4);margin:14px 0}.analytics-secondary{grid-template-columns:1fr 1fr}.activity-page :deep(.heatmap-panel),.activity-page :deep(.popular-panel){margin-top:14px}.live-heading{display:flex;align-items:flex-end;justify-content:space-between;gap: var(--space-4);margin:8px 2px 16px}.live-heading h2{margin:6px 0 3px}.live-heading p,.live-updated{margin:0;color:var(--muted);font-size:var(--fs-xs)}.live-indicator{display:flex;align-items:center;gap: var(--space-2);color:#4ade80;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase}.live-indicator i{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12)}.search-field{display:flex;align-items:center;gap: var(--space-2);min-width:min(360px,100%);padding:0 11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)}.search-field svg{width:15px;color:var(--muted)}.search-field input{width:100%;border:0;background:transparent}.quality-grid{display:grid;grid-template-columns:repeat(2,1fr);gap: var(--space-4);margin-bottom:14px}.compatibility-panel{margin-bottom:14px}.compatibility-table{display:grid;margin-top:10px}.compatibility-table article{display:grid;grid-template-columns:28px minmax(150px,1fr) minmax(100px,1fr) 50px;gap: var(--space-3);align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)}.compatibility-table article>svg{width:18px;color:var(--muted)}.compatibility-table article>span{display:grid;min-width:0}.compatibility-table article small{color:var(--muted);font-size:var(--fs-xs)}.compatibility-table article>div{height:6px;overflow:hidden;border-radius:var(--radius-pill);background:rgba(255,255,255,.07)}.compatibility-table article>div i{display:block;height:100%;background:#4ade80}.compatibility-table em{color:#4ade80;font-size:var(--fs-xs);font-style:normal;text-align:right}.quality-list{display:grid;margin-top:10px}.quality-list button{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap: var(--space-3);align-items:center;width:100%;padding:9px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);text-align:left}.quality-list button:hover{background:rgba(255,255,255,.025)}.quality-list button>span{display:grid;min-width:0}.quality-list strong,.quality-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.quality-list small{color:var(--muted);font-size:var(--fs-xs)}.binge-panel{margin-top:14px}.binge-panel .panel-head>small{color:var(--muted);font-size:var(--fs-xs)}.binge-list{display:grid;margin-top:10px}.binge-list article{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap: var(--space-3);align-items:center;padding:10px 2px;border-bottom:1px solid var(--border)}.binge-list article>svg{width:19px;color:var(--muted)}.binge-list article>span,.binge-list article>em{display:grid}.binge-list small,.binge-list em{color:var(--muted);font-size:var(--fs-xs);font-style:normal}.binge-list em{justify-items:end}.binge-list em>strong{color:var(--text)}.user-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap: var(--space-3)}.user-card{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap: var(--space-3);align-items:center}.user-avatar{display:grid;grid-row:1/3;place-items:center;width:46px;height:46px;border-radius:50%;background:rgba(229,160,13,.13);color:var(--accent);font-weight:800}.user-card h3,.user-card p{margin:0}.user-card p,.user-card small{color:var(--muted);font-size:var(--fs-xs)}.user-card>strong{color:var(--text)}.user-share{grid-column:2/4;height:5px;overflow:hidden;border-radius:var(--radius-pill);background:rgba(255,255,255,.08)}.user-share i{display:block;height:100%;border-radius:inherit;background:var(--accent)}.user-card>small{grid-column:2/4}.user-card>small b{color:#4ade80}.user-card>small b.down{color:#fb7185}.user-card dl{display:grid;grid-column:1/-1;grid-template-columns:repeat(3,1fr);gap: var(--space-2);margin:5px 0 0}.user-card dl>div{display:grid;gap: var(--space-1);padding:8px;border-radius:var(--radius-sm);background:var(--surface-2)}.user-card dt{color:var(--muted);font-size:var(--fs-xs);}.user-card dd{overflow:hidden;margin:0;font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}@media(max-width:900px){.activity-grid,.analytics-secondary{grid-template-columns:1fr}}@media(max-width:700px){.quality-grid{grid-template-columns:1fr}.compatibility-table article{grid-template-columns:28px minmax(0,1fr) 44px}.compatibility-table article>div{grid-column:2}.compatibility-table em{grid-column:3;grid-row:2}}@media(max-width:540px){.period-picker{order:3}.live-heading{align-items:flex-start;flex-direction:column}.live-updated{display:none}.quality-list button{grid-template-columns:42px minmax(0,1fr)}.quality-list :deep(.playback-badge){grid-column:2}.user-card dl{grid-template-columns:1fr}}@media(max-width:480px){.overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:767.98px){.quality-grid{grid-template-columns:1fr}.period-picker{order:3;max-width:100%;overflow-x:auto}.period-picker button,.quality-list button{min-height:44px}.live-heading{align-items:flex-start;flex-direction:column}.live-updated{display:none}.user-cards{grid-template-columns:1fr}}
 </style>

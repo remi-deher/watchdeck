@@ -10,7 +10,6 @@
       @toggle-filters="filtersOpen = !filtersOpen" page-class="analytics-page">
 
       <template #tools>
-        <AppSubnav variant="tabs" :active="activeTab" :items="analyticsTabs" aria-label="Vues des insights médiathèque" @update:active="selectTab" />
         <UiButton variant="primary" :href="exportUrl"><template #icon><FileDown /></template>Exporter CSV</UiButton>
         <UiButton v-if="activeTab === 'table'" icon-only title="Personnaliser les colonnes" aria-label="Personnaliser les colonnes" @click="mediaTable?.openColumnPicker()"><Columns /></UiButton>
       </template>
@@ -105,14 +104,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { ChevronRight, Columns, FileDown, Lightbulb } from '@lucide/vue';
 
 import { api } from '@/api';
 import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
 import MetricGrid from '@/components/ui/MetricGrid.vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import MediaRowsTable from '@/components/library/MediaRowsTable.vue';
@@ -131,11 +129,9 @@ import {
   formatInteger as number,
 } from '@/utils/format';
 
-const route=useRoute(),router=useRouter();
-const analyticsTabs=[{key:'table',label:'Inventaire'},{key:'insights',label:'Insights'}];
+const route=useRoute();
 const activeTab = computed(()=>route.query.view==='insights'?'insights':'table');
 const filtersOpen = ref(false);
-function selectTab(value: string): void {router.replace({path:'/analytics',query:value==='insights'?{view:'insights'}:{}});filtersOpen.value=false;}
 const snapshot = ref<Record<string, any>>({ items: [], options: {}, distributions: {} });
 const { loading, error, execute: executeLoad } = useFetchState();
 const loadingMore = ref(false);
@@ -240,6 +236,7 @@ onMounted(() => load());
 const reloadForFilters = useDebounced(() => load(), 250);
 watch(filters, reloadForFilters, { deep: true });
 watch(activeTab, value => {
+  filtersOpen.value = false;
   if (value === 'table' && !tableItems.value.length) loadTable();
   if (value === 'insights' && !insightItems.value.length) loadInsight();
 });

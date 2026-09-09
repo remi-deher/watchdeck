@@ -8,7 +8,7 @@
       <component :is="Component" />
     </RouterView>
   </AppShell>
-  <ToastStack :toasts="toasts" @dismiss="dismissToast"/>
+  <ToastStack :toasts="allToasts" @dismiss="dismissAnyToast"/>
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
@@ -20,6 +20,7 @@ import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
 import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";
 import { canModerateSession, isAdminSession, loadSession } from "@/composables/useSession";
+import { useToast } from "@/composables/useToast";
 const session=ref<any>(null);
 useVisualViewport();
 const isAdmin=computed(()=>isAdminSession(session.value));
@@ -28,6 +29,21 @@ const toasts=ref<any[]>([]);
 const seenPlaybackEvents=new Set<string>();
 const toastTimers=new Map<string, ReturnType<typeof setTimeout>>();
 function dismissToast(id: string | number): void {toasts.value=toasts.value.filter(toast=>toast.id!==id);clearTimeout(toastTimers.get(String(id)));toastTimers.delete(String(id))}
+/* Deux sources de notifications cohabitent : celles que cette racine fabrique elle-meme
+   (lecture Plex, nouvelle version) et celles que n'importe quel composant declare via
+   `useToast`. La pile n'affichait que les premieres, si bien qu'un `addToast` appele
+   ailleurs dans l'application ne produisait rien du tout. Les identifiants du store
+   partage sont prefixes pour ne jamais entrer en collision avec ceux d'ici. */
+const { toasts: sharedToasts, dismissToast: dismissSharedToast } = useToast();
+const allToasts=computed(()=>[
+  ...toasts.value,
+  ...sharedToasts.value.map(toast=>({...toast,id:`shared-${toast.id}`})),
+]);
+function dismissAnyToast(id: string | number): void {
+  const key=String(id);
+  if(key.startsWith('shared-')){dismissSharedToast(Number(key.slice(7)));return}
+  dismissToast(id);
+}
 function showPlaybackToasts(event: any): void {
   const started=playbackStartsFromEvent(event);
   for(const session of started){

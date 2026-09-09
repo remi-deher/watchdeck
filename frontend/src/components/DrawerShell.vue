@@ -5,7 +5,10 @@
         <slot name="background" />
         <header class="drawer-head">
           <div><span v-if="eyebrow" class="eyebrow">{{ eyebrow }}</span><h2>{{ title }}</h2></div>
-          <UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" @click="$emit('close')"><X /></UiButton>
+          <div class="drawer-head-actions">
+            <slot name="head-actions" />
+            <UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" @click="$emit('close')"><X /></UiButton>
+          </div>
         </header>
         <UiFeedback v-if="error" type="error" :message="error" />
         <slot />

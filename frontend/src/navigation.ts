@@ -19,13 +19,18 @@ import {
   Film,
   Gauge,
   GitBranch,
+  History,
   House,
   Inbox,
   Languages,
   Library,
+  Lightbulb,
   ListOrdered,
   MessageSquareWarning,
+  MonitorPlay,
+  Radio,
   ScrollText,
+  Table,
   Settings,
   Tv,
   Users,
@@ -87,7 +92,11 @@ export const DESTINATIONS: NavDestination[] = [
   { key: 'requests', label: 'Demandes', icon: Inbox, group: 'Workflow', match: (p) => p.startsWith('/discover/requests') || p.startsWith('/releases/'), to: '/discover/requests' },
   { key: 'downloads', label: 'Acquisition', icon: GitBranch, group: 'Workflow', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
   { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
-  { key: 'activity', label: 'Activité', icon: Activity, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/activity') || p.startsWith('/analytics'), to: '/activity' },
+  // Lectures Plex et analyse du catalogue sont deux espaces distincts, pas deux
+  // sections d'un meme : les regrouper obligeait chaque page a empiler sa propre
+  // rangee d'onglets sous celle de la destination.
+  { key: 'activity', label: 'Activité', icon: Activity, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/activity'), to: '/activity' },
+  { key: 'insights', label: 'Insights', icon: ChartNoAxesCombined, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/analytics'), to: '/analytics' },
   { key: 'admin', label: 'Administration', icon: Wrench, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/users') || p.startsWith('/notifications') || p.startsWith('/settings') || p.startsWith('/logs') || p.startsWith('/maintenance'), to: '/users' },
   // Un moderateur sans acces au tableau de bord garde les signalements comme espace propre.
   { key: 'issues', label: 'Problèmes signalés', icon: MessageSquareWarning, group: 'Pilotage', access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues'), to: '/issues' },
@@ -148,6 +157,29 @@ function libraryFilter(key: string, label: string, icon: Component, types: strin
   };
 }
 
+/**
+ * Vues de la page Activite, promues au rang de sections de la destination.
+ *
+ * « Statistiques » a disparu : la Vue d'ensemble en etait le sous-ensemble strict (meme
+ * courbe, meme heatmap, memes medias, meme classement), et une section dont le contenu
+ * se retrouve entierement dans une autre est une distinction que le lecteur doit deviner.
+ * Un `?view=stats` en favori retombe seul sur la Vue d'ensemble, qui n'est plus dans les
+ * vues connues de la page.
+ *
+ * La periode (`days`) n'apparait pas dans ces liens : la page la memorise elle-meme et
+ * la restitue quand l'URL ne la porte pas, ce qui evite de la dupliquer sur chacune des
+ * surfaces qui affichent ces sections (rail, barre de contexte, page).
+ */
+export function activitySections(): NavSection[] {
+  return [
+    { key: 'overview', label: 'Vue d’ensemble', to: '/activity', icon: Gauge },
+    { key: 'live', label: 'En direct', to: { path: '/activity', query: { view: 'live' } }, icon: Radio },
+    { key: 'history', label: 'Historique', to: { path: '/activity', query: { view: 'history' } }, icon: History },
+    { key: 'quality', label: 'Qualité', to: { path: '/activity', query: { view: 'quality' } }, icon: MonitorPlay },
+    { key: 'users', label: 'Utilisateurs', to: { path: '/activity', query: { view: 'users' } }, icon: Users },
+  ];
+}
+
 function pipelineSections(): NavSection[] {
   return [
     { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge },
@@ -193,9 +225,12 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       ];
       break;
     case 'activity':
+      sections = activitySections();
+      break;
+    case 'insights':
       sections = [
-        { key: 'activity', label: 'Activité Plex', to: '/activity', icon: Activity },
-        { key: 'analytics', label: 'Insights', to: '/analytics', icon: ChartNoAxesCombined },
+        { key: 'table', label: 'Inventaire', to: '/analytics', icon: Table },
+        { key: 'insights', label: 'Analyses', to: { path: '/analytics', query: { view: 'insights' } }, icon: Lightbulb },
       ];
       break;
     case 'admin':
