@@ -238,13 +238,51 @@ async def test_job_arr_statuses_scheduled_cron_keeps_normal_behavior():
 
 @pytest.mark.asyncio
 async def test_sonarr_queue_monitor_runs_every_minute():
-    with patch("app.jobs._run", new=AsyncMock(return_value={"status": "not_due"})) as run_mock:
+    """Sans réglage en base, la cadence reste celle d'origine : une minute."""
+    with (
+        patch("app.jobs._settings", new=AsyncMock(return_value=None)),
+        patch("app.jobs._run", new=AsyncMock(return_value={"status": "not_due"})) as run_mock,
+    ):
         await jobs.job_sonarr_queue_monitor({"redis": FakeRedis()})
 
     assert run_mock.call_args.args[1] == "sonarr-queue-monitor"
     assert run_mock.call_args.kwargs["interval_seconds"] == 60
     assert jobs.job_sonarr_queue_monitor in jobs.WorkerSettings.functions
     assert jobs.cron_sonarr_queue_monitor in {entry.coroutine for entry in jobs.WorkerSettings.cron_jobs}
+
+
+@pytest.mark.asyncio
+async def test_previously_fixed_intervals_now_follow_their_setting():
+    """Six tâches portaient leur cadence en dur : la page l'affichait sans pouvoir la changer.
+
+    Chacune lit désormais son réglage, en conservant l'ancienne constante comme valeur
+    par défaut — rendre un réglage modifiable ne doit rien changer par défaut.
+    """
+    fake = type(
+        "S",
+        (),
+        {
+            "arr_queue_interval_seconds": 300,
+            "torrent_status_interval_seconds": 600,
+            "new_vff_interval_seconds": 900,
+            "seer_sync_interval_minutes": 15,
+            "library_analytics_interval_minutes": 30,
+        },
+    )()
+    attendus = {
+        jobs.job_sonarr_queue_monitor: 300,
+        jobs.job_torrent_statuses: 600,
+        jobs.job_new_vff: 900,
+        jobs.job_seer_sync: 15 * 60,
+        jobs.job_library_analytics: 30 * 60,
+    }
+    for job, seconds in attendus.items():
+        with (
+            patch("app.jobs._settings", new=AsyncMock(return_value=fake)),
+            patch("app.jobs._run", new=AsyncMock(return_value={"status": "not_due"})) as run_mock,
+        ):
+            await job({"redis": FakeRedis()})
+        assert run_mock.call_args.kwargs["interval_seconds"] == seconds, job.__name__
 
 
 @pytest.mark.asyncio
@@ -301,6 +339,7 @@ async def test_job_notification_purge_compares_against_local_hour_not_utc():
     hour=3 sur le cron ARQ est une heure UTC, pas locale (3h locale visee). Doit
     comparer via local_hour() plutot que l'heure UTC du cron."""
     with (
+        patch("app.jobs._settings", new=AsyncMock(return_value=None)),
         patch("app.jobs.local_hour", return_value=3),
         patch("app.jobs._run", new=AsyncMock(return_value={"status": "complete"})) as run_mock,
     ):
@@ -312,6 +351,7 @@ async def test_job_notification_purge_compares_against_local_hour_not_utc():
 @pytest.mark.asyncio
 async def test_job_notification_purge_not_due_outside_local_hour():
     with (
+        patch("app.jobs._settings", new=AsyncMock(return_value=None)),
         patch("app.jobs.local_hour", return_value=5),
         patch("app.jobs._run", new=AsyncMock()) as run_mock,
     ):
@@ -323,10 +363,25 @@ async def test_job_notification_purge_not_due_outside_local_hour():
 @pytest.mark.asyncio
 async def test_job_notification_purge_force_bypasses_local_hour_gate():
     with (
+        patch("app.jobs._settings", new=AsyncMock(return_value=None)),
         patch("app.jobs.local_hour", return_value=5),
         patch("app.jobs._run", new=AsyncMock(return_value={"status": "complete"})) as run_mock,
     ):
         result = await jobs.job_notification_purge({"redis": FakeRedis()}, force=True)
+    run_mock.assert_awaited_once()
+    assert result == {"status": "complete"}
+
+
+@pytest.mark.asyncio
+async def test_notification_purge_follows_its_configured_hour():
+    """L'heure de purge se règle comme celle du digest, et reste une heure murale."""
+    fake = type("S", (), {"notification_purge_hour": 5})()
+    with (
+        patch("app.jobs._settings", new=AsyncMock(return_value=fake)),
+        patch("app.jobs.local_hour", return_value=5),
+        patch("app.jobs._run", new=AsyncMock(return_value={"status": "complete"})) as run_mock,
+    ):
+        result = await jobs.job_notification_purge({"redis": FakeRedis()})
     run_mock.assert_awaited_once()
     assert result == {"status": "complete"}
 

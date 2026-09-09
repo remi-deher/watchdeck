@@ -133,6 +133,12 @@ class SettingsUpdate(BaseModel):
     login_attempt_retention_days: Optional[int] = None
     audit_log_retention_days: Optional[int] = None
     arr_poll_interval_seconds: Optional[int] = None
+    arr_queue_interval_seconds: Optional[int] = None
+    torrent_status_interval_seconds: Optional[int] = None
+    new_vff_interval_seconds: Optional[int] = None
+    seer_sync_interval_minutes: Optional[int] = None
+    library_analytics_interval_minutes: Optional[int] = None
+    notification_purge_hour: Optional[int] = None
     # --- RSS Output ---
     rss_hash: Optional[str] = None
     # --- Torrent client config ---

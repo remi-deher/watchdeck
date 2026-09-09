@@ -29,8 +29,14 @@ describe('navigation — destinations', () => {
     expect(destinationForPath('/activity', true, true)?.key).toBe('activity');
     expect(destinationForPath('/analytics', true, true)?.key).toBe('insights');
     expect(destinationForPath('/vf-upgrades', true, true)?.key).toBe('library');
-    expect(destinationForPath('/logs', true, true)?.key).toBe('admin');
-    expect(destinationForPath('/notifications', true, true)?.key).toBe('admin');
+    // Les reglages ne passent plus par une destination « Administration » unique : chaque
+    // groupe est devenu une destination, et les journaux relevent de l'Exploitation.
+    expect(destinationForPath('/logs', true, true)?.key).toBe('admin-operations');
+    expect(destinationForPath('/notifications', true, true)?.key).toBe('admin-notifications');
+    expect(destinationForPath('/settings', true, true)?.key).toBe('admin-overview');
+    expect(destinationForPath('/settings/services/webhooks', true, true)?.key).toBe('admin-services');
+    expect(destinationForPath('/settings/automation/scheduled-tasks', true, true)?.key).toBe('admin-automation');
+    expect(destinationForPath('/settings/system/version', true, true)?.key).toBe('admin-system');
     expect(destinationForPath('/calendar', false, false)?.key).toBe('discover');
     expect(destinationForPath('/profile', true, true)).toBeNull();
   });
@@ -54,7 +60,7 @@ describe('navigation — destinations', () => {
     const plain = destinationsFor(false, false).map((d) => d.key);
     expect(plain).toContain('discover');
     expect(plain).not.toContain('dashboard');
-    expect(plain).not.toContain('admin');
+    expect(plain.filter((key) => key.startsWith('admin'))).toEqual([]);
   });
 
   it('n’affiche « Problèmes signalés » qu’aux modérateurs non-admins', () => {
@@ -93,7 +99,9 @@ describe('navigation — sections', () => {
       })
     );
 
-    expect(keys(sections)).toEqual(['overview', 'queue', 'movies', 'shows', 'clients']);
+    // Films et Series ont fusionne dans la file : c'etaient deux vues filtrees de la
+    // meme liste. Le type de media est desormais un filtre, pas une section.
+    expect(keys(sections)).toEqual(['overview', 'queue', 'missing', 'clients']);
   });
 
   it('ne transforme pas les instances désactivées en navigation', () => {
@@ -104,7 +112,9 @@ describe('navigation — sections', () => {
         downloadClients: [{ id: 7, name: 'DATA', enabled: false }],
       })
     );
-    expect(keys(sections)).toEqual(['overview', 'queue', 'movies', 'shows', 'clients']);
+    // Films et Series ont fusionne dans la file : c'etaient deux vues filtrees de la
+    // meme liste. Le type de media est desormais un filtre, pas une section.
+    expect(keys(sections)).toEqual(['overview', 'queue', 'missing', 'clients']);
   });
 
   it('retourne une liste vide pour une destination inconnue', () => {
@@ -112,9 +122,20 @@ describe('navigation — sections', () => {
   });
 
   it('regroupe en conservant l’ordre de première apparition', () => {
-    const groups = groupedSections(sectionsFor('admin', ctx()));
+    const groups = groupedSections(sectionsFor('admin-services', ctx()));
     expect(groups.map((g) => g.label)).toEqual(['']);
-    expect(keys(groups[0].items)).toEqual(['users', 'notifications', 'settings', 'logs']);
+    expect(keys(groups[0].items)).toEqual(['plex', 'integrations', 'webhooks']);
+  });
+
+  it('éclate les réglages en destinations plutôt qu’en troisième niveau', () => {
+    // Le defaut corrige : le rail menait a « Administration », qui menait a
+    // « Parametres », qui portait sa propre colonne de dix-sept entrees.
+    const admin = destinationsFor(true, true).filter((d) => d.group === 'Administration');
+    expect(admin.map((d) => d.key)).toContain('admin-services');
+    expect(admin.map((d) => d.label)).not.toContain('Paramètres');
+    for (const destination of admin) {
+      expect(sectionsFor(destination.key, ctx()).length).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -1298,3 +1298,16 @@ async def test_session_segments_cascade_deletion(async_db):
         .first()
     )
     assert remaining_seg is None
+
+
+def test_the_period_can_cover_the_whole_history(client):
+    """« Tout l'historique » doit passer les bornes de l'API.
+
+    Les périodes s'arrêtaient à 3650 jours — dix ans pile — ce qui laissait « 10 ans »
+    tout juste possible et « tout » hors d'atteinte : la requête repartait en 422 avant
+    d'atteindre le service.
+    """
+    assert client.get("/api/playback/statistics?days=36500").status_code == 200
+    assert client.get("/api/playback/history?days=36500").status_code == 200
+    assert client.get("/api/playback?days=36500").status_code == 200
+    assert client.get("/api/playback/statistics?days=36501").status_code == 422

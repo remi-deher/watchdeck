@@ -15,6 +15,10 @@ from .arr_shared import _resolve_arr_instance
 
 logger = logging.getLogger(__name__)
 
+#: Vocabulaire unique des statuts. « resolved » a disparu : l'interface ne l'ecrivait
+#: jamais et ne le proposait pas, il faisait doublon avec « closed » (migration 0017).
+ISSUE_STATUSES = frozenset({"open", "investigating", "closed"})
+
 router = APIRouter(prefix="/api", tags=["issues"], dependencies=[Depends(require_auth)])
 
 
@@ -30,8 +34,11 @@ class MediaIssueUpdate(BaseModel):
     admin_note: Optional[str] = Field(default=None, max_length=2000)
 
 
-def _serialize_issue(issue: MediaIssue) -> dict:
+def _serialize_issue(issue: MediaIssue, poster_url: str | None = None) -> dict:
     return {
+        # L'affiche vient du media rattache, pas du signalement : elle est resolue a
+        # part (voir `_posters_for`) pour eviter une requete par ligne.
+        "poster_url": poster_url,
         "id": issue.id,
         "created_at": issue.created_at.isoformat() if issue.created_at else None,
         "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
@@ -92,22 +99,69 @@ async def create_media_issue(
     return _serialize_issue(issue)
 
 
+async def _posters_for(db: AsyncSession, issues: list[MediaIssue]) -> dict[int, str]:
+    """Affiche de chaque signalement, resolue en deux requetes plutot qu'une par ligne.
+
+    Un signalement pointe soit un element de bibliotheque, soit une demande ; les deux
+    portent l'affiche. Sans cette resolution groupee, une liste de deux cents lignes
+    declenchait deux cents requetes.
+    """
+    library_ids = {issue.library_item_id for issue in issues if issue.library_item_id}
+    request_ids = {issue.request_id for issue in issues if issue.request_id}
+
+    posters: dict[int, str] = {}
+    if library_ids:
+        rows = (
+            await db.execute(select(LibraryItem.id, LibraryItem.poster_url).filter(LibraryItem.id.in_(library_ids)))
+        ).all()
+        by_library = {row[0]: row[1] for row in rows if row[1]}
+        for issue in issues:
+            if issue.library_item_id in by_library:
+                posters[issue.id] = by_library[issue.library_item_id]
+    if request_ids:
+        rows = (
+            await db.execute(select(MediaRequest.id, MediaRequest.poster_url).filter(MediaRequest.id.in_(request_ids)))
+        ).all()
+        by_request = {row[0]: row[1] for row in rows if row[1]}
+        for issue in issues:
+            if issue.id not in posters and issue.request_id in by_request:
+                posters[issue.id] = by_request[issue.request_id]
+    return posters
+
+
 @router.get("/media/issues", dependencies=[Depends(require_moderator)])
-async def list_media_issues(status: Optional[str] = "open", db: AsyncSession = Depends(get_db_async)):
+async def list_media_issues(
+    status: Optional[str] = "open",
+    issue_type: Optional[str] = None,
+    db: AsyncSession = Depends(get_db_async),
+):
+    """Signalements filtres, avec la liste des types disponibles pour les filtrer.
+
+    `types` couvre toute la table et non la selection courante : choisir un type ne
+    doit pas faire disparaitre les autres du menu.
+    """
     q = select(MediaIssue)
-    if status:
+    # `open` reste le defaut -- c'est ce qu'on veut voir en arrivant --, mais il fallait
+    # alors un moyen explicite de demander tout : omettre le parametre renvoyait le
+    # defaut, si bien que le filtre « Tous » de l'interface ne montrait que les ouverts.
+    if status and status != "all":
         q = q.filter(MediaIssue.status == status)
-    return [
-        _serialize_issue(issue)
-        for issue in (await db.execute(q.order_by(MediaIssue.created_at.desc()).limit(200))).scalars().all()
-    ]
+    if issue_type:
+        q = q.filter(MediaIssue.issue_type == issue_type)
+    issues = (await db.execute(q.order_by(MediaIssue.created_at.desc()).limit(200))).scalars().all()
+    posters = await _posters_for(db, list(issues))
+    types = (await db.execute(select(MediaIssue.issue_type).distinct().order_by(MediaIssue.issue_type))).scalars().all()
+    return {
+        "items": [_serialize_issue(issue, posters.get(issue.id)) for issue in issues],
+        "types": [value for value in types if value],
+    }
 
 
 @router.patch("/media/issues/{issue_id}", dependencies=[Depends(require_moderator)])
 async def update_media_issue(issue_id: int, body: MediaIssueUpdate, db: AsyncSession = Depends(get_db_async)):
     issue = await async_get_or_404(db, MediaIssue, issue_id, "Issue not found")
     if body.status is not None:
-        if body.status not in {"open", "investigating", "resolved", "closed"}:
+        if body.status not in ISSUE_STATUSES:
             raise HTTPException(400, "Invalid issue status")
         issue.status = body.status
     if body.admin_note is not None:

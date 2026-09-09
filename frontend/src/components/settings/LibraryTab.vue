@@ -6,7 +6,7 @@
       status="active"
     >
       <SettingsRow label="Fréquence de synchronisation" description="À quelle fréquence Watchdeck relit la watchlist pour détecter de nouveaux ajouts.">
-        <IntervalPresetInput v-model="form.poll_interval_seconds" :presets="WATCHLIST_PRESETS" />
+        <IntervalPresetInput v-model="form.poll_interval_seconds" :presets="presetsFor('poll_interval_seconds')!" />
       </SettingsRow>
       <SettingsRow
         label="Priorité de la source"
@@ -51,7 +51,7 @@
         label="Nouvelle analyse"
         description="Fréquence à laquelle un média déjà détecté en VO uniquement est ré-analysé, au cas où la VF aurait été ajoutée depuis."
       >
-        <IntervalPresetInput v-model="form.vff_recheck_interval_minutes" :presets="MINUTES_PRESETS" />
+        <IntervalPresetInput v-model="form.vff_recheck_interval_minutes" :presets="presetsFor('vff_recheck_interval_minutes')!" />
       </SettingsRow>
       <SettingsRow
         label="Recherche automatique"
@@ -63,7 +63,7 @@
         label="Synchronisation Plex complète"
         description="La bibliothèque est resynchronisée en entier à cette fréquence ; un scan incrémental tourne en continu, voir l'onglet Planification."
       >
-        <IntervalPresetInput v-model="form.plex_sync_interval_hours" :presets="PLEX_SYNC_PRESETS" />
+        <IntervalPresetInput v-model="form.plex_sync_interval_hours" :presets="presetsFor('plex_sync_interval_hours')!" />
       </SettingsRow>
 
       <SettingsRow label="Bibliothèques analysées" description="Sélectionne les bibliothèques Plex à parcourir, et le type de contenu de chacune." block>
@@ -110,40 +110,12 @@ import { RefreshCw, ScanSearch } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { form } from '@/settingsForm';
+import { presetsFor } from '@/settingsPresets';
 import { mediaTypeLabel } from '@/utils/labels';
 import IntervalPresetInput from './IntervalPresetInput.vue';
 import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';
 
-const WATCHLIST_PRESETS = [
-  { label: '30 secondes', value: 30 },
-  { label: '45 secondes', value: 45 },
-  { label: '1 minute', value: 60 },
-  { label: '2 minutes', value: 120 },
-  { label: '5 minutes', value: 300 },
-];
-const MINUTES_PRESETS = [
-  { label: '10 minutes', value: 10 },
-  { label: '15 minutes', value: 15 },
-  { label: '30 minutes', value: 30 },
-  { label: '1 heure', value: 60 },
-  { label: '3 heures', value: 180 },
-  { label: '6 heures', value: 360 },
-  { label: '12 heures', value: 720 },
-  { label: '24 heures', value: 1440 },
-];
-const PLEX_SYNC_PRESETS = [
-  { label: '1 heure', value: 1 },
-  { label: '2 heures', value: 2 },
-  { label: '3 heures', value: 3 },
-  { label: '4 heures', value: 4 },
-  { label: '6 heures', value: 6 },
-  { label: '8 heures', value: 8 },
-  { label: '12 heures', value: 12 },
-  { label: '24 heures', value: 24 },
-  { label: '48 heures', value: 48 },
-  { label: '72 heures', value: 72 },
-];
 
 const plexSections = ref<any[]>([]);
 const plexSectionsLoading = ref(false);

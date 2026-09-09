@@ -13,16 +13,6 @@
            successives faisaient disparaitre la premiere. Les conditions vivent donc
            sur les blocs, a l'interieur. -->
       <template #tools>
-        <div v-if="['radarr', 'sonarr'].includes(section)" class="pipeline-scope">
-          <label v-if="sectionArrInstances.length > 1">
-            <span>Instance</span>
-            <select :value="selectedInstanceId" aria-label="Limiter à une instance" @change="selectInstanceScope">
-              <option value="">Toutes</option>
-              <option v-for="source in sectionArrInstances" :key="source.id" :value="String(source.id)">{{ source.name }}</option>
-            </select>
-          </label>
-          <AppSubnav variant="tabs" class="arr-title-tabs" :active="subview" :items="subnavTabs" :aria-label="`Navigation secondaire — ${pageTitle}`" @update:active="selectSubview" />
-        </div>
         <div v-if="section==='clients'&&subview==='instances'&&!sourceNeedsConfiguration" class="client-header-actions">
           <span class="badge">{{ filteredClients.length }} torrent(s)</span>
           <UiButton variant="primary" size="sm" title="Ajouter un torrent" @click="showAddModal = true"><template #icon><Plus /></template>Ajouter un torrent</UiButton>
@@ -32,8 +22,39 @@
 
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="totalActiveFilterCount" @close="filtersOpen=false" @reset="resetAllFilters">
-        <FilterGroup v-if="!['clients', 'radarr', 'sonarr'].includes(section)" label="Affichage">
-          <button v-for="tab in subnavTabs" :key="tab.key" class="filter-badge" :class="{ active: subview === tab.key }" @click="selectSubview(tab.key)"><span>{{ tab.label }}</span></button>
+        <!-- Type, etat, instance : tous les filtres au meme endroit. Avant, l'etat
+             vivait dans une rangee d'onglets sur Films et Series, et dans ce tiroir
+             sous « Affichage » sur les autres pages -- deux idiomes pour la meme
+             chose, repartis au hasard des sections. -->
+        <FilterGroup v-if="section === 'queue' || section === 'missing'" label="Type de média">
+          <button
+            v-for="option in MEDIA_TYPE_OPTIONS"
+            :key="option.value || 'all'"
+            class="filter-badge"
+            :class="{ active: mediaType === option.value }"
+            @click="mediaType = option.value"
+          ><span>{{ option.label }}</span></button>
+        </FilterGroup>
+
+        <FilterGroup v-if="section === 'queue'" label="État">
+          <button
+            v-for="option in QUEUE_STATE_OPTIONS"
+            :key="option.value"
+            class="filter-badge"
+            :class="{ active: subview === option.value }"
+            @click="selectSubview(option.value)"
+          ><span>{{ option.label }}</span></button>
+        </FilterGroup>
+
+        <FilterGroup v-if="(section === 'queue' || section === 'missing') && typedArrInstances.length > 1" label="Instance">
+          <button class="filter-badge" :class="{ active: !selectedInstanceId }" @click="selectInstanceId('')"><span>Toutes</span></button>
+          <button
+            v-for="source in typedArrInstances"
+            :key="source.id"
+            class="filter-badge"
+            :class="{ active: selectedInstanceId === String(source.id) }"
+            @click="selectInstanceId(String(source.id))"
+          ><span>{{ source.name }}</span></button>
         </FilterGroup>
 
         <template v-if="section==='clients'">
@@ -90,7 +111,7 @@
 
         <!-- Banner synthétique pour vue spécifique Radarr / Sonarr -->
         <ArrDownloadsLayout
-          v-if="['radarr', 'sonarr'].includes(section) && subview!=='missing'"
+          v-if="section === 'queue'"
           :instances="filteredSectionArrInstances"
           :arr-queue="arrQueue"
           :wanted-items="wantedItems"
@@ -107,18 +128,18 @@
           @select="selectClientDashboard"
         />
 
-        <UnmatchedImportsBanner v-if="!['clients', 'radarr', 'sonarr'].includes(section)" :items="unmatchedItems" :row-key="rowKey" @view-all="openUnmatched" @associate="openManual"/>
+        <UnmatchedImportsBanner v-if="section === 'overview' || section === 'queue'" :items="unmatchedItems" :row-key="rowKey" @view-all="openUnmatched" @associate="openManual"/>
 
         <UiFeedback v-if="error" type="error" title="Chargement partiel" :message="error" retry @retry="loadAll"/>
         <UiFeedback v-if="loading&&!queue.length" type="loading" message="Chargement des téléchargements…"/>
         <section v-if="sourceNeedsConfiguration" class="panel download-source-empty">
-          <component :is="section==='radarr'?Film:section==='sonarr'?Tv:Server" />
-          <div><h2>{{ section==='clients'?'Aucun client torrent configuré':'Aucune instance '+(section==='radarr'?'Radarr':'Sonarr')+' configurée' }}</h2><p>Cette source reste facultative et n’empêche pas le suivi des autres téléchargements.</p></div>
-          <UiButton variant="primary" :to="{path:'/settings',query:{tab:'services'}}"><template #icon><Plus/></template>Ajouter une instance</UiButton>
+          <component :is="Server" />
+          <div><h2>Aucun client torrent configuré</h2><p>Cette source reste facultative et n’empêche pas le suivi des autres téléchargements.</p></div>
+          <UiButton variant="primary" to="/settings/services/integrations"><template #icon><Plus/></template>Ajouter un client</UiButton>
         </section>
 
         <!-- Vue file active (Radarr/Sonarr/Overview) -->
-        <section v-if="section!=='clients'&&!showHistory&&!sourceNeedsConfiguration&&subview!=='missing'" class="download-groups" role="tabpanel">
+        <section v-if="section!=='clients'&&section!=='missing'&&!showHistory&&!sourceNeedsConfiguration" class="download-groups" role="tabpanel">
           <section v-for="group in queueGroups" :key="group.key" class="download-group" :class="group.key">
             <header class="download-group-head"><div><component :is="group.icon"/><div><h2>{{ group.title }}</h2><p>{{ group.description }}</p></div></div><span>{{ group.items.length }}</span></header>
             <div class="download-card-grid">
@@ -248,7 +269,7 @@
         </section>
 
         <!-- Vue Médias manquants / recherchés pour Radarr / Sonarr -->
-        <section v-else-if="['radarr','sonarr'].includes(section)&&subview==='missing'&&!sourceNeedsConfiguration" class="panel wanted-section" role="tabpanel">
+        <section v-else-if="section==='missing'" class="panel wanted-section" role="tabpanel">
           <div class="panel-head">
             <div>
               <h3>Éléments manquants</h3>
@@ -258,13 +279,13 @@
           </div>
           <div v-if="wantedItems.length" class="media-grid missing-items-grid" aria-label="Éléments manquants">
             <MissingSeriesCard
-              v-for="series in section==='sonarr' ? missingSeriesGroups : []"
+              v-for="series in mediaType === 'radarr' ? [] : missingSeriesGroups"
               :key="`series-${series.instance_id}-${series.arr_id}`"
               :series="series"
               @error="setSourceError('wanted', $event)"
             />
             <LibraryCard
-              v-for="item in section==='radarr' ? wantedItems : []"
+              v-for="item in mediaType === 'sonarr' ? [] : movieWantedItems"
               :key="`wanted-${item.instance_id}-${item.id}`"
               :item="wantedLibraryItem(item)"
               @error="setSourceError('wanted', $event)"
@@ -333,7 +354,6 @@
 <script setup lang="ts">
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
 import LoadMore from '@/components/ui/LoadMore.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
@@ -457,8 +477,8 @@ const error=computed({
     const relevant=['configuration','action','ui'];
     if(section.value!=='clients')relevant.push('queue');
     if(['overview','clients'].includes(section.value))relevant.push('clients');
-    if(section.value==='overview'||['radarr','sonarr'].includes(section.value))relevant.push('wanted');
-    if(section.value==='overview'||showHistory.value||(['radarr','sonarr'].includes(section.value)&&subview.value==='all'))relevant.push('history');
+    if(['overview','queue','missing'].includes(section.value))relevant.push('wanted');
+    if(section.value==='overview'||showHistory.value||section.value==='queue')relevant.push('history');
     if(section.value==='overview')relevant.push('disk');
     return relevant.map(key=>sourceErrors.value[key]).filter(Boolean).join(' · ');
   },
@@ -470,11 +490,14 @@ const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
 const HISTORY_PAGE_SIZE=100;
 const request=useLatestRequest();
 
-const sectionArrInstances = computed(() => {
-  if (!['radarr', 'sonarr'].includes(section.value)) return [];
-  return configuredArr.value.filter((inst: any) => inst.arr_type === section.value);
-});
-const filteredSectionArrInstances = computed(() => sectionArrInstances.value.filter(
+/** Instances concernees par le filtre de type courant ; toutes s'il est vide.
+ *  Prowlarr est exclu : c'est un indexeur, il n'alimente aucune file de telechargement. */
+const typedArrInstances = computed(() =>
+  configuredArr.value.filter(
+    (inst: any) => ['radarr', 'sonarr'].includes(inst.arr_type) && (!mediaType.value || inst.arr_type === mediaType.value)
+  )
+);
+const filteredSectionArrInstances = computed(() => typedArrInstances.value.filter(
   (inst: any) => !selectedInstanceId.value || String(inst.id) === selectedInstanceId.value
 ));
 
@@ -537,14 +560,22 @@ const missingSeriesGroups = computed(() => {
     episodes: series.episodes.sort((a: any,b: any) => (a.season_number - b.season_number) || (a.episode_index - b.episode_index)),
   })).sort((a,b) => a.title.localeCompare(b.title, 'fr'));
 });
-const missingItemCount = computed(() => section.value === 'sonarr' ? missingSeriesGroups.value.length : wantedItems.value.length);
+const movieWantedItems = computed(() => wantedItems.value.filter((row: any) => row.arr_type !== 'sonarr'));
+const missingItemCount = computed(() => {
+  if (mediaType.value === 'sonarr') return missingSeriesGroups.value.length;
+  if (mediaType.value === 'radarr') return movieWantedItems.value.length;
+  return missingSeriesGroups.value.length + movieWantedItems.value.length;
+});
 
 async function loadWanted(): Promise<void> {
-  if (section.value !== 'overview' && !['radarr', 'sonarr'].includes(section.value)) return;
+  if (!['overview', 'missing', 'queue'].includes(section.value)) return;
   const loadVersion = ++wantedLoadVersion;
   if (!wantedItems.value.length) loadingWanted.value = true;
   try {
-    const params = new URLSearchParams({ arr_type: section.value });
+    // `arr_type` vide = les deux sources : la section couvre desormais films et series,
+    // le filtre de type se charge de restreindre.
+    const params = new URLSearchParams();
+    if (mediaType.value) params.set('arr_type', mediaType.value);
     if (selectedInstanceId.value) params.set('instance_id', selectedInstanceId.value);
     const rows = await api(`/api/arr/wanted?${params}`);
     if (loadVersion === wantedLoadVersion) { wantedItems.value = asList(rows); setSourceError('wanted'); }
@@ -568,48 +599,64 @@ function wantedLibraryItem(item: any) {
 }
 
 
-const section=computed((): string =>['queue','radarr','sonarr','clients'].includes(String(route.query.view))?String(route.query.view):'overview');
+/* Quatre sections, plus aucune rangee d'onglets.
+ *
+ * « Films » et « Series » etaient deux fois la meme page au type de media pres, et
+ * « File d'attente » etait deja cette page sans le filtre : trois sections pour une
+ * seule liste. Le type de media est devenu un filtre, aux cotes de l'etat, de
+ * l'instance et du client -- tous au meme endroit, dans le tiroir, au lieu d'etre
+ * repartis entre une rangee d'onglets et un tiroir a moitie vide selon la page.
+ */
+const section=computed((): string =>['queue','missing','clients'].includes(String(route.query.view))?String(route.query.view):'overview');
 const validSubviews: Record<string, string[]> ={
-  overview:['all','active','waiting','completed','errors'],
-  queue:['all','active','waiting','intervention'],
-  radarr:['all','active','waiting','missing','completed','errors'],
-  sonarr:['all','active','waiting','missing','completed','errors'],
+  overview:['all'],
+  queue:['all','active','waiting','completed','errors','intervention'],
+  missing:['all'],
   clients:['overview','instances']
 };
 const subview=computed((): string =>validSubviews[section.value].includes(String(route.query.sub))?String(route.query.sub):section.value==='clients'?'overview':'all');
+
+/** Filtre de type de media : remplace les anciennes sections Films et Series. */
+const mediaType=computed({
+  get: (): string => ['radarr','sonarr'].includes(String(route.query.type))?String(route.query.type):'',
+  set: (value: string) => { router.replace({ query: { ...route.query, type: value || undefined } }); },
+});
+const MEDIA_TYPE_OPTIONS=[
+  {value:'',label:'Tous les médias'},
+  {value:'radarr',label:'Films'},
+  {value:'sonarr',label:'Séries'},
+];
+const QUEUE_STATE_OPTIONS=[
+  {value:'all',label:'Tout'},
+  {value:'active',label:'En cours'},
+  {value:'waiting',label:'En attente'},
+  {value:'intervention',label:'Interventions'},
+  {value:'completed',label:'Terminés'},
+  {value:'errors',label:'Erreurs'},
+];
 const selectedClientId=computed(()=>route.query.client?String(route.query.client):'');
 const selectedInstanceId=computed(()=>route.query.instance?String(route.query.instance):'');
+const SECTION_TITLES: Record<string, string>={overview:'Vue d’ensemble',queue:'File d’attente',missing:'Éléments manquants',clients:'Clients'};
 const pageTitle=computed(()=>{
-  if (section.value==='radarr') return selectedInstanceName.value || 'Radarr';
-  if (section.value==='sonarr') return selectedInstanceName.value || 'Sonarr';
-  if (section.value==='clients') return selectedClientName.value || 'Tous';
-  return 'Tous';
+  if (section.value==='clients') return selectedClientName.value || 'Clients';
+  return SECTION_TITLES[section.value] || 'Acquisition';
 });
-const pageDescription=computed(()=>({overview:'Vue d’ensemble de l’activité et des derniers téléchargements.',queue:'Suivi opérationnel consolidé de toutes les acquisitions.',radarr:'Téléchargements suivis par les instances Radarr.',sonarr:'Téléchargements suivis par les instances Sonarr.',clients:''})[section.value]);
-const sourceErrorCount=computed(()=>section.value==='clients'?clientErrors.value.length:errorItems.value.filter(row=>(!['radarr','sonarr'].includes(section.value)||row.arr_type===section.value)&&(!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value)).length);
-const standardTabs=computed(()=>[
-  {key:'all',label:'Vue d’ensemble'},
-  {key:'active',label:'En cours'},
-  {key:'waiting',label:'En attente'},
-  {key:'missing',label:'Éléments manquants',count:missingItemCount.value},
-  {key:'completed',label:'Terminés'},
-  {key:'errors',label:'Erreurs',count:sourceErrorCount.value}
- ]);
-const subnavTabs=computed(()=>section.value==='overview'?[{key:'all',label:'Tous'},{key:'active',label:'En cours'},{key:'waiting',label:'En attente'},{key:'completed',label:'Terminés'},{key:'errors',label:'Erreurs',count:errorItems.value.length}]:section.value==='queue'?[{key:'all',label:'Toute la file'},{key:'active',label:'En cours'},{key:'waiting',label:'En attente'},{key:'intervention',label:'Interventions',count:counts.value.intervention}]:section.value==='clients'?[{key:'overview',label:'Vue d’ensemble'},{key:'instances',label:selectedClientName.value||'Instances'}]:standardTabs.value);
+const pageDescription=computed(()=>({overview:'Vue d’ensemble de l’activité et des derniers téléchargements.',queue:'Suivi opérationnel consolidé de toutes les acquisitions.',missing:'Ce qui devrait être là et ne l’est pas encore.',clients:''})[section.value]);
+const sourceErrorCount=computed(()=>section.value==='clients'?clientErrors.value.length:errorItems.value.filter(row=>(!mediaType.value||row.arr_type===mediaType.value)&&(!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value)).length);
 const showHistory=computed(()=>subview.value==='completed'&&section.value!=='clients'&&section.value!=='queue');
 
 const queue=computed(()=>[...arrQueue.value,...directQueue.value].filter((row: any)=>!hiddenItems.value.has(rowKey(row))).sort((a: any,b: any)=>(a.progress||0)-(b.progress||0)));
 
 const instances=computed(()=>{
-  if(['radarr','sonarr'].includes(section.value)) return configuredArr.value.filter((row: any)=>row.enabled&&row.arr_type===section.value).map((row: any)=>row.name);
+  if(mediaType.value) return configuredArr.value.filter((row: any)=>row.enabled&&row.arr_type===mediaType.value).map((row: any)=>row.name);
   if(section.value==='clients') return configuredClients.value.filter((row: any)=>row.enabled).map((row: any)=>row.name);
   return [...new Set(queue.value.map((x: any)=>x.instance||x.download_client).filter(Boolean))];
 });
-const unmatchedItems=computed(()=>queue.value.filter((row: any)=>(!['radarr','sonarr'].includes(section.value)||row.arr_type===section.value)&&(!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value)&&(isUnmatched(row)||needsEpisodeImport(row))));
+const unmatchedItems=computed(()=>queue.value.filter((row: any)=>(!mediaType.value||row.arr_type===mediaType.value)&&(!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value)&&(isUnmatched(row)||needsEpisodeImport(row))));
 const errorItems=computed(()=>queue.value.filter((row: any)=>statusKey(row)==='error'));
-const filteredQueue=computed(()=>{const activeStatus=status.value||statusFilter.value;const needle=query.value.trim().toLocaleLowerCase('fr');return queue.value.filter((row: any)=>{const key=statusKey(row);const sourceMatch=!['radarr','sonarr'].includes(section.value)||row.arr_type===section.value;const selectedMatch=!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value;const contextual=subview.value==='active'?key==='downloading':subview.value==='waiting'?['queued','paused','completed'].includes(key):subview.value==='errors'?key==='error':subview.value==='intervention'?requiresIntervention(row):true;return sourceMatch&&selectedMatch&&contextual&&(!needle||row.title?.toLocaleLowerCase('fr').includes(needle))&&(!instance.value||(row.instance||row.download_client)===instance.value)&&(activeStatus==='unmatched'?(isUnmatched(row)||needsEpisodeImport(row)):!activeStatus||key===activeStatus)})});
+const filteredQueue=computed(()=>{const activeStatus=status.value||statusFilter.value;const needle=query.value.trim().toLocaleLowerCase('fr');return queue.value.filter((row: any)=>{const key=statusKey(row);const sourceMatch=!mediaType.value||row.arr_type===mediaType.value;const selectedMatch=!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value;const contextual=subview.value==='active'?key==='downloading':subview.value==='waiting'?['queued','paused','completed'].includes(key):subview.value==='errors'?key==='error':subview.value==='intervention'?requiresIntervention(row):true;return sourceMatch&&selectedMatch&&contextual&&(!needle||row.title?.toLocaleLowerCase('fr').includes(needle))&&(!instance.value||(row.instance||row.download_client)===instance.value)&&(activeStatus==='unmatched'?(isUnmatched(row)||needsEpisodeImport(row)):!activeStatus||key===activeStatus)})});
 const selectedInstanceName=computed(()=>configuredArr.value.find((row: any)=>String(row.id)===selectedInstanceId.value)?.name||'');
-const filteredHistory=computed(()=>{const needle=query.value.trim().toLocaleLowerCase('fr');return history.value.filter((row: any)=>(!['radarr','sonarr'].includes(section.value)||row.source===section.value)&&(!selectedInstanceName.value||row.instance_name===selectedInstanceName.value)&&(!needle||row.title?.toLocaleLowerCase('fr').includes(needle)))});
+const filteredHistory=computed(()=>{const needle=query.value.trim().toLocaleLowerCase('fr');return history.value.filter((row: any)=>(!mediaType.value||row.source===mediaType.value)&&(!selectedInstanceName.value||row.instance_name===selectedInstanceName.value)&&(!needle||row.title?.toLocaleLowerCase('fr').includes(needle)))});
 const clientErrors=computed(()=>clientQueue.value.filter((row: any)=>row.client_error&&(!selectedClientId.value||String(row.client_id)===selectedClientId.value)));
 const clientCategories=computed(()=>[...new Set(clientQueue.value.filter((row: any)=>!selectedClientId.value||String(row.client_id)===selectedClientId.value).map((row: any)=>row.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr')));
 function clientStatus(row: any): string {const value=String(row.status||'').toLowerCase();if(row.client_error||value.includes('error')||value.includes('missing'))return'error';if(Number(row.progress)>=100||['uploading','stalledup','pausedup','completed'].some(key=>value.includes(key)))return'seeding';if(['queued','paused','stopped','checking'].some(key=>value.includes(key)))return'paused';return'downloading'}
@@ -664,22 +711,23 @@ const filteredClients=computed(()=>{
   });
 });
 const selectedClientName=computed(()=>configuredClients.value.find((row: any)=>String(row.id)===selectedClientId.value)?.name||clientQueue.value.find((row: any)=>String(row.client_id)===selectedClientId.value)?.client_name||'');
-const sourceNeedsConfiguration=computed(()=>!configurationsLoading.value&&(section.value==='clients'?configuredClients.value.filter((row: any)=>row.enabled).length===0:['radarr','sonarr'].includes(section.value)&&!configuredArr.value.some((row: any)=>row.enabled&&row.arr_type===section.value)));
+// Seuls les clients torrent peuvent encore manquer : la file couvre desormais toutes
+// les sources a la fois, et n'a plus de raison de se declarer « non configuree ».
+const sourceNeedsConfiguration=computed(()=>!configurationsLoading.value&&section.value==='clients'&&configuredClients.value.filter((row: any)=>row.enabled).length===0);
 const queueGroups=computed(()=>{const intervention=filteredQueue.value.filter(requiresIntervention),ids=new Set(intervention.map(rowKey)),remaining=filteredQueue.value.filter((row: any)=>!ids.has(rowKey(row)));return[{key:'intervention',title:'Intervention requise',description:'Import bloqué, erreur ou média à associer',icon:AlertTriangle,items:intervention},{key:'active',title:'En téléchargement',description:'Transferts actuellement en progression',icon:Download,items:remaining.filter((row: any)=>statusKey(row)==='downloading')},{key:'waiting',title:'En attente',description:'Éléments en file ou temporairement en pause',icon:Clock3,items:remaining.filter((row: any)=>['queued','paused','completed'].includes(statusKey(row)))}].filter(group=>group.items.length)});
 const counts=computed(()=>queueCounts(queue.value));
 const searchPlaceholder=computed(()=>{
   if(section.value==='clients') return 'Filtrer les torrents (ex: cat:radarr is:downloading)…';
-  if(section.value==='radarr') return 'Filtrer les films…';
-  if(section.value==='sonarr') return 'Filtrer les séries…';
+  if(section.value==='missing') return 'Filtrer les éléments manquants…';
   return 'Filtrer les téléchargements…';
 });
-const activeFilterCount=computed(()=>[query.value,instance.value,status.value||statusFilter.value,clientCategory.value,clientOwnership.value,clientTracker.value].filter(v => Array.isArray(v) ? v.length : Boolean(v)).length);
+const activeFilterCount=computed(()=>[query.value,mediaType.value,instance.value,status.value||statusFilter.value,clientCategory.value,clientOwnership.value,clientTracker.value].filter(v => Array.isArray(v) ? v.length : Boolean(v)).length);
 const activeClientFilterCount=computed(()=>[query.value,status.value,clientCategory.value,clientOwnership.value,clientTracker.value].filter(v => Array.isArray(v) ? v.length : Boolean(v)).length);
 const totalActiveFilterCount=computed(()=>section.value==='clients'?activeClientFilterCount.value:[query.value,instance.value,status.value||statusFilter.value].filter(Boolean).length);
 const resultCount=computed(()=>section.value==='clients'?filteredClients.value.length:subview.value==='missing'?missingItemCount.value:showHistory.value?filteredHistory.value.length:filteredQueue.value.length);
 function selectSubview(value: string){statusFilter.value='';router.replace({path:'/downloads',query:{...route.query,view:section.value,sub:value}})}
-function selectInstanceScope(event: Event){
-  const value=(event.target as HTMLSelectElement).value;
+/** Restreint la file a une instance ; chaine vide pour les reprendre toutes. */
+function selectInstanceId(value: string){
   const next: Record<string, any>={...route.query,view:section.value};
   if(value)next.instance=value;else delete next.instance;
   router.replace({path:'/downloads',query:next});
@@ -728,7 +776,7 @@ async function loadHistory(): Promise<void>{
   }catch(e: any){if(loadVersion===historyLoadVersion)setSourceError('history',`Historique : ${e.message}`)}
   finally{if(loadVersion===historyLoadVersion)loadingHistory.value=false}
 }
-function historyUrl(offset: number): string{const params=new URLSearchParams({limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});if(['radarr','sonarr'].includes(section.value))params.set('source',section.value);if(selectedInstanceId.value)params.set('instance_id',selectedInstanceId.value);return`/api/downloads/history?${params}`}
+function historyUrl(offset: number): string{const params=new URLSearchParams({limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});if(mediaType.value)params.set('source',mediaType.value);if(selectedInstanceId.value)params.set('instance_id',selectedInstanceId.value);return`/api/downloads/history?${params}`}
 function historyModeLabel(row: any): string{return row.processing_mode==='automatic'?'Automatique':row.processing_mode==='manual'?'Import manuel':'Détecté par Watchdeck'}
 function historyModeClass(row: any): string{return row.processing_mode==='automatic'?'available':row.processing_mode==='manual'?'pending':''}
 async function loadMoreHistory(): Promise<void>{if(loadingHistory.value||!hasMoreHistory.value)return;const loadVersion=historyLoadVersion;const url=historyUrl(history.value.length);loadingHistory.value=true;try{const payload=await api(url);if(loadVersion!==historyLoadVersion)return;const rows=asList(payload?.items||payload);history.value=[...history.value,...rows];historyErrors.value=payload.errors||[];hasMoreHistory.value=rows.length===HISTORY_PAGE_SIZE;setSourceError('history')}catch(e: any){if(loadVersion===historyLoadVersion)setSourceError('history',`Historique : ${e.message}`)}finally{if(loadVersion===historyLoadVersion)loadingHistory.value=false}}
@@ -740,8 +788,8 @@ function refreshCurrentView(){
   const jobs: Promise<any>[]=[];
   if(section.value!=='clients') jobs.push(loadAll());
   if(section.value==='overview'||section.value==='clients') jobs.push(loadClients());
-  if(section.value==='overview'||['radarr','sonarr'].includes(section.value)) jobs.push(loadWanted());
-  if(section.value==='overview'||showHistory.value||(['radarr','sonarr'].includes(section.value)&&subview.value==='all')) jobs.push(loadHistory());
+  if(['overview','queue','missing'].includes(section.value)) jobs.push(loadWanted());
+  if(section.value==='overview'||showHistory.value||section.value==='queue') jobs.push(loadHistory());
   if(section.value==='overview') jobs.push(loadDiskSpace(),loadOverviewInstanceStats());
   return Promise.allSettled(jobs);
 }
@@ -767,8 +815,8 @@ function refreshFromDownloadEvent(detail: any={}){
     // Un cycle de surveillance sans résolution ne modifie ni les manquants ni
     // l'historique. Les garder en place évite le clignotement toutes les minutes.
     if(Number(result.resolved||0)>0){
-      if(section.value==='overview'||['radarr','sonarr'].includes(section.value))jobs.push(loadWanted());
-      if(section.value==='overview'||showHistory.value||(['radarr','sonarr'].includes(section.value)&&subview.value==='all'))jobs.push(loadHistory());
+      if(['overview','queue','missing'].includes(section.value))jobs.push(loadWanted());
+      if(section.value==='overview'||showHistory.value||section.value==='queue')jobs.push(loadHistory());
     }
   }
   return Promise.allSettled(jobs);
