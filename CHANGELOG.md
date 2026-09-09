@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.24.1 — 2026-09-09
+
+
+### test
+
+- couvrir l'action de maintenance et les replis de la réparation d'affiches ([939a2cf](https://github.com/remi-deher/watchdeck/commit/939a2cf883db37d44c58d1407e3b7ab5b54f19cc))
+
+### 🐛 Corrections
+
+- affiches expirées, et confirmations inatteignables derrière un tiroir ([19bcfd4](https://github.com/remi-deher/watchdeck/commit/19bcfd427199fcb727785ae314b7c60d1fa15851))
 ## 1.24.0 — 2026-09-09
 
 
@@ -14,6 +24,10 @@
 ### 🐛 Corrections
 
 - résoudre les films que TMDB ignore, et dire au demandeur ce qui se passe ([7894103](https://github.com/remi-deher/watchdeck/commit/78941038f5c667e75a8b2f3b4e1b25f9b7dffc2e))
+
+### 🔧 Maintenance
+
+- v1.24.0 (#264) ([23e59f4](https://github.com/remi-deher/watchdeck/commit/23e59f475a62911cd27c84d64eaa14feea243f82))
 ## 1.23.0 — 2026-09-09
 
 
