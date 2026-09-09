@@ -379,6 +379,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { AlertTriangle, ArrowUpDown, ChevronDown, ChevronUp, Download, Eye, EyeOff, FileText, FileX2, Gauge, Info, Maximize2, Minimize2, Pause, Play, Radio, RotateCcw, SlidersHorizontal, Tag, Trash2, Upload, Users } from '@lucide/vue';
 import { api } from '@/api';
 import { useConfirm } from '@/composables/useConfirm';
+import { useTableColumns } from '@/composables/useTableColumns';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DrawerShell from '@/components/DrawerShell.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -477,16 +478,12 @@ const ALL_COLUMNS: TorrentColumn[] = [
   { key: 'completed_on', label: 'Terminé le' },
 ];
 
-const COLUMN_PREFERENCES_KEY = `watchdeck:torrent-table-columns:${props.preferenceScope || 'all'}`;
-const DEFAULT_VISIBLE_COLUMNS = ['title', 'status', 'progress', 'size', 'download_speed', 'upload_speed', 'eta', 'category'];
-const storedColumnPreferences: any = (() => {
-  try { return JSON.parse(localStorage.getItem(COLUMN_PREFERENCES_KEY) || 'null'); } catch { return null; }
-})();
-const validColumnKeys = new Set(ALL_COLUMNS.map(column => column.key));
-const savedOrder: string[] = Array.isArray(storedColumnPreferences?.order) ? storedColumnPreferences.order.filter((key: string) => validColumnKeys.has(key)) : [];
-const columnOrder = ref<string[]>([...savedOrder, ...ALL_COLUMNS.map(column => column.key).filter(key => !savedOrder.includes(key))]);
-const visibleColumnKeys = ref<Set<string>>(new Set((Array.isArray(storedColumnPreferences?.visible) ? storedColumnPreferences.visible : DEFAULT_VISIBLE_COLUMNS).filter((key: string) => validColumnKeys.has(key))));
 const showColumnPicker = ref(false);
+
+/* Ordre, visibilite, largeurs et glisser-deposer des colonnes viennent du composable
+   partage avec `DataTable` : c'etait deux fois le meme code. Les cles de rangement
+   restent distinctes, chaque tableau gardant ses preferences. */
+const DEFAULT_VISIBLE_COLUMNS = ['title', 'status', 'progress', 'size', 'download_speed', 'upload_speed', 'eta', 'category'];
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   title: 300,
   status: 110,
@@ -502,111 +499,32 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   completed_on: 130,
 };
 
-const columnWidths = ref<Record<string, number>>({
-  ...DEFAULT_COLUMN_WIDTHS,
-  ...(storedColumnPreferences?.widths || {}),
+const {
+  columnWidths,
+  orderedColumns,
+  visibleColumns: columns,
+  visibleKeys: visibleColumnKeys,
+  draggedKey: draggedColumnKey,
+  dragOverKey,
+  toggleColumn: toggleColumnKey,
+  startDrag: startColumnDrag,
+  dragOver: dragOverColumn,
+  dragLeave: dragLeaveColumn,
+  drop: dropColumn,
+  moveColumn: moveColumnKey,
+  startColumnResize,
+} = useTableColumns(() => ALL_COLUMNS, {
+  storageKey: `watchdeck:torrent-table-columns:${props.preferenceScope || 'all'}`,
+  defaultVisible: DEFAULT_VISIBLE_COLUMNS,
+  defaultWidths: DEFAULT_COLUMN_WIDTHS,
+  // Deux colonnes au minimum : un tableau reduit a une colonne ne dit plus rien.
+  minimumVisible: 2,
 });
-
-const draggedColumnKey = ref('');
-const dragOverKey = ref('');
 
 defineExpose({
   openColumnPicker: () => { showColumnPicker.value = true; },
 });
 
-function toggleColumnKey(key: string): void {
-  const next = new Set(visibleColumnKeys.value);
-  if (next.has(key)) {
-    if (next.size > 2) next.delete(key);
-  } else {
-    next.add(key);
-  }
-  visibleColumnKeys.value = next;
-}
-
-function startColumnDrag(key: string, event: DragEvent): void {
-  draggedColumnKey.value = key;
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-}
-
-function dragOverColumn(key: string, event: DragEvent): void {
-  if (draggedColumnKey.value && draggedColumnKey.value !== key) {
-    dragOverKey.value = key;
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-  }
-}
-
-function dragLeaveColumn(key: string): void {
-  if (dragOverKey.value === key) {
-    dragOverKey.value = '';
-  }
-}
-
-function dropColumn(targetKey: string): void {
-  const sourceKey = draggedColumnKey.value;
-  draggedColumnKey.value = '';
-  dragOverKey.value = '';
-  if (!sourceKey || sourceKey === targetKey) return;
-  const next = [...columnOrder.value];
-  const sourceIndex = next.indexOf(sourceKey);
-  const targetIndex = next.indexOf(targetKey);
-  next.splice(sourceIndex, 1);
-  next.splice(targetIndex, 0, sourceKey);
-  columnOrder.value = next;
-}
-
-let resizingKey: string | null = null;
-let resizeStartX = 0;
-let resizeStartWidth = 0;
-
-// pointerdown/move/up plutot que mousedown/mousemove/mouseup : le redimensionnement
-// fonctionne ainsi aussi au doigt sur tablette, pas seulement a la souris.
-function startColumnResize(key: string, event: PointerEvent): void {
-  resizingKey = key;
-  resizeStartX = event.clientX;
-  resizeStartWidth = columnWidths.value[key] || DEFAULT_COLUMN_WIDTHS[key] || 100;
-  window.addEventListener('pointermove', onColumnResizeMove);
-  window.addEventListener('pointerup', onColumnResizeEnd);
-}
-
-function onColumnResizeMove(event: PointerEvent): void {
-  if (!resizingKey) return;
-  const deltaX = event.clientX - resizeStartX;
-  const newWidth = Math.max(50, resizeStartWidth + deltaX);
-  columnWidths.value = {
-    ...columnWidths.value,
-    [resizingKey]: newWidth,
-  };
-}
-
-function onColumnResizeEnd(): void {
-  resizingKey = null;
-  window.removeEventListener('pointermove', onColumnResizeMove);
-  window.removeEventListener('pointerup', onColumnResizeEnd);
-}
-
-// Equivalent clavier/tactile au glisser-deposer des colonnes (le drag-and-drop HTML5
-// n'est operable ni au clavier ni au toucher : WCAG 2.1.1 et 2.5.7).
-function moveColumnKey(key: string, direction: -1 | 1): void {
-  const next = [...columnOrder.value];
-  const index = next.indexOf(key);
-  const target = index + direction;
-  if (index < 0 || target < 0 || target >= next.length) return;
-  [next[index], next[target]] = [next[target], next[index]];
-  columnOrder.value = next;
-}
-
-const orderedColumns = computed(() => columnOrder.value.map(key => ALL_COLUMNS.find(column => column.key === key)).filter((column): column is TorrentColumn => Boolean(column)));
-const columns = computed(() => orderedColumns.value.filter(column => column.required || visibleColumnKeys.value.has(column.key)));
-watch([visibleColumnKeys, columnOrder, columnWidths], () => {
-  try {
-    localStorage.setItem(COLUMN_PREFERENCES_KEY, JSON.stringify({
-      visible: [...visibleColumnKeys.value],
-      order: columnOrder.value,
-      widths: columnWidths.value,
-    }));
-  } catch { /* Préférences non persistables : le tableau reste utilisable. */ }
-}, { deep: true });
 const staleInfo = computed(() => props.rows.find((row: any) => row.is_stale));
 
 const busyKeys = ref<Set<string>>(new Set());

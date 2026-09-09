@@ -1,11 +1,24 @@
 <template>
-  <section class="panel table-wrap table-cards rich data-table" tabindex="0" role="region">
+  <section class="panel table-wrap table-cards rich data-table" :class="`density-${density}`" tabindex="0" role="region">
+    <div class="data-table__tools">
+      <slot name="tools" />
+      <button
+        type="button"
+        class="secondary text-xs data-table__density"
+        :class="{ active: density === 'compact' }"
+        :title="density === 'compact' ? 'Affichage compact' : 'Affichage confortable'"
+        @click="toggleDensity"
+      >
+        <Minimize2 v-if="density === 'compact'" /><Maximize2 v-else />{{ density === 'compact' ? 'Compact' : 'Normal' }}
+      </button>
+    </div>
     <table>
       <thead>
         <tr>
           <th v-for="column in visibleColumns" :key="column.key"
               :class="[column.className, { 'drag-over': dragOverKey === column.key, 'is-dragging': draggedKey === column.key }]"
               :data-priority="column.priority || (column.required ? 'primary' : 'secondary')"
+              :style="{ width: columnWidths[column.key] ? `${columnWidths[column.key]}px` : undefined }"
               :aria-sort="sortable && column.sortable !== false ? ariaSort(column.key) : undefined"
               draggable="true"
               @dragstart="startDrag(column.key, $event)"
@@ -18,6 +31,9 @@
               <ArrowUpDown />
             </button>
             <span v-else>{{ column.label }}</span>
+            <!-- Largeur ajustable, comme sur le tableau des clients torrent : un titre
+                 long et une date n'ont pas besoin de la meme place. -->
+            <div class="col-resize-handle" title="Redimensionner la colonne" @pointerdown.prevent.stop="startColumnResize(column.key, $event)"></div>
           </th>
         </tr>
       </thead>
@@ -71,8 +87,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { ArrowUpDown, ChevronDown, ChevronUp } from '@lucide/vue';
+import { computed, ref } from 'vue';
+import { ArrowUpDown, ChevronDown, ChevronUp, Maximize2, Minimize2 } from '@lucide/vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 import ModalShell from './ModalShell.vue';
 import UiButton from './UiButton.vue';
 import UiEmptyState from './UiEmptyState.vue';
@@ -120,99 +137,31 @@ const emit = defineEmits<{
   (e: 'update:sort', value: { key: string; direction: 'asc' | 'desc' }): void;
 }>();
 
-const STORAGE_KEY = `watchdeck:data-table-columns:${props.preferenceScope}`;
-const validKeys = new Set(props.columns.map((column) => column.key));
-const stored = (() => {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-  } catch {
-    return null;
-  }
-})();
-const savedOrder: string[] = Array.isArray(stored?.order)
-  ? stored.order.filter((key: string) => validKeys.has(key))
-  : [];
-const columnOrder = ref<string[]>([
-  ...savedOrder,
-  ...props.columns.map((column) => column.key).filter((key) => !savedOrder.includes(key)),
-]);
-const defaultVisibleKeys = props.defaultVisible || props.columns.map((column) => column.key);
-const visibleKeys = ref<Set<string>>(
-  new Set((Array.isArray(stored?.visible) ? stored.visible : defaultVisibleKeys).filter((key: string) => validKeys.has(key)))
-);
 const showColumnPicker = ref(false);
-const draggedKey = ref('');
-const dragOverKey = ref('');
 
-const orderedColumns = computed(() =>
-  columnOrder.value.map((key) => props.columns.find((column) => column.key === key)).filter(Boolean) as DataTableColumn[]
+/* Ordre, visibilite, largeurs et densite viennent du composable partage avec le tableau
+   des clients torrent : c'etait deux fois le meme code, dont une seule savait
+   redimensionner ses colonnes. */
+const {
+  columnWidths,
+  density,
+  orderedColumns,
+  visibleColumns,
+  visibleKeys,
+  draggedKey,
+  dragOverKey,
+  toggleColumn,
+  startDrag,
+  dragOver,
+  dragLeave,
+  drop,
+  moveColumn,
+  startColumnResize,
+  toggleDensity,
+} = useTableColumns(
+  () => props.columns,
+  { storageKey: `watchdeck:data-table-columns:${props.preferenceScope}`, defaultVisible: props.defaultVisible }
 );
-const visibleColumns = computed(() =>
-  orderedColumns.value.filter((column) => column.required || visibleKeys.value.has(column.key))
-);
-
-watch(
-  [visibleKeys, columnOrder],
-  () => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ visible: [...visibleKeys.value], order: columnOrder.value })
-      );
-    } catch {
-      /* Préférences non persistables */
-    }
-  },
-  { deep: true }
-);
-
-function toggleColumn(key: string): void {
-  const next = new Set(visibleKeys.value);
-  if (next.has(key)) {
-    if (next.size > 1) next.delete(key);
-  } else {
-    next.add(key);
-  }
-  visibleKeys.value = next;
-}
-
-function startDrag(key: string, event: DragEvent): void {
-  draggedKey.value = key;
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-}
-
-function dragOver(key: string, event: DragEvent): void {
-  if (draggedKey.value && draggedKey.value !== key) {
-    dragOverKey.value = key;
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-  }
-}
-
-function dragLeave(key: string): void {
-  if (dragOverKey.value === key) dragOverKey.value = '';
-}
-
-function drop(targetKey: string): void {
-  const sourceKey = draggedKey.value;
-  draggedKey.value = '';
-  dragOverKey.value = '';
-  if (!sourceKey || sourceKey === targetKey) return;
-  const next = [...columnOrder.value];
-  next.splice(next.indexOf(sourceKey), 1);
-  next.splice(next.indexOf(targetKey), 0, sourceKey);
-  columnOrder.value = next;
-}
-
-// Equivalent clavier/tactile au glisser-deposer des colonnes (le drag-and-drop HTML5
-// n'est operable ni au clavier ni au toucher : WCAG 2.1.1 et 2.5.7).
-function moveColumn(key: string, direction: -1 | 1): void {
-  const next = [...columnOrder.value];
-  const index = next.indexOf(key);
-  const target = index + direction;
-  if (index < 0 || target < 0 || target >= next.length) return;
-  [next[index], next[target]] = [next[target], next[index]];
-  columnOrder.value = next;
-}
 
 const controlled = computed(() => props.sortKey !== undefined);
 const localSortKey = ref(props.defaultSortKey);
@@ -262,7 +211,35 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
-.data-table :deep(table) { table-layout: auto; min-width: max-content; }
+/* Meme grammaire que le tableau des clients torrent : largeurs fixes et ajustables,
+   entete collante, cellules sur une ligne, densite reglable. */
+.data-table :deep(table) { table-layout: fixed; min-width: max-content; width: 100%; }
+.data-table :deep(thead th) { position: sticky; top: 0; z-index: 2; background: var(--surface); }
+.data-table :deep(th), .data-table :deep(td) { overflow: hidden; text-overflow: ellipsis; position: relative; }
+.data-table.density-compact :deep(th), .data-table.density-compact :deep(td) { padding-block: 5px; font-size: var(--fs-xs); }
+
+.data-table__tools { display: flex; justify-content: flex-end; gap: var(--space-2); margin-bottom: var(--space-2); }
+.data-table__density { display: inline-flex; align-items: center; gap: 6px; }
+.data-table__density svg { width: 14px; height: 14px; }
+.data-table__density.active { border-color: var(--accent); color: var(--accent); }
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+.col-resize-handle:hover, .col-resize-handle:active { background: var(--accent); opacity: .85; }
+@media (max-width: 767.98px) {
+  /* Au doigt, sur une seule colonne empilee, redimensionner n'a plus de sens. */
+  .col-resize-handle { display: none; }
+  .data-table :deep(table) { table-layout: auto; }
+}
 .data-table :deep(th), .data-table :deep(td) { white-space: nowrap; }
 .data-table :deep(td.card-title) { white-space: normal; }
 @media (max-width: 767.98px) {

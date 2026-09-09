@@ -20,21 +20,28 @@ const labels = (wrapper) =>
   wrapper.findAll('.breakdown-table > button').map((row) => row.findAll('span')[0].text());
 
 describe('BreakdownPanel', () => {
-  it('affiche un camembert à la demande', async () => {
+  it('affiche un camembert par défaut', () => {
+    // Les barres ont disparu : a repartition egale, le camembert dit la meme chose sur
+    // deux fois moins de hauteur, ce qui permet d'aligner les cartes entre elles.
     const wrapper = mountPanel();
-    expect(wrapper.findComponent({ name: 'PieChart' }).exists()).toBe(false);
-
-    await wrapper.find('button[aria-label="Afficher le camembert"]').trigger('click');
 
     const pie = wrapper.findComponent({ name: 'PieChart' });
     expect(pie.exists()).toBe(true);
-    // Une part par catégorie, plus le fond de l'anneau.
     expect(pie.findAll('circle.pie-slice')).toHaveLength(3);
+    expect(wrapper.find('.breakdown-list').exists()).toBe(false);
+  });
+
+  it('lit la légende en clair : nom, valeur et part', () => {
+    const wrapper = mountPanel();
+
+    const first = wrapper.findAll('.pie-legend button')[0];
+    expect(first.find('span').text()).toBe('Warner');
+    expect(first.find('strong').text()).toBe('30');
+    expect(first.find('small').text()).toBe('30.0 %');
   });
 
   it('remonte la catégorie choisie dans le camembert', async () => {
     const wrapper = mountPanel();
-    await wrapper.find('button[aria-label="Afficher le camembert"]').trigger('click');
 
     await wrapper.findAll('.pie-legend button')[1].trigger('click');
 
@@ -43,7 +50,6 @@ describe('BreakdownPanel', () => {
 
   it('ne laisse pas cliquer une répartition qui ne filtre rien', async () => {
     const wrapper = mountPanel({ interactive: false });
-    await wrapper.find('button[aria-label="Afficher le camembert"]').trigger('click');
 
     await wrapper.findAll('.pie-legend button')[0].trigger('click');
 
