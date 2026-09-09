@@ -359,6 +359,7 @@ function historyParams(offset: number): URLSearchParams {
   if(typeFilter.value)params.set('media_type',typeFilter.value);
   if(userFilter.value)params.set('user',userFilter.value);
   if(deviceFilter.value)params.set('device',deviceFilter.value);
+  params.set('sort',historySort.value);
   return params;
 }
 
@@ -384,14 +385,16 @@ async function loadHistory(more=false): Promise<void> {
 }
 const scheduleHistory=useDebounced(()=>loadHistory(),250);
 
-/* Le tri « duree » n'a pas de sens en base sur une page : il ordonnerait les lignes
-   chargees, pas la periode. Il reste donc local et le dit -- « Recentes » et
-   « Anciennes » passent, eux, par le serveur. */
-const sortedHistoryItems=computed(()=>{
-  if(historySort.value!=='longest')return history.value.items;
-  return [...history.value.items].sort((a: any,b: any)=>(b.watched_ms||0)-(a.watched_ms||0));
-});
-function setHistorySort(value: string): void {historySort.value=value}
+/* Les trois tris passent par le serveur. Reordonner les lignes deja chargees ne triait
+   que la premiere page : « Anciennes » remettait dans l'autre sens les cent lectures les
+   plus recentes -- donc ne montrait jamais les plus anciennes -- et le tri n'etait meme
+   pas rejoue au changement, faute de rechargement. */
+const sortedHistoryItems=computed(()=>history.value.items);
+function setHistorySort(value: string): void {
+  if(value===historySort.value)return;
+  historySort.value=value;
+  loadHistory();
+}
 const historyUsers=computed(()=>history.value.facets.users);
 const historyDevices=computed(()=>history.value.facets.devices);
 const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value,userFilter.value,deviceFilter.value].filter(Boolean).length);

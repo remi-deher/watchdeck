@@ -735,7 +735,10 @@ button:disabled {
     --drawer-pad: 24px;
     /* Haut et bas non « auto » avec `height: auto` : la feuille occupe toute la hauteur
        restante sous la barre flottante, quelle que soit la longueur du contenu. */
-    inset: max(8px,calc(var(--safe-top) + var(--app-shell-offset-top))) max(12px,var(--safe-right)) max(8px,var(--safe-bottom)) auto;
+    /* La feuille part du haut de la fenetre et non sous la barre flottante : c'est une
+       boite de dialogue modale, elle passe devant le shell plutot que de lui ceder
+       cinquante pixels de hauteur utile a chaque ouverture. */
+    inset: max(8px,var(--safe-top)) max(12px,var(--safe-right)) max(8px,var(--safe-bottom)) auto;
     width: min(680px, calc(100vw - 116px));
     height: auto;
     max-height: none;

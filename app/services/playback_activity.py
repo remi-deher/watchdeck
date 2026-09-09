@@ -1799,6 +1799,21 @@ def _device_expression():
     )
 
 
+#: Tris de l'historique, appliqués en base. Le tri vivait côté navigateur et ne portait
+#: donc que sur la page chargée : « Anciennes » réordonnait les cent lectures les plus
+#: récentes entre elles — c'est-à-dire ne changeait rien de visible — et « Durée »
+#: donnait la plus longue des cent dernières, pas de la période.
+HISTORY_ORDERS = {
+    "recent": (PlaybackSession.started_at.desc(), PlaybackSession.id.desc()),
+    "oldest": (PlaybackSession.started_at.asc(), PlaybackSession.id.asc()),
+    "longest": (
+        PlaybackSession.watched_ms.desc().nulls_last(),
+        PlaybackSession.started_at.desc(),
+        PlaybackSession.id.desc(),
+    ),
+}
+
+
 async def activity_history(
     days: int = 30,
     db=None,
@@ -1809,8 +1824,9 @@ async def activity_history(
     query: str | None = None,
     offset: int = 0,
     limit: int = 100,
+    sort: str = "recent",
 ) -> dict:
-    """Historique filtré et paginé, avec les valeurs disponibles pour chaque filtre.
+    """Historique filtré, trié et paginé, avec les valeurs disponibles pour chaque filtre.
 
     Le filtrage vit ici et non dans le navigateur : l'instantané d'activité ne porte que
     les cent dernières lectures toutes personnes confondues, et affiner cette page-là
@@ -1829,12 +1845,17 @@ async def activity_history(
                 query=query,
                 offset=offset,
                 limit=limit,
+                sort=sort,
             )
     days = min(max(days, 1), MAX_PERIOD_DAYS)
     cutoff = datetime.combine((now_utc_naive() - timedelta(days=days)).date(), datetime_time.min)
     device_expression = _device_expression()
 
-    filters = [PlaybackSession.started_at >= cutoff]
+    # Une lecture en cours n'appartient pas encore a l'historique : elle vit dans « En
+    # direct », ou elle se met a jour a chaque sondage. Elle apparaissait pourtant en tete
+    # de l'historique, et le tiroir ouvert sur cette ligne se reecrivait tout seul avec la
+    # lecture du moment -- on croyait consulter une trace, on regardait un direct.
+    filters = [PlaybackSession.started_at >= cutoff, PlaybackSession.ended_at.is_not(None)]
     if user:
         filters.append(PlaybackSession.user_name == user)
     if method:
@@ -1866,7 +1887,7 @@ async def activity_history(
                 select(PlaybackSession)
                 .options(selectinload(PlaybackSession.segments))
                 .filter(*filters)
-                .order_by(PlaybackSession.started_at.desc(), PlaybackSession.id.desc())
+                .order_by(*HISTORY_ORDERS.get(sort, HISTORY_ORDERS["recent"]))
                 .offset(max(offset, 0))
                 .limit(min(max(limit, 1), 500))
             )
@@ -1877,7 +1898,7 @@ async def activity_history(
 
     # Les listes de choix portent sur la période, pas sur la sélection courante : sinon
     # choisir un utilisateur faisait disparaître tous les autres du menu.
-    period_filter = (PlaybackSession.started_at >= cutoff,)
+    period_filter = (PlaybackSession.started_at >= cutoff, PlaybackSession.ended_at.is_not(None))
     users = (
         (
             await db.execute(
