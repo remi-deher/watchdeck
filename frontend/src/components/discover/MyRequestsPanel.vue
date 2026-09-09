@@ -283,9 +283,22 @@ function openDetail(item: any): void {
 }
 
 async function act(row: any, action: string): Promise<void> {
+  /* L'annulation demande une explication : elle bloque le retour automatique du media
+     et previent le demandeur par mail. Sans un mot, il redemande la semaine suivante. */
+  let body: string | undefined;
+  if (action === 'withdraw') {
+    const reason = window.prompt(
+      `Annuler « ${row.title} » et empêcher son retour automatique ?
+
+Message envoyé au demandeur (facultatif) :`,
+      row.fulfillment_error || ''
+    );
+    if (reason === null) return;
+    body = JSON.stringify({ reason });
+  }
   busy.value = true;
   try {
-    await api(`/api/requests/${row.id}/${action}`, { method: 'POST' });
+    await api(`/api/requests/${row.id}/${action}`, { method: 'POST', body });
     await load();
   } catch (e: any) {
     error.value = e?.message || String(e);

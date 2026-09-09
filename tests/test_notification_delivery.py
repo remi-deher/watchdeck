@@ -232,3 +232,48 @@ async def test_explicit_provider_rejections_exhaust_identity_without_fallback_re
             assert (await db.get(NotificationDelivery, identity["send_key"])).state == "failed"
     finally:
         delivery_identity.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_a_media_absent_from_the_catalog_tells_the_requester_it_goes_to_review(sessions):
+    """Un média introuvable et une panne de Radarr ne se racontent pas pareil.
+
+    Le mail d'échec disait « Impossible de transmettre à Radarr. Vérifiez la
+    configuration. » — un message d'administrateur envoyé au demandeur, qui n'a rien à
+    vérifier. Quand le média est simplement absent du catalogue (le catalogue Plex est
+    plus large que TMDB), rien n'est en panne et retenter ne changera rien : la demande
+    part en examen manuel, et le demandeur doit l'apprendre.
+    """
+    from app.services.watchlist_poller import _process_watchlist_item
+
+    async with sessions() as db:
+        settings = Settings(email_enabled=True, email_on_request=True)
+        db.add_all([settings, PlexUser(plex_user_id="bob", enabled=True, notification_email="bob@example.com")])
+        await db.commit()
+        item = {
+            "title": "South Park: The Fractured But Whole Playthrough",
+            "media_type": "movie",
+            "plex_user_id": "bob",
+            "imdb_id": "tt13345432",
+            "source": "rss",
+            "year": 2017,
+        }
+
+        dispatched = AsyncMock(return_value=True)
+        with (
+            patch("app.services.watchlist_poller._ensure_tmdb_id", new=AsyncMock(return_value=item)),
+            patch("app.services.watchlist_poller._find_global_request", new=AsyncMock(return_value=None)),
+            # Aucun identifiant exploitable : *arr ne renvoie rien, sans être en panne.
+            patch(
+                "app.services.watchlist_poller._submit_to_arr",
+                new=AsyncMock(return_value=(None, False, None)),
+            ),
+            patch("app.services.notification_policy.dispatch_transition_notification", new=dispatched),
+            patch("app.notification_queue.notification_hold_enabled", new=AsyncMock(return_value=False)),
+        ):
+            result = await _process_watchlist_item(item, settings, db, {}, set(), False)
+
+    assert result == "failed"
+    reason = dispatched.await_args.kwargs["reason"]
+    assert "examen manuel" in reason
+    assert "Verifiez la configuration" not in reason

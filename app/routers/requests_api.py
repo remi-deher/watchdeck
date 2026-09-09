@@ -956,15 +956,25 @@ async def delete_request(
 
 
 @router.post("/requests/{request_id}/withdraw", dependencies=[Depends(require_moderator)])
-async def withdraw_request(request_id: int, request: Request, db: AsyncSession = Depends(get_db_async)):
+async def withdraw_request(
+    request_id: int,
+    request: Request,
+    body: RejectBody | None = None,
+    db: AsyncSession = Depends(get_db_async),
+):
     """Annule une demande : supprime le média dans Sonarr/Radarr (mêmes garanties que
     `delete_request`, jamais de désynchronisation), puis la demande localement.
 
     Si la demande provient de la watchlist Plex (source `rss`/`api`), bloque en plus tout
     retour automatique via `deleted_media.is_blocked` (l'API Plex ne permet pas de retirer
     une entrée de la watchlist depuis le serveur) et prévient le(s) demandeur(s) par email
-    qu'ils doivent aussi la retirer eux-mêmes de leur liste d'envies Plex."""
+    qu'ils doivent aussi la retirer eux-mêmes de leur liste d'envies Plex.
+
+    `reason` accompagne ce mail : « ce média n'existe pas dans le catalogue TMDB, il ne
+    peut pas être téléchargé » ne se devine pas depuis un gabarit générique, et une
+    annulation sans explication se solde par une nouvelle demande la semaine suivante."""
     req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
+    reason = ((body.reason if body else "") or "").strip()
     ok, msg = await _delete_media_from_arr(db, req, delete_files=False)
     if not ok:
         raise HTTPException(502, f"Suppression *arr impossible ({msg}) — rien n'a été annulé.")
@@ -989,7 +999,7 @@ async def withdraw_request(request_id: int, request: Request, db: AsyncSession =
             recipients = _get_recipients(requester_users, settings, "cancelled")
             for recipient in recipients:
                 try:
-                    await email_service.send_cancelled_notification(settings, req, recipient)
+                    await email_service.send_cancelled_notification(settings, req, recipient, reason=reason)
                 except Exception as e:
                     logger.warning(f"Envoi du mail 'cancelled' échoué pour {recipient} (req#{req.id}): {e}")
 

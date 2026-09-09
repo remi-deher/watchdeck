@@ -4,7 +4,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.radarr import add_movie, check_connection, get_calendar, get_movie_by_id, is_movie_available
+from app.services.radarr import (
+    _accepts_title_match,
+    add_movie,
+    check_connection,
+    get_calendar,
+    get_movie_by_id,
+    is_movie_available,
+)
 
 URL = "http://radarr.local:7878"
 KEY = "testradarrkey"
@@ -329,3 +336,76 @@ async def test_get_calendar_failure_returns_empty_list():
         result = await get_calendar(URL, KEY, "2026-07-01", "2026-07-31")
 
     assert result == []
+
+
+def _lookup_result(title, year=None, tmdb=1, alternates=()):
+    return {
+        "title": title,
+        "year": year,
+        "tmdbId": tmdb,
+        "alternateTitles": [{"title": value} for value in alternates],
+    }
+
+
+def test_a_title_lookup_rescues_a_film_whose_imdb_id_tmdb_ignores():
+    """Le catalogue Plex est plus large que celui de TMDB.
+
+    « Christmas in South Park » arrive de la watchlist avec un IMDB (tt0263206) que ni
+    Radarr ni TMDB ne connaissent : la demande partait en échec « métadonnées
+    introuvables », alors que le même film existe chez eux sous « Christmas Time in
+    South Park ». Un seul résultat et une année qui concorde suffisent à trancher.
+    """
+    match = _accepts_title_match(
+        "Christmas in South Park", 2007, [_lookup_result("Christmas Time in South Park", 2007, tmdb=148039)]
+    )
+
+    assert match["tmdbId"] == 148039
+
+
+def test_an_ambiguous_search_resolves_to_nothing():
+    """Se tromper ici enverrait le mauvais film au téléchargement, sans bruit.
+
+    Une recherche générique ramène des dizaines de films ; aucun ne mérite qu'on lui
+    fasse confiance sur la seule foi de sa position dans la liste.
+    """
+    results = [
+        _lookup_result("South Park: Post COVID", 2021, tmdb=1),
+        _lookup_result("South Park: Joining", 2023, tmdb=2),
+    ]
+
+    assert _accepts_title_match("South Park", None, results) is None
+
+
+def test_an_exact_title_wins_even_among_many():
+    """Un titre identique est un signal fort : il tranche quel que soit le nombre."""
+    results = [
+        _lookup_result("Un film sans rapport", 1999, tmdb=9),
+        _lookup_result("Le voyage de Chihiro", 2001, tmdb=129),
+    ]
+
+    assert _accepts_title_match("Le Voyage de Chihiro", None, results)["tmdbId"] == 129
+
+
+def test_a_lone_result_is_not_enough_without_a_year():
+    """Sans année, un résultat unique ne prouve rien — Radarr propose toujours quelque chose."""
+    assert _accepts_title_match("Un titre vague", None, [_lookup_result("Un film sans rapport", 1990)]) is None
+
+
+def test_a_year_that_contradicts_rejects_the_match():
+    results = [_lookup_result("Christmas Time in South Park", 1998, tmdb=148039)]
+
+    assert _accepts_title_match("Christmas in South Park", 2007, results) is None
+
+
+def test_an_alternate_title_counts_as_the_title():
+    """Radarr expose les titres alternatifs : le titre français d'un film étranger y vit."""
+    results = [_lookup_result("Spirited Away", 2001, tmdb=129, alternates=("Le Voyage de Chihiro",))]
+
+    assert _accepts_title_match("Le voyage de Chihiro", None, results)["tmdbId"] == 129
+
+
+def test_one_year_of_drift_is_tolerated():
+    """Année de production et année de sortie divergent d'un catalogue à l'autre."""
+    results = [_lookup_result("Christmas Time in South Park", 2008, tmdb=148039)]
+
+    assert _accepts_title_match("Christmas in South Park", 2007, results)["tmdbId"] == 148039
