@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.22.0 — 2026-09-09
+
+
+### ✨ Nouveautés
+
+- éclater les paramètres, refondre Problèmes et étendre l'historique ([1eb0392](https://github.com/remi-deher/watchdeck/commit/1eb03924318a706a982bfdbafcd270ef2ef42175))
 ## 1.21.0 — 2026-09-09
 
 
@@ -14,6 +20,10 @@
 ### 🎨 Style
 
 - apply ruff format to the new playback modules ([e751470](https://github.com/remi-deher/watchdeck/commit/e751470c6c550bd365d13fd864e1024864a65120))
+
+### 🔧 Maintenance
+
+- v1.21.0 (#245) ([d7791fb](https://github.com/remi-deher/watchdeck/commit/d7791fba45def98cd58c6426f277e3cde9fe0a73))
 ## 1.20.0 — 2026-09-09
 
 
