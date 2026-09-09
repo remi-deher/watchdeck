@@ -1,11 +1,30 @@
 # Changelog
 
+## 1.20.0 — 2026-09-09
+
+
+### test
+
+- follow dynamic shell offset ([ab4630f](https://github.com/remi-deher/watchdeck/commit/ab4630f9734df4fafdf043471cdf82d63fd27257))
+
+### ✨ Nouveautés
+
+- refine contextual navigation filters ([68a1004](https://github.com/remi-deher/watchdeck/commit/68a10047f75fad9e4880ab240c334e64c307386e))
+
+### 🐛 Corrections
+
+- preserve shell spacing and touch targets ([402059a](https://github.com/remi-deher/watchdeck/commit/402059ac2c754f779fc7fc9782436a3005876098))
+- unify request search and filters ([6207a4f](https://github.com/remi-deher/watchdeck/commit/6207a4f5554fe7998cf5d3db8e473d6e99b933ee))
 ## 1.19.0 — 2026-09-08
 
 
 ### ✨ Nouveautés
 
 - add contextual floating search ([a06a042](https://github.com/remi-deher/watchdeck/commit/a06a042bec2e8461ffe5b7fe04dc88808e66eae3))
+
+### 🔧 Maintenance
+
+- v1.19.0 (#234) ([352099a](https://github.com/remi-deher/watchdeck/commit/352099aac2c0f6ef664bf334798a5109406a0809))
 ## 1.18.0 — 2026-09-08
 
 
