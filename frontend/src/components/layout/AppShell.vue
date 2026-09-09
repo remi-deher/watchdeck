@@ -17,12 +17,12 @@
       @toggle-rail="collapsed = !collapsed"
     />
 
+    <!-- La barre du haut ne porte plus la navigation : en compact, « Plus » du dock
+         ouvre la meme feuille, et la barre est entierement rendue a la recherche. -->
     <AppTopBar
       :mode="mode"
       :page-title="pageTitle"
       :destination-label="destinationLabel"
-      :sheet-open="sheetOpen"
-      @open-sheet="openSheet"
       @open-palette="openPalette($event)"
     />
 
@@ -133,7 +133,13 @@ watch(
       return;
     }
     await nextTick();
-    document.getElementById('main-content')?.focus({ preventScroll: true });
+    /* Sauf si l'utilisateur est en train d'ecrire. Une page peut changer d'URL sans
+       qu'il ait navigue : la premiere lettre tapee dans Decouvrir fait passer
+       /discover a /discover/explore, et deplacer le focus lui arrachait le champ des
+       la premiere frappe. L'annonce, elle, reste due. */
+    const actif = document.activeElement as HTMLElement | null;
+    const enTrainDEcrire = Boolean(actif?.matches('input, textarea, select, [contenteditable="true"]'));
+    if (!enTrainDEcrire) document.getElementById('main-content')?.focus({ preventScroll: true });
     const title = typeof route.meta.title === 'string' ? route.meta.title : '';
     routeAnnouncement.value = title ? `Page ${title} chargée` : 'Page chargée';
   }

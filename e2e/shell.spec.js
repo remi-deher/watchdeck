@@ -86,10 +86,15 @@ test("chaque page expose un h1 unique, et son titre reste visible dans le shell"
     // titre annonce a l'oral differerait de celui qu'on lit a l'ecran.
     const title = (await heading.textContent()).trim();
     expect(title.length, `titre vide sur ${path}`).toBeGreaterThan(0);
-    const visibleTitle = page.viewportSize().width >= 1200
-      ? page.locator('.app-rail__brand-name')
-      : page.locator('.app-topbar__context');
-    await expect(visibleTitle, `le shell doit afficher "${title}" sur ${path}`).toHaveText(title);
+    // En compact le titre a quitte la barre : il ne servait qu'a rogner la largeur du
+    // champ de recherche, et le dock du bas indique deja la destination courante. Au-dela,
+    // le shell continue de l'afficher.
+    if (page.viewportSize().width >= 768) {
+      const visibleTitle = page.viewportSize().width >= 1200
+        ? page.locator('.app-rail__brand-name')
+        : page.locator('.app-topbar__context');
+      await expect(visibleTitle, `le shell doit afficher "${title}" sur ${path}`).toHaveText(title);
+    }
   }
 });
 
@@ -121,7 +126,9 @@ test("toute destination est atteignable au clavier seul", async ({ page }) => {
   if (isCompact(page)) {
     // En mode compact, la totalite des destinations vit derriere la feuille : c'est
     // le seul chemin, il doit donc s'ouvrir et se fermer entierement au clavier.
-    const trigger = page.getByRole("button", { name: "Ouvrir la navigation" });
+    // Le bouton de la barre du haut a disparu : « Plus », dans le dock, ouvre la meme
+    // feuille et libere la largeur de la barre pour la recherche.
+    const trigger = page.locator(".app-dock button").filter({ hasText: "Plus" });
     await trigger.focus();
     await trigger.press("Enter");
     const sheet = page.getByRole("dialog", { name: "Navigation" });
@@ -426,6 +433,38 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
   expect(reachable, "la confirmation est recouverte par le tiroir").toBe(true);
 });
 
+test("la recherche garde le focus quand la page change d'URL sous le doigt", async ({ page }, testInfo) => {
+  // Taper la premiere lettre dans Decouvrir fait passer /discover a /discover/explore.
+  // Deux mecanismes arrachaient alors le champ : la barre se refermait au changement de
+  // titre, et la navigation deplacait le focus vers le contenu pour l'annoncer.
+  await page.goto("/discover");
+  // Le deploiement du champ en compact a son propre test ; ici on veut seulement
+  // verifier que la frappe survit au changement d'URL, ce qui ne depend pas de la taille.
+  test.skip(isCompact(page), "le champ se deploie a la demande en compact");
+  const field = page.locator(".app-topbar__field input").first();
+  await expect(field).toBeVisible({ timeout: 15000 });
+  await field.click();
+
+  await field.pressSequentially("bat", { delay: 120 });
+
+  await expect(page).toHaveURL(/\/discover\/explore/);
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue("bat");
+});
+
+test("une vraie navigation donne toujours le focus au contenu", async ({ page }) => {
+  // Le garde-fou ne doit pas supprimer l'annonce de page : hors saisie, le focus va au
+  // contenu principal, ce qui permet aux lecteurs d'ecran de suivre.
+  await page.goto("/discover");
+  await page.locator("#main-content").waitFor();
+
+  await page.goto("/logs");
+  await page.waitForURL(/\/logs/);
+
+  const focused = await page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
+  expect(["main-content", "BODY"]).toContain(focused);
+});
+
 test("la recherche est centree sur le contenu et occupe la barre", async ({ page }) => {
   test.skip(isCompact(page), "sur mobile la recherche se déploie à la demande");
   await page.goto("/discover");
@@ -444,7 +483,7 @@ test("les demandes n'exposent qu'un seul bouton de filtres", async ({ page }) =>
   const filterButtons = page.getByRole("button", { name: /filtres/i });
   await expect(filterButtons).toHaveCount(1);
   await expect(filterButtons).toBeVisible();
-  if (isCompact(page)) await page.getByRole("button", { name: "Rechercher dans la page" }).click();
+  // Le champ est desormais visible d'emblee en compact : plus de loupe a taper d'abord.
   await expect(page.locator(".app-topbar").getByRole("searchbox", { name: /demande/i })).toBeVisible();
   await expect(page.locator("#main-content").getByRole("searchbox")).toHaveCount(0);
 });
@@ -586,7 +625,7 @@ test("les sections changent de surface selon la largeur, sans jamais se duplique
   await expect(page.locator('.app-rail__brand-name')).toBeVisible();
 });
 
-test("la recherche de page vit dans la barre, et s’y deploie en compact", async ({ page }) => {
+test("la recherche de page vit dans la barre, et occupe toute sa largeur en compact", async ({ page }) => {
   await page.goto("/library");
   await expect(page.locator("#main-content")).toBeVisible();
 
@@ -602,24 +641,23 @@ test("la recherche de page vit dans la barre, et s’y deploie en compact", asyn
     return;
   }
 
-  // En compact, le titre et un champ de 341px ne tiennent pas ensemble dans 390px :
-  // le champ se deploie a la demande, par-dessus le titre.
-  const expanded = page.locator(".app-topbar__field.is-expanded");
-  await expect(expanded).toHaveCount(0);
-  await page.locator(".app-topbar__search-compact").click();
-  await expect(expanded).toBeVisible();
+  // En compact, la barre ne porte plus que la recherche : le bouton de navigation est
+  // passe dans « Plus » (dock) et le titre a disparu, ce qui rend le champ visible
+  // d'emblee au lieu de se deployer derriere une loupe.
+  const input = field.locator("input");
+  await expect(input).toBeVisible();
+  await expect(page.locator('[aria-label="Ouvrir la navigation"]')).toHaveCount(0);
+  await expect(page.locator(".app-topbar__context")).toHaveCount(0);
 
-  const input = expanded.locator("input");
+  // Le champ doit occuper l'essentiel de la barre : c'etait tout l'objet du menage.
+  const [fieldBox, barBox] = await Promise.all([field.boundingBox(), page.locator(".app-topbar").boundingBox()]);
+  expect(fieldBox.width / barBox.width).toBeGreaterThan(0.7);
+
   await input.pressSequentially("dun", { delay: 60 });
   // La requete fait partie de l'objet de recherche, recree a chaque frappe : surveiller
   // cet objet refermait le champ des la premiere lettre.
-  await expect(expanded, "le champ ne doit pas se refermer pendant la saisie").toBeVisible();
+  await expect(input, "le champ ne doit pas disparaitre pendant la saisie").toBeVisible();
   await expect(input).toHaveValue("dun");
-
-  // Echap suppose un clavier et la croix native n'efface que la saisie : il faut un
-  // retour atteignable au doigt.
-  await page.locator('.app-topbar [aria-label="Fermer la recherche"]').click();
-  await expect(expanded).toHaveCount(0);
 });
 
 test("la barre contextuelle est centrée et le raccourci barre oblique cible la page", async ({ page }) => {

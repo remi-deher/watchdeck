@@ -1,18 +1,10 @@
 <template>
   <header class="app-topbar" :class="{ 'is-hidden': toolbarHidden }">
-    <button
-      v-if="mode === 'compact'"
-      type="button"
-      class="app-topbar__icon-btn"
-      aria-haspopup="dialog"
-      :aria-expanded="sheetOpen"
-      aria-label="Ouvrir la navigation"
-      @click="$emit('open-sheet')"
-    >
-      <Menu aria-hidden="true" />
-    </button>
-
-    <span v-if="mode !== 'expanded'" class="app-topbar__context" aria-current="page">{{ resolvedTitle }}</span>
+    <!-- Ni bouton de navigation ni titre en compact : le dock du bas porte deja
+         « Plus », qui ouvre la meme feuille, et le titre de la page est repris juste
+         en dessous. Les deux ne servaient qu'a rogner la largeur du champ de
+         recherche, seul element vraiment utile de cette barre sur telephone. -->
+    <span v-if="mode === 'medium'" class="app-topbar__context" aria-current="page">{{ resolvedTitle }}</span>
 
     <!-- La recherche de la page occupe la barre quand elle existe. Sur mobile, elle
          s'y deploie a la demande : le titre et un champ de 341px n'y tiennent pas
@@ -21,22 +13,13 @@
       v-if="pageSearch?.showSearch"
       ref="searchContainer"
       class="app-topbar__field"
-      :class="{ 'is-expanded': searchExpanded }"
       @focusin="searchFocused = true"
       @focusout="onSearchFocusOut"
     >
       <!-- Deploye, le champ recouvre la barre entiere, boutons compris : sans ce
            retour, il n'y a plus aucun moyen d'en sortir au doigt (Echap suppose un
            clavier, et la croix native du champ ne fait qu'effacer la saisie). -->
-      <button
-        v-if="searchExpanded"
-        type="button"
-        class="app-topbar__icon-btn"
-        aria-label="Fermer la recherche"
-        @click="collapseSearch"
-      >
-        <ArrowLeft aria-hidden="true" />
-      </button>
+
       <UiSearchField
         ref="fieldRef"
         :query="pageSearch.query"
@@ -48,7 +31,6 @@
         @update:query="pageSearch.onQuery($event)"
         @search="pageSearch.onSearch($event)"
         @toggle-filters="pageSearch.onToggleFilters()"
-        @keydown.escape="collapseSearch"
         @keydown.enter="rememberCurrentSearch"
       />
       <!-- Echappee vers la recherche globale : la requete en cours ne trouve peut-etre
@@ -100,27 +82,14 @@
          recherche, ou il ne coute aucune hauteur. AppPage y telporte son slot `tools`. -->
     <div v-if="mode === 'expanded'" id="app-page-tools" class="app-topbar__page-tools" />
 
-    <!-- En compact, les filtres sont dans le champ, donc derriere la loupe : deux tapes
-         pour un controle qu'on ouvre souvent. On les ressort a cote, a portee directe. -->
+    <!-- La loupe ne subsiste que sans recherche de page : elle ouvre alors la
+         recherche globale, seul recours depuis un telephone. -->
     <button
-      v-if="pageSearch?.hasFilters && !searchExpanded"
-      type="button"
-      class="app-topbar__icon-btn app-topbar__filters-compact"
-      :class="{ active: pageSearch.filtersOpen || pageSearch.activeCount > 0 }"
-      :aria-expanded="pageSearch.filtersOpen"
-      :aria-label="pageSearch.filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'"
-      @click="pageSearch.onToggleFilters()"
-    >
-      <SlidersHorizontal aria-hidden="true" />
-      <strong v-if="pageSearch.activeCount">{{ pageSearch.activeCount }}</strong>
-    </button>
-
-    <button
+      v-if="!pageSearch?.showSearch"
       type="button"
       class="app-topbar__icon-btn app-topbar__search-compact"
-      :aria-expanded="pageSearch ? searchExpanded : undefined"
-      :aria-label="pageSearch ? 'Rechercher dans la page' : 'Rechercher'"
-      @click="onCompactSearch"
+      aria-label="Rechercher"
+      @click="$emit('open-palette')"
     >
       <Search aria-hidden="true" />
     </button>
@@ -130,7 +99,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ArrowLeft, History, Menu, Search, SlidersHorizontal } from '@lucide/vue';
+import { History, Search, SlidersHorizontal } from '@lucide/vue';
 import UiSearchField from '@/components/ui/UiSearchField.vue';
 import { usePageSearch } from '@/composables/usePageSearch';
 import { usePageTitle } from '@/composables/usePageTitle';
@@ -143,20 +112,17 @@ const props = withDefaults(
     mode: ShellMode;
     pageTitle: string;
     destinationLabel?: string;
-    sheetOpen?: boolean;
   }>(),
-  { destinationLabel: '', sheetOpen: false }
+  { destinationLabel: '' }
 );
 
 const emit = defineEmits<{
-  (e: 'open-sheet'): void;
   (e: 'open-palette', prefill?: string): void;
 }>();
 
 const pageSearch = usePageSearch();
 const fieldRef = ref<any>(null);
 const searchContainer = ref<HTMLElement | null>(null);
-const searchExpanded = ref(false);
 const searchFocused = ref(false);
 const historyRevision = ref(0);
 const toolbarHidden = ref(false);
@@ -166,7 +132,7 @@ function handleScroll(): void {
   const current = Math.max(0, window.scrollY);
   const delta = current - lastScrollY;
   if (current < 24 || delta < -5 || searchFocused.value || pageSearch.value?.filtersOpen) toolbarHidden.value = false;
-  else if (delta > 7 && current > 96 && !searchExpanded.value) toolbarHidden.value = true;
+  else if (delta > 7 && current > 96 && !searchFocused.value) toolbarHidden.value = true;
   lastScrollY = current;
 }
 
@@ -180,29 +146,12 @@ onUnmounted(() => {
   window.removeEventListener('keydown', focusContextSearch);
 });
 
-/* En mode compact, la loupe deploie le champ de la page sur toute la barre ; sans
-   champ de page, elle ouvre la recherche globale. Un seul bouton, deux roles selon
-   ce que la page offre. */
-function onCompactSearch(): void {
-  if (!pageSearch.value?.showSearch) return emit('open-palette');
-  toolbarHidden.value = false;
-  searchExpanded.value = !searchExpanded.value;
-  if (searchExpanded.value) {
-    nextTick(() => fieldRef.value?.$el?.querySelector('input')?.focus());
-  }
-}
-
-function collapseSearch(): void {
-  searchExpanded.value = false;
-}
-
 function focusContextSearch(event: KeyboardEvent): void {
   if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || !pageSearch.value?.showSearch) return;
   const target = event.target as HTMLElement | null;
   if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
   event.preventDefault();
   toolbarHidden.value = false;
-  searchExpanded.value = true;
   nextTick(() => fieldRef.value?.$el?.querySelector('input')?.focus());
 }
 
@@ -241,11 +190,6 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
    largeur de les porter sans chasser le titre, seul repere visible depuis que le
    bandeau de titre a quitte la page. */
 
-/* On suit le titre, pas l'objet de recherche : celui-ci est recree a chaque frappe
-   (la requete en fait partie), et le surveiller refermait le champ des la premiere
-   lettre. Le titre, lui, ne change qu'en changeant de page — ce qu'on veut vraiment
-   detecter, pour ne pas laisser la recherche d'une page par-dessus le titre d'une autre. */
-watch(resolvedTitle, () => { searchExpanded.value = false; });
 </script>
 
 <style scoped lang="scss">
@@ -431,20 +375,15 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
   color: var(--accent);
 }
 
-/* Deploiement en mode compact : le champ recouvre la barre entiere, titre compris. */
-.app-topbar__field.is-expanded {
-  display: flex;
-  position: absolute;
-  top: var(--safe-top);
-  right: max(var(--space-3), var(--safe-right));
-  bottom: 0;
-  left: var(--space-3);
-  z-index: 1;
-  align-items: center;
-  gap: var(--space-2);
-  background: var(--bg);
+.app-topbar__field { display: flex; position: relative; }
+
+/* En compact, le champ occupe la barre : ni bouton de navigation ni titre ne la
+   partagent plus, et il n'y a donc plus rien a deployer. Au-dela, la barre garde son
+   centrage sur le contenu (voir les blocs de breakpoints plus bas). */
+@include bp.until(shell-medium) {
+  .app-topbar__field { flex: 1 1 auto; min-width: 0; }
+  .app-topbar__field :deep(.ui-search-field) { flex: 1 1 auto; max-width: none; }
 }
-.app-topbar__field.is-expanded .ui-search-field { flex: 1 1 auto; max-width: none; }
 
 .app-topbar__escape {
   position: absolute;
@@ -486,34 +425,13 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 .app-topbar__recent svg { flex: none; width: 14px; color: var(--muted); }
 .app-topbar__recent span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.app-topbar__filters-compact { position: relative; }
-.app-topbar__filters-compact.active { color: var(--accent); }
-.app-topbar__filters-compact strong {
-  position: absolute;
-  top: 5px;
-  right: 4px;
-  display: grid;
-  place-items: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: #1a1400;
-  font-size: 10px;
-}
-
 @include bp.from(shell-medium) {
   .app-topbar__search { display: flex; }
   .app-topbar__filter-only { display: flex; }
-  /* Au-dela du compact, le bouton Filtres du champ est deja visible. */
-  .app-topbar__filters-compact { display: none; }
-  /* Au-dela du compact, le champ tient dans la barre sans se deployer, et la loupe
-     n'a plus de role : la recherche globale reste sur Ctrl+K et dans le rail. */
+  /* Au-dela du compact, la loupe n'a plus de role : la recherche globale reste sur
+     Ctrl+K et dans le rail. */
   .app-topbar__search-compact { display: none; }
-  /* `relative` conserve : c'est le bloc conteneur du bouton d'echappee, qui
-     s'ancrait sinon au bord gauche de la barre. */
-  .app-topbar__field { display: flex; position: relative; }
+  .app-topbar__field :deep(.ui-search-field) { max-width: 480px; }
 }
 
 /* Sur tablette, le titre reste un repère visible mais sort du flux : il ne décale
@@ -534,12 +452,6 @@ watch(resolvedTitle, () => { searchExpanded.value = false; });
 @include bp.until(tablet) {
   .app-topbar { left: max(10px, var(--safe-left)); right: max(10px, var(--safe-right)); width: auto; transform: none; }
   .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(-100% - 14px)); }
-  .app-topbar__field.is-expanded {
-    top: 0;
-    right: 4px;
-    bottom: 0;
-    left: 4px;
-    border-radius: inherit;
-  }
+
 }
 </style>
