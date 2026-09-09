@@ -215,9 +215,11 @@ test("le rail se replie et se deploie, et le choix survit au rechargement", asyn
 });
 
 test("la sous-navigation d'une page repond aux fleches", async ({ page }) => {
-  await page.goto("/activity");
-  // La rangee de sections, pas le premier tablist venu : la page porte aussi un
-  // controle segmente de periode, qui expose le meme role.
+  // Les sections de l'Activite sont devenues celles de sa destination, donc des liens
+  // de navigation et non des onglets : les fleches n'ont pas de sens sur un `<nav>`.
+  // Le comportement teste ici reste celui de la variante `tabs`, toujours utilisee par
+  // les journaux, l'Acquisition, les ameliorations VF et la fiche media.
+  await page.goto("/logs");
   const tablist = page.locator('.app-subnav [role="tablist"]').first();
   await expect(tablist).toBeVisible({ timeout: 15_000 });
 
@@ -234,9 +236,12 @@ test("la sous-navigation d'une page repond aux fleches", async ({ page }) => {
 });
 
 test("le selecteur de periode de l'activite change bien de valeur", async ({ page }) => {
-  await page.goto("/activity?view=stats");
-  await page.getByRole("button", { name: "Afficher les filtres" }).click();
-  const segmented = page.locator('.ui-segmented-control, [class*="segmented"]').first();
+  // La periode n'est plus enfermee derriere le bouton « Filtres » : ce n'en etait pas
+  // un, et le tiroir n'avait plus qu'une seule entree. Elle partage desormais la rangee
+  // collante des sections, ou la barre du haut en mode deploye -- dans les deux cas
+  // visible sans ouvrir quoi que ce soit.
+  await page.goto("/activity");
+  const segmented = page.getByRole("tablist", { name: /Période/ }).first();
   await expect(segmented).toBeVisible({ timeout: 15000 });
   const options = segmented.locator("button");
   const count = await options.count();
