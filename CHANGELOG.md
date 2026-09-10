@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.25.1 — 2026-09-10
+
+
+### test
+
+- verrouiller les deux causes de la perte de focus ([b9d6255](https://github.com/remi-deher/watchdeck/commit/b9d62552d08ea2db7a66ad1c4a75afb59b86069f))
 ## 1.25.0 — 2026-09-09
 
 
@@ -11,6 +17,10 @@
 ### 🐛 Corrections
 
 - rendre la barre du haut à la recherche sur mobile ([549efa2](https://github.com/remi-deher/watchdeck/commit/549efa218a47430b02d80a83108a36a81d9d1e27))
+
+### 🔧 Maintenance
+
+- v1.25.0 (#272) ([f10dc36](https://github.com/remi-deher/watchdeck/commit/f10dc36863869e39fc31310f1794fcd8120f0e46))
 ## 1.24.1 — 2026-09-09
 
 
