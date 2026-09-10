@@ -36,15 +36,17 @@
         @toggle-filters="pageSearch.onToggleFilters()"
         @keydown.enter="rememberCurrentSearch"
       />
-      <!-- Echappee vers la recherche globale : la requete en cours ne trouve peut-etre
-           rien ici parce qu'elle concerne une autre partie de l'application. -->
+      <!-- Echappee vers la recherche globale. Elle compte double sur une page qui
+           filtre : ce que l'on cherche n'est peut-etre pas dans cette liste, et le
+           champ ne peut alors rien faire apparaitre. Le libelle dit donc ou l'on va,
+           « chercher » s'opposant au « filtrer » du champ lui-meme. -->
       <button
         v-if="pageSearch.query.trim().length > 1"
         type="button"
         class="app-topbar__escape"
         @click="$emit('open-palette', pageSearch.query)"
       >
-        Rechercher « {{ pageSearch.query.trim() }} » partout
+        Chercher « {{ pageSearch.query.trim() }} » dans toute l’application
       </button>
       <div v-if="showRecentSearches" class="app-topbar__recent" aria-label="Recherches récentes">
         <small>Dans {{ pageSearch.scopeLabel }}</small>
