@@ -4,6 +4,9 @@
       v-model:query="historySearch"
       search-scope="Activité"
       :placeholder="searchPlaceholder"
+      search-kind="filter"
+      :match-count="filterCounts.matched"
+      :total-count="filterCounts.total"
       :has-filters="currentView === 'history'"
       :active-count="historyFilterCount"
       :filters-open="filtersOpen"
@@ -328,6 +331,24 @@ const liveSessions=computed(()=>{
 });
 const filteredAnalyticsUsers=computed(()=>analyticsUsers.value.filter((user: any)=>matches(user.name,user.favorite_title,user.favorite_device)));
 const qualityHistory=computed(()=>(data.value.history||[]).slice(0,20));
+
+/* Ce que le champ retranche, vue par vue : sans ce compte, une liste filtree se lit
+   comme une liste complete. L'historique est filtre en base, son total vient donc du
+   serveur ; les autres vues filtrent ce qu'elles ont deja sous la main. */
+const filterCounts=computed(()=>{
+  switch(currentView.value){
+    case 'live':
+      return {matched:liveSessions.value.length, total:(data.value.active||[]).length};
+    case 'history':
+      // Le serveur renvoie le total de la requete filtree : le total non filtre nous est
+      // inconnu, on n'annonce donc que le nombre de resultats.
+      return {matched:history.value.total, total:null};
+    case 'users':
+      return {matched:filteredAnalyticsUsers.value.length, total:analyticsUsers.value.length};
+    default:
+      return {matched:null, total:null};
+  }
+});
 const viewTitle=computed(()=>({overview:'Vue d’ensemble',live:'Activité en direct',history:'Historique des lectures',quality:'Qualité des flux',users:'Utilisateurs'} as Record<string, string>)[currentView.value]);
 const viewDescription=computed(()=>({
   overview:'Vue synthétique des lectures, tendances et utilisateurs.',

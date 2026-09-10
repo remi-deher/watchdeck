@@ -4,6 +4,7 @@
       v-model:query="query"
       search-scope="Acquisition"
       :placeholder="searchPlaceholder"
+      search-kind="filter"
       has-filters
       :active-count="totalActiveFilterCount"
       :filters-open="filtersOpen"

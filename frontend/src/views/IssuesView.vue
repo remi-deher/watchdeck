@@ -9,6 +9,9 @@
     v-model:query="query"
     search-scope="Problèmes"
     placeholder="Filtrer par média, message ou personne…"
+    search-kind="filter"
+    :match-count="visibleIssues.length"
+    :total-count="issues.length"
     has-filters
     :active-count="activeFilterCount"
     :filters-open="filtersOpen"

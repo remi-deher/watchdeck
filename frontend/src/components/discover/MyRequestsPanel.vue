@@ -223,18 +223,6 @@ const emptyMessage = computed(() =>
     : "Vous n'avez pas encore fait de demande."
 );
 
-providePageSearch(computed<PageSearch>(() => ({
-  showSearch: true,
-  query: query.value,
-  placeholder: 'Rechercher une demande…',
-  scopeLabel: 'Demandes',
-  hasFilters: true,
-  filtersOpen: filtersOpen.value,
-  activeCount: activeFilterCount.value,
-  onQuery: (value: string) => { query.value = value; },
-  onSearch: () => onSearch(),
-  onToggleFilters: () => { filtersOpen.value = !filtersOpen.value; },
-})));
 
 function setStatus(value: string): void { statusKey.value = statusKey.value === value ? '' : value; }
 function setType(value: string): void { typeKey.value = typeKey.value === value ? '' : value; }
@@ -288,6 +276,26 @@ const sorted = computed(() => {
   else list.sort((a, b) => (b.requested_at || '').localeCompare(a.requested_at || ''));
   return list;
 });
+
+/* Declare apres `sorted` : le calcul le lit, et une constante lue avant sa
+   declaration leve — l'effet echouait alors en silence, et la barre du haut retombait
+   sur le declencheur de la palette. */
+providePageSearch(computed<PageSearch>(() => ({
+  showSearch: true,
+  // La liste est deja chargee : taper ici retranche, cela ne fait rien apparaitre.
+  kind: 'filter',
+  matchCount: sorted.value.length,
+  totalCount: items.value.length,
+  query: query.value,
+  placeholder: 'Filtrer les demandes…',
+  scopeLabel: 'Demandes',
+  hasFilters: true,
+  filtersOpen: filtersOpen.value,
+  activeCount: activeFilterCount.value,
+  onQuery: (value: string) => { query.value = value; },
+  onSearch: () => onSearch(),
+  onToggleFilters: () => { filtersOpen.value = !filtersOpen.value; },
+})));
 
 function openDetail(item: any): void {
   router.push(mediaDetailPath(item, 'request', { discover: true }));
