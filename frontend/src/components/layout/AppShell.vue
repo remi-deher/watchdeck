@@ -63,6 +63,7 @@ import AppRail from './AppRail.vue';
 import AppTopBar from './AppTopBar.vue';
 import CommandPalette from './CommandPalette.vue';
 import { useRailCollapsed } from '@/composables/useRailCollapsed';
+import { isTypingTarget } from '@/utils/focus';
 import { usePageTitle } from '@/composables/usePageTitle';
 import { useShellMode } from '@/composables/useShellMode';
 import { destinationForPath } from '@/navigation';
@@ -137,9 +138,9 @@ watch(
        qu'il ait navigue : la premiere lettre tapee dans Decouvrir fait passer
        /discover a /discover/explore, et deplacer le focus lui arrachait le champ des
        la premiere frappe. L'annonce, elle, reste due. */
-    const actif = document.activeElement as HTMLElement | null;
-    const enTrainDEcrire = Boolean(actif?.matches('input, textarea, select, [contenteditable="true"]'));
-    if (!enTrainDEcrire) document.getElementById('main-content')?.focus({ preventScroll: true });
+    if (!isTypingTarget(document.activeElement)) {
+      document.getElementById('main-content')?.focus({ preventScroll: true });
+    }
     const title = typeof route.meta.title === 'string' ? route.meta.title : '';
     routeAnnouncement.value = title ? `Page ${title} chargée` : 'Page chargée';
   }

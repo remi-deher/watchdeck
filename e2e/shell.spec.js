@@ -437,10 +437,9 @@ test("la recherche garde le focus quand la page change d'URL sous le doigt", asy
   // Taper la premiere lettre dans Decouvrir fait passer /discover a /discover/explore.
   // Deux mecanismes arrachaient alors le champ : la barre se refermait au changement de
   // titre, et la navigation deplacait le focus vers le contenu pour l'annoncer.
+  // Le defaut a ete signale sur telephone : le test tourne donc sur toutes les tailles,
+  // le champ etant desormais visible d'emblee en compact.
   await page.goto("/discover");
-  // Le deploiement du champ en compact a son propre test ; ici on veut seulement
-  // verifier que la frappe survit au changement d'URL, ce qui ne depend pas de la taille.
-  test.skip(isCompact(page), "le champ se deploie a la demande en compact");
   const field = page.locator(".app-topbar__field input").first();
   await expect(field).toBeVisible({ timeout: 15000 });
   await field.click();
