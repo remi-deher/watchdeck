@@ -1,11 +1,22 @@
 # Changelog
 
+## 1.26.0 — 2026-09-10
+
+
+### ✨ Nouveautés
+
+- rendre la barre de recherche contextuelle à sa page ([6ce6a7b](https://github.com/remi-deher/watchdeck/commit/6ce6a7b254f025568f8d0f186f77f746f0456493))
+- nommer l'échappée vers la recherche globale ([0a62ca3](https://github.com/remi-deher/watchdeck/commit/0a62ca3dc1e83d425ec182c4bf148758637df3cd))
 ## 1.25.1 — 2026-09-10
 
 
 ### test
 
 - verrouiller les deux causes de la perte de focus ([b9d6255](https://github.com/remi-deher/watchdeck/commit/b9d62552d08ea2db7a66ad1c4a75afb59b86069f))
+
+### 🔧 Maintenance
+
+- v1.25.1 (#278) ([723f9a1](https://github.com/remi-deher/watchdeck/commit/723f9a1d88aa1ee6bfa2056f44ea6e54fe8756b9))
 ## 1.25.0 — 2026-09-09
 
 
