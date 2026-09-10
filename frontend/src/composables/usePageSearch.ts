@@ -1,8 +1,22 @@
 import { onUnmounted, ref, watchEffect, type Ref } from 'vue';
 
+/**
+ * Nature de la recherche d'une page.
+ *
+ * `search` interroge un corpus : le resultat peut contenir ce qui n'est pas a l'ecran.
+ * `filter` reduit une liste deja affichee : il ne fait jamais apparaitre d'inedit.
+ * Deux gestes opposes portaient la meme barre, sans que rien ne les distingue -- on ne
+ * pouvait pas savoir, en tapant, si l'on elargissait ou si l'on retranchait.
+ */
+export type PageSearchKind = 'search' | 'filter';
+
 export interface PageSearch {
   /** Faux lorsqu'une page fournit uniquement des filtres contextuels. */
   showSearch: boolean;
+  kind: PageSearchKind;
+  /** Lignes retenues et lignes totales, pour un filtre : « 43 sur 348 ». */
+  matchCount?: number | null;
+  totalCount?: number | null;
   query: string;
   placeholder: string;
   /** Périmètre lisible et clé stable de l'historique (Explorer, Bibliothèque…). */

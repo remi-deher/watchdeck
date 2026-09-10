@@ -1,5 +1,13 @@
 <template>
-  <AppPage hide-search title="Paramètres">
+  <AppPage
+    title="Paramètres"
+    v-model:query="query"
+    search-scope="Réglages"
+    placeholder="Filtrer les réglages…"
+    search-kind="filter"
+    :match-count="settingsSearch.matched.value"
+    :total-count="settingsSearch.total.value"
+  >
     <template #actions>
       <UiButton v-if="['plex','services','webhooks','notifications-channels','notifications-rules','downloads','vf-upgrades','scheduled-tasks','data'].includes(tab)" variant="primary" :loading="saving" @click="save"><template #icon><Save/></template>{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</UiButton>
     </template>
@@ -11,6 +19,24 @@
       <div class="settings-panel">
         <UiFeedback v-if="error" type="error" title="Enregistrement impossible" :message="error" />
         <UiFeedback v-if="message" type="success" :message="message" />
+
+        <!-- La question n'est plus « comment regler ceci » mais « ou vit ce reglage » :
+             le champ retranche les cartes de cette page, et cette liste dit ce qui
+             correspond ailleurs. -->
+        <section v-if="elsewhere.length" class="settings-elsewhere">
+          <h2>Ailleurs dans les réglages</h2>
+          <ul>
+            <li v-for="entry in elsewhere" :key="entry.path">
+              <RouterLink :to="entry.path">
+                <strong>{{ entry.label }}</strong>
+                <small>{{ entry.group }}</small>
+              </RouterLink>
+            </li>
+          </ul>
+        </section>
+        <p v-if="query.trim() && !settingsSearch.matched.value" class="settings-no-match">
+          Aucun réglage de cette page ne correspond à « {{ query.trim() }} ».
+        </p>
 
         <SettingsOverview v-if="tab==='overview'" @select="selectTab"/>
         <ConnectionsTab v-else-if="tab==='plex'"/>
@@ -44,6 +70,8 @@ import { settingsSections } from '@/settingsSections';
 import { notificationSections } from '@/notificationSections';
 import UiButton from '@/components/ui/UiButton.vue';
 import { PANEL_PATHS, panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
+import { SETTINGS_SEARCH_INDEX } from '@/settingsSearchIndex';
+import { matchesQuery, normalizeSearchText, provideSettingsSearch } from '@/composables/useSettingsSearch';
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const ConnectionsTab = defineAsyncComponent(() => import('@/components/settings/ConnectionsTab.vue'));
@@ -67,6 +95,19 @@ const route = useRoute(), router = useRouter();
 // redirection : ces liens circulent dans les favoris et les echanges, les laisser tomber
 // sur la page d'accueil des reglages aurait ete une regression silencieuse.
 const tab = computed(() => panelForPath(route.path));
+
+/* Deux moities de la meme question : le champ retranche les cartes de la page affichee
+   (les cartes se declarent elles-memes, voir `useSettingsSearch`), et l'index dit ou
+   trouver ce qui correspond ailleurs. */
+const query = ref('');
+const settingsSearch = provideSettingsSearch(query);
+const elsewhere = computed(() => {
+  const needle = query.value.trim();
+  if (normalizeSearchText(needle).length < 2) return [];
+  return SETTINGS_SEARCH_INDEX.filter(
+    (entry) => entry.path !== route.path && matchesQuery(`${entry.label} ${entry.group} ${entry.keywords.join(' ')}`, needle)
+  ).slice(0, 6);
+});
 const standaloneTabs = new Set(['acquisitions', 'templates', 'overview', 'system-version']);
 let settingsLoadPromise: Promise<void> | undefined;
 function ensureSettingsLoaded(value = tab.value): Promise<void> {
@@ -103,4 +144,28 @@ onMounted(redirectLegacyTab);
    plus lieu d'etre : c'est elle qui etranglait les grilles de cartes. */
 .settings-layout { display: grid; gap: var(--space-4); min-width: 0; }
 .settings-panel { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+
+/* Les resultats d'ailleurs passent avant les cartes : quand on cherche « ou vit ce
+   reglage », la reponse est cette liste, pas ce qui reste de la page courante. */
+.settings-elsewhere {
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+.settings-elsewhere h2 { margin: 0 0 var(--space-3); font-size: var(--fs-sm); color: var(--muted); }
+.settings-elsewhere ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.settings-elsewhere a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+.settings-elsewhere a:hover { background: var(--surface-2); }
+.settings-elsewhere small { color: var(--muted); font-size: var(--fs-xs); }
+.settings-no-match { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 </style>

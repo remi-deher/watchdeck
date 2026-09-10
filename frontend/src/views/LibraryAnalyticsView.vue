@@ -4,6 +4,8 @@
       v-model:query="filters.search"
       search-scope="Bibliothèque"
       placeholder="Filtrer par titre, série ou studio…"
+      search-kind="filter"
+      :match-count="tableTotal"
       :has-filters="activeTab === 'table'"
       :active-count="activeCount"
       :filters-open="filtersOpen"

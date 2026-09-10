@@ -464,6 +464,32 @@ test("une vraie navigation donne toujours le focus au contenu", async ({ page })
   expect(["main-content", "BODY"]).toContain(focused);
 });
 
+test("la barre dit si elle cherche ou si elle filtre", async ({ page }) => {
+  // Deux gestes opposes portaient la meme barre : « rechercher » ramene ce qui n'est pas
+  // a l'ecran, « filtrer » retranche ce qui y est. Rien ne les distinguait.
+  await page.goto("/discover");
+  await expect(page.locator(".ui-search-field")).toHaveClass(/is-search/, { timeout: 15000 });
+
+  await page.goto("/activity?view=history");
+  await expect(page.locator(".ui-search-field")).toHaveClass(/is-filter/, { timeout: 15000 });
+});
+
+test("la recherche des reglages mene au bon panneau", async ({ page }) => {
+  // Depuis l'eclatement en sept destinations, la question n'est plus « comment regler
+  // ceci » mais « ou vit ce reglage ».
+  await page.goto("/settings/services");
+  const input = page.locator(".app-topbar__field input").first();
+  await expect(input).toBeVisible({ timeout: 15000 });
+
+  await input.pressSequentially("tracearr", { delay: 60 });
+
+  const ailleurs = page.locator(".settings-elsewhere a").first();
+  await expect(ailleurs).toBeVisible({ timeout: 10000 });
+  await expect(ailleurs).toContainText("Intégrations");
+  await ailleurs.click();
+  await expect(page).toHaveURL(/\/settings\/services\/integrations/);
+});
+
 test("la recherche est centree sur le contenu et occupe la barre", async ({ page }) => {
   test.skip(isCompact(page), "sur mobile la recherche se déploie à la demande");
   await page.goto("/discover");
