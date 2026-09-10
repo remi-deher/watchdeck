@@ -60,7 +60,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, useSlots, watch } from 'vue';
 import AppSubnav, { type SubnavItem } from './AppSubnav.vue';
-import { providePageSearch, type PageSearch } from '@/composables/usePageSearch';
+import { providePageSearch, type PageSearch, type PageSearchKind } from '@/composables/usePageSearch';
 import { usePageSections } from '@/composables/usePageSections';
 import { providePageTitle } from '@/composables/usePageTitle';
 import { useShellMode } from '@/composables/useShellMode';
@@ -83,6 +83,15 @@ const props = withDefaults(
     placeholder?: string;
     /** Libellé court affiché devant la recherche pour rendre son périmètre explicite. */
     searchScope?: string;
+    /**
+     * `search` interroge un corpus, `filter` réduit la liste affichée. Deux gestes
+     * opposés portaient la même barre : on ne pouvait pas savoir, en tapant, si l'on
+     * élargissait ou si l'on retranchait.
+     */
+    searchKind?: PageSearchKind;
+    /** Pour un filtre : lignes retenues et lignes totales, affichées « 43 sur 348 ». */
+    matchCount?: number | null;
+    totalCount?: number | null;
     hasFilters?: boolean;
     filtersOpen?: boolean;
     activeCount?: number;
@@ -102,6 +111,9 @@ const props = withDefaults(
     query: '',
     placeholder: 'Rechercher…',
     searchScope: '',
+    searchKind: 'search',
+    matchCount: null,
+    totalCount: null,
     hasFilters: false,
     filtersOpen: false,
     activeCount: 0,
@@ -137,6 +149,9 @@ providePageSearch(
       ? null
       : {
           showSearch: !props.hideSearch,
+          kind: props.searchKind,
+          matchCount: props.matchCount,
+          totalCount: props.totalCount,
           query: props.query,
           placeholder: props.placeholder,
           scopeLabel: props.searchScope || props.title,

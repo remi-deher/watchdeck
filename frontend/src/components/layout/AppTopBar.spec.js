@@ -108,4 +108,26 @@ describe('AppTopBar en compact', () => {
     await loupe.trigger('click');
     expect(wrapper.findComponent(AppTopBar).emitted('open-palette')).toBeTruthy();
   });
+  it('propose de porter la recherche à toute l’application', async () => {
+    // Sur une page qui filtre, le champ ne peut rien faire apparaître : si ce qu'on
+    // cherche n'est pas dans la liste, la seule issue est la recherche globale. Le
+    // libellé dit donc « chercher », par opposition au « filtrer » du champ.
+    const { wrapper } = mountBar({}, ref(pageSearch({ kind: 'filter', query: 'dune' })));
+    await wrapper.vm.$nextTick();
+
+    const echappee = wrapper.find('.app-topbar__escape');
+    expect(echappee.exists()).toBe(true);
+    expect(echappee.text()).toBe('Chercher « dune » dans toute l’application');
+
+    await echappee.trigger('click');
+    expect(wrapper.findComponent(AppTopBar).emitted('open-palette')[0]).toEqual(['dune']);
+  });
+
+  it('ne propose l’échappée qu’à partir de deux caractères', async () => {
+    // Une seule lettre ne dit rien de ce qu'on cherche.
+    const { wrapper } = mountBar({}, ref(pageSearch({ query: 'd' })));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.app-topbar__escape').exists()).toBe(false);
+  });
 });
