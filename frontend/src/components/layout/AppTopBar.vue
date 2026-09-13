@@ -102,6 +102,7 @@ import { History, Search, SlidersHorizontal } from '@lucide/vue';
 import UiSearchField from '@/components/ui/UiSearchField.vue';
 import { usePageSearch } from '@/composables/usePageSearch';
 import { usePageTitle } from '@/composables/usePageTitle';
+import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
 import { shortcutLabel } from '@/shortcut';
 import type { ShellMode } from '@/styles/breakpoints';
 import { readPageSearchHistory, rememberPageSearch } from '@/composables/pageSearchHistory';
@@ -124,24 +125,25 @@ const fieldRef = ref<any>(null);
 const searchContainer = ref<HTMLElement | null>(null);
 const searchFocused = ref(false);
 const historyRevision = ref(0);
-const toolbarHidden = ref(false);
-let lastScrollY = 0;
+/* L'etat de masquage est partage avec la rangee de sections : les deux surfaces
+   flottent l'une sous l'autre et doivent donc s'effacer et revenir ensemble. Voir
+   `useChromeAutoHide`. */
+const { hidden: toolbarHidden, setHold, reveal } = useChromeAutoHide();
 
-function handleScroll(): void {
-  const current = Math.max(0, window.scrollY);
-  const delta = current - lastScrollY;
-  if (current < 24 || delta < -5 || searchFocused.value || pageSearch.value?.filtersOpen) toolbarHidden.value = false;
-  else if (delta > 7 && current > 96 && !searchFocused.value) toolbarHidden.value = true;
-  lastScrollY = current;
-}
+/* Tant que la recherche a le focus, la barre reste a l'ecran : elle disparaitrait sous
+   les doigts de l'utilisateur en train de s'en servir.
+   `filtersOpen` ne fait plus partie de la condition. Il visait la feuille modale des
+   filtres, mais sur grand ecran c'est une colonne ouverte par defaut : la barre du haut
+   ne se masquait alors jamais sur /downloads, sans que rien ne l'explique. Le cas mobile
+   reste couvert sans lui -- une modale pose `body.modal-open { overflow: hidden }`, donc
+   plus aucun evenement de defilement n'est emis tant qu'elle est ouverte. */
+watch(searchFocused, (active) => setHold('topbar', active), { immediate: true });
 
 onMounted(() => {
-  lastScrollY = window.scrollY;
-  window.addEventListener('scroll', handleScroll, { passive: true });
   window.addEventListener('keydown', focusContextSearch);
 });
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll);
+  setHold('topbar', false);
   window.removeEventListener('keydown', focusContextSearch);
 });
 
@@ -150,7 +152,7 @@ function focusContextSearch(event: KeyboardEvent): void {
   const target = event.target as HTMLElement | null;
   if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
   event.preventDefault();
-  toolbarHidden.value = false;
+  reveal();
   nextTick(() => fieldRef.value?.$el?.querySelector('input')?.focus());
 }
 
@@ -220,10 +222,14 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
   padding: 3px;
   border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--surface-sunken) 90%, transparent);
+  /* A 90% d'opacite et 18px de flou, les affiches qui defilaient dessous restaient
+     lisibles au travers et bavaient sur le champ : la barre paraissait floue, et le
+     texte du champ avec elle. On la rend franchement opaque -- le flou ne sert plus qu'a
+     adoucir le bord de ce qui passe derriere, pas a laisser voir le contenu. */
+  background: color-mix(in srgb, var(--surface-sunken) 97%, transparent);
   box-shadow: 0 10px 32px rgba(0, 0, 0, .22);
-  backdrop-filter: blur(18px) saturate(1.1);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   /* Pas de transition sur `left` : la valeur vient d'une variable qui change au
      repliement du rail, et l'animer figeait la position a l'ancienne valeur. Le rail
      lui-meme n'anime pas sa largeur, la barre n'a donc rien a rattraper. */
