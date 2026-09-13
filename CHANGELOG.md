@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.27.0 — 2026-09-13
+
+
+### test
+
+- couvrir le retour arrière VF et l'exclusion de la télémétrie des journaux ([1cd866c](https://github.com/remi-deher/watchdeck/commit/1cd866ce9269b334a697c1af0a1e3e36673c09e1))
+
+### ✨ Nouveautés
+
+- corriger les frictions relevées par l'audit UI/UX ([9e79ad1](https://github.com/remi-deher/watchdeck/commit/9e79ad155cfd56fd002e8f7736a89b489e59f052))
 ## 1.26.0 — 2026-09-10
 
 
@@ -7,6 +17,10 @@
 
 - rendre la barre de recherche contextuelle à sa page ([6ce6a7b](https://github.com/remi-deher/watchdeck/commit/6ce6a7b254f025568f8d0f186f77f746f0456493))
 - nommer l'échappée vers la recherche globale ([0a62ca3](https://github.com/remi-deher/watchdeck/commit/0a62ca3dc1e83d425ec182c4bf148758637df3cd))
+
+### 🔧 Maintenance
+
+- v1.26.0 (#282) ([1a538b7](https://github.com/remi-deher/watchdeck/commit/1a538b742291eb815c5c54913b8e62fbe726006c))
 ## 1.25.1 — 2026-09-10
 
 
