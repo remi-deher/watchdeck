@@ -1,5 +1,5 @@
 <template>
-  <div class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled }">
+  <div class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing }">
     <!-- Deux variantes, un seul composant, parce que le besoin est le même et que la
          différence est purement sémantique :
          · `links`  → chaque entrée change d'URL. C'est une navigation : `<nav>` +
@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, type ComponentPublicInstance } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { RouterLink } from 'vue-router';
 
 export interface SubnavItem {
@@ -84,6 +84,11 @@ const emit = defineEmits<{ (e: 'update:active', value: string): void }>();
 const scroller = ref<HTMLElement | ComponentPublicInstance | null>(null);
 const itemRefs = ref<HTMLElement[]>([]);
 const scrolled = ref(false);
+/* Le degrade de droite n'a de sens que s'il reste vraiment des sections a atteindre.
+   Affiche en permanence, il grisait le bord de la derniere entree alors que toutes
+   tenaient a l'ecran -- exactement le cas des quatre sections d'Explorer sur un
+   telephone de 390px. */
+const overflowing = ref(false);
 
 function setItemRef(el: Element | ComponentPublicInstance | null, index: number): void {
   const node = (el as ComponentPublicInstance)?.$el ?? el;
@@ -98,6 +103,27 @@ function scrollerEl(): HTMLElement | null {
 function onScroll(): void {
   scrolled.value = (scrollerEl()?.scrollLeft ?? 0) > 2;
 }
+
+function measureOverflow(): void {
+  const el = scrollerEl();
+  overflowing.value = el ? el.scrollWidth > el.clientWidth + 1 : false;
+}
+
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  measureOverflow();
+  const el = scrollerEl();
+  if (typeof ResizeObserver !== 'undefined' && el) {
+    // La largeur disponible change avec la fenetre, et le nombre de sections avec la
+    // destination : les deux passent par la taille de la boite ou de son contenu.
+    resizeObserver = new ResizeObserver(() => measureOverflow());
+    resizeObserver.observe(el);
+    for (const child of Array.from(el.children)) resizeObserver.observe(child);
+  }
+});
+onBeforeUnmount(() => resizeObserver?.disconnect());
+watch(() => props.items.length, () => void nextTick(measureOverflow));
 
 /**
  * Flèches, Origine et Fin, comme l'exige le pattern Tabs.
@@ -147,26 +173,33 @@ watch(
      le contenu masqué reste atteignable au clavier comme au doigt. */
   &::after {
     content: '';
+    opacity: 0;
+    transition: opacity .15s ease;
     position: absolute;
     top: 0;
     right: 0;
     bottom: 0;
-    width: 32px;
+    width: 24px;
     background: linear-gradient(to right, transparent, var(--bg));
     pointer-events: none;
   }
+  &.app-subnav--overflowing::after { opacity: 1; }
 }
 
+/* Le cadre se fait le plus discret possible : il n'a qu'a rassembler les sections, pas
+   a se presenter comme un objet a part. Reglages serres (2px de gouttiere, coins de
+   8px au lieu de 12) parce que la hauteur, elle, est fixee par la cible tactile de
+   44px des items et ne peut pas descendre. */
 .app-subnav__scroller {
   display: flex;
-  gap: var(--space-1);
+  gap: 2px;
   min-width: 0;
   max-width: 100%;
-  padding: 4px;
+  padding: 2px;
   overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   scrollbar-width: none;
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
@@ -179,9 +212,11 @@ watch(
   align-items: center;
   gap: var(--space-2);
   min-height: var(--touch-target);
-  padding: 0 11px;
+  padding: 0 10px;
   border: 0;
-  border-radius: var(--radius-sm);
+  /* Un cran sous le rayon du cadre : a rayon egal, la pastille active semblait deborder
+     dans les coins. */
+  border-radius: 6px;
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);
