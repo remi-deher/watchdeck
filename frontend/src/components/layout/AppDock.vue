@@ -77,9 +77,10 @@ const activeIsOutsideDock = computed(
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-sunken) 96%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  /* Opaque plutot que floute, comme la barre du haut : a 96% le flou n'ajoutait rien
+     de visible, mais Safari iOS composait la barre dans sa propre couche et son halo
+     debordait sur le contenu juste au-dessus. */
+  background: var(--surface-sunken);
   overscroll-behavior: none;
   touch-action: manipulation;
 }
