@@ -7,6 +7,9 @@
           <div>
             <strong>{{ toast.title }}</strong><p>{{ toast.message }}</p>
             <button v-if="toast.type==='update'" type="button" class="toast-reload-btn" @click="reload">Recharger</button>
+            <!-- Retour arriere porte par la notification elle-meme : c'est le seul
+                 endroit ou l'utilisateur regarde encore juste apres l'action. -->
+            <button v-else-if="toast.action" type="button" class="toast-reload-btn" @click="runAction(toast)">{{ toast.action.label }}</button>
           </div>
           <button type="button" aria-label="Fermer la notification" @click="$emit('dismiss',toast.id)"><X/></button>
         </article>
@@ -28,12 +31,19 @@ withDefaults(
   }
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'dismiss', id: number | string): void;
 }>();
 
 function reload(): void {
   window.location.reload();
+}
+
+/* La notification se ferme des le clic : laisser « Annuler » cliquable une seconde
+   fois rejouerait l'inverse d'une action deja annulee. */
+function runAction(toast: ToastItem | any): void {
+  emit('dismiss', toast.id);
+  void toast.action?.run();
 }
 </script>
 

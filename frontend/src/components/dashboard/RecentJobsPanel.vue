@@ -38,8 +38,8 @@
               <component :is="jobIcon(run.job)" class="job-icon" />
             </div>
             <div class="job-titles">
-              <strong>{{ friendlyJobName(run.job) }}</strong>
-              <span class="job-time">{{ formatDate(run.started_at) }}</span>
+              <strong>{{ friendlyJobName(run.job) }}<template v-if="run.runCount > 1"> · {{ run.runCount }} exécutions</template></strong>
+              <span class="job-time">{{ run.runCount > 1 ? `de ${formatDate(run.oldestStartedAt)} à ${formatDate(run.started_at)}` : formatDate(run.started_at) }}</span>
             </div>
           </div>
           <span class="badge" :class="run.errors ? 'failed' : 'available'">
@@ -109,10 +109,38 @@ const availableJobs = computed(() => {
   return Array.from(jobs).filter(Boolean);
 });
 
-const filteredPolls = computed(() => {
+const matchingPolls = computed(() => {
   if (pollFilter.value === 'all') return props.polls;
   if (pollFilter.value === 'errors') return props.polls.filter((p) => p.errors);
   return props.polls.filter((p) => p.job === pollFilter.value);
+});
+
+/**
+ * Regroupe les executions consecutives d'une meme tache au meme resultat.
+ *
+ * La watchlist tourne toutes les minutes et renvoie invariablement le meme compte : le
+ * panneau n'affichait qu'elle, six lignes identiques sur six, et une anomalie survenue
+ * sur une autre tache n'y aurait jamais ete visible. Les echecs, eux, ne sont jamais
+ * regroupes -- chacun garde sa ligne, son detail depliable et son horodatage.
+ */
+const filteredPolls = computed(() => {
+  const grouped: any[] = [];
+  for (const run of matchingPolls.value) {
+    const previous = grouped[grouped.length - 1];
+    const mergeable =
+      previous &&
+      !run.errors &&
+      !previous.errors &&
+      previous.job === run.job &&
+      (previous.items_processed || 0) === (run.items_processed || 0);
+    if (mergeable) {
+      previous.runCount = (previous.runCount || 1) + 1;
+      previous.oldestStartedAt = run.started_at;
+      continue;
+    }
+    grouped.push({ ...run, runCount: 1, oldestStartedAt: run.started_at });
+  }
+  return grouped;
 });
 
 const expandedErrors = reactive<Record<string | number, boolean>>({});
@@ -288,7 +316,7 @@ function jobIcon(job: string) {
 }
 
 .error-box-title {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--danger, #ef4444);
   text-transform: uppercase;
@@ -304,7 +332,7 @@ function jobIcon(job: string) {
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   cursor: pointer;
   transition: color 0.15s ease, border-color 0.15s ease;
 }
@@ -326,7 +354,7 @@ function jobIcon(job: string) {
 .error-detail-box code {
   display: block;
   font-family: var(--font-mono, monospace);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.4;
   color: var(--text);
   white-space: pre-wrap;

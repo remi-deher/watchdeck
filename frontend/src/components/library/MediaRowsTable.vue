@@ -13,14 +13,18 @@
     @row-click="details = $event"
     @update:sort="$emit('update:sort', $event)"
   >
+    <!-- Une meme ligne disait l'absence de trois facons differentes : « 0 · aucun »,
+         « personne », « jamais ». Dans un tableau dense, la valeur vide s'ecrit
+         toujours pareil -- le tiret cadratin -- et la formulation en toutes lettres
+         reste pour le tiroir de detail, ou il y a la place de l'expliquer. -->
     <template #cell-title="{ row }"><strong>{{ title(row) }}</strong><small>{{ mediaTypeLabel(row.media_type) }}</small></template>
-    <template #cell-video="{ row }">{{ row.video_resolution || '—' }} · {{ row.video_codec || '—' }}</template>
-    <template #cell-audio="{ row }">{{ row.audio_codec || '—' }} · {{ (row.audio_languages || []).join(', ') || 'langue inconnue' }} · {{ row.audio_track_count || 0 }} piste(s)</template>
-    <template #cell-subtitles="{ row }">{{ row.subtitle_count || 0 }} · {{ (row.subtitle_types || row.subtitle_languages || []).join(', ') || 'aucun' }}</template>
+    <template #cell-video="{ row }">{{ [row.video_resolution, row.video_codec].filter(Boolean).join(' · ') || '—' }}</template>
+    <template #cell-audio="{ row }">{{ [row.audio_codec, (row.audio_languages || []).join(', '), row.audio_track_count ? `${row.audio_track_count} piste(s)` : ''].filter(Boolean).join(' · ') || '—' }}</template>
+    <template #cell-subtitles="{ row }">{{ row.subtitle_count ? [`${row.subtitle_count}`, (row.subtitle_types || row.subtitle_languages || []).join(', ')].filter(Boolean).join(' · ') : '—' }}</template>
     <template #cell-size_bytes="{ row }">{{ bytes(row.size_bytes) }}</template>
-    <template #cell-plays="{ row }">{{ row.play_count || 0 }} lecture(s)</template>
-    <template #cell-viewer="{ row }">{{ (row.viewers || []).join(', ') || 'personne' }}</template>
-    <template #cell-last_viewed="{ row }">{{ row.last_viewed_at ? formatDate(row.last_viewed_at) : 'jamais' }}</template>
+    <template #cell-plays="{ row }">{{ row.play_count ? `${row.play_count} lecture(s)` : '—' }}</template>
+    <template #cell-viewer="{ row }">{{ (row.viewers || []).join(', ') || '—' }}</template>
+    <template #cell-last_viewed="{ row }">{{ row.last_viewed_at ? formatDate(row.last_viewed_at) : '—' }}</template>
     <template #empty>Aucun fichier ne correspond aux filtres.</template>
   </DataTable>
 
@@ -100,11 +104,11 @@ defineEmits<{
 
 const columns: DataTableColumn[] = [
   { key: 'title', label: 'Titre', required: true, className: 'card-title' },
-  { key: 'library', label: 'Bibliothèque' },
-  { key: 'studio', label: 'Studio' },
+  { key: 'library', label: 'Bibliothèque', className: 'col-narrow' },
+  { key: 'studio', label: 'Studio', className: 'col-narrow' },
   { key: 'video', label: 'Qualité', sortable: false },
   { key: 'audio', label: 'Audio', sortable: false },
-  { key: 'container', label: 'Conteneur' },
+  { key: 'container', label: 'Conteneur', className: 'col-narrow' },
   { key: 'subtitles', label: 'Sous-titres', sortable: false },
   { key: 'size_bytes', label: 'Poids' },
   { key: 'plays', label: 'Lectures' },
@@ -121,6 +125,15 @@ const title = (row: any): string => (row.grandparent_title ? `${row.grandparent_
 </script>
 
 <style scoped lang="scss">
+/* Les colonnes se partageaient la largeur a parts egales : « Studio : Inconnu » et
+   « Conteneur : mkv » prenaient autant de place que le titre, qui se repliait alors sur
+   six lignes et faisait passer certaines rangees a 400px de haut. On donne au titre la
+   largeur qu'il demande, et on empeche les colonnes courtes de s'etaler. */
+:deep(td.card-title), :deep(th.card-title) { min-width: 240px; }
+:deep(td.card-title strong) { display: block; overflow-wrap: anywhere; }
+:deep(tbody td) { vertical-align: top; }
+:deep(td.col-narrow), :deep(th.col-narrow) { width: 1%; white-space: nowrap; }
+
 .drawer-section { margin-top: 22px; }
 .drawer-section:first-child { margin-top: 8px; }
 .drawer-section h3 { margin: 0 0 12px; }

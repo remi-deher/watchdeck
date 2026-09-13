@@ -311,7 +311,7 @@
   text-decoration: line-through;
 }
 .filter-badge .count {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   padding: 2px 6px;
   border-radius: var(--radius-pill);
@@ -323,7 +323,7 @@
   color: #1a1400;
 }
 .group-label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   color: #fff;

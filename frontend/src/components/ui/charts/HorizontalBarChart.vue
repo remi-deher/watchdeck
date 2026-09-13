@@ -155,7 +155,7 @@ function onSelect(item: any): void {
 
 .hbar-detail {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .hbar-stats {
@@ -178,7 +178,7 @@ function onSelect(item: any): void {
 
 .hbar-percent {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   min-width: 44px;
   text-align: right;
   font-variant-numeric: tabular-nums;

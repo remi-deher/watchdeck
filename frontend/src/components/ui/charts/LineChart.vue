@@ -269,7 +269,7 @@ function resetZoom(): void {
   pointer-events: none;
   z-index: 20;
 }
-.line-chart__tooltip .t-label, .line-chart__tooltip .t-detail { color: var(--muted); font-size: 10px; }
+.line-chart__tooltip .t-label, .line-chart__tooltip .t-detail { color: var(--muted); font-size: var(--fs-xs); }
 .line-chart__tooltip strong { color: var(--accent); font-size: var(--fs-sm); }
 .line-chart__tooltip em { font-style: normal; color: var(--muted); font-size: var(--fs-xs); }
 .line-chart__x { position: relative; height: 16px; margin-left: 40px; }

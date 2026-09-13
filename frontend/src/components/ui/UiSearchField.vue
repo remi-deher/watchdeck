@@ -210,7 +210,7 @@ function onInput(event: Event): void {
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: #1a1400;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
 }
 </style>

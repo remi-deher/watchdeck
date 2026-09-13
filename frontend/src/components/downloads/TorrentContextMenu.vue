@@ -96,7 +96,7 @@ function trigger(actionType: TorrentAction): void {
 }
 .menu-header {
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;

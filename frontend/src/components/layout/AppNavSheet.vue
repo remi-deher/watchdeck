@@ -177,7 +177,7 @@ useModalA11y(panel, null, () => emit('close'));
   padding: 2px 5px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .app-sheet__link:hover { color: var(--text); background: var(--surface-2); }
 .app-sheet__link[aria-current='page'] {

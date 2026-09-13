@@ -1,24 +1,26 @@
 <template>
   <section class="kpi-banner" :aria-label="audit ? 'Indicateurs clés de l’audit' : 'Indicateurs des opportunités'">
-    <article
+    <!-- Ces tuiles sont le filtre de la page, pas un tableau de bord : un vrai `button`
+         apporte l'activation au clavier (Entrée et Espace) et `aria-pressed` dit lequel
+         est actif, ce qu'un `role="button"` pose a la main ne faisait pas. -->
+    <button
       v-for="card in cards"
       :key="card.filter"
+      type="button"
       class="kpi-card"
       :class="{ active: activeFilter === card.filter }"
-      role="button"
-      tabindex="0"
+      :aria-pressed="activeFilter === card.filter"
       @click="emit('select', card.filter)"
-      @keydown.enter="emit('select', card.filter)"
     >
-      <div class="kpi-icon-wrap" :class="card.tone">
+      <span class="kpi-icon-wrap" :class="card.tone">
         <component :is="card.icon" :size="20" />
-      </div>
-      <div class="kpi-body">
+      </span>
+      <span class="kpi-body">
         <span class="kpi-label">{{ card.label }}</span>
         <strong>{{ card.value }}</strong>
-        <small class="kpi-sub">{{ card.description }}</small>
-      </div>
-    </article>
+        <small class="kpi-sub" :title="card.description">{{ card.description }}</small>
+      </span>
+    </button>
   </section>
 </template>
 
@@ -90,8 +92,12 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
 <style scoped lang="scss">
 .kpi-banner {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  /* 175px pour six tuiles sur 1440 : cinq legendes sur six se coupaient en plein mot
+     (« Nouvelles opportuni… », « Médias VO sans rel… »). Elles passent sur deux lignes
+     et la tuile s'elargit, quitte a repasser sur deux rangees en dessous de 1280. */
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
   gap: var(--space-3);
+  align-items: stretch;
 }
 
 .kpi-card {
@@ -103,6 +109,9 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-1);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
@@ -129,5 +138,16 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
 .kpi-body { display: grid; min-width: 0; gap: 1px; }
 .kpi-label { color: var(--muted); font-size: var(--fs-xs); font-weight: 650; }
 .kpi-body strong { color: var(--text); font-size: var(--fs-xl); line-height: 1.1; }
-.kpi-sub { overflow: hidden; color: var(--muted); font-size: 0.69rem; text-overflow: ellipsis; white-space: nowrap; }
+/* Deux lignes plutot qu'une coupure : la legende explique ce que compte la tuile, elle
+   n'est pas decorative. Au-dela, l'attribut `title` prend le relais. */
+.kpi-sub {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+}
 </style>

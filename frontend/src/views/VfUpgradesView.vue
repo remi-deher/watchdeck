@@ -838,6 +838,9 @@ import VfUpgradeQuickFilters from '@/components/vf-upgrades/VfUpgradeQuickFilter
 import { filterVfUpgradeItems, groupVfUpgradeItems } from '@/utils/vfUpgradeGroups';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { useFeedback } from '@/composables/useFeedback';
+import { useToast } from '@/composables/useToast';
+import { humanizeError } from '@/utils/apiError';
+import { useRoute } from 'vue-router';
 
 const activeTab = ref('upgrades'); // 'upgrades' (*arr) | 'audit' (PASTA)
 
@@ -847,10 +850,19 @@ const scan = ref({});
 const loading = ref(true);
 const scanning = ref(false);
 const selectedKeys = ref(new Set());
-const statusFilter = ref('pending');
+/* Un lien peut arriver deja filtre : « 1 échec(s) » sur la page Configuration renvoie
+   ici avec `?status=failed`. Sans cette lecture, le lien menait a la liste complete et
+   laissait l'administrateur retrouver l'echec a la main. */
+// `useRoute()` ne renvoie rien quand la vue est montee hors routeur (tests unitaires) :
+// le filtre retombe alors sur sa valeur par defaut.
+const route = useRoute();
+const VALID_STATUS_FILTERS = ['pending', 'waiting_release', 'in_progress', 'failed', 'history', 'ignored', 'all'];
+const initialStatus = String(route?.query?.status || '');
+const statusFilter = ref(VALID_STATUS_FILTERS.includes(initialStatus) ? initialStatus : 'pending');
 const mediaTypeFilter = ref('');
 const query = ref('');
 const { message: feedback, type: feedbackType, show, clear: clearFeedback } = useFeedback();
+const { undoable } = useToast();
 
 // Onglet 3 : Historique des cycles de scan
 const scanRuns = ref([]);
@@ -871,7 +883,7 @@ async function loadScanRuns() {
     const data = await api('/api/vf-upgrades/scan-runs?limit=20');
     scanRuns.value = data.runs || [];
   } catch (e) {
-    show(e.message || String(e), 'error');
+    show(humanizeError(e), 'error');
   } finally {
     scanRunsLoading.value = false;
   }
@@ -884,7 +896,7 @@ async function loadRunItems(runId, { silent = false } = {}) {
     runItems.value = data.items || [];
     return data.run;
   } catch (e) {
-    if (!silent) show(e.message || String(e), 'error');
+    if (!silent) show(humanizeError(e), 'error');
     return null;
   } finally {
     runItemsLoading.value = false;
@@ -1330,7 +1342,7 @@ async function load({ silent = false } = {}) {
     items.value = data.items || [];
     scan.value = data.scan || {};
   } catch (e) {
-    show(e.message || String(e), 'error');
+    show(humanizeError(e), 'error');
   } finally {
     loading.value = false;
   }
@@ -1353,7 +1365,7 @@ async function loadAudit({ silent = false } = {}) {
       partial_vf: 0,
     };
   } catch (e) {
-    show(e.message || String(e), 'error');
+    show(humanizeError(e), 'error');
   } finally {
     auditLoading.value = false;
   }
@@ -1384,7 +1396,7 @@ async function fixAllStreams() {
     show(`${res.processed_items || 0} média(s) réaligné(s) sur Plex.`);
     itemIds.forEach(id => applyStreamsFixInPlace(id));
   } catch (e) {
-    show(e.message || String(e), 'error');
+    show(humanizeError(e), 'error');
   } finally {
     fixingAll.value = false;
   }
@@ -1401,7 +1413,7 @@ async function scanAll() {
     );
     await load({ silent: true });
   } catch (e) {
-    show(e.message || String(e), 'error');
+    show(humanizeError(e), 'error');
   } finally {
     scanning.value = false;
   }
@@ -1437,7 +1449,7 @@ async function scanSelected() {
     clearSelection();
     await load({ silent: true });
   } catch (e) {
-    show(e.message || String(e), 'error');
+    show(humanizeError(e), 'error');
   } finally {
     scanning.value = false;
   }
@@ -1452,8 +1464,21 @@ function scanTriggered() {
 
 async function dismiss(item) {
   await api(`/api/vf-upgrades/${item.id}/dismiss`, { method: 'POST' });
-  show('Suggestion ignorée.');
   items.value = items.value.filter(i => i.id !== item.id);
+  /* « Ignorer » se repete une fois par ligne et se clique vite : la notification porte
+     son propre retour arriere plutot que de laisser l'utilisateur relancer une
+     recherche complete pour recuperer une suggestion ecartee par erreur. */
+  undoable('Suggestion ignorée.', 'Annuler', () => restoreDismissed(item));
+}
+
+async function restoreDismissed(item) {
+  try {
+    await api(`/api/vf-upgrades/${item.id}/restore`, { method: 'POST' });
+    await load({ silent: true });
+    show('Suggestion rétablie.');
+  } catch (e) {
+    show(humanizeError(e), 'error');
+  }
 }
 
 function groupIsIgnored(group) {
@@ -1469,7 +1494,7 @@ async function ignoreSeries(group, ignored) {
     show(ignored ? 'Média ignoré : le scan de fond ne le reproposera plus.' : 'Média réactivé.');
     await load({ silent: true });
   } catch (e) {
-    show(e.message || String(e), 'error');
+    show(humanizeError(e), 'error');
   }
 }
 
@@ -1486,7 +1511,7 @@ async function maintenance(action) {
     );
     await load({ silent: true });
   } catch (e) {
-    show(e.message || String(e), 'error');
+    show(humanizeError(e), 'error');
   }
 }
 
@@ -1821,19 +1846,19 @@ onUnmounted(() => {
   border-color: rgba(59, 130, 246, 0.4);
   color: #93c5fd;
   background: rgba(59, 130, 246, 0.1);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .badge-show {
   border-color: rgba(168, 85, 247, 0.4);
   color: #d8b4fe;
   background: rgba(168, 85, 247, 0.1);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .badge-year {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .media-title {
@@ -2185,6 +2210,18 @@ onUnmounted(() => {
   font-size: var(--fs-xs);
   display: inline-flex;
   align-items: center;
+}
+
+/* Les variantes compactes descendent a 30-32px : acceptable a la souris, sous le
+   minimum tactile d'iOS et de Material des qu'il n'y a plus de curseur. « Ignorer »
+   etait a 58x32 et se repetait 55 fois sur la page. */
+@media (pointer: coarse) {
+  .card-action-col button.compact,
+  .card-action-col a.compact,
+  .target-actions button.compact {
+    min-height: var(--touch-target);
+    padding-inline: 14px;
+  }
 }
 
 .arr-message {

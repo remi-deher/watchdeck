@@ -2,10 +2,10 @@
   <BulkActionBar :count="selectedIds.length" singular="utilisateur sélectionné" plural="utilisateurs sélectionnés" @clear="clear">
     <UiButton size="sm" @click="$emit('bulk-status',true)"><template #icon><Power/></template>Activer</UiButton>
     <UiButton size="sm" @click="$emit('bulk-status',false)"><template #icon><PowerOff/></template>Désactiver</UiButton>
-    <select v-model="bulkNotifyField"><option v-for="f in bulkNotifyFields" :key="f.value" :value="f.value">{{ f.label }}</option></select>
+    <select v-model="bulkNotifyField" aria-label="Type de notification à modifier"><option v-for="f in bulkNotifyFields" :key="f.value" :value="f.value">{{ f.label }}</option></select>
     <UiButton size="sm" @click="$emit('bulk-notify',bulkNotifyField,true)"><template #icon><Bell/></template>Activer</UiButton>
     <UiButton size="sm" @click="$emit('bulk-notify',bulkNotifyField,false)"><template #icon><BellOff/></template>Désactiver</UiButton>
-    <select v-model="bulkRole"><option value="user">Utilisateur</option><option value="moderator">Modérateur</option><option value="admin">Administrateur</option></select>
+    <select v-model="bulkRole" aria-label="Rôle à appliquer"><option value="user">Utilisateur</option><option value="moderator">Modérateur</option><option value="admin">Administrateur</option></select>
     <UiButton size="sm" @click="$emit('bulk-permissions',{role:bulkRole})"><template #icon><Shield/></template>Appliquer le rôle</UiButton>
     <UiButton size="sm" @click="$emit('bulk-permissions',{can_login:true})"><template #icon><LogIn/></template>Autoriser la connexion</UiButton>
     <UiButton size="sm" @click="$emit('bulk-permissions',{can_login:false})"><template #icon><LogOut/></template>Bloquer la connexion</UiButton>
@@ -21,12 +21,19 @@
         <tr v-for="user in rows" :key="user.id">
           <td class="card-select"><label class="select-tag"><input type="checkbox" :checked="isSelected(user)" :aria-label="`Selectionner ${displayName(user)}`" @change="toggle(user)"></label></td>
           <td class="card-title"><button class="text-button" @click="$emit('open',user.id)"><strong>{{ displayName(user) }}</strong><small>{{ user.plex_user_id }} · {{ user.enabled?'Actif':'Désactivé' }}</small></button></td>
-          <td data-label="Notifications"><div class="user-notification-cell"><span :class="['status-dot',notificationState(user)]"></span><div>{{ user.notification_email||user.plex_email||user.notify_admin?'Via administrateur':'Aucun destinataire' }}<small v-if="user.has_notification_error">Échec récent</small></div></div></td>
+          <!-- Cette colonne affichait « Via administrateur » sur chacune des lignes :
+               une cellule identique partout ne porte aucune information et consommait
+               un cinquieme de la largeur. Elle nomme desormais le destinataire reel. -->
+          <td data-label="Notifications"><div class="user-notification-cell"><span :class="['status-dot',notificationState(user)]"></span><div>{{ notificationTarget(user) }}<small v-if="user.has_notification_error">Échec récent</small></div></div></td>
           <td data-label="Source">{{ user.source||'plex' }}</td>
           <td data-label="Role"><span class="badge" :class="user.role==='admin'?'available':user.role==='moderator'?'sent_to_arr':'pending'">{{ user.role }}</span></td>
           <td data-label="Demandes"><strong>{{ user.stats?.total??user.request_count??0 }}</strong><small v-if="user.stats?.pending_approval" class="pending-copy">{{ user.stats.pending_approval }} à approuver</small></td>
-          <td data-label="Dernière activité">{{ formatDate(user.last_requested_at) }}<small>{{ user.can_login?'Connexion autorisée':'Connexion bloquée' }}</small></td>
-          <td class="card-actions"><button class="icon-button" :title="user.enabled?'Desactiver':'Activer'" :aria-label="user.enabled?'Desactiver':'Activer'" @click="$emit('toggle',user)"><Power/></button></td>
+          <!-- « Connexion autorisée » etait le cas de tout le monde : seul l'ecart
+               merite d'etre signale. -->
+          <td data-label="Dernière activité">{{ formatDate(user.last_requested_at) }}<small v-if="!user.can_login" class="blocked-copy">Connexion bloquée</small></td>
+          <!-- L'interrupteur etait la seule action de ligne visible : rien n'indiquait
+               qu'on pouvait ouvrir la fiche autrement qu'en cliquant le nom. -->
+          <td class="card-actions"><button class="icon-button" :title="`Modifier ${displayName(user)}`" :aria-label="`Modifier ${displayName(user)}`" @click="$emit('open',user.id)"><Pencil/></button><button class="icon-button" :title="user.enabled?`Désactiver ${displayName(user)}`:`Activer ${displayName(user)}`" :aria-label="user.enabled?`Désactiver ${displayName(user)}`:`Activer ${displayName(user)}`" @click="$emit('toggle',user)"><Power/></button></td>
         </tr>
       </tbody>
     </table>
@@ -37,7 +44,7 @@
 <script setup lang="ts">
 import { formatDateShort } from '@/utils/format';
 import { ref } from 'vue';
-import { Bell, BellOff, LogIn, LogOut, Power, PowerOff, Shield, Trash2 } from '@lucide/vue';
+import { Bell, BellOff, LogIn, LogOut, Pencil, Power, PowerOff, Shield, Trash2 } from '@lucide/vue';
 import { useTableSelection } from '@/composables/useTableSelection';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
@@ -93,10 +100,18 @@ function displayName(user: AppUser): string { return user?.custom_name || user?.
 function notificationState(user: AppUser): string {
   return user.has_notification_error ? 'error' : user.notification_email || user.plex_email || user.notify_admin ? 'active' : 'missing';
 }
+
+/** Adresse reellement utilisee pour joindre ce compte, ou la raison de son absence. */
+function notificationTarget(user: AppUser): string {
+  const address = (user as any).notification_email || (user as any).plex_email;
+  if (address) return address;
+  if ((user as any).notify_admin) return 'Alertes vers l’administrateur';
+  return 'Aucun destinataire';
+}
 const formatDate = (value?: string) => formatDateShort(value, 'Aucune');
 // UsersView lit la selection pour ses actions groupees et la vide apres coup.
 defineExpose({ selectedIds, clearSelection: clear });
 </script>
 <style scoped lang="scss">
-.user-notification-cell{display:flex;align-items:center;gap: var(--space-2)}.user-notification-cell>div{display:grid;gap: var(--space-1)}.user-notification-cell small,.card-title small,td>small{display:block;color:var(--muted);font-size:var(--fs-xs)}.status-dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}.status-dot.active{background:var(--success)}.status-dot.error{background:var(--danger)}.status-dot.missing{background:var(--accent)}.pending-copy{color:var(--accent)}
+.user-notification-cell{display:flex;align-items:center;gap: var(--space-2)}.user-notification-cell>div{display:grid;gap: var(--space-1)}.user-notification-cell small,.card-title small,td>small{display:block;color:var(--muted);font-size:var(--fs-xs)}.status-dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}.status-dot.active{background:var(--success)}.status-dot.error{background:var(--danger)}.status-dot.missing{background:var(--accent)}.pending-copy{color:var(--accent)}.blocked-copy{color:var(--danger)}
 </style>

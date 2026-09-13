@@ -209,5 +209,18 @@ const revealed = ref(false);
 @media (pointer: coarse) {
   .poster-card:hover,
   .poster-card:focus-within { transform: none; }
+  /* Sans souris il n'y a pas de survol : l'action restait invisible et
+     `pointer-events: none` jusqu'a ce qu'un premier appui la revele par hasard. Sur
+     ecran tactile elle est donc montree en permanence, et portee a la cible de 44px
+     exigee par iOS comme par Material -- les 34px d'ici l'emportaient sur la regle
+     globale de `_base.scss`, moins specifique. */
+  .poster-wrap :deep(.poster-action) {
+    min-height: var(--touch-target);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* Le titre se reserve la hauteur du bouton : 10px de plus ici, sinon il passe
+     dessous. */
+  .poster-wrap.has-action :deep(.poster-overlay) { padding-bottom: var(--card-action-padding, 68px); }
 }
 </style>

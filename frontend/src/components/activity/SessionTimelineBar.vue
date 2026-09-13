@@ -321,7 +321,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .timeline-ratio-badge {
-  font-size: 0.68rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   padding: 0.1rem 0.4rem;
   border-radius: 9999px;
@@ -337,7 +337,7 @@ function segmentTooltip(seg: Segment): string {
   background: transparent;
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
   color: var(--text-secondary, #cbd5e1);
-  font-size: 0.7rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm, 0.25rem);
@@ -437,7 +437,7 @@ function segmentTooltip(seg: Segment): string {
 .timeline-ticks {
   display: flex;
   justify-content: space-between;
-  font-size: 0.65rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-muted, #94a3b8);
   padding: 0 0.15rem;
@@ -490,7 +490,7 @@ function segmentTooltip(seg: Segment): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.68rem;
+  font-size: var(--fs-xs);
   color: var(--text-muted, #94a3b8);
 }
 
@@ -599,7 +599,7 @@ function segmentTooltip(seg: Segment): string {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  font-size: 0.68rem;
+  font-size: var(--fs-xs);
   color: var(--text-muted, #94a3b8);
 }
 

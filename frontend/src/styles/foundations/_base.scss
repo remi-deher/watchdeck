@@ -20,7 +20,7 @@ th { color: var(--muted); font-size: var(--fs-sm); text-transform: uppercase; }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; scroll-behavior: auto!important; } }
 @media (forced-colors: active) { :focus-visible { outline: 3px solid Highlight; } .app-nav-link[aria-current="page"] { forced-color-adjust: none; color: HighlightText; background: Highlight; } }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
-.skip-link { position: absolute; top: -100%; left: max(var(--space-3), var(--safe-left)); z-index: 100; padding: var(--space-2) var(--space-4); border-radius: var(--radius-sm); background: var(--accent); color: #151515; font-weight: 700; text-decoration: none; transition: top .15s ease; }
+.skip-link { position: absolute; top: -100%; left: max(var(--space-3), var(--safe-left)); z-index: 100; display: inline-flex; align-items: center; min-height: var(--touch-target); padding: var(--space-2) var(--space-4); border-radius: var(--radius-sm); background: var(--accent); color: #151515; font-weight: 700; text-decoration: none; transition: top .15s ease; }
 .skip-link:focus-visible { top: max(var(--space-3), var(--safe-top)); }
 td strong,td small { display: block; }
 button,input,select,textarea { font: inherit; }
@@ -29,6 +29,13 @@ button:disabled { cursor: not-allowed; }
   button,summary,[role="button"],[role="link"][tabindex],select,input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]) { min-height: var(--touch-target); }
   button,summary,[role="button"],[role="link"][tabindex] { touch-action: manipulation; }
   input[type="checkbox"],input[type="radio"] { width: 24px; height: 24px; }
+  /* Un lien n'est pas un `button` : les appels a l'action rendus en `<a>` echappaient
+     a la regle ci-dessus et restaient sous la cible de 44px. */
+  a[href].primary,a[href].secondary,a[href].ui-button,a[href].poster-action { min-height: var(--touch-target); display: inline-flex; align-items: center; }
+  /* `.badge` fixe 24px et l'emporte sur le selecteur d'element : quand le badge est
+     lui-meme le bouton (compteur de releases, filtre en pastille), il doit suivre le
+     plancher tactile. */
+  button.badge,a[href].badge { min-height: var(--touch-target); }
 }
 @media (max-width: 640px) {
   .panel,.page,.list,.table-wrap,.table-wrap table { min-width: 0; max-width: 100%; }

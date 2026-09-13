@@ -19,6 +19,12 @@
   --green-text: #86efac;
   --red-text: #fecaca;
   --blue: #38bdf8;
+  /* Plancher typographique de l'application : 12px. En dessous, le texte passe sous le
+     minimum recommande par Apple (11pt) comme par Material (12px), et ce sont
+     justement les legendes d'indicateurs et les intitules de groupes de filtres qui y
+     etaient tombes -- le texte qui porte le sens a la premiere lecture. Aucune regle
+     ne doit redescendre sous `--fs-xs` : les valeurs en dur de 10 et 11px ont toutes
+     ete ramenees sur ce barreau. */
   --fs-xs: 0.75rem;
   --fs-sm: 0.8125rem;
   --fs-md: 0.9375rem;

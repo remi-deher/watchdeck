@@ -337,6 +337,7 @@
 </template>
 
 <script setup lang="ts">
+import { humanizeError } from '@/utils/apiError';
 import { computed, ref, watch } from 'vue';
 import { ListVideo, MessageSquare, RotateCcw, SlidersHorizontal, Users, Volume2 } from '@lucide/vue';
 import { api } from '@/api';
@@ -543,7 +544,7 @@ async function fetchPreview(): Promise<void> {
       customSubtitleId.value = data.target_subtitle ? data.target_subtitle.id : 0;
     }
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     loading.value = false;
   }
@@ -623,7 +624,7 @@ async function confirmAlign(): Promise<void> {
     emit('applied', { item: props.item, res });
     emit('close');
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }
@@ -774,7 +775,7 @@ async function confirmAlign(): Promise<void> {
 }
 
 .diff-label {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -818,14 +819,14 @@ async function confirmAlign(): Promise<void> {
   border-color: rgba(34, 197, 94, 0.4);
   color: var(--green-text, #22c55e);
   background: rgba(34, 197, 94, 0.1);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .badge-warning {
   border-color: rgba(234, 179, 8, 0.5);
   color: #fde047;
   background: rgba(234, 179, 8, 0.14);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 /* Portée épisodes (séries) */
@@ -1034,7 +1035,7 @@ async function confirmAlign(): Promise<void> {
 }
 
 .user-tag {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 1px 4px;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--accent) 15%, transparent);
