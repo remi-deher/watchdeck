@@ -111,6 +111,7 @@ describe('settingsForm', () => {
 
     await load();
 
-    expect(error.value).toBe('HTTP 500');
+    // « HTTP 500 » n'apprend rien a personne : l'etat expose la phrase montrable.
+    expect(error.value).toMatch(/erreur interne/);
   });
 });

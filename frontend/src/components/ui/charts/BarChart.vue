@@ -230,14 +230,14 @@ function shouldShowLabel(index: number): boolean {
 .bar-val-top {
   position: absolute;
   top: -18px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--muted);
   white-space: nowrap;
 }
 
 .bar-val-inside {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: #111;
   line-height: 1;
@@ -275,7 +275,7 @@ function shouldShowLabel(index: number): boolean {
 }
 
 .tooltip-label {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   font-weight: 500;
 }
@@ -292,7 +292,7 @@ function shouldShowLabel(index: number): boolean {
 }
 
 .tooltip-detail {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--muted);
 }
 

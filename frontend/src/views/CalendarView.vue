@@ -415,7 +415,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   border-radius: var(--radius-pill);
   background: rgba(229, 160, 13, 0.22);
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
 }
 .rating-badge svg { width: 12px; height: 12px; fill: currentColor; }
@@ -448,7 +448,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   padding: 1px 6px;
   border-radius: var(--radius-xs);
   background: rgba(255, 255, 255, 0.08);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .card-genres {
@@ -463,7 +463,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   border-radius: var(--radius-xs);
   background: rgba(255, 255, 255, 0.1);
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 500;
 }
 
@@ -528,12 +528,12 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   .card-title { font-size: var(--fs-sm); }
 
   /* Sizing compact pour mobile */
-  .rating-badge { padding: 1px 6px; font-size: 10px; white-space: nowrap; flex-shrink: 0; }
+  .rating-badge { padding: 1px 6px; font-size: var(--fs-xs); white-space: nowrap; flex-shrink: 0; }
   .rating-badge svg { width: 10px; height: 10px; flex-shrink: 0; }
 
   .card-actions { width: 100%; margin-top: 4px; justify-content: space-between; gap: 8px; }
-  .plex-action-btn { min-height: 44px; padding: 5px 10px; font-size: 11px; max-width: max-content; }
-  .status-badge.available { padding: 3px 8px; font-size: 11px; }
+  .plex-action-btn { min-height: 44px; padding: 5px 10px; font-size: var(--fs-xs); max-width: max-content; }
+  .status-badge.available { padding: 3px 8px; font-size: var(--fs-xs); }
   .calendar-view-switch button:last-child { display: none; }
 }
 </style>

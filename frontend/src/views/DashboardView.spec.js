@@ -70,7 +70,10 @@ describe('DashboardView supervision', () => {
       .find((node) => node.text().includes('Supervision'));
     expect(supervision).toBeTruthy();
     expect(supervision.element.open).toBe(false);
-    expect(streamEventsMock.mock.calls[0][0]).not.toContain('counts');
+    // `counts` alimente le bandeau « Situation actuelle » tout en haut de la page : il
+    // fait desormais partie du premier chargement, contrairement aux sections qui ne
+    // servent qu'au bloc Supervision lui-meme.
+    expect(streamEventsMock.mock.calls[0][0]).toContain('counts');
     expect(streamEventsMock.mock.calls[0][0]).not.toContain('top_requested');
     expect(apiMock).not.toHaveBeenCalledWith('/api/health');
     expect(apiMock).not.toHaveBeenCalledWith('/api/disk-space');
@@ -83,7 +86,7 @@ describe('DashboardView supervision', () => {
     expect(apiMock).toHaveBeenCalledWith('/api/health');
     expect(apiMock).toHaveBeenCalledWith('/api/disk-space');
     expect(apiMock).toHaveBeenCalledWith(
-      '/api/dashboard/snapshot?sections=counts,top_requested,by_user,notifications',
+      '/api/dashboard/snapshot?sections=top_requested,by_user,notifications',
     );
   });
 });

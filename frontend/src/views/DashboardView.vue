@@ -33,7 +33,7 @@
         :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
         :downloading-count="queueTotals.downloading"
         :import-pending-count="queueTotals.importPending"
-        :available-count="counts.available ?? '-'"
+        :available-count="counts.available ?? '…'"
         :blocked-count="queueTotals.blocked + failedCount"
       />
 
@@ -126,10 +126,16 @@ import { queueCounts } from '@/downloads/queueRules';
 
 const SNAPSHOT_CACHE_KEY = 'dashboard:snapshot';
 const PRIMARY_SECTIONS = [
+  // `counts` alimente la derniere etape du bandeau « Situation actuelle », tout en haut
+  // de la page. Reserve au bloc « Supervision » -- replie par defaut et charge a la
+  // demande -- l'etape « Disponibles » affichait un simple tiret a l'arrivee, a cote de
+  // trois etapes chiffrees, sans que rien n'explique pourquoi. C'est une seule requete
+  // d'agregation : elle appartient au premier chargement.
+  'counts',
   'pending', 'polls', 'timeline', 'onboarding', 'recently_available',
   'recent_requests', 'upcoming', 'next_poll',
 ];
-const SUPERVISION_SECTIONS = ['counts', 'top_requested', 'by_user', 'notifications'];
+const SUPERVISION_SECTIONS = ['top_requested', 'by_user', 'notifications'];
 // Au-dela, mieux vaut l'ecran de chargement qu'un etat qui n'a plus rien a voir.
 const SNAPSHOT_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
@@ -393,8 +399,11 @@ useRealtime(['request.updated'], (type, detail) => {
   }
   if (!type) return load();
   return loadDashboardSections([
+    // `counts` est desormais une section primaire : le bandeau du haut en depend, il se
+    // rafraichit donc a chaque evenement, que « Supervision » soit ouvert ou non.
+    'counts',
     'pending', 'timeline', 'recently_available', 'recent_requests', 'upcoming', 'next_poll',
-    ...(supervisionLoaded.value ? ['counts', 'by_user', 'top_requested'] : []),
+    ...(supervisionLoaded.value ? ['by_user', 'top_requested'] : []),
   ]).catch(() => {});
 });
 useRealtime(['download.updated'], (type) => type ? loadDownloadQueue().catch(() => {}) : load());

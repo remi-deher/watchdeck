@@ -69,11 +69,14 @@ const defaults = { plex_user_id: '', display_name: '', custom_name: '', plex_ema
 const form = reactive({ ...defaults });
 
 const sources = computed(() => [...new Set(users.value.map(x => x.source).filter(Boolean))]);
+/* La legende decrit ce que compte la tuile, pas autre chose : « Utilisateurs actifs »
+   etait sous-titre « Demandes traitées », et « Sans notification » « Aucun
+   destinataire » -- on lisait « 9 utilisateurs actifs / demandes traitées ». */
 const metrics=computed(()=>[
-  {key:'active',label:'Utilisateurs actifs',value:users.value.filter(user=>user.enabled).length,detail:'Demandes traitées',filter:'enabled',icon:markRaw(UserCheck)},
-  {key:'pending',label:'Approbations',value:users.value.reduce((sum,user)=>sum+(user.stats?.pending_approval||0),0),detail:'Demandes en attente',filter:'pending',icon:markRaw(ShieldCheck)},
-  {key:'email',label:'Sans notification',value:users.value.filter(user=>!user.notification_email&&!user.plex_email&&!user.notify_admin).length,detail:'Aucun destinataire',filter:'missing_email',icon:markRaw(BellOff)},
-  {key:'errors',label:'Échecs récents',value:users.value.filter(user=>user.has_notification_error).length,detail:'Notifications à vérifier',filter:'notification_error',icon:markRaw(RefreshCw)},
+  {key:'active',label:'Utilisateurs actifs',value:users.value.filter(user=>user.enabled).length,detail:`sur ${users.value.length} compte${users.value.length>1?'s':''}`,filter:'enabled',icon:markRaw(UserCheck)},
+  {key:'pending',label:'Approbations',value:users.value.reduce((sum,user)=>sum+(user.stats?.pending_approval||0),0),detail:'Demandes en attente de validation',filter:'pending',icon:markRaw(ShieldCheck)},
+  {key:'email',label:'Sans notification',value:users.value.filter(user=>!user.notification_email&&!user.plex_email&&!user.notify_admin).length,detail:'Comptes sans adresse de contact',filter:'missing_email',icon:markRaw(BellOff)},
+  {key:'errors',label:'Échecs récents',value:users.value.filter(user=>user.has_notification_error).length,detail:'Comptes dont le dernier envoi a échoué',filter:'notification_error',icon:markRaw(RefreshCw)},
 ]);
 const filtered = computed(() => users.value.filter(user =>
   (!query.value || `${displayName(user)} ${user.plex_user_id} ${user.plex_email || ''}`.toLowerCase().includes(query.value.toLowerCase())) &&

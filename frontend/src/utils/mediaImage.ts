@@ -73,3 +73,43 @@ export function proxyUrl(url?: string | null, options: ProxyUrlOptions = {}): st
 
   return `/api/image-proxy?url=${encodeURIComponent(url)}&width=${width}&quality=${quality}&format=webp`;
 }
+
+/* Echelle officielle des affiches TMDB. Toute autre valeur renvoie une 404 : on ne peut
+   pas demander « w400 », il faut se caler sur un barreau existant. */
+const TMDB_POSTER_WIDTHS = [92, 154, 185, 342, 500, 780];
+const TMDB_PATH = /\/t\/p\/(w\d+|original)\//;
+
+/**
+ * Construit le `srcset` correspondant a une affiche.
+ *
+ * `sizes` etait declare sur les `<img>` sans aucun `srcset` en face : la specification
+ * HTML rend alors l'attribut inoperant, et un telephone telechargeait la meme image que
+ * l'ecran 1440. On decline donc chaque source sur plusieurs largeurs -- les barreaux
+ * TMDB pour les affiches servies en direct, le parametre `width` du proxy pour les
+ * autres -- et le navigateur choisit selon `sizes` et la densite de l'ecran.
+ *
+ * Renvoie `undefined` quand la source ne sait pas se redimensionner : mieux vaut pas de
+ * `srcset` du tout qu'un `srcset` dont toutes les entrees pointent la meme image.
+ */
+export function srcSetFor(url?: string | null, options: ProxyUrlOptions = {}): string | undefined {
+  if (!url) return undefined;
+  const base = proxyUrl(url, options);
+  if (!base) return undefined;
+
+  if (base.includes('/api/image-proxy')) {
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+      const parsed = new URL(base, origin);
+      return TMDB_POSTER_WIDTHS.map((width) => {
+        const variant = new URL(parsed.toString());
+        variant.searchParams.set('width', String(width));
+        return `${variant.pathname}${variant.search} ${width}w`;
+      }).join(', ');
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (!TMDB_PATH.test(base)) return undefined;
+  return TMDB_POSTER_WIDTHS.map((width) => `${base.replace(TMDB_PATH, `/t/p/w${width}/`)} ${width}w`).join(', ');
+}

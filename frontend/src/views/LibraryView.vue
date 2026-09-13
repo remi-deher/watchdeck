@@ -34,7 +34,7 @@
             <button class="filter-badge" :class="{ active: !subtitle }" @click="subtitle = ''"><span>Tous</span></button>
             <button class="filter-badge" :class="{ active: subtitle === 'any_issue' }" @click="subtitle = 'any_issue'"><span>Problème sous-titre FR</span></button>
             <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_absent' }" @click="subtitle = 'sub_fr_absent'"><span>Sous-titre FR absent</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_no_track' }" @click="subtitle = 'sub_fr_no_track'"><span>Aucune piste ST (hardcoded?)</span></button>
+            <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_no_track' }" @click="subtitle = 'sub_fr_no_track'"><span>Sous-titres incrustés</span></button>
             <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_not_default' }" @click="subtitle = 'sub_fr_not_default'"><span>Sous-titre FR non activé</span></button>
             <button class="filter-badge" :class="{ active: subtitle === 'forced_fr_not_default' }" @click="subtitle = 'forced_fr_not_default'"><span>Sous-titre forcé FR non activé</span></button>
           </FilterGroup>

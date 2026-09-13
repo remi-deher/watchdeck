@@ -13,10 +13,10 @@
     <div class="settings-grid two">
       <label class="span-two">URL Tracearr
         <input v-model.trim="form.tracearr_url" type="url" placeholder="https://tracearr.exemple.net">
-        <small>Adresse de ton instance, sans le chemin d’API : Watchdeck ajoute lui-même <code>/api/v2/public</code>.</small>
+        <small>Adresse de votre instance, sans le chemin d’API : Watchdeck ajoute lui-même <code>/api/v2/public</code>.</small>
       </label>
       <label class="span-two">Clé API
-        <input v-model="form.tracearr_api_key" type="password" :placeholder="secretsPresent.tracearr_api_key ? 'Clé configurée' : 'trr_pub_…'">
+        <SecretField v-model="form.tracearr_api_key" label="Clé API" :configured="Boolean(secretsPresent.tracearr_api_key)" />
         <small>À générer dans Tracearr sous Réglages &gt; Général. Lecture seule, format <code>trr_pub_…</code>.</small>
       </label>
     </div>
@@ -52,6 +52,7 @@ import { ref } from 'vue';
 import { PlugZap, Sparkles } from '@lucide/vue';
 import { api } from '@/api';
 import { form, save, secretsPresent } from '@/settingsForm';
+import SecretField from '@/components/ui/SecretField.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import SettingsCard from '../SettingsCard.vue';
 

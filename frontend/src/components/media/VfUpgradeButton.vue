@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import { humanizeError } from '@/utils/apiError';
 import { computed, onMounted, ref } from 'vue';
 import { ArrowRight, Copy, Download, ExternalLink, RefreshCw, Search, Sparkles, TriangleAlert } from '@lucide/vue';
 
@@ -298,7 +299,7 @@ async function grabNormal(release: any): Promise<void> {
     await load({ preserveFeedback: true });
     emit('updated');
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     grabbing.value = null;
   }
@@ -341,7 +342,7 @@ async function searchNormal(): Promise<void> {
     if (props.episodeNumber != null) params.set('episode_number', String(props.episodeNumber));
     normalReleases.value = await api<VfUpgradeRelease[]>(`/api/arr/releases?${params}`);
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     normalLoading.value = false;
   }
@@ -375,13 +376,13 @@ onMounted(load);
 <style scoped lang="scss">
 .vf-upgrade-wrap { display: inline-flex; }
 .vf-upgrade-trigger.active { color: var(--accent); border-color: var(--accent); }
-.vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: #151515; font-size: 10px; font-weight: 700; }
-.vf-upgrade-badge { min-width: 20px; height: 20px; font-size: 11px; }
+.vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: #151515; font-size: var(--fs-xs); font-weight: 700; }
+.vf-upgrade-badge { min-width: 20px; height: 20px; font-size: var(--fs-xs); }
 :deep(.vf-upgrade-modal) { width: min(880px, 96vw); max-height: 92vh; }
 .release-search-tabs { display: flex; gap: 4px; max-width: 100%; margin-bottom: 12px; padding: 4px; overflow-x: auto; border-radius: var(--radius-md); background: var(--surface-hover); scrollbar-width: none; overscroll-behavior-x: contain; }
 .release-search-tabs::-webkit-scrollbar { display: none; }
 .release-search-tabs button { display: inline-flex; flex: 1 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 14px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--muted); white-space: nowrap; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
-.release-search-tabs button span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: var(--radius-pill); background: rgba(255,255,255,.07); font-size: 11px; }
+.release-search-tabs button span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: var(--radius-pill); background: rgba(255,255,255,.07); font-size: var(--fs-xs); }
 .release-search-tabs button.active { background: var(--accent); color: #17130a; font-weight: 600; box-shadow: 0 1px 5px rgba(0,0,0,.22); }
 .release-search-tabs button.active span { background: rgba(0,0,0,.18); font-weight: 700; }
 .vf-upgrade-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 9px 0 12px; border-bottom: 1px solid var(--border); }
@@ -436,7 +437,7 @@ onMounted(load);
 .release-details > * + * { margin-top: 9px; }
 .release-comparison { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 9px; border-radius: var(--radius-sm); background: var(--surface); }
 .release-comparison > div { display: grid; gap: 2px; }
-.release-comparison span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.release-comparison span { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; }
 .release-comparison strong { font-size: var(--fs-xs); }
 .technical-warnings { display: grid; gap: 4px; margin: 0; padding: 0; color: var(--warning,#f59e0b); font-size: var(--fs-xs); list-style: none; }
 .technical-warnings li { display: flex; align-items: center; gap: 5px; }

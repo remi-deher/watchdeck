@@ -3,7 +3,7 @@
     <div class="app-rail__header">
       <RouterLink class="app-rail__brand" to="/" :aria-label="`Watchdeck — accueil`">
         <Clapperboard aria-hidden="true" />
-        <span class="app-rail__brand-name" :class="{ 'sr-only': density === 'medium' }">{{ pageTitle || 'Watchdeck' }}</span>
+        <span class="app-rail__brand-name" :class="{ 'sr-only': density === 'medium' }" :title="pageTitle || 'Watchdeck'">{{ pageTitle || 'Watchdeck' }}</span>
       </RouterLink>
       <button
         v-if="collapsible"
@@ -18,7 +18,7 @@
       </button>
     </div>
 
-    <div class="app-rail__scroll">
+    <div ref="scroller" class="app-rail__scroll" data-overflow="" @scroll.passive="scheduleMeasure">
       <!-- Les groupes structurent le rail déployé. En mode compact ils deviennent de
            simples séparateurs : leur libellé ne tiendrait pas sur 72px, mais la
            coupure visuelle, elle, reste lisible. -->
@@ -69,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Clapperboard, PanelLeftClose, PanelLeftOpen, UserRound } from '@lucide/vue';
 import { destinationsFor, type NavDestination } from '@/navigation';
@@ -102,6 +102,62 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   }
   return result;
 });
+
+/* Indice de defilement du rail.
+   La barre native est masquee a dessein (elle rognait la colonne) ; sans elle, rien ne
+   disait qu'il restait des destinations sous la ligne de flottaison. On expose donc
+   l'etat reel -- du contenu au-dessus, en dessous, des deux cotes, ou rien -- et le CSS
+   pose le degrade correspondant. Une valeur calculee plutot qu'un fondu permanent :
+   sur un rail court, un degrade constant ferait croire a tort a une suite.
+
+   L'attribut est ecrit directement sur le noeud, hors du cycle de rendu de Vue : passer
+   par un `ref` reactif reconstruisait la navigation a chaque evenement de defilement --
+   y compris celui que declenche `focus()` en amenant un lien dans la vue -- et le
+   parcours au clavier y perdait par moments son contour de focus. */
+const scroller = ref<HTMLElement | null>(null);
+let measureHandle = 0;
+
+function measureOverflow(): void {
+  const element = scroller.value;
+  if (!element) return;
+  // 2px de tolerance : les hauteurs fractionnaires empechent `scrollTop + clientHeight`
+  // d'atteindre exactement `scrollHeight` en bout de course.
+  const atStart = element.scrollTop <= 2;
+  const atEnd = element.scrollTop + element.clientHeight >= element.scrollHeight - 2;
+  const state = atStart && atEnd ? '' : atStart ? 'end' : atEnd ? 'start' : 'start-end';
+  if (element.dataset.overflow !== state) element.dataset.overflow = state;
+}
+
+/** Une mesure par image au plus : le defilement en emet bien davantage. */
+function scheduleMeasure(): void {
+  if (measureHandle) return;
+  measureHandle = requestAnimationFrame(() => {
+    measureHandle = 0;
+    measureOverflow();
+  });
+}
+
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  measureOverflow();
+  if (typeof ResizeObserver !== 'undefined' && scroller.value) {
+    // Le rail change de hauteur utile quand la fenetre change, et de contenu quand les
+    // droits de la session ou les sections de la page arrivent : les deux modifient la
+    // boite observee ou le contenu qu'elle mesure.
+    resizeObserver = new ResizeObserver(() => scheduleMeasure());
+    resizeObserver.observe(scroller.value);
+    for (const child of Array.from(scroller.value.children)) resizeObserver.observe(child);
+  }
+});
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  if (measureHandle) cancelAnimationFrame(measureHandle);
+});
+
+/* Les sections de page s'ajoutent et se retirent sous la destination active : le
+   contenu du rail change sans que sa boite bouge. */
+watch([() => groups.value.length, () => sections.value.length], () => void nextTick(measureOverflow));
 </script>
 
 <style scoped lang="scss">
@@ -136,6 +192,24 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   -ms-overflow-style: none;
 }
 
+/* La gouttiere est masquee pour ne pas rogner une colonne de 72 a 232px, mais la
+   colonne restait alors sans aucun indice de defilement : sur un ecran de 900px,
+   « Notifications », « Utilisateurs » et « Système » tombaient hors champ sans que rien
+   ne le signale. Le degrade tient ce role -- il ne coute aucune largeur, et n'apparait
+   que quand il reste vraiment quelque chose a voir (cf. `measureOverflow`). */
+.app-rail__scroll[data-overflow$="end"] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+}
+.app-rail__scroll[data-overflow="start"] {
+  mask-image: linear-gradient(to bottom, transparent 0, #000 26px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 26px);
+}
+.app-rail__scroll[data-overflow="start-end"] {
+  mask-image: linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+}
+
 .app-rail__scroll::-webkit-scrollbar { width: 0; height: 0; }
 
 .app-rail__header { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
@@ -152,7 +226,10 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   flex: 1;
 }
 .app-rail__brand svg { flex: none; width: 22px; height: 22px; color: var(--accent); }
-.app-rail__brand-name { font-size: var(--fs-lg); white-space: nowrap; }
+/* Un titre de page long (« Améliorations VF & Flux », « Inventaire médiathèque ») fait
+   243px dans une boite de 167px : sans coupure, les glyphes passaient sous le bouton de
+   repli et le mot etait tranche en plein milieu. */
+.app-rail__brand-name { font-size: var(--fs-lg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .app-rail__collapse {
   display: grid;
   flex: none;
@@ -206,7 +283,7 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .app-rail__link:hover { color: var(--text); background: var(--surface); }
 .app-rail__link[aria-current='page'] {

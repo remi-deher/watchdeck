@@ -36,12 +36,12 @@
           <label>Chat ID<input v-model="form.telegram_chat_id"><small>Identifiant numerique du salon/canal a notifier — envoie un message au bot puis recupere-le via @userinfobot ou l'API Telegram.</small></label>
         </template>
         <template v-else-if="channel.key==='ntfy'">
-          <label>URL<input v-model="form.ntfy_url"><small>Serveur ntfy, ex. https://ntfy.sh (public) ou l'adresse de ton instance auto-hebergee.</small></label>
+          <label>URL<input v-model="form.ntfy_url"><small>Serveur ntfy, ex. https://ntfy.sh (public) ou l'adresse de votre instance auto-hébergée.</small></label>
           <label>Topic<input v-model="form.ntfy_topic"><small>Nom du canal ntfy auquel s'abonner dans l'application pour recevoir ces notifications.</small></label>
           <label>Token<input v-model="form.ntfy_token" type="password"><small>Uniquement si le topic est protege par un token d'acces ntfy.</small></label>
         </template>
         <template v-else>
-          <label>URL<input v-model="form.gotify_url"><small>Adresse de ton serveur Gotify.</small></label>
+          <label>URL<input v-model="form.gotify_url"><small>Adresse de votre serveur Gotify.</small></label>
           <label>Token<input v-model="form.gotify_token" type="password"><small>Token d'application, cree dans Gotify sous Apps -&gt; Create Application.</small></label>
         </template>
       </SettingsCard>

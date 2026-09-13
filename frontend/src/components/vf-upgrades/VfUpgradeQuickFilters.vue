@@ -1,11 +1,27 @@
+<!--
+  Barre de filtres secondaires.
+
+  Sur l'onglet « Upgrades », cette barre portait une rangee de puces de statut --
+  « À traiter (55) », « En attente de release (413) »… -- strictement identique,
+  libelles et compteurs compris, aux tuiles d'indicateurs affichees juste au-dessus, y
+  compris la remise a zero (cliquer la tuile active desactive le filtre). Deux jeux
+  equivalents empiles verticalement, sans rien qui dise lequel fait autorite : les
+  tuiles restent seules a tenir ce role, puisqu'elles portent en plus la valeur et sa
+  legende.
+
+  L'onglet « Audit » garde ses puces : elles offrent six criteres la ou les tuiles n'en
+  exposent que quatre (« ST forcé inactif », « ST VO inactif », « Séries partielles »
+  n'existent nulle part ailleurs).
+-->
 <template>
-  <nav class="quick-filter-bar" aria-label="Filtres rapides">
-    <div class="chip-group">
+  <nav class="quick-filter-bar" :aria-label="audit ? 'Filtres rapides' : 'Filtrer par type de média'">
+    <div v-if="audit" class="chip-group">
       <button
         v-for="filter in filters"
         :key="filter.value"
         class="quick-chip"
         :class="{ active: activeStatus === filter.value }"
+        :aria-pressed="activeStatus === filter.value"
         type="button"
         @click="emit('status', filter.value)"
       >
@@ -21,6 +37,7 @@
         :key="type.value"
         class="type-chip"
         :class="{ active: mediaType === type.value }"
+        :aria-pressed="mediaType === type.value"
         type="button"
         @click="emit('media-type', type.value)"
       >
@@ -82,15 +99,7 @@ const filters = computed<FilterOption[]>(() => props.audit ? [
   { value: 'forced_sub_not_default', label: 'ST forcé inactif', count: props.auditCounts.forced_sub_not_default, icon: MessageSquare },
   { value: 'sub_fr_not_default', label: 'ST VO inactif', count: props.auditCounts.sub_fr_not_default, icon: MessageSquare },
   { value: 'partial_vf', label: 'Séries partielles', count: props.auditCounts.partial_vf, icon: Globe },
-] : [
-  { value: 'pending', label: 'À traiter', count: props.pendingCount },
-  { value: 'waiting_release', label: 'En attente de release', count: props.waitingReleaseCount },
-  { value: 'in_progress', label: 'En cours', count: props.inProgressCount },
-  { value: 'failed', label: 'Échecs', count: props.failedCount },
-  { value: 'history', label: 'Historique', count: props.historyCount },
-  { value: 'ignored', label: 'Ignorées', count: props.ignoredCount },
-  { value: 'all', label: 'Tous' },
-]);
+] : []);
 
 const mediaTypes: FilterOption[] = [
   { value: '', label: 'Tous types' },

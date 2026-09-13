@@ -22,8 +22,11 @@
         <div></div><strong>Email</strong><strong>Discord</strong><strong>Telegram</strong><strong>ntfy</strong><strong>Gotify</strong>
         <template v-for="event in notificationEvents" :key="event.key">
           <strong :title="event.description">{{ event.label }}</strong>
-          <label class="check"><input v-model="form[`email_on_${event.key}`]" type="checkbox"></label>
-          <label v-for="channel in channels" :key="channel.key" class="check"><input v-model="form[`${channel.key}_send_${event.key}`]" type="checkbox"></label>
+          <!-- Une case au croisement d'une ligne et d'une colonne n'a de sens que
+               reliee aux deux : le libelle enveloppant etait vide, et un lecteur
+               d'ecran n'annoncait qu'« case à cocher ». -->
+          <label class="check"><input v-model="form[`email_on_${event.key}`]" type="checkbox" :aria-label="`${event.label} — Email`"></label>
+          <label v-for="channel in channels" :key="channel.key" class="check"><input v-model="form[`${channel.key}_send_${event.key}`]" type="checkbox" :aria-label="`${event.label} — ${channel.label}`"></label>
         </template>
       </div>
       <label class="check"><input v-model="form.email_on_vf_available" type="checkbox"> Email lors d'une amelioration VO vers VF</label>

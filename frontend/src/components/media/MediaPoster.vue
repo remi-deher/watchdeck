@@ -3,6 +3,7 @@
     <img
       v-if="posterUrl && !failed"
       :src="proxyUrl(posterUrl, { width: 500 }) ?? undefined"
+      :srcset="srcSetFor(posterUrl, { width: 500 })"
       :alt="alt"
       :sizes="sizes"
       loading="lazy"
@@ -25,7 +26,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { Film, Music2 } from '@lucide/vue';
-import { proxyUrl } from '@/utils/mediaImage';
+import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 
 const props = withDefaults(
   defineProps<{

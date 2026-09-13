@@ -10,7 +10,7 @@
       </SettingsRow>
       <SettingsRow
         label="Priorité de la source"
-        description="Universal Watchlist nécessite un abonnement Plex Pass et agrège les watchlists de tous tes amis Plex sans qu'ils aient besoin de se connecter."
+        description="Universal Watchlist nécessite un abonnement Plex Pass et agrège les watchlists de tous vos amis Plex sans qu'ils aient besoin de se connecter."
       >
         <select v-model="form.watchlist_source_priority">
           <option value="api">API Plex</option>
@@ -21,13 +21,13 @@
         label="Source de repli"
         description="Si la source prioritaire échoue, Watchdeck bascule automatiquement sur l'autre plutôt que d'ignorer le cycle."
       >
-        <input v-model="form.watchlist_fallback_enabled" type="checkbox">
+        <ToggleSwitch v-model="form.watchlist_fallback_enabled" title="Source de repli" />
       </SettingsRow>
       <SettingsRow
         label="Approbation admin requise"
         description="Chaque nouvelle demande reste en attente de validation avant transmission à Sonarr/Radarr."
       >
-        <input v-model="form.require_approval" type="checkbox">
+        <ToggleSwitch v-model="form.require_approval" title="Approbation admin requise" />
       </SettingsRow>
     </SettingsSection>
 
@@ -45,7 +45,7 @@
         label="Analyse active"
         description="Désactiver arrête l'analyse VO/VF : la bibliothèque et les notifications ne distingueront plus les langues disponibles."
       >
-        <input v-model="form.vff_enabled" type="checkbox">
+        <ToggleSwitch v-model="form.vff_enabled" title="Analyse active" />
       </SettingsRow>
       <SettingsRow
         label="Nouvelle analyse"
@@ -57,7 +57,7 @@
         label="Recherche automatique"
         description="Relance une recherche Sonarr/Radarr dès qu'un média est détecté en VO uniquement."
       >
-        <input v-model="form.vff_auto_search" type="checkbox">
+        <ToggleSwitch v-model="form.vff_auto_search" title="Recherche automatique" />
       </SettingsRow>
       <SettingsRow
         label="Synchronisation Plex complète"
@@ -66,7 +66,7 @@
         <IntervalPresetInput v-model="form.plex_sync_interval_hours" :presets="presetsFor('plex_sync_interval_hours')!" />
       </SettingsRow>
 
-      <SettingsRow label="Bibliothèques analysées" description="Sélectionne les bibliothèques Plex à parcourir, et le type de contenu de chacune." block>
+      <SettingsRow label="Bibliothèques analysées" description="Sélectionnez les bibliothèques Plex à parcourir, et le type de contenu de chacune." block>
         <div v-if="plexSectionsLoading" class="notice">Chargement des bibliothèques Plex...</div>
         <div v-else-if="!plexSections.length" class="notice warning-text">
           Aucune bibliothèque Plex trouvée. Vérifiez la connexion Plex ci-dessus.
@@ -94,10 +94,16 @@
       </SettingsRow>
 
       <SettingsRow label="État" description="Dernier résultat des tâches d'analyse et de synchronisation." block>
+        <!-- Les statuts arrivaient bruts de la base (« running », « idle ») dans une
+             interface francaise, et le nombre d'echecs ne menait nulle part alors que
+             c'est la seule valeur sur laquelle on veut agir. -->
         <div class="status-stack">
-          <span>Scan VF : {{ scanStatus.status || scanStatus.state || 'inconnu' }}</span>
-          <span>Synchronisation Plex : {{ syncStatus.status || syncStatus.state || 'inconnue' }}</span>
-          <span>Upgrades VF : {{ upgradeMetrics.found || 0 }} trouvé(s) · {{ upgradeMetrics.accepted || 0 }} accepté(s) · {{ upgradeMetrics.verified || 0 }} vérifié(s) · {{ upgradeMetrics.failed || 0 }} échec(s)</span>
+          <span>Scan VF : <strong>{{ taskStateLabel(scanStatus.status || scanStatus.state) }}</strong></span>
+          <span>Synchronisation Plex : <strong>{{ taskStateLabel(syncStatus.status || syncStatus.state) }}</strong></span>
+          <span>Upgrades VF : {{ upgradeMetrics.found || 0 }} trouvé(s) · {{ upgradeMetrics.accepted || 0 }} accepté(s) · {{ upgradeMetrics.verified || 0 }} vérifié(s) ·
+            <RouterLink v-if="upgradeMetrics.failed" class="status-failed-link" :to="{ path: '/vf-upgrades', query: { status: 'failed' } }">{{ upgradeMetrics.failed }} échec(s)</RouterLink>
+            <template v-else>0 échec</template>
+          </span>
         </div>
       </SettingsRow>
     </SettingsSection>
@@ -105,7 +111,26 @@
 </template>
 
 <script setup lang="ts">
+import { RouterLink } from 'vue-router';
+
+/** Etat d'une tache de fond, dans la langue de l'interface. */
+const TASK_STATE_LABELS: Record<string, string> = {
+  running: 'en cours',
+  idle: 'en veille',
+  queued: 'en file d’attente',
+  failed: 'en échec',
+  error: 'en échec',
+  success: 'terminé',
+  done: 'terminé',
+  never: 'jamais exécuté',
+};
+function taskStateLabel(state?: string | null): string {
+  if (!state) return 'inconnu';
+  return TASK_STATE_LABELS[String(state).toLowerCase()] || String(state);
+}
+
 import { computed, onMounted, ref } from 'vue';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { RefreshCw, ScanSearch } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
@@ -163,5 +188,9 @@ useRealtime(['vff.updated'], () => loadVffStatus());
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+.status-failed-link {
+  color: var(--red-text);
+  font-weight: 700;
 }
 </style>

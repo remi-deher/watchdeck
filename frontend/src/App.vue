@@ -1,12 +1,14 @@
 <template>
   <AppShell :is-admin="isAdmin" :can-moderate="canModerate">
-    <RouterView v-slot="{ Component }">
-      <!-- Vue Router reutilise naturellement une vue quand plusieurs chemins pointent
-           vers le meme composant. Ne pas la clef-er par chemin permet notamment a
-           /discover de devenir /discover/explore sans detruire le champ de recherche
-           apres la premiere lettre. -->
-      <component :is="Component" />
-    </RouterView>
+    <RouteErrorBoundary>
+      <RouterView v-slot="{ Component }">
+        <!-- Vue Router reutilise naturellement une vue quand plusieurs chemins pointent
+             vers le meme composant. Ne pas la clef-er par chemin permet notamment a
+             /discover de devenir /discover/explore sans detruire le champ de recherche
+             apres la premiere lettre. -->
+        <component :is="Component" />
+      </RouterView>
+    </RouteErrorBoundary>
   </AppShell>
   <ToastStack :toasts="allToasts" @dismiss="dismissAnyToast"/>
 </template>
@@ -16,6 +18,7 @@ import { clearCache, syncCacheOwner } from "@/cache";
 import { connectRealtime } from "@/events";
 import ToastStack from "@/components/ui/ToastStack.vue";
 import AppShell from "@/components/layout/AppShell.vue";
+import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
 import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";

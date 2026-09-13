@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue';
+import { humanizeError } from '@/utils/apiError';
 
 export interface UseFetchStateOptions<T> {
   initialLoading?: boolean;
@@ -24,7 +25,7 @@ export function useFetchState<T = any>(
       }
       return result;
     } catch (e: any) {
-      const msg = e?.message || String(e);
+      const msg = humanizeError(e);
       error.value = msg;
       if (options.onError) {
         options.onError(e);

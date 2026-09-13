@@ -9,7 +9,7 @@
           <UiButton size="sm" :loading="loading" @click="load"><template #icon><RefreshCw/></template>Actualiser</UiButton>
         </template>
       </UiSectionHeader>
-      <UiFeedback v-if="error" type="error" title="Impossible de récupérer les informations de version" :message="error"/>
+      <UiFeedback v-if="error" type="error" title="Impossible de récupérer les informations de version" :message="error" retry @retry="load"/>
       <template v-else-if="info">
         <dl class="version-grid">
           <div><dt>Branche</dt><dd><span class="branch-badge" :class="`branch-${info.branch}`">{{ info.branch }}</span></dd></div>

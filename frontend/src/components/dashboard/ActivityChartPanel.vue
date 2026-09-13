@@ -214,7 +214,7 @@ const chartPoints = computed(() => {
 
 .activity-period button {
   padding: 3px 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border-radius: var(--radius-xs);
   border: none;
@@ -231,7 +231,7 @@ const chartPoints = computed(() => {
 }
 
 .activity-trend {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   padding: 3px 8px;
   border-radius: var(--radius-xs);
@@ -293,7 +293,7 @@ const chartPoints = computed(() => {
 }
 
 .series-badge {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   background: var(--surface);
@@ -343,7 +343,7 @@ const chartPoints = computed(() => {
 }
 
 .insight-label {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   white-space: nowrap;
 }
@@ -356,7 +356,7 @@ const chartPoints = computed(() => {
 }
 
 .insight-sub {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;

@@ -386,6 +386,12 @@ onUnmounted(stopAutoplay);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
+/* Le CTA du heros est un lien : la regle tactile globale de `_base.scss` ne vise que
+   les `button`, et il restait a 38px de haut sur telephone. */
+@media (pointer: coarse) {
+  .hero-btn { min-height: var(--touch-target); }
+}
+
 .hero-dots {
   position: absolute;
   right: var(--space-4);

@@ -5,7 +5,7 @@
     <div class="mdh-content">
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
-          <img v-if="detail.poster_url" :src="proxyUrl(detail.poster_url, { width: 500 }) ?? undefined" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
+          <img v-if="detail.poster_url" :src="proxyUrl(detail.poster_url, { width: 500 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 500 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
             <Music2 v-if="isMusic" />
             <Film v-else />
@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { proxyUrl } from '@/utils/mediaImage';
+import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
 import { computed, ref } from 'vue';
 import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';
@@ -245,15 +245,21 @@ const releaseDates = computed(() => {
    detacher le texte du bas de l'image, horizontal pour le detacher de la gauche. Le
    voile unique precedent assombrissait l'affiche entiere sans jamais garantir le
    contraste la ou le texte se pose. */
+/* Meme cadre que la banniere d'Explorer : une carte bordee, posee dans la colonne de
+   contenu. Le hero debordait jusqu'ici sur les gouttieres, par marges negatives -- une
+   ouverture pleine largeur, mais un objet different de tout le reste de l'application.
+   L'image reste fixe : sur une page de consultation, une animation declenchee au
+   passage de souris distrait de la lecture. */
 .mdh-backdrop {
   position: relative;
   display: flex;
   align-items: flex-end;
   min-height: clamp(300px, 42vw, 460px);
+  margin-bottom: var(--space-6);
   background-size: cover;
   background-position: center 20%;
-  background-color: var(--surface-2);
-  margin: -28px calc(-1 * var(--main-pad-x, 28px)) 24px calc(-1 * var(--main-pad-x, 28px));
+  background-color: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
@@ -269,7 +275,7 @@ const releaseDates = computed(() => {
   position: relative;
   z-index: 2;
   width: 100%;
-  padding: var(--space-6) 28px var(--space-5);
+  padding: var(--space-6) var(--space-5) var(--space-5);
   max-width: 1280px;
   margin: 0 auto;
 }
@@ -483,14 +489,12 @@ const releaseDates = computed(() => {
 
 @media (max-width: 767.98px) {
   .mdh-backdrop {
-    margin: -16px calc(-1 * var(--main-pad-x, 18px)) 16px calc(-1 * var(--main-pad-x, 18px));
-  }
-  .mdh-backdrop {
     /* Sur telephone, le portrait et le texte empiles ont besoin de la hauteur d'ecran. */
     min-height: clamp(320px, 58vh, 420px);
+    margin-bottom: var(--space-4);
   }
   .mdh-content {
-    padding: var(--space-5) 16px 20px;
+    padding: var(--space-5) var(--space-4) 20px;
   }
   .mdh-back {
     top: var(--space-2);

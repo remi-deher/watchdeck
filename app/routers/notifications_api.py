@@ -204,6 +204,11 @@ def get_logs(_: None = Depends(require_admin)):
     return _get_logs()
 
 
+#: Catégories écrites dans `DiagnosticEvent` qui ne racontent pas le cycle de vie d'une
+#: demande, et n'ont donc rien à faire dans la vue par défaut du parcours.
+NON_JOURNEY_CATEGORIES = ("client_layout",)
+
+
 @router.get("/diagnostic-logs")
 async def list_diagnostic_logs(
     pagination: PaginationParams = Depends(pagination_params(max_limit=500, default_limit=200, strict=False)),
@@ -216,6 +221,13 @@ async def list_diagnostic_logs(
     q = select(DiagnosticEvent)
     if category:
         q = q.filter(DiagnosticEvent.category == category)
+    else:
+        # `DiagnosticEvent` sert aussi de journal à de la télémétrie qui n'appartient pas
+        # au parcours d'une demande : `client_layout` y écrit un événement à chaque
+        # ouverture de page, ce qui noyait l'onglet sous des lignes sans `request_id`
+        # (affichées « Demande #– ») et son objet de capacités navigateur. Elles restent
+        # consultables en demandant explicitement leur catégorie.
+        q = q.filter(DiagnosticEvent.category.notin_(NON_JOURNEY_CATEGORIES))
     if request_id:
         q = q.filter(DiagnosticEvent.request_id == request_id)
     if search:

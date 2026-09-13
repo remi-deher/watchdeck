@@ -174,7 +174,7 @@ withDefaults(
   position: absolute;
   top: 4px;
   right: 6px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--muted);
   opacity: 0.6;
@@ -229,7 +229,7 @@ withDefaults(
 }
 
 .step-label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   white-space: nowrap;
 }
@@ -241,12 +241,18 @@ withDefaults(
   color: var(--text);
 }
 
+/* La legende dit ce que compte l'etape : coupee en plein mot (« Demandes en a… »,
+   « Médiathèque Pl… »), elle ne renseigne plus rien. Elle passe donc sur deux lignes
+   plutot que de se tronquer, comme les tuiles d'indicateurs des autres pages. */
 .step-detail {
-  font-size: 10px;
-  color: var(--muted);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+  color: var(--muted);
 }
 
 .pipeline-arrow {
@@ -324,7 +330,7 @@ withDefaults(
 }
 
 .alert-label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted);
 }
 
@@ -339,7 +345,7 @@ withDefaults(
 }
 
 .alert-detail {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--muted);
 }
 
