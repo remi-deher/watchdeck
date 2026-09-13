@@ -139,6 +139,50 @@ def test_diagnostic_logs_are_filterable(async_db):
         _cleanup()
 
 
+def test_diagnostic_logs_exclude_client_telemetry_by_default(async_db):
+    """Le parcours d'une demande ne doit pas etre noye sous la telemetrie client.
+
+    `DiagnosticEvent` sert aussi de journal a `client_layout`, qui ecrit un evenement a
+    chaque ouverture de page : sans `request_id`, ces lignes s'affichaient « Demande #– »
+    et poussaient les vraies etapes hors de l'ecran. Elles restent consultables en
+    demandant explicitement leur categorie.
+    """
+    async_db.add(
+        DiagnosticEvent(
+            request_id=7,
+            correlation_id="request:7",
+            category="arr",
+            action="sent",
+            status="success",
+            title="Transmise a Radarr",
+        )
+    )
+    async_db.add(
+        DiagnosticEvent(
+            request_id=None,
+            correlation_id="client-layout:user:11",
+            category="client_layout",
+            action="capabilities_reported",
+            status="success",
+            message="desktop",
+        )
+    )
+    async_db.commit()
+    client = _client_with_db(async_db)
+    try:
+        default = client.get("/api/diagnostic-logs")
+        assert default.status_code == 200
+        categories = [item["category"] for item in default.json()["items"]]
+        assert "arr" in categories
+        assert "client_layout" not in categories
+
+        explicit = client.get("/api/diagnostic-logs?category=client_layout")
+        assert explicit.status_code == 200
+        assert [item["category"] for item in explicit.json()["items"]] == ["client_layout"]
+    finally:
+        _cleanup()
+
+
 # ---------------------------------------------------------------------------
 # GET /api/notifications/log
 # ---------------------------------------------------------------------------

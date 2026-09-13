@@ -30,8 +30,10 @@ from app.routers.vf_upgrades_api import (
     VfUpgradeScanSelectionRequest,
     _media_payload,
     _refresh_lifecycle,
+    dismiss_vf_upgrade,
     grab_vf_upgrade,
     list_vf_upgrades,
+    restore_vf_upgrade,
     set_vf_upgrade_ignored,
     trigger_vf_upgrade_scan_selected,
     vf_upgrade_audit,
@@ -2486,3 +2488,61 @@ async def test_trigger_vf_upgrade_scan_selected_calls_scan_with_only(db):
     assert result["scanned"] == 1
     items = db.sync_session.query(VfUpgradeScanRunItem).all()
     assert [i.title for i in items] == ["Endpoint Selected Movie"]
+
+
+@pytest.mark.asyncio
+async def test_dismiss_can_be_undone(db):
+    """« Ignorer » doit avoir un inverse.
+
+    L'action se repete une fois par ligne et se clique vite ; sans retour arriere, une
+    suggestion ecartee par erreur ne revenait que par une relance complete de la
+    recherche. `restore` la remet exactement dans l'etat ou `dismiss` l'a prise.
+    """
+    item = _movie_item(db)
+    suggestion = VfUpgradeSuggestion(
+        source_type="library_item",
+        source_id=item.id,
+        scope="movie",
+        status="pending",
+    )
+    db.add(suggestion)
+    db.commit()
+    db.refresh(suggestion)
+
+    with patch("app.routers.vf_upgrades_api.publish", new=AsyncMock()):
+        await dismiss_vf_upgrade(suggestion.id, db)
+        db.refresh(suggestion)
+        assert suggestion.status == "dismissed"
+
+        await restore_vf_upgrade(suggestion.id, db)
+        db.refresh(suggestion)
+        assert suggestion.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_restore_refuses_a_suggestion_that_moved_on(db):
+    """Une suggestion qui a evolue depuis (acceptee, relancee) ne doit pas etre ecrasee :
+    le retour arriere ne vaut que pour l'action qu'il annule."""
+    item = _movie_item(db)
+    suggestion = VfUpgradeSuggestion(
+        source_type="library_item",
+        source_id=item.id,
+        scope="movie",
+        status="grabbed",
+    )
+    db.add(suggestion)
+    db.commit()
+    db.refresh(suggestion)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await restore_vf_upgrade(suggestion.id, db)
+    assert excinfo.value.status_code == 409
+    db.refresh(suggestion)
+    assert suggestion.status == "grabbed"
+
+
+@pytest.mark.asyncio
+async def test_restore_reports_an_unknown_suggestion(db):
+    with pytest.raises(HTTPException) as excinfo:
+        await restore_vf_upgrade(999999, db)
+    assert excinfo.value.status_code == 404
