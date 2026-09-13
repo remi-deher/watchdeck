@@ -72,11 +72,14 @@
     <div class="psh-main">
       <UiFeedback v-if="error" type="error" title="Impossible de charger vos demandes" :message="error" retry @retry="load" />
       <UiFeedback v-else-if="loading && !items.length" type="loading" message="Chargement de vos demandes…" />
-      <p v-else class="my-requests-count" aria-live="polite">{{ sorted.length }} demande{{ sorted.length > 1 ? 's' : '' }} affichée{{ sorted.length > 1 ? 's' : '' }}</p>
+      <p v-else class="my-requests-count" aria-live="polite">
+        <template v-if="hasMore">{{ visible.length }} sur {{ sorted.length }} demandes affichées</template>
+        <template v-else>{{ sorted.length }} demande{{ sorted.length > 1 ? 's' : '' }} affichée{{ sorted.length > 1 ? 's' : '' }}</template>
+      </p>
 
       <section v-if="sorted.length" :class="view === 'grid' ? 'media-grid library-grid' : 'panel media-list'" :aria-busy="loading">
         <LibraryCard
-          v-for="item in sorted"
+          v-for="item in visible"
           :key="item.id"
           :item="{ ...item, _kind: 'request' }"
           :view="view"
@@ -93,6 +96,14 @@
           <UiButton v-else variant="primary" @click="$emit('explore')">Explorer le catalogue</UiButton>
         </template>
       </UiEmptyState>
+
+      <!-- Les 236 demandes d'une mediatheque bien remplie tenaient toutes dans le DOM
+           d'un coup : 25 000px de page et 4 500 noeuds, pour un ecran qui en montre
+           huit. La liste complete reste chargee (le filtrage et le tri sont locaux),
+           seule la fenetre rendue grandit au defilement.
+           Place apres l'etat vide : intercale entre le `v-if` et le `v-else-if`, il
+           casserait la chaine conditionnelle. -->
+      <InfiniteScrollTrigger :has-more="hasMore" @load="showMore" />
     </div>
 
     <ReasonPickerModal
@@ -108,6 +119,7 @@
 </template>
 
 <script setup lang="ts">
+import { humanizeError } from '@/utils/apiError';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '@/api';
@@ -125,6 +137,7 @@ import ReasonPickerModal from '@/components/requests/ReasonPickerModal.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
+import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 
 defineEmits<{
   (e: 'explore'): void;
@@ -263,7 +276,7 @@ async function load(): Promise<void> {
     items.value = payload.items || [];
     requesters.value = payload.facets?.requesters || [];
   } catch (e: any) {
-    if (!request.isAbort(e) && isCurrent()) error.value = e?.message || String(e);
+    if (!request.isAbort(e) && isCurrent()) error.value = humanizeError(e);
   } finally {
     if (isCurrent()) loading.value = false;
   }
@@ -276,6 +289,24 @@ const sorted = computed(() => {
   else list.sort((a, b) => (b.requested_at || '').localeCompare(a.requested_at || ''));
   return list;
 });
+
+/* Fenetre de rendu : une rangee de grille fait quatre cartes en grand, deux en
+   compact. 48 couvre donc plusieurs ecrans dans tous les cas, sans jamais laisser la
+   page se terminer sur une rangee incomplete au premier affichage. */
+const PAGE_SIZE = 48;
+const visibleCount = ref(PAGE_SIZE);
+const visible = computed(() => sorted.value.slice(0, visibleCount.value));
+const hasMore = computed(() => visibleCount.value < sorted.value.length);
+
+function showMore(): void {
+  visibleCount.value = Math.min(visibleCount.value + PAGE_SIZE, sorted.value.length);
+}
+
+/* Changer de filtre, de tri ou de recherche ramene la fenetre au debut. On surveille
+   les criteres et non `sorted` : ce calcul se refait aussi a chaque evenement temps
+   reel, et remonter l'utilisateur en haut de la liste parce qu'une demande a change de
+   statut ailleurs serait une regression. */
+watch([statusKey, typeKey, vf, requesterKey, sort, query], () => { visibleCount.value = PAGE_SIZE; });
 
 /* Declare apres `sorted` : le calcul le lit, et une constante lue avant sa
    declaration leve — l'effet echouait alors en silence, et la barre du haut retombait
@@ -326,7 +357,7 @@ async function runAction(row: any, action: string, body?: string): Promise<void>
     await api(`/api/requests/${row.id}/${action}`, { method: 'POST', body });
     await load();
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }

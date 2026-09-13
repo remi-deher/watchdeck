@@ -284,6 +284,14 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   color: var(--muted);
 }
 
+/* Une tache qui tourne n'est ni un succes ni une alerte : elle est en cours. Faute de
+   ce ton, « En cours » empruntait le vert de `available` -- la meme couleur que « tout
+   est fait ». */
+.badge.running {
+  border-color: rgba(56, 189, 248, .55);
+  color: var(--blue);
+}
+
 .badge.rejected {
   border-color: rgba(239, 68, 68, .6);
   color: var(--red-text);

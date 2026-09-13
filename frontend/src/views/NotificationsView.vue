@@ -52,7 +52,7 @@
     </FilterSidebar>
     <div class="psh-main">
   <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
-  <UiFeedback v-if="error" type="error" :message="error" />
+  <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
   <BulkActionBar
     v-if="tab === 'pending'"
     :count="selectedIds.length"

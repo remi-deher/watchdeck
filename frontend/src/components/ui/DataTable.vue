@@ -250,7 +250,10 @@ defineExpose({
 @media (max-width: 419.98px) {
   .data-table :deep([data-priority="secondary"]) { display: none; }
 }
-.sort-button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; cursor: pointer; }
+/* `font: inherit` remet la casse par defaut du bouton et annulait le `text-transform`
+   du `th` : les colonnes triables s'affichaient « Titre », les autres « QUALITÉ », deux
+   traitements typographiques dans la meme rangee d'en-tete. */
+.sort-button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
 .sort-button:hover { color: var(--accent); }
 .sort-button svg { width: 12px; height: 12px; flex-shrink: 0; opacity: .6; }
 thead th { user-select: none; cursor: grab; }

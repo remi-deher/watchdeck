@@ -84,6 +84,7 @@
 </template>
 
 <script setup lang="ts">
+import { humanizeError } from '@/utils/apiError';
 import { computed, onMounted, ref } from 'vue';
 import { api } from '@/api';
 import AppPage from '@/components/ui/AppPage.vue';
@@ -167,7 +168,7 @@ async function load(): Promise<void> {
     issues.value = payload.items || [];
     types.value = payload.types || [];
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     loading.value = false;
   }
@@ -183,7 +184,7 @@ async function patchIssue(issue: Issue, body: Record<string, unknown>): Promise<
     // sort du filtre courant.
     if (index >= 0) issues.value[index] = { ...issues.value[index], ...updated };
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }
@@ -197,7 +198,7 @@ async function retryIssue(issue: Issue): Promise<void> {
   try {
     await api(`/api/media/issues/${issue.id}/retry`, { method: 'POST' });
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }

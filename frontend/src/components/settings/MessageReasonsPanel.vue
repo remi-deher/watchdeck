@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import { humanizeError } from '@/utils/apiError';
 import { onMounted, ref } from 'vue';
 import { Plus, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
@@ -82,7 +83,7 @@ async function load(): Promise<void> {
     const payload = await api<{ items?: Reason[] }>('/api/message-reasons');
     reasons.value = payload.items || [];
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     loading.value = false;
   }
@@ -99,7 +100,7 @@ async function save(reason: Reason): Promise<void> {
       body: JSON.stringify({ label: reason.label, message: reason.message, enabled: reason.enabled }),
     });
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }
@@ -119,7 +120,7 @@ async function addReason(event: string): Promise<void> {
     });
     reasons.value = [...reasons.value, created];
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }
@@ -131,7 +132,7 @@ async function remove(reason: Reason): Promise<void> {
     await api(`/api/message-reasons/${reason.id}`, { method: 'DELETE' });
     reasons.value = reasons.value.filter((row) => row.id !== reason.id);
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }

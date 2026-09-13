@@ -12,7 +12,7 @@
         class="cast-card"
         :aria-label="`Voir la fiche de ${person.name}`"
       >
-        <img v-if="person.profile_url" :src="proxyUrl(person.profile_url, { width: 200 }) ?? undefined" :alt="`Portrait de ${person.name}`" loading="lazy" decoding="async" sizes="(max-width: 767px) 118px, 145px">
+        <img v-if="person.profile_url" :src="proxyUrl(person.profile_url, { width: 200 }) ?? undefined" :srcset="srcSetFor(person.profile_url, { width: 200 })" :alt="`Portrait de ${person.name}`" loading="lazy" decoding="async" sizes="(max-width: 767px) 118px, 145px">
         <span v-else class="cast-placeholder" aria-hidden="true"><UserRound /></span>
         <strong>{{ person.name }}</strong>
         <small v-if="person.character">{{ person.character }}</small>
@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { proxyUrl } from '@/utils/mediaImage';
+import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 import { UserRound } from '@lucide/vue';
 import HorizontalRail from '@/components/ui/HorizontalRail.vue';
 

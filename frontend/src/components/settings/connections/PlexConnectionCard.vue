@@ -3,9 +3,9 @@
     <template #actions>
       <ConnectionTestAction :loading="testingPlex" @test="testPlex" />
     </template>
-    <UiField label="URL" hint="Adresse locale de ton serveur Plex (pas app.plex.tv), ex. http://192.168.1.10:32400 ou http://plex:32400 en Docker." v-slot="field"><input :id="field.id" v-model="form.plex_url" type="url" placeholder="http://plex:32400" :aria-describedby="field.describedBy"></UiField>
-    <UiField label="Token" hint="Jeton d'authentification Plex (X-Plex-Token). Le plus simple est d'utiliser Connexion Plex SSO ci-dessous, qui le récupère automatiquement." v-slot="field"><input :id="field.id" v-model="form.plex_token" type="password" placeholder="Laisser vide pour conserver" :aria-describedby="field.describedBy"></UiField>
-    <UiField label="URL Universal Watchlist" hint="Agrège la watchlist de tous tes amis Plex sans qu'ils aient besoin de se connecter à Watchdeck. Nécessite Plex Pass." v-slot="field"><input :id="field.id" v-model="form.plex_rss_url" type="url" placeholder="https://rss.plex.tv/..." :aria-describedby="field.describedBy"></UiField>
+    <UiField label="URL" hint="Adresse locale de votre serveur Plex (pas app.plex.tv), ex. http://192.168.1.10:32400 ou http://plex:32400 en Docker." v-slot="field"><input :id="field.id" v-model="form.plex_url" type="url" placeholder="http://plex:32400" :aria-describedby="field.describedBy"></UiField>
+    <SecretField v-model="form.plex_token" label="Token" hint="Jeton d'authentification Plex (X-Plex-Token). Le plus simple est d'utiliser Connexion Plex SSO ci-dessous, qui le récupère automatiquement." :configured="Boolean(secretsPresent.plex_token)" />
+    <UiField label="URL Universal Watchlist" hint="Agrège la watchlist de tous vos amis Plex sans qu'ils aient besoin de se connecter à Watchdeck. Nécessite Plex Pass." v-slot="field"><input :id="field.id" v-model="form.plex_rss_url" type="url" placeholder="https://rss.plex.tv/..." :aria-describedby="field.describedBy"></UiField>
     <label class="check"><input v-model="form.plex_verify_ssl" type="checkbox"> Verifier le certificat TLS</label>
     <div class="actions">
       <ConnectionTestAction :loading="testingWatchlist" label="Tester l'Universal Watchlist" @test="testWatchlist">
@@ -21,6 +21,7 @@ import { computed } from 'vue';
 import { LogIn, Rss, Server } from '@lucide/vue';
 import { api } from '@/api';
 import { form, load, secretsPresent, success, fail, testSaved } from '@/settingsForm';
+import SecretField from '@/components/ui/SecretField.vue';
 import SettingsCard from '../SettingsCard.vue';
 import UiField from '@/components/ui/UiField.vue';
 import ConnectionTestAction from './ConnectionTestAction.vue';

@@ -18,7 +18,7 @@
             </div>
           </div>
           <template v-if="canManageSecurity">
-            <UiField label="Nouveau mot de passe" hint="Laisse ce champ vide si tu ne veux pas changer ton mot de passe actuel." v-slot="field">
+            <UiField label="Nouveau mot de passe" hint="Laissez ce champ vide si vous ne souhaitez pas changer votre mot de passe actuel." v-slot="field">
               <input :id="field.id" v-model="password" type="password" minlength="8" autocomplete="new-password" placeholder="Au moins 8 caractères" :aria-describedby="field.describedBy">
             </UiField>
             <div class="actions">
@@ -37,7 +37,7 @@
               </div>
             </template>
             <template v-else-if="totpSecret">
-              <p class="hint">Scanne ce QR code dans ton application d'authentification (Google Authenticator, Authy, Bitwarden...), puis saisis le code à 6 chiffres qu'elle affiche pour confirmer l'activation.</p>
+              <p class="hint">Scannez ce QR code dans votre application d'authentification (Google Authenticator, Authy, Bitwarden…), puis saisissez le code à 6 chiffres qu'elle affiche pour confirmer l'activation.</p>
               <img v-if="totpQr" :src="totpQr" class="totp-qr" alt="QR code TOTP">
               <p>Secret manuel (si le QR code ne fonctionne pas) : <code>{{ totpSecret }}</code></p>
               <UiField label="Code à 6 chiffres" v-slot="field">
@@ -49,7 +49,7 @@
               </div>
             </template>
             <template v-else>
-              <p class="hint">Non configurée — n'importe qui connaissant ton mot de passe peut se connecter. Recommandé pour un compte administrateur.</p>
+              <p class="hint">Non configurée — n'importe qui connaissant votre mot de passe peut se connecter. Recommandé pour un compte administrateur.</p>
               <div class="actions">
                 <UiButton :loading="busy" @click="setupTotp"><template #icon><ShieldCheck/></template>Configurer</UiButton>
               </div>

@@ -81,12 +81,6 @@
       <kbd>{{ shortcutLabel }}</kbd>
     </button>
 
-    <!-- Ancre des outils de la page (periode, export, colonnes...). En mode deploye les
-         sections sont deja remontees dans le rail : la rangee collante de la page n'aurait
-         plus porte qu'un controle isole sur toute une ligne. Il vient donc ici, contre la
-         recherche, ou il ne coute aucune hauteur. AppPage y telporte son slot `tools`. -->
-    <div v-if="mode === 'expanded'" id="app-page-tools" class="app-topbar__page-tools" />
-
     <!-- La loupe ne subsiste que sans recherche de page : elle ouvre alors la
          recherche globale, seul recours depuis un telephone. -->
     <button
@@ -261,14 +255,6 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
 .app-topbar__icon-btn:hover { color: var(--text); background: var(--surface); }
 .app-topbar__icon-btn svg { width: 19px; height: 19px; }
 
-.app-topbar__page-tools {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.app-topbar__page-tools:empty { display: none; }
 
 .app-topbar__crumbs { min-width: 0; flex: 1; }
 .app-topbar__crumbs ol {
@@ -324,7 +310,7 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
   padding: 2px 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 
 /* La rangee de sections prend la place restante entre le titre et la recherche, et
@@ -373,7 +359,7 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
 .app-topbar__filter-only:hover,
 .app-topbar__filter-only.active { background: color-mix(in srgb, var(--accent) 25%, var(--surface)); color: var(--accent); }
 .app-topbar__filter-only svg { width: 17px; height: 17px; }
-.app-topbar__filter-only strong { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: #1a1400; font-size: 10px; }
+.app-topbar__filter-only strong { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: #1a1400; font-size: var(--fs-xs); }
 .app-topbar__field :deep(.ui-search-field__filter:hover),
 .app-topbar__field :deep(.ui-search-field__filter.active) {
   background: color-mix(in srgb, var(--accent) 25%, var(--surface-2));
@@ -424,7 +410,7 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
   box-shadow: 0 14px 36px rgba(0, 0, 0, .38);
   backdrop-filter: blur(18px);
 }
-.app-topbar__recent small { padding: 5px 8px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.app-topbar__recent small { padding: 5px 8px; color: var(--muted); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; }
 .app-topbar__recent button { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .app-topbar__recent button:hover { background: var(--surface); }
 .app-topbar__recent svg { flex: none; width: 14px; color: var(--muted); }
@@ -436,7 +422,26 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
   /* Au-dela du compact, la loupe n'a plus de role : la recherche globale reste sur
      Ctrl+K et dans le rail. */
   .app-topbar__search-compact { display: none; }
-  .app-topbar__field :deep(.ui-search-field) { max-width: 480px; }
+  /* Le champ occupe son conteneur, jamais une largeur a lui : c'est le conteneur qui
+     est centre sur le contenu de la page (voir les blocs suivants). Un plafond ici le
+     laissait a gauche d'une bande deux fois plus large -- 480px cales dans 972, soit
+     246px hors du centre, alors que le conteneur, lui, etait bien centre. */
+  .app-topbar__field :deep(.ui-search-field) { width: 100%; max-width: none; }
+}
+
+@include bp.from(shell-expanded) {
+  /* Une seule largeur, un seul centre, sur toutes les pages.
+     La barre portait aussi les commandes de la page : elles la partageaient avec le
+     champ, qui prenait alors une largeur differente partout -- 562px sur Activite,
+     775 sur l'inventaire, 972 sur la bibliotheque -- et un centre decale d'autant. Les
+     sortir du flux ne suffisait pas : le selecteur de periode fait 398px, il recouvrait
+     le champ. Elles sont donc revenues dans la rangee de la page, ou elles ont la place
+     qu'il leur faut. */
+  .app-topbar__field {
+    flex: 0 1 auto;
+    width: min(720px, 100%);
+    margin-inline: auto;
+  }
 }
 
 /* Sur tablette, le titre reste un repère visible mais sort du flux : il ne décale

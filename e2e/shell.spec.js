@@ -98,6 +98,48 @@ test("chaque page expose un h1 unique, et son titre reste visible dans le shell"
   }
 });
 
+test("aucune page principale ne leve d'erreur en console", async ({ page }, testInfo) => {
+  /* Rien ne surveillait les erreurs de console : un `Uncaught` en production ne se
+     serait vu que si quelqu'un ouvrait les outils de developpement au bon moment. Ce
+     test ferme cet angle mort.
+
+     Il ne retient que ce qui vient du code : les exceptions non capturees (`pageerror`)
+     et les erreurs ecrites en console. Les echecs de chargement de ressource en sont
+     exclus -- ils dependent des services configures sur la machine de test, pas de
+     l'application, et rendraient le test ininterpretable. */
+  /* Les moteurs ne rapportent pas la meme chose : WebKit signale des cles de `viewport`
+     qu'il ne connait pas et fait echouer des imports dynamiques au fil de navigations
+     rapides. Ce bruit-la ne parle pas de notre code. Le test tourne donc sur Chromium,
+     ou le signal est net -- c'est aussi le moteur du navigateur ou l'erreur a ete vue. */
+  test.skip(testInfo.project.name === "ios", "bruit propre a WebKit, sans rapport avec le code");
+
+  const ignorable = (texte) =>
+    // Echecs de chargement : dependent des services configures sur la machine de test.
+    texte.startsWith("Failed to load resource") ||
+    /* Le tableau de bord tente un flux SSE avant de se replier sur l'instantane complet.
+       Sans session, le serveur repond 401 en JSON : le navigateur signale alors que le
+       type ne convient pas a un EventSource. Reponse d'erreur legitime, propre a cet
+       environnement -- en production, authentifie, le flux repond bien en
+       `text/event-stream` (verifie). Le repli, lui, fonctionne. */
+    texte.includes("EventSource's response has a MIME type");
+
+  const incidents = [];
+  page.on("pageerror", (error) => {
+    if (!ignorable(error.message)) incidents.push(`exception non capturee : ${error.message}`);
+  });
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    if (!ignorable(message.text())) incidents.push(`console : ${message.text()}`);
+  });
+
+  for (const path of ["/dashboard", "/discover", "/library", "/activity", "/downloads", "/analytics", "/settings", "/issues"]) {
+    await page.goto(path);
+    await expect(page.locator("#main-content")).toBeVisible({ timeout: 15000 });
+    await page.waitForTimeout(600);
+    expect(incidents, `erreurs sur ${path} : ${incidents.join(" | ")}`).toEqual([]);
+  }
+});
+
 test("aucune page principale ne deborde horizontalement", async ({ page }) => {
   for (const path of ["/dashboard", "/discover", "/library", "/downloads", "/settings"]) {
     await page.goto(path);
@@ -494,13 +536,100 @@ test("la recherche est centree sur le contenu et occupe la barre", async ({ page
   test.skip(isCompact(page), "sur mobile la recherche se déploie à la demande");
   await page.goto("/discover");
 
-  const field = page.locator(".app-topbar__field");
+  // On mesure le champ **visible**, pas son conteneur : le conteneur etait centre et
+  // pleine largeur pendant que le champ, plafonne a 480px, restait cale a sa gauche --
+  // 246px hors du centre, sans que ce test le voie.
+  const field = page.locator(".ui-search-field");
   const main = page.locator("#main-content");
   await expect(field).toBeVisible();
   const [fieldBox, mainBox] = await Promise.all([field.boundingBox(), main.boundingBox()]);
 
   expect(Math.abs((fieldBox.x + fieldBox.width / 2) - (mainBox.x + mainBox.width / 2))).toBeLessThan(2);
   expect(fieldBox.width).toBeGreaterThanOrEqual(page.viewportSize().width >= 1200 ? 700 : 400);
+});
+
+test("la recherche a la meme geometrie sur toutes les pages", async ({ page }) => {
+  /* Chaque page ajoutait ses commandes dans la barre : elles partageaient la place avec
+     le champ, qui prenait alors une largeur differente partout -- 562px sur Activite,
+     775 sur l'inventaire, 972 sur la bibliotheque -- et un centre decale d'autant. Une
+     barre qui change de taille en changeant de page se remarque plus qu'elle ne sert. */
+  const pages = ["/library", "/discover", "/activity", "/downloads", "/analytics", "/issues"];
+  const mesures = [];
+
+  for (const path of pages) {
+    await page.goto(path);
+    const field = page.locator(".ui-search-field");
+    await expect(field, `pas de champ sur ${path}`).toBeVisible({ timeout: 15000 });
+    const [fieldBox, mainBox] = await Promise.all([
+      field.boundingBox(),
+      page.locator("#main-content").boundingBox(),
+    ]);
+    const ecart = (fieldBox.x + fieldBox.width / 2) - (mainBox.x + mainBox.width / 2);
+    expect(Math.abs(ecart), `champ decentre sur ${path}`).toBeLessThan(2);
+    mesures.push({ path, largeur: Math.round(fieldBox.width) });
+  }
+
+  // Toutes identiques : une seule largeur, quelles que soient les commandes de la page.
+  const largeurs = [...new Set(mesures.map((m) => m.largeur))];
+  expect(largeurs, `largeurs divergentes : ${JSON.stringify(mesures)}`).toHaveLength(1);
+});
+
+test("les commandes d'une page ne recouvrent jamais la recherche", async ({ page }) => {
+  // Sorties du flux, elles se posaient par-dessus le champ : le selecteur de periode
+  // d'Activite fait 398px et en mordait 407.
+  await page.goto("/activity?view=overview");
+  const field = page.locator(".ui-search-field");
+  await expect(field).toBeVisible({ timeout: 15000 });
+
+  const tools = page.locator(".app-topbar .app-topbar__page-tools");
+  await expect(tools).toHaveCount(0);
+
+  // Le selecteur reste atteignable, dans la rangee de la page.
+  await expect(page.getByRole("tablist", { name: /Période/ }).first()).toBeVisible();
+});
+
+test("le hero d'une fiche est une carte posee dans la colonne", async ({ page }) => {
+  /* Le hero debordait sur les goutieres par marges negatives : une ouverture pleine
+     largeur, mais un objet different de tout le reste de l'application. Il reprend le
+     cadre de la banniere d'Explorer -- carte bordee dans la colonne -- et son image
+     reste fixe : sur une page de consultation, une animation au survol distrait de la
+     lecture. La comparaison ligne a ligne avec la banniere est verifiee separement,
+     sur les sources (MediaDetailHero.spec). */
+  await page.route("**/api/media/detail**", (route) =>
+    route.fulfill({
+      json: {
+        media: {},
+        id: 1,
+        title: "Le Voyage de Chihiro",
+        media_type: "movie",
+        year: 2001,
+        overview: "Une petite fille bascule dans un monde de dieux et de sorcieres.",
+        backdrop_url: "https://image.tmdb.org/t/p/original/y.jpg",
+        genres: ["Animation"],
+        requests: [],
+      },
+    }),
+  );
+  await page.goto("/library/media/request/1");
+  const hero = page.locator(".mdh-backdrop");
+  await expect(hero).toBeVisible({ timeout: 15000 });
+
+  const cadre = await hero.evaluate((node) => {
+    const cs = getComputedStyle(node);
+    return { bordure: cs.borderTopWidth, rayon: cs.borderTopLeftRadius, transform: cs.transform };
+  });
+  expect(cadre.bordure).toBe("1px");
+  expect(cadre.rayon).not.toBe("0px");
+  // Ni echelle permanente, ni reaction au survol.
+  expect(cadre.transform).toBe("none");
+  await hero.hover();
+  await page.waitForTimeout(400);
+  expect(await hero.evaluate((node) => getComputedStyle(node).transform)).toBe("none");
+
+  // Dans la colonne, plus en travers : c'est ce que les marges negatives cassaient.
+  const [heroBox, mainBox] = await Promise.all([hero.boundingBox(), page.locator("#main-content").boundingBox()]);
+  expect(heroBox.x, "le hero deborde a gauche").toBeGreaterThanOrEqual(mainBox.x - 1);
+  expect(heroBox.x + heroBox.width, "le hero deborde a droite").toBeLessThanOrEqual(mainBox.x + mainBox.width + 1);
 });
 
 test("les demandes n'exposent qu'un seul bouton de filtres", async ({ page }) => {

@@ -1064,7 +1064,11 @@ button:disabled {
 .dashboard-section-head h2 { margin: 0; font-size: var(--fs-lg); }
 .dashboard-section-head p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .dashboard-focus-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-4); align-items: stretch; }
-.dashboard-ops-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-4); align-items: stretch; }
+/* `align-items: stretch` etirait chaque panneau sur la hauteur du plus grand : « File
+   de telechargement », reduit a la phrase « Aucun telechargement en cours », occupait
+   340px de colonne vide a cote du planificateur. Chaque panneau prend desormais la
+   hauteur de son contenu. */
+.dashboard-ops-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-4); align-items: start; }
 .dashboard-focus-grid > .panel,
 .dashboard-ops-grid > .panel { min-width: 0; }
 .dashboard-metrics { grid-template-columns: repeat(5,minmax(0,1fr)); }

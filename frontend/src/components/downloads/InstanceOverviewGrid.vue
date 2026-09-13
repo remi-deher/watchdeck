@@ -241,7 +241,7 @@ function filterByClient(client: any): void {
 }
 
 .instance-identity { display:flex; align-items:flex-start; gap:11px; min-width:0; }
-.type-label { display:block; margin-bottom:3px; color:var(--muted); font-size:10px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
+.type-label { display:block; margin-bottom:3px; color:var(--muted); font-size: var(--fs-xs); font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
 .type-label.radarr { color:#e5a00d; }.type-label.sonarr { color:#00c49f; }.type-label.prowlarr { color:#8b7cf6; }.type-label.client { color:var(--accent); }
 
 .instance-title-wrap {

@@ -199,7 +199,7 @@ const trackerRows = computed(() => {
 .state {
   border-radius: var(--radius-pill);
   padding: 4px 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
 }
 .state.ok {
@@ -229,7 +229,7 @@ const trackerRows = computed(() => {
   font-size: var(--fs-lg);
 }
 .client-counts span {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted);
 }
 .client-warning {

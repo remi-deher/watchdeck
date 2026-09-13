@@ -176,7 +176,13 @@ const hasTools = computed(() => Boolean(slots.tools || slots.actions));
    du shell (tests isoles, tiroirs) retombe simplement sur sa rangee collante. */
 const toolsAnchor = ref(false);
 const syncToolsAnchor = () => { toolsAnchor.value = Boolean(document.getElementById('app-page-tools')); };
-const toolsInBar = computed(() => mode.value === 'expanded' && toolsAnchor.value);
+/* Les commandes de la page restent dans sa rangee, a toutes les largeurs.
+   Elles ont ete remontees un temps dans la barre du haut, pour eviter une rangee qui
+   n'aurait porte qu'un controle isole. Mais elles y partageaient la place avec la
+   recherche, qui changeait alors de largeur et de centre d'une page a l'autre selon les
+   commandes de chacune -- et le selecteur de periode, large de 398px, finissait par la
+   recouvrir. Une rangee un peu vide se remarque moins qu'une barre qui bouge. */
+const toolsInBar = computed(() => false);
 const { sections: derivedSections, activeKey, destinationLabel } = usePageSections();
 const showSections = computed(() => mode.value !== 'expanded');
 const showStickyRow = computed(

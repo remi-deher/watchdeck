@@ -150,7 +150,7 @@ function select(slice: PieSlice): void {
   fill: var(--text);
 }
 .pie-center-value { font-size: 20px; font-weight: 700; }
-.pie-center-label { fill: var(--muted); font-size: 11px; }
+.pie-center-label { fill: var(--muted); font-size: var(--fs-xs); }
 
 .pie-legend {
   display: grid;
@@ -190,7 +190,7 @@ function select(slice: PieSlice): void {
    de lecture du camembert. */
 .pie-legend span { overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
 .pie-legend strong { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
-.pie-legend small { min-width: 48px; color: var(--muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.pie-legend small { min-width: 48px; color: var(--muted); font-size: var(--fs-xs); text-align: right; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 640px) {
   .pie-chart { grid-template-columns: minmax(0, 1fr); justify-items: center; }

@@ -5,7 +5,7 @@
       search-scope="Acquisition"
       :placeholder="searchPlaceholder"
       search-kind="filter"
-      has-filters
+      :has-filters="hasFilterGroups"
       :active-count="totalActiveFilterCount"
       :filters-open="filtersOpen"
       @toggle-filters="filtersOpen = !filtersOpen" page-class="downloads-page">
@@ -22,7 +22,11 @@
       </template>
 
     <div class="psh-layout">
-      <FilterSidebar :open="filtersOpen" :active-count="totalActiveFilterCount" @close="filtersOpen=false" @reset="resetAllFilters">
+      <!-- Le contenu du tiroir est entierement conditionnel : sur « Vue d'ensemble »
+           avec une seule instance *arr, aucun groupe ne s'affichait et il ne restait
+           qu'une boite « Filtres » vide occupant une colonne entiere. On ne monte donc
+           la surface de filtrage que lorsqu'il y a quelque chose a filtrer. -->
+      <FilterSidebar v-if="hasFilterGroups" :open="filtersOpen" :active-count="totalActiveFilterCount" @close="filtersOpen=false" @reset="resetAllFilters">
         <!-- Type, etat, instance : tous les filtres au meme endroit. Avant, l'etat
              vivait dans une rangee d'onglets sur Films et Series, et dans ce tiroir
              sous « Affichage » sur les autres pages -- deux idiomes pour la meme
@@ -368,6 +372,7 @@ import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useDownloadSources } from '@/composables/useDownloadSources';
+import { useMediaQuery } from '@/composables/useMediaQuery';
 import { proxyUrl } from '@/utils/mediaImage';
 import {
   canAct,
@@ -410,7 +415,14 @@ const prowlarrStats=ref<Record<string, any>>({}),clientOverviewStats=ref<Record<
 const { arrInstances:configuredArr,downloadClients:configuredClients,loading:configurationsLoading,error:configurationError,load:loadDownloadSources }=useDownloadSources();
 const query=ref(''),instance=ref(''),status=ref<string | string[]>(''),statusFilter=ref(''),clientCategory=ref<string | string[]>(''),clientOwnership=ref(''),clientTracker=ref<string | string[]>('');
 const clientTable=ref<any>(null),showAddModal=ref(false),droppedFile=ref<File | null>(null);
-const filtersOpen=ref(localStorage.getItem('watchdeck:torrent-filter-sidebar-collapsed')!=='true');
+/* En dessous de 900px, `FilterSidebar` n'est plus une colonne mais une feuille modale
+   (meme seuil que le composant). Rejouer telle quelle la preference « colonne ouverte »
+   du bureau ouvrait donc la page derriere une modale que personne n'avait demandee --
+   vide de surcroit sur l'onglet « Vue d'ensemble », qui n'a pas de filtres -- en
+   verrouillant au passage le defilement du corps. */
+const filtersAsModal=useMediaQuery('(max-width: 900px)');
+const filtersOpen=ref(!filtersAsModal.value && localStorage.getItem('watchdeck:torrent-filter-sidebar-collapsed')!=='true');
+watch(filtersAsModal, isModal => { if (isModal) filtersOpen.value=false; });
 
 function handleCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () => void): void {
   if (queueDetailPath(row) && !revealed) {
@@ -424,6 +436,9 @@ function handleDroppedFile(file: File): void {
   showAddModal.value = true;
 }
 watch(filtersOpen, v => {
+  // Fermer la feuille modale sur telephone ne doit pas replier la colonne du bureau :
+  // ce sont deux gestes differents pour deux surfaces differentes.
+  if (filtersAsModal.value) return;
   localStorage.setItem('watchdeck:torrent-filter-sidebar-collapsed', String(!v));
 });
 
@@ -653,6 +668,15 @@ const instances=computed(()=>{
   if(section.value==='clients') return configuredClients.value.filter((row: any)=>row.enabled).map((row: any)=>row.name);
   return [...new Set(queue.value.map((x: any)=>x.instance||x.download_client).filter(Boolean))];
 });
+
+/* Reprend a l'identique les conditions des `FilterGroup` du gabarit : si aucune ne
+   passe, il n'y a pas de filtres a proposer et la surface entiere -- colonne, bouton de
+   la barre du haut, feuille modale -- n'a pas lieu d'exister. */
+const hasFilterGroups=computed(()=>{
+  if(section.value==='queue'||section.value==='missing')return true;
+  if(section.value==='clients')return true;
+  return instances.value.length>1;
+});
 const unmatchedItems=computed(()=>queue.value.filter((row: any)=>(!mediaType.value||row.arr_type===mediaType.value)&&(!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value)&&(isUnmatched(row)||needsEpisodeImport(row))));
 const errorItems=computed(()=>queue.value.filter((row: any)=>statusKey(row)==='error'));
 const filteredQueue=computed(()=>{const activeStatus=status.value||statusFilter.value;const needle=query.value.trim().toLocaleLowerCase('fr');return queue.value.filter((row: any)=>{const key=statusKey(row);const sourceMatch=!mediaType.value||row.arr_type===mediaType.value;const selectedMatch=!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value;const contextual=subview.value==='active'?key==='downloading':subview.value==='waiting'?['queued','paused','completed'].includes(key):subview.value==='errors'?key==='error':subview.value==='intervention'?requiresIntervention(row):true;return sourceMatch&&selectedMatch&&contextual&&(!needle||row.title?.toLocaleLowerCase('fr').includes(needle))&&(!instance.value||(row.instance||row.download_client)===instance.value)&&(activeStatus==='unmatched'?(isUnmatched(row)||needsEpisodeImport(row)):!activeStatus||key===activeStatus)})});
@@ -857,9 +881,9 @@ onMounted(async()=>{await loadConfigurations();if(section.value==='clients')load
 .wanted-poster-fallback svg{width:18px;height:18px;color:var(--muted)}
 .wanted-info{display:flex;flex-direction:column;gap:3px;min-width:0}
 .wanted-info strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)}
-.wanted-info small{color:var(--muted);font-size:11px}
+.wanted-info small{color:var(--muted);font-size: var(--fs-xs)}
 
-.client-header-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}.client-table-search{width:180px;height:40px}.client-header-actions .icon-button{display:inline-grid;place-items:center;width:40px;height:40px;padding:0}.client-header-actions .icon-button svg{width:18px;height:18px}.client-header-actions .icon-button.active{border-color:var(--accent);color:var(--accent)}.client-filter-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 11px;white-space:nowrap}.client-filter-toggle svg{width:17px;height:17px}.client-filter-toggle.active{border-color:var(--accent);color:var(--accent)}.filter-count{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:var(--radius-pill);background:var(--accent);color:#1a1400;font-size:11px}.client-header-speeds{display:inline-flex;align-items:center;gap:10px}.client-header-speeds span{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-size:var(--fs-xs);white-space:nowrap}.client-header-speeds svg{width:15px;height:15px}.client-header-speeds strong{color:var(--text);font-size:var(--fs-sm)}.torrent-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-2);margin:0}.torrent-stats div{display:grid;gap:2px;padding:8px;border-radius:var(--radius-sm);background:var(--surface-2)}.torrent-stats dt{color:var(--muted);font-size:var(--fs-xs)}.torrent-stats dd{margin:0;font-size:var(--fs-sm);font-weight:700}@media(max-width:800px){.torrent-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.client-header-actions{width:100%;gap:6px;flex-wrap:wrap}.client-table-search{flex:1 1 180px;width:auto}.client-header-actions .badge{display:none}.client-filter-toggle{flex:0 1 auto}.client-header-speeds{gap:7px}.client-header-speeds strong{font-size:var(--fs-xs)}}
+.client-header-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}.client-table-search{width:180px;height:40px}.client-header-actions .icon-button{display:inline-grid;place-items:center;width:40px;height:40px;padding:0}.client-header-actions .icon-button svg{width:18px;height:18px}.client-header-actions .icon-button.active{border-color:var(--accent);color:var(--accent)}.client-filter-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 11px;white-space:nowrap}.client-filter-toggle svg{width:17px;height:17px}.client-filter-toggle.active{border-color:var(--accent);color:var(--accent)}.filter-count{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:var(--radius-pill);background:var(--accent);color:#1a1400;font-size: var(--fs-xs)}.client-header-speeds{display:inline-flex;align-items:center;gap:10px}.client-header-speeds span{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-size:var(--fs-xs);white-space:nowrap}.client-header-speeds svg{width:15px;height:15px}.client-header-speeds strong{color:var(--text);font-size:var(--fs-sm)}.torrent-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-2);margin:0}.torrent-stats div{display:grid;gap:2px;padding:8px;border-radius:var(--radius-sm);background:var(--surface-2)}.torrent-stats dt{color:var(--muted);font-size:var(--fs-xs)}.torrent-stats dd{margin:0;font-size:var(--fs-sm);font-weight:700}@media(max-width:800px){.torrent-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.client-header-actions{width:100%;gap:6px;flex-wrap:wrap}.client-table-search{flex:1 1 180px;width:auto}.client-header-actions .badge{display:none}.client-filter-toggle{flex:0 1 auto}.client-header-speeds{gap:7px}.client-header-speeds strong{font-size:var(--fs-xs)}}
 .sidebar-ownership-filter{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:var(--fs-xs);font-weight:700}.sidebar-ownership-filter select{width:100%}
 :deep(.filter-sidebar-bare){top:92px;max-height:calc(100dvh - 108px)}
 .add-torrent-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;font-size:var(--fs-xs);height:34px;white-space:nowrap;border-radius:var(--radius-sm)}
@@ -867,7 +891,7 @@ onMounted(async()=>{await loadConfigurations();if(section.value==='clients')load
 .download-source-empty{display:flex;align-items:center;gap:var(--space-4);padding:20px}.download-source-empty>svg{width:28px;color:var(--accent)}.download-source-empty>div{flex:1}.download-source-empty h2{margin:0;font-size:var(--fs-md)}.download-source-empty p{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}.download-source-empty>a{display:inline-flex;align-items:center;gap:var(--space-2);text-decoration:none}.download-source-empty>a svg{width:15px}@media(max-width:640px){.download-source-empty{align-items:flex-start;flex-wrap:wrap}.download-source-empty>div{min-width:calc(100% - 50px)}.download-source-empty>a{margin-left:44px}}
 .download-groups{display:grid;gap: var(--space-4)}.download-group{display:grid;gap: var(--space-3)}.download-group-head{display:flex;align-items:center;justify-content:space-between;padding:0 2px}.download-group-head>div{display:flex;align-items:center;gap: var(--space-3)}.download-group-head svg{width:19px;color:var(--muted)}.download-group.intervention .download-group-head svg{color:var(--danger)}.download-group-head h2{margin:0;font-size:var(--fs-md)}.download-group-head p{margin:2px 0 0;color:var(--muted);font-size:var(--fs-xs)}.download-group-head>span{min-width:27px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-pill);text-align:center;font-size:var(--fs-xs);font-weight:700}.download-card{display:grid;gap: var(--space-3);padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);content-visibility:auto;contain-intrinsic-size:0 120px}
 .history-card{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);padding:12px;content-visibility:auto;contain-intrinsic-size:0 120px}.download-card>header,.download-progress>div,.download-card footer{display:flex;align-items:flex-start;justify-content:space-between;gap: var(--space-3)}.download-card>header>div{display:grid;gap: var(--space-1);min-width:0}.download-card>header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.download-card>header small,.download-progress small,.download-meta{color:var(--muted);font-size:var(--fs-xs)}.download-progress{display:grid;gap: var(--space-2)}.download-progress span{color:var(--muted);font-size:var(--fs-xs)}.download-progress strong{font-size:var(--fs-sm)}.download-progress progress{width:100%;height:7px}.download-callout{padding:8px 10px;border-radius:var(--radius-sm);background:rgba(229,160,13,.09);color:var(--accent);font-size:var(--fs-xs)}.download-callout.error{background:rgba(239,68,68,.09);color:var(--danger)}.download-card footer{justify-content:flex-end;flex-wrap:wrap;margin-top:auto}.download-card footer button,.download-card footer a{display:inline-flex;align-items:center;gap: var(--space-2);padding:7px 9px;font-size:var(--fs-xs);text-decoration:none}.download-card footer svg{width:14px;height:14px}.load-more{display:flex;justify-content:center;padding:16px}
-.rich-card{display:flex;gap:var(--space-3);align-items:stretch}.card-cover-col{width:70px;flex-shrink:0}.card-cover-wrapper{position:relative;width:100%;aspect-ratio:2/3;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center}.card-cover-img{width:100%;height:100%;object-fit:cover}.card-cover-placeholder{color:var(--muted)}.card-cover-placeholder svg{width:22px;height:22px}.card-content-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}.card-sub-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.quality-badge{background:color-mix(in srgb, var(--accent) 15%, transparent);color:var(--accent);font-size:10px;padding:2px 6px}.progress-details{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.rich-card{display:flex;gap:var(--space-3);align-items:stretch}.card-cover-col{width:70px;flex-shrink:0}.card-cover-wrapper{position:relative;width:100%;aspect-ratio:2/3;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center}.card-cover-img{width:100%;height:100%;object-fit:cover}.card-cover-placeholder{color:var(--muted)}.card-cover-placeholder svg{width:22px;height:22px}.card-content-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}.card-sub-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.quality-badge{background:color-mix(in srgb, var(--accent) 15%, transparent);color:var(--accent);font-size: var(--fs-xs);padding:2px 6px}.progress-details{display:flex;justify-content:space-between;align-items:center;gap:6px}
 .history-item-wrap{display:flex;align-items:center;gap:10px}
 .history-poster-thumb{width:36px;height:52px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .history-poster-img{width:100%;height:100%;object-fit:cover}
@@ -879,7 +903,7 @@ onMounted(async()=>{await loadConfigurations();if(section.value==='clients')load
 .completed-badge-group{display:flex;gap:5px;flex-wrap:wrap}
 .completed-badge-group .badge-source{background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);color:var(--text);border:1px solid rgba(255,255,255,0.15)}
 .completed-card-overlay .meta-year{color:#fff;font-weight:700}
-.completed-card-overlay .meta-date{color:rgba(255,255,255,0.75);font-size:11px}
+.completed-card-overlay .meta-date{color:rgba(255,255,255,0.75);font-size: var(--fs-xs)}
 .completed-title{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
 .missing-items-grid{margin-top:var(--space-4)}
 

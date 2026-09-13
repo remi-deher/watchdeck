@@ -5,7 +5,7 @@
     </template>
     <label class="check"><input v-model="form.seer_enabled" type="checkbox"> Activer Seer</label>
     <label>URL Seer<input v-model="form.seer_url" type="url" placeholder="http://seer:5055"></label>
-    <label>Cle API Seer<input v-model="form.seer_api_key" type="password" placeholder="Laisser vide pour conserver"><small>Disponible dans Overseerr/Jellyseerr sous Reglages -&gt; General -&gt; API Key.</small></label>
+    <SecretField v-model="form.seer_api_key" label="Clé API Seer" hint="Disponible dans Overseerr/Jellyseerr sous Réglages → Général → API Key." :configured="Boolean(secretsPresent.seer_api_key)" />
     <template v-if="form.seer_enabled">
       <label>Mode
         <select v-model="form.seer_mode">
@@ -30,7 +30,8 @@
 <script setup lang="ts">
 import { Radar } from '@lucide/vue';
 import { api } from '@/api';
-import { form, success, fail } from '@/settingsForm';
+import { form, secretsPresent, success, fail } from '@/settingsForm';
+import SecretField from '@/components/ui/SecretField.vue';
 import SettingsCard from '../SettingsCard.vue';
 import ConnectionTestAction from './ConnectionTestAction.vue';
 import { useConnectionTest } from '@/composables/useConnectionTest';

@@ -108,7 +108,7 @@ const activeIsOutsideDock = computed(
   border: 0;
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-decoration: none;
   cursor: pointer;
 }

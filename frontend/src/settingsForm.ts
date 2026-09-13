@@ -1,4 +1,5 @@
 import { computed, reactive, ref } from 'vue';
+import { humanizeError } from '@/utils/apiError';
 import { api } from '@/api';
 
 export const secretFields = [
@@ -199,7 +200,7 @@ export function success(text: string): void {
 }
 
 export function fail(err: any): void {
-  error.value = err?.message || String(err);
+  error.value = humanizeError(err);
 }
 
 export async function load(): Promise<void> {

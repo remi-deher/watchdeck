@@ -31,7 +31,7 @@
                 <span class="badge pending_approval" v-if="season.counts?.tba">TBA: {{ season.counts.tba }}</span>
                 <span class="badge" v-if="season.episode_count">{{ season.episode_count }} ep.</span>
                 <!-- Badges sous-titre saison -->
-                <span v-if="season.counts?.sub_fr_no_track" class="badge" style="background:var(--color-text-muted,#888);color:#fff" title="Épisodes sans aucune piste de sous-titre (possiblement hardcoded dans le flux vidéo)">ST hardcoded(?): {{ season.counts.sub_fr_no_track }}</span>
+                <span v-if="season.counts?.sub_fr_no_track" class="badge" style="background:var(--color-text-muted,#888);color:#fff" title="Épisodes sans aucune piste de sous-titre : les sous-titres sont probablement incrustés dans l’image.">Sous-titres incrustés : {{ season.counts.sub_fr_no_track }}</span>
                 <span v-if="season.counts?.sub_fr_absent" class="badge danger" title="Épisodes non-francophones sans sous-titre FR complet">Sub FR absent: {{ season.counts.sub_fr_absent }}</span>
                 <span v-if="season.counts?.sub_fr_not_default" class="badge pending" title="Épisodes avec sous-titre FR complet non activé par défaut">Sub FR non activé: {{ season.counts.sub_fr_not_default }}</span>
                 <span v-if="season.counts?.forced_fr_not_default" class="badge language-tag vf-secondary" title="Épisodes francophones avec sous-titre forcé FR (sign/trad) non activé par défaut">Forcé FR non activé: {{ season.counts.forced_fr_not_default }}</span>
@@ -132,7 +132,7 @@
                     <template v-if="!subtitleAlerts(ep.tracks, ep.subtitles).subFrNoTrack && !subtitleAlerts(ep.tracks, ep.subtitles).subFrAbsent && !subtitleAlerts(ep.tracks, ep.subtitles).subFrNotDefault && !subtitleAlerts(ep.tracks, ep.subtitles).forcedFrNotDefault">
                       <span class="badge available">Sous-titres OK</span>
                     </template>
-                    <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNoTrack" class="badge" style="background:var(--color-text-muted,#888);color:#fff" title="Aucune piste de sous-titre détectée — possiblement hardcoded dans le flux vidéo">ST possiblement hardcoded</span>
+                    <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNoTrack" class="badge" style="background:var(--color-text-muted,#888);color:#fff" title="Aucune piste de sous-titre détectée : les sous-titres sont probablement incrustés dans l’image.">Sous-titres incrustés</span>
                     <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrAbsent" class="badge danger" title="Pas de sous-titre français complet pour cet épisode non-francophone">Sous-titre FR absent</span>
                     <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNotDefault" class="badge pending" title="Sous-titre FR complet présent mais non activé par défaut">Sous-titre FR non activé</span>
                     <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).forcedFrNotDefault" class="badge language-tag vf-secondary" title="Sous-titre FR sign/traduction présent mais non activé par défaut">Forcé FR non activé</span>
@@ -172,7 +172,7 @@
         </div>
         <!-- Badges sous-titre film -->
         <div v-if="movieSubtitleAlerts" class="subtitle-alerts">
-          <span v-if="movieSubtitleAlerts.subFrNoTrack" class="badge subtitle-alert-badge" style="background:var(--color-text-muted,#888);color:#fff" title="Aucune piste de sous-titre détectée — possiblement hardcoded dans le flux vidéo">ST possiblement hardcoded</span>
+          <span v-if="movieSubtitleAlerts.subFrNoTrack" class="badge subtitle-alert-badge" style="background:var(--color-text-muted,#888);color:#fff" title="Aucune piste de sous-titre détectée : les sous-titres sont probablement incrustés dans l’image.">Sous-titres incrustés</span>
           <span v-if="movieSubtitleAlerts.subFrAbsent" class="badge danger subtitle-alert-badge" title="Ce film non-francophone n'a pas de sous-titre français complet">Sous-titre FR absent</span>
           <span v-if="movieSubtitleAlerts.subFrNotDefault" class="badge pending subtitle-alert-badge" title="Un sous-titre français complet est présent mais non activé par défaut">Sous-titre FR non activé</span>
           <span v-if="movieSubtitleAlerts.forcedFrNotDefault" class="badge language-tag vf-secondary subtitle-alert-badge" title="Un sous-titre FR sign/traduction est présent mais non activé par défaut">Sous-titre forcé FR non activé</span>

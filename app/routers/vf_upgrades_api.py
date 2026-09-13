@@ -1084,6 +1084,42 @@ async def dismiss_vf_upgrade(suggestion_id: int, db: AsyncSession = Depends(get_
     return {"success": True}
 
 
+@router.post("/vf-upgrades/{suggestion_id}/restore")
+async def restore_vf_upgrade(suggestion_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Annule un `dismiss` et remet la suggestion dans la file à traiter.
+
+    Sans cet inverse, « Ignorer » était irréversible depuis l'interface : la suggestion
+    disparaissait de la liste et seule une relance manuelle de la recherche pouvait la
+    faire revenir. C'est l'action la plus répétée de la page (une par ligne), et la plus
+    facile à déclencher par erreur -- elle a donc besoin d'un retour arrière.
+    """
+    suggestion = (
+        (await db.execute(select(VfUpgradeSuggestion).filter(VfUpgradeSuggestion.id == suggestion_id)))
+        .scalars()
+        .first()
+    )
+    if not suggestion:
+        raise HTTPException(404, "Suggestion introuvable")
+    if suggestion.status != "dismissed":
+        # Rien à annuler : la suggestion a déjà évolué (acceptée, relancée…). On ne
+        # l'écrase pas, au risque de défaire un travail postérieur.
+        raise HTTPException(409, "Cette suggestion n'est plus ignorée.")
+    suggestion.status = "pending"
+    await db.commit()
+    await publish(
+        "vf_upgrade.updated",
+        {
+            "id": suggestion.id,
+            "status": "pending",
+            "source_type": suggestion.source_type,
+            "source_id": suggestion.source_id,
+            "action": "restore",
+        },
+        admin_only=True,
+    )
+    return {"success": True}
+
+
 class VfUpgradeIgnoreRequest(BaseModel):
     source_type: str
     source_id: int

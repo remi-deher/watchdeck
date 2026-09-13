@@ -11,7 +11,7 @@
       :status="form.vf_upgrade_enabled ? 'active' : 'inactive'"
     >
       <SettingsRow label="Activer les améliorations VF">
-        <input v-model="form.vf_upgrade_enabled" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_enabled" title="Activer les améliorations VF" />
       </SettingsRow>
       <SettingsRow label="Médias VO" description="Médias dont aucune piste française n'a été détectée." :disabled="!form.vf_upgrade_enabled">
         <input v-model="form.vf_upgrade_include_vo" :disabled="!form.vf_upgrade_enabled" type="checkbox">
@@ -33,7 +33,7 @@
         </select>
       </SettingsRow>
       <SettingsRow label="Protéger les fichiers déjà en VF" description="Aucun fichier français existant ne sera remplacé automatiquement.">
-        <input v-model="form.vf_upgrade_protect_existing_vf" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_protect_existing_vf" title="Protéger les fichiers déjà en VF" />
       </SettingsRow>
     </SettingsSection>
 
@@ -48,25 +48,25 @@
         <input v-model.number="form.vf_upgrade_min_confidence" type="range" min="0" max="100" step="5">
       </SettingsRow>
       <SettingsRow label="Accepter une piste française secondaire">
-        <input v-model="form.vf_upgrade_accept_secondary" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_accept_secondary" title="Accepter une piste française secondaire" />
       </SettingsRow>
       <SettingsRow label="Exiger que la piste française soit par défaut après import">
-        <input v-model="form.vf_upgrade_require_default" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_require_default" title="Exiger que la piste française soit par défaut après import" />
       </SettingsRow>
     </SettingsSection>
 
     <SettingsSection title="Qualité et sécurité" subtitle="Empêche un gain de langue au prix d'une régression technique.">
       <SettingsRow label="Bloquer les rejets *arr">
-        <input v-model="form.vf_upgrade_block_arr_rejected" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_block_arr_rejected" title="Bloquer les rejets *arr" />
       </SettingsRow>
       <SettingsRow label="Conserver la résolution">
-        <input v-model="form.vf_upgrade_protect_resolution" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_protect_resolution" title="Conserver la résolution" />
       </SettingsRow>
       <SettingsRow label="Conserver HDR / Dolby Vision">
-        <input v-model="form.vf_upgrade_preserve_hdr" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_preserve_hdr" title="Conserver HDR / Dolby Vision" />
       </SettingsRow>
       <SettingsRow label="Ne pas baisser le score CF">
-        <input v-model="form.vf_upgrade_protect_custom_format_score" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_protect_custom_format_score" title="Ne pas baisser le score CF" />
       </SettingsRow>
       <SettingsRow label="Taille minimale" description="En Go. Vide = aucune limite.">
         <input v-model.number="form.vf_upgrade_min_size_gb" type="number" min="0" step="0.1" placeholder="Aucune">
@@ -75,7 +75,7 @@
         <input v-model.number="form.vf_upgrade_max_size_gb" type="number" min="0" step="0.1" placeholder="Aucune">
       </SettingsRow>
       <SettingsRow label="Autoriser une régression technique" description="Uniquement après confirmation manuelle.">
-        <input v-model="form.vf_upgrade_allow_technical_downgrade" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_allow_technical_downgrade" title="Autoriser une régression technique" />
       </SettingsRow>
     </SettingsSection>
 
@@ -106,10 +106,10 @@
         </select>
       </SettingsRow>
       <SettingsRow label="Prioriser les séries en cours de diffusion" description="Par défaut, l'efficacité prime (season pack d'une série terminée en tête, une seule recherche couvre toute la saison). Activé, les épisodes récents d'une série en cours passent devant.">
-        <input v-model="form.vf_upgrade_prioritize_continuing" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_prioritize_continuing" title="Prioriser les séries en cours de diffusion" />
       </SettingsRow>
       <SettingsRow label="Fallback épisodique" description="Complète le pack saison par des recherches par épisode pour capter les MULTI sans pack indexé. Pour une série terminée, sert de filet de sécurité ; pour une série en cours, cible les épisodes récemment diffusés.">
-        <input v-model="form.vf_upgrade_episodic_fallback" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_episodic_fallback" title="Fallback épisodique" />
       </SettingsRow>
       <SettingsRow label="Épisodes max par saison" description="Plafonne les recherches par épisode générées en fallback, pour qu'une série ne monopolise pas le budget de recherches." :disabled="!form.vf_upgrade_episodic_fallback">
         <input v-model.number="form.vf_upgrade_episodic_fallback_limit" :disabled="!form.vf_upgrade_episodic_fallback" type="number" min="0" max="50">
@@ -127,7 +127,7 @@
 
     <SettingsSection title="Validation et historique" subtitle="Confirme la VF après import et conserve une trace exploitable.">
       <SettingsRow label="Vérifier les pistes après import">
-        <input v-model="form.vf_upgrade_verify_after_import" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_verify_after_import" title="Vérifier les pistes après import" />
       </SettingsRow>
       <SettingsRow label="Délai de validation" description="En minutes." :disabled="!form.vf_upgrade_verify_after_import">
         <input v-model.number="form.vf_upgrade_verification_timeout_minutes" :disabled="!form.vf_upgrade_verify_after_import" type="number" min="15" max="1440">
@@ -139,7 +139,7 @@
         <input v-model="form.vf_upgrade_trigger_plex_scan" :disabled="!form.vf_upgrade_verify_after_import" type="checkbox">
       </SettingsRow>
       <SettingsRow label="Mettre en liste noire une release non validée">
-        <input v-model="form.vf_upgrade_blacklist_failed" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_blacklist_failed" title="Mettre en liste noire une release non validée" />
       </SettingsRow>
       <SettingsRow label="Conservation de l'historique" description="En jours.">
         <input v-model.number="form.vf_upgrade_history_retention_days" type="number" min="1" max="3650">
@@ -148,19 +148,19 @@
 
     <SettingsSection title="Notifications" subtitle="Étapes du cycle d'amélioration qui déclenchent un envoi.">
       <SettingsRow label="Release trouvée">
-        <input v-model="form.vf_upgrade_notify_found" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_notify_found" title="Release trouvée" />
       </SettingsRow>
       <SettingsRow label="Acceptée par *arr">
-        <input v-model="form.vf_upgrade_notify_accepted" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_notify_accepted" title="Acceptée par *arr" />
       </SettingsRow>
       <SettingsRow label="Téléchargement démarré">
-        <input v-model="form.vf_upgrade_notify_downloading" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_notify_downloading" title="Téléchargement démarré" />
       </SettingsRow>
       <SettingsRow label="Échec">
-        <input v-model="form.vf_upgrade_notify_failed" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_notify_failed" title="Échec" />
       </SettingsRow>
       <SettingsRow label="VF validée">
-        <input v-model="form.vf_upgrade_notify_verified" type="checkbox">
+        <ToggleSwitch v-model="form.vf_upgrade_notify_verified" title="VF validée" />
       </SettingsRow>
     </SettingsSection>
   </div>
@@ -168,6 +168,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { form } from '@/settingsForm';
 import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';

@@ -116,6 +116,21 @@
         />
       </div>
     </template>
+
+    <!-- Sans cette branche, un identifiant qui ne resout plus (favori, lien partage,
+         fiche disparue apres un reimport de bibliotheque) laissait la page
+         entierement vide : l'erreur etait bien stockee, mais son affichage vivait a
+         l'interieur du bloc `detail`, qui ne se montait jamais. -->
+    <UiEmptyState
+      v-else
+      :title="error ? 'Cette fiche n’a pas pu être chargée' : 'Cette fiche est introuvable'"
+      :message="error || 'Le média a peut-être été retiré de la bibliothèque, ou le lien a vieilli.'"
+    >
+      <template #action>
+        <UiButton variant="primary" :loading="loading" @click="load()">Réessayer</UiButton>
+        <UiButton @click="goBack">Retour</UiButton>
+      </template>
+    </UiEmptyState>
   </div>
   <RequestOptionsModal
     :open="showRequestOptions"
@@ -161,6 +176,7 @@
 </template>
 
 <script setup lang="ts">
+import { humanizeError } from '@/utils/apiError';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { LoaderCircle } from "@lucide/vue";
 import { useRoute, useRouter } from "vue-router";
@@ -179,6 +195,8 @@ import MediaMusicCatalog from "@/components/media/MediaMusicCatalog.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import ReasonPickerModal from "@/components/requests/ReasonPickerModal.vue";
 import AppSubnav from "@/components/ui/AppSubnav.vue";
+import UiButton from "@/components/ui/UiButton.vue";
+import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { useConfirm } from "@/composables/useConfirm";
 import { canModerateSession, loadSession } from "@/composables/useSession";
 import { useSeasonEpisodes } from "@/composables/useSeasonEpisodes";
@@ -451,7 +469,7 @@ async function setAutoImport(row: any, value: boolean | null): Promise<void> {
     });
     row.auto_import_reconciliation = value;
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }

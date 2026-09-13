@@ -4,8 +4,8 @@
       <ToggleSwitch v-model="form.tautulli_enabled" :label="form.tautulli_enabled ? 'Activé' : 'Désactivé'"/>
     </template>
     <div class="settings-grid two">
-      <label class="span-two">URL Tautulli<input v-model.trim="form.tautulli_url" type="url" placeholder="http://tautulli:8181"><small>Adresse de ton instance Tautulli, ex. http://tautulli:8181 en Docker.</small></label>
-      <label class="span-two">Clé API<input v-model="form.tautulli_api_key" type="password" :placeholder="secretsPresent.tautulli_api_key?'Clé configurée':'Clé API Tautulli'"><small>Disponible dans Tautulli sous Réglages -&gt; Web Interface -&gt; API.</small></label>
+      <label class="span-two">URL Tautulli<input v-model.trim="form.tautulli_url" type="url" placeholder="http://tautulli:8181"><small>Adresse de votre instance Tautulli, ex. http://tautulli:8181 en Docker.</small></label>
+      <div class="span-two"><SecretField v-model="form.tautulli_api_key" label="Clé API" hint="Disponible dans Tautulli sous Réglages → Web Interface → API." :configured="Boolean(secretsPresent.tautulli_api_key)" /></div>
     </div>
     <p class="connection-result">
       <strong>Importer</strong> récupère les sessions passées depuis Tautulli (jusqu'à la limite choisie).
@@ -28,6 +28,7 @@ import { ref } from 'vue';
 import { History, PlugZap, RefreshCw } from '@lucide/vue';
 import { api } from '@/api';
 import { form, save, secretsPresent } from '@/settingsForm';
+import SecretField from '@/components/ui/SecretField.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { useConfirm } from '@/composables/useConfirm';

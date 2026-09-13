@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue';
+import { humanizeError } from '@/utils/apiError';
 
 export interface UseAsyncActionOptions {
   askConfirm?: ((options: any) => Promise<boolean>) | null;
@@ -42,7 +43,7 @@ export function useAsyncAction({
       if (reload && onDone) await onDone();
       return { ok: true, result };
     } catch (e: any) {
-      errorRef.value = e?.message || String(e);
+      errorRef.value = humanizeError(e);
       return { ok: false };
     } finally {
       busyRef.value = false;
