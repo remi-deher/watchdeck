@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.27.2 — 2026-09-13
+
+
+### 🐛 Corrections
+
+- supprimer le flou des barres fixes et le zoom à la saisie ([c4d4e89](https://github.com/remi-deher/watchdeck/commit/c4d4e8982990f484c2de75093b611d24c84f034f))
 ## 1.27.1 — 2026-09-13
 
 
 ### 🐛 Corrections
 
 - effacer la rangée de sections avec la barre du haut ([0f0be6b](https://github.com/remi-deher/watchdeck/commit/0f0be6be1c9ff1b4fdee93d833d0840f295f2494))
+
+### 🔧 Maintenance
+
+- v1.27.1 (#289) ([492b6b3](https://github.com/remi-deher/watchdeck/commit/492b6b39ef19fb0efd3fdd5c4eb4c49b69c993ff))
 ## 1.27.0 — 2026-09-13
 
 
