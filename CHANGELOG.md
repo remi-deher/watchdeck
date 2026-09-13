@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.27.1 — 2026-09-13
+
+
+### 🐛 Corrections
+
+- effacer la rangée de sections avec la barre du haut ([0f0be6b](https://github.com/remi-deher/watchdeck/commit/0f0be6be1c9ff1b4fdee93d833d0840f295f2494))
 ## 1.27.0 — 2026-09-13
 
 
@@ -10,6 +16,10 @@
 ### ✨ Nouveautés
 
 - corriger les frictions relevées par l'audit UI/UX ([9e79ad1](https://github.com/remi-deher/watchdeck/commit/9e79ad155cfd56fd002e8f7736a89b489e59f052))
+
+### 🔧 Maintenance
+
+- v1.27.0 (#285) ([a3442ce](https://github.com/remi-deher/watchdeck/commit/a3442ce43a404fd79a010a75cf97dd09ecd88010))
 ## 1.26.0 — 2026-09-10
 
 
