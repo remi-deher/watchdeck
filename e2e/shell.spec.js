@@ -653,35 +653,64 @@ test("la vue d'ensemble des parametres ouvre bien une section", async ({ page })
   expect(new URL(page.url()).pathname).toMatch(/^\/settings\/.+/);
 });
 
-test("le niveau 2 reste accessible pendant le defilement", async ({ page }) => {
+test("le niveau 2 s'efface et revient avec la barre du haut", async ({ page }) => {
+  /* La rangee de sections restait collee en haut pendant que la barre du haut, elle,
+     s'effacait : sur telephone elle occupait 54px en permanence, seule, au-dessus du
+     contenu qu'on est en train de parcourir. Les deux surfaces flottent l'une sous
+     l'autre et doivent donc partir et revenir d'un seul mouvement.
+     Ce test verifie les deux sens : descendre les efface, remonter les ramene. */
   await page.route("**/api/**", async (route) => {
     const p = new URL(route.request().url()).pathname;
     if (p === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
     return route.fulfill({ json: {} });
   });
   // Fenetre courte : le contenu deborde a coup sur, donc la page defile reellement.
-  // Sans defilement, un `position: sticky` ne se distingue pas d'un element statique
-  // et le test passerait sans rien prouver. Largeur sous le seuil `expanded` : c'est
-  // la que les sections vivent dans la page, donc la qu'il faut verifier qu'elles
-  // restent visibles au defilement.
+  // Largeur sous le seuil `expanded` : c'est la que les sections vivent dans la page.
   await page.setViewportSize({ width: 1100, height: 480 });
   await page.goto("/downloads");
   const sticky = page.locator(".app-page__sticky");
+  const topbar = page.locator(".app-topbar");
   await expect(sticky).toBeVisible();
   await expect(sticky.locator(".app-subnav")).toBeVisible();
 
-  const scrollable = await page.evaluate(() => {
-    window.scrollTo(0, 1200);
-    return document.documentElement.scrollHeight > window.innerHeight;
+  /* Les endpoints sont tous bouchonnes a vide : la page ne defile que d'une centaine de
+     pixels, sous le seuil a partir duquel le masquage se declenche. On lui donne de la
+     hauteur a parcourir -- c'est le geste de defilement qu'on teste, pas la capacite de
+     `/downloads` a remplir un ecran. */
+  await page.evaluate(() => {
+    const spacer = document.createElement("div");
+    spacer.style.height = "1600px";
+    document.querySelector("#main-content")?.append(spacer);
   });
-  expect(scrollable, "la page doit defiler pour que le test ait un sens").toBe(true);
-  await page.waitForTimeout(500);
+  const maxScroll = await page.evaluate(
+    () => document.documentElement.scrollHeight - window.innerHeight,
+  );
+  expect(maxScroll, "la page doit defiler pour que le test ait un sens").toBeGreaterThan(400);
+
+  // Descente progressive : `scrollTo` d'un seul bond au-dela du bas de page ne produit
+  // qu'un evenement borne, et le sens du geste ne serait pas lu.
+  for (const y of [120, 240, 360]) {
+    await page.evaluate((value) => window.scrollTo(0, value), y);
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(400);
+  await expect(sticky).toHaveClass(/is-hidden/);
+  await expect(topbar).toHaveClass(/is-hidden/);
+
+  // Remontee : les deux reviennent, et la rangee reprend exactement son offset collant.
+  for (const y of [300, 240, 180]) {
+    await page.evaluate((value) => window.scrollTo(0, value), y);
+    await page.waitForTimeout(150);
+  }
+  await page.waitForTimeout(400);
+  await expect(sticky).not.toHaveClass(/is-hidden/);
+  await expect(topbar).not.toHaveClass(/is-hidden/);
+  await expect(sticky.locator(".app-subnav")).toBeVisible();
+  await expect(sticky).toHaveClass(/is-stuck/);
 
   const box = await sticky.boundingBox();
   const expectedTop = await sticky.evaluate((node) => parseFloat(window.getComputedStyle(node).top));
   expect(Math.round(box.y)).toBeCloseTo(Math.round(expectedTop), 0);
-  await expect(sticky.locator(".app-subnav")).toBeVisible();
-  await expect(sticky).toHaveClass(/is-stuck/);
 });
 
 test("la palette trouve un film depuis n'importe quelle page", async ({ page }) => {

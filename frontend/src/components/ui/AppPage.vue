@@ -9,10 +9,14 @@
     <!-- Le temoin doit rester HORS du conteneur collant : a l'interieur, il colle avec
          lui, ne quitte jamais le champ visible, et l'etat "decolle" n'arrive jamais. -->
     <span ref="stickySentinel" class="app-page__sentinel" aria-hidden="true" />
+    <!-- `is-hidden` suit exactement la barre du haut : les deux surfaces flottent l'une
+         sous l'autre, et voir la rangee de sections rester seule en haut de l'ecran
+         apres la disparition de la barre donnait une bande orpheline qui mangeait 54px
+         de lecture sur telephone. -->
     <div
       v-if="showStickyRow"
       class="app-page__sticky"
-      :class="{ 'is-stuck': isStuck }"
+      :class="{ 'is-stuck': isStuck, 'is-hidden': chromeHidden }"
     >
       <AppSubnav
         v-if="showSections && resolvedSections.length > 1"
@@ -64,6 +68,7 @@ import { providePageSearch, type PageSearch, type PageSearchKind } from '@/compo
 import { usePageSections } from '@/composables/usePageSections';
 import { providePageTitle } from '@/composables/usePageTitle';
 import { useShellMode } from '@/composables/useShellMode';
+import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
 import UiFeedback from './UiFeedback.vue';
 
 const props = withDefaults(
@@ -184,6 +189,8 @@ const syncToolsAnchor = () => { toolsAnchor.value = Boolean(document.getElementB
    recouvrir. Une rangee un peu vide se remarque moins qu'une barre qui bouge. */
 const toolsInBar = computed(() => false);
 const { sections: derivedSections, activeKey, destinationLabel } = usePageSections();
+/* Meme source que la barre du haut : une seule lecture du defilement pour les deux. */
+const { hidden: chromeHidden } = useChromeAutoHide();
 const showSections = computed(() => mode.value !== 'expanded');
 const showStickyRow = computed(
   () => (showSections.value && resolvedSections.value.length > 1) || (hasTools.value && !toolsInBar.value)
@@ -248,6 +255,18 @@ onUnmounted(() => stickyObserver?.disconnect());
 /* L'ombre n'apparait qu'une fois decolle : au repos, elle soulignerait une barre qui
    ne flotte pas encore au-dessus de quoi que ce soit. */
 .app-page__sticky.is-stuck { box-shadow: 0 10px 24px -18px rgba(0, 0, 0, .9); }
+
+/* Meme geste que la barre du haut, meme duree : les deux surfaces doivent partir et
+   revenir d'un seul mouvement, pas l'une apres l'autre. `:focus-within` protege le
+   parcours au clavier -- une rangee d'onglets ne doit jamais s'effacer sous le focus. */
+.app-page__sticky {
+  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+.app-page__sticky.is-hidden:not(:focus-within) {
+  opacity: 0;
+  transform: translateY(calc(-100% - var(--app-shell-offset-top, 54px)));
+  pointer-events: none;
+}
 
 .app-page__tools {
   display: flex;
