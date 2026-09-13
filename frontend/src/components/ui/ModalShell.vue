@@ -1,6 +1,11 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="drawer-backdrop" @click.self="requestClose">
+    <!-- Le voile se fond et le panneau monte : sans transition, la modale se substituait
+         a l'ecran d'un seul coup et l'oeil devait la relire entierement pour savoir ce
+         qui venait d'arriver. Les regles vivent dans `_motion.scss`, avec le reste du
+         mouvement de l'application. -->
+    <Transition name="modal-fade">
+      <div v-if="open" class="drawer-backdrop" @click.self="requestClose">
       <aside
         ref="panelRef"
         tabindex="-1"
@@ -22,8 +27,9 @@
         <UiFeedback v-if="error" type="error" :message="error" />
         <slot />
         <div v-if="$slots.actions" class="actions"><slot name="actions" /></div>
-      </aside>
-    </div>
+        </aside>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 

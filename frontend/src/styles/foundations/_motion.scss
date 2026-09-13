@@ -79,3 +79,110 @@
     animation: none;
   }
 }
+
+/* ─────────────────────────── Retour d'appui ───────────────────────────
+ *
+ * L'application couvrait deja le survol partout, mais un doigt ne survole rien : sur
+ * telephone, appuyer ne produisait aucun retour entre le contact et l'arrivee de
+ * l'ecran suivant. C'est ce silence-la qui donne l'impression d'une interface qui
+ * accroche, bien plus que la duree des transitions.
+ *
+ * Un enfoncement de 3% suffit -- assez pour etre ressenti, trop court pour etre
+ * attendu. La liste est nominative plutot que `button, a` : le vocabulaire interactif
+ * de l'application est stable, et une regle trop large finit par mettre a l'echelle
+ * des conteneurs dont d'autres elements dependent pour se positionner.
+ */
+%pressable {
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.ui-button,
+.poster-action,
+.app-nav-link,
+.app-subnav__item,
+.filter-badge,
+.quick-chip,
+.type-chip,
+.kpi-card,
+.hero-btn,
+.icon-button,
+.text-button,
+.app-dock__link {
+  @extend %pressable;
+}
+
+.ui-button:active,
+.poster-action:active,
+.app-nav-link:active,
+.app-subnav__item:active,
+.filter-badge:active,
+.quick-chip:active,
+.type-chip:active,
+.kpi-card:active,
+.hero-btn:active,
+.icon-button:active,
+.text-button:active,
+.app-dock__link:active {
+  transform: scale(0.97);
+  /* Plus vif a l'enfoncement qu'au relachement : l'appui doit repondre tout de suite,
+     le retour peut s'etaler. */
+  transition-duration: 80ms;
+}
+
+/* Les cartes media portent deja leur propre `transform` au survol : on ne l'ecrase pas,
+   on lui ajoute seulement l'etat enfonce. */
+@media (hover: none) {
+  .poster-card:active { transform: scale(0.985); }
+}
+
+/* ───────────────────────── Entree des surfaces modales ─────────────────────────
+ *
+ * Modales et tiroirs apparaissaient d'un seul coup, sans transition : sur un ecran
+ * sombre, l'oeil ne sait pas d'ou vient le panneau et doit le relire entierement.
+ * Le voile se fond, le panneau monte de quelques pixels en prenant sa taille.
+ */
+.modal-fade-enter-active .modal-panel,
+.modal-fade-leave-active .modal-panel {
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-emphasized),
+    transform var(--motion-duration-base) var(--motion-ease-emphasized);
+}
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to { opacity: 0; }
+.modal-fade-enter-from .modal-panel,
+.modal-fade-leave-to .modal-panel {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+}
+
+/* En bas d'ecran la feuille vient du bord, pas du centre : c'est de la qu'on l'a
+   appelee, et c'est la que le pouce la refermera. */
+@media (max-width: 767.98px) {
+  .modal-fade-enter-from .modal-panel,
+  .modal-fade-leave-to .modal-panel {
+    transform: translateY(16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-button:active,
+  .poster-action:active,
+  .app-nav-link:active,
+  .app-subnav__item:active,
+  .filter-badge:active,
+  .quick-chip:active,
+  .type-chip:active,
+  .kpi-card:active,
+  .hero-btn:active,
+  .icon-button:active,
+  .text-button:active,
+  .app-dock__link:active,
+  .poster-card:active { transform: none; }
+
+  .modal-fade-enter-from .modal-panel,
+  .modal-fade-leave-to .modal-panel { transform: none; }
+}

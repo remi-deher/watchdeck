@@ -222,14 +222,13 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
   padding: 3px;
   border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: var(--radius-pill);
-  /* A 90% d'opacite et 18px de flou, les affiches qui defilaient dessous restaient
-     lisibles au travers et bavaient sur le champ : la barre paraissait floue, et le
-     texte du champ avec elle. On la rend franchement opaque -- le flou ne sert plus qu'a
-     adoucir le bord de ce qui passe derriere, pas a laisser voir le contenu. */
-  background: color-mix(in srgb, var(--surface-sunken) 97%, transparent);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, .22);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* Plus aucun `backdrop-filter` ici.
+     A 97% d'opacite il n'apportait deja quasiment rien, mais il coutait cher : Safari
+     iOS compose l'element dans sa propre couche et le halo du flou deborde du bord
+     arrondi, ce qui posait un voile sur le haut du champ de recherche. Un fond plein
+     donne le meme resultat visuel, net, et sans couche compositee. */
+  background: var(--surface-sunken);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .28);
   /* Pas de transition sur `left` : la valeur vient d'une variable qui change au
      repliement du rail, et l'animer figeait la position a l'ancienne valeur. Le rail
      lui-meme n'anime pas sa largeur, la barre n'a donc rien a rattraper. */
@@ -412,9 +411,9 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-sunken) 96%, transparent);
+  /* Meme raison que la barre elle-meme : opaque plutot que floute. */
+  background: var(--surface-sunken);
   box-shadow: 0 14px 36px rgba(0, 0, 0, .38);
-  backdrop-filter: blur(18px);
 }
 .app-topbar__recent small { padding: 5px 8px; color: var(--muted); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; }
 .app-topbar__recent button { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }

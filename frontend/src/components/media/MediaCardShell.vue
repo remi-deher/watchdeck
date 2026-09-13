@@ -189,7 +189,10 @@ const revealed = ref(false);
   box-shadow: 0 5px 16px rgba(0, 0, 0, .38);
   opacity: 0;
   pointer-events: none;
-  transition: opacity .18s ease;
+  /* `transform` figure ici et pas seulement dans `_motion.scss` : ce bloc scope
+     redeclare la propriete `transition` en entier et effacait la regle globale, si bien
+     que l'enfoncement a l'appui sautait au lieu de s'animer. */
+  transition: opacity .18s ease, transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .poster-wrap:hover :deep(.poster-action),
 .poster-wrap:focus-within :deep(.poster-action),
