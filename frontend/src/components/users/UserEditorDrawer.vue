@@ -1,6 +1,33 @@
 ﻿<template>
   <DrawerShell wide eyebrow="Administration" :title="creating?'Nouvel utilisateur':displayName(editing)" :error="editorError" @close="$emit('close')">
-    <section v-if="!creating" class="user-drawer-summary"><div><span :class="['user-state-dot',{active:editing.enabled}]"></span><div><strong>{{ editing.enabled?'Compte actif':'Compte désactivé' }}</strong><small>{{ editing.diagnostic?.source_label||editing.source||'Source inconnue' }}</small></div></div><span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ editing.role }}</span><span class="badge" :class="editing.can_login?'available':'failed'">{{ editing.can_login?'Connexion autorisée':'Connexion bloquée' }}</span></section>
+    <!-- L'etat du compte etait affiche ici en badges inertes, et modifiable ailleurs
+         dans le formulaire du Profil : deux representations du meme fait, dont une
+         seule agissait. Les deux interrupteurs prennent effet immediatement, comme
+         celui de la liste -- un compte qu'on coupe ne se met pas en brouillon. -->
+    <section v-if="!creating" class="user-drawer-summary">
+      <label class="user-state-toggle" :class="{ on: editing.enabled }">
+        <input type="checkbox" :checked="editing.enabled" :disabled="busy" @change="$emit('set-enabled', !editing.enabled)">
+        <span class="user-state-dot" :class="{ active: editing.enabled }"></span>
+        <span>
+          <strong>{{ editing.enabled ? 'Compte actif' : 'Compte désactivé' }}</strong>
+          <small>{{ editing.enabled ? 'Ses demandes sont traitées' : 'Ses demandes sont ignorées' }}</small>
+        </span>
+      </label>
+
+      <label class="user-state-toggle" :class="{ on: editing.can_login }">
+        <input type="checkbox" :checked="editing.can_login" :disabled="busy" @change="$emit('set-can-login', !editing.can_login)">
+        <span class="user-state-dot" :class="{ active: editing.can_login }"></span>
+        <span>
+          <strong>{{ editing.can_login ? 'Connexion autorisée' : 'Connexion bloquée' }}</strong>
+          <small>{{ editing.can_login ? 'Peut ouvrir une session' : 'Ne peut pas se connecter' }}</small>
+        </span>
+      </label>
+
+      <span class="user-summary-meta">
+        <span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(editing.role) }}</span>
+        <small>{{ sourceLabel(resolveSource(editing)) }}</small>
+      </span>
+    </section>
     <AppSubnav variant="tabs" :active="editorTab" @update:active="editorTab = $event" :items="editorTabItems" aria-label="Sections de l’utilisateur" />
 
     <section v-if="editorTab==='profile'" class="drawer-section form-section">
@@ -12,9 +39,11 @@
         <label>Email Plex<input v-model="form.plex_email" type="email"></label>
         <label>Email de notification<input v-model="form.notification_email"></label>
         <label>Role<select v-model="form.role"><option value="user">Utilisateur</option><option value="moderator">Modérateur</option><option value="admin">Administrateur</option></select></label>
-        <label class="check"><input v-model="form.enabled" type="checkbox"> Traiter les demandes</label>
-        <label class="check"><input v-model="form.can_login" type="checkbox"> Autoriser la connexion</label>
-        <label class="check"><input v-model="form.auto_approve" type="checkbox"> Auto-approuver</label>
+        <!-- « Traiter les demandes » et « Autoriser la connexion » vivent desormais en
+             haut de la fiche, avec effet immediat : les garder ici en aurait fait des
+             champs de formulaire concurrents, portant deja un autre nom pour le meme
+             etat (« Compte actif »). -->
+        <label class="check"><input v-model="form.auto_approve" type="checkbox"> Auto-approuver ses demandes</label>
       </div>
       <label v-if="creating && isLocalAccount">Mot de passe initial<input v-model="initialPassword" type="password" minlength="8" autocomplete="new-password"></label>
       <div class="actions">
@@ -85,20 +114,93 @@
       </div>
     </section>
 
-    <section v-else-if="editorTab==='seer'" class="drawer-section">
-      <div class="panel-head"><h3>Liaison Seer</h3><span class="badge">{{ editing.seer_user_id?`Compte #${editing.seer_user_id}`:'Non lie' }}</span></div>
-      <div class="actions">
-        <button class="secondary" @click="$emit('user-action','seer-automatch')"><Link/>Association automatique</button>
-        <button v-if="editing.seer_user_id" class="secondary" @click="$emit('user-action','seer-complete')"><RefreshCw/>Completer les donnees</button>
-        <button v-if="editing.seer_user_id" class="secondary danger" @click="$emit('unlink-seer')"><Unlink/>Dissocier</button>
-      </div>
-      <label>Fusionner cet utilisateur dans
+    <!-- Un seul endroit pour tout ce qui rattache ce compte a un autre : la liaison
+         Seer vivait sous un onglet « Seer », la fusion aussi -- alors que reunir deux
+         comptes Watchdeck n'a rien a voir avec Seer. -->
+    <section v-else-if="editorTab==='linked'" class="drawer-section linked-accounts">
+      <dl class="user-identity-facts">
+        <div><dt>Origine du compte</dt><dd>{{ sourceLabel(resolveSource(editing)) }}</dd></div>
+        <div v-if="editing.display_name"><dt>Pseudo d’origine</dt><dd>{{ editing.display_name }}</dd></div>
+        <div><dt>Identifiant technique</dt><dd><code>{{ editing.plex_user_id || '—' }}</code></dd></div>
+      </dl>
+
+      <!-- ---------- Compte Seer ---------- -->
+      <template v-if="seerEnabled">
+        <div class="panel-head"><h3>Compte Seer</h3><span class="badge">{{ seerLinkLabel(editing) }}</span></div>
+        <p class="drawer-hint">{{ seerModeHint }}</p>
+
+        <template v-if="editing.seer_user_id">
+          <div class="actions">
+            <button class="secondary" @click="$emit('user-action','seer-complete')"><RefreshCw/>Compléter depuis Seer</button>
+            <button class="secondary danger" @click="$emit('unlink-seer')"><Unlink/>Dissocier</button>
+          </div>
+        </template>
+        <template v-else>
+          <!-- Le choix se fait par nom. L'API attend un identifiant numerique : le faire
+               saisir a la main etait le seul recours offert jusqu'ici. -->
+          <label>Compte Seer correspondant
+            <select v-model="seerTarget" :disabled="!seerCandidates.length">
+              <option value="">{{ seerCandidates.length ? 'Choisir un compte Seer…' : 'Aucun compte Seer disponible' }}</option>
+              <option v-for="candidate in seerCandidates" :key="candidate.id" :value="candidate.id" :disabled="candidate.linked">
+                {{ seerCandidateLabel(candidate) }}
+              </option>
+            </select>
+          </label>
+          <div class="actions">
+            <button class="secondary" :disabled="!seerTarget" @click="$emit('link-seer', seerTarget)"><Link/>Lier ce compte Seer</button>
+            <button class="secondary" @click="$emit('user-action','seer-automatch')"><RefreshCw/>Chercher automatiquement</button>
+          </div>
+        </template>
+      </template>
+
+      <!-- ---------- Fusion ---------- -->
+      <div class="panel-head danger-head"><h3>Fusionner avec un autre compte</h3></div>
+      <p class="drawer-hint">
+        Une même personne existe parfois en plusieurs comptes — un compte Plex et un compte
+        Seer, ou une entrée créée par le flux RSS. La fusion réunit demandes, préférences et
+        historique sur un seul compte&nbsp;; <strong>l’autre est supprimé définitivement</strong>.
+      </p>
+
+      <label>Autre compte
         <select v-model="mergeTarget">
-          <option value="">Selectionner...</option>
-          <option v-for="user in users.filter(x=>x.id!==editing.id)" :key="user.id" :value="user.id">{{ displayName(user) }}</option>
+          <option value="">Choisir un compte…</option>
+          <option v-for="user in mergeCandidates" :key="user.id" :value="user.id">{{ mergeCandidateLabel(user) }}</option>
         </select>
       </label>
-      <button class="secondary danger" :disabled="!mergeTarget" @click="$emit('merge',mergeTarget)"><Merge/>Fusionner</button>
+
+      <!-- On peut aussi designer l'autre compte par son identifiant Plex : c'est ainsi
+           qu'on retrouve l'entree creee par le flux RSS pour une personne deja connue. -->
+      <label>ou par identifiant Plex
+        <input v-model="mergeByPlexId" placeholder="ex. 86dd231816e161be" spellcheck="false">
+      </label>
+      <p v-if="mergeByPlexId && !plexIdMatch" class="drawer-hint warn">Aucun compte ne porte cet identifiant.</p>
+      <p v-else-if="plexIdMatch" class="drawer-hint">Correspond à <strong>{{ displayName(plexIdMatch) }}</strong>.</p>
+
+      <!-- Les deux sens sont montres cote a cote, avec leur consequence : « Fusionner cet
+           utilisateur dans X » ne disait pas lequel des deux disparaissait. -->
+      <fieldset v-if="resolvedMergeTarget" class="merge-direction">
+        <legend>Quel compte conserver&nbsp;?</legend>
+        <label class="merge-choice" :class="{ selected: mergeKeep === 'this' }">
+          <input v-model="mergeKeep" type="radio" value="this">
+          <span>
+            <strong>Conserver {{ displayName(editing) }}</strong>
+            <small>Les demandes de {{ displayName(resolvedMergeTarget) }} sont rattachées ici, puis ce compte-là est supprimé.</small>
+          </span>
+        </label>
+        <label class="merge-choice" :class="{ selected: mergeKeep === 'other' }">
+          <input v-model="mergeKeep" type="radio" value="other">
+          <span>
+            <strong>Conserver {{ displayName(resolvedMergeTarget) }}</strong>
+            <small>Les demandes de {{ displayName(editing) }} y sont rattachées, puis <em>ce</em> compte est supprimé et la fiche se ferme.</small>
+          </span>
+        </label>
+      </fieldset>
+
+      <button
+        class="secondary danger"
+        :disabled="!resolvedMergeTarget || !mergeKeep"
+        @click="$emit('merge', { otherId: resolvedMergeTarget.id, keep: mergeKeep })"
+      ><Merge/>Fusionner les deux comptes</button>
     </section>
 
     <section v-else-if="editorTab==='activity'" class="drawer-section">
@@ -123,6 +225,7 @@
 import MetricCard from '@/components/ui/MetricCard.vue';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
+import { accountName, resolveSource, roleLabel, seerLinkLabel, sourceLabel } from '@/utils/userLabels';
 import { Download, KeyRound, Languages, Link, Mail, MailCheck, Merge, RefreshCw, Save, Send, Trash2, Unlink } from '@lucide/vue';
 import DrawerShell from '@/components/DrawerShell.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
@@ -137,12 +240,18 @@ const props = withDefaults(
     users?: any[];
     busy?: boolean;
     editorError?: string;
+    seerEnabled?: boolean;
+    seerMode?: string | null;
+    seerCandidates?: any[];
   }>(),
   {
     creating: false,
     users: () => [],
     busy: false,
     editorError: '',
+    seerEnabled: false,
+    seerMode: null,
+    seerCandidates: () => [],
   }
 );
 const emit = defineEmits<{
@@ -152,14 +261,46 @@ const emit = defineEmits<{
   (e: 'test-email'): void;
   (e: 'user-action', action: string): void;
   (e: 'unlink-seer'): void;
-  (e: 'merge', targetId: string): void;
+  (e: 'link-seer', seerUserId: number | string): void;
+  (e: 'set-enabled', value: boolean): void;
+  (e: 'set-can-login', value: boolean): void;
+  (e: 'merge', payload: { otherId: number | string; keep: string }): void;
   (e: 'set-password', password: string): void;
 }>();
 
-const editorTabs = ['profile', 'notifications', 'seer', 'activity', 'diagnostic'];
-const editorTabItems = computed(() => editorTabs.map((key) => ({ key, label: editorLabel(key) })));
+/* L'onglet Seer disparait quand Seer est desactive : il n'offrait que des actions
+   vouees a l'echec. */
+/* « Comptes liés » reunit tout ce qui rattache ce compte a un autre. Il reste visible
+   meme Seer desactive : la fusion, elle, n'a jamais dependu de Seer. */
+const editorTabs = computed(() => ['profile', 'notifications', 'linked', 'activity', 'diagnostic']);
+const editorTabItems = computed(() => editorTabs.value.map((key: string) => ({ key, label: editorLabel(key) })));
 const editorTab = ref('profile');
 const mergeTarget = ref('');
+const mergeByPlexId = ref('');
+const mergeKeep = ref('');
+const seerTarget = ref('');
+
+/* Le compte « autre » peut etre designe de deux manieres : par son nom, ou par son
+   identifiant Plex -- c'est ainsi qu'on retrouve l'entree creee par le flux RSS. */
+const mergeCandidates = computed(() => props.users.filter((user: any) => user.id !== props.editing.id));
+const plexIdMatch = computed(() => {
+  const needle = mergeByPlexId.value.trim().toLowerCase();
+  if (!needle) return null;
+  return mergeCandidates.value.find((user: any) => (user.plex_user_id || '').toLowerCase() === needle) || null;
+});
+const resolvedMergeTarget = computed(
+  () => plexIdMatch.value || mergeCandidates.value.find((user: any) => String(user.id) === String(mergeTarget.value)) || null
+);
+
+function mergeCandidateLabel(user: any): string {
+  const origin = sourceLabel(resolveSource(user));
+  return `${displayName(user)} — ${origin}`;
+}
+function seerCandidateLabel(candidate: any): string {
+  const name = candidate.display_name || candidate.plex_username || candidate.email;
+  if (candidate.linked) return `${name} — déjà rattaché`;
+  return candidate.email && candidate.email !== name ? `${name} (${candidate.email})` : name;
+}
 const isLocalAccount = ref(false);
 const initialPassword = ref('');
 const newPassword = ref('');
@@ -178,8 +319,20 @@ function submitPassword(): void {
   newPassword.value = '';
 }
 
-function displayName(user: any): string { return user?.custom_name || user?.display_name || user?.plex_user_id || ''; }
-function editorLabel(value: string): string { return ({ profile: 'Profil', notifications: 'Notifications', seer: 'Seer', activity: 'Activite', diagnostic: 'Diagnostic' } as Record<string, string>)[value]; }
+const displayName = (user: any) => accountName(user || {});
+/* Meme vocabulaire que les Reglages : en mode observateur, Seer est lu, pas pilote. */
+const seerModeHint = computed(() => props.seerMode === 'actor'
+  ? 'Seer traite aussi les demandes de ce compte.'
+  : 'Seer est consulté en lecture seule : ce compte n’y est jamais modifié.');
+function editorLabel(value: string): string {
+  return ({
+    profile: 'Profil',
+    notifications: 'Notifications',
+    linked: 'Comptes liés',
+    activity: 'Activité',
+    diagnostic: 'Diagnostic',
+  } as Record<string, string>)[value];
+}
 function notificationLabel(log: any): string {return ({request:'Demande enregistrée',available:'Média disponible',vf_available:'VF disponible'} as Record<string, string>)[log.event]||String(log.event||'Notification').replaceAll('_',' ')}
 const activityTimeline=computed(()=>{
   const requests=(props.editing.activity?.recent||[]).map((row: any)=>({key:`request-${row.id}`,type:'request',date:row.requested_at,title:row.title,label:`Demande ${row.role==='co_requester'?'partagée':'principale'} · ${row.source}`,status:row.status}));
@@ -189,7 +342,15 @@ const activityTimeline=computed(()=>{
 });
 
 defineExpose({
-  resetTab: () => { editorTab.value = 'profile'; mergeTarget.value = ''; newPassword.value = ''; initialPassword.value = ''; },
+  resetTab: () => {
+    editorTab.value = 'profile';
+    mergeTarget.value = '';
+    mergeByPlexId.value = '';
+    mergeKeep.value = '';
+    seerTarget.value = '';
+    newPassword.value = '';
+    initialPassword.value = '';
+  },
   initialPassword,
 });
 </script>
