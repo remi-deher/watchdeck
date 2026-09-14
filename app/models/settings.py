@@ -125,6 +125,11 @@ class Settings(Base):
     # n'a pas bouge dans Plex ne peut pas avoir change de piste audio.
     vf_scan_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
 
+    # Filigrane de la derniere resynchronisation reussie de la disponibilite episode
+    # (voir episode_availability) : seules les series signalees par l'historique Sonarr
+    # depuis cette date sont rechargees, au lieu des ~770 series a chaque passage.
+    episode_availability_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+
     # --- TMDB (catalogue de découverte) ---
     tmdb_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
     tmdb_enabled: Mapped[bool] = mapped_column(default=True)

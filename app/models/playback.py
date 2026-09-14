@@ -176,6 +176,10 @@ class LibraryAnalyticsSnapshot(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     payload_json: Mapped[str] = mapped_column(Text)
+    # Empreinte des sources ayant produit cette charge utile (catalogue Plex + historique
+    # de lecture) : tant qu'elle ne bouge pas, recalculer redonnerait le meme resultat.
+    # Voir library_analytics.refresh_library_analytics_snapshot.
+    source_fingerprint: Mapped[Optional[str]] = mapped_column(Text, default=None)
     item_count: Mapped[int] = mapped_column(default=0)
     generated_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
