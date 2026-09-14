@@ -18,9 +18,16 @@ from tests.async_support import TestSession
 
 
 def _make_db():
+    """Session de test alignee sur la production.
+
+    `expire_on_commit=False` reproduit AsyncSessionLocal (voir app/database.py) et
+    make_test_session : sans lui, tout commit ajoute dans le code scanne expire les
+    instances que le test lit APRES le scan, qui echoue alors en DetachedInstanceError
+    des que la session est refermee -- un faux positif qui n'existe pas en production.
+    """
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
-    return TestSession(sessionmaker(bind=engine)())
+    return TestSession(sessionmaker(bind=engine, expire_on_commit=False)())
 
 
 @pytest.mark.asyncio

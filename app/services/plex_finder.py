@@ -1,5 +1,6 @@
 import logging
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 from plexapi.server import PlexServer
 
@@ -236,6 +237,165 @@ def find_item_in_libraries(
     return None
 
 
+# Correspondance entre le type d'un media chez nous et le "kind" d'une bibliotheque.
+_KIND_BY_MEDIA_TYPE = {"movie": "movie", "show": "series", "series": "series"}
+
+
+@dataclass
+class PlexLibraryIndex:
+    """Catalogue Plex charge en une passe, pour localiser un media sans appel reseau.
+
+    `find_item_in_libraries` interroge Plex jusqu'a 7 fois par media (GUID, trois
+    identifiants externes, titre, rechargements de validation). Multiplie par un millier
+    de medias et par un scan repete, c'est la principale source de charge du scan VF --
+    alors qu'une seule passe suffit a tout indexer.
+
+    L'index est CLOISONNE PAR TYPE : un film et une serie peuvent porter le meme titre,
+    et rendre un objet `Movie` la ou l'appelant attend une serie le fait planguer sur
+    `.seasons()`. La recherche d'origine cloisonnait deja (movie_libs vs show_libs) ;
+    l'index doit conserver cette garantie.
+
+    `changed_guids` porte le resultat de la requete delta (voir `build_library_index`) :
+    les medias dont Plex signale une modification depuis le filigrane. `None` signifie
+    « pas de delta demande » -- tout est considere comme potentiellement modifie.
+    """
+
+    by_kind: dict[str, dict[str, Any]] = field(default_factory=dict)
+    by_kind_title: dict[str, dict[tuple[str, Optional[int]], Any]] = field(default_factory=dict)
+    changed_guids: Optional[set[str]] = None
+    item_count: int = 0
+
+    def has_changed(self, item) -> bool:
+        """True si ce media doit etre re-analyse d'apres le delta Plex."""
+        if self.changed_guids is None:
+            return True
+        return getattr(item, "guid", None) in self.changed_guids
+
+
+def _register_in_index(index: PlexLibraryIndex, item, kind: str) -> None:
+    by_guid = index.by_kind.setdefault(kind, {})
+    by_title = index.by_kind_title.setdefault(kind, {})
+    guid = getattr(item, "guid", None)
+    if guid:
+        by_guid.setdefault(guid, item)
+    for entry in getattr(item, "guids", None) or []:
+        external = getattr(entry, "id", None)
+        if external:
+            by_guid.setdefault(external, item)
+    title = (getattr(item, "title", "") or "").lower().strip()
+    if title:
+        by_title.setdefault((title, getattr(item, "year", None)), item)
+        # Repli sans annee : un titre suffit quand la fiche Plex n'en porte pas, ou
+        # quand la notre diverge d'un an (date de sortie pays vs date de production).
+        by_title.setdefault((title, None), item)
+    index.item_count += 1
+
+
+def _changed_guids_for_section(section, kind: str, since) -> set[str]:
+    """GUIDs des medias d'une section modifies depuis `since`.
+
+    Pour une serie, interroger l'`updatedAt` de la SERIE ne suffit pas : mesure sur une
+    bibliotheque reelle, 30 series avaient un episode modifie dans les deux derniers
+    jours, mais seules 13 d'entre elles portaient elles-memes un `updatedAt` recent --
+    19 series, soit la majorite, auraient ete ratees. Un episode qui passe en VF est
+    exactement ce que ce scan cherche : on interroge donc les episodes et on remonte a
+    leur serie parente.
+    """
+    changed: set[str] = set()
+    for item in section.search(filters={"updatedAt>>": since}):
+        guid = getattr(item, "guid", None)
+        if guid:
+            changed.add(guid)
+
+    if kind != "series":
+        return changed
+
+    by_rating_key: dict[str, str] = {}
+    for item in section.all():
+        rating_key = getattr(item, "ratingKey", None)
+        guid = getattr(item, "guid", None)
+        if rating_key is not None and guid:
+            by_rating_key[str(rating_key)] = guid
+    for episode in section.searchEpisodes(filters={"updatedAt>>": since}):
+        parent = getattr(episode, "grandparentRatingKey", None)
+        if parent is not None:
+            guid = by_rating_key.get(str(parent))
+            if guid:
+                changed.add(guid)
+    return changed
+
+
+def build_library_index(plex: PlexServer, libs: list[dict], since=None) -> PlexLibraryIndex:
+    """Indexe les bibliotheques en une passe, avec le delta des medias modifies.
+
+    `libs` : [{"name": ..., "kind": "movie"|"series"|"music"}] -- les bibliotheques
+    musicales sont ignorees, elles n'ont pas de notion de VF.
+
+    `since` : filigrane du dernier scan reussi. Si Plex ne sait pas repondre au delta
+    (ancienne version, section exotique), l'index est rendu SANS `changed_guids` :
+    l'appelant re-analyse alors tout, ce qui est lent mais jamais faux.
+    """
+    index = PlexLibraryIndex(changed_guids=set() if since is not None else None)
+    for lib in libs:
+        kind = lib.get("kind")
+        if kind not in ("movie", "series"):
+            continue
+        try:
+            section = plex.library.section(lib["name"])
+        except Exception as exc:
+            logger.warning("Plex : bibliotheque %r indisponible pour l'index : %s", lib.get("name"), exc)
+            continue
+        try:
+            for item in section.all():
+                _register_in_index(index, item, kind)
+        except Exception as exc:
+            logger.warning("Plex : lecture de %r impossible : %s", lib.get("name"), exc)
+            continue
+        if index.changed_guids is not None:
+            try:
+                index.changed_guids |= _changed_guids_for_section(section, kind, since)
+            except Exception as exc:
+                # Delta impossible sur AU MOINS une section : on abandonne le mode
+                # incremental pour tout le scan plutot que de n'en analyser qu'une part.
+                logger.warning("Plex : delta indisponible pour %r (%s) -- analyse complete", lib.get("name"), exc)
+                index.changed_guids = None
+    return index
+
+
+def lookup_in_index(
+    index: PlexLibraryIndex,
+    media_type: str,
+    title: str,
+    year: Optional[int] = None,
+    tmdb_id: Optional[str] = None,
+    tvdb_id: Optional[str] = None,
+    imdb_id: Optional[str] = None,
+    plex_guid: Optional[str] = None,
+):
+    """Localise un media dans l'index, dans le meme ordre de priorite que
+    `find_item_in_libraries` : GUID Plex, identifiants externes, puis titre + annee.
+
+    `media_type` cloisonne la recherche : un film ne peut jamais etre rendu pour une
+    serie, ni l'inverse.
+    """
+    kind = _KIND_BY_MEDIA_TYPE.get(media_type)
+    by_guid = index.by_kind.get(kind or "", {})
+    by_title = index.by_kind_title.get(kind or "", {})
+    if plex_guid:
+        item = by_guid.get(plex_guid)
+        if item is not None:
+            return item
+    for provider, value in (("tmdb", tmdb_id), ("tvdb", tvdb_id), ("imdb", imdb_id)):
+        if value:
+            item = by_guid.get(f"{provider}://{value}")
+            if item is not None:
+                return item
+    normalized = (title or "").lower().strip()
+    if not normalized:
+        return None
+    return by_title.get((normalized, year)) or by_title.get((normalized, None))
+
+
 def scan_media_vf(
     plex: PlexServer,
     media_type: str,
@@ -249,8 +409,12 @@ def scan_media_vf(
     plex_guid: Optional[str] = None,
     known_vf: Optional[dict[int, set[int]]] = None,
     known_episodes: Optional[dict[int, set[int]]] = None,
+    item=None,
 ) -> dict:
     """Localise un média dans Plex et détermine son statut VF (bloquant, plexapi).
+
+    `item` : média déjà localisé (voir `build_library_index`). Fourni, il évite la phase
+    de recherche — c'est-à-dire jusqu'à 7 appels Plex par média.
 
     `show_libs` est une liste de tuples (nom_bibliothèque, kind) où kind vaut
     "series" — les bibliothèques musique ("music") ne sont jamais scannées pour la VF,
@@ -270,7 +434,8 @@ def scan_media_vf(
     par exemple après un renommage manuel dans Plex (ex: retrait d'un suffixe "(VOSTFR)").
     """
     if media_type == "movie":
-        item = find_item_in_libraries(plex, movie_libs, title, year, tmdb_id, tvdb_id, imdb_id, plex_guid=plex_guid)
+        if item is None:
+            item = find_item_in_libraries(plex, movie_libs, title, year, tmdb_id, tvdb_id, imdb_id, plex_guid=plex_guid)
         if not item:
             return {"found": False}
         audio_state = movie_french_audio_state(item)
@@ -287,12 +452,12 @@ def scan_media_vf(
             "overview": item.summary,
         }
 
-    item = None
     category = "series"
-    for name, _kind in show_libs:
-        item = find_item_in_libraries(plex, [name], title, year, tmdb_id, tvdb_id, imdb_id, plex_guid=plex_guid)
-        if item:
-            break
+    if item is None:
+        for name, _kind in show_libs:
+            item = find_item_in_libraries(plex, [name], title, year, tmdb_id, tvdb_id, imdb_id, plex_guid=plex_guid)
+            if item:
+                break
     if not item:
         return {"found": False}
     complete, should_track, _, _, episode_status, french_default, episode_metadata, known_episode_status = (

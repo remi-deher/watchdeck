@@ -376,42 +376,23 @@ async def _invalidate_vf_cache(
     return int(result.rowcount or 0)
 
 
-def _scan_vf_blocking(
-    plex_url: str,
-    plex_token: str,
+# En deca de ce nombre de candidats, la recherche unitaire reste moins chere que la
+# construction de l'index (voir _scan_vf_blocking).
+_INDEX_MIN_CANDIDATES = 10
+
+
+def _scan_without_index(
+    plex,
     candidates: list[dict],
     libs: list[dict],
-    known_vf_by_id: Optional[dict[int, dict[int, set[int]]]] = None,
-    state: dict[str, Any] | None = None,
-    known_episodes_by_id: Optional[dict[int, dict[int, set[int]]]] = None,
+    known_vf_by_id: dict,
+    known_episodes_by_id: dict,
+    state: dict[str, Any],
 ) -> list[dict]:
-    """Analyse (bloquante, plexapi) la présence de VF pour chaque candidat.
-
-    `state` : dict de progression à incrémenter (`items_scanned`) — `vff_scan_state` par
-    défaut si non fourni, pour ne pas casser un appelant qui ne suit pas sa propre
-    progression séparément.
-
-    Exécutée dans un thread via asyncio.to_thread pour ne pas bloquer la boucle async.
-    `known_vf_by_id` (séries) : cache par candidat, voir `_load_known_vf_episodes` —
-    les épisodes déjà confirmés VF ne sont pas re-interrogés dans Plex.
-    `known_episodes_by_id` (séries) : {season_number: {episode_number}} connus de Sonarr
-    par candidat, voir `_sonarr_episode_numbers_for` — exclut du calcul d'agrégation
-    (has_vf/vf_granularity série) un épisode que Plex indexe mais que Sonarr ne reconnaît
-    pas comme réel (toujours scanné, juste pas compté).
-    Retourne une liste de dicts : {"id", "found", "has_vf", "category", "episode_status"?}.
-    """
-    known_vf_by_id = known_vf_by_id or {}
-    known_episodes_by_id = known_episodes_by_id or {}
-    state = state if state is not None else vff_scan_state
-    try:
-        plex = plex_finder.connect(plex_url, plex_token)
-    except Exception as exc:
-        logger.warning(f"VFF : connexion Plex impossible : {exc}")
-        return []
-
+    """Boucle d'origine : une recherche Plex par media. Conservee pour les tout petits
+    lots, ou l'index ne serait pas amorti."""
     movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
     show_libs = [(lib["name"], lib["kind"]) for lib in libs if lib["kind"] == "series"]
-
     results: list[dict] = []
     for c in candidates:
         try:
@@ -428,6 +409,129 @@ def _scan_vf_blocking(
                 plex_guid=c.get("plex_guid"),
                 known_vf=known_vf_by_id.get(c["id"]),
                 known_episodes=known_episodes_by_id.get(c["id"]),
+            )
+            results.append({"id": c["id"], **res})
+        except Exception as exc:
+            logger.warning(f"VFF : erreur analyse '{c.get('title')}' : {exc}")
+            results.append({"id": c["id"], "found": False})
+        finally:
+            state["items_scanned"] += 1
+    return results
+
+
+def _scan_vf_blocking(
+    plex_url: str,
+    plex_token: str,
+    candidates: list[dict],
+    libs: list[dict],
+    known_vf_by_id: Optional[dict[int, dict[int, set[int]]]] = None,
+    state: dict[str, Any] | None = None,
+    known_episodes_by_id: Optional[dict[int, dict[int, set[int]]]] = None,
+    since=None,
+    always_scan_ids: Optional[set[int]] = None,
+) -> list[dict]:
+    """Analyse (bloquante, plexapi) la présence de VF pour chaque candidat.
+
+    `state` : dict de progression à incrémenter (`items_scanned`) — `vff_scan_state` par
+    défaut si non fourni, pour ne pas casser un appelant qui ne suit pas sa propre
+    progression séparément.
+
+    Exécutée dans un thread via asyncio.to_thread pour ne pas bloquer la boucle async.
+    `known_vf_by_id` (séries) : cache par candidat, voir `_load_known_vf_episodes` —
+    les épisodes déjà confirmés VF ne sont pas re-interrogés dans Plex.
+    `known_episodes_by_id` (séries) : {season_number: {episode_number}} connus de Sonarr
+    par candidat, voir `_sonarr_episode_numbers_for` — exclut du calcul d'agrégation
+    (has_vf/vf_granularity série) un épisode que Plex indexe mais que Sonarr ne reconnaît
+    pas comme réel (toujours scanné, juste pas compté).
+
+    `since` : filigrane du dernier scan réussi. Les médias que Plex ne signale pas comme
+    modifiés depuis sont renvoyés avec ``{"skipped": True}`` et ne coûtent aucune lecture
+    de pistes — un fichier qui n'a pas bougé dans Plex ne peut pas avoir changé de piste
+    audio. Sans filigrane, tout est analysé (comportement d'origine).
+
+    `always_scan_ids` : candidats à analyser quoi qu'en dise le delta — typiquement ceux
+    jamais analysés, pour lesquels « inchangé depuis le dernier scan » ne veut rien dire.
+
+    Retourne une liste de dicts : {"id", "found", "has_vf", "category", "episode_status"?}.
+    """
+    known_vf_by_id = known_vf_by_id or {}
+    known_episodes_by_id = known_episodes_by_id or {}
+    state = state if state is not None else vff_scan_state
+    try:
+        plex = plex_finder.connect(plex_url, plex_token)
+    except Exception as exc:
+        logger.warning(f"VFF : connexion Plex impossible : {exc}")
+        return []
+
+    movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
+    show_libs = [(lib["name"], lib["kind"]) for lib in libs if lib["kind"] == "series"]
+    always_scan_ids = always_scan_ids or set()
+
+    # Une seule passe sur les bibliotheques remplace la recherche Plex par media (voir
+    # PlexLibraryIndex) et porte, quand un filigrane est fourni, la liste des medias
+    # reellement modifies depuis.
+    #
+    # Indexer coute ~2 s quelle que soit la taille du lot, la recherche unitaire ~0,03 s
+    # par media : sur une poignee de candidats (cas du scan leger, qui tourne toutes les
+    # minutes), l'index serait plus lent que ce qu'il remplace. Il n'est donc construit
+    # que s'il y a de quoi l'amortir, ou si un filigrane est fourni -- auquel cas c'est
+    # lui qui porte l'information de delta, et il devient indispensable.
+    index = None
+    if since is None and len(candidates) < _INDEX_MIN_CANDIDATES:
+        logger.debug("VFF : %d candidat(s) seulement, recherche unitaire conservée", len(candidates))
+        return _scan_without_index(plex, candidates, libs, known_vf_by_id, known_episodes_by_id, state)
+    try:
+        index = plex_finder.build_library_index(plex, libs, since=since)
+        logger.info(
+            "VFF : index Plex de %d media(s)%s",
+            index.item_count,
+            f", {len(index.changed_guids)} modifie(s) depuis le dernier scan"
+            if index.changed_guids is not None
+            else " (pas de delta : analyse complete)",
+        )
+    except Exception as exc:
+        logger.warning("VFF : index Plex indisponible (%s) -- repli sur la recherche par media", exc)
+        index = None
+
+    results: list[dict] = []
+    for c in candidates:
+        try:
+            item = None
+            if index is not None:
+                item = plex_finder.lookup_in_index(
+                    index,
+                    c["media_type"],
+                    c["title"],
+                    c["year"],
+                    c["tmdb_id"],
+                    c["tvdb_id"],
+                    c["imdb_id"],
+                    plex_guid=c.get("plex_guid"),
+                )
+                if item is None:
+                    # Absent de l'index : le media n'est pas (encore) dans Plex. Aucun
+                    # appel reseau a faire pour l'etablir, contrairement aux 7 recherches
+                    # infructueuses que faisait la recherche unitaire.
+                    results.append({"id": c["id"], "found": False})
+                    continue
+                if c["id"] not in always_scan_ids and not index.has_changed(item):
+                    results.append({"id": c["id"], "found": True, "skipped": True})
+                    continue
+
+            res = plex_finder.scan_media_vf(
+                plex,
+                c["media_type"],
+                movie_libs,
+                show_libs,
+                c["title"],
+                c["year"],
+                c["tmdb_id"],
+                c["tvdb_id"],
+                c["imdb_id"],
+                plex_guid=c.get("plex_guid"),
+                known_vf=known_vf_by_id.get(c["id"]),
+                known_episodes=known_episodes_by_id.get(c["id"]),
+                item=item,
             )
             results.append({"id": c["id"], **res})
         except Exception as exc:
@@ -1122,6 +1226,26 @@ async def _backfill_show_forced_fr_status(db: AsyncSession) -> int:
     return updated
 
 
+# Recouvrement applique au filigrane : Plex date `updatedAt` avec l'horloge du serveur
+# Plex, pas la notre. Quelques minutes de marge evitent qu'une modification survenue
+# pendant le scan precedent passe entre les mailles. Meme principe que
+# plex_sync._RECENT_SYNC_BUFFER.
+_VF_DELTA_BUFFER = timedelta(minutes=10)
+# Balayage complet periodique, filet de securite si Plex ne signalait pas une
+# modification via `updatedAt` (fichier remplace sans rafraichissement de metadonnees).
+_VF_FULL_SWEEP = timedelta(hours=24)
+
+
+def _delta_since(settings: Settings, force: bool, now):
+    """Filigrane à utiliser pour ce scan, ou None pour une analyse complète."""
+    if force:
+        return None
+    last = getattr(settings, "vf_scan_last_at", None)
+    if last is None or (now - last) > _VF_FULL_SWEEP:
+        return None
+    return last - _VF_DELTA_BUFFER
+
+
 def _vf_candidate_payload(row) -> dict[str, Any]:
     return {
         "id": row.id,
@@ -1132,7 +1256,14 @@ def _vf_candidate_payload(row) -> dict[str, Any]:
         "tvdb_id": row.tvdb_id,
         "imdb_id": row.imdb_id,
         "plex_guid": row.plex_guid,
+        # « Jamais analyse » : le delta Plex ne dit rien d'utile sur ces medias (leur
+        # etat VF n'a jamais ete etabli, meme s'ils n'ont pas bouge depuis le filigrane).
+        "never_analyzed": row.has_vf is None or getattr(row, "vf_checked_at", None) is None,
     }
+
+
+def _always_scan_ids(candidates: list[dict[str, Any]]) -> set[int]:
+    return {c["id"] for c in candidates if c.get("never_analyzed")}
 
 
 async def _known_episodes_for_show_rows(db: AsyncSession, rows: list) -> dict[int, dict[int, set[int]]]:
@@ -1186,8 +1317,15 @@ async def _scan_candidate_group(
     state: dict[str, Any],
     now,
     known_episodes_by_id: dict[int, dict[int, set[int]]] | None = None,
+    since=None,
 ) -> dict[int, dict[str, Any]]:
-    """Scan Plex bloquant + persistance du détail épisode pour un groupe homogène."""
+    """Scan Plex bloquant + persistance du détail épisode pour un groupe homogène.
+
+    `since` : filigrane transmis au scan incrémental (voir `_scan_vf_blocking`). Les
+    médias que Plex ne signale pas comme modifiés sont écartés du résultat, de sorte que
+    les appelants ne voient que des analyses réelles — un média sauté conserve
+    exactement son état en base, il n'est ni « trouvé sans VF », ni « introuvable ».
+    """
     if not candidates:
         return {}
     known = await _load_known_vf_episodes(db, source_type, [candidate["id"] for candidate in candidates])
@@ -1200,7 +1338,17 @@ async def _scan_candidate_group(
         known,
         state,
         known_episodes_by_id,
+        since,
+        _always_scan_ids(candidates),
     )
+    skipped = sum(1 for result in results if result.get("skipped"))
+    if skipped:
+        logger.info(
+            "VFF : %d/%d média(s) inchangé(s) dans Plex depuis le dernier scan, non ré-analysé(s)",
+            skipped,
+            len(results),
+        )
+    results = [result for result in results if not result.get("skipped")]
     for result in results:
         episode_status = result.get("episode_status")
         if episode_status:
@@ -1388,9 +1536,21 @@ async def _run_vf_scan(
 
         now = now_utc_naive()
 
+        # Filigrane du scan incrémental. `force` le neutralise (c'est le mode « le cache
+        # est suspect, re-analyse tout »), et un balayage complet périodique sert de
+        # filet : si Plex venait à ne pas remonter une modification via `updatedAt`, le
+        # retard serait rattrapé au plus tard au bout de `_VF_FULL_SWEEP`.
+        # `only_unseen` ne regarde que les medias jamais analyses : le delta ne lui
+        # apprendrait rien, et surtout il ne doit PAS avancer le filigrane -- il ne
+        # re-verifie aucun media VO, donc valider la fenetre de temps a sa place ferait
+        # sauter au scan complet des modifications qu'il n'a jamais examinees.
+        since = None if only_unseen else _delta_since(settings, force, now)
+        if since is None and not only_unseen:
+            logger.info(f"VFF ({label}) : analyse complète (filigrane absent, forcé, ou balayage périodique)")
+
         known_episodes_by_req_id = await _known_episodes_for_show_rows(db, unlinked_candidates_q)
         results_by_id = await _scan_candidate_group(
-            db, settings, "request", candidates, libs, state, now, known_episodes_by_req_id
+            db, settings, "request", candidates, libs, state, now, known_episodes_by_req_id, since
         )
 
         season_counts_by_req_id = await _prefetch_season_aired_counts(
@@ -1437,7 +1597,7 @@ async def _run_vf_scan(
         if lib_candidates:
             known_episodes_by_lib_id = await _known_episodes_for_show_rows(db, lib_q)
             lib_by_id = await _scan_candidate_group(
-                db, settings, "library_item", lib_candidates, libs, state, now, known_episodes_by_lib_id
+                db, settings, "library_item", lib_candidates, libs, state, now, known_episodes_by_lib_id, since
             )
             for li in lib_q:
                 res = lib_by_id.get(li.id)
@@ -1508,6 +1668,14 @@ async def _run_vf_scan(
         # Backfill forced_fr_status pour les séries VF depuis les EpisodeMetadata en DB
         # (pas de Plex nécessaire, les sous-titres de chaque épisode sont déjà stockés).
         shows_backfilled = await _backfill_show_forced_fr_status(db)
+
+        # Filigrane date du DEBUT du scan, jamais de sa fin : une modification survenue
+        # pendant l'analyse doit etre reprise au prochain passage, pas consideree comme
+        # deja couverte. Avance seulement apres un scan complet reussi (voir ci-dessus
+        # pour only_unseen).
+        if not only_unseen:
+            settings.vf_scan_last_at = now
+            await db.commit()
 
         logger.info(
             f"VFF ({label}) : analyse terminée ({newly_vo} nouveau(x) VO, {newly_vf} VF détectée(s), "
