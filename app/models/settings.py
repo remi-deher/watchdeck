@@ -119,6 +119,12 @@ class Settings(Base):
     # une fenetre de temps).
     plex_recent_sync_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
 
+    # Filigrane du dernier scan VF reussi (voir vff_scanner._delta_since) : ne sont
+    # re-analyses que les medias dont Plex signale une modification depuis. Le scan VF
+    # relisait jusqu'ici toute la bibliotheque a chaque passage, alors qu'un fichier qui
+    # n'a pas bouge dans Plex ne peut pas avoir change de piste audio.
+    vf_scan_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+
     # --- TMDB (catalogue de découverte) ---
     tmdb_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
     tmdb_enabled: Mapped[bool] = mapped_column(default=True)
