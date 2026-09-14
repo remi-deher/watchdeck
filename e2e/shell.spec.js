@@ -460,11 +460,20 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
 
   const drawer = page.locator(".detail-drawer");
   await expect(drawer).toBeVisible();
-  await drawer.getByText("Seer", { exact: true }).click();
-  await drawer.locator("select").selectOption({ label: "Bob" });
-  await drawer.getByRole("button", { name: "Fusionner" }).click();
+  // La fusion vit desormais sous « Comptes lies » : elle etait rangee sous un onglet
+  // « Seer » avec lequel elle n'a aucun rapport.
+  await drawer.getByText("Comptes liés", { exact: true }).click();
+  // Cible par son intitule, pas par `locator("select")` : l'onglet peut porter un
+  // second menu (le choix du compte Seer) quand Seer est actif.
+  await drawer.getByLabel("Autre compte").selectOption("2");
+  // Le sens de la fusion est desormais un choix explicite, et le bouton reste inerte
+  // tant qu'il n'est pas fait : « Fusionner cet utilisateur dans X » ne disait pas
+  // lequel des deux comptes disparaissait.
+  await drawer.getByRole("radio", { name: /Conserver Alice/ }).check();
+  await drawer.getByRole("button", { name: "Fusionner les deux comptes" }).click();
 
   // La confirmation doit etre au premier plan : c'est elle qui doit recevoir le clic.
+  // (C'est la premiere des deux : supprimer un compte en demande maintenant deux.)
   const modal = page.locator(".modal-panel");
   await expect(modal).toBeVisible();
   const reachable = await modal.evaluate((node) => {
