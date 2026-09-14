@@ -7,12 +7,14 @@ C'est la source de données la plus riche (synopsis, GUIDs complets)
 mais elle nécessite un token Plex valide.
 """
 
+import hashlib
 import logging
 import urllib.parse
 from typing import Optional
 
 import httpx
 
+from ..cache import cache
 from ..utils import safe_error_message
 
 logger = logging.getLogger(__name__)
@@ -152,16 +154,40 @@ async def get_friends_watchlist(plex_url: str, plex_token: str) -> list[dict]:
     return await get_admin_watchlist(plex_url, plex_token)
 
 
+# Le username du compte ne change quasiment jamais, mais il etait re-resolu a chaque
+# lecture de watchlist -- soit un aller-retour vers plex.tv 2880 fois par jour, pour
+# 0,57 s a chaque fois (40 % du reseau d'un cycle, mesure en production). Une journee
+# de memorisation suffit : un changement de pseudo est repercute au plus tard le
+# lendemain, et immediatement si le token change (il fait partie de la cle).
+_USERNAME_TTL = 24 * 3600
+
+
+def _username_cache_key(token: str) -> str:
+    """Cle derivee du token, jamais le token lui-meme : une cle de cache se retrouve
+    dans les journaux et les outils d'inspection Redis."""
+    digest = hashlib.sha256((token or "").encode()).hexdigest()[:16]
+    return f"watchdeck:plex:account-username:{digest}"
+
+
 async def _get_account_username(client: httpx.AsyncClient, headers: dict) -> str:
     """Retourne le username Plex du compte courant, compatible avec plexUsername Seer."""
+    token = headers.get("X-Plex-Token") or ""
+    key = _username_cache_key(token)
+    cached = await cache.get_json(key)
+    if cached and cached.get("username"):
+        return cached["username"]
     try:
         resp = await client.get(f"{PLEX_TV_BASE}/api/v2/user", headers=headers)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("username") or data.get("title") or data.get("email") or "admin"
+        username = data.get("username") or data.get("title") or data.get("email") or "admin"
     except httpx.HTTPError as e:
+        # L'echec n'est PAS memorise : un incident reseau passager figerait sinon le
+        # repli "admin" pour vingt-quatre heures.
         logger.warning(f"Could not resolve Plex account username, using admin fallback: {e}")
         return "admin"
+    await cache.set_json(key, {"username": username}, ttl_seconds=_USERNAME_TTL)
+    return username
 
 
 async def get_plex_account(token: str) -> Optional[dict]:

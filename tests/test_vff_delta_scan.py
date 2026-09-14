@@ -7,7 +7,7 @@ par média. Mesuré sur une bibliothèque réelle (872 films, 630 séries), un p
 
 from datetime import timedelta
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -273,3 +273,75 @@ def test_always_scan_ids_are_the_never_analysed_ones():
     candidates = [_candidate(1, "A", never_analyzed=True), _candidate(2, "B")]
 
     assert vff_scanner._always_scan_ids(candidates) == {1}
+
+
+# ---------------------------------------------------------------------------
+# Un seul index par scan, pas un par groupe de candidats
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_library_is_indexed_once_per_scan_not_once_per_group():
+    """Un scan traite deux groupes (demandes puis médias de bibliothèque). Chacun
+    appelait `_scan_vf_blocking`, donc indexait la bibliothèque de son côté : le même
+    index était construit deux fois à l'identique. Mesuré en production, ~14 des 17,6 s
+    d'un cycle partaient dans ces deux passes, dont une entièrement redondante."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    from app.models import Base, LibraryItem, MediaRequest, RequestStatus
+    from app.scheduler import check_vf_statuses
+    from tests.async_support import TestSession
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    db = TestSession(sessionmaker(bind=engine, expire_on_commit=False)())
+    db.add(
+        Settings(
+            id=1,
+            plex_url="http://plex",
+            plex_token="tok",
+            vff_enabled=True,
+            vff_libraries='[{"name": "Films", "kind": "movie"}]',
+        )
+    )
+    # Les deux groupes doivent être peuplés, sinon un seul appel a lieu et le test
+    # passerait même avec le défaut qu'il surveille.
+    db.add(
+        MediaRequest(
+            plex_user_id="u1",
+            title="Un Film Demandé",
+            year=2020,
+            media_type="movie",
+            tmdb_id="111",
+            status=RequestStatus.available,
+        )
+    )
+    # Au-dela du seuil d'amortissement (_INDEX_MIN_CANDIDATES), sinon aucun index n'est
+    # construit et le test ne verifierait rien.
+    for index in range(12):
+        db.add(LibraryItem(title=f"Film {index}", year=2020, media_type="movie", tmdb_id=f"2{index}", has_vf=False))
+    db.commit()
+
+    movie = FakeItem("Un Film Demandé", 2020, externals=["tmdb://111"])
+    plex = _plex_with([movie], [])
+    # L'originale est capturee AVANT le patch : `plex_finder` est un module partage,
+    # rappeler l'attribut patche depuis le side_effect boucle a l'infini.
+    real_build = plex_finder.build_library_index
+    build = MagicMock(side_effect=lambda p, libs, since=None: real_build(p, libs, since=since))
+
+    with (
+        patch("app.services.vff_scanner.AsyncSessionLocal", return_value=db),
+        patch("app.services.vff_scanner.plex_finder.connect", return_value=plex),
+        patch("app.services.vff_scanner.plex_finder.build_library_index", new=build),
+        patch("app.services.vff_scanner._prefetch_season_aired_counts", new=AsyncMock(return_value={})),
+        # L'analyse elle-meme n'est pas le sujet : seul compte le nombre d'indexations.
+        patch(
+            "app.services.vff_scanner.plex_finder.scan_media_vf",
+            side_effect=lambda *a, **kw: {"found": True, "has_vf": False, "category": "movie"},
+        ),
+    ):
+        await check_vf_statuses()
+
+    assert build.call_count == 1, f"index construit {build.call_count} fois au lieu d'une"
