@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.28.1 — 2026-09-14
+
+
+### ⚡ Performance
+
+- scan incrémental Plex et index bulk des bibliothèques ([89693f6](https://github.com/remi-deher/watchdeck/commit/89693f6b3602758320ee984f066c734d89e08254))
+
+### 🐛 Corrections
+
+- la barre du haut épouse son contenu au lieu d'une largeur fixe ([2de8fa7](https://github.com/remi-deher/watchdeck/commit/2de8fa74415b0f7f737f2c41713cd1c0bbf9d362))
+
+### 🔧 Maintenance
+
+- sync main into dev ([10d86d4](https://github.com/remi-deher/watchdeck/commit/10d86d4363102e1bc788d1e34bbe1d2b89c7ca50))
+- sync main into dev ([114abca](https://github.com/remi-deher/watchdeck/commit/114abca23dedb0316df9a35e4016bf69f2c46682))
+- bump @playwright/test from 1.62.1 to 1.63.0 (#300) ([dcdccaf](https://github.com/remi-deher/watchdeck/commit/dcdccafd1e32e557b0ad70c6faab5badfe09ab80))
+- bump psycopg2-binary from 2.9.12 to 2.9.13 (#301) ([e19dd30](https://github.com/remi-deher/watchdeck/commit/e19dd30960cea3bdc498d6f108b40ee06696e47d))
+- bump alembic from 1.19.1 to 1.19.2 (#302) ([4777544](https://github.com/remi-deher/watchdeck/commit/477754437b5779d15a1ba202c4686f448990a5f0))
+- bump cryptography from 50.0.0 to 50.0.1 (#202) ([4d23761](https://github.com/remi-deher/watchdeck/commit/4d2376185c78bc1d1038cae3fa1ba39046559af1))
 ## 1.28.0 — 2026-09-14
 
 
@@ -10,6 +29,10 @@
 ### 🐛 Corrections
 
 - annotations mypy et formatage ruff du dossier alembic ([6b58394](https://github.com/remi-deher/watchdeck/commit/6b583940f3c717a4ce8989613640b11a33015502))
+
+### 🔧 Maintenance
+
+- v1.28.0 (#297) ([36d5fa8](https://github.com/remi-deher/watchdeck/commit/36d5fa8e2a9e7ba54c1dce99a0b7aed312af9db3))
 ## 1.27.2 — 2026-09-13
 
 
