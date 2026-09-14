@@ -381,6 +381,45 @@ async def _invalidate_vf_cache(
 _INDEX_MIN_CANDIDATES = 10
 
 
+class _PlexScanContext:
+    """Connexion Plex et index de bibliotheque partages par un scan entier.
+
+    Un scan traite deux groupes de candidats (les demandes, puis les medias de
+    bibliotheque) et appelait `_scan_vf_blocking` une fois par groupe : l'index etait
+    donc construit DEUX fois pour la meme bibliotheque, a l'identique. Mesure en
+    production, c'etait ~14 des 17,6 s d'un cycle, dont la moitie purement redondante.
+    L'index decrit la bibliotheque, pas un groupe de candidats : il appartient au scan.
+    """
+
+    def __init__(self, plex, index):
+        self.plex = plex
+        self.index = index
+
+
+def _build_scan_context_blocking(plex_url: str, plex_token: str, libs: list[dict], since, with_index: bool):
+    """Ouvre la connexion Plex et, si demande, construit l'index (bloquant, plexapi)."""
+    try:
+        plex = plex_finder.connect(plex_url, plex_token)
+    except Exception as exc:
+        logger.warning(f"VFF : connexion Plex impossible : {exc}")
+        return None
+    if not with_index:
+        return _PlexScanContext(plex, None)
+    try:
+        index = plex_finder.build_library_index(plex, libs, since=since)
+        logger.info(
+            "VFF : index Plex de %d media(s)%s",
+            index.item_count,
+            f", {len(index.changed_guids)} modifie(s) depuis le dernier scan"
+            if index.changed_guids is not None
+            else " (pas de delta : analyse complete)",
+        )
+    except Exception as exc:
+        logger.warning("VFF : index Plex indisponible (%s) -- repli sur la recherche par media", exc)
+        index = None
+    return _PlexScanContext(plex, index)
+
+
 def _scan_without_index(
     plex,
     candidates: list[dict],
@@ -429,6 +468,7 @@ def _scan_vf_blocking(
     known_episodes_by_id: Optional[dict[int, dict[int, set[int]]]] = None,
     since=None,
     always_scan_ids: Optional[set[int]] = None,
+    context: Optional["_PlexScanContext"] = None,
 ) -> list[dict]:
     """Analyse (bloquante, plexapi) la présence de VF pour chaque candidat.
 
@@ -452,16 +492,22 @@ def _scan_vf_blocking(
     `always_scan_ids` : candidats à analyser quoi qu'en dise le delta — typiquement ceux
     jamais analysés, pour lesquels « inchangé depuis le dernier scan » ne veut rien dire.
 
+    `context` : connexion et index déjà construits pour ce scan (voir `_PlexScanContext`).
+    Fourni, il évite de réindexer la bibliothèque pour chaque groupe de candidats. Absent,
+    la fonction se débrouille seule — les tests et un appel isolé restent possibles.
+
     Retourne une liste de dicts : {"id", "found", "has_vf", "category", "episode_status"?}.
     """
     known_vf_by_id = known_vf_by_id or {}
     known_episodes_by_id = known_episodes_by_id or {}
     state = state if state is not None else vff_scan_state
-    try:
-        plex = plex_finder.connect(plex_url, plex_token)
-    except Exception as exc:
-        logger.warning(f"VFF : connexion Plex impossible : {exc}")
+    if context is None:
+        context = _build_scan_context_blocking(
+            plex_url, plex_token, libs, since, with_index=since is not None or len(candidates) >= _INDEX_MIN_CANDIDATES
+        )
+    if context is None:
         return []
+    plex = context.plex
 
     movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
     show_libs = [(lib["name"], lib["kind"]) for lib in libs if lib["kind"] == "series"]
@@ -476,22 +522,10 @@ def _scan_vf_blocking(
     # minutes), l'index serait plus lent que ce qu'il remplace. Il n'est donc construit
     # que s'il y a de quoi l'amortir, ou si un filigrane est fourni -- auquel cas c'est
     # lui qui porte l'information de delta, et il devient indispensable.
-    index = None
-    if since is None and len(candidates) < _INDEX_MIN_CANDIDATES:
-        logger.debug("VFF : %d candidat(s) seulement, recherche unitaire conservée", len(candidates))
+    index = context.index
+    if index is None:
+        logger.debug("VFF : pas d'index disponible, recherche unitaire conservée")
         return _scan_without_index(plex, candidates, libs, known_vf_by_id, known_episodes_by_id, state)
-    try:
-        index = plex_finder.build_library_index(plex, libs, since=since)
-        logger.info(
-            "VFF : index Plex de %d media(s)%s",
-            index.item_count,
-            f", {len(index.changed_guids)} modifie(s) depuis le dernier scan"
-            if index.changed_guids is not None
-            else " (pas de delta : analyse complete)",
-        )
-    except Exception as exc:
-        logger.warning("VFF : index Plex indisponible (%s) -- repli sur la recherche par media", exc)
-        index = None
 
     results: list[dict] = []
     for c in candidates:
@@ -1318,6 +1352,7 @@ async def _scan_candidate_group(
     now,
     known_episodes_by_id: dict[int, dict[int, set[int]]] | None = None,
     since=None,
+    context: "_PlexScanContext | None" = None,
 ) -> dict[int, dict[str, Any]]:
     """Scan Plex bloquant + persistance du détail épisode pour un groupe homogène.
 
@@ -1340,6 +1375,7 @@ async def _scan_candidate_group(
         known_episodes_by_id,
         since,
         _always_scan_ids(candidates),
+        context,
     )
     skipped = sum(1 for result in results if result.get("skipped"))
     if skipped:
@@ -1548,9 +1584,23 @@ async def _run_vf_scan(
         if since is None and not only_unseen:
             logger.info(f"VFF ({label}) : analyse complète (filigrane absent, forcé, ou balayage périodique)")
 
+        # Un seul index pour tout le scan, construit avant les deux groupes : c'est la
+        # bibliotheque qu'il decrit, pas un groupe de candidats. Le seuil s'apprecie donc
+        # sur le TOTAL a analyser -- deux groupes de six candidats amortissent un index
+        # aussi bien qu'un groupe de douze.
+        total_candidates = len(candidates) + len(lib_candidates)
+        scan_context = await asyncio.to_thread(
+            _build_scan_context_blocking,
+            settings.plex_url,
+            settings.plex_token,
+            libs,
+            since,
+            since is not None or total_candidates >= _INDEX_MIN_CANDIDATES,
+        )
+
         known_episodes_by_req_id = await _known_episodes_for_show_rows(db, unlinked_candidates_q)
         results_by_id = await _scan_candidate_group(
-            db, settings, "request", candidates, libs, state, now, known_episodes_by_req_id, since
+            db, settings, "request", candidates, libs, state, now, known_episodes_by_req_id, since, scan_context
         )
 
         season_counts_by_req_id = await _prefetch_season_aired_counts(
@@ -1597,7 +1647,16 @@ async def _run_vf_scan(
         if lib_candidates:
             known_episodes_by_lib_id = await _known_episodes_for_show_rows(db, lib_q)
             lib_by_id = await _scan_candidate_group(
-                db, settings, "library_item", lib_candidates, libs, state, now, known_episodes_by_lib_id, since
+                db,
+                settings,
+                "library_item",
+                lib_candidates,
+                libs,
+                state,
+                now,
+                known_episodes_by_lib_id,
+                since,
+                scan_context,
             )
             for li in lib_q:
                 res = lib_by_id.get(li.id)
