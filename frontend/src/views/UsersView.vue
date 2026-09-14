@@ -1,18 +1,40 @@
 <template>
     <AppPage title="Utilisateurs" v-model:query="query" placeholder="Filtrer par nom, identifiant ou email" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
 
-      <template #tools><UiButton :loading="busy" @click="syncPlex"><template #icon><RefreshCw/></template>Synchroniser Plex</UiButton><UiButton :loading="busy" @click="syncSeer"><template #icon><RefreshCw/></template>Synchroniser Seer</UiButton><UiButton variant="primary" @click="openCreate"><template #icon><UserPlus/></template>Ajouter</UiButton></template>
+      <!-- Seer n'apparait que s'il est reellement actif : la page proposait
+           « Synchroniser Seer » meme Seer desactive, et employait « synchroniser » en
+           mode observateur, ou Seer est justement lu sans etre pilote (meme vocabulaire
+           que les Reglages : « Observateur — Seer n'est qu'une source d'information »). -->
+      <template #tools>
+        <UiButton :loading="busy" @click="syncPlex"><template #icon><RefreshCw/></template>Synchroniser Plex</UiButton>
+        <UiButton v-if="seerEnabled" :loading="busy" :title="seerHint" @click="syncSeer"><template #icon><RefreshCw/></template>{{ seerActionLabel(seerEnabled, seerMode) }}</UiButton>
+        <UiButton variant="primary" @click="openCreate"><template #icon><UserPlus/></template>Ajouter</UiButton>
+      </template>
     
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <select v-model="status"><option value="">Tous les statuts</option><option value="enabled">Actifs</option><option value="disabled">Désactivés</option></select>
         <select v-model="role"><option value="">Tous les rôles</option><option value="admin">Administrateurs</option><option value="moderator">Modérateurs</option><option value="user">Utilisateurs</option></select>
         <select v-model="attention"><option value="">Toutes les situations</option><option value="pending">Approbations en attente</option><option value="missing_email">Sans email</option><option value="notification_error">Erreur de notification</option></select>
-        <select v-model="source"><option value="">Toutes les sources</option><option v-for="value in sources" :key="value">{{ value }}</option></select>
+        <select v-model="source"><option value="">Toutes les origines</option><option v-for="value in sources" :key="value" :value="value">{{ sourceLabel(value) }}</option></select>
         <select v-model="sort"><option value="name">Nom</option><option value="requests">Demandes</option><option value="activity">Activité récente</option></select>
       </FilterSidebar>
       <div class="psh-main">
-    <section class="user-metrics"><button v-for="metric in metrics" :key="metric.key" :class="{active:attention===metric.filter}" @click="attention=attention===metric.filter?'':metric.filter"><component :is="metric.icon"/><div><span>{{ metric.label }}</span><strong>{{ metric.value }}</strong><small>{{ metric.detail }}</small></div></button></section>
+    <!-- Ces tuiles sont le filtre de la page : `aria-pressed` dit laquelle est active,
+         ce que la seule classe CSS ne disait qu'a l'oeil. -->
+    <section class="user-metrics" aria-label="Filtres rapides">
+      <button
+        v-for="metric in metrics"
+        :key="metric.key"
+        type="button"
+        :class="{active:attention===metric.filter}"
+        :aria-pressed="attention===metric.filter"
+        @click="attention=attention===metric.filter?'':metric.filter"
+      >
+        <component :is="metric.icon"/>
+        <div><span>{{ metric.label }}</span><strong>{{ metric.value }}</strong><small>{{ metric.detail }}</small></div>
+      </button>
+    </section>
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load"/><UiFeedback v-if="message" type="success" :message="message" dismissible @dismiss="message=''"/>
 
     <UsersTable ref="tableRef" :rows="filtered" :loading="loading" @open="openUser" @toggle="toggle" @bulk-status="bulkStatus" @bulk-notify="bulkNotify" @bulk-permissions="bulkPermissions" @bulk-delete="bulkDelete"/>
@@ -26,7 +48,13 @@
       :users="users"
       :busy="busy"
       :editor-error="editorError"
+      :seer-enabled="seerEnabled"
+      :seer-mode="seerMode"
+      :seer-candidates="seerCandidates"
       @close="closeEditor"
+      @set-enabled="setEnabled"
+      @set-can-login="setCanLogin"
+      @link-seer="linkSeer"
       @save="saveUser"
       @delete="deleteUser"
       @test-email="testEmail"
@@ -52,13 +80,18 @@ import { useConfirmedAction } from '@/composables/useConfirmedAction';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { useFetchState } from '@/composables/useFetchState';
 import UiButton from '@/components/ui/UiButton.vue';
+import { accountName, seerActionLabel, sourceLabel } from '@/utils/userLabels';
 
 const route = useRoute(), router = useRouter();
 const users = ref([]), editing = ref(null), creating = ref(false), query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref(''), sort = ref('name');
 const { loading, error, execute: executeLoad } = useFetchState();
 const busy = ref(false), editorError = ref(''), message = ref('');
+const seerEnabled = ref(false), seerMode = ref(null), seerCandidates = ref([]);
+const seerHint = computed(() => seerMode.value === 'actor'
+  ? 'Seer traite aussi les demandes : la synchronisation est bidirectionnelle.'
+  : 'Seer est en mode observateur : ses comptes sont relus, rien ne lui est envoyé.');
 const tableRef = ref(null), drawerRef = ref(null);
-const { dialog: confirmDialog, resolveConfirm, runConfirmed } = useConfirmedAction({ busy, error });
+const { dialog: confirmDialog, resolveConfirm, runConfirmed, askConfirm } = useConfirmedAction({ busy, error });
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFilters } = useFiltersDrawer(
   { query, status, role, attention, source, sort },
@@ -79,14 +112,18 @@ const metrics=computed(()=>[
   {key:'errors',label:'Échecs récents',value:users.value.filter(user=>user.has_notification_error).length,detail:'Comptes dont le dernier envoi a échoué',filter:'notification_error',icon:markRaw(RefreshCw)},
 ]);
 const filtered = computed(() => users.value.filter(user =>
-  (!query.value || `${displayName(user)} ${user.plex_user_id} ${user.plex_email || ''}`.toLowerCase().includes(query.value.toLowerCase())) &&
+  /* Le pseudo du service d'origine (`display_name`) etait exclu de la recherche des
+     qu'un nom personnalise existait : chercher « GachaBlock » ne trouvait pas Romain. */
+  (!query.value || `${displayName(user)} ${user.display_name || ''} ${user.plex_user_id} ${user.plex_email || ''} ${user.notification_email || ''}`.toLowerCase().includes(query.value.toLowerCase())) &&
   (!status.value || (status.value === 'enabled') === Boolean(user.enabled)) &&
   (!role.value || user.role === role.value) &&
   (!attention.value || (attention.value==='enabled'&&user.enabled)||(attention.value==='pending'&&(user.stats?.pending_approval||0)>0)||(attention.value==='missing_email'&&!user.notification_email&&!user.plex_email&&!user.notify_admin)||(attention.value==='notification_error'&&user.has_notification_error)) &&
   (!source.value || user.source === source.value)
 ).sort((a, b) => sort.value === 'requests' ? (b.stats?.total || 0) - (a.stats?.total || 0) : sort.value==='activity' ? String(b.last_requested_at||'').localeCompare(String(a.last_requested_at||'')) : displayName(a).localeCompare(displayName(b), 'fr')));
 
-function displayName(user) { return user?.custom_name || user?.display_name || user?.plex_user_id || ''; }
+/* `accountName` est partage avec la table et la fiche : le nom affiche, celui qui sert
+   au tri et celui que cherche la recherche ne peuvent plus diverger. */
+const displayName = (user) => accountName(user || {});
 function fillForm(user) { Object.assign(form, defaults, Object.fromEntries(Object.keys(defaults).map(key => [key, user?.[key] ?? defaults[key]]))); }
 
 async function load() { await executeLoad(async () => { users.value = await api('/api/users'); }); }
@@ -119,9 +156,76 @@ async function deleteUser() { await runConfirmed(async () => { await api(`/api/u
 async function syncSeer() { busy.value = true; try { await api('/api/seer/sync', { method: 'POST' }); message.value = 'Synchronisation Seer terminee.'; await load(); } catch (e) { error.value = e.message; } finally { busy.value = false; } }
 async function syncPlex() { busy.value = true; try { const result = await api('/api/plex/sync/users', { method: 'POST' }); message.value = `Synchronisation Plex terminée : ${result.created || 0} ajouté(s), ${result.updated || 0} mis à jour.`; await load(); } catch (e) { error.value = e.message; } finally { busy.value = false; } }
 async function userAction(action) { busy.value = true; try { await api(`/api/users/${editing.value.id}/${action}`, { method: 'POST' }); await openUser(editing.value.id); } catch (e) { editorError.value = e.message; } finally { busy.value = false; } }
-async function unlinkSeer() { await api(`/api/users/${editing.value.id}/seer-link`, { method: 'DELETE' }); await openUser(editing.value.id); }
+async function unlinkSeer() { await api(`/api/users/${editing.value.id}/seer-link`, { method: 'DELETE' }); await openUser(editing.value.id); await loadSeerCandidates(); }
+
+/* Effet immediat, comme l'interrupteur de la liste : couper un compte n'est pas une
+   modification de profil qu'on met en brouillon jusqu'a « Enregistrer ». */
+async function setEnabled(value) {
+  busy.value = true;
+  try { await api(`/api/users/${editing.value.id}/enabled`, { method: 'PUT', body: JSON.stringify({ enabled: value }) }); await openUser(editing.value.id); await load(); }
+  catch (e) { editorError.value = e.message; } finally { busy.value = false; }
+}
+
+/* Pas d'endpoint unitaire pour `can_login` : celui des actions groupees fait le travail
+   et porte deja la validation. L'appeler avec un seul identifiant evite de dupliquer
+   cette logique cote serveur pour un champ booleen. */
+async function setCanLogin(value) {
+  busy.value = true;
+  try { await api('/api/users/bulk/permissions', { method: 'PUT', body: JSON.stringify({ user_ids: [editing.value.id], can_login: value }) }); await openUser(editing.value.id); await load(); }
+  catch (e) { editorError.value = e.message; } finally { busy.value = false; }
+}
+
+async function linkSeer(seerUserId) {
+  busy.value = true;
+  try {
+    await api(`/api/users/${editing.value.id}/seer-link`, { method: 'PUT', body: JSON.stringify({ seer_user_id: Number(seerUserId) }) });
+    message.value = 'Compte Seer rattaché.';
+    await openUser(editing.value.id); await load(); await loadSeerCandidates();
+  } catch (e) { editorError.value = e.message; } finally { busy.value = false; }
+}
+
+/* Liste des comptes Seer proposables : l'API attend un identifiant numerique, la
+   choisir par nom evite de le faire saisir a la main. */
+async function loadSeerCandidates() {
+  if (!seerEnabled.value) { seerCandidates.value = []; return; }
+  try { seerCandidates.value = (await api('/api/seer/users')).seer_users || []; }
+  catch { seerCandidates.value = []; }
+}
 async function testEmail() { const data = await api(`/api/users/${editing.value.id}/test-email`, { method: 'POST' }); message.value = `Email envoye a ${data.recipient}`; }
-async function mergeUser(targetId) { await runConfirmed(async () => { await api(`/api/users/${editing.value.id}/merge-into/${targetId}`, { method: 'POST' }); closeEditor(); await load(); }, { title: 'Fusionner les utilisateurs ?', message: 'Cette fusion est irréversible. Les demandes et préférences seront rattachées à l’utilisateur cible.', confirmLabel: 'Fusionner', danger: true }, { reload: false }); }
+/* Deux confirmations, parce qu'un compte disparait pour de bon et que le sens de la
+   fusion se lit mal : la premiere nomme qui est supprime, la seconde redemande. */
+async function mergeUser({ otherId, keep }) {
+  const other = users.value.find(user => String(user.id) === String(otherId));
+  if (!other) return;
+  const keeper = keep === 'this' ? editing.value : other;
+  const removed = keep === 'this' ? other : editing.value;
+  const keeperName = displayName(keeper);
+  const removedName = displayName(removed);
+
+  const first = await askConfirm({
+    title: `Supprimer « ${removedName} » ?`,
+    message: `Ses demandes, préférences et historique seront rattachés à « ${keeperName} », puis le compte « ${removedName} » sera supprimé. Cette opération est irréversible.`,
+    confirmLabel: 'Continuer',
+    danger: true,
+  });
+  if (!first) return;
+
+  const second = await askConfirm({
+    title: 'Confirmer la fusion',
+    message: `Dernière vérification : « ${keeperName} » est conservé, « ${removedName} » disparaît définitivement.`,
+    confirmLabel: `Fusionner et supprimer « ${removedName} »`,
+    danger: true,
+  });
+  if (!second) return;
+
+  busy.value = true;
+  try {
+    await api(`/api/users/${removed.id}/merge-into/${keeper.id}`, { method: 'POST' });
+    message.value = `Comptes fusionnés dans « ${keeperName} ».`;
+    if (keep === 'this') { await openUser(editing.value.id); } else { closeEditor(); }
+    await load();
+  } catch (e) { editorError.value = e.message; } finally { busy.value = false; }
+}
 
 async function bulkStatus(enabled) { const ids = tableRef.value.selectedIds; await api('/api/users/bulk/status', { method: 'PUT', body: JSON.stringify({ user_ids: ids, enabled }) }); tableRef.value.clearSelection(); await load(); }
 async function bulkDelete() { const ids = tableRef.value.selectedIds; await runConfirmed(async () => { await api('/api/users/bulk/delete', { method: 'POST', body: JSON.stringify({ user_ids: ids }) }); tableRef.value.clearSelection(); await load(); }, { title: 'Supprimer les utilisateurs sélectionnés ?', message: `${ids.length} utilisateur(s) seront supprimé(s) définitivement.`, confirmLabel: 'Supprimer', danger: true }, { reload: false }); }
@@ -132,7 +236,22 @@ async function bulkNotify(field, value) {
 }
 async function bulkPermissions(payload){const ids=tableRef.value.selectedIds;try{await api('/api/users/bulk/permissions',{method:'PUT',body:JSON.stringify({user_ids:ids,...payload})});message.value='Permissions mises à jour.';tableRef.value.clearSelection();await load()}catch(e){error.value=e.message}}
 
-onMounted(async () => { await load(); if (route.params.userId) await openUser(route.params.userId); });
+/* L'etat de Seer conditionne l'affichage de ses actions. Lu une fois au chargement :
+   la page est reservee aux administrateurs, /api/settings leur est accessible. */
+async function loadSeerState() {
+  try {
+    const settings = await api('/api/settings');
+    seerEnabled.value = Boolean(settings.seer_enabled);
+    seerMode.value = settings.seer_mode || null;
+    await loadSeerCandidates();
+  } catch {
+    /* Etat inconnu : on n'affiche pas d'action Seer plutot que d'en proposer une qui
+       echouerait. */
+    seerEnabled.value = false;
+  }
+}
+
+onMounted(async () => { await Promise.all([load(), loadSeerState()]); if (route.params.userId) await openUser(route.params.userId); });
 </script>
 <style scoped lang="scss">
 .user-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap: var(--space-2)}.user-metrics button{display:flex;align-items:flex-start;gap: var(--space-2);min-height:44px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);text-align:left}.user-metrics button:hover,.user-metrics button.active{border-color:var(--accent);background:var(--surface-2)}.user-metrics svg{width:18px;color:var(--muted)}.user-metrics div{display:grid;gap: var(--space-1)}.user-metrics span{color:var(--muted);font-size:var(--fs-xs);}.user-metrics strong{font-size:var(--fs-lg)}.user-metrics small{color:var(--muted);font-size:var(--fs-xs)}@media(max-width:767.98px){.user-metrics{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}.user-metrics button{min-width:150px;scroll-snap-align:start}}
