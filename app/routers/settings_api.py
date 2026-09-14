@@ -183,6 +183,7 @@ class SettingsUpdate(BaseModel):
     vf_upgrade_accept_secondary: Optional[bool] = None
     vf_upgrade_require_default: Optional[bool] = None
     vf_upgrade_min_confidence: Optional[int] = None
+    vf_upgrade_accept_vfq: Optional[bool] = None
     vf_upgrade_block_arr_rejected: Optional[bool] = None
     vf_upgrade_protect_resolution: Optional[bool] = None
     vf_upgrade_preserve_hdr: Optional[bool] = None

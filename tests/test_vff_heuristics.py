@@ -38,6 +38,35 @@ def test_get_audio_info_filename_fallback():
     assert has_fr is True
     assert any(t["is_fr"] for t in tracks)
     assert any("nom de fichier" in t["label"].lower() for t in tracks)
+    # Le repli nom de fichier est une presomption, pas une preuve : la piste annoncee
+    # par le nom du fichier n'existe pas dans le conteneur.
+    assert any(t.get("is_presumed") for t in tracks if t["is_fr"])
+
+
+def test_multi_in_a_track_title_is_not_proof_of_french_audio():
+    """« MULTI » decrit le conteneur (plusieurs pistes), jamais la piste : le traiter
+    comme une preuve de VF faisait passer des pistes anglaises de releases multi-langues
+    pour du francais, et validait des ameliorations VF a tort."""
+    mock_stream = MagicMock()
+    mock_stream.languageCode = "en"
+    mock_stream.language = "english"
+    mock_stream.title = "MULTI"
+    mock_stream.displayTitle = "English (MULTI) 5.1"
+
+    mock_part = MagicMock()
+    mock_part.file = "/data/movies/Some.Movie.2020.1080p.mkv"
+    mock_part.audioStreams.return_value = [mock_stream]
+    mock_part.subtitleStreams.return_value = []
+
+    mock_media = MagicMock()
+    mock_media.parts = [mock_part]
+
+    mock_movie = MagicMock()
+    mock_movie.media = [mock_media]
+
+    has_fr, tracks, _ = get_audio_info(mock_movie)
+    assert has_fr is False
+    assert not any(t["is_fr"] for t in tracks)
 
 
 def test_show_has_full_french_audio_rules():

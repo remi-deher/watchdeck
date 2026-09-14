@@ -99,10 +99,11 @@ export const form = reactive<Record<string, any>>({
   vf_upgrade_priority: 'mixed,vo,vf',
   vf_upgrade_prioritize_continuing: false,
   vf_upgrade_markers: 'truefrench,vff,multi,vfi,vfq',
-  vf_upgrade_preference: 'truefrench,vff,multi,vfi,vfq',
+  vf_upgrade_preference: 'truefrench,vff,vfi,multi,vfq',
   vf_upgrade_accept_secondary: true,
   vf_upgrade_require_default: false,
   vf_upgrade_min_confidence: 65,
+  vf_upgrade_accept_vfq: false,
   vf_upgrade_block_arr_rejected: true,
   vf_upgrade_protect_resolution: true,
   vf_upgrade_preserve_hdr: true,
@@ -219,6 +220,22 @@ export async function load(): Promise<void> {
   } catch (e) {
     fail(e);
   }
+}
+
+/* Annule les modifications non enregistrees, en revenant a l'etat charge.
+ *
+ * Necessaire des lors que les reglages sont modifiables depuis une modale : fermer sans
+ * enregistrer doit rendre le formulaire a son etat serveur, sinon les valeurs saisies
+ * survivent dans le store partage et reapparaissent sur la page Reglages, ou pire,
+ * partent au prochain enregistrement d'une autre section. */
+export function discardChanges(): void {
+  const base = savedSnapshot.value;
+  if (!base) return;
+  for (const key of Object.keys(form)) {
+    if (!Object.is(form[key], base[key])) form[key] = base[key];
+  }
+  error.value = '';
+  message.value = '';
 }
 
 export async function save(): Promise<void> {

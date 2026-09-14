@@ -5,6 +5,7 @@ interactive Sonarr/Radarr -- voir services/vf_upgrade_scanner.py pour le scan lu
 import json
 import logging
 from datetime import timedelta
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -16,6 +17,7 @@ from ..database import get_db_async
 from ..dependencies import require_moderator
 from ..job_queue import arq_enabled, enqueue_job
 from ..models import (
+    ArrInstance,
     LibraryItem,
     MediaRequest,
     RequestStatus,
@@ -28,7 +30,22 @@ from ..models import (
 )
 from ..realtime import publish
 from ..services import radarr, sonarr
+from ..services.arr_language_config import (
+    french_language_id,
+    inspect_language_config,
+    push_custom_format,
+    recommended_custom_format,
+)
 from ..services.request_lifecycle import transition_request
+from ..services.vf_technical_guard import blocking_reasons
+from ..services.vf_upgrade_lifecycle import (
+    ACTIVE_UPGRADE_STATES,
+    QueueCache,
+    queue_matches,
+    refresh_lifecycle,
+    remember_attempt,
+)
+from ..services.vf_upgrade_notifications import notify_vf_upgrade
 from ..services.vf_upgrade_scanner import (
     _load_ignored,
     _season_vf_status,
@@ -43,7 +60,6 @@ from .arr_shared import _resolve_arr_instance
 
 router = APIRouter(prefix="/api", tags=["vf-upgrades"], dependencies=[Depends(require_moderator)])
 logger = logging.getLogger(__name__)
-ACTIVE_UPGRADE_STATES = ("accepted", "downloading", "importing", "awaiting_verification")
 
 
 def _iso_utc(value) -> str | None:
@@ -131,97 +147,6 @@ def _qualify_audit_issues(item) -> list[str]:
     return issues
 
 
-def _queue_matches(item: dict, suggestion: VfUpgradeSuggestion, arr_id: int) -> bool:
-    if item.get("arr_media_id") != arr_id:
-        return False
-    if suggestion.scope == "episode":
-        return (
-            item.get("season_number") == suggestion.season_number
-            and item.get("episode_number") == suggestion.episode_number
-        )
-    return True
-
-
-async def _scope_has_vf(db: AsyncSession, suggestion: VfUpgradeSuggestion, media, settings: Settings | None) -> bool:
-    require_default = bool(
-        settings and (settings.vf_upgrade_require_default is True or settings.vf_upgrade_accept_secondary is False)
-    )
-    if suggestion.scope == "movie":
-        # Une VF deja presente avant le grab ne prouve pas que la nouvelle release a
-        # ete importee: l'analyse doit etre posterieure a l'acceptation *arr.
-        return bool(
-            media.has_vf
-            and (not require_default or media.fr_is_default is True)
-            and suggestion.accepted_at
-            and media.vf_checked_at
-            and media.vf_checked_at >= suggestion.accepted_at
-        )
-    query = select(VfEpisodeStatus.has_vf, VfEpisodeStatus.fr_is_default, VfEpisodeStatus.checked_at).filter(
-        VfEpisodeStatus.source_type == suggestion.source_type,
-        VfEpisodeStatus.source_id == suggestion.source_id,
-        VfEpisodeStatus.season_number == suggestion.season_number,
-        VfEpisodeStatus.is_known_episode.is_(True),
-    )
-    if suggestion.scope == "episode":
-        query = query.filter(VfEpisodeStatus.episode_number == suggestion.episode_number)
-    values = list((await db.execute(query)).all())
-    return (
-        bool(values)
-        and bool(suggestion.accepted_at)
-        and all(
-            has_vf
-            and (not require_default or fr_is_default is True)
-            and checked_at
-            and checked_at >= suggestion.accepted_at
-            for has_vf, fr_is_default, checked_at in values
-        )
-    )
-
-
-async def _refresh_lifecycle(db: AsyncSession, suggestion: VfUpgradeSuggestion, media) -> None:
-    if suggestion.status not in ACTIVE_UPGRADE_STATES:
-        return
-    settings = (await db.execute(select(Settings))).scalars().first()
-    if await _scope_has_vf(db, suggestion, media, settings):
-        suggestion.status = "verified"
-        suggestion.completed_at = now_utc_naive()
-        suggestion.arr_message = "VF confirmee apres import par l'analyse des pistes audio"
-        return
-    arr_type = "radarr" if suggestion.scope == "movie" else "sonarr"
-    inst = await _resolve_arr_instance(db, media.arr_instance_id, arr_type)
-    queue = await (radarr if arr_type == "radarr" else sonarr).get_queue(inst.url, inst.api_key)
-    match = next((item for item in queue if _queue_matches(item, suggestion, media.arr_id)), None)
-    if match:
-        suggestion.status = "importing" if "import" in str(match.get("tracked_state", "")).lower() else "downloading"
-        suggestion.queue_confirmed_at = suggestion.queue_confirmed_at or now_utc_naive()
-        suggestion.arr_message = f"{inst.name} a confirme le telechargement ({match.get('progress', 0)} %)"
-    elif suggestion.status in ("downloading", "importing"):
-        suggestion.status = "awaiting_verification"
-        suggestion.arr_message = "Telechargement termine; verification VF Plex en attente"
-        if settings and settings.vf_upgrade_trigger_plex_scan:
-            from ..services.vff_scanner import trigger_plex_library_refresh
-
-            await trigger_plex_library_refresh(
-                settings,
-                media.media_type,
-                arr_type=arr_type,
-                arr_url=inst.url,
-                arr_api_key=inst.api_key,
-                cache_key=f"{arr_type}:{inst.id}",
-            )
-    elif (
-        settings
-        and settings.vf_upgrade_verify_after_import
-        and suggestion.accepted_at
-        and now_utc_naive() - suggestion.accepted_at
-        > timedelta(minutes=max(15, settings.vf_upgrade_verification_timeout_minutes or 120))
-    ):
-        suggestion.status = "failed"
-        suggestion.failed_at = now_utc_naive()
-        suggestion.retry_count = (suggestion.retry_count or 0) + 1
-        suggestion.arr_message = "VF non confirmee avant la fin du delai de validation"
-
-
 async def _reconcile_external_vf(
     db: AsyncSession,
     suggestion: VfUpgradeSuggestion,
@@ -277,13 +202,20 @@ async def list_vf_upgrades(source_type: str, source_id: int, db: AsyncSession = 
     model = MediaRequest if source_type == "request" else LibraryItem
     media = (await db.execute(select(model).filter(model.id == source_id))).scalars().first()
     if media:
+        # Une fiche media ne porte que quelques suggestions : le rafraichissement reste
+        # synchrone ici pour que l'utilisateur voie l'etat a jour juste apres un grab.
+        # Le gros du travail est fait par le job de fond (voir reconcile_all), qui n'a
+        # plus besoin qu'on ouvre une page pour faire avancer le cycle de vie.
+        settings = (await db.execute(select(Settings))).scalars().first()
+        queues = QueueCache()
         seasons = None
         for row in rows:
             try:
                 if row.scope != "movie" and seasons is None:
                     seasons = await _season_vf_status(db, source_type, source_id)
                 await _reconcile_external_vf(db, row, media, seasons)
-                await _refresh_lifecycle(db, row, media)
+                if media.arr_id:
+                    await refresh_lifecycle(db, row, media, settings=settings, queues=queues)
             except Exception as exc:
                 logger.warning("Suivi upgrade VF indisponible pour suggestion %s: %s", row.id, exc)
         await db.commit()
@@ -340,8 +272,18 @@ async def vf_upgrade_metrics(db: AsyncSession = Depends(get_db_async)):
 
 
 @router.get("/vf-upgrades/dashboard")
-async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Depends(get_db_async)):
-    """Vue operationnelle globale des ameliorations VF, avec leur media parent."""
+async def vf_upgrade_dashboard(
+    status: str | None = None,
+    waiting_limit: Annotated[int, Query(ge=0, le=5000)] = 500,
+    db: AsyncSession = Depends(get_db_async),
+):
+    """Vue operationnelle globale des ameliorations VF, avec leur media parent.
+
+    `waiting_limit` borne la liste des medias VO encore sans suggestion : sur une grande
+    bibliotheque, cette partie n'etait limitee par rien et chargeait plusieurs milliers
+    de lignes que l'interface ne montrait jamais en entier. La reponse porte
+    `waiting_total` pour que l'interface puisse annoncer le reste.
+    """
     # 1. Suggestions issues de *arr / suggestions enregistrées
     query = select(VfUpgradeSuggestion).order_by(VfUpgradeSuggestion.updated_at.desc())
     if status and status != "waiting_release":
@@ -369,6 +311,7 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
         else {}
     )
     items = []
+    waiting_total = 0
     vf_status_cache: dict[tuple[str, int], dict[int, dict[int, bool]]] = {}
     active_library_item_ids = set()
     ignored = await _load_ignored(db)
@@ -399,11 +342,10 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
             target_kind = classify_vf_target(media, row.scope, row.season_number, row.episode_number, seasons)
             if target_kind not in {"vo", "mixed"}:
                 continue
-        if row.status in ACTIVE_UPGRADE_STATES:
-            try:
-                await _refresh_lifecycle(db, row, media)
-            except Exception as exc:
-                logger.warning("Suivi dashboard VF indisponible pour suggestion %s: %s", row.id, exc)
+        # Le cycle de vie n'avance plus ici : il etait declenche par l'affichage de la
+        # page, ce qui le figeait entre deux visites et imposait un appel HTTP complet
+        # a la file *arr par suggestion. C'est desormais le job de fond
+        # `job_vf_upgrade_lifecycle` qui s'en charge (voir reconcile_all).
         releases = json.loads(row.releases_json) if row.releases_json else []
         items.append(
             {
@@ -427,6 +369,15 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
             .order_by(LibraryItem.title.asc())
         )
 
+        waiting_total = (
+            await db.execute(select(func.count()).select_from(LibraryItem).filter(LibraryItem.has_vf.is_(False)))
+        ).scalar_one()
+        if waiting_limit:
+            # +len(actifs) : les medias deja porteurs d'une suggestion sont ecartes dans
+            # la boucle ci-dessous, la marge evite qu'ils consomment le quota affiche.
+            waiting_stmt = waiting_stmt.limit(waiting_limit + len(active_library_item_ids))
+        else:
+            waiting_stmt = waiting_stmt.limit(0)
         waiting_media = list((await db.execute(waiting_stmt)).scalars().all())
         for media in waiting_media:
             if media.id in active_library_item_ids:
@@ -494,7 +445,12 @@ async def vf_upgrade_dashboard(status: str | None = None, db: AsyncSession = Dep
             )
 
     await db.commit()
-    return {"items": items, "scan": vf_upgrade_scan_state}
+    return {
+        "items": items,
+        "scan": vf_upgrade_scan_state,
+        "waiting_total": waiting_total,
+        "waiting_limit": waiting_limit,
+    }
 
 
 @router.get("/vf-upgrades/audit")
@@ -983,12 +939,20 @@ async def grab_vf_upgrade(suggestion_id: int, body: VfUpgradeGrabRequest, db: As
         and (selected.get("rejected") or selected.get("rejections"))
     ):
         raise HTTPException(409, "Release refusee par le profil *arr: " + ", ".join(selected.get("rejections") or []))
+    # Garde-fou technique (voir vf_technical_guard) : une recherche manuelle affiche
+    # volontairement les releases qui degraderaient la qualite, mais les prendre exige
+    # une confirmation explicite. Les reglages sont reevalues ici plutot que de se fier
+    # au verdict fige au moment du scan, qui a pu etre calcule avec d'autres protections.
+    if not body.force and selected.get("vf_technical"):
+        reasons = blocking_reasons(settings, selected["vf_technical"])
+        if reasons:
+            raise HTTPException(409, "Regression technique refusee: " + " ; ".join(reasons))
 
     arr_type = "radarr" if suggestion.scope == "movie" else "sonarr"
     inst = await _resolve_arr_instance(db, media.arr_instance_id, arr_type)
     svc = radarr if arr_type == "radarr" else sonarr
     existing_queue = await svc.get_queue(inst.url, inst.api_key)
-    if any(_queue_matches(item, suggestion, media.arr_id) for item in existing_queue):
+    if any(queue_matches(item, suggestion, media.arr_id) for item in existing_queue):
         suggestion.status = "downloading"
         suggestion.queue_confirmed_at = suggestion.queue_confirmed_at or now_utc_naive()
         suggestion.arr_message = f"Un telechargement est deja actif dans {inst.name}"
@@ -1023,11 +987,14 @@ async def grab_vf_upgrade(suggestion_id: int, body: VfUpgradeGrabRequest, db: As
 
     suggestion.status = "accepted"
     suggestion.grabbed_release_guid = body.guid
+    # Memorise pour que la relance automatique apres echec enchaine sur le candidat
+    # suivant plutot que de reproposer celui-ci (voir vf_upgrade_lifecycle).
+    remember_attempt(suggestion, body.guid)
     suggestion.arr_message = msg or f"Release acceptee par {inst.name}"
     suggestion.accepted_at = now_utc_naive()
 
     queue = await svc.get_queue(inst.url, inst.api_key)
-    if any(_queue_matches(item, suggestion, media.arr_id) for item in queue):
+    if any(queue_matches(item, suggestion, media.arr_id) for item in queue):
         suggestion.status = "downloading"
         suggestion.queue_confirmed_at = now_utc_naive()
         suggestion.arr_message = f"Release acceptee par {inst.name}; telechargement confirme dans la file"
@@ -1041,6 +1008,17 @@ async def grab_vf_upgrade(suggestion_id: int, body: VfUpgradeGrabRequest, db: As
 
             await dispatch_transition_notification(settings, req, db, "submitted")
 
+    await notify_vf_upgrade(
+        db,
+        settings,
+        "accepted",
+        media_title=media.title,
+        media_type=getattr(media, "media_type", None),
+        scope=suggestion.scope,
+        season_number=suggestion.season_number,
+        episode_number=suggestion.episode_number,
+        detail=suggestion.arr_message,
+    )
     await db.commit()
     await publish(
         "vf_upgrade.updated",
@@ -1178,6 +1156,68 @@ async def set_vf_upgrade_ignored(body: VfUpgradeIgnoreRequest, db: AsyncSession 
     return {"success": True, "ignored": body.ignored}
 
 
+@router.get("/vf-upgrades/arr-language-config")
+async def vf_upgrade_arr_language_config(db: AsyncSession = Depends(get_db_async)):
+    """Diagnostic « mon Sonarr/Radarr sait-il recuperer une VF tout seul ? ».
+
+    Repond avec les custom formats francais et les profils reels de chaque instance
+    activee (voir services/arr_language_config.py). Une instance dont un profil est
+    « native » n'a pas besoin de la recherche interactive de Watchdeck pour la majorite
+    de sa bibliotheque : son RSS sync s'en charge en continu, sans appel indexeur.
+    """
+    # Restreint a Sonarr/Radarr : les autres instances declarees (Prowlarr, par exemple)
+    # n'exposent pas /api/v3/customformat et remonteraient un diagnostic « illisible »
+    # qui n'a aucun sens pour elles.
+    instances = (
+        (
+            await db.execute(
+                select(ArrInstance).filter(ArrInstance.enabled, ArrInstance.arr_type.in_(("sonarr", "radarr")))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    results = []
+    for inst in instances:
+        entry = {"id": inst.id, "name": inst.name, "arr_type": inst.arr_type}
+        try:
+            entry.update(await inspect_language_config(inst.url, inst.api_key))
+        except Exception as exc:
+            logger.warning("Config langue *arr illisible pour '%s': %s", inst.name, exc)
+            entry.update({"verdict": "unknown", "error": str(exc)[:300]})
+        results.append(entry)
+    return {"instances": results, "recommended_custom_format": recommended_custom_format()}
+
+
+@router.post("/vf-upgrades/arr-language-config/{instance_id}/custom-format")
+async def vf_upgrade_install_custom_format(instance_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Cree le custom format « VF (Watchdeck) » sur une instance.
+
+    Le score reste a attribuer par l'utilisateur dans son profil : c'est lui qui decide
+    si *arr remplacera un fichier VO existant, et ce choix n'appartient pas a Watchdeck.
+    """
+    inst = (
+        (await db.execute(select(ArrInstance).filter(ArrInstance.id == instance_id, ArrInstance.enabled)))
+        .scalars()
+        .first()
+    )
+    if not inst:
+        raise HTTPException(404, "Instance *arr introuvable ou desactivee")
+    payload = recommended_custom_format(await french_language_id(inst.url, inst.api_key))
+    try:
+        created = await push_custom_format(inst.url, inst.api_key, payload)
+    except Exception as exc:
+        raise HTTPException(502, f"{inst.name} a refuse le custom format : {exc}") from exc
+    return {
+        "success": True,
+        "custom_format": {"id": created.get("id"), "name": created.get("name")},
+        "next_step": (
+            f"Attribue-lui un score positif dans les profils de qualite de {inst.name}, "
+            "et verifie que « Upgrade Until Custom Format Score » est renseigne."
+        ),
+    }
+
+
 @router.get("/vf-upgrades/scan-status")
 async def vf_upgrade_scan_status():
     return vf_upgrade_scan_state
@@ -1202,6 +1242,7 @@ async def vf_upgrade_scan_runs(limit: int = Query(default=20, ge=1, le=200), db:
                 "trigger": row.trigger,
                 "tasks_total": row.tasks_total,
                 "tasks_scanned": row.tasks_scanned,
+                "tasks_errored": row.tasks_errored,
                 "suggestions_found": row.suggestions_found,
                 "error": row.error,
             }
@@ -1235,6 +1276,7 @@ async def vf_upgrade_scan_run_items(run_id: int, db: AsyncSession = Depends(get_
             "status": run.status,
             "tasks_total": run.tasks_total,
             "tasks_scanned": run.tasks_scanned,
+            "tasks_errored": run.tasks_errored,
         },
         "items": [
             {
