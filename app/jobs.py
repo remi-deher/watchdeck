@@ -359,6 +359,32 @@ async def job_vf_upgrade_scan(ctx: dict, force: bool = False):
     )
 
 
+async def job_vf_upgrade_lifecycle(ctx: dict, force: bool = False):
+    """Fait avancer les ameliorations VF deja acceptees (voir vf_upgrade_lifecycle).
+
+    Distinct de `job_vf_upgrade_scan`, qui cherche des releases chez les indexeurs :
+    ce passage-ci ne fait que lire la file de telechargement *arr et l'etat VF Plex,
+    c'est-a-dire des appels rapides et sans cout indexeur -- d'ou un rythme bien plus
+    serre. Sans lui, le cycle de vie n'avancait que lorsqu'un humain ouvrait la page
+    des ameliorations VF.
+    """
+    from .database import AsyncSessionLocal
+    from .services.vf_upgrade_lifecycle import reconcile_all
+
+    async def _reconcile():
+        async with AsyncSessionLocal() as db:
+            return await reconcile_all(db)
+
+    return await _run(
+        ctx,
+        "vf-upgrade-lifecycle",
+        _reconcile,
+        force=force,
+        interval_seconds=300,
+        event_type="vf_upgrade.updated",
+    )
+
+
 async def job_new_vff(ctx: dict, force: bool = False):
     from .services.vff_scanner import check_new_vf_availability
 
@@ -676,6 +702,10 @@ async def cron_vf_upgrade_scan(ctx: dict):
     return await job_vf_upgrade_scan(ctx)
 
 
+async def cron_vf_upgrade_lifecycle(ctx: dict):
+    return await job_vf_upgrade_lifecycle(ctx)
+
+
 async def cron_seer_sync(ctx: dict):
     return await job_seer_sync(ctx)
 
@@ -716,6 +746,7 @@ class WorkerSettings:
         job_episode_availability,
         job_new_vff,
         job_vf_upgrade_scan,
+        job_vf_upgrade_lifecycle,
         job_seer_sync,
         job_plex_sync,
         job_plex_sync_recent,
@@ -739,6 +770,9 @@ class WorkerSettings:
         # Recherche interactive : declenchee chaque minute mais court-circuitee la
         # plupart du temps par l'intervalle de 6h de job_vf_upgrade_scan (voir _run/_due).
         cron(cron_vf_upgrade_scan, minute=None, second=40, unique=True),
+        # Lecture de file *arr + etat VF Plex uniquement (aucun appel indexeur) :
+        # declenche chaque minute, court-circuite par l'intervalle de 5 min du job.
+        cron(cron_vf_upgrade_lifecycle, minute=None, second=50, unique=True),
         cron(cron_seer_sync, minute=5, unique=True),
         # Tourne toutes les 15 min (comme cron_arr_statuses) ; job_plex_sync decide via
         # _run/_due si l'intervalle configure (plex_sync_interval_hours) est vraiment

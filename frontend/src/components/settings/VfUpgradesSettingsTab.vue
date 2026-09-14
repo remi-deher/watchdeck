@@ -37,15 +37,67 @@
       </SettingsRow>
     </SettingsSection>
 
+    <SettingsSection
+      title="Ce que sait déjà faire ton Sonarr / Radarr"
+      subtitle="Sonarr et Radarr peuvent récupérer une VF seuls, via un custom format « French » noté dans le profil : leur RSS sync s'en charge en continu, sans aucun appel indexeur."
+    >
+      <template #actions>
+        <button type="button" class="diag-btn" :disabled="diagLoading" @click="loadDiagnostic">
+          {{ diagLoading ? 'Analyse…' : (diagnostic ? 'Réanalyser' : 'Analyser mes instances') }}
+        </button>
+      </template>
+
+      <p v-if="diagError" class="diag-error">{{ diagError }}</p>
+      <p v-else-if="!diagnostic" class="diag-hint">
+        Watchdeck interroge les indexeurs en direct, ce qui est lent et plafonné. Si ton *arr est
+        déjà configuré pour la VF, cette recherche n'est qu'un filet de sécurité.
+      </p>
+
+      <ul v-else-if="diagnostic.instances.length" class="diag-list">
+        <li v-for="inst in diagnostic.instances" :key="inst.id" class="diag-instance">
+          <div class="diag-head">
+            <strong>{{ inst.name }}</strong>
+            <span class="diag-verdict" :class="`verdict-${inst.verdict}`">{{ verdictLabel(inst.verdict) }}</span>
+          </div>
+          <p class="diag-explain">{{ verdictExplain(inst) }}</p>
+          <ul v-if="inst.french_formats?.length" class="diag-formats">
+            <li v-for="cf in inst.french_formats" :key="cf.id">
+              {{ cf.name }} <span class="diag-detected">— détecté par {{ cf.detected_by }}</span>
+            </li>
+          </ul>
+          <ul v-if="inst.profiles?.length" class="diag-profiles">
+            <li v-for="profile in inst.profiles" :key="profile.id">
+              <span class="diag-verdict-dot" :class="`verdict-${profile.verdict}`" aria-hidden="true" />
+              {{ profile.name }}
+              <span class="diag-detail">{{ profileDetail(profile) }}</span>
+            </li>
+          </ul>
+          <button
+            v-if="inst.verdict === 'absent'"
+            type="button"
+            class="diag-btn"
+            :disabled="installing === inst.id"
+            @click="installCustomFormat(inst)"
+          >
+            {{ installing === inst.id ? 'Création…' : `Créer le custom format « VF » dans ${inst.name}` }}
+          </button>
+        </li>
+      </ul>
+      <p v-else class="diag-hint">Aucune instance Sonarr/Radarr activée.</p>
+    </SettingsSection>
+
     <SettingsSection title="Langues et confiance" subtitle="Filtre et ordonne les releases candidates.">
       <SettingsRow label="Marqueurs acceptés" description="Séparés par des virgules.">
         <input v-model="form.vf_upgrade_markers" placeholder="truefrench,vff,multi,vfi,vfq">
       </SettingsRow>
       <SettingsRow label="Ordre de préférence">
-        <input v-model="form.vf_upgrade_preference" placeholder="truefrench,vff,multi,vfi,vfq">
+        <input v-model="form.vf_upgrade_preference" placeholder="truefrench,vff,vfi,multi,vfq">
       </SettingsRow>
-      <SettingsRow label="Confiance minimale" :description="`${form.vf_upgrade_min_confidence} %`">
+      <SettingsRow label="Confiance minimale" :description="confidenceHint">
         <input v-model.number="form.vf_upgrade_min_confidence" type="range" min="0" max="100" step="5">
+      </SettingsRow>
+      <SettingsRow label="Accepter un doublage québécois (VFQ)" description="Une VFQ est un vrai doublage français, mais différent de la VF de France.">
+        <ToggleSwitch v-model="form.vf_upgrade_accept_vfq" title="Accepter un doublage québécois (VFQ)" />
       </SettingsRow>
       <SettingsRow label="Accepter une piste française secondaire">
         <ToggleSwitch v-model="form.vf_upgrade_accept_secondary" title="Accepter une piste française secondaire" />
@@ -167,7 +219,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { api } from '@/api';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { form } from '@/settingsForm';
 import SettingsRow from './SettingsRow.vue';
@@ -186,12 +239,151 @@ const effectiveSummary = computed(() => {
     : 'Les packs complets peuvent remplacer des fichiers VF existants.';
   return `Recherche sur ${scopes}, toutes les ${form.vf_upgrade_retry_hours || 6} h. ${protection}`;
 });
+/* Le curseur note la solidite de la preuve VF portee par le titre de la release
+   (voir release_matching._VF_SCORES cote backend) : on explicite les paliers utiles
+   plutot que d'afficher un pourcentage nu que rien ne rattache a un comportement. */
+const confidenceHint = computed(() => {
+  const value = form.vf_upgrade_min_confidence ?? 0;
+  if (value > 95) return `${value} % — uniquement TRUEFRENCH / VFF`;
+  if (value > 90) return `${value} % — TRUEFRENCH, VFF, VFI`;
+  if (value > 85) return `${value} % — marqueurs explicites ou langue French déclarée par *arr`;
+  if (value > 70) return `${value} % — exclut le « MULTI » seul, souvent trompeur`;
+  if (value > 0) return `${value} % — accepte le « MULTI » seul`;
+  return 'Aucun filtre : toute release portant un marqueur est proposée';
+});
+/* Diagnostic de la configuration langue des instances *arr : lecture seule, a la
+   demande (un appel par instance vers /customformat + /qualityprofile), jamais au
+   chargement de l'onglet. */
+const diagnostic = ref<any>(null);
+const diagLoading = ref(false);
+const diagError = ref('');
+const installing = ref<number | null>(null);
+
+async function loadDiagnostic() {
+  diagLoading.value = true;
+  diagError.value = '';
+  try {
+    diagnostic.value = await api('/api/vf-upgrades/arr-language-config');
+  } catch (e: any) {
+    diagError.value = e?.message || 'Analyse impossible.';
+  } finally {
+    diagLoading.value = false;
+  }
+}
+
+async function installCustomFormat(inst: any) {
+  installing.value = inst.id;
+  diagError.value = '';
+  try {
+    const res = await api(`/api/vf-upgrades/arr-language-config/${inst.id}/custom-format`, { method: 'POST' });
+    diagError.value = res.next_step || '';
+    await loadDiagnostic();
+  } catch (e: any) {
+    diagError.value = e?.message || 'Création impossible.';
+  } finally {
+    installing.value = null;
+  }
+}
+
+function verdictLabel(verdict: string) {
+  if (verdict === 'native') return 'Autonome';
+  if (verdict === 'partial') return 'Partiel';
+  if (verdict === 'unknown') return 'Illisible';
+  return 'Non configuré';
+}
+
+function verdictExplain(inst: any) {
+  if (inst.verdict === 'unknown') return `Configuration illisible : ${inst.error || 'instance injoignable'}.`;
+  if (inst.verdict === 'native') {
+    return 'Cette instance récupère les VF toute seule via son RSS sync. La recherche interactive de Watchdeck ne sert plus que de filet de sécurité.';
+  }
+  if (inst.verdict === 'partial') {
+    return 'Un custom format français est noté, mais aucun profil ne peut remplacer un fichier existant pour ce gain de score : il manque « Upgrade Allowed » et un « Upgrade Until Custom Format Score » non nul.';
+  }
+  return 'Aucun custom format français noté : toutes les VF passent par la recherche interactive de Watchdeck, plafonnée et lente.';
+}
+
+function profileDetail(profile: any) {
+  const scores = (profile.french_formats || []).map((cf: any) => `${cf.name} ${cf.score > 0 ? '+' : ''}${cf.score}`);
+  const parts = [scores.length ? scores.join(', ') : 'aucun format français'];
+  parts.push(profile.upgrade_allowed ? 'upgrade autorisé' : 'upgrade désactivé');
+  parts.push(`seuil de score ${profile.cutoff_format_score}`);
+  return `— ${parts.join(' · ')}`;
+}
+
 const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
   ? 'La protection VF impose la recherche des seuls épisodes VO. Désactive-la pour autoriser un pack complet automatique.'
   : 'Une recherche manuelle au niveau saison cherche toujours un pack complet.');
 </script>
 
 <style scoped lang="scss">
+.diag-btn {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+
+  &:disabled { opacity: 0.6; cursor: default; }
+}
+
+.diag-hint,
+.diag-error,
+.diag-explain {
+  margin: 0 0 var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.diag-error { color: var(--warning, #e5a00d); }
+
+.diag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+
+.diag-instance {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.diag-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
+
+.diag-verdict {
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.verdict-native { background: rgba(29, 185, 84, 0.15); color: #1db954; }
+.verdict-partial { background: rgba(229, 160, 13, 0.15); color: #e5a00d; }
+.verdict-absent,
+.verdict-unknown { background: rgba(231, 76, 60, 0.12); color: #e74c3c; }
+
+.diag-verdict-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.diag-formats,
+.diag-profiles {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diag-detected,
+.diag-detail { color: var(--text-muted); }
+
 .settings-rows {
   display: flex;
   flex-direction: column;

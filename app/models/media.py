@@ -427,6 +427,10 @@ class VfUpgradeSuggestion(Base):
     # *arr a accepte le grab, meme si son element n'est pas encore visible dans la queue.
     status: Mapped[str] = mapped_column(default="pending", index=True)
     grabbed_release_guid: Mapped[Optional[str]]
+    # Guids deja tentes pour cette cible (JSON), pour que la relance automatique apres
+    # echec (voir vf_upgrade_lifecycle.auto_retry_next_candidate) enchaine sur le
+    # candidat suivant au lieu de reproposer la release qui a deja deçu.
+    attempted_guids_json: Mapped[Optional[str]] = mapped_column(Text)
     arr_message: Mapped[Optional[str]] = mapped_column(Text)
     accepted_at: Mapped[Optional[datetime]]
     queue_confirmed_at: Mapped[Optional[datetime]]
@@ -450,11 +454,16 @@ class VfUpgradeScanRun(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     started_at: Mapped[datetime] = mapped_column(default=now_utc_naive, index=True)
     finished_at: Mapped[Optional[datetime]]
-    # "running" -> "success" | "failed"
+    # "running" -> "success" | "degraded" | "failed" -- "degraded" = cycle termine dont
+    # toutes les recherches ont echoue techniquement (indexeurs injoignables), a ne pas
+    # confondre avec un cycle qui n'a simplement rien trouve.
     status: Mapped[str] = mapped_column(default="running")
     trigger: Mapped[str] = mapped_column(default="auto")  # "auto" | "manual"
     tasks_total: Mapped[int] = mapped_column(default=0)
     tasks_scanned: Mapped[int] = mapped_column(default=0)
+    # Recherches ayant echoue pour une raison technique (voir VfUpgradeScanRunItem.status
+    # "error") : comptees a part des "no_result", qui sont un resultat legitime.
+    tasks_errored: Mapped[int] = mapped_column(default=0)
     suggestions_found: Mapped[int] = mapped_column(default=0)
     error: Mapped[Optional[str]] = mapped_column(Text)
 

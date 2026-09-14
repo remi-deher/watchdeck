@@ -24,6 +24,10 @@ _LANG_CODES = {"fr", "fre", "fra"}
 # Noms complets de langue.
 _LANG_NAMES = {"french", "français", "francais"}
 # Mots dans le titre de piste indiquant une VF ("Français 5.1", "VF", "TrueFrench"…).
+# "multi" en est volontairement absent : c'est une propriete du CONTENEUR (plusieurs
+# pistes), jamais de la piste elle-meme -- un titre de piste "MULTI" se rencontre sur
+# des pistes anglaises de releases multi-langues, et le traiter comme une preuve de VF
+# faisait passer des suggestions en "verified" a tort.
 _TITLE_WORDS = {"vf", "vff", "french", "français", "francais", "truefrench"}
 
 
@@ -66,8 +70,6 @@ def _stream_is_french(stream) -> bool:
                 low.replace("-", " ").replace("(", " ").replace(")", " ").replace("/", " ").replace(".", " ").split()
             )
             if words & _TITLE_WORDS:
-                return True
-            if "multi" in low or "truefrench" in low:
                 return True
         except Exception:
             pass
@@ -202,14 +204,20 @@ def get_audio_info(item) -> tuple[bool, list[dict], list[dict]]:
                             }
                         )
 
-        # Fallback nom de fichier si aucune piste détectée
+        # Repli nom de fichier : le fichier s'annonce VF mais aucune piste ne le
+        # confirme. C'est presque toujours un mauvais tag de release (piste absente,
+        # mal etiquetee, ou remplacee) -- on le remonte comme une presomption, jamais
+        # comme une preuve : `is_presumed` empeche de valider une amelioration VF sur
+        # cette seule base (voir vf_upgrade_lifecycle.scope_has_vf, qui s'appuie sur
+        # has_vf, et l'audit, qui peut ainsi signaler le doute a l'utilisateur).
         if not has_fr and filename_has_vf:
             has_fr = True
             tracks.append(
                 {
                     "lang": "fr",
-                    "label": "VF/VFF (via nom de fichier)",
+                    "label": "VF/VFF presumee (nom de fichier, aucune piste detectee)",
                     "is_fr": True,
+                    "is_presumed": True,
                 }
             )
     except Exception as exc:

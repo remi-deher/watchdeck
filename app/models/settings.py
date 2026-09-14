@@ -260,7 +260,11 @@ class Settings(Base):
     # recents d'une serie en cours de diffusion passent devant (VF la plus attendue).
     vf_upgrade_prioritize_continuing: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_markers: Mapped[str] = mapped_column(default="truefrench,vff,multi,vfi,vfq")
-    vf_upgrade_preference: Mapped[str] = mapped_column(default="truefrench,vff,multi,vfi,vfq")
+    vf_upgrade_preference: Mapped[str] = mapped_column(default="truefrench,vff,vfi,multi,vfq")
+    # Doublage quebecois : un vrai doublage francais, mais pas celui qu'attend la plupart
+    # des bibliotheques francaises -- refuse par defaut (voir french_release_evidence,
+    # qui classe ces releases avec vf_kind="vfq" plutot que de les confondre avec une VFF).
+    vf_upgrade_accept_vfq: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_accept_secondary: Mapped[bool] = mapped_column(default=True)
     vf_upgrade_require_default: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_min_confidence: Mapped[int] = mapped_column(default=65)

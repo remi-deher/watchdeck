@@ -236,8 +236,43 @@ function isRejected(release: any): boolean {
 function releaseTechnical(release: any): any {
   return parseReleaseTitle(release.title);
 }
+/* Deux comparatifs se superposent, et celui du serveur fait autorité.
+ *
+ * Le comparatif client ne lit que les titres de release : il ignore donc le HDR connu
+ * du seul `mediaInfo` de *arr et le score de custom format. Le serveur, lui, compare le
+ * profil réel du fichier en place (voir services/vf_technical_guard.py) et c'est lui
+ * qui refuse le grab. On affiche donc ses conclusions quand il en a, et on retombe sur
+ * l'analyse des titres pour une release qu'il n'a pas annotée (ancienne suggestion
+ * enregistrée avant cette version, ou recherche *arr classique hors mode VF). */
+function serverComparison(release: any): any | null {
+  return release?.vf_technical || null;
+}
+function technicalWarnings(release: any): string[] {
+  const fromServer = release?.vf_technical_reasons || [];
+  if (fromServer.length) return fromServer;
+  if (serverComparison(release)) return [];
+  return compareReleaseTitles(suggestion.value?.current_release_titles || [], release.title).warnings;
+}
 function comparisonFor(release: any): any {
-  return compareReleaseTitles(suggestion.value?.current_release_titles || [], release.title);
+  const authoritative = serverComparison(release);
+  if (authoritative) {
+    return {
+      current: serverProfileSummary(authoritative.current),
+      candidate: serverProfileSummary(authoritative.candidate),
+      warnings: technicalWarnings(release),
+    };
+  }
+  const parsed = compareReleaseTitles(suggestion.value?.current_release_titles || [], release.title);
+  return { ...parsed, warnings: technicalWarnings(release) };
+}
+function serverProfileSummary(profile: any): any {
+  return {
+    resolution: profile?.resolution ? `${profile.resolution}p` : null,
+    hdr: (profile?.dynamic_range || []).includes('hdr'),
+    dolbyVision: (profile?.dynamic_range || []).includes('dv'),
+    source: profile?.quality || null,
+    customFormatScore: profile?.custom_format_score,
+  };
 }
 function hasCurrentComparison(): boolean {
   return Boolean(suggestion.value?.current_release_titles?.length);
@@ -305,12 +340,21 @@ async function grabNormal(release: any): Promise<void> {
   }
 }
 async function requestGrab(release: any): Promise<void> {
-  if (isRejected(release) || (mode.value === 'vf' && comparisonFor(release).warnings.length)) {
+  if (
+    isRejected(release)
+    || release.vf_technical_blocked
+    || (mode.value === 'vf' && comparisonFor(release).warnings.length)
+  ) {
     confirmRelease.value = release;
     return;
   }
   if (mode.value === 'vf') {
-    await grab(release, { force: true });
+    /* Volontairement SANS `force` : ce chemin est celui d'une release qu'on croit
+       saine. Forcer systématiquement ici désarmait les garde-fous du serveur (release
+       refusée par le profil *arr, régression technique) pour tout grab passant par
+       cette interface. Une release à risque passe par la confirmation ci-dessous, qui
+       est le seul endroit légitime pour forcer. */
+    await grab(release);
     emit('updated');
   } else {
     await grabNormal(release);
