@@ -1,33 +1,36 @@
 ﻿<template>
   <DrawerShell wide eyebrow="Administration" :title="creating?'Nouvel utilisateur':displayName(editing)" :error="editorError" @close="$emit('close')">
-    <!-- L'etat du compte etait affiche ici en badges inertes, et modifiable ailleurs
-         dans le formulaire du Profil : deux representations du meme fait, dont une
-         seule agissait. Les deux interrupteurs prennent effet immediatement, comme
-         celui de la liste -- un compte qu'on coupe ne se met pas en brouillon. -->
-    <section v-if="!creating" class="user-drawer-summary">
-      <label class="user-state-toggle" :class="{ on: editing.enabled }">
+    <!-- Role et origine rejoignent la ligne du nom : ils identifient le compte, ils ne
+         se pilotent pas. Les deux interrupteurs, eux, prennent leur propre rangee --
+         melanges aux badges, ils formaient une bande ou l'on ne savait plus ce qui etait
+         cliquable. -->
+    <template v-if="!creating" #head-actions>
+      <span class="user-head-meta">
+        <span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(editing.role) }}</span>
+        <small>{{ sourceLabel(resolveSource(editing)) }}</small>
+      </span>
+    </template>
+
+    <!-- Effet immediat, comme l'interrupteur de la liste : couper un compte n'est pas
+         une modification de profil qu'on met en brouillon jusqu'a « Enregistrer ». -->
+    <section v-if="!creating" class="user-state-row">
+      <label class="user-state-card" :class="{ on: editing.enabled }">
         <input type="checkbox" :checked="editing.enabled" :disabled="busy" @change="$emit('set-enabled', !editing.enabled)">
-        <span class="user-state-dot" :class="{ active: editing.enabled }"></span>
         <span>
           <strong>{{ editing.enabled ? 'Compte actif' : 'Compte désactivé' }}</strong>
           <small>{{ editing.enabled ? 'Ses demandes sont traitées' : 'Ses demandes sont ignorées' }}</small>
         </span>
       </label>
 
-      <label class="user-state-toggle" :class="{ on: editing.can_login }">
+      <label class="user-state-card" :class="{ on: editing.can_login }">
         <input type="checkbox" :checked="editing.can_login" :disabled="busy" @change="$emit('set-can-login', !editing.can_login)">
-        <span class="user-state-dot" :class="{ active: editing.can_login }"></span>
         <span>
           <strong>{{ editing.can_login ? 'Connexion autorisée' : 'Connexion bloquée' }}</strong>
           <small>{{ editing.can_login ? 'Peut ouvrir une session' : 'Ne peut pas se connecter' }}</small>
         </span>
       </label>
-
-      <span class="user-summary-meta">
-        <span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(editing.role) }}</span>
-        <small>{{ sourceLabel(resolveSource(editing)) }}</small>
-      </span>
     </section>
+
     <AppSubnav variant="tabs" :active="editorTab" @update:active="editorTab = $event" :items="editorTabItems" aria-label="Sections de l’utilisateur" />
 
     <section v-if="editorTab==='profile'" class="drawer-section form-section">
@@ -116,15 +119,17 @@
 
     <!-- Un seul endroit pour tout ce qui rattache ce compte a un autre : la liaison
          Seer vivait sous un onglet « Seer », la fusion aussi -- alors que reunir deux
-         comptes Watchdeck n'a rien a voir avec Seer. -->
+         comptes Watchdeck n'a rien a voir avec Seer. Fusionner un compte local avec un
+         compte Plex reste possible meme Seer eteint. -->
     <section v-else-if="editorTab==='linked'" class="drawer-section linked-accounts">
-      <dl class="user-identity-facts">
-        <div><dt>Origine du compte</dt><dd>{{ sourceLabel(resolveSource(editing)) }}</dd></div>
-        <div v-if="editing.display_name"><dt>Pseudo d’origine</dt><dd>{{ editing.display_name }}</dd></div>
-        <div><dt>Identifiant technique</dt><dd><code>{{ editing.plex_user_id || '—' }}</code></dd></div>
-      </dl>
+      <!-- Trois faits techniques ouvraient l'onglet en liste de definitions, sans style,
+           donc au rendu par defaut du navigateur. Ce n'est que du contexte : une ligne. -->
+      <p class="account-facts">
+        <span v-if="editing.display_name">{{ editing.display_name }}</span>
+        <span>{{ accountOrigin }}</span>
+        <code v-if="editing.plex_user_id">{{ editing.plex_user_id }}</code>
+      </p>
 
-      <!-- ---------- Compte Seer ---------- -->
       <template v-if="seerEnabled">
         <div class="panel-head"><h3>Compte Seer</h3><span class="badge">{{ seerLinkLabel(editing) }}</span></div>
         <p class="drawer-hint">{{ seerModeHint }}</p>
@@ -136,8 +141,6 @@
           </div>
         </template>
         <template v-else>
-          <!-- Le choix se fait par nom. L'API attend un identifiant numerique : le faire
-               saisir a la main etait le seul recours offert jusqu'ici. -->
           <label>Compte Seer correspondant
             <select v-model="seerTarget" :disabled="!seerCandidates.length">
               <option value="">{{ seerCandidates.length ? 'Choisir un compte Seer…' : 'Aucun compte Seer disponible' }}</option>
@@ -154,53 +157,53 @@
       </template>
 
       <!-- ---------- Fusion ---------- -->
-      <div class="panel-head danger-head"><h3>Fusionner avec un autre compte</h3></div>
-      <p class="drawer-hint">
-        Une même personne existe parfois en plusieurs comptes — un compte Plex et un compte
-        Seer, ou une entrée créée par le flux RSS. La fusion réunit demandes, préférences et
-        historique sur un seul compte&nbsp;; <strong>l’autre est supprimé définitivement</strong>.
-      </p>
+      <div class="panel-head"><h3>Réunir avec un autre compte</h3></div>
 
-      <label>Autre compte
-        <select v-model="mergeTarget">
-          <option value="">Choisir un compte…</option>
-          <option v-for="user in mergeCandidates" :key="user.id" :value="user.id">{{ mergeCandidateLabel(user) }}</option>
-        </select>
+      <!-- Un seul champ, deux facons d'entrer : le nom, ou l'identifiant Plex. Deux
+           controles empiles a l'identique se lisaient comme deux etapes obligatoires,
+           alors que ce sont des alternatives. -->
+      <label>Chercher le compte
+        <input
+          v-model="mergeQuery"
+          list="merge-candidates"
+          placeholder="Nom ou identifiant Plex…"
+          spellcheck="false"
+          autocomplete="off"
+        >
       </label>
+      <datalist id="merge-candidates">
+        <option v-for="user in mergeCandidates" :key="user.id" :value="displayName(user)">{{ sourceLabel(resolveSource(user)) }}</option>
+      </datalist>
+      <p v-if="mergeQuery.trim() && !resolvedMergeTarget" class="drawer-hint warn">Aucun compte ne correspond.</p>
 
-      <!-- On peut aussi designer l'autre compte par son identifiant Plex : c'est ainsi
-           qu'on retrouve l'entree creee par le flux RSS pour une personne deja connue. -->
-      <label>ou par identifiant Plex
-        <input v-model="mergeByPlexId" placeholder="ex. 86dd231816e161be" spellcheck="false">
-      </label>
-      <p v-if="mergeByPlexId && !plexIdMatch" class="drawer-hint warn">Aucun compte ne porte cet identifiant.</p>
-      <p v-else-if="plexIdMatch" class="drawer-hint">Correspond à <strong>{{ displayName(plexIdMatch) }}</strong>.</p>
+      <!-- La consequence n'est enoncee qu'une fois les deux comptes connus : un pave
+           explicatif place avant tout choix parlait de la fusion en general. -->
+      <template v-if="resolvedMergeTarget">
+        <fieldset class="merge-direction">
+          <legend>Quel compte conserver&nbsp;?</legend>
+          <label class="merge-choice" :class="{ selected: mergeKeep === 'this' }">
+            <input v-model="mergeKeep" type="radio" value="this">
+            <span>
+              <strong>Conserver {{ displayName(editing) }}</strong>
+              <small>Les demandes de {{ displayName(resolvedMergeTarget) }} sont rattachées ici, puis ce compte-là est supprimé.</small>
+            </span>
+          </label>
+          <label class="merge-choice" :class="{ selected: mergeKeep === 'other' }">
+            <input v-model="mergeKeep" type="radio" value="other">
+            <span>
+              <strong>Conserver {{ displayName(resolvedMergeTarget) }}</strong>
+              <small>Les demandes de {{ displayName(editing) }} y sont rattachées, puis <em>ce</em> compte est supprimé et la fiche se ferme.</small>
+            </span>
+          </label>
+        </fieldset>
 
-      <!-- Les deux sens sont montres cote a cote, avec leur consequence : « Fusionner cet
-           utilisateur dans X » ne disait pas lequel des deux disparaissait. -->
-      <fieldset v-if="resolvedMergeTarget" class="merge-direction">
-        <legend>Quel compte conserver&nbsp;?</legend>
-        <label class="merge-choice" :class="{ selected: mergeKeep === 'this' }">
-          <input v-model="mergeKeep" type="radio" value="this">
-          <span>
-            <strong>Conserver {{ displayName(editing) }}</strong>
-            <small>Les demandes de {{ displayName(resolvedMergeTarget) }} sont rattachées ici, puis ce compte-là est supprimé.</small>
-          </span>
-        </label>
-        <label class="merge-choice" :class="{ selected: mergeKeep === 'other' }">
-          <input v-model="mergeKeep" type="radio" value="other">
-          <span>
-            <strong>Conserver {{ displayName(resolvedMergeTarget) }}</strong>
-            <small>Les demandes de {{ displayName(editing) }} y sont rattachées, puis <em>ce</em> compte est supprimé et la fiche se ferme.</small>
-          </span>
-        </label>
-      </fieldset>
-
-      <button
-        class="secondary danger"
-        :disabled="!resolvedMergeTarget || !mergeKeep"
-        @click="$emit('merge', { otherId: resolvedMergeTarget.id, keep: mergeKeep })"
-      ><Merge/>Fusionner les deux comptes</button>
+        <!-- Bouton discret et colle au choix : pleine largeur en bas de panneau, il avait
+             l'allure de l'action principale alors qu'il supprime un compte pour de bon. -->
+        <div v-if="mergeKeep" class="merge-commit">
+          <span class="merge-warning"><TriangleAlert/>{{ displayName(mergeKeep === 'this' ? resolvedMergeTarget : editing) }} sera supprimé définitivement.</span>
+          <button class="secondary danger" @click="$emit('merge', { otherId: resolvedMergeTarget.id, keep: mergeKeep })"><Merge/>Fusionner</button>
+        </div>
+      </template>
     </section>
 
     <section v-else-if="editorTab==='activity'" class="drawer-section">
@@ -226,7 +229,7 @@ import MetricCard from '@/components/ui/MetricCard.vue';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { accountName, resolveSource, roleLabel, seerLinkLabel, sourceLabel } from '@/utils/userLabels';
-import { Download, KeyRound, Languages, Link, Mail, MailCheck, Merge, RefreshCw, Save, Send, Trash2, Unlink } from '@lucide/vue';
+import { Download, KeyRound, Languages, Link, Mail, MailCheck, Merge, RefreshCw, Save, Send, Trash2, TriangleAlert, Unlink } from '@lucide/vue';
 import DrawerShell from '@/components/DrawerShell.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -275,27 +278,33 @@ const emit = defineEmits<{
 const editorTabs = computed(() => ['profile', 'notifications', 'linked', 'activity', 'diagnostic']);
 const editorTabItems = computed(() => editorTabs.value.map((key: string) => ({ key, label: editorLabel(key) })));
 const editorTab = ref('profile');
-const mergeTarget = ref('');
-const mergeByPlexId = ref('');
+const mergeQuery = ref('');
 const mergeKeep = ref('');
 const seerTarget = ref('');
 
-/* Le compte « autre » peut etre designe de deux manieres : par son nom, ou par son
-   identifiant Plex -- c'est ainsi qu'on retrouve l'entree creee par le flux RSS. */
 const mergeCandidates = computed(() => props.users.filter((user: any) => user.id !== props.editing.id));
-const plexIdMatch = computed(() => {
-  const needle = mergeByPlexId.value.trim().toLowerCase();
-  if (!needle) return null;
-  return mergeCandidates.value.find((user: any) => (user.plex_user_id || '').toLowerCase() === needle) || null;
-});
-const resolvedMergeTarget = computed(
-  () => plexIdMatch.value || mergeCandidates.value.find((user: any) => String(user.id) === String(mergeTarget.value)) || null
-);
 
-function mergeCandidateLabel(user: any): string {
-  const origin = sourceLabel(resolveSource(user));
-  return `${displayName(user)} — ${origin}`;
-}
+/* Un seul champ accepte le nom OU l'identifiant Plex : c'est par l'identifiant qu'on
+   retrouve l'entree creee par le flux RSS pour une personne deja connue. L'identifiant
+   est teste en premier -- il est unique, la ou deux comptes peuvent porter le meme nom. */
+const resolvedMergeTarget = computed(() => {
+  const needle = mergeQuery.value.trim().toLowerCase();
+  if (!needle) return null;
+  const list = mergeCandidates.value;
+  return (
+    list.find((user: any) => (user.plex_user_id || '').toLowerCase() === needle) ||
+    list.find((user: any) => displayName(user).toLowerCase() === needle) ||
+    list.find((user: any) => (user.display_name || '').toLowerCase() === needle) ||
+    null
+  );
+});
+
+/* Le backend calcule deja une origine plus riche que la colonne brute : « RSS + Seer »
+   la ou `source` ne dit que « api », la voie d'entree technique. On la prefere quand
+   elle existe. */
+const accountOrigin = computed(
+  () => props.editing.diagnostic?.source_label || sourceLabel(resolveSource(props.editing))
+);
 function seerCandidateLabel(candidate: any): string {
   const name = candidate.display_name || candidate.plex_username || candidate.email;
   if (candidate.linked) return `${name} — déjà rattaché`;
@@ -344,8 +353,7 @@ const activityTimeline=computed(()=>{
 defineExpose({
   resetTab: () => {
     editorTab.value = 'profile';
-    mergeTarget.value = '';
-    mergeByPlexId.value = '';
+    mergeQuery.value = '';
     mergeKeep.value = '';
     seerTarget.value = '';
     newPassword.value = '';
@@ -355,7 +363,50 @@ defineExpose({
 });
 </script>
 <style scoped lang="scss">
-.user-drawer-summary{display:flex;align-items:center;gap: var(--space-2);padding:11px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.user-drawer-summary>div{display:flex;align-items:center;gap: var(--space-2);margin-right:auto}.user-drawer-summary>div>div{display:grid;gap: var(--space-1)}.user-drawer-summary small{color:var(--muted);font-size:var(--fs-xs)}.user-state-dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}.user-state-dot.active{background:var(--success)}.notification-history{display:grid;gap: var(--space-2);margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}.notification-history h3{margin:0;font-size:var(--fs-md)}.notification-history small{display:block;margin-top:3px}.user-activity-timeline{display:grid}.activity-event{position:relative;display:grid;grid-template-columns:14px 1fr auto;gap: var(--space-2);padding-bottom:15px}.activity-event::before{content:'';position:absolute;top:12px;bottom:0;left:5px;width:2px;background:var(--border)}.activity-event:last-child::before{display:none}.activity-marker{position:relative;z-index:1;width:12px;height:12px;margin-top:3px;border:2px solid var(--accent);border-radius:50%;background:var(--surface)}.activity-event.available .activity-marker,.activity-event.notification .activity-marker{border-color:var(--success)}.activity-event.notification_failed .activity-marker{border-color:var(--danger)}.activity-event>div{display:grid;gap: var(--space-1)}.activity-event span,.activity-event small{color:var(--muted);font-size:var(--fs-xs)}.activity-event strong{font-size:var(--fs-sm)}@media(max-width:520px){.user-drawer-summary{align-items:flex-start;flex-wrap:wrap}.user-drawer-summary>div{width:100%}.activity-event{grid-template-columns:14px 1fr}.activity-event>.badge{grid-column:2;justify-self:start}}
+.user-head-meta{display:flex;align-items:center;gap: var(--space-2);margin-right: var(--space-2)}
+.user-head-meta small{color:var(--muted);font-size:var(--fs-xs);white-space:nowrap}
+
+/* Deux cartes cliquables plutot qu'une bande melangeant cases, pastille et badges :
+   on ne savait plus ce qui etait cliquable, et la description se collait a son
+   intitule faute de mise en forme -- le balisage avait ete pose sans ses styles. */
+.user-state-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap: var(--space-2)}
+.user-state-card{display:flex;align-items:flex-start;gap: var(--space-3);padding:11px 13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);cursor:pointer}
+.user-state-card:hover{border-color:var(--accent)}
+.user-state-card.on{border-color:color-mix(in srgb, var(--success) 45%, var(--border))}
+.user-state-card input{flex:none;margin:2px 0 0;cursor:pointer}
+.user-state-card>span{display:grid;gap:2px;min-width:0}
+.user-state-card strong{font-size:var(--fs-sm)}
+.user-state-card small{color:var(--muted);font-size:var(--fs-xs)}
+.user-state-card:has(input:disabled){opacity:.6;cursor:progress}
+@media(max-width:600px){.user-state-row{grid-template-columns:1fr}}.notification-history{display:grid;gap: var(--space-2);margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}.notification-history h3{margin:0;font-size:var(--fs-md)}.notification-history small{display:block;margin-top:3px}.user-activity-timeline{display:grid}.activity-event{position:relative;display:grid;grid-template-columns:14px 1fr auto;gap: var(--space-2);padding-bottom:15px}.activity-event::before{content:'';position:absolute;top:12px;bottom:0;left:5px;width:2px;background:var(--border)}.activity-event:last-child::before{display:none}.activity-marker{position:relative;z-index:1;width:12px;height:12px;margin-top:3px;border:2px solid var(--accent);border-radius:50%;background:var(--surface)}.activity-event.available .activity-marker,.activity-event.notification .activity-marker{border-color:var(--success)}.activity-event.notification_failed .activity-marker{border-color:var(--danger)}.activity-event>div{display:grid;gap: var(--space-1)}.activity-event span,.activity-event small{color:var(--muted);font-size:var(--fs-xs)}.activity-event strong{font-size:var(--fs-sm)}@media(max-width:520px){.activity-event{grid-template-columns:14px 1fr}.activity-event>.badge{grid-column:2;justify-self:start}}
+/* Cette section n'avait aucun style : `.user-identity-facts` n'apparaissait que dans le
+   gabarit, jamais dans une feuille, et le navigateur appliquait son rendu par defaut de
+   <dl> -- intitule puis valeur indentee dessous. */
+.linked-accounts{display:grid;gap: var(--space-3)}
+.account-facts{display:flex;flex-wrap:wrap;align-items:center;gap: var(--space-2);margin:0;color:var(--muted);font-size:var(--fs-xs)}
+.account-facts>span+span::before,.account-facts>span+code::before{content:'·';margin-right: var(--space-2);opacity:.6}
+.account-facts code{font-size:var(--fs-xs);opacity:.75}
+.linked-accounts .panel-head{margin:0}
+.linked-accounts .drawer-hint{margin:0;color:var(--muted);font-size:var(--fs-xs)}
+.linked-accounts .drawer-hint.warn{color:var(--accent)}
+
+.merge-direction{display:grid;gap: var(--space-2);margin:0;padding:0;border:0}
+.merge-direction legend{padding:0;color:var(--muted);font-size:var(--fs-xs)}
+.merge-choice{display:flex;align-items:flex-start;gap: var(--space-3);padding:11px 13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);cursor:pointer}
+.merge-choice:hover{border-color:var(--accent)}
+.merge-choice.selected{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 8%, var(--surface-2))}
+.merge-choice input{flex:none;margin:3px 0 0;cursor:pointer}
+.merge-choice>span{display:grid;gap:2px;min-width:0}
+.merge-choice strong{font-size:var(--fs-sm)}
+.merge-choice small{color:var(--muted);font-size:var(--fs-xs)}
+
+/* L'action destructrice se tient a cote du choix qui la rend possible, pas en pleine
+   largeur au bas du panneau ou elle avait l'allure de l'action principale. */
+.merge-commit{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap: var(--space-2)}
+.merge-warning{display:flex;align-items:center;gap: var(--space-2);color:var(--danger);font-size:var(--fs-xs)}
+.merge-warning svg{width:15px;height:15px;flex:none}
+.merge-commit button{flex:none}
+
 .local-account-toggle{margin-bottom:14px}
 .password-section{display:grid;gap: var(--space-2);margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 .password-section h3{display:flex;align-items:center;gap: var(--space-2);margin:0;font-size:var(--fs-md)}
