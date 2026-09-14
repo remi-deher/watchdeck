@@ -15,6 +15,7 @@ pas dupliquer la gestion des canaux.
 """
 
 import logging
+from typing import Awaitable, Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -140,7 +141,9 @@ async def notify_vf_upgrade(
                 error=str(exc)[:500],
             )
 
-    channels: list[tuple[str, str, object]] = []
+    # (canal, destinataire affiche, envoi) -- l'envoi est differe pour que la
+    # construction de la liste reste lisible et l'emission uniforme plus bas.
+    channels: list[tuple[str, str, Callable[[], Awaitable[None]]]] = []
     if getattr(settings, "discord_enabled", False) and getattr(settings, "discord_webhook_url", None):
         channels.append(
             (

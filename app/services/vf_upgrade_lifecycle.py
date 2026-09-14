@@ -466,7 +466,7 @@ async def reconcile_all(db: AsyncSession) -> dict[str, int]:
 
     request_ids = {row.source_id for row in rows if row.source_type == "request"}
     library_ids = {row.source_id for row in rows if row.source_type == "library_item"}
-    media_by_key: dict[tuple[str, int], object] = {}
+    media_by_key: dict[tuple[str, int], MediaRequest | LibraryItem] = {}
     if request_ids:
         for item in (await db.execute(select(MediaRequest).filter(MediaRequest.id.in_(request_ids)))).scalars().all():
             media_by_key[("request", item.id)] = item
