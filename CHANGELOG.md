@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.28.2 — 2026-09-14
+
+
+### ⚡ Performance
+
+- une seule indexation Plex par scan au lieu d'une par groupe ([9941b64](https://github.com/remi-deher/watchdeck/commit/9941b64f898f379e10b24024b20d51798358c2ae))
+- ne plus recalculer en boucle ce qui ne change pas ([8263ca9](https://github.com/remi-deher/watchdeck/commit/8263ca9984515aa0fac421110eb7539b72b88bbd))
 ## 1.28.1 — 2026-09-14
 
 
@@ -19,6 +26,7 @@
 - bump psycopg2-binary from 2.9.12 to 2.9.13 (#301) ([e19dd30](https://github.com/remi-deher/watchdeck/commit/e19dd30960cea3bdc498d6f108b40ee06696e47d))
 - bump alembic from 1.19.1 to 1.19.2 (#302) ([4777544](https://github.com/remi-deher/watchdeck/commit/477754437b5779d15a1ba202c4686f448990a5f0))
 - bump cryptography from 50.0.0 to 50.0.1 (#202) ([4d23761](https://github.com/remi-deher/watchdeck/commit/4d2376185c78bc1d1038cae3fa1ba39046559af1))
+- v1.28.1 (#309) ([06f5400](https://github.com/remi-deher/watchdeck/commit/06f54005920595addac2431fe41ecf36301668e0))
 ## 1.28.0 — 2026-09-14
 
 
