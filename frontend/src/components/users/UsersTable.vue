@@ -12,28 +12,67 @@
     <UiButton variant="danger" size="sm" @click="$emit('bulk-delete')"><template #icon><Trash2/></template>Supprimer</UiButton>
   </BulkActionBar>
 
-  <section class="panel table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des utilisateurs, défilement horizontal">
+  <section class="panel table-wrap table-cards rich users-table" tabindex="0" role="region" aria-label="Tableau des utilisateurs, défilement horizontal">
     <table>
       <thead>
-        <tr><th><label class="select-tag"><input type="checkbox" :checked="allSelected" aria-label="Selectionner tous les utilisateurs" @change="toggleAll"></label></th><th>Utilisateur</th><th>Notifications</th><th>Source</th><th>Role</th><th>Demandes</th><th>Dernière activité</th><th></th></tr>
+        <tr>
+          <th><label class="select-tag"><input type="checkbox" :checked="allSelected" aria-label="Sélectionner tous les utilisateurs" @change="toggleAll"></label></th>
+          <th>Personne</th>
+          <th>Notifications</th>
+          <th>Origine du compte</th>
+          <th>Rôle</th>
+          <th>Demandes</th>
+          <th>Dernière activité</th>
+          <th></th>
+        </tr>
       </thead>
       <tbody>
-        <tr v-for="user in rows" :key="user.id">
-          <td class="card-select"><label class="select-tag"><input type="checkbox" :checked="isSelected(user)" :aria-label="`Selectionner ${displayName(user)}`" @change="toggle(user)"></label></td>
-          <td class="card-title"><button class="text-button" @click="$emit('open',user.id)"><strong>{{ displayName(user) }}</strong><small>{{ user.plex_user_id }} · {{ user.enabled?'Actif':'Désactivé' }}</small></button></td>
-          <!-- Cette colonne affichait « Via administrateur » sur chacune des lignes :
-               une cellule identique partout ne porte aucune information et consommait
-               un cinquieme de la largeur. Elle nomme desormais le destinataire reel. -->
-          <td data-label="Notifications"><div class="user-notification-cell"><span :class="['status-dot',notificationState(user)]"></span><div>{{ notificationTarget(user) }}<small v-if="user.has_notification_error">Échec récent</small></div></div></td>
-          <td data-label="Source">{{ user.source||'plex' }}</td>
-          <td data-label="Role"><span class="badge" :class="user.role==='admin'?'available':user.role==='moderator'?'sent_to_arr':'pending'">{{ user.role }}</span></td>
+        <tr v-for="user in rows" :key="user.id" :class="{ 'is-disabled': !user.enabled }">
+          <td class="card-select"><label class="select-tag"><input type="checkbox" :checked="isSelected(user)" :aria-label="`Sélectionner ${accountName(user)}`" @change="toggle(user)"></label></td>
+
+          <!-- L'identite passe devant : un visage, un nom, puis le pseudo sous lequel la
+               personne se reconnait. La ligne montrait jusqu'ici le nom surmontant un
+               hachage opaque (`86dd231816e161be`), et jamais le pseudo reel. -->
+          <td class="card-title user-identity-cell">
+            <button class="text-button user-identity" @click="$emit('open',user.id)">
+              <span class="user-avatar" :class="{ 'is-off': !user.enabled }" aria-hidden="true">
+                <img v-if="user.avatar_url" :src="user.avatar_url" alt="">
+                <span v-else>{{ accountInitials(user) }}</span>
+              </span>
+              <span class="user-identity-text">
+                <strong>{{ accountName(user) }}</strong>
+                <small v-if="accountHandle(user)">{{ accountHandle(user) }}</small>
+                <small v-if="!user.enabled" class="user-off">Compte désactivé</small>
+              </span>
+            </button>
+          </td>
+
+          <td data-label="Notifications">
+            <div class="user-notification-cell">
+              <span :class="['status-dot',notificationState(user)]"></span>
+              <div>{{ notificationTarget(user) }}<small v-if="user.has_notification_error">Échec récent</small></div>
+            </div>
+          </td>
+
+          <!-- Libelles lisibles, et surtout plus d'invention : l'origine absente etait
+               rendue « plex », ce qui presentait une supposition comme une donnee. -->
+          <td data-label="Origine du compte">
+            <span class="user-source">{{ sourceLabel(resolveSource(user)) }}</span>
+            <small v-if="user.seer_user_id" class="user-seer-link">{{ seerLinkLabel(user) }}</small>
+          </td>
+
+          <td data-label="Rôle">
+            <span class="badge" :class="user.role==='admin'?'available':user.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(user.role) }}</span>
+          </td>
+
           <td data-label="Demandes"><strong>{{ user.stats?.total??user.request_count??0 }}</strong><small v-if="user.stats?.pending_approval" class="pending-copy">{{ user.stats.pending_approval }} à approuver</small></td>
-          <!-- « Connexion autorisée » etait le cas de tout le monde : seul l'ecart
-               merite d'etre signale. -->
+
           <td data-label="Dernière activité">{{ formatDate(user.last_requested_at) }}<small v-if="!user.can_login" class="blocked-copy">Connexion bloquée</small></td>
-          <!-- L'interrupteur etait la seule action de ligne visible : rien n'indiquait
-               qu'on pouvait ouvrir la fiche autrement qu'en cliquant le nom. -->
-          <td class="card-actions"><button class="icon-button" :title="`Modifier ${displayName(user)}`" :aria-label="`Modifier ${displayName(user)}`" @click="$emit('open',user.id)"><Pencil/></button><button class="icon-button" :title="user.enabled?`Désactiver ${displayName(user)}`:`Activer ${displayName(user)}`" :aria-label="user.enabled?`Désactiver ${displayName(user)}`:`Activer ${displayName(user)}`" @click="$emit('toggle',user)"><Power/></button></td>
+
+          <td class="card-actions">
+            <button class="icon-button" :title="`Modifier ${accountName(user)}`" :aria-label="`Modifier ${accountName(user)}`" @click="$emit('open',user.id)"><Pencil/></button>
+            <button class="icon-button" :title="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" :aria-label="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" @click="$emit('toggle',user)"><Power/></button>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -49,17 +88,19 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import BulkActionBar from '@/components/ui/BulkActionBar.vue';
+import {
+  accountHandle,
+  accountInitials,
+  accountName,
+  resolveSource,
+  roleLabel,
+  seerLinkLabel,
+  sourceLabel,
+  type AccountLike,
+} from '@/utils/userLabels';
 
-export interface AppUser {
+export interface AppUser extends AccountLike {
   id: number | string;
-  plex_user_id?: string;
-  custom_name?: string;
-  display_name?: string;
-  enabled?: boolean;
-  role?: string;
-  source?: string;
-  notification_email?: string;
-  plex_email?: string;
   notify_admin?: boolean;
   has_notification_error?: boolean;
   can_login?: boolean;
@@ -87,25 +128,26 @@ defineEmits<{
 const { selectedIds, allSelected, isSelected, toggle, toggleAll, clear } = useTableSelection(() => props.rows);
 const bulkNotifyField = ref('notify_on_request');
 const bulkRole = ref('user');
+/* Libelles completes : « Notif. demande », « Digest » et « VF series » etaient abreges
+   ou sans accent, dans un menu ou l'on choisit ce qu'on va modifier en masse. */
 const bulkNotifyFields = [
-  { value: 'notify_on_request', label: 'Notif. demande' },
-  { value: 'notify_on_available', label: 'Notif. disponibilite' },
-  { value: 'notify_digest', label: 'Digest' },
+  { value: 'notify_on_request', label: 'Accusé de demande' },
+  { value: 'notify_on_available', label: 'Avis de disponibilité' },
+  { value: 'notify_digest', label: 'Résumé quotidien' },
   { value: 'notify_admin', label: "Copie à l'administrateur" },
-  { value: 'notify_vf_movie', label: 'VF films' },
-  { value: 'notify_vf_series', label: 'VF series' },
+  { value: 'notify_vf_movie', label: 'VF des films' },
+  { value: 'notify_vf_series', label: 'VF des séries' },
 ];
 
-function displayName(user: AppUser): string { return user?.custom_name || user?.display_name || user?.plex_user_id || ''; }
 function notificationState(user: AppUser): string {
   return user.has_notification_error ? 'error' : user.notification_email || user.plex_email || user.notify_admin ? 'active' : 'missing';
 }
 
 /** Adresse reellement utilisee pour joindre ce compte, ou la raison de son absence. */
 function notificationTarget(user: AppUser): string {
-  const address = (user as any).notification_email || (user as any).plex_email;
+  const address = user.notification_email || user.plex_email;
   if (address) return address;
-  if ((user as any).notify_admin) return 'Alertes vers l’administrateur';
+  if (user.notify_admin) return 'Alertes vers l’administrateur';
   return 'Aucun destinataire';
 }
 const formatDate = (value?: string) => formatDateShort(value, 'Aucune');
@@ -114,4 +156,44 @@ defineExpose({ selectedIds, clearSelection: clear });
 </script>
 <style scoped lang="scss">
 .user-notification-cell{display:flex;align-items:center;gap: var(--space-2)}.user-notification-cell>div{display:grid;gap: var(--space-1)}.user-notification-cell small,.card-title small,td>small{display:block;color:var(--muted);font-size:var(--fs-xs)}.status-dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}.status-dot.active{background:var(--success)}.status-dot.error{background:var(--danger)}.status-dot.missing{background:var(--accent)}.pending-copy{color:var(--accent)}.blocked-copy{color:var(--danger)}
+
+/* Un compte desactive reste lisible mais recule visuellement : la seule mention
+   textuelle se perdait au milieu de six colonnes. */
+.users-table tbody tr.is-disabled { opacity: .62; }
+
+.user-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+}
+
+.user-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--surface-2, var(--surface));
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+  &.is-off { filter: grayscale(1); }
+}
+
+.user-identity-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+
+  strong, small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.user-off { color: var(--accent); }
+.user-seer-link { display: block; color: var(--muted); font-size: var(--fs-xs); }
 </style>
