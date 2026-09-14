@@ -463,14 +463,15 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
   // La fusion vit desormais sous « Comptes lies » : elle etait rangee sous un onglet
   // « Seer » avec lequel elle n'a aucun rapport.
   await drawer.getByText("Comptes liés", { exact: true }).click();
-  // Cible par son intitule, pas par `locator("select")` : l'onglet peut porter un
-  // second menu (le choix du compte Seer) quand Seer est actif.
-  await drawer.getByLabel("Autre compte").selectOption("2");
+  // Un seul champ accepte le nom ou l'identifiant Plex : deux controles empiles se
+  // lisaient comme deux etapes obligatoires alors que ce sont des alternatives.
+  await drawer.getByLabel("Chercher le compte").fill("Bob");
   // Le sens de la fusion est desormais un choix explicite, et le bouton reste inerte
   // tant qu'il n'est pas fait : « Fusionner cet utilisateur dans X » ne disait pas
   // lequel des deux comptes disparaissait.
   await drawer.getByRole("radio", { name: /Conserver Alice/ }).check();
-  await drawer.getByRole("button", { name: "Fusionner les deux comptes" }).click();
+  // Le bouton n'apparait qu'une fois le sens choisi, et se tient a cote de lui.
+  await drawer.getByRole("button", { name: "Fusionner", exact: true }).click();
 
   // La confirmation doit etre au premier plan : c'est elle qui doit recevoir le clic.
   // (C'est la premiere des deux : supprimer un compte en demande maintenant deux.)
