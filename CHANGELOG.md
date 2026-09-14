@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.29.0 — 2026-09-14
+
+
+### test
+
+- suivre le nouveau parcours de fusion des comptes ([376a5f0](https://github.com/remi-deher/watchdeck/commit/376a5f013121dc01d0fea780a7e0e5cec261f4f9))
+
+### ✨ Nouveautés
+
+- identité lisible, état actionnable et onglet « Comptes liés » ([0b8b1be](https://github.com/remi-deher/watchdeck/commit/0b8b1be71826c470c3354526845a68141700df81))
+
+### 🔧 Maintenance
+
+- sync main into dev ([6bccf2a](https://github.com/remi-deher/watchdeck/commit/6bccf2a7aefe47b328b070c11e71a7c4d0c503dd))
+- sync main into dev ([7a37b84](https://github.com/remi-deher/watchdeck/commit/7a37b8454d475e73c9fb15eff3993773cba3693e))
 ## 1.28.2 — 2026-09-14
 
 
@@ -7,6 +22,10 @@
 
 - une seule indexation Plex par scan au lieu d'une par groupe ([9941b64](https://github.com/remi-deher/watchdeck/commit/9941b64f898f379e10b24024b20d51798358c2ae))
 - ne plus recalculer en boucle ce qui ne change pas ([8263ca9](https://github.com/remi-deher/watchdeck/commit/8263ca9984515aa0fac421110eb7539b72b88bbd))
+
+### 🔧 Maintenance
+
+- v1.28.2 (#313) ([09b7b0b](https://github.com/remi-deher/watchdeck/commit/09b7b0b9a8e8fca3569bf22bb6e6ec66c75fd8ad))
 ## 1.28.1 — 2026-09-14
 
 
