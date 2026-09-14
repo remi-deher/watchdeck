@@ -1,11 +1,25 @@
 # Changelog
 
+## 1.28.0 — 2026-09-14
+
+
+### ✨ Nouveautés
+
+- garde-fous techniques, cycle de vie autonome et barème VF gradué ([8cef58b](https://github.com/remi-deher/watchdeck/commit/8cef58be97b08486716c8fe39e4068606144a98a))
+
+### 🐛 Corrections
+
+- annotations mypy et formatage ruff du dossier alembic ([6b58394](https://github.com/remi-deher/watchdeck/commit/6b583940f3c717a4ce8989613640b11a33015502))
 ## 1.27.2 — 2026-09-13
 
 
 ### 🐛 Corrections
 
 - supprimer le flou des barres fixes et le zoom à la saisie ([c4d4e89](https://github.com/remi-deher/watchdeck/commit/c4d4e8982990f484c2de75093b611d24c84f034f))
+
+### 🔧 Maintenance
+
+- v1.27.2 (#294) ([ddba476](https://github.com/remi-deher/watchdeck/commit/ddba476069cbc11e7e51f07e0f5e26e226c57d52))
 ## 1.27.1 — 2026-09-13
 
 
