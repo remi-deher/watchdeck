@@ -444,9 +444,25 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
      qu'il leur faut. */
   .app-topbar__field {
     flex: 0 1 auto;
-    width: min(720px, 100%);
+    /* Largeur DEFINIE, pas `min(720px, 100%)` : la barre se dimensionne desormais sur
+       son contenu, donc un pourcentage ici se resoudrait sur un parent qui depend
+       lui-meme de l'enfant. CSS tranche cette circularite en retombant sur la largeur
+       intrinseque du champ, et la barre s'effondrait a 350px. `max-width` joue le meme
+       role de garde-fou sans participer au dimensionnement intrinseque. */
+    width: 720px;
+    max-width: 100%;
     margin-inline: auto;
   }
+  /* La barre epouse son contenu au lieu de peindre une largeur fixe.
+     Le champ est plafonne a 720px juste au-dessus, mais la barre gardait ses 980px :
+     elle affichait donc 260px de fond vide, 130px de chaque cote du champ, sans rien
+     dedans. `fit-content` laisse le plafond de 980px jouer son role de borne haute
+     (barre plus fournie, ou titre en plus) sans l'imposer comme largeur minimale.
+     Le centrage ne change pas : il reste assure par les insets et `margin-inline: auto`.
+     Cantonne a ce palier : en dessous, la barre DOIT remplir sa bande -- en compact le
+     champ est `flex: 1 1 auto`, et sur tablette sa largeur est un pourcentage du
+     parent, qui deviendrait circulaire face a une largeur intrinseque. */
+  .app-topbar { width: fit-content; }
 }
 
 /* Sur tablette, le titre reste un repère visible mais sort du flux : il ne décale
