@@ -11,11 +11,49 @@ from dataclasses import dataclass, field
 
 _FRENCH_LANG_NAMES = {"french", "français", "francais"}
 
-_FRENCH_TITLE_WORDS = {"french", "truefrench", "vff", "vf", "vfi", "vfq", "multi"}
+_FRENCH_TITLE_WORDS = {"french", "truefrench", "vff", "vf", "vfi", "vfq", "vq", "multi"}
 
 # "VFF2"/"VFF3"... : convention scène pour une deuxieme/troisieme piste VF distincte sur
 # la meme release (double doublage).
 _VFF_VARIANT_RE = re.compile(r"^vff\d+$")
+
+# Bareme de confiance VF. Tous les marqueurs ne valent pas la meme chose : "TRUEFRENCH"
+# et "VFF" designent explicitement le doublage francais de France, tandis que "MULTI"
+# n'annonce qu'un conteneur multi-pistes -- frequemment MULTI-sous-titres, sans aucune
+# piste audio francaise. Sans ce bareme, `vf_upgrade_min_confidence` etait un reglage
+# decoratif : toute release retenue valait 100, quelle que soit la solidite de la preuve.
+#
+# Les valeurs sont calees sur le defaut du reglage (65) : tout ce qui est un doublage
+# francais reconnaissable passe, et l'utilisateur peut monter le curseur a 75 pour
+# exclure le "MULTI" seul, ou a 90 pour n'accepter que les marqueurs explicites.
+_VF_SCORES = {
+    "truefrench": 100,
+    "vff": 100,
+    "vff_variant": 95,
+    "vfi": 95,
+    "french_declared": 90,
+    "french_title": 85,
+    "vf": 80,
+    "multi": 70,
+    "vfq": 70,
+}
+
+# Marqueurs qui designent specifiquement un doublage francais de France. Leur presence
+# l'emporte sur un marqueur quebecois : une release "MULTI.TRUEFRENCH.VFQ" porte les deux
+# pistes, c'est bien une VFF.
+_FRANCE_SPECIFIC_KINDS = ("truefrench", "vff", "vff_variant", "vfi", "french_declared", "french_title", "vf")
+
+_VF_LABELS = {
+    "truefrench": "TRUEFRENCH (doublage francais de France)",
+    "vff": "VFF (doublage francais de France)",
+    "vff_variant": "VFF2/VFF3 (second doublage francais)",
+    "vfi": "VFI (VF internationale)",
+    "french_declared": "Langue French declaree par *arr",
+    "french_title": "Marqueur titre: french",
+    "vf": "Marqueur titre: vf",
+    "multi": "MULTI seul (conteneur multi-pistes, piste VF non garantie)",
+    "vfq": "VFQ/VQ (doublage quebecois, different de la VF de France)",
+}
 
 # Motifs de rejet Sonarr/Radarr (champ `rejections`, voir DownloadDecisionMaker) qui
 # signalent que la release ne correspond PAS au média demande (mauvaise serie/film
@@ -196,22 +234,47 @@ def release_is_french(rel: dict) -> bool:
     return any(_VFF_VARIANT_RE.match(w) for w in words)
 
 
-def french_release_evidence(rel: dict) -> dict:
-    """Explique la preuve VF sans pretendre connaitre les pistes du fichier.
-
-    Une langue French declaree par *arr ou un marqueur VF explicite et isole dans le
-    titre constitue une preuve suffisante pour proposer la release. Le score reste
-    expose pour compatibilite avec l'API et les reglages existants, mais la detection
-    est volontairement binaire. Seule l'analyse MediaInfo/Plex apres import constitue
-    une validation definitive.
-    """
+def _release_vf_kinds(rel: dict) -> dict[str, bool]:
+    """Marqueurs VF detectes sur une release, par nature (voir _VF_SCORES)."""
     title = (rel.get("title") or "").lower()
     words = set(re.sub(r"[.\-_]+", " ", title).split())
-    declared = [lang for lang in rel.get("languages", []) if (lang or "").lower() in _FRENCH_LANG_NAMES]
-    markers = sorted((words & _FRENCH_TITLE_WORDS) | {w for w in words if _VFF_VARIANT_RE.match(w)})
-    score = 100 if declared or markers else 0
+    declared = any((lang or "").lower() in _FRENCH_LANG_NAMES for lang in (rel.get("languages") or []))
     return {
-        "vf_confidence": score,
-        "vf_evidence": (["Langue French declaree par *arr"] if declared else [])
-        + ([f"Marqueur titre: {', '.join(markers)}"] if markers else []),
+        "truefrench": "truefrench" in words,
+        "vff": "vff" in words,
+        "vff_variant": any(_VFF_VARIANT_RE.match(word) for word in words),
+        "vfi": "vfi" in words,
+        "french_declared": declared,
+        "french_title": "french" in words,
+        "vf": "vf" in words,
+        "multi": "multi" in words,
+        "vfq": bool(words & {"vfq", "vq"}),
     }
+
+
+def french_release_evidence(rel: dict) -> dict:
+    """Note la solidite de la preuve VF d'une release, et sa nature.
+
+    Retourne ``vf_confidence`` (0-100, voir _VF_SCORES), ``vf_kind`` (le marqueur qui
+    determine la note) et ``vf_evidence`` (les preuves lisibles).
+
+    ``vf_kind`` vaut ``"vfq"`` quand la seule preuve est un marqueur quebecois : un
+    doublage du Quebec est un vrai doublage francais, mais pas celui qu'attend la
+    plupart des bibliotheques francaises -- l'appelant decide de l'accepter ou non
+    (voir `vf_upgrade_accept_vfq`) plutot que de le confondre avec une VFF.
+
+    Seule l'analyse MediaInfo/Plex apres import constitue une validation definitive :
+    ce score mesure la promesse du titre, jamais le contenu du fichier.
+    """
+    found = {kind: present for kind, present in _release_vf_kinds(rel).items() if present}
+    if not found:
+        return {"vf_confidence": 0, "vf_kind": None, "vf_evidence": []}
+
+    evidence = [_VF_LABELS[kind] for kind in _VF_SCORES if kind in found]
+    # Un marqueur quebecois ne decide qu'en l'absence de marqueur francais de France
+    # (voir _FRANCE_SPECIFIC_KINDS) : "MULTI.VFQ" est une VFQ, "TRUEFRENCH.VFQ" une VFF.
+    if "vfq" in found and not any(kind in found for kind in _FRANCE_SPECIFIC_KINDS):
+        return {"vf_confidence": _VF_SCORES["vfq"], "vf_kind": "vfq", "vf_evidence": evidence}
+
+    kind = max((k for k in found if k != "vfq"), key=lambda k: _VF_SCORES[k])
+    return {"vf_confidence": _VF_SCORES[kind], "vf_kind": kind, "vf_evidence": evidence}

@@ -66,7 +66,11 @@ export function useVfUpgrade(
     }
   }
 
-  async function grab(release: any, { force = true }: { force?: boolean } = {}): Promise<void> {
+  /* `force` est faux par defaut : il desarme les garde-fous du serveur (release refusee
+     par le profil *arr, regression technique -- voir services/vf_technical_guard.py) et
+     ne doit donc etre demande que par un appelant qui vient d'obtenir une confirmation
+     explicite de l'utilisateur. */
+  async function grab(release: any, { force = false }: { force?: boolean } = {}): Promise<void> {
     if (!suggestion.value) return;
     grabbing.value = release.guid;
     error.value = '';

@@ -9,8 +9,16 @@
       @toggle-filters="toggleFilters" page-class="vf-upgrades-page">
 
       <template #tools>
+        <UiButton
+          variant="ghost"
+          title="Réglages des améliorations VF"
+          aria-label="Réglages des améliorations VF"
+          @click="settingsOpen = true"
+        >
+          <template #icon><Settings size="16" /></template>Réglages
+        </UiButton>
         <template v-if="activeTab === 'upgrades'">
-          <UiButton variant="primary" :loading="scanning" @click="scanTriggered"><template #icon><ScanSearch size="16" /></template>{{ scanning ? 'Recherche en cours…' : (selectedKeys.size > 0 ? `Rechercher la sélection (${selectedKeys.size})` : 'Rechercher maintenant') }}</UiButton>
+          <UiButton v-if="selectedKeys.size > 0" variant="primary" :loading="scanning" @click="scanSelected"><template #icon><ScanSearch size="16" /></template>{{ scanning ? 'Recherche en cours…' : `Rechercher la sélection (${selectedKeys.size})` }}</UiButton>
         </template>
         <template v-else>
           <UiButton
@@ -504,6 +512,10 @@
           </div>
 
           <section v-else class="upgrade-list">
+            <p v-if="waitingTruncated > 0" class="waiting-truncated">
+              {{ waitingTruncated }} autre(s) média(s) VO ne sont pas affichés ici : la liste est bornée
+              pour rester rapide. Ils restent pris en charge par les cycles de recherche automatiques.
+            </p>
             <article v-for="group in groups" :key="group.key" class="upgrade-card" :class="{ 'is-selected': selectedKeys.has(group.key) }">
               <div class="poster-col">
                 <label class="upgrade-select" :title="selectedKeys.has(group.key) ? 'Retirer de la sélection' : 'Sélectionner pour un scan groupé'">
@@ -730,6 +742,7 @@
                   <th>Déclenchement</th>
                   <th>Recherches</th>
                   <th>Suggestions trouvées</th>
+                  <th>Erreurs</th>
                   <th>Statut</th>
                 </tr>
               </thead>
@@ -753,16 +766,16 @@
                     <td>{{ run.trigger === 'selection' ? 'Sélection manuelle' : (run.trigger === 'manual' ? 'Manuel' : 'Automatique') }}</td>
                     <td>{{ run.tasks_scanned }} / {{ run.tasks_total }}</td>
                     <td>{{ run.suggestions_found }}</td>
+                    <td :class="{ 'run-errors': run.tasks_errored > 0 }">
+                      {{ run.tasks_errored || 0 }}
+                    </td>
                     <td>
-                      <StatusBadge
-                        :status="run.status"
-                        :label="run.status === 'running' ? 'En cours' : (run.status === 'success' ? 'Terminé' : 'Échec')"
-                      />
+                      <StatusBadge :status="run.status" :label="runStatusLabel(run.status)" />
                       <span v-if="run.error" class="run-error" :title="run.error">⚠</span>
                     </td>
                   </tr>
                   <tr v-if="expandedRunId === run.id" class="run-detail-row">
-                    <td colspan="6">
+                    <td colspan="7">
                       <div v-if="runItemsLoading && !runItems.length" class="vf-skeletons" aria-hidden="true">
                         <div v-for="i in 3" :key="`item-skel-${i}`" class="skeleton-line title" />
                       </div>
@@ -796,6 +809,13 @@
       @close="alignModalOpen = false"
       @applied="onStreamsAligned"
     />
+
+    <VfSettingsModal
+      v-if="settingsOpen"
+      :open="settingsOpen"
+      @close="settingsOpen = false"
+      @saved="onSettingsSaved"
+    />
   </AppPage>
 </template>
 
@@ -816,6 +836,7 @@ import {
   MessageSquareOff,
   RotateCcw,
   ScanSearch,
+  Settings,
   SlidersHorizontal,
   Trash2,
   Tv,
@@ -833,6 +854,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
 import AlignStreamsModal from '@/components/media/AlignStreamsModal.vue';
 import SeasonEpisodeList from '@/components/media/SeasonEpisodeList.vue';
+import VfSettingsModal from '@/components/vf-upgrades/VfSettingsModal.vue';
 import VfUpgradeKpiBanner from '@/components/vf-upgrades/VfUpgradeKpiBanner.vue';
 import VfUpgradeQuickFilters from '@/components/vf-upgrades/VfUpgradeQuickFilters.vue';
 import { filterVfUpgradeItems, groupVfUpgradeItems } from '@/utils/vfUpgradeGroups';
@@ -849,6 +871,8 @@ const items = ref([]);
 const scan = ref({});
 const loading = ref(true);
 const scanning = ref(false);
+const waitingTruncated = ref(0);
+const settingsOpen = ref(false);
 const selectedKeys = ref(new Set());
 /* Un lien peut arriver deja filtre : « 1 échec(s) » sur la page Configuration renvoie
    ici avec `?status=failed`. Sans cette lecture, le lien menait a la liste complete et
@@ -965,6 +989,24 @@ function formatBackoff(backoff) {
   if (diffMs <= 0) return `${backoff.misses} échec(s) — nouvelle tentative au prochain cycle`;
   const hours = Math.round(diffMs / 3_600_000);
   return `${backoff.misses} échec(s) — prochaine tentative dans ${hours < 1 ? '< 1h' : `~${hours}h`}`;
+}
+
+/* Un réglage modifié depuis la modale change ce que les cycles retiennent (seuil de
+   confiance, garde-fous techniques, portées) : on recharge la liste pour qu'elle
+   reflète la nouvelle configuration plutôt que l'ancienne. */
+async function onSettingsSaved() {
+  settingsOpen.value = false;
+  await load({ silent: true });
+}
+
+function runStatusLabel(status) {
+  if (status === 'running') return 'En cours';
+  if (status === 'success') return 'Terminé';
+  /* « degraded » : le cycle s'est terminé mais toutes ses recherches ont échoué
+     techniquement (indexeurs injoignables) -- à ne pas confondre avec un cycle qui
+     n'a simplement rien trouvé. */
+  if (status === 'degraded') return 'Indexeurs injoignables';
+  return 'Échec';
 }
 
 function formatDuration(startedAt, finishedAt) {
@@ -1341,6 +1383,12 @@ async function load({ silent = false } = {}) {
     const data = await api('/api/vf-upgrades/dashboard');
     items.value = data.items || [];
     scan.value = data.scan || {};
+    /* Le serveur borne la liste des médias VO encore sans suggestion : on retient
+       combien n'ont pas été renvoyés pour pouvoir l'annoncer. */
+    waitingTruncated.value = Math.max(
+      0,
+      (data.waiting_total || 0) - items.value.filter(i => i.status === 'waiting_release').length,
+    );
   } catch (e) {
     show(humanizeError(e), 'error');
   } finally {
@@ -1402,23 +1450,6 @@ async function fixAllStreams() {
   }
 }
 
-async function scanAll() {
-  scanning.value = true;
-  try {
-    const result = await api('/api/vf-upgrades/scan-all', { method: 'POST' });
-    show(
-      result.queued
-        ? 'Recherche ajoutée à la file de travail.'
-        : `${result.scanned || 0} recherche(s), ${result.found || 0} suggestion(s) trouvée(s).`
-    );
-    await load({ silent: true });
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  } finally {
-    scanning.value = false;
-  }
-}
-
 function toggleGroupSelection(group) {
   const next = new Set(selectedKeys.value);
   if (next.has(group.key)) {
@@ -1453,13 +1484,6 @@ async function scanSelected() {
   } finally {
     scanning.value = false;
   }
-}
-
-function scanTriggered() {
-  if (selectedKeys.value.size > 0) {
-    return scanSelected();
-  }
-  return scanAll();
 }
 
 async function dismiss(item) {
@@ -2329,6 +2353,17 @@ onUnmounted(() => {
   height: 100%;
   background: var(--accent);
   transition: width 0.4s ease;
+}
+
+.waiting-truncated {
+  margin: 0 0 var(--space-3);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.run-errors {
+  color: var(--warning, #e5a00d);
+  font-weight: 600;
 }
 
 .scan-runs-table {
