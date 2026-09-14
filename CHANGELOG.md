@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.29.1 — 2026-09-14
+
+
+### 🐛 Corrections
+
+- séparer l'identité du compte de ses interrupteurs d'état ([1166e0c](https://github.com/remi-deher/watchdeck/commit/1166e0c5981c7cbdee4d848f250dcb7bc8a23a28))
+- rendre l'onglet « Comptes liés » lisible et hiérarchisé ([5555cc5](https://github.com/remi-deher/watchdeck/commit/5555cc51f68e3e6ed1cfcfd77649fba85d909a57))
+- nommer l'origine « api » pour ce qu'elle est ([4b21770](https://github.com/remi-deher/watchdeck/commit/4b21770375b60dbee1d8e5990f0809de0c671064))
 ## 1.29.0 — 2026-09-14
 
 
@@ -15,6 +23,7 @@
 
 - sync main into dev ([6bccf2a](https://github.com/remi-deher/watchdeck/commit/6bccf2a7aefe47b328b070c11e71a7c4d0c503dd))
 - sync main into dev ([7a37b84](https://github.com/remi-deher/watchdeck/commit/7a37b8454d475e73c9fb15eff3993773cba3693e))
+- v1.29.0 (#317) ([3a32a62](https://github.com/remi-deher/watchdeck/commit/3a32a6278183f055931f464b2dbd3f1c15908081))
 ## 1.28.2 — 2026-09-14
 
 
