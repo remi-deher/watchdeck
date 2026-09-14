@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter, defaultdict
 from datetime import datetime
 from typing import Any
 
 import httpx
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -15,6 +17,8 @@ from ..database import AsyncSessionLocal
 from ..models import LibraryAnalyticsSnapshot, PlaybackSession, Settings
 from ..pagination import paginated_response
 from ..utils import now_utc_naive
+
+logger = logging.getLogger(__name__)
 
 
 def _int(value, default=0) -> int:
@@ -247,8 +251,55 @@ def _build_payload(rows: list[dict], generated_at: str, filters: dict[str, Any])
     }
 
 
+async def _catalog_fingerprint(settings: Settings) -> str | None:
+    """Empreinte du catalogue Plex, obtenue sans le telecharger.
+
+    `/library/sections` rend l'`updatedAt` de chaque section pour quelques octets et
+    ~0,07 s, la ou `fetch_plex_catalog` telecharge l'integralite des fiches (films,
+    episodes et pistes -- plus de vingt mille lignes sur une bibliotheque courante).
+    None si la sonde echoue : on recalcule alors, plutot que de risquer un instantane fige.
+    """
+    if not settings.plex_url or not settings.plex_token:
+        return None
+    headers = {"X-Plex-Token": settings.plex_token, "Accept": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=15, verify=settings.plex_verify_ssl) as client:
+            response = await client.get(f"{settings.plex_url.rstrip('/')}/library/sections", headers=headers)
+            response.raise_for_status()
+            sections = _list(response.json().get("MediaContainer", {}).get("Directory"))
+    except Exception as exc:
+        logger.debug("Analytique : sonde de catalogue indisponible (%s), recalcul complet", exc)
+        return None
+    return "|".join(f"{section.get('key')}:{section.get('updatedAt')}" for section in sections)
+
+
+async def _playback_fingerprint(db: AsyncSession) -> str:
+    """Empreinte de l'historique de lecture : il alimente aussi la charge utile
+    (nombre de lectures, spectateurs, dates), donc une bibliotheque inchangee ne
+    suffit pas a conclure que l'instantane est encore juste."""
+    row = (await db.execute(select(func.count(PlaybackSession.id), func.max(PlaybackSession.last_seen_at)))).one()
+    return f"{row[0]}:{row[1].isoformat() if row[1] else '-'}"
+
+
 async def refresh_library_analytics_snapshot(settings: Settings, db: AsyncSession) -> dict:
-    """Recalcule puis remplace le snapshot; l'ancien reste intact si le calcul échoue."""
+    """Recalcule puis remplace le snapshot; l'ancien reste intact si le calcul échoue.
+
+    Court-circuit quand RIEN de ce qui alimente la charge utile n'a bouge depuis le
+    dernier instantane : ni le catalogue Plex, ni l'historique de lecture. Le calcul
+    complet retelechargeait l'integralite du catalogue toutes les dix minutes -- 90 fois
+    par jour -- pour aboutir au meme resultat.
+    """
+    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
+    fingerprint = None
+    if snapshot is not None and snapshot.payload_json:
+        catalog_fp = await _catalog_fingerprint(settings)
+        if catalog_fp is not None:
+            fingerprint = f"{catalog_fp}#{await _playback_fingerprint(db)}"
+            if fingerprint == snapshot.source_fingerprint:
+                logger.info("Analytique : catalogue et lectures inchanges, instantane conserve")
+                snapshot.updated_at = now_utc_naive()
+                await db.commit()
+                return json.loads(snapshot.payload_json)
 
     catalog = await fetch_plex_catalog(settings)
     rows = [dict(item) for item in catalog["items"]]
@@ -302,11 +353,13 @@ async def refresh_library_analytics_snapshot(settings: Settings, db: AsyncSessio
 
     payload = _build_payload(rows, catalog["generated_at"], {})
     now = now_utc_naive()
-    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
     if snapshot is None:
         snapshot = LibraryAnalyticsSnapshot(id=1, payload_json="{}", generated_at=now, updated_at=now)
         db.add(snapshot)
     snapshot.payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    # Empreinte enregistree APRES le calcul : si celui-ci echoue, rien n'est ecrit et le
+    # prochain passage recalcule au lieu de croire l'instantane a jour.
+    snapshot.source_fingerprint = fingerprint
     snapshot.item_count = len(rows)
     snapshot.generated_at = datetime.fromisoformat(catalog["generated_at"])
     snapshot.updated_at = now
