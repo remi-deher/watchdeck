@@ -1,33 +1,36 @@
 ﻿<template>
   <DrawerShell wide eyebrow="Administration" :title="creating?'Nouvel utilisateur':displayName(editing)" :error="editorError" @close="$emit('close')">
-    <!-- L'etat du compte etait affiche ici en badges inertes, et modifiable ailleurs
-         dans le formulaire du Profil : deux representations du meme fait, dont une
-         seule agissait. Les deux interrupteurs prennent effet immediatement, comme
-         celui de la liste -- un compte qu'on coupe ne se met pas en brouillon. -->
-    <section v-if="!creating" class="user-drawer-summary">
-      <label class="user-state-toggle" :class="{ on: editing.enabled }">
+    <!-- Role et origine rejoignent la ligne du nom : ils identifient le compte, ils ne
+         se pilotent pas. Les deux interrupteurs, eux, prennent leur propre rangee --
+         melanges aux badges, ils formaient une bande ou l'on ne savait plus ce qui etait
+         cliquable. -->
+    <template v-if="!creating" #head-actions>
+      <span class="user-head-meta">
+        <span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(editing.role) }}</span>
+        <small>{{ sourceLabel(resolveSource(editing)) }}</small>
+      </span>
+    </template>
+
+    <!-- Effet immediat, comme l'interrupteur de la liste : couper un compte n'est pas
+         une modification de profil qu'on met en brouillon jusqu'a « Enregistrer ». -->
+    <section v-if="!creating" class="user-state-row">
+      <label class="user-state-card" :class="{ on: editing.enabled }">
         <input type="checkbox" :checked="editing.enabled" :disabled="busy" @change="$emit('set-enabled', !editing.enabled)">
-        <span class="user-state-dot" :class="{ active: editing.enabled }"></span>
         <span>
           <strong>{{ editing.enabled ? 'Compte actif' : 'Compte désactivé' }}</strong>
           <small>{{ editing.enabled ? 'Ses demandes sont traitées' : 'Ses demandes sont ignorées' }}</small>
         </span>
       </label>
 
-      <label class="user-state-toggle" :class="{ on: editing.can_login }">
+      <label class="user-state-card" :class="{ on: editing.can_login }">
         <input type="checkbox" :checked="editing.can_login" :disabled="busy" @change="$emit('set-can-login', !editing.can_login)">
-        <span class="user-state-dot" :class="{ active: editing.can_login }"></span>
         <span>
           <strong>{{ editing.can_login ? 'Connexion autorisée' : 'Connexion bloquée' }}</strong>
           <small>{{ editing.can_login ? 'Peut ouvrir une session' : 'Ne peut pas se connecter' }}</small>
         </span>
       </label>
-
-      <span class="user-summary-meta">
-        <span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(editing.role) }}</span>
-        <small>{{ sourceLabel(resolveSource(editing)) }}</small>
-      </span>
     </section>
+
     <AppSubnav variant="tabs" :active="editorTab" @update:active="editorTab = $event" :items="editorTabItems" aria-label="Sections de l’utilisateur" />
 
     <section v-if="editorTab==='profile'" class="drawer-section form-section">
@@ -355,7 +358,22 @@ defineExpose({
 });
 </script>
 <style scoped lang="scss">
-.user-drawer-summary{display:flex;align-items:center;gap: var(--space-2);padding:11px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.user-drawer-summary>div{display:flex;align-items:center;gap: var(--space-2);margin-right:auto}.user-drawer-summary>div>div{display:grid;gap: var(--space-1)}.user-drawer-summary small{color:var(--muted);font-size:var(--fs-xs)}.user-state-dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}.user-state-dot.active{background:var(--success)}.notification-history{display:grid;gap: var(--space-2);margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}.notification-history h3{margin:0;font-size:var(--fs-md)}.notification-history small{display:block;margin-top:3px}.user-activity-timeline{display:grid}.activity-event{position:relative;display:grid;grid-template-columns:14px 1fr auto;gap: var(--space-2);padding-bottom:15px}.activity-event::before{content:'';position:absolute;top:12px;bottom:0;left:5px;width:2px;background:var(--border)}.activity-event:last-child::before{display:none}.activity-marker{position:relative;z-index:1;width:12px;height:12px;margin-top:3px;border:2px solid var(--accent);border-radius:50%;background:var(--surface)}.activity-event.available .activity-marker,.activity-event.notification .activity-marker{border-color:var(--success)}.activity-event.notification_failed .activity-marker{border-color:var(--danger)}.activity-event>div{display:grid;gap: var(--space-1)}.activity-event span,.activity-event small{color:var(--muted);font-size:var(--fs-xs)}.activity-event strong{font-size:var(--fs-sm)}@media(max-width:520px){.user-drawer-summary{align-items:flex-start;flex-wrap:wrap}.user-drawer-summary>div{width:100%}.activity-event{grid-template-columns:14px 1fr}.activity-event>.badge{grid-column:2;justify-self:start}}
+.user-head-meta{display:flex;align-items:center;gap: var(--space-2);margin-right: var(--space-2)}
+.user-head-meta small{color:var(--muted);font-size:var(--fs-xs);white-space:nowrap}
+
+/* Deux cartes cliquables plutot qu'une bande melangeant cases, pastille et badges :
+   on ne savait plus ce qui etait cliquable, et la description se collait a son
+   intitule faute de mise en forme -- le balisage avait ete pose sans ses styles. */
+.user-state-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap: var(--space-2)}
+.user-state-card{display:flex;align-items:flex-start;gap: var(--space-3);padding:11px 13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);cursor:pointer}
+.user-state-card:hover{border-color:var(--accent)}
+.user-state-card.on{border-color:color-mix(in srgb, var(--success) 45%, var(--border))}
+.user-state-card input{flex:none;margin:2px 0 0;cursor:pointer}
+.user-state-card>span{display:grid;gap:2px;min-width:0}
+.user-state-card strong{font-size:var(--fs-sm)}
+.user-state-card small{color:var(--muted);font-size:var(--fs-xs)}
+.user-state-card:has(input:disabled){opacity:.6;cursor:progress}
+@media(max-width:600px){.user-state-row{grid-template-columns:1fr}}.notification-history{display:grid;gap: var(--space-2);margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}.notification-history h3{margin:0;font-size:var(--fs-md)}.notification-history small{display:block;margin-top:3px}.user-activity-timeline{display:grid}.activity-event{position:relative;display:grid;grid-template-columns:14px 1fr auto;gap: var(--space-2);padding-bottom:15px}.activity-event::before{content:'';position:absolute;top:12px;bottom:0;left:5px;width:2px;background:var(--border)}.activity-event:last-child::before{display:none}.activity-marker{position:relative;z-index:1;width:12px;height:12px;margin-top:3px;border:2px solid var(--accent);border-radius:50%;background:var(--surface)}.activity-event.available .activity-marker,.activity-event.notification .activity-marker{border-color:var(--success)}.activity-event.notification_failed .activity-marker{border-color:var(--danger)}.activity-event>div{display:grid;gap: var(--space-1)}.activity-event span,.activity-event small{color:var(--muted);font-size:var(--fs-xs)}.activity-event strong{font-size:var(--fs-sm)}@media(max-width:520px){.activity-event{grid-template-columns:14px 1fr}.activity-event>.badge{grid-column:2;justify-self:start}}
 .local-account-toggle{margin-bottom:14px}
 .password-section{display:grid;gap: var(--space-2);margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 .password-section h3{display:flex;align-items:center;gap: var(--space-2);margin:0;font-size:var(--fs-md)}
