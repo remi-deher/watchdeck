@@ -25,12 +25,16 @@ export interface AccountLike {
   plex_account_uuid?: string | null;
 }
 
+/* `api` n'est pas un detail d'implementation : c'est la population importee depuis la
+   liste de comptes du serveur Plex lui-meme -- les utilisateurs Plex Home et
+   l'administrateur du serveur -- par opposition a `rss`, un compte seulement apercu via
+   le flux watchlist. Affiche « API » tout court, le mot ne designait plus rien. */
 const SOURCES: Record<string, string> = {
   plex: 'Compte Plex',
   seer: 'Compte Seer',
   rss: 'Flux RSS',
   local: 'Compte local',
-  api: 'API',
+  api: 'Plex Home / Admin',
 };
 
 const ROLES: Record<string, string> = {
