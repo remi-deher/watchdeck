@@ -103,24 +103,12 @@
   padding-left: var(--safe-left);
 }
 
-@include bp.until(tablet) {
-  /* Feuille ancrée en bas (bottom-sheet), cohérente avec le more-menu */
-  .detail-drawer,
-  .modal-panel {
-    --drawer-pad: 16px;
-    inset: auto 0 0 0;
-    width: 100%;
-    max-width: 100%;
-    max-height: 92dvh;
-    padding: var(--drawer-pad);
-    padding-left: max(var(--drawer-pad), var(--safe-left));
-    padding-right: max(var(--drawer-pad), var(--safe-right));
-    padding-bottom: max(var(--drawer-pad), var(--safe-bottom));
-    transform: none;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    border-bottom: 0;
-  }
-}
+/* La feuille ancrée en bas du mode compact vit desormais dans `components/_components.scss`,
+   juste apres la geometrie de bureau qu'elle remplace. Ici, chargee AVANT elle et a
+   specificite egale, elle ne s'appliquait jamais : une media query ne compte pas dans
+   la specificite, c'est donc la derniere regle ecrite qui l'emportait -- et le panneau
+   restait une modale centree sur telephone, a moitie sortie de l'ecran quand la
+   transition ecrasait son `translateX(-50%)`. */
 
 .drawer-head,
 .account-summary {

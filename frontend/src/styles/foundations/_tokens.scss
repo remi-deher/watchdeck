@@ -93,6 +93,17 @@
   --app-shell-offset-bottom: calc(var(--app-dock-h) + var(--safe-bottom));
 }
 
+@include bp.until(shell-medium) {
+  :root {
+    /* La barre de recherche est passée en bas, au ras du dock : plus rien n'est réservé
+       en haut. Le contenu remonte d'autant, et rien ne descend pour autant en bas --
+       la barre y flotte au-dessus du contenu sans l'y pousser, et c'est le masquage au
+       défilement qui découvre ce qu'elle couvre. `--app-shell-offset-bottom` ne compte
+       donc que le dock. */
+    --app-shell-offset-top: var(--safe-top);
+  }
+}
+
 @include bp.from(shell-medium) {
   :root {
     /* Le rail remplace le dock : plus rien n'est réservé en bas, et la colonne

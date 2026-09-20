@@ -230,19 +230,29 @@ test("le contenu n'est masque ni par la barre de contexte ni par le dock", async
 
   const topbar = await page.locator(".app-topbar").boundingBox();
   const firstChild = await main.locator(":scope > *").first().boundingBox();
-  expect(firstChild.y, "le contenu passe sous la barre de contexte").toBeGreaterThanOrEqual(
-    topbar.y + topbar.height - 1,
-  );
 
-  if (isCompact(page)) {
-    // Le dock est fixe : sans reserve en bas, il recouvrirait la fin du contenu, et
-    // rien dans la page ne le signalerait a l'utilisateur.
-    const dock = await page.locator(".app-dock").boundingBox();
-    const reserved = await main.evaluate(
-      (node) => parseFloat(window.getComputedStyle(node).paddingBottom),
+  if (!isCompact(page)) {
+    expect(firstChild.y, "le contenu passe sous la barre de contexte").toBeGreaterThanOrEqual(
+      topbar.y + topbar.height - 1,
     );
-    expect(reserved).toBeGreaterThanOrEqual(dock.height - 1);
+    return;
   }
+
+  // En compact la barre est passee en bas, au ras du dock : elle ne precede plus le
+  // contenu, elle flotte au-dessus de sa fin.
+  const dock = await page.locator(".app-dock").boundingBox();
+  expect(topbar.y, "la barre se tient au-dessus du dock").toBeGreaterThan(firstChild.y);
+  expect(topbar.y + topbar.height).toBeLessThanOrEqual(dock.y + 1);
+
+  const reserved = await main.evaluate(
+    (node) => parseFloat(window.getComputedStyle(node).paddingBottom),
+  );
+  // Le dock est opaque et fixe : sans reserve, il recouvrirait la fin du contenu.
+  expect(reserved, "le dock reste degage").toBeGreaterThanOrEqual(dock.height - 1);
+  // La barre, elle, ne reserve rien : elle flotte, et c'est son masquage au defilement
+  // qui decouvre ce qu'elle couvre. Lui reserver sa hauteur reprendrait en bas la place
+  // qu'on vient de rendre en haut.
+  expect(reserved, "la barre ne reserve aucune place").toBeLessThan(dock.height + topbar.height);
 });
 
 test("le rail se replie et se deploie, et le choix survit au rechargement", async ({ page }) => {
