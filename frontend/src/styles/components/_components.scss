@@ -1,3 +1,5 @@
+@use "../foundations/breakpoints" as bp;
+
 .panel,
 .metric-card,
 .media-card {
@@ -563,6 +565,56 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
      L'en-tete collant et le bord du contenu suffisent a dire qu'il reste a lire. */
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* Sur telephone, la boite de dialogue devient une feuille ancree en bas : elle epouse
+   la hauteur de son contenu et grandit vers le haut jusqu'a son plafond, au lieu de
+   flotter au milieu a une taille fixe. Un panneau de deux filtres ne prend alors que la
+   place de deux filtres.
+
+   Ce bloc doit rester APRES la geometrie de bureau ci-dessus : les deux visent
+   `.modal-panel` avec la meme specificite, et une media query n'en ajoute pas. Place
+   dans `layout/_layout.scss`, charge plus tot, il etait purement et simplement ignore. */
+@include bp.until(tablet) {
+  .detail-drawer,
+  .modal-panel {
+    --drawer-pad: 16px;
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    padding: var(--drawer-pad);
+    padding-left: max(var(--drawer-pad), var(--safe-left));
+    padding-right: max(var(--drawer-pad), var(--safe-right));
+    padding-bottom: max(var(--drawer-pad), var(--safe-bottom));
+    /* Aucun centrage a preserver : la feuille occupe toute la largeur. C'est ce qui la
+       met a l'abri du `transform` de la transition, qui redeclarait la propriete en
+       entier et emportait le `translateX(-50%)` du mode centre avec lui. */
+    transform: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+  }
+}
+
+/* La feuille de filtres s'arrête SUR la barre de recherche, jamais dessus.
+   C'est la règle du mode bureau, simplement retournée : là-haut le voile porte déjà un
+   coussin de la hauteur de la barre, pour que le champ, le bouton et son compteur
+   restent lisibles pendant qu'on coche -- et ce compteur est précisément ce que le
+   panneau fait varier. Le bouton reste donc atteignable, et le retoucher referme :
+   l'aller et le retour se font du même pouce, au même endroit.
+
+   Conditionné à la présence réelle de la barre (`body:has`) : sur une page qui n'en a
+   pas, la feuille n'a aucune raison de laisser un vide sous elle. */
+@include bp.until(shell-medium) {
+  body:has(.app-topbar) {
+    .drawer-backdrop:has(> .filter-sheet),
+    .modal-panel.filter-sheet {
+      bottom: calc(var(--app-shell-offset-bottom) + var(--app-topbar-h) + 14px);
+    }
+    .modal-panel.filter-sheet {
+      max-height: calc(92dvh - var(--app-shell-offset-bottom) - var(--app-topbar-h));
+    }
+  }
 }
 
 .detail-drawer::-webkit-scrollbar,

@@ -65,9 +65,12 @@ useModalA11y(panel, null, () => emit('close'));
 </script>
 
 <style scoped lang="scss">
+/* Le voile s'arrête au-dessus du dock : c'est l'entrée qu'on vient de toucher qui dit
+   de quelle destination on ouvre les sections, et l'assombrir revenait à masquer la
+   réponse à la question qu'on venait de poser. La retoucher referme la feuille. */
 .app-sheet__scrim {
   position: fixed;
-  inset: 0;
+  inset: 0 0 calc(var(--app-dock-h) + var(--safe-bottom)) 0;
   z-index: 60;
   background: rgba(9, 9, 11, .62);
   backdrop-filter: blur(6px);

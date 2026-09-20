@@ -15,8 +15,9 @@
           @click="$emit('open-sections')"
         >
           <!-- Sans ce repere, rien ne distingue une destination qui cache des sections
-               d'une autre : le geste resterait a deviner. -->
-          <i class="app-dock__caret" aria-hidden="true" />
+               d'une autre : le geste resterait a deviner. Le chevron se retourne une
+               fois la feuille ouverte, la meme entree servant a la refermer. -->
+          <i class="app-dock__caret" :class="{ 'is-open': sectionsOpen }" aria-hidden="true" />
           <component :is="destination.icon" aria-hidden="true" />
           <span>{{ labelFor(destination) }}</span>
         </button>
@@ -171,6 +172,7 @@ const activeIsOutsideDock = computed(
 
 .app-dock__caret {
   position: absolute;
+  transition: transform var(--motion-duration-fast, .15s) ease;
   top: 5px;
   right: calc(50% - 16px);
   width: 0;
@@ -179,6 +181,7 @@ const activeIsOutsideDock = computed(
   border-left: 4px solid transparent;
   border-top: 4px solid currentcolor;
 }
+.app-dock__caret.is-open { transform: rotate(180deg); }
 
 /* Paysage sur téléphone : la hauteur manque, les libellés passent à côté de l'icône. */
 @media (max-height: 500px) and (orientation: landscape) {

@@ -11,7 +11,7 @@
       </div>
     </aside>
     <!-- Mobile : bottom-sheet modal -->
-    <ModalShell v-else :open="open" title="Filtres" @close="$emit('close')">
+    <ModalShell v-else :open="open" title="Filtres" panel-class="filter-sheet" @close="$emit('close')">
       <div class="filter-modal-body">
         <slot />
       </div>
@@ -24,7 +24,7 @@
   <!-- bare mode: no header/box, just toggle behavior — slot provides its own styling -->
   <template v-else>
     <div v-if="!isMobile" v-show="open" class="filter-sidebar-bare"><slot /></div>
-    <ModalShell v-else :open="open" title="Filtres" @close="$emit('close')"><slot /></ModalShell>
+    <ModalShell v-else :open="open" title="Filtres" panel-class="filter-sheet" @close="$emit('close')"><slot /></ModalShell>
   </template>
 </template>
 

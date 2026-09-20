@@ -1,5 +1,5 @@
 <template>
-  <header class="app-topbar" :class="{ 'is-hidden': toolbarHidden }">
+  <header v-if="showBar" class="app-topbar" :class="{ 'is-hidden': toolbarHidden }">
     <!-- Ni bouton de navigation ni titre en compact : le dock du bas porte deja
          « Plus », qui ouvre la meme feuille, et le titre de la page est repris juste
          en dessous. Les deux ne servaient qu'a rogner la largeur du champ de
@@ -186,6 +186,17 @@ function onSearchFocusOut(): void {
 // sous-section le precisent, et c'est ce que l'utilisateur lit a l'ecran.
 const providedTitle = usePageTitle();
 const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
+
+/**
+ * En compact, la barre ne survit pas a une page qui n'a rien a y mettre.
+ *
+ * Elle y descend au ras du dock, et une capsule pleine largeur contenant une seule
+ * loupe y aurait l'allure d'un champ de saisie sans en etre un -- pour une recherche
+ * globale que la feuille « Plus » propose deja. Au-dessus du compact elle reste, meme
+ * vide : elle y porte le titre de la page, et sa position ne doit pas sauter d'une
+ * page a l'autre.
+ */
+const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.value));
 
 /* Les sections ne remontent ici qu'en mode deploye : plus bas, la barre n'a pas la
    largeur de les porter sans chasser le titre, seul repere visible depuis que le
@@ -421,6 +432,41 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
 .app-topbar__recent svg { flex: none; width: 14px; color: var(--muted); }
 .app-topbar__recent span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ── Compact : la barre passe en bas ────────────────────────────────────────── */
+/* Elle reste flottante et ne reserve rien : le contenu passe dessous, et c'est le
+   masquage au defilement qui le decouvre. `--app-shell-offset-bottom` continue donc de
+   ne compter que le dock (voir `foundations/_tokens.scss`).
+   Le pouce atteint le bas de l'ecran, pas le haut -- et sur les pages de liste cette
+   barre est l'outil de travail, pas une decoration : on la manipule en parcourant ce
+   qu'elle filtre. */
+@include bp.until(shell-medium) {
+  .app-topbar {
+    top: auto;
+    bottom: calc(var(--app-shell-offset-bottom) + 8px);
+    /* L'ombre se retourne avec la barre : portee vers le bas, elle se serait perdue
+       derriere le dock au lieu de detacher la barre du contenu qui passe dessous. */
+    box-shadow: 0 -10px 32px rgba(0, 0, 0, .34);
+  }
+  /* Elle s'efface vers le bas, du cote ou elle vit. */
+  .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(100% + 14px)); }
+
+  /* Clavier ouvert : une boite `fixed` se positionne sur le viewport de mise en page,
+     que le clavier ne retrecit pas -- la barre serait donc restee dessous, invisible au
+     moment precis ou l'on s'en sert. `--keyboard-inset` donne la hauteur reellement
+     masquee (voir `useVisualViewport`), et la barre se cale juste au-dessus. Le dock,
+     lui, reste derriere le clavier : on ne navigue pas en tapant. */
+  :root[data-keyboard-open] .app-topbar {
+    bottom: calc(var(--keyboard-inset) + 8px);
+  }
+  /* Tout ce qui se deployait sous le champ se deploie desormais au-dessus : en bas
+     d'ecran il n'y a plus de place dessous, et le clavier s'y installe. */
+  .app-topbar__escape,
+  .app-topbar__recent {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+}
+
 @include bp.from(shell-medium) {
   .app-topbar__search { display: flex; }
   .app-topbar__filter-only { display: flex; }
@@ -482,7 +528,9 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
 
 @include bp.until(tablet) {
   .app-topbar { left: max(10px, var(--safe-left)); right: max(10px, var(--safe-right)); width: auto; transform: none; }
-  .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(-100% - 14px)); }
-
+  /* La translation d'effacement est declaree une seule fois, dans le bloc compact plus
+     haut, et vers le BAS : la barre y vit desormais. La redeclarer ici -- plus loin
+     dans la feuille, donc gagnante -- la renvoyait vers le haut, hors de son propre
+     cote, et l'effacement ne se voyait plus que par l'opacite. */
 }
 </style>
