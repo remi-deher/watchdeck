@@ -191,7 +191,11 @@ const toolsInBar = computed(() => false);
 const { sections: derivedSections, activeKey, destinationLabel } = usePageSections();
 /* Meme source que la barre du haut : une seule lecture du defilement pour les deux. */
 const { hidden: chromeHidden } = useChromeAutoHide();
-const showSections = computed(() => mode.value !== 'expanded');
+/* Trois modes, trois porteurs, jamais deux a la fois : le rail en deploye, cette rangee
+   en intermediaire, et le dock en compact -- ou une rangee de plus, qui defilait
+   horizontalement des quatre sections, s'ajoutait a la barre du haut et au dock sur un
+   ecran qui n'a la hauteur d'aucune des trois. */
+const showSections = computed(() => mode.value === 'medium');
 const showStickyRow = computed(
   () => (showSections.value && resolvedSections.value.length > 1) || (hasTools.value && !toolsInBar.value)
 );

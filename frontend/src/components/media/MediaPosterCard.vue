@@ -7,14 +7,13 @@
     :bordered="bordered"
     :elevate-on-hover="elevateOnHover"
   >
-    <template #default="{ revealed, reveal }">
+    <template #default>
       <component
         :is="to ? RouterLink : 'div'"
         v-bind="linkAttributes"
         :aria-label="accessibleLabel"
         class="poster-link catalog-poster-link discover-poster-link"
-        @pointerdown="rememberPointerState($event, revealed)"
-        @click="handleActivate($event, revealed, reveal)"
+        @click="handleActivate"
         @keydown.enter="handleKeyboardActivate"
         @keydown.space="handleKeyboardActivate"
       >
@@ -67,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Download, Star } from '@lucide/vue';
 import { mediaTypeLabel } from '@/utils/labels';
@@ -117,24 +116,13 @@ const linkAttributes = computed(() => props.to
   ? { to: props.to }
   : { role: 'link', tabindex: 0 });
 const resolvedTo = computed(() => props.to || '/');
-const pointerStartedRevealed = ref(false);
-const pointerWasCoarse = ref(false);
 
-function rememberPointerState(e: PointerEvent, revealed: boolean): void {
-  pointerStartedRevealed.value = revealed;
-  pointerWasCoarse.value = e.pointerType === 'touch'
-    || (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches);
-}
-
-function handleActivate(e: MouseEvent, revealed: boolean, reveal: () => void): void {
-  const needsReveal = pointerWasCoarse.value ? !pointerStartedRevealed.value : !revealed;
-  pointerWasCoarse.value = false;
-  if (needsReveal) {
-    e.preventDefault();
-    e.stopPropagation();
-    reveal();
-    return;
-  }
+/**
+ * Le premier appui sur une carte encore fermee ne parvient jamais jusqu'ici :
+ * `MediaCardShell` l'intercepte en capture pour decouvrir titre et action. Ce
+ * gestionnaire ne voit donc que les activations d'une carte deja ouverte.
+ */
+function handleActivate(): void {
   if (!props.to) emit('open', props.item);
 }
 
