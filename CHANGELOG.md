@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.30.0 — 2026-09-20
+
+
+### test
+
+- décrire la barre de recherche là où elle vit désormais ([6d742ab](https://github.com/remi-deher/watchdeck/commit/6d742ab194477d65ecfd9a559a34c86ec8cb411c))
+
+### ✨ Nouveautés
+
+- descendre la barre de recherche au pouce sur téléphone ([fc4ceb6](https://github.com/remi-deher/watchdeck/commit/fc4ceb6c7ef05aef52f77b2c0096a2039c0c64fe))
 ## 1.29.2 — 2026-09-20
 
 
@@ -15,6 +25,10 @@
 ### 🐛 Corrections
 
 - ne découvrir le bouton « Demander » qu'au premier appui ([7b700a9](https://github.com/remi-deher/watchdeck/commit/7b700a9a3301d1b108c68a32472636dee86f1ec1))
+
+### 🔧 Maintenance
+
+- v1.29.2 (#327) ([a25d3d6](https://github.com/remi-deher/watchdeck/commit/a25d3d61ebe7ceb84592fe4d7174b5a978d817ab))
 ## 1.29.1 — 2026-09-14
 
 
