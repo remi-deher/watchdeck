@@ -7,19 +7,20 @@
     <div
       class="poster-wrap"
       :class="{ revealed, 'has-action': hasAction }"
-      @mouseenter="revealed = true"
-      @mouseleave="revealed = false"
-      @focusin="revealed = true"
-      @focusout="revealed = false"
+      @click.capture="interceptFirstTap"
+      @mouseenter="reveal"
+      @mouseleave="conceal"
+      @focusin="reveal"
+      @focusout="conceal"
     >
-      <slot :revealed="revealed" :reveal="() => (revealed = true)" />
+      <slot :revealed="revealed" :reveal="reveal" />
       <slot name="action" :revealed="revealed" />
     </div>
   </article>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { useCardReveal } from '@/composables/useCardReveal';
 
 withDefaults(
   defineProps<{
@@ -40,7 +41,27 @@ withDefaults(
   }
 );
 
-const revealed = ref(false);
+const { revealed, reveal, conceal } = useCardReveal();
+
+/**
+ * Premier appui : decouvrir la carte, pas l'ouvrir.
+ *
+ * L'interception vit sur le conteneur et en phase de *capture*, pas sur le lien
+ * lui-meme : un `@click` pose sur le `RouterLink` partage l'element avec le
+ * gestionnaire interne du routeur, et l'ordre des deux s'inverse entre le build de dev
+ * et celui de production -- en production le routeur naviguait le premier, emportant
+ * l'utilisateur vers la fiche avant que l'action ait pu se montrer. Depuis le parent,
+ * la capture precede toujours le lien.
+ */
+function interceptFirstTap(e: MouseEvent): void {
+  if (revealed.value) return;
+  // Avec une souris, le survol a deja revele la carte : n'intercepter que la ou il
+  // n'existe pas, pour ne rien changer au clic au bureau.
+  if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+  e.preventDefault();
+  e.stopPropagation();
+  reveal();
+}
 </script>
 
 <style scoped lang="scss">
@@ -212,15 +233,14 @@ const revealed = ref(false);
 @media (pointer: coarse) {
   .poster-card:hover,
   .poster-card:focus-within { transform: none; }
-  /* Sans souris il n'y a pas de survol : l'action restait invisible et
-     `pointer-events: none` jusqu'a ce qu'un premier appui la revele par hasard. Sur
-     ecran tactile elle est donc montree en permanence, et portee a la cible de 44px
-     exigee par iOS comme par Material -- les 34px d'ici l'emportaient sur la regle
-     globale de `_base.scss`, moins specifique. */
+  /* Sans souris il n'y a pas de survol : l'action se decouvre au premier appui, en
+     meme temps que l'overlay, et le second appui la declenche ou ouvre la fiche. Au
+     repos l'affiche reste donc nue -- une grille de vignettes ne se lit plus des qu'un
+     bouton plein cadre s'empile sur chacune. Seule la cible de 44px exigee par iOS
+     comme par Material est forcee ici : les 34px du bloc principal l'emportaient sur
+     la regle globale de `_base.scss`, moins specifique. */
   .poster-wrap :deep(.poster-action) {
     min-height: var(--touch-target);
-    opacity: 1;
-    pointer-events: auto;
   }
   /* Le titre se reserve la hauteur du bouton : 10px de plus ici, sinon il passe
      dessous. */
