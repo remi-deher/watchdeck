@@ -328,6 +328,25 @@ export function groupedSections(sections: NavSection[]): Array<{ label: string; 
   return groups;
 }
 
+/**
+ * Les destinations que le dock peut porter, dans l'ordre, filtrees selon les droits.
+ *
+ * Le calcul vit ici plutot que dans le dock parce que le shell a besoin de la meme
+ * reponse : les sections d'une destination absente du dock n'ont aucune entree ou se
+ * greffer, et doivent alors rejoindre la feuille de navigation. Deux copies de cette
+ * liste auraient fini par ne plus dire la meme chose.
+ */
+export function dockDestinationsFor(isAdmin: boolean, canModerate: boolean): NavDestination[] {
+  const permitted = destinationsFor(isAdmin, canModerate);
+  const preferred = DOCK_DESTINATION_KEYS
+    .map((key) => permitted.find((item) => item.key === key))
+    .filter((item): item is NavDestination => Boolean(item));
+  // Un utilisateur non-administrateur perd `dashboard` : on complete avec ses autres
+  // destinations plutot que de laisser un dock a trois entrees.
+  const filler = permitted.filter((item) => !preferred.includes(item));
+  return [...preferred, ...filler].slice(0, 4);
+}
+
 /** Section active pour la route courante : `active()` explicite, sinon égalité d'URL. */
 export function activeSectionKey(
   sections: NavSection[],

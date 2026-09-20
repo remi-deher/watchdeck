@@ -86,4 +86,35 @@ describe('MediaPosterCard', () => {
       window.matchMedia = originalMatchMedia;
     }
   });
+
+  it("laisse l'affiche nue tant qu'aucun appui ne l'a revelee", () => {
+    const wrapper = mountCard();
+
+    // Le bouton reste dans le DOM pour rester focalisable au clavier : c'est la classe
+    // `revealed` qui commande son opacite et ses `pointer-events`.
+    expect(wrapper.get('.poster-wrap').classes()).not.toContain('revealed');
+    expect(wrapper.find('.poster-action').exists()).toBe(true);
+  });
+
+  it('referme la carte precedente quand une autre est revelee', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = (query) => ({ matches: query === '(pointer: coarse)' });
+
+    try {
+      const first = mountCard();
+      const second = mountCard({ tmdb_id: 43, title: 'Autre film' });
+
+      for (const wrapper of [first, second]) {
+        const link = wrapper.get('.discover-poster-link');
+        link.element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+        link.element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        await wrapper.vm.$nextTick();
+      }
+
+      expect(second.get('.poster-wrap').classes()).toContain('revealed');
+      expect(first.get('.poster-wrap').classes()).not.toContain('revealed');
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
 });

@@ -22,6 +22,31 @@ function catalog(page, totalPages = 2) {
   };
 }
 
+/**
+ * Ouvre le second niveau de navigation et renvoie la surface qui le porte.
+ *
+ * Sur telephone il n'est plus affiche en permanence : retoucher la destination deja
+ * active dans le dock ouvre ses sections.
+ */
+async function openSections(page) {
+  const width = page.viewportSize().width;
+  if (width >= 1200) return page.locator('.app-rail__subnav');
+  if (width >= 768) return page.locator('.app-subnav');
+
+  await expect(page.locator('.app-subnav')).toHaveCount(0);
+  await page.locator('.app-dock button[aria-current="page"]').click();
+  const sheet = page.locator('.app-section-sheet');
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+/** Referme la feuille du dock, qui recouvre la page tant qu'elle est ouverte. */
+async function closeSections(page) {
+  if (page.viewportSize().width >= 768) return;
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.app-section-sheet')).toHaveCount(0);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -81,16 +106,17 @@ test("conserve le catalogue Films lors d'une recherche", async ({ page }) => {
 });
 
 test("affiche la navigation dédiée et replie les filtres", async ({ page }) => {
-  // Le second niveau vit desormais dans la page, sous son titre, au meme endroit
-  // quelle que soit la largeur : plus de sous-menu survolable dans le shell, dont la
-  // rangee principale changeait de contenu selon la section.
-  const navigation = page.viewportSize().width >= 1200
-    ? page.locator('.app-rail__subnav')
-    : page.locator('.app-subnav');
+  // Trois largeurs, trois porteurs du second niveau, jamais deux a la fois : le rail
+  // en deploye, une rangee dans la page en intermediaire, et le dock sur telephone --
+  // ou la rangee s'ajoutait a la barre du haut et au dock sur un ecran qui n'a la
+  // hauteur d'aucune des trois.
+  const navigation = await openSections(page);
   await expect(navigation.getByRole("link", { name: "Séries" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Films" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Accueil" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Calendrier" })).toBeVisible();
+  await closeSections(page);
+
   const filters = page.viewportSize().width <= 900
     ? page.locator('.modal-panel')
     : page.locator('.filter-sidebar');
@@ -112,23 +138,40 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   }
   await expect(filters).toBeHidden();
 
-  await navigation.getByRole("link", { name: "Séries" }).click();
+  // Rouvrir : sur telephone la feuille a ete refermee pour atteindre les filtres.
+  const shows = await openSections(page);
+  await shows.getByRole("link", { name: "Séries" }).click();
   await expect(page).toHaveURL(/\/discover\/shows$/);
   // Changer de section met a jour le champ de la barre : la page suivante fournit sa
   // propre recherche, et le demontage de la precedente ne doit pas l'effacer.
   await expect(await pageSearchBox(page)).toHaveAttribute("aria-label", /Rechercher une série/);
-  await navigation.getByRole("link", { name: "Films" }).click();
+
+  // La feuille se referme sur la navigation : il faut la rouvrir pour la section
+  // suivante, et c'est aussi la preuve qu'elle n'est pas restee ouverte par-dessus.
+  const next = await openSections(page);
+  await next.getByRole("link", { name: "Films" }).click();
   await expect(page).toHaveURL(/\/discover\/movies$/);
 });
 
 test("reste utilisable au clavier et sur mobile", async ({ page }, testInfo) => {
   const firstCard = page.locator(".discover-card").first();
   const firstLink = firstCard.locator(".discover-poster-link");
+  const compact = page.viewportSize().width <= 640;
+  // L'action reste dans le DOM pour rester focalisable : c'est l'opacite qui commande
+  // sa visibilite, et `toBeVisible` passe a `opacity: 0`.
+  const request = firstCard.getByRole("button", { name: "Demander" });
+  const opacity = () => request.evaluate((node) => window.getComputedStyle(node).opacity);
+
+  // Sans souris, l'affiche est nue au repos : une grille de vignettes ne se lit plus
+  // des qu'un bouton pleine largeur s'empile sur chacune.
+  if (compact) expect(await opacity()).toBe("0");
+
   await firstLink.focus();
   await expect(firstLink).toBeFocused();
-  if (page.viewportSize().width <= 640) {
-    await expect(firstCard.getByRole("button", { name: "Demander" })).toBeVisible();
-  }
+
+  // Le focus clavier decouvre la carte comme le premier appui le ferait au doigt :
+  // une action focalisable mais invisible serait inatteignable au clavier.
+  if (compact) await expect.poll(opacity).toBe("1");
 });
 
 test("place la recherche dans la barre, jamais dans le contenu", async ({ page }) => {

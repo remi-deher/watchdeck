@@ -2,13 +2,32 @@
   <nav class="app-dock" aria-label="Navigation principale">
     <ul>
       <li v-for="destination in dockDestinations" :key="destination.key">
+        <!-- La destination deja active n'a plus de navigation a offrir : la retoucher
+             ouvre donc ses sections, qui n'ont plus de rangee a elles en compact. Un
+             lien vers la page ou l'on est deja n'aurait rien fait de ce geste. -->
+        <button
+          v-if="destination.key === activeKey && hasSections"
+          type="button"
+          class="app-nav-link app-dock__link"
+          aria-current="page"
+          :aria-expanded="sectionsOpen"
+          aria-haspopup="dialog"
+          @click="$emit('open-sections')"
+        >
+          <!-- Sans ce repere, rien ne distingue une destination qui cache des sections
+               d'une autre : le geste resterait a deviner. -->
+          <i class="app-dock__caret" aria-hidden="true" />
+          <component :is="destination.icon" aria-hidden="true" />
+          <span>{{ labelFor(destination) }}</span>
+        </button>
         <RouterLink
+          v-else
           class="app-nav-link app-dock__link"
           :to="destination.to"
           :aria-current="destination.key === activeKey ? 'page' : undefined"
         >
           <component :is="destination.icon" aria-hidden="true" />
-          <span>{{ destination.label }}</span>
+          <span>{{ labelFor(destination) }}</span>
         </RouterLink>
       </li>
       <li>
@@ -35,30 +54,47 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Menu } from '@lucide/vue';
-import { DOCK_DESTINATION_KEYS, destinationsFor, type NavDestination } from '@/navigation';
+import { dockDestinationsFor, type NavDestination } from '@/navigation';
+import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 
 const props = withDefaults(
-  defineProps<{ activeKey?: string; sheetOpen?: boolean; isAdmin?: boolean; canModerate?: boolean }>(),
-  { activeKey: '', sheetOpen: false, isAdmin: false, canModerate: false }
+  defineProps<{
+    activeKey?: string;
+    sheetOpen?: boolean;
+    isAdmin?: boolean;
+    canModerate?: boolean;
+    /** Sections de la destination active ; le dock les porte depuis qu'elles n'ont plus de rangee. */
+    sections?: SubnavItem[];
+    activeSectionKey?: string;
+    sectionsOpen?: boolean;
+  }>(),
+  {
+    activeKey: '', sheetOpen: false, isAdmin: false, canModerate: false,
+    sections: () => [], activeSectionKey: '', sectionsOpen: false,
+  }
 );
 
-defineEmits<{ (e: 'open-sheet'): void }>();
+defineEmits<{ (e: 'open-sheet'): void; (e: 'open-sections'): void }>();
 
-const permitted = computed(() => destinationsFor(props.isAdmin, props.canModerate));
+/** Une section unique n'est pas un choix : la destination se comporte alors en simple lien. */
+const hasSections = computed(() => props.sections.length > 1);
 
 /**
- * Quatre destinations au plus, dans l'ordre de `DOCK_DESTINATION_KEYS`, en ne gardant
- * que celles auxquelles la session a droit. Un utilisateur non-administrateur perd
- * `dashboard` : on complète alors avec ses autres destinations plutôt que de laisser
- * un dock à trois entrées.
+ * Libelle de l'entree active : la section courante plutot que la destination.
+ *
+ * Sauf sur la premiere section, qui est la page d'arrivee de la destination : y
+ * afficher son nom donnait deux entrees « Accueil » cote a cote dans le dock, l'une
+ * pour le Tableau de bord, l'autre pour l'accueil d'Explorer.
  */
-const dockDestinations = computed<NavDestination[]>(() => {
-  const preferred = DOCK_DESTINATION_KEYS
-    .map((key) => permitted.value.find((item) => item.key === key))
-    .filter((item): item is NavDestination => Boolean(item));
-  const filler = permitted.value.filter((item) => !preferred.includes(item));
-  return [...preferred, ...filler].slice(0, 4);
-});
+function labelFor(destination: NavDestination): string {
+  if (destination.key !== props.activeKey || !hasSections.value) return destination.label;
+  const index = props.sections.findIndex((section) => section.key === props.activeSectionKey);
+  return index > 0 ? props.sections[index].label : destination.label;
+}
+
+const dockDestinations = computed<NavDestination[]>(
+  () => dockDestinationsFor(props.isAdmin, props.canModerate)
+);
 
 const activeIsOutsideDock = computed(
   () => Boolean(props.activeKey) && !dockDestinations.value.some((item) => item.key === props.activeKey)
@@ -131,6 +167,17 @@ const activeIsOutsideDock = computed(
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+.app-dock__caret {
+  position: absolute;
+  top: 5px;
+  right: calc(50% - 16px);
+  width: 0;
+  height: 0;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-top: 4px solid currentcolor;
 }
 
 /* Paysage sur téléphone : la hauteur manque, les libellés passent à côté de l'icône. */

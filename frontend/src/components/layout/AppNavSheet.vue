@@ -17,8 +17,34 @@
       </header>
 
       <div class="app-sheet__body">
+        <!-- Les sections d'une destination que le dock ne porte pas : son entree active
+             n'existe pas la-bas, donc rien ne pourrait les y decouvrir. Elles passent
+             en tete, avant les destinations, parce qu'on vient d'abord voir ou l'on
+             peut aller dans la page ou l'on est. -->
+        <section v-if="sections.length > 1" class="app-sheet__group">
+          <p class="app-sheet__group-label">{{ destinationLabel }}</p>
+          <RouterLink
+            v-for="section in sections"
+            :key="section.key"
+            class="app-nav-link app-sheet__link"
+            :to="section.to!"
+            :aria-current="section.key === activeSectionKey ? 'page' : undefined"
+          >
+            <component :is="section.icon" v-if="section.icon" aria-hidden="true" />
+            <span>{{ section.label }}</span>
+            <small v-if="section.count != null" class="app-sheet__count">{{ section.count }}</small>
+          </RouterLink>
+        </section>
+
         <!-- La feuille montre la totalité des destinations permises, groupées comme
-             dans le rail : c'est le même modèle, jamais un sous-ensemble arbitraire. -->
+             dans le rail : c'est le même modèle, jamais un sous-ensemble arbitraire.
+
+             Les liens ne la referment pas eux-mêmes : c'est le shell qui s'en charge
+             une fois la route changée. Fermer au clic la démontait avant que le routeur
+             n'ait poussé son entrée d'historique, et le `history.back()` par lequel
+             `useModalA11y` reprend la sienne annulait la navigation -- la page changeait
+             mais l'URL restait celle d'avant, si bien qu'un rechargement ou un partage
+             du lien ramenait ailleurs. -->
         <section v-for="group in groups" :key="group.label" class="app-sheet__group">
           <p class="app-sheet__group-label">{{ group.label }}</p>
           <RouterLink
@@ -27,7 +53,6 @@
             class="app-nav-link app-sheet__link"
             :to="destination.to"
             :aria-current="destination.key === activeKey ? 'page' : undefined"
-            @click="$emit('close')"
           >
             <component :is="destination.icon" aria-hidden="true" />
             <span>{{ destination.label }}</span>
@@ -58,11 +83,23 @@ import { clearCache } from '@/cache';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
 import { useModalA11y } from '@/composables/useModalA11y';
 import { destinationsFor, type NavDestination } from '@/navigation';
+import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 import { shortcutLabel } from '@/shortcut';
 
 const props = withDefaults(
-  defineProps<{ activeKey?: string; isAdmin?: boolean; canModerate?: boolean }>(),
-  { activeKey: '', isAdmin: false, canModerate: false }
+  defineProps<{
+    activeKey?: string;
+    isAdmin?: boolean;
+    canModerate?: boolean;
+    /** Sections a proposer ici ; vides des que le dock sait deja les montrer. */
+    sections?: SubnavItem[];
+    activeSectionKey?: string;
+    destinationLabel?: string;
+  }>(),
+  {
+    activeKey: '', isAdmin: false, canModerate: false,
+    sections: () => [], activeSectionKey: '', destinationLabel: '',
+  }
 );
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'open-palette'): void }>();
@@ -180,6 +217,19 @@ useModalA11y(panel, null, () => emit('close'));
   font-size: var(--fs-xs);
 }
 .app-sheet__link:hover { color: var(--text); background: var(--surface-2); }
+.app-sheet__count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+}
+
 .app-sheet__link[aria-current='page'] {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
