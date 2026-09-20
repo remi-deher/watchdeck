@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.29.2 — 2026-09-20
+
+
+### test
+
+- aligner les parcours mobiles sur la navigation revue ([35bf9c4](https://github.com/remi-deher/watchdeck/commit/35bf9c4c3bbe934ffcf7899480d8ce18c0bc503c))
+
+### ♻️ Refactoring
+
+- refondre la modale « Associer / Importer » ([e07fd9c](https://github.com/remi-deher/watchdeck/commit/e07fd9c291b4996c8419484908041c39815f3529))
+- confier les sections au dock sur téléphone ([27795f8](https://github.com/remi-deher/watchdeck/commit/27795f880abc8837a6b712a7bd56a5a3e5437e29))
+
+### 🐛 Corrections
+
+- ne découvrir le bouton « Demander » qu'au premier appui ([7b700a9](https://github.com/remi-deher/watchdeck/commit/7b700a9a3301d1b108c68a32472636dee86f1ec1))
 ## 1.29.1 — 2026-09-14
 
 
@@ -8,6 +23,10 @@
 - séparer l'identité du compte de ses interrupteurs d'état ([1166e0c](https://github.com/remi-deher/watchdeck/commit/1166e0c5981c7cbdee4d848f250dcb7bc8a23a28))
 - rendre l'onglet « Comptes liés » lisible et hiérarchisé ([5555cc5](https://github.com/remi-deher/watchdeck/commit/5555cc51f68e3e6ed1cfcfd77649fba85d909a57))
 - nommer l'origine « api » pour ce qu'elle est ([4b21770](https://github.com/remi-deher/watchdeck/commit/4b21770375b60dbee1d8e5990f0809de0c671064))
+
+### 🔧 Maintenance
+
+- v1.29.1 (#323) ([37bd23d](https://github.com/remi-deher/watchdeck/commit/37bd23d15d2add93b7938298858b25390ae98609))
 ## 1.29.0 — 2026-09-14
 
 
