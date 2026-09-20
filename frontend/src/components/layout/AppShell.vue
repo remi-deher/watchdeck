@@ -34,14 +34,29 @@
       v-if="mode === 'compact'"
       :active-key="activeDestinationKey"
       :sheet-open="sheetOpen"
+      :sections="sections"
+      :active-section-key="activeSectionKey"
+      :sections-open="sectionsOpen"
       :is-admin="isAdmin"
       :can-moderate="canModerate"
       @open-sheet="openSheet"
+      @open-sections="sectionsOpen = true"
+    />
+
+    <AppSectionSheet
+      v-if="sectionsOpen"
+      :sections="sections"
+      :active-key="activeSectionKey"
+      :destination-label="destinationLabel"
+      @close="sectionsOpen = false"
     />
 
     <AppNavSheet
       v-if="sheetOpen"
       :active-key="activeDestinationKey"
+      :sections="sectionsInSheet"
+      :active-section-key="activeSectionKey"
+      :destination-label="destinationLabel"
       :is-admin="isAdmin"
       :can-moderate="canModerate"
       @close="sheetOpen = false"
@@ -59,14 +74,16 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDock from './AppDock.vue';
 import AppNavSheet from './AppNavSheet.vue';
+import AppSectionSheet from './AppSectionSheet.vue';
 import AppRail from './AppRail.vue';
 import AppTopBar from './AppTopBar.vue';
 import CommandPalette from './CommandPalette.vue';
 import { useRailCollapsed } from '@/composables/useRailCollapsed';
 import { isTypingTarget } from '@/utils/focus';
+import { usePageSections } from '@/composables/usePageSections';
 import { usePageTitle } from '@/composables/usePageTitle';
 import { useShellMode } from '@/composables/useShellMode';
-import { destinationForPath } from '@/navigation';
+import { destinationForPath, dockDestinationsFor } from '@/navigation';
 
 const props = withDefaults(defineProps<{ isAdmin?: boolean; canModerate?: boolean }>(), {
   isAdmin: false,
@@ -77,6 +94,7 @@ const route = useRoute();
 const mode = useShellMode();
 const collapsed = useRailCollapsed();
 const sheetOpen = ref(false);
+const sectionsOpen = ref(false);
 const palette = ref<{ open: (prefill?: string) => void } | null>(null);
 
 /* Le repli n'a de sens qu'en mode déployé : plus bas, le rail est déjà à sa largeur
@@ -92,19 +110,40 @@ const railDensity = computed<'medium' | 'expanded'>(() =>
 const destination = computed(() => destinationForPath(route.path, props.isAdmin, props.canModerate));
 const activeDestinationKey = computed(() => destination.value?.key || '');
 const destinationLabel = computed(() => destination.value?.label || '');
+/* Meme derivation que la page : en compact la rangee de sections disparait et c'est le
+   dock qui les porte, mais la source reste `navigation.ts` et non une copie locale. */
+const { sections, activeKey: activeSectionKey } = usePageSections();
+
+/* Le dock ne porte que quatre destinations : pour toutes les autres -- Activite,
+   Acquisition, les pages d'administration -- il n'existe aucune entree active a
+   retoucher, et leurs sections n'auraient plus aucune porte depuis que la rangee a
+   disparu. Elles rejoignent alors la feuille, qui est justement le chemin par lequel on
+   atteint ces destinations. */
+const sectionsInSheet = computed(() =>
+  dockDestinationsFor(props.isAdmin, props.canModerate).some((item) => item.key === activeDestinationKey.value)
+    ? []
+    : sections.value
+);
 const providedTitle = usePageTitle();
 const pageTitle = computed(() =>
   providedTitle.value || (typeof route.meta?.title === 'string' && route.meta.title ? route.meta.title : destinationLabel.value || 'Watchdeck')
 );
 
-/* La feuille se ferme elle-meme au clic sur une destination ; elle n'est donc pas
-   fermee ici sur changement de route. Le faire la refermait pendant que le routeur
-   finissait de resoudre la page (`/` puis `/dashboard`, composant asynchrone), une
-   demi-seconde apres que l'utilisateur l'ait ouverte -- et elle est de toute facon
-   modale : aucune navigation ne peut partir de l'arriere-plan pendant ce temps. */
 function openSheet(): void {
+  sectionsOpen.value = false;
   sheetOpen.value = true;
 }
+
+/* C'est la route qui referme les deux feuilles, et non le clic sur l'une de leurs
+   entrees : tant qu'une feuille reste montee, `useModalA11y` garde son entree
+   d'historique et n'ira pas la reprendre au milieu de la navigation en cours -- ce qui
+   ramenait l'URL a la page precedente pendant que le contenu, lui, avait change.
+   On suit `fullPath` parce que plusieurs sections ne different que par leur query
+   (`?view=`). */
+watch(() => route.fullPath, () => {
+  sectionsOpen.value = false;
+  sheetOpen.value = false;
+});
 
 function openPalette(prefill?: string): void {
   palette.value?.open(prefill);
