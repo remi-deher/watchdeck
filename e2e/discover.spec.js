@@ -183,10 +183,16 @@ test("place la recherche dans la barre, jamais dans le contenu", async ({ page }
   const main = await page.locator("#main-content").boundingBox();
   const topbar = await page.locator(".app-topbar").boundingBox();
 
-  // La barre est fixe : c'est le premier contenu de <main>, pas sa boite, qui doit
-  // commencer sous elle — la boite, elle, part de zero et se decale par son padding.
   const firstChild = await page.locator("#main-content > *").first().boundingBox();
-  expect(firstChild.y).toBeGreaterThanOrEqual(topbar.y + topbar.height - 1);
+  if (page.viewportSize().width >= 768) {
+    // La barre est fixe : c'est le premier contenu de <main>, pas sa boite, qui doit
+    // commencer sous elle — la boite, elle, part de zero et se decale par son padding.
+    expect(firstChild.y).toBeGreaterThanOrEqual(topbar.y + topbar.height - 1);
+  } else {
+    // En compact la barre est en bas : le contenu ne la contourne plus, il commence en
+    // haut de l'ecran et passe sous elle.
+    expect(firstChild.y).toBeLessThan(topbar.y);
+  }
 
   // La geometrie du shell ne doit pas bouger d'un chargement a l'autre : c'est ce
   // saut au rechargement qui trahissait les offsets recopies a plusieurs endroits.
