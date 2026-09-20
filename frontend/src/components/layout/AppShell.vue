@@ -40,7 +40,7 @@
       :is-admin="isAdmin"
       :can-moderate="canModerate"
       @open-sheet="openSheet"
-      @open-sections="sectionsOpen = true"
+      @open-sections="sectionsOpen = !sectionsOpen"
     />
 
     <AppSectionSheet
