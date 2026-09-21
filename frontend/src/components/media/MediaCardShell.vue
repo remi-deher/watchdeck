@@ -95,7 +95,10 @@ function interceptFirstTap(e: MouseEvent): void {
 .poster-card.animated {
   animation: card-reveal 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   animation-delay: calc(min(var(--card-index, 0), 16) * 24ms);
-  will-change: transform, opacity;
+  /* Pas de `will-change` ici : il promeut la carte sur sa propre couche graphique, et une
+     grille en compte vingt. Safari finit par manquer de memoire de composition et
+     l'affichage saute. Le navigateur promeut de lui-meme le temps de l'animation, qui
+     dure trois dixiemes de seconde. */
 }
 
 /* Quand le navigateur sait lier une animation au defilement, la carte ne se revele plus

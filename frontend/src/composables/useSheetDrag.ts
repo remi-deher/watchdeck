@@ -21,12 +21,21 @@ export interface SheetDragOptions {
   onClose: () => void;
   /** Le geste n'a lieu que si cette fonction le permet (mode compact, par exemple). */
   enabled?: () => boolean;
+  /**
+   * Selecteur de la poignee : seule zone d'ou le geste peut partir.
+   *
+   * Sans elle, le doigt tombait presque toujours dans une zone qui defile -- une feuille
+   * est faite pour etre parcourue -- et le navigateur prenait la main avant nous : sur
+   * iOS le geste ne demarrait tout simplement jamais. Une poignee, qui ne defile pas et
+   * qui refuse le defilement natif, rend le depart sans ambiguite.
+   */
+  poignee?: string;
 }
 
 export function useSheetDrag(
   panelRef: Ref<HTMLElement | null>,
   openRef: Ref<boolean>,
-  { onClose, enabled }: SheetDragOptions
+  { onClose, enabled, poignee }: SheetDragOptions
 ): void {
   let depart: number | null = null;
   let departAt = 0;
@@ -71,6 +80,7 @@ export function useSheetDrag(
     const el = panel();
     if (!el) return;
     const cible = event.target as HTMLElement | null;
+    if (poignee && !cible?.closest(poignee)) return;
     // Un contenu deja defile garde la priorite : tirer vers le bas doit y remonter la
     // lecture, pas emporter la feuille. On remonte depuis le point touche, car la surface
     // qui defile n'est pas toujours le panneau lui-meme -- la fiche media, par exemple,

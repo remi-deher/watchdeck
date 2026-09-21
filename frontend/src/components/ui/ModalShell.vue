@@ -15,6 +15,9 @@
         :aria-modal="modal ? 'true' : 'false'"
         :aria-label="ariaLabel || title"
       >
+        <!-- La poignee ne sert pas qu'a tirer : elle dit que la surface se tire. Sans
+             ce reperage, le geste existe sans que personne ne le tente. -->
+        <div v-if="shellMode === 'compact'" class="sheet-grab" aria-hidden="true"><span></span></div>
         <div class="panel-head">
           <div>
             <h2><slot name="title">{{ title }}</slot></h2>
@@ -95,5 +98,6 @@ const shellMode = useShellMode();
 useSheetDrag(panelRef, openRef, {
   onClose: requestClose,
   enabled: () => shellMode.value === 'compact',
+  poignee: '.sheet-grab',
 });
 </script>

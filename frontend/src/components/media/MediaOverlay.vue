@@ -31,9 +31,16 @@
           drag="y"
           :drag-constraints="{ top: 0, bottom: 0 }"
           :drag-elastic="{ top: 0, bottom: 0.55 }"
-          :drag-listener="true"
+          :drag-listener="false"
+          :drag-controls="controls"
           :on-drag-end="onDragEnd"
         >
+          <!-- Le geste part de la poignee et d'elle seule. Ecoute sur tout le panneau, il
+               ne demarrait jamais au doigt : la fiche defile, et le navigateur prend la
+               main sur un glissement des qu'il touche une zone defilante. -->
+          <div class="media-overlay__grab" aria-hidden="true" @pointerdown="controls.start($event)">
+            <span></span>
+          </div>
           <button class="media-overlay__close" type="button" aria-label="Fermer" @click="$emit('close')">
             <X />
           </button>
@@ -48,7 +55,7 @@
 
 <script setup lang="ts">
 import { ref, toRef } from 'vue';
-import { AnimatePresence, motion } from 'motion-v';
+import { AnimatePresence, motion, useDragControls } from 'motion-v';
 import { X } from '@lucide/vue';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
 
@@ -68,6 +75,7 @@ const emit = defineEmits<{ (e: 'close'): void }>();
 useBodyScrollLock(toRef(props, 'open'));
 
 const panelRef = ref<HTMLElement | null>(null);
+const controls = useDragControls();
 
 /* La fiche se tire vers le bas pour se refermer : c'est le geste qu'on attend d'une
    surface posee sur une page, et il evite d'aller chercher la croix a l'autre bout de
@@ -97,9 +105,11 @@ function panelHauteur(): number {
   align-items: flex-end;
   justify-content: center;
   /* Le fond s'assombrit sans disparaitre : c'est ce qui dit qu'on a ouvert quelque chose
-     par-dessus la grille, et non change de page. */
-  background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(3px);
+     par-dessus la grille, et non change de page.
+     Pas de `backdrop-filter` ici : flouter un fond pendant qu'un panneau se deplace
+     au-dessus oblige Safari a recomposer la scene entiere a chaque image, et c'est ce qui
+     faisait clignoter l'ouverture. L'assombrissement seul dit deja ce qu'il faut. */
+  background: rgba(0, 0, 0, 0.72);
 }
 
 .media-overlay__panel {
@@ -113,10 +123,35 @@ function panelHauteur(): number {
   box-shadow: 0 -24px 70px rgba(0, 0, 0, 0.6);
   overflow: hidden;
   transform-origin: center bottom;
+  /* La surface est promue sur sa propre couche avant de bouger. Sans cela Safari la
+     recompose en cours de route, et l'on voit passer une image a demi dessinee. */
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
+/* `touch-action: none` est l'element essentiel : sans lui, le navigateur lit le
+   glissement comme un defilement et ne nous rend jamais la main. La barre sert aussi de
+   reperage -- une surface qui se tire doit le montrer. */
+.media-overlay__grab {
+  position: relative;
+  z-index: 2;
+  padding: 10px 0 6px;
+  touch-action: none;
+  cursor: grab;
+}
+.media-overlay__grab > span {
+  display: block;
+  width: 42px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+}
+.media-overlay__grab:active { cursor: grabbing; }
+
 .media-overlay__scroll {
-  max-height: 94dvh;
+  max-height: calc(94dvh - 26px);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
@@ -125,6 +160,7 @@ function panelHauteur(): number {
 
 .media-overlay__close {
   position: absolute;
+  /* Le flou de cette pastille reste : elle ne bouge pas, donc il ne coute qu'une fois. */
   top: calc(12px + var(--safe-top, 0px));
   right: 14px;
   z-index: 3;
@@ -149,7 +185,7 @@ function panelHauteur(): number {
     border-radius: var(--radius-lg);
     transform-origin: center;
   }
-  .media-overlay__scroll { max-height: 90dvh; }
+  .media-overlay__scroll { max-height: calc(90dvh - 26px); }
 }
 
 /* La fiche garde sa propre fleche « Retour » pour le mode pleine page. Posee en surface,
@@ -198,6 +234,6 @@ function panelHauteur(): number {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .media-overlay { backdrop-filter: none; }
+  .media-overlay__panel { will-change: auto; }
 }
 </style>
