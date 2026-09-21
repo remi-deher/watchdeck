@@ -83,11 +83,15 @@ const bodyId = `filter-group-${useId()}`;
 .filter-group-reveal.open { grid-template-rows: 1fr; }
 .filter-group-reveal > * { min-height: 0; overflow: hidden; }
 
+/* Aucune marge interne ici : la rangee de grille tombe bien a zero au repli, mais le
+   `padding` d'un enfant s'ajoute par-dessus et n'est pas rogne par son `overflow`. Ces
+   deux pixels laissaient depasser le haut des pastilles sous chaque en-tete replie --
+   de petits traits qui donnaient au panneau l'air coupe. L'espacement sous le groupe
+   est rendu par le `gap` de la pile, qui lui disparait avec le contenu. */
 .filter-group-body {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  padding-bottom: 2px;
 }
 
 /* Les pastilles arrivent avec le depli, decalees de quelques millisecondes : c'est ce
