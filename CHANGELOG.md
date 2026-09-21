@@ -1,11 +1,25 @@
 # Changelog
 
+## 1.33.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- distinguer le texte ecrit par un administrateur du texte automatique ([eb8d617](https://github.com/remi-deher/watchdeck/commit/eb8d617c9f88463ae8a22de97ba29f8a71bb3289))
+
+### 🐛 Corrections
+
+- rejouer le motif d'annulation dans l'apercu du journal ([62d0b82](https://github.com/remi-deher/watchdeck/commit/62d0b828c5464ab7822c92027b348a4ea5ac01d4))
 ## 1.32.1 — 2026-09-21
 
 
 ### 🐛 Corrections
 
 - ne plus emporter la surface qui vient de prendre la releve ([2320b8f](https://github.com/remi-deher/watchdeck/commit/2320b8f74903cd3255509e0687d548413821663a))
+
+### 🔧 Maintenance
+
+- v1.32.1 (#371) ([df6b1eb](https://github.com/remi-deher/watchdeck/commit/df6b1ebdae4be28425f14655090599fa01fa8a62))
 ## 1.32.0 — 2026-09-21
 
 
