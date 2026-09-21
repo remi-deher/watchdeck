@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.35.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- ouvrir le media par-dessus la page, et non a sa place ([2489712](https://github.com/remi-deher/watchdeck/commit/24897127c6b389257d0731d623158bb040f0a534))
+- transporter l'affiche pour de vrai, et refermer la surface au doigt ([7dbad0a](https://github.com/remi-deher/watchdeck/commit/7dbad0ae3d44e73102c1179c0e2bc6a30ef8f32a))
+
+### 🔧 Maintenance
+
+- bump @types/node from 26.5.0 to 26.6.1 (#350) ([792f2b2](https://github.com/remi-deher/watchdeck/commit/792f2b23110b9cf621cfb42135941d14fd8b893e))
 ## 1.34.0 — 2026-09-21
 
 
@@ -10,6 +21,10 @@
 ### 🐛 Corrections
 
 - sortir la charpente de la cascade, et attendre le contenu de la feuille ([4b6716e](https://github.com/remi-deher/watchdeck/commit/4b6716ec49c6e4b949e7220d93c5904def1ac61a))
+
+### 🔧 Maintenance
+
+- v1.34.0 (#378) ([808ee43](https://github.com/remi-deher/watchdeck/commit/808ee4333db7c3e35cb7492de9a1154d6e11639c))
 ## 1.33.0 — 2026-09-21
 
 
