@@ -38,6 +38,8 @@ import { ref, toRef } from 'vue';
 import { X } from '@lucide/vue';
 import { useModalA11y } from '@/composables/useModalA11y';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
+import { useSheetDrag } from '@/composables/useSheetDrag';
+import { useShellMode } from '@/composables/useShellMode';
 import UiButton from './UiButton.vue';
 import UiFeedback from './UiFeedback.vue';
 
@@ -85,4 +87,13 @@ const panelRef = ref<HTMLElement | null>(null);
 const openRef = toRef(props, 'open');
 useBodyScrollLock(openRef, { inertBackground: props.modal });
 useModalA11y(panelRef, openRef, requestClose, { initialFocus: props.initialFocus, trapFocus: props.modal });
+
+/* En compact la boite devient une feuille ancree en bas : elle se tire vers le bas pour
+   se fermer. Le geste n'a aucun sens sur la modale centree du mode deploye, ou il n'y a
+   pas de bord vers lequel la pousser. */
+const shellMode = useShellMode();
+useSheetDrag(panelRef, openRef, {
+  onClose: requestClose,
+  enabled: () => shellMode.value === 'compact',
+});
 </script>

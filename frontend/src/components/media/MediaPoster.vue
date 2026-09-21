@@ -60,6 +60,47 @@ watch(() => props.posterUrl, () => { failed.value = false; isLoaded.value = fals
   background: var(--surface-2);
 }
 
+/* Le squelette devient l'affiche, il n'est pas remplace par elle.
+ *
+ * Le chargement se faisait en deux temps : une barre grise qui scintille, puis une
+ * substitution nette. A chaque grille rechargee, la page clignotait. Ici le miroitement
+ * vit dans le fond de la boite -- l'affiche se fond par-dessus, a la meme place et a la
+ * meme taille, et rien ne saute.
+ */
+.poster-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--text, #fff) 7%, transparent) 40%,
+    transparent 60%
+  );
+  background-size: 220% 100%;
+  animation: poster-shimmer 1.4s ease-in-out infinite;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* Le miroitement s'efface avec l'arrivee de l'image -- et aussi quand il n'y a pas
+   d'image a attendre : faire scintiller un repli, c'est promettre un chargement qui
+   n'arrivera jamais. */
+.poster-shell.is-loaded::after,
+.poster-shell:not(:has(> img))::after {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes poster-shimmer {
+  to { background-position-x: -220%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-shell::after { animation: none; }
+}
+
 .poster-shell > img {
   display: block;
   width: 100%;
