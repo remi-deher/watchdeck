@@ -4,6 +4,7 @@
          interroge un corpus, un entonnoir retranche d'une liste deja affichee. -->
     <component :is="kind === 'filter' ? Funnel : Search" aria-hidden="true" class="ui-search-field__icon" />
     <input
+      class="ui-search-field__input"
       :value="query"
       type="search"
       :placeholder="placeholder"
@@ -24,7 +25,6 @@
       <X aria-hidden="true" />
     </button>
     <template v-if="hasFilters">
-      <span class="ui-search-field__sep" aria-hidden="true" />
       <button
         type="button"
         class="ui-search-field__filter"
@@ -124,6 +124,11 @@ function onInput(event: Event): void {
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
+/* Avec un bouton « Filtres », la capsule cede son coussin de droite : le bouton en
+   occupe toute la hauteur et vient au ras du bord, comme un segment de la capsule et
+   non comme une pastille posee dedans. Sans cela il restait un liseré de fond entre le
+   bouton et le contour -- huit pixels a droite, un en haut et en bas. */
+.ui-search-field:has(.ui-search-field__filter) { padding-right: 0; }
 .ui-search-field__icon { flex: none; width: 16px; height: 16px; color: var(--muted); }
 .ui-search-field input {
   flex: 1;
@@ -134,7 +139,7 @@ function onInput(event: Event): void {
   font-size: var(--fs-sm);
   outline: 0;
 }
-.ui-search-field__sep { flex: none; width: 1px; height: 18px; background: var(--border); }
+
 
 /* Un filtre se distingue de la recherche : bord teinte et fond legerement pose,
    pour qu'on sache d'un coup d'oeil qu'on retranche au lieu d'interroger. */
@@ -190,8 +195,15 @@ function onInput(event: Event): void {
   align-items: center;
   gap: 6px;
   height: 100%;
-  padding: 0 4px 0 8px;
+  padding: 0 12px;
+  /* La couture : un seul trait franc, qui remplace le separateur flottant d'avant --
+     celui-ci laissait huit pixels de vide de chaque cote et se lisait comme un espace
+     plutot que comme une limite. */
   border: 0;
+  border-left: 1px solid var(--border);
+  /* Le rayon suit celui de la capsule, moins l'epaisseur du contour : a rayon egal, le
+     coin du bouton depassait de la courbe et laissait apparaitre un croissant de fond. */
+  border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0;
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);

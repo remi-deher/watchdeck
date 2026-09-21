@@ -87,8 +87,14 @@ small {
   padding: 0 12px;
 }
 
+/* `:not(.ui-search-field__input)` : le champ de recherche compose son propre contour --
+   une capsule qui contient la loupe, la saisie et le bouton « Filtres ». Cette regle
+   d'habillage generique l'emportait sur le `border: 0` du composant (0-3-1 contre
+   0-2-1) et redessinait une boite grise, bordee et arrondie, AUTOUR de la seule zone de
+   saisie : un rectangle enfonce au milieu de la capsule, visible des que la capsule
+   prend une teinte, c'est-a-dire sur telephone. */
 select,
-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.ui-search-field__input) {
   min-height: 40px;
   color: var(--text);
   background-color: var(--surface-2);
@@ -123,13 +129,13 @@ select option:checked {
 }
 
 select:hover,
-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):hover {
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.ui-search-field__input):hover {
   background-color: var(--surface);
   border-color: rgba(229, 160, 13, .4);
 }
 
 select:focus,
-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus {
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.ui-search-field__input):focus {
   background-color: var(--surface);
   border-color: var(--accent);
   outline: none;

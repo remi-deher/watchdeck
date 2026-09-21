@@ -183,6 +183,19 @@ const activeIsOutsideDock = computed(
 }
 .app-dock__caret.is-open { transform: rotate(180deg); }
 
+/* Clavier ouvert, le dock s'efface.
+   On ne navigue pas en tapant, et il n'a rien a gagner a monter avec le clavier : seule
+   la barre de recherche a une raison d'y rester collee. Le laisser la faisait flotter au
+   milieu de l'ecran, entre la barre et le clavier, au-dessus d'un contenu qui continuait
+   sous lui -- une rangee de navigation posee en plein texte. Il revient des que le
+   clavier se referme. */
+:root[data-keyboard-open] .app-dock {
+  opacity: 0;
+  transform: translateY(100%);
+  pointer-events: none;
+}
+.app-dock { transition: opacity .18s ease, transform .18s ease; }
+
 /* Paysage sur téléphone : la hauteur manque, les libellés passent à côté de l'icône. */
 @media (max-height: 500px) and (orientation: landscape) {
   .app-dock__link { flex-direction: row; gap: var(--space-2); }
