@@ -447,3 +447,71 @@ async def test_send_correction_notification_sends_email():
     html = mock_send.call_args[0][4]
     assert "Son corrigé" in html
     assert "Fichier remplacé" in html
+
+
+# ---------------------------------------------------------------------------
+# Encadré du message libre — {message_admin}
+# ---------------------------------------------------------------------------
+
+
+def test_the_free_text_is_presented_as_written_by_someone():
+    """Le texte libre se fondait dans les paragraphes rédigés par l'application.
+
+    Rien ne disait au destinataire qu'une personne lui avait écrit : l'explication de
+    l'annulation se lisait comme le reste du gabarit.
+    """
+    from app.services.email_service import _admin_message_block
+
+    bloc = _admin_message_block("Ce film n'existe pas dans le catalogue.")
+    assert "Message de l'administrateur" in bloc.replace("&#x27;", "'")
+    assert "Ce film n&#x27;existe pas dans le catalogue." in bloc
+    # Une seule ligne : render_template réduit les espaces doubles avant Markdown, et un
+    # bloc HTML indenté y perdrait sa mise en forme.
+    assert "\n" not in bloc
+
+
+def test_no_block_at_all_without_a_message():
+    """Un encadré vide — ou pire, son étiquette seule — dirait qu'on a écrit quelque chose."""
+    from app.services.email_service import _admin_message_block
+
+    assert _admin_message_block("") == ""
+    assert _admin_message_block("   \n  ") == ""
+
+
+def test_the_free_text_cannot_deform_the_email():
+    """Le texte vient d'un champ libre : il est échappé, jamais interprété."""
+    from app.services.email_service import _admin_message_block
+
+    bloc = _admin_message_block("<b>gras</b> & *étoiles*")
+    assert "<b>gras</b>" not in bloc
+    assert "&lt;b&gt;gras&lt;/b&gt;" in bloc
+    assert "&amp;" in bloc
+
+
+def test_a_message_in_several_paragraphs_stays_whole():
+    """Deux paragraphes doivent rester dans le même encadré, pas en déborder."""
+    from app.services.email_service import _admin_message_block
+
+    bloc = _admin_message_block("Premier paragraphe.\n\nSecond paragraphe.")
+    assert "Premier paragraphe." in bloc
+    assert "Second paragraphe." in bloc
+    # Un seul encadré, donc une seule étiquette.
+    assert bloc.count("Message de l") == 1
+
+
+def test_a_machine_error_is_never_attributed_to_the_administrator():
+    """« Échec » porte un message de Sonarr/Radarr : l'attribuer serait mentir.
+
+    Seuls les événements dont le texte est écrit par une personne — annulation,
+    correction — passent par l'encadré.
+    """
+    from app.models import MediaRequest
+    from app.services.email_service import _build_tags
+
+    req = MediaRequest(title="Inception", media_type="movie")
+    echec = _build_tags(req, "Alice", reason="Connection refused")
+    assert echec["{message_admin}"] == ""
+    assert echec["{raison}"] == "Connection refused"
+
+    annulation = _build_tags(req, "Alice", reason="Absent du catalogue.", admin_message="Absent du catalogue.")
+    assert "Message de l" in annulation["{message_admin}"]
