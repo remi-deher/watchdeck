@@ -126,11 +126,12 @@
 
 <script setup lang="ts">
 import { formatLongDay as longDate, formatMonthYear } from '@/utils/format';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Clock, Film, Play, Star, Tv } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtimeList } from '@/composables/useRealtimeList';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { openPlexLink, mediaDetailPath } from '@/mediaUrl';
 import LoadMore from '@/components/ui/LoadMore.vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
@@ -142,6 +143,7 @@ import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 
 const router = useRouter();
+const route = useRoute();
 const { session, isAdmin, ready: sessionReady } = useSession();
 
 const myRequestsOnly = computed(() => !isAdmin.value);
@@ -193,8 +195,8 @@ function eventKey(event: any): string { return `${event.instance}:${event.date}:
 function eventState(event: any): string { return event.has_file ? 'available' : ''; }
 
 function openDetail(event: any): void {
-  if (event.library_item_id) router.push(mediaDetailPath({ id: event.library_item_id }, 'library'));
-  else if (event.request_id) router.push(mediaDetailPath({ id: event.request_id }, 'request'));
+  if (event.library_item_id) ouvrirFiche(router, mediaDetailPath({ id: event.library_item_id }, 'library'), route.fullPath);
+  else if (event.request_id) ouvrirFiche(router, mediaDetailPath({ id: event.request_id }, 'request'), route.fullPath);
 }
 
 function openPlex(event: any, e?: Event): void {

@@ -11,7 +11,12 @@ import CalendarView from './CalendarView.vue';
 
 const apiMock = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => apiMock(...args) }));
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+// `useRoute` sert a porter l'adresse de depart : une fiche ouverte depuis une page se
+// pose au-dessus d'elle plutot que de la remplacer (voir `useMediaOverlay`).
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ fullPath: '/calendar' }),
+}));
 
 let listeners = [];
 let viewportWidth = 1280;

@@ -159,6 +159,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, Film, Layers, Music2, RefreshCw, RotateCcw, Trash2, Tv } from '@lucide/vue';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
 import { REQUEST_STATUSES } from '@/utils/labels';
 import { proxyUrl } from '@/utils/mediaImage';
@@ -223,11 +224,11 @@ async function openDetail(item: any): Promise<void> {
   if (item.media_type === 'track') {
     const album = await openTrackAlbum(item);
     if (album) {
-      router.push(mediaDetailPath(album, 'library'));
+      ouvrirFiche(router, mediaDetailPath(album, 'library'), route.fullPath);
       return;
     }
   }
-  router.push(mediaDetailPath(item, item._kind));
+  ouvrirFiche(router, mediaDetailPath(item, item._kind), route.fullPath);
 }
 
 // Une page de 200 cartes represente ~47 ecrans de defilement sur un telephone (mesure
