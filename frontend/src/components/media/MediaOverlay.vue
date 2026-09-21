@@ -14,7 +14,12 @@
         <!-- La surface monte depuis le bas en prenant sa taille. Le depassement leger a
              l'arrivee -- le ressort plutot qu'une simple deceleration -- est ce qui
              distingue une surface qu'on ouvre d'un panneau qui apparait. -->
+        <!-- Le geste est confie a `motion-v` plutot qu'a nos propres ecouteurs : c'est
+             lui qui tient la transformation de ce panneau, et un style pose a la main
+             etait efface a l'image suivante. `dragElastic` a 0 vers le haut : la fiche
+             ne monte pas au-dela de sa place, elle ne fait que descendre. -->
         <motion.div
+          ref="panelRef"
           class="media-overlay__panel"
           role="dialog"
           aria-modal="true"
@@ -23,6 +28,11 @@
           :animate="{ opacity: 1, y: 0, scale: 1 }"
           :exit="{ opacity: 0, y: 32, scale: 0.96 }"
           :transition="{ type: 'spring', stiffness: 260, damping: 28, mass: 0.9 }"
+          drag="y"
+          :drag-constraints="{ top: 0, bottom: 0 }"
+          :drag-elastic="{ top: 0, bottom: 0.55 }"
+          :drag-listener="true"
+          :on-drag-end="onDragEnd"
         >
           <button class="media-overlay__close" type="button" aria-label="Fermer" @click="$emit('close')">
             <X />
@@ -37,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { toRef } from 'vue';
+import { ref, toRef } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { X } from '@lucide/vue';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
@@ -50,12 +60,32 @@ const props = withDefaults(
   { open: false, ariaLabel: 'Fiche du média' }
 );
 
-defineEmits<{ (e: 'close'): void }>();
+const emit = defineEmits<{ (e: 'close'): void }>();
 
 /* La page de fond reste visible mais ne defile plus : sans ce verrou, faire glisser la
    fiche entrainait la grille derriere elle, et l'on perdait la place qu'on voulait
    justement garder. */
 useBodyScrollLock(toRef(props, 'open'));
+
+const panelRef = ref<HTMLElement | null>(null);
+
+/* La fiche se tire vers le bas pour se refermer : c'est le geste qu'on attend d'une
+   surface posee sur une page, et il evite d'aller chercher la croix a l'autre bout de
+   l'ecran. Passe le quart de la hauteur, ou lancee assez vite, elle part ; sinon le
+   ressort la remet en place tout seul. */
+const SEUIL_PROPORTION = 0.25;
+const SEUIL_VITESSE = 520;
+
+function onDragEnd(_event: unknown, info: { offset: { y: number }; velocity: { y: number } }): void {
+  const hauteur = panelHauteur();
+  if (info.offset.y > hauteur * SEUIL_PROPORTION || info.velocity.y > SEUIL_VITESSE) emit('close');
+}
+
+function panelHauteur(): number {
+  const valeur = panelRef.value as unknown as { $el?: unknown } | HTMLElement | null;
+  const el = valeur instanceof HTMLElement ? valeur : ((valeur as { $el?: unknown })?.$el as HTMLElement | undefined);
+  return el?.offsetHeight || window.innerHeight || 1;
+}
 </script>
 
 <style scoped lang="scss">
@@ -126,6 +156,46 @@ useBodyScrollLock(toRef(props, 'open'));
    elle ferait double emploi avec la croix -- deux moyens de fermer au meme endroit, dont
    l'un evoque une navigation qui n'a pas lieu. */
 .media-overlay :deep(.mdh-back) { display: none; }
+
+/* ─────────────────── L'en-tete prend toute la surface ───────────────────
+ *
+ * En pleine page, la banniere est une carte posee dans une colonne : elle garde ses
+ * marges, son contour et ses coins arrondis. Ici elle EST le haut de la surface, du bord
+ * gauche au bord droit, et c'est ce qui donne au transport quelque chose a franchir --
+ * une vignette de 172 px qui devient une image pleine largeur. Sans cet ecart, l'affiche
+ * se contentait de glisser de quelques centimetres sans changer de taille, et l'on ne
+ * voyait rien.
+ */
+.media-overlay :deep(.mdh-backdrop) {
+  min-height: min(46dvh, 420px);
+  margin-bottom: var(--space-5);
+  border: 0;
+  border-radius: 0;
+  background-position: center 18%;
+}
+
+/* Le degrade descend plus bas et plus fort : le titre et l'affiche se posent dessus, et
+   une image claire les rendait illisibles. */
+.media-overlay :deep(.mdh-scrim) {
+  background:
+    linear-gradient(to top, var(--bg) 2%, rgba(9, 9, 11, 0.92) 26%, rgba(9, 9, 11, 0.45) 62%, rgba(9, 9, 11, 0.1) 100%),
+    linear-gradient(to right, rgba(9, 9, 11, 0.7) 0%, rgba(9, 9, 11, 0.25) 55%, transparent 85%);
+}
+
+/* L'affiche grandit avec la surface : c'est elle qu'on a touchee, elle doit arriver
+   quelque part de visiblement plus grand que la vignette dont elle vient. */
+.media-overlay :deep(.mdh-poster) {
+  flex-basis: 156px;
+  width: 156px;
+}
+
+@media (min-width: 768px) {
+  .media-overlay :deep(.mdh-backdrop) { min-height: min(52dvh, 480px); }
+  .media-overlay :deep(.mdh-poster) {
+    flex-basis: 232px;
+    width: 232px;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .media-overlay { backdrop-filter: none; }

@@ -12,14 +12,6 @@
  * rendu par les transitions de vue du navigateur, plus bas dans ce fichier.
  */
 
-/* Quand le navigateur transporte l'affiche d'un ecran a l'autre, c'est lui qui mene la
-   navigation : superposer la transition du routeur ferait deux mouvements concurrents
-   pour un seul geste, et l'affiche transportee se retrouverait a glisser dans une page
-   qui glisse elle-meme. */
-:root[data-view-transition] .page-motion > * {
-  animation: none;
-}
-
 /* PageShell provides a shared, capped stagger for headers, feedback and panels. */
 @keyframes page-content-reveal {
   from {
@@ -181,38 +173,13 @@
 }
 
 
-/* ─────────────────────── Transition de vue partagee ───────────────────────
- *
- * L'affiche touchee dans une grille est transportee jusqu'a l'en-tete de la fiche. La
- * duree est longue pour une animation -- c'est assume : elle porte un objet que l'oeil
- * suit deja, et c'est precisement ce transport qui evite d'avoir a relire l'ecran.
- *
- * Le reste de la page se contente d'un fondu : deux mouvements concurrents pour une
- * meme navigation se disputeraient l'attention.
+/* Le transport de l'affiche ne passe plus par les transitions de vue du navigateur.
+ * Elles photographient l'ancien et le nouvel etat de part et d'autre d'une navigation,
+ * or la fiche charge ses donnees apres coup : au moment de la seconde photo, l'affiche
+ * d'arrivee n'existait pas encore et il n'y avait rien a relier. Le trajet est desormais
+ * mesure et rejoue (voir `usePosterMorph`), ce qui l'affranchit du calendrier de la
+ * navigation -- et du support de `startViewTransition`.
  */
-@media (prefers-reduced-motion: no-preference) {
-  ::view-transition-group(media-poster) {
-    animation-duration: 520ms;
-    animation-timing-function: var(--motion-ease-emphasized);
-  }
-  ::view-transition-old(media-poster),
-  ::view-transition-new(media-poster) {
-    /* L'affiche ne se fond pas : elle se deplace. Un fondu croise par-dessus le
-       deplacement donnerait une image fantome au milieu du trajet. */
-    animation: none;
-    mix-blend-mode: normal;
-    height: 100%;
-    object-fit: cover;
-  }
-  ::view-transition-old(root) {
-    animation: vt-fade-out 180ms var(--motion-ease-standard) both;
-  }
-  ::view-transition-new(root) {
-    animation: vt-fade-in 320ms var(--motion-ease-standard) both;
-  }
-}
-@keyframes vt-fade-out { to { opacity: 0; } }
-@keyframes vt-fade-in { from { opacity: 0; } }
 
 
 /* La revelation pilotee par le defilement vit avec la carte elle-meme

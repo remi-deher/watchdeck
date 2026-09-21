@@ -15,9 +15,8 @@
              `_motion.scss` : plusieurs vues -- la fiche media, entre autres -- ont une
              racine multiple, et Vue ne sait pas animer un fragment. Il avertit, puis
              laisse la vue sortante dans le document, qui se superpose a la nouvelle.
-             Le fondu entre pages passe donc par les transitions de vue du navigateur
-             (voir `useViewTransition`), qui n'ont pas cette contrainte, et l'arrivee du
-             contenu par la composition echelonnee de `page-motion`. -->
+             L'arrivee du contenu passe donc par la composition echelonnee de
+             `page-motion`, et l'ouverture d'une fiche par la surface ci-dessous. -->
         <component :is="Component" />
       </RouterView>
     </RouteErrorBoundary>
