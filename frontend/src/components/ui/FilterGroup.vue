@@ -7,8 +7,16 @@
       <span v-if="!open && value" class="filter-group-value">{{ value }}</span>
       <ChevronDown class="filter-group-chevron" :class="{ collapsed: !open }" />
     </button>
-    <div v-show="open" :id="bodyId" class="filter-group-body">
-      <slot />
+    <!-- Le depli s'anime en hauteur plutot que d'apparaitre d'un bloc : ouvrir « Genre »
+         faisait surgir quatre rangees d'un coup, et l'oeil devait relire le panneau pour
+         savoir ce qui venait de changer. `grid-template-rows` de 0fr a 1fr anime la
+         hauteur reelle du contenu, sans la mesurer ni la figer.
+         `inert` plutot qu'un simple masquage : replie, le contenu garde sa boite, et
+         sans cela ses boutons restaient tabulables et lus par les lecteurs d'ecran. -->
+    <div class="filter-group-reveal" :class="{ open }">
+      <div :id="bodyId" class="filter-group-body" :inert="!open || undefined">
+        <slot />
+      </div>
     </div>
   </div>
 </template>
@@ -67,11 +75,34 @@ const bodyId = `filter-group-${useId()}`;
    une par ligne faisait du panneau un rouleau de plusieurs milliers de pixels. Celles
    qui reclament la pleine largeur (compteur aligne a droite) la prennent quand meme --
    voir `.filter-badge--wide` -- et retombent alors naturellement a la ligne. */
+.filter-group-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-duration-medium, .22s) var(--motion-ease-standard, ease);
+}
+.filter-group-reveal.open { grid-template-rows: 1fr; }
+.filter-group-reveal > * { min-height: 0; overflow: hidden; }
+
 .filter-group-body {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
   padding-bottom: 2px;
+}
+
+/* Les pastilles arrivent avec le depli, decalees de quelques millisecondes : c'est ce
+   qui fait lire le groupe comme un ensemble qui s'ouvre plutot qu'un bloc qui apparait. */
+.filter-group-reveal.open .filter-group-body > * {
+  animation: filter-badge-in var(--motion-duration-fast, .15s) var(--motion-ease-standard, ease) backwards;
+}
+@keyframes filter-badge-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-group-reveal { transition: none; }
+  .filter-group-reveal.open .filter-group-body > * { animation: none; }
 }
 
 .filter-group-value {

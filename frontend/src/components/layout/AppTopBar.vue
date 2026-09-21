@@ -458,13 +458,14 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
     border: 0;
     background: transparent;
     box-shadow: none;
-    /* La capsule remplit la barre au lieu d'y etre centree. Ses 46px dans 54 laissaient
-       quatre pixels en haut et en bas -- invisibles seuls, mais la feuille de filtres se
-       pose sur le bord haut de la BARRE, et ces quatre pixels rouvraient entre les deux
-       l'interstice qu'on venait justement de fermer. */
-    align-items: stretch;
   }
-  .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) { height: auto; }
+
+  /* Panneau de filtres pose dessus : la capsule remplit alors la barre au lieu d'y etre
+     centree. Ses 46px dans 54 laissaient quatre pixels en haut, qui rouvraient entre le
+     panneau et elle l'interstice qu'on venait de fermer. Hors de ce cas elle garde sa
+     respiration : rien ne justifie de l'epaissir quand rien ne se pose dessus. */
+  :root:has(.filter-sheet) .app-topbar:has(.app-topbar__field) { align-items: stretch; }
+  :root:has(.filter-sheet) .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) { height: auto; }
   .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) {
     box-shadow: 0 -8px 28px rgba(0, 0, 0, .38);
   }

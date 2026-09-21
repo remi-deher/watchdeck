@@ -615,8 +615,20 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
     .modal-panel.filter-sheet {
       bottom: calc(var(--app-shell-offset-bottom) + 8px + var(--app-topbar-h));
     }
+    /* Meme largeur que la barre, aux memes gouttieres : pleine largeur, le panneau
+       depassait de dix pixels de chaque cote et les deux ne pouvaient plus se lire comme
+       une seule pile -- c'etait la barre qui semblait retrecie. */
     .modal-panel.filter-sheet {
+      left: max(10px, var(--safe-left));
+      right: max(10px, var(--safe-right));
+      width: auto;
+      max-width: none;
       max-height: calc(92dvh - var(--app-shell-offset-bottom) - var(--app-topbar-h));
+      /* Le liseré de la barre remonte autour du panneau. Sans lui, la pile qu'on vient
+         de souder changeait de couleur de contour en son milieu : accent en bas, blanc
+         à 8 % au-dessus, et la rupture se lisait exactement là où l'on voulait une
+         continuité. Un seul objet, un seul trait. */
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
     }
     /* La capsule perd ses coins hauts tant que la feuille est posee dessus : arrondis,
        ils creusaient deux encoches sombres sous le bord bas du panneau. Son ombre
