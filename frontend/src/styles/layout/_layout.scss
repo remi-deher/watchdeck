@@ -266,20 +266,38 @@
    Utilisé dans les sidebars de filtres (FilterGroup + FilterSidebar).
    Styles globaux pour traverser les niveaux de composants sans :deep().
    ─────────────────────────────────────────────────────────────────────────── */
+/* Une pastille, pas une ligne de liste.
+   « Action », « Pixar », « Dans Plex » sont des etiquettes courtes : leur donner chacune
+   toute la largeur transformait le panneau en rouleau. Sur Explorer il mesurait 3168px
+   pour une fenetre de 628 -- 21 genres et plus de 30 diffuseurs, un par ligne. En
+   pastilles qui s'enroulent, les memes 21 genres tiennent en quatre lignes.
+
+   `width: auto` suppose un parent qui enveloppe (voir `.filter-group-body`) ; les rares
+   entrees qui ont besoin de la largeur, parce qu'elles portent un compteur a droite, la
+   demandent par `.filter-badge--wide`. */
 .filter-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
   background: var(--surface-2);
   color: var(--text-muted, #aaa);
   font-size: 13px;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
   text-align: left;
+  white-space: nowrap;
+}
+/* Les entrees a compteur gardent la pleine largeur : le compteur se lit aligne a droite,
+   en colonne, pas noye au fil des pastilles. */
+.filter-badge--wide,
+.filter-badge:has(.count) {
   width: 100%;
+  justify-content: space-between;
+  border-radius: var(--radius-sm);
 }
 .filter-badge:hover {
   border-color: var(--border);

@@ -183,13 +183,22 @@ const activeIsOutsideDock = computed(
 }
 .app-dock__caret.is-open { transform: rotate(180deg); }
 
-/* Clavier ouvert, le dock s'efface.
+/* Le dock s'efface pendant la saisie.
    On ne navigue pas en tapant, et il n'a rien a gagner a monter avec le clavier : seule
    la barre de recherche a une raison d'y rester collee. Le laisser la faisait flotter au
    milieu de l'ecran, entre la barre et le clavier, au-dessus d'un contenu qui continuait
-   sous lui -- une rangee de navigation posee en plein texte. Il revient des que le
-   clavier se referme. */
-:root[data-keyboard-open] .app-dock {
+   sous lui -- une rangee de navigation posee en plein texte.
+
+   Le signal est le FOCUS du champ, pas la geometrie du viewport. `--keyboard-inset` ne
+   vaut quelque chose qu'en onglet Safari, ou le clavier recouvre une page dont la
+   hauteur ne bouge pas. Dans une PWA installee, iOS retrecit aussi le layout viewport :
+   `window.innerHeight` diminue en meme temps que `visualViewport.height`, la difference
+   retombe a zero, et aucune detection fondee sur cet ecart ne peut aboutir. Le focus,
+   lui, dit la meme chose dans les deux cas.
+
+   La cible est la zone de saisie, pas la barre entiere : celle-ci porte aussi le bouton
+   « Filtres », qui prend le focus a l'appui sans jamais lever de clavier. */
+:root:has(.app-topbar .ui-search-field__input:focus) .app-dock {
   opacity: 0;
   transform: translateY(100%);
   pointer-events: none;
