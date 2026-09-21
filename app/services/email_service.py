@@ -1,3 +1,4 @@
+import html as _html
 import logging
 
 import markdown
@@ -143,7 +144,7 @@ DEFAULT_FAILURE_TEMPLATE = """Une erreur est survenue lors de la transmission à
 
 DEFAULT_CANCELLED_TEMPLATE = """Votre demande pour **{media_type_et_titre}** a été annulée par un administrateur et supprimée de Sonarr/Radarr.
 
-{motif}
+{message_admin}
 
 Comme cette demande provenait de votre liste d'envies Plex, elle a aussi été bloquée pour empêcher qu'elle ne soit resoumise automatiquement.
 
@@ -156,7 +157,7 @@ Une correction a été effectuée sur **{media_type_et_titre}** {details_saison_
 Corrections appliquées :
 {corrections}
 
-{note_correction}
+{message_admin}
 
 Vous pouvez relancer la lecture depuis Plex."""
 
@@ -329,6 +330,44 @@ def _format_corrections(corrections: list[str] | tuple[str, ...] | None) -> str:
     return "\n".join(f"- {c}" for c in cleaned)
 
 
+ADMIN_MESSAGE_LABEL = "Message de l'administrateur"
+
+
+def _admin_message_block(text: str) -> str:
+    """Rend le texte libre ecrit par un administrateur dans un encadre qui lui est propre.
+
+    Depose tel quel au milieu des paragraphes automatiques, ce texte ne se distinguait
+    en rien de ce que l'application redige elle-meme : le destinataire ne pouvait pas
+    savoir qu'une personne lui avait ecrit. L'encadre porte donc un fond plus clair, un
+    filet neutre -- surtout pas la couleur d'accent, deja prise par la carte du corps, ou
+    le second filet annulerait la distinction au lieu de la creer -- et une etiquette.
+
+    Rendu sur une seule ligne : `render_template` reduit les espaces doubles avant la
+    conversion Markdown, et un bloc HTML indente y perdrait sa mise en forme.
+
+    Renvoie une chaine vide sans texte : un encadre vide, ou pire son etiquette seule,
+    dirait qu'on a ecrit quelque chose alors que non.
+    """
+    contenu = (text or "").strip()
+    if not contenu:
+        return ""
+    # Le texte vient d'un champ libre : il est echappe, jamais interprete. Sans cela une
+    # etoile ou une balise suffisait a deformer la mise en page du mail.
+    paragraphes = [_html.escape(bloc.strip()) for bloc in contenu.split("\n\n") if bloc.strip()]
+    corps = "".join(
+        f'<div style="color:#eaeaf0;font-size:13.5px;line-height:1.6;margin-top:{6 if i else 0}px">'
+        f"{p.replace(chr(10), '<br>')}</div>"
+        for i, p in enumerate(paragraphes)
+    )
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px">'
+        '<tr><td style="background:#262630;border-left:3px solid #6f6f80;border-radius:0 6px 6px 0;padding:11px 13px">'
+        '<div style="color:#9b9bac;font-size:10px;font-weight:bold;letter-spacing:.09em;'
+        f'text-transform:uppercase;margin-bottom:5px">{_html.escape(ADMIN_MESSAGE_LABEL)}</div>'
+        f"{corps}</td></tr></table>"
+    )
+
+
 def _build_tags(
     request: MediaRequest | LibraryItem,
     display_name: str | None = None,
@@ -338,6 +377,7 @@ def _build_tags(
     season_number: int | None = None,
     episode_number: int | None = None,
     reason: str = "",
+    admin_message: str = "",
     corrections: list[str] | tuple[str, ...] | None = None,
     correction_note: str = "",
     batch_summary: str = "",
@@ -411,6 +451,9 @@ def _build_tags(
         "{motif}": reason or "",
         "{corrections}": _format_corrections(corrections) or "- Correction effectuée",
         "{note_correction}": correction_note.strip() if correction_note else "",
+        # Le meme texte, mais presente comme venant de quelqu'un. `{motif}` et
+        # `{note_correction}` restent bruts pour qui compose son propre encadre.
+        "{message_admin}": _admin_message_block(admin_message),
         "{media_type_et_titre}": f"{type_media} {request.title or ''}".strip(),
         "{resume_disponibilite}": batch_summary or details_se,
         "{statut_disponibilite}": details.get("availability_variant", scope),
@@ -722,7 +765,10 @@ async def send_cancelled_notification(
 
     `reason` porte l'explication ecrite par l'administrateur : « ce media n'existe pas
     dans le catalogue TMDB » ne se devine pas depuis un gabarit generique."""
-    tags = _build_tags(request, display_name, reason=reason)
+    # Ce texte-la vient d'une personne : il passe aussi par `{message_admin}`, qui le
+    # presente comme tel. Les evenements « echec » et « intervention *arr » gardent leur
+    # `{raison}` brute -- c'est un message de machine, l'attribuer serait mentir.
+    tags = _build_tags(request, display_name, reason=reason, admin_message=reason)
     extra_ctx = get_shared_email_parts(settings)
     extra_ctx.update(get_event_visuals(settings, "cancelled"))
     extra_ctx["_tmdb_url"] = build_tmdb_url(request)
@@ -762,6 +808,7 @@ def build_correction_email(
         episode_number=episode_number,
         corrections=corrections,
         correction_note=correction_note,
+        admin_message=correction_note,
     )
     extra_ctx = get_shared_email_parts(settings)
     extra_ctx.update(get_event_visuals(settings, "correction"))

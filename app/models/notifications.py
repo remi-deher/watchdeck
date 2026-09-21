@@ -39,6 +39,11 @@ class NotificationLog(Base):
     is_upgrade: Mapped[bool] = mapped_column(default=False)
     season_number: Mapped[Optional[int]] = mapped_column(default=None)
     episode_number: Mapped[Optional[int]] = mapped_column(default=None)
+    # Texte libre ecrit par l'administrateur et envoye avec le message -- le motif d'une
+    # annulation, par exemple. L'apercu rejoue le rendu a partir du gabarit et de la
+    # demande ; sans cette colonne, ce paragraphe-la manquait a la relecture alors qu'il
+    # etait bien parti, et rien ne permettait de savoir ce qui avait ete dit.
+    reason: Mapped[Optional[str]] = mapped_column(default=None)
 
 
 class NotificationMilestone(Base):
