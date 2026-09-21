@@ -1125,6 +1125,67 @@ def test_a_failed_cancellation_email_is_journalled_as_such(client, db):
     assert "SMTP indisponible" in log.error_msg
 
 
+def test_a_self_cancellation_warns_the_administrator_when_the_requester_agreed(client, db):
+    """Une demande retiree par son auteur ne laissait aucune trace.
+
+    La creation est annoncee a l'administrateur ; le retrait, lui, ne l'etait pas. Une
+    demande disparaissait donc de la liste sans mail, sans entree au journal, sans rien
+    -- impossible de savoir qu'un media avait cesse d'etre attendu.
+    """
+    from app.models import NotificationLog
+
+    settings = Settings(id=1, email_enabled=True, admin_notification_email="admin@example.com")
+    user = PlexUser(plex_user_id="alice", display_name="Alice", enabled=True, notify_admin=True)
+    req = _req(source="rss", title="Playthrough")
+    db.add_all([settings, user, req])
+    db.commit()
+    request_id = req.id
+
+    envoi = AsyncMock()
+    with (
+        patch("app.routers.requests_api.current_user", return_value={"plex_user_id": "alice"}),
+        patch("app.services.email_service.send_cancelled_notification", new=envoi),
+    ):
+        assert client.post(f"/api/requests/{request_id}/cancel").json()["removed"] is True
+
+    assert envoi.await_count == 1
+    assert envoi.await_args.args[2] == "admin@example.com"
+    log = db.query(NotificationLog).filter_by(event="cancelled").one()
+    assert log.recipient == "admin@example.com"
+    assert log.is_admin is True
+    assert log.success is True
+    assert log.media_title == "Playthrough"
+
+
+def test_a_self_cancellation_leaves_only_a_trace_when_the_requester_declined(client, db):
+    """Sans accord du demandeur, pas de mail -- mais la trace, elle, reste due.
+
+    Le canal « none » dit qu'il n'y avait rien a envoyer : une ligne reussie sur le canal
+    e-mail ferait croire a un envoi, et la file de reprise irait la retenter.
+    """
+    from app.models import NotificationLog
+
+    settings = Settings(id=1, email_enabled=True, admin_notification_email="admin@example.com")
+    user = PlexUser(plex_user_id="alice", display_name="Alice", enabled=True, notify_admin=False)
+    req = _req(source="rss", title="Playthrough")
+    db.add_all([settings, user, req])
+    db.commit()
+    request_id = req.id
+
+    envoi = AsyncMock()
+    with (
+        patch("app.routers.requests_api.current_user", return_value={"plex_user_id": "alice"}),
+        patch("app.services.email_service.send_cancelled_notification", new=envoi),
+    ):
+        assert client.post(f"/api/requests/{request_id}/cancel").json()["removed"] is True
+
+    envoi.assert_not_awaited()
+    log = db.query(NotificationLog).filter_by(event="cancelled").one()
+    assert log.channel == "none"
+    assert log.recipient == ""
+    assert log.media_title == "Playthrough"
+
+
 def test_a_media_can_override_the_global_reconciliation_setting(client, db):
     """`None` remet le média sous le réglage global : c'est un état à part entière.
 
