@@ -2,6 +2,34 @@ import type { ApiRequestOptions } from '@/types/api';
 import { humanizeError, messageForStatus } from '@/utils/apiError';
 
 /** Erreur d'API portant le code HTTP, pour que l'appelant puisse decider sans reparser. */
+/**
+ * Rend lisible le motif renvoye par le serveur.
+ *
+ * `detail` n'est pas toujours une phrase : sur une requete mal formee, FastAPI renvoie
+ * la liste des champs en cause. Affichee telle quelle, elle donnait « [object Object] »
+ * a l'utilisateur -- un message qui ne dit rien et qu'on ne peut meme pas rapporter.
+ */
+function detailLisible(data: any): string {
+  const detail = data?.detail ?? data?.message;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    const phrases = detail
+      .map((entree: any) => {
+        if (typeof entree === 'string') return entree;
+        const champ = Array.isArray(entree?.loc) ? entree.loc.filter((p: unknown) => p !== 'query' && p !== 'body').join('.') : '';
+        const motif = entree?.msg || entree?.message || '';
+        return [champ, motif].filter(Boolean).join(' : ');
+      })
+      .filter(Boolean);
+    if (phrases.length) return phrases.join(' — ');
+  }
+  if (detail && typeof detail === 'object') {
+    const motif = detail.msg || detail.message;
+    if (typeof motif === 'string') return motif;
+  }
+  return '';
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -40,7 +68,7 @@ export async function api<T = any>(path: string, options: ApiRequestOptions = {}
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     // Le detail du backend est deja redige et decrit le cas precis : il passe devant.
-    throw new ApiError(data.detail || data.message || messageForStatus(response.status), response.status);
+    throw new ApiError(detailLisible(data) || messageForStatus(response.status), response.status);
   }
   return data as T;
 }
@@ -60,7 +88,7 @@ export async function streamEvents<T = any>(
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new ApiError(data.detail || messageForStatus(response.status), response.status);
+    throw new ApiError(detailLisible(data) || messageForStatus(response.status), response.status);
   }
   if (!response.body) throw new Error('Flux non supporté par ce navigateur');
 

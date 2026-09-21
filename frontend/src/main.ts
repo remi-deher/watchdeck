@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { installerSortieDePage } from '@/composables/usePageExit';
 import App from './App.vue';
 import { isAdminSession, isModeratorSession, loadSession } from './composables/useSession';
 import AppPage from '@/components/ui/AppPage.vue';
@@ -98,6 +99,11 @@ const router = createRouter({
 if (import.meta.env.PROD) {
   router.onError((error) => { void recoverFromStaleAssets(error); });
 }
+
+/* Le passage d'une destination a l'autre s'accompagne d'une sortie breve : sans elle,
+   l'ancien ecran disparaissait et le nouveau etait simplement la. Voir `usePageExit`
+   pour la raison qui interdit une `<Transition>` autour du `<RouterView>`. */
+installerSortieDePage(router);
 
 router.afterEach((to) => {
   const title = typeof to.meta.title === 'string' ? to.meta.title : '';
