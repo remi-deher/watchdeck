@@ -513,7 +513,11 @@ async def preview_notification_log(log_id: int, db: AsyncSession = Depends(get_d
                 dry_run=True,
             )
         elif base_event == "cancelled":
-            subject, html = await send_cancelled_notification(settings, req, log.recipient, display_name, dry_run=True)
+            # Le motif ecrit par l'administrateur part avec le message : le rejouer sans
+            # lui donnait un apercu ampute du seul paragraphe qui explique la decision.
+            subject, html = await send_cancelled_notification(
+                settings, req, log.recipient, display_name, reason=log.reason or "", dry_run=True
+            )
         else:
             return {
                 "subject": None,

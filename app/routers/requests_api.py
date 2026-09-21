@@ -1032,6 +1032,7 @@ async def withdraw_request(
                     media_type=req.media_type,
                     req_id=req.id,
                     is_admin=True,
+                    reason=reason,
                 )
                 try:
                     await email_service.send_cancelled_notification(settings, req, recipient, reason=reason)
@@ -1102,6 +1103,7 @@ async def _trace_self_cancellation(db: AsyncSession, req: MediaRequest, uid: str
             media_type=req.media_type,
             req_id=req.id,
             is_admin=True,
+            reason=motif,
         )
         try:
             await email_service.send_cancelled_notification(settings, req, destinataire, reason=motif)

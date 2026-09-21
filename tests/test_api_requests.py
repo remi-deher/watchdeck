@@ -1098,6 +1098,9 @@ def test_the_cancellation_email_is_written_to_the_notification_journal(client, d
     assert [log.recipient for log in logs] == ["alice@example.com"]
     assert logs[0].success is True
     assert logs[0].media_title == "Playthrough"
+    # Le motif part avec le message : sans le retenir, l'apercu du journal rejouait le
+    # rendu ampute du seul paragraphe qui explique la decision.
+    assert logs[0].reason == "Absent du catalogue."
 
 
 def test_a_failed_cancellation_email_is_journalled_as_such(client, db):
