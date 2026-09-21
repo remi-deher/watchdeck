@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.35.1 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- ne plus perdre la chaine de requete, et animer la sortie de page ([55815bb](https://github.com/remi-deher/watchdeck/commit/55815bb3f07a51e55da0ac52f7b133a4eee673af))
 ## 1.35.0 — 2026-09-21
 
 
@@ -11,6 +17,7 @@
 ### 🔧 Maintenance
 
 - bump @types/node from 26.5.0 to 26.6.1 (#350) ([792f2b2](https://github.com/remi-deher/watchdeck/commit/792f2b23110b9cf621cfb42135941d14fd8b893e))
+- v1.35.0 (#382) ([fe5c41d](https://github.com/remi-deher/watchdeck/commit/fe5c41d3d9c7dc73ec88989452ab025620cc7de0))
 ## 1.34.0 — 2026-09-21
 
 
