@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.31.1 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- garder le defilement au chargement et servir les visuels en pleine definition ([10b15c4](https://github.com/remi-deher/watchdeck/commit/10b15c45eb1d0d18db45664e185ae7901cc0ac79))
 ## 1.31.0 — 2026-09-21
 
 
@@ -11,6 +17,10 @@
 ### 🐛 Corrections
 
 - donner un bord droit au haut de la barre sous le panneau ([f99bc68](https://github.com/remi-deher/watchdeck/commit/f99bc687eb28ca20f23aab4c3938a5035abed1e9))
+
+### 🔧 Maintenance
+
+- v1.31.0 (#341) ([9df6d43](https://github.com/remi-deher/watchdeck/commit/9df6d43e4ff30548d8c991695c62ffbaa21ff791))
 ## 1.30.1 — 2026-09-21
 
 
