@@ -11,6 +11,12 @@
       @load="isLoaded = true"
       @error="failed = true"
     >
+    <!-- Le miroitement n'est rendu que tant qu'on attend une image. Il etait auparavant
+         un pseudo-element eteint par `:not(:has(> img))` : cette condition se reevalue a
+         chaque changement du document, et une grille qui se remplit au defilement en
+         declenchait des rafales. Une condition portee par le composant coute zero calcul
+         de style. -->
+    <span v-if="posterUrl && !failed && !isLoaded" class="poster-shell__shimmer" aria-hidden="true"></span>
     <!-- Une affiche morte laissait un cadre vide : le repli est desormais le meme que
          pour un media sans affiche. Il sert aux sources disparues dont le proxy n'a
          jamais eu de copie en cache. -->
@@ -67,38 +73,41 @@ watch(() => props.posterUrl, () => { failed.value = false; isLoaded.value = fals
  * vit dans le fond de la boite -- l'affiche se fond par-dessus, a la meme place et a la
  * meme taille, et rien ne saute.
  */
-.poster-shell::after {
-  content: "";
+/* Le miroitement se deplace, il ne se repeint pas.
+ *
+ * Il animait `background-position`, qui n'est pas une propriete composee : le navigateur
+ * redessinait chaque affiche a chaque image, vingt fois par grille. Sur Safari cela se
+ * voyait -- l'ecran clignotait. Une bande large translatee en `transform` produit le meme
+ * reflet en restant sur la couche graphique, sans un seul repaint.
+ *
+ * `overflow: hidden` est deja porte par `.poster-shell` : la bande deborde sans se voir.
+ */
+.poster-shell__shimmer {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 60%;
   border-radius: inherit;
   background: linear-gradient(
     100deg,
-    transparent 20%,
-    color-mix(in srgb, var(--text, #fff) 7%, transparent) 40%,
-    transparent 60%
+    transparent 0%,
+    color-mix(in srgb, var(--text, #fff) 7%, transparent) 50%,
+    transparent 100%
   );
-  background-size: 220% 100%;
   animation: poster-shimmer 1.4s ease-in-out infinite;
   pointer-events: none;
   transition: opacity 0.3s ease;
-}
-
-/* Le miroitement s'efface avec l'arrivee de l'image -- et aussi quand il n'y a pas
-   d'image a attendre : faire scintiller un repli, c'est promettre un chargement qui
-   n'arrivera jamais. */
-.poster-shell.is-loaded::after,
-.poster-shell:not(:has(> img))::after {
-  opacity: 0;
-  animation: none;
+  will-change: transform;
 }
 
 @keyframes poster-shimmer {
-  to { background-position-x: -220%; }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(280%, 0, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .poster-shell::after { animation: none; }
+  .poster-shell__shimmer { animation: none; }
 }
 
 .poster-shell > img {

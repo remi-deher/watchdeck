@@ -659,6 +659,43 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   cursor: grabbing;
 }
 
+/* Poignee des feuilles du mode compact.
+ *
+ * `touch-action: none` est l'element essentiel : sans lui, le navigateur interprete le
+ * glissement comme un defilement et ne nous laisse jamais la main -- sur iOS le geste ne
+ * demarrait pas du tout. La barre elle-meme sert de reperage : une surface qui se tire
+ * doit le montrer, sinon personne n'essaie.
+ */
+.sheet-grab {
+  display: none;
+  touch-action: none;
+  cursor: grab;
+  padding: 10px 0 4px;
+  margin: calc(-1 * var(--drawer-pad, 16px)) calc(-1 * var(--drawer-pad, 16px)) 0;
+}
+.sheet-grab > span {
+  display: block;
+  width: 42px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text, #fff) 26%, transparent);
+}
+.modal-panel.is-dragging .sheet-grab { cursor: grabbing; }
+
+@include bp.until(tablet) {
+  .sheet-grab { display: block; }
+}
+
+/* Le flou du pied s'efface pendant le geste : floutter ce qui passe derriere une surface
+   qui bouge oblige le navigateur a recomposer la scene a chaque image, et c'est ce qui
+   fait clignoter l'ensemble sur Safari. A l'arret, il ne coute qu'une fois. */
+.modal-panel.is-dragging > .actions,
+.detail-drawer.is-dragging > .drawer-actions {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .detail-drawer::-webkit-scrollbar,
 .modal-panel::-webkit-scrollbar { width: 0; height: 0; }
 
