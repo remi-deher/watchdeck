@@ -121,8 +121,9 @@
 <script setup lang="ts">
 import { humanizeError } from '@/utils/apiError';
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
 import { useDebounced } from '@/composables/useDebounced';
 import { useLatestRequest } from '@/composables/useLatestRequest';
@@ -144,6 +145,7 @@ defineEmits<{
 }>();
 
 const router = useRouter();
+const route = useRoute();
 const request = useLatestRequest();
 
 const items = ref<any[]>([]);
@@ -329,7 +331,7 @@ providePageSearch(computed<PageSearch>(() => ({
 })));
 
 function openDetail(item: any): void {
-  router.push(mediaDetailPath(item, 'request', { discover: true }));
+  ouvrirFiche(router, mediaDetailPath(item, 'request', { discover: true }), route.fullPath);
 }
 
 /* L'annulation demande une explication : elle bloque le retour automatique du media et

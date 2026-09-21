@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { Download, Star } from '@lucide/vue';
 import { mediaTypeLabel } from '@/utils/labels';
 import MediaCardShell from './MediaCardShell.vue';
@@ -79,6 +79,7 @@ import {
   supportsViewTransitions,
   withPosterTransition,
 } from '@/composables/useViewTransition';
+import { etatDeSurface } from '@/composables/useMediaOverlay';
 
 const props = withDefaults(
   defineProps<{
@@ -108,6 +109,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const route = useRoute();
 
 const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.item.media_type));
 const title = computed(() => props.item.title || props.item.name || 'Sans titre');
@@ -135,18 +137,25 @@ const resolvedTo = computed(() => props.to || '/');
    avec l'ecran. On intercepte donc le lien plutot que de le laisser naviguer seul -- sans
    quoi la navigation a deja eu lieu quand la transition demarre, et il n'y a plus rien a
    photographier. Sans support, `withPosterTransition` se contente de naviguer. */
+/* La fiche s'ouvre par-dessus la grille : on porte l'adresse de depart dans l'etat de la
+   navigation, et c'est elle qui reste rendue derriere. Le lien conserve son `href` --
+   clic milieu, « ouvrir dans un nouvel onglet » et partage continuent de donner une page
+   entiere -- mais un clic ordinaire passe par ici. */
 function handleActivate(event?: MouseEvent | KeyboardEvent): void {
   if (!props.to) {
     emit('open', props.item);
     return;
   }
-  if (!supportsViewTransitions() || prefersReducedMotion()) return;
   // Les clics enrichis (nouvel onglet, telechargement) restent au navigateur.
   const souris = event as MouseEvent | undefined;
   if (souris && (souris.metaKey || souris.ctrlKey || souris.shiftKey || souris.altKey || souris.button > 0)) return;
   event?.preventDefault();
+
+  const cible = { ...(typeof props.to === 'string' ? { path: props.to } : (props.to as object)) } as any;
+  cible.state = etatDeSurface(route.fullPath);
+
   void withPosterTransition(posterElementFrom(event?.target ?? null), async () => {
-    await router.push(props.to as any);
+    await router.push(cible);
   });
 }
 

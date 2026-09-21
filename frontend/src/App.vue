@@ -1,7 +1,12 @@
 <template>
   <AppShell :is-admin="isAdmin" :can-moderate="canModerate">
     <RouteErrorBoundary>
-      <RouterView v-slot="{ Component }">
+      <!-- Quand la fiche d'un media s'ouvre depuis une grille, c'est la page de depart
+           qui reste rendue ici : la grille ne disparait pas, elle passe dessous. La
+           fiche, elle, est posee par-dessus (voir `MediaOverlay`). Sans adresse de
+           depart -- lien colle, favori, actualisation -- `routeDeFond` vaut `null` et
+           la fiche s'affiche en pleine page, comme n'importe quelle autre. -->
+      <RouterView v-slot="{ Component }" :route="routeDeFond ?? undefined">
         <!-- Vue Router reutilise naturellement une vue quand plusieurs chemins pointent
              vers le meme composant. Ne pas la clef-er par chemin permet notamment a
              /discover de devenir /discover/explore sans detruire le champ de recherche
@@ -17,6 +22,10 @@
       </RouterView>
     </RouteErrorBoundary>
   </AppShell>
+
+  <MediaOverlay :open="surfaceOuverte" @close="fermerSurface">
+    <MediaDetailView v-if="surfaceOuverte" :key="$route.fullPath" />
+  </MediaOverlay>
   <ToastStack :toasts="allToasts" @dismiss="dismissAnyToast"/>
 </template>
 <script setup lang="ts">
@@ -25,12 +34,19 @@ import { clearCache, syncCacheOwner } from "@/cache";
 import { connectRealtime } from "@/events";
 import ToastStack from "@/components/ui/ToastStack.vue";
 import AppShell from "@/components/layout/AppShell.vue";
+import MediaOverlay from "@/components/media/MediaOverlay.vue";
+import MediaDetailView from "@/views/MediaDetailView.vue";
+import { useMediaOverlay } from "@/composables/useMediaOverlay";
 import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
 import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";
 import { canModerateSession, isAdminSession, loadSession } from "@/composables/useSession";
 import { useToast } from "@/composables/useToast";
+/* La fiche media se pose au-dessus de la page d'ou l'on vient plutot que de la
+   remplacer -- voir `useMediaOverlay` pour le pourquoi. */
+const { actif: surfaceOuverte, routeDeFond, fermer: fermerSurface } = useMediaOverlay();
+
 const session=ref<any>(null);
 useVisualViewport();
 const isAdmin=computed(()=>isAdminSession(session.value));

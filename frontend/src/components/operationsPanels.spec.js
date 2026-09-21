@@ -8,6 +8,7 @@ vi.mock('@/api', () => ({ api: vi.fn() }));
 const routerPush = vi.fn();
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: routerPush }),
+  useRoute: () => ({ fullPath: '/library' }),
   RouterLink: {
     props: ['to'],
     template: '<a :href="typeof to === \'string\' ? to : to?.path"><slot /></a>',
