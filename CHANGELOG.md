@@ -1,11 +1,26 @@
 # Changelog
 
+## 1.31.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- rendre le panneau de filtres lisible au doigt ([a9d7147](https://github.com/remi-deher/watchdeck/commit/a9d714755a9eb3a39b9e719709c831019d756e0e))
+- cercler la pile d'un même liseré et animer le dépli ([61f4820](https://github.com/remi-deher/watchdeck/commit/61f48203ea4f343a4c953b5fbf33d0941b46d607))
+
+### 🐛 Corrections
+
+- donner un bord droit au haut de la barre sous le panneau ([f99bc68](https://github.com/remi-deher/watchdeck/commit/f99bc687eb28ca20f23aab4c3938a5035abed1e9))
 ## 1.30.1 — 2026-09-21
 
 
 ### 🐛 Corrections
 
 - souder le bouton « Filtres » à la barre et laisser le dock au clavier ([ec95e3f](https://github.com/remi-deher/watchdeck/commit/ec95e3ff420904cd6ee81a236a0d285861f7bd87))
+
+### 🔧 Maintenance
+
+- v1.30.1 (#336) ([f5ada95](https://github.com/remi-deher/watchdeck/commit/f5ada9588d943ebe1b88e359d8c47243fbb1536b))
 ## 1.30.0 — 2026-09-20
 
 
