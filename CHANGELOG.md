@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.32.1 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- ne plus emporter la surface qui vient de prendre la releve ([2320b8f](https://github.com/remi-deher/watchdeck/commit/2320b8f74903cd3255509e0687d548413821663a))
 ## 1.32.0 — 2026-09-21
 
 
@@ -10,6 +16,10 @@
 ### 🎨 Style
 
 - appliquer le formatage ruff ([eca0d9e](https://github.com/remi-deher/watchdeck/commit/eca0d9ee16b8304bf284f00d85f2667470d9ac4b))
+
+### 🔧 Maintenance
+
+- v1.32.0 (#366) ([50642f7](https://github.com/remi-deher/watchdeck/commit/50642f7f1faeafc2478910e4648864140bfe224b))
 ## 1.31.3 — 2026-09-21
 
 
