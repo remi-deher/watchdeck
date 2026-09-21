@@ -73,8 +73,12 @@ test("charge progressivement le catalogue et conserve des liens accessibles", as
   await expect(page.locator(".discover-poster-link").first()).toHaveAttribute("href", /\/media\/discover\/1/);
   const cardBox = await page.locator('.discover-card').first().boundingBox();
   const posterBox = await page.locator('.discover-card .poster-shell').first().boundingBox();
-  expect(Math.abs(cardBox.width - posterBox.width)).toBeLessThanOrEqual(2);
-  expect(Math.abs(cardBox.height - posterBox.height)).toBeLessThanOrEqual(2);
+  /* Tolerance au pixel pres, et non au pixel exact : la carte porte desormais une
+     animation liee au defilement, donc un `transform`, et une boite composee se mesure
+     avec un arrondi sous-pixel. L'intention du test ne change pas -- l'affiche remplit
+     la carte, elle ne flotte pas dedans. */
+  expect(Math.abs(cardBox.width - posterBox.width)).toBeLessThanOrEqual(2.5);
+  expect(Math.abs(cardBox.height - posterBox.height)).toBeLessThanOrEqual(2.5);
 
   // Le sentinel (rootMargin 400px) declenche le chargement automatiquement des qu'il
   // est rendu — pas besoin de scroll manuel, et l'attendre serait racy puisqu'il est

@@ -5,7 +5,7 @@
     <div class="mdh-content">
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
-          <img v-if="detail.poster_url" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
+          <img v-if="detail.poster_url" class="mdh-poster-img" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
             <Music2 v-if="isMusic" />
             <Film v-else />
@@ -317,6 +317,14 @@ const releaseDates = computed(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+/* Point d'arrivee de l'affiche transportee depuis la grille : le cadre, et non l'image.
+   Le cadre existe toujours -- un media sans affiche montre un repli a la meme place --
+   alors que l'image, elle, peut manquer. Sans point d'arrivee, l'affiche partie de la
+   grille n'aurait nulle part ou se poser et disparaitrait en vol. */
+.mdh-poster { view-transition-name: media-poster; }
+@media (prefers-reduced-motion: reduce) {
+  .mdh-poster { view-transition-name: none; }
 }
 .mdh-poster-fallback {
   width: 100%;

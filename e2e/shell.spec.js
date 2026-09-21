@@ -192,15 +192,23 @@ test("toute destination est atteignable au clavier seul", async ({ page }) => {
   }
 
   const links = page.locator(".app-rail a[href]");
-  await expect(links.first()).toBeVisible();
+  // Meme patience qu'en compact, et pour la meme raison : le serveur de dev compile
+  // chaque module a la premiere requete, et le rail peut se faire attendre sur un runner
+  // froid. Ce qui est verifie ne change pas -- chaque lien doit recevoir le focus et le
+  // montrer.
+  await expect(links.first()).toBeVisible({ timeout: 20_000 });
 
   // Chaque lien du rail doit pouvoir recevoir le focus et le rendre visible : un
   // element focalisable sans indicateur visible est inutilisable au clavier.
   const count = await links.count();
   for (let index = 0; index < count; index += 1) {
     const link = links.nth(index);
+    /* Un seul appel a `focus()`, et l'assertion attend. Redemander le focus en boucle
+       paraissait plus robuste, mais chaque nouvelle demande reinitialise l'heuristique
+       `:focus-visible` du navigateur : le contour disparaissait alors une fois sur deux,
+       et c'est precisement lui qu'on verifie juste apres. */
     await link.focus();
-    await expect(link).toBeFocused();
+    await expect(link).toBeFocused({ timeout: 10_000 });
     const outlined = await link.evaluate((node) => {
       const style = window.getComputedStyle(node);
       return style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0;

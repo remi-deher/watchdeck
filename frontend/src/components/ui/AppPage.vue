@@ -1,5 +1,8 @@
 <template>
-  <div class="app-page" :class="pageClass">
+  <!-- `page-motion` etale l'arrivee des blocs de la page, avec un plafond pour qu'une
+       longue page ne se deroule pas indefiniment. La regle vit dans `_motion.scss`,
+       ecrite elle aussi de longue date et jusqu'ici sans emploi. -->
+  <div class="app-page page-motion" :class="pageClass">
     <!-- Le titre reste dans le document mais pas a l'ecran : la barre de contexte
          affiche deja le meme intitule, en permanence et sans jamais defiler. Le h1
          garde donc son role de point d'entree pour la navigation par en-tetes, sans
