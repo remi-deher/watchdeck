@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.30.1 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- souder le bouton « Filtres » à la barre et laisser le dock au clavier ([ec95e3f](https://github.com/remi-deher/watchdeck/commit/ec95e3ff420904cd6ee81a236a0d285861f7bd87))
 ## 1.30.0 — 2026-09-20
 
 
@@ -10,6 +16,10 @@
 ### ✨ Nouveautés
 
 - descendre la barre de recherche au pouce sur téléphone ([fc4ceb6](https://github.com/remi-deher/watchdeck/commit/fc4ceb6c7ef05aef52f77b2c0096a2039c0c64fe))
+
+### 🔧 Maintenance
+
+- v1.30.0 (#332) ([82c8614](https://github.com/remi-deher/watchdeck/commit/82c8614bd4a4fbec1d9b88f5e217f7b1ca99cba6))
 ## 1.29.2 — 2026-09-20
 
 
