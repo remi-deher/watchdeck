@@ -226,6 +226,21 @@ onUnmounted(() => stickyObserver?.disconnect());
 </script>
 
 <style scoped lang="scss">
+/* La cascade d'arrivee ne concerne que le contenu.
+ *
+ * `page-motion` anime chaque enfant direct : le temoin de collage et la rangee collante
+ * en faisaient donc partie. Or cette rangee porte les outils de la page, et son animation
+ * redemarre a chaque rendu -- la moindre frappe dans la recherche la remettait en
+ * mouvement. Le bouton « Filtres » qu'elle contient n'atteignait plus jamais une position
+ * stable : un clic s'y perdait, et l'integration continue l'a constate avant nous. Ces
+ * deux-la sont donc de la charpente, pas du contenu, et ne bougent pas.
+ */
+.app-page.page-motion > .app-page__sentinel,
+.app-page.page-motion > .app-page__sticky,
+.app-page.page-motion > .sr-only {
+  animation: none;
+}
+
 .app-page {
   display: flex;
   flex-direction: column;

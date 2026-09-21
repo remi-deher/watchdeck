@@ -183,7 +183,12 @@ test("toute destination est atteignable au clavier seul", async ({ page }) => {
     await trigger.press("Enter");
     const sheet = page.getByRole("dialog", { name: "Navigation" });
     await expect(sheet).toBeVisible({ timeout: 20_000 });
-    await expect(sheet.getByRole("link", { name: "Explorer" })).toBeVisible();
+    /* Meme patience pour le contenu que pour la feuille : ses destinations dependent de
+       la session, et la feuille peut donc s'ouvrir vide une fraction de seconde. Cinq
+       secondes suffisaient en local et pas sur un runner charge -- c'est ce qui faisait
+       echouer ce test une promotion sur deux, tantot ici, tantot sur l'assertion
+       precedente. Ce qui est verifie ne change pas. */
+    await expect(sheet.getByRole("link", { name: "Explorer" })).toBeVisible({ timeout: 20_000 });
     // Sur le document : la feuille se detache pendant sa fermeture, et viser
     // l'element rendait l'appui perdant face a sa propre disparition.
     await page.keyboard.press("Escape");
