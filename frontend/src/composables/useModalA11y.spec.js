@@ -142,7 +142,9 @@ describe('useModalA11y', () => {
   });
 
   it('consomme sa propre entree d\'historique a la fermeture explicite (pas de retour fantome)', async () => {
-    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    const backSpy = vi
+      .spyOn(window.history, 'back')
+      .mockImplementation(() => window.dispatchEvent(new PopStateEvent('popstate')));
     const isOpenRef = ref(true);
     const { wrapper } = mountModal({ isOpen: isOpenRef });
     await nextTick();
@@ -172,6 +174,41 @@ describe('useModalA11y', () => {
 
     expect(backSpy).not.toHaveBeenCalled();
     wrapper.unmount();
+    backSpy.mockRestore();
+  });
+
+  it("ne referme pas une surface ouverte a la place de celle qui vient de se fermer", async () => {
+    // Annuler une demande enchaine deux surfaces : le choix du motif, puis la
+    // confirmation. La premiere consomme son entree d'historique en se fermant, et le
+    // `popstate` qui en resulte tombait sur la seconde, qui le lisait comme un appui
+    // sur « retour ». Elle repondait alors « non » a sa propre question : l'annulation
+    // etait abandonnee sans un mot et plus aucun clic n'avait d'effet.
+    // Le vrai `back()` est asynchrone : c'est ce decalage qui fait tomber l'evenement
+    // sur la surface suivante, une fois celle-ci ouverte.
+    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {
+      setTimeout(() => window.dispatchEvent(new PopStateEvent('popstate')), 0);
+    });
+
+    const premiere = ref(true);
+    const { wrapper: w1 } = mountModal({ isOpen: premiere });
+    await nextTick();
+
+    const onClose = vi.fn();
+    const seconde = ref(false);
+    const { wrapper: w2 } = mountModal({ isOpen: seconde, onClose });
+
+    // La premiere se ferme, la seconde s'ouvre dans la foulee -- l'ordre observe en
+    // production : choisir le motif, puis confirmer.
+    premiere.value = false;
+    seconde.value = true;
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(backSpy).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+
+    w1.unmount();
+    w2.unmount();
     backSpy.mockRestore();
   });
 });
