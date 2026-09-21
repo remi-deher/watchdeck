@@ -35,6 +35,7 @@ export function useModalA11y(
   let previouslyFocused: HTMLElement | null = null;
   let dismissedByBackButton = false;
   let historyToken: string | null = null;
+  let historyHref: string | null = null;
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -76,6 +77,7 @@ export function useModalA11y(
     document.addEventListener('keydown', handleKeydown, true);
     window.addEventListener('popstate', handlePopState);
     history.pushState({ ...history.state, [HISTORY_MARKER]: historyToken }, '');
+    historyHref = location.href;
     await nextTick();
     const panel = panelRef.value;
     if (!panel) return;
@@ -94,10 +96,22 @@ export function useModalA11y(
     // l'utilisateur ne ferait que la re-annuler sans effet visible. On ne le fait
     // que si l'entree courante est bien la notre (jeton exact), pour ne jamais
     // reculer sur une navigation qui a deja eu lieu pour une autre raison.
-    if (!dismissedByBackButton && historyToken && history.state?.[HISTORY_MARKER] === historyToken) {
+    // ... et seulement si l'adresse est restee celle qu'on a marquee. Une page peut
+    // republier son URL pendant que la surface est ouverte -- c'est ce que fait le
+    // panneau de filtres, qui porte chaque choix dans la barre d'adresse. Le routeur
+    // recopie l'etat courant, le jeton voyage donc jusqu'a la nouvelle entree, et
+    // reculer ne consommait plus notre marque : cela annulait le filtre qu'on venait
+    // d'appliquer. On revenait a la page d'avant, tous filtres perdus.
+    if (
+      !dismissedByBackButton &&
+      historyToken &&
+      history.state?.[HISTORY_MARKER] === historyToken &&
+      location.href === historyHref
+    ) {
       history.back();
     }
     historyToken = null;
+    historyHref = null;
     /* Rendre le focus a son point de depart, sauf si l'utilisateur l'a deja pose
        ailleurs lui-meme. Toucher le champ de recherche referme le tiroir de filtres :
        lui reprendre le focus pour le rendre au bouton « Filtres » annulait le geste --

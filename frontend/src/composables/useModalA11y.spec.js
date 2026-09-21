@@ -154,4 +154,24 @@ describe('useModalA11y', () => {
     wrapper.unmount();
     backSpy.mockRestore();
   });
+
+  it("ne recule pas quand la page a republie son adresse pendant l'ouverture", async () => {
+    // Le panneau de filtres porte chaque choix dans la barre d'adresse. Le routeur
+    // recopie l'etat courant, donc notre jeton voyage jusqu'a la nouvelle entree :
+    // reculer a la fermeture annulait le filtre qu'on venait d'appliquer et
+    // ramenait a la page d'avant.
+    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    const isOpenRef = ref(true);
+    const { wrapper } = mountModal({ isOpen: isOpenRef });
+    await nextTick();
+
+    history.replaceState({ ...history.state }, '', '/discover/explore?availability=available');
+
+    isOpenRef.value = false;
+    await nextTick();
+
+    expect(backSpy).not.toHaveBeenCalled();
+    wrapper.unmount();
+    backSpy.mockRestore();
+  });
 });
