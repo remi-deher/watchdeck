@@ -607,12 +607,25 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
    pas, la feuille n'a aucune raison de laisser un vide sous elle. */
 @include bp.until(shell-medium) {
   body:has(.app-topbar) {
+    /* Pose exactement sur le bord haut de la barre, sans interstice : la valeur est
+       celle de la barre elle-meme (`bottom` + sa hauteur). Six pixels d'ecart y
+       laissaient voir la page entre les deux, et le panneau et la barre se lisaient
+       comme deux objets separes au lieu d'une seule pile. */
     .drawer-backdrop:has(> .filter-sheet),
     .modal-panel.filter-sheet {
-      bottom: calc(var(--app-shell-offset-bottom) + var(--app-topbar-h) + 14px);
+      bottom: calc(var(--app-shell-offset-bottom) + 8px + var(--app-topbar-h));
     }
     .modal-panel.filter-sheet {
       max-height: calc(92dvh - var(--app-shell-offset-bottom) - var(--app-topbar-h));
+    }
+    /* La capsule perd ses coins hauts tant que la feuille est posee dessus : arrondis,
+       ils creusaient deux encoches sombres sous le bord bas du panneau. Son ombre
+       portee vers le haut s'efface aussi -- elle aurait assombri le pied du panneau
+       qu'elle est censee detacher du contenu. C'est la capsule qu'on vise, pas la barre :
+       en compact cette derniere n'a plus ni fond ni contour, elle ne fait que porter. */
+    &:has(.filter-sheet) .app-topbar .ui-search-field {
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      box-shadow: none;
     }
   }
 }

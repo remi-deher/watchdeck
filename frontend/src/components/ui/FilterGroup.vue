@@ -2,6 +2,9 @@
   <div class="filter-group">
     <button class="filter-group-header" type="button" :aria-expanded="open" :aria-controls="bodyId" @click="open = !open">
       <span class="group-label">{{ label }}</span>
+      <!-- Replie, le groupe doit dire ce qu'il retient : un intitule seul oblige a
+           deplier chaque groupe pour savoir si l'on y a choisi quelque chose. -->
+      <span v-if="!open && value" class="filter-group-value">{{ value }}</span>
       <ChevronDown class="filter-group-chevron" :class="{ collapsed: !open }" />
     </button>
     <div v-show="open" :id="bodyId" class="filter-group-body">
@@ -18,9 +21,12 @@ const props = withDefaults(
   defineProps<{
     label: string;
     defaultOpen?: boolean;
+    /** Resume affiche quand le groupe est replie : la valeur retenue, ou « Tous ». */
+    value?: string;
   }>(),
   {
     defaultOpen: true,
+    value: '',
   }
 );
 
@@ -57,9 +63,28 @@ const bodyId = `filter-group-${useId()}`;
 .filter-group-chevron.collapsed {
   transform: rotate(-90deg);
 }
+/* Les options s'enroulent au lieu de s'empiler : ce sont des etiquettes courtes, et
+   une par ligne faisait du panneau un rouleau de plusieurs milliers de pixels. Celles
+   qui reclament la pleine largeur (compteur aligne a droite) la prennent quand meme --
+   voir `.filter-badge--wide` -- et retombent alors naturellement a la ligne. */
 .filter-group-body {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-bottom: 2px;
 }
+
+.filter-group-value {
+  margin-left: auto;
+  overflow: hidden;
+  max-width: 55%;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-group-header { gap: var(--space-2); }
+.filter-group-chevron { margin-left: 0; }
+.filter-group-header .group-label { margin-right: auto; }
 </style>

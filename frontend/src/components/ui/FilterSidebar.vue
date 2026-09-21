@@ -15,8 +15,14 @@
       <div class="filter-modal-body">
         <slot />
       </div>
-      <template v-if="activeCount" #actions>
-        <UiButton @click="$emit('reset'); $emit('close')">Réinitialiser</UiButton>
+      <!-- Un pied, toujours.
+           « Réinitialiser » n'apparaissait qu'avec un filtre actif, et rien ne permettait
+           de conclure : il fallait remonter chercher la croix tout en haut d'un panneau
+           qu'on venait de parcourir. L'action principale ferme, et dit ce qu'elle ferme --
+           avec le décompte quand la page le fournit. -->
+      <template #actions>
+        <UiButton v-if="activeCount" @click="$emit('reset')">Réinitialiser</UiButton>
+        <UiButton variant="primary" class="filter-apply" @click="$emit('close')">{{ applyLabel }}</UiButton>
       </template>
     </ModalShell>
   </template>
@@ -29,21 +35,24 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { SlidersHorizontal } from '@lucide/vue';
 import ModalShell from './ModalShell.vue';
 import UiButton from './UiButton.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     open?: boolean;
     activeCount?: number;
     bare?: boolean;
+    /** Nombre de resultats retenus, quand la page sait le donner avant fermeture. */
+    matchCount?: number | null;
   }>(),
   {
     open: false,
     activeCount: 0,
     bare: false,
+    matchCount: null,
   }
 );
 
@@ -51,6 +60,14 @@ defineEmits<{
   (e: 'close'): void;
   (e: 'reset'): void;
 }>();
+
+/* Le libelle annonce le resultat quand la page le connait. Sans decompte fiable il
+   reste generique : un chiffre faux serait pire que pas de chiffre. */
+const applyLabel = computed(() => {
+  const count = props.matchCount;
+  if (count == null) return 'Voir les résultats';
+  return count === 1 ? 'Voir 1 résultat' : `Voir ${count.toLocaleString('fr-FR')} résultats`;
+});
 
 const isMobile = ref(false);
 let mq: MediaQueryList | undefined;
