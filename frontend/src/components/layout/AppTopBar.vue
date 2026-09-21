@@ -347,12 +347,13 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
 /* ── Recherche de page ──────────────────────────────────────────────────────── */
 .app-topbar__field { position: relative; display: none; flex: 1 1 auto; min-width: 0; }
 .app-topbar__field :deep(.ui-search-field) { width: 100%; max-width: none; height: 46px; }
+/* Le bouton est un segment de la capsule, pas une pastille posee dedans : il en occupe
+   toute la hauteur et vient au ras du bord droit. Le rayon vient du composant, qui
+   connait celui de la capsule. */
 .app-topbar__field :deep(.ui-search-field__filter) {
-  height: 34px;
-  margin-right: -5px;
-  padding: 0 12px;
-  border-radius: var(--radius-md);
+  padding: 0 14px;
   background: color-mix(in srgb, var(--accent) 13%, var(--surface-2));
+  border-left-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   color: var(--text);
   font-weight: 700;
 }
@@ -443,9 +444,23 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   .app-topbar {
     top: auto;
     bottom: calc(var(--app-shell-offset-bottom) + 8px);
-    /* L'ombre se retourne avec la barre : portee vers le bas, elle se serait perdue
-       derriere le dock au lieu de detacher la barre du contenu qui passe dessous. */
-    box-shadow: 0 -10px 32px rgba(0, 0, 0, .34);
+  }
+
+  /* Quand le champ occupe la barre a lui seul, l'enveloppe s'efface : elle ne groupe
+     plus rien. Gardee, elle dessinait un second objet derriere le premier -- un fond,
+     un contour et une ombre a elle, avec un rayon de 999px la ou le champ en a 16, si
+     bien que ses coins depassaient et se lisaient comme un rectangle pose derriere la
+     capsule. La barre redevient ce qu'elle est en compact : un simple support de
+     position. L'ombre passe au champ, qui est desormais la seule surface visible --
+     portee vers le haut, du cote ou le contenu passe. */
+  .app-topbar:has(.app-topbar__field) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) {
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, .38);
   }
   /* Elle s'efface vers le bas, du cote ou elle vit. */
   .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(100% + 14px)); }
@@ -456,6 +471,8 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
      masquee (voir `useVisualViewport`), et la barre se cale juste au-dessus. Le dock,
      lui, reste derriere le clavier : on ne navigue pas en tapant. */
   :root[data-keyboard-open] .app-topbar {
+    /* Le dock s'efface au meme moment (voir `AppDock.vue`) : la barre n'a donc plus a
+       le degager, elle se pose directement sur le clavier. */
     bottom: calc(var(--keyboard-inset) + 8px);
   }
   /* Tout ce qui se deployait sous le champ se deploie desormais au-dessus : en bas
