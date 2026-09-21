@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.32.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- prevenir l'administrateur quand un demandeur retire sa demande ([e2beddc](https://github.com/remi-deher/watchdeck/commit/e2beddc5d3d8f016945fbfe144a83d81bd5c9691))
+
+### 🎨 Style
+
+- appliquer le formatage ruff ([eca0d9e](https://github.com/remi-deher/watchdeck/commit/eca0d9ee16b8304bf284f00d85f2667470d9ac4b))
 ## 1.31.3 — 2026-09-21
 
 
@@ -11,6 +21,10 @@
 
 - ne plus annuler le filtre qu'on vient d'appliquer ([e0af5a9](https://github.com/remi-deher/watchdeck/commit/e0af5a926adda1247f2e0eefa232366208a4410f))
 - ne plus abandonner une action quand deux surfaces s'enchainent ([991c06b](https://github.com/remi-deher/watchdeck/commit/991c06bb05fb8feadd34ce4b0221fca17a958bbf))
+
+### 🔧 Maintenance
+
+- v1.31.3 (#362) ([bc2f4d2](https://github.com/remi-deher/watchdeck/commit/bc2f4d2c2656a1ab7aa86007ec19fef90aa53114))
 ## 1.31.2 — 2026-09-21
 
 
