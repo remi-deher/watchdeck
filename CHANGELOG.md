@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.31.3 — 2026-09-21
+
+
+### test
+
+- laisser la feuille de navigation s'ouvrir sur un serveur froid ([f1a1b42](https://github.com/remi-deher/watchdeck/commit/f1a1b42a12d5a133729b2a535870a88becbf5605))
+
+### 🐛 Corrections
+
+- ne plus annuler le filtre qu'on vient d'appliquer ([e0af5a9](https://github.com/remi-deher/watchdeck/commit/e0af5a926adda1247f2e0eefa232366208a4410f))
+- ne plus abandonner une action quand deux surfaces s'enchainent ([991c06b](https://github.com/remi-deher/watchdeck/commit/991c06bb05fb8feadd34ce4b0221fca17a958bbf))
 ## 1.31.2 — 2026-09-21
 
 
@@ -13,6 +24,7 @@
 - bump sqlalchemy from 2.0.52 to 2.0.54 (#349) ([7338ad8](https://github.com/remi-deher/watchdeck/commit/7338ad8651d5d6aaca409983f822de1db67bca8d))
 - bump alembic from 1.19.2 to 1.20.0 (#352) ([2e0f55a](https://github.com/remi-deher/watchdeck/commit/2e0f55a8b67f1dfc824ee8a999a1b48a4d5d12b5))
 - bump uvicorn from 0.52.4 to 0.53.0 (#351) ([2513b78](https://github.com/remi-deher/watchdeck/commit/2513b7809a5b2699fd002768af7854725fccfa21))
+- v1.31.2 (#358) ([220f55b](https://github.com/remi-deher/watchdeck/commit/220f55b30d22c95fe99e964ae2efb766133c645e))
 ## 1.31.1 — 2026-09-21
 
 
