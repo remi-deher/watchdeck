@@ -1047,6 +1047,73 @@ async def withdraw_request(
     return {"status": "withdrawn", "plex_source": is_plex_source}
 
 
+async def _trace_self_cancellation(db: AsyncSession, req: MediaRequest, uid: str | None) -> None:
+    """Journalise -- et, si le demandeur l'a demande, notifie l'administrateur -- quand un
+    utilisateur annule lui-meme sa demande.
+
+    Ce chemin ne laissait aucune trace : la demande disparaissait de la liste sans mail,
+    sans entree au journal, sans rien. La creation, elle, est annoncee ; l'administrateur
+    voyait donc arriver les demandes mais jamais leur retrait, et ne pouvait pas savoir
+    qu'un media avait cesse d'etre attendu, ni pourquoi il n'etait plus suivi.
+
+    Le mail suit le reglage du demandeur (`notify_admin`), comme pour tous les autres
+    evenements. Sans lui, il reste la trace : elle porte le canal « none », qui dit qu'il
+    n'y avait rien a envoyer -- une ligne `success` sur le canal e-mail ferait croire a un
+    envoi, et la file de reprise irait la retenter.
+    """
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings:
+        return
+
+    demandeur = None
+    if uid:
+        demandeur = (
+            await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid))
+        ).scalars().first()
+    nom = (demandeur.display_name if demandeur else None) or req.plex_user or uid or "un utilisateur"
+
+    veut_prevenir_admin = bool(getattr(demandeur, "notify_admin", True)) if demandeur else False
+    destinataires: list[str] = []
+    if settings.email_enabled and veut_prevenir_admin:
+        destinataires = parse_email_list(settings.admin_notification_email or "")
+
+    if not destinataires:
+        db.add(
+            NotificationLog(
+                sent_at=now_utc_naive(),
+                event="cancelled",
+                channel="none",
+                recipient="",
+                success=True,
+                media_title=req.title,
+                media_type=req.media_type,
+                req_id=req.id,
+                is_admin=True,
+            )
+        )
+        return
+
+    motif = f"Demande annulee par {nom}."
+    for destinataire in destinataires:
+        log = NotificationLog(
+            sent_at=now_utc_naive(),
+            event="cancelled",
+            recipient=destinataire,
+            success=True,
+            media_title=req.title,
+            media_type=req.media_type,
+            req_id=req.id,
+            is_admin=True,
+        )
+        try:
+            await email_service.send_cancelled_notification(settings, req, destinataire, reason=motif)
+        except Exception as e:  # noqa: BLE001 - l'annulation aboutit meme si le mail echoue
+            logger.warning(f"Envoi du mail 'cancelled' echoue pour {destinataire} (req#{req.id}): {e}")
+            log.success = False
+            log.error_msg = str(e)
+        db.add(log)
+
+
 @router.post("/requests/{request_id}/cancel")
 async def cancel_own_request(request_id: int, request: Request, db: AsyncSession = Depends(get_db_async)):
     """Annulation par l'utilisateur de SA propre demande (profil portail).
@@ -1089,6 +1156,7 @@ async def cancel_own_request(request_id: int, request: Request, db: AsyncSession
 
     if not remaining:
         # Seul demandeur (ou admin annulant) : on annule la demande localement.
+        await _trace_self_cancellation(db, req, uid)
         await delete_request_episode_cache(db, req.id)
         await db.delete(req)
         await db.commit()
