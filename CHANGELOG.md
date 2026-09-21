@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.34.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- transporter l'affiche, composer les pages et rendre les feuilles tirables ([275fce3](https://github.com/remi-deher/watchdeck/commit/275fce3b22be10c189da2654a6edabd37666bfe7))
+
+### 🐛 Corrections
+
+- sortir la charpente de la cascade, et attendre le contenu de la feuille ([4b6716e](https://github.com/remi-deher/watchdeck/commit/4b6716ec49c6e4b949e7220d93c5904def1ac61a))
 ## 1.33.0 — 2026-09-21
 
 
@@ -10,6 +20,10 @@
 ### 🐛 Corrections
 
 - rejouer le motif d'annulation dans l'apercu du journal ([62d0b82](https://github.com/remi-deher/watchdeck/commit/62d0b828c5464ab7822c92027b348a4ea5ac01d4))
+
+### 🔧 Maintenance
+
+- v1.33.0 (#374) ([b717cd8](https://github.com/remi-deher/watchdeck/commit/b717cd8745bb822bdcba3699323ec6a5a0dcb88f))
 ## 1.32.1 — 2026-09-21
 
 
