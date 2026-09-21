@@ -365,7 +365,10 @@
             </div>
             <div class="discover-heading-meta">
               <span class="meta-pill" aria-live="polite">
-                <strong>{{ displayedItems.length }}</strong> affiché{{ displayedItems.length > 1 ? 's' : '' }}<template v-if="totalResults"> / {{ totalResults }}</template>
+                <!-- Le total du serveur ne vaut que pour la requete non filtree : le montrer a cote
+                     d'un tri fait ici donnait « 9 affiches / 10000 », ou le second chiffre ne
+                     decrivait plus rien de ce qu'on avait sous les yeux. -->
+                <strong>{{ displayedItems.length }}</strong> affiché{{ displayedItems.length > 1 ? 's' : '' }}<template v-if="totalResults && !availability"> / {{ totalResults }}</template>
               </span>
             </div>
           </div>
@@ -643,7 +646,14 @@ const sourceLabel = computed(() => sources.value.find(s => `${s.kind}:${s.id}` =
    suit donc la selection en cours, il n'y a pas d'etat « en attente » a prevoir. Hors du
    mode explorateur il ne veut rien dire -- l'accueil n'est pas une liste filtree -- et le
    pied retombe alors sur un libelle generique plutot que d'afficher zero. */
-const filteredCount = computed(() => (mode.value === 'explore' && displayedItems.value.length ? totalResults.value : null));
+/* Le decompte annonce ce qui sera reellement affiche. `availability` trie cote client,
+   parmi les seules fiches deja chargees : annoncer le total du serveur promettait
+   « 10 000 resultats » pour une page qui allait en montrer trois, et le chiffre ne
+   bougeait jamais d'un filtre a l'autre -- de quoi croire qu'aucun ne s'applique. */
+const filteredCount = computed(() => {
+  if (mode.value !== 'explore' || !displayedItems.value.length) return null;
+  return availability.value ? displayedItems.value.length : totalResults.value;
+});
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFiltersDrawer } = useFiltersDrawer(
   { mediaType, section, genre, availability, sourceKey, sortBy },
