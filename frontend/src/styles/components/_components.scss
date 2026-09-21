@@ -650,6 +650,15 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   }
 }
 
+/* Pendant le geste, la feuille suit le doigt sans transition : une interpolation entre
+   deux positions rendrait le suivi mou et en retard sur la main. C'est au relachement
+   que le mouvement redevient anime -- retour en place, ou sortie par le bas. */
+.modal-panel.is-dragging,
+.detail-drawer.is-dragging {
+  transition: none;
+  cursor: grabbing;
+}
+
 .detail-drawer::-webkit-scrollbar,
 .modal-panel::-webkit-scrollbar { width: 0; height: 0; }
 

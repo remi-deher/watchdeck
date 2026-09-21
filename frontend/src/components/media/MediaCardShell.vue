@@ -97,6 +97,30 @@ function interceptFirstTap(e: MouseEvent): void {
   animation-delay: calc(min(var(--card-index, 0), 16) * 24ms);
   will-change: transform, opacity;
 }
+
+/* Quand le navigateur sait lier une animation au defilement, la carte ne se revele plus
+ * a son montage mais a son entree dans l'ecran -- ce qui est le moment ou on la regarde.
+ * C'est un REMPLACEMENT, pas un ajout : deux animations sur le meme element se
+ * disputeraient la meme propriete, et la derniere declaree gagnerait au hasard de
+ * l'ordre des feuilles.
+ *
+ * L'animation est alors portee par la position de defilement, donc hors du fil
+ * d'execution : elle reste fluide meme quand la page travaille. Le decalage au montage
+ * n'a plus lieu d'etre, la position dans l'ecran suffit a echelonner.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .poster-card.animated {
+      animation-name: card-reveal;
+      animation-timeline: view();
+      /* Termine avant le milieu de l'ecran : une carte encore en train d'arriver quand
+         on la lit se fait remarquer, et c'est exactement ce qu'on ne veut pas. */
+      animation-range: entry 0% entry 62%;
+      animation-delay: 0s;
+      animation-fill-mode: both;
+    }
+  }
+}
 .poster-card:hover,
 .poster-card:focus-within {
   border-color: color-mix(in srgb, var(--accent) 65%, var(--border));

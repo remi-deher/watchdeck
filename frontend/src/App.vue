@@ -5,7 +5,14 @@
         <!-- Vue Router reutilise naturellement une vue quand plusieurs chemins pointent
              vers le meme composant. Ne pas la clef-er par chemin permet notamment a
              /discover de devenir /discover/explore sans detruire le champ de recherche
-             apres la premiere lettre. -->
+             apres la premiere lettre.
+             Pas de `<Transition>` ici, malgre le `page-shift` qui dort dans
+             `_motion.scss` : plusieurs vues -- la fiche media, entre autres -- ont une
+             racine multiple, et Vue ne sait pas animer un fragment. Il avertit, puis
+             laisse la vue sortante dans le document, qui se superpose a la nouvelle.
+             Le fondu entre pages passe donc par les transitions de vue du navigateur
+             (voir `useViewTransition`), qui n'ont pas cette contrainte, et l'arrivee du
+             contenu par la composition echelonnee de `page-motion`. -->
         <component :is="Component" />
       </RouterView>
     </RouteErrorBoundary>

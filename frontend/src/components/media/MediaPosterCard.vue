@@ -67,12 +67,18 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import { Download, Star } from '@lucide/vue';
 import { mediaTypeLabel } from '@/utils/labels';
 import MediaCardShell from './MediaCardShell.vue';
 import MediaPoster from './MediaPoster.vue';
 import MediaStatusBadge from './MediaStatusBadge.vue';
+import {
+  posterElementFrom,
+  prefersReducedMotion,
+  supportsViewTransitions,
+  withPosterTransition,
+} from '@/composables/useViewTransition';
 
 const props = withDefaults(
   defineProps<{
@@ -101,6 +107,8 @@ const emit = defineEmits<{
   (e: 'open', item: any): void;
 }>();
 
+const router = useRouter();
+
 const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.item.media_type));
 const title = computed(() => props.item.title || props.item.name || 'Sans titre');
 const rating = computed(() => {
@@ -122,15 +130,33 @@ const resolvedTo = computed(() => props.to || '/');
  * `MediaCardShell` l'intercepte en capture pour decouvrir titre et action. Ce
  * gestionnaire ne voit donc que les activations d'une carte deja ouverte.
  */
-function handleActivate(): void {
-  if (!props.to) emit('open', props.item);
+/* La navigation passe par une transition de vue quand le navigateur sait la faire :
+   l'affiche touchee est transportee jusqu'a l'en-tete de la fiche, au lieu de disparaitre
+   avec l'ecran. On intercepte donc le lien plutot que de le laisser naviguer seul -- sans
+   quoi la navigation a deja eu lieu quand la transition demarre, et il n'y a plus rien a
+   photographier. Sans support, `withPosterTransition` se contente de naviguer. */
+function handleActivate(event?: MouseEvent | KeyboardEvent): void {
+  if (!props.to) {
+    emit('open', props.item);
+    return;
+  }
+  if (!supportsViewTransitions() || prefersReducedMotion()) return;
+  // Les clics enrichis (nouvel onglet, telechargement) restent au navigateur.
+  const souris = event as MouseEvent | undefined;
+  if (souris && (souris.metaKey || souris.ctrlKey || souris.shiftKey || souris.altKey || souris.button > 0)) return;
+  event?.preventDefault();
+  void withPosterTransition(posterElementFrom(event?.target ?? null), async () => {
+    await router.push(props.to as any);
+  });
 }
 
 function handleKeyboardActivate(e: KeyboardEvent): void {
   if (!props.to) {
     e.preventDefault();
     emit('open', props.item);
+    return;
   }
+  handleActivate(e);
 }
 </script>
 

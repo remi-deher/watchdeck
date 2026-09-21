@@ -6,23 +6,18 @@
   --motion-ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Navigation between application views. The movement stays deliberately small so
- * content feels continuous without slowing down frequent navigation. */
-.page-shift-enter-active,
-.page-shift-leave-active {
-  transition:
-    opacity var(--motion-duration-base) var(--motion-ease-standard),
-    transform var(--motion-duration-base) var(--motion-ease-standard);
-}
+/* `page-shift` a ete retire : il visait une `<Transition>` autour du `<RouterView>`, et
+ * plusieurs vues ont une racine multiple que Vue ne sait pas animer -- il avertit, puis
+ * laisse la vue sortante superposee a la nouvelle. Le fondu entre pages est desormais
+ * rendu par les transitions de vue du navigateur, plus bas dans ce fichier.
+ */
 
-.page-shift-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-.page-shift-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
+/* Quand le navigateur transporte l'affiche d'un ecran a l'autre, c'est lui qui mene la
+   navigation : superposer la transition du routeur ferait deux mouvements concurrents
+   pour un seul geste, et l'affiche transportee se retrouverait a glisser dans une page
+   qui glisse elle-meme. */
+:root[data-view-transition] .page-motion > * {
+  animation: none;
 }
 
 /* PageShell provides a shared, capped stagger for headers, feedback and panels. */
@@ -63,16 +58,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-shift-enter-active,
-  .page-shift-leave-active {
-    transition: opacity var(--motion-duration-fast) ease;
-  }
-
-  .page-shift-enter-from,
-  .page-shift-leave-to {
-    transform: none;
-  }
-
   .page-motion > *,
   .motion-reveal,
   .motion-stagger > * {
@@ -194,3 +179,43 @@
   .modal-fade-enter-from .modal-panel,
   .modal-fade-leave-to .modal-panel { transform: none; }
 }
+
+
+/* ─────────────────────── Transition de vue partagee ───────────────────────
+ *
+ * L'affiche touchee dans une grille est transportee jusqu'a l'en-tete de la fiche. La
+ * duree est longue pour une animation -- c'est assume : elle porte un objet que l'oeil
+ * suit deja, et c'est precisement ce transport qui evite d'avoir a relire l'ecran.
+ *
+ * Le reste de la page se contente d'un fondu : deux mouvements concurrents pour une
+ * meme navigation se disputeraient l'attention.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(media-poster) {
+    animation-duration: 520ms;
+    animation-timing-function: var(--motion-ease-emphasized);
+  }
+  ::view-transition-old(media-poster),
+  ::view-transition-new(media-poster) {
+    /* L'affiche ne se fond pas : elle se deplace. Un fondu croise par-dessus le
+       deplacement donnerait une image fantome au milieu du trajet. */
+    animation: none;
+    mix-blend-mode: normal;
+    height: 100%;
+    object-fit: cover;
+  }
+  ::view-transition-old(root) {
+    animation: vt-fade-out 180ms var(--motion-ease-standard) both;
+  }
+  ::view-transition-new(root) {
+    animation: vt-fade-in 320ms var(--motion-ease-standard) both;
+  }
+}
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+
+
+/* La revelation pilotee par le defilement vit avec la carte elle-meme
+ * (`MediaCardShell`), qui portait deja une animation d'arrivee : deux animations sur le
+ * meme element se disputeraient la meme propriete. Voir `.poster-card.animated` la-bas.
+ */
