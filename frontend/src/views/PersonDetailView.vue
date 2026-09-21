@@ -5,7 +5,7 @@
     <UiFeedback v-else-if="error" type="error" :message="error" retry @retry="load" />
     <template v-else-if="person">
       <header class="person-hero">
-        <img v-if="person.profile_url" :src="proxyUrl(person.profile_url, { width: 500 }) ?? undefined" :srcset="srcSetFor(person.profile_url, { width: 500 })" :alt="`Portrait de ${person.name}`" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 110px, 280px">
+        <img v-if="person.profile_url" :src="proxyUrl(person.profile_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(person.profile_url, { width: 780, kind: 'profile' })" :alt="`Portrait de ${person.name}`" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 110px, 280px">
         <div v-else class="person-placeholder"><UserRound /></div>
         <div class="person-copy">
           <span class="eyebrow">{{ person.known_for_department || 'Interprétation' }}</span>

@@ -153,6 +153,14 @@
 }
 .modal-fade-enter-from,
 .modal-fade-leave-to { opacity: 0; }
+/* Une surface qui s'en va ne capte plus rien.
+   Vue retire l'element quand la transition se termine ; quand cette fin n'arrive pas --
+   onglet ralenti, transition interrompue par une seconde bascule -- le voile restait
+   dans le document a `opacity: 0` et continuait d'intercepter les appuis sur toute la
+   page. On la voyait fermee et elle ne repondait plus a rien. L'opacite ne suffit donc
+   pas : la sortie coupe aussi les evenements. */
+.modal-fade-leave-active,
+.modal-fade-leave-to { pointer-events: none; }
 .modal-fade-enter-from .modal-panel,
 .modal-fade-leave-to .modal-panel {
   opacity: 0;

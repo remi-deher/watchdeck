@@ -2,8 +2,8 @@
   <div class="poster-shell" :class="{ 'is-loaded': isLoaded }">
     <img
       v-if="posterUrl && !failed"
-      :src="proxyUrl(posterUrl, { width: 500 }) ?? undefined"
-      :srcset="srcSetFor(posterUrl, { width: 500 })"
+      :src="proxyUrl(posterUrl, { width: 780 }) ?? undefined"
+      :srcset="srcSetFor(posterUrl, { width: 780 })"
       :alt="alt"
       :sizes="sizes"
       loading="lazy"

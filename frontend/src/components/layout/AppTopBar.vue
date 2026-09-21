@@ -13,7 +13,7 @@
       v-if="pageSearch?.showSearch"
       ref="searchContainer"
       class="app-topbar__field"
-      @focusin="searchFocused = true"
+      @focusin="onSearchFocusIn"
       @focusout="onSearchFocusOut"
     >
       <!-- Deploye, le champ recouvre la barre entiere, boutons compris : sans ce
@@ -174,6 +174,25 @@ function applyRecentSearch(query: string): void {
   pageSearch.value.onSearch(new Event('input'));
   rememberPageSearch(pageSearch.value.scopeLabel, query);
   historyRevision.value += 1;
+}
+
+/**
+ * Entrer dans le champ referme le tiroir de filtres.
+ *
+ * Les deux vivent dans la meme barre et se disputent le bas de l'ecran : la saisie y
+ * fait descendre la barre au ras du clavier, et le panneau serait reste suspendu
+ * au-dessus du vide qu'elle laisse. Le champ reste atteignable pendant que le panneau
+ * est ouvert -- le voile s'arrete sur la barre -- et y toucher bascule simplement d'un
+ * outil a l'autre.
+ *
+ * La cible est bien la zone de saisie : le bouton « Filtres » vit dans la meme boite et
+ * prend le focus a l'appui, refermer sur son propre focus l'aurait rendu inoperant.
+ */
+function onSearchFocusIn(event: FocusEvent): void {
+  searchFocused.value = true;
+  const target = event.target as HTMLElement | null;
+  if (!target?.classList?.contains('ui-search-field__input')) return;
+  if (pageSearch.value?.filtersOpen) pageSearch.value.onToggleFilters();
 }
 
 function onSearchFocusOut(): void {
@@ -464,8 +483,8 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
      centree. Ses 46px dans 54 laissaient quatre pixels en haut, qui rouvraient entre le
      panneau et elle l'interstice qu'on venait de fermer. Hors de ce cas elle garde sa
      respiration : rien ne justifie de l'epaissir quand rien ne se pose dessus. */
-  :root:has(.filter-sheet) .app-topbar:has(.app-topbar__field) { align-items: stretch; }
-  :root:has(.filter-sheet) .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) { height: auto; }
+  body[data-filter-sheet] .app-topbar:has(.app-topbar__field) { align-items: stretch; }
+  body[data-filter-sheet] .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) { height: auto; }
   .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) {
     box-shadow: 0 -8px 28px rgba(0, 0, 0, .38);
   }

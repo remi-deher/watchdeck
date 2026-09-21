@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { proxyUrl } from './mediaImage';
+import { proxyUrl, srcSetFor } from './mediaImage';
 
 const isProxied = (url) => proxyUrl(url).startsWith('/api/image-proxy');
 
@@ -83,5 +83,22 @@ describe('proxyUrl', () => {
     // Proxifier ce qui marche deja ferait transiter tout le catalogue par le serveur.
     expect(isProxied('https://image.tmdb.org/t/p/w342/abc.jpg')).toBe(false);
     expect(isProxied('https://artworks.thetvdb.com/banners/v4/series/1/posters/x.jpg')).toBe(false);
+  });
+});
+
+describe('srcSetFor', () => {
+  it('pousse les affiches jusqu’a la source originale', () => {
+    const set = srcSetFor('https://image.tmdb.org/t/p/w342/abc.jpg');
+    expect(set).toContain('/t/p/w780/abc.jpg 780w');
+    expect(set).toContain('/t/p/original/abc.jpg 1400w');
+  });
+
+  it('s’en tient aux barreaux existants pour un portrait', () => {
+    // TMDB ne sert les profils qu'en w45, w185 et original : demander w342 renvoie 400,
+    // et le navigateur se retrouvait avec un srcset dont la moitie des entrees echouaient.
+    const set = srcSetFor('https://image.tmdb.org/t/p/w185/face.jpg', { kind: 'profile' });
+    expect(set).toBe(
+      'https://image.tmdb.org/t/p/w45/face.jpg 45w, https://image.tmdb.org/t/p/w185/face.jpg 185w, https://image.tmdb.org/t/p/original/face.jpg 600w',
+    );
   });
 });

@@ -5,7 +5,7 @@
     <div class="mdh-content">
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
-          <img v-if="detail.poster_url" :src="proxyUrl(detail.poster_url, { width: 500 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 500 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
+          <img v-if="detail.poster_url" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
             <Music2 v-if="isMusic" />
             <Film v-else />

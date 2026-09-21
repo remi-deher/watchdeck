@@ -972,7 +972,11 @@ function endpoint(targetPage: number) {
   return `/api/discover/discover?${type}&${pagination}${genre.value ? `&genre=${genre.value}` : ''}`;
 }
 async function load({ append = false } = {}) {
-  syncExplorerUrl();
+  /* Charger la page suivante ne change rien a l'URL : la resynchroniser declenchait un
+     `router.replace`, et le `scrollBehavior` du routeur ramenait la grille en haut a
+     chaque palier de defilement infini. On ne l'appelle donc que pour un vrai
+     changement de contexte (recherche, filtre, section). */
+  if (!append) syncExplorerUrl();
   const targetPage = append ? page.value + 1 : 1;
   const { signal, isCurrent } = append ? request.extend() : request.begin();
   if (append) loadingMore.value = true;

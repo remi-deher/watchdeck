@@ -11,7 +11,7 @@
       </div>
     </aside>
     <!-- Mobile : bottom-sheet modal -->
-    <ModalShell v-else :open="open" title="Filtres" panel-class="filter-sheet" @close="$emit('close')">
+    <ModalShell v-else :open="open" title="Filtres" panel-class="filter-sheet" :modal="false" @close="$emit('close')">
       <div class="filter-modal-body">
         <slot />
       </div>
@@ -30,12 +30,12 @@
   <!-- bare mode: no header/box, just toggle behavior — slot provides its own styling -->
   <template v-else>
     <div v-if="!isMobile" v-show="open" class="filter-sidebar-bare"><slot /></div>
-    <ModalShell v-else :open="open" title="Filtres" panel-class="filter-sheet" @close="$emit('close')"><slot /></ModalShell>
+    <ModalShell v-else :open="open" title="Filtres" panel-class="filter-sheet" :modal="false" @close="$emit('close')"><slot /></ModalShell>
   </template>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { SlidersHorizontal } from '@lucide/vue';
 import ModalShell from './ModalShell.vue';
 import UiButton from './UiButton.vue';
@@ -69,6 +69,16 @@ const applyLabel = computed(() => {
   return count === 1 ? 'Voir 1 résultat' : `Voir ${count.toLocaleString('fr-FR')} résultats`;
 });
 
+/* L'habillage de la barre (coins droits, capsule pleine hauteur) suit cet attribut et
+   non la presence de la feuille dans le document : celle-ci peut y trainer le temps
+   d'une transition qui ne se termine pas, et la barre restait alors habillee pour un
+   panneau qui n'etait plus la. */
+const SHEET_FLAG = 'data-filter-sheet';
+function flagSheet(on: boolean): void {
+  if (typeof document === 'undefined') return;
+  document.body.toggleAttribute(SHEET_FLAG, on);
+}
+
 const isMobile = ref(false);
 let mq: MediaQueryList | undefined;
 
@@ -79,7 +89,16 @@ onMounted(() => {
     mq.addEventListener?.('change', onMqChange);
   }
 });
-onUnmounted(() => mq?.removeEventListener?.('change', onMqChange));
+watch(
+  () => props.open && isMobile.value,
+  (posee) => flagSheet(posee),
+  { immediate: true }
+);
+
+onUnmounted(() => {
+  mq?.removeEventListener?.('change', onMqChange);
+  flagSheet(false);
+});
 
 function onMqChange(e: MediaQueryListEvent): void {
   isMobile.value = e.matches;
