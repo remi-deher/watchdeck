@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue';
-import { useMediaQuery } from './useMediaQuery';
+import { useMediaQuery } from '@vueuse/core';
 import { SHELL_EXPANDED_QUERY, SHELL_MEDIUM_QUERY, type ShellMode } from '@/styles/breakpoints';
 
 /**

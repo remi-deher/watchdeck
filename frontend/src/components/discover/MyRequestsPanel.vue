@@ -125,7 +125,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
-import { useDebounced } from '@/composables/useDebounced';
+import { useDebounceFn } from '@vueuse/core';
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useRealtimeList } from '@/composables/useRealtimeList';
 import { providePageSearch, type PageSearch } from '@/composables/usePageSearch';
@@ -365,7 +365,7 @@ async function runAction(row: any, action: string, body?: string): Promise<void>
   }
 }
 
-const scheduleLoad = useDebounced(load, 250);
+const scheduleLoad = useDebounceFn(load, 250);
 function onSearch(): void {
   request.abort();
   scheduleLoad();

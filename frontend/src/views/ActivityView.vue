@@ -219,7 +219,7 @@
 import { playbackMethodLabel } from '@/utils/labels';
 import { formatBandwidth, formatDateTimeShort, formatDuration, signedPercent } from '@/utils/format';
 import { computed,onMounted,onUnmounted,ref,watch } from 'vue';
-import { useDebounced } from '@/composables/useDebounced';
+import { useDebounceFn } from '@vueuse/core';
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { usePolling } from '@/composables/usePolling';
 import { useRoute,useRouter } from 'vue-router';
@@ -405,7 +405,7 @@ async function loadHistory(more=false): Promise<void> {
     if(isCurrent())historyLoadingMore.value=false;
   }
 }
-const scheduleHistory=useDebounced(()=>loadHistory(),250);
+const scheduleHistory=useDebounceFn(()=>loadHistory(),250);
 
 /* Les trois tris passent par le serveur. Reordonner les lignes deja chargees ne triait
    que la premiere page : « Anciennes » remettait dans l'autre sens les cent lectures les
@@ -556,7 +556,7 @@ useRealtime(['activity.updated'],()=>currentView.value==='live'?loadLive():Promi
 usePolling(()=>clock.value=Date.now(),1000,{whenVisible:false});
 // Une frappe ne doit pas declencher une requete par lettre : on n'appelle le serveur que
 // lorsque le nom retenu change vraiment, et apres une pause de saisie.
-const applyScope=useDebounced(()=>{
+const applyScope=useDebounceFn(()=>{
   const next=matchedUser.value||'';
   if(next===scopedUser.value)return;
   scopedUser.value=next;

@@ -372,7 +372,7 @@ import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useDownloadSources } from '@/composables/useDownloadSources';
-import { useMediaQuery } from '@/composables/useMediaQuery';
+import { useMediaQuery } from '@vueuse/core';
 import { proxyUrl } from '@/utils/mediaImage';
 import {
   canAct,

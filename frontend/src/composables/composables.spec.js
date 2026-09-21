@@ -1,7 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useDebounced } from './useDebounced';
 import { useLatestRequest } from './useLatestRequest';
 import { usePolling } from './usePolling';
 
@@ -77,7 +76,6 @@ describe('useLatestRequest', () => {
     expect(result.isAbort(undefined)).toBe(false);
   });
 });
-
 describe('usePolling', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -131,54 +129,3 @@ describe('usePolling', () => {
   });
 });
 
-describe('useDebounced', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  it('ne garde que le dernier appel de la salve', () => {
-    const run = vi.fn();
-    const { result, wrapper } = withSetup(() => useDebounced(run, 300));
-
-    result('a');
-    result('ab');
-    result('abc');
-    vi.advanceTimersByTime(299);
-    expect(run).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(1);
-    expect(run).toHaveBeenCalledExactlyOnceWith('abc');
-    wrapper.unmount();
-  });
-
-  it('cancel() abandonne l’appel en attente', () => {
-    const run = vi.fn();
-    const { result, wrapper } = withSetup(() => useDebounced(run, 300));
-    result();
-    result.cancel();
-    vi.advanceTimersByTime(1000);
-    expect(run).not.toHaveBeenCalled();
-    wrapper.unmount();
-  });
-
-  it('flush() exécute tout de suite, une seule fois', () => {
-    const run = vi.fn();
-    const { result, wrapper } = withSetup(() => useDebounced(run, 300));
-    result('x');
-    result.flush('y');
-    expect(run).toHaveBeenCalledExactlyOnceWith('y');
-    vi.advanceTimersByTime(1000);
-    expect(run).toHaveBeenCalledTimes(1);
-    wrapper.unmount();
-  });
-
-  // Sans annulation au démontage, quitter la page pendant le délai déclenchait un appel
-  // sur un composant déjà démonté.
-  it('annule au démontage', () => {
-    const run = vi.fn();
-    const { result, wrapper } = withSetup(() => useDebounced(run, 300));
-    result();
-    wrapper.unmount();
-    vi.advanceTimersByTime(1000);
-    expect(run).not.toHaveBeenCalled();
-  });
-});

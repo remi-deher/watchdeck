@@ -125,7 +125,7 @@ import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import MediaRowsTable from '@/components/library/MediaRowsTable.vue';
-import { useDebounced } from '@/composables/useDebounced';
+import { useDebounceFn } from '@vueuse/core';
 import { useFetchState } from '@/composables/useFetchState';
 import { useRealtime } from '@/events';
 import {
@@ -281,7 +281,7 @@ function date(value: string): string {
 }
 
 onMounted(() => load());
-const reloadForFilters = useDebounced(() => load(), 250);
+const reloadForFilters = useDebounceFn(() => load(), 250);
 watch(filters, reloadForFilters, { deep: true });
 watch(activeTab, value => {
   filtersOpen.value = false;

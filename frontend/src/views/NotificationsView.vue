@@ -101,7 +101,7 @@ import NotificationPreviewModal from '@/components/notifications/NotificationPre
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useAsyncAction } from '@/composables/useAsyncAction';
-import { useDebounced } from '@/composables/useDebounced';
+import { useDebounceFn } from '@vueuse/core';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { useFetchState } from '@/composables/useFetchState';
 import { useFeedback } from '@/composables/useFeedback';
@@ -339,7 +339,7 @@ watch([state, selectedTypes, selectedUsers], () => {
   load();
 }, { deep: true });
 
-const debouncedSearch = useDebounced(() => {
+const debouncedSearch = useDebounceFn(() => {
   offset.value = 0;
   load();
 }, 300);

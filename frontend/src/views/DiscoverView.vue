@@ -437,7 +437,7 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import RequestOptionsModal from '@/components/media/RequestOptionsModal.vue';
 import MyRequestsPanel from '@/components/discover/MyRequestsPanel.vue';
-import { useDebounced } from '@/composables/useDebounced';
+import { useDebounceFn } from '@vueuse/core';
 import { mediaRequestKey, useDirectMediaRequest } from '@/composables/useDirectMediaRequest';
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
@@ -1019,7 +1019,7 @@ async function load({ append = false } = {}) {
 }
 function reload() { return load(); }
 function loadMore() { if (!loadingMore.value && hasMore.value) load({ append: true }); }
-const debouncedReload = useDebounced(reload, 300);
+const debouncedReload = useDebounceFn(reload, 300);
 function scheduleSearch() {
   request.abort();
   syncExplorerUrl();

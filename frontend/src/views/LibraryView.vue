@@ -168,7 +168,7 @@ import { readCache, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
 import { useAsyncAction } from '@/composables/useAsyncAction';
-import { useDebounced } from '@/composables/useDebounced';
+import { useDebounceFn } from '@vueuse/core';
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useLibraryHubs } from '@/composables/useLibraryHubs';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
@@ -539,7 +539,7 @@ watch(
 
 // La frappe au clavier abandonne la requete en cours avant d'armer le delai : inutile de
 // laisser courir une recherche que l'utilisateur est deja en train de reformuler.
-const scheduleLoad = useDebounced(load, 250);
+const scheduleLoad = useDebounceFn(load, 250);
 function onSearch(): void {
   request.abort();
   scheduleLoad();
