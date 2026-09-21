@@ -560,6 +560,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   padding: var(--drawer-pad);
   transform: translateX(-50%);
   overscroll-behavior: contain;
+  touch-action: pan-y;
   /* La barre de defilement est masquee, pas le defilement : sur une feuille pleine
      hauteur elle longeait tout l'ecran pour quelques centaines de pixels de contenu.
      L'en-tete collant et le bord du contenu suffisent a dire qu'il reste a lire. */

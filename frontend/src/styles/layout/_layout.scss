@@ -101,6 +101,11 @@
   padding-top: calc(var(--safe-top) + var(--app-shell-offset-top));
   padding-right: var(--safe-right);
   padding-left: var(--safe-left);
+  /* Glisser sur le voile ne doit rien faire defiler. Sans cela le geste cherchait le
+     premier ancetre defilant -- le document -- et emportait la page derriere la
+     feuille. Le panneau, lui, reclame explicitement le defilement vertical. */
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
 /* La feuille ancrée en bas du mode compact vit desormais dans `components/_components.scss`,
