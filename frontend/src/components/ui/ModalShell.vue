@@ -12,7 +12,7 @@
         class="modal-panel"
         :class="panelClass"
         role="dialog"
-        aria-modal="true"
+        :aria-modal="modal ? 'true' : 'false'"
         :aria-label="ariaLabel || title"
       >
         <div class="panel-head">
@@ -52,6 +52,14 @@ const props = withDefaults(
     busy?: boolean;
     /** Sélecteur CSS de l'élément à focaliser à l'ouverture (défaut : premier focusable). */
     initialFocus?: string;
+    /**
+     * Surface modale : l'arrière-plan devient inerte et la tabulation y est piégée.
+     *
+     * `false` pour une surface ancrée à son déclencheur, qui doit rester atteignable
+     * pour la refermer — le tiroir de filtres, posé sur la barre de recherche qui
+     * continue de le commander.
+     */
+    modal?: boolean;
   }>(),
   {
     open: true,
@@ -61,6 +69,7 @@ const props = withDefaults(
     error: '',
     busy: false,
     initialFocus: '',
+    modal: true,
   }
 );
 
@@ -74,6 +83,6 @@ function requestClose(): void {
 
 const panelRef = ref<HTMLElement | null>(null);
 const openRef = toRef(props, 'open');
-useBodyScrollLock(openRef);
-useModalA11y(panelRef, openRef, requestClose, { initialFocus: props.initialFocus });
+useBodyScrollLock(openRef, { inertBackground: props.modal });
+useModalA11y(panelRef, openRef, requestClose, { initialFocus: props.initialFocus, trapFocus: props.modal });
 </script>

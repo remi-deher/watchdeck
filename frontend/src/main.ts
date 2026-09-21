@@ -84,8 +84,14 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory('/'),
   routes,
-  scrollBehavior(_to, _from, savedPosition) {
-    return savedPosition || { top: 0 };
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition;
+    /* Rester sur place quand seule la requete change : ces navigations-la sont des
+       `router.replace` emis par la page elle-meme pour refleter ses filtres dans l'URL,
+       pas un changement de page. Les renvoyer en haut arrachait l'utilisateur a
+       l'endroit qu'il etait en train de lire. */
+    if (to.path === from.path) return false;
+    return { top: 0 };
   },
 });
 

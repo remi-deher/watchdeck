@@ -28,6 +28,8 @@ export interface ProxyUrlOptions {
   width?: number;
   quality?: number;
   forceProxy?: boolean;
+  /** Echelle TMDB a utiliser : les portraits n'ont pas les memes barreaux que les affiches. */
+  kind?: 'poster' | 'profile';
 }
 
 export function proxyUrl(url: null, options?: ProxyUrlOptions): null;
@@ -38,8 +40,11 @@ export function proxyUrl(url?: string | null, options: ProxyUrlOptions = {}): st
   if (url === null) return null;
   if (url === undefined) return undefined;
   if (!url) return url;
-  const width = options.width || 500;
-  const quality = options.quality || 82;
+  const width = options.width || 780;
+  /* Qualite d'encodage : 82 laissait des aplats visibles sur les affiches sombres une
+     fois l'image agrandie par la densite de l'ecran. 92 coute quelques dizaines de ko
+     par affiche et fait disparaitre le banding. */
+  const quality = options.quality || 92;
 
   if (url.includes('/api/image-proxy')) {
     if (options.width) {
@@ -77,6 +82,18 @@ export function proxyUrl(url?: string | null, options: ProxyUrlOptions = {}): st
 /* Echelle officielle des affiches TMDB. Toute autre valeur renvoie une 404 : on ne peut
    pas demander « w400 », il faut se caler sur un barreau existant. */
 const TMDB_POSTER_WIDTHS = [92, 154, 185, 342, 500, 780];
+/* Le barreau au-dessus de w780 chez TMDB s'appelle « original » (~2000 px de large pour
+   une affiche). On le declare a 1400w : le chiffre sert au navigateur a choisir, et le
+   sous-declarer garantit qu'un ecran dense prend bien la source pleine definition. */
+const TMDB_ORIGINAL_DESCRIPTOR = 1400;
+/* Le proxy redimensionne a la volee : il n'a pas de barreaux imposes, on lui en donne
+   deux de plus que TMDB pour couvrir les ecrans a forte densite. */
+const PROXY_WIDTHS = [...TMDB_POSTER_WIDTHS, 1000, 1400];
+/* TMDB ne sert les portraits qu'en w45, w185 et original : toute autre largeur repond
+   400. Le `srcset` des castings declinait pourtant les barreaux d'affiche, donc chaque
+   entree au-dessus de w185 etait morte. */
+const TMDB_PROFILE_WIDTHS = [45, 185];
+const TMDB_PROFILE_ORIGINAL_DESCRIPTOR = 600;
 const TMDB_PATH = /\/t\/p\/(w\d+|original)\//;
 
 /**
@@ -100,7 +117,7 @@ export function srcSetFor(url?: string | null, options: ProxyUrlOptions = {}): s
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
       const parsed = new URL(base, origin);
-      return TMDB_POSTER_WIDTHS.map((width) => {
+      return PROXY_WIDTHS.map((width) => {
         const variant = new URL(parsed.toString());
         variant.searchParams.set('width', String(width));
         return `${variant.pathname}${variant.search} ${width}w`;
@@ -111,5 +128,10 @@ export function srcSetFor(url?: string | null, options: ProxyUrlOptions = {}): s
   }
 
   if (!TMDB_PATH.test(base)) return undefined;
-  return TMDB_POSTER_WIDTHS.map((width) => `${base.replace(TMDB_PATH, `/t/p/w${width}/`)} ${width}w`).join(', ');
+  const profile = options.kind === 'profile';
+  const ladder = profile ? TMDB_PROFILE_WIDTHS : TMDB_POSTER_WIDTHS;
+  const originalDescriptor = profile ? TMDB_PROFILE_ORIGINAL_DESCRIPTOR : TMDB_ORIGINAL_DESCRIPTOR;
+  const rungs = ladder.map((width) => `${base.replace(TMDB_PATH, `/t/p/w${width}/`)} ${width}w`);
+  rungs.push(`${base.replace(TMDB_PATH, '/t/p/original/')} ${originalDescriptor}w`);
+  return rungs.join(', ');
 }
