@@ -3,10 +3,14 @@
     <!-- L'icone dit la nature du geste avant meme la premiere frappe : une loupe
          interroge un corpus, un entonnoir retranche d'une liste deja affichee. -->
     <component :is="kind === 'filter' ? Funnel : Search" aria-hidden="true" class="ui-search-field__icon" />
+    <!-- `enterkeyhint` : le clavier logiciel annonce « Rechercher » plutot qu'un retour
+         a la ligne. Il n'y a pas de ligne suivante ici, la touche valide la recherche.
+         Pose avant `$attrs` pour qu'un appelant puisse encore l'infirmer. -->
     <input
       class="ui-search-field__input"
       :value="query"
       type="search"
+      enterkeyhint="search"
       :placeholder="placeholder"
       :aria-label="ariaLabel || placeholder"
       v-bind="$attrs"

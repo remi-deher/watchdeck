@@ -30,7 +30,7 @@ export function useModalA11y(
   panelRef: Ref<HTMLElement | null>,
   isOpenRef: Ref<boolean> | null | undefined,
   onClose: () => void,
-  options: { initialFocus?: string } = {}
+  options: { initialFocus?: string; trapFocus?: boolean } = {}
 ): void {
   let previouslyFocused: HTMLElement | null = null;
   let dismissedByBackButton = false;
@@ -42,6 +42,11 @@ export function useModalA11y(
       onClose();
       return;
     }
+    // Le piege a focus n'a de sens que pour une surface modale. Une surface ancree a son
+    // declencheur -- le tiroir de filtres, qui laisse la barre vivante derriere lui --
+    // doit au contraire laisser la tabulation en ressortir, sinon on ne peut plus
+    // atteindre le bouton qui la referme.
+    if (options.trapFocus === false) return;
     if (e.key !== 'Tab' || !panelRef.value) return;
     const focusable = focusableChildren(panelRef.value);
     if (!focusable.length) return;
@@ -93,7 +98,16 @@ export function useModalA11y(
       history.back();
     }
     historyToken = null;
-    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+    /* Rendre le focus a son point de depart, sauf si l'utilisateur l'a deja pose
+       ailleurs lui-meme. Toucher le champ de recherche referme le tiroir de filtres :
+       lui reprendre le focus pour le rendre au bouton « Filtres » annulait le geste --
+       le clavier ne s'ouvrait pas, et l'on se retrouvait sur le bouton qu'on venait de
+       quitter. Un focus reste dans le panneau, ou retombe sur <body> faute de mieux,
+       n'exprime aucune intention : celui-la, on le ramene. */
+    const actif = typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+    const deplaceParLUtilisateur =
+      Boolean(actif) && actif !== document.body && !panelRef.value?.contains(actif as Node);
+    if (!deplaceParLUtilisateur && previouslyFocused && typeof previouslyFocused.focus === 'function') {
       previouslyFocused.focus({ preventScroll: true });
     }
     previouslyFocused = null;
