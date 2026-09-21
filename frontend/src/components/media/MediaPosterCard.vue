@@ -74,7 +74,7 @@ import MediaCardShell from './MediaCardShell.vue';
 import MediaPoster from './MediaPoster.vue';
 import MediaStatusBadge from './MediaStatusBadge.vue';
 import { memoriserOrigine } from '@/composables/usePosterMorph';
-import { etatDeSurface } from '@/composables/useMediaOverlay';
+import { destinationDeFiche, etatDeSurface } from '@/composables/useMediaOverlay';
 
 const props = withDefaults(
   defineProps<{
@@ -146,8 +146,7 @@ function handleActivate(event?: MouseEvent | KeyboardEvent): void {
   if (souris && (souris.metaKey || souris.ctrlKey || souris.shiftKey || souris.altKey || souris.button > 0)) return;
   event?.preventDefault();
 
-  const cible = { ...(typeof props.to === 'string' ? { path: props.to } : (props.to as object)) } as any;
-  cible.state = etatDeSurface(route.fullPath);
+  const cible = { ...destinationDeFiche(router, props.to as any), state: etatDeSurface(route.fullPath) } as any;
 
   /* On releve la position de la vignette avant de naviguer : c'est de la qu'elle partira
      quand l'affiche de la fiche apparaitra, une fois les donnees chargees. */

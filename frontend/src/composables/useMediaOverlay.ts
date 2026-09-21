@@ -41,13 +41,29 @@ export function etatDeSurface(depuis: string): Record<string, unknown> {
  * grille -- sa position de defilement comprise.
  */
 export function ouvrirFiche(
-  router: { push: (to: any) => unknown },
+  router: { push: (to: any) => unknown; resolve: (to: any) => { path: string; query: any; hash: string } },
   cible: string | Record<string, unknown>,
   depuis: string
 ): void {
-  const destination = typeof cible === 'string' ? { path: cible } : { ...cible };
-  (destination as Record<string, unknown>).state = etatDeSurface(depuis);
-  void router.push(destination);
+  void router.push({ ...destinationDeFiche(router, cible), state: etatDeSurface(depuis) });
+}
+
+/**
+ * Decompose une adresse de fiche en ses trois parties.
+ *
+ * Une adresse de media porte souvent une chaine de requete -- `?media_type=show` dit au
+ * serveur s'il s'agit d'un film ou d'une serie. Deposee telle quelle dans `path`, elle
+ * est perdue : le routeur prend la valeur pour un chemin litteral. Le serveur recevait
+ * alors un type vide et refusait la requete, et la fiche affichait « n'a pas pu etre
+ * chargee ». On passe donc par le routeur lui-meme, qui sait separer chemin, requete et
+ * ancre.
+ */
+export function destinationDeFiche(
+  router: { resolve: (to: any) => { path: string; query: any; hash: string } },
+  cible: string | Record<string, unknown>
+): { path: string; query: unknown; hash: string } {
+  const resolue = router.resolve(cible as any);
+  return { path: resolue.path, query: resolue.query, hash: resolue.hash };
 }
 
 export function useMediaOverlay(): MediaOverlayState {
