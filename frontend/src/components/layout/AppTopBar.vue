@@ -459,21 +459,33 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
     background: transparent;
     box-shadow: none;
   }
+
+  /* Panneau de filtres pose dessus : la capsule remplit alors la barre au lieu d'y etre
+     centree. Ses 46px dans 54 laissaient quatre pixels en haut, qui rouvraient entre le
+     panneau et elle l'interstice qu'on venait de fermer. Hors de ce cas elle garde sa
+     respiration : rien ne justifie de l'epaissir quand rien ne se pose dessus. */
+  :root:has(.filter-sheet) .app-topbar:has(.app-topbar__field) { align-items: stretch; }
+  :root:has(.filter-sheet) .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) { height: auto; }
   .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) {
     box-shadow: 0 -8px 28px rgba(0, 0, 0, .38);
   }
   /* Elle s'efface vers le bas, du cote ou elle vit. */
   .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(100% + 14px)); }
 
-  /* Clavier ouvert : une boite `fixed` se positionne sur le viewport de mise en page,
-     que le clavier ne retrecit pas -- la barre serait donc restee dessous, invisible au
-     moment precis ou l'on s'en sert. `--keyboard-inset` donne la hauteur reellement
-     masquee (voir `useVisualViewport`), et la barre se cale juste au-dessus. Le dock,
-     lui, reste derriere le clavier : on ne navigue pas en tapant. */
-  :root[data-keyboard-open] .app-topbar {
-    /* Le dock s'efface au meme moment (voir `AppDock.vue`) : la barre n'a donc plus a
-       le degager, elle se pose directement sur le clavier. */
-    bottom: calc(var(--keyboard-inset) + 8px);
+  /* Pendant la saisie, la barre descend au ras du bas de l'ecran.
+     Le dock s'efface au meme moment (voir `AppDock.vue`) : elle n'a donc plus a le
+     degager, et le creux de 64px qu'elle lui reservait se serait vu entre elle et le
+     clavier. `--keyboard-inset` ne vaut quelque chose qu'en onglet Safari, ou le
+     clavier recouvre la page : la barre s'y pose dessus. Dans une PWA installee il
+     vaut zero -- iOS a deja retreci le viewport, et le bas de l'ecran EST le haut du
+     clavier. La meme regle couvre donc les deux. */
+  /* `:has(input:focus)` et non `:focus-within` : la barre contient aussi le bouton
+     « Filtres », et le `mousedown` qui le focalise declenchait le deplacement AVANT le
+     `mouseup`. Celui-ci retombait alors hors du bouton, aucun `click` n'etait emis, et
+     le tiroir de filtres ne s'ouvrait plus du tout. Seule la zone de saisie leve un
+     clavier : elle seule doit faire bouger la barre. */
+  .app-topbar:has(.ui-search-field__input:focus) {
+    bottom: calc(var(--keyboard-inset) + max(8px, var(--safe-bottom)));
   }
   /* Tout ce qui se deployait sous le champ se deploie desormais au-dessus : en bas
      d'ecran il n'y a plus de place dessous, et le clavier s'y installe. */

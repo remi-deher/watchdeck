@@ -607,12 +607,44 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
    pas, la feuille n'a aucune raison de laisser un vide sous elle. */
 @include bp.until(shell-medium) {
   body:has(.app-topbar) {
+    /* Pose exactement sur le bord haut de la barre, sans interstice : la valeur est
+       celle de la barre elle-meme (`bottom` + sa hauteur). Six pixels d'ecart y
+       laissaient voir la page entre les deux, et le panneau et la barre se lisaient
+       comme deux objets separes au lieu d'une seule pile. */
     .drawer-backdrop:has(> .filter-sheet),
     .modal-panel.filter-sheet {
-      bottom: calc(var(--app-shell-offset-bottom) + var(--app-topbar-h) + 14px);
+      bottom: calc(var(--app-shell-offset-bottom) + 8px + var(--app-topbar-h));
     }
+    /* Meme largeur que la barre, aux memes gouttieres : pleine largeur, le panneau
+       depassait de dix pixels de chaque cote et les deux ne pouvaient plus se lire comme
+       une seule pile -- c'etait la barre qui semblait retrecie. */
     .modal-panel.filter-sheet {
+      left: max(10px, var(--safe-left));
+      right: max(10px, var(--safe-right));
+      width: auto;
+      max-width: none;
       max-height: calc(92dvh - var(--app-shell-offset-bottom) - var(--app-topbar-h));
+      /* Le liseré de la barre remonte autour du panneau. Sans lui, la pile qu'on vient
+         de souder changeait de couleur de contour en son milieu : accent en bas, blanc
+         à 8 % au-dessus, et la rupture se lisait exactement là où l'on voulait une
+         continuité. Un seul objet, un seul trait. */
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+    /* La capsule perd ses coins hauts tant que la feuille est posee dessus : arrondis,
+       ils creusaient deux encoches sombres sous le bord bas du panneau. Son ombre
+       portee vers le haut s'efface aussi -- elle aurait assombri le pied du panneau
+       qu'elle est censee detacher du contenu. C'est la capsule qu'on vise, pas la barre :
+       en compact cette derniere n'a plus ni fond ni contour, elle ne fait que porter. */
+    &:has(.filter-sheet) .app-topbar .ui-search-field {
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      box-shadow: none;
+    }
+    /* Le bouton « Filtres » suit la capsule : son coin haut-droit, seul arrondi restant,
+       creusait une encoche sous le bord du panneau. Le haut de la barre devient donc
+       droit sur toute sa largeur, et ce sont ses arrondis du BAS qui referment la pile --
+       la forme dit alors d'elle-meme ou le panneau s'arrete. */
+    &:has(.filter-sheet) .app-topbar .ui-search-field__filter {
+      border-radius: 0 0 calc(var(--radius-lg) - 1px) 0;
     }
   }
 }

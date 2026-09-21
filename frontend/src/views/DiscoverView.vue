@@ -12,7 +12,7 @@
       @toggle-filters="toggleFilters">
     
     <div class="psh-layout">
-      <FilterSidebar v-if="mode !== 'requests'" :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
+      <FilterSidebar v-if="mode !== 'requests'" :open="filtersOpen" :active-count="activeFilterCount" :match-count="filteredCount" @close="closeFilters" @reset="resetFilters">
         <FilterGroup v-if="!isSourceMode" label="Section">
           <button
             v-for="entry in sections"
@@ -46,7 +46,10 @@
           <button class="filter-badge" :class="{ active: availability === 'new' }" @click="setAvailability('new')"><span>À demander</span></button>
         </FilterGroup>
 
-        <FilterGroup v-if="genres.length" label="Genre">
+        <!-- Vingt-et-un genres et une trentaine de diffuseurs : deplies d'office, ces
+             deux groupes portaient a eux seuls l'essentiel des 3168px du panneau. Ils
+             s'ouvrent a la demande, en affichant ce qu'ils retiennent. -->
+        <FilterGroup v-if="genres.length" label="Genre" :default-open="false" :value="genreLabel">
           <button class="filter-badge" :class="{ active: !genre }" @click="setGenre('')"><span>Tous</span></button>
           <button
             v-for="entry in genres"
@@ -57,7 +60,7 @@
           ><span>{{ entry.name }}</span></button>
         </FilterGroup>
 
-        <FilterGroup v-if="sources.length" label="Diffuseur / Studio">
+        <FilterGroup v-if="sources.length" label="Diffuseur / Studio" :default-open="false" :value="sourceLabel">
           <button class="filter-badge" :class="{ active: !sourceKey }" @click="sourceKey = ''; selectSource()"><span>Tous</span></button>
           <button
             v-for="source in sources"
@@ -631,6 +634,16 @@ const sectionDescription = computed(() => ({
   'coming-soon': 'Les prochaines sorties à surveiller',
   genres: 'Explorez le catalogue par univers',
 })[section.value]);
+
+/* Ce que les deux longs groupes retiennent, pour le dire sans les deplier. */
+const genreLabel = computed(() => genres.value.find(g => String(g.id) === String(genre.value))?.name || 'Tous');
+const sourceLabel = computed(() => sources.value.find(s => `${s.kind}:${s.id}` === sourceKey.value)?.name || 'Tous');
+
+/* Le decompte du pied du tiroir. Les filtres s'appliquent a la volee ici : `totalResults`
+   suit donc la selection en cours, il n'y a pas d'etat « en attente » a prevoir. Hors du
+   mode explorateur il ne veut rien dire -- l'accueil n'est pas une liste filtree -- et le
+   pied retombe alors sur un libelle generique plutot que d'afficher zero. */
+const filteredCount = computed(() => (mode.value === 'explore' && displayedItems.value.length ? totalResults.value : null));
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFiltersDrawer } = useFiltersDrawer(
   { mediaType, section, genre, availability, sourceKey, sortBy },
