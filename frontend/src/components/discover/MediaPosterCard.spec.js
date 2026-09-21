@@ -6,8 +6,19 @@ import { etatDeSurface } from '@/composables/useMediaOverlay';
 const routerPush = vi.fn();
 /* La carte n'attend plus que le lien navigue tout seul : elle intercepte le clic pour
    porter l'adresse de depart, qui fait s'ouvrir la fiche au-dessus de la grille. */
+/* `resolve` fait partie du contrat : la carte s'en sert pour separer le chemin de sa
+   chaine de requete. Depose tel quel dans `path`, un `?media_type=show` etait perdu et le
+   serveur refusait la requete. */
 vi.mock('vue-router', async () => ({
-  useRouter: () => ({ push: routerPush }),
+  useRouter: () => ({
+    push: routerPush,
+    resolve: (to) => {
+      const brut = typeof to === 'string' ? to : to?.path || '';
+      const [path, requete = ''] = brut.split('?');
+      const query = Object.fromEntries(new URLSearchParams(requete).entries());
+      return { path, query, hash: '' };
+    },
+  }),
   useRoute: () => ({ fullPath: '/discover/explore' }),
   RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
 }));
@@ -28,6 +39,30 @@ function mountCard(item = {}) {
 }
 
 describe('MediaPosterCard', () => {
+  it("conserve la chaine de requete de l'adresse", async () => {
+    /* `?media_type=show` dit au serveur s'il s'agit d'un film ou d'une serie. En deposant
+       l'adresse entiere dans `path`, le routeur la prenait pour un chemin litteral et la
+       requete etait perdue : le serveur recevait un type vide, refusait l'appel, et la
+       fiche affichait « n'a pas pu etre chargee ». Constate en production. */
+    routerPush.mockClear();
+    const wrapper = mount(MediaPosterCard, {
+      props: {
+        item: { tmdb_id: 95350, media_type: 'show', title: 'Serie test' },
+        to: '/discover/media/discover/95350?media_type=show',
+      },
+    });
+
+    await wrapper.get('.discover-poster-link').trigger('click');
+
+    expect(routerPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '/discover/media/discover/95350',
+        query: { media_type: 'show' },
+      }),
+    );
+    wrapper.unmount();
+  });
+
   it('rend une carte accessible et son action', () => {
     const wrapper = mountCard();
 
@@ -97,7 +132,11 @@ describe('MediaPosterCard', () => {
          grille derriere la fiche au lieu d'etre remplacee par elle. */
       expect(secondClick.defaultPrevented).toBe(true);
       expect(routerPush).toHaveBeenCalledWith(
-        expect.objectContaining({ path: '/media/discover/42', state: etatDeSurface('/discover/explore') }),
+        expect.objectContaining({
+          path: '/media/discover/42',
+          query: {},
+          state: etatDeSurface('/discover/explore'),
+        }),
       );
     } finally {
       window.matchMedia = originalMatchMedia;
