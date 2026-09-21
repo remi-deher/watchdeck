@@ -1,6 +1,16 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
+import { etatDeSurface } from '@/composables/useMediaOverlay';
+
+const routerPush = vi.fn();
+/* La carte n'attend plus que le lien navigue tout seul : elle intercepte le clic pour
+   porter l'adresse de depart, qui fait s'ouvrir la fiche au-dessus de la grille. */
+vi.mock('vue-router', async () => ({
+  useRouter: () => ({ push: routerPush }),
+  useRoute: () => ({ fullPath: '/discover/explore' }),
+  RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+}));
 
 function mountCard(item = {}) {
   return mount(MediaPosterCard, {
@@ -77,11 +87,18 @@ describe('MediaPosterCard', () => {
       expect(firstClick.defaultPrevented).toBe(true);
       expect(wrapper.get('.poster-wrap').classes()).toContain('revealed');
 
+      routerPush.mockClear();
       link.element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
       const secondClick = new MouseEvent('click', { bubbles: true, cancelable: true });
       link.element.dispatchEvent(secondClick);
 
-      expect(secondClick.defaultPrevented).toBe(false);
+      /* Le second appui ouvre bien le media -- mais par une navigation portee, et non en
+         laissant le lien suivre son `href` : c'est l'adresse de depart qui fait rester la
+         grille derriere la fiche au lieu d'etre remplacee par elle. */
+      expect(secondClick.defaultPrevented).toBe(true);
+      expect(routerPush).toHaveBeenCalledWith(
+        expect.objectContaining({ path: '/media/discover/42', state: etatDeSurface('/discover/explore') }),
+      );
     } finally {
       window.matchMedia = originalMatchMedia;
     }

@@ -75,8 +75,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Star } from '@lucide/vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
 import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
@@ -106,6 +107,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const route = useRoute();
 const opening = ref(false);
 
 const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.item.media_type));
@@ -139,7 +141,7 @@ async function handleOpen(): Promise<void> {
       `/api/requests/orphans/${props.item.orphan_source}/${props.item.arr_instance_id}/${props.item.arr_id}/open`,
       { method: 'POST' },
     );
-    router.push(mediaDetailPath({ library_id: library_item_id }, 'library'));
+    ouvrirFiche(router, mediaDetailPath({ library_id: library_item_id }, 'library'), route.fullPath);
   } catch (e: any) {
     emit('error', e?.message || "Impossible d'ouvrir la fiche detaillee");
   } finally {

@@ -11,6 +11,7 @@
   "dependencies": {
     "@lucide/vue": "^1.41.0",
     "@vitejs/plugin-vue": "^6.0.8",
+    "motion-v": "^2.4.4",
     "qrcode": "^1.5.4",
     "vite": "^8.2.2",
     "vue": "^3.5.42",
@@ -18,7 +19,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.1",
     "@types/qrcode": "^1.5.6",
     "@vue/test-utils": "^2.5.0",
     "jsdom": "^30.0.1",

@@ -33,8 +33,15 @@ export function useSheetDrag(
   let distance = 0;
   let pointerId: number | null = null;
 
+  /* La reference peut pointer un composant plutot qu'un element : la fiche media est
+     posee dans une surface animee par `motion-v`, dont le `ref` rend l'instance. On
+     resout donc dans les deux cas, sans quoi le geste n'avait rien a deplacer. */
   function panel(): HTMLElement | null {
-    return panelRef.value;
+    const valeur = panelRef.value as unknown as { $el?: unknown } | HTMLElement | null;
+    if (!valeur) return null;
+    if (valeur instanceof HTMLElement) return valeur;
+    const el = (valeur as { $el?: unknown }).$el;
+    return el instanceof HTMLElement ? el : null;
   }
 
   function poser(valeur: number): void {
@@ -63,10 +70,14 @@ export function useSheetDrag(
     if (enabled && !enabled()) return;
     const el = panel();
     if (!el) return;
-    // Un contenu deja defile garde la priorite : tirer vers le bas doit y remonter la
-    // lecture, pas emporter la feuille.
-    if (el.scrollTop > 0) return;
     const cible = event.target as HTMLElement | null;
+    // Un contenu deja defile garde la priorite : tirer vers le bas doit y remonter la
+    // lecture, pas emporter la feuille. On remonte depuis le point touche, car la surface
+    // qui defile n'est pas toujours le panneau lui-meme -- la fiche media, par exemple,
+    // defile dans un conteneur interieur.
+    for (let noeud = cible; noeud && noeud !== el.parentElement; noeud = noeud.parentElement) {
+      if (noeud.scrollTop > 0) return;
+    }
     // Ni sur un champ, ni sur une commande : le geste leur appartient.
     if (cible?.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
 
