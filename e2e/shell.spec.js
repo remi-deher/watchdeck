@@ -171,10 +171,18 @@ test("toute destination est atteignable au clavier seul", async ({ page }) => {
     // Le bouton de la barre du haut a disparu : « Plus », dans le dock, ouvre la meme
     // feuille et libere la largeur de la barre pour la recherche.
     const trigger = page.locator(".app-dock button").filter({ hasText: "Plus" });
+    // Le dock se monte avec la coquille, mais son bouton ne repond qu'une fois
+    // l'application hydratee : sur un serveur de dev froid -- le cas de l'integration
+    // continue, ou chaque module est compile a la premiere requete -- l'appui partait
+    // avant, et la feuille ne s'ouvrait jamais. On attend donc qu'il soit pose, et on
+    // laisse a l'ouverture le temps d'une compilation a froid ; ce qui est verifie ne
+    // change pas : la feuille doit s'ouvrir sur un simple appui clavier.
+    await expect(trigger).toBeVisible();
     await trigger.focus();
+    await expect(trigger).toBeFocused();
     await trigger.press("Enter");
     const sheet = page.getByRole("dialog", { name: "Navigation" });
-    await expect(sheet).toBeVisible();
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
     await expect(sheet.getByRole("link", { name: "Explorer" })).toBeVisible();
     // Sur le document : la feuille se detache pendant sa fermeture, et viser
     // l'element rendait l'appui perdant face a sa propre disparition.
