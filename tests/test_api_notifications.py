@@ -54,6 +54,7 @@ def _make_log(
     error_msg=None,
     req_id=42,
     sent_at=None,
+    reason=None,
 ):
     from datetime import datetime, timezone
 
@@ -67,6 +68,7 @@ def _make_log(
         success=success,
         error_msg=error_msg,
         req_id=req_id,
+        reason=reason,
         sent_at=sent_at or datetime(2026, 1, 15, 10, 0, 0, tzinfo=timezone.utc),
     )
 
@@ -547,5 +549,30 @@ def test_notification_resume_preview_and_delivery_ledger(async_db):
                 "detail": None,
             }
         ]
+    finally:
+        _cleanup()
+
+
+def test_the_cancellation_preview_replays_the_reason_that_was_sent(async_db):
+    """L'apercu rejoue le rendu a partir du gabarit : il doit rejouer le motif aussi.
+
+    Le texte libre ecrit par l'administrateur partait bien dans le mail, mais l'apercu du
+    journal le reconstruisait sans lui. On relisait donc une annulation amputee du seul
+    paragraphe qui explique la decision -- et rien ne permettait de retrouver ce qui avait
+    ete dit au demandeur.
+    """
+    settings = Settings(id=1)
+    req = MediaRequest(id=42, title="Inception", media_type="movie", plex_user_id="alice", source="rss")
+    log = _make_log(event="cancelled", reason="Absent du catalogue de telechargement.")
+    async_db.add_all([settings, req, log])
+    async_db.commit()
+
+    envoi = AsyncMock(return_value=("Sujet", "<p>corps</p>"))
+    client = _client_with_db(async_db)
+    try:
+        with patch("app.routers.notifications_api.send_cancelled_notification", new=envoi):
+            r = client.get("/api/notifications/1/preview")
+        assert r.status_code == 200
+        assert envoi.await_args.kwargs["reason"] == "Absent du catalogue de telechargement."
     finally:
         _cleanup()
