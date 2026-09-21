@@ -627,6 +627,13 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
       border-radius: 0 0 var(--radius-lg) var(--radius-lg);
       box-shadow: none;
     }
+    /* Le bouton « Filtres » suit la capsule : son coin haut-droit, seul arrondi restant,
+       creusait une encoche sous le bord du panneau. Le haut de la barre devient donc
+       droit sur toute sa largeur, et ce sont ses arrondis du BAS qui referment la pile --
+       la forme dit alors d'elle-meme ou le panneau s'arrete. */
+    &:has(.filter-sheet) .app-topbar .ui-search-field__filter {
+      border-radius: 0 0 calc(var(--radius-lg) - 1px) 0;
+    }
   }
 }
 
