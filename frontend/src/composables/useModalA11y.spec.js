@@ -4,7 +4,7 @@
 // systematiquement un tableau vide et le piege de focus semblerait ne jamais fonctionner.
 import { defineComponent, h, nextTick, ref } from 'vue';
 import { mount } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useModalA11y } from './useModalA11y';
 
 function markVisible(el) {
@@ -39,6 +39,13 @@ function pressKey(key, opts = {}) {
   document.dispatchEvent(event);
   return event;
 }
+
+// La consommation de l'entree d'historique est differee d'un tour de boucle (le temps de
+// savoir si une autre surface prend la releve). Sans ce drainage, le recul d'un test
+// retombait dans le suivant et s'y faisait compter.
+afterEach(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+});
 
 describe('useModalA11y', () => {
   it('appelle onClose sur Echap', async () => {
@@ -131,6 +138,7 @@ describe('useModalA11y', () => {
     expect(pushSpy.mock.calls[0][0]).toHaveProperty('__modalOpen');
 
     window.dispatchEvent(new PopStateEvent('popstate'));
+    await Promise.resolve();
 
     expect(onClose).toHaveBeenCalledTimes(1);
     wrapper.unmount();
@@ -151,6 +159,8 @@ describe('useModalA11y', () => {
 
     isOpenRef.value = false;
     await nextTick();
+    // Le recul attend un tour de boucle : une surface peut encore prendre la releve.
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(backSpy).toHaveBeenCalledTimes(1);
     wrapper.unmount();
@@ -204,7 +214,9 @@ describe('useModalA11y', () => {
     await nextTick();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(backSpy).toHaveBeenCalledTimes(1);
+    // La premiere renonce a reculer : la seconde a pris la releve, et la navigation
+    // l'aurait emportee.
+    expect(backSpy).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
 
     w1.unmount();

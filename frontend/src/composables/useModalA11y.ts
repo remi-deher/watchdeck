@@ -17,20 +17,19 @@ function focusableChildren(panel: HTMLElement): HTMLElement[] {
 
 const HISTORY_MARKER = '__modalOpen';
 
-/* Reculs que l'application s'est infliges a elle-meme et dont le `popstate` n'est pas
- * encore arrive.
+/* Surfaces dont l'ecouteur `popstate` est actif.
  *
- * Une surface qui se ferme consomme l'entree d'historique qu'elle avait ajoutee. Le
- * `popstate` qui en resulte, lui, arrive un tour plus tard : s'il s'en est ouvert une
- * autre entre-temps -- annuler une demande enchaine le choix du motif puis la
- * confirmation -- c'est cette seconde surface qui le recevait, et qui le lisait comme un
- * appui sur « retour ». Elle se refermait donc aussitot en repondant « non » a la
- * question qu'elle venait de poser : l'annulation etait abandonnee sans un mot, la boite
- * restait affichee, et plus aucun clic n'avait d'effet.
+ * Une surface qui se ferme consomme l'entree d'historique qu'elle avait ajoutee, pour que
+ * le geste « retour » la referme au lieu de quitter la page. Mais reculer declenche une
+ * navigation, et la navigation emporte tout ce qui vient de s'ouvrir : annuler une demande
+ * enchaine le choix du motif puis la confirmation, et cette derniere disparaissait une
+ * seconde apres etre apparue -- l'action etait abandonnee sans un mot, sans que rien ne
+ * soit envoye au serveur. On ne recule donc que si personne n'a pris la releve.
  *
- * Le vrai retour du systeme, lui, n'arme rien et continue d'etre traite normalement. */
-let selfInflictedBacks = 0;
-/** Surfaces dont l'ecouteur `popstate` est actif : celles qui pourraient mal lire un recul. */
+ * La decision attend un tour complet de boucle d'evenements, et non une simple
+ * micro-tache : la surface suivante n'arrive qu'au bout d'une chaine de promesses -- le
+ * motif est choisi, la promesse resolue, l'action reprend, la confirmation s'ouvre au
+ * rendu d'apres. Une micro-tache concluait avant tout cela, et reculait quand meme. */
 let listeningSurfaces = 0;
 
 /**
@@ -82,11 +81,6 @@ export function useModalA11y(
   // qu'un evenement DOM classique. Sans ce handler, "retour" quitte la page entiere
   // au lieu de simplement fermer la modale ouverte par-dessus.
   function handlePopState() {
-    // Ce recul est le notre, pas celui de l'utilisateur : on le laisse passer.
-    if (selfInflictedBacks > 0) {
-      selfInflictedBacks -= 1;
-      return;
-    }
     dismissedByBackButton = true;
     onClose();
   }
@@ -131,16 +125,18 @@ export function useModalA11y(
       history.state?.[HISTORY_MARKER] === historyToken &&
       location.href === historyHref
     ) {
-      selfInflictedBacks += 1;
-      /* Le marqueur ne sert que s'il reste quelqu'un pour mal lire ce recul. La surface
-         qui prend la releve s'abonne pendant le meme cycle de rendu que notre fermeture
-         -- une micro-tache plus tard, on sait donc si elle existe. Si personne n'ecoute,
-         on desarme aussitot : un marqueur qui traine avalerait le prochain vrai
-         « retour » de l'utilisateur. */
-      queueMicrotask(() => {
-        if (listeningSurfaces === 0) selfInflictedBacks = Math.max(0, selfInflictedBacks - 1);
-      });
-      history.back();
+      /* On ne recule pas tout de suite : une surface peut prendre la releve dans le meme
+         cycle de rendu -- annuler une demande enchaine le choix du motif puis la
+         confirmation. Reculer alors provoque une navigation, et la navigation emporte la
+         surface qui venait de s'ouvrir : la confirmation disparaissait une seconde apres
+         etre apparue, sans que rien ne soit envoye. Une micro-tache plus tard, on sait si
+         quelqu'un a pris la suite ; si oui, on laisse l'entree dans la pile. Elle porte la
+         meme adresse que la precedente, donc un « retour » de trop ne se voit pas, la ou
+         une action abandonnee en silence, elle, se voit tout de suite. */
+      setTimeout(() => {
+        if (listeningSurfaces > 0) return;
+        history.back();
+      }, 0);
     }
     historyToken = null;
     historyHref = null;
