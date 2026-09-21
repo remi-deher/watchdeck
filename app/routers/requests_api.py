@@ -1067,9 +1067,7 @@ async def _trace_self_cancellation(db: AsyncSession, req: MediaRequest, uid: str
 
     demandeur = None
     if uid:
-        demandeur = (
-            await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid))
-        ).scalars().first()
+        demandeur = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid))).scalars().first()
     nom = (demandeur.display_name if demandeur else None) or req.plex_user or uid or "un utilisateur"
 
     veut_prevenir_admin = bool(getattr(demandeur, "notify_admin", True)) if demandeur else False
