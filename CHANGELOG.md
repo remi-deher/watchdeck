@@ -1,11 +1,28 @@
 # Changelog
 
+## 1.31.2 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- tenir la page derriere la feuille et replier les groupes a zero ([39db492](https://github.com/remi-deher/watchdeck/commit/39db492e95af3fcaf7ea8e3f218a78126e47fcc4))
+
+### 🔧 Maintenance
+
+- bump tzdata from 2026.3 to 2026.4 (#347) ([e684752](https://github.com/remi-deher/watchdeck/commit/e684752c415f671086dac82e840812ad11a77b62))
+- bump sqlalchemy from 2.0.52 to 2.0.54 (#349) ([7338ad8](https://github.com/remi-deher/watchdeck/commit/7338ad8651d5d6aaca409983f822de1db67bca8d))
+- bump alembic from 1.19.2 to 1.20.0 (#352) ([2e0f55a](https://github.com/remi-deher/watchdeck/commit/2e0f55a8b67f1dfc824ee8a999a1b48a4d5d12b5))
+- bump uvicorn from 0.52.4 to 0.53.0 (#351) ([2513b78](https://github.com/remi-deher/watchdeck/commit/2513b7809a5b2699fd002768af7854725fccfa21))
 ## 1.31.1 — 2026-09-21
 
 
 ### 🐛 Corrections
 
 - garder le defilement au chargement et servir les visuels en pleine definition ([10b15c4](https://github.com/remi-deher/watchdeck/commit/10b15c45eb1d0d18db45664e185ae7901cc0ac79))
+
+### 🔧 Maintenance
+
+- v1.31.1 (#345) ([1fcfcb4](https://github.com/remi-deher/watchdeck/commit/1fcfcb42201b1f911dcb3210db1aa97d10fb96b6))
 ## 1.31.0 — 2026-09-21
 
 
