@@ -29,9 +29,10 @@ const drag = async (wrapper, fromX, toX) => {
 };
 
 describe('LineChart', () => {
-  it('trace un point par valeur', () => {
+  it('confie tous les points au canvas Chart.js', () => {
     const wrapper = mount(LineChart, { props: { points } });
-    expect(wrapper.find('path.line').attributes('d').split('L')).toHaveLength(10);
+    expect(wrapper.find('canvas').attributes('data-points')).toBe('10');
+    expect(wrapper.find('svg').exists()).toBe(false);
   });
 
   it('restreint la fenêtre à la plage sélectionnée', async () => {
@@ -41,7 +42,7 @@ describe('LineChart', () => {
     await drag(wrapper, 20, 60);
 
     // 20 % à 60 % de dix points : les index 2 à 5, soit quatre points.
-    expect(wrapper.find('path.line').attributes('d').split('L')).toHaveLength(4);
+    expect(wrapper.find('canvas').attributes('data-points')).toBe('4');
     expect(wrapper.find('.line-chart__reset').exists()).toBe(true);
   });
 
@@ -61,7 +62,7 @@ describe('LineChart', () => {
 
     await wrapper.find('.line-chart__reset').trigger('click');
 
-    expect(wrapper.find('path.line').attributes('d').split('L')).toHaveLength(10);
+    expect(wrapper.find('canvas').attributes('data-points')).toBe('10');
   });
 
   it('oublie le zoom quand les points changent', async () => {

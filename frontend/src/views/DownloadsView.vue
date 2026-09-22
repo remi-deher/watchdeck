@@ -365,6 +365,7 @@ import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import { mediaTypeLabel } from '@/utils/labels';
 import { formatDateTime as formatDate } from '@/utils/format';
 import { computed,onMounted,ref,shallowRef,watch } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { useRoute,useRouter } from 'vue-router';
 import { AlertTriangle,CheckCircle2,Clock3,Columns,Download,Film,Link,Plus,RotateCcw,Server,SlidersHorizontal,Tv,X } from '@lucide/vue';
 import { api } from '@/api';
@@ -401,7 +402,7 @@ import MediaPoster from '@/components/media/MediaPoster.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 
 const route=useRoute(),router=useRouter();
-const arrQueue=ref<any[]>([]),directQueue=ref<any[]>([]),clientQueue=shallowRef<any[]>([]),history=shallowRef<any[]>([]),diskSpaceVolumes=ref<any[]>([]),failedPosterIds=ref<Set<string>>(new Set());
+const arrQueue=ref<any[]>([]),directQueue=ref<any[]>([]),history=shallowRef<any[]>([]),diskSpaceVolumes=ref<any[]>([]),failedPosterIds=ref<Set<string>>(new Set());
 /**
  * Une reponse mal formee ne doit pas se propager en liste.
  *
@@ -624,6 +625,15 @@ function wantedLibraryItem(item: any) {
  * repartis entre une rangee d'onglets et un tiroir a moitie vide selon la page.
  */
 const section=computed((): string =>['queue','missing','clients'].includes(String(route.query.view))?String(route.query.view):'overview');
+const clientsQuery=useQuery({
+  queryKey:['downloads','clients'],
+  queryFn:({signal})=>api('/api/downloads/clients',{signal}),
+  select:(rows)=>asList<any>(rows),
+  enabled:()=>section.value==='overview'||section.value==='clients',
+  staleTime:5_000,
+});
+const clientQueue=computed<any[]>(()=>clientsQuery.data.value||[]);
+watch(clientsQuery.error,(value)=>setSourceError('clients',value?`Clients torrent : ${value.message}`:''),{immediate:true});
 const validSubviews: Record<string, string[]> ={
   overview:['all'],
   queue:['all','active','waiting','completed','errors','intervention'],
@@ -774,17 +784,11 @@ async function loadAll(): Promise<void>{
   if(results[1].status==='fulfilled')directQueue.value=asList(results[1].value);
   setSourceError('queue',failures.join(' · '));loading.value=false;
 }
-let clientLoadVersion = 0;
 async function loadClients(): Promise<void>{
-  const loadVersion = ++clientLoadVersion;
-  try {
-    const rows = await api('/api/downloads/clients');
-    // Les événements peuvent arriver en rafale : une réponse plus ancienne ne doit pas
-    // écraser la liste plus récente et provoquer un clignotement du tableau.
-    if (loadVersion === clientLoadVersion) { clientQueue.value = asList(rows); setSourceError('clients'); }
-  } catch (e: any) {
-    if (loadVersion === clientLoadVersion) setSourceError('clients', `Clients torrent : ${e.message}`);
-  }
+  // TanStack Query annule la requete precedente lors des rafales SSE, conserve la
+  // derniere valeur pendant le rafraichissement et relance au retour en ligne/focus.
+  const result=await clientsQuery.refetch({cancelRefetch:true});
+  if(result.error)setSourceError('clients',`Clients torrent : ${result.error.message}`);
 }
 async function loadConfigurations(): Promise<void>{await loadDownloadSources();setSourceError('configuration',configurationError.value)}
 let historyLoadVersion=0;

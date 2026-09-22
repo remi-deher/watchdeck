@@ -11,8 +11,10 @@
   "dependencies": {
     "@lucide/vue": "^1.41.0",
     "@primeuix/themes": "^1.2.5",
+    "@tanstack/vue-query": "^5.103.2",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vueuse/core": "^15.0.0",
+    "chart.js": "^4.5.1",
     "motion-v": "^2.4.4",
     "primevue": "^4.5.5",
     "qrcode": "^1.5.4",

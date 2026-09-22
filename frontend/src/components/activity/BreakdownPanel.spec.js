@@ -27,7 +27,7 @@ describe('BreakdownPanel', () => {
 
     const pie = wrapper.findComponent({ name: 'PieChart' });
     expect(pie.exists()).toBe(true);
-    expect(pie.findAll('circle.pie-slice')).toHaveLength(3);
+    expect(pie.find('canvas').attributes('data-points')).toBe('3');
     expect(wrapper.find('.breakdown-list').exists()).toBe(false);
   });
 
