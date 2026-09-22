@@ -26,7 +26,7 @@
   </Transition>
 
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
-  <details class="panel" @toggle="loadDeliveries">
+  <details class="panel" @toggle="deliveriesOpen = $event.target.open">
     <summary>Suivi des envois — clés uniques et confirmations</summary>
     <p>Les envois sans confirmation restent bloqués pour vérification. Un Message-ID SMTP ne garantit pas à lui seul l'absence de doublon.</p>
     <div class="table-wrap">
@@ -90,7 +90,8 @@
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import { notificationSections } from '@/notificationSections';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, ChevronLeft, ChevronRight, PauseCircle, PlayCircle, Send, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
@@ -101,25 +102,36 @@ import NotificationPreviewModal from '@/components/notifications/NotificationPre
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useAsyncAction } from '@/composables/useAsyncAction';
-import { useDebounceFn } from '@vueuse/core';
+import { refDebounced } from '@vueuse/core';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
-import { useFetchState } from '@/composables/useFetchState';
+import { humanizeError } from '@/utils/apiError';
 import { useFeedback } from '@/composables/useFeedback';
 import UiButton from '@/components/ui/UiButton.vue';
 import BulkActionBar from '@/components/ui/BulkActionBar.vue';
 
-const rows = ref([]);
-const deliveries = ref([]);
+const queryClient = useQueryClient();
 const deliveryStateLabels = { prepared: 'Préparé', sending: 'En cours / à vérifier', sent: 'Accepté par le fournisseur', uncertain: 'Sans confirmation — à vérifier', cancelled: 'Annulé', obsolete: 'Devenu inutile', failed: 'Refusé' };
-async function loadDeliveries(event) {
-  if (!event.target.open) return;
-  try { deliveries.value = (await api('/api/notifications/deliveries')).items; }
-  catch (e) { showFeedback('error', e.message); }
-}
-const users = ref([]);
+// Le suivi des envois n'est lu qu'une fois le panneau deplie.
+const deliveriesOpen = ref(false);
+const deliveriesQuery = useQuery({
+  queryKey: ['notifications', 'deliveries'],
+  queryFn: ({ signal }) => api('/api/notifications/deliveries', { signal }),
+  select: (data) => data?.items || [],
+  enabled: deliveriesOpen,
+  staleTime: 15_000,
+});
+const deliveries = computed(() => deliveriesQuery.data.value || []);
+watch(deliveriesQuery.error, (e) => { if (e) showFeedback('error', e.message); });
+// Meme cle que la page Utilisateurs : les deux ecrans partagent le cache.
+const usersQuery = useQuery({
+  queryKey: ['users', 'list'],
+  queryFn: ({ signal }) => api('/api/users', { signal }),
+  select: (data) => (Array.isArray(data) ? data : []),
+  staleTime: 30_000,
+});
+const users = computed(() => usersQuery.data.value || []);
 const route=useRoute(),router=useRouter();
 const tab = ref(route.query.tab==='pending'?'pending':'history');
-const { loading, error, execute: executeLoad } = useFetchState();
 const search = ref('');
 const state = ref('');
 const selectedTypes = ref([]);
@@ -134,12 +146,8 @@ const typeOptions = [
   { value: 'failed', label: 'Erreurs systeme' }
 ];
 
-const total = ref(0);
-const pendingTotal = ref(0);
 const offset = ref(0);
 const limit = 50;
-const holdEnabled = ref(false);
-const holdSaving = ref(false);
 const { message: feedbackMessage, type: feedbackType, show: showFeedbackMessage } = useFeedback({ timeoutMs: 6000 });
 const previewOpen = ref(false);
 const previewLoading = ref(false);
@@ -153,39 +161,33 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
   { search: '', state: '', selectedTypes: [], selectedUsers: [] },
   {
     activeCountFn: () => Number(Boolean(state.value)) + selectedTypes.value.length + selectedUsers.value.length,
-    onReset: () => {
-      offset.value = 0;
-      load();
-    },
+    onReset: () => { offset.value = 0; },
   }
 );
 function resetFilters() { resetFiltersDrawer(); }
 
 watch(tab,value=>router.replace({path:'/notifications',query:{...route.query,tab:value}}));
-watch(()=>route.query.tab,value=>{const next=value==='pending'?'pending':'history';if(tab.value!==next){tab.value=next;offset.value=0;load()}});
+watch(()=>route.query.tab,value=>{const next=value==='pending'?'pending':'history';if(tab.value!==next){tab.value=next;offset.value=0}});
 
-async function loadUsers() {
-  try {
-    const data = await api('/api/users');
-    users.value = data || [];
-  } catch(e) {
-    console.error("Erreur chargement utilisateurs", e);
-  }
-}
-
-async function loadHold() {
-  try {
-    const data = await api('/api/notifications/hold');
-    holdEnabled.value = data.enabled;
-    pendingTotal.value = data.pending_count ?? pendingTotal.value;
-  } catch(e) { error.value = e.message; }
-}
+const holdQuery = useQuery({
+  queryKey: ['notifications', 'hold'],
+  queryFn: ({ signal }) => api('/api/notifications/hold', { signal }),
+  staleTime: 15_000,
+});
+const holdEnabled = computed(() => Boolean(holdQuery.data.value?.enabled));
+// Changer la suspension a un effet de bord : jamais de nouvelle tentative automatique.
+const holdMutation = useMutation({
+  mutationFn: (enabled) => api('/api/notifications/hold', { method: 'PUT', body: JSON.stringify({ enabled }) }),
+  retry: 0,
+  onSuccess: (data) => {
+    queryClient.setQueryData(['notifications', 'hold'], (current) => ({ ...current, ...data }));
+  },
+});
+const holdSaving = computed(() => holdMutation.isPending.value);
 
 function showFeedback(type, text) { showFeedbackMessage(text, type); }
 
 async function toggleHold(enabled) {
-  const previous = holdEnabled.value;
-  holdSaving.value = true;
   try {
     if (!enabled) {
       const { counts: c } = await api('/api/notifications/resume-preview');
@@ -196,38 +198,44 @@ async function toggleHold(enabled) {
       });
       if (!accepted) return;
     }
-    const data = await api('/api/notifications/hold', { method: 'PUT', body: JSON.stringify({ enabled }) });
-    holdEnabled.value = data.enabled;
-    pendingTotal.value = data.pending_count ?? pendingTotal.value;
+    const data = await holdMutation.mutateAsync(enabled);
     showFeedback('success', data.message || (enabled ? 'Notifications mises en attente.' : 'Notifications automatiques réactivées.'));
   } catch(e) {
-    holdEnabled.value = previous;
     showFeedback('error', `Le changement n'a pas été enregistré : ${e.message}`);
-  } finally {
-    holdSaving.value = false;
   }
 }
 
-async function load() {
-  await executeLoad(async () => {
+const serverSearch = refDebounced(search, 300);
+const listQuery = useQuery({
+  queryKey: computed(() => tab.value === 'history'
+    ? ['notifications', 'history', { offset: offset.value, state: state.value, types: selectedTypes.value.join(','), users: selectedUsers.value.join(','), search: serverSearch.value }]
+    : ['notifications', 'pending', { offset: offset.value }]),
+  queryFn: ({ signal }) => {
+    if (tab.value === 'pending') return api(`/api/notifications/pending?limit=${limit}&offset=${offset.value}`, { signal });
     const q = new URLSearchParams({ limit: String(limit), offset: String(offset.value) });
     if (state.value) q.append('state', state.value);
     if (selectedTypes.value.length) q.append('types', selectedTypes.value.join(','));
     if (selectedUsers.value.length) q.append('users', selectedUsers.value.join(','));
-    if (search.value) q.append('search', search.value);
-
-    const data = tab.value === 'history'
-      ? await api(`/api/notifications/log?${q.toString()}`)
-      : await api(`/api/notifications/pending?limit=${limit}&offset=${offset.value}`);
-
-    rows.value = data.items || [];
-    total.value = data.total || 0;
-
-    if (tab.value === 'pending') {
-      pendingTotal.value = data.total || 0;
-    }
-  });
-}
+    if (serverSearch.value) q.append('search', serverSearch.value);
+    return api(`/api/notifications/log?${q.toString()}`, { signal });
+  },
+  // Garder la page precedente pendant le chargement, mais pas d'un onglet a l'autre.
+  placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === tab.value ? keepPreviousData(previous) : undefined),
+  staleTime: 10_000,
+});
+const rows = computed(() => listQuery.data.value?.items || []);
+const total = computed(() => listQuery.data.value?.total || 0);
+// Sur la file, le total de la liste est le compteur le plus frais ; ailleurs, celui de hold.
+const pendingTotal = computed(() => (tab.value === 'pending' && listQuery.data.value ? total.value : holdQuery.data.value?.pending_count || 0));
+const loading = computed(() => listQuery.isFetching.value);
+const actionError = ref('');
+const error = computed(() => {
+  if (actionError.value) return actionError.value;
+  const failure = listQuery.error.value || holdQuery.error.value;
+  return failure ? humanizeError(failure) : '';
+});
+function invalidateNotifications() { return queryClient.invalidateQueries({ queryKey: ['notifications'] }); }
+function load() { actionError.value = ''; return invalidateNotifications(); }
 
 async function openPreview(row) {
   previewOpen.value = true;
@@ -246,9 +254,8 @@ async function openPreview(row) {
 // Ces six mutations n'attrapaient aucune erreur : un échec réseau ou un 4xx du backend
 // terminait en rejet de promesse non intercepté, sans rien afficher — l'utilisateur voyait
 // juste le bouton ne rien faire. `run` restaure la confirmation, l'affichage de l'erreur
-// (le `error` réutilisé ici est le même que celui du chargement de liste, déjà lié dans le
-// template) et le rechargement après succès, dans le même ordre qu'avant.
-const { run } = useAsyncAction({ askConfirm, onDone: load, error });
+// (`actionError`, fusionné dans le `error` affiché) et l'invalidation du cache après succès.
+const { run } = useAsyncAction({ askConfirm, onDone: invalidateNotifications, error: actionError });
 
 function resend(row) {
   return run(() => api(`/api/notifications/${row.id}/resend`, { method: 'POST' }));
@@ -330,33 +337,13 @@ function deleteSelected() {
 
 function page(delta) {
   offset.value = Math.max(0, offset.value + delta * limit);
-  load();
 }
 
-// Relance auto sur modif des filtres (avec reset de l'offset)
-watch([state, selectedTypes, selectedUsers], () => {
-  offset.value = 0;
-  load();
-}, { deep: true });
+// Un nouveau filtre repart de la premiere page ; la cle de la liste fait le reste.
+watch([state, selectedTypes, selectedUsers, serverSearch], () => { offset.value = 0; }, { deep: true });
 
-const debouncedSearch = useDebounceFn(() => {
-  offset.value = 0;
-  load();
-}, 300);
-watch(search, debouncedSearch);
-
-useRealtime(['notification.updated'], () => {
-  // L'endpoint hold fournit deja le compteur de file : inutile de telecharger toute
-  // la file pending quand l'utilisateur consulte seulement l'historique.
-  loadHold();
-  load();
-}, { debounceMs: 250 });
-
-onMounted(() => {
-  loadUsers();
-  loadHold();
-  load();
-});
+// Invalider `['notifications']` relit la liste affichee et le compteur de suspension.
+useRealtime(['notification.updated'], () => { void invalidateNotifications(); }, { debounceMs: 250 });
 
 // Le compteur d'attente n'a de sens que sur la file : ailleurs il decrirait un etat
 // qui n'est pas celui de la section affichee.
