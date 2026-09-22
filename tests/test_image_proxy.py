@@ -24,7 +24,7 @@ def _client(db):
     route, pour ne pas payer une connexion par vignette servie depuis le cache disque) :
     on lui fournit donc celle du test, et on vide son cache d'hôtes — global au module,
     il fuiterait d'un test à l'autre."""
-    db.add(Settings(plex_url="http://plex.local"))
+    db.add(Settings(plex_url="http://plex.local", plex_token="server-secret"))
     db.commit()
     app.dependency_overrides[require_auth] = lambda: None
     app.dependency_overrides[get_db] = lambda: db
@@ -110,7 +110,7 @@ def test_image_proxy_allows_metadata_poster_hosts(cache_dir, async_db, host):
         with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
             resp = client.get(f"/api/image-proxy?url=https://{host}/poster.jpg")
         assert resp.status_code == 200
-        fake.get.assert_awaited_once_with(f"https://{host}/poster.jpg")
+        fake.get.assert_awaited_once_with(f"https://{host}/poster.jpg", headers={})
     finally:
         _cleanup()
 
@@ -178,8 +178,25 @@ def test_library_image_proxy_hides_signed_plex_url(cache_dir, async_db):
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("image/webp")
         upstream_url = fake.get.await_args.args[0]
-        assert "X-Plex-Token=secret" in upstream_url
+        assert "X-Plex-Token" not in upstream_url
+        assert fake.get.await_args.kwargs["headers"] == {"X-Plex-Token": "server-secret"}
         assert "X-Plex-Token" not in str(resp.request.url)
+    finally:
+        _cleanup()
+
+
+def test_plex_path_proxy_adds_server_token_only_upstream(cache_dir, async_db):
+    client = _client(async_db)
+    fake = _fake_httpx_client(resp=_resp())
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb")
+        assert resp.status_code == 200
+        assert "X-Plex-Token" not in str(resp.request.url)
+        fake.get.assert_awaited_once_with(
+            "http://plex.local/library/metadata/42/thumb",
+            headers={"X-Plex-Token": "server-secret"},
+        )
     finally:
         _cleanup()
 

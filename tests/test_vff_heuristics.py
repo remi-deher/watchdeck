@@ -236,7 +236,8 @@ def test_sync_plex_library_blocking():
         assert results[0]["title"] == "Inception"
         assert results[0]["tmdb_id"] == "27205"
         assert results[0]["plex_guid"] == "plex://movie/12345"
-        assert "X-Plex-Token=token" in results[0]["poster_url"]
+        assert results[0]["poster_url"] == "http://localhost:32400/photo/123"
+        assert "X-Plex-Token" not in results[0]["poster_url"]
 
 
 @pytest.mark.asyncio

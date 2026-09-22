@@ -19,7 +19,7 @@ from ..models import (
     VfUpgradeSuggestion,
 )
 from ..serializers import format_datetime, serialize_media_request
-from ..utils import async_get_or_404, wrap_image_proxy
+from ..utils import async_get_or_404, plex_image_proxy_url, wrap_image_proxy
 from . import tmdb
 from .media_annotate import annotate_media_items
 from .operational_projection import build_media_history, plex_library_projection
@@ -368,11 +368,7 @@ async def build_media_detail(
                                             "title": alb.title,
                                             "year": getattr(alb, "year", None),
                                             "media_type": "album",
-                                            "poster_url": wrap_image_proxy(
-                                                f"{s.plex_url.rstrip('/')}{alb.thumb}?X-Plex-Token={s.plex_token}"
-                                                if getattr(alb, "thumb", None)
-                                                else None
-                                            ),
+                                            "poster_url": plex_image_proxy_url(getattr(alb, "thumb", None)),
                                             "overview": getattr(alb, "summary", None),
                                         }
                                     )

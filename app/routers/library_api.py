@@ -672,7 +672,7 @@ async def recheck_plex(
             imdb_id=imdb_id,
             plex_guid=plex_guid,
             poster_url=(
-                f"{settings.plex_url.rstrip('/')}{thumb}?X-Plex-Token={settings.plex_token}"
+                f"{settings.plex_url.rstrip('/')}{thumb}"
                 if thumb
                 else media.poster_url
             ),
