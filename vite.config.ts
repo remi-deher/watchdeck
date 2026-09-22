@@ -49,6 +49,7 @@ export default defineConfig(({ command }) => ({
             // Chart.js est nettement plus lourd que les primitives UI : le garder
             // dans un chunk propre evite de le charger sur les routes sans graphe.
             if (id.includes('/node_modules/chart.js/')) return 'charts';
+            if (id.includes('/node_modules/zod/')) return 'settings-validation';
             if (id.includes('@lucide')) return 'icons';
             if (/\/node_modules\/(vue|@vue|vue-router|pinia)\//.test(id)) return 'vendor';
             return undefined;

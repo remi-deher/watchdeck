@@ -5,6 +5,7 @@ import PrimeVue from 'primevue/config';
 import { installerSortieDePage } from '@/composables/usePageExit';
 import { WatchdeckPreset } from '@/theme/watchdeck';
 import { createQueryClient } from '@/queryClient';
+import { settingsPinia } from '@/settingsForm';
 import App from './App.vue';
 import { isAdminSession, isModeratorSession, loadSession } from './composables/useSession';
 import AppPage from '@/components/ui/AppPage.vue';
@@ -142,6 +143,7 @@ createApp(App)
   .component('StatusBadge', StatusBadge)
   .component('UiFeedback', UiFeedback)
   .component('FormSaveBar', FormSaveBar)
+  .use(settingsPinia)
   .use(VueQueryPlugin, { queryClient: createQueryClient() })
   .use(PrimeVue, {
     ripple: false,

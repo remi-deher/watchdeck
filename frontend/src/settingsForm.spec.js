@@ -1,6 +1,4 @@
-// `form`/`secretsPresent`/isDirty sont des singletons de module (voir le commentaire en
-// tete de settingsForm.js) : chaque test re-importe le module a neuf via resetModules(),
-// sinon l'etat d'un test fuiterait dans le suivant.
+// Chaque import frais recrée l'instance Pinia dédiée aux réglages afin d'isoler les tests.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMock = vi.fn();
@@ -113,5 +111,30 @@ describe('settingsForm', () => {
 
     // « HTTP 500 » n'apprend rien a personne : l'etat expose la phrase montrable.
     expect(error.value).toMatch(/erreur interne/);
+  });
+
+  it('valide les champs modifies avec Zod avant tout appel API', async () => {
+    const { form, load, save, error, validationErrors } = await freshSettingsForm();
+    apiMock.mockResolvedValueOnce({ plex_url: 'http://plex.local' });
+    await load();
+    apiMock.mockClear();
+    form.plex_url = 'plex sans protocole';
+
+    await save();
+
+    expect(apiMock).not.toHaveBeenCalled();
+    expect(error.value).toMatch(/URL HTTP ou HTTPS/);
+    expect(validationErrors.plex_url).toMatch(/URL HTTP ou HTTPS/);
+  });
+
+  it('ne persiste pas les réglages serveur ni les secrets dans localStorage', async () => {
+    localStorage.clear();
+    const { load } = await freshSettingsForm();
+    apiMock.mockResolvedValueOnce({ plex_token: 'secret', plex_url: 'http://plex.local' });
+
+    await load();
+
+    expect(Object.keys(localStorage).filter(key => key.includes('settings'))).toEqual([]);
+    expect(Object.values(localStorage)).not.toContain(expect.stringContaining('secret'));
   });
 });

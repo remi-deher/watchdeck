@@ -1,4 +1,6 @@
 import { computed, reactive, ref } from 'vue';
+import { createPinia, defineStore, setActivePinia, storeToRefs } from 'pinia';
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import { humanizeError } from '@/utils/apiError';
 import { api } from '@/api';
 
@@ -16,7 +18,7 @@ export const secretFields = [
 
 export type SecretField = (typeof secretFields)[number];
 
-export const form = reactive<Record<string, any>>({
+const initialForm = (): Record<string, any> => ({
   plex_url: '',
   plex_token: '',
   plex_verify_ssl: true,
@@ -157,9 +159,16 @@ export const form = reactive<Record<string, any>>({
   availability_confirmation_timeout_minutes: 30,
 });
 
-export const saving = ref(false);
-export const error = ref('');
-export const message = ref('');
+export const settingsPinia = createPinia();
+settingsPinia.use(piniaPluginPersistedstate);
+setActivePinia(settingsPinia);
+
+export const useSettingsStore = defineStore('settings', () => {
+const form = reactive<Record<string, any>>(initialForm());
+const saving = ref(false);
+const error = ref('');
+const message = ref('');
+const validationErrors = reactive<Record<string, string>>({});
 
 /* Etat du formulaire tel qu'il a ete charge, champ par champ.
  *
@@ -177,13 +186,13 @@ export const message = ref('');
 const savedSnapshot = ref<Record<string, any> | null>(null);
 
 /** Champs dont la valeur differe de celle chargee. */
-export function changedFields(): string[] {
+function changedFields(): string[] {
   const base = savedSnapshot.value;
   if (!base) return [];
   return Object.keys(form).filter((key) => !Object.is(form[key], base[key]));
 }
 
-export const isDirty = computed(() => {
+const isDirty = computed(() => {
   // La lecture de `form` doit rester tracee par Vue : passer par `changedFields()` seul
   // ne creerait aucune dependance reactive sur les champs inchangés.
   const base = savedSnapshot.value;
@@ -191,21 +200,22 @@ export const isDirty = computed(() => {
   return Object.keys(form).some((key) => !Object.is(form[key], base[key]));
 });
 
-export const secretsPresent = reactive<Record<string, boolean>>(
+const secretsPresent = reactive<Record<string, boolean>>(
   Object.fromEntries(secretFields.map((k) => [k, false]))
 );
 
-export function success(text: string): void {
+function success(text: string): void {
   message.value = text;
   error.value = '';
 }
 
-export function fail(err: any): void {
+function fail(err: any): void {
   error.value = humanizeError(err);
 }
 
-export async function load(): Promise<void> {
+async function load(): Promise<void> {
   try {
+    Object.keys(validationErrors).forEach(key => delete validationErrors[key]);
     const data = await api<Record<string, any>>('/api/settings');
     for (const key of Object.keys(form)) {
       if (data[key] != null) form[key] = data[key];
@@ -228,7 +238,7 @@ export async function load(): Promise<void> {
  * enregistrer doit rendre le formulaire a son etat serveur, sinon les valeurs saisies
  * survivent dans le store partage et reapparaissent sur la page Reglages, ou pire,
  * partent au prochain enregistrement d'une autre section. */
-export function discardChanges(): void {
+function discardChanges(): void {
   const base = savedSnapshot.value;
   if (!base) return;
   for (const key of Object.keys(form)) {
@@ -236,22 +246,38 @@ export function discardChanges(): void {
   }
   error.value = '';
   message.value = '';
+  Object.keys(validationErrors).forEach(key => delete validationErrors[key]);
 }
 
-export async function save(): Promise<void> {
+async function save(): Promise<void> {
   const changed = changedFields();
   if (!changed.length) {
     success('Aucune modification à enregistrer.');
     return;
   }
 
-  saving.value = true;
   const payload: Record<string, any> = {};
   for (const key of changed) {
     // Un secret laisse vide signifie « conserver l'existant », pas « effacer ».
     if (secretFields.includes(key as SecretField) && !form[key]) continue;
     payload[key] = form[key];
   }
+
+  Object.keys(validationErrors).forEach(key => delete validationErrors[key]);
+  // Zod n'est requis qu'au moment d'enregistrer : son chargement différé évite de
+  // pénaliser toutes les routes avec le poids du validateur de configuration.
+  const { settingsPatchSchema } = await import('@/settingsSchema');
+  const validation = settingsPatchSchema.safeParse(payload);
+  if (!validation.success) {
+    for (const issue of validation.error.issues) {
+      const key = String(issue.path[0] || '_form');
+      validationErrors[key] ||= issue.message;
+    }
+    error.value = validation.error.issues[0]?.message || 'Certains réglages sont invalides.';
+    return;
+  }
+
+  saving.value = true;
 
   try {
     await api('/api/settings', { method: 'PUT', body: JSON.stringify(payload) });
@@ -275,7 +301,7 @@ export async function save(): Promise<void> {
   }
 }
 
-export async function testSaved(path: string): Promise<any> {
+async function testSaved(path: string): Promise<any> {
   await save();
   try {
     const data = await api<any>(path, { method: 'POST' });
@@ -286,3 +312,22 @@ export async function testSaved(path: string): Promise<any> {
     return null;
   }
 }
+
+return { form, saving, error, message, isDirty, secretsPresent, validationErrors, changedFields, success, fail, load, discardChanges, save, testSaved };
+});
+
+// Façade compatible avec les composants existants. Tous ces exports pointent vers
+// l'unique store Pinia de l'application, sans dupliquer son état.
+const settingsStore = useSettingsStore(settingsPinia);
+const settingsRefs = storeToRefs(settingsStore);
+export const form = settingsStore.form;
+export const secretsPresent = settingsStore.secretsPresent;
+export const validationErrors = settingsStore.validationErrors;
+export const { saving, error, message, isDirty } = settingsRefs;
+export const changedFields = settingsStore.changedFields;
+export const success = settingsStore.success;
+export const fail = settingsStore.fail;
+export const load = settingsStore.load;
+export const discardChanges = settingsStore.discardChanges;
+export const save = settingsStore.save;
+export const testSaved = settingsStore.testSaved;
