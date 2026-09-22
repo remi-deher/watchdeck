@@ -16,7 +16,6 @@ vi.mock('@/cache', () => ({
   writeCache: vi.fn(),
 }));
 vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
-vi.mock('@/composables/usePolling', () => ({ usePolling: vi.fn() }));
 
 function mountView() {
   return mount(DashboardView, {

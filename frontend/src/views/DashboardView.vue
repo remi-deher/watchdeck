@@ -100,7 +100,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { usePolling } from '@/composables/usePolling';
+import { useIntervalFn } from '@vueuse/core';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import HealthGrid from '@/components/HealthGrid.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
@@ -421,11 +421,12 @@ useRealtime(['vff.updated'], (type, detail) => {
 });
 
 // Compte a rebours et horloge : locaux, ils doivent avancer meme onglet masque pour que
-// « prochaine verification dans X » soit juste au retour sur l'onglet.
-usePolling(() => {
+// « prochaine verification dans X » soit juste au retour sur l'onglet. Les donnees, elles,
+// arrivent par le flux du snapshot et les evenements SSE : aucun sondage reseau ici.
+useIntervalFn(() => {
   if (seconds.value != null && seconds.value > 0) seconds.value--;
   clock.value = Date.now();
-}, 1000, { whenVisible: false });
+}, 1000);
 
 onMounted(async () => {
   primeFromCache();

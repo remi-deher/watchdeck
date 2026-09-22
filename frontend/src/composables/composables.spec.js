@@ -2,7 +2,6 @@ import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useLatestRequest } from './useLatestRequest';
-import { usePolling } from './usePolling';
 
 /** Monte un composant minimal pour disposer d'un contexte de cycle de vie. */
 function withSetup(composable) {
@@ -74,58 +73,6 @@ describe('useLatestRequest', () => {
     expect(result.isAbort({ name: 'AbortError' })).toBe(true);
     expect(result.isAbort(new Error('réseau'))).toBe(false);
     expect(result.isAbort(undefined)).toBe(false);
-  });
-});
-describe('usePolling', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  it('appelle le callback à chaque période et s’arrête au démontage', () => {
-    const tick = vi.fn();
-    const { wrapper } = withSetup(() => usePolling(tick, 1000));
-    expect(tick).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(2500);
-    expect(tick).toHaveBeenCalledTimes(2);
-
-    wrapper.unmount();
-    vi.advanceTimersByTime(5000);
-    expect(tick).toHaveBeenCalledTimes(2);
-  });
-
-  it('saute les ticks quand l’onglet est masqué', () => {
-    const tick = vi.fn();
-    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
-    const { wrapper } = withSetup(() => usePolling(tick, 1000));
-
-    vi.advanceTimersByTime(3000);
-    expect(tick).not.toHaveBeenCalled();
-
-    hidden.mockReturnValue(false);
-    vi.advanceTimersByTime(1000);
-    expect(tick).toHaveBeenCalledTimes(1);
-    wrapper.unmount();
-    hidden.mockRestore();
-  });
-
-  // Une horloge locale (compte à rebours, « actualisé il y a N s ») doit avancer même
-  // onglet masqué, sinon l'affichage est faux au retour sur l'onglet.
-  it('tourne malgré tout avec whenVisible: false', () => {
-    const tick = vi.fn();
-    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
-    const { wrapper } = withSetup(() => usePolling(tick, 1000, { whenVisible: false }));
-
-    vi.advanceTimersByTime(3000);
-    expect(tick).toHaveBeenCalledTimes(3);
-    wrapper.unmount();
-    hidden.mockRestore();
-  });
-
-  it('déclenche un premier appel immédiat si demandé', () => {
-    const tick = vi.fn();
-    const { wrapper } = withSetup(() => usePolling(tick, 1000, { immediate: true }));
-    expect(tick).toHaveBeenCalledTimes(1);
-    wrapper.unmount();
   });
 });
 

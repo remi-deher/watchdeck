@@ -219,9 +219,8 @@
 import { playbackMethodLabel } from '@/utils/labels';
 import { formatBandwidth, formatDateTimeShort, formatDuration, signedPercent } from '@/utils/format';
 import { computed,onMounted,onUnmounted,ref,watch } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
+import { useDebounceFn, useIntervalFn } from '@vueuse/core';
 import { useLatestRequest } from '@/composables/useLatestRequest';
-import { usePolling } from '@/composables/usePolling';
 import { useRoute,useRouter } from 'vue-router';
 import { Activity, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
 import { activitySections } from '@/navigation';
@@ -553,7 +552,7 @@ watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!
 useRealtime(['activity.updated'],()=>currentView.value==='live'?loadLive():Promise.allSettled([loadLive(),loadStatistics()]));
 // Horloge locale du libelle « actualise il y a N s » : doit tourner meme onglet masque,
 // sinon l'age affiche au retour sur l'onglet est faux.
-usePolling(()=>clock.value=Date.now(),1000,{whenVisible:false});
+useIntervalFn(()=>{clock.value=Date.now()},1000);
 // Une frappe ne doit pas declencher une requete par lettre : on n'appelle le serveur que
 // lorsque le nom retenu change vraiment, et apres une pause de saisie.
 const applyScope=useDebounceFn(()=>{
