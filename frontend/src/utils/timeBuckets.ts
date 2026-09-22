@@ -4,7 +4,7 @@
  * par se compter en milliers, ce qui rendait les graphiques illisibles — et, avec une
  * largeur minimale par barre, débordait la grille de plusieurs milliers de pixels.
  * Au-delà de quelques mois on passe donc à la semaine, puis au mois. */
-import { format, getDay, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { addDays, addMonths, eachDayOfInterval, format, isSameMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export type Grain = 'day' | 'week' | 'month';
@@ -26,14 +26,41 @@ export function localIso(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }
 
-/** Index lundi=0…dimanche=6, utilisé par la grille mensuelle. */
-export function mondayDayIndex(date: Date): number {
-  return (getDay(date) + 6) % 7;
-}
-
 export function monthBounds(date: Date): { start: Date; end: Date } {
   const start = startOfMonth(date);
-  return { start, end: new Date(start.getFullYear(), start.getMonth() + 1, 1) };
+  return { start, end: addMonths(start, 1) };
+}
+
+export interface CalendarDay {
+  /** Date civile locale « AAAA-MM-JJ », clé des événements du jour. */
+  date: string;
+  /** Quantième affiché dans la cellule. */
+  day: number;
+  /** Faux pour les jours de débord, appartenant au mois précédent ou suivant. */
+  current: boolean;
+}
+
+/** Six semaines de lundi à dimanche : la hauteur de la grille ne saute pas d'un mois
+ *  à l'autre, et tout mois tient, y compris un février bissextile commençant un
+ *  dimanche. */
+const MONTH_GRID_CELLS = 42;
+
+/**
+ * Grille mensuelle, de la semaine du 1er à la semaine du dernier jour.
+ *
+ * Passe par `eachDayOfInterval` plutôt que par un décalage calculé à la main : autour
+ * des changements d'heure, avancer d'un jour n'est pas ajouter vingt-quatre heures, et
+ * une date construite ainsi pouvait tomber la veille au soir — donc porter la clé ISO
+ * du mauvais jour.
+ */
+export function buildMonthGrid(month: Date): CalendarDay[] {
+  const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
+  const days = eachDayOfInterval({ start, end: addDays(start, MONTH_GRID_CELLS - 1) });
+  return days.map((date) => ({
+    date: localIso(date),
+    day: date.getDate(),
+    current: isSameMonth(date, month),
+  }));
 }
 
 export function grainFor(count: number): Grain {

@@ -126,7 +126,7 @@
 
 <script setup lang="ts">
 import { formatLongDay as longDate, formatMonthYear, formatTime as formatClockTime } from '@/utils/format';
-import { localIso, mondayDayIndex, monthBounds } from '@/utils/timeBuckets';
+import { buildMonthGrid, localIso, monthBounds } from '@/utils/timeBuckets';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Clock, Film, Play, Star, Tv } from '@lucide/vue';
@@ -168,14 +168,11 @@ const visibleDays = ref(DAYS_PAGE);
 const shownGroups = computed(() => grouped.value.slice(0, visibleDays.value));
 watch([search, type, tracked], () => { visibleDays.value = DAYS_PAGE; });
 
-const monthCells = computed(() => {
-  const start = bounds.value.start, first = mondayDayIndex(start), cells = [];
-  for (let i = -first; i < 42 - first; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth(), i + 1), date = localIso(d);
-    cells.push({ key: date, date, day: d.getDate(), current: d.getMonth() === start.getMonth(), events: eventsByDate.value.get(date) || [] });
-  }
-  return cells;
-});
+const monthCells = computed(() => buildMonthGrid(cursor.value).map(day => ({
+  ...day,
+  key: day.date,
+  events: eventsByDate.value.get(day.date) || [],
+})));
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFiltersDrawer } = useFiltersDrawer(
   { search, type, tracked },

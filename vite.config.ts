@@ -69,6 +69,10 @@ export default defineConfig(({ command }) => ({
   },
   test: {
     environment: 'jsdom',
+    // Les dates s'affichent et se regroupent dans le fuseau du navigateur : les tests
+    // calendaires (changements d'heure) doivent tourner dans un fuseau qui en a un,
+    // quelle que soit la machine ou le runner CI.
+    env: { TZ: 'Europe/Paris' },
     include: ['frontend/src/**/*.{test,spec}.{js,ts}'],
     globals: false,
     setupFiles: ['frontend/src/testSetup.js'],
