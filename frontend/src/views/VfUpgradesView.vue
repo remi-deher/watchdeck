@@ -715,88 +715,18 @@
 
         <!-- Onglet 3 : Historique des cycles de scan -->
         <template v-else-if="activeTab === 'history'">
-          <section class="scan-history">
-            <div v-if="liveScan && liveScan.status === 'running'" class="scan-live-banner">
-              <span class="scan-live-dot" aria-hidden="true" />
-              <div class="scan-live-text">
-                <strong>Recherche en cours…</strong>
-                <span>{{ liveScan.items_scanned || 0 }} / {{ liveScan.total_items || 0 }} recherche(s) effectuée(s)</span>
-              </div>
-              <div class="scan-live-bar">
-                <div
-                  class="scan-live-bar-fill"
-                  :style="{ width: `${liveScan.total_items ? Math.min(100, (liveScan.items_scanned / liveScan.total_items) * 100) : 0}%` }"
-                />
-              </div>
-            </div>
-
-            <div v-if="scanRunsLoading && !scanRuns.length" class="vf-skeletons" aria-hidden="true">
-              <div v-for="i in 3" :key="`run-skel-${i}`" class="skeleton-line title" />
-            </div>
-
-            <table v-else-if="scanRuns.length" class="scan-runs-table">
-              <thead>
-                <tr>
-                  <th>Démarré le</th>
-                  <th>Durée</th>
-                  <th>Déclenchement</th>
-                  <th>Recherches</th>
-                  <th>Suggestions trouvées</th>
-                  <th>Erreurs</th>
-                  <th>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template v-for="run in scanRuns" :key="run.id">
-                  <tr
-                    class="run-row"
-                    :class="`run-status-${run.status}`"
-                    tabindex="0"
-                    role="button"
-                    :aria-expanded="expandedRunId === run.id"
-                    @click="toggleRunDetail(run)"
-                    @keydown.enter="toggleRunDetail(run)"
-                  >
-                    <td>
-                      <ChevronDown v-if="expandedRunId === run.id" :size="14" class="run-chevron" />
-                      <ChevronUp v-else :size="14" class="run-chevron is-collapsed" />
-                      {{ formatDate(run.started_at) }}
-                    </td>
-                    <td>{{ formatDuration(run.started_at, run.finished_at) }}</td>
-                    <td>{{ run.trigger === 'selection' ? 'Sélection manuelle' : (run.trigger === 'manual' ? 'Manuel' : 'Automatique') }}</td>
-                    <td>{{ run.tasks_scanned }} / {{ run.tasks_total }}</td>
-                    <td>{{ run.suggestions_found }}</td>
-                    <td :class="{ 'run-errors': run.tasks_errored > 0 }">
-                      {{ run.tasks_errored || 0 }}
-                    </td>
-                    <td>
-                      <StatusBadge :status="run.status" :label="runStatusLabel(run.status)" />
-                      <span v-if="run.error" class="run-error" :title="run.error">⚠</span>
-                    </td>
-                  </tr>
-                  <tr v-if="expandedRunId === run.id" class="run-detail-row">
-                    <td colspan="7">
-                      <div v-if="runItemsLoading && !runItems.length" class="vf-skeletons" aria-hidden="true">
-                        <div v-for="i in 3" :key="`item-skel-${i}`" class="skeleton-line title" />
-                      </div>
-                      <p v-else-if="!runItems.length" class="empty">Aucun détail disponible pour ce cycle.</p>
-                      <ul v-else class="run-items-list">
-                        <li v-for="item in runItems" :key="item.id" :class="`run-item-status-${item.status}`">
-                          <span class="run-item-status-dot" aria-hidden="true" />
-                          <span class="run-item-title">{{ item.title }}</span>
-                          <span class="run-item-badge">
-                            {{ item.status === 'running' ? 'En cours…' : item.status === 'found' ? `${item.release_count} release${item.release_count > 1 ? 's' : ''}` : item.status === 'error' ? 'Erreur' : 'Sans résultat' }}
-                          </span>
-                        </li>
-                      </ul>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-
-            <p v-else class="empty">Aucun cycle de scan enregistré pour le moment.</p>
-          </section>
+          <VfScanHistory
+            :live-scan="liveScan"
+            :runs="scanRuns"
+            :loading="scanRunsLoading"
+            :expanded-run-id="expandedRunId"
+            :items="runItems"
+            :items-loading="runItemsLoading"
+            :format-date="formatDate"
+            :format-duration="formatDuration"
+            :status-label="runStatusLabel"
+            @toggle="toggleRunDetail"
+          />
         </template>
       </div>
     </div>
@@ -857,6 +787,7 @@ import SeasonEpisodeList from '@/components/media/SeasonEpisodeList.vue';
 import VfSettingsModal from '@/components/vf-upgrades/VfSettingsModal.vue';
 import VfUpgradeKpiBanner from '@/components/vf-upgrades/VfUpgradeKpiBanner.vue';
 import VfUpgradeQuickFilters from '@/components/vf-upgrades/VfUpgradeQuickFilters.vue';
+import VfScanHistory from '@/components/vf-upgrades/VfScanHistory.vue';
 import { filterVfUpgradeItems, groupVfUpgradeItems } from '@/utils/vfUpgradeGroups';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { useFeedback } from '@/composables/useFeedback';
@@ -2299,189 +2230,10 @@ onUnmounted(() => {
   color: var(--warning, #b45309);
 }
 
-.scan-history {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.scan-live-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 12px 16px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-}
-
-.scan-live-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-  animation: vf-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes vf-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
-.scan-live-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 220px;
-}
-
-.scan-live-text span {
-  color: var(--muted);
-  font-size: var(--fs-xs);
-}
-
-.scan-live-bar {
-  flex: 1;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--surface-alt, color-mix(in srgb, var(--border) 60%, transparent));
-  overflow: hidden;
-}
-
-.scan-live-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.4s ease;
-}
-
 .waiting-truncated {
   margin: 0 0 var(--space-3);
   font-size: 0.85rem;
   color: var(--text-muted);
 }
 
-.run-errors {
-  color: var(--warning, #e5a00d);
-  font-weight: 600;
-}
-
-.scan-runs-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-sm);
-}
-
-.scan-runs-table th,
-.scan-runs-table td {
-  padding: 8px 12px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-}
-
-.scan-runs-table th {
-  color: var(--muted);
-  font-weight: 600;
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-}
-
-.run-status-failed td {
-  color: var(--danger, #b91c1c);
-}
-
-.run-error {
-  margin-left: 6px;
-  cursor: help;
-}
-
-.run-row {
-  cursor: pointer;
-}
-
-.run-row:hover td,
-.run-row:focus-visible td {
-  background: var(--surface-2);
-}
-
-.run-chevron {
-  margin-right: 4px;
-  color: var(--muted);
-  vertical-align: -2px;
-}
-
-.run-chevron.is-collapsed {
-  opacity: 0.6;
-}
-
-.run-detail-row td {
-  padding: var(--space-3) 12px;
-  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
-}
-
-.run-items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.run-items-list li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-sm);
-}
-
-.run-item-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--muted);
-}
-
-.run-item-status-running .run-item-status-dot {
-  background: var(--accent);
-  animation: vf-pulse 1.4s ease-in-out infinite;
-}
-
-.run-item-status-found .run-item-status-dot {
-  background: var(--green, #22c55e);
-}
-
-.run-item-status-error .run-item-status-dot {
-  background: var(--red, #ef4444);
-}
-
-.run-item-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.run-item-badge {
-  flex-shrink: 0;
-  color: var(--muted);
-  font-size: var(--fs-xs);
-}
-
-.run-item-status-running .run-item-badge {
-  color: var(--accent);
-}
-
-@media (max-width: 767.98px) {
-  .scan-runs-table {
-    display: block;
-    overflow-x: auto;
-  }
-}
 </style>
