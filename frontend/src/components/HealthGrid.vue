@@ -64,6 +64,7 @@ async function refresh(): Promise<void> {
     const data = await api<any>('/api/health');
     health.value = data;
     checkedAt.value = data.checked_at ? new Date(data.checked_at) : new Date();
+    // Cache de santé à TTL, pas une préférence utilisateur : ne pas le migrer vers usePreference.
     localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data }));
   } finally {
     loading.value = false;

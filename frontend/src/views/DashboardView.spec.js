@@ -82,7 +82,7 @@ describe('DashboardView supervision', () => {
     await supervision.trigger('toggle');
     await flushPromises();
 
-    expect(localStorage.getItem('dashboard.supervisionOpen')).toBe('1');
+    expect(localStorage.getItem('watchdeck:dashboard.supervisionOpen')).toBe('true');
     expect(apiMock).toHaveBeenCalledWith('/api/health');
     expect(apiMock).toHaveBeenCalledWith('/api/disk-space');
     expect(apiMock).toHaveBeenCalledWith(

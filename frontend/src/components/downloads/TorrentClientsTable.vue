@@ -377,6 +377,7 @@ import DataTable from 'primevue/datatable';
 import { api } from '@/api';
 import { useConfirm } from '@/composables/useConfirm';
 import { useTableColumns } from '@/composables/useTableColumns';
+import { usePreference } from '@/composables/usePreference';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DrawerShell from '@/components/DrawerShell.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -404,17 +405,15 @@ const emit = defineEmits<{
   (e: 'add-file', file: File): void;
 }>();
 
-const isCompact = ref(localStorage.getItem('watchdeck:torrent-table-compact') === 'true');
-const isIncognito = ref(localStorage.getItem('watchdeck:torrent-table-incognito') === 'true');
+const isCompact = usePreference('torrent-table-compact', false, { legacyKeys: ['watchdeck:torrent-table-compact'] });
+const isIncognito = usePreference('torrent-table-incognito', false, { legacyKeys: ['watchdeck:torrent-table-incognito'] });
 
 function toggleCompact(): void {
   isCompact.value = !isCompact.value;
-  localStorage.setItem('watchdeck:torrent-table-compact', String(isCompact.value));
 }
 
 function toggleIncognito(): void {
   isIncognito.value = !isIncognito.value;
-  localStorage.setItem('watchdeck:torrent-table-incognito', String(isIncognito.value));
 }
 
 function maskTitle(title: string, index: number): string {

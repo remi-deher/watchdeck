@@ -246,6 +246,7 @@ import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import PopularMediaPanel from '@/components/activity/PopularMediaPanel.vue';
 import SessionDetailDrawer from '@/components/activity/SessionDetailDrawer.vue';
 import UserRankingPanel from '@/components/activity/UserRankingPanel.vue';
+import { usePreference } from '@/composables/usePreference';
 
 const route=useRoute(),router=useRouter();
 const allowedViews=['overview','live','history','quality','users'];
@@ -253,9 +254,8 @@ const currentView=computed(()=>allowedViews.includes(String(route.query.view))?S
 // La periode ne vit plus que dans l'URL : les sections de la destination (rail, barre
 // de contexte, page) pointent vers `/activity?view=...` sans la porter, et sans memoire
 // locale chaque changement de vue serait retombe sur 30 jours.
-const PERIOD_STORAGE_KEY='activity.days';
-const storedDays=Number(localStorage.getItem(PERIOD_STORAGE_KEY))||30;
-const days=ref(Number(route.query.days)||storedDays),loading=ref(false),loaded=ref(false),error=ref('');
+const storedDays=usePreference('activity.days',30);
+const days=ref(Number(route.query.days)||storedDays.value),loading=ref(false),loaded=ref(false),error=ref('');
 // « Tout » est demande comme un siecle (MAX_PERIOD_DAYS cote API) plutot que comme un
 // parametre absent : le service garde un seul chemin de calcul, borne. Les libelles
 // restent courts car le selecteur partage la rangee de la barre du haut.
@@ -504,7 +504,7 @@ async function load(silent=false): Promise<void> {
   }catch(e: any){if(!silent)error.value=e.message}
   finally{if(!silent)loading.value=false}
 }
-function setDays(value: number): void {days.value=value;localStorage.setItem(PERIOD_STORAGE_KEY,String(value));router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
+function setDays(value: number): void {days.value=value;storedDays.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
 function setPeriod(value: string | number): void { if (typeof value === 'number') setDays(value); }
 function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value=''}
 const formatDate=(value: string)=>formatDateTimeShort(value,'—');

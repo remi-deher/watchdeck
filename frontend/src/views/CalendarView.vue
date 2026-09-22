@@ -142,6 +142,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import { usePreference } from '@/composables/usePreference';
 
 const router = useRouter();
 const route = useRoute();
@@ -151,7 +152,8 @@ const myRequestsOnly = computed(() => !isAdmin.value);
 const events = ref<any[]>([]), search = ref(''), type = ref(''), tracked = ref(false), loading = ref(false), error = ref(''), cursor = ref(new Date());
 const compactQuery = window.matchMedia('(max-width:640px)');
 const compact = ref(compactQuery.matches);
-const view = ref(localStorage.getItem('calendar.view') || (compact.value ? 'agenda' : 'month'));
+const desktopView = usePreference('calendar.view', 'month');
+const view = ref(compact.value ? 'agenda' : desktopView.value);
 const viewOptions = [{ value: 'agenda', label: 'Agenda' }, { value: 'month', label: 'Mois' }];
 function setView(value: string | number) { if (value === 'agenda' || value === 'month') view.value = value; }
 const todayStr = localIso(new Date()), weekLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -188,7 +190,7 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
 function resetFilters(): void {
   resetFiltersDrawer();
 }
-watch(view, value => { if (!compact.value) localStorage.setItem('calendar.view', value); });
+watch(view, value => { if (!compact.value) desktopView.value = value; });
 
 function formatTime(v: string): string { if (!v || v.endsWith('T00:00:00Z') || v.endsWith('T00:00:00.000Z')) return ''; return formatClockTime(v, ''); }
 function eventKey(event: any): string { return `${event.instance}:${event.date}:${event.title}:${event.subtitle}`; }
@@ -234,7 +236,7 @@ async function load({ scrollToToday = false }: { scrollToToday?: boolean } = {})
 }
 function move(delta: number): void { cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + delta, 1); visibleDays.value = DAYS_PAGE; load({ scrollToToday: false }); }
 function today(): void { cursor.value = new Date(); visibleDays.value = DAYS_PAGE; load({ scrollToToday: true }); }
-function applyCompact(matches: boolean): void { if (matches === compact.value) return; compact.value = matches; view.value = matches ? 'agenda' : (localStorage.getItem('calendar.view') || 'month'); }
+function applyCompact(matches: boolean): void { if (matches === compact.value) return; compact.value = matches; view.value = matches ? 'agenda' : desktopView.value; }
 function syncCompact(): void { applyCompact(compactQuery.matches); }
 
 onMounted(async () => {

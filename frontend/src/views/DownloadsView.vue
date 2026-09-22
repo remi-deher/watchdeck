@@ -373,6 +373,7 @@ import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useDownloadSources } from '@/composables/useDownloadSources';
+import { readPreference, usePreference, writePreference } from '@/composables/usePreference';
 import { useMediaQuery } from '@vueuse/core';
 import { proxyUrl } from '@/utils/mediaImage';
 import {
@@ -424,7 +425,8 @@ const clientTable=ref<any>(null),showAddModal=ref(false),droppedFile=ref<File | 
    vide de surcroit sur l'onglet « Vue d'ensemble », qui n'a pas de filtres -- en
    verrouillant au passage le defilement du corps. */
 const filtersAsModal=useMediaQuery('(max-width: 900px)');
-const filtersOpen=ref(!filtersAsModal.value && localStorage.getItem('watchdeck:torrent-filter-sidebar-collapsed')!=='true');
+const filterSidebarCollapsed=usePreference('torrent-filter-sidebar-collapsed',false,{legacyKeys:['watchdeck:torrent-filter-sidebar-collapsed']});
+const filtersOpen=ref(!filtersAsModal.value && !filterSidebarCollapsed.value);
 watch(filtersAsModal, isModal => { if (isModal) filtersOpen.value=false; });
 
 function handleCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () => void): void {
@@ -442,7 +444,7 @@ watch(filtersOpen, v => {
   // Fermer la feuille modale sur telephone ne doit pas replier la colonne du bureau :
   // ce sont deux gestes differents pour deux surfaces differentes.
   if (filtersAsModal.value) return;
-  localStorage.setItem('watchdeck:torrent-filter-sidebar-collapsed', String(!v));
+  filterSidebarCollapsed.value=!v;
 });
 
 function hasPosterError(row: any): boolean {
@@ -854,17 +856,17 @@ function refreshFromDownloadEvent(detail: any={}){
 }
 let mounted=false;
 const clientFilterScope=computed(()=>selectedClientId.value||'all');
-function clientFilterStorageKey(){return`watchdeck:torrent-filters:${clientFilterScope.value}`}
+function clientFilterStorageKey(){return`torrent-filters:${clientFilterScope.value}`}
 function loadClientFilterPreferences(){
   try{
-    const saved=JSON.parse(localStorage.getItem(clientFilterStorageKey())||'null');
+    const saved=readPreference<any>(clientFilterStorageKey(),null);
     if(!saved){resetClientFilters();return}
     query.value=saved.query||'';status.value=saved.status||[];clientCategory.value=saved.category||[];clientOwnership.value=saved.ownership||'';clientTracker.value=saved.tracker||[];
   }catch{resetClientFilters()}
 }
 watch([query,status,clientCategory,clientOwnership,clientTracker],()=>{
   if(section.value!=='clients')return;
-  localStorage.setItem(clientFilterStorageKey(),JSON.stringify({query:query.value,status:status.value,category:clientCategory.value,ownership:clientOwnership.value,tracker:clientTracker.value}));
+  writePreference(clientFilterStorageKey(),{query:query.value,status:status.value,category:clientCategory.value,ownership:clientOwnership.value,tracker:clientTracker.value});
 },{deep:true});
 watch(()=>`${section.value}:${subview.value}:${selectedInstanceId.value}:${selectedClientId.value}`,()=>{
   if(!mounted)return;

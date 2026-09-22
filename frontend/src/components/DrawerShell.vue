@@ -1,50 +1,27 @@
 <template>
-  <Teleport to="body">
-    <div class="drawer-backdrop" @click.self="$emit('close')">
-      <aside ref="panelRef" tabindex="-1" class="detail-drawer" :class="{ wide }" role="dialog" aria-modal="true" :aria-label="title || 'Detail'">
+  <Drawer :visible="true" position="right" modal :dismissable="true" :block-scroll="false" :show-close-icon="false"
+    @update:visible="onVisibleChange">
+    <template #container>
+      <aside class="detail-drawer" :class="{ wide }" role="dialog" aria-modal="true" :aria-label="title || 'Detail'">
         <slot name="background" />
         <header class="drawer-head">
           <div><span v-if="eyebrow" class="eyebrow">{{ eyebrow }}</span><h2>{{ title }}</h2></div>
-          <div class="drawer-head-actions">
-            <slot name="head-actions" />
-            <UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" @click="$emit('close')"><X /></UiButton>
-          </div>
+          <div class="drawer-head-actions"><slot name="head-actions" /><UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" @click="emit('close')"><X /></UiButton></div>
         </header>
         <UiFeedback v-if="error" type="error" :message="error" />
         <slot />
       </aside>
-    </div>
-  </Teleport>
+    </template>
+  </Drawer>
 </template>
-
 <script setup lang="ts">
-import { ref } from 'vue';
 import { X } from '@lucide/vue';
-import { useModalA11y } from '@/composables/useModalA11y';
+import Drawer from 'primevue/drawer';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
-
-withDefaults(
-  defineProps<{
-    eyebrow?: string;
-    title?: string;
-    wide?: boolean;
-    error?: string;
-  }>(),
-  {
-    eyebrow: '',
-    title: '',
-    wide: false,
-    error: '',
-  }
-);
-
-const emit = defineEmits<{
-  (e: 'close'): void;
-}>();
-
-const panelRef = ref<HTMLElement | null>(null);
+withDefaults(defineProps<{ eyebrow?: string; title?: string; wide?: boolean; error?: string }>(), { eyebrow: '', title: '', wide: false, error: '' });
+const emit = defineEmits<{ (e: 'close'): void }>();
 useBodyScrollLock();
-useModalA11y(panelRef, null, () => emit('close'));
+function onVisibleChange(visible: boolean): void { if (!visible) emit('close'); }
 </script>

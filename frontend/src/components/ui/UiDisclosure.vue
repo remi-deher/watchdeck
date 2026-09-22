@@ -25,13 +25,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { ChevronDown } from '@lucide/vue';
+import { readPreference, writePreference } from '@/composables/usePreference';
 
 const props = withDefaults(
   defineProps<{
     title: string;
     eyebrow?: string;
     description?: string;
-    /** Cle localStorage memorisant l'etat. Omise, l'etat n'est pas persiste. */
+    /** Clé de préférence mémorisant l'état. Omise, l'état n'est pas persisté. */
     storageKey?: string;
     defaultOpen?: boolean;
     contentClass?: string;
@@ -46,18 +47,11 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ (e: 'open'): void }>();
+const booleanSerializer = { read: (value: string) => value === '1' || value === 'true', write: (value: boolean) => String(value) };
 
 function readStored(): boolean {
   if (!props.storageKey) return props.defaultOpen;
-  try {
-    const stored = localStorage.getItem(props.storageKey);
-    if (stored === null) return props.defaultOpen;
-    // 'true'/'false' : valeurs ecrites par les sections qui geraient leur propre
-    // <details> avant ce composant. On les relit pour ne pas perdre la preference.
-    return stored === '1' || stored === 'true';
-  } catch {
-    return props.defaultOpen;
-  }
+  return readPreference(props.storageKey, props.defaultOpen, { serializer: booleanSerializer });
 }
 
 const isOpen = ref(readStored());
@@ -69,11 +63,7 @@ function onToggle(event: Event): void {
   if (open === isOpen.value) return;
   isOpen.value = open;
   if (props.storageKey) {
-    try {
-      localStorage.setItem(props.storageKey, open ? '1' : '0');
-    } catch {
-      /* Preference non persistable : l'etat reste valable pour la session. */
-    }
+    writePreference(props.storageKey, open, { serializer: booleanSerializer });
   }
   if (open && !loaded.value) {
     loaded.value = true;

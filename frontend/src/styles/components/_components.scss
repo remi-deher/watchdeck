@@ -462,6 +462,27 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   -ms-overflow-style: none;
 }
 
+/* Le conteneur personnalise de PrimeVue vit deja dans un dialogue centre et
+   positionne. Un second `position: fixed` sur notre facade calcule ses coordonnees
+   relativement au transform du dialogue : le contenu reste visible, mais sa boite
+   accessible se retrouve hors viewport. Le dialogue porte donc la geometrie, tandis
+   que la facade conserve uniquement son apparence et son defilement. */
+.p-dialog.modal-shell-dialog {
+  width: min(680px, calc(100% - 24px));
+  max-height: calc(90dvh - var(--safe-top) - var(--safe-bottom) - var(--app-shell-offset-top));
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.modal-panel.modal-panel--prime {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-height: inherit;
+  transform: none;
+}
+
 /* Sur telephone, la boite de dialogue devient une feuille ancree en bas : elle epouse
    la hauteur de son contenu et grandit vers le haut jusqu'a son plafond, au lieu de
    flotter au milieu a une taille fixe. Un panneau de deux filtres ne prend alors que la

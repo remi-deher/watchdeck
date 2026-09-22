@@ -6,9 +6,9 @@ function keyFor(scope: string): string {
 }
 
 /** Lit un historique local borné. Une valeur corrompue ne doit jamais casser le shell. */
-export function readPageSearchHistory(scope: string, storage: Pick<Storage, 'getItem'> = localStorage): string[] {
+export function readPageSearchHistory(scope: string, storage?: Pick<Storage, 'getItem'>): string[] {
   try {
-    const value = JSON.parse(storage.getItem(keyFor(scope)) || '[]');
+    const value = storage ? JSON.parse(storage.getItem(keyFor(scope)) || '[]') : readPreference<string[]>(keyFor(scope), []);
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, MAX_RECENT) : [];
   } catch {
     return [];
@@ -19,11 +19,15 @@ export function readPageSearchHistory(scope: string, storage: Pick<Storage, 'get
 export function rememberPageSearch(
   scope: string,
   query: string,
-  storage: Pick<Storage, 'getItem' | 'setItem'> = localStorage
+  storage?: Pick<Storage, 'getItem' | 'setItem'>
 ): string[] {
   const normalized = query.trim();
   if (normalized.length < 2) return readPageSearchHistory(scope, storage);
   const next = [normalized, ...readPageSearchHistory(scope, storage).filter((item) => item.toLocaleLowerCase('fr') !== normalized.toLocaleLowerCase('fr'))].slice(0, MAX_RECENT);
-  try { storage.setItem(keyFor(scope), JSON.stringify(next)); } catch { /* stockage privé ou plein */ }
+  try {
+    if (storage) storage.setItem(keyFor(scope), JSON.stringify(next));
+    else writePreference(keyFor(scope), next);
+  } catch { /* stockage privé ou plein */ }
   return next;
 }
+import { readPreference, writePreference } from './usePreference';

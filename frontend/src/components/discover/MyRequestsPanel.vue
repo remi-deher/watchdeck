@@ -139,6 +139,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
+import { usePreference } from '@/composables/usePreference';
 
 defineEmits<{
   (e: 'explore'): void;
@@ -170,7 +171,7 @@ const sort = ref('');
    reduite au seul appelant sinon : le groupe « Demandeur » se montre donc tout seul,
    uniquement la ou il y a vraiment le choix. */
 const requesters = ref<Array<{ id: string; label: string }>>([]);
-const view = ref(localStorage.getItem('library.view') || 'grid');
+const view = usePreference('library.view', 'grid');
 const filtersOpen = ref(false);
 
 /* Un seul statut a la fois, mais certains libelles couvrent plusieurs valeurs du
@@ -371,7 +372,6 @@ function onSearch(): void {
   scheduleLoad();
 }
 
-watch(view, (value) => localStorage.setItem('library.view', value));
 watch([statusKey, typeKey, vf, requesterKey], () => load());
 
 useRealtimeList(items, ['request.updated', 'download.updated'], {

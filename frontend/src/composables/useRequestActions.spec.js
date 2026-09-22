@@ -9,6 +9,7 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import AppConfirmDialog from '@/components/ui/AppConfirmDialog.vue';
 import ReasonPickerModal from '@/components/requests/ReasonPickerModal.vue';
 import { useConfirm } from './useConfirm';
 import { useRequestActions } from './useRequestActions';
@@ -49,6 +50,7 @@ describe('withdrawRequest', () => {
         }
         return () =>
           h('div', [
+            h(AppConfirmDialog),
             h('button', { onClick: () => actions.withdrawRequest({ id: 7, source: 'rss' }) }, 'Ouvrir'),
             h(ReasonPickerModal, {
               open: !!withdrawTarget.value,

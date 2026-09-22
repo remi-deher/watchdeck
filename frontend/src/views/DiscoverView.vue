@@ -442,6 +442,7 @@ import { mediaRequestKey, useDirectMediaRequest } from '@/composables/useDirectM
 import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { mediaDetailPath } from '@/mediaUrl';
+import { usePreference } from '@/composables/usePreference';
 
 const initialParams = new URLSearchParams(window.location.search);
 const route = useRoute();
@@ -484,8 +485,8 @@ const sources = ref<any[]>([]);
 const sourcesLoading = ref(true);
 const sourcesError = ref('');
 const homeLoaded = ref(false);
-const hideAvailable = ref(localStorage.getItem('discover.hideAvailable') === 'true');
-const hideWatched = ref(localStorage.getItem('discover.hideWatched') === 'true');
+const hideAvailable = usePreference('discover.hideAvailable', false);
+const hideWatched = usePreference('discover.hideWatched', false);
 
 function emptyPersonalizedRail() {
   return { items: [] as any[] };
@@ -909,8 +910,6 @@ async function loadPersonalized() {
 }
 
 function reloadPersonalized() {
-  localStorage.setItem('discover.hideAvailable', String(hideAvailable.value));
-  localStorage.setItem('discover.hideWatched', String(hideWatched.value));
   loadPersonalized();
 }
 

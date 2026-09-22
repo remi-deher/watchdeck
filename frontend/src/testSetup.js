@@ -14,4 +14,8 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
 // ouverts. Sans ce stub, wrapper.find() ne verrait plus leur contenu puisqu'il ne
 // cherche pas hors du sous-arbre monté par @vue/test-utils.
 import { config } from "@vue/test-utils";
+import PrimeVue from 'primevue/config';
+import ConfirmationService from 'primevue/confirmationservice';
+import ToastService from 'primevue/toastservice';
 config.global.stubs = { ...config.global.stubs, teleport: true };
+config.global.plugins = [...(config.global.plugins || []), PrimeVue, ConfirmationService, ToastService];

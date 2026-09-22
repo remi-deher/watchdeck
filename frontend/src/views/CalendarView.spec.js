@@ -89,7 +89,7 @@ describe('CalendarView', () => {
     expect(wrapper.find('.month-calendar-shell').exists()).toBe(false);
     expect(wrapper.find('.calendar-agenda').exists()).toBe(true);
     // La preference reste intacte pour le prochain passage sur grand ecran.
-    expect(localStorage.getItem('calendar.view')).toBe('month');
+    expect(localStorage.getItem('watchdeck:calendar.view')).toBe('month');
     wrapper.unmount();
   });
 

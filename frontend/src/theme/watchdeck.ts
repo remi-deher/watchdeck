@@ -3,6 +3,14 @@ import AuraBase from '@primeuix/themes/aura/base';
 import AuraCheckbox from '@primeuix/themes/aura/checkbox';
 import AuraDataTable from '@primeuix/themes/aura/datatable';
 import AuraToast from '@primeuix/themes/aura/toast';
+import AuraSelectButton from '@primeuix/themes/aura/selectbutton';
+import AuraToggleSwitch from '@primeuix/themes/aura/toggleswitch';
+import AuraPassword from '@primeuix/themes/aura/password';
+import AuraInputText from '@primeuix/themes/aura/inputtext';
+import AuraDialog from '@primeuix/themes/aura/dialog';
+import AuraDrawer from '@primeuix/themes/aura/drawer';
+import AuraConfirmDialog from '@primeuix/themes/aura/confirmdialog';
+import AuraButton from '@primeuix/themes/aura/button';
 
 /* N'embarquer que les bases réellement utilisées. Importer `@primeuix/themes/aura`
    ajouterait les tokens des quelque 80 composants au bundle initial, même si Vite ne
@@ -13,6 +21,14 @@ const WatchdeckBase = {
     checkbox: AuraCheckbox,
     datatable: AuraDataTable,
     toast: AuraToast,
+    selectbutton: AuraSelectButton,
+    toggleswitch: AuraToggleSwitch,
+    password: AuraPassword,
+    inputtext: AuraInputText,
+    dialog: AuraDialog,
+    drawer: AuraDrawer,
+    confirmdialog: AuraConfirmDialog,
+    button: AuraButton,
   },
 };
 

@@ -123,6 +123,7 @@ import { api, streamEvents } from '@/api';
 import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { queueCounts } from '@/downloads/queueRules';
+import { usePreference } from '@/composables/usePreference';
 
 const SNAPSHOT_CACHE_KEY = 'dashboard:snapshot';
 const PRIMARY_SECTIONS = [
@@ -169,10 +170,10 @@ const vffCounts = ref<Record<string, any>>({});
 const supervisionLoaded = ref(false);
 const supervisionLoading = ref(false);
 
-const showOnboarding = ref(localStorage.getItem('hide_onboarding') !== 'true');
+const onboardingHidden = usePreference('onboarding.hidden', false, { legacyKeys: ['hide_onboarding'] });
+const showOnboarding = computed(() => !onboardingHidden.value);
 function dismissOnboarding(): void {
-  localStorage.setItem('hide_onboarding', 'true');
-  showOnboarding.value = false;
+  onboardingHidden.value = true;
 }
 
 // "En cours" = sent_to_arr + partially_available (affine cote page Bibliotheque pour
