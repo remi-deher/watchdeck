@@ -364,7 +364,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import { mediaTypeLabel } from '@/utils/labels';
 import { formatDateTime as formatDate } from '@/utils/format';
-import { computed,onMounted,ref,shallowRef,watch } from 'vue';
+import { computed,defineAsyncComponent,onMounted,ref,shallowRef,watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute,useRouter } from 'vue-router';
 import { AlertTriangle,CheckCircle2,Clock3,Columns,Download,Film,Link,Plus,RotateCcw,Server,SlidersHorizontal,Tv,X } from '@lucide/vue';
@@ -389,7 +389,6 @@ import {
 import UnmatchedImportsBanner from '@/components/downloads/UnmatchedImportsBanner.vue';
 import ManualImportModal from '@/components/downloads/ManualImportModal.vue';
 import AddTorrentModal from '@/components/downloads/AddTorrentModal.vue';
-import TorrentClientsTable from '@/components/downloads/TorrentClientsTable.vue';
 import TorrentSidebarFilters from '@/components/downloads/TorrentSidebarFilters.vue';
 import TorrentOverviewDashboard from '@/components/downloads/TorrentOverviewDashboard.vue';
 import DownloadsOverview from '@/components/downloads/DownloadsOverview.vue';
@@ -401,6 +400,9 @@ import MediaCardShell from '@/components/media/MediaCardShell.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 
+// La table embarque la DataTable PrimeVue (~500 Ko) : elle n'est utile que sur l'onglet
+// Clients, la charger a la demande garde l'apercu et la file d'attente legers.
+const TorrentClientsTable=defineAsyncComponent(()=>import('@/components/downloads/TorrentClientsTable.vue'));
 const route=useRoute(),router=useRouter();
 const arrQueue=ref<any[]>([]),directQueue=ref<any[]>([]),history=shallowRef<any[]>([]),diskSpaceVolumes=ref<any[]>([]),failedPosterIds=ref<Set<string>>(new Set());
 /**

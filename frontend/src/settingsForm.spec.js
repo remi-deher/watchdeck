@@ -1,5 +1,6 @@
 // Chaque import frais recrée l'instance Pinia dédiée aux réglages afin d'isoler les tests.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { nextTick } from 'vue';
 
 const apiMock = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => apiMock(...args) }));
@@ -125,6 +126,22 @@ describe('settingsForm', () => {
     expect(apiMock).not.toHaveBeenCalled();
     expect(error.value).toMatch(/URL HTTP ou HTTPS/);
     expect(validationErrors.plex_url).toMatch(/URL HTTP ou HTTPS/);
+  });
+
+  it('efface l\'erreur d\'un champ dès qu\'il est corrigé', async () => {
+    const { form, load, save, validationErrors } = await freshSettingsForm();
+    apiMock.mockResolvedValueOnce({ plex_url: 'http://plex.local', tmdb_region: 'FR' });
+    await load();
+    form.plex_url = 'plex sans protocole';
+    form.tmdb_region = 'FRA';
+    await save();
+    expect(Object.keys(validationErrors).sort()).toEqual(['plex_url', 'tmdb_region']);
+
+    form.plex_url = 'http://plex.local:32400';
+    await nextTick();
+
+    expect(validationErrors.plex_url).toBeUndefined();
+    expect(validationErrors.tmdb_region).toMatch(/deux lettres/);
   });
 
   it('ne persiste pas les réglages serveur ni les secrets dans localStorage', async () => {

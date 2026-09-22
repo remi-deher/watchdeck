@@ -17,7 +17,6 @@
     "chart.js": "^4.5.1",
     "motion-v": "^2.4.4",
     "pinia": "^3.0.4",
-    "pinia-plugin-persistedstate": "^4.7.1",
     "primevue": "^4.5.5",
     "qrcode": "^1.5.4",
     "vite": "^8.2.2",

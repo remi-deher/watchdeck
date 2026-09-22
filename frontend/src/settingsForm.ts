@@ -1,6 +1,5 @@
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { createPinia, defineStore, setActivePinia, storeToRefs } from 'pinia';
-import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import { humanizeError } from '@/utils/apiError';
 import { api } from '@/api';
 
@@ -160,7 +159,6 @@ const initialForm = (): Record<string, any> => ({
 });
 
 export const settingsPinia = createPinia();
-settingsPinia.use(piniaPluginPersistedstate);
 setActivePinia(settingsPinia);
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -169,6 +167,16 @@ const saving = ref(false);
 const error = ref('');
 const message = ref('');
 const validationErrors = reactive<Record<string, string>>({});
+// Une erreur de validation ne vaut que pour la valeur refusée : dès que le champ est
+// corrigé, son message disparaît au lieu de rester affiché jusqu'au prochain envoi.
+watch(
+  () => Object.fromEntries(Object.keys(validationErrors).map(key => [key, form[key]])),
+  (values, previous) => {
+    for (const key of Object.keys(values)) {
+      if (key in previous && !Object.is(values[key], previous[key])) delete validationErrors[key];
+    }
+  },
+);
 
 /* Etat du formulaire tel qu'il a ete charge, champ par champ.
  *

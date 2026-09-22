@@ -50,9 +50,12 @@ describe('VfSettingsModal', () => {
     api.mockResolvedValueOnce({});
 
     await button(wrapper, 'Enregistrer').trigger('click');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    const call = api.mock.calls.find(([, init]) => init?.method === 'PUT');
+    // save() charge le schéma Zod à la demande avant le PUT : un seul tick ne suffit pas.
+    const call = await vi.waitFor(() => {
+      const found = api.mock.calls.find(([, init]) => init?.method === 'PUT');
+      if (!found) throw new Error('PUT non envoyé');
+      return found;
+    });
     expect(JSON.parse(call[1].body)).toEqual({ vf_upgrade_min_confidence: 80 });
   });
 
