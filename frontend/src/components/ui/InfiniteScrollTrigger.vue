@@ -5,7 +5,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref } from 'vue';
+import { useIntersectionObserver } from '@vueuse/core';
 import { LoaderCircle } from '@lucide/vue';
 
 const props = withDefaults(
@@ -23,22 +24,13 @@ const emit = defineEmits<{
 }>();
 
 const sentinel = ref<HTMLElement | null>(null);
-let observer: IntersectionObserver | null = null;
 
 function trigger(entries: IntersectionObserverEntry[]): void {
   if (entries[0]?.isIntersecting && props.hasMore && !props.loading) emit('load');
 }
 
-onMounted(() => {
-  observer = new IntersectionObserver(trigger, { rootMargin: '400px' });
-  if (sentinel.value) observer.observe(sentinel.value);
-});
-onBeforeUnmount(() => observer?.disconnect());
-watch(sentinel, (el, prev) => {
-  if (!observer) return;
-  if (prev) observer.unobserve(prev);
-  if (el) observer.observe(el);
-});
+// La sentinelle est sous `v-if` : VueUse suit la ref et rebranche l'observateur.
+useIntersectionObserver(sentinel, trigger, { rootMargin: '400px' });
 </script>
 
 <style scoped lang="scss">

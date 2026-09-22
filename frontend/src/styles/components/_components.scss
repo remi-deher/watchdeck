@@ -113,21 +113,6 @@
 }
 
 /* Fondations UI communes : en-têtes, statuts et retours système. */
-.ui-page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding-bottom: 4px;
-}
-.ui-page-heading { min-width: 0; display: grid; gap: var(--space-1); }
-.ui-page-title-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.ui-page-title-row h1 { margin: 0; line-height: 1.15; }
-.ui-page-heading > p { margin: 0; color: var(--muted); max-width: 68ch; line-height: 1.5; }
-.ui-breadcrumbs { display: flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
-.ui-breadcrumbs a { color: inherit; text-decoration: none; }
-.ui-breadcrumbs a:hover { color: var(--text); }
-.ui-page-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
 
 .ui-feedback { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; align-items: center; gap: var(--space-3); min-height: 48px; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); color: var(--muted); }
 .ui-feedback > svg { width: 19px; height: 19px; }
@@ -143,11 +128,6 @@
 .ui-feedback-close svg { width: 17px; }
 
 @media (max-width: 767.98px) {
-  .ui-page-header { display: grid; gap: var(--space-4); }
-  .ui-page-actions { width: 100%; justify-content: stretch; }
-  .ui-page-actions > .primary { flex: 1; min-height: 44px; }
-  .ui-page-actions > .secondary, .ui-page-actions > .icon-button { min-height: 44px; }
-  .ui-page-actions > .icon-button { width: 44px; }
   .ui-feedback { grid-template-columns: auto minmax(0,1fr) auto; }
   .ui-feedback > .ui-button { grid-column: 2 / -1; justify-self: start; }
 }
@@ -184,41 +164,8 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 }
 
 /* Barre de filtres unifiée : inline sur grand écran, feuille tactile sur petit écran. */
-.ui-filter-bar { display: flex; align-items: center; gap: var(--space-3); min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
-.ui-filter-primary { display: flex; flex: 1 1 260px; min-width: 180px; }
-.ui-filter-primary > * { width: 100%; }
-.ui-filter-desktop { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
-.ui-filter-desktop select { min-width: 150px; }
-.ui-filter-reset { min-height: 38px; padding: 0 10px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
-.ui-filter-reset:hover { color: var(--text); }
-.ui-filter-mobile-trigger { display: none; }
-.ui-filter-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: #151515; font-size: var(--fs-xs); font-weight: 800; }
-.ui-filter-overlay { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; padding: calc(var(--safe-top) + var(--app-shell-offset-top)) var(--safe-right) 0 var(--safe-left); background: rgba(5,5,8,.66); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
-.ui-filter-sheet { width: min(100%, 620px); max-height: min(82dvh, calc(var(--visual-viewport-height) - var(--app-shell-offset-top) - var(--safe-top)), 720px); display: grid; grid-template-rows: auto minmax(0,1fr) auto; border: 1px solid var(--border); border-bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; background: #121216; box-shadow: 0 -18px 50px rgba(0,0,0,.55); overflow: hidden; }
-.ui-filter-sheet header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 16px 18px; border-bottom: 1px solid var(--border); }
-.ui-filter-sheet header span { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .08em; }
-.ui-filter-sheet h2 { margin: 2px 0 0; font-size: var(--fs-lg); }
-.ui-filter-sheet-content { display: grid; align-content: start; gap: var(--space-4); padding: 18px; overflow-y: auto; }
-.ui-filter-sheet-content > * { width: 100%; min-height: 44px; }
-.ui-filter-sheet footer { display: grid; grid-template-columns: auto minmax(0,1fr); gap: var(--space-3); padding: 12px 18px max(12px,var(--safe-bottom)); border-top: 1px solid var(--border); background: #121216; }
-.ui-filter-sheet footer button { min-height: 46px; }
 .filter-sheet-enter-active,.filter-sheet-leave-active { transition: opacity .2s ease; }
-.filter-sheet-enter-active .ui-filter-sheet,.filter-sheet-leave-active .ui-filter-sheet { transition: transform .22s ease; }
 .filter-sheet-enter-from,.filter-sheet-leave-to { opacity: 0; }
-.filter-sheet-enter-from .ui-filter-sheet,.filter-sheet-leave-to .ui-filter-sheet { transform: translateY(100%); }
-
-@media (max-width: 767.98px) {
-  .ui-filter-bar { position: sticky; top: calc(8px + var(--safe-top)); z-index: 19; }
-  .ui-filter-desktop { display: none; }
-  .ui-filter-mobile-trigger { display: inline-flex; min-height: 44px; }
-  .ui-filter-primary { min-width: 0; }
-}
-
-@media (max-width: 520px) {
-  .ui-filter-sheet { width: 100%; max-height: 88dvh; }
-  .ui-filter-sheet footer { grid-template-columns: 1fr; }
-  .ui-filter-sheet footer .ui-button--primary { grid-row: 1; }
-}
 
 /* Badge dans le flux, par defaut.
  *
@@ -308,8 +255,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 }
 
 /* Forms stack by default and gain a second column only from the tablet boundary. */
-.form-grid,
-.form-grid.two,
 .settings-grid.two.form-section {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -317,62 +262,11 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 }
 
 @media (min-width: 768px) {
-  .form-grid.two,
   .settings-grid.two.form-section { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .form-grid > .span-two,
   .settings-grid.two.form-section > .span-two { grid-column: 1 / -1; }
 }
 
-/* --- Regroupe plusieurs barres sticky (filtres + actions groupees) pour qu'elles s'empilent au lieu de se superposer --- */
-.sticky-stack {
-  position: sticky;
-  top: calc(12px + var(--safe-top));
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: 16px;
-}
-
-.sticky-stack .filters-panel,
-.sticky-stack .bulk-bar {
-  position: static;
-  margin-bottom: 0;
-}
-
-@media (max-width: 600px) {
-  .sticky-stack {
-    top: calc(8px + var(--safe-top));
-  }
-}
-
 /* --- Toolbar de filtres (Demandes, Bibliotheque...) --- */
-.filters-panel {
-  position: sticky;
-  top: calc(12px + var(--safe-top));
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: 16px;
-  padding: 10px;
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: var(--panel-radius);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, .2);
-}
-
-.filter-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.filter-row .search {
-  flex-grow: 1;
-}
 
 .filter-pills-scroll {
   position: relative;
@@ -726,17 +620,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .detail-drawer > .drawer-actions > * { width: 100%; }
 }
 
-.modal-bg {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(40px) brightness(0.22);
-  transform: scale(1.15);
-  z-index: -1;
-  pointer-events: none;
-}
-
 .form-section textarea,
 .code-editor {
   width: 100%;
@@ -828,7 +711,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .filter-pill,
   .filter-select,
   .panel-link,
-  .close-sheet-btn,
   .segmented button {
     min-height: 44px;
   }
@@ -854,11 +736,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
     width: 44px;
     height: 44px;
     transform: translate(-50%, -50%);
-  }
-
-  .close-sheet-btn {
-    width: 44px;
-    height: 44px;
   }
 
   /* Empêche le zoom automatique iOS au focus (police < 16px) */

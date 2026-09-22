@@ -48,7 +48,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useIntersectionObserver } from '@vueuse/core';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
@@ -188,31 +189,17 @@ function dayLabel(key: string): string {
    qu'elle approche du bas. Le clic sur « Afficher 100 de plus » restait le seul moyen de
    descendre dans un historique de plusieurs milliers de lignes. */
 const sentinel = ref<HTMLElement | null>(null);
-let observer: IntersectionObserver | null = null;
-function stopObserving(): void {
-  observer?.disconnect();
-  observer = null;
-}
-watch(
-  [sentinel, () => props.hasMore],
-  ([element, hasMore]) => {
-    stopObserving();
-    if (!element || !hasMore || typeof IntersectionObserver === 'undefined') return;
-    observer = new IntersectionObserver(
-      (entries) => {
-        // `loadingMore` est relu ici et non capture : une page peut arriver pendant que
-        // la sentinelle est encore visible, et redemander la meme page la dupliquerait.
-        if (entries.some((entry) => entry.isIntersecting) && props.hasMore && !props.loadingMore) {
-          emit('load-more');
-        }
-      },
-      { rootMargin: '400px' }
-    );
-    observer.observe(element);
+useIntersectionObserver(
+  () => (props.hasMore ? sentinel.value : null),
+  (entries) => {
+    // `loadingMore` est relu ici et non capture : une page peut arriver pendant que
+    // la sentinelle est encore visible, et redemander la meme page la dupliquerait.
+    if (entries.some((entry) => entry.isIntersecting) && props.hasMore && !props.loadingMore) {
+      emit('load-more');
+    }
   },
-  { immediate: true }
+  { rootMargin: '400px' }
 );
-onBeforeUnmount(stopObserving);
 
 const countLabel = computed(() => {
   const shown = (props.items || []).length;

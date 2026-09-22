@@ -370,6 +370,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useEventListener, useIntersectionObserver } from '@vueuse/core';
 import { AlertTriangle, ChevronDown, ChevronUp, Download, Eye, EyeOff, FileText, FileX2, Gauge, Info, Maximize2, Minimize2, Pause, Play, Radio, RotateCcw, SlidersHorizontal, Tag, Trash2, Upload, Users } from '@lucide/vue';
 import Column from 'primevue/column';
 import DataTable from 'primevue/datatable';
@@ -537,7 +538,6 @@ const metaTags = ref('');
 const BATCH_SIZE = 100;
 const displayLimit = ref(BATCH_SIZE);
 const sentinelRef = ref<HTMLElement | null>(null);
-let observer: IntersectionObserver | null = null;
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const rowKey = (row: any): string => `${row.client_id}:${row.hash}`;
@@ -739,20 +739,13 @@ function handleKeyDown(event: KeyboardEvent): void {
 
 onMounted(() => {
   loadGlobalStats();
-  window.addEventListener('keydown', handleKeyDown);
-  if (sentinelRef.value && 'IntersectionObserver' in window) {
-    observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore.value) {
-        loadMore();
-      }
-    }, { rootMargin: '200px' });
-    observer.observe(sentinelRef.value);
-  }
 });
+useEventListener(window, 'keydown', handleKeyDown);
+useIntersectionObserver(sentinelRef, (entries) => {
+  if (entries[0]?.isIntersecting && hasMore.value) loadMore();
+}, { rootMargin: '200px' });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown);
-  if (observer) observer.disconnect();
   clearTimeout(statsLoadTimer);
 });
 
