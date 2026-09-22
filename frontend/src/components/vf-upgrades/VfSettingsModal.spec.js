@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 
 import { api } from '@/api';
@@ -12,6 +12,10 @@ vi.mock('@/api', () => ({ api: vi.fn() }));
    champs : elle monte le composant de cet onglet sur le même store et enregistre par le
    même endpoint. Ces tests verrouillent les trois propriétés qui font la synchro. */
 describe('VfSettingsModal', () => {
+  // save() importe le schéma Zod à la demande : sa première compilation peut dépasser
+  // le délai du test quand les workers sont chargés. On la paie une fois, ici.
+  beforeAll(async () => { await import('@/settingsSchema'); }, 30_000);
+
   beforeEach(() => {
     api.mockReset();
     form.vf_upgrade_min_confidence = 65;
