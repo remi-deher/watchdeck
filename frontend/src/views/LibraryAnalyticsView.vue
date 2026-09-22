@@ -114,7 +114,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import { ChevronRight, Columns, FileDown, Lightbulb } from '@lucide/vue';
 
@@ -125,8 +126,8 @@ import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import MediaRowsTable from '@/components/library/MediaRowsTable.vue';
-import { useDebounceFn } from '@vueuse/core';
-import { useFetchState } from '@/composables/useFetchState';
+import { refDebounced } from '@vueuse/core';
+import { humanizeError } from '@/utils/apiError';
 import { useRealtime } from '@/events';
 import {
   DEFAULT_INSIGHT,
@@ -143,11 +144,6 @@ import {
 const route=useRoute();
 const activeTab = computed(()=>route.query.view==='insights'?'insights':'table');
 const filtersOpen = ref(false);
-const snapshot = ref<Record<string, any>>({ items: [], options: {}, distributions: {} });
-const { loading, error, execute: executeLoad } = useFetchState();
-const loadingMore = ref(false);
-const tableItems = ref<any[]>([]), tableTotal = ref(0), tableHasMore = ref(false);
-const insightItems = ref<any[]>([]), insightTotal = ref(0), insightHasMore = ref(false);
 const selectedInsight = ref<any>({ ...DEFAULT_INSIGHT });
 const mediaTable = ref<any>(null);
 const filters = reactive<Record<string, any>>({
@@ -173,12 +169,64 @@ const params = computed(() => {
   Object.entries(filters).forEach(([key, item]) => { if (item !== '' && item != null) value.set(key, item); });
   return value;
 });
-const data = computed(() => snapshot.value);
 const activeCount = computed(() => [...params.value].length);
 const exportUrl = computed(() => `/api/library-analytics/export.csv?${params.value}`);
 const visibleItems = computed(() => tableItems.value);
 const selectedRows = computed(() => insightItems.value);
 const selectedVisibleRows = computed(() => insightItems.value);
+
+/* Le tri vit ici et part au serveur (voir setSort). */
+const sort = reactive<{ key: string; direction: 'asc' | 'desc' }>({ key: 'title', direction: 'asc' });
+/* Les filtres changent a la frappe : la chaine de requete est lissee avant d'entrer
+   dans les cles, pour qu'une saisie ne declenche qu'une lecture. */
+const filterKey = refDebounced(computed(() => params.value.toString()), 250);
+const queryClient = useQueryClient();
+const EMPTY_SNAPSHOT = { items: [], options: {}, distributions: {} };
+const snapshotQuery = useQuery({
+  queryKey: computed(() => ['library-analytics', 'snapshot', filterKey.value]),
+  queryFn: ({ signal }) => api<Record<string, any>>(`/api/library-analytics?${filterKey.value}`, { signal }),
+  placeholderData: keepPreviousData,
+  staleTime: 60_000,
+});
+const data = computed<Record<string, any>>(() => snapshotQuery.data.value || EMPTY_SNAPSHOT);
+
+interface ItemsPage { items?: any[]; total?: number; has_more?: boolean }
+function useItemsPages(scope: 'table' | 'insights', extra: () => Record<string, any>) {
+  return useInfiniteQuery({
+    queryKey: computed(() => ['library-analytics', 'items', scope, { filters: filterKey.value, sort: sort.key, direction: sort.direction, ...extra() }]),
+    queryFn: ({ pageParam, signal }) => {
+      const query = new URLSearchParams(filterKey.value);
+      Object.entries({ offset: pageParam, limit: 100, sort: sort.key, direction: sort.direction, ...extra() })
+        .forEach(([key, item]) => { if (item !== '' && item != null) query.set(key, String(item)); });
+      return api<ItemsPage>(`/api/library-analytics/items?${query}`, { signal });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (last: ItemsPage, pages: ItemsPage[]) => (last.has_more ? pages.reduce((sum, page) => sum + (page.items?.length || 0), 0) : undefined),
+    enabled: computed(() => activeTab.value === scope),
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  });
+}
+const tablePages = useItemsPages('table', () => ({}));
+const insightPages = useItemsPages('insights', () => ({
+  insight_kind: selectedInsight.value.kind,
+  insight_field: selectedInsight.value.field,
+  insight_value: selectedInsight.value.value,
+}));
+const flatten = (pages?: ItemsPage[]) => (pages || []).flatMap(page => page.items || []);
+const tableItems = computed(() => flatten(tablePages.data.value?.pages));
+const tableTotal = computed(() => tablePages.data.value?.pages[0]?.total || 0);
+const tableHasMore = computed(() => Boolean(tablePages.hasNextPage.value));
+const insightItems = computed(() => flatten(insightPages.data.value?.pages));
+const insightTotal = computed(() => insightPages.data.value?.pages[0]?.total || 0);
+const insightHasMore = computed(() => Boolean(insightPages.hasNextPage.value));
+const activePages = computed(() => (activeTab.value === 'table' ? tablePages : insightPages));
+const loadingMore = computed(() => activePages.value.isFetchingNextPage.value);
+const loading = computed(() => snapshotQuery.isFetching.value || (activePages.value.isFetching.value && !loadingMore.value));
+const error = computed(() => {
+  const failure = snapshotQuery.error.value || activePages.value.error.value;
+  return failure ? humanizeError(failure) : '';
+});
 
 function breakdown(key: string): any[] {
   const translate = key === 'types' ? ((label: string) => (MEDIA_TYPE_DISTRIBUTION_LABELS as Record<string, string>)[label] || label) : null;
@@ -194,7 +242,6 @@ function breakdown(key: string): any[] {
 }
 function selectInsight(insight: any): void {
   selectedInsight.value = insightSelection(insight);
-  loadInsight();
 }
 /* Chaque repartition dont le serveur sait filtrer se comporte en filtre de page :
    cliquer « Toei Animation » restreint les autres camemberts, les compteurs et le
@@ -226,53 +273,17 @@ function selectDistribution(chart: any, value: any): void {
     return;
   }
   selectedInsight.value = distributionSelection(chart, value);
-  loadInsight();
 }
 /* Le tri vit ici et part au serveur : la table ne recoit que cent lignes sur plusieurs
    milliers, les ordonner sur place repondrait « les plus regardes de la page ». */
-const sort = reactive<{ key: string; direction: 'asc' | 'desc' }>({ key: 'title', direction: 'asc' });
 function setSort(value: { key: string; direction: 'asc' | 'desc' }): void {
   sort.key = value.key;
   sort.direction = value.direction;
-  if (activeTab.value === 'table') loadTable();
-  else loadInsight();
 }
-function queryString(extra: Record<string, any> = {}): string {
-  const value = new URLSearchParams(params.value);
-  Object.entries(extra).forEach(([key, item]) => { if (item !== '' && item != null) value.set(key, item); });
-  return value.toString();
-}
-async function loadTable(append = false): Promise<void> {
-  const offset = append ? tableItems.value.length : 0;
-  if (append) loadingMore.value = true;
-  try {
-    const page = await api(`/api/library-analytics/items?${queryString({ offset, limit: 100, sort: sort.key, direction: sort.direction })}`);
-    tableItems.value = append ? [...tableItems.value, ...(page.items || [])] : (page.items || []);
-    tableTotal.value = page.total || 0;
-    tableHasMore.value = Boolean(page.has_more);
-  } finally { loadingMore.value = false; }
-}
-async function loadInsight(append = false): Promise<void> {
-  const offset = append ? insightItems.value.length : 0;
-  const selection = selectedInsight.value;
-  if (append) loadingMore.value = true;
-  try {
-    const page = await api(`/api/library-analytics/items?${queryString({
-      offset, limit: 100, sort: sort.key, direction: sort.direction, insight_kind: selection.kind,
-      insight_field: selection.field, insight_value: selection.value,
-    })}`);
-    insightItems.value = append ? [...insightItems.value, ...(page.items || [])] : (page.items || []);
-    insightTotal.value = page.total || 0;
-    insightHasMore.value = Boolean(page.has_more);
-  } finally { loadingMore.value = false; }
-}
-async function load(refresh = false): Promise<void> {
-  await executeLoad(async () => {
-    snapshot.value = await api(`/api/library-analytics?${queryString(refresh ? { refresh: true } : {})}`);
-    if (activeTab.value === 'table') await loadTable();
-    else await loadInsight();
-  });
-}
+/** « Afficher 100 lignes de plus » : les premieres pages suivent la cle d'elles-memes. */
+function loadTable(append = false): void { if (append) void tablePages.fetchNextPage(); else void tablePages.refetch(); }
+function loadInsight(append = false): void { if (append) void insightPages.fetchNextPage(); else void insightPages.refetch(); }
+function load(): Promise<void> { return queryClient.invalidateQueries({ queryKey: ['library-analytics'] }); }
 function reset(): void {
   Object.keys(filters).forEach(key => { filters[key] = ''; });
 }
@@ -280,14 +291,7 @@ function date(value: string): string {
   return value ? `Actualisé ${formatDateTime(value)}` : '';
 }
 
-onMounted(() => load());
-const reloadForFilters = useDebounceFn(() => load(), 250);
-watch(filters, reloadForFilters, { deep: true });
-watch(activeTab, value => {
-  filtersOpen.value = false;
-  if (value === 'table' && !tableItems.value.length) loadTable();
-  if (value === 'insights' && !insightItems.value.length) loadInsight();
-});
+watch(activeTab, () => { filtersOpen.value = false; });
 useRealtime(['library.analytics.updated'], () => load());
 </script>
 

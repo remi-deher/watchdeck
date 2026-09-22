@@ -3,9 +3,9 @@
     
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
-        <select v-if="tab === 'diagnostic'" v-model="category" aria-label="Filtrer par section" @change="load"><option value="">Toutes les sections</option><option value="request">Demande</option><option value="arr">Arr</option><option value="plex">Plex</option><option value="vf_vo">VF / VO</option><option value="notification">Notification</option></select>
+        <select v-if="tab === 'diagnostic'" v-model="category" aria-label="Filtrer par section"><option value="">Toutes les sections</option><option value="request">Demande</option><option value="arr">Arr</option><option value="plex">Plex</option><option value="vf_vo">VF / VO</option><option value="notification">Notification</option></select>
         <select v-if="tab === 'app'" v-model="level" aria-label="Filtrer par niveau de journal"><option value="">Tous les niveaux</option><option>INFO</option><option>WARNING</option><option>ERROR</option><option>CRITICAL</option></select>
-        <select v-if="tab === 'polls'" v-model="job" aria-label="Filtrer par tâche planifiée" @change="load"><option value="">Toutes les tâches</option><option v-for="name in jobs" :key="name">{{ name }}</option></select>
+        <select v-if="tab === 'polls'" v-model="job" aria-label="Filtrer par tâche planifiée"><option value="">Toutes les tâches</option><option v-for="name in jobs" :key="name">{{ name }}</option></select>
         <UiButton v-if="tab === 'pending' && rows.length" variant="danger" @click="purge"><Trash2 />Purger la file</UiButton>
       </FilterSidebar>
       <div class="psh-main">
@@ -31,7 +31,9 @@
 
 <script setup lang="ts">
 import { formatDateTimeSeconds } from '@/utils/format';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { refDebounced } from '@vueuse/core';
 import { Trash2 } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
@@ -39,24 +41,44 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import LoadMore from '@/components/ui/LoadMore.vue';
 import { useConfirmedAction } from '@/composables/useConfirmedAction';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
-import { useFetchState } from '@/composables/useFetchState';
+import { humanizeError } from '@/utils/apiError';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
 
-const tab = ref('diagnostic'), rows = ref<any[]>([]);
-const { loading, error, execute: executeLoad } = useFetchState();
+const tab = ref('diagnostic');
 const search = ref(''), level = ref(''), category = ref(''), job = ref('');
-const { dialog: confirmDialog, resolveConfirm, runConfirmed } = useConfirmedAction({ error });
+// Seul l'onglet diagnostic filtre cote serveur sur la recherche : la frappe est lissee
+// pour ne pas relancer une requete a chaque caractere.
+const serverSearch = refDebounced(search, 300);
+const queryClient = useQueryClient();
+const logsQuery = useQuery({
+  queryKey: computed(() => ['logs', tab.value, {
+    category: tab.value === 'diagnostic' ? category.value : '',
+    search: tab.value === 'diagnostic' ? serverSearch.value : '',
+    job: tab.value === 'polls' ? job.value : '',
+  }]),
+  queryFn: ({ signal }) => api<any>(endpoint(), { signal }),
+  select: (data: any): any[] => (Array.isArray(data) ? data : (data?.items || [])),
+  // Garder les lignes du filtre precedent pendant le chargement du suivant evite de
+  // vider le tableau, mais pas d'un onglet a l'autre : les colonnes n'ont pas le meme sens.
+  placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === tab.value ? keepPreviousData(previous) : undefined),
+  staleTime: 10_000,
+});
+const rows = computed<any[]>(() => logsQuery.data.value || []);
+const loading = computed(() => logsQuery.isFetching.value);
+// L'erreur des actions confirmees (purge) reste distincte de celle de la lecture.
+const actionError = ref('');
+const error = computed(() => actionError.value || (logsQuery.error.value ? humanizeError(logsQuery.error.value) : ''));
+const { dialog: confirmDialog, resolveConfirm, runConfirmed } = useConfirmedAction({ error: actionError });
 const tabs = [{ id: 'diagnostic', label: 'Parcours demandes' }, { id: 'app', label: 'Application' }, { id: 'polls', label: 'Tâches planifiées' }, { id: 'audit', label: 'Audit admin' }, { id: 'pending', label: 'File notifications' }];
 const tabItems = tabs.map((item) => ({ key: item.id, label: item.label }));
-function selectTab(value: string): void { tab.value = value; load(); }
+function selectTab(value: string): void { tab.value = value; }
 const jobs = computed(() => [...new Set(rows.value.map((x) => x.job).filter(Boolean))]);
 const filtered = computed(() => rows.value.filter((row) => (!level.value || row.level === level.value) && (!search.value || JSON.stringify(row).toLowerCase().includes(search.value.toLowerCase()))));
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFiltersDrawer } = useFiltersDrawer(
   { search, level, category, job },
-  { search: '', level: '', category: '', job: '' },
-  { onReset: () => { load(); } }
+  { search: '', level: '', category: '', job: '' }
 );
 const PAGE_SIZE = 50;
 const visibleCount = ref(PAGE_SIZE);
@@ -65,17 +87,18 @@ watch(filtered, () => { visibleCount.value = PAGE_SIZE; });
 function resetFilters(): void { resetFiltersDrawer(); }
 
 function endpoint(): string {
-  if (tab.value === 'diagnostic') return `/api/diagnostic-logs?limit=300${category.value ? `&category=${encodeURIComponent(category.value)}` : ''}${search.value ? `&search=${encodeURIComponent(search.value)}` : ''}`;
+  if (tab.value === 'diagnostic') return `/api/diagnostic-logs?limit=300${category.value ? `&category=${encodeURIComponent(category.value)}` : ''}${serverSearch.value ? `&search=${encodeURIComponent(serverSearch.value)}` : ''}`;
   if (tab.value === 'polls') return `/api/poll-history?limit=200${job.value ? `&job=${encodeURIComponent(job.value)}` : ''}`;
   if (tab.value === 'audit') return '/api/admin-action-logs?limit=200';
   if (tab.value === 'pending') return '/api/notifications/pending';
   return '/api/logs';
 }
-async function load(): Promise<void> { await executeLoad(async () => { const data = await api(endpoint()); rows.value = Array.isArray(data) ? data : (data.items || []); }); }
+function load(): void { actionError.value = ''; void logsQuery.refetch(); }
+function invalidateLogs(): Promise<void> { return queryClient.invalidateQueries({ queryKey: ['logs'] }); }
 async function purge(): Promise<void> {
   await runConfirmed(async () => {
     await api('/api/notifications/pending/purge', { method: 'POST', body: JSON.stringify({ ids: [], mark_handled: false }) });
-    await load();
+    await invalidateLogs();
   }, {
     title: 'Purger la file de notifications ?',
     message: 'Toutes les notifications en attente seront supprimées définitivement.',
@@ -116,8 +139,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 function resultOf(r: any): string { if (tab.value === 'diagnostic') { const raw = String(r.status || '').toLowerCase(); return STATUS_LABELS[raw] || r.status || '—'; } if (tab.value === 'polls') return r.errors ? `${r.errors} erreur(s)` : `${r.duration_ms || 0} ms`; if (tab.value === 'audit') return `${r.target_count || 0} cible(s)`; return r.valid ? 'Valide' : 'Invalide'; }
 function badgeTone(r: any): string { if (r.status === 'error' || r.level === 'ERROR' || r.level === 'CRITICAL' || r.errors || r.valid === false) return 'danger'; if (r.status === 'warning' || r.status === 'ignored' || r.level === 'WARNING') return 'warning'; return 'success'; }
-onMounted(load);
-useRealtime(['request.updated', 'job.updated', 'notification.updated'], () => load());
+useRealtime(['request.updated', 'job.updated', 'notification.updated'], () => { void invalidateLogs(); });
 </script>
 
 <style scoped lang="scss">
