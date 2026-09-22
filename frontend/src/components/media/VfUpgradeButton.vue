@@ -148,6 +148,7 @@ import { useVfUpgrade } from '@/composables/useVfUpgrade';
 import { api } from '@/api';
 import { compareReleaseTitles, parseReleaseTitle, releaseDecisionScore, translateRejection } from '@/utils/releaseTitle';
 import type { VfUpgradeRelease } from '@/types/vfUpgrades';
+import { formatDate as formatSharedDate } from '@/utils/format';
 
 const props = withDefaults(
   defineProps<{
@@ -292,7 +293,7 @@ function formatSize(value: number | undefined): string {
   return value ? `${(value / 1024 ** 3).toFixed(1)} Go` : '—';
 }
 function formatReleaseDate(value: string | number): string {
-  return value ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(new Date(value)) : '—';
+  return formatSharedDate(value, '—');
 }
 function hasReleaseDetails(release: any): boolean {
   return Boolean(

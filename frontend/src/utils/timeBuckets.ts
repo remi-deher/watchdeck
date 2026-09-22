@@ -4,6 +4,8 @@
  * par se compter en milliers, ce qui rendait les graphiques illisibles — et, avec une
  * largeur minimale par barre, débordait la grille de plusieurs milliers de pixels.
  * Au-delà de quelques mois on passe donc à la semaine, puis au mois. */
+import { format, getDay, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export type Grain = 'day' | 'week' | 'month';
 
@@ -19,6 +21,21 @@ export interface BucketedPoint {
   value: number;
 }
 
+/** Date civile locale, sans conversion UTC. */
+export function localIso(date: Date): string {
+  return format(date, 'yyyy-MM-dd');
+}
+
+/** Index lundi=0…dimanche=6, utilisé par la grille mensuelle. */
+export function mondayDayIndex(date: Date): number {
+  return (getDay(date) + 6) % 7;
+}
+
+export function monthBounds(date: Date): { start: Date; end: Date } {
+  const start = startOfMonth(date);
+  return { start, end: new Date(start.getFullYear(), start.getMonth() + 1, 1) };
+}
+
 export function grainFor(count: number): Grain {
   if (count > 750) return 'month';
   if (count > 120) return 'week';
@@ -28,17 +45,15 @@ export function grainFor(count: number): Grain {
 /** Début de la tranche à laquelle appartient une date (lundi pour la semaine). */
 export function bucketStart(date: string, grain: Grain): string {
   if (grain === 'day') return date;
-  const parsed = new Date(`${date}T00:00:00`);
+  let parsed = parseISO(date);
   if (Number.isNaN(parsed.getTime())) return date;
   if (grain === 'month') parsed.setDate(1);
-  else parsed.setDate(parsed.getDate() - ((parsed.getDay() + 6) % 7));
-  const month = String(parsed.getMonth() + 1).padStart(2, '0');
-  const day = String(parsed.getDate()).padStart(2, '0');
-  return `${parsed.getFullYear()}-${month}-${day}`;
+  else parsed = startOfWeek(parsed, { weekStartsOn: 1 });
+  return localIso(parsed);
 }
 
 export function monthLabel(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+  return format(parseISO(date), 'MMM yy', { locale: fr });
 }
 
 /**

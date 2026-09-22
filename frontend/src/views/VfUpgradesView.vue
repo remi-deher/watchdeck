@@ -793,6 +793,7 @@ import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { useFeedback } from '@/composables/useFeedback';
 import { useToast } from '@/composables/useToast';
 import { humanizeError } from '@/utils/apiError';
+import { formatDateTimeShort } from '@/utils/format';
 import { useRoute } from 'vue-router';
 
 const activeTab = ref('upgrades'); // 'upgrades' (*arr) | 'audit' (PASTA)
@@ -1530,9 +1531,7 @@ function forcedRowClass(item) {
 }
 
 function formatDate(value) {
-  return value
-    ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
-    : '—';
+  return formatDateTimeShort(value, '—');
 }
 
 function seasonHasPending(season) {

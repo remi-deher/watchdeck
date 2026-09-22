@@ -108,6 +108,7 @@ import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
+import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
 import { rejouerTransport } from '@/composables/usePosterMorph';
 
@@ -222,10 +223,7 @@ const isOverviewLong = computed(() => overviewText.value.length > 260);
 const typeLabel = computed(() => mediaTypeLabel(props.detail.media_type));
 
 function formatDate(value: any): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  return formatDateLong(value, '');
 }
 
 const releaseDates = computed(() => {

@@ -55,7 +55,9 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { downloadTextFile } from '@/utils/download';
 import { FileDown, MapPin, Monitor, Network } from '@lucide/vue';
-import { formatDurationExact as formatDuration, formatDateTimeShort } from '@/utils/format';
+import { formatDurationExact as formatDuration, formatDateTimeShort, formatLongDay } from '@/utils/format';
+import { isToday, isYesterday } from 'date-fns';
+import { localIso } from '@/utils/timeBuckets';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 
@@ -171,18 +173,13 @@ const days = computed(() => {
   return out;
 });
 
-const DAY_FORMAT = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 function dayLabel(key: string): string {
   if (key === 'sans-date') return 'Date inconnue';
   const date = new Date(`${key}T00:00:00`);
   if (Number.isNaN(date.getTime())) return key;
-  const today = new Date();
-  const iso = (value: Date) => value.toISOString().slice(0, 10);
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (key === iso(today)) return "Aujourd’hui";
-  if (key === iso(yesterday)) return 'Hier';
-  return DAY_FORMAT.format(date);
+  if (isToday(date)) return "Aujourd’hui";
+  if (isYesterday(date)) return 'Hier';
+  return formatLongDay(key, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 /* Chargement au defilement : une sentinelle sous la liste declenche la page suivante des
@@ -233,7 +230,7 @@ function exportCsv(): void {
   const csv = lines.map((line) => line.map((cell) => '"' + String(cell).replace(/"/g, '""') + '"').join(';')).join('\r\n');
   // BOM : sans lui Excel lit le CSV en ANSI et casse tous les accents.
   downloadTextFile(
-    `historique-lectures-${new Date().toISOString().slice(0, 10)}.csv`,
+    `historique-lectures-${localIso(new Date())}.csv`,
     '﻿' + csv,
     'text/csv;charset=utf-8'
   );

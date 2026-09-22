@@ -67,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatDateTimeSeconds } from '@/utils/format';
 import { computed, onMounted, ref } from 'vue';
 import { Check, Copy, ExternalLink, RefreshCw } from '@lucide/vue';
 import { api } from '@/api';
@@ -121,7 +122,7 @@ function mainComparisonMessage(comparison: MainComparison): string {
 function formatDate(value: string): string {
   if (!value || value === 'unknown') return value;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('fr-FR');
+  return Number.isNaN(date.getTime()) ? value : formatDateTimeSeconds(date);
 }
 
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [

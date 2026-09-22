@@ -233,6 +233,7 @@ import { MessageSquareWarning, ChevronDown, SlidersHorizontal } from "@lucide/vu
 import VfUpgradeButton from "@/components/media/VfUpgradeButton.vue";
 import SeasonEpisodeList from "@/components/media/SeasonEpisodeList.vue";
 import AlignStreamsModal from "@/components/media/AlignStreamsModal.vue";
+import { formatAirDate as formatSharedAirDate } from '@/utils/format';
 
 export interface SubtitleAlertsResult {
   subFrNoTrack: boolean;
@@ -362,14 +363,7 @@ function isEpisodeExpanded(seasonNumber: number, episodeNumber: number): boolean
 }
 
 function formatAirDate(airDate: string): string {
-  if (!airDate) return '';
-  const hasTime = airDate.includes('T');
-  const d = new Date(airDate);
-  if (Number.isNaN(d.getTime())) return '';
-  const datePart = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-  if (!hasTime) return datePart;
-  const timePart = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  return `${datePart} a ${timePart}`;
+  return formatSharedAirDate(airDate);
 }
 </script>
 

@@ -79,7 +79,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { formatLongDay as formatLongDate, formatNumber } from '@/utils/format';
+import { formatDayMonth, formatLongDay as formatLongDate, formatNumber } from '@/utils/format';
 import LineChart from '@/components/ui/charts/LineChart.vue';
 import PanelCard from '@/components/ui/PanelCard.vue';
 
@@ -167,9 +167,7 @@ const trend = computed(() => {
 });
 
 function formatChartDate(v?: string): string {
-  if (!v) return '';
-  const d = new Date(v);
-  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+  return formatDayMonth(v);
 }
 
 const chartPoints = computed(() => {

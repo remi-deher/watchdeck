@@ -125,7 +125,8 @@
 </template>
 
 <script setup lang="ts">
-import { formatLongDay as longDate, formatMonthYear } from '@/utils/format';
+import { formatLongDay as longDate, formatMonthYear, formatTime as formatClockTime } from '@/utils/format';
+import { localIso, mondayDayIndex, monthBounds } from '@/utils/timeBuckets';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Clock, Film, Play, Star, Tv } from '@lucide/vue';
@@ -154,7 +155,7 @@ const view = ref(localStorage.getItem('calendar.view') || (compact.value ? 'agen
 const viewOptions = [{ value: 'agenda', label: 'Agenda' }, { value: 'month', label: 'Mois' }];
 function setView(value: string | number) { if (value === 'agenda' || value === 'month') view.value = value; }
 const todayStr = localIso(new Date()), weekLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-const bounds = computed(() => { const y = cursor.value.getFullYear(), m = cursor.value.getMonth(); return { start: new Date(y, m, 1), end: new Date(y, m + 1, 1) }; });
+const bounds = computed(() => monthBounds(cursor.value));
 const periodLabel = computed(() => formatMonthYear(cursor.value));
 const filtered = computed(() => events.value.filter((e: any) => (!search.value || e.title.toLowerCase().includes(search.value.toLowerCase())) && (!type.value || e.type === type.value)));
 const eventsByDate = computed(() => { const map = new Map<string, any[]>(); filtered.value.forEach((e: any) => { const key = e.date.slice(0, 10); if (!map.has(key)) map.set(key, []); map.get(key)!.push(e); }); return map; });
@@ -166,7 +167,7 @@ const shownGroups = computed(() => grouped.value.slice(0, visibleDays.value));
 watch([search, type, tracked], () => { visibleDays.value = DAYS_PAGE; });
 
 const monthCells = computed(() => {
-  const start = bounds.value.start, first = (start.getDay() + 6) % 7, cells = [];
+  const start = bounds.value.start, first = mondayDayIndex(start), cells = [];
   for (let i = -first; i < 42 - first; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), i + 1), date = localIso(d);
     cells.push({ key: date, date, day: d.getDate(), current: d.getMonth() === start.getMonth(), events: eventsByDate.value.get(date) || [] });
@@ -189,8 +190,7 @@ function resetFilters(): void {
 }
 watch(view, value => { if (!compact.value) localStorage.setItem('calendar.view', value); });
 
-function localIso(d: Date): string { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-function formatTime(v: string): string { if (!v) return ''; const d = new Date(v); if (isNaN(d.getTime()) || v.endsWith('T00:00:00Z') || v.endsWith('T00:00:00.000Z')) return ''; return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+function formatTime(v: string): string { if (!v || v.endsWith('T00:00:00Z') || v.endsWith('T00:00:00.000Z')) return ''; return formatClockTime(v, ''); }
 function eventKey(event: any): string { return `${event.instance}:${event.date}:${event.title}:${event.subtitle}`; }
 function eventState(event: any): string { return event.has_file ? 'available' : ''; }
 
