@@ -1,6 +1,7 @@
 ﻿import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
+import PrimeVue from 'primevue/config';
 
 import TorrentClientsTable from './TorrentClientsTable.vue';
 
@@ -16,6 +17,7 @@ function factory() {
   return mount(TorrentClientsTable, {
     props: { rows },
     global: {
+      plugins: [PrimeVue],
       stubs: {
         DrawerShell: { template: '<aside><slot/><slot name="actions"/></aside>' },
         ModalShell: { props: ['open', 'title'], template: '<div v-if="open"><h2>{{ title }}</h2><slot/><slot name="actions"/></div>' },
@@ -34,7 +36,7 @@ describe('TorrentClientsTable', () => {
   it('trie les torrents en cliquant sur les colonnes', async () => {
     const wrapper = factory();
     expect(wrapper.findAll('.torrent-title').map(node => node.text())).toEqual(['Alpha', 'Zulu']);
-    await wrapper.findAll('.sort-button')[0].trigger('click');
+    await wrapper.findAll('th.p-datatable-sortable-column')[0].trigger('click');
     expect(wrapper.findAll('.torrent-title').map(node => node.text())).toEqual(['Zulu', 'Alpha']);
   });
 
@@ -140,9 +142,9 @@ describe('TorrentClientsTable', () => {
 
   it('supporte le drag and drop direct sur th et le redimensionnement', async () => {
     const wrapper = factory();
-    const headers = wrapper.findAll('th');
-    await headers[1].trigger('dragstart');
-    await headers[2].trigger('drop');
+    const headers = wrapper.findAll('.th-content');
+    await headers[0].trigger('dragstart');
+    await headers[1].trigger('drop');
     await nextTick();
     expect(JSON.parse(localStorage.getItem('watchdeck:torrent-table-columns:all')).order.slice(0, 2)).toEqual(['status', 'title']);
 

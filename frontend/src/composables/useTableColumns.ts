@@ -161,7 +161,7 @@ export function useTableColumns<T extends TableColumnLike>(
   function startColumnResize(key: string, event: PointerEvent): void {
     resizingKey = key;
     resizeStartX = event.clientX;
-    resizeStartWidth = columnWidths.value[key] || (event.target as HTMLElement)?.parentElement?.offsetWidth || 100;
+    resizeStartWidth = columnWidths.value[key] || (event.currentTarget as HTMLElement)?.closest('th')?.offsetWidth || 100;
     window.addEventListener('pointermove', onResizeMove);
     window.addEventListener('pointerup', onResizeEnd);
   }

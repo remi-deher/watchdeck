@@ -1,6 +1,8 @@
 import { createApp } from 'vue';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import PrimeVue from 'primevue/config';
 import { installerSortieDePage } from '@/composables/usePageExit';
+import { WatchdeckPreset } from '@/theme/watchdeck';
 import App from './App.vue';
 import { isAdminSession, isModeratorSession, loadSession } from './composables/useSession';
 import AppPage from '@/components/ui/AppPage.vue';
@@ -138,5 +140,15 @@ createApp(App)
   .component('StatusBadge', StatusBadge)
   .component('UiFeedback', UiFeedback)
   .component('FormSaveBar', FormSaveBar)
+  .use(PrimeVue, {
+    ripple: false,
+    theme: {
+      preset: WatchdeckPreset,
+      options: {
+        darkModeSelector: ':root',
+        cssLayer: false,
+      },
+    },
+  })
   .use(router)
   .mount('#app');
