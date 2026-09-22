@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import PrimeVue from 'primevue/config';
+import ToastService from 'primevue/toastservice';
 import { installerSortieDePage } from '@/composables/usePageExit';
 import { WatchdeckPreset } from '@/theme/watchdeck';
 import { createQueryClient } from '@/queryClient';
@@ -157,5 +158,6 @@ createApp(App)
       },
     },
   })
+  .use(ToastService)
   .use(router)
   .mount('#app');

@@ -2,6 +2,7 @@ import { definePreset } from '@primeuix/themes';
 import AuraBase from '@primeuix/themes/aura/base';
 import AuraCheckbox from '@primeuix/themes/aura/checkbox';
 import AuraDataTable from '@primeuix/themes/aura/datatable';
+import AuraToast from '@primeuix/themes/aura/toast';
 
 /* N'embarquer que les bases réellement utilisées. Importer `@primeuix/themes/aura`
    ajouterait les tokens des quelque 80 composants au bundle initial, même si Vite ne
@@ -11,6 +12,7 @@ const WatchdeckBase = {
   components: {
     checkbox: AuraCheckbox,
     datatable: AuraDataTable,
+    toast: AuraToast,
   },
 };
 

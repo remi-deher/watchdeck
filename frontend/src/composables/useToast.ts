@@ -1,18 +1,9 @@
-import { ref, type Ref } from 'vue';
+import type { ToastMessageOptions } from 'primevue/toast';
+import type { ToastServiceMethods } from 'primevue/toastservice';
 
-/** Bouton facultatif porte par la notification (« Annuler », « Reessayer »…). */
 export interface ToastAction {
   label: string;
   run: () => void | Promise<void>;
-}
-
-export interface ToastItem {
-  id: number;
-  title: string;
-  message?: string;
-  type: 'info' | 'success' | 'error' | 'warning';
-  image?: string | null;
-  action?: ToastAction | null;
 }
 
 export interface AddToastOptions {
@@ -24,8 +15,35 @@ export interface AddToastOptions {
   action?: ToastAction | null;
 }
 
-const toasts = ref<ToastItem[]>([]);
+export interface AppToastData {
+  id: number;
+  image: string | null;
+  action: ToastAction | null;
+}
+
+export type AppToastMessage = ToastMessageOptions & { data: AppToastData };
+
+const pending: AppToastMessage[] = [];
+const displayed = new Map<number, AppToastMessage>();
+let service: ToastServiceMethods | null = null;
 let nextId = 1;
+
+/** Relie l'API applicative au service PrimeVue lorsque le composant global est monte. */
+export function registerToastService(nextService: ToastServiceMethods): void {
+  service = nextService;
+  for (const message of pending.splice(0)) {
+    displayed.set(message.data.id, message);
+    service.add(message);
+  }
+}
+
+export function unregisterToastService(currentService: ToastServiceMethods): void {
+  if (service === currentService) service = null;
+}
+
+export function forgetToast(id: number): void {
+  displayed.delete(id);
+}
 
 export function useToast() {
   function addToast({
@@ -37,22 +55,32 @@ export function useToast() {
     action = null,
   }: AddToastOptions = {}): number {
     const id = nextId++;
-    const toast: ToastItem = { id, title, message, type, image, action };
-    toasts.value.push(toast);
+    const toast: AppToastMessage = {
+      severity: type === 'warning' ? 'warn' : type,
+      summary: title,
+      detail: message,
+      group: 'app',
+      closable: true,
+      data: { id, image, action },
+      ...(duration > 0 ? { life: duration } : {}),
+    };
 
-    if (duration > 0) {
-      setTimeout(() => {
-        dismissToast(id);
-      }, duration);
+    if (service) {
+      displayed.set(id, toast);
+      service.add(toast);
+    } else {
+      pending.push(toast);
     }
     return id;
   }
 
   function dismissToast(id: number): void {
-    const idx = toasts.value.findIndex((t) => t.id === id);
-    if (idx !== -1) {
-      toasts.value.splice(idx, 1);
-    }
+    const waitingIndex = pending.findIndex((toast) => toast.data.id === id);
+    if (waitingIndex !== -1) pending.splice(waitingIndex, 1);
+
+    const toast = displayed.get(id);
+    if (toast && service) service.remove(toast);
+    displayed.delete(id);
   }
 
   function success(title: string, message = ''): number {
@@ -67,25 +95,9 @@ export function useToast() {
     return addToast({ title, message, type: 'info' });
   }
 
-  /**
-   * Notification porteuse d'un retour arriere.
-   *
-   * Aucune action de l'application n'etait annulable : une fois la confirmation
-   * validee, il n'y avait plus de recours. La fenetre est volontairement plus longue
-   * qu'une notification ordinaire -- il faut lire, comprendre qu'on s'est trompe, puis
-   * viser le bouton.
-   */
   function undoable(title: string, label: string, run: () => void | Promise<void>, message = ''): number {
     return addToast({ title, message, type: 'success', duration: 8000, action: { label, run } });
   }
 
-  return {
-    toasts,
-    addToast,
-    dismissToast,
-    success,
-    error,
-    info,
-    undoable,
-  };
+  return { addToast, dismissToast, removeToast: dismissToast, success, error, info, undoable };
 }

@@ -25,16 +25,16 @@
   <MediaOverlay :open="surfaceOuverte" @close="fermerSurface">
     <MediaDetailView v-if="surfaceOuverte" :key="$route.fullPath" />
   </MediaOverlay>
-  <ToastStack :toasts="allToasts" @dismiss="dismissAnyToast"/>
+  <AppToast />
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { clearCache, syncCacheOwner } from "@/cache";
 import { connectRealtime } from "@/events";
-import ToastStack from "@/components/ui/ToastStack.vue";
 import AppShell from "@/components/layout/AppShell.vue";
 import MediaOverlay from "@/components/media/MediaOverlay.vue";
 import MediaDetailView from "@/views/MediaDetailView.vue";
+import AppToast from '@/components/ui/AppToast.vue';
 import { useMediaOverlay } from "@/composables/useMediaOverlay";
 import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
@@ -50,34 +50,16 @@ const session=ref<any>(null);
 useVisualViewport();
 const isAdmin=computed(()=>isAdminSession(session.value));
 const canModerate=computed(()=>canModerateSession(session.value));
-const toasts=ref<any[]>([]);
 const seenPlaybackEvents=new Set<string>();
-const toastTimers=new Map<string, ReturnType<typeof setTimeout>>();
-function dismissToast(id: string | number): void {toasts.value=toasts.value.filter(toast=>toast.id!==id);clearTimeout(toastTimers.get(String(id)));toastTimers.delete(String(id))}
-/* Deux sources de notifications cohabitent : celles que cette racine fabrique elle-meme
-   (lecture Plex, nouvelle version) et celles que n'importe quel composant declare via
-   `useToast`. La pile n'affichait que les premieres, si bien qu'un `addToast` appele
-   ailleurs dans l'application ne produisait rien du tout. Les identifiants du store
-   partage sont prefixes pour ne jamais entrer en collision avec ceux d'ici. */
-const { toasts: sharedToasts, dismissToast: dismissSharedToast } = useToast();
-const allToasts=computed(()=>[
-  ...toasts.value,
-  ...sharedToasts.value.map(toast=>({...toast,id:`shared-${toast.id}`})),
-]);
-function dismissAnyToast(id: string | number): void {
-  const key=String(id);
-  if(key.startsWith('shared-')){dismissSharedToast(Number(key.slice(7)));return}
-  dismissToast(id);
-}
+const { addToast } = useToast();
+let swUpdateToastShown=false;
 function showPlaybackToasts(event: any): void {
   const started=playbackStartsFromEvent(event);
   for(const session of started){
     const fingerprint=`${event.detail.id||''}:${session.session_id||session.id||playbackTitle(session)}`;
     if(seenPlaybackEvents.has(fingerprint))continue;
     seenPlaybackEvents.add(fingerprint);
-    const id=`playback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    toasts.value=[...toasts.value.slice(-3),{id,type:'playback',title:`${session.user_name||'Un utilisateur'} lance une lecture`,message:playbackTitle(session),image:session.thumb_url||''}];
-    toastTimers.set(id,setTimeout(()=>dismissToast(id),7000));
+    addToast({type:'info',title:`${session.user_name||'Un utilisateur'} lance une lecture`,message:playbackTitle(session),image:session.thumb_url||'',duration:7000});
   }
 }
 // Un import complet a remplace toute la base : tout ce que cet onglet affiche, et tout ce
@@ -87,11 +69,12 @@ function onMigrationCompleted(): void {clearCache();window.location.reload()}
 // Sans ce toast, un nouveau service worker installe restait silencieux : l'utilisateur
 // continuait a utiliser une version perimee de l'app sans jamais etre invite a recharger.
 function onSwUpdateAvailable(): void {
-  if(toasts.value.some(toast=>toast.type==='update'))return;
-  toasts.value=[...toasts.value,{id:'sw-update',type:'update',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.'}];
+  if(swUpdateToastShown)return;
+  swUpdateToastShown=true;
+  addToast({type:'info',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.',duration:0,action:{label:'Recharger',run:()=>window.location.reload()}});
 }
 onMounted(async()=>{
   window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
-onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);toastTimers.forEach(clearTimeout)});
+onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable)});
 </script>
 
