@@ -6,6 +6,7 @@ let activeInerts = 0;
 function syncBody(): void {
   if (typeof document === 'undefined') return;
   document.body.classList.toggle('modal-open', activeLocks > 0);
+  document.documentElement.classList.toggle('modal-open', activeLocks > 0);
   // Le contenu de #app reste un frere du dialogue une fois celui-ci teleporte vers
   // <body> : le rendre inert empeche le curseur virtuel des lecteurs d'ecran et le
   // focus clavier d'atteindre l'arriere-plan pendant qu'une modale est ouverte.

@@ -24,14 +24,21 @@
     </RouteErrorBoundary>
   </AppShell>
 
-  <MediaOverlay :open="surfaceOuverte" @close="fermerSurface">
-    <MediaDetailView v-if="surfaceOuverte" :key="$route.fullPath" />
+  <MediaOverlay :open="surfaceOuverte" @close="fermerSurface" @after-leave="ficheAffichee = null">
+    <!-- La fiche reste rendue, figee sur SA route, pendant que la surface s'en va : sans
+         cela son contenu disparaissait a l'instant ou l'on fermait, et c'etait une
+         surface vide qui glissait -- demontee, de surcroit, dans l'image meme ou
+         l'animation devait commencer. -->
+    <RouteScope v-if="ficheAffichee" :route="ficheAffichee.route">
+      <MediaDetailView :key="ficheAffichee.cle" />
+    </RouteScope>
   </MediaOverlay>
   <AppToast />
   <AppConfirmDialog />
 </template>
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { useRoute, type RouteLocationNormalizedLoaded } from "vue-router";
 import { clearCache, syncCacheOwner } from "@/cache";
 import { connectRealtime } from "@/events";
 import AppShell from "@/components/layout/AppShell.vue";
@@ -50,6 +57,17 @@ import { useToast } from "@/composables/useToast";
 /* La fiche media se pose au-dessus de la page d'ou l'on vient plutot que de la
    remplacer -- voir `useMediaOverlay` pour le pourquoi. */
 const { actif: surfaceOuverte, routeDeFond, fermer: fermerSurface } = useMediaOverlay();
+const routeCourante = useRoute();
+const ficheAffichee = shallowRef<{ route: RouteLocationNormalizedLoaded; cle: string } | null>(null);
+watch(
+  () => [surfaceOuverte.value, routeCourante.fullPath] as const,
+  ([ouverte, cle]) => {
+    // Tant que la surface est ouverte, elle suit la route (passage d'une fiche a l'autre) ;
+    // a la fermeture, on garde la derniere fiche jusqu'a la fin de la sortie.
+    if (ouverte) ficheAffichee.value = { route: { ...routeCourante } as RouteLocationNormalizedLoaded, cle };
+  },
+  { immediate: true },
+);
 
 const session=ref<any>(null);
 useVisualViewport();

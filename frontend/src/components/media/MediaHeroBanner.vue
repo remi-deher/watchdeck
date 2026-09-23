@@ -30,7 +30,7 @@
               <span v-else-if="mediaTypeLabel">{{ mediaTypeLabel }}</span>
             </div>
             <div class="hero-actions" @pointerdown.stop>
-              <RouterLink v-if="to" class="primary hero-btn" :to="to">Voir la fiche</RouterLink>
+              <RouterLink v-if="to" class="primary hero-btn" :to="to" @click="ouvrirEnSurface">Voir la fiche</RouterLink>
               <button v-else class="primary hero-btn" type="button" @click="$emit('open', activeItem)">Voir la fiche</button>
             </div>
           </div>
@@ -67,6 +67,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mediaDetailPath } from '@/mediaUrl';
+import { useRoute, useRouter } from 'vue-router';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
+import { memoriserOrigine } from '@/composables/usePosterMorph';
 import MediaStatusBadge from '@/components/media/MediaStatusBadge.vue';
 
 const props = withDefaults(
@@ -127,6 +130,20 @@ const mediaTypeLabel = computed(() => {
   const type = activeItem.value?.media_type;
   return type ? LABELS[type] || '' : '';
 });
+
+const router = useRouter();
+const route = useRoute();
+
+/* La fiche se pose par-dessus Explorer, comme depuis une affiche : suivi en lien simple,
+   ce bouton REMPLACAIT la page par la fiche, qui s'affichait alors vide le temps de son
+   chargement, et le retour reconstruisait Explorer entier -- affiches vides comprises.
+   Le lien garde son adresse pour le clic milieu et « ouvrir dans un nouvel onglet ». */
+function ouvrirEnSurface(event: MouseEvent): void {
+  if (!to.value || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) return;
+  event.preventDefault();
+  memoriserOrigine(null, activeItem.value);
+  ouvrirFiche(router, to.value as any, route.fullPath);
+}
 
 const to = computed(() => {
   if (!activeItem.value) return null;

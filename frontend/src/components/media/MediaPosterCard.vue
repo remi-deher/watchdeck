@@ -58,7 +58,7 @@
           :to="resolvedTo"
           class="poster-action nav-action"
           :aria-label="actionLabel + ' : ' + title"
-          @click.stop
+          @click.stop="handleActivate"
         >{{ actionLabel }}</RouterLink>
       </slot>
     </template>
