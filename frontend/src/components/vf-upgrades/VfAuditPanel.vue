@@ -31,8 +31,8 @@
               @error="failedPosters.add(`audit-${item.id}`)"
             >
             <div v-else class="media-poster placeholder">
-              <Film v-if="item.media_type === 'movie'" ::size="24" />
-              <Tv v-else ::size="24" />
+              <Film v-if="item.media_type === 'movie'" :size="24" />
+              <Tv v-else :size="24" />
             </div>
           </div>
 

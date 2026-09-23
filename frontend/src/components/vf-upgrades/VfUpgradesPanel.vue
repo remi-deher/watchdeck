@@ -30,8 +30,8 @@
           @error="onPosterError(group.key)"
         >
         <div v-else class="upgrade-poster poster-placeholder">
-          <Film v-if="group.media?.media_type === 'movie'" ::size="28" />
-          <Tv v-else ::size="28" />
+          <Film v-if="group.media?.media_type === 'movie'" :size="28" />
+          <Tv v-else :size="28" />
         </div>
       </div>
 

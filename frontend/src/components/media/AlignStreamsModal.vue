@@ -10,7 +10,7 @@
   >
     <!-- Chargement de la prévisualisation -->
     <div v-if="loading" class="preview-loading">
-      <RotateCcw ::size="24" class="spin" />
+      <RotateCcw :size="24" class="spin" />
       <span>Analyse des flux Plex en direct…</span>
     </div>
 
@@ -18,7 +18,7 @@
       <!-- Portée pour les séries : série entière, ou sélection ciblée d'épisodes/saisons -->
       <section v-if="isShow" class="episode-scope-section">
         <header class="section-subtitle">
-          <ListVideo ::size="16" />
+          <ListVideo :size="16" />
           <span>Portée de l'alignement</span>
           <button
             type="button"
@@ -26,7 +26,7 @@
             :disabled="busy || rescanning"
             @click="rescanAll"
           >
-            <RotateCcw ::size="13" :class="{ spin: rescanning }" />
+            <RotateCcw :size="13" :class="{ spin: rescanning }" />
             Réanalyser toute la série
           </button>
         </header>
@@ -56,7 +56,7 @@
           </label>
 
           <div v-if="!seasonsData.length" class="scope-loading">
-            <RotateCcw ::size="14" class="spin" />
+            <RotateCcw :size="14" class="spin" />
             <span>Chargement du scan VF…</span>
           </div>
           <SeasonEpisodeList
@@ -76,7 +76,7 @@
                   title="Réanalyser cette saison"
                   @click.stop="rescanSeason(season.season_number)"
                 >
-                  <RotateCcw ::size="13" />
+                  <RotateCcw :size="13" />
                 </button>
               </div>
             </template>
@@ -97,7 +97,7 @@
                   title="Réanalyser cet épisode"
                   @click.stop="rescanEpisode(season.season_number, ep.episode)"
                 >
-                  <RotateCcw ::size="12" />
+                  <RotateCcw :size="12" />
                 </button>
               </label>
             </template>
@@ -108,7 +108,7 @@
 
       <!-- Résumé de la portée -->
       <div class="scope-notice">
-        <SlidersHorizontal ::size="16" />
+        <SlidersHorizontal :size="16" />
         <span>
           Alignement prévu sur <strong>{{ preview.total_parts || 1 }}</strong>
           {{ (preview.total_parts || 1) > 1 ? (preview.media_type === 'show' ? 'épisodes' : 'parties') : 'média' }}.
@@ -118,7 +118,7 @@
       <!-- Choix de la stratégie / Mode d'alignement -->
       <section class="align-mode-section">
         <header class="section-subtitle">
-          <SlidersHorizontal ::size="16" />
+          <SlidersHorizontal :size="16" />
           <span>Mode d'alignement</span>
         </header>
 
@@ -157,7 +157,7 @@
 
           <div class="form-group">
             <label for="custom-sub-select" class="form-label">
-              <MessageSquare ::size="14" /> Sous-titres souhaités
+              <MessageSquare :size="14" /> Sous-titres souhaités
             </label>
             <select id="custom-sub-select" v-model="customSubtitleId" class="ui-select" :disabled="busy">
               <option :value="0">Désactivés (Aucun sous-titre)</option>
@@ -220,7 +220,7 @@
         <article class="stream-diff-card" :class="{ 'has-change': subtitleWillChange }">
           <header class="diff-head">
             <div class="diff-title">
-              <MessageSquare ::size="18" />
+              <MessageSquare :size="18" />
               <strong>Sous-titres</strong>
             </div>
             <span v-if="subtitleWillChange" class="badge badge-warning">Changement</span>
@@ -264,7 +264,7 @@
       <!-- Sélection des profils Plex Home -->
       <section class="users-selection-section">
         <header class="section-subtitle">
-          <Users ::size="16" />
+          <Users :size="16" />
           <span>Profils Plex cibles</span>
         </header>
 
@@ -329,7 +329,7 @@
         :disabled="busy || loading || !preview || !scopeIsValid || (targetMode === 'custom' && selectedUsers.size === 0)"
         @click="confirmAlign"
       >
-        <template #icon><SlidersHorizontal ::size="16" /></template>
+        <template #icon><SlidersHorizontal :size="16" /></template>
         {{ busy ? 'Alignement en cours…' : 'Appliquer l\'alignement' }}
       </UiButton>
     </template>

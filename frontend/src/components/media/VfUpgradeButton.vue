@@ -1,17 +1,17 @@
 <template>
   <span class="vf-upgrade-wrap" @click.stop>
     <button v-if="label" type="button" class="badge mdh-link vf-upgrade-trigger" :class="{ active: hasSuggestion }" @click="toggle">
-      <Search ::size="14" /> {{ label }}<strong v-if="hasSuggestion" class="vf-upgrade-count">{{ publishedReleases.length }}</strong>
+      <Search :size="14" /> {{ label }}<strong v-if="hasSuggestion" class="vf-upgrade-count">{{ publishedReleases.length }}</strong>
     </button>
     <button v-else class="icon-button vf-upgrade-trigger" :class="{ active: hasSuggestion }" type="button" :title="triggerTitle" :aria-label="triggerTitle" @click="toggle">
-      <Search v-if="!hasSuggestion" ::size="16" />
+      <Search v-if="!hasSuggestion" :size="16" />
       <span v-else class="vf-upgrade-count vf-upgrade-badge">{{ publishedReleases.length }}</span>
     </button>
 
     <ModalShell v-if="open" :title="modalTitle" :subtitle="`Recherche via ${arrName}`" panel-class="vf-upgrade-modal" :error="error" :busy="Boolean(grabbing)" @close="open=false">
       <UiSegmentedControl :model-value="mode" :options="modeOptions" :ariaLabel="'Mode de recherche'" @update:model-value="handleModeChange" />
       <div class="vf-upgrade-toolbar">
-        <UiButton size="sm" :loading="searching" :disabled="Boolean(grabbing)" @click="runSearch"><template #icon><RefreshCw ::size="15" /></template>{{ searching ? `Recherche ${arrName} en cours…` : 'Relancer la recherche' }}</UiButton>
+        <UiButton size="sm" :loading="searching" :disabled="Boolean(grabbing)" @click="runSearch"><template #icon><RefreshCw :size="15" /></template>{{ searching ? `Recherche ${arrName} en cours…` : 'Relancer la recherche' }}</UiButton>
         <span class="release-result-count">{{ visibleReleases.length }} résultat{{ visibleReleases.length > 1 ? 's' : '' }}</span>
         <UiCheckboxField v-if="rejectedCount" v-model="hideRejected" :label="`Masquer les rejets (${rejectedCount})`" />
       </div>
@@ -46,7 +46,7 @@
             <div class="release-title-wrap">
               <div class="release-badges badge-row">
                 <span v-if="index===0 && !isRejected(release)" class="badge available recommended-badge">
-                  <Sparkles ::size="12" /> Recommandée
+                  <Sparkles :size="12" /> Recommandée
                 </span>
                 <span v-if="releaseTechnical(release).resolution" class="badge" :class="{'badge-4k': releaseTechnical(release).resolution==='2160p'}">
                   {{ releaseTechnical(release).resolution }}
@@ -69,13 +69,13 @@
               </div>
               <strong class="vf-upgrade-release-title">{{ release.title }}</strong>
             </div>
-            <button class="icon-button copy-button" type="button" title="Copier le nom" aria-label="Copier le nom de la release" @click="copyTitle(release.title)"><Copy ::size="15" /></button>
+            <button class="icon-button copy-button" type="button" title="Copier le nom" aria-label="Copier le nom de la release" @click="copyTitle(release.title)"><Copy :size="15" /></button>
           </header>
 
           <!-- Motif de rejet explicite et lisible directement -->
           <div v-if="isRejected(release)" class="release-rejections-box">
             <div class="rejection-box-header">
-              <span class="badge danger"><TriangleAlert ::size="12" /> Rejeté par {{ arrName }}</span>
+              <span class="badge danger"><TriangleAlert :size="12" /> Rejeté par {{ arrName }}</span>
             </div>
             <ul class="rejection-reasons-list">
               <li v-for="reason in release.rejections" :key="reason">{{ translateRejection(reason) }}</li>
@@ -97,8 +97,8 @@
           </dl>
 
           <div class="vf-upgrade-release-actions">
-            <UiButton v-if="release.info_url" size="sm" :href="release.info_url" target="_blank" rel="noopener noreferrer"><template #icon><ExternalLink ::size="14" /></template>Indexeur</UiButton>
-            <UiButton variant="primary" size="sm" :loading="grabbing===release.guid" :disabled="Boolean(grabbing) || grabDisabled" @click="requestGrab(release)"><template #icon><Download ::size="14" /></template>{{ grabbing===release.guid ? 'Envoi…' : 'Grab' }}</UiButton>
+            <UiButton v-if="release.info_url" size="sm" :href="release.info_url" target="_blank" rel="noopener noreferrer"><template #icon><ExternalLink :size="14" /></template>Indexeur</UiButton>
+            <UiButton variant="primary" size="sm" :loading="grabbing===release.guid" :disabled="Boolean(grabbing) || grabDisabled" @click="requestGrab(release)"><template #icon><Download :size="14" /></template>{{ grabbing===release.guid ? 'Envoi…' : 'Grab' }}</UiButton>
           </div>
 
           <details v-if="hasReleaseDetails(release)" class="release-details">
@@ -110,11 +110,11 @@
             </dl>
             <div v-if="mode==='vf' && hasCurrentComparison()" class="release-comparison">
               <div><span>Actuel</span><strong>{{ technicalSummary(comparisonFor(release).current) }}</strong></div>
-              <ArrowRight ::size="16" />
+              <ArrowRight :size="16" />
               <div><span>Candidate</span><strong>{{ technicalSummary(comparisonFor(release).candidate) }}</strong></div>
             </div>
             <ul v-if="mode==='vf' && comparisonFor(release).warnings.length" class="technical-warnings">
-              <li v-for="warning in comparisonFor(release).warnings" :key="warning"><TriangleAlert ::size="13" /> {{ warning }}</li>
+              <li v-for="warning in comparisonFor(release).warnings" :key="warning"><TriangleAlert :size="13" /> {{ warning }}</li>
             </ul>
             <p v-if="release.vf_evidence?.length" class="vf-upgrade-evidence">{{ release.vf_evidence.join(' · ') }}</p>
           </details>
@@ -126,7 +126,7 @@
       <div class="grab-confirm-details">
         <strong>{{ confirmRelease.title }}</strong>
         <ul>
-          <li v-for="warning in confirmWarnings" :key="warning"><TriangleAlert ::size="14" /> {{ warning }}</li>
+          <li v-for="warning in confirmWarnings" :key="warning"><TriangleAlert :size="14" /> {{ warning }}</li>
         </ul>
       </div>
     </ConfirmModal>

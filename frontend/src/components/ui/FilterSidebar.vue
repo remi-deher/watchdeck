@@ -3,7 +3,7 @@
     <!-- Desktop : sidebar collapsible sticky -->
     <aside v-if="!isMobile" v-show="open" class="filter-sidebar" aria-label="Filtres">
       <div class="filter-sidebar-head">
-        <span class="filter-sidebar-title"><SlidersHorizontal ::size="15" />Filtres</span>
+        <span class="filter-sidebar-title"><SlidersHorizontal :size="15" />Filtres</span>
         <button v-if="activeCount" class="text-button text-xs" @click="$emit('reset')">Réinitialiser</button>
       </div>
       <div class="filter-sidebar-body">

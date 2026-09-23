@@ -31,7 +31,7 @@
             </td>
             <td class="col-action">
               <button v-if="track.plex_guid" type="button" class="track-listen-btn" title="Écouter la piste sur Plex" @click="emit('listen', track.plex_guid)">
-                <Play ::size="13" /> Écouter
+                <Play :size="13" /> Écouter
               </button>
             </td>
           </tr>
