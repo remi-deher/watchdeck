@@ -9,7 +9,7 @@
     "test:unit:watch": "vitest"
   },
   "dependencies": {
-    "@lucide/vue": "^1.41.0",
+    "@lucide/vue": "^1.47.0",
     "@primeuix/themes": "^1.2.5",
     "@tanstack/vue-query": "^5.103.2",
     "@vitejs/plugin-vue": "^6.0.8",
