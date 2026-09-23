@@ -81,6 +81,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { keepPreviousData, useQuery } from '@tanstack/vue-query';
+import { refDebounced } from '@vueuse/core';
 import { useRouter } from 'vue-router';
 import { Film, Server, Tv } from '@lucide/vue';
 import { api } from '@/api';
@@ -91,6 +93,7 @@ import { usePageSections } from '@/composables/usePageSections';
 import { destinationsFor, sectionsFor } from '@/navigation';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 import { settingsSections } from '@/settingsSections';
+import { rankCommands } from '@/utils/commandScore';
 
 const props = withDefaults(
   defineProps<{ isAdmin?: boolean; canModerate?: boolean }>(),
@@ -111,7 +114,6 @@ const isOpen = ref(false);
 const query = ref('');
 const cursor = ref(0);
 const inputRef = ref<HTMLInputElement | null>(null);
-const mediaResults = ref<Command[]>([]);
 type Scope = 'media' | 'app';
 const scope = ref<Scope>('media');
 
@@ -120,54 +122,44 @@ const scope = ref<Scope>('media');
    l'autre onglet reste a une touche. */
 const MEDIA_FIRST = new Set(['discover', 'requests', 'library']);
 const { destinationLabel } = usePageSections();
-const searching = ref(false);
-let searchTimer: ReturnType<typeof setTimeout> | null = null;
-let searchToken = 0;
-
 /**
  * Recherche differee dans le catalogue.
  *
- * Trois garde-fous : un delai, pour ne pas lancer une requete par frappe ; un jeton,
- * parce qu'une reponse lente arrivee apres une plus recente afficherait des resultats
- * qui ne correspondent plus a la saisie ; et un echec silencieux, la palette devant
- * rester utilisable pour naviguer meme si TMDB est injoignable.
+ * Trois garde-fous : un delai, pour ne pas lancer une requete par frappe ; une cle qui
+ * porte la saisie, pour qu'une reponse lente arrivee apres une plus recente ne puisse
+ * pas afficher des resultats qui ne correspondent plus (TanStack Query annule et ignore
+ * la lecture obsolete) ; et un echec silencieux, sans nouvelle tentative, la palette
+ * devant rester utilisable pour naviguer meme si TMDB est injoignable.
  */
-function scheduleMediaSearch(term: string): void {
-  if (searchTimer) clearTimeout(searchTimer);
-  const needle = term.trim();
-  if (needle.length < 2) {
-    mediaResults.value = [];
-    searching.value = false;
-    return;
-  }
-  searching.value = true;
-  searchTimer = setTimeout(async () => {
-    const token = ++searchToken;
-    try {
-      const payload = await api<any>(`/api/discover/search?query=${encodeURIComponent(needle)}&media_type=all`);
-      if (token !== searchToken) return;
-      const items = Array.isArray(payload) ? payload : (payload?.items ?? []);
-      mediaResults.value = items.slice(0, 8).map((item: any) => ({
-        id: `media-${item.media_type}-${item.tmdb_id || item.id}`,
-        label: item.year ? `${item.title || item.name} (${item.year})` : (item.title || item.name),
-        group: item.media_type === 'movie' ? 'Films' : 'Séries',
-        to: mediaDetailPath(item, undefined, { discover: true }),
-        icon: item.media_type === 'movie' ? Film : Tv,
-      }));
-    } catch {
-      if (token === searchToken) mediaResults.value = [];
-    } finally {
-      if (token === searchToken) searching.value = false;
-    }
-  }, 250);
-}
+const MIN_MEDIA_QUERY = 2;
+const typedNeedle = computed(() => query.value.trim());
+const mediaNeedle = refDebounced(typedNeedle, 250);
+const mediaQuery = useQuery({
+  queryKey: computed(() => ['palette', 'media', mediaNeedle.value]),
+  queryFn: ({ signal }) => api<any>(`/api/discover/search?query=${encodeURIComponent(mediaNeedle.value)}&media_type=all`, { signal }),
+  select: (payload: any): Command[] => {
+    const items = Array.isArray(payload) ? payload : (payload?.items ?? []);
+    return items.slice(0, 8).map((item: any) => ({
+      id: `media-${item.media_type}-${item.tmdb_id || item.id}`,
+      label: item.year ? `${item.title || item.name} (${item.year})` : (item.title || item.name),
+      group: item.media_type === 'movie' ? 'Films' : 'Séries',
+      to: mediaDetailPath(item, undefined, { discover: true }),
+      icon: item.media_type === 'movie' ? Film : Tv,
+    }));
+  },
+  enabled: computed(() => isOpen.value && mediaNeedle.value.length >= MIN_MEDIA_QUERY),
+  placeholderData: keepPreviousData,
+  retry: 0,
+  staleTime: 60_000,
+});
+const mediaResults = computed<Command[]>(() =>
+  typedNeedle.value.length >= MIN_MEDIA_QUERY && !mediaQuery.isError.value ? mediaQuery.data.value || [] : []
+);
+// « Recherche en cours » couvre aussi la pause de saisie, avant meme que la requete parte.
+const searching = computed(() =>
+  typedNeedle.value.length >= MIN_MEDIA_QUERY && (typedNeedle.value !== mediaNeedle.value || mediaQuery.isFetching.value)
+);
 
-watch(query, (value) => scheduleMediaSearch(value));
-
-/** Insensible a la casse et aux accents : « parametres » doit trouver « Paramètres ». */
-function fold(value: string): string {
-  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('fr');
-}
 
 const commands = computed<Command[]>(() => {
   const context = {
@@ -242,16 +234,8 @@ const scopeTabs = computed(() => [
   { key: 'app', label: 'Navigation & réglages', count: appResults.value.length || null },
 ]);
 
-const appResults = computed<Command[]>(() => {
-  const needle = fold(query.value.trim());
-  if (!needle) return commands.value;
-  // Les libelles commencant par la saisie passent devant les simples correspondances.
-  return commands.value
-    .map((item) => ({ item, at: fold(`${item.label} ${item.group}`).indexOf(needle) }))
-    .filter((entry) => entry.at >= 0)
-    .sort((a, b) => a.at - b.at)
-    .map((entry) => entry.item);
-});
+// Les libelles commencant par la saisie passent devant les simples correspondances.
+const appResults = computed<Command[]>(() => rankCommands(commands.value, query.value));
 
 const results = computed<Command[]>(() =>
   query.value.trim() && scope.value === 'media' ? mediaResults.value : appResults.value
@@ -286,9 +270,6 @@ function open(prefill = ''): void {
   scope.value = MEDIA_FIRST.has(currentDestinationKey()) ? 'media' : 'app';
   query.value = prefill;
   cursor.value = 0;
-  mediaResults.value = [];
-  searching.value = false;
-  if (prefill.trim()) scheduleMediaSearch(prefill);
   if (props.isAdmin) void loadSources();
 }
 
@@ -299,9 +280,8 @@ function currentDestinationKey(): string {
 }
 
 function close(): void {
+  // Refermer desactive la query du catalogue : aucune lecture ne part palette fermee.
   isOpen.value = false;
-  if (searchTimer) clearTimeout(searchTimer);
-  searching.value = false;
 }
 
 function onKeydown(event: KeyboardEvent): void {
