@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.37.0 — 2026-09-23
+
+
+### ⚡ Performance
+
+- ne plus reconstruire la page de fond a l'ouverture d'une fiche ([b07570b](https://github.com/remi-deher/watchdeck/commit/b07570b7edf19d99785625afadf3a71b20ccff9f))
+
+### ✨ Nouveautés
+
+- transitions et animations plus fluides, geste de fermeture des feuilles ([df2d84b](https://github.com/remi-deher/watchdeck/commit/df2d84b93ddd39ae3a43beb326dec01c5c98ae8d))
+
+### 🐛 Corrections
+
+- retablir la taille des icones (::size -> :size) ([8854806](https://github.com/remi-deher/watchdeck/commit/885480634393a4e2b1b07a2c8f69aefff3891a93))
 ## 1.36.0 — 2026-09-23
 
 
@@ -81,6 +95,7 @@
 
 - bump @lucide/vue from 1.43.0 to 1.47.0 (#353) ([255dba2](https://github.com/remi-deher/watchdeck/commit/255dba2a03697109f425a491089e6f5c013ea8ae))
 - bump vue-router from 5.3.0 to 5.3.1 (#215) ([a2780c6](https://github.com/remi-deher/watchdeck/commit/a2780c6d67509d224250e092b9acd83cfbd281a4))
+- v1.36.0 (#395) ([3b084a6](https://github.com/remi-deher/watchdeck/commit/3b084a642be6960bae660407f9b1036358f3371c))
 ## 1.35.2 — 2026-09-21
 
 
