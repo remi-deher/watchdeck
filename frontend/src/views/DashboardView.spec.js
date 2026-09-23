@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { VueQueryPlugin } from '@tanstack/vue-query';
+import { createQueryClient } from '@/queryClient';
 
 import DashboardView from './DashboardView.vue';
 
@@ -20,6 +22,7 @@ vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
 function mountView() {
   return mount(DashboardView, {
     global: {
+      plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]],
       stubs: {
         UiFeedback: true,
         OnboardingChecklist: true,
