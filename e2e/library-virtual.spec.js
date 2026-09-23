@@ -139,10 +139,11 @@ test("ouvrir une fiche depuis une grille virtualisee puis revenir retrouve la ca
     return requested.length;
   }, { timeout: 20000, intervals: [250, 500, 1000] }).toBe(2);
 
-  // Une carte de la premiere page, ouverte alors que 400 medias sont charges (grille
-  // virtualisee). NB : au retour, la mediatheque est remontee avec sa seule premiere
-  // page -- c'est anterieur a la virtualisation --, d'ou une carte de cette page-la.
-  const target = "Film virtuel 120";
+  // Une carte de la SECONDE page, ouverte alors que 400 medias sont charges (grille
+  // virtualisee). Au retour, la mediatheque est remontee : avant TanStack Query elle
+  // ne relisait que sa premiere page, et la position au-dela de 200 medias etait perdue.
+  // Le cache conserve desormais toutes les pages chargees.
+  const target = "Film virtuel 320";
   let card = null;
   for (let y = 0; y < 80_000 && !card; y += 400) {
     await page.evaluate((top) => window.scrollTo(0, top), y);
