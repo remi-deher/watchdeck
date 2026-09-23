@@ -18,6 +18,8 @@ test("les cartes apparaissent une fois puis restent visibles", async ({ page }, 
     if (url.pathname === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
     if (url.pathname === "/api/library") return route.fulfill({ json: Array.from({ length: 60 }, (_, i) => ({ id: i + 1, title: `Film ${i + 1}`, year: 2020, media_type: "movie", poster_url: `/poster/${i}.svg`, genres: [], has_vf: true })) });
     if (url.pathname === "/api/requests-list") return route.fulfill({ json: { items: [], facets: {} } });
+    // La mediatheque attend une LISTE d'orphelins *arr : `{}` la faisait echouer.
+    if (url.pathname === "/api/requests/orphans") return route.fulfill({ json: [] });
     return route.fulfill({ json: {} });
   });
   await page.goto("/library?type=movie&query=Film");

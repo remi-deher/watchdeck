@@ -124,6 +124,7 @@
       <p class="library-result-count" aria-live="polite">{{ filtered.length }} média{{ filtered.length>1?'s':'' }} affiché{{ filtered.length>1?'s':'' }}</p>
 
       <MediaPosterCollection
+        ref="collection"
         :items="filtered"
         :loading="loading"
         :loading-more="loadingMore"
@@ -133,10 +134,13 @@
         @load-more="loadMore"
         @retry="load"
       >
+        <!-- Lignes non rendues au-dessus et au-dessous : voir useWindowVirtualGrid. -->
+        <div v-if="virtualGrid.padTop.value" class="virtual-spacer" data-virtual-spacer aria-hidden="true" :style="{ height: `${virtualGrid.padTop.value}px`, ...SPACER_STYLE }" />
         <LibraryCard
-          v-for="item in filtered"
-          :key="`${item._kind}-${item.id}`"
+          v-for="item in virtualGrid.visibleItems.value"
+          :key="libraryItemKey(item)"
           :item="item"
+          :animated="!virtualGrid.hasBeenShown(item)"
           view="grid"
           :can-moderate="canModerate"
           :busy="busy"
@@ -147,6 +151,7 @@
           @delete-orphan="deleteOrphan"
           @error="error = $event"
         />
+        <div v-if="virtualGrid.padBottom.value" class="virtual-spacer" data-virtual-spacer aria-hidden="true" :style="{ height: `${virtualGrid.padBottom.value}px`, ...SPACER_STYLE }" />
       </MediaPosterCollection>
     </template>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
@@ -156,7 +161,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useWindowVirtualGrid } from '@/composables/useWindowVirtualGrid';
 import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, Film, Layers, Music2, RefreshCw, RotateCcw, Trash2, Tv } from '@lucide/vue';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
@@ -479,6 +485,21 @@ const filtered = computed(() => items.value.filter((item: any) => {
   if (item.orphan) return matchesOrphanFilters(item);
   return true;
 }));
+
+/* Grille virtualisee au-dela de 300 medias (voir useWindowVirtualGrid). La grille
+   `.media-grid` apparait et disparait avec les etats de chargement : on la retrouve
+   apres chaque rendu plutot que de la tenir pour acquise. */
+const collection = ref<any>(null);
+const gridElement = ref<HTMLElement | null>(null);
+const libraryItemKey = (item: any): string => `${item._kind}-${item.id}`;
+/* En ligne pour l'emporter sur la regle de MediaGrid, qui met ses enfants en
+   `content-visibility: auto` avec une taille intrinseque d'affiche : hors ecran,
+   l'intercalaire prendrait 280 px au lieu de la hauteur des lignes qu'il remplace. */
+const SPACER_STYLE = { gridColumn: '1 / -1', contentVisibility: 'visible', containIntrinsicSize: 'none' } as const;
+const virtualGrid = useWindowVirtualGrid(gridElement, filtered, libraryItemKey);
+watch([() => filtered.value.length, () => loading.value], () => {
+  void nextTick(() => { gridElement.value = collection.value?.$el?.querySelector?.('.media-grid') ?? null; });
+}, { immediate: true, flush: 'post' });
 
 function toggleSelect(id: any): void {
   selectedIds.value = selectedIds.value.includes(id) ? selectedIds.value.filter(x => x !== id) : [...selectedIds.value, id];
