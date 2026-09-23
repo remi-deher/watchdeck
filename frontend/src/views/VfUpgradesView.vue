@@ -794,6 +794,10 @@ import { useFeedback } from '@/composables/useFeedback';
 import { useToast } from '@/composables/useToast';
 import { humanizeError } from '@/utils/apiError';
 import { formatDateTimeShort } from '@/utils/format';
+import {
+  audioRowClass, audioStatusLabel, canFixStreams, forcedRowClass, forcedStatusLabel, formatBackoff,
+  formatRunDuration as formatDuration, runStatusLabel, statusLabel, subtitleRowClass, subtitleStatusLabel, targetLabel,
+} from '@/utils/vfUpgradeLabels';
 import { useRoute } from 'vue-router';
 
 const activeTab = ref('upgrades'); // 'upgrades' (*arr) | 'audit' (PASTA)
@@ -913,15 +917,6 @@ function stopLivePolling() {
   }
 }
 
-function formatBackoff(backoff) {
-  if (!backoff) return '';
-  const nextCheck = backoff.next_check_at ? new Date(backoff.next_check_at) : null;
-  if (!nextCheck) return `${backoff.misses} recherche(s) sans résultat`;
-  const diffMs = nextCheck.getTime() - Date.now();
-  if (diffMs <= 0) return `${backoff.misses} échec(s) — nouvelle tentative au prochain cycle`;
-  const hours = Math.round(diffMs / 3_600_000);
-  return `${backoff.misses} échec(s) — prochaine tentative dans ${hours < 1 ? '< 1h' : `~${hours}h`}`;
-}
 
 /* Un réglage modifié depuis la modale change ce que les cycles retiennent (seuil de
    confiance, garde-fous techniques, portées) : on recharge la liste pour qu'elle
@@ -931,25 +926,7 @@ async function onSettingsSaved() {
   await load({ silent: true });
 }
 
-function runStatusLabel(status) {
-  if (status === 'running') return 'En cours';
-  if (status === 'success') return 'Terminé';
-  /* « degraded » : le cycle s'est terminé mais toutes ses recherches ont échoué
-     techniquement (indexeurs injoignables) -- à ne pas confondre avec un cycle qui
-     n'a simplement rien trouvé. */
-  if (status === 'degraded') return 'Indexeurs injoignables';
-  return 'Échec';
-}
 
-function formatDuration(startedAt, finishedAt) {
-  if (!startedAt) return '—';
-  const start = new Date(startedAt);
-  const end = finishedAt ? new Date(finishedAt) : new Date();
-  const seconds = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m${String(seconds % 60).padStart(2, '0')}s`;
-}
 
 // Onglet 2 : Audit & Alignement des flux (Plex)
 const auditItems = ref([]);
@@ -1121,18 +1098,6 @@ const modalItem = ref(null);
 const fixingItemId = ref(null);
 const fixingAll = ref(false);
 
-const statusOptions = [
-  { value: 'pending', label: 'À traiter' },
-  { value: 'waiting_release', label: 'En attente de release' },
-  { value: 'accepted', label: 'Accepté par *arr' },
-  { value: 'downloading', label: 'Téléchargement' },
-  { value: 'importing', label: 'Import' },
-  { value: 'awaiting_verification', label: 'Validation Plex' },
-  { value: 'verified', label: 'VF validée' },
-  { value: 'failed', label: 'Échec' },
-  { value: 'dismissed', label: 'Ignoré' },
-  { value: 'ignored', label: 'Ignoré' },
-];
 
 const ACTIVE_STATES = new Set(['accepted', 'downloading', 'importing', 'awaiting_verification']);
 const HISTORY_STATES = new Set(['verified', 'dismissed', 'grabbed']);
@@ -1146,15 +1111,6 @@ const historyCount = computed(() => items.value.filter(i => HISTORY_STATES.has(i
 const ignoredCount = computed(() => items.value.filter(i => i.is_ignored).length);
 const auditTotalCount = computed(() => auditCounts.value.total || auditItems.value.length || 0);
 
-function canFixStreams(item) {
-  if (!item) return false;
-  return Boolean(
-    item.has_vf ||
-    item.issues?.includes('audio_secondary') ||
-    item.issues?.includes('forced_sub_not_default') ||
-    item.issues?.includes('sub_fr_not_default')
-  );
-}
 
 const eligibleAuditFixCount = computed(() => {
   return auditItems.value.filter(item => canFixStreams(item)).length;
@@ -1476,59 +1432,13 @@ function mediaLink(group) {
   return `/library/media/${type}/${group.source_id}`;
 }
 
-function targetLabel(item) {
-  if (item.scope === 'movie') return 'Film';
-  if (item.scope === 'season') return 'Saison entière';
-  if (item.scope === 'show') return 'Série complète';
-  return `Épisode ${String(item.episode_number).padStart(2, '0')}`;
-}
 
-function statusLabel(value) {
-  return statusOptions.find(entry => entry.value === value)?.label || value;
-}
 
-function audioStatusLabel(item) {
-  if (!item.has_vf) return 'Absente (VO)';
-  return item.fr_is_default ? 'Présente (par défaut)' : 'Piste secondaire';
-}
 
-function audioRowClass(item) {
-  if (!item.has_vf) return 'is-muted';
-  return item.fr_is_default ? 'is-ok' : 'is-warning';
-}
 
-function subtitleStatusLabel(status) {
-  switch (status) {
-    case 'ok': return 'Complets par défaut';
-    case 'not_default': return 'Présents (inactifs)';
-    case 'forced_default': return 'Présents (marqués forcés)';
-    case 'forced_not_default': return 'Présents (forcés inactifs)';
-    case 'absent': return 'Absents';
-    case 'no_track': return 'Aucune piste (possiblement brûlés)';
-    default: return 'Non analysé';
-  }
-}
 
-function subtitleRowClass(item) {
-  if (item.sub_fr_status === 'ok' || item.sub_fr_status === 'forced_default') return 'is-ok';
-  if (item.sub_fr_status === 'not_default' || item.sub_fr_status === 'forced_not_default') return 'is-warning';
-  if (item.sub_fr_status === 'absent') return 'is-danger';
-  return 'is-muted';
-}
 
-function forcedStatusLabel(status) {
-  switch (status) {
-    case 'ok': return 'Activés par défaut';
-    case 'not_default': return 'Présents mais inactifs';
-    default: return 'Aucun';
-  }
-}
 
-function forcedRowClass(item) {
-  if (item.forced_fr_status === 'ok') return 'is-ok';
-  if (item.forced_fr_status === 'not_default') return 'is-warning';
-  return 'is-muted';
-}
 
 function formatDate(value) {
   return formatDateTimeShort(value, '—');
