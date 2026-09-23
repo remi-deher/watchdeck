@@ -58,6 +58,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useMutation } from '@tanstack/vue-query';
 import { Download } from '@lucide/vue';
 import { api } from '@/api';
 import CrudResourceCard from '../CrudResourceCard.vue';
@@ -66,7 +68,6 @@ import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
 import { success, fail } from '@/settingsForm';
 import ConnectionTestAction from './ConnectionTestAction.vue';
-import { useConnectionTest } from '@/composables/useConnectionTest';
 
 const columns = [
   { key: 'name', label: 'Nom', isTitle: true },
@@ -95,17 +96,21 @@ const {
 
 function removeClient(client: any): Promise<void> { return remove(client, askConfirm); }
 
-const { testing, run: runClientTest } = useConnectionTest(async (client: any = clientForm) => {
+const testClientMutation = useMutation({
+  mutationFn: async (client: any) => {
     const data = await api('/api/test/download-client', { method: 'POST', body: JSON.stringify(client) });
     if (!data.success) throw new Error(data.message || 'Connexion impossible.');
     return data;
-  }, {
-    onSuccess: data => success(data.message || 'Client joignable.'),
-    onError: fail,
-  });
+  },
+  retry: 0,
+});
+const testing = computed(() => testClientMutation.isPending.value);
 
 async function testClient(client: any = clientForm): Promise<void> {
-  await runClientTest(client);
+  try {
+    const data = await testClientMutation.mutateAsync(client);
+    success(data.message || 'Client joignable.');
+  } catch (error) { fail(error); }
 }
 
 </script>
