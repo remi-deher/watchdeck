@@ -45,6 +45,8 @@ async function mockApi(page, calls) {
     const url = new URL(request.url());
     calls.push({ method: request.method(), path: url.pathname, body: request.postData() });
     if (url.pathname === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
+    // Flux temps reel : un flux vide au bon format, sinon le navigateur le rejette en erreur.
+    if (url.pathname === "/api/events") return route.fulfill({ contentType: "text/event-stream", body: "" });
     if (url.pathname === "/api/vf-upgrades/dashboard") {
       return route.fulfill({ json: { items: [suggestion(1), suggestion(2), suggestion(3)], scan: {}, waiting_total: 0 } });
     }
@@ -115,4 +117,28 @@ test("le bouton Réglages ouvre la modale des réglages VF", async ({ page }) =>
 
   await page.getByRole("button", { name: "Réglages des améliorations VF" }).click();
   await expect(page.getByRole("dialog", { name: /Réglages des améliorations VF/ })).toBeVisible();
+});
+
+test("les trois onglets s'affichent sans erreur ni avertissement Vue", async ({ page }) => {
+  // Un composant ou une icone non importe ne casse rien de visible : Vue se contente
+  // d'un avertissement. C'est ce qui guette un decoupage de vue.
+  const problems = [];
+  page.on("console", (message) => {
+    const text = message.text();
+    if (message.type() === "error" || text.includes("[Vue warn]")) problems.push(text);
+  });
+  page.on("pageerror", (error) => problems.push(error.message));
+  const calls = [];
+  await mockApi(page, calls);
+  await page.goto("/vf-upgrades");
+  await expect(page.locator(".upgrade-card").first()).toBeVisible({ timeout: 15000 });
+
+  await page.getByRole("tab", { name: /Alignement des pistes/ }).click();
+  await expect(page.locator(".audit-card").first()).toBeVisible();
+  await page.getByRole("tab", { name: /Historique des scans/ }).click();
+  await expect.poll(() => calls.some((call) => call.path === "/api/vf-upgrades/scan-runs")).toBe(true);
+  await page.getByRole("tab", { name: /Releases/ }).click();
+  await expect(page.locator(".upgrade-card").first()).toBeVisible();
+
+  expect(problems).toEqual([]);
 });
