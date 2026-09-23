@@ -14,8 +14,12 @@ body { margin: 0; min-width: 0; width: 100%; max-width: 100%; overflow-x: clip; 
    retient pas iOS : le geste remonte jusqu'a <html>, et la page defilait derriere une
    feuille ouverte -- ce qui escamotait la barre de recherche, qui se retire au
    defilement, alors meme qu'elle commande le panneau pose dessus. */
+/* La classe est posee directement sur <html> : un `html:has(> body.modal-open)` obligeait
+   le navigateur a recalculer les styles du document entier a chaque ouverture et a
+   chaque fermeture -- sensible sous Safari, sur une grille de plusieurs centaines de
+   cartes. */
 body.modal-open,
-html:has(> body.modal-open) { overflow: hidden; overscroll-behavior: none; }
+html.modal-open { overflow: hidden; overscroll-behavior: none; }
 img,svg { max-width: 100%; }
 img,video,canvas,iframe { height: auto; }
 img,video { object-position: center; }
