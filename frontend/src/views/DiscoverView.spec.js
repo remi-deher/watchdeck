@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import DiscoverView from './DiscoverView.vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 
@@ -27,10 +28,12 @@ async function mountView({ home = false, url = '', attachTo } = {}) {
   });
   await router.push(target);
   await router.isReady();
+  // Un cache neuf par montage : le catalogue d'un test ne doit pas servir au suivant.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return mount(DiscoverView, {
     attachTo,
     global: {
-      plugins: [router],
+      plugins: [router, [VueQueryPlugin, { queryClient }]],
       stubs: {
         AppPage: {
           props: ['query', 'modelValue', 'title'],
