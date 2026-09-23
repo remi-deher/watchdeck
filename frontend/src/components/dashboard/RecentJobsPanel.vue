@@ -242,7 +242,7 @@ function jobIcon(job: string) {
 
 .job-main.clickable {
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .job-main.clickable:hover {
@@ -334,7 +334,7 @@ function jobIcon(job: string) {
   color: var(--muted);
   font-size: var(--fs-xs);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .btn-copy:hover {

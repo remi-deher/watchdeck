@@ -1,4 +1,5 @@
 import { animate } from 'motion-v';
+import { ressort } from '@/motion/tokens';
 
 /**
  * Transport de l'affiche, de la vignette touchee jusqu'a l'en-tete de la fiche.
@@ -23,15 +24,48 @@ interface Origine {
 
 let origine: Origine | null = null;
 
+/** Ce que la carte touchee savait du media : de quoi dessiner la fiche avant sa reponse. */
+export interface ApercuFiche {
+  title?: string;
+  name?: string;
+  year?: number | string;
+  media_type?: string;
+  poster_url?: string | null;
+  backdrop_url?: string | null;
+  overview?: string;
+}
+
+let apercu: { valeur: ApercuFiche; at: number } | null = null;
+
 /** Au-dela, on considere que l'ouverture a echoue et l'on n'anime rien. */
 const PEREMPTION_MS = 2500;
 
-export function memoriserOrigine(element: HTMLElement | null | undefined): void {
+export function memoriserOrigine(element: HTMLElement | null | undefined, item?: Record<string, any> | null): void {
+  apercu = item
+    ? {
+        valeur: {
+          title: item.title || item.name, year: item.year, media_type: item.media_type,
+          poster_url: item.poster_url, backdrop_url: item.backdrop_url, overview: item.overview,
+        },
+        at: Date.now(),
+      }
+    : null;
   if (!element) {
     origine = null;
     return;
   }
   origine = { rect: element.getBoundingClientRect(), at: Date.now() };
+}
+
+/**
+ * L'apercu laisse par la derniere carte touchee, s'il est encore frais.
+ *
+ * Lu, pas consomme : la fiche peut se monter deux fois (surface puis pleine page). Au-dela
+ * du delai, il appartient a une ouverture abandonnee et decrirait un autre media.
+ */
+export function apercuRecent(): ApercuFiche | null {
+  if (!apercu || Date.now() - apercu.at > PEREMPTION_MS) return null;
+  return apercu.valeur;
 }
 
 function consommerOrigine(): DOMRect | null {
@@ -79,9 +113,7 @@ export function rejouerTransport(cible: HTMLElement | null | undefined): void {
     { x: [dx, 0], y: [dy, 0], scale: [echelle, 1] },
     {
       type: 'spring',
-      stiffness: 220,
-      damping: 26,
-      mass: 0.9,
+      ...ressort.transport,
       // Le leger depassement a l'arrivee est ce qui distingue un objet qu'on pose d'une
       // image qui se met en place.
     }

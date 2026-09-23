@@ -120,7 +120,7 @@ function trigger(actionType: TorrentAction): void {
   font-size: var(--fs-xs);
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .menu-item:hover {
   background: var(--surface-2);

@@ -57,7 +57,7 @@
           {{ visibleIssues.length }} signalement{{ visibleIssues.length > 1 ? 's' : '' }}
         </p>
 
-        <div v-if="visibleIssues.length" class="issues-list">
+        <div v-if="visibleIssues.length" v-list-motion class="issues-list">
           <IssueCard
             v-for="issue in visibleIssues"
             :key="issue.id"

@@ -432,7 +432,7 @@ onUnmounted(stopAutoplay);
   outline: none;
   appearance: none;
   -webkit-appearance: none;
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease, box-shadow 0.25s ease;
+  transition: width var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 /* Zone de clic tactile élargie */
@@ -483,7 +483,7 @@ onUnmounted(stopAutoplay);
 .hero-slide-next-leave-active,
 .hero-slide-prev-enter-active,
 .hero-slide-prev-leave-active {
-  transition: transform 0.48s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.38s ease;
+  transition: transform 0.48s cubic-bezier(0.25, 1, 0.5, 1), opacity var(--motion-duration-base) var(--motion-ease-standard);
   will-change: transform, opacity;
 }
 
@@ -510,7 +510,7 @@ onUnmounted(stopAutoplay);
   .hero-slide-next-leave-active,
   .hero-slide-prev-enter-active,
   .hero-slide-prev-leave-active {
-    transition: opacity 0.3s ease;
+    transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
     transform: none !important;
   }
 }

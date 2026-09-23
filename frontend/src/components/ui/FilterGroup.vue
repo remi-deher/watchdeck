@@ -65,7 +65,7 @@ const bodyId = `filter-group-${useId()}`;
   width: 14px;
   height: 14px;
   color: var(--text-muted, #888);
-  transition: transform 0.2s ease, color 0.15s;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-instant);
   flex-shrink: 0;
 }
 .filter-group-chevron.collapsed {
@@ -78,7 +78,7 @@ const bodyId = `filter-group-${useId()}`;
 .filter-group-reveal {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--motion-duration-medium, .22s) var(--motion-ease-standard, ease);
+  transition: grid-template-rows var(--motion-duration-medium, var(--motion-duration-fast)) var(--motion-ease-standard, var(--motion-ease-standard));
 }
 .filter-group-reveal.open { grid-template-rows: 1fr; }
 .filter-group-reveal > * { min-height: 0; overflow: hidden; }

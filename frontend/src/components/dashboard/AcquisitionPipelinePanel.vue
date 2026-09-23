@@ -162,7 +162,7 @@ withDefaults(
   border-radius: var(--radius-sm);
   text-decoration: none;
   color: var(--text);
-  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .pipeline-step:hover {
@@ -276,7 +276,7 @@ withDefaults(
   padding: 10px 14px;
   border-radius: var(--radius-md);
   text-decoration: none;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: transform var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .pipeline-alert.is-danger {

@@ -9,6 +9,7 @@
     "test:unit:watch": "vitest"
   },
   "dependencies": {
+    "@formkit/auto-animate": "^0.10.0",
     "@lucide/vue": "^1.47.0",
     "@primeuix/themes": "^1.2.5",
     "@tanstack/vue-query": "^5.103.2",

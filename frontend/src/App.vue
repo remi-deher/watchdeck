@@ -17,7 +17,9 @@
              laisse la vue sortante dans le document, qui se superpose a la nouvelle.
              L'arrivee du contenu passe donc par la composition echelonnee de
              `page-motion`, et l'ouverture d'une fiche par la surface ci-dessous. -->
-        <component :is="Component" />
+        <RouteScope :route="routeDeFond">
+          <component :is="Component" />
+        </RouteScope>
       </RouterView>
     </RouteErrorBoundary>
   </AppShell>
@@ -39,6 +41,7 @@ import AppToast from '@/components/ui/AppToast.vue';
 import AppConfirmDialog from '@/components/ui/AppConfirmDialog.vue';
 import { useMediaOverlay } from "@/composables/useMediaOverlay";
 import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
+import RouteScope from "@/components/layout/RouteScope.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
 import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";

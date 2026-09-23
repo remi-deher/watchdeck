@@ -273,7 +273,7 @@ watch([() => groups.value.length, () => sections.value.length], () => void nextT
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  transition: color .15s ease, background-color .15s ease;
+  transition: color var(--motion-duration-instant) var(--motion-ease-standard), background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .app-rail__link svg { flex: none; width: 19px; height: 19px; }
 .app-rail__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

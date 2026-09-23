@@ -9,7 +9,7 @@
       <RouterLink v-if="showLink" :to="{path:'/activity',query:{view:'live'}}" class="panel-link">Voir l’activité</RouterLink>
     </div>
 
-    <div v-if="sessions.length" class="live-list">
+    <div v-if="sessions.length" v-list-motion class="live-list">
       <article
         v-for="session in sessions"
         :key="session.session_id"
@@ -257,7 +257,7 @@ function formatRemaining(session: LiveSession): string {
 .live-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap: var(--space-4);margin-top:14px}
 .live-session{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);box-shadow:0 10px 30px rgba(0,0,0,.15)}
 .live-session.paused .live-card-body{opacity:.76}
-.live-session.interactive{cursor:pointer;transition:border-color .15s,transform .15s}
+.live-session.interactive{cursor:pointer;transition:border-color var(--motion-duration-instant), transform var(--motion-duration-instant)}
 .live-session.interactive:hover,.live-session.interactive:focus-visible{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));transform:translateY(-2px);outline:none}
 .live-backdrop{position:absolute;inset:-20px;background-position:center;background-size:cover;opacity:.11;filter:blur(24px);transform:scale(1.15);pointer-events:none}
 .live-card-body{position:relative;display:grid;grid-template-columns:54px minmax(0,1fr);gap: var(--space-4);padding:14px}

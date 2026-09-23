@@ -172,7 +172,7 @@ const activeIsOutsideDock = computed(
 
 .app-dock__caret {
   position: absolute;
-  transition: transform var(--motion-duration-fast, .15s) ease;
+  transition: transform var(--motion-duration-fast, var(--motion-duration-instant)) var(--motion-ease-standard);
   top: 5px;
   right: calc(50% - 16px);
   width: 0;
@@ -203,7 +203,7 @@ const activeIsOutsideDock = computed(
   transform: translateY(100%);
   pointer-events: none;
 }
-.app-dock { transition: opacity .18s ease, transform .18s ease; }
+.app-dock { transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard); }
 
 /* Paysage sur téléphone : la hauteur manque, les libellés passent à côté de l'icône. */
 @media (max-height: 500px) and (orientation: landscape) {

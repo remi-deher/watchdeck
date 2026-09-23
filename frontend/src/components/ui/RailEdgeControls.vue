@@ -35,7 +35,7 @@ defineEmits<{
   cursor: pointer;
   pointer-events: auto;
   opacity: .88;
-  transition: opacity .18s ease, color .18s ease;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .rail-edge:hover { color: #fff; opacity: 1; }
 .rail-edge:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }

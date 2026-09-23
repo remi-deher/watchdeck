@@ -30,8 +30,8 @@
           @error="onPosterError(group.key)"
         >
         <div v-else class="upgrade-poster poster-placeholder">
-          <Film v-if="group.media?.media_type === 'movie'" ::size="28" />
-          <Tv v-else ::size="28" />
+          <Film v-if="group.media?.media_type === 'movie'" :size="28" />
+          <Tv v-else :size="28" />
         </div>
       </div>
 
@@ -280,7 +280,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .upgrade-card.is-selected {

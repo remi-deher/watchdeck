@@ -1,4 +1,5 @@
 import { createApp } from 'vue';
+import { vListMotion } from '@/motion/vListMotion';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import PrimeVue from 'primevue/config';
@@ -101,6 +102,10 @@ const router = createRouter({
        pas un changement de page. Les renvoyer en haut arrachait l'utilisateur a
        l'endroit qu'il etait en train de lire. */
     if (to.path === from.path) return false;
+    /* Une fiche posee par-dessus une page ne deplace pas cette page : la renvoyer en haut
+       faisait sauter la grille visible sous le fond assombri, et la fermeture devait
+       ensuite la faire redescendre. */
+    if ((history.state as Record<string, unknown> | null)?.__overlayBackground) return false;
     return { top: 0 };
   },
 });
@@ -141,6 +146,7 @@ router.beforeEach(async (to) => {
 });
 
 createApp(App)
+  .directive('list-motion', vListMotion)
   .component('AppPage', AppPage)
   .component('AppSubnav', AppSubnav)
   .component('FilterSidebar', FilterSidebar)

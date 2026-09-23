@@ -1,21 +1,36 @@
 <template>
   <div class="media-detail-page">
-    <div v-if="loading" class="drawer-loading"><LoaderCircle class="spin" /> Chargement</div>
+    <!-- Le hero se monte des l'ouverture, avec ce que la carte touchee savait deja --
+         affiche, titre, annee -- puis garde sa place quand la fiche complete arrive.
+         L'affiche est ainsi a son emplacement final des la premiere image : le
+         transport depuis la vignette a une cible, et la surface ne change plus de
+         taille en pleine animation. -->
+    <MediaDetailHero
+      v-if="detail || apercu"
+      :detail="detail || apercu"
+      :preview="!detail"
+      :status-label="detail ? statusLabel : ''"
+      :status-class="statusClass"
+      :admin="admin"
+      :season-summary="seasonSummary"
+      :busy="busy"
+      :available="isInPlex"
+      @back="goBack"
+      @report-issue="showIssueForm = !showIssueForm"
+      @scan="scanVff"
+      @open-audio="tab = 'audio'"
+      @request="handleRequestClick"
+    />
+    <div v-if="!detail && pending" class="media-detail-skeleton" aria-busy="true" aria-label="Chargement de la fiche">
+      <template v-if="apercu">
+        <span class="skeleton-line is-tabs" />
+        <span class="skeleton-line" />
+        <span class="skeleton-line" />
+        <span class="skeleton-line is-short" />
+      </template>
+      <div v-else class="drawer-loading"><LoaderCircle class="spin" /> Chargement</div>
+    </div>
     <template v-else-if="detail">
-      <MediaDetailHero
-        :detail="detail"
-        :status-label="statusLabel"
-        :status-class="statusClass"
-        :admin="admin"
-        :season-summary="seasonSummary"
-        :busy="busy"
-        :available="isInPlex"
-        @back="goBack"
-        @report-issue="showIssueForm = !showIssueForm"
-        @scan="scanVff"
-        @open-audio="tab = 'audio'"
-        @request="handleRequestClick"
-      />
 
       <div class="media-detail-body">
         <p v-if="error" class="notice error-text">{{ error }}</p>
@@ -122,7 +137,7 @@
          entierement vide : l'erreur etait bien stockee, mais son affichage vivait a
          l'interieur du bloc `detail`, qui ne se montait jamais. -->
     <UiEmptyState
-      v-else
+      v-else-if="!pending"
       :title="error ? 'Cette fiche n’a pas pu être chargée' : 'Cette fiche est introuvable'"
       :message="error || 'Le média a peut-être été retiré de la bibliothèque, ou le lien a vieilli.'"
     >
@@ -184,6 +199,7 @@ import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api";
 import { mediaDetailPath, openPlexLink } from "@/mediaUrl";
 import MediaDetailHero from "@/components/media/MediaDetailHero.vue";
+import { apercuRecent } from "@/composables/usePosterMorph";
 import MediaSummaryTab from "@/components/media/MediaSummaryTab.vue";
 import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
 import MediaCalendarTab from "@/components/media/MediaCalendarTab.vue";
@@ -357,6 +373,12 @@ const mediaQuery = useQuery({
 });
 const detail = computed<any>(() => mediaQuery.data.value || null);
 const loading = computed(() => mediaQuery.isPending.value || mediaQuery.isFetching.value);
+/* Seul le PREMIER chargement remplace le contenu : un rafraichissement en arriere-plan
+   (retour sur l'onglet, evenement temps reel) laissait auparavant la fiche entiere
+   disparaitre derriere un « Chargement » le temps d'une requete. */
+const pending = computed(() => mediaQuery.isPending.value);
+// Ce que la carte touchee savait deja, pour dessiner la fiche avant sa reponse.
+const apercu = apercuRecent();
 const error = computed({
   get: () => actionError.value || (mediaQuery.error.value as Error | null)?.message || '',
   set: (value: string) => { actionError.value = value; },
