@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <AnimatePresence>
+    <AnimatePresence :on-exit-complete="() => $emit('after-leave')">
       <motion.div
         v-if="open"
         key="media-overlay"
@@ -50,10 +50,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRef } from 'vue';
+import { ref, toRef, watch } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { X } from '@lucide/vue';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
+import { useModalA11y } from '@/composables/useModalA11y';
 import { useSheetGesture } from '@/composables/useSheetGesture';
 import { courbe, duree, ressort } from '@/motion/tokens';
 
@@ -65,19 +66,37 @@ const props = withDefaults(
   { open: false, ariaLabel: 'Fiche du média' }
 );
 
-const emit = defineEmits<{ (e: 'close'): void }>();
+const emit = defineEmits<{ (e: 'close'): void; (e: 'after-leave'): void }>();
 
 /* La page de fond reste visible mais ne defile plus : sans ce verrou, faire glisser la
    fiche entrainait la grille derriere elle, et l'on perdait la place qu'on voulait
    justement garder. */
-useBodyScrollLock(toRef(props, 'open'));
+useBodyScrollLock(toRef(props, 'open'), { inertBackground: false });
+
 
 const panelRef = ref<HTMLElement | null>(null);
 const voileRef = ref<unknown>(null);
 
+/* Pas d'`inert` sur l'application : le poser puis le retirer sur un arbre de cette taille
+   coutait a Safari un recalcul complet des styles et de l'accessibilite, dans l'image
+   meme de l'ouverture et de la fermeture -- d'ou la latence avant de reprendre la main.
+   Le focus est tenu dans la fiche par le piege des modales, et `aria-modal` dit le
+   reste aux lecteurs d'ecran. */
+useModalA11y(panelRef, toRef(props, 'open'), () => emit('close'), { trapFocus: true });
+
 /* Tirer la fiche vers le bas la referme : c'est le geste qu'on attend d'une surface posee
    sur une page, et il evite d'aller chercher la croix a l'autre bout de l'ecran. Voir
    `useSheetGesture` pour les regles -- notamment l'arret en haut du contenu. */
+/* Des qu'on ferme, la page reprend la main : le voile, plein ecran, restait sinon en
+   place le temps de sa sortie et avalait les appuis -- on croyait l'application figee
+   quelques dixiemes de seconde apres chaque fermeture. */
+watch(() => props.open, (ouverte) => {
+  if (ouverte) return;
+  const v = voileRef.value as { $el?: unknown } | HTMLElement | null;
+  const el = v instanceof HTMLElement ? v : ((v?.$el as HTMLElement | undefined) ?? null);
+  if (el) el.style.pointerEvents = 'none';
+}, { flush: 'sync' });
+
 useSheetGesture(panelRef, toRef(props, 'open'), {
   onClose: () => emit('close'),
   poignee: '.media-overlay__grab',

@@ -94,3 +94,15 @@ test("le tiroir des filtres se referme du meme geste", async ({ page, browserNam
   await glisser(page, box.x + box.width / 2, box.y + 60, box.y + 60 + box.height * 0.6);
   await expect(panel).toHaveCount(0);
 });
+
+test("a la fermeture, la fiche garde son contenu pendant qu'elle s'en va", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile", "une largeur suffit");
+  await preparer(page);
+  await page.locator(".media-overlay__close").click();
+  // Le contenu disparaissait a l'instant du clic : c'est une surface vide qui glissait.
+  const pendant = await page.evaluate(() => document.querySelector(".media-overlay h1")?.textContent || "");
+  expect(pendant).toContain("Film");
+  // Et la page reprend la main tout de suite : le voile sortant n'avale plus les appuis.
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector(".media-overlay")).pointerEvents)).toBe("none");
+  await expect(page.locator(".media-overlay")).toHaveCount(0);
+});
