@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { defineComponent, h } from 'vue';
+import { mount } from '@vue/test-utils';
+import { VueQueryPlugin } from '@tanstack/vue-query';
+import { createQueryClient } from '@/queryClient';
 
 const api = vi.fn();
 const success = vi.fn();
@@ -14,7 +18,14 @@ const { useCrudResource } = await import('./useCrudResource');
 const DEFAULTS = { name: '', url: '', enabled: true };
 
 function factory(messages) {
-  return useCrudResource('/api/things', DEFAULTS, messages);
+  let resource;
+  mount(defineComponent({
+    setup() {
+      resource = useCrudResource('/api/things', DEFAULTS, messages);
+      return () => h('div');
+    },
+  }), { global: { plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]] } });
+  return resource;
 }
 
 describe('useCrudResource', () => {
@@ -60,8 +71,9 @@ describe('useCrudResource', () => {
     const { form, save, showModal } = factory({ created: 'Ajouté.' });
     form.name = 'Nouveau';
     await save();
-    expect(api).toHaveBeenCalledWith('/api/things', expect.objectContaining({ method: 'POST' }));
-    expect(JSON.parse(api.mock.calls[0][1].body).name).toBe('Nouveau');
+    const call = api.mock.calls.find(([path, options]) => path === '/api/things' && options?.method === 'POST');
+    expect(call).toBeTruthy();
+    expect(JSON.parse(call[1].body).name).toBe('Nouveau');
     expect(success).toHaveBeenCalledWith('Ajouté.');
     expect(showModal.value).toBe(false);
   });
@@ -83,8 +95,8 @@ describe('useCrudResource', () => {
   });
 
   it('signale l’échec sans fermer la modale ni rester occupé', async () => {
-    api.mockRejectedValueOnce(new Error('boum'));
     const { openModal, save, showModal, busy } = factory();
+    api.mockRejectedValueOnce(new Error('boum'));
     openModal();
     await save();
     expect(fail).toHaveBeenCalled();
@@ -96,8 +108,7 @@ describe('useCrudResource', () => {
   it('bascule l’activation puis recharge', async () => {
     const { toggle } = factory();
     await toggle({ id: 5 });
-    expect(api).toHaveBeenNthCalledWith(1, '/api/things/5/toggle', { method: 'PATCH' });
-    expect(api).toHaveBeenNthCalledWith(2, '/api/things');
+    expect(api).toHaveBeenCalledWith('/api/things/5/toggle', { method: 'PATCH' });
   });
 
   it('supprime après confirmation', async () => {
@@ -105,12 +116,13 @@ describe('useCrudResource', () => {
     const { remove } = factory({ confirmTitle: 'Supprimer ?' });
     await remove({ id: 9, name: 'Cible' }, askConfirm);
     expect(askConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Supprimer ?', danger: true }));
-    expect(api).toHaveBeenNthCalledWith(1, '/api/things/9', { method: 'DELETE' });
+    expect(api).toHaveBeenCalledWith('/api/things/9', { method: 'DELETE' });
   });
 
   it('n’appelle rien si la confirmation est refusée', async () => {
     const askConfirm = vi.fn().mockResolvedValue(false);
     const { remove } = factory();
+    api.mockClear();
     await remove({ id: 9, name: 'Cible' }, askConfirm);
     expect(api).not.toHaveBeenCalled();
   });

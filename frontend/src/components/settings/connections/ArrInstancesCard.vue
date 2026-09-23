@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 import { ListRestart, ServerCog } from '@lucide/vue';
 import { api } from '@/api';
 import { success, fail } from '@/settingsForm';
@@ -87,7 +87,6 @@ const {
   showModal: showArrModal,
   busy,
   form: arrForm,
-  load: loadArr,
   openModal: openArrBaseModal,
   closeModal: closeArrBaseModal,
   save: saveArr,
@@ -124,5 +123,4 @@ async function testArr(instance: any = arrForm): Promise<void> {
   } catch (e) { fail(e); }
 }
 
-onMounted(loadArr);
 </script>

@@ -58,7 +58,6 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
 import { Download } from '@lucide/vue';
 import { api } from '@/api';
 import CrudResourceCard from '../CrudResourceCard.vue';
@@ -84,7 +83,6 @@ const {
   editingId: editingClientId,
   showModal: showClientModal,
   form: clientForm,
-  load: loadClients,
   openModal: openClientModal,
   closeModal: closeClientModal,
   save: saveClient,
@@ -110,5 +108,4 @@ async function testClient(client: any = clientForm): Promise<void> {
   await runClientTest(client);
 }
 
-onMounted(loadClients);
 </script>

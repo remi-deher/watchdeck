@@ -213,7 +213,6 @@ const route = useRoute();
 const router = useRouter();
 
 onMounted(async () => {
-  await load();
   const status = route.query.email_oauth;
   if (!status) return;
   if (status === 'success') success('Compte Microsoft connecté.');
