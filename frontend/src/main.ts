@@ -101,6 +101,10 @@ const router = createRouter({
        pas un changement de page. Les renvoyer en haut arrachait l'utilisateur a
        l'endroit qu'il etait en train de lire. */
     if (to.path === from.path) return false;
+    /* Une fiche posee par-dessus une page ne deplace pas cette page : la renvoyer en haut
+       faisait sauter la grille visible sous le fond assombri, et la fermeture devait
+       ensuite la faire redescendre. */
+    if ((history.state as Record<string, unknown> | null)?.__overlayBackground) return false;
     return { top: 0 };
   },
 });
