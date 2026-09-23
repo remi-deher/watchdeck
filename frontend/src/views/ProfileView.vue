@@ -112,7 +112,8 @@
 
 <script setup>
 import { formatDate } from '@/utils/format';
-import { onMounted, computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Fingerprint, KeyRound, ShieldCheck, UserRound, Smartphone, Download, Trash2 } from '@lucide/vue';
 import QRCode from 'qrcode';
 import { api } from '@/api';
@@ -121,19 +122,32 @@ import { usePwaInstall } from '@/composables/usePwaInstall';
 import UiField from '@/components/ui/UiField.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
+import { useSession } from '@/composables/useSession';
 
 const { canInstall, isInstalled, isIos, promptInstall } = usePwaInstall();
 const showIosGuide = ref(false);
 
-const identity = ref(null);
+const queryClient = useQueryClient();
+const { session } = useSession();
+const userId = computed(() => session.value?.id || null);
+const identityQuery = useQuery({
+  queryKey: computed(() => ['users', 'detail', userId.value]),
+  queryFn: () => api(`/api/users/${userId.value}`),
+  enabled: computed(() => Boolean(userId.value)),
+});
+const passkeysQuery = useQuery({
+  queryKey: computed(() => ['users', 'passkeys', userId.value]),
+  queryFn: () => api(`/api/users/${userId.value}/passkeys`),
+  enabled: computed(() => Boolean(userId.value)),
+});
+const identity = computed(() => identityQuery.data.value || session.value);
 const password = ref('');
 const totpEnabled = ref(false);
 const totpSecret = ref('');
 const totpCode = ref('');
 const totpQr = ref('');
-const passkeys = ref([]);
-const busy = ref(false);
-const error = ref('');
+const passkeys = computed(() => passkeysQuery.data.value || []);
+const actionError = ref('');
 const message = ref('');
 const webAuthnAvailable = Boolean(window.PublicKeyCredential && navigator.credentials);
 
@@ -146,42 +160,54 @@ const displayName = computed(() => (
   identity.value?.custom_name || identity.value?.display_name || identity.value?.plex_user_id || identity.value?.username || 'Compte'
 ));
 const roleLabel = computed(() => identity.value?.role || '');
+const error = computed(() => actionError.value || identityQuery.error.value?.message || passkeysQuery.error.value?.message || '');
 
-function notify(text) { message.value = text; error.value = ''; }
+function notify(text) { message.value = text; actionError.value = ''; }
+const invalidateIdentity = () => queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId.value] });
+const invalidatePasskeys = () => queryClient.invalidateQueries({ queryKey: ['users', 'passkeys', userId.value] });
 
-async function load() {
-  try {
-    const session = await api('/api/session');
-    identity.value = session?.id ? await api(`/api/users/${session.id}`) : session;
-    totpEnabled.value = Boolean(identity.value?.totp_enabled);
-  } catch (e) { error.value = e.message; }
-  await loadPasskeys();
-}
-
-async function loadPasskeys() {
-  if (!identity.value?.id) return;
-  try { passkeys.value = await api(`/api/users/${identity.value.id}/passkeys`); }
-  catch (e) { error.value = e.message; }
-}
+const passwordMutation = useMutation({
+  mutationFn: () => api(`/api/users/${userId.value}/password`, { method: 'POST', body: JSON.stringify({ password: password.value }) }),
+  retry: 0,
+});
+const setupTotpMutation = useMutation({
+  mutationFn: () => api(`/api/users/${userId.value}/totp/setup`, { method: 'POST' }),
+  retry: 0,
+  gcTime: 0,
+});
+const enableTotpMutation = useMutation({
+  mutationFn: () => api(`/api/users/${userId.value}/totp/enable`, { method: 'POST', body: JSON.stringify({ code: totpCode.value }) }),
+  retry: 0,
+  onSuccess: invalidateIdentity,
+});
+const disableTotpMutation = useMutation({
+  mutationFn: () => api(`/api/users/${userId.value}/totp`, { method: 'DELETE' }),
+  retry: 0,
+  onSuccess: invalidateIdentity,
+});
+const deletePasskeyMutation = useMutation({
+  mutationFn: (key) => api(`/api/users/${userId.value}/passkeys/${encodeURIComponent(key.credential_id)}`, { method: 'DELETE' }),
+  retry: 0,
+  onSuccess: invalidatePasskeys,
+});
+const busy = computed(() => [passwordMutation, setupTotpMutation, enableTotpMutation, disableTotpMutation, deletePasskeyMutation, registerPasskeyMutation]
+  .some((mutation) => mutation.isPending.value));
 
 async function changePassword() {
-  busy.value = true;
   try {
-    await api(`/api/users/${identity.value.id}/password`, { method: 'POST', body: JSON.stringify({ password: password.value }) });
+    await passwordMutation.mutateAsync();
     password.value = '';
     notify('Mot de passe modifié.');
-  } catch (e) { error.value = e.message; }
-  finally { busy.value = false; }
+  } catch (e) { actionError.value = e.message; }
 }
 
 async function setupTotp() {
-  busy.value = true;
   try {
-    const data = await api(`/api/users/${identity.value.id}/totp/setup`, { method: 'POST' });
+    const data = await setupTotpMutation.mutateAsync();
     totpSecret.value = data.secret;
     totpQr.value = await QRCode.toDataURL(data.uri, { width: 220, margin: 1 });
-  } catch (e) { error.value = e.message; }
-  finally { busy.value = false; }
+    setupTotpMutation.reset();
+  } catch (e) { actionError.value = e.message; setupTotpMutation.reset(); }
 }
 
 function cancelTotpSetup() {
@@ -191,31 +217,26 @@ function cancelTotpSetup() {
 }
 
 async function enableTotp() {
-  busy.value = true;
   try {
-    await api(`/api/users/${identity.value.id}/totp/enable`, { method: 'POST', body: JSON.stringify({ code: totpCode.value }) });
+    await enableTotpMutation.mutateAsync();
     cancelTotpSetup();
     totpEnabled.value = true;
     notify('Double authentification activée.');
-  } catch (e) { error.value = e.message; }
-  finally { busy.value = false; }
+  } catch (e) { actionError.value = e.message; }
 }
 
 async function disableTotp() {
-  busy.value = true;
   try {
-    await api(`/api/users/${identity.value.id}/totp`, { method: 'DELETE' });
+    await disableTotpMutation.mutateAsync();
     totpEnabled.value = false;
     notify('Double authentification désactivée.');
-  } catch (e) { error.value = e.message; }
-  finally { busy.value = false; }
+  } catch (e) { actionError.value = e.message; }
 }
 
 async function deletePasskey(key) {
   try {
-    await api(`/api/users/${identity.value.id}/passkeys/${encodeURIComponent(key.credential_id)}`, { method: 'DELETE' });
-    await loadPasskeys();
-  } catch (e) { error.value = e.message; }
+    await deletePasskeyMutation.mutateAsync(key);
+  } catch (e) { actionError.value = e.message; }
 }
 
 function decode(value) {
@@ -230,10 +251,9 @@ function encode(value) {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function registerPasskey() {
-  busy.value = true;
-  error.value = '';
-  try {
+const registerPasskeyMutation = useMutation({
+  retry: 0,
+  mutationFn: async () => {
     const options = await api('/api/users/webauthn/register/options', { method: 'POST', body: JSON.stringify({ user_id: identity.value.id }) });
     options.challenge = decode(options.challenge);
     options.user.id = decode(options.user.id);
@@ -251,13 +271,19 @@ async function registerPasskey() {
     };
     const name = prompt('Nom de la passkey', 'Passkey') || 'Passkey';
     await api('/api/users/webauthn/register/verify', { method: 'POST', body: JSON.stringify({ user_id: identity.value.id, credential: payload, name }) });
-    await loadPasskeys();
+  },
+  onSuccess: invalidatePasskeys,
+});
+
+async function registerPasskey() {
+  actionError.value = '';
+  try {
+    await registerPasskeyMutation.mutateAsync();
     notify('Passkey enregistrée.');
-  } catch (e) { error.value = e.message; }
-  finally { busy.value = false; }
+  } catch (e) { actionError.value = e.message; }
 }
 
-onMounted(load);
+watch(identity, (value) => { totpEnabled.value = Boolean(value?.totp_enabled); }, { immediate: true });
 </script>
 
 <style scoped lang="scss">
