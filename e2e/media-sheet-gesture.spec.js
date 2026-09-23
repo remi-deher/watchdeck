@@ -86,7 +86,7 @@ test("le tiroir des filtres se referme du meme geste", async ({ page, browserNam
   test.skip(info.project.name !== "mobile" || browserName !== "chromium", "touches natives Chromium, en compact");
   await page.goto("/discover/requests");
   await page.getByRole("button", { name: /filtres/i }).click();
-  const panel = page.locator(".drawer-backdrop .modal-panel");
+  const panel = page.locator(".modal-panel");
   await expect(panel).toBeVisible();
   await page.waitForTimeout(700);
   const box = await panel.boundingBox();

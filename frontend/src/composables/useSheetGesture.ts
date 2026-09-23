@@ -184,7 +184,13 @@ export function useSheetGesture(
       // Plus le lancer est vif, plus la feuille part vite : elle garde l'allure du doigt.
       const restant = hauteur + 40 - position;
       const duree = Math.round(Math.min(280, Math.max(140, v > 0 ? restant / v : 280)));
-      glisserVers(hauteur + 40, duree, 'cubic-bezier(0.2, 0.6, 0.4, 1)', onClose);
+      // Deja hors de l'ecran : l'animation de sortie de la surface la ferait remonter
+      // pour la faire redescendre. On la coupe, et la surface est retiree aussitot.
+      glisserVers(hauteur + 40, duree, 'cubic-bezier(0.2, 0.6, 0.4, 1)', () => {
+        const el = panel();
+        if (el) el.style.animation = 'none';
+        onClose();
+      });
       return;
     }
     if (mouvementReduit()) { poser(0); return; }

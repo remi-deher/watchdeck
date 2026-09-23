@@ -255,7 +255,7 @@ function move(delta: number): void {
 async function activate(item?: Command): Promise<void> {
   if (!item) return;
   // Naviguer AVANT de fermer, et attendre que la navigation soit reellement commitee :
-  // useModalA11y consomme son entree d'historique par un history.back() a la fermeture,
+  // useBackButtonClose consomme son entree d'historique par un history.back() a la fermeture,
   // qui annulerait la navigation si celle-ci n'etait pas encore inscrite. Une fois la
   // route poussee, l'entree courante ne porte plus le jeton de la modale et ce back()
   // est correctement ignore.

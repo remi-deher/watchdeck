@@ -722,7 +722,8 @@ button:disabled {
    retombait sur la carte centrée à 90dvh et perdait un sixième de la hauteur de
    l'écran alors qu'il y avait toute la place d'une feuille latérale pleine hauteur. */
 @media (min-width: 768px) {
-  .drawer-backdrop:has(> .detail-drawer) {
+  .drawer-backdrop:has(> .detail-drawer),
+  .drawer-backdrop--detail-drawer {
     background: linear-gradient(90deg, rgba(0,0,0,.12), rgba(0,0,0,.48));
     backdrop-filter: none;
   }

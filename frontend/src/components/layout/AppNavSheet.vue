@@ -1,16 +1,11 @@
 <template>
-  <Teleport to="body">
-    <div class="app-sheet__scrim" @click="$emit('close')" />
-    <div
-      ref="panel"
-      class="app-sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="app-sheet-title"
-      tabindex="-1"
-    >
+  <!-- Reka UI tient le focus, Echap, le clic sur le voile et le defilement verrouille. -->
+  <DialogRoot :open="true" @update:open="(open) => { if (!open) $emit('close'); }">
+    <DialogPortal>
+    <DialogOverlay class="app-sheet__scrim" />
+    <DialogContent class="app-sheet" :aria-describedby="undefined" @interact-outside="laisserAuDock">
       <header class="app-sheet__head">
-        <h2 id="app-sheet-title">Navigation</h2>
+        <DialogTitle as="h2">Navigation</DialogTitle>
         <button type="button" class="app-sheet__close" aria-label="Fermer la navigation" @click="$emit('close')">
           <X aria-hidden="true" />
         </button>
@@ -42,7 +37,7 @@
              Les liens ne la referment pas eux-mêmes : c'est le shell qui s'en charge
              une fois la route changée. Fermer au clic la démontait avant que le routeur
              n'ait poussé son entrée d'historique, et le `history.back()` par lequel
-             `useModalA11y` reprend la sienne annulait la navigation -- la page changeait
+             `useBackButtonClose` reprend la sienne annulait la navigation -- la page changeait
              mais l'URL restait celle d'avant, si bien qu'un rechargement ou un partage
              du lien ramenait ailleurs. -->
         <section v-for="group in groups" :key="group.label" class="app-sheet__group">
@@ -71,12 +66,14 @@
           <a class="app-nav-link app-sheet__link" href="/logout" @click.prevent="seDeconnecter"><LogOut aria-hidden="true" /><span>Déconnexion</span></a>
         </section>
       </div>
-    </div>
-  </Teleport>
+    </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { laisserAuDock } from './sheetDock';
+import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { LogOut, Search, ShieldCheck, UserRound, X } from '@lucide/vue';
 import { useQueryClient } from '@tanstack/vue-query';
@@ -89,8 +86,8 @@ async function seDeconnecter(): Promise<void> {
   await Promise.race([effacerStockage(queryClient), new Promise((r) => setTimeout(r, 1500))]);
   window.location.href = '/logout';
 }
-import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
-import { useModalA11y } from '@/composables/useModalA11y';
+import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
+import { useBackButtonClose } from '@/composables/useBackButtonClose';
 import { destinationsFor, type NavDestination } from '@/navigation';
 import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 import { shortcutLabel } from '@/shortcut';
@@ -113,8 +110,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'open-palette'): void }>();
 
-const panel = ref<HTMLElement | null>(null);
-const alwaysOpen = ref(true);
 
 const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() => {
   const result: Array<{ label: string; items: NavDestination[] }> = [];
@@ -126,10 +121,8 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   return result;
 });
 
-// Le composant n'est monté que pendant l'ouverture : le piège à focus, le verrou de
-// défilement et la gestion du bouton « retour » s'activent donc dès le montage.
-useBodyScrollLock(alwaysOpen);
-useModalA11y(panel, null, () => emit('close'));
+// Le composant n'est monte que pendant l'ouverture : « retour » le referme des le montage.
+useBackButtonClose(null, () => emit('close'));
 </script>
 
 <style scoped lang="scss">

@@ -528,6 +528,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
        laissaient voir la page entre les deux, et le panneau et la barre se lisaient
        comme deux objets separes au lieu d'une seule pile. */
     .drawer-backdrop:has(> .filter-sheet),
+    .drawer-backdrop--filter-sheet,
     .modal-panel.filter-sheet {
       bottom: calc(var(--app-shell-offset-bottom) + 8px + var(--app-topbar-h));
     }
@@ -620,6 +621,11 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
    dessous. Cliquer « Fusionner » ouvrait bien la confirmation, mais elle etait
    inatteignable : le geste n'avait aucun effet visible. */
 .drawer-backdrop:has(> .modal-panel) { z-index: 50; }
+/* Surfaces Reka UI : le voile et le panneau sont freres dans <body>, et non plus parent
+   et enfant -- chacun porte donc son propre rang. `data-state` n'existe que sur eux. */
+.drawer-backdrop[data-state] { z-index: 50; }
+.modal-panel[data-state],
+.detail-drawer[data-state] { z-index: 51; }
 .modal-panel { z-index: 51; }
 
 @media (max-width: 767.98px) {

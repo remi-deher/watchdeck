@@ -1,4 +1,10 @@
 <template>
+  <!-- Dialogue Reka UI NON modal, et c'est voulu : en mode modal, Reka masque toute
+       l'application aux lecteurs d'ecran et bloque les appuis sur <body>, ce qui coutait a
+       Safari un recalcul complet a l'ouverture et a la fermeture (on l'avait deja retire
+       une fois sous la forme d'un `inert`). Reka garde ici le role de dialogue, Echap et
+       le clic a cote ; le focus est tenu par `FocusScope`, le defilement verrouille a part. -->
+  <DialogRoot :open="open" :modal="false" @update:open="(o) => { if (!o) $emit('close'); }">
   <Teleport to="body">
     <!-- Transition CSS pure, sur `transform` et `opacity` seulement : Safari la confie au
          GPU, et elle reste fluide pendant que la fiche se construit sur le fil principal.
@@ -8,18 +14,18 @@
         v-if="open"
         ref="voileRef"
         class="media-overlay"
-        @click.self="$emit('close')"
       >
         <!-- Deux etages : l'enveloppe porte l'ouverture et la fermeture, le panneau porte
              le geste. Leurs translations s'additionnent sans se defaire. -->
-        <div class="media-overlay__frame" @click.self="$emit('close')">
-          <div
-            ref="panelRef"
-            class="media-overlay__panel"
-            role="dialog"
-            aria-modal="true"
+        <div class="media-overlay__frame">
+          <DialogContent
+            as-child
+            force-mount
+            :aria-describedby="undefined"
             :aria-label="ariaLabel"
           >
+          <FocusScope trapped loop as-child>
+          <div ref="panelRef" class="media-overlay__panel">
             <!-- La poignee reste le repere du geste, et son point de depart a la souris.
                  Au doigt, toute la fiche se tire des qu'elle est lue depuis le haut. -->
             <div class="media-overlay__grab" aria-hidden="true">
@@ -32,17 +38,19 @@
               <slot />
             </div>
           </div>
+          </FocusScope>
+          </DialogContent>
         </div>
       </div>
     </Transition>
   </Teleport>
+  </DialogRoot>
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, watch } from 'vue';
+import { onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { X } from '@lucide/vue';
-import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
-import { useModalA11y } from '@/composables/useModalA11y';
+import { DialogContent, DialogRoot, FocusScope } from 'reka-ui';
 import { useSheetGesture } from '@/composables/useSheetGesture';
 
 const props = withDefaults(
@@ -58,18 +66,23 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'after-leave'): void }>();
 /* La page de fond reste visible mais ne defile plus : sans ce verrou, faire glisser la
    fiche entrainait la grille derriere elle, et l'on perdait la place qu'on voulait
    justement garder. */
-useBodyScrollLock(toRef(props, 'open'), { inertBackground: false });
+/* Verrou minimal, et pas celui de Reka : le sien rend aussi <body> insensible aux appuis
+   (`pointer-events: none`), ce qui suppose un dialogue modal qui s'en excepte -- la fiche,
+   non modale, ne recevait plus un seul toucher. Le verrou porte sur les deux elements
+   racine : `overflow: hidden` sur <body> seul ne retient pas iOS. */
+function verrouiller(actif: boolean): void {
+  for (const el of [document.documentElement, document.body]) el.style.overflow = actif ? 'hidden' : '';
+}
+watch(() => props.open, verrouiller, { immediate: true });
+onBeforeUnmount(() => verrouiller(false));
 
 
 const panelRef = ref<HTMLElement | null>(null);
 const voileRef = ref<HTMLElement | null>(null);
 
-/* Pas d'`inert` sur l'application : le poser puis le retirer sur un arbre de cette taille
-   coutait a Safari un recalcul complet des styles et de l'accessibilite, dans l'image
-   meme de l'ouverture et de la fermeture -- d'ou la latence avant de reprendre la main.
-   Le focus est tenu dans la fiche par le piege des modales, et `aria-modal` dit le
-   reste aux lecteurs d'ecran. */
-useModalA11y(panelRef, toRef(props, 'open'), () => emit('close'), { trapFocus: true });
+/* Pas d'entree d'historique supplementaire : la fiche EST deja une entree (sa route), et
+   « retour » la referme naturellement. En ajouter une obligeait chaque fermeture a reculer
+   deux fois -- la seconde passant par un aller-retour `popstate` de plus. */
 
 /* Tirer la fiche vers le bas la referme : c'est le geste qu'on attend d'une surface posee
    sur une page, et il evite d'aller chercher la croix a l'autre bout de l'ecran. Voir

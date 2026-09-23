@@ -25,7 +25,9 @@ enableAutoUnmount(afterEach);
 import PrimeVue from 'primevue/config';
 import ConfirmationService from 'primevue/confirmationservice';
 import ToastService from 'primevue/toastservice';
-config.global.stubs = { ...config.global.stubs, teleport: true };
+/* Le bouchon par defaut (`teleport: true`) rend une balise vide pour les portails de
+   Reka UI : leurs dialogues disparaissaient des tests. Celui-ci rend le contenu sur place. */
+config.global.stubs = { ...config.global.stubs, teleport: { template: '<div class="teleport-stub"><slot /></div>' } };
 config.global.plugins = [...(config.global.plugins || []), PrimeVue, ConfirmationService, ToastService];
 // Directive globale enregistree dans main.ts : sans elle, chaque liste animee avertit.
 import { vListMotion } from '@/motion/vListMotion';

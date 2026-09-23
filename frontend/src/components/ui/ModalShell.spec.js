@@ -6,53 +6,64 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import ModalShell from './ModalShell.vue';
 import AppConfirmDialog from './AppConfirmDialog.vue';
 
+// Reka rend ses surfaces par un vrai portail vers <body> : le bouchon global des
+// Teleport (testSetup) les ferait disparaitre.
+const reel = { global: { stubs: { teleport: false } } };
+
 describe('ModalShell', () => {
-  it('reproduit le markup attendu par la CSS globale (.drawer-backdrop > .modal-panel)', () => {
+  it('rend un voile et un dialogue accessibles, nommes par leur titre', async () => {
     const wrapper = mount(ModalShell, {
       props: { title: 'Ajouter une instance', panelClass: 'arr-instance-modal' },
       slots: { default: '<p class="body">contenu</p>', actions: '<button>Enregistrer</button>' },
+      attachTo: document.body,
+      ...reel,
     });
-    const backdrop = wrapper.find('.drawer-backdrop');
-    expect(backdrop.exists()).toBe(true);
-
-    const panel = backdrop.find('aside.modal-panel');
-    expect(panel.exists()).toBe(true);
-    expect(panel.classes()).toContain('arr-instance-modal');
-    expect(panel.attributes('role')).toBe('dialog');
-    expect(panel.attributes('aria-modal')).toBe('true');
-    expect(panel.attributes('tabindex')).toBe('-1');
-    // Le libellé accessible retombe sur le titre visible quand aria-label n'est pas fourni.
-    expect(panel.attributes('aria-label')).toBe('Ajouter une instance');
-
-    expect(panel.find('.panel-head h2').text()).toBe('Ajouter une instance');
-    expect(panel.find('.body').exists()).toBe(true);
-    expect(panel.find('.actions button').text()).toBe('Enregistrer');
+    await nextTick();
+    // Reka rend le voile et le panneau cote a cote ; le voile porte les variantes du panneau.
+    expect(document.querySelector('.drawer-backdrop.drawer-backdrop--arr-instance-modal')).not.toBeNull();
+    const panel = document.querySelector('.modal-panel');
+    expect(panel.classList).toContain('arr-instance-modal');
+    expect(panel.getAttribute('role')).toBe('dialog');
+    const titre = panel.querySelector('.panel-head h2');
+    expect(titre.textContent).toBe('Ajouter une instance');
+    expect(panel.getAttribute('aria-labelledby')).toBe(titre.id);
+    expect(panel.querySelector('.body')).not.toBeNull();
+    expect(panel.querySelector('.actions button').textContent).toBe('Enregistrer');
+    wrapper.unmount();
   });
 
-  it('n’affiche le sous-titre et le message d’erreur que s’ils sont fournis', () => {
-    const bare = mount(ModalShell, { props: { title: 'T' } });
-    expect(bare.find('.panel-head p').exists()).toBe(false);
-    expect(bare.find('.notice.error-text').exists()).toBe(false);
-    // Sans slot `actions`, pas de conteneur d'actions vide.
-    expect(bare.find('.actions').exists()).toBe(false);
+  it('n’affiche le sous-titre et le message d’erreur que s’ils sont fournis', async () => {
+    const bare = mount(ModalShell, { props: { title: 'T' }, attachTo: document.body, ...reel });
+    await nextTick();
+    expect(document.querySelector('.panel-head p')).toBeNull();
+    expect(document.querySelector('.actions')).toBeNull();
+    bare.unmount();
 
-    const filled = mount(ModalShell, { props: { title: 'T', subtitle: 'S', error: 'Boum' } });
-    expect(filled.find('.panel-head p').text()).toBe('S');
-    expect(filled.find('.ui-feedback.is-error').text()).toContain('Boum');
+    const filled = mount(ModalShell, { props: { title: 'T', subtitle: 'S', error: 'Boum' }, attachTo: document.body, ...reel });
+    await nextTick();
+    expect(document.querySelector('.panel-head p').textContent).toBe('S');
+    expect(document.querySelector('.ui-feedback.is-error').textContent).toContain('Boum');
+    filled.unmount();
   });
 
-  it('émet close au clic sur le backdrop et sur la croix, mais pas pendant une opération', async () => {
-    const wrapper = mount(ModalShell, { props: { title: 'T' } });
-    await wrapper.find('.drawer-backdrop').trigger('click');
+  it('se ferme par la croix et par Echap, mais pas pendant une operation', async () => {
+    const wrapper = mount(ModalShell, { props: { title: 'T' }, attachTo: document.body, ...reel });
+    await nextTick();
+    document.querySelector('.panel-head button').click();
     expect(wrapper.emitted('close')).toHaveLength(1);
-    await wrapper.find('.panel-head button').trigger('click');
+    document.querySelector('.modal-panel').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await nextTick();
     expect(wrapper.emitted('close')).toHaveLength(2);
+    wrapper.unmount();
 
-    // `busy` neutralise la fermeture pour éviter d'abandonner une écriture en cours.
-    const busy = mount(ModalShell, { props: { title: 'T', busy: true } });
-    await busy.find('.drawer-backdrop').trigger('click');
-    await busy.find('.panel-head button').trigger('click');
+    // `busy` neutralise la fermeture pour ne pas abandonner une ecriture en cours.
+    const busy = mount(ModalShell, { props: { title: 'T', busy: true }, attachTo: document.body, ...reel });
+    await nextTick();
+    document.querySelector('.modal-panel').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.querySelector('.panel-head button').click();
+    await nextTick();
     expect(busy.emitted('close')).toBeUndefined();
+    busy.unmount();
   });
 
   it('ne rend rien quand open est faux', () => {
