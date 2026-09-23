@@ -364,15 +364,16 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import { mediaTypeLabel } from '@/utils/labels';
 import { formatDateTime as formatDate } from '@/utils/format';
-import { computed,onMounted,ref,shallowRef,watch } from 'vue';
+import { computed,defineAsyncComponent,onMounted,ref,shallowRef,watch } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { useRoute,useRouter } from 'vue-router';
 import { AlertTriangle,CheckCircle2,Clock3,Columns,Download,Film,Link,Plus,RotateCcw,Server,SlidersHorizontal,Tv,X } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
-import { useLatestRequest } from '@/composables/useLatestRequest';
 import { useDownloadSources } from '@/composables/useDownloadSources';
-import { useMediaQuery } from '@/composables/useMediaQuery';
+import { readPreference, usePreference, writePreference } from '@/composables/usePreference';
+import { useMediaQuery } from '@vueuse/core';
 import { proxyUrl } from '@/utils/mediaImage';
 import {
   canAct,
@@ -388,7 +389,6 @@ import {
 import UnmatchedImportsBanner from '@/components/downloads/UnmatchedImportsBanner.vue';
 import ManualImportModal from '@/components/downloads/ManualImportModal.vue';
 import AddTorrentModal from '@/components/downloads/AddTorrentModal.vue';
-import TorrentClientsTable from '@/components/downloads/TorrentClientsTable.vue';
 import TorrentSidebarFilters from '@/components/downloads/TorrentSidebarFilters.vue';
 import TorrentOverviewDashboard from '@/components/downloads/TorrentOverviewDashboard.vue';
 import DownloadsOverview from '@/components/downloads/DownloadsOverview.vue';
@@ -400,8 +400,11 @@ import MediaCardShell from '@/components/media/MediaCardShell.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 
+// La table embarque la DataTable PrimeVue (~500 Ko) : elle n'est utile que sur l'onglet
+// Clients, la charger a la demande garde l'apercu et la file d'attente legers.
+const TorrentClientsTable=defineAsyncComponent(()=>import('@/components/downloads/TorrentClientsTable.vue'));
 const route=useRoute(),router=useRouter();
-const arrQueue=ref<any[]>([]),directQueue=ref<any[]>([]),clientQueue=shallowRef<any[]>([]),history=shallowRef<any[]>([]),diskSpaceVolumes=ref<any[]>([]),failedPosterIds=ref<Set<string>>(new Set());
+const history=shallowRef<any[]>([]),diskSpaceVolumes=ref<any[]>([]),failedPosterIds=ref<Set<string>>(new Set());
 /**
  * Une reponse mal formee ne doit pas se propager en liste.
  *
@@ -421,7 +424,8 @@ const clientTable=ref<any>(null),showAddModal=ref(false),droppedFile=ref<File | 
    vide de surcroit sur l'onglet « Vue d'ensemble », qui n'a pas de filtres -- en
    verrouillant au passage le defilement du corps. */
 const filtersAsModal=useMediaQuery('(max-width: 900px)');
-const filtersOpen=ref(!filtersAsModal.value && localStorage.getItem('watchdeck:torrent-filter-sidebar-collapsed')!=='true');
+const filterSidebarCollapsed=usePreference('torrent-filter-sidebar-collapsed',false,{legacyKeys:['watchdeck:torrent-filter-sidebar-collapsed']});
+const filtersOpen=ref(!filtersAsModal.value && !filterSidebarCollapsed.value);
 watch(filtersAsModal, isModal => { if (isModal) filtersOpen.value=false; });
 
 function handleCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () => void): void {
@@ -439,7 +443,7 @@ watch(filtersOpen, v => {
   // Fermer la feuille modale sur telephone ne doit pas replier la colonne du bureau :
   // ce sont deux gestes differents pour deux surfaces differentes.
   if (filtersAsModal.value) return;
-  localStorage.setItem('watchdeck:torrent-filter-sidebar-collapsed', String(!v));
+  filterSidebarCollapsed.value=!v;
 });
 
 function hasPosterError(row: any): boolean {
@@ -486,7 +490,7 @@ function setClientFilter(name: string) {
     router.replace({ path: '/downloads', query: q });
   }
 }
-const manualRow=ref<any>(null),loading=ref(false),loadingHistory=ref(false),historyErrors=ref<any[]>([]);
+const manualRow=ref<any>(null),loadingHistory=ref(false),historyErrors=ref<any[]>([]);
 const sourceErrors=ref<Record<string, string>>({ queue:'', clients:'', wanted:'', history:'', configuration:'', disk:'', action:'', ui:'' });
 const error=computed({
   get:(): string =>{
@@ -504,7 +508,6 @@ function setSourceError(source: string,value=''){sourceErrors.value={...sourceEr
 const hiddenItems=ref<Set<string>>(new Set()),actingKeys=ref<Set<string>>(new Set()),hasMoreHistory=ref(false);
 const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
 const HISTORY_PAGE_SIZE=100;
-const request=useLatestRequest();
 
 /** Instances concernees par le filtre de type courant ; toutes s'il est vide.
  *  Prowlarr est exclu : c'est un indexeur, il n'alimente aucune file de telechargement. */
@@ -624,6 +627,45 @@ function wantedLibraryItem(item: any) {
  * repartis entre une rangee d'onglets et un tiroir a moitie vide selon la page.
  */
 const section=computed((): string =>['queue','missing','clients'].includes(String(route.query.view))?String(route.query.view):'overview');
+const clientsQuery=useQuery({
+  queryKey:['downloads','clients'],
+  queryFn:({signal})=>api('/api/downloads/clients',{signal}),
+  select:(rows)=>asList<any>(rows),
+  enabled:()=>section.value==='overview'||section.value==='clients',
+  staleTime:5_000,
+});
+const clientQueue=computed<any[]>(()=>clientsQuery.data.value||[]);
+watch(clientsQuery.error,(value)=>setSourceError('clients',value?`Clients torrent : ${value.message}`:''),{immediate:true});
+// Les deux sources de la file : chacune sa cle, pour qu'un echec de l'une n'efface pas
+// l'autre. Elles ne sont lues que hors de la section Clients.
+const queueEnabled=computed(()=>section.value!=='clients');
+const arrQueueQuery=useQuery({
+  queryKey:['downloads','arr-queue'],
+  queryFn:({signal})=>api('/api/arr/queue',{signal}),
+  select:(rows)=>asList<any>(rows),
+  enabled:queueEnabled,
+  staleTime:5_000,
+});
+const directQueueQuery=useQuery({
+  queryKey:['downloads','direct'],
+  queryFn:({signal})=>api('/api/downloads/direct',{signal}),
+  select:(rows)=>asList<any>(rows),
+  enabled:queueEnabled,
+  staleTime:5_000,
+});
+const arrQueue=computed<any[]>(()=>arrQueueQuery.data.value||[]);
+const directQueue=computed<any[]>(()=>directQueueQuery.data.value||[]);
+// Le bandeau nomme la source en defaut, comme le faisait le Promise.allSettled.
+watch([arrQueueQuery.error,directQueueQuery.error],([arrError,directError])=>{
+  const failures=[
+    arrError?`File Sonarr/Radarr : ${arrError.message}`:'',
+    directError?`Téléchargements directs : ${directError.message}`:'',
+  ].filter(Boolean);
+  setSourceError('queue',failures.join(' · '));
+},{immediate:true});
+// Le voile de chargement n'apparait que sans rien a afficher : un rafraichissement ne
+// doit pas faire clignoter une file deja remplie.
+const loading=computed(()=>(arrQueueQuery.isFetching.value||directQueueQuery.isFetching.value)&&!queue.value.length);
 const validSubviews: Record<string, string[]> ={
   overview:['all'],
   queue:['all','active','waiting','completed','errors','intervention'],
@@ -763,28 +805,17 @@ function resetFilters(){query.value='';instance.value='';status.value='';statusF
 function resetClientFilters(){query.value='';status.value=[];clientCategory.value=[];clientOwnership.value='';clientTracker.value=[]}
 function resetAllFilters(){resetFilters();resetClientFilters()}
 
+/* Relit les deux sources de la file. Une lecture deja en vol n'est pas doublee : au
+   montage, les queries partent d'elles-memes et `refreshCurrentView` passe ici juste
+   apres. Ailleurs (action utilisateur, evenement SSE), on relance vraiment. */
 async function loadAll(): Promise<void>{
-  const {signal,isCurrent}=request.begin();if(!queue.value.length)loading.value=true;setSourceError('queue');
-  const options={signal};
-  const results=await Promise.allSettled([api('/api/arr/queue',options),api('/api/downloads/direct',options)]);
-  if(!isCurrent())return;
-  const labels=['File Sonarr/Radarr','Téléchargements directs'],failures: string[]=[];
-  results.forEach((result,index)=>{if(result.status==='rejected'&&!request.isAbort(result.reason))failures.push(`${labels[index]} : ${result.reason.message}`)});
-  if(results[0].status==='fulfilled')arrQueue.value=asList(results[0].value);
-  if(results[1].status==='fulfilled')directQueue.value=asList(results[1].value);
-  setSourceError('queue',failures.join(' · '));loading.value=false;
+  await Promise.all([arrQueueQuery.refetch({cancelRefetch:true}),directQueueQuery.refetch({cancelRefetch:true})]);
 }
-let clientLoadVersion = 0;
 async function loadClients(): Promise<void>{
-  const loadVersion = ++clientLoadVersion;
-  try {
-    const rows = await api('/api/downloads/clients');
-    // Les événements peuvent arriver en rafale : une réponse plus ancienne ne doit pas
-    // écraser la liste plus récente et provoquer un clignotement du tableau.
-    if (loadVersion === clientLoadVersion) { clientQueue.value = asList(rows); setSourceError('clients'); }
-  } catch (e: any) {
-    if (loadVersion === clientLoadVersion) setSourceError('clients', `Clients torrent : ${e.message}`);
-  }
+  // TanStack Query annule la requete precedente lors des rafales SSE, conserve la
+  // derniere valeur pendant le rafraichissement et relance au retour en ligne/focus.
+  const result=await clientsQuery.refetch({cancelRefetch:true});
+  if(result.error)setSourceError('clients',`Clients torrent : ${result.error.message}`);
 }
 async function loadConfigurations(): Promise<void>{await loadDownloadSources();setSourceError('configuration',configurationError.value)}
 let historyLoadVersion=0;
@@ -809,9 +840,11 @@ async function queueAction(row: any,blocklist: boolean,search: boolean): Promise
 function openManual(row: any): void{manualRow.value=row}
 async function onManualSubmitted(): Promise<void>{hiddenItems.value.add(rowKey(manualRow.value));manualRow.value=null;await loadAll()}
 
-function refreshCurrentView(){
+/* `skipQueue` au premier appel : les deux queries de la file se chargent d'elles-memes
+   au montage, les relancer ici doublerait l'aller-retour. */
+function refreshCurrentView({skipQueue=false}: {skipQueue?: boolean}={}){
   const jobs: Promise<any>[]=[];
-  if(section.value!=='clients') jobs.push(loadAll());
+  if(section.value!=='clients'&&!skipQueue) jobs.push(loadAll());
   if(section.value==='overview'||section.value==='clients') jobs.push(loadClients());
   if(['overview','queue','missing'].includes(section.value)) jobs.push(loadWanted());
   if(section.value==='overview'||showHistory.value||section.value==='queue') jobs.push(loadHistory());
@@ -848,24 +881,24 @@ function refreshFromDownloadEvent(detail: any={}){
 }
 let mounted=false;
 const clientFilterScope=computed(()=>selectedClientId.value||'all');
-function clientFilterStorageKey(){return`watchdeck:torrent-filters:${clientFilterScope.value}`}
+function clientFilterStorageKey(){return`torrent-filters:${clientFilterScope.value}`}
 function loadClientFilterPreferences(){
   try{
-    const saved=JSON.parse(localStorage.getItem(clientFilterStorageKey())||'null');
+    const saved=readPreference<any>(clientFilterStorageKey(),null);
     if(!saved){resetClientFilters();return}
     query.value=saved.query||'';status.value=saved.status||[];clientCategory.value=saved.category||[];clientOwnership.value=saved.ownership||'';clientTracker.value=saved.tracker||[];
   }catch{resetClientFilters()}
 }
 watch([query,status,clientCategory,clientOwnership,clientTracker],()=>{
   if(section.value!=='clients')return;
-  localStorage.setItem(clientFilterStorageKey(),JSON.stringify({query:query.value,status:status.value,category:clientCategory.value,ownership:clientOwnership.value,tracker:clientTracker.value}));
+  writePreference(clientFilterStorageKey(),{query:query.value,status:status.value,category:clientCategory.value,ownership:clientOwnership.value,tracker:clientTracker.value});
 },{deep:true});
 watch(()=>`${section.value}:${subview.value}:${selectedInstanceId.value}:${selectedClientId.value}`,()=>{
   if(!mounted)return;
   if(section.value==='clients')loadClientFilterPreferences();else resetFilters();hasMoreHistory.value=false;refreshCurrentView();
 });
 useRealtime(['download.updated'],(_type,detail)=>refreshFromDownloadEvent(detail),{debounceMs:350});
-onMounted(async()=>{await loadConfigurations();if(section.value==='clients')loadClientFilterPreferences();mounted=true;await refreshCurrentView()});
+onMounted(async()=>{await loadConfigurations();if(section.value==='clients')loadClientFilterPreferences();mounted=true;await refreshCurrentView({skipQueue:true})});
 </script>
 
 <style scoped lang="scss">

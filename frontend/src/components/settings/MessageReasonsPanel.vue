@@ -38,7 +38,8 @@
 
 <script setup lang="ts">
 import { humanizeError } from '@/utils/apiError';
-import { onMounted, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Plus, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
 import SettingsSection from '@/components/settings/SettingsSection.vue';
@@ -70,75 +71,42 @@ const EVENTS = [
 ];
 
 const reasons = ref<Reason[]>([]);
-const loading = ref(false);
-const busy = ref(false);
-const error = ref('');
+const actionError = ref('');
+const queryClient = useQueryClient();
+const reasonsQuery = useQuery({ queryKey: ['settings', 'message-reasons'], queryFn: () => api<{ items?: Reason[] }>('/api/message-reasons') });
+watch(() => reasonsQuery.data.value, (payload) => { if (payload) reasons.value = (payload.items || []).map((reason) => ({ ...reason })); }, { immediate: true });
+const loading = computed(() => reasonsQuery.isFetching.value);
+const busy = computed(() => reasonMutation.isPending.value);
+const error = computed(() => actionError.value || (reasonsQuery.error.value ? humanizeError(reasonsQuery.error.value) : ''));
 
 const reasonsFor = (event: string) => reasons.value.filter((reason) => reason.event === event);
 
 async function load(): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    const payload = await api<{ items?: Reason[] }>('/api/message-reasons');
-    reasons.value = payload.items || [];
-  } catch (e: any) {
-    error.value = humanizeError(e);
-  } finally {
-    loading.value = false;
-  }
+  actionError.value = '';
+  await reasonsQuery.refetch();
 }
+
+const reasonMutation = useMutation({
+  mutationFn: ({ path, method, body }: { path: string; method: string; body?: any }) => api(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'message-reasons'] }),
+  onError: (e) => { actionError.value = humanizeError(e); },
+});
 
 /* Chaque champ s'enregistre en le quittant : un bouton « Enregistrer » global obligerait
    a suivre quels motifs ont bouge parmi une dizaine de cartes. */
 async function save(reason: Reason): Promise<void> {
   if (!reason.label.trim() || !reason.message.trim()) return;
-  busy.value = true;
-  try {
-    await api(`/api/message-reasons/${reason.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ label: reason.label, message: reason.message, enabled: reason.enabled }),
-    });
-  } catch (e: any) {
-    error.value = humanizeError(e);
-  } finally {
-    busy.value = false;
-  }
+  await reasonMutation.mutateAsync({ path: `/api/message-reasons/${reason.id}`, method: 'PATCH', body: { label: reason.label, message: reason.message, enabled: reason.enabled } }).catch(() => {});
 }
 
 async function addReason(event: string): Promise<void> {
-  busy.value = true;
-  try {
-    const created = await api<Reason>('/api/message-reasons', {
-      method: 'POST',
-      body: JSON.stringify({
-        event,
-        label: 'Nouveau motif',
-        message: 'Message envoyé au demandeur.',
-        position: reasonsFor(event).length,
-      }),
-    });
-    reasons.value = [...reasons.value, created];
-  } catch (e: any) {
-    error.value = humanizeError(e);
-  } finally {
-    busy.value = false;
-  }
+  await reasonMutation.mutateAsync({ path: '/api/message-reasons', method: 'POST', body: { event, label: 'Nouveau motif', message: 'Message envoyé au demandeur.', position: reasonsFor(event).length } }).catch(() => {});
 }
 
 async function remove(reason: Reason): Promise<void> {
-  busy.value = true;
-  try {
-    await api(`/api/message-reasons/${reason.id}`, { method: 'DELETE' });
-    reasons.value = reasons.value.filter((row) => row.id !== reason.id);
-  } catch (e: any) {
-    error.value = humanizeError(e);
-  } finally {
-    busy.value = false;
-  }
+  await reasonMutation.mutateAsync({ path: `/api/message-reasons/${reason.id}`, method: 'DELETE' }).catch(() => {});
 }
-
-onMounted(load);
 </script>
 
 <style scoped lang="scss">

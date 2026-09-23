@@ -65,7 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, useSlots, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, useSlots, watch } from 'vue';
+import { useIntersectionObserver } from '@vueuse/core';
 import AppSubnav, { type SubnavItem } from './AppSubnav.vue';
 import { providePageSearch, type PageSearch, type PageSearchKind } from '@/composables/usePageSearch';
 import { usePageSections } from '@/composables/usePageSections';
@@ -211,18 +212,12 @@ const resolvedActiveSection = computed(() =>
 
 const stickySentinel = ref<HTMLElement | null>(null);
 const isStuck = ref(false);
-let stickyObserver: IntersectionObserver | null = null;
 
 watch(mode, () => nextTick(syncToolsAnchor));
-onMounted(() => {
-  syncToolsAnchor();
-  if (typeof IntersectionObserver === 'undefined' || !stickySentinel.value) return;
-  stickyObserver = new IntersectionObserver(([entry]) => {
-    isStuck.value = !entry.isIntersecting;
-  });
-  stickyObserver.observe(stickySentinel.value);
+onMounted(syncToolsAnchor);
+useIntersectionObserver(stickySentinel, ([entry]) => {
+  if (entry) isStuck.value = !entry.isIntersecting;
 });
-onUnmounted(() => stickyObserver?.disconnect());
 </script>
 
 <style scoped lang="scss">

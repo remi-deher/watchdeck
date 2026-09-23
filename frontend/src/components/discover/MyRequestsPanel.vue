@@ -120,14 +120,14 @@
 
 <script setup lang="ts">
 import { humanizeError } from '@/utils/apiError';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
-import { useDebounced } from '@/composables/useDebounced';
-import { useLatestRequest } from '@/composables/useLatestRequest';
-import { useRealtimeList } from '@/composables/useRealtimeList';
+import { useDebounceFn } from '@vueuse/core';
+import { useRealtimeQuery } from '@/composables/useRealtimeQuery';
 import { providePageSearch, type PageSearch } from '@/composables/usePageSearch';
 import { canModerateSession, loadSession } from '@/composables/useSession';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
@@ -139,6 +139,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
+import { usePreference } from '@/composables/usePreference';
 
 defineEmits<{
   (e: 'explore'): void;
@@ -146,9 +147,7 @@ defineEmits<{
 
 const router = useRouter();
 const route = useRoute();
-const request = useLatestRequest();
 
-const items = ref<any[]>([]);
 const canModerate = ref(false);
 const plexUserId = ref('');
 /* La session porte l'identite du demandeur : tant qu'elle n'est pas resolue, charger
@@ -156,9 +155,9 @@ const plexUserId = ref('');
    (owner local, compte admin non lie a Plex) reste servi : il voit alors tout ce que
    l'API lui autorise, au lieu d'une page vide et sans explication. */
 const sessionReady = ref(false);
-const loading = ref(false);
 const busy = ref(false);
-const error = ref('');
+// Erreur d'une action (annuler, relancer...), distincte de celle de la lecture.
+const actionError = ref('');
 
 const query = ref('');
 const statusKey = ref('');
@@ -169,8 +168,7 @@ const sort = ref('');
 /* Facette renvoyee par `/api/requests-list`. Elle est globale pour un administrateur et
    reduite au seul appelant sinon : le groupe « Demandeur » se montre donc tout seul,
    uniquement la ou il y a vraiment le choix. */
-const requesters = ref<Array<{ id: string; label: string }>>([]);
-const view = ref(localStorage.getItem('library.view') || 'grid');
+const view = usePreference('library.view', 'grid');
 const filtersOpen = ref(false);
 
 /* Un seul statut a la fois, mais certains libelles couvrent plusieurs valeurs du
@@ -255,7 +253,7 @@ function _params(): URLSearchParams {
   const p = new URLSearchParams({ limit: '500' });
   if (!requesterKey.value) { if (plexUserId.value) p.set('requesters', plexUserId.value); }
   else if (requesterKey.value !== 'all') p.set('requesters', requesterKey.value);
-  const q = query.value.trim();
+  const q = submittedQuery.value;
   if (q) p.set('query', q);
   const statuses = STATUS_BUCKETS[statusKey.value];
   if (statuses) p.set('statuses', statuses.join(','));
@@ -264,24 +262,33 @@ function _params(): URLSearchParams {
   return p;
 }
 
+/* La recherche ne part au serveur qu'a sa validation (ou avec un filtre) : la liste
+   chargee est ensuite filtree sur place a chaque frappe. `submittedQuery` fige donc la
+   saisie a ces moments-la, comme le faisait le chargement manuel. */
+const submittedQuery = ref('');
+interface RequestsPayload { items?: any[]; facets?: { requesters?: Array<{ id: string; label: string }> } }
+const requestsKey = computed(() => ['requests', 'mine', _params().toString()]);
+const requestsQuery = useQuery({
+  queryKey: requestsKey,
+  queryFn: ({ signal }) => api<RequestsPayload>(`/api/requests-list?${_params()}`, { signal }),
+  enabled: sessionReady,
+  // Garder la liste precedente pendant qu'un filtre recharge, plutot que de la vider.
+  placeholderData: keepPreviousData,
+  staleTime: 15_000,
+});
+const items = computed<any[]>(() => requestsQuery.data.value?.items || []);
+const requesters = computed(() => requestsQuery.data.value?.facets?.requesters || []);
+const loading = computed(() => requestsQuery.isFetching.value);
+const error = computed(() => actionError.value || (requestsQuery.error.value ? humanizeError(requestsQuery.error.value) : ''));
+
+/** Recharge : capture la recherche en cours ; si la cle n'a pas change, relit quand meme. */
 async function load(): Promise<void> {
   if (!sessionReady.value) return;
-  const { signal, isCurrent } = request.begin();
-  loading.value = true;
-  error.value = '';
-  try {
-    const payload = await api<{ items?: any[]; facets?: { requesters?: Array<{ id: string; label: string }> } }>(
-      `/api/requests-list?${_params()}`,
-      { signal }
-    );
-    if (!isCurrent()) return;
-    items.value = payload.items || [];
-    requesters.value = payload.facets?.requesters || [];
-  } catch (e: any) {
-    if (!request.isAbort(e) && isCurrent()) error.value = humanizeError(e);
-  } finally {
-    if (isCurrent()) loading.value = false;
-  }
+  actionError.value = '';
+  const before = requestsKey.value.join('|');
+  submittedQuery.value = query.value.trim();
+  await nextTick();
+  if (requestsKey.value.join('|') === before) await requestsQuery.refetch();
 }
 
 const sorted = computed(() => {
@@ -359,32 +366,35 @@ async function runAction(row: any, action: string, body?: string): Promise<void>
     await api(`/api/requests/${row.id}/${action}`, { method: 'POST', body });
     await load();
   } catch (e: any) {
-    error.value = humanizeError(e);
+    actionError.value = humanizeError(e);
   } finally {
     busy.value = false;
   }
 }
 
-const scheduleLoad = useDebounced(load, 250);
+const scheduleLoad = useDebounceFn(load, 250);
 function onSearch(): void {
-  request.abort();
+  // Une lecture devenue obsolete est annulee par TanStack Query au changement de cle.
   scheduleLoad();
 }
 
-watch(view, (value) => localStorage.setItem('library.view', value));
-watch([statusKey, typeKey, vf, requesterKey], () => load());
+// Un filtre fait partie de la cle, qui relance seule : il suffit d'y joindre la
+// recherche en cours, comme le faisait le rechargement d'avant.
+watch([statusKey, typeKey, vf, requesterKey], () => { submittedQuery.value = query.value.trim(); });
 
-useRealtimeList(items, ['request.updated', 'download.updated'], {
+// Un evenement met a jour la demande dans le cache ; faute de correspondance, relecture.
+useRealtimeQuery<RequestsPayload>(requestsKey, ['request.updated', 'download.updated'], {
   keyFields: ['request_id', 'id'],
-  onFallbackReload: () => load(),
+  getList: (data) => data.items || [],
+  setList: (data, list) => ({ ...data, items: list }),
 });
 
 onMounted(async () => {
   const session = await loadSession();
   canModerate.value = canModerateSession(session);
   plexUserId.value = session?.plex_user_id || '';
+  // Session resolue : la query part d'elle-meme (`enabled`).
   sessionReady.value = true;
-  await load();
 });
 </script>
 

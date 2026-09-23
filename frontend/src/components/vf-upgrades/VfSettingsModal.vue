@@ -16,7 +16,10 @@
 
     <!-- Exactement le composant de la page Réglages, sur le même store : la
          synchronisation est structurelle, pas recopiée. -->
-    <VfUpgradesSettingsTab v-else />
+    <template v-else>
+      <SettingsValidationSummary />
+      <VfUpgradesSettingsTab />
+    </template>
 
     <template #actions>
       <UiFeedback v-if="message" type="success" :message="message" />
@@ -36,6 +39,7 @@ import { computed, ref, watch } from 'vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
+import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
 import VfUpgradesSettingsTab from '@/components/settings/VfUpgradesSettingsTab.vue';
 import {
   changedFields,

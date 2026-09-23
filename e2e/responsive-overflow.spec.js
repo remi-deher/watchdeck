@@ -64,10 +64,15 @@ async function mockApi(page, { snapshot = null } = {}) {
 /** Echoue si la courbe n'a pas recu de donnees : sans trace, les mesures geometriques
  *  de ce fichier passeraient sans rien verifier. */
 async function expectChartHasCurve(page, minimum = TIMELINE_DAYS) {
-  const line = page.locator(".line-chart path.line").first();
-  await expect(line).toBeVisible({ timeout: 15_000 });
-  const segments = await line.evaluate((node) => node.getAttribute("d").split("L").length);
-  expect(segments, "la courbe doit etre alimentee").toBeGreaterThanOrEqual(minimum);
+  // Chart.js dessine dans un canvas : le nombre de points affiches est expose par
+  // l'attribut `data-points`, seul temoin observable de la serie depuis le DOM.
+  const canvas = page.locator(".line-chart canvas").first();
+  await expect(canvas).toBeVisible({ timeout: 15_000 });
+  expect(await plottedPoints(page), "la courbe doit etre alimentee").toBeGreaterThanOrEqual(minimum);
+}
+
+function plottedPoints(page) {
+  return page.locator(".line-chart canvas").first().evaluate((node) => Number(node.dataset.points || 0));
 }
 
 /** Vrai si la page entiere deborde horizontalement (barre de defilement globale). */
@@ -99,25 +104,8 @@ test.describe("Graphique d'activite", () => {
     expect(overflows, "la courbe deborde de son panneau").toBe(false);
   });
 
-  test("les dates de l'axe ne se chevauchent pas", async ({ page }) => {
-    await expectChartHasCurve(page);
-
-    const boxes = await page.locator(".line-chart__x span").evaluateAll((nodes) =>
-      nodes
-        .map((node) => node.getBoundingClientRect())
-        .filter((box) => box.width > 0)
-        .map((box) => ({ left: box.left, right: box.right }))
-        .sort((a, b) => a.left - b.left),
-    );
-
-    expect(boxes.length, "l'axe doit porter des reperes").toBeGreaterThan(1);
-    for (let index = 1; index < boxes.length; index += 1) {
-      expect(
-        boxes[index].left,
-        `le repere ${index} chevauche le precedent`,
-      ).toBeGreaterThanOrEqual(boxes[index - 1].right - 1);
-    }
-  });
+  // Le chevauchement des dates de l'axe n'est plus teste ici : Chart.js les dessine dans
+  // le canvas avec son saut automatique (voir LineChart.spec.js pour la configuration).
 
   test("glisser sur la courbe zoome sur la plage choisie", async ({ page }, testInfo) => {
     // Le zoom se pilote a la souris ; sur un appareil tactile, un glisser horizontal
@@ -133,11 +121,7 @@ test.describe("Graphique d'activite", () => {
     await page.mouse.up();
 
     await expect(page.locator(".line-chart__reset").first()).toBeVisible();
-    const segments = await page
-      .locator(".line-chart path.line")
-      .first()
-      .evaluate((node) => node.getAttribute("d").split("L").length);
-    expect(segments, "la fenetre doit etre reduite").toBeLessThan(TIMELINE_DAYS);
+    expect(await plottedPoints(page), "la fenetre doit etre reduite").toBeLessThan(TIMELINE_DAYS);
   });
 });
 

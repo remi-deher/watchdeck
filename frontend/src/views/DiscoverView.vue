@@ -437,11 +437,12 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import RequestOptionsModal from '@/components/media/RequestOptionsModal.vue';
 import MyRequestsPanel from '@/components/discover/MyRequestsPanel.vue';
-import { useDebounced } from '@/composables/useDebounced';
+import { useDebounceFn } from '@vueuse/core';
 import { mediaRequestKey, useDirectMediaRequest } from '@/composables/useDirectMediaRequest';
-import { useLatestRequest } from '@/composables/useLatestRequest';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/vue-query';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { mediaDetailPath } from '@/mediaUrl';
+import { usePreference } from '@/composables/usePreference';
 
 const initialParams = new URLSearchParams(window.location.search);
 const route = useRoute();
@@ -464,7 +465,6 @@ function mediaTypeFromLocation(params = new URLSearchParams(window.location.sear
 }
 const validSections = new Set(['trending', 'popular', 'coming-soon', 'genres']);
 const mode = ref(initialModeFromLocation());
-const items = ref<any[]>([]);
 const query = ref(initialParams.get('q') || '');
 const mediaType = ref(mediaTypeFromLocation(initialParams));
 const section = ref(validSections.has(initialParams.get('section') || '') ? initialParams.get('section') as string : 'trending');
@@ -473,19 +473,12 @@ const availability = ref(['available', 'requested', 'new'].includes(initialParam
 const sourceKey = ref(initialParams.get('source') || (window.location.pathname.startsWith('/discover/source/') ? window.location.pathname.replace('/discover/source/', '').replace('/', ':') : ''));
 const sortBy = ref(initialParams.get('sort') || 'popularity.desc');
 const genres = ref<any[]>([]);
-const loading = ref(false);
-const loadingMore = ref(false);
-const error = ref('');
-const page = ref(1);
-const totalPages = ref(1);
-const totalResults = ref(0);
-const request = useLatestRequest();
 const sources = ref<any[]>([]);
 const sourcesLoading = ref(true);
 const sourcesError = ref('');
 const homeLoaded = ref(false);
-const hideAvailable = ref(localStorage.getItem('discover.hideAvailable') === 'true');
-const hideWatched = ref(localStorage.getItem('discover.hideWatched') === 'true');
+const hideAvailable = usePreference('discover.hideAvailable', false);
+const hideWatched = usePreference('discover.hideWatched', false);
 
 function emptyPersonalizedRail() {
   return { items: [] as any[] };
@@ -688,12 +681,20 @@ const displayedItems = computed(() => items.value.filter(item => {
   if (availability.value === 'new') return !item.requested && !item.available && !item.in_library;
   return true;
 }));
-const hasMore = computed(() => page.value < totalPages.value);
+const hasMore = computed(() => Boolean(catalogQuery.hasNextPage.value));
 const { requesting, requestError, requestSuccess, requestMedia, optionsDialog, confirmOptions, cancelOptions } = useDirectMediaRequest({ onUpdated: updateMatchingMedia });
 
 function updateMatchingMedia(changed: any, update: any) {
   const key = mediaRequestKey(changed);
-  for (const item of items.value) if (mediaRequestKey(item) === key) Object.assign(item, update);
+  // Le catalogue appartient au cache : on y remet une copie modifiee, sans muter.
+  queryClient.setQueryData<{ pages: CatalogPage[]; pageParams: unknown[] }>(catalogKey.value, (current) => current && {
+    ...current,
+    pages: current.pages.map((chunk) => ({
+      ...chunk,
+      items: (chunk.items || []).map((item) => (mediaRequestKey(item) === key ? { ...item, ...update } : item)),
+    })),
+  });
+  // Accueil et recommandations sont un etat local de la page, pas le cache.
   for (const state of Object.values(home) as any[]) {
     if (state.item && mediaRequestKey(state.item) === key) Object.assign(state.item, update);
     for (const item of state.items) if (mediaRequestKey(item) === key) Object.assign(item, update);
@@ -721,7 +722,7 @@ function sourcePath(source: any) {
   };
 }
 function showHome() {
-  request.abort();
+  abortCatalog();
   mode.value = 'home';
   router.push('/discover');
   if (!homeLoaded.value) loadHome();
@@ -753,6 +754,15 @@ function handleSearchInput() {
   else scheduleSearch();
 }
 
+/* URL que la page vient d'ecrire elle-meme. Le `watch` de la route ne doit reagir qu'aux
+   vraies navigations (precedent, suivant, lien partage) : relancer `load()` sur la mise a
+   jour de `?q=` qui suit chaque frappe court-circuitait le delai de la recherche, et
+   envoyait une requete par lettre tapee. */
+let selfWrittenUrl = '';
+function replaceExplorerUrl(target: { path: string; query: Record<string, string> }): void {
+  selfWrittenUrl = router.resolve(target).fullPath;
+  router.replace(target);
+}
 function syncExplorerUrl() {
   if (mode.value !== 'explore') return;
   const params = new URLSearchParams();
@@ -765,23 +775,23 @@ function syncExplorerUrl() {
 
   if (route.path.startsWith('/discover/source/')) {
     if (activeSourceName.value && activeSourceName.value !== 'Diffuseur') params.set('name', activeSourceName.value);
-    router.replace({ path: route.path, query: Object.fromEntries(params.entries()) });
+    replaceExplorerUrl({ path: route.path, query: Object.fromEntries(params.entries()) });
     return;
   }
 
   if (sourceKey.value) params.set('source', sourceKey.value);
   const path = fixedMediaType.value === 'movie' ? '/discover/movies' : fixedMediaType.value === 'show' ? '/discover/shows' : '/discover/explore';
-  router.replace({ path, query: Object.fromEntries(params.entries()) });
+  replaceExplorerUrl({ path, query: Object.fromEntries(params.entries()) });
 }
 
 function applyExplorerUrl() {
   if (route.path === '/discover/requests') {
-    request.abort();
+    abortCatalog();
     mode.value = 'requests';
     return;
   }
   if (route.path === '/discover') {
-    request.abort();
+    abortCatalog();
     mode.value = 'home';
     sourceKey.value = '';
     if (!homeLoaded.value) loadHome();
@@ -909,8 +919,6 @@ async function loadPersonalized() {
 }
 
 function reloadPersonalized() {
-  localStorage.setItem('discover.hideAvailable', String(hideAvailable.value));
-  localStorage.setItem('discover.hideWatched', String(hideWatched.value));
   loadPersonalized();
 }
 
@@ -981,47 +989,68 @@ function endpoint(targetPage: number) {
   if (section.value === 'coming-soon') return `/api/discover/coming-soon?${type}&${pagination}`;
   return `/api/discover/discover?${type}&${pagination}${genre.value ? `&genre=${genre.value}` : ''}`;
 }
+/* Le catalogue part d'une URL DEMANDEE et non des filtres en direct : `load()` reste
+   appele aux memes moments qu'avant (filtre, section, recherche apres 300 ms), et
+   certains reglages ne concernent pas le serveur (disponibilite, filtre local). La cle
+   est l'URL de la premiere page ; les pages suivantes en sont DERIVEES, jamais des refs
+   du moment -- sinon une saisie en cours se glisserait dans la page 2 d'une ancienne
+   recherche. Changer de cle annule la lecture devenue obsolete. */
+interface CatalogPage { items?: any[]; page?: number; total_pages?: number; total_results?: number }
+const queryClient = useQueryClient();
+const catalogUrl = ref<string | null>(null);
+const catalogKey = computed(() => ['discover', 'catalog', catalogUrl.value]);
+const FIRST_PAGE = 'page=1&paginated=true';
+const catalogQuery = useInfiniteQuery({
+  queryKey: catalogKey,
+  queryFn: ({ pageParam, signal }) => api<CatalogPage>(String(catalogUrl.value).replace(FIRST_PAGE, `page=${pageParam}&paginated=true`), { signal }),
+  initialPageParam: 1,
+  getNextPageParam: (last: CatalogPage, pages: CatalogPage[]) => {
+    const current = last.page || pages.length;
+    return current < (last.total_pages || 1) ? current + 1 : undefined;
+  },
+  enabled: computed(() => catalogUrl.value !== null),
+  staleTime: 60_000,
+});
+/* Les pages TMDB se recouvrent parfois : un media deja affiche n'est pas repete. */
+const items = computed<any[]>(() => {
+  const seen = new Set<string>();
+  const list: any[] = [];
+  for (const chunk of catalogQuery.data.value?.pages || []) {
+    for (const item of chunk.items || []) {
+      const key = mediaRequestKey(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push(item);
+    }
+  }
+  return list;
+});
+const lastPage = computed(() => catalogQuery.data.value?.pages.at(-1));
+const totalResults = computed(() => lastPage.value?.total_results || items.value.length);
+const loadingMore = computed(() => catalogQuery.isFetchingNextPage.value);
+const loading = computed(() => catalogQuery.isFetching.value && !loadingMore.value);
+const error = computed(() => (catalogQuery.error.value as Error | null)?.message || '');
+
 async function load({ append = false } = {}) {
   /* Charger la page suivante ne change rien a l'URL : la resynchroniser declenchait un
      `router.replace`, et le `scrollBehavior` du routeur ramenait la grille en haut a
      chaque palier de defilement infini. On ne l'appelle donc que pour un vrai
      changement de contexte (recherche, filtre, section). */
-  if (!append) syncExplorerUrl();
-  const targetPage = append ? page.value + 1 : 1;
-  const { signal, isCurrent } = append ? request.extend() : request.begin();
-  if (append) loadingMore.value = true;
-  else loading.value = true;
-  error.value = '';
-  try {
-    const payload = await api(endpoint(targetPage), { signal });
-    if (!isCurrent()) return;
-    const incoming = payload.items || [];
-    if (append) {
-      const known = new Set(items.value.map(mediaRequestKey));
-      items.value = [...items.value, ...incoming.filter((item: any) => !known.has(mediaRequestKey(item)))];
-    } else {
-      items.value = incoming;
-    }
-    page.value = payload.page || targetPage;
-    totalPages.value = payload.total_pages || 1;
-    totalResults.value = payload.total_results || incoming.length;
-  } catch (loadError: any) {
-    if (!request.isAbort(loadError) && isCurrent()) {
-      error.value = loadError.message;
-      if (!append) items.value = [];
-    }
-  } finally {
-    if (isCurrent()) {
-      loading.value = false;
-      loadingMore.value = false;
-    }
-  }
+  if (append) { await catalogQuery.fetchNextPage(); return; }
+  syncExplorerUrl();
+  const next = endpoint(1);
+  if (catalogUrl.value === next) await catalogQuery.refetch();
+  else catalogUrl.value = next;
 }
 function reload() { return load(); }
+/** Quitter l'explorateur : la lecture en cours n'a plus de destinataire. */
+function abortCatalog(): void {
+  void queryClient.cancelQueries({ queryKey: ['discover', 'catalog'] });
+}
 function loadMore() { if (!loadingMore.value && hasMore.value) load({ append: true }); }
-const debouncedReload = useDebounced(reload, 300);
+const debouncedReload = useDebounceFn(reload, 300);
 function scheduleSearch() {
-  request.abort();
+  abortCatalog();
   syncExplorerUrl();
   debouncedReload();
 }
@@ -1070,6 +1099,8 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
   // La recherche d'accueil change seulement l'URL : le même champ et les mêmes
   // résultats restent montés, sans lancer une seconde requête ni perdre le focus.
   if (prevPath === '/discover' && path === '/discover/explore' && mode.value === 'explore' && query.value) return;
+  // Mise a jour ecrite par la page elle-meme : son chargement est deja programme.
+  if (selfWrittenUrl && route.fullPath === selfWrittenUrl) { selfWrittenUrl = ''; return; }
   applyExplorerUrl();
 });
 </script>

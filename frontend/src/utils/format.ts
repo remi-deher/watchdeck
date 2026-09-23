@@ -1,8 +1,10 @@
 // Formatage fr-FR partagé par toute l'app.
+import { differenceInMinutes, format as formatDateFns, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 const LOCALE = 'fr-FR';
-
-const dateTimeFormatter = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(LOCALE, options);
+const asDate = (value: string | number | Date): Date => typeof value === 'string' ? parseISO(value) : new Date(value);
+const renderDate = (value: string | number | Date, pattern: string): string => formatDateFns(asDate(value), pattern, { locale: fr });
 
 // ---------------------------------------------------------------------------
 // Dates
@@ -10,23 +12,23 @@ const dateTimeFormatter = (options: Intl.DateTimeFormatOptions) => new Intl.Date
 
 /** Date + heure, format long (« 4 août 2026 à 14:30 »). Le plus courant dans l'app. */
 export function formatDateTime(value?: string | number | Date | null, empty = '-'): string {
-  return value ? dateTimeFormatter({ dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : empty;
+  return value ? renderDate(value, 'd MMM yyyy, HH:mm') : empty;
 }
 
 /** Date + heure, format compact (« 04/08/2026 14:30 ») — tableaux et journaux. */
 export function formatDateTimeShort(value?: string | number | Date | null, empty = '-'): string {
-  return value ? dateTimeFormatter({ dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : empty;
+  return value ? renderDate(value, 'dd/MM/yyyy HH:mm') : empty;
 }
 
 /** Date + heure à la seconde — suivi d'exécution des tâches planifiées. */
 export function formatDateTimeSeconds(value?: string | number | Date | null, empty = '-'): string {
-  return value ? dateTimeFormatter({ dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value)) : empty;
+  return value ? renderDate(value, 'dd/MM/yyyy HH:mm:ss') : empty;
 }
 
 /** Date relative courte (« à l'instant », « il y a 5 min », « il y a 3 h », « il y a 2 j »). */
 export function formatRelativeDate(value?: string | number | Date | null, empty = '-'): string {
   if (!value) return empty;
-  const minutes = Math.floor((Date.now() - new Date(value).getTime()) / 60000);
+  const minutes = differenceInMinutes(new Date(), asDate(value));
   if (minutes < 1) return "À l'instant";
   if (minutes < 60) return `Il y a ${minutes} min`;
   const hours = Math.floor(minutes / 60);
@@ -38,42 +40,57 @@ export function formatRelativeDate(value?: string | number | Date | null, empty 
 
 /** Date seule, format long (« 4 août 2026 »). */
 export function formatDate(value?: string | number | Date | null, empty = '-'): string {
-  return value ? dateTimeFormatter({ dateStyle: 'medium' }).format(new Date(value)) : empty;
+  return value ? renderDate(value, 'd MMM yyyy') : empty;
+}
+
+/** Date seule avec mois non abrégé (« 4 août 2026 »). */
+export function formatDateLong(value?: string | number | Date | null, empty = '-'): string {
+  return value ? renderDate(value, 'd MMMM yyyy') : empty;
 }
 
 /** Date seule, format compact (« 04/08/2026 »). */
 export function formatDateShort(value?: string | number | Date | null, empty = '-'): string {
-  return value ? dateTimeFormatter({ dateStyle: 'short' }).format(new Date(value)) : empty;
+  return value ? renderDate(value, 'dd/MM/yyyy') : empty;
 }
-
-const atNoon = (day: string | number | Date) => new Date(`${day}T12:00:00`);
 
 /** Jour/mois d'une date nue (« 04/08 ») — axes de graphiques. */
 export function formatDayMonth(value?: string | null, empty = ''): string {
-  return value ? dateTimeFormatter({ day: '2-digit', month: '2-digit' }).format(atNoon(value)) : empty;
+  return value ? renderDate(value, 'dd/MM') : empty;
 }
 
 /** Date nue en clair (« mardi 4 août ») — infobulles et en-têtes de calendrier. */
 export function formatLongDay(
   value?: string | null,
-  options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' }
+  options: { weekday?: 'long'; day?: 'numeric'; month?: 'long' | 'short'; year?: 'numeric' } = { weekday: 'long', day: 'numeric', month: 'long' }
 ): string {
-  return value ? dateTimeFormatter(options).format(atNoon(value)) : '';
+  if (!value) return '';
+  const year = options.year ? ' yyyy' : '';
+  const pattern = options.weekday ? `EEEE d MMMM${year}` : options.month === 'short' ? `d MMM${year}` : `d MMMM${year}`;
+  return renderDate(value, pattern);
 }
 
 /** Date en clair sans jour de semaine (« 4 août 2026 ») — sorties à venir. */
 export function formatReleaseDate(value?: string | number | Date | null, empty = '-'): string {
-  return value ? dateTimeFormatter({ day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value)) : empty;
+  return value ? renderDate(value, 'd MMM yyyy') : empty;
 }
 
 /** Heure seule (« 14:30 »). */
 export function formatTime(value?: string | number | Date | null, empty = '-'): string {
-  return value ? dateTimeFormatter({ hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : empty;
+  return value ? renderDate(value, 'HH:mm') : empty;
+}
+
+/** Date d'épisode, avec heure seulement lorsqu'elle est fournie. */
+export function formatAirDate(value?: string | null): string {
+  if (!value) return '';
+  const date = asDate(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const datePart = renderDate(date, 'dd MMM yyyy');
+  return value.includes('T') ? `${datePart} a ${renderDate(date, 'HH:mm')}` : datePart;
 }
 
 /** Mois et année (« août 2026 ») — en-tête du calendrier. */
 export function formatMonthYear(value?: string | number | Date | null): string {
-  return value ? dateTimeFormatter({ month: 'long', year: 'numeric' }).format(new Date(value)) : '';
+  return value ? renderDate(value, 'MMMM yyyy') : '';
 }
 
 // ---------------------------------------------------------------------------

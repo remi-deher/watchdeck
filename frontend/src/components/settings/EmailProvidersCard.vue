@@ -116,6 +116,7 @@
 <script setup lang="ts">
 import ModalShell from '@/components/ui/ModalShell.vue';
 import { computed, onMounted } from 'vue';
+import { useMutation } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import { ChevronDown, ChevronUp, Mail, Pencil, Plus, PlugZap, Power, Save, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
@@ -172,11 +173,16 @@ const editingProviderConnected = computed(() => {
 const typeLabels: Record<string, string> = { smtp: 'SMTP', smtp_oauth2: 'SMTP OAuth2', brevo: 'Brevo' };
 function typeLabel(t: string): string { return typeLabels[t] || t; }
 
+const providerActionMutation = useMutation({
+  mutationFn: ({ path, body }: { path: string; body?: Record<string, any> }) => api<any>(path, { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) }),
+  retry: 0,
+});
+
 async function testProvider(provider: any): Promise<void> {
   const recipient = prompt('Adresse de test', '');
   if (!recipient) return;
   try {
-    const data = await api(`/api/test/email-provider/${provider.id}`, { method: 'POST', body: JSON.stringify({ recipient }) });
+    const data = await providerActionMutation.mutateAsync({ path: `/api/test/email-provider/${provider.id}`, body: { recipient } });
     if (data.success) success(data.message); else fail(new Error(data.message));
   } catch (e) { fail(e); }
 }
@@ -186,7 +192,7 @@ async function move(index: number, delta: number): Promise<void> {
   if (target < 0 || target >= providers.value.length) return;
   const order = providers.value.map((p: any) => p.id);
   [order[index], order[target]] = [order[target], order[index]];
-  await api('/api/email-providers/reorder', { method: 'POST', body: JSON.stringify({ order }) });
+  await providerActionMutation.mutateAsync({ path: '/api/email-providers/reorder', body: { order } });
   await load();
 }
 
@@ -203,7 +209,7 @@ async function connectMicrosoft(): Promise<void> {
 async function disconnectMicrosoft(): Promise<void> {
   if (!editingId.value) return;
   try {
-    await api(`/api/email-providers/${editingId.value}/smtp-oauth/disconnect`, { method: 'POST' });
+    await providerActionMutation.mutateAsync({ path: `/api/email-providers/${editingId.value}/smtp-oauth/disconnect` });
     success('Compte Microsoft déconnecté.');
     await load();
   } catch (e) { fail(e); }
@@ -213,7 +219,6 @@ const route = useRoute();
 const router = useRouter();
 
 onMounted(async () => {
-  await load();
   const status = route.query.email_oauth;
   if (!status) return;
   if (status === 'success') success('Compte Microsoft connecté.');

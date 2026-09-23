@@ -1,7 +1,17 @@
 import { createApp } from 'vue';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { VueQueryPlugin } from '@tanstack/vue-query';
+import PrimeVue from 'primevue/config';
+import ToastService from 'primevue/toastservice';
+import ConfirmationService from 'primevue/confirmationservice';
 import { installerSortieDePage } from '@/composables/usePageExit';
+import { WatchdeckPreset } from '@/theme/watchdeck';
+import { createQueryClient } from '@/queryClient';
+import { settingsPinia } from '@/settingsForm';
 import App from './App.vue';
+// Import statique volontaire : App.vue monte deja la fiche par-dessus la page, elle
+// est donc dans le bundle initial et un import() ici ne decouperait rien.
+import MediaDetailView from './views/MediaDetailView.vue';
 import { isAdminSession, isModeratorSession, loadSession } from './composables/useSession';
 import AppPage from '@/components/ui/AppPage.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
@@ -28,7 +38,6 @@ const ReleaseSearchView = () => import('./views/ReleaseSearchView.vue');
 const ProfileView = () => import('./views/ProfileView.vue');
 const LogsView = () => import('./views/LogsView.vue');
 const IssuesView = () => import('./views/IssuesView.vue');
-const MediaDetailView = () => import('./views/MediaDetailView.vue');
 const PersonDetailView = () => import('./views/PersonDetailView.vue');
 
 registerServiceWorker();
@@ -138,5 +147,19 @@ createApp(App)
   .component('StatusBadge', StatusBadge)
   .component('UiFeedback', UiFeedback)
   .component('FormSaveBar', FormSaveBar)
+  .use(settingsPinia)
+  .use(VueQueryPlugin, { queryClient: createQueryClient() })
+  .use(PrimeVue, {
+    ripple: false,
+    theme: {
+      preset: WatchdeckPreset,
+      options: {
+        darkModeSelector: ':root',
+        cssLayer: false,
+      },
+    },
+  })
+  .use(ToastService)
+  .use(ConfirmationService)
   .use(router)
   .mount('#app');

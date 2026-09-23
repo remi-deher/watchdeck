@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import CommandPalette from './CommandPalette.vue';
 
 const push = vi.fn(() => Promise.resolve());
@@ -18,7 +19,10 @@ vi.mock('@/composables/useDownloadSources', () => ({
 }));
 
 function factory(props = { isAdmin: true, canModerate: true }) {
-  return mount(CommandPalette, { props, attachTo: document.body });
+  // Un client neuf par montage : le cache de la recherche catalogue ne doit pas fuir
+  // d'un test a l'autre.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return mount(CommandPalette, { props, attachTo: document.body, global: { plugins: [[VueQueryPlugin, { queryClient }]] } });
 }
 
 function pressCtrlK() {

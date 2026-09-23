@@ -17,7 +17,7 @@
           <div class="mdh-badges">
             <span v-if="isMusic" class="badge music-badge">{{ detail.media_type === 'artist' ? 'Artiste' : detail.media_type === 'album' ? 'Album' : detail.media_type === 'track' ? 'Piste' : 'Musique' }}</span>
             <span v-if="detail.year" class="badge">{{ detail.year }}</span>
-            <span v-if="detail.vote" class="badge"><Star :size="14" />{{ detail.vote }}</span>
+            <span v-if="detail.vote" class="badge"><Star ::size="14" />{{ detail.vote }}</span>
             <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
             <span v-if="detail.origin_label && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
           </div>
@@ -52,15 +52,15 @@
               :disabled="busy"
               @click="$emit('request')"
             >
-              <PlusCircle :size="16" /> {{ isShow ? 'Demander la série' : 'Demander ce film' }}
+              <PlusCircle ::size="16" /> {{ isShow ? 'Demander la série' : 'Demander ce film' }}
             </button>
             <button v-if="plexWebUrl" type="button" class="primary-button mdh-listen-btn" @click="openPlexLink(detail?.plex_guid)">
-              <Headphones v-if="isMusic" :size="16" /><Film v-else :size="16" /> {{ isMusic ? 'Écouter sur Plex' : 'Regarder sur Plex' }}
+              <Headphones v-if="isMusic" ::size="16" /><Film v-else ::size="16" /> {{ isMusic ? 'Écouter sur Plex' : 'Regarder sur Plex' }}
             </button>
-            <a v-if="detail.imdb_id && !isMusic" :href="`https://www.imdb.com/title/${detail.imdb_id}`" target="_blank" class="badge mdh-link"><ExternalLink :size="14" /> IMDb</a>
-            <a v-if="detail.tmdb_id && !isMusic" :href="`https://www.themoviedb.org/${detail.media_type === 'show' ? 'tv' : 'movie'}/${detail.tmdb_id}`" target="_blank" class="badge mdh-link"><ExternalLink :size="14" /> TMDB</a>
-            <a v-if="admin && detail.arr_url && !isMusic" :href="detail.arr_url" target="_blank" class="badge available mdh-link"><ExternalLink :size="14" /> {{ detail.media_type === 'movie' ? 'Radarr' : 'Sonarr' }}</a>
-            <button v-if="!isMusic" class="badge danger mdh-link" @click="$emit('report-issue')"><Flag :size="14" /> Signaler un problème</button>
+            <a v-if="detail.imdb_id && !isMusic" :href="`https://www.imdb.com/title/${detail.imdb_id}`" target="_blank" class="badge mdh-link"><ExternalLink ::size="14" /> IMDb</a>
+            <a v-if="detail.tmdb_id && !isMusic" :href="`https://www.themoviedb.org/${detail.media_type === 'show' ? 'tv' : 'movie'}/${detail.tmdb_id}`" target="_blank" class="badge mdh-link"><ExternalLink ::size="14" /> TMDB</a>
+            <a v-if="admin && detail.arr_url && !isMusic" :href="detail.arr_url" target="_blank" class="badge available mdh-link"><ExternalLink ::size="14" /> {{ detail.media_type === 'movie' ? 'Radarr' : 'Sonarr' }}</a>
+            <button v-if="!isMusic" class="badge danger mdh-link" @click="$emit('report-issue')"><Flag ::size="14" /> Signaler un problème</button>
             <button
               v-if="!isMusic"
               type="button"
@@ -68,7 +68,7 @@
               :disabled="busy || !available"
               :title="available ? '' : 'Pas encore disponible dans Plex — reessayer une fois le media indexe'"
               @click="$emit('scan')"
-            ><RefreshCw :size="14" /> Analyser</button>
+            ><RefreshCw ::size="14" /> Analyser</button>
             <VfUpgradeButton
               v-if="canSearchReleases && !isShow"
               :source-type="releaseSourceType!"
@@ -82,7 +82,7 @@
               type="button"
               class="badge mdh-link"
               @click="$emit('open-audio')"
-            ><Search :size="14" /> Rechercher</button>
+            ><Search ::size="14" /> Rechercher</button>
           </div>
           <!-- Zone langue commune aux films et aux series, au meme emplacement : une seule
                entree pour un film (pas de saisons a detailler), la repartition par saison
@@ -108,6 +108,7 @@ import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
+import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
 import { rejouerTransport } from '@/composables/usePosterMorph';
 
@@ -222,10 +223,7 @@ const isOverviewLong = computed(() => overviewText.value.length > 260);
 const typeLabel = computed(() => mediaTypeLabel(props.detail.media_type));
 
 function formatDate(value: any): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  return formatDateLong(value, '');
 }
 
 const releaseDates = computed(() => {

@@ -5,14 +5,14 @@
     </template>
     <label class="check"><input v-model="form.tmdb_enabled" type="checkbox"> Activer TMDB</label>
     <SecretField v-model="form.tmdb_api_key" label="Clé TMDB" hint="Clé API (v3) gratuite, à générer sur themoviedb.org dans Paramètres → API." :configured="Boolean(secretsPresent.tmdb_api_key)" />
-    <UiField label="Région de découverte" hint="Code pays ISO 3166-1 (ex. FR) utilisé pour les dates de sortie, les plateformes et les tendances." v-slot="field"><input :id="field.id" v-model="form.tmdb_region" maxlength="2" placeholder="FR" :aria-describedby="field.describedBy" @input="form.tmdb_region = form.tmdb_region.toUpperCase()"></UiField>
+    <UiField :error="validationErrors.tmdb_region" label="Région de découverte" hint="Code pays ISO 3166-1 (ex. FR) utilisé pour les dates de sortie, les plateformes et les tendances." v-slot="field"><input :id="field.id" v-model="form.tmdb_region" maxlength="2" placeholder="FR" :aria-describedby="field.describedBy" @input="form.tmdb_region = form.tmdb_region.toUpperCase()"></UiField>
   </SettingsCard>
 </template>
 
 <script setup lang="ts">
 import { Clapperboard } from '@lucide/vue';
 import { api } from '@/api';
-import { form, secretsPresent, success, fail } from '@/settingsForm';
+import { form, secretsPresent, success, fail, validationErrors } from '@/settingsForm';
 import SecretField from '@/components/ui/SecretField.vue';
 import SettingsCard from '../SettingsCard.vue';
 import UiField from '@/components/ui/UiField.vue';

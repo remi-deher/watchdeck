@@ -21,7 +21,8 @@
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Check, Trash2, WandSparkles } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
@@ -29,15 +30,25 @@ import SettingsCard from './SettingsCard.vue';
 import ConfirmModal from '../ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 
-const conflicts = ref<any[]>([]);
+const queryClient = useQueryClient();
+const conflictsQuery = useQuery({
+  queryKey: ['settings', 'conflicts'],
+  queryFn: () => api<any>('/api/conflicts'),
+});
+const conflicts = computed(() => {
+  const data = conflictsQuery.data.value || {};
+  return [...(data.tmdb_conflicts || []), ...(data.orphaned || []).map((x: any) => ({ ...x, type: 'orphan' })), ...(data.long_pending || []).map((x: any) => ({ ...x, type: 'pending' }))];
+});
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
+const conflictMutation = useMutation({
+  mutationFn: ({ path, method = 'POST', body }: { path: string; method?: string; body?: any }) => api(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'conflicts'] }),
+});
+async function autoResolve(): Promise<void> { await conflictMutation.mutateAsync({ path: '/api/conflicts/auto-resolve' }); }
+async function resolve(group: any): Promise<void> { const entries=group.entries||[]; if(entries.length<2)return; const keep=group.recommended_id||entries[0].id; await conflictMutation.mutateAsync({ path:'/api/conflicts/resolve',body:{keep_id:keep,delete_ids:entries.filter((x:any)=>x.id!==keep).map((x:any)=>x.id)} }); }
+async function ignore(group: any): Promise<void> { await conflictMutation.mutateAsync({ path:'/api/conflicts/ignore',body:{key:group.key} }); }
+async function removeOrphan(group: any): Promise<void> { if(!await askConfirm({title:'Supprimer ce conflit ?',message:`${group.title} sera supprimé définitivement.`,confirmLabel:'Supprimer',danger:true}))return; await conflictMutation.mutateAsync({path:`/api/conflicts/orphan/${group.id}`,method:'DELETE'}); }
 
-async function loadConflicts(): Promise<void> {const data=await api('/api/conflicts');conflicts.value=[...(data.tmdb_conflicts||[]),...(data.orphaned||[]).map((x: any)=>({...x,type:'orphan'})),...(data.long_pending||[]).map((x: any)=>({...x,type:'pending'}))]}
-async function autoResolve(): Promise<void> {await api('/api/conflicts/auto-resolve',{method:'POST'});await loadConflicts()}
-async function resolve(group: any): Promise<void> {const entries=group.entries||[];if(entries.length<2)return;const keep=group.recommended_id||entries[0].id;await api('/api/conflicts/resolve',{method:'POST',body:JSON.stringify({keep_id:keep,delete_ids:entries.filter((x: any)=>x.id!==keep).map((x: any)=>x.id)})});await loadConflicts()}
-async function ignore(group: any): Promise<void> {await api('/api/conflicts/ignore',{method:'POST',body:JSON.stringify({key:group.key})});await loadConflicts()}
-async function removeOrphan(group: any): Promise<void> {if(!await askConfirm({title:'Supprimer ce conflit ?',message:`${group.title} sera supprimé définitivement.`,confirmLabel:'Supprimer',danger:true}))return;await api(`/api/conflicts/orphan/${group.id}`,{method:'DELETE'});await loadConflicts()}
-
-onMounted(loadConflicts);
-useRealtime(['request.updated', 'job.updated'], () => loadConflicts());
+useRealtime(['request.updated', 'job.updated'], () => queryClient.invalidateQueries({ queryKey: ['settings', 'conflicts'] }));
 </script>

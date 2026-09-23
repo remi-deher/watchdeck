@@ -85,7 +85,8 @@
 
 <script setup lang="ts">
 import { humanizeError } from '@/utils/apiError';
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import AppPage from '@/components/ui/AppPage.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
@@ -116,15 +117,29 @@ const ISSUE_TYPES: Record<string, string> = {
 };
 const typeLabel = (value: string) => ISSUE_TYPES[value] || value;
 
-const issues = ref<Issue[]>([]);
-const types = ref<string[]>([]);
-const loading = ref(false);
-const busy = ref(false);
-const error = ref('');
 const query = ref('');
 const statusFilter = ref('open');
 const typeFilter = ref('');
 const filtersOpen = ref(false);
+const actionError = ref('');
+const queryClient = useQueryClient();
+
+const params = computed(() => {
+  const value = new URLSearchParams();
+  if (statusFilter.value) value.set('status', statusFilter.value);
+  if (typeFilter.value) value.set('issue_type', typeFilter.value);
+  return value.toString();
+});
+const issuesQuery = useQuery({
+  queryKey: computed(() => ['issues', params.value]),
+  queryFn: () => api<{ items?: Issue[]; types?: string[] }>(`/api/media/issues?${params.value}`),
+  placeholderData: keepPreviousData,
+});
+const issues = computed(() => issuesQuery.data.value?.items || []);
+const types = computed(() => issuesQuery.data.value?.types || []);
+const loading = computed(() => issuesQuery.isFetching.value);
+const busy = computed(() => patchMutation.isPending.value || retryMutation.isPending.value);
+const error = computed(() => actionError.value || (issuesQuery.error.value ? humanizeError(issuesQuery.error.value) : ''));
 
 const activeFilterCount = computed(() => (statusFilter.value === 'open' ? 0 : 1) + (typeFilter.value ? 1 : 0));
 
@@ -144,67 +159,47 @@ const visibleIssues = computed(() => {
 
 function setStatus(value: string): void {
   statusFilter.value = value;
-  load();
 }
 function setType(value: string): void {
   typeFilter.value = typeFilter.value === value ? '' : value;
-  load();
 }
 function resetFilters(): void {
   statusFilter.value = 'open';
   typeFilter.value = '';
   query.value = '';
-  load();
 }
 
 async function load(): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    const params = new URLSearchParams();
-    if (statusFilter.value) params.set('status', statusFilter.value);
-    if (typeFilter.value) params.set('issue_type', typeFilter.value);
-    const payload = await api<{ items?: Issue[]; types?: string[] }>(`/api/media/issues?${params}`);
-    issues.value = payload.items || [];
-    types.value = payload.types || [];
-  } catch (e: any) {
-    error.value = humanizeError(e);
-  } finally {
-    loading.value = false;
-  }
+  actionError.value = '';
+  await issuesQuery.refetch();
 }
 
+const patchMutation = useMutation({
+  mutationFn: ({ issue, body }: { issue: Issue; body: Record<string, unknown> }) =>
+    api<Issue>(`/api/media/issues/${issue.id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['issues'] }),
+  onError: (value) => { actionError.value = humanizeError(value); },
+});
+const retryMutation = useMutation({
+  mutationFn: (issue: Issue) => api(`/api/media/issues/${issue.id}/retry`, { method: 'POST' }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['issues'] }),
+  onError: (value) => { actionError.value = humanizeError(value); },
+});
+
 async function patchIssue(issue: Issue, body: Record<string, unknown>): Promise<void> {
-  busy.value = true;
-  try {
-    const updated = await api<Issue>(`/api/media/issues/${issue.id}`, { method: 'PATCH', body: JSON.stringify(body) });
-    const index = issues.value.findIndex((row) => row.id === issue.id);
-    // La ligne mise a jour est remplacee sur place plutot que de recharger la liste :
-    // un rechargement la ferait disparaitre sous le curseur des que son nouveau statut
-    // sort du filtre courant.
-    if (index >= 0) issues.value[index] = { ...issues.value[index], ...updated };
-  } catch (e: any) {
-    error.value = humanizeError(e);
-  } finally {
-    busy.value = false;
-  }
+  actionError.value = '';
+  await patchMutation.mutateAsync({ issue, body }).catch(() => {});
 }
 
 const updateIssue = (issue: Issue, status: string) => patchIssue(issue, { status });
 const saveNote = (issue: Issue, admin_note: string) => patchIssue(issue, { admin_note });
 
 async function retryIssue(issue: Issue): Promise<void> {
-  busy.value = true;
-  try {
-    await api(`/api/media/issues/${issue.id}/retry`, { method: 'POST' });
-  } catch (e: any) {
-    error.value = humanizeError(e);
-  } finally {
-    busy.value = false;
-  }
+  actionError.value = '';
+  await retryMutation.mutateAsync(issue).catch(() => {});
 }
-
-onMounted(load);
 </script>
 
 <style scoped lang="scss">

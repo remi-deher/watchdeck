@@ -61,7 +61,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
+import { useMutation } from '@tanstack/vue-query';
 import { ListRestart, ServerCog } from '@lucide/vue';
 import { api } from '@/api';
 import { success, fail } from '@/settingsForm';
@@ -87,7 +88,6 @@ const {
   showModal: showArrModal,
   busy,
   form: arrForm,
-  load: loadArr,
   openModal: openArrBaseModal,
   closeModal: closeArrBaseModal,
   save: saveArr,
@@ -108,6 +108,11 @@ function openArrModal(instance?: any): void {
 function closeArrModal(): void { closeArrBaseModal(); clearArrOptions(); }
 function removeArr(instance: any): Promise<void> { return remove(instance, askConfirm); }
 
+const testArrMutation = useMutation({
+  mutationFn: (instance: any) => api<any>('/api/test/arr-instance', { method: 'POST', body: JSON.stringify({ url: instance.url, api_key: instance.api_key, arr_type: instance.arr_type }) }),
+  retry: 0,
+});
+
 async function loadArrOptions(): Promise<void> {
   if (arrForm.arr_type === 'prowlarr') { arrProfiles.value = []; arrFolders.value = []; return; }
   const q = editingArrId.value ? `?instance_id=${editingArrId.value}` : `?url=${encodeURIComponent(arrForm.url)}&api_key=${encodeURIComponent(arrForm.api_key)}`;
@@ -119,10 +124,9 @@ async function loadArrOptions(): Promise<void> {
 
 async function testArr(instance: any = arrForm): Promise<void> {
   try {
-    const data = await api('/api/test/arr-instance', { method: 'POST', body: JSON.stringify({ url: instance.url, api_key: instance.api_key, arr_type: instance.arr_type }) });
+    const data = await testArrMutation.mutateAsync(instance);
     success(data.message || 'Instance joignable.');
   } catch (e) { fail(e); }
 }
 
-onMounted(loadArr);
 </script>

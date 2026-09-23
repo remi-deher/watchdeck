@@ -20,7 +20,7 @@
               <a v-if="info.repo_url" class="mono" :href="`${info.repo_url}/commit/${info.git_sha}`" target="_blank" rel="noopener noreferrer">{{ shortSha(info.git_sha) }}</a>
               <span v-else class="mono">{{ shortSha(info.git_sha) }}</span>
               <button v-if="isRealSha(info.git_sha)" class="icon-button" type="button" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copySha(info.git_sha)">
-                <Check v-if="copied" :size="14"/><Copy v-else :size="14"/>
+                <Check v-if="copied" ::size="14"/><Copy v-else ::size="14"/>
               </button>
             </dd>
           </div>
@@ -67,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatDateTimeSeconds } from '@/utils/format';
 import { computed, onMounted, ref } from 'vue';
 import { Check, Copy, ExternalLink, RefreshCw } from '@lucide/vue';
 import { api } from '@/api';
@@ -121,7 +122,7 @@ function mainComparisonMessage(comparison: MainComparison): string {
 function formatDate(value: string): string {
   if (!value || value === 'unknown') return value;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('fr-FR');
+  return Number.isNaN(date.getTime()) ? value : formatDateTimeSeconds(date);
 }
 
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [

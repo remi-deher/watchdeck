@@ -5,6 +5,7 @@
  * colonnes et se resserrer. Les deux partagent desormais la meme mecanique, ce qui donne
  * a l'inventaire l'ergonomie de la page Acquisition sans la recoder. */
 import { computed, ref, watch, type Ref } from 'vue';
+import { readPreference, writePreference } from './usePreference';
 
 export interface TableColumnLike {
   key: string;
@@ -24,20 +25,12 @@ export interface UseTableColumnsOptions<T extends TableColumnLike> {
   minimumVisible?: number;
 }
 
-function readStored(storageKey: string): any {
-  try {
-    return JSON.parse(localStorage.getItem(storageKey) || 'null');
-  } catch {
-    return null;
-  }
-}
-
 export function useTableColumns<T extends TableColumnLike>(
   allColumns: Ref<T[]> | (() => T[]),
   options: UseTableColumnsOptions<T>
 ) {
   const source = computed(() => (typeof allColumns === 'function' ? allColumns() : allColumns.value));
-  const stored = readStored(options.storageKey);
+  const stored = readPreference<any>(options.storageKey, null);
   const minimumVisible = options.minimumVisible ?? 1;
 
   const validKeys = computed(() => new Set(source.value.map((column) => column.key)));
@@ -84,19 +77,12 @@ export function useTableColumns<T extends TableColumnLike>(
   watch(
     [visibleKeys, columnOrder, columnWidths, density],
     () => {
-      try {
-        localStorage.setItem(
-          options.storageKey,
-          JSON.stringify({
-            visible: [...visibleKeys.value],
-            order: columnOrder.value,
-            widths: columnWidths.value,
-            density: density.value,
-          })
-        );
-      } catch {
-        /* Préférences non persistables : le tableau reste utilisable. */
-      }
+      writePreference(options.storageKey, {
+        visible: [...visibleKeys.value],
+        order: columnOrder.value,
+        widths: columnWidths.value,
+        density: density.value,
+      });
     },
     { deep: true }
   );
@@ -161,7 +147,7 @@ export function useTableColumns<T extends TableColumnLike>(
   function startColumnResize(key: string, event: PointerEvent): void {
     resizingKey = key;
     resizeStartX = event.clientX;
-    resizeStartWidth = columnWidths.value[key] || (event.target as HTMLElement)?.parentElement?.offsetWidth || 100;
+    resizeStartWidth = columnWidths.value[key] || (event.currentTarget as HTMLElement)?.closest('th')?.offsetWidth || 100;
     window.addEventListener('pointermove', onResizeMove);
     window.addEventListener('pointerup', onResizeEnd);
   }

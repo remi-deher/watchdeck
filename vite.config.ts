@@ -46,10 +46,15 @@ export default defineConfig(({ command }) => ({
         // cascade a quelques requetes.
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // Chart.js est nettement plus lourd que les primitives UI : le garder
+            // dans un chunk propre evite de le charger sur les routes sans graphe.
+            if (id.includes('/node_modules/chart.js/')) return 'charts';
+            if (id.includes('/node_modules/zod/')) return 'settings-validation';
             if (id.includes('@lucide')) return 'icons';
             if (/\/node_modules\/(vue|@vue|vue-router|pinia)\//.test(id)) return 'vendor';
             return undefined;
           }
+          if (id.includes('/frontend/src/components/ui/charts/')) return 'charts';
           if (id.includes('/frontend/src/components/ui/')) return 'ui';
           if (id.includes('/frontend/src/composables/')) return 'ui';
           // Uniquement les primitives media reellement partagees entre routes :
@@ -64,6 +69,10 @@ export default defineConfig(({ command }) => ({
   },
   test: {
     environment: 'jsdom',
+    // Les dates s'affichent et se regroupent dans le fuseau du navigateur : les tests
+    // calendaires (changements d'heure) doivent tourner dans un fuseau qui en a un,
+    // quelle que soit la machine ou le runner CI.
+    env: { TZ: 'Europe/Paris' },
     include: ['frontend/src/**/*.{test,spec}.{js,ts}'],
     globals: false,
     setupFiles: ['frontend/src/testSetup.js'],

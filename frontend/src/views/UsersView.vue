@@ -78,20 +78,32 @@ import UserEditorDrawer from '@/components/users/UserEditorDrawer.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirmedAction } from '@/composables/useConfirmedAction';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
-import { useFetchState } from '@/composables/useFetchState';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { humanizeError } from '@/utils/apiError';
 import UiButton from '@/components/ui/UiButton.vue';
 import { accountName, seerActionLabel, sourceLabel } from '@/utils/userLabels';
 
 const route = useRoute(), router = useRouter();
-const users = ref([]), editing = ref(null), creating = ref(false), query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref(''), sort = ref('name');
-const { loading, error, execute: executeLoad } = useFetchState();
+const editing = ref(null), creating = ref(false), query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref(''), sort = ref('name');
+const queryClient = useQueryClient();
+const usersQuery = useQuery({
+  queryKey: ['users', 'list'],
+  queryFn: ({ signal }) => api('/api/users', { signal }),
+  select: (data) => (Array.isArray(data) ? data : []),
+  staleTime: 30_000,
+});
+const users = computed(() => usersQuery.data.value || []);
+const loading = computed(() => usersQuery.isFetching.value);
+// Erreurs des actions (bascules, synchronisations, suppressions), distinctes de la lecture.
+const actionError = ref('');
+const error = computed(() => actionError.value || (usersQuery.error.value ? humanizeError(usersQuery.error.value) : ''));
 const busy = ref(false), editorError = ref(''), message = ref('');
 const seerEnabled = ref(false), seerMode = ref(null), seerCandidates = ref([]);
 const seerHint = computed(() => seerMode.value === 'actor'
   ? 'Seer traite aussi les demandes : la synchronisation est bidirectionnelle.'
   : 'Seer est en mode observateur : ses comptes sont relus, rien ne lui est envoyé.');
 const tableRef = ref(null), drawerRef = ref(null);
-const { dialog: confirmDialog, resolveConfirm, runConfirmed, askConfirm } = useConfirmedAction({ busy, error });
+const { dialog: confirmDialog, resolveConfirm, runConfirmed, askConfirm } = useConfirmedAction({ busy, error: actionError });
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFilters } = useFiltersDrawer(
   { query, status, role, attention, source, sort },
@@ -126,11 +138,12 @@ const filtered = computed(() => users.value.filter(user =>
 const displayName = (user) => accountName(user || {});
 function fillForm(user) { Object.assign(form, defaults, Object.fromEntries(Object.keys(defaults).map(key => [key, user?.[key] ?? defaults[key]]))); }
 
-async function load() { await executeLoad(async () => { users.value = await api('/api/users'); }); }
+/** Relit la liste apres une action ; `invalidateQueries` attend la nouvelle reponse. */
+async function load() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: ['users'] }); }
 async function openUser(id) {
   creating.value = false; editorError.value = '';
   try { editing.value = await api(`/api/users/${id}`); fillForm(editing.value); drawerRef.value?.resetTab(); router.replace(`/users/${id}`); }
-  catch (e) { error.value = e.message; }
+  catch (e) { actionError.value = e.message; }
 }
 function openCreate() { creating.value = true; editing.value = {}; fillForm(null); drawerRef.value?.resetTab(); }
 function closeEditor() { editing.value = null; creating.value = false; if (route.params.userId) router.replace('/users'); }
@@ -151,10 +164,10 @@ async function setPassword(password) {
   try { await api(`/api/users/${editing.value.id}/password`, { method: 'POST', body: JSON.stringify({ password }) }); message.value = 'Mot de passe modifie.'; }
   catch (e) { editorError.value = e.message; }
 }
-async function toggle(user) { try { await api(`/api/users/${user.id}/enabled`, { method: 'PUT', body: JSON.stringify({ enabled: !user.enabled }) }); await load(); } catch (e) { error.value = e.message; } }
+async function toggle(user) { try { await api(`/api/users/${user.id}/enabled`, { method: 'PUT', body: JSON.stringify({ enabled: !user.enabled }) }); await load(); } catch (e) { actionError.value = e.message; } }
 async function deleteUser() { await runConfirmed(async () => { await api(`/api/users/${editing.value.id}`, { method: 'DELETE' }); closeEditor(); await load(); }, { title: 'Supprimer cet utilisateur ?', message: `${displayName(editing.value)} sera supprimé définitivement.`, confirmLabel: 'Supprimer', danger: true }, { reload: false }); }
-async function syncSeer() { busy.value = true; try { await api('/api/seer/sync', { method: 'POST' }); message.value = 'Synchronisation Seer terminee.'; await load(); } catch (e) { error.value = e.message; } finally { busy.value = false; } }
-async function syncPlex() { busy.value = true; try { const result = await api('/api/plex/sync/users', { method: 'POST' }); message.value = `Synchronisation Plex terminée : ${result.created || 0} ajouté(s), ${result.updated || 0} mis à jour.`; await load(); } catch (e) { error.value = e.message; } finally { busy.value = false; } }
+async function syncSeer() { busy.value = true; try { await api('/api/seer/sync', { method: 'POST' }); message.value = 'Synchronisation Seer terminee.'; await load(); } catch (e) { actionError.value = e.message; } finally { busy.value = false; } }
+async function syncPlex() { busy.value = true; try { const result = await api('/api/plex/sync/users', { method: 'POST' }); message.value = `Synchronisation Plex terminée : ${result.created || 0} ajouté(s), ${result.updated || 0} mis à jour.`; await load(); } catch (e) { actionError.value = e.message; } finally { busy.value = false; } }
 async function userAction(action) { busy.value = true; try { await api(`/api/users/${editing.value.id}/${action}`, { method: 'POST' }); await openUser(editing.value.id); } catch (e) { editorError.value = e.message; } finally { busy.value = false; } }
 async function unlinkSeer() { await api(`/api/users/${editing.value.id}/seer-link`, { method: 'DELETE' }); await openUser(editing.value.id); await loadSeerCandidates(); }
 
@@ -232,9 +245,9 @@ async function bulkDelete() { const ids = tableRef.value.selectedIds; await runC
 async function bulkNotify(field, value) {
   const ids = tableRef.value.selectedIds;
   try { await api('/api/users/bulk/notifications', { method: 'PUT', body: JSON.stringify({ user_ids: ids, [field]: value }) }); message.value = 'Notifications mises a jour.'; tableRef.value.clearSelection(); await load(); }
-  catch (e) { error.value = e.message; }
+  catch (e) { actionError.value = e.message; }
 }
-async function bulkPermissions(payload){const ids=tableRef.value.selectedIds;try{await api('/api/users/bulk/permissions',{method:'PUT',body:JSON.stringify({user_ids:ids,...payload})});message.value='Permissions mises à jour.';tableRef.value.clearSelection();await load()}catch(e){error.value=e.message}}
+async function bulkPermissions(payload){const ids=tableRef.value.selectedIds;try{await api('/api/users/bulk/permissions',{method:'PUT',body:JSON.stringify({user_ids:ids,...payload})});message.value='Permissions mises à jour.';tableRef.value.clearSelection();await load()}catch(e){actionError.value=e.message}}
 
 /* L'etat de Seer conditionne l'affichage de ses actions. Lu une fois au chargement :
    la page est reservee aux administrateurs, /api/settings leur est accessible. */
@@ -251,7 +264,7 @@ async function loadSeerState() {
   }
 }
 
-onMounted(async () => { await Promise.all([load(), loadSeerState()]); if (route.params.userId) await openUser(route.params.userId); });
+onMounted(async () => { await loadSeerState(); if (route.params.userId) await openUser(route.params.userId); });
 </script>
 <style scoped lang="scss">
 .user-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap: var(--space-2)}.user-metrics button{display:flex;align-items:flex-start;gap: var(--space-2);min-height:44px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);text-align:left}.user-metrics button:hover,.user-metrics button.active{border-color:var(--accent);background:var(--surface-2)}.user-metrics svg{width:18px;color:var(--muted)}.user-metrics div{display:grid;gap: var(--space-1)}.user-metrics span{color:var(--muted);font-size:var(--fs-xs);}.user-metrics strong{font-size:var(--fs-lg)}.user-metrics small{color:var(--muted);font-size:var(--fs-xs)}@media(max-width:767.98px){.user-metrics{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}.user-metrics button{min-width:150px;scroll-snap-align:start}}

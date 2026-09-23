@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { VueQueryPlugin } from '@tanstack/vue-query';
 
 import { api } from '@/api';
+import { createQueryClient } from '@/queryClient';
 import { form } from '@/settingsForm';
 
 import VfSettingsModal from './VfSettingsModal.vue';
@@ -12,6 +14,10 @@ vi.mock('@/api', () => ({ api: vi.fn() }));
    champs : elle monte le composant de cet onglet sur le même store et enregistre par le
    même endpoint. Ces tests verrouillent les trois propriétés qui font la synchro. */
 describe('VfSettingsModal', () => {
+  // save() importe le schéma Zod à la demande : sa première compilation peut dépasser
+  // le délai du test quand les workers sont chargés. On la paie une fois, ici.
+  beforeAll(async () => { await import('@/settingsSchema'); }, 30_000);
+
   beforeEach(() => {
     api.mockReset();
     form.vf_upgrade_min_confidence = 65;
@@ -26,7 +32,13 @@ describe('VfSettingsModal', () => {
 
   async function openModal(serverState = {}) {
     api.mockResolvedValueOnce({ vf_upgrade_min_confidence: 65, vf_upgrade_protect_resolution: true, ...serverState });
-    const wrapper = mount(VfSettingsModal, { props: { open: true }, global: { stubs: { teleport: true } } });
+    const wrapper = mount(VfSettingsModal, {
+      props: { open: true },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]],
+        stubs: { teleport: true },
+      },
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
     return wrapper;
   }
@@ -50,9 +62,12 @@ describe('VfSettingsModal', () => {
     api.mockResolvedValueOnce({});
 
     await button(wrapper, 'Enregistrer').trigger('click');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    const call = api.mock.calls.find(([, init]) => init?.method === 'PUT');
+    // save() charge le schéma Zod à la demande avant le PUT : un seul tick ne suffit pas.
+    const call = await vi.waitFor(() => {
+      const found = api.mock.calls.find(([, init]) => init?.method === 'PUT');
+      if (!found) throw new Error('PUT non envoyé');
+      return found;
+    });
     expect(JSON.parse(call[1].body)).toEqual({ vf_upgrade_min_confidence: 80 });
   });
 

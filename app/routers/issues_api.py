@@ -10,7 +10,7 @@ from ..database import get_db_async
 from ..dependencies import current_user, require_auth, require_moderator
 from ..models import LibraryItem, MediaIssue, MediaRequest
 from ..services import radarr, sonarr
-from ..utils import async_get_or_404, now_utc_naive
+from ..utils import async_get_or_404, now_utc_naive, wrap_image_proxy
 from .arr_shared import _resolve_arr_instance
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ def _serialize_issue(issue: MediaIssue, poster_url: str | None = None) -> dict:
     return {
         # L'affiche vient du media rattache, pas du signalement : elle est resolue a
         # part (voir `_posters_for`) pour eviter une requete par ligne.
-        "poster_url": poster_url,
+        "poster_url": wrap_image_proxy(poster_url),
         "id": issue.id,
         "created_at": issue.created_at.isoformat() if issue.created_at else None,
         "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,

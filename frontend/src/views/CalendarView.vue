@@ -125,12 +125,14 @@
 </template>
 
 <script setup lang="ts">
-import { formatLongDay as longDate, formatMonthYear } from '@/utils/format';
+import { formatLongDay as longDate, formatMonthYear, formatTime as formatClockTime } from '@/utils/format';
+import { buildMonthGrid, localIso, monthBounds } from '@/utils/timeBuckets';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Clock, Film, Play, Star, Tv } from '@lucide/vue';
 import { api } from '@/api';
-import { useRealtimeList } from '@/composables/useRealtimeList';
+import { useRealtimeQuery } from '@/composables/useRealtimeQuery';
+import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import { openPlexLink, mediaDetailPath } from '@/mediaUrl';
 import LoadMore from '@/components/ui/LoadMore.vue';
@@ -141,20 +143,22 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import { usePreference } from '@/composables/usePreference';
 
 const router = useRouter();
 const route = useRoute();
 const { session, isAdmin, ready: sessionReady } = useSession();
 
 const myRequestsOnly = computed(() => !isAdmin.value);
-const events = ref<any[]>([]), search = ref(''), type = ref(''), tracked = ref(false), loading = ref(false), error = ref(''), cursor = ref(new Date());
+const search = ref(''), type = ref(''), tracked = ref(false), cursor = ref(new Date());
 const compactQuery = window.matchMedia('(max-width:640px)');
 const compact = ref(compactQuery.matches);
-const view = ref(localStorage.getItem('calendar.view') || (compact.value ? 'agenda' : 'month'));
+const desktopView = usePreference('calendar.view', 'month');
+const view = ref(compact.value ? 'agenda' : desktopView.value);
 const viewOptions = [{ value: 'agenda', label: 'Agenda' }, { value: 'month', label: 'Mois' }];
 function setView(value: string | number) { if (value === 'agenda' || value === 'month') view.value = value; }
 const todayStr = localIso(new Date()), weekLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-const bounds = computed(() => { const y = cursor.value.getFullYear(), m = cursor.value.getMonth(); return { start: new Date(y, m, 1), end: new Date(y, m + 1, 1) }; });
+const bounds = computed(() => monthBounds(cursor.value));
 const periodLabel = computed(() => formatMonthYear(cursor.value));
 const filtered = computed(() => events.value.filter((e: any) => (!search.value || e.title.toLowerCase().includes(search.value.toLowerCase())) && (!type.value || e.type === type.value)));
 const eventsByDate = computed(() => { const map = new Map<string, any[]>(); filtered.value.forEach((e: any) => { const key = e.date.slice(0, 10); if (!map.has(key)) map.set(key, []); map.get(key)!.push(e); }); return map; });
@@ -165,14 +169,11 @@ const visibleDays = ref(DAYS_PAGE);
 const shownGroups = computed(() => grouped.value.slice(0, visibleDays.value));
 watch([search, type, tracked], () => { visibleDays.value = DAYS_PAGE; });
 
-const monthCells = computed(() => {
-  const start = bounds.value.start, first = (start.getDay() + 6) % 7, cells = [];
-  for (let i = -first; i < 42 - first; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth(), i + 1), date = localIso(d);
-    cells.push({ key: date, date, day: d.getDate(), current: d.getMonth() === start.getMonth(), events: eventsByDate.value.get(date) || [] });
-  }
-  return cells;
-});
+const monthCells = computed(() => buildMonthGrid(cursor.value).map(day => ({
+  ...day,
+  key: day.date,
+  events: eventsByDate.value.get(day.date) || [],
+})));
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFiltersDrawer } = useFiltersDrawer(
   { search, type, tracked },
@@ -187,10 +188,9 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
 function resetFilters(): void {
   resetFiltersDrawer();
 }
-watch(view, value => { if (!compact.value) localStorage.setItem('calendar.view', value); });
+watch(view, value => { if (!compact.value) desktopView.value = value; });
 
-function localIso(d: Date): string { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-function formatTime(v: string): string { if (!v) return ''; const d = new Date(v); if (isNaN(d.getTime()) || v.endsWith('T00:00:00Z') || v.endsWith('T00:00:00.000Z')) return ''; return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+function formatTime(v: string): string { if (!v || v.endsWith('T00:00:00Z') || v.endsWith('T00:00:00.000Z')) return ''; return formatClockTime(v, ''); }
 function eventKey(event: any): string { return `${event.instance}:${event.date}:${event.title}:${event.subtitle}`; }
 function eventState(event: any): string { return event.has_file ? 'available' : ''; }
 
@@ -214,27 +214,48 @@ function openPlex(event: any, e?: Event): void {
 function revealDate(date: string): boolean { const i = grouped.value.findIndex(g => g.date === date); if (i < 0) return false; if (i >= visibleDays.value) visibleDays.value = i + DAYS_PAGE; return true; }
 function scrollToDate(date: string): void { if (!revealDate(date)) return; nextTick(() => document.getElementById(`date-${date}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }
 function showDay(date: string): void { view.value = 'agenda'; scrollToDate(date); }
+/* Les evenements du mois affiche. Tout ce qui les determine (mois, « suivis
+   uniquement », « mes demandes ») entre dans la cle : changer de mois ou de filtre
+   relance d'elle-meme, et revenir sur un mois deja vu le repeint aussitot. */
+const calendarUrl = computed(() => {
+  const userParam = myRequestsOnly.value && session.value?.plex_user_id ? `&user=${encodeURIComponent(session.value.plex_user_id)}` : '';
+  return `/api/calendar?start=${localIso(bounds.value.start)}&end=${localIso(bounds.value.end)}&tracked_only=${tracked.value}${userParam}`;
+});
+const calendarKey = computed(() => ['calendar', calendarUrl.value]);
+const calendarQuery = useQuery({
+  queryKey: calendarKey,
+  queryFn: ({ signal }) => api<any[]>(calendarUrl.value, { signal }),
+  enabled: sessionReady,
+  // Garder le mois precedent pendant le chargement du suivant, plutot qu'une grille vide.
+  placeholderData: keepPreviousData,
+  staleTime: 60_000,
+});
+const events = computed<any[]>(() => calendarQuery.data.value || []);
+const loading = computed(() => calendarQuery.isFetching.value);
+const error = computed(() => (calendarQuery.error.value as Error | null)?.message || '');
+
+/* Defilement vers aujourd'hui une fois les evenements arrives (premier affichage et
+   bouton « Aujourd'hui »). */
+let scrollToTodayPending = false;
+watch(events, () => {
+  if (!scrollToTodayPending || calendarQuery.isPlaceholderData.value) return;
+  scrollToTodayPending = false;
+  if (view.value !== 'agenda') return;
+  nextTick(() => setTimeout(() => {
+    const target = grouped.value.find(g => g.date >= todayStr);
+    if (target) scrollToDate(target.date);
+  }, 100));
+});
+
+/** Relit le mois affiche ; une lecture deja partie (nouvelle cle) n'est pas doublee. */
 async function load({ scrollToToday = false }: { scrollToToday?: boolean } = {}): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    const userParam = myRequestsOnly.value && session.value?.plex_user_id ? `&user=${encodeURIComponent(session.value.plex_user_id)}` : '';
-    events.value = await api(`/api/calendar?start=${localIso(bounds.value.start)}&end=${localIso(bounds.value.end)}&tracked_only=${tracked.value}${userParam}`);
-    if (scrollToToday && view.value === 'agenda') {
-      nextTick(() => setTimeout(() => {
-        const target = grouped.value.find(g => g.date >= todayStr);
-        if (target) scrollToDate(target.date);
-      }, 100));
-    }
-  } catch (e: any) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
+  if (scrollToToday) scrollToTodayPending = true;
+  await nextTick();
+  if (!calendarQuery.isFetching.value) await calendarQuery.refetch();
 }
 function move(delta: number): void { cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + delta, 1); visibleDays.value = DAYS_PAGE; load({ scrollToToday: false }); }
 function today(): void { cursor.value = new Date(); visibleDays.value = DAYS_PAGE; load({ scrollToToday: true }); }
-function applyCompact(matches: boolean): void { if (matches === compact.value) return; compact.value = matches; view.value = matches ? 'agenda' : (localStorage.getItem('calendar.view') || 'month'); }
+function applyCompact(matches: boolean): void { if (matches === compact.value) return; compact.value = matches; view.value = matches ? 'agenda' : desktopView.value; }
 function syncCompact(): void { applyCompact(compactQuery.matches); }
 
 onMounted(async () => {
@@ -244,9 +265,11 @@ onMounted(async () => {
   load({ scrollToToday: true });
 });
 
-useRealtimeList(events, ['request.updated', 'download.updated'], {
+// Un evenement met a jour chaque occurrence du media dans le cache ; faute de
+// correspondance, le mois est relu.
+useRealtimeQuery<any[]>(calendarKey, ['request.updated', 'download.updated'], {
   keyFields: ['request_id', 'id', 'tvdb_id', 'tmdb_id'],
-  patchAllMatches: true,
+  patchAll: true,
   mapper: (payload: any) => {
     const data = { ...payload };
     if (payload.status === 'available' || payload.has_file !== undefined) {
@@ -254,7 +277,6 @@ useRealtimeList(events, ['request.updated', 'download.updated'], {
     }
     return data;
   },
-  onFallbackReload: () => load({ scrollToToday: false }),
 });
 onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact); window.removeEventListener('resize', syncCompact); });
 </script>

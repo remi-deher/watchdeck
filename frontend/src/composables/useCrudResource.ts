@@ -1,4 +1,5 @@
-import { reactive, ref, type Ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { fail, success } from '@/settingsForm';
 
@@ -21,14 +22,39 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
     confirmMessage = (name: string) => `${name} sera supprimé définitivement.`,
   } = messages;
 
-  const items = ref<T[]>([]) as Ref<T[]>;
+  const queryClient = useQueryClient();
+  const queryKey = ['settings', 'crud', basePath] as const;
+  const listQuery = useQuery({
+    queryKey,
+    queryFn: () => api<T[]>(basePath),
+  });
+  const items = computed<T[]>(() => listQuery.data.value || []);
   const editingId = ref<any>(null);
   const showModal = ref(false);
-  const busy = ref(false);
   const form = reactive<Record<string, any>>({ ...defaults });
 
+  const saveMutation = useMutation({
+    mutationFn: ({ editing, payload }: { editing: any; payload: Record<string, any> }) => api(
+      editing ? `${basePath}/${editing}` : basePath,
+      { method: editing ? 'PUT' : 'POST', body: JSON.stringify(payload) },
+    ),
+    retry: 0,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+  const toggleMutation = useMutation({
+    mutationFn: (item: T) => api(`${basePath}/${item.id}/toggle`, { method: 'PATCH' }),
+    retry: 0,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+  const removeMutation = useMutation({
+    mutationFn: (item: T) => api(`${basePath}/${item.id}`, { method: 'DELETE' }),
+    retry: 0,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+  const busy = computed(() => saveMutation.isPending.value || toggleMutation.isPending.value || removeMutation.isPending.value);
+
   async function load(): Promise<void> {
-    items.value = await api<T[]>(basePath);
+    await listQuery.refetch();
   }
 
   function reset(): void {
@@ -54,27 +80,19 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
   }
 
   async function save(): Promise<void> {
-    busy.value = true;
     try {
       const editing = editingId.value;
-      await api(editing ? `${basePath}/${editing}` : basePath, {
-        method: editing ? 'PUT' : 'POST',
-        body: JSON.stringify(form),
-      });
+      await saveMutation.mutateAsync({ editing, payload: { ...form } });
       success(editing ? updated : created);
       showModal.value = false;
       reset();
-      await load();
     } catch (error) {
       fail(error);
-    } finally {
-      busy.value = false;
     }
   }
 
   async function toggle(item: T): Promise<void> {
-    await api(`${basePath}/${item.id}/toggle`, { method: 'PATCH' });
-    await load();
+    await toggleMutation.mutateAsync(item);
   }
 
   async function remove(item: T, askConfirm: (options: any) => Promise<boolean>): Promise<void> {
@@ -85,8 +103,7 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
       danger: true,
     });
     if (!confirmed) return;
-    await api(`${basePath}/${item.id}`, { method: 'DELETE' });
-    await load();
+    await removeMutation.mutateAsync(item);
   }
 
   return {

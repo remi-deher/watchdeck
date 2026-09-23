@@ -100,7 +100,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { usePolling } from '@/composables/usePolling';
+import { useIntervalFn } from '@vueuse/core';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import HealthGrid from '@/components/HealthGrid.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
@@ -123,6 +123,7 @@ import { api, streamEvents } from '@/api';
 import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { queueCounts } from '@/downloads/queueRules';
+import { usePreference } from '@/composables/usePreference';
 
 const SNAPSHOT_CACHE_KEY = 'dashboard:snapshot';
 const PRIMARY_SECTIONS = [
@@ -169,10 +170,10 @@ const vffCounts = ref<Record<string, any>>({});
 const supervisionLoaded = ref(false);
 const supervisionLoading = ref(false);
 
-const showOnboarding = ref(localStorage.getItem('hide_onboarding') !== 'true');
+const onboardingHidden = usePreference('onboarding.hidden', false, { legacyKeys: ['hide_onboarding'] });
+const showOnboarding = computed(() => !onboardingHidden.value);
 function dismissOnboarding(): void {
-  localStorage.setItem('hide_onboarding', 'true');
-  showOnboarding.value = false;
+  onboardingHidden.value = true;
 }
 
 // "En cours" = sent_to_arr + partially_available (affine cote page Bibliotheque pour
@@ -386,9 +387,14 @@ async function action(row: any, type: string): Promise<void> {
   } catch (e: any) { error.value = e.message; }
 }
 
-import { useInPlaceList } from '@/composables/useInPlaceList';
+import { patchedList } from '@/composables/useRealtimeQuery';
 
-const { patchItem } = useInPlaceList();
+/** Reporte un evenement sur une liste locale en la REMPLACANT, sans muter ses elements. */
+function patchItem(list: { value: any[] }, detail: any, options: { keyFields: string[] }): boolean {
+  const { list: next, patched } = patchedList(list.value, detail, options);
+  if (patched) list.value = next;
+  return patched;
+}
 
 useRealtime(['request.updated'], (type, detail) => {
   if (detail && (detail.request_id || detail.id)) {
@@ -420,11 +426,12 @@ useRealtime(['vff.updated'], (type, detail) => {
 });
 
 // Compte a rebours et horloge : locaux, ils doivent avancer meme onglet masque pour que
-// « prochaine verification dans X » soit juste au retour sur l'onglet.
-usePolling(() => {
+// « prochaine verification dans X » soit juste au retour sur l'onglet. Les donnees, elles,
+// arrivent par le flux du snapshot et les evenements SSE : aucun sondage reseau ici.
+useIntervalFn(() => {
   if (seconds.value != null && seconds.value > 0) seconds.value--;
   clock.value = Date.now();
-}, 1000, { whenVisible: false });
+}, 1000);
 
 onMounted(async () => {
   primeFromCache();

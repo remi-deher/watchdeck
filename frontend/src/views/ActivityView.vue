@@ -219,9 +219,8 @@
 import { playbackMethodLabel } from '@/utils/labels';
 import { formatBandwidth, formatDateTimeShort, formatDuration, signedPercent } from '@/utils/format';
 import { computed,onMounted,onUnmounted,ref,watch } from 'vue';
-import { useDebounced } from '@/composables/useDebounced';
-import { useLatestRequest } from '@/composables/useLatestRequest';
-import { usePolling } from '@/composables/usePolling';
+import { refDebounced, useDebounceFn, useIntervalFn } from '@vueuse/core';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/vue-query';
 import { useRoute,useRouter } from 'vue-router';
 import { Activity, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
 import { activitySections } from '@/navigation';
@@ -246,6 +245,7 @@ import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import PopularMediaPanel from '@/components/activity/PopularMediaPanel.vue';
 import SessionDetailDrawer from '@/components/activity/SessionDetailDrawer.vue';
 import UserRankingPanel from '@/components/activity/UserRankingPanel.vue';
+import { usePreference } from '@/composables/usePreference';
 
 const route=useRoute(),router=useRouter();
 const allowedViews=['overview','live','history','quality','users'];
@@ -253,9 +253,8 @@ const currentView=computed(()=>allowedViews.includes(String(route.query.view))?S
 // La periode ne vit plus que dans l'URL : les sections de la destination (rail, barre
 // de contexte, page) pointent vers `/activity?view=...` sans la porter, et sans memoire
 // locale chaque changement de vue serait retombe sur 30 jours.
-const PERIOD_STORAGE_KEY='activity.days';
-const storedDays=Number(localStorage.getItem(PERIOD_STORAGE_KEY))||30;
-const days=ref(Number(route.query.days)||storedDays),loading=ref(false),loaded=ref(false),error=ref('');
+const storedDays=usePreference('activity.days',30);
+const days=ref(Number(route.query.days)||storedDays.value),loading=ref(false),loaded=ref(false),error=ref('');
 // « Tout » est demande comme un siecle (MAX_PERIOD_DAYS cote API) plutot que comme un
 // parametre absent : le service garde un seul chemin de calcul, borne. Les libelles
 // restent courts car le selecteur partage la rangee de la barre du haut.
@@ -365,47 +364,46 @@ const relativeUpdate=computed(()=>{const seconds=Math.max(0,Math.floor((clock.va
    fenetre-la donnait « les lectures d'Untel parmi les cent dernieres » au lieu de ses
    cent dernieres, sans que le compteur affiche ne le trahisse. */
 const HISTORY_PAGE_SIZE=100;
-const history=ref<{items: any[]; total: number; hasMore: boolean; facets: {users: string[]; devices: string[]}}>(
-  {items:[],total:0,hasMore:false,facets:{users:[],devices:[]}}
-);
-const historyError=ref('');
-const historyLoadingMore=ref(false);
+interface HistoryPage {items?: any[]; total?: number; has_more?: boolean; facets?: {users?: string[]; devices?: string[]}}
 const historySort=ref('recent');
-const historyRequest=useLatestRequest();
-
+// La recherche part en base apres une pause de saisie ; les listes deroulantes, la periode
+// et le tri immediatement. Tous font partie de la cle : en changer annule la lecture en
+// cours et repart de la premiere page, ce que faisait `useLatestRequest` a la main.
+const historyNeedle=refDebounced(computed(()=>historySearch.value.trim()),250);
+const historyKey=computed(()=>({days:days.value,sort:historySort.value,query:historyNeedle.value,method:methodFilter.value,mediaType:typeFilter.value,user:userFilter.value,device:deviceFilter.value}));
 function historyParams(offset: number): URLSearchParams {
-  const params=new URLSearchParams({days:String(days.value),limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});
-  const needle=historySearch.value.trim();
-  if(needle)params.set('query',needle);
-  if(methodFilter.value)params.set('method',methodFilter.value);
-  if(typeFilter.value)params.set('media_type',typeFilter.value);
-  if(userFilter.value)params.set('user',userFilter.value);
-  if(deviceFilter.value)params.set('device',deviceFilter.value);
-  params.set('sort',historySort.value);
+  const key=historyKey.value;
+  const params=new URLSearchParams({days:String(key.days),limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});
+  if(key.query)params.set('query',key.query);
+  if(key.method)params.set('method',key.method);
+  if(key.mediaType)params.set('media_type',key.mediaType);
+  if(key.user)params.set('user',key.user);
+  if(key.device)params.set('device',key.device);
+  params.set('sort',key.sort);
   return params;
 }
-
-async function loadHistory(more=false): Promise<void> {
-  const offset=more?history.value.items.length:0;
-  const {signal,isCurrent}=historyRequest.begin();
-  if(more)historyLoadingMore.value=true;
-  historyError.value='';
-  try{
-    const payload=await api<any>(`/api/playback/history?${historyParams(offset)}`,{signal});
-    if(!isCurrent())return;
-    history.value={
-      items:more?[...history.value.items,...(payload.items||[])]:(payload.items||[]),
-      total:payload.total||0,
-      hasMore:Boolean(payload.has_more),
-      facets:{users:payload.facets?.users||[],devices:payload.facets?.devices||[]},
-    };
-  }catch(e: any){
-    if(!historyRequest.isAbort(e)&&isCurrent())historyError.value=e?.message||String(e);
-  }finally{
-    if(isCurrent())historyLoadingMore.value=false;
-  }
-}
-const scheduleHistory=useDebounced(()=>loadHistory(),250);
+const historyQuery=useInfiniteQuery({
+  queryKey:computed(()=>['activity','history',historyKey.value]),
+  queryFn:({pageParam,signal})=>api<HistoryPage>(`/api/playback/history?${historyParams(pageParam)}`,{signal}),
+  initialPageParam:0,
+  getNextPageParam:(last: HistoryPage,pages: HistoryPage[])=>last.has_more?pages.reduce((sum,page)=>sum+(page.items?.length||0),0):undefined,
+  enabled:computed(()=>currentView.value==='history'),
+  placeholderData:keepPreviousData,
+  staleTime:30_000,
+});
+const history=computed(()=>{
+  const pages=historyQuery.data.value?.pages||[];
+  const first=pages[0];
+  return {
+    items:pages.flatMap(page=>page.items||[]),
+    total:first?.total||0,
+    hasMore:Boolean(historyQuery.hasNextPage.value),
+    facets:{users:first?.facets?.users||[],devices:first?.facets?.devices||[]},
+  };
+});
+const historyError=computed(()=>{const e: any=historyQuery.error.value;return e?(e.message||String(e)):''});
+const historyLoadingMore=computed(()=>historyQuery.isFetchingNextPage.value);
+function loadHistory(more=false): void {if(more)void historyQuery.fetchNextPage();else void historyQuery.refetch()}
 
 /* Les trois tris passent par le serveur. Reordonner les lignes deja chargees ne triait
    que la premiere page : « Anciennes » remettait dans l'autre sens les cent lectures les
@@ -415,7 +413,6 @@ const sortedHistoryItems=computed(()=>history.value.items);
 function setHistorySort(value: string): void {
   if(value===historySort.value)return;
   historySort.value=value;
-  loadHistory();
 }
 const historyUsers=computed(()=>history.value.facets.users);
 const historyDevices=computed(()=>history.value.facets.devices);
@@ -504,7 +501,7 @@ async function load(silent=false): Promise<void> {
   }catch(e: any){if(!silent)error.value=e.message}
   finally{if(!silent)loading.value=false}
 }
-function setDays(value: number): void {days.value=value;localStorage.setItem(PERIOD_STORAGE_KEY,String(value));router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
+function setDays(value: number): void {days.value=value;storedDays.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
 function setPeriod(value: string | number): void { if (typeof value === 'number') setDays(value); }
 function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value=''}
 const formatDate=(value: string)=>formatDateTimeShort(value,'—');
@@ -553,10 +550,10 @@ watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!
 useRealtime(['activity.updated'],()=>currentView.value==='live'?loadLive():Promise.allSettled([loadLive(),loadStatistics()]));
 // Horloge locale du libelle « actualise il y a N s » : doit tourner meme onglet masque,
 // sinon l'age affiche au retour sur l'onglet est faux.
-usePolling(()=>clock.value=Date.now(),1000,{whenVisible:false});
+useIntervalFn(()=>{clock.value=Date.now()},1000);
 // Une frappe ne doit pas declencher une requete par lettre : on n'appelle le serveur que
 // lorsque le nom retenu change vraiment, et apres une pause de saisie.
-const applyScope=useDebounced(()=>{
+const applyScope=useDebounceFn(()=>{
   const next=matchedUser.value||'';
   if(next===scopedUser.value)return;
   scopedUser.value=next;
@@ -567,18 +564,11 @@ watch(matchedUser,()=>applyScope());
 watch(currentView,(next,previous)=>{
   if(next===previous)return;
   if(next==='live'){loadLive(false);return}
-  if(next==='history'&&!history.value.items.length)loadHistory();
   if(!data.value.history?.length)loadStatistics(false);
 });
-// Chaque filtre d'historique repart en base : la recherche apres une pause de saisie,
-// les listes deroulantes immediatement.
-watch([methodFilter,typeFilter,userFilter,deviceFilter],()=>{if(currentView.value==='history')loadHistory()});
-watch(historySearch,()=>{if(currentView.value==='history')scheduleHistory()});
-watch(days,()=>{if(currentView.value==='history')loadHistory()});
 onMounted(()=>{
   primeFromCache();
   load();
-  if(currentView.value==='history')loadHistory();
   window.addEventListener('keydown',onSessionKey);
 });
 onUnmounted(()=>window.removeEventListener('keydown',onSessionKey));

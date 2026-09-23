@@ -134,6 +134,7 @@ export function cachedResource<T = any>(
   const now = Date.now();
   let cached: { savedAt: number; data: T } | null = null;
   try {
+    // Cache HTTP technique (TTL), pas une préférence UI : il reste volontairement hors usePreference.
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
     cached = raw ? JSON.parse(raw) : null;
   } catch {

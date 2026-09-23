@@ -1,8 +1,19 @@
+import os
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+# La sortie de `npm run build` n'est plus suivie par git. En local, sans build, ces tests
+# n'ont rien a verifier ; en CI le frontend est compile avant pytest (tests.yml), et
+# l'absence de build y est une erreur : un oubli d'etape ne doit pas passer inapercu.
+BUILT = Path("app/static/vue/index.html").exists()
+pytestmark = pytest.mark.skipif(
+    not BUILT and not os.environ.get("CI"),
+    reason="frontend non compile : lancer `npm run build` pour ces tests",
+)
 
 
 def test_vite_assets_are_immutable_and_gzipped():

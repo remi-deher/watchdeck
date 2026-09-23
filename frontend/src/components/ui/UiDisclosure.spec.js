@@ -41,11 +41,11 @@ describe('UiDisclosure', () => {
 
     details.element.open = true;
     await details.trigger('toggle');
-    expect(localStorage.getItem('test.disclosure')).toBe('1');
+    expect(localStorage.getItem('watchdeck:test.disclosure')).toBe('true');
 
     details.element.open = false;
     await details.trigger('toggle');
-    expect(localStorage.getItem('test.disclosure')).toBe('0');
+    expect(localStorage.getItem('watchdeck:test.disclosure')).toBe('false');
   });
 
   it('restaure un état ouvert persisté et charge immédiatement', () => {
@@ -60,6 +60,7 @@ describe('UiDisclosure', () => {
     localStorage.setItem('test.disclosure', 'true');
     expect(factory({ storageKey: 'test.disclosure' }).get('details').element.open).toBe(true);
 
+    localStorage.removeItem('watchdeck:test.disclosure');
     localStorage.setItem('test.disclosure', 'false');
     expect(factory({ storageKey: 'test.disclosure' }).get('details').element.open).toBe(false);
   });

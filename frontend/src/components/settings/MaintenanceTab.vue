@@ -34,61 +34,50 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, ref } from "vue";
+import { useMutation, useQuery } from '@tanstack/vue-query';
 import { Play } from "@lucide/vue";
 import { api } from "@/api";
 import { useRealtime } from "@/events";
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 
-const actions = ref<Record<string, any>>({});
-const current = ref<any>(null);
-const loading = ref(false);
-const running = ref(false);
-const error = ref('');
-let runId: string | undefined;
+const runId = ref<string>();
+const actionError = ref('');
+const actionsQuery = useQuery({ queryKey: ['settings', 'maintenance', 'actions'], queryFn: () => api<Record<string, any>>('/api/maintenance/actions') });
+const actions = computed(() => actionsQuery.data.value || {});
+const runQuery = useQuery({
+  queryKey: computed(() => ['settings', 'maintenance', 'run', runId.value]),
+  queryFn: () => api<any>(`/api/maintenance/run/${runId.value}`),
+  enabled: computed(() => Boolean(runId.value)),
+});
+const current = computed(() => runQuery.data.value || null);
+const running = computed(() => startMutation.isPending.value || Boolean(runId.value && !['done', 'error'].includes(current.value?.status)));
+const error = computed(() => actionError.value || (actionsQuery.error.value as Error | null)?.message || (runQuery.error.value as Error | null)?.message || '');
 
 async function load(): Promise<void> {
-  loading.value = true;
-  try {
-    actions.value = await api('/api/maintenance/actions');
-  } catch (e: any) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
+  actionError.value = '';
+  await actionsQuery.refetch();
 }
 
+const startMutation = useMutation({ mutationFn: (action: string) => api<any>(`/api/maintenance/run/${action}`, { method: 'POST' }), retry: 0 });
+
 async function run(action: string): Promise<void> {
-  running.value = true;
-  error.value = '';
+  actionError.value = '';
   try {
-    const data = await api(`/api/maintenance/run/${action}`, { method: 'POST' });
-    runId = data.run_id;
-    if (runId) poll(runId);
+    const data = await startMutation.mutateAsync(action);
+    runId.value = data.run_id;
   } catch (e: any) {
-    error.value = e.message;
-    running.value = false;
+    actionError.value = e.message;
   }
 }
 
 async function poll(id: string): Promise<void> {
-  try {
-    current.value = await api(`/api/maintenance/run/${id}`);
-    if (['done', 'error'].includes(current.value.status)) {
-      running.value = false;
-      return;
-    }
-  } catch (e: any) {
-    error.value = e.message;
-    running.value = false;
-  }
+  if (id === runId.value) await runQuery.refetch();
 }
 
 useRealtime(['job.updated'], (type?: string, event?: any) => {
-  if (runId && (!type || event?.run_id === runId)) poll(runId);
+  if (runId.value && (!type || event?.run_id === runId.value)) poll(runId.value);
 });
-
-onMounted(load);
 </script>
 
 <style scoped lang="scss">

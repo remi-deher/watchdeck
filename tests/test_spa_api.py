@@ -83,6 +83,31 @@ def test_spa_library_list_supports_search_and_type(async_db):
         _cleanup()
 
 
+def test_library_response_never_exposes_plex_token(async_db):
+    """Le JSON client ne doit contenir ni jeton Plex brut ni URL proxy signée."""
+    async_db.add(
+        LibraryItem(
+            title="Secret",
+            media_type="movie",
+            poster_url="http://plex.local/library/metadata/42/thumb?X-Plex-Token=poster-secret",
+            art_url="http://plex.local/library/metadata/42/art?X-Plex-Token=art-secret",
+        )
+    )
+    async_db.commit()
+    client = _client(async_db)
+    try:
+        response = client.get("/api/library?query=Secret")
+        assert response.status_code == 200
+        assert "X-Plex-Token" not in response.text
+        assert "poster-secret" not in response.text
+        assert "art-secret" not in response.text
+        item = response.json()[0]
+        assert "plex_path=" in item["poster_url"]
+        assert "plex_path=" in item["art_url"]
+    finally:
+        _cleanup()
+
+
 def test_spa_library_list_paginates_with_offset(async_db):
     """Regression : /api/library plafonnait a 200 resultats sans offset ni indication de
     troncature, et LibraryView.vue ne paginait jamais -> la majorite d'une grosse

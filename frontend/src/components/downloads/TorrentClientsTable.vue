@@ -57,86 +57,80 @@
     </div>
 
     <div class="torrent-table-wrap" tabindex="0" role="region" aria-label="Tableau des torrents, défilement horizontal" @dragover.prevent @drop.prevent="handleGlobalDrop">
-      <table :class="['torrent-table', { 'compact-table': isCompact, 'incognito-mode': isIncognito }]">
-        <thead>
-          <tr>
-            <th class="select-cell"><input type="checkbox" :checked="allSelected" :indeterminate="partiallySelected" aria-label="Sélectionner tous les torrents affichés" @change="toggleAll"></th>
-            <th
-              v-for="column in columns"
-              :key="column.key"
-              :class="[column.className, { 'drag-over': dragOverKey === column.key, 'is-dragging': draggedColumnKey === column.key }]"
-              :style="{ width: columnWidths[column.key] ? columnWidths[column.key] + 'px' : undefined }"
-              :aria-sort="sortKey===column.key?(sortDirection==='asc'?'ascending':'descending'):'none'"
+      <DataTable
+        v-model:selection="primeSelection"
+        :value="displayedRows"
+        :class="['torrent-table', { 'compact-table': isCompact, 'incognito-mode': isIncognito }]"
+        :sort-field="sortKey"
+        :sort-order="sortDirection === 'asc' ? 1 : -1"
+        :row-class="rowClass"
+        scrollable
+        table-style="min-width: 900px; table-layout: fixed"
+        @sort="handlePrimeSort"
+        @row-click="handlePrimeRowClick"
+        @row-contextmenu="handlePrimeContextMenu"
+      >
+        <template #empty>Aucun torrent ne correspond aux filtres.</template>
+        <Column selection-mode="multiple" header-style="width: 38px" body-class="select-cell" :reorderable-column="false" />
+        <Column
+          v-for="column in columns"
+          :key="column.key"
+          :field="column.key"
+          :class="column.className"
+          :style="{ width: columnWidths[column.key] ? columnWidths[column.key] + 'px' : undefined }"
+          sortable
+        >
+          <template #header>
+            <div
+              class="th-content"
+              :class="{ 'drag-over': dragOverKey === column.key, 'is-dragging': draggedColumnKey === column.key }"
               draggable="true"
-              @dragstart="startColumnDrag(column.key, $event)"
-              @dragover.prevent="dragOverColumn(column.key, $event)"
-              @dragleave="dragLeaveColumn(column.key)"
-              @drop.prevent="dropColumn(column.key)"
+              @dragstart.stop="startColumnDrag(column.key, $event)"
+              @dragover.stop.prevent="dragOverColumn(column.key, $event)"
+              @dragleave.stop="dragLeaveColumn(column.key)"
+              @drop.stop.prevent="dropColumn(column.key)"
             >
-              <div class="th-content">
-                <button class="sort-button" @click="sortBy(column.key)">
-                  <span>{{ column.label }}</span>
-                  <ArrowUpDown />
-                </button>
-              </div>
-              <div class="col-resize-handle" title="Redimensionner la colonne" @pointerdown.prevent.stop="startColumnResize(column.key, $event)"></div>
-            </th>
-            <th class="actions-cell"><span class="sr-only">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="(row, index) in displayedRows"
-            :key="rowKey(row)"
-            :class="{ selected: selected.has(rowKey(row)) }"
-            @click="handleRowClick(row, index, $event)"
-            @contextmenu.prevent="openContextMenu(row, index, $event)"
-          >
-            <td class="select-cell" data-label="Sélection">
-              <input
-                type="checkbox"
-                :checked="selected.has(rowKey(row))"
-                :aria-label="`Sélectionner ${row.title}`"
-                @click.stop="toggleRow(row, index, $event)"
-              />
-            </td>
-            <td v-for="col in columns" :key="col.key" :class="col.className" :data-label="col.label">
-              <template v-if="col.key === 'title'">
-                <button class="torrent-title" @click.stop="details=row">
-                  {{ isIncognito ? maskTitle(row.title, index) : row.title }}
-                </button>
-                <small>{{ row.client_name }}<template v-if="row.tags"> · {{ row.tags }}</template></small>
-              </template>
-              <template v-else-if="col.key === 'status'">
-                <span class="state-badge" :class="statusClass(row)">{{ statusLabel(row) }}</span>
-              </template>
-              <template v-else-if="col.key === 'progress'">
-                <div class="progress-cell"><div><progress :value="row.progress||0" max="100"></progress><span>{{ Math.round(row.progress||0) }} %</span></div></div>
-              </template>
-              <template v-else-if="col.key === 'size'">{{ formatBytes(row.size) }}</template>
-              <template v-else-if="col.key === 'download_speed'">{{ formatSpeed(row.download_speed) }}</template>
-              <template v-else-if="col.key === 'upload_speed'">{{ formatSpeed(row.upload_speed) }}</template>
-              <template v-else-if="col.key === 'ratio'">{{ Number(row.ratio||0).toFixed(2) }}</template>
-              <template v-else-if="col.key === 'eta'">{{ formatEta(row.eta) }}</template>
-              <template v-else-if="col.key === 'category'">{{ row.category||'—' }}</template>
-              <template v-else-if="col.key === 'trackers'">
-                <span class="tracker-display">
-                  <img v-if="trackerValue(row) && !failedFavicons.has(trackerKey(row))" :src="trackerFaviconUrl(row)" alt="" loading="lazy" @error="hideTrackerFavicon(row)" />
-                  <span>{{ formatTracker(trackerValue(row)) }}</span>
-                </span>
-              </template>
-              <template v-else-if="col.key === 'added_on'">{{ formatTimestamp(row.added_on) }}</template>
-              <template v-else-if="col.key === 'completed_on'">{{ formatTimestamp(row.completed_on) }}</template>
-            </td>
-            <td class="actions-cell" data-label="Actions" @click.stop>
-              <button class="secondary action-trigger-btn" :disabled="isBusy(row)" title="Actions sur ce torrent" @click="actionTarget=row">
-                Actions
+              <span>{{ column.label }}</span>
+              <span class="col-resize-handle" title="Redimensionner la colonne" @pointerdown.prevent.stop="startColumnResize(column.key, $event)" />
+            </div>
+          </template>
+          <template #body="{ data: row, index }">
+            <template v-if="column.key === 'title'">
+              <button class="torrent-title" @click.stop="details=row">
+                {{ isIncognito ? maskTitle(row.title, index) : row.title }}
               </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-if="!rows.length" class="empty">Aucun torrent ne correspond aux filtres.</p>
+              <small>{{ row.client_name }}<template v-if="row.tags"> · {{ row.tags }}</template></small>
+            </template>
+            <template v-else-if="column.key === 'status'">
+              <span class="state-badge" :class="statusClass(row)">{{ statusLabel(row) }}</span>
+            </template>
+            <template v-else-if="column.key === 'progress'">
+              <div class="progress-cell"><div><progress :value="row.progress||0" max="100"></progress><span>{{ Math.round(row.progress||0) }} %</span></div></div>
+            </template>
+            <template v-else-if="column.key === 'size'">{{ formatBytes(row.size) }}</template>
+            <template v-else-if="column.key === 'download_speed'">{{ formatSpeed(row.download_speed) }}</template>
+            <template v-else-if="column.key === 'upload_speed'">{{ formatSpeed(row.upload_speed) }}</template>
+            <template v-else-if="column.key === 'ratio'">{{ Number(row.ratio||0).toFixed(2) }}</template>
+            <template v-else-if="column.key === 'eta'">{{ formatEta(row.eta) }}</template>
+            <template v-else-if="column.key === 'category'">{{ row.category||'—' }}</template>
+            <template v-else-if="column.key === 'trackers'">
+              <span class="tracker-display">
+                <img v-if="trackerValue(row) && !failedFavicons.has(trackerKey(row))" :src="trackerFaviconUrl(row)" alt="" loading="lazy" @error="hideTrackerFavicon(row)" />
+                <span>{{ formatTracker(trackerValue(row)) }}</span>
+              </span>
+            </template>
+            <template v-else-if="column.key === 'added_on'">{{ formatTimestamp(row.added_on) }}</template>
+            <template v-else-if="column.key === 'completed_on'">{{ formatTimestamp(row.completed_on) }}</template>
+          </template>
+        </Column>
+        <Column header="Actions" header-class="actions-cell" body-class="actions-cell" style="width: 118px" :reorderable-column="false">
+          <template #body="{ data: row }">
+            <button class="secondary action-trigger-btn" :disabled="isBusy(row)" title="Actions sur ce torrent" @click.stop="actionTarget=row">
+              Actions
+            </button>
+          </template>
+        </Column>
+      </DataTable>
       <div ref="sentinelRef" class="load-more-sentinel">
         <LoadMore v-if="hasMore" :has-more="hasMore" :loading="false" @load="loadMore" />
       </div>
@@ -376,10 +370,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { AlertTriangle, ArrowUpDown, ChevronDown, ChevronUp, Download, Eye, EyeOff, FileText, FileX2, Gauge, Info, Maximize2, Minimize2, Pause, Play, Radio, RotateCcw, SlidersHorizontal, Tag, Trash2, Upload, Users } from '@lucide/vue';
+import { useEventListener, useIntersectionObserver } from '@vueuse/core';
+import { AlertTriangle, ChevronDown, ChevronUp, Download, Eye, EyeOff, FileText, FileX2, Gauge, Info, Maximize2, Minimize2, Pause, Play, Radio, RotateCcw, SlidersHorizontal, Tag, Trash2, Upload, Users } from '@lucide/vue';
+import Column from 'primevue/column';
+import DataTable from 'primevue/datatable';
 import { api } from '@/api';
 import { useConfirm } from '@/composables/useConfirm';
 import { useTableColumns } from '@/composables/useTableColumns';
+import { usePreference } from '@/composables/usePreference';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DrawerShell from '@/components/DrawerShell.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -407,17 +405,15 @@ const emit = defineEmits<{
   (e: 'add-file', file: File): void;
 }>();
 
-const isCompact = ref(localStorage.getItem('watchdeck:torrent-table-compact') === 'true');
-const isIncognito = ref(localStorage.getItem('watchdeck:torrent-table-incognito') === 'true');
+const isCompact = usePreference('torrent-table-compact', false, { legacyKeys: ['watchdeck:torrent-table-compact'] });
+const isIncognito = usePreference('torrent-table-incognito', false, { legacyKeys: ['watchdeck:torrent-table-incognito'] });
 
 function toggleCompact(): void {
   isCompact.value = !isCompact.value;
-  localStorage.setItem('watchdeck:torrent-table-compact', String(isCompact.value));
 }
 
 function toggleIncognito(): void {
   isIncognito.value = !isIncognito.value;
-  localStorage.setItem('watchdeck:torrent-table-incognito', String(isIncognito.value));
 }
 
 function maskTitle(title: string, index: number): string {
@@ -541,7 +537,6 @@ const metaTags = ref('');
 const BATCH_SIZE = 100;
 const displayLimit = ref(BATCH_SIZE);
 const sentinelRef = ref<HTMLElement | null>(null);
-let observer: IntersectionObserver | null = null;
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const rowKey = (row: any): string => `${row.client_id}:${row.hash}`;
@@ -563,9 +558,17 @@ const sortedRows = computed(() =>
 // Sur la liste triee : une selection par plage suit l'ordre affiche, et l'elagage des
 // cles obsoletes porte sur les memes lignes que celles rendues.
 const {
-  selectedKeys: selected, selectedRows, allSelected, partiallySelected,
+  selectedKeys: selected, selectedRows,
   toggle: toggleRow, toggleAll, clear: clearSelection, setKeys: setSelection, lastIndex: lastSelectedIndex,
 } = useTableSelection(() => sortedRows.value, rowKey);
+
+/* PrimeVue expose la selection sous forme de lignes, tandis que le reste de la page
+   conserve volontairement des cles stables : les rafraichissements remplacent les
+   objets torrent, mais ne doivent pas vider la barre d'actions en lot. */
+const primeSelection = computed<any[]>({
+  get: () => selectedRows.value,
+  set: (rows) => setSelection((rows || []).map(rowKey)),
+});
 
 const displayedRows = computed(() => sortedRows.value.slice(0, displayLimit.value));
 const hasMore = computed(() => displayLimit.value < sortedRows.value.length);
@@ -574,22 +577,32 @@ function loadMore(): void {
   displayLimit.value += BATCH_SIZE;
 }
 
-function sortBy(key: string): void {
+function handlePrimeSort(event: { sortField?: string | ((item: any) => string); sortOrder?: number | null }): void {
+  if (typeof event.sortField !== 'string') return;
   displayLimit.value = BATCH_SIZE;
-  if (sortKey.value === key) sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
-  else {
-    sortKey.value = key;
-    sortDirection.value = 'asc';
-  }
+  sortKey.value = event.sortField;
+  sortDirection.value = event.sortOrder === -1 ? 'desc' : 'asc';
 }
 
-function handleRowClick(row: any, index: number, event?: MouseEvent): void {
-  if (event?.shiftKey || event?.ctrlKey || event?.metaKey) {
-    toggleRow(row, index, event);
+function handlePrimeRowClick(event: { data: any; index: number; originalEvent: Event }): void {
+  const mouseEvent = event.originalEvent as MouseEvent;
+  const target = mouseEvent.target as HTMLElement | null;
+  if (target?.closest('button, input, a, .p-checkbox')) return;
+  if (mouseEvent.shiftKey || mouseEvent.ctrlKey || mouseEvent.metaKey) {
+    toggleRow(event.data, event.index, mouseEvent);
     return;
   }
-  details.value = row;
-  lastSelectedIndex.value = index;
+  details.value = event.data;
+  lastSelectedIndex.value = event.index;
+}
+
+function handlePrimeContextMenu(event: { data: any; index: number; originalEvent: Event }): void {
+  event.originalEvent.preventDefault();
+  openContextMenu(event.data, event.index, event.originalEvent as MouseEvent);
+}
+
+function rowClass(row: any): string {
+  return selected.value.has(rowKey(row)) ? 'selected' : '';
 }
 
 function isPaused(row: any): boolean {
@@ -725,20 +738,13 @@ function handleKeyDown(event: KeyboardEvent): void {
 
 onMounted(() => {
   loadGlobalStats();
-  window.addEventListener('keydown', handleKeyDown);
-  if (sentinelRef.value && 'IntersectionObserver' in window) {
-    observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore.value) {
-        loadMore();
-      }
-    }, { rootMargin: '200px' });
-    observer.observe(sentinelRef.value);
-  }
 });
+useEventListener(window, 'keydown', handleKeyDown);
+useIntersectionObserver(sentinelRef, (entries) => {
+  if (entries[0]?.isIntersecting && hasMore.value) loadMore();
+}, { rootMargin: '200px' });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown);
-  if (observer) observer.disconnect();
   clearTimeout(statsLoadTimer);
 });
 
@@ -912,7 +918,7 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 .file-name-cell{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prio-select{padding:2px 6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size: var(--fs-xs)}
 
-.torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}.bulk-toolbar{position:sticky;top:8px;z-index:4;display:flex;align-items:center;gap:var(--space-2);padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(12px)}.bulk-toolbar strong{margin-right:auto}.bulk-toolbar button,.drawer-actions button{display:inline-flex;align-items:center;gap:6px}.bulk-toolbar svg,.row-actions svg,.drawer-actions svg{width:14px;height:14px}.torrent-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}.torrent-table{width:100%;min-width:900px;border-collapse:collapse;table-layout:fixed}.torrent-table th,.torrent-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}.torrent-table th{user-select:none;cursor:grab;background:var(--surface)}.torrent-table th.is-dragging{opacity:0.45}.torrent-table th.drag-over{border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 15%,var(--surface-2))}.th-content{display:flex;align-items:center;width:100%;overflow:hidden}.col-resize-handle{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;user-select:none;z-index:3;touch-action:none}.col-resize-handle:hover,.col-resize-handle:active{background:var(--accent);opacity:0.85}.torrent-table tbody tr:last-child td{border-bottom:0}.torrent-table tbody tr{transition:background .15s;cursor:pointer}.torrent-table tbody tr:hover,.torrent-table tbody tr.selected{background:var(--surface-2)}.select-cell{width:38px;text-align:center!important}.sort-button{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sort-button:hover{color:var(--text)}.sort-button svg{width:12px;flex-shrink:0}.torrent-name{min-width:0}.torrent-title{display:block;max-width:100%;overflow:hidden;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap}.torrent-title:hover{color:var(--accent);text-decoration:underline}.torrent-name small{display:block;overflow:hidden;margin-top:3px;color:var(--muted);text-overflow:ellipsis;white-space:nowrap}.progress-cell{min-width:0}.progress-cell>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}.progress-cell progress{width:100%;height:6px}.state-badge{display:inline-flex;padding:4px 7px;border-radius:var(--radius-pill);background:var(--surface-2);color:var(--muted);font-weight:700;white-space:nowrap}.state-badge.active{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}.state-badge.complete{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)}.state-badge.paused{background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--warning)}.state-badge.error{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}.actions-cell{position:sticky;right:0;z-index:1;min-width:118px;width:118px;background:var(--surface)}.torrent-table tbody tr:hover .actions-cell,.torrent-table tbody tr.selected .actions-cell{background:var(--surface-2)}.row-actions{display:flex;justify-content:flex-end;gap:3px}.row-actions .icon-button{width:30px;height:30px}.torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.drawer-section h3{margin:0 0 12px}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}.detail-grid div,.detail-list div{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}.detail-grid dt,.detail-list dt{color:var(--muted);font-size:var(--fs-xs)}.detail-grid dd,.detail-list dd{margin:4px 0 0;font-weight:700}.detail-list{display:grid;gap:var(--space-2);margin:0}.hash-value{overflow-wrap:anywhere;font-family:monospace;font-size:var(--fs-xs)}.drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}.removal-warning{color:var(--danger)}
+.torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}.bulk-toolbar{position:sticky;top:8px;z-index:4;display:flex;align-items:center;gap:var(--space-2);padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(12px)}.bulk-toolbar strong{margin-right:auto}.bulk-toolbar button,.drawer-actions button{display:inline-flex;align-items:center;gap:6px}.bulk-toolbar svg,.row-actions svg,.drawer-actions svg{width:14px;height:14px}.torrent-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}.torrent-table{width:100%;min-width:900px;border-collapse:collapse;table-layout:fixed}.torrent-table th,.torrent-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}.torrent-table th{user-select:none;cursor:grab;background:var(--surface)}.th-content.is-dragging{opacity:0.45}.th-content.drag-over{border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 15%,var(--surface-2))}.th-content{position:relative;display:flex;align-items:center;width:100%;overflow:hidden}.col-resize-handle{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;user-select:none;z-index:3;touch-action:none}.col-resize-handle:hover,.col-resize-handle:active{background:var(--accent);opacity:0.85}.torrent-table tbody tr:last-child td{border-bottom:0}.torrent-table tbody tr{transition:background .15s;cursor:pointer}.torrent-table tbody tr:hover,.torrent-table tbody tr.selected{background:var(--surface-2)}.select-cell{width:38px;text-align:center!important}.torrent-name{min-width:0}.torrent-title{display:block;max-width:100%;overflow:hidden;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap}.torrent-title:hover{color:var(--accent);text-decoration:underline}.torrent-name small{display:block;overflow:hidden;margin-top:3px;color:var(--muted);text-overflow:ellipsis;white-space:nowrap}.progress-cell{min-width:0}.progress-cell>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}.progress-cell progress{width:100%;height:6px}.state-badge{display:inline-flex;padding:4px 7px;border-radius:var(--radius-pill);background:var(--surface-2);color:var(--muted);font-weight:700;white-space:nowrap}.state-badge.active{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}.state-badge.complete{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)}.state-badge.paused{background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--warning)}.state-badge.error{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}.actions-cell{position:sticky;right:0;z-index:1;min-width:118px;width:118px;background:var(--surface)}.torrent-table tbody tr:hover .actions-cell,.torrent-table tbody tr.selected .actions-cell{background:var(--surface-2)}.row-actions{display:flex;justify-content:flex-end;gap:3px}.row-actions .icon-button{width:30px;height:30px}.torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.drawer-section h3{margin:0 0 12px}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}.detail-grid div,.detail-list div{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}.detail-grid dt,.detail-list dt{color:var(--muted);font-size:var(--fs-xs)}.detail-grid dd,.detail-list dd{margin:4px 0 0;font-weight:700}.detail-list{display:grid;gap:var(--space-2);margin:0}.hash-value{overflow-wrap:anywhere;font-family:monospace;font-size:var(--fs-xs)}.drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}.removal-warning{color:var(--danger)}
 .meta-form{display:grid;gap:var(--space-3)}.form-group{display:grid;gap:6px}.form-group label{font-size:var(--fs-xs);font-weight:600}.form-group input{width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)}.form-actions{display:flex;justify-content:flex-end;gap:var(--space-2);margin-top:var(--space-2)}
 .action-trigger-btn{display:inline-flex;align-items:center;gap:6px;min-width:100px;padding:5px 9px;font-size:var(--fs-xs);white-space:nowrap}
 .action-trigger-btn svg{width:14px;height:14px}

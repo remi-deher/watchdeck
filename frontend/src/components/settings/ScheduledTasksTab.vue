@@ -77,7 +77,8 @@
 </template>
 <script setup lang="ts">
 import { formatElapsed as formatDuration, formatDateTimeSeconds as formatDate } from '@/utils/format';
-import { onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { Archive, Clock, History } from '@lucide/vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
@@ -91,10 +92,16 @@ import RetentionDaysInput from './RetentionDaysInput.vue';
 // (un scan leger n'a pas les memes echelles de temps qu'une synchro complete).
 
 
-const tasks = ref<any[]>([]);
 const openHistory = ref<string | null>(null);
-const history = ref<any[]>([]);
-const historyLoading = ref(false);
+const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
+const tasks = computed(() => tasksQuery.data.value || []);
+const historyQuery = useQuery({
+  queryKey: computed(() => ['settings', 'scheduled-tasks', openHistory.value, 'history']),
+  queryFn: () => api<any[]>(`/api/scheduled-tasks/${openHistory.value}/history`),
+  enabled: computed(() => Boolean(openHistory.value)),
+});
+const history = computed(() => historyQuery.data.value || []);
+const historyLoading = computed(() => historyQuery.isFetching.value);
 
 function cardStatus(task: any): string {
   const status = task.state?.status;
@@ -120,25 +127,13 @@ function formatInterval(seconds: number): string {
 }
 
 
-async function loadTasks(): Promise<void> {
-  tasks.value = await api('/api/scheduled-tasks');
-}
-
 async function toggleHistory(job: string): Promise<void> {
   if (openHistory.value === job) {
     openHistory.value = null;
     return;
   }
   openHistory.value = job;
-  historyLoading.value = true;
-  try {
-    history.value = await api(`/api/scheduled-tasks/${job}/history`);
-  } finally {
-    historyLoading.value = false;
-  }
 }
-
-onMounted(loadTasks);
 </script>
 <style scoped lang="scss">
 .scheduled-tab {
