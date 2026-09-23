@@ -71,6 +71,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      # La sortie de `npm run build` (app/static/vue) n'est plus suivie par git : l'API la
+      # sert, et test_static_delivery.py la verifie. Elle doit donc exister avant pytest.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Build Vue SPA for backend tests
+        run: npm ci && npm run build
+
       # Volontairement AVANT les tests : ceux-ci s'executent ensuite sur le schema
       # reellement produit par les migrations, et non sur un schema fabrique a part.
       # (Dans l'autre sens, les tables creees par les tests faisaient echouer alembic.)
