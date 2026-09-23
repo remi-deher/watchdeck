@@ -59,7 +59,8 @@
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Check, Copy, KeyRound, Link, RefreshCw, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
 import { form, success, fail } from '@/settingsForm';
@@ -73,29 +74,36 @@ const configureStatus = reactive<Record<string, { success: boolean; message: str
 const testingWebhook = ref<string | null>(null);
 const configuringWebhook = ref<string | null>(null);
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
+const queryClient = useQueryClient();
 
 const apiToken = ref('');
-const tokenActive = ref(false);
-async function loadToken(): Promise<void> {
-  const token = await api('/api/settings/token').catch(() => ({}));
-  tokenActive.value = Boolean(token.active);
-}
+const tokenQuery = useQuery({ queryKey: ['settings', 'api-token'], queryFn: () => api<any>('/api/settings/token').catch(() => ({})) });
+const tokenActive = computed(() => Boolean(tokenQuery.data.value?.active));
+const tokenMutation = useMutation({
+  mutationFn: ({ method, body }: { method: 'POST' | 'DELETE'; body?: any }) => api<any>('/api/settings/token', { method, ...(body ? { body: JSON.stringify(body) } : {}) }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'api-token'] }),
+  gcTime: 0,
+});
 async function generateToken(): Promise<void> {
-  const data = await api('/api/settings/token', { method: 'POST', body: JSON.stringify({ scopes: ['*'] }) });
+  const data = await tokenMutation.mutateAsync({ method: 'POST', body: { scopes: ['*'] } });
   apiToken.value = data.api_token;
-  tokenActive.value = true;
+  tokenMutation.reset();
 }
 async function deleteToken(): Promise<void> {
-  await api('/api/settings/token', { method: 'DELETE' });
+  await tokenMutation.mutateAsync({ method: 'DELETE' });
   apiToken.value = '';
-  tokenActive.value = false;
 }
-onMounted(loadToken);
+
+const webhookMutation = useMutation({
+  mutationFn: ({ path, body }: { path: string; body?: any }) => api<any>(path, { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) }),
+  retry: 0,
+});
 
 async function generateWebhookSecret(): Promise<void> {
   if (form.webhook_secret && !await askConfirm({ title: 'Régénérer le secret webhook ?', message: "L’ancien secret sera invalidé et les webhooks actuellement configurés ne fonctionneront plus.", confirmLabel: 'Régénérer', danger: true })) return;
   try {
-    const res = await api('/api/settings/webhook-secret', { method: 'POST' });
+    const res = await webhookMutation.mutateAsync({ path: '/api/settings/webhook-secret' });
     form.webhook_secret = res.webhook_secret;
     success('Secret genere avec succes.');
   } catch (e) { fail(e); }
@@ -110,7 +118,7 @@ async function configureWebhook(svc: string): Promise<void> {
   configureStatus[svc] = null;
   try {
     const url = `${baseUrl}/webhook/${svc}?secret=${form.webhook_secret}`;
-    const res = await api(`/webhook/configure/${svc}`, { method: 'POST', body: JSON.stringify({ webhook_url: url }) });
+    const res = await webhookMutation.mutateAsync({ path: `/webhook/configure/${svc}`, body: { webhook_url: url } });
     const result = res.results && res.results[0];
     if (result && result.success) {
       configureStatus[svc] = { success: true, message: `Webhook ${svc.charAt(0).toUpperCase() + svc.slice(1)} correctement configuré : ${result.message}` };
@@ -127,7 +135,7 @@ async function configureWebhook(svc: string): Promise<void> {
 async function testWebhook(svc: string): Promise<void> {
   testingWebhook.value = svc;
   try {
-    const res = await api(`/webhook/check-live/${svc}`, { method: 'POST' });
+    const res = await webhookMutation.mutateAsync({ path: `/webhook/check-live/${svc}` });
     const result = res.results && res.results[0];
     webhookStatus[svc] = result ? { success: result.success, message: result.message } : { success: true, message: 'Test effectue (pas de resultat precis)' };
   } catch (e: any) {
