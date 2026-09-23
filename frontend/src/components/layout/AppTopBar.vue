@@ -262,7 +262,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   /* Pas de transition sur `left` : la valeur vient d'une variable qui change au
      repliement du rail, et l'animer figeait la position a l'ancienne valeur. Le rail
      lui-meme n'anime pas sa largeur, la barre n'a donc rien a rattraper. */
-  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translateY(calc(-100% - 14px)); pointer-events: none; }
 .app-topbar__context {

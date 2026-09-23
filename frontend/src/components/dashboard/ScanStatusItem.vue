@@ -63,6 +63,6 @@ const statusLabel = computed(() => running.value ? 'En cours' : props.status ===
 .spinning { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .progress-bar-wrap { width: 100%; height: 3px; background: var(--surface); border-radius: var(--radius-xs); overflow: hidden; }
-.progress-bar { height: 100%; border-radius: var(--radius-xs); transition: width .3s ease; }
+.progress-bar { height: 100%; border-radius: var(--radius-xs); transition: width var(--motion-duration-base) var(--motion-ease-standard); }
 .progress-bar.animated { background: linear-gradient(90deg, var(--accent) 0%, #38bdf8 100%); }
 </style>

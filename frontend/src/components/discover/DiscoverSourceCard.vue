@@ -93,7 +93,7 @@ const fallbackStyle = computed(() => {
   text-decoration: none;
   color: var(--text);
   user-select: none;
-  transition: transform .2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .logo-wrapper {
@@ -107,7 +107,7 @@ const fallbackStyle = computed(() => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  transition: border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 /* Pour les plateformes SVOD (Netflix, Disney+, Prime Video, Canal+, etc.) : l'icone prend 100% de la place */
@@ -205,7 +205,7 @@ const fallbackStyle = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  transition: color .15s ease;
+  transition: color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .discover-source-card:hover .source-caption {

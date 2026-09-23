@@ -342,7 +342,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background-color: var(--surface);
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .calendar-event-card.interactive { cursor: pointer; }
@@ -517,7 +517,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   cursor: pointer;
   text-decoration: none;
   box-shadow: 0 2px 8px rgba(229, 160, 13, 0.35);
-  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition: transform var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .plex-action-btn:hover {
   background: #f5b01d !important;

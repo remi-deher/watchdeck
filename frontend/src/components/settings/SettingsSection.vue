@@ -130,7 +130,7 @@ const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : p
 .settings-section-toggle svg {
   width: 14px;
   height: 14px;
-  transition: transform 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .settings-section-toggle svg.open {

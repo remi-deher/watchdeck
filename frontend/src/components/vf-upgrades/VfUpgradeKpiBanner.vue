@@ -113,7 +113,7 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .kpi-card:hover { transform: translateY(-1px); border-color: var(--border-strong); }

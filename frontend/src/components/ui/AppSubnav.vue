@@ -174,7 +174,7 @@ watch(
   &::after {
     content: '';
     opacity: 0;
-    transition: opacity .15s ease;
+    transition: opacity var(--motion-duration-instant) var(--motion-ease-standard);
     position: absolute;
     top: 0;
     right: 0;

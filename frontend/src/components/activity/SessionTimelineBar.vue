@@ -17,7 +17,7 @@
         @click="toggleExpanded"
       >
         <span>{{ segments.length > 1 ? `${segments.length} segments` : 'Détails' }}</span>
-        <ChevronDown :class="['toggle-chevron', { 'is-open': isExpanded }]" ::size="14" />
+        <ChevronDown :class="['toggle-chevron', { 'is-open': isExpanded }]" :size="14" />
       </button>
     </div>
 
@@ -95,11 +95,11 @@
             @click="highlightedIndex = highlightedIndex === idx ? null : idx"
           >
             <div class="segment-icon-wrapper">
-              <Play v-if="seg.state === 'playing' && seg.playback_method !== 'transcode'" ::size="13" class="icon-play" />
-              <Zap v-else-if="seg.state === 'playing' && seg.playback_method === 'transcode'" ::size="13" class="icon-transcode" />
-              <Pause v-else-if="seg.state === 'paused'" ::size="13" class="icon-pause" />
-              <RotateCw v-else-if="seg.state === 'buffering'" ::size="13" class="icon-buffering" />
-              <Clock v-else ::size="13" />
+              <Play v-if="seg.state === 'playing' && seg.playback_method !== 'transcode'" :size="13" class="icon-play" />
+              <Zap v-else-if="seg.state === 'playing' && seg.playback_method === 'transcode'" :size="13" class="icon-transcode" />
+              <Pause v-else-if="seg.state === 'paused'" :size="13" class="icon-pause" />
+              <RotateCw v-else-if="seg.state === 'buffering'" :size="13" class="icon-buffering" />
+              <Clock v-else :size="13" />
             </div>
 
             <div class="segment-main-info">
@@ -111,13 +111,13 @@
               <div class="segment-sub-info">
                 <!-- Plage d'horloge réelle -->
                 <span class="info-pill" v-if="seg.started_at">
-                  <Clock ::size="10" />
+                  <Clock :size="10" />
                   {{ formatTime(seg.started_at) }}<template v-if="seg.ended_at"> → {{ formatTime(seg.ended_at) }}</template><template v-else> (en cours)</template>
                 </span>
 
                 <!-- Position dans la vidéo -->
                 <span class="info-pill" v-if="seg.view_offset_start_ms !== undefined">
-                  <FastForward ::size="10" />
+                  <FastForward :size="10" />
                   Position : {{ formatDuration(seg.view_offset_start_ms) }}<template v-if="seg.view_offset_end_ms !== undefined"> → {{ formatDuration(seg.view_offset_end_ms) }}</template>
                 </span>
               </div>
@@ -342,7 +342,7 @@ function segmentTooltip(seg: Segment): string {
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm, 0.25rem);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .timeline-toggle-btn:hover {
@@ -352,7 +352,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .toggle-chevron {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .toggle-chevron.is-open {
@@ -380,7 +380,7 @@ function segmentTooltip(seg: Segment): string {
   position: relative;
   height: 100%;
   border-radius: 3px;
-  transition: opacity 0.15s ease, transform 0.15s ease, filter 0.15s ease;
+  transition: opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard), filter var(--motion-duration-instant) var(--motion-ease-standard);
   cursor: pointer;
 }
 
@@ -525,7 +525,7 @@ function segmentTooltip(seg: Segment): string {
   background: var(--bg-surface-soft, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .segment-row:hover,
@@ -612,7 +612,7 @@ function segmentTooltip(seg: Segment): string {
 /* Animations de transition */
 .expand-enter-active,
 .expand-leave-active {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   overflow: hidden;
 }
 

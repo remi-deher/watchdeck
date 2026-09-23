@@ -1175,7 +1175,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 /* ─── Transitions de Mode Découvrir (Fluid Crossfade) ─── */
 .discover-mode-enter-active,
 .discover-mode-leave-active {
-  transition: opacity 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   will-change: opacity, transform;
 }
 .discover-mode-enter-from {
@@ -1216,7 +1216,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 @media (prefers-reduced-motion: reduce) {
   .discover-mode-enter-active,
   .discover-mode-leave-active {
-    transition: opacity 0.15s ease;
+    transition: opacity var(--motion-duration-instant) var(--motion-ease-standard);
     transform: none !important;
   }
   .discover-home-rails > * {

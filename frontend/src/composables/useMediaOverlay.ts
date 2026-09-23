@@ -79,11 +79,17 @@ export function useMediaOverlay(): MediaOverlayState {
     return typeof valeur === 'string' && valeur ? valeur : null;
   });
 
+  // Resolue une seule fois par adresse : passer d'une fiche a l'autre depuis la meme
+  // grille ne doit pas presenter a la page de fond une route « nouvelle » a chaque fois.
+  let derniere: { adresse: string; route: RouteLocationNormalizedLoaded } | null = null;
   const routeDeFond = computed(() => {
     const adresse = adresseDeFond.value;
     if (!adresse) return null;
+    if (derniere?.adresse === adresse) return derniere.route;
     try {
-      return router.resolve(adresse) as unknown as RouteLocationNormalizedLoaded;
+      const route = router.resolve(adresse) as unknown as RouteLocationNormalizedLoaded;
+      derniere = { adresse, route };
+      return route;
     } catch {
       // Une adresse devenue invalide ne doit pas empecher la fiche de s'afficher : on
       // retombe simplement sur la pleine page.

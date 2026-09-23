@@ -219,7 +219,7 @@ const chartPoints = computed(() => {
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .activity-period button.active {
@@ -269,7 +269,7 @@ const chartPoints = computed(() => {
   background: var(--surface-2);
   color: var(--muted);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .activity-series button:hover {

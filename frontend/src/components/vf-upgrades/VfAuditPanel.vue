@@ -31,8 +31,8 @@
               @error="failedPosters.add(`audit-${item.id}`)"
             >
             <div v-else class="media-poster placeholder">
-              <Film v-if="item.media_type === 'movie'" ::size="24" />
-              <Tv v-else ::size="24" />
+              <Film v-if="item.media_type === 'movie'" :size="24" />
+              <Tv v-else :size="24" />
             </div>
           </div>
 
@@ -269,7 +269,7 @@ const failedPosters = ref(new Set<string>());
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  transition: border-color 0.15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .audit-card:hover {

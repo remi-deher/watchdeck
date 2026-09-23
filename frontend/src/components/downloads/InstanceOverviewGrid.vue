@@ -216,7 +216,7 @@ function filterByClient(client: any): void {
   border-radius: var(--radius-md);
   background: var(--surface);
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .instance-card:hover {
@@ -386,7 +386,7 @@ function filterByClient(client: any): void {
 .action-link svg {
   width: 12px;
   height: 12px;
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .instance-card:hover .action-link svg {

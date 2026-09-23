@@ -27,3 +27,6 @@ import ConfirmationService from 'primevue/confirmationservice';
 import ToastService from 'primevue/toastservice';
 config.global.stubs = { ...config.global.stubs, teleport: true };
 config.global.plugins = [...(config.global.plugins || []), PrimeVue, ConfirmationService, ToastService];
+// Directive globale enregistree dans main.ts : sans elle, chaque liste animee avertit.
+import { vListMotion } from '@/motion/vListMotion';
+config.global.directives = { ...config.global.directives, 'list-motion': vListMotion };

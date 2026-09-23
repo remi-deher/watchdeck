@@ -326,7 +326,7 @@ async function submit(): Promise<void> {
   font-size: var(--fs-xs);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 @media (max-width: 640px) {
   .tab-btn { min-height: 44px; }
@@ -370,7 +370,7 @@ async function submit(): Promise<void> {
   color: var(--text);
   font: inherit;
   font-size: var(--fs-xs);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .form-group input:focus,
 .form-group select:focus,
@@ -400,7 +400,7 @@ async function submit(): Promise<void> {
   border-radius: var(--radius-md);
   background: var(--surface-2);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
   font-size: var(--fs-xs);
   color: var(--muted);
   text-align: center;
