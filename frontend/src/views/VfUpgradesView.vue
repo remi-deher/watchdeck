@@ -750,18 +750,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
-  AlertTriangle,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Clock,
-  Download,
   Eye,
   EyeOff,
   Film,
-  Globe,
   MessageSquare,
   MessageSquareOff,
   RotateCcw,
@@ -773,7 +768,6 @@ import {
   Volume2,
   VolumeX,
 } from '@lucide/vue';
-import { api } from '@/api';
 import { useRealtime } from '@/events';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
@@ -792,24 +786,23 @@ import { filterVfUpgradeItems, groupVfUpgradeItems } from '@/utils/vfUpgradeGrou
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { useFeedback } from '@/composables/useFeedback';
 import { useToast } from '@/composables/useToast';
-import { humanizeError } from '@/utils/apiError';
 import { formatDateTimeShort } from '@/utils/format';
 import {
   audioRowClass, audioStatusLabel, canFixStreams, forcedRowClass, forcedStatusLabel, formatBackoff,
   formatRunDuration as formatDuration, runStatusLabel, statusLabel, subtitleRowClass, subtitleStatusLabel, targetLabel,
 } from '@/utils/vfUpgradeLabels';
+import { useAuditShowDetails } from '@/composables/vf/useAuditShowDetails';
+import { useVfAudit } from '@/composables/vf/useVfAudit';
+import { useVfScanHistory } from '@/composables/vf/useVfScanHistory';
+import { useVfSelection } from '@/composables/vf/useVfSelection';
+import { useVfUpgrades } from '@/composables/vf/useVfUpgrades';
 import { useRoute } from 'vue-router';
 
-const activeTab = ref('upgrades'); // 'upgrades' (*arr) | 'audit' (PASTA)
-
-// Onglet 1 : Suggestions d'upgrades (*arr)
-const items = ref([]);
-const scan = ref({});
-const loading = ref(true);
-const scanning = ref(false);
-const waitingTruncated = ref(0);
+const activeTab = ref('upgrades'); // 'upgrades' (*arr) | 'audit' (PASTA) | 'history'
 const settingsOpen = ref(false);
-const selectedKeys = ref(new Set());
+const { message: feedback, type: feedbackType, show, clear: clearFeedback } = useFeedback();
+const { undoable } = useToast();
+
 /* Un lien peut arriver deja filtre : « 1 échec(s) » sur la page Configuration renvoie
    ici avec `?status=failed`. Sans cette lecture, le lien menait a la liste complete et
    laissait l'administrateur retrouver l'echec a la main. */
@@ -821,300 +814,45 @@ const initialStatus = String(route?.query?.status || '');
 const statusFilter = ref(VALID_STATUS_FILTERS.includes(initialStatus) ? initialStatus : 'pending');
 const mediaTypeFilter = ref('');
 const query = ref('');
-const { message: feedback, type: feedbackType, show, clear: clearFeedback } = useFeedback();
-const { undoable } = useToast();
-
-// Onglet 3 : Historique des cycles de scan
-const scanRuns = ref([]);
-const scanRunsLoading = ref(false);
-const liveScan = ref(null);
-let livePollTimer = null;
-
-// Detail par media d'un cycle deplie (voir toggleRunDetail) : rafraichi en direct par
-// itemsPollTimer tant que le cycle ouvert est encore "running".
-const expandedRunId = ref(null);
-const runItems = ref([]);
-const runItemsLoading = ref(false);
-let itemsPollTimer = null;
-
-async function loadScanRuns() {
-  scanRunsLoading.value = true;
-  try {
-    const data = await api('/api/vf-upgrades/scan-runs?limit=20');
-    scanRuns.value = data.runs || [];
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  } finally {
-    scanRunsLoading.value = false;
-  }
-}
-
-async function loadRunItems(runId, { silent = false } = {}) {
-  if (!silent) runItemsLoading.value = true;
-  try {
-    const data = await api(`/api/vf-upgrades/scan-runs/${runId}/items`);
-    runItems.value = data.items || [];
-    return data.run;
-  } catch (e) {
-    if (!silent) show(humanizeError(e), 'error');
-    return null;
-  } finally {
-    runItemsLoading.value = false;
-  }
-}
-
-function stopItemsPolling() {
-  if (itemsPollTimer) {
-    clearInterval(itemsPollTimer);
-    itemsPollTimer = null;
-  }
-}
-
-async function toggleRunDetail(run) {
-  if (expandedRunId.value === run.id) {
-    expandedRunId.value = null;
-    runItems.value = [];
-    stopItemsPolling();
-    return;
-  }
-  stopItemsPolling();
-  expandedRunId.value = run.id;
-  runItems.value = [];
-  await loadRunItems(run.id);
-  if (run.status === 'running') {
-    itemsPollTimer = setInterval(async () => {
-      const runState = await loadRunItems(run.id, { silent: true });
-      if (runState && runState.status !== 'running') {
-        stopItemsPolling();
-        await loadScanRuns();
-      }
-    }, 3000);
-  }
-}
-
-async function pollLiveScan() {
-  try {
-    liveScan.value = await api('/api/vf-upgrades/scan-status');
-    if (liveScan.value?.status !== 'running') {
-      // Le cycle vient de se terminer : rafraîchit la liste pour faire apparaître la ligne finale.
-      await loadScanRuns();
-    }
-  } catch {
-    // Silencieux : un échec de polling ponctuel ne doit pas interrompre l'affichage.
-  }
-}
-
-function startLivePolling() {
-  if (livePollTimer) return;
-  pollLiveScan();
-  livePollTimer = setInterval(pollLiveScan, 3000);
-}
-
-function stopLivePolling() {
-  if (livePollTimer) {
-    clearInterval(livePollTimer);
-    livePollTimer = null;
-  }
-}
-
-
-/* Un réglage modifié depuis la modale change ce que les cycles retiennent (seuil de
-   confiance, garde-fous techniques, portées) : on recharge la liste pour qu'elle
-   reflète la nouvelle configuration plutôt que l'ancienne. */
-async function onSettingsSaved() {
-  settingsOpen.value = false;
-  await load({ silent: true });
-}
-
-
-
-// Onglet 2 : Audit & Alignement des flux (Plex)
-const auditItems = ref([]);
-const auditCounts = ref({
-  total: 0,
-  audio_secondary: 0,
-  sub_fr_not_default: 0,
-  forced_sub_not_default: 0,
-  partial_vf: 0,
-});
-const auditLoading = ref(false);
 const auditIssueFilter = ref('');
 const auditMediaTypeFilter = ref('');
 
-// Dépliage des saisons/épisodes pour les séries dans l'onglet audit
-const expandedAuditShows = ref(new Set());
-const auditShowSeasons = ref(new Map());
+// Onglet « Releases & Telechargements » : suggestions, selection et scan groupe.
+const upgrades = useVfUpgrades(show, undoable);
+const {
+  items, loading, waitingTruncated,
+  pendingCount, waitingReleaseCount, inProgressCount, failedCount, historyCount, ignoredCount,
+  load, dismiss, maintenance,
+} = upgrades;
+const selection = useVfSelection(show, () => load({ silent: true }));
+const { selectedKeys, scanning, scanSelected, clear: clearSelection } = selection;
+const toggleGroupSelection = (group) => selection.toggle(group.key);
+const ignoreSeries = (group, ignored) => upgrades.ignoreMedia(group, ignored);
 
-function isAuditShowExpanded(id) {
-  return expandedAuditShows.value.has(id);
-}
+// Onglet « Alignement des pistes » : audit Plex et detail des series.
+const audit = useVfAudit(show);
+const {
+  items: auditItems, counts: auditCounts, loading: auditLoading, fixingAll,
+  totalCount: auditTotalCount, eligibleFixCount: eligibleAuditFixCount, load: loadAudit,
+} = audit;
+const showDetails = useAuditShowDetails();
+const {
+  isExpanded: isAuditShowExpanded, isLoading: getAuditShowLoading, hasError: getAuditShowError,
+  seasonsOf: getAuditShowSeasons, loadSeason: loadAuditShowSeason,
+} = showDetails;
+const toggleAuditShow = (item) => showDetails.toggle(item.id);
 
-function getAuditShowLoading(id) {
-  return Boolean(auditShowSeasons.value.get(id)?.loading);
-}
-
-function getAuditShowError(id) {
-  return Boolean(auditShowSeasons.value.get(id)?.error);
-}
-
-function getAuditShowSeasons(id) {
-  return auditShowSeasons.value.get(id)?.seasons || [];
-}
-
-async function toggleAuditShow(item) {
-  const next = new Set(expandedAuditShows.value);
-  if (next.has(item.id)) {
-    next.delete(item.id);
-  } else {
-    next.add(item.id);
-    if (!auditShowSeasons.value.has(item.id)) {
-      await loadAuditShowDetail(item.id);
-    }
-  }
-  expandedAuditShows.value = next;
-}
-
-async function loadAuditShowDetail(id) {
-  const map = new Map(auditShowSeasons.value);
-  map.set(id, { loading: true, error: false, seasons: [] });
-  auditShowSeasons.value = map;
-  try {
-    const [envelope, availability, vfStatus] = await Promise.all([
-      api(`/api/library/${id}/episodes`),
-      api(`/api/library/${id}/episodes-availability`).catch(() => ({})),
-      api(`/api/library/${id}/episodes-vf-status`).catch(() => ({})),
-    ]);
-    const availSeasons = Object.fromEntries((availability?.seasons || []).map(s => [s.season_number, s.episodes]));
-    const vfSeasons = Object.fromEntries((vfStatus?.seasons || []).map(s => [s.season_number, s.episodes]));
-
-    const seasons = (envelope?.seasons || []).map(s => {
-      const avail = availSeasons[s.season_number] || {};
-      const vf = vfSeasons[s.season_number] || {};
-      return {
-        season_number: s.season_number,
-        name: s.name,
-        episode_count: s.episode_count,
-        loaded: false,
-        loading: false,
-        error: false,
-        open: true,
-        counts: computeSeasonCounts(avail, vf),
-        episodes: [],
-      };
-    });
-
-    const nextMap = new Map(auditShowSeasons.value);
-    nextMap.set(id, { loading: false, error: false, seasons });
-    auditShowSeasons.value = nextMap;
-
-    await Promise.all(seasons.map(s => loadAuditShowSeason(id, s.season_number)));
-  } catch {
-    const nextMap = new Map(auditShowSeasons.value);
-    nextMap.set(id, { loading: false, error: true, seasons: [] });
-    auditShowSeasons.value = nextMap;
-  }
-}
-
-async function loadAuditShowSeason(itemId, seasonNumber) {
-  const data = auditShowSeasons.value.get(itemId);
-  if (!data || !data.seasons) return;
-  const season = data.seasons.find(s => s.season_number === seasonNumber);
-  if (!season || season.loading) return;
-  season.loading = true;
-  try {
-    const res = await api(`/api/library/${itemId}/episodes/${seasonNumber}`);
-    const [availability, vfStatus] = await Promise.all([
-      api(`/api/library/${itemId}/episodes-availability`).catch(() => ({})),
-      api(`/api/library/${itemId}/episodes-vf-status`).catch(() => ({})),
-    ]);
-    const avail = (availability?.seasons || []).find(s => s.season_number === seasonNumber)?.episodes || {};
-    const vf = (vfStatus?.seasons || []).find(s => s.season_number === seasonNumber)?.episodes || {};
-
-    season.episodes = (res.episodes || []).map(ep => {
-      const av = avail[ep.episode_number];
-      const v = vf[ep.episode_number];
-      let status = 'unknown';
-      if (v) status = v.status;
-      else if (av?.has_file) status = 'present';
-      else if (av?.air_date_utc && new Date(av.air_date_utc) > new Date()) status = 'tba';
-      else if (av?.has_file === false) status = 'absent';
-
-      return {
-        episode: ep.episode_number,
-        title: ep.title,
-        status,
-        tracks: ep.tracks || [],
-        subtitles: ep.subtitles || [],
-        has_forced_fr_sub: v?.has_forced_fr_sub ?? false,
-        forced_fr_sub_is_default: v?.forced_fr_sub_is_default ?? false,
-        has_full_fr_sub: v?.has_full_fr_sub ?? false,
-        full_fr_sub_is_default: v?.full_fr_sub_is_default ?? false,
-        has_any_sub_track: v?.has_any_sub_track ?? true,
-      };
-    });
-    season.loaded = true;
-  } catch {
-    season.error = true;
-  } finally {
-    season.loading = false;
-  }
-}
-
-function computeSeasonCounts(avail, vf) {
-  const keys = new Set([...Object.keys(avail || {}).map(Number), ...Object.keys(vf || {}).map(Number)]);
-  const counts = { vf: 0, vf_secondary: 0, vo: 0, present: 0, absent: 0, tba: 0, unknown: 0, sub_fr_no_track: 0, sub_fr_absent: 0, sub_fr_not_default: 0, forced_fr_not_default: 0 };
-  for (const k of keys) {
-    const v = vf[k];
-    const a = avail[k];
-    if (v?.status === 'vf') counts.vf++;
-    else if (v?.status === 'vf_secondary') counts.vf_secondary++;
-    else if (v?.status === 'vo') counts.vo++;
-    else if (a?.has_file) counts.present++;
-    else if (a?.air_date_utc && new Date(a.air_date_utc) > new Date()) counts.tba++;
-    else if (a?.has_file === false) counts.absent++;
-
-    if (v) {
-      const isFr = v.status === 'vf' || v.status === 'vf_secondary';
-      if (!isFr) {
-        if (v.has_full_fr_sub) {
-          if (!v.full_fr_sub_is_default) counts.sub_fr_not_default++;
-        } else if (v.has_any_sub_track) {
-          counts.sub_fr_absent++;
-        } else {
-          counts.sub_fr_no_track++;
-        }
-      }
-      if (isFr && v.has_forced_fr_sub && !v.forced_fr_sub_is_default) {
-        counts.forced_fr_not_default++;
-      }
-    }
-  }
-  return counts;
-}
+// Onglet « Historique des scans ».
+const history = useVfScanHistory(show);
+const {
+  runs: scanRuns, loading: scanRunsLoading, liveScan, expandedRunId, runItems, runItemsLoading,
+  loadRuns: loadScanRuns, toggleRun: toggleRunDetail,
+} = history;
 
 // Modale d'alignement unitaire
 const alignModalOpen = ref(false);
 const modalItem = ref(null);
 const fixingItemId = ref(null);
-const fixingAll = ref(false);
-
-
-const ACTIVE_STATES = new Set(['accepted', 'downloading', 'importing', 'awaiting_verification']);
-const HISTORY_STATES = new Set(['verified', 'dismissed', 'grabbed']);
-const PENDING_STATUSES = new Set(['pending']);
-
-const pendingCount = computed(() => items.value.filter(i => i.status === 'pending').length);
-const waitingReleaseCount = computed(() => items.value.filter(i => i.status === 'waiting_release').length);
-const inProgressCount = computed(() => items.value.filter(i => ACTIVE_STATES.has(i.status)).length);
-const failedCount = computed(() => items.value.filter(i => i.status === 'failed').length);
-const historyCount = computed(() => items.value.filter(i => HISTORY_STATES.has(i.status) && !i.is_ignored).length);
-const ignoredCount = computed(() => items.value.filter(i => i.is_ignored).length);
-const auditTotalCount = computed(() => auditCounts.value.total || auditItems.value.length || 0);
-
-
-const eligibleAuditFixCount = computed(() => {
-  return auditItems.value.filter(item => canFixStreams(item)).length;
-});
 
 const tabs = computed(() => [
   { key: 'audit', label: 'Alignement des pistes (Plex)', count: eligibleAuditFixCount.value || auditTotalCount.value },
@@ -1124,20 +862,18 @@ const tabs = computed(() => [
 
 function selectTab(value) {
   activeTab.value = value;
-  if (value !== 'upgrades') {
-    clearSelection();
-  }
-  if (value === 'audit' && !auditItems.value.length) {
-    loadAudit();
-  }
-  if (value === 'history') {
-    if (!scanRuns.value.length) loadScanRuns();
-    startLivePolling();
-  } else {
-    stopLivePolling();
-    stopItemsPolling();
-    expandedRunId.value = null;
-  }
+  if (value !== 'upgrades') clearSelection();
+  if (value === 'audit' && !auditItems.value.length) loadAudit();
+  if (value === 'history') history.activate();
+  else history.deactivate();
+}
+
+/* Un réglage modifié depuis la modale change ce que les cycles retiennent (seuil de
+   confiance, garde-fous techniques, portées) : on recharge la liste pour qu'elle
+   reflète la nouvelle configuration plutôt que l'ancienne. */
+async function onSettingsSaved() {
+  settingsOpen.value = false;
+  await load({ silent: true });
 }
 
 const { filtersOpen, toggle: toggleFilters, close: closeFilters } = useFiltersDrawer(
@@ -1183,276 +919,64 @@ const auditFilteredItems = computed(() => {
   });
 });
 
-const failedPosters = ref(new Set());
+// « Tout aligner » ne touche que les medias affiches, filtres compris.
+const fixAllStreams = () => audit.fixAll(auditFilteredItems.value);
 
+const failedPosters = ref(new Set());
 function onPosterError(key) {
   failedPosters.value.add(key);
 }
-
 function hasPoster(group) {
   return Boolean(group.media?.poster_url && !failedPosters.value.has(group.key));
 }
-
 function groupPendingCount(group) {
   return group.items.filter(i => i.status === 'pending').length;
 }
-
 function groupHasWaiting(group) {
   return group.items.some(i => i.status === 'waiting_release');
+}
+function groupIsIgnored(group) {
+  return group.items.some(i => i.is_ignored);
 }
 
 function resetUpgradeFilters() {
   upgradeDrawer.reset();
 }
-
 function resetAuditFilters() {
   auditDrawer.reset();
 }
-
 function toggleAuditFilter(issue) {
   auditIssueFilter.value = auditIssueFilter.value === issue ? '' : issue;
 }
-
 function toggleStatusFilter(status) {
   statusFilter.value = statusFilter.value === status ? 'all' : status;
 }
-
 function setMediaTypeFilter(type) {
-  if (activeTab.value === 'audit') {
-    auditMediaTypeFilter.value = type;
-  } else {
-    mediaTypeFilter.value = type;
-  }
-}
-
-function recomputeAuditCounts() {
-  const counts = {
-    total: 0,
-    audio_secondary: 0,
-    sub_fr_not_default: 0,
-    forced_sub_not_default: 0,
-    partial_vf: 0,
-  };
-  for (const it of auditItems.value) {
-    counts.total++;
-    for (const iss of it.issues || []) {
-      if (counts[iss] !== undefined) counts[iss]++;
-    }
-  }
-  auditCounts.value = counts;
-}
-
-function applyStreamsFixInPlace(itemId, patchData = {}) {
-  const target = auditItems.value.find(it => it.id === itemId);
-  if (!target) return;
-  if (patchData.has_vf !== undefined) target.has_vf = patchData.has_vf;
-  if (patchData.fr_is_default !== undefined) target.fr_is_default = patchData.fr_is_default;
-  else if (target.has_vf) target.fr_is_default = true;
-
-  if (patchData.forced_fr_status !== undefined) target.forced_fr_status = patchData.forced_fr_status;
-  else if (target.forced_fr_status === 'not_default') target.forced_fr_status = 'ok';
-
-  if (patchData.sub_fr_status !== undefined) target.sub_fr_status = patchData.sub_fr_status;
-  else if (target.sub_fr_status === 'not_default') target.sub_fr_status = 'ok';
-  else if (target.sub_fr_status === 'forced_not_default') target.sub_fr_status = 'forced_default';
-
-  target.issues = (target.issues || []).filter(
-    iss => !['audio_secondary', 'forced_sub_not_default', 'sub_fr_not_default'].includes(iss)
-  );
-
-  recomputeAuditCounts();
-}
-
-async function load({ silent = false } = {}) {
-  if (!silent && !items.value.length) {
-    loading.value = true;
-  }
-  try {
-    const data = await api('/api/vf-upgrades/dashboard');
-    items.value = data.items || [];
-    scan.value = data.scan || {};
-    /* Le serveur borne la liste des médias VO encore sans suggestion : on retient
-       combien n'ont pas été renvoyés pour pouvoir l'annoncer. */
-    waitingTruncated.value = Math.max(
-      0,
-      (data.waiting_total || 0) - items.value.filter(i => i.status === 'waiting_release').length,
-    );
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function loadAudit({ silent = false } = {}) {
-  if (!silent && !auditItems.value.length) {
-    auditLoading.value = true;
-  }
-  try {
-    const data = await api('/api/vf-upgrades/audit');
-    auditItems.value = data.items || [];
-    auditCounts.value = data.counts || {
-      total: 0,
-      audio_secondary: 0,
-      missing_sub_fr: 0,
-      sub_fr_not_default: 0,
-      forced_sub_not_default: 0,
-      vo_only: 0,
-      partial_vf: 0,
-    };
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  } finally {
-    auditLoading.value = false;
-  }
+  if (activeTab.value === 'audit') auditMediaTypeFilter.value = type;
+  else mediaTypeFilter.value = type;
 }
 
 function openAlignModal(item) {
   modalItem.value = item;
   alignModalOpen.value = true;
 }
-
 function onStreamsAligned({ item, res }) {
   const userMsg = res?.users_count > 1 ? ` pour ${res.users_count} profils Plex` : '';
   const partsMsg = res?.parts_processed > 1 ? `${res.parts_processed} parties` : 'le média';
   show(`Pistes réalignées avec succès sur Plex sur ${partsMsg}${userMsg}.`);
-  applyStreamsFixInPlace(item.id);
-}
-
-async function fixAllStreams() {
-  const eligible = auditFilteredItems.value.filter(item => canFixStreams(item));
-  if (!eligible.length) return;
-  fixingAll.value = true;
-  try {
-    const itemIds = eligible.map(item => item.id);
-    const res = await api('/api/vf-upgrades/audit/fix-streams-batch', {
-      method: 'POST',
-      body: JSON.stringify({ item_ids: itemIds }),
-    });
-    show(`${res.processed_items || 0} média(s) réaligné(s) sur Plex.`);
-    itemIds.forEach(id => applyStreamsFixInPlace(id));
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  } finally {
-    fixingAll.value = false;
-  }
-}
-
-function toggleGroupSelection(group) {
-  const next = new Set(selectedKeys.value);
-  if (next.has(group.key)) {
-    next.delete(group.key);
-  } else {
-    next.add(group.key);
-  }
-  selectedKeys.value = next;
-}
-
-function clearSelection() {
-  selectedKeys.value = new Set();
-}
-
-async function scanSelected() {
-  const media = [...selectedKeys.value].map(key => {
-    const [source_type, source_id] = key.split(':');
-    return { source_type, source_id: Number(source_id) };
-  });
-  if (!media.length) return;
-  scanning.value = true;
-  try {
-    const result = await api('/api/vf-upgrades/scan-selected', {
-      method: 'POST',
-      body: JSON.stringify({ media }),
-    });
-    show(`${result.scanned || 0} recherche(s), ${result.found || 0} suggestion(s) trouvée(s).`);
-    clearSelection();
-    await load({ silent: true });
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  } finally {
-    scanning.value = false;
-  }
-}
-
-async function dismiss(item) {
-  await api(`/api/vf-upgrades/${item.id}/dismiss`, { method: 'POST' });
-  items.value = items.value.filter(i => i.id !== item.id);
-  /* « Ignorer » se repete une fois par ligne et se clique vite : la notification porte
-     son propre retour arriere plutot que de laisser l'utilisateur relancer une
-     recherche complete pour recuperer une suggestion ecartee par erreur. */
-  undoable('Suggestion ignorée.', 'Annuler', () => restoreDismissed(item));
-}
-
-async function restoreDismissed(item) {
-  try {
-    await api(`/api/vf-upgrades/${item.id}/restore`, { method: 'POST' });
-    await load({ silent: true });
-    show('Suggestion rétablie.');
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  }
-}
-
-function groupIsIgnored(group) {
-  return group.items.some(i => i.is_ignored);
-}
-
-async function ignoreSeries(group, ignored) {
-  try {
-    await api('/api/vf-upgrades/ignore', {
-      method: 'POST',
-      body: JSON.stringify({ source_type: group.source_type, source_id: group.source_id, ignored }),
-    });
-    show(ignored ? 'Média ignoré : le scan de fond ne le reproposera plus.' : 'Média réactivé.');
-    await load({ silent: true });
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  }
-}
-
-async function maintenance(action) {
-  try {
-    const result = await api('/api/vf-upgrades/maintenance', {
-      method: 'POST',
-      body: JSON.stringify({ action }),
-    });
-    show(
-      action === 'purge'
-        ? `${result.deleted} entrée(s) supprimée(s).`
-        : `${result.updated} suggestion(s) réouverte(s).`
-    );
-    await load({ silent: true });
-  } catch (e) {
-    show(humanizeError(e), 'error');
-  }
+  audit.applyStreamsFixInPlace(item.id);
 }
 
 function mediaLink(group) {
   const type = group.source_type === 'request' ? 'request' : 'library';
   return `/library/media/${type}/${group.source_id}`;
 }
-
-
-
-
-
-
-
-
-
 function formatDate(value) {
   return formatDateTimeShort(value, '—');
 }
-
-function seasonHasPending(season) {
-  return season.items.some(item => PENDING_STATUSES.has(item.status));
-}
-
 function seasonStatusSummary(season) {
   const counts = new Map();
-  for (const item of season.items) {
-    counts.set(item.status, (counts.get(item.status) || 0) + 1);
-  }
+  for (const item of season.items) counts.set(item.status, (counts.get(item.status) || 0) + 1);
   return [...counts.entries()].map(([status, count]) => ({ status, count }));
 }
 
@@ -1462,45 +986,28 @@ useRealtime(['vf_upgrade.updated'], (_type, detail) => {
 
   // 1. Mise à jour chirurgicale in-place sur un média d'audit précis (aucun rechargement global)
   if (payload.type === 'streams_aligned' && payload.item_id) {
-    applyStreamsFixInPlace(payload.item_id, payload);
+    audit.applyStreamsFixInPlace(payload.item_id, payload);
     return;
   }
-
   if (payload.type === 'streams_aligned_batch' && Array.isArray(payload.item_ids)) {
-    payload.item_ids.forEach(id => applyStreamsFixInPlace(id));
+    payload.item_ids.forEach(id => audit.applyStreamsFixInPlace(id));
     return;
   }
 
   // 2. Si un cycle d'upgrade unitaire évolue
-  if (payload.id && payload.status) {
-    const targetUpgrade = items.value.find(u => u.id === payload.id);
-    if (targetUpgrade) {
-      targetUpgrade.status = payload.status;
-      if (payload.arr_message) targetUpgrade.arr_message = payload.arr_message;
-      return;
-    }
-  }
+  if (payload.id && payload.status && upgrades.patchStatus(payload.id, payload.status, payload.arr_message)) return;
 
   // 3. Rechargement discret en arrière-plan uniquement si un scan complet est terminé
   if (payload.action === 'scan_completed') {
     load({ silent: true });
-    if (activeTab.value === 'audit') {
-      loadAudit({ silent: true });
-    }
-    if (activeTab.value === 'history') {
-      loadScanRuns();
-    }
+    if (activeTab.value === 'audit') loadAudit({ silent: true });
+    if (activeTab.value === 'history') loadScanRuns();
   }
 });
 
 onMounted(() => {
   load();
   loadAudit();
-});
-
-onUnmounted(() => {
-  stopLivePolling();
-  stopItemsPolling();
 });
 </script>
 
