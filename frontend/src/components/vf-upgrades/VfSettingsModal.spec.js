@@ -1,7 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { VueQueryPlugin } from '@tanstack/vue-query';
 
 import { api } from '@/api';
+import { createQueryClient } from '@/queryClient';
 import { form } from '@/settingsForm';
 
 import VfSettingsModal from './VfSettingsModal.vue';
@@ -30,7 +32,13 @@ describe('VfSettingsModal', () => {
 
   async function openModal(serverState = {}) {
     api.mockResolvedValueOnce({ vf_upgrade_min_confidence: 65, vf_upgrade_protect_resolution: true, ...serverState });
-    const wrapper = mount(VfSettingsModal, { props: { open: true }, global: { stubs: { teleport: true } } });
+    const wrapper = mount(VfSettingsModal, {
+      props: { open: true },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]],
+        stubs: { teleport: true },
+      },
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
     return wrapper;
   }
