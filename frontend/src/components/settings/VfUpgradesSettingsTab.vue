@@ -220,6 +220,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { form } from '@/settingsForm';
@@ -254,34 +255,38 @@ const confidenceHint = computed(() => {
 /* Diagnostic de la configuration langue des instances *arr : lecture seule, a la
    demande (un appel par instance vers /customformat + /qualityprofile), jamais au
    chargement de l'onglet. */
-const diagnostic = ref<any>(null);
-const diagLoading = ref(false);
+const queryClient = useQueryClient();
+const diagnosticQuery = useQuery({
+  queryKey: ['settings', 'vf-upgrades', 'arr-language-config'],
+  queryFn: () => api('/api/vf-upgrades/arr-language-config'),
+  enabled: false,
+});
+const diagnostic = computed(() => diagnosticQuery.data.value || null);
+const diagLoading = computed(() => diagnosticQuery.isFetching.value);
 const diagError = ref('');
-const installing = ref<number | null>(null);
+const installMutation = useMutation({
+  mutationFn: (id: number) => api<any>(`/api/vf-upgrades/arr-language-config/${id}/custom-format`, { method: 'POST' }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'vf-upgrades', 'arr-language-config'] }),
+});
+const installing = computed(() => installMutation.isPending.value ? Number(installMutation.variables.value) : null);
 
 async function loadDiagnostic() {
-  diagLoading.value = true;
   diagError.value = '';
   try {
-    diagnostic.value = await api('/api/vf-upgrades/arr-language-config');
+    await diagnosticQuery.refetch();
   } catch (e: any) {
     diagError.value = e?.message || 'Analyse impossible.';
-  } finally {
-    diagLoading.value = false;
   }
 }
 
 async function installCustomFormat(inst: any) {
-  installing.value = inst.id;
   diagError.value = '';
   try {
-    const res = await api(`/api/vf-upgrades/arr-language-config/${inst.id}/custom-format`, { method: 'POST' });
+    const res = await installMutation.mutateAsync(inst.id);
     diagError.value = res.next_step || '';
-    await loadDiagnostic();
   } catch (e: any) {
     diagError.value = e?.message || 'Création impossible.';
-  } finally {
-    installing.value = null;
   }
 }
 
