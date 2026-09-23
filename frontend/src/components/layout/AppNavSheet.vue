@@ -68,7 +68,7 @@
             <UserRound aria-hidden="true" /><span>Profil</span>
           </RouterLink>
           <a class="app-nav-link app-sheet__link" href="/privacy"><ShieldCheck aria-hidden="true" /><span>Confidentialité</span></a>
-          <a class="app-nav-link app-sheet__link" href="/logout" @click="clearCache"><LogOut aria-hidden="true" /><span>Déconnexion</span></a>
+          <a class="app-nav-link app-sheet__link" href="/logout" @click.prevent="seDeconnecter"><LogOut aria-hidden="true" /><span>Déconnexion</span></a>
         </section>
       </div>
     </div>
@@ -79,7 +79,16 @@
 import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { LogOut, Search, ShieldCheck, UserRound, X } from '@lucide/vue';
-import { clearCache } from '@/cache';
+import { useQueryClient } from '@tanstack/vue-query';
+import { effacerStockage } from '@/offline/stockage';
+
+const queryClient = useQueryClient();
+/* Tout ce que l'application a conserve sur l'appareil est efface AVANT de quitter la
+   page : un effacement lance au moment ou la page se decharge n'a pas le temps d'aboutir. */
+async function seDeconnecter(): Promise<void> {
+  await Promise.race([effacerStockage(queryClient), new Promise((r) => setTimeout(r, 1500))]);
+  window.location.href = '/logout';
+}
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
 import { useModalA11y } from '@/composables/useModalA11y';
 import { destinationsFor, type NavDestination } from '@/navigation';

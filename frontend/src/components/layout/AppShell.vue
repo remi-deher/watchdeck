@@ -27,6 +27,7 @@
     />
 
     <main id="main-content" class="app-shell__main" tabindex="-1">
+      <OfflineBanner />
       <slot />
     </main>
 
@@ -82,6 +83,7 @@ import { useRailCollapsed } from '@/composables/useRailCollapsed';
 import { isTypingTarget } from '@/utils/focus';
 import { usePageSections } from '@/composables/usePageSections';
 import { usePageTitle } from '@/composables/usePageTitle';
+import OfflineBanner from './OfflineBanner.vue';
 import { useShellMode } from '@/composables/useShellMode';
 import { destinationForPath, dockDestinationsFor } from '@/navigation';
 

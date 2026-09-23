@@ -186,41 +186,8 @@
 }
 
 
-/* ───────────────────────── Passage d'une page a l'autre ─────────────────────────
- *
- * Fondu enchaine par les transitions de vue du navigateur (voir `usePageExit`). Seul le
- * contenu y participe : la racine est soustraite a la transition, pour que la barre
- * laterale, le dock et l'en-tete ne clignotent pas avec lui. La page qui part recule a
- * peine et s'efface vite ; celle qui arrive monte de quelques pixels et se pose.
- */
-:root { view-transition-name: none; }
-#main-content { view-transition-name: page; }
-::view-transition-group(page) { animation-duration: var(--motion-duration-base); }
-::view-transition-old(page) {
-  animation: page-vt-out var(--motion-duration-fast) var(--motion-ease-exit) both;
-}
-::view-transition-new(page) {
-  animation: page-vt-in var(--motion-duration-base) var(--motion-ease-emphasized) both;
-}
-/* Les deux photos gardent leur taille propre : sans cela le navigateur les etire l'une
-   vers l'autre quand les deux pages n'ont pas la meme hauteur. */
-::view-transition-old(page),
-::view-transition-new(page) { height: auto; width: 100%; object-fit: none; object-position: top; }
-@keyframes page-vt-out { to { opacity: 0; transform: translateY(-6px) scale(0.99); } }
-@keyframes page-vt-in { from { opacity: 0; transform: translateY(14px); } }
-
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) { animation: none !important; }
-}
-
-/* Le transport de l'affiche ne passe plus par les transitions de vue du navigateur.
- * Elles photographient l'ancien et le nouvel etat de part et d'autre d'une navigation,
- * or la fiche charge ses donnees apres coup : au moment de la seconde photo, l'affiche
- * d'arrivee n'existait pas encore et il n'y avait rien a relier. Le trajet est desormais
- * mesure et rejoue (voir `usePosterMorph`), ce qui l'affranchit du calendrier de la
- * navigation -- et du support de `startViewTransition`.
+/* Le transport de l'affiche jusqu'a la fiche a ete retire : il mesurait et deplacait
+ * l'affiche pendant que la fiche se construisait, et saccadait sur iPhone.
  */
 
 

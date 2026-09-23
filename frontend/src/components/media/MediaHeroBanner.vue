@@ -69,7 +69,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mediaDetailPath } from '@/mediaUrl';
 import { useRoute, useRouter } from 'vue-router';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
-import { memoriserOrigine } from '@/composables/usePosterMorph';
+import { memoriserApercu } from '@/composables/useFicheApercu';
 import MediaStatusBadge from '@/components/media/MediaStatusBadge.vue';
 
 const props = withDefaults(
@@ -141,7 +141,7 @@ const route = useRoute();
 function ouvrirEnSurface(event: MouseEvent): void {
   if (!to.value || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) return;
   event.preventDefault();
-  memoriserOrigine(null, activeItem.value);
+  memoriserApercu(activeItem.value);
   ouvrirFiche(router, to.value as any, route.fullPath);
 }
 

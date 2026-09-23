@@ -1,6 +1,4 @@
 import { onBeforeUnmount, watch, type Ref } from 'vue';
-import { animate } from 'motion-v';
-import { ressort } from '@/motion/tokens';
 
 /**
  * Fermer une feuille en la tirant vers le bas, depuis n'importe ou dans son contenu.
@@ -13,7 +11,9 @@ import { ressort } from '@/motion/tokens';
  * Pendant le geste, la feuille suit le doigt a l'identique, et ne resiste qu'une fois
  * bien descendue ; le voile s'eclaircit a mesure. Au relachement, elle part si on l'a
  * tiree au-dela du quart de sa hauteur ou lancee assez vite, en gardant la vitesse du
- * doigt ; sinon un ressort la remet en place.
+ * doigt ; sinon elle revient a sa place. Ces deux fins sont des transitions CSS : Safari
+ * les confie au GPU, la ou un ressort pilote en script saccadait des que le fil
+ * principal travaillait.
  *
  * Le tactile passe par `touchmove` non passif plutot que par les evenements de pointeur :
  * c'est le seul moyen, sur iOS, de reprendre au navigateur un glissement qu'il
@@ -76,7 +76,7 @@ export function useSheetGesture(
   let mode: 'attente' | 'geste' | 'defilement' | null = null;
   let position = 0;
   let echantillons: Echantillon[] = [];
-  let enCours: { stop: () => void } | null = null;
+  let finTransition: (() => void) | null = null;
   let fermee = false;
 
   const panel = () => resoudre(panelRef.value);
@@ -113,9 +113,37 @@ export function useSheetGesture(
     return true;
   }
 
+  /** Anime la feuille jusqu'a `y` par une transition CSS, puis appelle `fin`. */
+  function glisserVers(y: number, duree: number, courbe: string, fin?: () => void): void {
+    const el = panel();
+    if (!el) { fin?.(); return; }
+    const v = leVoile();
+    el.style.transition = `transform ${duree}ms ${courbe}`;
+    if (v) v.style.transition = `background-color ${duree}ms ${courbe}`;
+    let fait = false;
+    const achever = () => {
+      if (fait) return;
+      fait = true;
+      el.removeEventListener('transitionend', achever);
+      el.style.transition = '';
+      if (v) v.style.transition = '';
+      finTransition = null;
+      fin?.();
+    };
+    finTransition = achever;
+    el.addEventListener('transitionend', achever);
+    setTimeout(achever, duree + 80); // filet : un transitionend qui ne vient jamais
+    poser(y);
+  }
+
   function commencer(x: number, y: number, t: number): void {
-    enCours?.stop();
-    enCours = null;
+    // Un doigt qui reprend une feuille en mouvement l'arrete ou elle est.
+    if (finTransition) {
+      const el = panel();
+      const courant = el ? new DOMMatrixReadOnly(getComputedStyle(el).transform).m42 : 0;
+      finTransition();
+      poser(courant);
+    }
     departX = x;
     departY = y - position; // reprendre une feuille encore en mouvement sans a-coup
     echantillons = [{ t, y: position }];
@@ -153,17 +181,14 @@ export function useSheetGesture(
     if (doitFermer(position, v, hauteur)) {
       fermee = true;
       if (mouvementReduit()) { onClose(); return; }
-      // La feuille part avec l'elan du doigt, puis la fermeture proprement dite a lieu.
-      const depart = animate(position, hauteur + 40, {
-        type: 'spring', ...ressort.lancer, velocity: v * 1000,
-        restDelta: 2, onUpdate: poser,
-      });
-      enCours = depart;
-      void depart.finished.then(onClose, onClose);
+      // Plus le lancer est vif, plus la feuille part vite : elle garde l'allure du doigt.
+      const restant = hauteur + 40 - position;
+      const duree = Math.round(Math.min(280, Math.max(140, v > 0 ? restant / v : 280)));
+      glisserVers(hauteur + 40, duree, 'cubic-bezier(0.2, 0.6, 0.4, 1)', onClose);
       return;
     }
     if (mouvementReduit()) { poser(0); return; }
-    enCours = animate(position, 0, { type: 'spring', ...ressort.retour, velocity: v * 1000, onUpdate: poser });
+    glisserVers(0, 260, 'cubic-bezier(0.16, 1, 0.3, 1)');
   }
 
   // ── Tactile ────────────────────────────────────────────────────────────────
@@ -230,7 +255,7 @@ export function useSheetGesture(
   );
 
   onBeforeUnmount(() => {
-    enCours?.stop();
+    finTransition = null;
     if (courant) debrancher(courant);
     courant = null;
   });

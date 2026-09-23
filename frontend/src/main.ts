@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import { vListMotion } from '@/motion/vListMotion';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { VueQueryPlugin } from '@tanstack/vue-query';
+import { brancherStockage } from '@/offline/stockage';
 import PrimeVue from 'primevue/config';
 import ToastService from 'primevue/toastservice';
 import ConfirmationService from 'primevue/confirmationservice';
@@ -154,7 +155,7 @@ createApp(App)
   .component('UiFeedback', UiFeedback)
   .component('FormSaveBar', FormSaveBar)
   .use(settingsPinia)
-  .use(VueQueryPlugin, { queryClient: createQueryClient() })
+  .use(VueQueryPlugin, { queryClient: createQueryClient(), clientPersister: brancherStockage })
   .use(PrimeVue, {
     ripple: false,
     theme: {
