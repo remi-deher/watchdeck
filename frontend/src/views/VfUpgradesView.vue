@@ -133,10 +133,10 @@
         <!-- Onglet 3 : Historique des cycles de scan -->
         <template v-else-if="activeTab === 'history'">
           <VfScanHistory
-            :live-scan="liveScan"
+            :live-scan="liveScan ?? undefined"
             :runs="scanRuns"
             :loading="scanRunsLoading"
-            :expanded-run-id="expandedRunId"
+            :expanded-run-id="expandedRunId ?? undefined"
             :items="runItems"
             :items-loading="runItemsLoading"
             :format-date="formatDate"
@@ -166,7 +166,7 @@
   </AppPage>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { RotateCcw, ScanSearch, Settings, SlidersHorizontal } from '@lucide/vue';
 import { useRealtime } from '@/events';
@@ -188,13 +188,16 @@ import { useFeedback } from '@/composables/useFeedback';
 import { useToast } from '@/composables/useToast';
 import { formatDateTimeShort } from '@/utils/format';
 import { canFixStreams, formatRunDuration as formatDuration, runStatusLabel } from '@/utils/vfUpgradeLabels';
+import type { VfUpgradeGroup } from '@/types/vfUpgrades';
+import type { AuditItem, VfUpgradeEvent } from '@/composables/vf/types';
 import { useVfAudit } from '@/composables/vf/useVfAudit';
 import { useVfScanHistory } from '@/composables/vf/useVfScanHistory';
 import { useVfSelection } from '@/composables/vf/useVfSelection';
 import { useVfUpgrades } from '@/composables/vf/useVfUpgrades';
 import { useRoute } from 'vue-router';
 
-const activeTab = ref('upgrades'); // 'upgrades' (*arr) | 'audit' (PASTA) | 'history'
+type VfTab = 'upgrades' | 'audit' | 'history';
+const activeTab = ref<VfTab>('upgrades'); // *arr | audit des pistes Plex | historique des scans
 const settingsOpen = ref(false);
 const { message: feedback, type: feedbackType, show, clear: clearFeedback } = useFeedback();
 const { undoable } = useToast();
@@ -207,7 +210,7 @@ const { undoable } = useToast();
 const route = useRoute();
 const VALID_STATUS_FILTERS = ['pending', 'waiting_release', 'in_progress', 'failed', 'history', 'ignored', 'all'];
 const initialStatus = String(route?.query?.status || '');
-const statusFilter = ref(VALID_STATUS_FILTERS.includes(initialStatus) ? initialStatus : 'pending');
+const statusFilter = ref<string>(VALID_STATUS_FILTERS.includes(initialStatus) ? initialStatus : 'pending');
 const mediaTypeFilter = ref('');
 const query = ref('');
 const auditIssueFilter = ref('');
@@ -222,8 +225,8 @@ const {
 } = upgrades;
 const selection = useVfSelection(show, () => load({ silent: true }));
 const { selectedKeys, scanning, scanSelected, clear: clearSelection } = selection;
-const toggleGroupSelection = (group) => selection.toggle(group.key);
-const ignoreSeries = (group, ignored) => upgrades.ignoreMedia(group, ignored);
+const toggleGroupSelection = (group: VfUpgradeGroup) => selection.toggle(group.key);
+const ignoreSeries = (group: VfUpgradeGroup, ignored: boolean) => upgrades.ignoreMedia(group, ignored);
 
 // Onglet « Alignement des pistes » : audit Plex et detail des series.
 const audit = useVfAudit(show);
@@ -241,7 +244,7 @@ const {
 
 // Modale d'alignement unitaire
 const alignModalOpen = ref(false);
-const modalItem = ref(null);
+const modalItem = ref<AuditItem | null>(null);
 
 const tabs = computed(() => [
   { key: 'audit', label: 'Alignement des pistes (Plex)', count: eligibleAuditFixCount.value || auditTotalCount.value },
@@ -249,7 +252,8 @@ const tabs = computed(() => [
   { key: 'history', label: 'Historique des scans' },
 ]);
 
-function selectTab(value) {
+function selectTab(value: string): void {
+  if (value !== 'upgrades' && value !== 'audit' && value !== 'history') return;
   activeTab.value = value;
   if (value !== 'upgrades') clearSelection();
   if (value === 'audit' && !auditItems.value.length) loadAudit();
@@ -260,7 +264,7 @@ function selectTab(value) {
 /* Un réglage modifié depuis la modale change ce que les cycles retiennent (seuil de
    confiance, garde-fous techniques, portées) : on recharge la liste pour qu'elle
    reflète la nouvelle configuration plutôt que l'ancienne. */
-async function onSettingsSaved() {
+async function onSettingsSaved(): Promise<void> {
   settingsOpen.value = false;
   await load({ silent: true });
 }
@@ -302,7 +306,7 @@ const auditFilteredItems = computed(() => {
     if (auditIssueFilter.value === 'eligible') {
       matchesIssue = canFixStreams(item);
     } else if (auditIssueFilter.value) {
-      matchesIssue = item.issues?.includes(auditIssueFilter.value);
+      matchesIssue = Boolean(item.issues?.includes(auditIssueFilter.value));
     }
     return matchesQuery && matchesMedia && matchesIssue;
   });
@@ -312,41 +316,41 @@ const auditFilteredItems = computed(() => {
 const fixAllStreams = () => audit.fixAll(auditFilteredItems.value);
 
 
-function resetUpgradeFilters() {
+function resetUpgradeFilters(): void {
   upgradeDrawer.reset();
 }
-function resetAuditFilters() {
+function resetAuditFilters(): void {
   auditDrawer.reset();
 }
-function toggleAuditFilter(issue) {
+function toggleAuditFilter(issue: string): void {
   auditIssueFilter.value = auditIssueFilter.value === issue ? '' : issue;
 }
-function toggleStatusFilter(status) {
+function toggleStatusFilter(status: string): void {
   statusFilter.value = statusFilter.value === status ? 'all' : status;
 }
-function setMediaTypeFilter(type) {
+function setMediaTypeFilter(type: string): void {
   if (activeTab.value === 'audit') auditMediaTypeFilter.value = type;
   else mediaTypeFilter.value = type;
 }
 
-function openAlignModal(item) {
+function openAlignModal(item: AuditItem): void {
   modalItem.value = item;
   alignModalOpen.value = true;
 }
-function onStreamsAligned({ item, res }) {
-  const userMsg = res?.users_count > 1 ? ` pour ${res.users_count} profils Plex` : '';
-  const partsMsg = res?.parts_processed > 1 ? `${res.parts_processed} parties` : 'le média';
+function onStreamsAligned({ item, res }: { item: AuditItem; res?: { users_count?: number; parts_processed?: number } }): void {
+  const userMsg = (res?.users_count ?? 0) > 1 ? ` pour ${res?.users_count} profils Plex` : '';
+  const partsMsg = (res?.parts_processed ?? 0) > 1 ? `${res?.parts_processed} parties` : 'le média';
   show(`Pistes réalignées avec succès sur Plex sur ${partsMsg}${userMsg}.`);
   audit.applyStreamsFixInPlace(item.id);
 }
 
-function formatDate(value) {
+function formatDate(value?: string | null): string {
   return formatDateTimeShort(value, '—');
 }
 
 // Branchement temps réel SSE ciblé par composant
 useRealtime(['vf_upgrade.updated'], (_type, detail) => {
-  const payload = detail?.payload || detail || {};
+  const payload: VfUpgradeEvent = detail?.payload || detail || {};
 
   // 1. Mise à jour chirurgicale in-place sur un média d'audit précis (aucun rechargement global)
   if (payload.type === 'streams_aligned' && payload.item_id) {
@@ -354,7 +358,7 @@ useRealtime(['vf_upgrade.updated'], (_type, detail) => {
     return;
   }
   if (payload.type === 'streams_aligned_batch' && Array.isArray(payload.item_ids)) {
-    payload.item_ids.forEach(id => audit.applyStreamsFixInPlace(id));
+    payload.item_ids.forEach((id) => audit.applyStreamsFixInPlace(id));
     return;
   }
 

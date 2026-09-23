@@ -1,3 +1,5 @@
+import type { VfUpgradeStatus } from '@/types/vfUpgrades';
+
 /* Formes des donnees de la page « Ameliorations VF & Flux ».
  *
  * Les suggestions (`VfUpgradeItem`) et leurs regroupements sont deja types dans
@@ -122,3 +124,15 @@ export interface EpisodeVfState {
 
 /** Signale un message a l'utilisateur ; `type` vaut « error » pour un echec. */
 export type Notify = (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+
+/** Evenement temps reel `vf_upgrade.updated` : une correction d'audit, le suivi d'une
+ *  suggestion, ou la fin d'un cycle de scan. */
+export interface VfUpgradeEvent extends StreamsFixPatch {
+  type?: 'streams_aligned' | 'streams_aligned_batch' | string;
+  item_id?: number;
+  item_ids?: number[];
+  id?: number;
+  status?: VfUpgradeStatus;
+  arr_message?: string;
+  action?: 'scan_completed' | string;
+}
