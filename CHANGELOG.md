@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.35.2 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- poser une poignee sur les feuilles, et cesser de faire clignoter Safari ([87482e7](https://github.com/remi-deher/watchdeck/commit/87482e72d16515beeb6e7a77a2ef956da7b7b2c6))
 ## 1.35.1 — 2026-09-21
 
 
 ### 🐛 Corrections
 
 - ne plus perdre la chaine de requete, et animer la sortie de page ([55815bb](https://github.com/remi-deher/watchdeck/commit/55815bb3f07a51e55da0ac52f7b133a4eee673af))
+
+### 🔧 Maintenance
+
+- v1.35.1 (#387) ([e507638](https://github.com/remi-deher/watchdeck/commit/e5076389fbba9220592747c45a56e22aefbe32aa))
 ## 1.35.0 — 2026-09-21
 
 
