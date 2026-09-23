@@ -342,7 +342,7 @@ function segmentTooltip(seg: Segment): string {
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm, 0.25rem);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .timeline-toggle-btn:hover {
@@ -352,7 +352,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .toggle-chevron {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .toggle-chevron.is-open {
@@ -380,7 +380,7 @@ function segmentTooltip(seg: Segment): string {
   position: relative;
   height: 100%;
   border-radius: 3px;
-  transition: opacity 0.15s ease, transform 0.15s ease, filter 0.15s ease;
+  transition: opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard), filter var(--motion-duration-instant) var(--motion-ease-standard);
   cursor: pointer;
 }
 
@@ -525,7 +525,7 @@ function segmentTooltip(seg: Segment): string {
   background: var(--bg-surface-soft, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .segment-row:hover,
@@ -612,7 +612,7 @@ function segmentTooltip(seg: Segment): string {
 /* Animations de transition */
 .expand-enter-active,
 .expand-leave-active {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   overflow: hidden;
 }
 

@@ -204,7 +204,7 @@ function metaLine(item: any): string {
   height: 100%;
   border-radius: inherit;
   background: var(--accent);
-  transition: width .3s ease;
+  transition: width var(--motion-duration-base) var(--motion-ease-standard);
 }
 .queue-progress i.is-done { background: #22c55e; }
 .queue-progress i.is-error { background: #ef4444; }

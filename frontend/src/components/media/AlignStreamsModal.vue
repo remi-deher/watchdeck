@@ -715,7 +715,7 @@ async function confirmAlign(): Promise<void> {
   border-radius: var(--radius-xs);
   font-size: var(--fs-sm);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--motion-duration-fast);
 
   &:focus {
     border-color: var(--accent);
@@ -964,7 +964,7 @@ async function confirmAlign(): Promise<void> {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .radio-option:hover {

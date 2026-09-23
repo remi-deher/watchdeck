@@ -130,7 +130,7 @@ const progressObj = computed(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard);
   position: relative;
   overflow: hidden;
 }
@@ -188,7 +188,7 @@ const progressObj = computed(() => {
   height: 100%;
   background: var(--accent);
   border-radius: inherit;
-  transition: width 0.3s ease;
+  transition: width var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 .metric-card-sparkline {

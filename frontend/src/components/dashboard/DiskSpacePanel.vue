@@ -141,7 +141,7 @@ function usedRatio(volume: DiskVolume): number {
   height: 100%;
   background: var(--success);
   border-radius: inherit;
-  transition: width 0.3s ease;
+  transition: width var(--motion-duration-base) var(--motion-ease-standard);
 }
 .progress-bar.is-warning {
   background: #f59e0b;

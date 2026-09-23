@@ -67,7 +67,7 @@ function handleClick(event: MouseEvent) {
 </script>
 
 <style scoped lang="scss">
-.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--btn-radius); font: inherit; font-size: var(--fs-sm); font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease; }
+.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--btn-radius); font: inherit; font-size: var(--fs-sm); font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard); }
 .ui-button--sm { min-height: 36px; padding-inline: 11px; }
 .ui-button--primary { border-color: var(--accent); background: var(--accent); color: #151515; }
 .ui-button--secondary { border-color: var(--border); background: var(--surface-2); color: var(--text); }

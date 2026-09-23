@@ -98,7 +98,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.ui-sear
   border-radius: var(--radius-sm);
   padding: 0 12px;
   width: 100%;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 select {
@@ -156,7 +156,7 @@ input[type="checkbox"] {
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   flex-shrink: 0;
 }
 
@@ -218,7 +218,7 @@ input[type="checkbox"]:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   white-space: nowrap;
   scroll-snap-align: start;
 }
@@ -565,7 +565,7 @@ code {
   aspect-ratio: 2 / 3;
   object-fit: cover;
   background: var(--surface-2);
-  transition: transform 0.4s ease;
+  transition: transform var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 .poster-fallback {
@@ -1067,7 +1067,7 @@ button:disabled {
 
 .calendar-event.interactive {
   cursor: pointer;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .calendar-event.interactive:hover {
@@ -1198,7 +1198,7 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .settings-card::before {
@@ -1209,7 +1209,7 @@ button:disabled {
   bottom: 0;
   width: 3px;
   background: var(--border);
-  transition: background 0.2s ease;
+  transition: background var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .settings-card.active::before {
@@ -1345,7 +1345,7 @@ button:disabled {
   font-size: var(--fs-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  transition: color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), background var(--motion-duration-fast) var(--motion-ease-standard);
   flex-shrink: 0;
 }
 
@@ -1363,7 +1363,7 @@ button:disabled {
 .chevron svg {
   width: 15px;
   height: 15px;
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .chevron.open {
@@ -1509,7 +1509,7 @@ button:disabled {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   flex-wrap: wrap;
-  transition: background 0.15s;
+  transition: background var(--motion-duration-instant);
 }
 
 .vff-library-row:hover {
@@ -1561,7 +1561,7 @@ button:disabled {
 
 .detail-row.clickable {
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .detail-row.clickable:hover {
@@ -1593,7 +1593,7 @@ button:disabled {
   padding: 10px;
   border-radius: var(--radius-md);
   text-align: center;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .poster-card:hover {
@@ -1670,7 +1670,7 @@ button:disabled {
   height: 100%;
   background: var(--accent-gradient);
   border-radius: var(--radius-xs);
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 .progress-bar.animated {
@@ -1702,7 +1702,7 @@ button:disabled {
 /* Slide Up Transition */
 .slide-up-enter-active,
 .slide-up-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-base) var(--motion-ease-standard), border-color var(--motion-duration-base) var(--motion-ease-standard), color var(--motion-duration-base) var(--motion-ease-standard), box-shadow var(--motion-duration-base) var(--motion-ease-standard), opacity var(--motion-duration-base) var(--motion-ease-standard), transform var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 .slide-up-enter-from,
@@ -1790,7 +1790,7 @@ button:disabled {
 .ratio-segment {
   height: 100%;
   border-radius: var(--radius-xs);
-  transition: width 0.4s ease;
+  transition: width var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 .ratio-segment.movie-seg { background: var(--accent-gradient); }

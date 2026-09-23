@@ -61,7 +61,7 @@ withDefaults(
   border-radius: var(--radius-md);
   background: var(--surface-2);
   object-fit: cover;
-  transition: transform .2s ease, border-color .2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .cast-placeholder {
   display: grid;

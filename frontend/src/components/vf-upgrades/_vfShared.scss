@@ -122,7 +122,7 @@
   content: '▸';
   display: inline-block;
   color: var(--muted);
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .season-group[open] > .season-summary::before {

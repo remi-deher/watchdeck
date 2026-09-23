@@ -4,48 +4,44 @@
       <motion.div
         v-if="open"
         key="media-overlay"
+        ref="voileRef"
         class="media-overlay"
         :initial="{ opacity: 0 }"
         :animate="{ opacity: 1 }"
-        :exit="{ opacity: 0 }"
-        :transition="{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }"
+        :exit="{ opacity: 0, transition: { duration: duree.rapide, ease: courbe.sortie } }"
+        :transition="{ duration: duree.base, ease: courbe.entree }"
         @click.self="$emit('close')"
       >
-        <!-- La surface monte depuis le bas en prenant sa taille. Le depassement leger a
-             l'arrivee -- le ressort plutot qu'une simple deceleration -- est ce qui
-             distingue une surface qu'on ouvre d'un panneau qui apparait. -->
-        <!-- Le geste est confie a `motion-v` plutot qu'a nos propres ecouteurs : c'est
-             lui qui tient la transformation de ce panneau, et un style pose a la main
-             etait efface a l'image suivante. `dragElastic` a 0 vers le haut : la fiche
-             ne monte pas au-dela de sa place, elle ne fait que descendre. -->
+        <!-- Deux etages. L'enveloppe porte l'ouverture et la fermeture -- la surface monte
+             depuis le bas avec un leger depassement, ce qui distingue une surface qu'on
+             ouvre d'un panneau qui apparait. Le panneau, dedans, porte le geste : sa
+             translation s'ajoute a celle de l'enveloppe, et aucune ne defait l'autre. -->
         <motion.div
-          ref="panelRef"
-          class="media-overlay__panel"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="ariaLabel"
-          :initial="{ opacity: 0, y: 48, scale: 0.94 }"
+          class="media-overlay__frame"
+          :initial="{ opacity: 0, y: 90, scale: 0.96 }"
           :animate="{ opacity: 1, y: 0, scale: 1 }"
-          :exit="{ opacity: 0, y: 32, scale: 0.96 }"
-          :transition="{ type: 'spring', stiffness: 260, damping: 28, mass: 0.9 }"
-          drag="y"
-          :drag-constraints="{ top: 0, bottom: 0 }"
-          :drag-elastic="{ top: 0, bottom: 0.55 }"
-          :drag-listener="false"
-          :drag-controls="controls"
-          :on-drag-end="onDragEnd"
+          :exit="{ opacity: 0, y: 70, scale: 0.97, transition: { duration: duree.rapide, ease: courbe.sortie } }"
+          :transition="{ type: 'spring', ...ressort.surface }"
+          @click.self="$emit('close')"
         >
-          <!-- Le geste part de la poignee et d'elle seule. Ecoute sur tout le panneau, il
-               ne demarrait jamais au doigt : la fiche defile, et le navigateur prend la
-               main sur un glissement des qu'il touche une zone defilante. -->
-          <div class="media-overlay__grab" aria-hidden="true" @pointerdown="controls.start($event)">
-            <span></span>
-          </div>
-          <button class="media-overlay__close" type="button" aria-label="Fermer" @click="$emit('close')">
-            <X />
-          </button>
-          <div class="media-overlay__scroll">
-            <slot />
+          <div
+            ref="panelRef"
+            class="media-overlay__panel"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="ariaLabel"
+          >
+            <!-- La poignee reste le repere du geste, et son point de depart a la souris.
+                 Au doigt, toute la fiche se tire des qu'elle est lue depuis le haut. -->
+            <div class="media-overlay__grab" aria-hidden="true">
+              <span></span>
+            </div>
+            <button class="media-overlay__close" type="button" aria-label="Fermer" @click="$emit('close')">
+              <X />
+            </button>
+            <div class="media-overlay__scroll">
+              <slot />
+            </div>
           </div>
         </motion.div>
       </motion.div>
@@ -55,9 +51,11 @@
 
 <script setup lang="ts">
 import { ref, toRef } from 'vue';
-import { AnimatePresence, motion, useDragControls } from 'motion-v';
+import { AnimatePresence, motion } from 'motion-v';
 import { X } from '@lucide/vue';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
+import { useSheetGesture } from '@/composables/useSheetGesture';
+import { courbe, duree, ressort } from '@/motion/tokens';
 
 const props = withDefaults(
   defineProps<{
@@ -75,25 +73,19 @@ const emit = defineEmits<{ (e: 'close'): void }>();
 useBodyScrollLock(toRef(props, 'open'));
 
 const panelRef = ref<HTMLElement | null>(null);
-const controls = useDragControls();
+const voileRef = ref<unknown>(null);
 
-/* La fiche se tire vers le bas pour se refermer : c'est le geste qu'on attend d'une
-   surface posee sur une page, et il evite d'aller chercher la croix a l'autre bout de
-   l'ecran. Passe le quart de la hauteur, ou lancee assez vite, elle part ; sinon le
-   ressort la remet en place tout seul. */
-const SEUIL_PROPORTION = 0.25;
-const SEUIL_VITESSE = 520;
-
-function onDragEnd(_event: unknown, info: { offset: { y: number }; velocity: { y: number } }): void {
-  const hauteur = panelHauteur();
-  if (info.offset.y > hauteur * SEUIL_PROPORTION || info.velocity.y > SEUIL_VITESSE) emit('close');
-}
-
-function panelHauteur(): number {
-  const valeur = panelRef.value as unknown as { $el?: unknown } | HTMLElement | null;
-  const el = valeur instanceof HTMLElement ? valeur : ((valeur as { $el?: unknown })?.$el as HTMLElement | undefined);
-  return el?.offsetHeight || window.innerHeight || 1;
-}
+/* Tirer la fiche vers le bas la referme : c'est le geste qu'on attend d'une surface posee
+   sur une page, et il evite d'aller chercher la croix a l'autre bout de l'ecran. Voir
+   `useSheetGesture` pour les regles -- notamment l'arret en haut du contenu. */
+useSheetGesture(panelRef, toRef(props, 'open'), {
+  onClose: () => emit('close'),
+  poignee: '.media-overlay__grab',
+  voile: () => {
+    const v = voileRef.value as { $el?: unknown } | HTMLElement | null;
+    return v instanceof HTMLElement ? v : ((v?.$el as HTMLElement | undefined) ?? null);
+  },
+});
 </script>
 
 <style scoped lang="scss">
@@ -109,7 +101,15 @@ function panelHauteur(): number {
      Pas de `backdrop-filter` ici : flouter un fond pendant qu'un panneau se deplace
      au-dessus oblige Safari a recomposer la scene entiere a chaque image, et c'est ce qui
      faisait clignoter l'ouverture. L'assombrissement seul dit deja ce qu'il faut. */
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, calc(0.72 * (1 - 0.9 * var(--sheet-progress, 0))));
+}
+
+.media-overlay__frame {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  transform-origin: center bottom;
+  will-change: transform, opacity;
 }
 
 .media-overlay__panel {
@@ -140,6 +140,8 @@ function panelHauteur(): number {
   touch-action: none;
   cursor: grab;
 }
+/* Pendant le geste, plus aucune transition ne doit rattraper le doigt. */
+.media-overlay__panel.is-dragging { transition: none; }
 .media-overlay__grab > span {
   display: block;
   width: 42px;
@@ -149,6 +151,13 @@ function panelHauteur(): number {
   background: rgba(255, 255, 255, 0.34);
 }
 .media-overlay__grab:active { cursor: grabbing; }
+
+/* En bas d'ecran, la feuille a d'emblee sa hauteur definitive, comme celles d'iOS : pendant
+   le chargement elle montait courte, puis grandissait d'un coup a l'arrivee du contenu,
+   en pleine animation. Au-dela, la carte centree garde une hauteur ajustee au contenu. */
+@media (max-width: 767.98px) {
+  .media-overlay__panel { height: 94dvh; }
+}
 
 .media-overlay__scroll {
   max-height: calc(94dvh - 26px);
@@ -179,6 +188,7 @@ function panelHauteur(): number {
 
 @media (min-width: 768px) {
   .media-overlay { align-items: center; }
+  .media-overlay__frame { transform-origin: center; }
   .media-overlay__panel {
     max-height: 90dvh;
     border-bottom: 1px solid var(--border);
@@ -234,6 +244,6 @@ function panelHauteur(): number {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .media-overlay__panel { will-change: auto; }
+  .media-overlay__panel, .media-overlay__frame { will-change: auto; }
 }
 </style>

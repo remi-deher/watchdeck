@@ -77,7 +77,7 @@
         <template v-else>{{ sorted.length }} demande{{ sorted.length > 1 ? 's' : '' }} affichée{{ sorted.length > 1 ? 's' : '' }}</template>
       </p>
 
-      <section v-if="sorted.length" :class="view === 'grid' ? 'media-grid library-grid' : 'panel media-list'" :aria-busy="loading">
+      <section v-if="sorted.length" v-list-motion :class="view === 'grid' ? 'media-grid library-grid' : 'panel media-list'" :aria-busy="loading">
         <LibraryCard
           v-for="item in visible"
           :key="item.id"

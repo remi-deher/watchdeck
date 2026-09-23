@@ -1,9 +1,16 @@
+/* Langage de mouvement : memes valeurs que `frontend/src/motion/tokens.ts`. Toute
+ * transition passe par ces variables plutot que par une duree ecrite a la main. */
 :root {
-  --motion-duration-fast: 140ms;
-  --motion-duration-base: 220ms;
+  --motion-duration-instant: 120ms;
+  --motion-duration-fast: 200ms;
+  --motion-duration-base: 320ms;
   --motion-duration-reveal: 320ms;
+  --motion-duration-ample: 500ms;
   --motion-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --motion-ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* Ressort approche en CSS (depassement leger), pour les surfaces sans script. */
+  --motion-ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067, 1.099 24.3%, 1.108 26%, 1.100, 1.079 30.1%, 1.017 35.8%, 0.99 39.7%, 0.984 43.1%, 0.988 48.4%, 1.001 57%, 1);
 }
 
 /* `page-shift` a ete retire : il visait une `<Transition>` autour du `<RouterView>`, et
@@ -118,16 +125,18 @@
  * sombre, l'oeil ne sait pas d'ou vient le panneau et doit le relire entierement.
  * Le voile se fond, le panneau monte de quelques pixels en prenant sa taille.
  */
-.modal-fade-enter-active .modal-panel,
+.modal-fade-enter-active .modal-panel {
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-emphasized), transform var(--motion-duration-ample) var(--motion-ease-spring);
+}
+/* Ce qu'on referme part vite, en accelerant : on ne fait pas attendre sur un ecran
+   qu'on vient de quitter. */
 .modal-fade-leave-active .modal-panel {
   transition:
-    opacity var(--motion-duration-base) var(--motion-ease-emphasized),
-    transform var(--motion-duration-base) var(--motion-ease-emphasized);
+    opacity var(--motion-duration-fast) var(--motion-ease-exit), transform var(--motion-duration-fast) var(--motion-ease-exit);
 }
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
-}
+.modal-fade-enter-active { transition: opacity var(--motion-duration-base) var(--motion-ease-standard); }
+.modal-fade-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-exit); }
 .modal-fade-enter-from,
 .modal-fade-leave-to { opacity: 0; }
 /* Une surface qui s'en va ne capte plus rien.
@@ -147,9 +156,13 @@
 /* En bas d'ecran la feuille vient du bord, pas du centre : c'est de la qu'on l'a
    appelee, et c'est la que le pouce la refermera. */
 @media (max-width: 767.98px) {
+  /* La feuille monte de tout son long, avec le leger depassement du ressort : elle
+     arrive, elle n'apparait pas. L'opacite reste pleine -- une feuille qui se fond en
+     glissant a l'air d'un fantome. */
   .modal-fade-enter-from .modal-panel,
   .modal-fade-leave-to .modal-panel {
-    transform: translateY(16px);
+    opacity: 1;
+    transform: translateY(100%);
   }
 }
 
@@ -172,6 +185,35 @@
   .modal-fade-leave-to .modal-panel { transform: none; }
 }
 
+
+/* ───────────────────────── Passage d'une page a l'autre ─────────────────────────
+ *
+ * Fondu enchaine par les transitions de vue du navigateur (voir `usePageExit`). Seul le
+ * contenu y participe : la racine est soustraite a la transition, pour que la barre
+ * laterale, le dock et l'en-tete ne clignotent pas avec lui. La page qui part recule a
+ * peine et s'efface vite ; celle qui arrive monte de quelques pixels et se pose.
+ */
+:root { view-transition-name: none; }
+#main-content { view-transition-name: page; }
+::view-transition-group(page) { animation-duration: var(--motion-duration-base); }
+::view-transition-old(page) {
+  animation: page-vt-out var(--motion-duration-fast) var(--motion-ease-exit) both;
+}
+::view-transition-new(page) {
+  animation: page-vt-in var(--motion-duration-base) var(--motion-ease-emphasized) both;
+}
+/* Les deux photos gardent leur taille propre : sans cela le navigateur les etire l'une
+   vers l'autre quand les deux pages n'ont pas la meme hauteur. */
+::view-transition-old(page),
+::view-transition-new(page) { height: auto; width: 100%; object-fit: none; object-position: top; }
+@keyframes page-vt-out { to { opacity: 0; transform: translateY(-6px) scale(0.99); } }
+@keyframes page-vt-in { from { opacity: 0; transform: translateY(14px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
 
 /* Le transport de l'affiche ne passe plus par les transitions de vue du navigateur.
  * Elles photographient l'ancien et le nouvel etat de part et d'autre d'une navigation,

@@ -26,7 +26,7 @@ import { X } from '@lucide/vue';
 import Dialog from 'primevue/dialog';
 import { useModalA11y } from '@/composables/useModalA11y';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
-import { useSheetDrag } from '@/composables/useSheetDrag';
+import { useSheetGesture } from '@/composables/useSheetGesture';
 import { useShellMode } from '@/composables/useShellMode';
 import UiButton from './UiButton.vue';
 import UiFeedback from './UiFeedback.vue';
@@ -45,7 +45,7 @@ function onVisibleChange(visible: boolean): void { if (!visible) requestClose();
 
 useBodyScrollLock(openRef, { inertBackground: props.modal });
 useModalA11y(panelRef, compactOpen, requestClose, { initialFocus: props.initialFocus, trapFocus: props.modal });
-useSheetDrag(panelRef, compactOpen, { onClose: requestClose, enabled: () => shellMode.value === 'compact', poignee: '.sheet-grab' });
+useSheetGesture(panelRef, compactOpen, { onClose: requestClose, enabled: () => shellMode.value === 'compact' && !props.busy, poignee: '.sheet-grab' });
 
 const ModalContent = defineComponent({
   setup() {

@@ -161,7 +161,7 @@ const trackerRows = computed(() => {
 .client-card {
   padding: 18px;
   cursor: pointer;
-  transition: border-color .15s ease, transform .15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .client-card:hover {
   border-color: var(--accent);

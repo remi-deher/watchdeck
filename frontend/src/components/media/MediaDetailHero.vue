@@ -28,7 +28,10 @@
               <dd>{{ entry.value }}</dd>
             </div>
           </dl>
-          <div class="mdh-overview-wrapper">
+          <div v-if="preview && !detail.overview" class="mdh-overview-wrapper" aria-hidden="true">
+            <span class="skeleton-line" /><span class="skeleton-line" /><span class="skeleton-line is-short" />
+          </div>
+          <div v-else class="mdh-overview-wrapper">
             <p class="mdh-overview" :class="{ clamped: !showFullOverview && isOverviewLong }">
               {{ overviewText }}
             </p>
@@ -44,7 +47,10 @@
           <div v-if="detail.genres?.length" class="tag-row">
             <span v-for="genre in detail.genres" :key="genre" class="badge">{{ genre }}</span>
           </div>
-          <div class="mdh-links">
+          <div v-if="preview" class="mdh-links" aria-hidden="true">
+            <span class="skeleton-pill" /><span class="skeleton-pill" /><span class="skeleton-pill" />
+          </div>
+          <div v-else class="mdh-links">
             <button
               v-if="canRequest && !isMusic"
               type="button"
@@ -87,7 +93,7 @@
           <!-- Zone langue commune aux films et aux series, au meme emplacement : une seule
                entree pour un film (pas de saisons a detailler), la repartition par saison
                pour une serie. -->
-          <div v-if="showLanguageSummary" class="mdh-language-summary">
+          <div v-if="showLanguageSummary && !preview" class="mdh-language-summary">
             <template v-if="isShow">
               <span v-if="seasonSummary.vf.length" class="badge available">VF : {{ formatSeasonLabel(seasonSummary.vf) }}</span>
               <span v-if="seasonSummary.vfSecondary.length" class="badge language-tag vf-secondary">VF secondaire : {{ formatSeasonLabel(seasonSummary.vfSecondary) }}</span>
@@ -128,6 +134,8 @@ const props = withDefaults(
     seasonSummary?: SeasonSummaryGroup;
     busy?: boolean;
     available?: boolean;
+    /** Donnees partielles de la carte touchee, en attendant la fiche : pas d'actions. */
+    preview?: boolean;
   }>(),
   {
     statusLabel: '',
@@ -136,6 +144,7 @@ const props = withDefaults(
     seasonSummary: () => ({ vf: [], vfSecondary: [], vo: [], partial: [] }),
     busy: false,
     available: true,
+    preview: false,
   }
 );
 
@@ -489,7 +498,7 @@ const releaseDates = computed(() => {
   font-size: var(--fs-sm);
   border: 0;
   cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .mdh-listen-btn:hover {
   transform: translateY(-1px);

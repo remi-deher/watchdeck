@@ -269,7 +269,7 @@ const failedPosters = ref(new Set<string>());
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  transition: border-color 0.15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .audit-card:hover {

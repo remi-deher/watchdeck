@@ -1,4 +1,5 @@
 import { createApp } from 'vue';
+import { vListMotion } from '@/motion/vListMotion';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import PrimeVue from 'primevue/config';
@@ -145,6 +146,7 @@ router.beforeEach(async (to) => {
 });
 
 createApp(App)
+  .directive('list-motion', vListMotion)
   .component('AppPage', AppPage)
   .component('AppSubnav', AppSubnav)
   .component('FilterSidebar', FilterSidebar)

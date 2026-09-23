@@ -97,7 +97,9 @@
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: rgba(0, 0, 0, .65);
+  /* `--sheet-progress` (0 a 1) est pose pendant qu'on tire la feuille : le voile
+     s'eclaircit a mesure. Voir `useSheetGesture`. */
+  background: rgba(0, 0, 0, calc(.65 * (1 - .9 * var(--sheet-progress, 0))));
   padding-top: calc(var(--safe-top) + var(--app-shell-offset-top));
   padding-right: var(--safe-right);
   padding-left: var(--safe-left);
@@ -277,7 +279,7 @@
   color: var(--text-muted, #aaa);
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  transition: border-color var(--motion-duration-instant), background var(--motion-duration-instant), color var(--motion-duration-instant);
   text-align: left;
   white-space: nowrap;
 }

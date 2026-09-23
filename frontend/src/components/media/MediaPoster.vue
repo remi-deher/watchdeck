@@ -97,7 +97,7 @@ watch(() => props.posterUrl, () => { failed.value = false; isLoaded.value = fals
   );
   animation: poster-shimmer 1.4s ease-in-out infinite;
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
   will-change: transform;
 }
 
@@ -117,7 +117,7 @@ watch(() => props.posterUrl, () => { failed.value = false; isLoaded.value = fals
   object-fit: cover;
   border-radius: inherit;
   opacity: 0;
-  transition: opacity 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
   will-change: opacity;
 }
 

@@ -104,7 +104,7 @@ function interceptFirstTap(e: MouseEvent): void {
   -webkit-mask-image: -webkit-radial-gradient(white, black);
   background: var(--surface-2);
   color: inherit;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .poster-card.is-music { aspect-ratio: 1 / 1; }
 .poster-card.bordered { border: 1px solid var(--border); }
@@ -194,7 +194,7 @@ function interceptFirstTap(e: MouseEvent): void {
   opacity: 0;
   pointer-events: none;
   border-radius: inherit;
-  transition: opacity .18s ease;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .poster-wrap:hover :deep(.poster-overlay),
 .poster-wrap:focus-within :deep(.poster-overlay),
@@ -237,7 +237,7 @@ function interceptFirstTap(e: MouseEvent): void {
   /* `transform` figure ici et pas seulement dans `_motion.scss` : ce bloc scope
      redeclare la propriete `transition` en entier et effacait la regle globale, si bien
      que l'enfoncement a l'appui sautait au lieu de s'animer. */
-  transition: opacity .18s ease, transform var(--motion-duration-fast) var(--motion-ease-standard);
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .poster-wrap:hover :deep(.poster-action),
 .poster-wrap:focus-within :deep(.poster-action),

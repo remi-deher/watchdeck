@@ -387,7 +387,7 @@ const notificationSubnavItems = computed(() =>
 .notification-control.paused .notification-feedback { display: flex; align-items: center; gap: .45rem; margin: .9rem 0 0; padding: .7rem .85rem; border-radius: var(--radius-md); font-size: var(--fs-sm); }
 .notification-feedback.success { color: var(--green-text); background: rgba(34, 197, 94, .1); }
 .notification-feedback.error { color: var(--red-text); background: rgba(239, 68, 68, .1); }
-.notification-feedback-enter-active, .notification-feedback-leave-active { transition: opacity .2s ease, transform .2s ease; }
+.notification-feedback-enter-active, .notification-feedback-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard); }
 .notification-feedback-enter-from, .notification-feedback-leave-to { opacity: 0; transform: translateY(-4px); }
 @media (max-width: 900px) {
   .notification-control { min-width: 0; max-width: calc(100vw - 3rem); }

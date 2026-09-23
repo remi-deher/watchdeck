@@ -277,7 +277,7 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
    revenir d'un seul mouvement, pas l'une apres l'autre. `:focus-within` protege le
    parcours au clavier -- une rangee d'onglets ne doit jamais s'effacer sous le focus. */
 .app-page__sticky {
-  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .app-page__sticky.is-hidden:not(:focus-within) {
   opacity: 0;

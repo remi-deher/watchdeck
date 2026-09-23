@@ -80,7 +80,7 @@ function onToggle(event: Event): void {
 .ui-disclosure summary .eyebrow { color: var(--muted); font-size: var(--fs-xs); font-weight: 650; }
 .ui-disclosure summary strong { font-size: var(--fs-md); }
 .ui-disclosure summary p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
-.ui-disclosure summary > svg { flex-shrink: 0; width: 18px; color: var(--muted); transition: transform .2s ease; }
+.ui-disclosure summary > svg { flex-shrink: 0; width: 18px; color: var(--muted); transition: transform var(--motion-duration-fast) var(--motion-ease-standard); }
 .ui-disclosure[open] summary > svg { transform: rotate(180deg); }
 .ui-disclosure-content { display: grid; gap: var(--space-4); padding: 0 14px 14px; }
 </style>

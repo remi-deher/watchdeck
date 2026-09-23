@@ -572,7 +572,7 @@ function formatAirDate(airDate: string): string {
   border: 1px solid var(--border);
   color: var(--text);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 
   &:hover {
     background: var(--surface-hover);

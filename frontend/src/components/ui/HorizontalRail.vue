@@ -147,7 +147,7 @@ button.rail-title svg {
   width: 18px;
   height: 18px;
   color: var(--accent);
-  transition: transform .18s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 a.rail-title:hover,
