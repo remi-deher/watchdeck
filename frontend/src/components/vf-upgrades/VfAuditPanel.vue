@@ -53,7 +53,7 @@
         <div class="card-diag-col">
           <!-- Ligne Audio FR -->
           <div class="diag-row" :class="audioRowClass(item)">
-            <Volume2 v-if="item.has_vf" size="15" />
+            <Volume2 v-if="item.has_vf" :size="15" />
             <VolumeX v-else :size="15" />
             <span class="diag-label">Audio FR :</span>
             <strong class="diag-status">{{ audioStatusLabel(item) }}</strong>

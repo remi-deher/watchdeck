@@ -99,7 +99,7 @@
           <span>Réouvrir les échecs</span>
         </button>
         <button class="secondary compact" type="button" title="Supprimer les entrées archivées" @click="emit('maintenance', 'purge')">
-          <Trash2 size="14" />
+          <Trash2 :size="14" />
           <span>Purger l'historique</span>
         </button>
       </div>
