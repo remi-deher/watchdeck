@@ -31,8 +31,8 @@
               @error="failedPosters.add(`audit-${item.id}`)"
             >
             <div v-else class="media-poster placeholder">
-              <Film v-if="item.media_type === 'movie'" :size="24" />
-              <Tv v-else :size="24" />
+              <Film v-if="item.media_type === 'movie'" ::size="24" />
+              <Tv v-else ::size="24" />
             </div>
           </div>
 
@@ -54,15 +54,15 @@
           <!-- Ligne Audio FR -->
           <div class="diag-row" :class="audioRowClass(item)">
             <Volume2 v-if="item.has_vf" size="15" />
-            <VolumeX v-else size="15" />
+            <VolumeX v-else :size="15" />
             <span class="diag-label">Audio FR :</span>
             <strong class="diag-status">{{ audioStatusLabel(item) }}</strong>
           </div>
 
           <!-- Ligne Sous-titres FR -->
           <div class="diag-row" :class="subtitleRowClass(item)">
-            <MessageSquare v-if="item.sub_fr_status !== 'absent'" size="15" />
-            <MessageSquareOff v-else size="15" />
+            <MessageSquare v-if="item.sub_fr_status !== 'absent'" :size="15" />
+            <MessageSquareOff v-else :size="15" />
             <span class="diag-label">Sous-titres :</span>
             <strong class="diag-status">{{ subtitleStatusLabel(item.sub_fr_status) }}</strong>
           </div>
@@ -84,8 +84,8 @@
             :title="isAuditShowExpanded(item.id) ? 'Masquer les saisons' : 'Voir les saisons et épisodes'"
             @click="toggleAuditShow(item)"
           >
-            <ChevronUp v-if="isAuditShowExpanded(item.id)" size="14" />
-            <ChevronDown v-else size="14" />
+            <ChevronUp v-if="isAuditShowExpanded(item.id)" :size="14" />
+            <ChevronDown v-else :size="14" />
             <span>{{ isAuditShowExpanded(item.id) ? 'Masquer' : 'Saisons & Épisodes' }}</span>
           </button>
 
@@ -97,7 +97,7 @@
             title="Prévisualiser et aligner les flux audio et sous-titres sur Plex"
             @click="emit('align', item)"
           >
-            <SlidersHorizontal size="14" />
+            <SlidersHorizontal :size="14" />
             <span>Aligner sur Plex</span>
           </button>
 
@@ -119,7 +119,7 @@
       <!-- Zone Saisons & Épisodes pour les séries -->
       <div v-if="item.media_type === 'show' && isAuditShowExpanded(item.id)" class="audit-show-episodes-wrap">
         <div v-if="getAuditShowLoading(item.id)" class="audit-episodes-loading">
-          <RotateCcw size="15" class="spin" />
+          <RotateCcw :size="15" class="spin" />
           <span>Chargement des saisons et épisodes…</span>
         </div>
         <div v-else-if="getAuditShowError(item.id)" class="notice error-text">

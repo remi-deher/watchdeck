@@ -168,9 +168,7 @@ def wrap_image_proxy(url: str | None) -> str | None:
     parsed = urllib.parse.urlsplit(url)
     query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
     if any(key.lower() == "x-plex-token" for key, _ in query):
-        safe_query = urllib.parse.urlencode(
-            [(key, value) for key, value in query if key.lower() != "x-plex-token"]
-        )
+        safe_query = urllib.parse.urlencode([(key, value) for key, value in query if key.lower() != "x-plex-token"])
         plex_path = urllib.parse.urlunsplit(("", "", parsed.path, safe_query, ""))
         return plex_image_proxy_url(plex_path)
 
@@ -192,10 +190,7 @@ def plex_image_proxy_url(path: str | None) -> str | None:
         ]
     )
     safe_path = urllib.parse.urlunsplit(("", "", parsed.path, safe_query, ""))
-    return (
-        f"/api/image-proxy?plex_path={urllib.parse.quote_plus(safe_path)}"
-        "&width=600&quality=82&format=webp"
-    )
+    return f"/api/image-proxy?plex_path={urllib.parse.quote_plus(safe_path)}&width=600&quality=82&format=webp"
 
 
 async def run_section_safe(

@@ -30,8 +30,8 @@
           @error="onPosterError(group.key)"
         >
         <div v-else class="upgrade-poster poster-placeholder">
-          <Film v-if="group.media?.media_type === 'movie'" :size="28" />
-          <Tv v-else :size="28" />
+          <Film v-if="group.media?.media_type === 'movie'" ::size="28" />
+          <Tv v-else ::size="28" />
         </div>
       </div>
 
@@ -66,7 +66,7 @@
               title="Réactiver le scan pour ce média"
               @click="emit('ignore', group, false)"
             >
-              <Eye size="14" /> Réactiver
+              <Eye :size="14" /> Réactiver
             </button>
             <button
               v-else
@@ -75,7 +75,7 @@
               :title="group.media?.media_type === 'movie' ? 'Ignorer ce film : ne sera plus proposé par le scan de fond' : 'Ignorer cette série : ne sera plus proposée par le scan de fond'"
               @click="emit('ignore', group, true)"
             >
-              <EyeOff size="14" /> Ignorer
+              <EyeOff :size="14" /> Ignorer
             </button>
           </div>
         </header>

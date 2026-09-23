@@ -20,7 +20,7 @@
               <a v-if="info.repo_url" class="mono" :href="`${info.repo_url}/commit/${info.git_sha}`" target="_blank" rel="noopener noreferrer">{{ shortSha(info.git_sha) }}</a>
               <span v-else class="mono">{{ shortSha(info.git_sha) }}</span>
               <button v-if="isRealSha(info.git_sha)" class="icon-button" type="button" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copySha(info.git_sha)">
-                <Check v-if="copied" :size="14"/><Copy v-else :size="14"/>
+                <Check v-if="copied" ::size="14"/><Copy v-else ::size="14"/>
               </button>
             </dd>
           </div>

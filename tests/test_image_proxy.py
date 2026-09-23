@@ -358,3 +358,119 @@ def test_image_proxy_etag_is_stable_across_requests(cache_dir, async_db):
         assert not_modified.headers["etag"] == etag
     finally:
         _cleanup()
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["", "?url=http%3A%2F%2Fplex.local%2Fa.jpg&plex_path=%2Flibrary%2Fmetadata%2F1%2Fthumb"],
+)
+def test_image_proxy_requires_exactly_one_source(async_db, query):
+    client = _client(async_db)
+    try:
+        assert client.get(f"/api/image-proxy{query}").status_code == 400
+    finally:
+        _cleanup()
+
+
+@pytest.mark.parametrize(
+    "plex_path",
+    [
+        "library/metadata/1/thumb",
+        "//evil.local/library/metadata/1/thumb",
+        "/photo/transcode",
+        "/library/metadata/../../etc/passwd",
+        "/library/metadata/%2e%2e/secret",
+    ],
+)
+def test_plex_path_proxy_rejects_unsafe_paths(async_db, plex_path):
+    client = _client(async_db)
+    try:
+        resp = client.get("/api/image-proxy", params={"plex_path": plex_path})
+        assert resp.status_code == 400
+    finally:
+        _cleanup()
+
+
+def test_plex_path_proxy_without_plex_configured_returns_404(async_db):
+    app.dependency_overrides[require_auth] = lambda: None
+    image_proxy_api.AsyncSessionLocal = lambda: async_db
+    image_proxy_api._allowed_hosts_cache = (0.0, set())
+    client = TestClient(app, raise_server_exceptions=False)
+    try:
+        resp = client.get("/api/image-proxy", params={"plex_path": "/library/metadata/1/thumb"})
+        assert resp.status_code == 404
+    finally:
+        _cleanup()
+
+
+def test_embedded_plex_token_is_replaced_by_server_token(cache_dir, async_db):
+    client = _client(async_db)
+    fake = _fake_httpx_client(resp=_resp())
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get(
+                "/api/image-proxy",
+                params={"url": "http://plex.local/library/metadata/7/thumb?X-Plex-Token=leaked&w=1"},
+            )
+        assert resp.status_code == 200
+        upstream_url = fake.get.await_args.args[0]
+        assert "leaked" not in upstream_url
+        assert fake.get.await_args.kwargs["headers"] == {"X-Plex-Token": "server-secret"}
+    finally:
+        _cleanup()
+
+
+def test_embedded_plex_token_on_foreign_host_is_rejected(async_db):
+    client = _client(async_db)
+    try:
+        with patch.object(image_proxy_api, "_allowed_image_hosts", AsyncMock(return_value={"image.tmdb.org"})):
+            resp = client.get(
+                "/api/image-proxy",
+                params={"url": "https://image.tmdb.org/t/p/w500/a.jpg?X-Plex-Token=leaked"},
+            )
+        assert resp.status_code == 400
+    finally:
+        _cleanup()
+
+
+def test_request_image_proxy_unknown_request_returns_404(async_db):
+    client = _client(async_db)
+    try:
+        assert client.get("/api/image-proxy/request/999999").status_code == 404
+    finally:
+        _cleanup()
+
+
+def test_request_image_proxy_hides_signed_plex_url(cache_dir, async_db):
+    from datetime import datetime
+
+    from app.models import MediaRequest
+
+    media_request = MediaRequest(
+        plex_user_id="u1",
+        plex_user="u1",
+        title="Film",
+        media_type="movie",
+        status="pending",
+        requested_at=datetime(2026, 1, 15),
+        poster_url="http://plex.local/library/metadata/9/thumb?X-Plex-Token=secret",
+    )
+    async_db.add(media_request)
+    async_db.commit()
+    client = _client(async_db)
+    fake = _fake_httpx_client(resp=_resp(content=_png(), content_type="image/png"))
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get(f"/api/image-proxy/request/{media_request.id}")
+        assert resp.status_code == 200
+        assert "secret" not in fake.get.await_args.args[0]
+        assert fake.get.await_args.kwargs["headers"] == {"X-Plex-Token": "server-secret"}
+    finally:
+        _cleanup()
+
+
+def test_plex_image_proxy_url_without_path_is_none():
+    from app.utils import plex_image_proxy_url
+
+    assert plex_image_proxy_url(None) is None
+    assert plex_image_proxy_url("") is None

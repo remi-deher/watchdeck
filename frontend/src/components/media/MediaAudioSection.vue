@@ -9,7 +9,7 @@
             title="Aligner ou choisir les pistes audio et sous-titres par défaut pour toute la série"
             @click="openAlignModal('series')"
           >
-            <SlidersHorizontal :size="15" />
+            <SlidersHorizontal ::size="15" />
             <span>Aligner toute la série</span>
           </button>
         </div>
@@ -42,7 +42,7 @@
                   title="Aligner les pistes de cette saison sur Plex"
                   aria-label="Aligner la saison"
                 >
-                  <SlidersHorizontal :size="15" />
+                  <SlidersHorizontal ::size="15" />
                 </button>
                 <VfUpgradeButton
                   v-if="admin && sourceType && sourceId"
@@ -53,7 +53,7 @@
                   :media-title="mediaTitle"
                   label="Rechercher"
                 />
-                <button class="icon-button" @click.prevent="$emit('correction', 'season', season.season_number, null)" title="Corriger Saison" aria-label="Corriger Saison"><MessageSquareWarning :size="16" /></button>
+                <button class="icon-button" @click.prevent="$emit('correction', 'season', season.season_number, null)" title="Corriger Saison" aria-label="Corriger Saison"><MessageSquareWarning ::size="16" /></button>
               </div>
             </div>
           </template>
@@ -80,7 +80,7 @@
                         title="Aligner les pistes de cet épisode sur Plex"
                         aria-label="Aligner l'épisode"
                       >
-                        <SlidersHorizontal :size="14" />
+                        <SlidersHorizontal ::size="14" />
                       </button>
                       <VfUpgradeButton
                         v-if="admin && sourceType && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
@@ -157,7 +157,7 @@
               title="Aligner ou choisir les pistes audio et sous-titres par défaut sur Plex"
               @click="openAlignModal('movie')"
             >
-              <SlidersHorizontal :size="15" />
+              <SlidersHorizontal ::size="15" />
               <span>Aligner les pistes</span>
             </button>
             <VfUpgradeButton
@@ -180,7 +180,7 @@
         <details class="season-details track-group" v-if="vfDetail.tracks?.length">
           <summary class="track-group-summary">
             <span>Audio ({{ vfDetail.tracks.length }})</span>
-            <ChevronDown :size="16" />
+            <ChevronDown ::size="16" />
           </summary>
           <div class="track-group-body">
             <article v-for="(track, index) in vfDetail.tracks" :key="'audio-'+index" class="detail-row track-row">
@@ -197,7 +197,7 @@
         <details class="season-details" v-if="vfDetail.subtitles?.length">
           <summary class="track-group-summary">
             <span>Sous-titres ({{ vfDetail.subtitles.length }})</span>
-            <ChevronDown :size="16" />
+            <ChevronDown ::size="16" />
           </summary>
           <div class="track-group-body">
             <article v-for="(sub, index) in vfDetail.subtitles" :key="'sub-'+index" class="detail-row track-row">

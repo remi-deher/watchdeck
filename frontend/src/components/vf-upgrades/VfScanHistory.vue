@@ -20,7 +20,7 @@
       <tbody>
         <template v-for="run in runs" :key="run.id">
           <tr class="run-row" :class="`run-status-${run.status}`" tabindex="0" role="button" :aria-expanded="expandedRunId === run.id" @click="$emit('toggle', run)" @keydown.enter="$emit('toggle', run)">
-            <td><ChevronDown v-if="expandedRunId === run.id" :size="14" class="run-chevron" /><ChevronUp v-else :size="14" class="run-chevron is-collapsed" />{{ formatDate(run.started_at) }}</td>
+            <td><ChevronDown v-if="expandedRunId === run.id" ::size="14" class="run-chevron" /><ChevronUp v-else ::size="14" class="run-chevron is-collapsed" />{{ formatDate(run.started_at) }}</td>
             <td>{{ formatDuration(run.started_at, run.finished_at) }}</td>
             <td>{{ triggerLabel(run.trigger) }}</td>
             <td>{{ run.tasks_scanned }} / {{ run.tasks_total }}</td>

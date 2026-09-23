@@ -1,6 +1,6 @@
 <template>
   <AppPage hide-search title="Releases" :error="error" retry @retry="load">
-    <p v-if="rootFolder" class="root-folder-info"><FolderOpen :size="14" /> Dossier racine : <code>{{ rootFolder }}</code></p>
+    <p v-if="rootFolder" class="root-folder-info"><FolderOpen ::size="14" /> Dossier racine : <code>{{ rootFolder }}</code></p>
     <section class="panel release-list">
       <template v-for="(release,index) in releases" :key="release.guid">
         <div v-if="index===firstEnglish" class="release-divider">Résultats anglais / non VF</div>

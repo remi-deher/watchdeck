@@ -95,7 +95,7 @@
     <FilterGroup label="Maintenance">
       <div class="filter-maintenance-buttons">
         <button class="secondary compact" type="button" title="Réouvrir les suggestions en échec" @click="emit('maintenance', 'recompute')">
-          <RotateCcw size="14" />
+          <RotateCcw :size="14" />
           <span>Réouvrir les échecs</span>
         </button>
         <button class="secondary compact" type="button" title="Supprimer les entrées archivées" @click="emit('maintenance', 'purge')">

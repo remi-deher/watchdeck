@@ -15,10 +15,10 @@
           aria-label="Réglages des améliorations VF"
           @click="settingsOpen = true"
         >
-          <template #icon><Settings size="16" /></template>Réglages
+          <template #icon><Settings :size="16" /></template>Réglages
         </UiButton>
         <template v-if="activeTab === 'upgrades'">
-          <UiButton v-if="selectedKeys.size > 0" variant="primary" :loading="scanning" @click="scanSelected"><template #icon><ScanSearch size="16" /></template>{{ scanning ? 'Recherche en cours…' : `Rechercher la sélection (${selectedKeys.size})` }}</UiButton>
+          <UiButton v-if="selectedKeys.size > 0" variant="primary" :loading="scanning" @click="scanSelected"><template #icon><ScanSearch :size="16" /></template>{{ scanning ? 'Recherche en cours…' : `Rechercher la sélection (${selectedKeys.size})` }}</UiButton>
         </template>
         <template v-else>
           <UiButton
@@ -29,9 +29,9 @@
             title="Aligner les pistes de tous les médias audités pour tous les profils Plex"
             @click="fixAllStreams"
           >
-            <template #icon><SlidersHorizontal size="16" /></template>{{ fixingAll ? 'Alignement en cours…' : `Tout aligner (${eligibleAuditFixCount})` }}
+            <template #icon><SlidersHorizontal :size="16" /></template>{{ fixingAll ? 'Alignement en cours…' : `Tout aligner (${eligibleAuditFixCount})` }}
           </UiButton>
-          <UiButton :loading="auditLoading" :disabled="fixingAll" @click="() => loadAudit()"><template #icon><RotateCcw size="16" /></template>Actualiser l'audit</UiButton>
+          <UiButton :loading="auditLoading" :disabled="fixingAll" @click="() => loadAudit()"><template #icon><RotateCcw :size="16" /></template>Actualiser l'audit</UiButton>
         </template>
       </template>
 
