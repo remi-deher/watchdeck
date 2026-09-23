@@ -124,6 +124,7 @@
       <p class="library-result-count" aria-live="polite">{{ filtered.length }} média{{ filtered.length>1?'s':'' }} affiché{{ filtered.length>1?'s':'' }}</p>
 
       <MediaPosterCollection
+        ref="collection"
         :items="filtered"
         :loading="loading"
         :loading-more="loadingMore"
@@ -133,10 +134,13 @@
         @load-more="loadMore"
         @retry="load"
       >
+        <!-- Lignes non rendues au-dessus et au-dessous : voir useWindowVirtualGrid. -->
+        <div v-if="virtualGrid.padTop.value" class="virtual-spacer" data-virtual-spacer aria-hidden="true" :style="{ height: `${virtualGrid.padTop.value}px`, ...SPACER_STYLE }" />
         <LibraryCard
-          v-for="item in filtered"
-          :key="`${item._kind}-${item.id}`"
+          v-for="item in virtualGrid.visibleItems.value"
+          :key="libraryItemKey(item)"
           :item="item"
+          :animated="!virtualGrid.hasBeenShown(item)"
           view="grid"
           :can-moderate="canModerate"
           :busy="busy"
@@ -147,6 +151,7 @@
           @delete-orphan="deleteOrphan"
           @error="error = $event"
         />
+        <div v-if="virtualGrid.padBottom.value" class="virtual-spacer" data-virtual-spacer aria-hidden="true" :style="{ height: `${virtualGrid.padBottom.value}px`, ...SPACER_STYLE }" />
       </MediaPosterCollection>
     </template>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
@@ -156,7 +161,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useWindowVirtualGrid } from '@/composables/useWindowVirtualGrid';
 import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, Film, Layers, Music2, RefreshCw, RotateCcw, Trash2, Tv } from '@lucide/vue';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
@@ -168,9 +174,9 @@ import { readCache, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
 import { useAsyncAction } from '@/composables/useAsyncAction';
-import { useDebounced } from '@/composables/useDebounced';
-import { useLatestRequest } from '@/composables/useLatestRequest';
-import { useLibraryHubs } from '@/composables/useLibraryHubs';
+import { useDebounceFn } from '@vueuse/core';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { useLibraryHubs, type LibraryHub } from '@/composables/useLibraryHubs';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { canModerateSession, isAdminSession, loadSession } from '@/composables/useSession';
 import LibraryCard from '@/components/library/LibraryCard.vue';
@@ -185,7 +191,6 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 const route = useRoute();
 const router = useRouter();
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
-const request = useLatestRequest();
 
 // La modale Filtres modifie aussi le sous-type musical (Artistes/Albums/Pistes) -- on passe
 // par l'URL plutot que d'assigner typeFilters.value directement, pour rester coherent avec
@@ -247,7 +252,6 @@ const rawMetrics = ref<Record<string, any>>({});
 const users = ref<any[]>([]);
 const libraryOffset = ref(0);
 const hasMoreLibrary = ref(false);
-const loadingMore = ref(false);
 const selectedIds = ref<any[]>([]);
 const isAdmin = ref(false);
 const canModerate = ref(false);
@@ -372,7 +376,6 @@ function typeRequestsTarget() {
   return { path: '/library', query: { ...detailQuery(), type: [singleType.value], status: REQUEST_STATUSES } };
 }
 
-const loading = ref(false);
 const error = ref('');
 
 const statusSingle = computed({
@@ -429,11 +432,118 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
 
 // Rangees des trois pages d'atterrissage. Les predicats isAllHub/isMusicHub/
 // isMovieShowHub restent ici : ils dependent des filtres actifs, pas du chargement.
-const { music: musicHub, all: allHub, type: typeHub, loadMusicHub, loadAllHub, loadTypeHub } =
-  useLibraryHubs({ isAbort: e => request.isAbort(e), onError: message => { error.value = message; } });
+/** Hub affiche a la place de la grille, s'il y en a un. */
+const activeHub = computed<LibraryHub>(() =>
+  isAllHub.value ? 'all' : isMusicHub.value ? 'music' : isMovieShowHub.value ? 'type' : null);
+const { music: musicHub, all: allHub, type: typeHub, refreshActiveHub } =
+  useLibraryHubs({ activeHub, hubMediaType: singleType, onError: message => { error.value = message; } });
 const { recent: musicHubRecent, artists: musicHubArtists, albums: musicHubAlbums, tracks: musicHubTracks, loading: musicHubLoading } = musicHub;
 const { recent: allHubRecent, movies: allHubMovies, shows: allHubShows, music: allHubMusic, requests: allHubRequests, loading: allHubLoading } = allHub;
 const { recent: typeHubRecent, requests: typeHubRequests, genreRows: typeHubGenreRows, loading: typeHubLoading } = typeHub;
+
+/* La grille part des parametres DEMANDES par `load()`, appele aux memes moments qu'avant
+   (filtre, URL, recherche apres 250 ms) : la frappe ne relance donc rien a elle seule.
+   Quatre lectures, chacune sa cle : la bibliotheque (paginee, affichee des qu'elle
+   arrive), puis demandes, orphelins *arr et metriques qui completent la vue au fil de
+   l'eau -- aucune n'attend la plus lente, et changer de filtre annule celles en cours. */
+interface GridRequest { library: string; requests: string; metricsType: string; wantsLibrary: boolean }
+const queryClient = useQueryClient();
+const gridRequest = ref<GridRequest | null>(null);
+function gridSnapshot(): GridRequest {
+  const library = _libraryParams(0);
+  library.delete('offset');
+  return {
+    library: library.toString(),
+    requests: _requestListParams().toString(),
+    metricsType: typeFilters.value.length === 1 ? typeFilters.value[0] : '',
+    wantsLibrary: wantsLibraryItems.value,
+  };
+}
+const gridActive = computed(() => activeHub.value === null && gridRequest.value !== null);
+const isCancel = (e: any) => e?.name === 'AbortError' || e?.name === 'CancelledError';
+
+const libraryQuery = useInfiniteQuery({
+  queryKey: computed(() => ['library', 'items', gridRequest.value?.library]),
+  queryFn: ({ pageParam, signal }) => api<any[]>(`/api/library?${gridRequest.value?.library}&offset=${pageParam}`, { signal }),
+  initialPageParam: 0,
+  getNextPageParam: (last: any[], pages: any[][]) => (last.length === PAGE_SIZE ? pages.reduce((sum, page) => sum + page.length, 0) : undefined),
+  // Aucun media Plex ne peut correspondre aux filtres : on economise l'appel.
+  enabled: computed(() => gridActive.value && Boolean(gridRequest.value?.wantsLibrary)),
+  staleTime: 30_000,
+});
+const requestsQuery = useQuery({
+  queryKey: computed(() => ['library', 'requests', gridRequest.value?.requests]),
+  queryFn: ({ signal }) => api<any>(`/api/requests-list?${gridRequest.value?.requests}`, { signal }),
+  enabled: gridActive,
+  staleTime: 30_000,
+});
+/* Les orphelins interrogent Sonarr/Radarr en direct : une panne ne doit pas bloquer la
+   page, elle vaut simplement « aucun orphelin ». */
+const orphansQuery = useQuery({
+  queryKey: ['library', 'orphans'],
+  queryFn: ({ signal }) => api<any[]>('/api/requests/orphans', { signal }).catch((e) => (isCancel(e) ? Promise.reject(e) : [])),
+  enabled: gridActive,
+  staleTime: 30_000,
+});
+const metricsQuery = useQuery({
+  queryKey: computed(() => ['library', 'metrics', gridRequest.value?.metricsType]),
+  queryFn: ({ signal }) => {
+    const type = gridRequest.value?.metricsType;
+    return api<any>(`/api/library-metrics${type ? `?media_type=${type}` : ''}`, { signal }).catch((e) => (isCancel(e) ? Promise.reject(e) : {}));
+  },
+  enabled: gridActive,
+  staleTime: 30_000,
+});
+
+const loadingMore = computed(() => libraryQuery.isFetchingNextPage.value);
+const loading = computed(() => {
+  if (activeHub.value === 'all') return allHub.loading.value;
+  if (activeHub.value === 'music') return musicHub.loading.value;
+  if (activeHub.value === 'type') return typeHub.loading.value;
+  if (!gridRequest.value) return true;
+  return gridRequest.value.wantsLibrary ? libraryQuery.isFetching.value && !loadingMore.value : requestsQuery.isFetching.value;
+});
+
+// Les donnees arrivees alimentent l'etat de la page, que primeFromCache a pu repeindre.
+watch(libraryQuery.data, (data) => {
+  if (!data) return;
+  const known = new Set<any>();
+  const rows = data.pages.flat().filter((row: any) => (known.has(row.id) ? false : (known.add(row.id), true)));
+  applyLibraryPage(rows);
+  // `applyLibraryPage` deduit la suite de la taille d'UNE page ; ici `rows` les cumule
+  // toutes : c'est la query qui sait s'il en reste.
+  hasMoreLibrary.value = Boolean(libraryQuery.hasNextPage.value) && wantsLibraryItems.value;
+}, { immediate: true });
+watch([requestsQuery.data, metricsQuery.data], ([requests, stats]) => { if (requests) applyRequestData(requests, stats || {}); }, { immediate: true });
+// Les orphelins sont filtres sur la recherche : a refaire quand elle change, meme en cache.
+watch([orphansQuery.data, gridRequest], ([rows]) => { if (rows) applyOrphans(rows); }, { immediate: true });
+watch([libraryQuery.error, requestsQuery.error], (failures) => {
+  const failure: any = failures.find((e: any) => e && !isCancel(e));
+  if (failure) error.value = failure.message;
+});
+
+/* Ecrit une fois les deux vagues arrivees : le cache represente ainsi une page complete,
+   jamais un etat intermediaire sans demandes ni orphelins. */
+let scrollRestored = false;
+watch(
+  () => [libraryQuery.data.value, requestsQuery.data.value, orphansQuery.data.value, metricsQuery.data.value, requestsQuery.isFetching.value] as const,
+  ([library, requests, orphanRows, stats, fetching]) => {
+    if (!requests || !orphanRows || fetching) return;
+    const firstPage = library?.pages[0];
+    if (firstPage || !gridRequest.value?.wantsLibrary) {
+      writeCache(_cacheKey(), { library: firstPage || [], requests, stats: stats || {}, orphans: orphanRows });
+    }
+    const savedScroll = sessionStorage.getItem('library.scroll_position');
+    if (savedScroll && !scrollRestored) {
+      scrollRestored = true;
+      setTimeout(() => {
+        window.scrollTo(0, Number(savedScroll));
+        sessionStorage.removeItem('library.scroll_position');
+      }, 100);
+    }
+  },
+);
+
 
 const sources = computed(() => requestSummary.value.facets?.sources || []);
 const requesters = computed(() => {
@@ -479,6 +589,21 @@ const filtered = computed(() => items.value.filter((item: any) => {
   if (item.orphan) return matchesOrphanFilters(item);
   return true;
 }));
+
+/* Grille virtualisee au-dela de 300 medias (voir useWindowVirtualGrid). La grille
+   `.media-grid` apparait et disparait avec les etats de chargement : on la retrouve
+   apres chaque rendu plutot que de la tenir pour acquise. */
+const collection = ref<any>(null);
+const gridElement = ref<HTMLElement | null>(null);
+const libraryItemKey = (item: any): string => `${item._kind}-${item.id}`;
+/* En ligne pour l'emporter sur la regle de MediaGrid, qui met ses enfants en
+   `content-visibility: auto` avec une taille intrinseque d'affiche : hors ecran,
+   l'intercalaire prendrait 280 px au lieu de la hauteur des lignes qu'il remplace. */
+const SPACER_STYLE = { gridColumn: '1 / -1', contentVisibility: 'visible', containIntrinsicSize: 'none' } as const;
+const virtualGrid = useWindowVirtualGrid(gridElement, filtered, libraryItemKey);
+watch([() => filtered.value.length, () => loading.value], () => {
+  void nextTick(() => { gridElement.value = collection.value?.$el?.querySelector?.('.media-grid') ?? null; });
+}, { immediate: true, flush: 'post' });
 
 function toggleSelect(id: any): void {
   selectedIds.value = selectedIds.value.includes(id) ? selectedIds.value.filter(x => x !== id) : [...selectedIds.value, id];
@@ -539,9 +664,9 @@ watch(
 
 // La frappe au clavier abandonne la requete en cours avant d'armer le delai : inutile de
 // laisser courir une recherche que l'utilisateur est deja en train de reformuler.
-const scheduleLoad = useDebounced(load, 250);
+const scheduleLoad = useDebounceFn(load, 250);
 function onSearch(): void {
-  request.abort();
+  // Une lecture devenue obsolete est annulee par TanStack Query au changement de cle.
   scheduleLoad();
 }
 
@@ -629,104 +754,34 @@ function primeFromCache(): void {
   applyOrphans(cached.orphans || []);
 }
 
+/** Une demande a change : seules les demandes et les metriques sont a relire. */
 async function refreshRequestData(): Promise<void> {
-  const [requests, stats] = await Promise.all([
-    api(`/api/requests-list?${_requestListParams()}`),
-    api(`/api/library-metrics${typeFilters.value.length === 1 ? `?media_type=${typeFilters.value[0]}` : ''}`).catch(() => ({})),
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['library', 'requests'] }),
+    queryClient.invalidateQueries({ queryKey: ['library', 'metrics'] }),
   ]);
-  applyRequestData(requests, stats);
 }
 
+/** Recharge : hub affiche, ou grille aux parametres courants (relue meme s'ils n'ont pas change). */
 async function load(): Promise<void> {
-  const { signal, isCurrent } = request.begin();
-  const options = { signal };
   error.value = '';
-  libraryOffset.value = 0;
-  loading.value = true;
-
-  // Hub "Tout" : 5 requetes dediees (une par bibliotheque + demandes), meme principe
-  // que les hubs Musique/Films/Series ci-dessous.
-  if (isAllHub.value) {
-    await loadAllHub(options);
-    if (isCurrent()) loading.value = false;
-    return;
-  }
-  // Hub Musique : 4 requetes dediees (10 items chacune) remplacent la grosse page
-  // paginee, inutile tant que le hub est affiche a la place de la grille.
-  if (isMusicHub.value) {
-    await loadMusicHub(options);
-    if (isCurrent()) loading.value = false;
-    return;
-  }
-  // Hub Films/Series : idem, 2 requetes dediees (derniers ajouts + dernieres demandes).
-  if (isMovieShowHub.value) {
-    await loadTypeHub(singleType.value, options);
-    if (isCurrent()) loading.value = false;
-    return;
-  }
-
-  // Chargement priorise (facon Seerr) : la bibliotheque (lecture DB pure, rapide)
-  // s'affiche des qu'elle arrive, sans attendre demandes/orphelins/metriques -- ces
-  // derniers completent la vue ensuite au fil de l'eau. Les orphelins en particulier
-  // interrogent Sonarr/Radarr en direct (cache court cote backend, voir
-  // arr_orphans.py) : avant, tout restait bloque derriere ce seul appel via
-  // Promise.all, donnant l'impression d'un rechargement complet a chaque visite.
-  let libraryPage: any[] | null = null;
-  try {
-    // Aucun media Plex ne peut correspondre aux filtres courants : on economise l'appel
-    // plutot que de charger une page qui serait entierement ecartee.
-    const library = wantsLibraryItems.value
-      ? await api(`/api/library?${_libraryParams(0)}`, options)
-      : [];
-    if (!isCurrent()) return;
-    libraryPage = library;
-    applyLibraryPage(library);
-  } catch (e: any) {
-    if (!request.isAbort(e) && isCurrent()) error.value = e.message;
-  } finally {
-    if (isCurrent()) loading.value = false;
-  }
-
-  if (!isCurrent()) return;
-  try {
-    const [requests, orphanRows, stats] = await Promise.all([
-      api(`/api/requests-list?${_requestListParams()}`, options),
-      api('/api/requests/orphans', options).catch(e => request.isAbort(e) ? Promise.reject(e) : []),
-      api(`/api/library-metrics${typeFilters.value.length === 1 ? `?media_type=${typeFilters.value[0]}` : ''}`, options).catch(e => request.isAbort(e) ? Promise.reject(e) : {}),
-    ]);
-    if (!isCurrent()) return;
-
-    applyRequestData(requests, stats);
-    applyOrphans(orphanRows);
-    // Ecrit une fois les deux vagues arrivees : le cache represente ainsi une page
-    // complete, jamais un etat intermediaire sans demandes ni orphelins.
-    if (libraryPage) writeCache(_cacheKey(), { library: libraryPage, requests, stats, orphans: orphanRows });
-    const savedScroll = sessionStorage.getItem('library.scroll_position');
-    if (savedScroll) {
-      setTimeout(() => {
-        window.scrollTo(0, Number(savedScroll));
-        sessionStorage.removeItem('library.scroll_position');
-      }, 100);
-    }
-  } catch (e: any) {
-    if (!request.isAbort(e) && isCurrent()) error.value = e.message;
-  }
+  if (activeHub.value) { await refreshActiveHub(); return; }
+  const next = gridSnapshot();
+  const unchanged = gridRequest.value !== null && JSON.stringify(gridRequest.value) === JSON.stringify(next);
+  gridRequest.value = next;
+  if (!next.wantsLibrary) applyLibraryPage([]);
+  if (!unchanged) return;
+  await Promise.all([
+    next.wantsLibrary ? libraryQuery.refetch() : null,
+    requestsQuery.refetch(),
+    orphansQuery.refetch(),
+    metricsQuery.refetch(),
+  ]);
 }
 
 async function loadMore(): Promise<void> {
   if (loading.value || loadingMore.value || !hasMoreLibrary.value) return;
-  loadingMore.value = true;
-  try {
-    const library = await api(`/api/library?${_libraryParams(libraryOffset.value)}`);
-    const known = new Set(libraryItemsRaw.value.map((x: any) => x.id));
-    libraryItemsRaw.value = [...libraryItemsRaw.value, ...library.filter((x: any) => !known.has(x.id)).map((x: any) => ({ ...x, _kind: 'library' }))];
-    libraryOffset.value += library.length;
-    hasMoreLibrary.value = library.length === PAGE_SIZE;
-  } catch (e: any) {
-    error.value = e.message;
-  } finally {
-    loadingMore.value = false;
-  }
+  await libraryQuery.fetchNextPage();
 }
 
 async function loadUsers(): Promise<void> {

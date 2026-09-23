@@ -14,32 +14,15 @@
 <template>
   <UiField :label="label" :hint="hint" v-slot="field">
     <div class="secret-field">
-      <input
-        :id="field.id"
-        ref="input"
-        :value="modelValue"
-        :type="revealed ? 'text' : 'password'"
+      <Password
+        :input-id="field.id"
+        :model-value="modelValue"
+        :feedback="false"
+        :toggle-mask="Boolean(modelValue)"
         :placeholder="placeholder"
         :autocomplete="autocomplete"
-        spellcheck="false"
-        :aria-describedby="[field.describedBy, stateId].filter(Boolean).join(' ') || undefined"
-        @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-      >
-      <!-- Le bouton ne revele que la saisie en cours : le secret deja enregistre n'est
-           jamais renvoye au navigateur, il n'y a donc rien a devoiler tant qu'on n'a
-           pas tape quelque chose. -->
-      <button
-        type="button"
-        class="secret-reveal"
-        :disabled="!modelValue"
-        :aria-pressed="revealed"
-        :aria-label="revealed ? 'Masquer la saisie' : 'Afficher la saisie'"
-        :title="revealed ? 'Masquer la saisie' : 'Afficher la saisie'"
-        @click="revealed = !revealed"
-      >
-        <EyeOff v-if="revealed" :size="16" aria-hidden="true" />
-        <Eye v-else :size="16" aria-hidden="true" />
-      </button>
+        :input-props="{ spellcheck: false, 'aria-describedby': [field.describedBy, stateId].filter(Boolean).join(' ') || undefined }"
+        @update:model-value="$emit('update:modelValue', $event)" />
     </div>
     <p :id="stateId" class="secret-state" :class="{ 'is-set': configured }">
       <component :is="configured ? ShieldCheck : ShieldAlert" :size="13" aria-hidden="true" />
@@ -49,8 +32,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue';
-import { Eye, EyeOff, ShieldAlert, ShieldCheck } from '@lucide/vue';
+import { computed, useId } from 'vue';
+import { ShieldAlert, ShieldCheck } from '@lucide/vue';
+import Password from 'primevue/password';
 import UiField from './UiField.vue';
 
 const props = withDefaults(
@@ -69,7 +53,6 @@ const props = withDefaults(
 
 defineEmits<{ 'update:modelValue': [value: string] }>();
 
-const revealed = ref(false);
 const stateId = `secret-state-${useId()}`;
 
 const placeholder = computed(() =>
@@ -85,28 +68,7 @@ const stateLabel = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.secret-field {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
-}
-.secret-field input {
-  flex: 1;
-  min-width: 0;
-}
-.secret-reveal {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: var(--touch-target);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--muted);
-  cursor: pointer;
-}
-.secret-reveal:hover:not(:disabled) { color: var(--text); border-color: var(--border-strong, var(--border)); }
-.secret-reveal:disabled { opacity: .45; cursor: not-allowed; }
+.secret-field :deep(.p-password),.secret-field :deep(.p-password-input){width:100%;min-width:0}
 .secret-state {
   display: flex;
   align-items: center;

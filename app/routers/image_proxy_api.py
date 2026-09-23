@@ -6,7 +6,7 @@ import logging
 import os as _os
 import time
 from io import BytesIO
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from weakref import WeakValueDictionary
 
 import httpx
@@ -179,20 +179,62 @@ def _image_response(content: bytes, content_type: str, etag: str) -> Response:
 @router.get("/image-proxy", dependencies=[Depends(require_auth)])
 async def image_proxy(
     request: Request,
-    url: str,
+    url: str | None = None,
+    plex_path: str | None = None,
     width: int | None = Query(None, ge=32, le=1600),
     height: int | None = Query(None, ge=32, le=1600),
     quality: int = Query(82, ge=40, le=95),
     image_format: str = Query("original", alias="format", pattern="^(original|webp|avif)$"),
 ):
     """Proxy, redimensionne et met en cache les affiches de l'interface."""
+    if bool(url) == bool(plex_path):
+        raise HTTPException(400, "Une source d'image unique est requise")
+
+    upstream_headers: dict[str, str] = {}
+    if plex_path:
+        parsed_path = urlparse(plex_path)
+        if (
+            not plex_path.startswith("/")
+            or plex_path.startswith("//")
+            or not parsed_path.path.startswith("/library/metadata/")
+            or parsed_path.scheme
+            or parsed_path.netloc
+            or ".." in parsed_path.path.split("/")
+            or "%2e" in parsed_path.path.lower()
+        ):
+            raise HTTPException(400, "Chemin Plex invalide")
+        async with AsyncSessionLocal() as db:
+            settings = (await db.execute(select(Settings))).scalars().first()
+        if not settings or not settings.plex_url or not settings.plex_token:
+            raise HTTPException(404, "Plex non configuré")
+        safe_query = urlencode(
+            [
+                (key, value)
+                for key, value in parse_qsl(parsed_path.query, keep_blank_values=True)
+                if key.lower() != "x-plex-token"
+            ]
+        )
+        safe_path = urlunparse(("", "", parsed_path.path, "", safe_query, ""))
+        url = f"{settings.plex_url.rstrip('/')}{safe_path}"
+        upstream_headers = {"X-Plex-Token": settings.plex_token}
+
     parsed = urlparse(url or "")
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise HTTPException(400, "URL image invalide")
     allowed_hosts = await _allowed_image_hosts()
     if not parsed.hostname or parsed.hostname.lower() not in allowed_hosts:
         raise HTTPException(400, "Hôte d'image non autorisé")
-    safe_url = urlunparse(parsed)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    embedded_token = next((value for key, value in query if key.lower() == "x-plex-token"), None)
+    safe_query = urlencode([(key, value) for key, value in query if key.lower() != "x-plex-token"])
+    safe_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, safe_query, ""))
+    if embedded_token and not upstream_headers:
+        async with AsyncSessionLocal() as db:
+            settings = (await db.execute(select(Settings))).scalars().first()
+        configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
+        if not settings or not settings.plex_token or parsed.hostname != configured_host:
+            raise HTTPException(400, "URL Plex invalide")
+        upstream_headers = {"X-Plex-Token": settings.plex_token}
     variant_key = _variant_key(safe_url, width, height, quality, image_format)
 
     async def _serve_if_cached() -> Response | None:
@@ -225,7 +267,7 @@ async def image_proxy(
         if not source or time.time() - source[2] >= _IMAGE_CACHE_TTL:
             try:
                 async with httpx.AsyncClient(timeout=15, follow_redirects=False, verify=False) as client:
-                    upstream = await client.get(safe_url)
+                    upstream = await client.get(safe_url, headers=upstream_headers)
                     if upstream.is_redirect:
                         # Plex redirige vers sa propre CDN (images.plex.tv, elle-meme
                         # relais de TMDB) pour une affiche qu'il n'a pas en cache local --
@@ -289,11 +331,16 @@ async def library_image_proxy(
     """Sert une affiche Plex sans révéler son URL signée au navigateur."""
     async with AsyncSessionLocal() as db:
         item = (await db.execute(select(LibraryItem).filter(LibraryItem.id == library_item_id))).scalars().first()
+        settings = (await db.execute(select(Settings))).scalars().first()
     if not item or not item.poster_url:
         raise HTTPException(404, "Affiche introuvable")
+    parsed = urlparse(item.poster_url)
+    configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
+    is_plex = bool(configured_host and parsed.hostname == configured_host)
     return await image_proxy(
         request=request,
-        url=item.poster_url,
+        url=None if is_plex else item.poster_url,
+        plex_path=urlunparse(("", "", parsed.path, parsed.params, parsed.query, "")) if is_plex else None,
         width=width,
         height=height,
         quality=quality,
@@ -313,11 +360,16 @@ async def request_image_proxy(
     """Sert l'affiche d'une demande sans révéler son éventuelle URL Plex signée."""
     async with AsyncSessionLocal() as db:
         media_request = (await db.execute(select(MediaRequest).filter(MediaRequest.id == request_id))).scalars().first()
+        settings = (await db.execute(select(Settings))).scalars().first()
     if not media_request or not media_request.poster_url:
         raise HTTPException(404, "Affiche introuvable")
+    parsed = urlparse(media_request.poster_url)
+    configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
+    is_plex = bool(configured_host and parsed.hostname == configured_host)
     return await image_proxy(
         request=request,
-        url=media_request.poster_url,
+        url=None if is_plex else media_request.poster_url,
+        plex_path=urlunparse(("", "", parsed.path, parsed.params, parsed.query, "")) if is_plex else None,
         width=width,
         height=height,
         quality=quality,

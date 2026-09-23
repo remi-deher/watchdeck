@@ -129,7 +129,8 @@ function taskStateLabel(state?: string | null): string {
   return TASK_STATE_LABELS[String(state).toLowerCase()] || String(state);
 }
 
-import { computed, onMounted, ref } from 'vue';
+import { computed } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { RefreshCw, ScanSearch } from '@lucide/vue';
 import { api } from '@/api';
@@ -142,14 +143,10 @@ import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';
 
 
-const plexSections = ref<any[]>([]);
-const plexSectionsLoading = ref(false);
-async function loadPlexSections(): Promise<void> {
-  plexSectionsLoading.value = true;
-  try { plexSections.value = await api('/api/plex/sections'); }
-  catch (e) { plexSections.value = []; }
-  finally { plexSectionsLoading.value = false; }
-}
+const queryClient = useQueryClient();
+const plexSectionsQuery = useQuery({ queryKey: ['settings', 'plex-sections'], queryFn: () => api<any[]>('/api/plex/sections') });
+const plexSections = computed(() => plexSectionsQuery.data.value || []);
+const plexSectionsLoading = computed(() => plexSectionsQuery.isFetching.value);
 
 const vffLibraryList = computed({
   get(): any[] { try { const raw = form.vff_libraries; if (!raw) return []; const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch { return []; } },
@@ -165,22 +162,22 @@ function toggleLibrary(name: string, plexType: string, checked: boolean): void {
 }
 function setLibraryKind(name: string, kind: string): void { const list = [...vffLibraryList.value]; const entry = list.find((x: any) => x.name === name); if (entry) entry.kind = kind; vffLibraryList.value = list; }
 
-const scanStatus = ref<Record<string, any>>({});
-const syncStatus = ref<Record<string, any>>({});
-const upgradeMetrics = ref<Record<string, any>>({});
-async function loadVffStatus(): Promise<void> {
-  [scanStatus.value, syncStatus.value, upgradeMetrics.value] = await Promise.all([
-    api('/api/vff/scan-status').catch(() => ({})),
-    api('/api/vff/sync-status').catch(() => ({})),
-    api('/api/vf-upgrades/metrics').catch(() => ({})),
-  ]);
-}
+const scanQuery = useQuery({ queryKey: ['settings', 'vff', 'scan-status'], queryFn: () => api<Record<string, any>>('/api/vff/scan-status').catch(() => ({})) });
+const syncQuery = useQuery({ queryKey: ['settings', 'vff', 'sync-status'], queryFn: () => api<Record<string, any>>('/api/vff/sync-status').catch(() => ({})) });
+const metricsQuery = useQuery({ queryKey: ['settings', 'vff', 'metrics'], queryFn: () => api<Record<string, any>>('/api/vf-upgrades/metrics').catch(() => ({})) });
+const scanStatus = computed<Record<string, any>>(() => scanQuery.data.value || {});
+const syncStatus = computed<Record<string, any>>(() => syncQuery.data.value || {});
+const upgradeMetrics = computed<Record<string, any>>(() => metricsQuery.data.value || {});
+const vffMutation = useMutation({
+  mutationFn: (path: string) => api(path, { method: 'POST' }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'vff'] }),
+});
 async function vff(path: string): Promise<void> {
-  await api(path, { method: 'POST' });
+  await vffMutation.mutateAsync(path);
 }
 
-onMounted(() => { loadPlexSections(); loadVffStatus(); });
-useRealtime(['vff.updated'], () => loadVffStatus());
+useRealtime(['vff.updated'], () => queryClient.invalidateQueries({ queryKey: ['settings', 'vff'] }));
 </script>
 
 <style scoped lang="scss">

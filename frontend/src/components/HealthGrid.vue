@@ -15,16 +15,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Compass, Mail, Rss, Search, Server, Tv, Video } from '@lucide/vue';
-import { api, cachedResource } from '@/api';
+import { api } from '@/api';
 import { useRealtime } from '@/events';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 
 const CACHE_KEY = 'watchdeck.vue.health';
-const loading = ref(false);
-const health = ref<any>(null);
-const checkedAt = ref<Date | null>(null);
+const queryClient = useQueryClient();
+function displayCache(): any | undefined {
+  // Cache d'affichage uniquement : TanStack Query reste la source de vérité et le TTL.
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')?.data || undefined; }
+  catch { return undefined; }
+}
+const healthQuery = useQuery({
+  queryKey: ['health'],
+  queryFn: () => api<any>('/api/health'),
+  staleTime: 30_000,
+  placeholderData: displayCache(),
+});
+const health = computed(() => healthQuery.data.value || null);
+const checkedAt = computed(() => health.value?.checked_at ? new Date(health.value.checked_at) : null);
 
 const meta: Record<string, [string, any]> = {
   sonarr: ['Sonarr', Tv],
@@ -58,42 +70,15 @@ const updatedLabel = computed(() => {
   return `Verifie il y a ${Math.floor(seconds / 3600)} h`;
 });
 
-async function refresh(): Promise<void> {
-  loading.value = true;
-  try {
-    const data = await api<any>('/api/health');
-    health.value = data;
-    checkedAt.value = data.checked_at ? new Date(data.checked_at) : new Date();
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data }));
-  } finally {
-    loading.value = false;
-  }
-}
-
-onMounted(() => {
-  const { cached, refresh: refreshPromise } = cachedResource(CACHE_KEY, 120000, () => api<any>('/api/health'));
-  if (cached) {
-    health.value = cached;
-    checkedAt.value = cached.checked_at ? new Date(cached.checked_at) : null;
-  } else {
-    loading.value = true;
-  }
-  refreshPromise
-    .then((data: any) => {
-      health.value = data;
-      checkedAt.value = data.checked_at ? new Date(data.checked_at) : new Date();
-    })
-    .finally(() => {
-      loading.value = false;
-    });
+watch(() => healthQuery.data.value, (data) => {
+  if (data) localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data }));
 });
 
 useRealtime(['health.updated'], (_type, detail) => {
-  if (detail && detail.status) {
-    health.value = detail;
-    checkedAt.value = detail.checked_at ? new Date(detail.checked_at) : new Date();
+  if (detail && detail.services) {
+    queryClient.setQueryData(['health'], detail);
   } else {
-    refresh();
+    void queryClient.invalidateQueries({ queryKey: ['health'] });
   }
 });
 </script>

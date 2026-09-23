@@ -1,4 +1,5 @@
-import { nextTick, onBeforeUnmount, reactive, watch, type Ref } from 'vue';
+import { nextTick, reactive, watch, type Ref } from 'vue';
+import { useEventListener, useMutationObserver, useResizeObserver } from '@vueuse/core';
 
 export interface HorizontalRailState {
   canLeft: boolean;
@@ -6,8 +7,6 @@ export interface HorizontalRailState {
 }
 
 export function useHorizontalRail(track: Ref<HTMLElement | null>) {
-  let observer: ResizeObserver | null = null;
-  let mutations: MutationObserver | null = null;
   const state = reactive<HorizontalRailState>({ canLeft: false, canRight: false });
 
   function update(): void {
@@ -35,33 +34,16 @@ export function useHorizontalRail(track: Ref<HTMLElement | null>) {
     }
   }
 
-  watch(
-    track,
-    async (el, previous) => {
-      previous?.removeEventListener('scroll', update);
-      observer?.disconnect();
-      mutations?.disconnect();
-      if (!el) return;
-      el.addEventListener('scroll', update, { passive: true });
-      if (typeof ResizeObserver !== 'undefined') {
-        observer = new ResizeObserver(update);
-        observer.observe(el);
-      }
-      if (typeof MutationObserver !== 'undefined') {
-        mutations = new MutationObserver(update);
-        mutations.observe(el, { childList: true, subtree: true });
-      }
-      await nextTick();
-      update();
-    },
-    { flush: 'post' }
-  );
-
-  onBeforeUnmount(() => {
-    track.value?.removeEventListener('scroll', update);
-    observer?.disconnect();
-    mutations?.disconnect();
-  });
+  // VueUse suit la ref du rail : les ecouteurs sont rebranches si l'element change et
+  // retires au demontage. Taille et contenu modifient tous deux la place disponible.
+  useEventListener(track, 'scroll', update, { passive: true });
+  useResizeObserver(track, update);
+  useMutationObserver(track, update, { childList: true, subtree: true });
+  watch(track, async (el) => {
+    if (!el) return;
+    await nextTick();
+    update();
+  }, { flush: 'post', immediate: true });
 
   return { state, update, scroll, onKeydown };
 }

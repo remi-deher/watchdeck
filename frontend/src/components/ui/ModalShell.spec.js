@@ -1,8 +1,10 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { defineComponent, nextTick, ref } from 'vue';
 
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ModalShell from './ModalShell.vue';
+import AppConfirmDialog from './AppConfirmDialog.vue';
 
 describe('ModalShell', () => {
   it('reproduit le markup attendu par la CSS globale (.drawer-backdrop > .modal-panel)', () => {
@@ -60,30 +62,21 @@ describe('ModalShell', () => {
 });
 
 describe('ConfirmModal bâti sur ModalShell', () => {
-  it('garde son panneau, son titre, son message et ses deux actions', () => {
-    const wrapper = mount(ConfirmModal, {
-      props: { open: true, title: 'Supprimer ?', message: 'Définitif.', confirmLabel: 'Supprimer', danger: true },
+  it('alimente le ConfirmDialog PrimeVue global et transmet la confirmation', async () => {
+    const accepted = ref(0);
+    const Harness = defineComponent({
+      components: { AppConfirmDialog, ConfirmModal },
+      setup: () => ({ accepted }),
+      template: '<AppConfirmDialog/><ConfirmModal open title="Supprimer ?" message="Définitif." confirm-label="Supprimer" danger @confirm="accepted++"/>',
     });
-    const panel = wrapper.find('aside.modal-panel');
-    expect(panel.classes()).toContain('confirm-modal');
-    expect(panel.find('.panel-head h2').text()).toBe('Supprimer ?');
-    expect(panel.find('.panel-head p').text()).toBe('Définitif.');
-
-    const buttons = panel.findAll('.form-actions button');
-    expect(buttons.map(b => b.text())).toEqual(['Annuler', 'Supprimer']);
-    expect(buttons[1].classes()).toContain('ui-button--danger');
-  });
-
-  it('émet cancel et confirm, et affiche l’état en cours', async () => {
-    const wrapper = mount(ConfirmModal, { props: { open: true, title: 'T' } });
-    const [cancel, confirm] = wrapper.findAll('.form-actions button');
-    await cancel.trigger('click');
-    expect(wrapper.emitted('cancel')).toHaveLength(1);
-    await confirm.trigger('click');
-    expect(wrapper.emitted('confirm')).toHaveLength(1);
-
-    await wrapper.setProps({ busy: true });
-    expect(wrapper.findAll('.form-actions button')[1].text()).toBe('Traitement…');
+    const wrapper = mount(Harness);
+    await nextTick();
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Définitif.'));
+    expect(wrapper.find('.p-confirmdialog-message').text()).toBe('Définitif.');
+    const buttons = wrapper.findAll('.p-confirmdialog button');
+    expect(buttons.map((button) => button.text())).toEqual(['Annuler', 'Supprimer']);
+    await buttons[1].trigger('click');
+    expect(accepted.value).toBe(1);
   });
 
   it('ne rend rien tant que open est faux', () => {

@@ -79,7 +79,7 @@ describe('UiCheckboxField', () => {
     const wrapper = mount(UiCheckboxField, { props: { modelValue: false, label: 'Notifications', hint: 'Recevoir un résumé.' } });
     const input = wrapper.find('input');
     expect(wrapper.find('label').attributes('for')).toBe(input.attributes('id'));
-    expect(input.attributes('aria-describedby')).toBe(wrapper.find('.ui-checkbox-hint').attributes('id'));
+    expect(wrapper.find('.p-checkbox').attributes('aria-describedby')).toBe(wrapper.find('.ui-checkbox-hint').attributes('id'));
     await input.setValue(true);
     expect(wrapper.emitted('update:modelValue')).toEqual([[true]]);
   });
@@ -91,7 +91,7 @@ describe('UiSegmentedControl', () => {
       modelValue: 'week', ariaLabel: 'Période',
       options: [{ value: 'week', label: 'Semaine' }, { value: 'month', label: 'Mois', count: 3 }],
     } });
-    expect(wrapper.findAll('[role="tab"]')[0].attributes('aria-selected')).toBe('true');
+    expect(wrapper.findAll('button')[0].attributes('aria-pressed')).toBe('true');
     await wrapper.findAll('button')[1].trigger('click');
     expect(wrapper.emitted('update:modelValue')).toEqual([['month']]);
   });

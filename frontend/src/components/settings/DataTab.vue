@@ -75,13 +75,15 @@
 <script setup lang="ts">
 import { formatDate } from '@/utils/format';
 import { mediaTypeLabel } from '@/utils/labels';
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { DatabaseZap, Download, HardDriveDownload, Search, ShieldAlert, Trash2, Upload } from '@lucide/vue';
 import { api } from '@/api';
 import { load, success, fail } from '@/settingsForm';
 import SettingsCard from './SettingsCard.vue';
 
-const busy = ref(false), includeSecrets = ref(false);
+const includeSecrets = ref(false);
+const queryClient = useQueryClient();
 const jsonInput = ref<HTMLInputElement | null>(null), sqliteInput = ref<HTMLInputElement | null>(null), inspection = ref<any>(null), confirmation = ref('');
 const fullBackupInput = ref<HTMLInputElement | null>(null), fullRestoreConfirmation = ref(''), restoreRestarting = ref(false), fullBackupSelected = ref(false);
 function onFullBackupFileChange(): void {
@@ -94,18 +96,16 @@ const populatedTables = computed((): Record<string, number> => Object.fromEntrie
     .filter(([, count]) => count > 0)
 ));
 
-const deletedLog = ref<any[]>([]);
-async function loadDeletedLog(): Promise<void> {
-  deletedLog.value = await api('/api/requests/deleted-log').catch(() => []);
-}
+const deletedLogQuery = useQuery({ queryKey: ['settings', 'deleted-log'], queryFn: () => api<any[]>('/api/requests/deleted-log').catch(() => []) });
+const deletedLog = computed(() => deletedLogQuery.data.value || []);
+const forgetMutation = useMutation({
+  mutationFn: (id: number) => api(`/api/requests/deleted-log/${id}`, { method: 'DELETE' }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'deleted-log'] }),
+});
 async function forgetEntry(id: number): Promise<void> {
-  busy.value = true;
-  try {
-    await api(`/api/requests/deleted-log/${id}`, { method: 'DELETE' });
-    await loadDeletedLog();
-  } catch (e) { fail(e); } finally { busy.value = false; }
+  try { await forgetMutation.mutateAsync(id); } catch (e) { fail(e); }
 }
-onMounted(loadDeletedLog);
 
 async function upload(path: string, file: File, extra: Record<string, any> = {}): Promise<any> {
   const body = new FormData();
@@ -116,44 +116,45 @@ async function upload(path: string, file: File, extra: Record<string, any> = {})
   if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
   return data;
 }
+const uploadMutation = useMutation({
+  mutationFn: ({ path, file, extra }: { path: string; file: File; extra?: Record<string, any> }) => upload(path, file, extra),
+  retry: 0,
+});
+const busy = computed(() => forgetMutation.isPending.value || uploadMutation.isPending.value);
 async function importJson(): Promise<void> {
   const file = jsonInput.value?.files?.[0];
   if (!file) return;
-  busy.value = true;
   try {
-    const data = await upload('/api/import', file);
+    const data = await uploadMutation.mutateAsync({ path: '/api/import', file });
     success(`Import termine : ${data.stats.users_upserted} utilisateurs.`);
     await load();
-  } catch (e) { fail(e); } finally { busy.value = false; }
+  } catch (e) { fail(e); }
 }
 async function restoreFullBackup(): Promise<void> {
   const file = fullBackupInput.value?.files?.[0];
   if (!file || fullRestoreConfirmation.value !== 'REMPLACER') return;
-  busy.value = true;
   try {
-    await upload('/api/backup/full/restore', file, { confirm: fullRestoreConfirmation.value });
+    await uploadMutation.mutateAsync({ path: '/api/backup/full/restore', file, extra: { confirm: fullRestoreConfirmation.value } });
     restoreRestarting.value = true;
     setTimeout(() => location.assign('/login'), 8000);
-  } catch (e) { fail(e); } finally { busy.value = false; }
+  } catch (e) { fail(e); }
 }
 function resetInspection(): void { inspection.value = null; confirmation.value = ''; }
 async function inspectSqlite(): Promise<void> {
   const file = sqliteInput.value?.files?.[0];
   if (!file) return;
-  busy.value = true;
   try {
-    inspection.value = await upload('/api/migration/sqlite/inspect', file);
+    inspection.value = await uploadMutation.mutateAsync({ path: '/api/migration/sqlite/inspect', file });
     success('Base SQLite valide.');
-  } catch (e) { fail(e); } finally { busy.value = false; }
+  } catch (e) { fail(e); }
 }
 async function migrateSqlite(): Promise<void> {
   const file = sqliteInput.value?.files?.[0];
   if (!file || confirmation.value !== 'REMPLACER') return;
-  busy.value = true;
   try {
-    const data = await upload('/api/migration/sqlite', file, { confirm: confirmation.value });
+    const data = await uploadMutation.mutateAsync({ path: '/api/migration/sqlite', file, extra: { confirm: confirmation.value } });
     success(`Migration terminee : ${data.report.copied_rows.toLocaleString()} lignes.`);
     setTimeout(() => location.assign('/dashboard'), 1500);
-  } catch (e) { fail(e); } finally { busy.value = false; }
+  } catch (e) { fail(e); }
 }
 </script>

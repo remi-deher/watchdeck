@@ -366,8 +366,12 @@ app.add_middleware(SessionSyncMiddleware)
 # Middleware de session (doit être ajouté avant les routers)
 app.add_middleware(DynamicSecureSessionMiddleware, secret_key=get_secret_key())
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-app.mount("/vue", CacheControlledStaticFiles(directory="app/static/vue"), name="vue")
+# `app/static/vue` est la sortie de `npm run build`, qui n'est plus suivie par git : le
+# Dockerfile la reconstruit, et un clone neuf ne l'a pas encore. `check_dir=False` laisse
+# l'API demarrer (et la suite pytest tourner) sans frontend compile ; les pages Vue
+# repondent alors 404 jusqu'au premier build.
+app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name="static")
+app.mount("/vue", CacheControlledStaticFiles(directory="app/static/vue", check_dir=False), name="vue")
 
 app.include_router(auth.router)
 app.include_router(activity_api.router)

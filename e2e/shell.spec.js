@@ -202,6 +202,18 @@ test("toute destination est atteignable au clavier seul", async ({ page }) => {
   // froid. Ce qui est verifie ne change pas -- chaque lien doit recevoir le focus et le
   // montrer.
   await expect(links.first()).toBeVisible({ timeout: 20_000 });
+  /* Attendre un rail STABLE. La page enregistre ses sections une fois montee, et elles
+     s'inserent sous la destination active : tant que ce n'est pas fait, les liens
+     suivants se decalent. Compter les liens puis viser leur rang visait alors un autre
+     element que prevu -- parfois un lien remplace juste apres avoir recu le focus, qui
+     le perdait (« inactive »). C'etait l'echec intermittent de ce test sous charge. */
+  let previousCount = -1;
+  await expect.poll(async () => {
+    const current = await links.count();
+    const stable = current === previousCount;
+    previousCount = current;
+    return stable;
+  }, { timeout: 20_000, intervals: [300] }).toBe(true);
 
   // Chaque lien du rail doit pouvoir recevoir le focus et le rendre visible : un
   // element focalisable sans indicateur visible est inutilisable au clavier.

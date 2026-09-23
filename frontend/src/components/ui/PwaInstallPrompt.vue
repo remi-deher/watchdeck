@@ -11,11 +11,11 @@
     </div>
     <div class="pwa-actions">
       <UiButton v-if="canInstall" variant="primary" size="sm" @click="handleInstall">
-        <Download :size="14" />
+        <Download ::size="14" />
         <span>Installer</span>
       </UiButton>
       <UiButton v-else-if="isIos" size="sm" @click="showIosModal = true">
-        <Smartphone :size="14" />
+        <Smartphone ::size="14" />
         <span>Instructions iOS</span>
       </UiButton>
       <UiButton variant="ghost" icon-only title="Masquer" aria-label="Masquer" @click="dismiss">
@@ -38,7 +38,7 @@
             </li>
             <li>
               <span>2. Faites défiler vers le bas et sélectionnez <strong>« Sur l'écran d'accueil »</strong></span>
-              <PlusSquare :size="16" class="ios-inline-icon" />
+              <PlusSquare ::size="16" class="ios-inline-icon" />
             </li>
             <li>
               <span>3. Touchez <strong>Ajouter</strong> en haut à droite.</span>

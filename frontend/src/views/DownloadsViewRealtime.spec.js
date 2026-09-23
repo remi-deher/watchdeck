@@ -1,16 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
-import { useInPlaceList } from '@/composables/useInPlaceList';
+import { describe, expect, it } from 'vitest';
+import { patchedList } from '@/composables/useRealtimeQuery';
 
-describe('download.updated in-place patching', () => {
-  it('updates matching torrent status in-place when event detail is received', () => {
-    const { patchItem } = useInPlaceList();
-    const torrents = [
-      { hash: 'abc1234567890', name: 'Movie 1', status: 'downloading', progress: 50 },
-    ];
+describe('download.updated : mise a jour d’un torrent', () => {
+  it('reporte l’evenement sur le torrent correspondant, sans muter la liste d’origine', () => {
+    const torrents = Object.freeze([
+      Object.freeze({ hash: 'abc1234567890', name: 'Movie 1', status: 'downloading', progress: 50 }),
+    ]);
 
-    const updated = patchItem(torrents, { hash: 'abc1234567890', progress: 75 }, { keyFields: ['hash'] });
-    expect(updated).toBe(true);
-    expect(torrents[0].progress).toBe(75);
-    expect(torrents[0].status).toBe('downloading');
+    const { list, patched } = patchedList(torrents, { hash: 'abc1234567890', progress: 75 }, { keyFields: ['hash'] });
+    expect(patched).toBe(true);
+    expect(list[0]).toMatchObject({ progress: 75, status: 'downloading' });
+    expect(torrents[0].progress).toBe(50);
   });
 });

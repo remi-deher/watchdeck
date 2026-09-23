@@ -182,7 +182,7 @@
  */
 
 
-/* La revelation pilotee par le defilement vit avec la carte elle-meme
- * (`MediaCardShell`), qui portait deja une animation d'arrivee : deux animations sur le
- * meme element se disputeraient la meme propriete. Voir `.poster-card.animated` la-bas.
+/* L'apparition des cartes vit avec la carte elle-meme (`MediaCardShell`) : elle se joue
+ * une fois au montage. La variante pilotee par le defilement a ete retiree, elle faisait
+ * saccader les grandes grilles (voir le commentaire de `onRevealEnd`).
  */

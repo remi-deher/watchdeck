@@ -76,7 +76,7 @@ import { computed, ref, watch } from 'vue';
 import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Smartphone, Tablet, Tv } from '@lucide/vue';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
-import { usePolling } from '@/composables/usePolling';
+import { useIntervalFn } from '@vueuse/core';
 import { formatBandwidth } from '@/utils/format';
 
 export interface LiveSession {
@@ -132,7 +132,9 @@ const emit = defineEmits<{
 const receivedAt = ref(Date.now());
 const now = ref(Date.now());
 watch(() => props.sessions, () => { receivedAt.value = Date.now(); now.value = Date.now(); });
-usePolling(() => { now.value = Date.now(); }, 1000);
+// Simple horloge d'affichage (progression des lectures), pas une requete : suspendue
+// quand l'onglet est masque.
+useIntervalFn(() => { if (!document.hidden) now.value = Date.now(); }, 1000);
 
 function isPaused(session: LiveSession): boolean {
   return ['paused', 'buffering'].includes(String(session.state || '').toLowerCase());

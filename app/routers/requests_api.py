@@ -32,7 +32,7 @@ from ..services import arr_orphans, deleted_media, email_service, radarr, sonarr
 from ..services.notification_orchestrator import _get_recipients, _notify, _resolve_requester_users, notify_single_user
 from ..services.request_lifecycle import transition_request
 from ..services.vf_cache import delete_request_episode_cache
-from ..utils import async_get_or_404, now_utc_naive, parse_email_list
+from ..utils import async_get_or_404, now_utc_naive, parse_email_list, plex_image_proxy_url, wrap_image_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -468,7 +468,7 @@ async def list_requests_compact(
                 "plex_user": row.plex_user,
                 "custom_name": row.custom_name,
                 "requested_by": row.custom_name or row.plex_user or row.plex_user_id,
-                "poster_url": row.poster_url,
+                "poster_url": wrap_image_proxy(row.poster_url),
                 "has_vf": row.has_vf,
                 "fr_is_default": row.fr_is_default,
                 "library_item_id": row.library_item_id,
@@ -611,9 +611,7 @@ async def plex_library_search(query: str, db: AsyncSession = Depends(get_db_asyn
                     "title": i.get("title", ""),
                     "year": i.get("year"),
                     "media_type": "show" if i.get("type") in ("show", "season", "episode") else "movie",
-                    "thumb": f"{s.plex_url.rstrip('/')}{i['thumb']}?X-Plex-Token={s.plex_token}"
-                    if i.get("thumb")
-                    else None,
+                    "thumb": plex_image_proxy_url(i.get("thumb")),
                     "summary": i.get("summary", ""),
                     "plex_type": i.get("type", ""),
                 }

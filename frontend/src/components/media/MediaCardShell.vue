@@ -1,8 +1,9 @@
 <template>
   <article
     class="media-card poster-card"
-    :class="{ 'is-music': isMusic, bordered, animated, elevated: elevateOnHover, 'has-action': hasAction }"
+    :class="{ 'is-music': isMusic, bordered, animated: playing, elevated: elevateOnHover, 'has-action': hasAction }"
     :style="hasAction && actionPadding ? { '--card-action-padding': actionPadding } : undefined"
+    @animationend.self="onRevealEnd"
   >
     <div
       class="poster-wrap"
@@ -20,9 +21,10 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useCardReveal } from '@/composables/useCardReveal';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     isMusic?: boolean;
     hasAction?: boolean;
@@ -42,6 +44,20 @@ withDefaults(
 );
 
 const { revealed, reveal, conceal } = useCardReveal();
+
+/**
+ * L'apparition ne se joue qu'une fois.
+ *
+ * La grille rend ses cartes hors ecran en `content-visibility: auto` : chaque carte qui
+ * revient a l'ecran est rendue a nouveau, et une animation CSS encore attachee repart
+ * alors de zero. Mesure sur 1 000 affiches (Chromium, defilement continu) : 72 ms par
+ * image en mediane et 358 taches longues, contre 36 ms et 13 une fois la classe retiree
+ * a la fin de l'animation -- autant que sans aucune animation.
+ */
+const playing = ref(props.animated);
+function onRevealEnd(event: AnimationEvent): void {
+  if (event.animationName.startsWith('card-reveal')) playing.value = false;
+}
 
 /**
  * Premier appui : decouvrir la carte, pas l'ouvrir.
@@ -101,29 +117,10 @@ function interceptFirstTap(e: MouseEvent): void {
      dure trois dixiemes de seconde. */
 }
 
-/* Quand le navigateur sait lier une animation au defilement, la carte ne se revele plus
- * a son montage mais a son entree dans l'ecran -- ce qui est le moment ou on la regarde.
- * C'est un REMPLACEMENT, pas un ajout : deux animations sur le meme element se
- * disputeraient la meme propriete, et la derniere declaree gagnerait au hasard de
- * l'ordre des feuilles.
- *
- * L'animation est alors portee par la position de defilement, donc hors du fil
- * d'execution : elle reste fluide meme quand la page travaille. Le decalage au montage
- * n'a plus lieu d'etre, la position dans l'ecran suffit a echelonner.
- */
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .poster-card.animated {
-      animation-name: card-reveal;
-      animation-timeline: view();
-      /* Termine avant le milieu de l'ecran : une carte encore en train d'arriver quand
-         on la lit se fait remarquer, et c'est exactement ce qu'on ne veut pas. */
-      animation-range: entry 0% entry 62%;
-      animation-delay: 0s;
-      animation-fill-mode: both;
-    }
-  }
-}
+/* L'apparition liee au defilement (`animation-timeline: view()`) a ete retiree : elle
+ * attachait une timeline a chaque carte, recalculee a chaque image, et ne se terminait
+ * jamais -- impossible donc de la jouer une seule fois. Sur 1 000 affiches, c'etait la
+ * premiere cause de saccade au defilement (voir `onRevealEnd`). */
 .poster-card:hover,
 .poster-card:focus-within {
   border-color: color-mix(in srgb, var(--accent) 65%, var(--border));

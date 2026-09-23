@@ -18,6 +18,7 @@
     <div class="settings-layout">
       <div class="settings-panel">
         <UiFeedback v-if="error" type="error" title="Enregistrement impossible" :message="error" />
+        <SettingsValidationSummary />
         <UiFeedback v-if="message" type="success" :message="message" />
 
         <!-- La question n'est plus « comment regler ceci » mais « ou vit ce reglage » :
@@ -64,6 +65,7 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vu
 import { Save } from '@lucide/vue';
 import SettingsOverview from '@/components/settings/SettingsOverview.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { load, save, saving, error, message, isDirty } from '@/settingsForm';
 import { settingsSections } from '@/settingsSections';

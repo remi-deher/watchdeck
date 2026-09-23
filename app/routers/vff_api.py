@@ -38,7 +38,7 @@ from ..services.episode_availability import sync_episode_availability_for_show
 from ..services.notification_orchestrator import _notify, _queue_milestone
 from ..services.radarr import lookup_movie
 from ..services.sonarr import get_episodes, lookup_series
-from ..utils import async_get_or_404, now_utc_naive, wrap_image_proxy
+from ..utils import async_get_or_404, now_utc_naive, plex_image_proxy_url, wrap_image_proxy
 from .arr_shared import _resolve_arr_instance
 
 logger = logging.getLogger(__name__)
@@ -375,7 +375,7 @@ async def _season_episodes_payload(db: AsyncSession, req, season_number: int) ->
                 "title": (cached.title if cached else None) or ep.get("title"),
                 "air_date": (cached.air_date if cached else None) or ep.get("airDateUtc") or ep.get("airDate"),
                 "overview": (cached.overview if cached else None) or ep.get("overview") or "",
-                "still_url": wrap_image_proxy(cached.still_url) if cached and cached.still_url else None,
+                "still_url": plex_image_proxy_url(cached.still_url) if cached and cached.still_url else None,
                 "tracks": tracks,
                 "subtitles": subtitles,
                 # Sous-titre francais "force" (dialogues en langue etrangere uniquement,

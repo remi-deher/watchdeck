@@ -19,7 +19,7 @@ from ..models import ArrInstance, MediaRequest, NotificationLog, PlexUser, PollH
 from ..services import arr_orphans, email_providers, prowlarr, radarr, sonarr
 from ..services.plex_api import check_connection as plex_test
 from ..services.seer import check_connection as seer_test
-from ..utils import now_utc, now_utc_naive
+from ..utils import now_utc, now_utc_naive, wrap_image_proxy
 
 router = APIRouter(prefix="/api", tags=["metrics"], dependencies=[Depends(require_admin)])
 
@@ -582,7 +582,7 @@ async def stats_top_requested(db: AsyncSession = Depends(get_db_async), limit: i
                 "id": r.id,
                 "title": r.title,
                 "media_type": r.media_type,
-                "poster_url": r.poster_url,
+                "poster_url": wrap_image_proxy(r.poster_url),
                 "status": r.status,
                 "count": count,
             }
@@ -613,7 +613,7 @@ async def stats_recently_available(db: AsyncSession = Depends(get_db_async), lim
             "library_id": r.library_item_id,
             "title": r.title,
             "media_type": r.media_type,
-            "poster_url": r.poster_url,
+            "poster_url": wrap_image_proxy(r.poster_url),
             "available_at": r.available_at.isoformat() if r.available_at else None,
         }
         for r in items

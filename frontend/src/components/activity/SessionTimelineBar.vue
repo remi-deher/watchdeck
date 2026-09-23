@@ -17,7 +17,7 @@
         @click="toggleExpanded"
       >
         <span>{{ segments.length > 1 ? `${segments.length} segments` : 'Détails' }}</span>
-        <ChevronDown :class="['toggle-chevron', { 'is-open': isExpanded }]" :size="14" />
+        <ChevronDown :class="['toggle-chevron', { 'is-open': isExpanded }]" ::size="14" />
       </button>
     </div>
 
@@ -95,11 +95,11 @@
             @click="highlightedIndex = highlightedIndex === idx ? null : idx"
           >
             <div class="segment-icon-wrapper">
-              <Play v-if="seg.state === 'playing' && seg.playback_method !== 'transcode'" :size="13" class="icon-play" />
-              <Zap v-else-if="seg.state === 'playing' && seg.playback_method === 'transcode'" :size="13" class="icon-transcode" />
-              <Pause v-else-if="seg.state === 'paused'" :size="13" class="icon-pause" />
-              <RotateCw v-else-if="seg.state === 'buffering'" :size="13" class="icon-buffering" />
-              <Clock v-else :size="13" />
+              <Play v-if="seg.state === 'playing' && seg.playback_method !== 'transcode'" ::size="13" class="icon-play" />
+              <Zap v-else-if="seg.state === 'playing' && seg.playback_method === 'transcode'" ::size="13" class="icon-transcode" />
+              <Pause v-else-if="seg.state === 'paused'" ::size="13" class="icon-pause" />
+              <RotateCw v-else-if="seg.state === 'buffering'" ::size="13" class="icon-buffering" />
+              <Clock v-else ::size="13" />
             </div>
 
             <div class="segment-main-info">
@@ -111,13 +111,13 @@
               <div class="segment-sub-info">
                 <!-- Plage d'horloge réelle -->
                 <span class="info-pill" v-if="seg.started_at">
-                  <Clock :size="10" />
+                  <Clock ::size="10" />
                   {{ formatTime(seg.started_at) }}<template v-if="seg.ended_at"> → {{ formatTime(seg.ended_at) }}</template><template v-else> (en cours)</template>
                 </span>
 
                 <!-- Position dans la vidéo -->
                 <span class="info-pill" v-if="seg.view_offset_start_ms !== undefined">
-                  <FastForward :size="10" />
+                  <FastForward ::size="10" />
                   Position : {{ formatDuration(seg.view_offset_start_ms) }}<template v-if="seg.view_offset_end_ms !== undefined"> → {{ formatDuration(seg.view_offset_end_ms) }}</template>
                 </span>
               </div>

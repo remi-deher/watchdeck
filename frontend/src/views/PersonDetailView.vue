@@ -43,6 +43,7 @@ import { api } from '@/api';
 import { mediaDetailPath } from '@/mediaUrl';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaGrid from '@/components/ui/MediaGrid.vue';
+import { formatDateLong } from '@/utils/format';
 
 interface Credit {
   media_type?: string;
@@ -75,7 +76,7 @@ const filters = [{ value: 'all', label: 'Tout' }, { value: 'movie', label: 'Film
 const visibleCredits = computed(() => (person.value?.credits || []).filter((item) => filter.value === 'all' || item.media_type === filter.value));
 const lifeSummary = computed(() => [person.value?.birthday && `Né(e) le ${formatDate(person.value.birthday)}`, person.value?.deathday && `décédé(e) le ${formatDate(person.value.deathday)}`, person.value?.place_of_birth].filter(Boolean).join(' · '));
 
-function formatDate(value: string): string { return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(`${value}T12:00:00`)); }
+function formatDate(value: string): string { return formatDateLong(value); }
 function detailPath(item: Credit): string { return mediaDetailPath(item, item.library_id ? 'library' : item.request_id ? 'request' : 'discover', { discover: true }); }
 function goBack(): void { if (window.history.state?.back) router.back(); else router.push('/discover'); }
 async function load(): Promise<void> {

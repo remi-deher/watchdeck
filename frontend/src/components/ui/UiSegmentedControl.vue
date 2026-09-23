@@ -1,17 +1,25 @@
 <template>
-  <div class="ui-segmented-control" role="tablist" :aria-label="ariaLabel">
-    <button v-for="option in options" :key="option.value" type="button" role="tab"
-      :class="{ active: option.value === modelValue }" :aria-selected="option.value === modelValue"
-      :disabled="option.disabled" @click="emit('update:modelValue', option.value)">
-      <span>{{ option.label }}</span><small v-if="option.count != null">{{ option.count }}</small>
-    </button>
-  </div>
+  <SelectButton ref="control" class="ui-segmented-control" role="tablist" :model-value="modelValue" :options="options" option-label="label"
+    option-value="value" option-disabled="disabled" :aria-label="ariaLabel" @update:model-value="emit('update:modelValue', $event)">
+    <template #option="{ option }"><span>{{ option.label }}</span><small v-if="option.count != null">{{ option.count }}</small></template>
+  </SelectButton>
 </template>
 <script setup lang="ts" generic="T extends string | number">
+import { nextTick, onMounted, ref, watch } from 'vue';
+import SelectButton from 'primevue/selectbutton';
 export interface UiSegmentedOption<T extends string | number> { value: T; label: string; count?: number; disabled?: boolean }
-defineProps<{ modelValue: T; options: UiSegmentedOption<T>[]; ariaLabel: string }>();
+const props = defineProps<{ modelValue: T; options: UiSegmentedOption<T>[]; ariaLabel: string }>();
 const emit = defineEmits<{ 'update:modelValue': [value: T] }>();
+const control = ref<{ $el: HTMLElement } | null>(null);
+function syncTabSemantics(): void {
+  for (const button of control.value?.$el?.querySelectorAll('button') ?? []) {
+    button.setAttribute('role', 'tab');
+    button.setAttribute('aria-selected', String(button.getAttribute('aria-pressed') === 'true'));
+  }
+}
+onMounted(syncTabSemantics);
+watch(() => props.modelValue, () => nextTick(syncTabSemantics));
 </script>
 <style scoped lang="scss">
-.ui-segmented-control{display:inline-flex;align-items:center;gap:3px;padding:3px;border:1px solid var(--border);border-radius:var(--btn-radius);background:var(--surface-2)}button{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:32px;padding:0 11px;border:0;border-radius:calc(var(--btn-radius) - 3px);background:transparent;color:var(--muted);font:inherit;font-size:var(--fs-xs);font-weight:700;cursor:pointer}button:hover:not(:disabled),button.active{background:var(--surface-3);color:var(--text)}button.active{box-shadow:0 1px 3px rgba(0,0,0,.2)}button:disabled{cursor:not-allowed;opacity:.45}small{min-width:18px;padding:2px 5px;border-radius:999px;background:var(--surface-1);color:inherit;font-size: var(--fs-xs);line-height:1.2}
+.ui-segmented-control :deep(.p-togglebutton-content){gap:var(--space-2)}small{min-width:18px;padding:2px 5px;border-radius:999px;background:var(--surface-1);color:inherit;font-size:var(--fs-xs);line-height:1.2}
 </style>

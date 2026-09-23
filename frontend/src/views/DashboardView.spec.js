@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { VueQueryPlugin } from '@tanstack/vue-query';
+import { createQueryClient } from '@/queryClient';
 
 import DashboardView from './DashboardView.vue';
 
@@ -16,11 +18,11 @@ vi.mock('@/cache', () => ({
   writeCache: vi.fn(),
 }));
 vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
-vi.mock('@/composables/usePolling', () => ({ usePolling: vi.fn() }));
 
 function mountView() {
   return mount(DashboardView, {
     global: {
+      plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]],
       stubs: {
         UiFeedback: true,
         OnboardingChecklist: true,
@@ -82,7 +84,7 @@ describe('DashboardView supervision', () => {
     await supervision.trigger('toggle');
     await flushPromises();
 
-    expect(localStorage.getItem('dashboard.supervisionOpen')).toBe('1');
+    expect(localStorage.getItem('watchdeck:dashboard.supervisionOpen')).toBe('true');
     expect(apiMock).toHaveBeenCalledWith('/api/health');
     expect(apiMock).toHaveBeenCalledWith('/api/disk-space');
     expect(apiMock).toHaveBeenCalledWith(

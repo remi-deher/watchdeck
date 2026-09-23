@@ -4,6 +4,8 @@
  * par se compter en milliers, ce qui rendait les graphiques illisibles — et, avec une
  * largeur minimale par barre, débordait la grille de plusieurs milliers de pixels.
  * Au-delà de quelques mois on passe donc à la semaine, puis au mois. */
+import { addDays, addMonths, eachDayOfInterval, format, isSameMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export type Grain = 'day' | 'week' | 'month';
 
@@ -19,6 +21,48 @@ export interface BucketedPoint {
   value: number;
 }
 
+/** Date civile locale, sans conversion UTC. */
+export function localIso(date: Date): string {
+  return format(date, 'yyyy-MM-dd');
+}
+
+export function monthBounds(date: Date): { start: Date; end: Date } {
+  const start = startOfMonth(date);
+  return { start, end: addMonths(start, 1) };
+}
+
+export interface CalendarDay {
+  /** Date civile locale « AAAA-MM-JJ », clé des événements du jour. */
+  date: string;
+  /** Quantième affiché dans la cellule. */
+  day: number;
+  /** Faux pour les jours de débord, appartenant au mois précédent ou suivant. */
+  current: boolean;
+}
+
+/** Six semaines de lundi à dimanche : la hauteur de la grille ne saute pas d'un mois
+ *  à l'autre, et tout mois tient, y compris un février bissextile commençant un
+ *  dimanche. */
+const MONTH_GRID_CELLS = 42;
+
+/**
+ * Grille mensuelle, de la semaine du 1er à la semaine du dernier jour.
+ *
+ * Passe par `eachDayOfInterval` plutôt que par un décalage calculé à la main : autour
+ * des changements d'heure, avancer d'un jour n'est pas ajouter vingt-quatre heures, et
+ * une date construite ainsi pouvait tomber la veille au soir — donc porter la clé ISO
+ * du mauvais jour.
+ */
+export function buildMonthGrid(month: Date): CalendarDay[] {
+  const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
+  const days = eachDayOfInterval({ start, end: addDays(start, MONTH_GRID_CELLS - 1) });
+  return days.map((date) => ({
+    date: localIso(date),
+    day: date.getDate(),
+    current: isSameMonth(date, month),
+  }));
+}
+
 export function grainFor(count: number): Grain {
   if (count > 750) return 'month';
   if (count > 120) return 'week';
@@ -28,17 +72,15 @@ export function grainFor(count: number): Grain {
 /** Début de la tranche à laquelle appartient une date (lundi pour la semaine). */
 export function bucketStart(date: string, grain: Grain): string {
   if (grain === 'day') return date;
-  const parsed = new Date(`${date}T00:00:00`);
+  let parsed = parseISO(date);
   if (Number.isNaN(parsed.getTime())) return date;
   if (grain === 'month') parsed.setDate(1);
-  else parsed.setDate(parsed.getDate() - ((parsed.getDay() + 6) % 7));
-  const month = String(parsed.getMonth() + 1).padStart(2, '0');
-  const day = String(parsed.getDate()).padStart(2, '0');
-  return `${parsed.getFullYear()}-${month}-${day}`;
+  else parsed = startOfWeek(parsed, { weekStartsOn: 1 });
+  return localIso(parsed);
 }
 
 export function monthLabel(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+  return format(parseISO(date), 'MMM yy', { locale: fr });
 }
 
 /**

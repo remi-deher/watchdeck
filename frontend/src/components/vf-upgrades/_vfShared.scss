@@ -1,0 +1,172 @@
+/* Styles communs aux listes de la page « Ameliorations VF & Flux » : squelettes de
+ * chargement, titre et type du media, saisons (SeasonEpisodeList). Importes dans le
+ * style scoped de chaque panneau, qui les rattache a ses propres elements. */
+
+/* Skeletons */
+.vf-skeletons {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.vf-skeleton-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.skeleton-poster {
+  flex-shrink: 0;
+  width: 90px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(100deg, var(--surface-2) 20%, color-mix(in srgb, var(--surface-2) 55%, var(--border)) 40%, var(--surface-2) 60%);
+  background-size: 220% 100%;
+  animation: vf-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-line {
+  display: block;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(100deg, var(--surface-2) 20%, color-mix(in srgb, var(--surface-2) 55%, var(--border)) 40%, var(--surface-2) 60%);
+  background-size: 220% 100%;
+  animation: vf-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-line.title { height: 20px; width: 45%; }
+
+.skeleton-line.sub { height: 14px; width: 25%; }
+
+.skeleton-line.row { height: 44px; width: 100%; }
+
+.badge-movie {
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.1);
+  font-size: var(--fs-xs);
+}
+
+.badge-show {
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #d8b4fe;
+  background: rgba(168, 85, 247, 0.1);
+  font-size: var(--fs-xs);
+}
+
+.media-title {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-title:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.media-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.show-seasons-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.season-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+
+.season-group.has-pending {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 3%, var(--surface-hover));
+}
+
+.season-summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  list-style: none;
+  font-size: var(--fs-sm);
+}
+
+.season-summary::-webkit-details-marker {
+  display: none;
+}
+
+.season-summary::before {
+  content: '▸';
+  display: inline-block;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.season-group[open] > .season-summary::before {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+
+.season-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.season-group.has-pending .season-title {
+  color: var(--accent);
+}
+
+.season-badge-count {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.season-status-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.season-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.spin {
+  animation: vf-spin 1s linear infinite;
+}
+
+@keyframes vf-shimmer {
+  to { background-position-x: -220%; }
+}
+
+@keyframes vf-spin {
+  to { transform: rotate(360deg); }
+}

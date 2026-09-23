@@ -1,44 +1,29 @@
 <template>
-  <Teleport to="body">
-    <!-- Le voile se fond et le panneau monte : sans transition, la modale se substituait
-         a l'ecran d'un seul coup et l'oeil devait la relire entierement pour savoir ce
-         qui venait d'arriver. Les regles vivent dans `_motion.scss`, avec le reste du
-         mouvement de l'application. -->
+  <Teleport v-if="shellMode === 'compact'" to="body">
     <Transition name="modal-fade">
       <div v-if="open" class="drawer-backdrop" @click.self="requestClose">
-      <aside
-        ref="panelRef"
-        tabindex="-1"
-        class="modal-panel"
-        :class="panelClass"
-        role="dialog"
-        :aria-modal="modal ? 'true' : 'false'"
-        :aria-label="ariaLabel || title"
-      >
-        <!-- La poignee ne sert pas qu'a tirer : elle dit que la surface se tire. Sans
-             ce reperage, le geste existe sans que personne ne le tente. -->
-        <div v-if="shellMode === 'compact'" class="sheet-grab" aria-hidden="true"><span></span></div>
-        <div class="panel-head">
-          <div>
-            <h2><slot name="title">{{ title }}</slot></h2>
-            <p v-if="subtitle">{{ subtitle }}</p>
-          </div>
-          <UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" :disabled="busy" @click="requestClose">
-            <X />
-          </UiButton>
-        </div>
-        <UiFeedback v-if="error" type="error" :message="error" />
-        <slot />
-        <div v-if="$slots.actions" class="actions"><slot name="actions" /></div>
+        <aside ref="panelRef" tabindex="-1" class="modal-panel" :class="panelClass" role="dialog"
+          :aria-modal="modal ? 'true' : 'false'" :aria-label="ariaLabel || title">
+          <div class="sheet-grab" aria-hidden="true"><span /></div>
+          <ModalContent />
         </aside>
       </div>
     </Transition>
   </Teleport>
+  <Dialog v-else class="modal-shell-dialog" :visible="open" :modal="modal" :dismissable-mask="!busy" :closable="false" :block-scroll="false"
+    :draggable="false" :aria-label="ariaLabel || title" @update:visible="onVisibleChange">
+    <template #container>
+      <aside tabindex="-1" class="modal-panel modal-panel--prime" :class="panelClass">
+        <ModalContent />
+      </aside>
+    </template>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, toRef } from 'vue';
+import { computed, defineComponent, h, ref, toRef, useSlots } from 'vue';
 import { X } from '@lucide/vue';
+import Dialog from 'primevue/dialog';
 import { useModalA11y } from '@/composables/useModalA11y';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
 import { useSheetDrag } from '@/composables/useSheetDrag';
@@ -46,58 +31,33 @@ import { useShellMode } from '@/composables/useShellMode';
 import UiButton from './UiButton.vue';
 import UiFeedback from './UiFeedback.vue';
 
-const props = withDefaults(
-  defineProps<{
-    open?: boolean;
-    title: string;
-    subtitle?: string;
-    ariaLabel?: string;
-    panelClass?: string;
-    error?: string;
-    busy?: boolean;
-    /** Sélecteur CSS de l'élément à focaliser à l'ouverture (défaut : premier focusable). */
-    initialFocus?: string;
-    /**
-     * Surface modale : l'arrière-plan devient inerte et la tabulation y est piégée.
-     *
-     * `false` pour une surface ancrée à son déclencheur, qui doit rester atteignable
-     * pour la refermer — le tiroir de filtres, posé sur la barre de recherche qui
-     * continue de le commander.
-     */
-    modal?: boolean;
-  }>(),
-  {
-    open: true,
-    subtitle: '',
-    ariaLabel: '',
-    panelClass: '',
-    error: '',
-    busy: false,
-    initialFocus: '',
-    modal: true,
-  }
-);
-
-const emit = defineEmits<{
-  (e: 'close'): void;
-}>();
-
-function requestClose(): void {
-  if (!props.busy) emit('close');
-}
-
+const props = withDefaults(defineProps<{ open?: boolean; title: string; subtitle?: string; ariaLabel?: string; panelClass?: string; error?: string; busy?: boolean; initialFocus?: string; modal?: boolean }>(),
+  { open: true, subtitle: '', ariaLabel: '', panelClass: '', error: '', busy: false, initialFocus: '', modal: true });
+const emit = defineEmits<{ (e: 'close'): void }>();
+const slots = useSlots();
+const shellMode = useShellMode();
 const panelRef = ref<HTMLElement | null>(null);
 const openRef = toRef(props, 'open');
-useBodyScrollLock(openRef, { inertBackground: props.modal });
-useModalA11y(panelRef, openRef, requestClose, { initialFocus: props.initialFocus, trapFocus: props.modal });
+const compactOpen = computed(() => props.open && shellMode.value === 'compact');
 
-/* En compact la boite devient une feuille ancree en bas : elle se tire vers le bas pour
-   se fermer. Le geste n'a aucun sens sur la modale centree du mode deploye, ou il n'y a
-   pas de bord vers lequel la pousser. */
-const shellMode = useShellMode();
-useSheetDrag(panelRef, openRef, {
-  onClose: requestClose,
-  enabled: () => shellMode.value === 'compact',
-  poignee: '.sheet-grab',
+function requestClose(): void { if (!props.busy) emit('close'); }
+function onVisibleChange(visible: boolean): void { if (!visible) requestClose(); }
+
+useBodyScrollLock(openRef, { inertBackground: props.modal });
+useModalA11y(panelRef, compactOpen, requestClose, { initialFocus: props.initialFocus, trapFocus: props.modal });
+useSheetDrag(panelRef, compactOpen, { onClose: requestClose, enabled: () => shellMode.value === 'compact', poignee: '.sheet-grab' });
+
+const ModalContent = defineComponent({
+  setup() {
+    return () => [
+      h('div', { class: 'panel-head' }, [
+        h('div', {}, [slots.title?.() ?? h('h2', {}, props.title), props.subtitle ? h('p', {}, props.subtitle) : null]),
+        h(UiButton, { variant: 'ghost', iconOnly: true, title: 'Fermer', 'aria-label': 'Fermer', disabled: props.busy, onClick: requestClose }, () => h(X)),
+      ]),
+      props.error ? h(UiFeedback, { type: 'error', message: props.error }) : null,
+      slots.default?.(),
+      slots.actions ? h('div', { class: 'actions' }, slots.actions()) : null,
+    ];
+  },
 });
 </script>
