@@ -1,11 +1,96 @@
 # Changelog
 
+## 1.36.0 — 2026-09-23
+
+
+### build
+
+- ne plus suivre la sortie de build du frontend (app/static/vue) ([1d54834](https://github.com/remi-deher/watchdeck/commit/1d54834f84318c9dda879f14caf6ee13980dd04b))
+
+### test
+
+- stabiliser VfSettingsModal face au chargement differe de Zod ([1fe8672](https://github.com/remi-deher/watchdeck/commit/1fe8672f38503cd9f4581b6f220d9f34c4b1c58e))
+- parcours e2e de la page Ameliorations VF avant decoupage ([e3360ce](https://github.com/remi-deher/watchdeck/commit/e3360ceb2615ab4d70858523c3392759328bde30))
+- retour de fiche au-dela de la premiere page de la mediatheque ([0964950](https://github.com/remi-deher/watchdeck/commit/09649506ee8c19f88b2325ac67551725446fb94d))
+- fournir QueryClient a la modale VF ([f14f727](https://github.com/remi-deher/watchdeck/commit/f14f72742bf1d3e0e1e4c3451d9d20ad76305b6f))
+- fournir QueryClient a la carte Tautulli ([59272f1](https://github.com/remi-deher/watchdeck/commit/59272f1a63d9470af6f0d5ec2278fcffb8033d1e))
+
+### ♻️ Refactoring
+
+- adopter VueUse pour les utilitaires generiques ([0311388](https://github.com/remi-deher/watchdeck/commit/03113887e42c3053ac4a47ab2c771255ec84f2d3))
+- nettoyer les styles et decouper les cycles VF ([f7c88d4](https://github.com/remi-deher/watchdeck/commit/f7c88d453ebe8333167ad6202ea71900b53729aa))
+- purger le SCSS mort et confier les observateurs a VueUse ([c17d9c6](https://github.com/remi-deher/watchdeck/commit/c17d9c64452482a1d3f3c3be35081a45fea0d472))
+- centraliser les dates avec date-fns ([b5202b4](https://github.com/remi-deher/watchdeck/commit/b5202b4ef4dbf177857ccb857fdf80077d4d4815))
+- lire journaux, utilisateurs et analytique via TanStack Query ([f9be9f6](https://github.com/remi-deher/watchdeck/commit/f9be9f67acf9e3f5a08a0b39f57d8e752992f2f7))
+- notifications sur TanStack Query ([bab2836](https://github.com/remi-deher/watchdeck/commit/bab2836905026f6322c4d12cb2c40de77c345b30))
+- remplacer usePolling par useIntervalFn ([3ef706e](https://github.com/remi-deher/watchdeck/commit/3ef706e36a25ed4b8f4bf71af18089dc3ed3b539))
+- historique d'activite en useInfiniteQuery ([07b5943](https://github.com/remi-deher/watchdeck/commit/07b59432a1be53ae1bce7f336aa86942d1e9fb63))
+- file de telechargements sur TanStack Query ([80b8af1](https://github.com/remi-deher/watchdeck/commit/80b8af114cd967cb5358d65e26568f64f47b743f))
+- supprimer useFetchState, sans consommateur ([2d04225](https://github.com/remi-deher/watchdeck/commit/2d04225f5f46b8916fdf03ccaa218ddb040e2839))
+- extraire la grille mensuelle du calendrier ([0da8814](https://github.com/remi-deher/watchdeck/commit/0da88149564cb6d15dcc34cce8ac11a447f2871a))
+- classement et recherche catalogue de la palette ([9a7f06c](https://github.com/remi-deher/watchdeck/commit/9a7f06ce4758934580f07f923a2a8b17cec61a9d))
+- extraire libelles et types de la page Ameliorations VF ([7db0e4c](https://github.com/remi-deher/watchdeck/commit/7db0e4cad3b3e52960a0b2efe97c9aed8f6b15c4))
+- logique de la page Ameliorations VF en composables types ([fba7d7f](https://github.com/remi-deher/watchdeck/commit/fba7d7f609ed4d3a6e85f20c5cda4f026d13beb8))
+- extraire les panneaux Audit et Releases de la page VF ([74c6103](https://github.com/remi-deher/watchdeck/commit/74c6103b9b75ad3d6d1bdc5d3b5be475ef711079))
+- extraire les tiroirs de filtres de la page VF ([32a00ae](https://github.com/remi-deher/watchdeck/commit/32a00ae83bc56624c6347418e76edeaa3475a718))
+- VfUpgradesView en TypeScript ([878a58c](https://github.com/remi-deher/watchdeck/commit/878a58c0bffe8d97b069b521cdd23dda26c9b52c))
+- demandes du panneau Mes demandes dans le cache TanStack ([96de956](https://github.com/remi-deher/watchdeck/commit/96de956c19ec1b494d9ce470db52c8ac73879fb2))
+- catalogue d'Explorer en useInfiniteQuery ([181594f](https://github.com/remi-deher/watchdeck/commit/181594f4deb51e925497c67bed398b369d3b07b8))
+- mediatheque sur TanStack Query, fin de useLatestRequest ([5499ceb](https://github.com/remi-deher/watchdeck/commit/5499ceb629c77de0c049f16f54f6b238e04dc55d))
+- un seul mecanisme temps reel, fin de useRealtimeList ([57d2c3f](https://github.com/remi-deher/watchdeck/commit/57d2c3f2d3caf7532defd34c90902e5a584030cf))
+- mettre les fiches media en cache ([c48264b](https://github.com/remi-deher/watchdeck/commit/c48264b640285d6646df80d3be890698d2169390))
+- securiser les requetes du profil ([591d126](https://github.com/remi-deher/watchdeck/commit/591d126dceb29572f8e3118a54e5b42edb117aa4))
+- migrer les signalements vers TanStack Query ([7361efd](https://github.com/remi-deher/watchdeck/commit/7361efd0fb304d4c51b0dc040324d2dfceaf39b3))
+- migrer la table analytique vers PrimeVue ([9b4fe59](https://github.com/remi-deher/watchdeck/commit/9b4fe59113e8f60e98054731f24938452c004ff8))
+- mettre la sante des services en cache ([6b3aa60](https://github.com/remi-deher/watchdeck/commit/6b3aa601cdd899c1539b82ca7a300173753fcc71))
+- migrer les ressources CRUD vers TanStack Query ([28d03e0](https://github.com/remi-deher/watchdeck/commit/28d03e02e86905301c919b0c6de5763d301b47de))
+- migrer les webhooks vers TanStack Query ([56cfdbd](https://github.com/remi-deher/watchdeck/commit/56cfdbd540a34cf83cc7c3a6b03a3bdffa43390c))
+- migrer les conflits vers TanStack Query ([21d357a](https://github.com/remi-deher/watchdeck/commit/21d357a17e5c23144414476a06841f98ab84c11f))
+- migrer les motifs de message vers TanStack Query ([a93a9ba](https://github.com/remi-deher/watchdeck/commit/a93a9ba67361f78b12f9974b59ddd56e2e54e2f8))
+- migrer la maintenance vers TanStack Query ([75917d9](https://github.com/remi-deher/watchdeck/commit/75917d9dcce23077ce366f23414ef3396fc3a276))
+- migrer les taches planifiees vers TanStack Query ([587cdad](https://github.com/remi-deher/watchdeck/commit/587cdada92df955eb08b75b54fade384dd59f4f9))
+- migrer les outils de donnees vers TanStack Query ([aa3ce6f](https://github.com/remi-deher/watchdeck/commit/aa3ce6f1eeca2307dba408ff3d09ed935fabf7cc))
+- migrer les actions Tautulli vers TanStack Query ([e8a3306](https://github.com/remi-deher/watchdeck/commit/e8a33061c756d5d221dbdf443a0d83da219a322d))
+- migrer la bibliotheque vers TanStack Query ([777a973](https://github.com/remi-deher/watchdeck/commit/777a973224e96bd2bccf3ee977b01914dd784641))
+- migrer les upgrades VF vers TanStack Query ([684f4d2](https://github.com/remi-deher/watchdeck/commit/684f4d2c57ab8d394b47aaa2f99725c06050f475))
+- migrer les modeles email vers TanStack Query ([93d8a56](https://github.com/remi-deher/watchdeck/commit/93d8a56a0631ae54563e9b18c5f7cbeffa1c8bff))
+- migrer les actions des cartes CRUD ([024f5a6](https://github.com/remi-deher/watchdeck/commit/024f5a6c6721c2a8e08fb2fbd5480d1e52afc8f2))
+
+### ⚡ Performance
+
+- jouer l'apparition des affiches une seule fois ([d043fa6](https://github.com/remi-deher/watchdeck/commit/d043fa67dac8abe934f2eb55a07ec1c061f5f2d2))
+- virtualiser la grille de la mediatheque au-dela de 300 medias ([6f9b5e1](https://github.com/remi-deher/watchdeck/commit/6f9b5e1e2d7b5f410ba220e5ab84a3571ce12952))
+
+### ✨ Nouveautés
+
+- introduire PrimeVue sur les torrents ([efaed99](https://github.com/remi-deher/watchdeck/commit/efaed9914f06a759156b4c83f1b8fbc24817152b))
+- moderniser les requetes et graphiques ([cd0aebc](https://github.com/remi-deher/watchdeck/commit/cd0aebca80f3e0562805e10f9fd8b13a2ffe3a51))
+- structurer les reglages avec Pinia et Zod ([a951f2e](https://github.com/remi-deher/watchdeck/commit/a951f2e61eaf25c78b280ecc558c367b3af4e000))
+- migrate notifications to PrimeVue toast ([b2eb268](https://github.com/remi-deher/watchdeck/commit/b2eb26811281b3230546ddf4c2a068905c83c86e))
+- moderniser préférences contrôles et modales ([9c9cf02](https://github.com/remi-deher/watchdeck/commit/9c9cf02363e58ca6bdbbae74730fadfdacf1412a))
+
+### 🐛 Corrections
+
+- afficher les erreurs de validation et alleger Acquisition ([9f59d23](https://github.com/remi-deher/watchdeck/commit/9f59d233f5ea8909ee51e91c55727bb3fd2e8349))
+- masquer le jeton Plex des images ([608bc29](https://github.com/remi-deher/watchdeck/commit/608bc2984627e88e2349eb498e15a2964e1ae875))
+- stabiliser les tests instables et corriger leurs vraies causes ([df0313c](https://github.com/remi-deher/watchdeck/commit/df0313ca9117015edcd25a771321a3d71d0fca10))
+- typer les tailles d'icones, formater et couvrir le proxy d'images ([19d995f](https://github.com/remi-deher/watchdeck/commit/19d995fd2f5f2b027b13cae7843d6f6483d621ab))
+- typer les deux dernieres tailles d'icones Lucide ([5a3ae8e](https://github.com/remi-deher/watchdeck/commit/5a3ae8e75c4cebf07c896e7c7556642c34f1b52e))
+
+### 🔧 Maintenance
+
+- bump @lucide/vue from 1.43.0 to 1.47.0 (#353) ([255dba2](https://github.com/remi-deher/watchdeck/commit/255dba2a03697109f425a491089e6f5c013ea8ae))
+- bump vue-router from 5.3.0 to 5.3.1 (#215) ([a2780c6](https://github.com/remi-deher/watchdeck/commit/a2780c6d67509d224250e092b9acd83cfbd281a4))
 ## 1.35.2 — 2026-09-21
 
 
 ### 🐛 Corrections
 
 - poser une poignee sur les feuilles, et cesser de faire clignoter Safari ([87482e7](https://github.com/remi-deher/watchdeck/commit/87482e72d16515beeb6e7a77a2ef956da7b7b2c6))
+
+### 🔧 Maintenance
+
+- v1.35.2 (#390) ([24b3b9e](https://github.com/remi-deher/watchdeck/commit/24b3b9e38f5b92bffecc53cd4a7c43ae67da6f74))
 ## 1.35.1 — 2026-09-21
 
 
