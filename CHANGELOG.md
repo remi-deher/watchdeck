@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.37.1 — 2026-09-23
+
+
+### 🐛 Corrections
+
+- fermeture de fiche animee et sans latence, bandeau Explorer en surface ([2cf71f6](https://github.com/remi-deher/watchdeck/commit/2cf71f653b6818acef80e9418972d58678fbc937))
 ## 1.37.0 — 2026-09-23
 
 
@@ -14,6 +20,10 @@
 ### 🐛 Corrections
 
 - retablir la taille des icones (::size -> :size) ([8854806](https://github.com/remi-deher/watchdeck/commit/885480634393a4e2b1b07a2c8f69aefff3891a93))
+
+### 🔧 Maintenance
+
+- v1.37.0 (#400) ([8004272](https://github.com/remi-deher/watchdeck/commit/8004272c4fc4337ec1cea65e984dbaaab88c1922))
 ## 1.36.0 — 2026-09-23
 
 
