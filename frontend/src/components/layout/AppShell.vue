@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { START_LOCATION, useRoute } from 'vue-router';
 import AppDock from './AppDock.vue';
 import AppNavSheet from './AppNavSheet.vue';
 import AppSectionSheet from './AppSectionSheet.vue';
@@ -129,6 +129,8 @@ const pageTitle = computed(() =>
   providedTitle.value || (typeof route.meta?.title === 'string' && route.meta.title ? route.meta.title : destinationLabel.value || 'Watchdeck')
 );
 
+let initialNavigationSeen = false;
+
 function openSheet(): void {
   sectionsOpen.value = false;
   sheetOpen.value = true;
@@ -140,7 +142,17 @@ function openSheet(): void {
    ramenait l'URL a la page precedente pendant que le contenu, lui, avait change.
    On suit `fullPath` parce que plusieurs sections ne different que par leur query
    (`?view=`). */
-watch(() => route.fullPath, () => {
+watch(() => route.fullPath, (_next, previous) => {
+  /* Sauf la toute premiere resolution : le shell et son dock s'affichent pendant que la
+     page d'arrivee se charge encore, la route etant alors au point de depart du routeur.
+     Une feuille ouverte a ce moment-la se refermait des que cette navigation initiale
+     aboutissait, sans que l'utilisateur ait navigue -- sur une connexion ou une machine
+     lente, le menu « Plus » se refermait tout seul. */
+  if (previous === START_LOCATION.fullPath && route.matched.length && !initialNavigationSeen) {
+    initialNavigationSeen = true;
+    return;
+  }
+  initialNavigationSeen = true;
   sectionsOpen.value = false;
   sheetOpen.value = false;
 });

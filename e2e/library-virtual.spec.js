@@ -99,7 +99,9 @@ test("une affiche garde sa place quand les lignes au-dessus sortent du DOM", asy
   await expect.poll(async () => {
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     return requested.length;
-  }, { timeout: 20000, intervals: [250, 500, 1000] }).toBe(2);
+  // Au moins deux pages, soit plus que le seuil de virtualisation (300) : la boucle
+  // redescend a chaque tentative, et une machine lente en charge alors davantage.
+  }, { timeout: 20000, intervals: [250, 500, 1000] }).toBeGreaterThanOrEqual(2);
 
   const target = "Film virtuel 150";
   const positionOf = () => page.evaluate((name) => {
@@ -137,7 +139,9 @@ test("ouvrir une fiche depuis une grille virtualisee puis revenir retrouve la ca
   await expect.poll(async () => {
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     return requested.length;
-  }, { timeout: 20000, intervals: [250, 500, 1000] }).toBe(2);
+  // Au moins deux pages, soit plus que le seuil de virtualisation (300) : la boucle
+  // redescend a chaque tentative, et une machine lente en charge alors davantage.
+  }, { timeout: 20000, intervals: [250, 500, 1000] }).toBeGreaterThanOrEqual(2);
 
   // Une carte de la SECONDE page, ouverte alors que 400 medias sont charges (grille
   // virtualisee). Au retour, la mediatheque est remontee : avant TanStack Query elle

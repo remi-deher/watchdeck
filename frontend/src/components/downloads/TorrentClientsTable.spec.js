@@ -27,6 +27,8 @@ function factory() {
   });
 }
 
+// Le demontage apres chaque test est global : voir testSetup.js.
+
 describe('TorrentClientsTable', () => {
   beforeEach(() => {
     api.mockReset().mockResolvedValue({ ok: true });

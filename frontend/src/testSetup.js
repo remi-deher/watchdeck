@@ -13,7 +13,15 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
 // pour que useBodyScrollLock puisse rendre le reste de l'app inert pendant qu'ils sont
 // ouverts. Sans ce stub, wrapper.find() ne verrait plus leur contenu puisqu'il ne
 // cherche pas hors du sous-arbre monté par @vue/test-utils.
-import { config } from "@vue/test-utils";
+import { afterEach } from "vitest";
+import { config, enableAutoUnmount } from "@vue/test-utils";
+
+/* Tout composant monte est demonte a la fin de son test. Sans cela, il survivait au
+   test suivant avec ses ecouteurs sur `window`, ses minuteurs et ses ecritures dans le
+   stockage local : un composant d'un test precedent pouvait reecrire une preference
+   apres le nettoyage du suivant. C'etait la cause des echecs intermittents, plus
+   frequents sous charge, de TorrentClientsTable.spec.js notamment. */
+enableAutoUnmount(afterEach);
 import PrimeVue from 'primevue/config';
 import ConfirmationService from 'primevue/confirmationservice';
 import ToastService from 'primevue/toastservice';
