@@ -6,6 +6,7 @@
  */
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 
 import CalendarView from './CalendarView.vue';
 
@@ -43,8 +44,11 @@ function setViewport(width) {
 }
 
 function mountView() {
+  // Un cache neuf par montage : le mois d'un test ne doit pas servir au suivant.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return mount(CalendarView, {
     global: {
+      plugins: [[VueQueryPlugin, { queryClient }]],
       stubs: {
         AppPage: {
           props: ['query', 'modelValue', 'title'],
@@ -127,7 +131,8 @@ describe('CalendarView', () => {
     const wrapper = mountView();
     await flushPromises();
 
-    expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('/api/calendar?start='));
+    // Le second argument porte le signal d'annulation de la lecture.
+    expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('/api/calendar?start='), expect.objectContaining({ signal: expect.any(AbortSignal) }));
     wrapper.unmount();
   });
 
@@ -183,7 +188,7 @@ describe('CalendarView', () => {
     await flushPromises();
 
     // Doit avoir rechargé avec les mêmes bornes (le mois navigué)
-    expect(apiMock).toHaveBeenCalledWith(lastCallArg);
+    expect(apiMock.mock.calls.map(([url]) => url)).toContain(lastCallArg);
     wrapper.unmount();
   });
 });

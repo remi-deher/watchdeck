@@ -131,7 +131,8 @@ import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ChevronLeft, ChevronRight, Clock, Film, Play, Star, Tv } from '@lucide/vue';
 import { api } from '@/api';
-import { useRealtimeList } from '@/composables/useRealtimeList';
+import { useRealtimeQuery } from '@/composables/useRealtimeQuery';
+import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import { openPlexLink, mediaDetailPath } from '@/mediaUrl';
 import LoadMore from '@/components/ui/LoadMore.vue';
@@ -149,7 +150,7 @@ const route = useRoute();
 const { session, isAdmin, ready: sessionReady } = useSession();
 
 const myRequestsOnly = computed(() => !isAdmin.value);
-const events = ref<any[]>([]), search = ref(''), type = ref(''), tracked = ref(false), loading = ref(false), error = ref(''), cursor = ref(new Date());
+const search = ref(''), type = ref(''), tracked = ref(false), cursor = ref(new Date());
 const compactQuery = window.matchMedia('(max-width:640px)');
 const compact = ref(compactQuery.matches);
 const desktopView = usePreference('calendar.view', 'month');
@@ -213,23 +214,44 @@ function openPlex(event: any, e?: Event): void {
 function revealDate(date: string): boolean { const i = grouped.value.findIndex(g => g.date === date); if (i < 0) return false; if (i >= visibleDays.value) visibleDays.value = i + DAYS_PAGE; return true; }
 function scrollToDate(date: string): void { if (!revealDate(date)) return; nextTick(() => document.getElementById(`date-${date}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }
 function showDay(date: string): void { view.value = 'agenda'; scrollToDate(date); }
+/* Les evenements du mois affiche. Tout ce qui les determine (mois, « suivis
+   uniquement », « mes demandes ») entre dans la cle : changer de mois ou de filtre
+   relance d'elle-meme, et revenir sur un mois deja vu le repeint aussitot. */
+const calendarUrl = computed(() => {
+  const userParam = myRequestsOnly.value && session.value?.plex_user_id ? `&user=${encodeURIComponent(session.value.plex_user_id)}` : '';
+  return `/api/calendar?start=${localIso(bounds.value.start)}&end=${localIso(bounds.value.end)}&tracked_only=${tracked.value}${userParam}`;
+});
+const calendarKey = computed(() => ['calendar', calendarUrl.value]);
+const calendarQuery = useQuery({
+  queryKey: calendarKey,
+  queryFn: ({ signal }) => api<any[]>(calendarUrl.value, { signal }),
+  enabled: sessionReady,
+  // Garder le mois precedent pendant le chargement du suivant, plutot qu'une grille vide.
+  placeholderData: keepPreviousData,
+  staleTime: 60_000,
+});
+const events = computed<any[]>(() => calendarQuery.data.value || []);
+const loading = computed(() => calendarQuery.isFetching.value);
+const error = computed(() => (calendarQuery.error.value as Error | null)?.message || '');
+
+/* Defilement vers aujourd'hui une fois les evenements arrives (premier affichage et
+   bouton « Aujourd'hui »). */
+let scrollToTodayPending = false;
+watch(events, () => {
+  if (!scrollToTodayPending || calendarQuery.isPlaceholderData.value) return;
+  scrollToTodayPending = false;
+  if (view.value !== 'agenda') return;
+  nextTick(() => setTimeout(() => {
+    const target = grouped.value.find(g => g.date >= todayStr);
+    if (target) scrollToDate(target.date);
+  }, 100));
+});
+
+/** Relit le mois affiche ; une lecture deja partie (nouvelle cle) n'est pas doublee. */
 async function load({ scrollToToday = false }: { scrollToToday?: boolean } = {}): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    const userParam = myRequestsOnly.value && session.value?.plex_user_id ? `&user=${encodeURIComponent(session.value.plex_user_id)}` : '';
-    events.value = await api(`/api/calendar?start=${localIso(bounds.value.start)}&end=${localIso(bounds.value.end)}&tracked_only=${tracked.value}${userParam}`);
-    if (scrollToToday && view.value === 'agenda') {
-      nextTick(() => setTimeout(() => {
-        const target = grouped.value.find(g => g.date >= todayStr);
-        if (target) scrollToDate(target.date);
-      }, 100));
-    }
-  } catch (e: any) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
+  if (scrollToToday) scrollToTodayPending = true;
+  await nextTick();
+  if (!calendarQuery.isFetching.value) await calendarQuery.refetch();
 }
 function move(delta: number): void { cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + delta, 1); visibleDays.value = DAYS_PAGE; load({ scrollToToday: false }); }
 function today(): void { cursor.value = new Date(); visibleDays.value = DAYS_PAGE; load({ scrollToToday: true }); }
@@ -243,9 +265,11 @@ onMounted(async () => {
   load({ scrollToToday: true });
 });
 
-useRealtimeList(events, ['request.updated', 'download.updated'], {
+// Un evenement met a jour chaque occurrence du media dans le cache ; faute de
+// correspondance, le mois est relu.
+useRealtimeQuery<any[]>(calendarKey, ['request.updated', 'download.updated'], {
   keyFields: ['request_id', 'id', 'tvdb_id', 'tmdb_id'],
-  patchAllMatches: true,
+  patchAll: true,
   mapper: (payload: any) => {
     const data = { ...payload };
     if (payload.status === 'available' || payload.has_file !== undefined) {
@@ -253,7 +277,6 @@ useRealtimeList(events, ['request.updated', 'download.updated'], {
     }
     return data;
   },
-  onFallbackReload: () => load({ scrollToToday: false }),
 });
 onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact); window.removeEventListener('resize', syncCompact); });
 </script>

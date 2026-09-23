@@ -2,14 +2,15 @@ import { useQueryClient, type QueryKey } from '@tanstack/vue-query';
 import { toValue, type MaybeRefOrGetter } from 'vue';
 import { useRealtime, type RealtimeEventType } from '@/events';
 
-/* Mises a jour temps reel d'une liste detenue par le cache de TanStack Query.
+/* Mises a jour temps reel d'une liste, sans jamais la muter.
  *
- * `useRealtimeList` / `useInPlaceList` modifient la liste en place (`Object.assign`
- * sur l'element, `unshift`). C'est interdit sur des donnees du cache : l'objet est
- * partage avec les autres observateurs de la meme cle, et une mutation ne declenche ni
- * notification ni rendu fiable. Ici, un evenement produit une NOUVELLE liste, remise
- * au cache par `setQueryData` ; faute d'element correspondant, la cle est invalidee et
- * relue.
+ * Un evenement produit une NOUVELLE liste : remise au cache par `setQueryData` pour une
+ * liste detenue par TanStack Query (`useRealtimeQuery`), ou reassignee pour une liste
+ * locale (`patchedList`, voir DashboardView). Modifier l'element en place, comme le
+ * faisaient les anciens `useRealtimeList` / `useInPlaceList`, est interdit sur des
+ * donnees du cache : l'objet y est partage avec les autres observateurs de la meme cle,
+ * et la mutation ne declenche ni notification ni rendu fiable. Faute d'element
+ * correspondant, la cle est invalidee et relue.
  */
 
 export interface PatchOptions {
@@ -68,6 +69,10 @@ export interface RealtimeQueryOptions<TData> {
   keyFields?: string[];
   debounceMs?: number;
   refreshOnVisible?: boolean;
+  /** Reporter l'evenement sur TOUS les elements correspondants, pas le premier seul. */
+  patchAll?: boolean;
+  /** Transforme la charge utile avant de l'appliquer (champs derives, renommages). */
+  mapper?: (payload: Record<string, unknown>) => Record<string, unknown>;
   /** Ou se trouve la liste dans les donnees de la query, et comment l'y remettre. */
   getList?: (data: TData) => Record<string, unknown>[];
   setList?: (data: TData, list: Record<string, unknown>[]) => TData;
@@ -86,6 +91,8 @@ export function useRealtimeQuery<TData>(
     keyFields = DEFAULT_KEYS,
     debounceMs = 120,
     refreshOnVisible = true,
+    patchAll = false,
+    mapper = (payload) => payload,
     getList = (data) => data as unknown as Record<string, unknown>[],
     setList = (_data, list) => list as unknown as TData,
   }: RealtimeQueryOptions<TData> = {},
@@ -96,7 +103,9 @@ export function useRealtimeQuery<TData>(
     const key = toValue(queryKey);
     const current = queryClient.getQueryData<TData>(key);
     if (current === undefined) return false;
-    const { list, patched } = patchedList(getList(current) || [], detail, { keyFields });
+    const source = getList(current) || [];
+    const change = mapper(detail);
+    const { list, patched } = patchAll ? patchedAll(source, change, keyFields) : patchedList(source, change, { keyFields });
     if (patched) queryClient.setQueryData<TData>(key, setList(current, list));
     return patched;
   }

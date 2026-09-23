@@ -90,4 +90,22 @@ describe('useRealtimeQuery', () => {
     expect(api.apply({ id: 1, status: 'rejected' })).toBe(true);
     expect(queryClient.getQueryData(['demandes']).items[0].status).toBe('rejected');
   });
+
+  it('peut transformer la charge utile et viser toutes les occurrences', () => {
+    queryClient.setQueryData(['episodes'], [{ tvdb_id: 5, has_file: false }, { tvdb_id: 6 }, { tvdb_id: 5, has_file: false }]);
+    let episodes;
+    const Host = defineComponent({
+      setup() {
+        episodes = useRealtimeQuery(['episodes'], ['download.updated'], {
+          keyFields: ['tvdb_id'],
+          patchAll: true,
+          mapper: (payload) => ({ ...payload, has_file: payload.status === 'available' }),
+        });
+        return () => h('div');
+      },
+    });
+    mount(Host, { global: { plugins: [[VueQueryPlugin, { queryClient }]] } });
+    expect(episodes.apply({ tvdb_id: 5, status: 'available' })).toBe(true);
+    expect(queryClient.getQueryData(['episodes']).map((row) => row.has_file)).toEqual([true, undefined, true]);
+  });
 });

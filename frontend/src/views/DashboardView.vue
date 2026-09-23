@@ -387,9 +387,14 @@ async function action(row: any, type: string): Promise<void> {
   } catch (e: any) { error.value = e.message; }
 }
 
-import { useInPlaceList } from '@/composables/useInPlaceList';
+import { patchedList } from '@/composables/useRealtimeQuery';
 
-const { patchItem } = useInPlaceList();
+/** Reporte un evenement sur une liste locale en la REMPLACANT, sans muter ses elements. */
+function patchItem(list: { value: any[] }, detail: any, options: { keyFields: string[] }): boolean {
+  const { list: next, patched } = patchedList(list.value, detail, options);
+  if (patched) list.value = next;
+  return patched;
+}
 
 useRealtime(['request.updated'], (type, detail) => {
   if (detail && (detail.request_id || detail.id)) {
