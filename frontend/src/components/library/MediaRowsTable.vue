@@ -1,32 +1,46 @@
 <template>
+  <div class="panel table-wrap table-cards rich media-rows-table" tabindex="0" role="region">
   <DataTable
-    ref="tableRef"
-    :columns="columns"
-    :rows="items"
-    :row-key="rowKey"
-    preference-scope="library-inventory"
-    default-sort-key="title"
-    clickable-rows
+    :value="items"
     aria-label="Fichiers média"
-    :sort-key="sortKey"
-    :sort-direction="sortDirection"
-    @row-click="details = $event"
-    @update:sort="$emit('update:sort', $event)"
+    lazy
+    :sort-field="sortKey || undefined"
+    :sort-order="sortDirection === 'asc' ? 1 : -1"
+    scrollable
+    table-style="min-width: max-content; table-layout: fixed"
+    @row-click="details = $event.data"
+    @sort="handleSort"
   >
     <!-- Une meme ligne disait l'absence de trois facons differentes : « 0 · aucun »,
          « personne », « jamais ». Dans un tableau dense, la valeur vide s'ecrit
          toujours pareil -- le tiret cadratin -- et la formulation en toutes lettres
          reste pour le tiroir de detail, ou il y a la place de l'expliquer. -->
-    <template #cell-title="{ row }"><strong>{{ title(row) }}</strong><small>{{ mediaTypeLabel(row.media_type) }}</small></template>
-    <template #cell-video="{ row }">{{ [row.video_resolution, row.video_codec].filter(Boolean).join(' · ') || '—' }}</template>
-    <template #cell-audio="{ row }">{{ [row.audio_codec, (row.audio_languages || []).join(', '), row.audio_track_count ? `${row.audio_track_count} piste(s)` : ''].filter(Boolean).join(' · ') || '—' }}</template>
-    <template #cell-subtitles="{ row }">{{ row.subtitle_count ? [`${row.subtitle_count}`, (row.subtitle_types || row.subtitle_languages || []).join(', ')].filter(Boolean).join(' · ') : '—' }}</template>
-    <template #cell-size_bytes="{ row }">{{ bytes(row.size_bytes) }}</template>
-    <template #cell-plays="{ row }">{{ row.play_count ? `${row.play_count} lecture(s)` : '—' }}</template>
-    <template #cell-viewer="{ row }">{{ (row.viewers || []).join(', ') || '—' }}</template>
-    <template #cell-last_viewed="{ row }">{{ row.last_viewed_at ? formatDate(row.last_viewed_at) : '—' }}</template>
     <template #empty>Aucun fichier ne correspond aux filtres.</template>
+    <Column v-for="column in visibleColumns" :key="column.key" :field="column.key" :header="column.label" :class="column.className" :sortable="column.sortable !== false">
+      <template #body="{ data: row }">
+        <template v-if="column.key === 'title'"><strong>{{ title(row) }}</strong><small>{{ mediaTypeLabel(row.media_type) }}</small></template>
+        <template v-else-if="column.key === 'video'">{{ [row.video_resolution, row.video_codec].filter(Boolean).join(' · ') || '—' }}</template>
+        <template v-else-if="column.key === 'audio'">{{ [row.audio_codec, (row.audio_languages || []).join(', '), row.audio_track_count ? `${row.audio_track_count} piste(s)` : ''].filter(Boolean).join(' · ') || '—' }}</template>
+        <template v-else-if="column.key === 'subtitles'">{{ row.subtitle_count ? [`${row.subtitle_count}`, (row.subtitle_types || row.subtitle_languages || []).join(', ')].filter(Boolean).join(' · ') : '—' }}</template>
+        <template v-else-if="column.key === 'size_bytes'">{{ bytes(row.size_bytes) }}</template>
+        <template v-else-if="column.key === 'plays'">{{ row.play_count ? `${row.play_count} lecture(s)` : '—' }}</template>
+        <template v-else-if="column.key === 'viewer'">{{ (row.viewers || []).join(', ') || '—' }}</template>
+        <template v-else-if="column.key === 'last_viewed'">{{ row.last_viewed_at ? formatDate(row.last_viewed_at) : '—' }}</template>
+        <template v-else>{{ row[column.key] || '—' }}</template>
+      </template>
+    </Column>
   </DataTable>
+  </div>
+
+  <ModalShell :open="showColumnPicker" title="Personnaliser les colonnes" subtitle="Choisissez et réordonnez les colonnes affichées." @close="showColumnPicker = false">
+    <div class="column-picker-grid">
+      <label v-for="column in orderedColumns" :key="column.key" class="column-picker-item">
+        <input type="checkbox" :checked="column.required || visibleKeys.has(column.key)" :disabled="column.required" @change="toggleColumn(column.key)">
+        <span>{{ column.label }}</span>
+      </label>
+    </div>
+    <template #actions><UiButton variant="primary" @click="showColumnPicker = false">Valider</UiButton></template>
+  </ModalShell>
 
   <DrawerShell v-if="details" eyebrow="Fichier média" :title="title(details)" @close="details = null">
     <section class="drawer-section">
@@ -75,8 +89,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
 import DrawerShell from '@/components/DrawerShell.vue';
+import ModalShell from '@/components/ui/ModalShell.vue';
+import UiButton from '@/components/ui/UiButton.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 import { mediaTypeLabel } from '@/utils/labels';
 import {
   formatDateTime as formatDate,
@@ -98,11 +116,11 @@ withDefaults(
   }
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'update:sort', value: { key: string; direction: 'asc' | 'desc' }): void;
 }>();
 
-const columns: DataTableColumn[] = [
+const columns = [
   { key: 'title', label: 'Titre', required: true, className: 'card-title' },
   { key: 'library', label: 'Bibliothèque', className: 'col-narrow' },
   { key: 'studio', label: 'Studio', className: 'col-narrow' },
@@ -117,10 +135,17 @@ const columns: DataTableColumn[] = [
 ];
 
 const details = ref<any | null>(null);
-const tableRef = ref<{ openColumnPicker: () => void } | null>(null);
-defineExpose({ openColumnPicker: () => tableRef.value?.openColumnPicker() });
+const showColumnPicker = ref(false);
+const { orderedColumns, visibleColumns, visibleKeys, toggleColumn } = useTableColumns(
+  () => columns,
+  { storageKey: 'watchdeck:data-table-columns:library-inventory' },
+);
+function handleSort(event: { sortField?: string | ((row: any) => string); sortOrder?: number | null }): void {
+  if (typeof event.sortField !== 'string') return;
+  emit('update:sort', { key: event.sortField, direction: event.sortOrder === -1 ? 'desc' : 'asc' });
+}
+defineExpose({ openColumnPicker: () => { showColumnPicker.value = true; } });
 
-const rowKey = (row: any): string => `${row.rating_key}:${row.title}`;
 const title = (row: any): string => (row.grandparent_title ? `${row.grandparent_title} · ${row.title}` : row.title);
 </script>
 

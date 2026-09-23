@@ -114,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import { ChevronRight, Columns, FileDown, Lightbulb } from '@lucide/vue';
@@ -125,7 +125,7 @@ import MetricCard from '@/components/ui/MetricCard.vue';
 import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
-import MediaRowsTable from '@/components/library/MediaRowsTable.vue';
+const MediaRowsTable = defineAsyncComponent(() => import('@/components/library/MediaRowsTable.vue'));
 import { refDebounced } from '@vueuse/core';
 import { humanizeError } from '@/utils/apiError';
 import { useRealtime } from '@/events';
