@@ -77,212 +77,31 @@
     </template>
 
     <div class="psh-layout">
-      <!-- Panneau latéral standard de filtres (tiroir de repli / maintenance) -->
-      <FilterSidebar
+      <!-- Tiroir de filtres de l'onglet Releases (et maintenance) -->
+      <VfUpgradeFilters
         v-if="activeTab === 'upgrades'"
+        v-model:status="statusFilter"
+        v-model:media-type="mediaTypeFilter"
         :open="filtersOpen"
         :active-count="activeFilterCount"
+        :counts="{ pendingCount, waitingReleaseCount, inProgressCount, failedCount, historyCount, ignoredCount }"
+        @maintenance="maintenance"
         @close="closeFilters"
         @reset="resetUpgradeFilters"
-      >
-        <FilterGroup label="Statut">
-          <button
-            class="filter-badge"
-            :class="{ active: statusFilter === 'pending' }"
-            type="button"
-            @click="statusFilter = 'pending'"
-          >
-            <span>À traiter</span>
-            <small v-if="pendingCount">({{ pendingCount }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: statusFilter === 'waiting_release' }"
-            type="button"
-            @click="statusFilter = 'waiting_release'"
-          >
-            <span>En attente de release</span>
-            <small v-if="waitingReleaseCount">({{ waitingReleaseCount }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: statusFilter === 'in_progress' }"
-            type="button"
-            @click="statusFilter = 'in_progress'"
-          >
-            <span>En cours</span>
-            <small v-if="inProgressCount">({{ inProgressCount }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: statusFilter === 'failed' }"
-            type="button"
-            @click="statusFilter = 'failed'"
-          >
-            <span>Échecs</span>
-            <small v-if="failedCount">({{ failedCount }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: statusFilter === 'history' }"
-            type="button"
-            @click="statusFilter = 'history'"
-          >
-            <span>Historique</span>
-            <small v-if="historyCount">({{ historyCount }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: statusFilter === 'ignored' }"
-            type="button"
-            @click="statusFilter = 'ignored'"
-          >
-            <span>Ignorées</span>
-            <small v-if="ignoredCount">({{ ignoredCount }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: statusFilter === 'all' }"
-            type="button"
-            @click="statusFilter = 'all'"
-          >
-            <span>Tous les statuts</span>
-          </button>
-        </FilterGroup>
+      />
 
-        <FilterGroup label="Type de média">
-          <button
-            class="filter-badge"
-            :class="{ active: !mediaTypeFilter }"
-            type="button"
-            @click="mediaTypeFilter = ''"
-          >
-            <span>Tous les types</span>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: mediaTypeFilter === 'movie' }"
-            type="button"
-            @click="mediaTypeFilter = 'movie'"
-          >
-            <span>Films</span>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: mediaTypeFilter === 'show' }"
-            type="button"
-            @click="mediaTypeFilter = 'show'"
-          >
-            <span>Séries</span>
-          </button>
-        </FilterGroup>
-
-        <FilterGroup label="Maintenance">
-          <div class="filter-maintenance-buttons">
-            <button class="secondary compact" type="button" title="Réouvrir les suggestions en échec" @click="maintenance('recompute')">
-              <RotateCcw size="14" />
-              <span>Réouvrir les échecs</span>
-            </button>
-            <button class="secondary compact" type="button" title="Supprimer les entrées archivées" @click="maintenance('purge')">
-              <Trash2 size="14" />
-              <span>Purger l'historique</span>
-            </button>
-          </div>
-        </FilterGroup>
-      </FilterSidebar>
-
-      <!-- Panneau latéral standard pour l'onglet Audit -->
-      <FilterSidebar
+      <!-- Tiroir de filtres de l'onglet Audit -->
+      <VfAuditFilters
         v-else-if="activeTab === 'audit'"
+        v-model:issue="auditIssueFilter"
+        v-model:media-type="auditMediaTypeFilter"
         :open="filtersOpen"
         :active-count="activeFilterCount"
+        :counts="auditCounts"
+        :eligible-count="eligibleAuditFixCount"
         @close="closeFilters"
         @reset="resetAuditFilters"
-      >
-        <FilterGroup label="Anomalie / Opportunité">
-          <button
-            class="filter-badge"
-            :class="{ active: !auditIssueFilter }"
-            type="button"
-            @click="auditIssueFilter = ''"
-          >
-            <span>Toutes les anomalies</span>
-            <small v-if="auditCounts.total">({{ auditCounts.total }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: auditIssueFilter === 'eligible' }"
-            type="button"
-            @click="auditIssueFilter = 'eligible'"
-          >
-            <span>Prêts à aligner</span>
-            <small>({{ eligibleAuditFixCount }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: auditIssueFilter === 'audio_secondary' }"
-            type="button"
-            @click="auditIssueFilter = 'audio_secondary'"
-          >
-            <span>Audio FR secondaire</span>
-            <small v-if="auditCounts.audio_secondary">({{ auditCounts.audio_secondary }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: auditIssueFilter === 'forced_sub_not_default' }"
-            type="button"
-            @click="auditIssueFilter = 'forced_sub_not_default'"
-          >
-            <span>ST forcé inactif</span>
-            <small v-if="auditCounts.forced_sub_not_default">({{ auditCounts.forced_sub_not_default }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: auditIssueFilter === 'sub_fr_not_default' }"
-            type="button"
-            @click="auditIssueFilter = 'sub_fr_not_default'"
-          >
-            <span>ST VO inactif</span>
-            <small v-if="auditCounts.sub_fr_not_default">({{ auditCounts.sub_fr_not_default }})</small>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: auditIssueFilter === 'partial_vf' }"
-            type="button"
-            @click="auditIssueFilter = 'partial_vf'"
-          >
-            <span>Séries partielles</span>
-            <small v-if="auditCounts.partial_vf">({{ auditCounts.partial_vf }})</small>
-          </button>
-        </FilterGroup>
-
-        <FilterGroup label="Type de média">
-          <button
-            class="filter-badge"
-            :class="{ active: !auditMediaTypeFilter }"
-            type="button"
-            @click="auditMediaTypeFilter = ''"
-          >
-            <span>Tous les types</span>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: auditMediaTypeFilter === 'movie' }"
-            type="button"
-            @click="auditMediaTypeFilter = 'movie'"
-          >
-            <span>Films</span>
-          </button>
-          <button
-            class="filter-badge"
-            :class="{ active: auditMediaTypeFilter === 'show' }"
-            type="button"
-            @click="auditMediaTypeFilter = 'show'"
-          >
-            <span>Séries</span>
-          </button>
-        </FilterGroup>
-      </FilterSidebar>
+      />
 
       <!-- Zone principale -->
       <div class="psh-main">
@@ -349,11 +168,9 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { RotateCcw, ScanSearch, Settings, SlidersHorizontal, Trash2 } from '@lucide/vue';
+import { RotateCcw, ScanSearch, Settings, SlidersHorizontal } from '@lucide/vue';
 import { useRealtime } from '@/events';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
-import FilterSidebar from '@/components/ui/FilterSidebar.vue';
-import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import AlignStreamsModal from '@/components/media/AlignStreamsModal.vue';
@@ -362,6 +179,8 @@ import VfUpgradeKpiBanner from '@/components/vf-upgrades/VfUpgradeKpiBanner.vue'
 import VfUpgradeQuickFilters from '@/components/vf-upgrades/VfUpgradeQuickFilters.vue';
 import VfScanHistory from '@/components/vf-upgrades/VfScanHistory.vue';
 import VfAuditPanel from '@/components/vf-upgrades/VfAuditPanel.vue';
+import VfAuditFilters from '@/components/vf-upgrades/VfAuditFilters.vue';
+import VfUpgradeFilters from '@/components/vf-upgrades/VfUpgradeFilters.vue';
 import VfUpgradesPanel from '@/components/vf-upgrades/VfUpgradesPanel.vue';
 import { filterVfUpgradeItems, groupVfUpgradeItems } from '@/utils/vfUpgradeGroups';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
@@ -567,15 +386,4 @@ onMounted(() => {
   margin-bottom: var(--space-3);
 }
 
-/* Maintenance sidebar */
-.filter-maintenance-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.filter-maintenance-buttons button {
-  width: 100%;
-  justify-content: flex-start;
-}
 </style>
