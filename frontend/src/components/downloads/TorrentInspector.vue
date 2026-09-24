@@ -1,7 +1,7 @@
 <template>
-  <!-- Tiroir d'inspection d'un torrent : general, puis fichiers, trackers et paires lus a
-       la demande aupres du client. Les actions remontent au tableau, qui les execute. -->
-  <DrawerShell eyebrow="Client torrent" :title="torrent.title" @close="emit('close')">
+  <!-- Inspection d'un torrent : general, puis fichiers, trackers et paires lus a la
+       demande aupres du client. Les actions remontent a la fiche, qui les execute. -->
+  <div class="torrent-inspector">
     <div class="drawer-nav-tabs">
       <button class="drawer-tab" :class="{ active: tab==='general' }" @click="tab='general'"><Info /> Général</button>
       <button class="drawer-tab" :class="{ active: tab==='files' }" @click="selectTab('files')"><FileText /> Fichiers ({{ files.length }})</button>
@@ -80,7 +80,7 @@
       <UiButton :disabled="busy" @click="emit('meta')"><Tag />Catégorie & Tags</UiButton>
       <UiButton variant="danger" :disabled="busy" @click="emit('remove')"><Trash2 />Supprimer</UiButton>
     </div>
-  </DrawerShell>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -88,7 +88,6 @@ import UiSelect from '@/components/ui/UiSelect.vue';
 import { ref, watch } from 'vue';
 import { FileText, Info, Pause, Play, Radio, RotateCcw, Tag, Trash2, Users } from '@lucide/vue';
 import { api } from '@/api';
-import DrawerShell from '@/components/DrawerShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import TorrentStateBadge from './TorrentStateBadge.vue';
@@ -96,7 +95,6 @@ import { formatBytes, formatEta, formatSpeed, formatTimestamp, isPaused } from '
 
 const props = defineProps<{ torrent: any; busy?: boolean }>();
 const emit = defineEmits<{
-  (e: 'close'): void;
   (e: 'action', action: string): void;
   (e: 'meta'): void;
   (e: 'remove'): void;
@@ -166,6 +164,7 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 </script>
 
 <style scoped>
+.torrent-inspector{display:grid;gap:var(--space-4)}
 .drawer-nav-tabs{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:12px;overflow-x:auto}
 .drawer-tab{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);font:inherit;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap}
 .drawer-tab:hover{color:var(--text);background:var(--surface-2)}
@@ -187,6 +186,5 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 .drawer-actions button{display:inline-flex;align-items:center;gap:6px}
 .drawer-actions svg{width:14px;height:14px}
 @media(min-width:761px){.detail-grid dt,.detail-list dt{color:var(--accent);font-size:12px}}
-@media(max-width:760px){:deep(.detail-drawer),:deep(.detail-drawer.wide){inset:0;width:100vw;height:100dvh;max-height:100dvh;padding:18px max(16px,var(--safe-right)) max(18px,var(--safe-bottom)) max(16px,var(--safe-left));transform:none;border:0;border-radius:0}}
 @media(max-width:380px){.detail-grid{grid-template-columns:1fr}}
 </style>

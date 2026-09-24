@@ -49,30 +49,6 @@
 
     <UsersTable ref="tableRef" :rows="filtered" :loading="loading" @open="openUser" @toggle="toggle" @bulk-status="bulkStatus" @bulk-notify="bulkNotify" @bulk-permissions="bulkPermissions" @bulk-delete="bulkDelete"/>
 
-    <UserEditorDrawer
-      v-if="editing"
-      ref="drawerRef"
-      :editing="editing"
-      :creating="creating"
-      :form="form"
-      :users="users"
-      :busy="busy"
-      :editor-error="editorError"
-      :seer-enabled="seerEnabled"
-      :seer-mode="seerMode"
-      :seer-candidates="seerCandidates"
-      @close="closeEditor"
-      @set-enabled="setEnabled"
-      @set-can-login="setCanLogin"
-      @link-seer="linkSeer"
-      @save="saveUser"
-      @delete="deleteUser"
-      @test-email="testEmail"
-      @user-action="userAction"
-      @unlink-seer="unlinkSeer"
-      @merge="mergeUser"
-      @set-password="setPassword"
-    />
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
@@ -81,12 +57,12 @@
 <script setup>
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
-import { computed, markRaw, onMounted, reactive, ref } from 'vue';
+import { computed, markRaw, onMounted, ref } from 'vue';
 import { BellOff, RefreshCw, ShieldCheck, UserCheck, UserPlus } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
 import UsersTable from '@/components/users/UsersTable.vue';
-import UserEditorDrawer from '@/components/users/UserEditorDrawer.vue';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirmedAction } from '@/composables/useConfirmedAction';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
@@ -96,7 +72,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import { accountName, seerActionLabel, sourceLabel } from '@/utils/userLabels';
 
 const route = useRoute(), router = useRouter();
-const editing = ref(null), creating = ref(false), query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref(''), sort = ref('name');
+const query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref(''), sort = ref('name');
 const queryClient = useQueryClient();
 const usersQuery = useQuery({
   queryKey: ['users', 'list'],
@@ -109,21 +85,19 @@ const loading = computed(() => usersQuery.isFetching.value);
 // Erreurs des actions (bascules, synchronisations, suppressions), distinctes de la lecture.
 const actionError = ref('');
 const error = computed(() => actionError.value || (usersQuery.error.value ? humanizeError(usersQuery.error.value) : ''));
-const busy = ref(false), editorError = ref(''), message = ref('');
-const seerEnabled = ref(false), seerMode = ref(null), seerCandidates = ref([]);
+const busy = ref(false), message = ref('');
+const seerEnabled = ref(false), seerMode = ref(null);
 const seerHint = computed(() => seerMode.value === 'actor'
   ? 'Seer traite aussi les demandes : la synchronisation est bidirectionnelle.'
   : 'Seer est en mode observateur : ses comptes sont relus, rien ne lui est envoyé.');
-const tableRef = ref(null), drawerRef = ref(null);
-const { dialog: confirmDialog, resolveConfirm, runConfirmed, askConfirm } = useConfirmedAction({ busy, error: actionError });
+const tableRef = ref(null);
+const { dialog: confirmDialog, resolveConfirm, runConfirmed } = useConfirmedAction({ busy, error: actionError });
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFilters } = useFiltersDrawer(
   { query, status, role, attention, source, sort },
   { query: '', status: '', role: '', attention: '', source: '', sort: 'name' }
 );
 
-const defaults = { plex_user_id: '', display_name: '', custom_name: '', plex_email: '', notification_email: '', enabled: true, notify_admin: true, notify_on_request: true, notify_on_available: true, notify_digest: false, notify_vf_movie: true, notify_vf_series: true, discord_webhook_url: '', telegram_chat_id: '', seer_active: null, source: null, role: 'user', can_login: true, auto_approve: false, sonarr_instance_id: null, radarr_instance_id: null, movie_notify_language: null, series_notify_language: null, series_notify_granularity: 'jalons' };
-const form = reactive({ ...defaults });
 
 const sources = computed(() => [...new Set(users.value.map(x => x.source).filter(Boolean))]);
 /* La legende decrit ce que compte la tuile, pas autre chose : « Utilisateurs actifs »
@@ -148,110 +122,16 @@ const filtered = computed(() => users.value.filter(user =>
 /* `accountName` est partage avec la table et la fiche : le nom affiche, celui qui sert
    au tri et celui que cherche la recherche ne peuvent plus diverger. */
 const displayName = (user) => accountName(user || {});
-function fillForm(user) { Object.assign(form, defaults, Object.fromEntries(Object.keys(defaults).map(key => [key, user?.[key] ?? defaults[key]]))); }
 
 /** Relit la liste apres une action ; `invalidateQueries` attend la nouvelle reponse. */
 async function load() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: ['users'] }); }
-async function openUser(id) {
-  creating.value = false; editorError.value = '';
-  try { editing.value = await api(`/api/users/${id}`); fillForm(editing.value); drawerRef.value?.resetTab(); router.replace(`/users/${id}`); }
-  catch (e) { actionError.value = e.message; }
-}
-function openCreate() { creating.value = true; editing.value = {}; fillForm(null); drawerRef.value?.resetTab(); }
-function closeEditor() { editing.value = null; creating.value = false; if (route.params.userId) router.replace('/users'); }
-async function saveUser() {
-  busy.value = true; editorError.value = '';
-  try {
-    const path = creating.value ? '/api/users' : `/api/users/${editing.value.id}`;
-    const saved = await api(path, { method: creating.value ? 'POST' : 'PUT', body: JSON.stringify(form) });
-    const initialPassword = creating.value ? drawerRef.value?.initialPassword : null;
-    if (creating.value && form.source === 'local' && initialPassword) {
-      await api(`/api/users/${saved.id}/password`, { method: 'POST', body: JSON.stringify({ password: initialPassword }) });
-    }
-    await load(); message.value = 'Utilisateur enregistre.';
-    if (creating.value) await openUser(saved.id); else await openUser(editing.value.id);
-  } catch (e) { editorError.value = e.message; } finally { busy.value = false; }
-}
-async function setPassword(password) {
-  try { await api(`/api/users/${editing.value.id}/password`, { method: 'POST', body: JSON.stringify({ password }) }); message.value = 'Mot de passe modifie.'; }
-  catch (e) { editorError.value = e.message; }
-}
+/* La fiche d'un compte s'ouvre dans la feuille, avec sa propre adresse (voir
+   UserDetailView) : la liste reste derriere, et retour y ramene. */
+function openUser(id) { ouvrirFiche(router, `/users/${id}`, route.fullPath); }
+function openCreate() { ouvrirFiche(router, '/users/new', route.fullPath); }
 async function toggle(user) { try { await api(`/api/users/${user.id}/enabled`, { method: 'PUT', body: JSON.stringify({ enabled: !user.enabled }) }); await load(); } catch (e) { actionError.value = e.message; } }
-async function deleteUser() { await runConfirmed(async () => { await api(`/api/users/${editing.value.id}`, { method: 'DELETE' }); closeEditor(); await load(); }, { title: 'Supprimer cet utilisateur ?', message: `${displayName(editing.value)} sera supprimé définitivement.`, confirmLabel: 'Supprimer', danger: true }, { reload: false }); }
 async function syncSeer() { busy.value = true; try { await api('/api/seer/sync', { method: 'POST' }); message.value = 'Synchronisation Seer terminee.'; await load(); } catch (e) { actionError.value = e.message; } finally { busy.value = false; } }
 async function syncPlex() { busy.value = true; try { const result = await api('/api/plex/sync/users', { method: 'POST' }); message.value = `Synchronisation Plex terminée : ${result.created || 0} ajouté(s), ${result.updated || 0} mis à jour.`; await load(); } catch (e) { actionError.value = e.message; } finally { busy.value = false; } }
-async function userAction(action) { busy.value = true; try { await api(`/api/users/${editing.value.id}/${action}`, { method: 'POST' }); await openUser(editing.value.id); } catch (e) { editorError.value = e.message; } finally { busy.value = false; } }
-async function unlinkSeer() { await api(`/api/users/${editing.value.id}/seer-link`, { method: 'DELETE' }); await openUser(editing.value.id); await loadSeerCandidates(); }
-
-/* Effet immediat, comme l'interrupteur de la liste : couper un compte n'est pas une
-   modification de profil qu'on met en brouillon jusqu'a « Enregistrer ». */
-async function setEnabled(value) {
-  busy.value = true;
-  try { await api(`/api/users/${editing.value.id}/enabled`, { method: 'PUT', body: JSON.stringify({ enabled: value }) }); await openUser(editing.value.id); await load(); }
-  catch (e) { editorError.value = e.message; } finally { busy.value = false; }
-}
-
-/* Pas d'endpoint unitaire pour `can_login` : celui des actions groupees fait le travail
-   et porte deja la validation. L'appeler avec un seul identifiant evite de dupliquer
-   cette logique cote serveur pour un champ booleen. */
-async function setCanLogin(value) {
-  busy.value = true;
-  try { await api('/api/users/bulk/permissions', { method: 'PUT', body: JSON.stringify({ user_ids: [editing.value.id], can_login: value }) }); await openUser(editing.value.id); await load(); }
-  catch (e) { editorError.value = e.message; } finally { busy.value = false; }
-}
-
-async function linkSeer(seerUserId) {
-  busy.value = true;
-  try {
-    await api(`/api/users/${editing.value.id}/seer-link`, { method: 'PUT', body: JSON.stringify({ seer_user_id: Number(seerUserId) }) });
-    message.value = 'Compte Seer rattaché.';
-    await openUser(editing.value.id); await load(); await loadSeerCandidates();
-  } catch (e) { editorError.value = e.message; } finally { busy.value = false; }
-}
-
-/* Liste des comptes Seer proposables : l'API attend un identifiant numerique, la
-   choisir par nom evite de le faire saisir a la main. */
-async function loadSeerCandidates() {
-  if (!seerEnabled.value) { seerCandidates.value = []; return; }
-  try { seerCandidates.value = (await api('/api/seer/users')).seer_users || []; }
-  catch { seerCandidates.value = []; }
-}
-async function testEmail() { const data = await api(`/api/users/${editing.value.id}/test-email`, { method: 'POST' }); message.value = `Email envoye a ${data.recipient}`; }
-/* Deux confirmations, parce qu'un compte disparait pour de bon et que le sens de la
-   fusion se lit mal : la premiere nomme qui est supprime, la seconde redemande. */
-async function mergeUser({ otherId, keep }) {
-  const other = users.value.find(user => String(user.id) === String(otherId));
-  if (!other) return;
-  const keeper = keep === 'this' ? editing.value : other;
-  const removed = keep === 'this' ? other : editing.value;
-  const keeperName = displayName(keeper);
-  const removedName = displayName(removed);
-
-  const first = await askConfirm({
-    title: `Supprimer « ${removedName} » ?`,
-    message: `Ses demandes, préférences et historique seront rattachés à « ${keeperName} », puis le compte « ${removedName} » sera supprimé. Cette opération est irréversible.`,
-    confirmLabel: 'Continuer',
-    danger: true,
-  });
-  if (!first) return;
-
-  const second = await askConfirm({
-    title: 'Confirmer la fusion',
-    message: `Dernière vérification : « ${keeperName} » est conservé, « ${removedName} » disparaît définitivement.`,
-    confirmLabel: `Fusionner et supprimer « ${removedName} »`,
-    danger: true,
-  });
-  if (!second) return;
-
-  busy.value = true;
-  try {
-    await api(`/api/users/${removed.id}/merge-into/${keeper.id}`, { method: 'POST' });
-    message.value = `Comptes fusionnés dans « ${keeperName} ».`;
-    if (keep === 'this') { await openUser(editing.value.id); } else { closeEditor(); }
-    await load();
-  } catch (e) { editorError.value = e.message; } finally { busy.value = false; }
-}
-
 async function bulkStatus(enabled) { const ids = tableRef.value.selectedIds; await api('/api/users/bulk/status', { method: 'PUT', body: JSON.stringify({ user_ids: ids, enabled }) }); tableRef.value.clearSelection(); await load(); }
 async function bulkDelete() { const ids = tableRef.value.selectedIds; await runConfirmed(async () => { await api('/api/users/bulk/delete', { method: 'POST', body: JSON.stringify({ user_ids: ids }) }); tableRef.value.clearSelection(); await load(); }, { title: 'Supprimer les utilisateurs sélectionnés ?', message: `${ids.length} utilisateur(s) seront supprimé(s) définitivement.`, confirmLabel: 'Supprimer', danger: true }, { reload: false }); }
 async function bulkNotify(field, value) {
@@ -268,7 +148,6 @@ async function loadSeerState() {
     const settings = await api('/api/settings');
     seerEnabled.value = Boolean(settings.seer_enabled);
     seerMode.value = settings.seer_mode || null;
-    await loadSeerCandidates();
   } catch {
     /* Etat inconnu : on n'affiche pas d'action Seer plutot que d'en proposer une qui
        echouerait. */
@@ -276,7 +155,7 @@ async function loadSeerState() {
   }
 }
 
-onMounted(async () => { await loadSeerState(); if (route.params.userId) await openUser(route.params.userId); });
+onMounted(loadSeerState);
 </script>
 <style scoped lang="scss">
 .user-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap: var(--space-2)}.user-metrics button{display:flex;align-items:flex-start;gap: var(--space-2);min-height:44px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);text-align:left}.user-metrics button:hover,.user-metrics button.active{border-color:var(--accent);background:var(--surface-2)}.user-metrics svg{width:18px;color:var(--muted)}.user-metrics div{display:grid;gap: var(--space-1)}.user-metrics span{color:var(--muted);font-size:var(--fs-xs);}.user-metrics strong{font-size:var(--fs-lg)}.user-metrics small{color:var(--muted);font-size:var(--fs-xs)}@media(max-width:767.98px){.user-metrics{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}.user-metrics button{min-width:150px;scroll-snap-align:start}}

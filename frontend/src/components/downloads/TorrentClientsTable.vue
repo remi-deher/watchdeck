@@ -52,7 +52,7 @@
     >
       <template #empty>Aucun torrent ne correspond aux filtres.</template>
       <template #cell-title="{ row, index }">
-        <button class="torrent-title" @click.stop="details=row">
+        <button class="torrent-title" @click.stop="openDetails(row)">
           {{ isIncognito ? maskTitle(row.title, Number(index)) : row.title }}
         </button>
         <small>{{ row.client_name }}<template v-if="row.tags"> · {{ row.tags }}</template></small>
@@ -113,17 +113,6 @@
       </div>
     </ModalShell>
 
-    <TorrentInspectorDrawer
-      v-if="details"
-      :torrent="details"
-      :busy="isBusy(details)"
-      @close="details=null"
-      @action="runAction($event, [details])"
-      @meta="openMetaModal([details])"
-      @remove="removalTarget=details"
-      @error="emit('error', $event)"
-    />
-
     <TorrentMetaModal :targets="metaTargets" :busy="busy" @close="metaTargets=null" @save="saveMetadata" />
 
     <ModalShell :open="!!removalTarget" title="Supprimer ce torrent" subtitle="Choisis si les données téléchargées doivent être conservées." @close="removalTarget=null">
@@ -143,11 +132,13 @@
 import { computed, ref, watch } from 'vue';
 import { useEventListener, useIntersectionObserver } from '@vueuse/core';
 import { AlertTriangle, FileX2, Pause, Play, Radio, RotateCcw, Tag, Trash2 } from '@lucide/vue';
-import { api } from '@/api';
 import { useConfirm } from '@/composables/useConfirm';
 import { useTableColumns } from '@/composables/useTableColumns';
 import { usePreference } from '@/composables/usePreference';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { torrentKey, useTorrentActions } from '@/composables/useTorrentActions';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
+import { useRoute, useRouter } from 'vue-router';
 import { formatBytes, formatEta, formatSpeed, formatTimestamp, formatTracker, isPaused, maskTitle } from '@/downloads/torrentFormat';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import LoadMore from '@/components/ui/LoadMore.vue';
@@ -157,7 +148,6 @@ import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import TorrentColumnPicker from './TorrentColumnPicker.vue';
 import TorrentContextMenu from './TorrentContextMenu.vue';
-import TorrentInspectorDrawer from './TorrentInspectorDrawer.vue';
 import TorrentMetaModal from './TorrentMetaModal.vue';
 import TorrentSpeedBar from './TorrentSpeedBar.vue';
 import TorrentStateBadge from './TorrentStateBadge.vue';
@@ -253,7 +243,7 @@ function hideTrackerFavicon(row: any): void { failedFavicons.value = new Set([..
 /* ---- Tri, pagination, selection ---- */
 
 const staleInfo = computed(() => props.rows.find((row: any) => row.is_stale));
-const rowKey = (row: any): string => `${row.client_id}:${row.hash}`;
+const rowKey = torrentKey;
 const sortKey = ref('title');
 const sortDirection = ref<'asc' | 'desc'>('asc');
 
@@ -295,7 +285,13 @@ function onSort(value: { key: string; direction: 'asc' | 'desc' } | null): void 
   sortDirection.value = value.direction;
 }
 
-const details = ref<any>(null);
+/* Le detail d'un torrent s'ouvre dans la feuille, avec sa propre adresse (voir
+   TorrentDetailView) : retour le referme, le lien se partage. */
+const route = useRoute();
+const router = useRouter();
+function openDetails(row: any): void {
+  ouvrirFiche(router, `/downloads/torrent/${encodeURIComponent(row.client_id)}/${encodeURIComponent(row.hash)}`, route.fullPath);
+}
 
 /* Un clic ouvre le detail ; avec Maj ou Ctrl, il etend ou bascule la selection, comme
    dans un gestionnaire de fichiers. */
@@ -305,7 +301,7 @@ function onRowClick(row: any, index: number, event: MouseEvent): void {
     toggleRow(row, index, event);
     return;
   }
-  details.value = row;
+  openDetails(row);
   lastSelectedIndex.value = index;
 }
 
@@ -325,56 +321,22 @@ useIntersectionObserver(sentinelRef, (entries) => {
   if (entries[0]?.isIntersecting && hasMore.value) loadMore();
 }, { rootMargin: '200px' });
 
-// Le tiroir d'une ligne disparue se ferme ; l'elagage de la selection est deja fait.
-watch(() => props.rows, (rows: any[]) => {
-  const valid = new Set(rows.map(rowKey));
-  if (details.value && !valid.has(rowKey(details.value))) details.value = null;
-});
 
 /* ---- Actions ---- */
 
-const busyKeys = ref<Set<string>>(new Set());
-const busy = computed(() => busyKeys.value.size > 0);
 const actionTarget = ref<any>(null);
 const removalTarget = ref<any>(null);
 const metaTargets = ref<any[] | null>(null);
 const contextTarget = ref<any>(null);
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
-
-function isBusy(row: any): boolean {
-  return busyKeys.value.has(rowKey(row));
-}
-
-async function runAction(action: string, rows: any[], deleteFiles = false, extraParam = ''): Promise<void> {
-  const targets = rows.filter(Boolean);
-  if (!targets.length) return;
-  busyKeys.value = new Set([...busyKeys.value, ...targets.map(rowKey)]);
-
-  const results = await Promise.allSettled(
-    targets.map(row => {
-      const payload: Record<string, any> = { action, delete_files: deleteFiles };
-      if (action === 'set_category') payload.category = extraParam;
-      if (action === 'set_tags') payload.tags = extraParam;
-      return api(`/api/downloads/clients/${row.client_id}/${row.hash}/control`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    })
-  );
-
-  const failures = results.filter(result => result.status === 'rejected');
-  if (failures.length) emit('error', `${failures.length} action(s) sur ${targets.length} ont échoué.`);
-  if (action === 'delete') {
-    const removed = new Set(targets.filter((_, index) => results[index].status === 'fulfilled').map(rowKey));
-    if (details.value && removed.has(rowKey(details.value))) details.value = null;
-  }
-  busyKeys.value = new Set();
-  removalTarget.value = null;
-  emit('refresh');
-}
+const { busy, isBusy, runAction, saveMetadata: saveTorrentMetadata, confirmRemoval: confirmTorrentRemoval } = useTorrentActions({
+  onDone: () => emit('refresh'),
+  onError: (message) => emit('error', message),
+  askConfirm,
+});
 
 function actOnTarget(action: string): void {
-  runAction(action, [actionTarget.value]);
+  void runAction(action, [actionTarget.value]);
   actionTarget.value = null;
 }
 
@@ -384,31 +346,13 @@ function openMetaModal(rows: any[]): void {
 }
 
 async function saveMetadata(category: string, tags: string): Promise<void> {
-  const targets = metaTargets.value;
-  if (!targets?.length) return;
-  await runAction('set_category', targets, false, category);
-  await runAction('set_tags', targets, false, tags);
+  await saveTorrentMetadata(metaTargets.value || [], category, tags);
   metaTargets.value = null;
 }
 
 async function confirmRemoval(rows: any[], deleteFiles: boolean): Promise<void> {
-  const targets = rows.filter(Boolean);
-  if (!targets.length) return;
   removalTarget.value = null;
-  const confirmed = await askConfirm(deleteFiles
-    ? {
-      title: `Supprimer ${targets.length} torrent(s) et leurs fichiers ?`,
-      message: 'Les fichiers téléchargés seront supprimés définitivement. Cette action ne peut pas être annulée.',
-      confirmLabel: 'Supprimer définitivement',
-      danger: true,
-    }
-    : {
-      title: `Retirer ${targets.length} torrent(s) ?`,
-      message: 'Les torrents seront retirés du client, mais leurs fichiers seront conservés.',
-      confirmLabel: 'Retirer',
-      danger: true,
-    });
-  if (confirmed) await runAction('delete', targets, deleteFiles);
+  await confirmTorrentRemoval(rows, deleteFiles);
 }
 
 function openContextMenu(row: any, index: number): void {
@@ -424,7 +368,7 @@ function handleContextMenuAction(actionType: string): void {
   const targets = selectedRows.value.length ? selectedRows.value : (contextTarget.value ? [contextTarget.value] : []);
   if (!targets.length) return;
 
-  if (actionType === 'details') details.value = targets[0];
+  if (actionType === 'details') openDetails(targets[0]);
   else if (actionType === 'meta') openMetaModal(targets);
   else if (actionType === 'remove-torrent') confirmRemoval(targets, false);
   else if (actionType === 'remove-files') confirmRemoval(targets, true);

@@ -24,13 +24,18 @@
     </RouteErrorBoundary>
   </AppShell>
 
-  <MediaOverlay :open="surfaceOuverte" @close="fermerSurface" @after-leave="ficheAffichee = null">
+  <MediaOverlay :open="surfaceOuverte" :aria-label="libelleSurface" @close="fermerSurface" @after-leave="ficheAffichee = null">
     <!-- La fiche reste rendue, figee sur SA route, pendant que la surface s'en va : sans
          cela son contenu disparaissait a l'instant ou l'on fermait, et c'etait une
          surface vide qui glissait -- demontee, de surcroit, dans l'image meme ou
-         l'animation devait commencer. -->
+         l'animation devait commencer.
+         La surface rend la vue de la route, quelle qu'elle soit : fiche media, session de
+         lecture, torrent, utilisateur... Toute route ouverte avec une page de depart
+         (voir `ouvrirFiche`) s'y pose ; ouverte directement, elle s'affiche en pleine page. -->
     <RouteScope v-if="ficheAffichee" :route="ficheAffichee.route">
-      <MediaDetailView :key="ficheAffichee.cle" />
+      <RouterView v-slot="{ Component }" :route="ficheAffichee.route">
+        <component :is="Component" :key="ficheAffichee.cle" />
+      </RouterView>
     </RouteScope>
   </MediaOverlay>
   <AppToast />
@@ -44,7 +49,6 @@ import { synchroniserProprietaire } from "@/offline/stockage";
 import { connectRealtime } from "@/events";
 import AppShell from "@/components/layout/AppShell.vue";
 import MediaOverlay from "@/components/media/MediaOverlay.vue";
-import MediaDetailView from "@/views/MediaDetailView.vue";
 import AppToast from '@/components/ui/AppToast.vue';
 import { useMediaOverlay } from "@/composables/useMediaOverlay";
 import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
@@ -58,6 +62,9 @@ import { useToast } from "@/composables/useToast";
    remplacer -- voir `useMediaOverlay` pour le pourquoi. */
 const { actif: surfaceOuverte, routeDeFond, fermer: fermerSurface } = useMediaOverlay();
 const routeCourante = useRoute();
+/* Nom de la surface pour les lecteurs d'ecran : le titre de la route (« Média »,
+   « Session de lecture »...). */
+const libelleSurface = computed(() => String(ficheAffichee.value?.route.meta?.title || 'Détail'));
 const ficheAffichee = shallowRef<{ route: RouteLocationNormalizedLoaded; cle: string } | null>(null);
 watch(
   () => [surfaceOuverte.value, routeCourante.fullPath] as const,

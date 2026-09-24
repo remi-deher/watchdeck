@@ -80,7 +80,7 @@
             <MetricCard card-class="activity-metric-card overview-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="`${summary.transcodes||0} sessions`" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
           </MetricGrid>
 
-          <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" interactive @select="selectedSession=$event"/>
+          <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" interactive @select="openSession($event)"/>
 
           <div class="activity-grid">
             <DailyActivityChart :points="chart"/>
@@ -126,7 +126,7 @@
           <div><span class="live-indicator"><i></i>{{ liveSessions.length }} active{{ liveSessions.length>1?'s':'' }}</span><h2>Flux en direct</h2><p>Suivez la progression et ouvrez une session pour consulter son diagnostic complet.</p></div>
           <span class="live-updated">Actualisé {{ relativeUpdate }}</span>
         </section>
-        <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" :show-link="false" interactive @select="selectedSession=$event"/>
+        <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" :show-link="false" interactive @select="openSession($event)"/>
       </template>
 
       <template v-else-if="currentView==='history'">
@@ -139,7 +139,7 @@
           :page-size="HISTORY_PAGE_SIZE"
           :sort="historySort"
           :group-by-day="historySort!=='longest'"
-          @select="selectedSession=$event"
+          @select="openSession($event)"
           @load-more="loadHistory(true)"
           @update:sort="setHistorySort"
         />
@@ -177,7 +177,7 @@
         <section class="panel">
           <div class="panel-head"><div><span class="eyebrow">Diagnostic</span><h2>Derniers modes de lecture</h2></div></div>
           <div class="quality-list">
-            <button v-for="item in qualityHistory" :key="sessionKey(item)" @click="selectedSession=item">
+            <button v-for="item in qualityHistory" :key="sessionKey(item)" @click="openSession(item)">
               <MediaArtwork :src="item.thumb_url" :alt="displayTitle(item)" :type="item.media_type" size="small"/>
               <span><strong>{{ displayTitle(item) }}</strong><small>{{ item.player||item.platform||'Plex' }} · {{ item.quality||'Auto' }}</small></span>
               <PlaybackMethodBadge :method="item.playback_method"/>
@@ -206,14 +206,6 @@
       </template>
     </template>
 
-    <SessionDetailDrawer
-      v-if="selectedSession"
-      :session="selectedSession"
-      :has-previous="selectedIndex > 0"
-      :has-next="selectedIndex >= 0 && selectedIndex < siblingSessions.length - 1"
-      @navigate="navigateSession"
-      @close="selectedSession=null"
-    />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
   </AppPage>
@@ -249,7 +241,7 @@ import LiveSessionsPanel from '@/components/activity/LiveSessionsPanel.vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import PopularMediaPanel from '@/components/activity/PopularMediaPanel.vue';
-import SessionDetailDrawer from '@/components/activity/SessionDetailDrawer.vue';
+import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
 import UserRankingPanel from '@/components/activity/UserRankingPanel.vue';
 import { usePreference } from '@/composables/usePreference';
 
@@ -287,7 +279,7 @@ const periodLabel = computed(() => {
   return `${value} jours`;
 });
 const data=ref<Record<string, any>>({active:[],liveEnabled:true,liveConfigured:true,history:[],daily:[],users:[],summary:{}});
-const selectedSession=ref<any>(null),historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),updatedAt=ref(Date.now()),clock=ref(Date.now());
+const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),updatedAt=ref(Date.now()),clock=ref(Date.now());
 const filtersOpen=ref(false);
 const summary=computed(()=>data.value.summary||{});
 const analytics=computed(()=>data.value.analytics||{});
@@ -456,11 +448,6 @@ function applySnapshot(snapshot: any,{savedAt=Date.now()}: {savedAt?: number}={}
     liveEnabled:snapshot.enabled ?? snapshot.liveEnabled ?? data.value.liveEnabled ?? true,
     liveConfigured:snapshot.configured ?? snapshot.liveConfigured ?? data.value.liveConfigured ?? true,
   };
-  if(selectedSession.value){
-    const candidates=[...(snapshot.active||[]),...(snapshot.history||[])];
-    const fresh=candidates.find((item: any)=>sessionKey(item)===sessionKey(selectedSession.value));
-    if(fresh)selectedSession.value=fresh;
-  }
   loaded.value=true;
   updatedAt.value=savedAt;
   if(!scopedUser.value){
@@ -475,10 +462,6 @@ function applyLive(snapshot: any): void {
     liveEnabled:snapshot.enabled!==false,
     liveConfigured:snapshot.configured!==false,
   };
-  if(selectedSession.value){
-    const fresh=(snapshot.active||[]).find((item: any)=>sessionKey(item)===sessionKey(selectedSession.value));
-    if(fresh)selectedSession.value=fresh;
-  }
   updatedAt.value=Date.now();
 }
 function applyStatistics(snapshot: any,options?: {savedAt?: number}): void {applySnapshot({...snapshot,active:data.value.active||[]},options)}
@@ -528,27 +511,17 @@ function sessionKey(item: any): string {
 }
 function displayTitle(item: any): string {return item.grandparent_title?`${item.grandparent_title} · ${item.title}`:item.title}
 /* Les sessions voisines sont celles de la liste effectivement affichee : passer de
-   l'une a l'autre depuis le tiroir doit suivre l'ordre que l'on avait sous les yeux. */
+   l'une a l'autre depuis la fiche doit suivre l'ordre que l'on avait sous les yeux.
+   La fiche s'ouvre dans la feuille, avec sa propre adresse (voir SessionDetailView). */
 const siblingSessions=computed((): any[]=>{
   if(currentView.value==='history')return sortedHistoryItems.value;
   if(currentView.value==='quality')return qualityHistory.value;
   return liveSessions.value;
 });
-const selectedIndex=computed(()=>{
-  if(!selectedSession.value)return -1;
-  const key=sessionKey(selectedSession.value);
-  return siblingSessions.value.findIndex((item: any)=>sessionKey(item)===key);
-});
-function navigateSession(direction: number): void {
-  const next=siblingSessions.value[selectedIndex.value+direction];
-  if(next)selectedSession.value=next;
-}
-function onSessionKey(event: KeyboardEvent): void {
-  if(!selectedSession.value)return;
-  const target=event.target as HTMLElement|null;
-  if(target&&/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))return;
-  if(event.key==='j')navigateSession(1);
-  else if(event.key==='k')navigateSession(-1);
+function openSession(item: any): void {
+  if(item?.id==null)return;
+  const ids=siblingSessions.value.map((row: any)=>row.id).filter((id: any)=>id!=null);
+  ouvrirFiche(router,`/activity/session/${item.id}`,route.fullPath,etatDeVoisins(ids));
 }
 function initials(name: string): string {return String(name||'?').split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase()}
 function userShare(sessions: number): number {return Math.round(Number(sessions||0)/Math.max(1,summary.value.sessions||0)*100)}
@@ -575,9 +548,7 @@ watch(currentView,(next,previous)=>{
 onMounted(()=>{
   primeFromCache();
   load();
-  window.addEventListener('keydown',onSessionKey);
 });
-onUnmounted(()=>window.removeEventListener('keydown',onSessionKey));
 </script>
 
 <style scoped lang="scss">

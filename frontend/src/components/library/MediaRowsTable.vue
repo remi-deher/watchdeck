@@ -3,7 +3,7 @@
        Une meme ligne disait l'absence de trois facons differentes : « 0 · aucun »,
        « personne », « jamais ». Dans un tableau dense, la valeur vide s'ecrit toujours
        pareil -- le tiret cadratin -- et la formulation en toutes lettres reste pour le
-       tiroir de detail, ou il y a la place de l'expliquer. -->
+       fiche de detail, ou il y a la place de l'expliquer. -->
   <UiDataTable
     class="panel media-rows-table"
     label="Fichiers média"
@@ -14,7 +14,7 @@
     manual-sort
     clickable
     @update:sort="(value) => value && emit('update:sort', value)"
-    @row-click="(row: any) => (details = row)"
+    @row-click="openDetails"
   >
     <template #empty>Aucun fichier ne correspond aux filtres.</template>
     <template #cell-title="{ row }"><strong>{{ title(row) }}</strong><small>{{ mediaTypeLabel(row.media_type) }}</small></template>
@@ -37,56 +37,14 @@
     <template #actions><UiButton variant="primary" @click="showColumnPicker = false">Valider</UiButton></template>
   </ModalShell>
 
-  <DrawerShell v-if="details" eyebrow="Fichier média" :title="title(details)" @close="details = null">
-    <section class="drawer-section">
-      <h3>Média</h3>
-      <dl class="detail-grid">
-        <div><dt>Type</dt><dd>{{ mediaTypeLabel(details.media_type) }}</dd></div>
-        <div><dt>Bibliothèque</dt><dd>{{ details.library || '—' }}</dd></div>
-        <div><dt>Studio</dt><dd>{{ details.studio || '—' }}</dd></div>
-        <div><dt>Année</dt><dd>{{ details.year || '—' }}</dd></div>
-        <div><dt>Ajouté le</dt><dd>{{ formatDate(details.added_at) }}</dd></div>
-        <div><dt>Durée</dt><dd>{{ duration(details.duration_ms) }}</dd></div>
-      </dl>
-    </section>
-    <section class="drawer-section">
-      <h3>Fichier</h3>
-      <dl class="detail-grid">
-        <div><dt>Poids</dt><dd>{{ bytes(details.size_bytes) }}</dd></div>
-        <div><dt>Conteneur</dt><dd>{{ details.container || '—' }}</dd></div>
-        <div><dt>Vidéo</dt><dd>{{ details.video_resolution || '—' }} · {{ details.video_codec || '—' }}</dd></div>
-        <div><dt>Audio</dt><dd>{{ details.audio_codec || '—' }}<template v-if="details.audio_channels"> · {{ details.audio_channels }} canaux</template></dd></div>
-        <div><dt>Pistes audio</dt><dd>{{ (details.audio_languages || []).join(', ') || 'aucune' }}</dd></div>
-        <div><dt>Sous-titres</dt><dd>{{ (details.subtitle_types || details.subtitle_languages || []).join(', ') || 'aucun' }}</dd></div>
-      </dl>
-    </section>
-    <section class="drawer-section">
-      <h3>Audience</h3>
-      <dl class="detail-list">
-        <div><dt>Lectures</dt><dd>{{ details.play_count || 0 }}</dd></div>
-        <div><dt>Temps visionné</dt><dd>{{ duration(details.watch_time_ms) }}</dd></div>
-        <div><dt>Spectateurs</dt><dd>{{ (details.viewers || []).join(', ') || 'personne' }}</dd></div>
-        <div><dt>Dernier visionnage</dt><dd>{{ details.last_viewed_at ? formatDate(details.last_viewed_at) : 'jamais' }}</dd></div>
-      </dl>
-
-      <!-- La fiche disait combien de fois un media avait ete vu, jamais quand. -->
-      <ol v-if="(details.views || []).length" class="view-log">
-        <li v-for="(view, index) in details.views" :key="`${view.at}-${index}`">
-          <span>{{ view.user || 'Utilisateur Plex' }}</span>
-          <time :datetime="view.at">{{ formatDate(view.at) }}</time>
-          <strong>{{ duration(view.watched_ms) }}</strong>
-        </li>
-      </ol>
-      <p v-else class="view-log-empty">Aucun visionnage enregistré pour ce fichier.</p>
-    </section>
-  </DrawerShell>
 </template>
 
 <script setup lang="ts">
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import { ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
-import DrawerShell from '@/components/DrawerShell.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
@@ -129,7 +87,13 @@ const columns: UiColumn[] = [
   { key: 'last_viewed', label: 'Dernier visionnage', sortable: true },
 ];
 
-const details = ref<any | null>(null);
+/* La fiche technique d'un fichier s'ouvre dans la feuille, avec sa propre adresse
+   (voir AnalyticsItemView). */
+const route = useRoute();
+const router = useRouter();
+function openDetails(row: any): void {
+  if (row?.rating_key) ouvrirFiche(router, `/analytics/item/${encodeURIComponent(row.rating_key)}`, route.fullPath);
+}
 const showColumnPicker = ref(false);
 const { orderedColumns, visibleColumns, visibleKeys, toggleColumn } = useTableColumns(
   () => columns,
@@ -150,28 +114,4 @@ const title = (row: any): string => (row.grandparent_title ? `${row.grandparent_
 :deep(tbody td) { vertical-align: top; }
 :deep(td.col-narrow), :deep(th.col-narrow) { width: 1%; white-space: nowrap; }
 
-.drawer-section { margin-top: 22px; }
-.drawer-section:first-child { margin-top: 8px; }
-.drawer-section h3 { margin: 0 0 12px; }
-.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: 0; }
-.detail-grid div, .detail-list div { padding: 10px; border-radius: var(--radius-sm); background: var(--surface-2); }
-.detail-grid dt, .detail-list dt { color: var(--muted); font-size: var(--fs-xs); }
-.detail-grid dd, .detail-list dd { margin: 4px 0 0; font-weight: 700; }
-.detail-list { display: grid; gap: var(--space-2); margin: 0; }
-.view-log { display: grid; gap: 2px; margin: var(--space-3) 0 0; padding: 0; list-style: none; }
-.view-log li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: var(--space-3);
-  align-items: center;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-  font-size: var(--fs-sm);
-}
-.view-log li:last-child { border-bottom: 0; }
-.view-log span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.view-log time { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-.view-log strong { font-variant-numeric: tabular-nums; }
-.view-log-empty { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
-@media (max-width: 520px) { .detail-grid { grid-template-columns: 1fr; } }
 </style>

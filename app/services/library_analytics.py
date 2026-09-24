@@ -416,6 +416,22 @@ ITEM_SORTS: dict[str, Any] = {
 }
 
 
+async def _snapshot_payload(settings: Settings, db: AsyncSession) -> dict:
+    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
+    if snapshot is None:
+        return await refresh_library_analytics_snapshot(settings, db)
+    try:
+        return json.loads(snapshot.payload_json)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return await refresh_library_analytics_snapshot(settings, db)
+
+
+async def analytics_item(settings: Settings, db: AsyncSession, rating_key: str) -> dict | None:
+    """Un media du catalogue analyse, retrouve par sa cle Plex : ce qu'affiche sa fiche."""
+    payload = await _snapshot_payload(settings, db)
+    return next((row for row in payload.get("items", []) if str(row.get("rating_key") or "") == rating_key), None)
+
+
 async def analytics_items_payload(
     settings: Settings,
     db: AsyncSession,
@@ -429,14 +445,7 @@ async def analytics_items_payload(
     sort: str | None = None,
     direction: str = "asc",
 ) -> dict:
-    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
-    if snapshot is None:
-        payload = await refresh_library_analytics_snapshot(settings, db)
-    else:
-        try:
-            payload = json.loads(snapshot.payload_json)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            payload = await refresh_library_analytics_snapshot(settings, db)
+    payload = await _snapshot_payload(settings, db)
     rows = apply_filters(payload.get("items", []), filters)
     if insight_kind == "unwatched":
         rows = [row for row in rows if not row.get("play_count")]

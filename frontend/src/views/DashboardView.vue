@@ -18,7 +18,7 @@
       :sessions="liveActivity.active || []"
       :collection-enabled="liveActivity.enabled !== false"
       interactive
-      @select="selectedSession = $event"
+      @select="openSession"
     />
 
     <section class="dashboard-section">
@@ -94,7 +94,6 @@
       <section><header><span>Usage</span><h3>Bibliothèque et utilisateurs</h3></header><div class="dashboard-grid"><RequestsBreakdownPanel :counts="counts"/><TopRequestedPanel :items="topRequested"/></div></section>
       <section><header><span>Communication</span><h3>Derniers envois</h3></header><div class="dashboard-grid"><RecentNotificationsPanel :notifications="recentNotifs"/></div></section>
     </UiDisclosure>
-    <SessionDetailDrawer v-if="selectedSession" :session="selectedSession" @close="selectedSession=null"/>
   </AppPage>
 </template>
 
@@ -118,7 +117,8 @@ import RecentNotificationsPanel from '@/components/dashboard/RecentNotifications
 import ScanStatusPanel from '@/components/dashboard/ScanStatusPanel.vue';
 import MediaRail from '@/components/discover/MediaRail.vue';
 import LiveSessionsPanel from '@/components/activity/LiveSessionsPanel.vue';
-import SessionDetailDrawer from '@/components/activity/SessionDetailDrawer.vue';
+import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
+import { useRoute, useRouter } from 'vue-router';
 import { api, streamEvents } from '@/api';
 import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
@@ -158,7 +158,14 @@ const upcoming = ref<any[]>([]);
 const recentNotifs = ref<any[]>([]);
 const downloadQueue = ref<any[]>([]);
 const liveActivity = ref<Record<string, any>>({ active: [] });
-const selectedSession = ref<any>(null);
+const route = useRoute();
+const router = useRouter();
+/* La fiche d'une lecture s'ouvre dans la feuille, avec sa propre adresse. */
+function openSession(item: any): void {
+  if (item?.id == null) return;
+  const ids = (liveActivity.value.active || []).map((row: any) => row.id).filter((id: any) => id != null);
+  ouvrirFiche(router, `/activity/session/${item.id}`, route.fullPath, etatDeVoisins(ids));
+}
 const loadingQueue = ref(false);
 const updatedAt = ref<number | null>(null);
 const clock = ref(Date.now());
@@ -202,10 +209,6 @@ async function loadDownloadQueue(): Promise<void> {
 async function loadLiveActivity(): Promise<void> {
   const value = await api('/api/playback/live');
   liveActivity.value = value;
-  if (selectedSession.value) {
-    const fresh = (value.active || []).find((item: any) => item.session_id === selectedSession.value.session_id);
-    selectedSession.value = fresh || null;
-  }
 }
 
 async function loadVffStatus(): Promise<void> {

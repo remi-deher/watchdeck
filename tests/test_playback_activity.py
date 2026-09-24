@@ -1393,3 +1393,19 @@ def test_history_leaves_the_running_playback_to_the_live_view(client, async_db):
     assert history["facets"]["users"] == ["Lisa"]
     # La lecture en cours reste visible là où elle a un sens.
     assert [row["title"] for row in client.get("/api/playback/live").json()["active"]] == ["Lecture en cours"]
+
+
+def test_playback_session_detail_endpoint_returns_one_session(client, async_db):
+    row = PlaybackSession(source_session_id="detail-1", title="Dune", user_name="Rémi", media_type="movie")
+    async_db.add(row)
+    async_db.commit()
+
+    response = client.get(f"/api/playback/sessions/{row.id}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == row.id
+    assert body["title"] == "Dune"
+    assert body["user_name"] == "Rémi"
+    assert body["segments"] == []
+
+    assert client.get("/api/playback/sessions/999999").status_code == 404
