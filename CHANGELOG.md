@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.38.1 — 2026-09-24
+
+
+### ♻️ Refactoring
+
+- pastilles de filtre, menus et repliables sur Reka UI ([8eeff89](https://github.com/remi-deher/watchdeck/commit/8eeff89822184ef862aaa4bfcc40603d8ec2ff05))
+- champs numeriques, infobulles, progression, curseurs et avatar sur Reka UI ([e40de5a](https://github.com/remi-deher/watchdeck/commit/e40de5ae54c206260ee07d486b9a5985e98ef074))
 ## 1.38.0 — 2026-09-24
 
 
@@ -18,6 +25,7 @@
 
 - retirer PrimeVue (lot 7) ([5d51eec](https://github.com/remi-deher/watchdeck/commit/5d51eecd53f4372ddaaa29d48219b18ab817c241))
 - bump vite from 8.2.2 to 8.3.0 (#303) ([6bb9b0d](https://github.com/remi-deher/watchdeck/commit/6bb9b0d93f62150d9a508fc88d8469b69590e28e))
+- v1.38.0 (#408) ([dbabe5b](https://github.com/remi-deher/watchdeck/commit/dbabe5b19069136226cf1ecaebcd2ddc9e84c8e8))
 ## 1.37.1 — 2026-09-23
 
 
