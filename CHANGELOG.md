@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.38.2 — 2026-09-24
+
+
+### test
+
+- scrollIntoView absent de jsdom, requis par les listes Reka ([c094150](https://github.com/remi-deher/watchdeck/commit/c0941504c031be204aace7e80248cb019d8aa416))
+
+### ♻️ Refactoring
+
+- boutons harmonises sur UiButton et nettoyage du CSS global inutilise ([a5dd0e2](https://github.com/remi-deher/watchdeck/commit/a5dd0e2396d33674844a69c11fc0fd4628d568c9))
+- decoupe de TorrentClientsTable et DownloadsView en sous-composants et modules ([92dbba0](https://github.com/remi-deher/watchdeck/commit/92dbba0d59ecdc14194c0b2e7b5bf8fe4344d5df))
+- un seul systeme de filtres (groupes Reka, pastilles a exclusion, liste avec recherche) et echelle d'empilement des modales ([c579952](https://github.com/remi-deher/watchdeck/commit/c579952fdc1a82f8d09e454babfb9cf4a2ed4c6f))
+- cases, boutons radio, listes et menus du Markdown sur Reka UI ; suppression du code mort ([067cb28](https://github.com/remi-deher/watchdeck/commit/067cb28202d74317868fbec9886ff0ebb6a29edb))
+- blocs repliables sur Reka Collapsible, feuille de filtres qui garde la barre de recherche ([4509708](https://github.com/remi-deher/watchdeck/commit/45097080233483ec5203e7af7d13ed4e89cf3a6a))
+- palette de commandes sur Reka Listbox ([9460f1f](https://github.com/remi-deher/watchdeck/commit/9460f1f0859013f8d4f8f136fa72bf0c2b90cfe5))
+
+### 🐛 Corrections
+
+- Terminés affiche l'historique et les cartes de la file forment une grille ([93fca12](https://github.com/remi-deher/watchdeck/commit/93fca1293429659948233b3b27564a8b95b7ed90))
 ## 1.38.1 — 2026-09-24
 
 
@@ -7,6 +26,10 @@
 
 - pastilles de filtre, menus et repliables sur Reka UI ([8eeff89](https://github.com/remi-deher/watchdeck/commit/8eeff89822184ef862aaa4bfcc40603d8ec2ff05))
 - champs numeriques, infobulles, progression, curseurs et avatar sur Reka UI ([e40de5a](https://github.com/remi-deher/watchdeck/commit/e40de5ae54c206260ee07d486b9a5985e98ef074))
+
+### 🔧 Maintenance
+
+- v1.38.1 (#412) ([70525e2](https://github.com/remi-deher/watchdeck/commit/70525e2c0c2b77f02b30e3fc3a50741ad9c4f52a))
 ## 1.38.0 — 2026-09-24
 
 
