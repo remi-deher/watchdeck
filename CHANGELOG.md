@@ -1,11 +1,33 @@
 # Changelog
 
+## 1.38.0 — 2026-09-24
+
+
+### ♻️ Refactoring
+
+- modales, tiroirs et feuilles sur Reka UI (lots 1-2) ([07b0f58](https://github.com/remi-deher/watchdeck/commit/07b0f58acb4177438b055a77598c03ee8163386e))
+- formulaires, notifications, confirmations et menus sur Reka UI (lots 3-4) ([db02bc8](https://github.com/remi-deher/watchdeck/commit/db02bc8bf860ef16a1ceb3f7f603142ee77ae98e))
+- tous les tableaux sur un UiDataTable commun (TanStack Table, lot 5) ([18f283f](https://github.com/remi-deher/watchdeck/commit/18f283f3dd3c1c06adf9a0f42566fffe24df4533))
+- onglets de page sur Reka Tabs (lot 6) ([209ea32](https://github.com/remi-deher/watchdeck/commit/209ea32cf9c438697f21d98586cb29f62321556a))
+
+### ✨ Nouveautés
+
+- animations simplifiees en CSS, stockage local et mode hors ligne ([6ff1329](https://github.com/remi-deher/watchdeck/commit/6ff13290d98b7a935c50ae15f122037d30043302))
+
+### 🔧 Maintenance
+
+- retirer PrimeVue (lot 7) ([5d51eec](https://github.com/remi-deher/watchdeck/commit/5d51eecd53f4372ddaaa29d48219b18ab817c241))
+- bump vite from 8.2.2 to 8.3.0 (#303) ([6bb9b0d](https://github.com/remi-deher/watchdeck/commit/6bb9b0d93f62150d9a508fc88d8469b69590e28e))
 ## 1.37.1 — 2026-09-23
 
 
 ### 🐛 Corrections
 
 - fermeture de fiche animee et sans latence, bandeau Explorer en surface ([2cf71f6](https://github.com/remi-deher/watchdeck/commit/2cf71f653b6818acef80e9418972d58678fbc937))
+
+### 🔧 Maintenance
+
+- v1.37.1 (#403) ([cde214e](https://github.com/remi-deher/watchdeck/commit/cde214ec1964e69de69d5fb3b13ec6c4206b7595))
 ## 1.37.0 — 2026-09-23
 
 
