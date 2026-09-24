@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.41.0 — 2026-09-24
+
+
+### ✨ Nouveautés
+
+- tri par colonne de l'historique des lectures et des colonnes qualité, audio, sous-titres de l'inventaire ([7751596](https://github.com/remi-deher/watchdeck/commit/7751596959987465f16cb7490272bc91adedced5))
+- tri par colonne des utilisateurs, de l'historique des envois, de l'historique d'acquisition et des journaux ([7e0302a](https://github.com/remi-deher/watchdeck/commit/7e0302a48c8b9a3a7c0f996712b4b68d29d4ab5a))
+
+### 🐛 Corrections
+
+- heures des sessions Plex en heure locale ; tampon et vitesse du transcodage en direct ([8155d0e](https://github.com/remi-deher/watchdeck/commit/8155d0ea37d9017bfa9da7e6149e8ab38c9c77be))
+- formatage ruff et typage mypy ([cc27d0e](https://github.com/remi-deher/watchdeck/commit/cc27d0e0a90cf9fa2b63a98130abb20ae1bea93d))
 ## 1.40.1 — 2026-09-24
 
 
@@ -7,6 +19,10 @@
 
 - l'affiche des fiches garde son format 2:3 sur telephone ([8376296](https://github.com/remi-deher/watchdeck/commit/83762967968ce9f4d81ef247f2fee63170110072))
 - grilles équilibrées, plus de bloc seul sur la dernière rangée ([8346233](https://github.com/remi-deher/watchdeck/commit/8346233420920ad46a91d87fc6464d23b9e42737))
+
+### 🔧 Maintenance
+
+- v1.40.1 (#428) ([4ab86e2](https://github.com/remi-deher/watchdeck/commit/4ab86e2273057f9ddce2d0a650c207ddf341211b))
 ## 1.40.0 — 2026-09-24
 
 
