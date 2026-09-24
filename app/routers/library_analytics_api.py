@@ -12,7 +12,12 @@ from ..database import get_db_async
 from ..dependencies import get_settings_or_404, require_admin
 from ..models import Settings
 from ..pagination import PaginationParams, pagination_params
-from ..services.library_analytics import analytics_item, analytics_items_payload, analytics_payload, analytics_summary_payload
+from ..services.library_analytics import (
+    analytics_item,
+    analytics_items_payload,
+    analytics_payload,
+    analytics_summary_payload,
+)
 
 router = APIRouter(prefix="/api/library-analytics", tags=["library-analytics"], dependencies=[Depends(require_admin)])
 

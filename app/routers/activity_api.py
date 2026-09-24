@@ -23,8 +23,8 @@ from ..services.playback_activity import (
     collect_plex_activity,
     import_tautulli_history,
     live_activity_snapshot,
-    playback_session_detail,
     normalize_tautulli_history,
+    playback_session_detail,
     recalculate_playback_locations,
     test_tautulli,
 )

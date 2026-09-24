@@ -1933,11 +1933,8 @@ async def activity_history(
     }
 
 
-async def playback_session_detail(session_id: int, db=None) -> dict | None:
+async def playback_session_detail(session_id: int, db) -> dict | None:
     """Une session, en cours ou terminee : ce qu'affiche sa fiche, a partir de son adresse."""
-    if db is None:
-        async with AsyncSessionLocal() as owned_db:
-            return await playback_session_detail(session_id, db=owned_db)
     row = (
         (
             await db.execute(
