@@ -534,8 +534,11 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
      775 sur l'inventaire, 972 sur la bibliotheque -- et un centre decale d'autant. Les
      sortir du flux ne suffisait pas : le selecteur de periode fait 398px, il recouvrait
      le champ. Elles sont donc revenues dans la rangee de la page, ou elles ont la place
-     qu'il leur faut. */
-  .app-topbar__field {
+     qu'il leur faut.
+     Le bouton de recherche globale (pages sans recherche propre, comme l'Accueil)
+     prend la meme largeur : sans cela il s'etirait sur toute la barre. */
+  .app-topbar__field,
+  .app-topbar__search {
     flex: 0 1 auto;
     /* Largeur DEFINIE, pas `min(720px, 100%)` : la barre se dimensionne desormais sur
        son contenu, donc un pourcentage ici se resoudrait sur un parent qui depend
@@ -566,7 +569,8 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
     left: 14px;
     max-width: 90px;
   }
-  .app-topbar__field {
+  .app-topbar__field,
+  .app-topbar__search {
     flex: 0 1 520px;
     width: calc(100% - 196px);
     margin: 0 auto;
