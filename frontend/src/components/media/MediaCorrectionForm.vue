@@ -7,7 +7,7 @@
     <label>Destinataires (demandeurs pre-selectionnes)
       <div class="season-grid" style="grid-template-columns: 1fr 1fr; margin-top: 0.5rem;">
         <label v-for="u in users" :key="u.id" class="check">
-          <input type="checkbox" v-model="localForm.recipient_user_ids" :value="u.id"> {{ u.custom_name || u.display_name || u.plex_user_id }}
+          <UiCheckbox :model-value="localForm.recipient_user_ids.includes(u.id)" @update:model-value="toggleRecipient(u.id, $event)" /> {{ u.custom_name || u.display_name || u.plex_user_id }}
         </label>
       </div>
     </label>
@@ -15,7 +15,7 @@
     <label>Corrections a annoncer
       <div class="season-grid" style="grid-template-columns: 1fr; margin-top: 0.5rem;">
         <label v-for="opt in correctionOptions" :key="opt" class="check">
-          <input type="checkbox" :checked="localForm.corrections.includes(opt)" @change="handleCorrectionChange(opt, ($event.target as HTMLInputElement).checked)" :value="opt"> {{ opt }}
+          <UiCheckbox :model-value="localForm.corrections.includes(opt)" @update:model-value="handleCorrectionChange(opt, $event)" /> {{ opt }}
         </label>
       </div>
     </label>
@@ -25,13 +25,15 @@
     </label>
     
     <div class="inline-row compact" style="margin-top: 1rem;">
-      <button class="primary" :disabled="busy || !localForm.corrections.length || !localForm.recipient_user_ids.length" @click="$emit('submit', localForm)">Envoyer la correction</button>
-      <button class="secondary" @click="$emit('cancel')">Annuler</button>
+      <UiButton variant="primary" :disabled="busy || !localForm.corrections.length || !localForm.recipient_user_ids.length" @click="$emit('submit', localForm)">Envoyer la correction</UiButton>
+      <UiButton @click="$emit('cancel')">Annuler</UiButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, reactive, watch } from 'vue';
 
 const props = withDefaults(
@@ -63,6 +65,11 @@ watch(
   },
   { deep: true }
 );
+
+function toggleRecipient(id: number | string, checked: boolean): void {
+  const others = localForm.recipient_user_ids.filter((value: number | string) => value !== id);
+  localForm.recipient_user_ids = checked ? [...others, id] : others;
+}
 
 function handleCorrectionChange(opt: string, checked: boolean): void {
   if (checked) {

@@ -13,11 +13,21 @@
     
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
-        <select v-model="status"><option value="">Tous les statuts</option><option value="enabled">Actifs</option><option value="disabled">Désactivés</option></select>
-        <select v-model="role"><option value="">Tous les rôles</option><option value="admin">Administrateurs</option><option value="moderator">Modérateurs</option><option value="user">Utilisateurs</option></select>
-        <select v-model="attention"><option value="">Toutes les situations</option><option value="pending">Approbations en attente</option><option value="missing_email">Sans email</option><option value="notification_error">Erreur de notification</option></select>
-        <select v-model="source"><option value="">Toutes les origines</option><option v-for="value in sources" :key="value" :value="value">{{ sourceLabel(value) }}</option></select>
-        <select v-model="sort"><option value="name">Nom</option><option value="requests">Demandes</option><option value="activity">Activité récente</option></select>
+        <FilterGroup label="Statut">
+          <UiChipGroup label="Statut" :options="[{ value: '', label: 'Tous les statuts' }, { value: 'enabled', label: 'Actifs' }, { value: 'disabled', label: 'Désactivés' }]" v-model="status" />
+        </FilterGroup>
+        <FilterGroup label="Rôle">
+          <UiChipGroup label="Rôle" :options="[{ value: '', label: 'Tous les rôles' }, { value: 'admin', label: 'Administrateurs' }, { value: 'moderator', label: 'Modérateurs' }, { value: 'user', label: 'Utilisateurs' }]" v-model="role" />
+        </FilterGroup>
+        <FilterGroup label="Situation">
+          <UiChipGroup label="Situation" :options="[{ value: '', label: 'Toutes les situations' }, { value: 'pending', label: 'Approbations en attente' }, { value: 'missing_email', label: 'Sans email' }, { value: 'notification_error', label: 'Erreur de notification' }]" v-model="attention" />
+        </FilterGroup>
+        <FilterGroup label="Origine">
+          <UiChipGroup label="Origine" :options="[{ value: '', label: 'Toutes les origines' }, ...sources.map((value) => ({ value, label: sourceLabel(value) }))]" v-model="source" />
+        </FilterGroup>
+        <FilterGroup label="Tri">
+          <UiChipGroup label="Tri" :options="[{ value: 'name', label: 'Nom' }, { value: 'requests', label: 'Demandes' }, { value: 'activity', label: 'Activité récente' }]" v-model="sort" />
+        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
     <!-- Ces tuiles sont le filtre de la page : `aria-pressed` dit laquelle est active,
@@ -69,6 +79,8 @@
   </AppPage>
 </template>
 <script setup>
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { computed, markRaw, onMounted, reactive, ref } from 'vue';
 import { BellOff, RefreshCw, ShieldCheck, UserCheck, UserPlus } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';

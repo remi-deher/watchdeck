@@ -29,12 +29,16 @@
     <div class="psh-layout">
       <FilterSidebar v-if="currentView === 'history'" :open="filtersOpen" :active-count="historyFilterCount" @close="filtersOpen=false" @reset="resetActivityFilters">
         <FilterGroup label="Lecture">
-          <select v-model="methodFilter"><option value="">Tous les modes</option><option value="direct_play">Lecture directe</option><option value="direct_stream">Direct Stream</option><option value="transcode">Transcodage</option></select>
-          <select v-model="typeFilter"><option value="">Tous les types</option><option value="movie">Films</option><option value="episode">Séries</option><option value="track">Musique</option></select>
+          <UiChipGroup label="Mode de lecture" :options="[{ value: '', label: 'Tous les modes' }, { value: 'direct_play', label: 'Lecture directe' }, { value: 'direct_stream', label: 'Direct Stream' }, { value: 'transcode', label: 'Transcodage' }]" v-model="methodFilter" />
         </FilterGroup>
-        <FilterGroup label="Contexte">
-          <select v-model="userFilter"><option value="">Tous les utilisateurs</option><option v-for="user in historyUsers" :key="user" :value="user">{{ user }}</option></select>
-          <select v-model="deviceFilter"><option value="">Tous les appareils</option><option v-for="device in historyDevices" :key="device" :value="device">{{ device }}</option></select>
+        <FilterGroup label="Type de média">
+          <UiChipGroup label="Type de média" :options="[{ value: '', label: 'Tous les types' }, { value: 'movie', label: 'Films' }, { value: 'episode', label: 'Séries' }, { value: 'track', label: 'Musique' }]" v-model="typeFilter" />
+        </FilterGroup>
+        <FilterGroup label="Utilisateur">
+          <UiCombobox label="Utilisateur" placeholder="Tous les utilisateurs" :options="historyUsers.map((user: string) => ({ value: user, label: user }))" v-model="userFilter" />
+        </FilterGroup>
+        <FilterGroup label="Appareil">
+          <UiCombobox label="Appareil" placeholder="Tous les appareils" :options="historyDevices.map((device: string) => ({ value: device, label: device }))" v-model="deviceFilter" />
         </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
@@ -216,6 +220,8 @@
 </template>
 
 <script setup lang="ts">
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import UiCombobox from '@/components/ui/UiCombobox.vue';
 import { playbackMethodLabel } from '@/utils/labels';
 import { formatBandwidth, formatDateTimeShort, formatDuration, signedPercent } from '@/utils/format';
 import { computed,onMounted,onUnmounted,ref,watch } from 'vue';

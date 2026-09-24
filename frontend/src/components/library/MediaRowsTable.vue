@@ -30,7 +30,7 @@
   <ModalShell :open="showColumnPicker" title="Personnaliser les colonnes" subtitle="Choisissez et réordonnez les colonnes affichées." @close="showColumnPicker = false">
     <div class="column-picker-grid">
       <label v-for="column in orderedColumns" :key="column.key" class="column-picker-item">
-        <input type="checkbox" :checked="column.required || visibleKeys.has(column.key)" :disabled="column.required" @change="toggleColumn(column.key)">
+        <UiCheckbox :model-value="column.required || visibleKeys.has(column.key)" :disabled="column.required" @update:model-value="toggleColumn(column.key)" />
         <span>{{ column.label }}</span>
       </label>
     </div>
@@ -83,6 +83,7 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import { ref } from 'vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import DrawerShell from '@/components/DrawerShell.vue';

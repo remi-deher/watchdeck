@@ -11,10 +11,10 @@
           <span class="scan-subtitle">{{ subtitle }}</span>
         </div>
       </div>
-      <button class="secondary btn-scan-action" :disabled="running" type="button" @click="$emit('action')">
+      <UiButton class="btn-scan-action" :disabled="running" @click="$emit('action')">
         <RefreshCw :class="{ spinning: running }" />
         <span>{{ actionLabel }}</span>
-      </button>
+      </UiButton>
     </div>
     <div v-if="running && progress != null" class="progress-bar-wrap">
       <div class="progress-bar animated" :style="{ width: `${progress}%` }" />
@@ -23,6 +23,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed } from 'vue';
 import { RefreshCw } from '@lucide/vue';
 

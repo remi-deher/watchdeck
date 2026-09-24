@@ -9,13 +9,14 @@
       @update:model-value="onInput"
     />
     <label class="check retention-indefinite">
-      <input type="checkbox" :checked="indefinite" @change="onToggle(($event.target as HTMLInputElement).checked)">
+      <UiCheckbox :model-value="indefinite" @update:model-value="onToggle($event)" />
       Conserver indéfiniment
     </label>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import { computed, ref, watch } from 'vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 

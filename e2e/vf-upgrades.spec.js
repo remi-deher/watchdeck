@@ -92,8 +92,8 @@ test("sélectionner des suggestions puis « Rechercher la sélection » envoie l
   await expect(cards).toHaveCount(3, { timeout: 15000 });
   await expect(page.getByRole("button", { name: /Rechercher la sélection/ })).toHaveCount(0);
 
-  await cards.filter({ hasText: "Film VF 1" }).locator('input[type="checkbox"]').check();
-  await cards.filter({ hasText: "Film VF 3" }).locator('input[type="checkbox"]').check();
+  await cards.filter({ hasText: "Film VF 1" }).getByRole('checkbox').check();
+  await cards.filter({ hasText: "Film VF 3" }).getByRole('checkbox').check();
   const scan = page.getByRole("button", { name: /Rechercher la sélection \(2\)/ });
   await expect(scan).toBeVisible();
 

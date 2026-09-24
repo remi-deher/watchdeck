@@ -12,10 +12,7 @@
         label="Priorité de la source"
         description="Universal Watchlist nécessite un abonnement Plex Pass et agrège les watchlists de tous vos amis Plex sans qu'ils aient besoin de se connecter."
       >
-        <select v-model="form.watchlist_source_priority">
-          <option value="api">API Plex</option>
-          <option value="rss">Universal Watchlist (RSS)</option>
-        </select>
+        <UiSelect v-model="form.watchlist_source_priority" :options="[{ value: 'api', label: 'API Plex' }, { value: 'rss', label: 'Universal Watchlist (RSS)' }]" />
       </SettingsRow>
       <SettingsRow
         label="Source de repli"
@@ -37,8 +34,8 @@
       :status="form.vff_enabled ? 'active' : 'inactive'"
     >
       <template #actions>
-        <button class="secondary" @click="vff('/api/vff/scan?force=true')"><ScanSearch />Scanner maintenant</button>
-        <button class="secondary" @click="vff('/api/vff/sync-plex')"><RefreshCw />Synchroniser Plex</button>
+        <UiButton @click="vff('/api/vff/scan?force=true')"><ScanSearch />Scanner maintenant</UiButton>
+        <UiButton @click="vff('/api/vff/sync-plex')"><RefreshCw />Synchroniser Plex</UiButton>
       </template>
 
       <SettingsRow
@@ -74,11 +71,9 @@
         <div v-else class="vff-library-picker">
           <div v-for="section in plexSections" :key="section.name" class="vff-library-row">
             <label class="check vff-lib-check">
-              <input
-                type="checkbox"
-                :checked="isLibrarySelected(section.name)"
-                @change="toggleLibrary(section.name, section.type, ($event.target as HTMLInputElement).checked)"
-              >
+              <UiCheckbox
+                :model-value="isLibrarySelected(section.name)"
+                @update:model-value="toggleLibrary(section.name, section.type, $event)" />
               <span class="vff-lib-name">{{ section.name }}</span>
               <span class="badge">{{ mediaTypeLabel(section.type) }}</span>
             </label>
@@ -111,6 +106,9 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import { RouterLink } from 'vue-router';
 
 /** Etat d'une tache de fond, dans la langue de l'interface. */

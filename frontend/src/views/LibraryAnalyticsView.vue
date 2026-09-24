@@ -21,21 +21,35 @@
 
     <div class="psh-layout">
       <FilterSidebar v-if="activeTab === 'table'" :open="filtersOpen" :active-count="activeCount" @close="filtersOpen=false" @reset="reset">
-        <select v-model="filters.media_type" aria-label="Filtrer par type"><option value="">Tous les types</option><option value="movie">Films</option><option value="episode">Épisodes</option><option value="track">Musique</option></select>
-        <select v-model="filters.library" aria-label="Filtrer par bibliothèque"><option value="">Toutes les bibliothèques</option><option v-for="value in data.options?.library || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.studio" aria-label="Filtrer par studio"><option value="">Tous les studios</option><option v-for="value in data.options?.studio || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.video_codec" aria-label="Filtrer par codec vidéo"><option value="">Tous les codecs vidéo</option><option v-for="value in data.options?.video_codec || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.audio_codec" aria-label="Filtrer par codec audio"><option value="">Tous les codecs audio</option><option v-for="value in data.options?.audio_codec || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.audio_language" aria-label="Filtrer par langue audio"><option value="">Toutes les langues audio</option><option v-for="value in data.options?.audio_language || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.video_resolution" aria-label="Filtrer par résolution"><option value="">Toutes les résolutions</option><option v-for="value in data.options?.video_resolution || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.container" aria-label="Filtrer par conteneur"><option value="">Tous les conteneurs</option><option v-for="value in data.options?.container || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.subtitle" aria-label="Sous-titres"><option value="">Sous-titres : indifférent</option><option value="with">Avec sous-titres</option><option value="without">Sans sous-titres</option></select>
-        <select v-model="filters.subtitle_language" aria-label="Langue sous-titres"><option value="">Toutes les langues de sous-titres</option><option v-for="value in data.options?.subtitle_language || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.subtitle_type" aria-label="Format sous-titres"><option value="">Tous les formats de sous-titres</option><option v-for="value in data.options?.subtitle_type || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.viewer" aria-label="Filtrer par spectateur"><option value="">Tous les spectateurs</option><option v-for="value in data.options?.viewer || []" :key="value">{{ value }}</option></select>
-        <select v-model="filters.watched" aria-label="Filtrer par visionnage"><option value="">Audience : indifférent</option><option value="yes">Visionnés</option><option value="no">Non visionnés</option></select>
-        <UiNumberField v-model="filters.min_size_gb" :min="0" :step="0.5" placeholder="Poids min. (Go)" aria-label="Poids minimal en Go" />
-        <UiNumberField v-model="filters.max_size_gb" :min="0" :step="0.5" placeholder="Poids max. (Go)" aria-label="Poids maximal en Go" />
+        <FilterGroup label="Type de média">
+          <UiChipGroup label="Type de média" :options="[{ value: '', label: 'Tous les types' }, { value: 'movie', label: 'Films' }, { value: 'episode', label: 'Épisodes' }, { value: 'track', label: 'Musique' }]" v-model="filters.media_type" />
+        </FilterGroup>
+        <FilterGroup label="Bibliothèque et studio">
+          <UiCombobox label="Bibliothèque" placeholder="Toutes les bibliothèques" :options="(data.options?.library || []).map((value: string) => ({ value, label: value }))" v-model="filters.library" />
+          <UiCombobox label="Studio" placeholder="Tous les studios" :options="(data.options?.studio || []).map((value: string) => ({ value, label: value }))" v-model="filters.studio" />
+        </FilterGroup>
+        <FilterGroup label="Vidéo" :default-open="false">
+          <UiCombobox label="Codec vidéo" placeholder="Tous les codecs vidéo" :options="(data.options?.video_codec || []).map((value: string) => ({ value, label: value }))" v-model="filters.video_codec" />
+          <UiCombobox label="Résolution" placeholder="Toutes les résolutions" :options="(data.options?.video_resolution || []).map((value: string) => ({ value, label: value }))" v-model="filters.video_resolution" />
+          <UiCombobox label="Conteneur" placeholder="Tous les conteneurs" :options="(data.options?.container || []).map((value: string) => ({ value, label: value }))" v-model="filters.container" />
+        </FilterGroup>
+        <FilterGroup label="Audio" :default-open="false">
+          <UiCombobox label="Codec audio" placeholder="Tous les codecs audio" :options="(data.options?.audio_codec || []).map((value: string) => ({ value, label: value }))" v-model="filters.audio_codec" />
+          <UiCombobox label="Langue audio" placeholder="Toutes les langues audio" :options="(data.options?.audio_language || []).map((value: string) => ({ value, label: value }))" v-model="filters.audio_language" />
+        </FilterGroup>
+        <FilterGroup label="Sous-titres" :default-open="false">
+          <UiChipGroup label="Sous-titres" :options="[{ value: '', label: 'Indifférent' }, { value: 'with', label: 'Avec' }, { value: 'without', label: 'Sans' }]" v-model="filters.subtitle" />
+          <UiCombobox label="Langue des sous-titres" placeholder="Toutes les langues" :options="(data.options?.subtitle_language || []).map((value: string) => ({ value, label: value }))" v-model="filters.subtitle_language" />
+          <UiCombobox label="Format des sous-titres" placeholder="Tous les formats" :options="(data.options?.subtitle_type || []).map((value: string) => ({ value, label: value }))" v-model="filters.subtitle_type" />
+        </FilterGroup>
+        <FilterGroup label="Audience">
+          <UiChipGroup label="Visionnage" :options="[{ value: '', label: 'Indifférent' }, { value: 'yes', label: 'Visionnés' }, { value: 'no', label: 'Non visionnés' }]" v-model="filters.watched" />
+          <UiCombobox label="Spectateur" placeholder="Tous les spectateurs" :options="(data.options?.viewer || []).map((value: string) => ({ value, label: value }))" v-model="filters.viewer" />
+        </FilterGroup>
+        <FilterGroup label="Poids">
+          <UiNumberField v-model="filters.min_size_gb" :min="0" :step="0.5" placeholder="Min. (Go)" aria-label="Poids minimal en Go" />
+          <UiNumberField v-model="filters.max_size_gb" :min="0" :step="0.5" placeholder="Max. (Go)" aria-label="Poids maximal en Go" />
+        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
 
@@ -114,6 +128,9 @@
 </template>
 
 <script setup lang="ts">
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import UiCombobox from '@/components/ui/UiCombobox.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';

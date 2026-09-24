@@ -57,23 +57,6 @@
         :ignored-count="ignoredCount"
         @select="activeTab === 'audit' ? toggleAuditFilter($event) : toggleStatusFilter($event)"
       />
-
-      <VfUpgradeQuickFilters
-        :audit="activeTab === 'audit'"
-        :active-status="activeTab === 'audit' ? auditIssueFilter : statusFilter"
-        :media-type="activeTab === 'audit' ? auditMediaTypeFilter : mediaTypeFilter"
-        :total-audit-items="auditItems.length"
-        :audit-counts="auditCounts"
-        :eligible-audit-fix-count="eligibleAuditFixCount"
-        :pending-count="pendingCount"
-        :waiting-release-count="waitingReleaseCount"
-        :in-progress-count="inProgressCount"
-        :failed-count="failedCount"
-        :history-count="historyCount"
-        :ignored-count="ignoredCount"
-        @status="activeTab === 'audit' ? toggleAuditFilter($event) : statusFilter = $event"
-        @media-type="setMediaTypeFilter"
-      />
     </template>
 
     <div class="psh-layout">
@@ -89,7 +72,6 @@
         @close="closeFilters"
         @reset="resetUpgradeFilters"
       />
-
       <!-- Tiroir de filtres de l'onglet Audit -->
       <VfAuditFilters
         v-else-if="activeTab === 'audit'"
@@ -102,7 +84,6 @@
         @close="closeFilters"
         @reset="resetAuditFilters"
       />
-
       <!-- Zone principale -->
       <div class="psh-main">
         <UiFeedback v-if="feedback" :type="feedbackType" :message="feedback" class="vf-feedback" dismissible @dismiss="clearFeedback" />
@@ -176,7 +157,6 @@ import UiButton from '@/components/ui/UiButton.vue';
 import AlignStreamsModal from '@/components/media/AlignStreamsModal.vue';
 import VfSettingsModal from '@/components/vf-upgrades/VfSettingsModal.vue';
 import VfUpgradeKpiBanner from '@/components/vf-upgrades/VfUpgradeKpiBanner.vue';
-import VfUpgradeQuickFilters from '@/components/vf-upgrades/VfUpgradeQuickFilters.vue';
 import VfScanHistory from '@/components/vf-upgrades/VfScanHistory.vue';
 import VfAuditPanel from '@/components/vf-upgrades/VfAuditPanel.vue';
 import VfAuditFilters from '@/components/vf-upgrades/VfAuditFilters.vue';
@@ -327,10 +307,6 @@ function toggleAuditFilter(issue: string): void {
 }
 function toggleStatusFilter(status: string): void {
   statusFilter.value = statusFilter.value === status ? 'all' : status;
-}
-function setMediaTypeFilter(type: string): void {
-  if (activeTab.value === 'audit') auditMediaTypeFilter.value = type;
-  else mediaTypeFilter.value = type;
 }
 
 function openAlignModal(item: AuditItem): void {

@@ -1,6 +1,6 @@
 <template>
-  <details class="mail-history-details">
-    <summary>Historique</summary>
+  <CollapsibleRoot class="mail-history-details" :unmount-on-hide="false">
+    <CollapsibleTrigger class="collapsible-trigger">Historique</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
     <small>{{ row.origin_kind === 'arr' ? 'Detectee le' : 'Demandee le' }} {{ formatDate(row.requested_at) }}</small>
     <small v-if="row.arr_processed_at" class="mail-history">
       Validee par *arr le {{ formatDateTime(row.arr_processed_at) }}
@@ -17,10 +17,11 @@
       <span v-if="row.last_available_mail.success === false" class="badge failed tiny">Echec</span>
     </small>
     <small v-if="row.vf_tracking_disabled" class="mail-history">Suivi VF arrete</small>
-  </details>
+  </CollapsibleContent></CollapsibleRoot>
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { formatDate, formatDateTime } from '@/utils/format';
 
 defineProps<{

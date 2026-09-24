@@ -7,9 +7,9 @@
     :default-open="items.some(i => i.enabled)"
   >
     <template #actions>
-      <button class="secondary" @click.stop="$emit('open-modal')">
+      <UiButton @click.stop="$emit('open-modal')">
         <Plus />{{ addLabel }}
-      </button>
+      </UiButton>
       <slot name="header-actions" />
     </template>
 
@@ -28,10 +28,10 @@
         </slot>
       </template>
       <template #cell-actions="{ row: item }">
-        <button v-if="hasTest" class="icon-button" title="Tester" aria-label="Tester" @click="$emit('test', item)"><PlugZap /></button>
-        <button class="icon-button" title="Modifier" aria-label="Modifier" @click="$emit('open-modal', item)"><Pencil /></button>
-        <button class="icon-button" :title="item.enabled ? 'Désactiver' : 'Activer'" :aria-label="item.enabled ? 'Désactiver' : 'Activer'" @click="$emit('toggle', item)"><Power /></button>
-        <button class="icon-button danger" title="Supprimer" aria-label="Supprimer" @click="$emit('remove', item)"><Trash2 /></button>
+        <UiButton icon-only v-if="hasTest" title="Tester" aria-label="Tester" @click="$emit('test', item)"><PlugZap /></UiButton>
+        <UiButton icon-only title="Modifier" aria-label="Modifier" @click="$emit('open-modal', item)"><Pencil /></UiButton>
+        <UiButton icon-only :title="item.enabled ? 'Désactiver' : 'Activer'" :aria-label="item.enabled ? 'Désactiver' : 'Activer'" @click="$emit('toggle', item)"><Power /></UiButton>
+        <UiButton variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="$emit('remove', item)"><Trash2 /></UiButton>
       </template>
     </UiDataTable>
   </SettingsCard>
@@ -48,19 +48,16 @@
     </div>
     <template #actions>
       <slot name="modal-actions" />
-      <button
-        class="primary"
-        :disabled="busy || !canSave"
-        @click="$emit('save')"
-      >
+      <UiButton variant="primary" :disabled="busy || !canSave" @click="$emit('save')">
         <Save />{{ editingId ? 'Mettre à jour' : 'Ajouter' }}
-      </button>
-      <button class="secondary" @click="$emit('close-modal')">Annuler</button>
+      </UiButton>
+      <UiButton @click="$emit('close-modal')">Annuler</UiButton>
     </template>
   </ModalShell>
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, type Component } from 'vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';

@@ -36,4 +36,32 @@ describe('UiChipGroup', () => {
     await w.findAll('button')[1].trigger('click');
     expect(w.emitted('update:modelValue').at(-1)).toEqual([['show']]);
   });
+
+  it('en mode exclusion, un appui inclut, le suivant exclut, le troisieme libere', async () => {
+    const opts = [{ value: 'films', label: 'Films' }, { value: 'series', label: 'Séries' }];
+    const w = mount(UiChipGroup, { props: { modelValue: [], options: opts, label: 'Catégorie', exclusion: true } });
+    const chip = () => w.findAll('button')[0];
+
+    await chip().trigger('click');
+    expect(w.emitted('update:modelValue').at(-1)).toEqual([['films']]);
+    await w.setProps({ modelValue: ['films'] });
+    expect(chip().classes()).toContain('active');
+
+    await chip().trigger('click');
+    expect(w.emitted('update:modelValue').at(-1)).toEqual([['!films']]);
+    await w.setProps({ modelValue: ['!films'] });
+    expect(chip().classes()).toContain('excluded');
+    expect(chip().attributes('aria-label')).toBe('Films, exclu');
+
+    await chip().trigger('click');
+    expect(w.emitted('update:modelValue').at(-1)).toEqual([[]]);
+  });
+
+  it('en mode exclusion, les autres pastilles restent intactes', async () => {
+    const opts = [{ value: 'films', label: 'Films' }, { value: 'series', label: 'Séries' }];
+    const w = mount(UiChipGroup, { props: { modelValue: ['!films'], options: opts, label: 'Catégorie', exclusion: true } });
+    await w.findAll('button')[1].trigger('click');
+    expect(w.emitted('update:modelValue').at(-1)).toEqual([['!films', 'series']]);
+  });
 });
+

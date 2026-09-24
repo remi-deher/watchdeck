@@ -23,11 +23,7 @@
     <template #form>
       <label>Nom<input v-model="clientForm.name"></label>
       <label>Type
-        <select v-model="clientForm.client_type">
-          <option value="qbittorrent">qBittorrent</option>
-          <option value="transmission">Transmission</option>
-          <option value="deluge">Deluge</option>
-        </select>
+        <UiSelect v-model="clientForm.client_type" :options="[{ value: 'qbittorrent', label: 'qBittorrent' }, { value: 'transmission', label: 'Transmission' }, { value: 'deluge', label: 'Deluge' }]" />
       </label>
       <label>URL<input v-model="clientForm.url" type="url"></label>
       <label>Utilisateur <small>(facultatif)</small>
@@ -45,7 +41,7 @@
         <input v-model="clientForm.tags">
         <small>Tags séparés par des virgules, appliqués aux torrents envoyés depuis Watchdeck.</small>
       </label>
-      <label class="check"><input v-model="clientForm.is_default" type="checkbox"> Client par défaut</label>
+      <UiCheckboxField v-model="clientForm.is_default" label="Client par défaut" />
       <small class="check-hint">Client présélectionné quand plusieurs sont configurés et qu'aucun n'est explicitement choisi lors d'un envoi manuel.</small>
     </template>
 
@@ -58,6 +54,8 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import { computed } from 'vue';
 import { useMutation } from '@tanstack/vue-query';
 import { Download } from '@lucide/vue';

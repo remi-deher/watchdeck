@@ -26,8 +26,8 @@
   </Transition>
 
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
-  <details class="panel" @toggle="deliveriesOpen = $event.target.open">
-    <summary>Suivi des envois — clés uniques et confirmations</summary>
+  <CollapsibleRoot class="panel" @update:open="deliveriesOpen = $event" :unmount-on-hide="false">
+    <CollapsibleTrigger class="collapsible-trigger">Suivi des envois — clés uniques et confirmations</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
     <p>Les envois sans confirmation restent bloqués pour vérification. Un Message-ID SMTP ne garantit pas à lui seul l'absence de doublon.</p>
     <UiDataTable label="Suivi des envois" :rows="deliveries" :columns="DELIVERY_COLUMNS" :row-key="(d) => d.send_key">
       <template #empty>Aucun envoi enregistré dans le nouveau suivi.</template>
@@ -35,11 +35,21 @@
       <template #cell-state="{ row: delivery }">{{ deliveryStateLabels[delivery.state] || delivery.state }}<small>{{ delivery.detail }}</small></template>
       <template #cell-send_key="{ row: delivery }"><code>{{ delivery.send_key }}</code></template>
     </UiDataTable>
-  </details>
+  </CollapsibleContent></CollapsibleRoot>
 
   <div class="psh-layout">
     <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
-      <NotificationsFiltersBar v-if="tab==='history'" v-model:state="state" v-model:selected-types="selectedTypes" v-model:selected-users="selectedUsers" :users="users" :type-options="typeOptions" />
+      <template v-if="tab==='history'">
+        <FilterGroup label="État">
+          <UiChipGroup label="État" :options="STATE_OPTIONS" v-model="state" />
+        </FilterGroup>
+        <FilterGroup label="Type">
+          <UiChipGroup label="Type" multiple :options="typeOptions" v-model="selectedTypes" />
+        </FilterGroup>
+        <FilterGroup label="Utilisateur">
+          <UiCombobox label="Utilisateur" multiple placeholder="Tous les utilisateurs" :options="userOptions" v-model="selectedUsers" />
+        </FilterGroup>
+      </template>
       <template v-if="tab==='pending' && rows.length">
         <UiButton @click="purge(true)"><CheckCheck/>Purger et marquer traitées</UiButton>
         <UiButton variant="danger" @click="purge(false)"><Trash2/>Purger</UiButton>
@@ -82,6 +92,7 @@
 </template>
 
 <script setup>
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import UiDataTable from '@/components/ui/UiDataTable.vue';
 const DELIVERY_COLUMNS = [
   { key: 'request', label: 'Demande', card: 'title' },
@@ -99,7 +110,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, ChevronLeft, ChevronRight, PauseCircle, PlayCircle, Send, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
-import NotificationsFiltersBar from '@/components/notifications/NotificationsFiltersBar.vue';
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import UiCombobox from '@/components/ui/UiCombobox.vue';
 import NotificationsTable from '@/components/notifications/NotificationsTable.vue';
 import NotificationPreviewModal from '@/components/notifications/NotificationPreviewModal.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
@@ -148,6 +161,16 @@ const typeOptions = [
   { value: 'correction', label: 'Corrections' },
   { value: 'failed', label: 'Erreurs systeme' }
 ];
+
+const STATE_OPTIONS = [
+  { value: '', label: 'Tous les états' },
+  { value: 'success', label: 'Envoyées' },
+  { value: 'error', label: 'Erreurs' },
+];
+const userOptions = computed(() => (users.value || []).map((user) => ({
+  value: user.id,
+  label: user.custom_name || user.display_name || user.plex_user_id,
+})));
 
 const offset = ref(0);
 const limit = 50;

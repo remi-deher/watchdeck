@@ -53,7 +53,7 @@ describe('CrudResourceCard', () => {
       },
     });
 
-    const addBtn = wrapper.find('button.secondary');
+    const addBtn = wrapper.find('button.ui-button--secondary');
     await addBtn.trigger('click');
     expect(wrapper.emitted('open-modal')).toBeTruthy();
   });

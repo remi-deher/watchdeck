@@ -31,7 +31,7 @@
             </div>
             <div class="hero-actions" @pointerdown.stop>
               <RouterLink v-if="to" class="primary hero-btn" :to="to" @click="ouvrirEnSurface">Voir la fiche</RouterLink>
-              <button v-else class="primary hero-btn" type="button" @click="$emit('open', activeItem)">Voir la fiche</button>
+              <UiButton variant="primary" v-else class="hero-btn" @click="$emit('open', activeItem)">Voir la fiche</UiButton>
             </div>
           </div>
         </div>
@@ -65,6 +65,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mediaDetailPath } from '@/mediaUrl';
 import { useRoute, useRouter } from 'vue-router';
