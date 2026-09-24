@@ -65,13 +65,14 @@
         <strong>Collecte en direct désactivée</strong>
         <span>Aucune lecture Plex ne peut apparaître tant que ce réglage est désactivé.</span>
       </div>
-      <RouterLink :to="{path:'/settings',query:{tab:'services'}}" class="secondary">Activer la collecte</RouterLink>
+      <UiButton :to="{path:'/settings',query:{tab:'services'}}">Activer la collecte</UiButton>
     </div>
     <p v-else class="empty">Aucune lecture en cours.</p>
   </section>
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref, watch } from 'vue';
 import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Smartphone, Tablet, Tv } from '@lucide/vue';
 import MediaArtwork from './MediaArtwork.vue';

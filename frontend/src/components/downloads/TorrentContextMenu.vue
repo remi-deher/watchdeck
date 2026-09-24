@@ -49,7 +49,7 @@ const emit = defineEmits<{ (e: 'action', action: TorrentAction): void }>();
 
 <style scoped lang="scss">
 .torrent-context-menu {
-  z-index: 80;
+  z-index: var(--z-popover);
   min-width: 210px;
   padding: 6px 0;
   border: 1px solid var(--border);

@@ -46,20 +46,8 @@
 .page-motion > :nth-child(7) { --motion-index: 6; }
 .page-motion > :nth-child(n + 8) { --motion-index: 7; }
 
-/* Reusable opt-in utilities for list-like content outside PageShell. */
-.motion-reveal {
-  animation: page-content-reveal var(--motion-duration-reveal) var(--motion-ease-emphasized) backwards;
-}
-
-.motion-stagger > * {
-  animation: page-content-reveal var(--motion-duration-reveal) var(--motion-ease-emphasized) backwards;
-  animation-delay: calc(min(var(--motion-index, 0), 12) * 28ms);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .page-motion > *,
-  .motion-reveal,
-  .motion-stagger > * {
+  .page-motion > * {
     animation: none;
   }
 }
@@ -85,8 +73,6 @@
 .app-nav-link,
 .app-subnav__item,
 .filter-badge,
-.quick-chip,
-.type-chip,
 .kpi-card,
 .hero-btn,
 .icon-button,
@@ -100,8 +86,6 @@
 .app-nav-link:active,
 .app-subnav__item:active,
 .filter-badge:active,
-.quick-chip:active,
-.type-chip:active,
 .kpi-card:active,
 .hero-btn:active,
 .icon-button:active,
@@ -118,27 +102,6 @@
 @media (hover: none) {
   .poster-card:active { transform: scale(0.985); }
 }
-
-/* ───────────────────────── Entree des surfaces modales ─────────────────────────
- *
- * Modales et tiroirs apparaissaient d'un seul coup, sans transition : sur un ecran
- * sombre, l'oeil ne sait pas d'ou vient le panneau et doit le relire entierement.
- * Le voile se fond, le panneau monte de quelques pixels en prenant sa taille.
- */
-.modal-fade-enter-active .modal-panel {
-  transition:
-    opacity var(--motion-duration-base) var(--motion-ease-emphasized), transform var(--motion-duration-ample) var(--motion-ease-spring);
-}
-/* Ce qu'on referme part vite, en accelerant : on ne fait pas attendre sur un ecran
-   qu'on vient de quitter. */
-.modal-fade-leave-active .modal-panel {
-  transition:
-    opacity var(--motion-duration-fast) var(--motion-ease-exit), transform var(--motion-duration-fast) var(--motion-ease-exit);
-}
-.modal-fade-enter-active { transition: opacity var(--motion-duration-base) var(--motion-ease-standard); }
-.modal-fade-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-exit); }
-.modal-fade-enter-from,
-.modal-fade-leave-to { opacity: 0; }
 /* Meme mouvement pour les surfaces Reka UI, pilotees par `data-state` : Reka attend la
    fin de l'animation de fermeture pour retirer la surface. */
 .drawer-backdrop[data-state="open"] { animation: surface-voile-in var(--motion-duration-base) var(--motion-ease-standard); }
@@ -171,20 +134,6 @@
   .drawer-backdrop[data-state], .modal-panel[data-state], .detail-drawer[data-state] { animation: none !important; }
 }
 
-/* Une surface qui s'en va ne capte plus rien.
-   Vue retire l'element quand la transition se termine ; quand cette fin n'arrive pas --
-   onglet ralenti, transition interrompue par une seconde bascule -- le voile restait
-   dans le document a `opacity: 0` et continuait d'intercepter les appuis sur toute la
-   page. On la voyait fermee et elle ne repondait plus a rien. L'opacite ne suffit donc
-   pas : la sortie coupe aussi les evenements. */
-.modal-fade-leave-active,
-.modal-fade-leave-to { pointer-events: none; }
-.modal-fade-enter-from .modal-panel,
-.modal-fade-leave-to .modal-panel {
-  opacity: 0;
-  transform: translateY(10px) scale(0.985);
-}
-
 /* En bas d'ecran la feuille vient du bord, pas du centre : c'est de la qu'on l'a
    appelee, et c'est la que le pouce la refermera. */
 @media (max-width: 767.98px) {
@@ -204,24 +153,17 @@
   .app-nav-link:active,
   .app-subnav__item:active,
   .filter-badge:active,
-  .quick-chip:active,
-  .type-chip:active,
   .kpi-card:active,
   .hero-btn:active,
   .icon-button:active,
   .text-button:active,
   .app-dock__link:active,
   .poster-card:active { transform: none; }
-
-  .modal-fade-enter-from .modal-panel,
-  .modal-fade-leave-to .modal-panel { transform: none; }
 }
-
 
 /* Le transport de l'affiche jusqu'a la fiche a ete retire : il mesurait et deplacait
  * l'affiche pendant que la fiche se construisait, et saccadait sur iPhone.
  */
-
 
 /* L'apparition des cartes vit avec la carte elle-meme (`MediaCardShell`) : elle se joue
  * une fois au montage. La variante pilotee par le defilement a ete retiree, elle faisait

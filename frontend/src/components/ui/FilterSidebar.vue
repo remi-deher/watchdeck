@@ -39,6 +39,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { SlidersHorizontal } from '@lucide/vue';
 import ModalShell from './ModalShell.vue';
 import UiButton from './UiButton.vue';
+import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
 
 const props = withDefaults(
   defineProps<{
@@ -89,15 +90,21 @@ onMounted(() => {
     mq.addEventListener?.('change', onMqChange);
   }
 });
+/* La feuille n'est pas modale : la page defile derriere elle. Sans verrou, ce defilement
+   masquait la barre du haut -- et avec elle la recherche -- pendant qu'on filtrait. La
+   colonne du bureau, elle, ne retient rien : ouverte par defaut, elle empecherait la
+   barre de jamais se masquer. */
+const { setHold } = useChromeAutoHide();
 watch(
   () => props.open && isMobile.value,
-  (posee) => flagSheet(posee),
+  (posee) => { flagSheet(posee); setHold('filter-sheet', posee); },
   { immediate: true }
 );
 
 onUnmounted(() => {
   mq?.removeEventListener?.('change', onMqChange);
   flagSheet(false);
+  setHold('filter-sheet', false);
 });
 
 function onMqChange(e: MediaQueryListEvent): void {

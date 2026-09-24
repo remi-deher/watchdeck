@@ -33,6 +33,18 @@
   --fs-xl: 1.3125rem;
   --fs-2xl: 1.625rem;
   --fs-3xl: 2rem;
+  /* Empilement : une seule echelle pour toute l'application. Ce qui s'ouvre depuis une
+     surface doit passer devant elle -- une modale ouverte depuis la fiche media passait
+     derriere, la fiche etant a 60 et les modales a 50. */
+  --z-bar: 40;            /* barre du haut, dock, barres fixes */
+  --z-sheet: 60;          /* fiche media, feuilles de navigation */
+  --z-modal: 100;         /* voile des modales et tiroirs */
+  --z-modal-panel: 101;
+  --z-confirm: 110;       /* confirmations : devant la modale qui les pose */
+  --z-confirm-panel: 111;
+  --z-toast: 120;
+  --z-popover: 130;       /* menus, listes deroulantes */
+  --z-tooltip: 140;
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;

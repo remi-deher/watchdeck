@@ -3,10 +3,7 @@
     <div v-if="admin" class="add-requester-row">
       <span class="add-requester-label">Co-demandeur</span>
       <div class="inline-row compact">
-        <select :value="newRequesterId" :disabled="!addableUsers.length" @change="$emit('update:newRequesterId', ($event.target as HTMLSelectElement).value)">
-          <option value="">{{ addableUsers.length ? 'Sélectionnez un utilisateur' : 'Tous les utilisateurs sont déjà demandeurs' }}</option>
-          <option v-for="u in addableUsers" :key="u.plex_user_id" :value="u.plex_user_id">{{ u.custom_name || u.display_name || u.plex_user_id }}</option>
-        </select>
+        <UiSelect :model-value="newRequesterId" :disabled="!addableUsers.length" @update:model-value="$emit('update:newRequesterId', $event)" :options="[{ value: '', label: String(addableUsers.length ? 'Sélectionnez un utilisateur' : 'Tous les utilisateurs sont déjà demandeurs') }, ...(addableUsers).map((u) => ({ value: u.plex_user_id, label: String(u.custom_name || u.display_name || u.plex_user_id) }))]" />
         <UiButton variant="primary" size="sm" :disabled="busy || !newRequesterId" @click="$emit('add-requester')"><template #icon><PlusCircle/></template>Ajouter</UiButton>
       </div>
     </div>
@@ -25,13 +22,13 @@
 
         <RequestStatusStepper v-if="!['failed','rejected'].includes(row.status)" :row="row" />
 
-        <details v-if="row.media_type === 'show' && row.seasons?.length" class="mail-history-details">
-          <summary>Detail par saison ({{ seasonsSummary(row.seasons) }})</summary>
+        <CollapsibleRoot v-if="row.media_type === 'show' && row.seasons?.length" class="mail-history-details" :unmount-on-hide="false">
+          <CollapsibleTrigger class="collapsible-trigger">Detail par saison ({{ seasonsSummary(row.seasons) }})</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
           <div v-for="season in row.seasons" :key="season.season_number" class="inline-row compact" style="justify-content: space-between; margin-bottom: 4px;">
             <span>Saison {{ season.season_number }}</span>
             <span class="badge" :class="season.status">{{ season.episodes_available_count }}/{{ season.episodes_total_count }}</span>
           </div>
-        </details>
+        </CollapsibleContent></CollapsibleRoot>
 
         <RequestMailHistory :row="row" />
         <RequesterList
@@ -43,31 +40,27 @@
           @remove-requester="(...args) => $emit('remove-requester', ...args)"
         />
       </div>
-      <details v-if="admin" class="request-admin-actions">
-        <summary>Administration</summary>
+      <CollapsibleRoot v-if="admin" class="request-admin-actions" :unmount-on-hide="false">
+        <CollapsibleTrigger class="collapsible-trigger">Administration</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
         <div class="actions">
-          <button v-if="row.status === 'pending_approval'" class="icon-button success" title="Approuver" aria-label="Approuver" :disabled="busy" @click="$emit('approve', row.id)"><Check /></button>
-          <button v-if="row.status === 'pending_approval'" class="icon-button danger" title="Refuser" aria-label="Refuser" :disabled="busy" @click="$emit('reject', row)"><Ban /></button>
-          <button v-if="row.arr_id" class="icon-button" title="Rechercher une release" aria-label="Rechercher une release" @click="$emit('open-release', row.id)"><Search /></button>
-          <button v-if="row.status === 'failed'" class="icon-button" title="Relancer" aria-label="Relancer" @click="$emit('retry', row.id)"><RotateCcw /></button>
-          <button v-if="hasUnnotified(row)" class="icon-button" title="Rattraper tout le monde (notifier les demandeurs pas encore prevenus)" aria-label="Rattraper tout le monde (notifier les demandeurs pas encore prevenus)" :disabled="busy" @click="$emit('catch-up-all', row)"><Users /></button>
-          <button class="icon-button" :title="(row.requester_ids || []).length > 1 ? 'Renvoyer le mail de demande a tous' : 'Renvoyer email de demande'" :aria-label="(row.requester_ids || []).length > 1 ? 'Renvoyer le mail de demande a tous' : 'Renvoyer email de demande'" :disabled="busy" @click="$emit('resend-mail', row.id, 'request')"><Mail /></button>
-          <button v-if="row.status === 'available'" class="icon-button" :title="(row.requester_ids || []).length > 1 ? 'Renvoyer le mail de disponibilite a tous' : 'Renvoyer email de disponibilite'" :aria-label="(row.requester_ids || []).length > 1 ? 'Renvoyer le mail de disponibilite a tous' : 'Renvoyer email de disponibilite'" :disabled="busy" @click="$emit('resend-mail', row.id, 'available')"><MailCheck /></button>
-          <button v-if="canClose(row)" class="icon-button" title="Cloturer la demande" aria-label="Cloturer la demande" :disabled="busy" @click="$emit('close-request', row)"><CheckCheck /></button>
-          <button class="icon-button danger" title="Annuler la demande (supprime aussi de Sonarr/Radarr)" aria-label="Annuler la demande" :disabled="busy" @click="$emit('withdraw-request', row)"><XCircle /></button>
-          <button class="icon-button danger" title="Supprimer" aria-label="Supprimer" @click="$emit('delete-request', row.id)"><Trash2 /></button>
+          <UiButton icon-only v-if="row.status === 'pending_approval'" class="success" title="Approuver" aria-label="Approuver" :disabled="busy" @click="$emit('approve', row.id)"><Check /></UiButton>
+          <UiButton variant="danger" icon-only v-if="row.status === 'pending_approval'" title="Refuser" aria-label="Refuser" :disabled="busy" @click="$emit('reject', row)"><Ban /></UiButton>
+          <UiButton icon-only v-if="row.arr_id" title="Rechercher une release" aria-label="Rechercher une release" @click="$emit('open-release', row.id)"><Search /></UiButton>
+          <UiButton icon-only v-if="row.status === 'failed'" title="Relancer" aria-label="Relancer" @click="$emit('retry', row.id)"><RotateCcw /></UiButton>
+          <UiButton icon-only v-if="hasUnnotified(row)" title="Rattraper tout le monde (notifier les demandeurs pas encore prevenus)" aria-label="Rattraper tout le monde (notifier les demandeurs pas encore prevenus)" :disabled="busy" @click="$emit('catch-up-all', row)"><Users /></UiButton>
+          <UiButton icon-only :title="(row.requester_ids || []).length > 1 ? 'Renvoyer le mail de demande a tous' : 'Renvoyer email de demande'" :aria-label="(row.requester_ids || []).length > 1 ? 'Renvoyer le mail de demande a tous' : 'Renvoyer email de demande'" :disabled="busy" @click="$emit('resend-mail', row.id, 'request')"><Mail /></UiButton>
+          <UiButton icon-only v-if="row.status === 'available'" :title="(row.requester_ids || []).length > 1 ? 'Renvoyer le mail de disponibilite a tous' : 'Renvoyer email de disponibilite'" :aria-label="(row.requester_ids || []).length > 1 ? 'Renvoyer le mail de disponibilite a tous' : 'Renvoyer email de disponibilite'" :disabled="busy" @click="$emit('resend-mail', row.id, 'available')"><MailCheck /></UiButton>
+          <UiButton icon-only v-if="canClose(row)" title="Cloturer la demande" aria-label="Cloturer la demande" :disabled="busy" @click="$emit('close-request', row)"><CheckCheck /></UiButton>
+          <UiButton variant="danger" icon-only title="Annuler la demande (supprime aussi de Sonarr/Radarr)" aria-label="Annuler la demande" :disabled="busy" @click="$emit('withdraw-request', row)"><XCircle /></UiButton>
+          <UiButton variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="$emit('delete-request', row.id)"><Trash2 /></UiButton>
         </div>
         <!-- Un media dont les releases se rattachent mal peut rester en manuel sans
              qu'on desactive le reglage pour tous les autres, et inversement. -->
         <label class="auto-import-choice">
           <span>Rapprochement des imports bloques</span>
-          <select :value="autoImportValue(row)" :disabled="busy" @change="onAutoImportChange(row, $event)">
-            <option value="inherit">Suivre le reglage global</option>
-            <option value="on">Automatique pour ce media</option>
-            <option value="off">Toujours manuel pour ce media</option>
-          </select>
+          <UiSelect :model-value="autoImportValue(row)" :disabled="busy" @update:model-value="onAutoImportChange(row, $event)" :options="[{ value: 'inherit', label: 'Suivre le reglage global' }, { value: 'on', label: 'Automatique pour ce media' }, { value: 'off', label: 'Toujours manuel pour ce media' }]" />
         </label>
-      </details>
+      </CollapsibleContent></CollapsibleRoot>
     </article>
     <article v-if="!requests?.length && detail?.in_library" class="detail-row plex-origin-card">
       <div>
@@ -84,6 +77,8 @@
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import UiSelect from '@/components/ui/UiSelect.vue';
 import { requestStatusLabel } from '@/utils/labels';
 import { Ban, Check, CheckCheck, Mail, MailCheck, PlusCircle, RotateCcw, Search, Trash2, Users, XCircle } from '@lucide/vue';
 import RequestMailHistory from './RequestMailHistory.vue';
@@ -99,8 +94,8 @@ const autoImportValue = (row: any): string =>
       ? 'on'
       : 'off';
 const autoImportFromChoice = (value: string): boolean | null => (value === 'inherit' ? null : value === 'on');
-function onAutoImportChange(row: any, event: Event): void {
-  emit('set-auto-import', row, autoImportFromChoice((event.target as HTMLSelectElement).value));
+function onAutoImportChange(row: any, choice: string): void {
+  emit('set-auto-import', row, autoImportFromChoice(choice));
 }
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
@@ -177,7 +172,7 @@ const emit = defineEmits<{
   align-self: start;
   min-width: 130px;
 }
-.request-admin-actions summary {
+.request-admin-actions .collapsible-trigger {
   cursor: pointer;
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -234,16 +229,16 @@ const emit = defineEmits<{
   font-weight: 600;
 }
 
-:deep(.mail-history-details) {
+:deep(.mail-history-[data-state]) {
   margin-top: 4px;
 }
-:deep(.mail-history-details summary) {
+:deep(.mail-history-[data-state] .collapsible-trigger) {
   cursor: pointer;
   font-size: var(--fs-xs);
   color: var(--muted);
   user-select: none;
 }
-:deep(.mail-history-details small) {
+:deep(.mail-history-[data-state] small) {
   display: block;
 }
 

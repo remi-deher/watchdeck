@@ -68,6 +68,6 @@ describe('panneaux opérationnels', () => {
     });
 
     expect(wrapper.findAll('button').every(button => button.attributes('disabled') !== undefined)).toBe(true);
-    expect(wrapper.get('input[type="checkbox"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.get('[role="checkbox"]').attributes('disabled')).toBeDefined();
   });
 });

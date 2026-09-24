@@ -68,10 +68,10 @@ describe('DashboardView supervision', () => {
     // Le tableau de bord compte plusieurs sections repliables : on vise celle de
     // Supervision par son intitule, pas par sa position dans le document.
     const supervision = wrapper
-      .findAll('details')
+      .findAll('.ui-disclosure')
       .find((node) => node.text().includes('Supervision'));
     expect(supervision).toBeTruthy();
-    expect(supervision.element.open).toBe(false);
+    expect(supervision.attributes('data-state')).toBe('closed');
     // `counts` alimente le bandeau « Situation actuelle » tout en haut de la page : il
     // fait desormais partie du premier chargement, contrairement aux sections qui ne
     // servent qu'au bloc Supervision lui-meme.
@@ -80,8 +80,7 @@ describe('DashboardView supervision', () => {
     expect(apiMock).not.toHaveBeenCalledWith('/api/health');
     expect(apiMock).not.toHaveBeenCalledWith('/api/disk-space');
 
-    supervision.element.open = true;
-    await supervision.trigger('toggle');
+    await supervision.get('.ui-disclosure-trigger').trigger('click');
     await flushPromises();
 
     expect(localStorage.getItem('watchdeck:dashboard.supervisionOpen')).toBe('true');

@@ -43,7 +43,7 @@ function runAction(toast: AppToastMessage): void {
 
 <style scoped lang="scss">
 .app-toast-viewport {
-  position: fixed; z-index: 70; right: max(18px, var(--safe-right)); bottom: max(18px, var(--safe-bottom));
+  position: fixed; z-index: var(--z-toast); right: max(18px, var(--safe-right)); bottom: max(18px, var(--safe-bottom));
   display: grid; gap: var(--space-2); width: min(380px, calc(100vw - 28px)); margin: 0; padding: 0; list-style: none; outline: none;
 }
 .app-toast {

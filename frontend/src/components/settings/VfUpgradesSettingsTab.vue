@@ -14,23 +14,20 @@
         <ToggleSwitch v-model="form.vf_upgrade_enabled" title="Activer les améliorations VF" />
       </SettingsRow>
       <SettingsRow label="Médias VO" description="Médias dont aucune piste française n'a été détectée." :disabled="!form.vf_upgrade_enabled">
-        <input v-model="form.vf_upgrade_include_vo" :disabled="!form.vf_upgrade_enabled" type="checkbox">
+        <UiCheckbox v-model="form.vf_upgrade_include_vo" :disabled="!form.vf_upgrade_enabled" />
       </SettingsRow>
       <SettingsRow label="Saisons mixtes" description="Séries dont une partie seulement des épisodes est en VF." :disabled="!form.vf_upgrade_enabled">
-        <input v-model="form.vf_upgrade_include_mixed" :disabled="!form.vf_upgrade_enabled" type="checkbox">
+        <UiCheckbox v-model="form.vf_upgrade_include_mixed" :disabled="!form.vf_upgrade_enabled" />
       </SettingsRow>
       <SettingsRow label="Médias déjà en VF" :disabled="!form.vf_upgrade_enabled || form.vf_upgrade_protect_existing_vf">
-        <input v-model="form.vf_upgrade_include_vf" :disabled="!form.vf_upgrade_enabled || form.vf_upgrade_protect_existing_vf" type="checkbox">
+        <UiCheckbox v-model="form.vf_upgrade_include_vf" :disabled="!form.vf_upgrade_enabled || form.vf_upgrade_protect_existing_vf" />
       </SettingsRow>
       <SettingsRow
         label="Stratégie des saisons mixtes"
         :description="mixedModeHelp"
         :disabled="!form.vf_upgrade_enabled || !form.vf_upgrade_include_mixed || form.vf_upgrade_protect_existing_vf"
       >
-        <select v-model="form.vf_upgrade_mixed_mode" :disabled="!form.vf_upgrade_enabled || !form.vf_upgrade_include_mixed || form.vf_upgrade_protect_existing_vf">
-          <option value="episodes">Épisodes VO uniquement</option>
-          <option value="season">Pack saison complet</option>
-        </select>
+        <UiSelect v-model="form.vf_upgrade_mixed_mode" :disabled="!form.vf_upgrade_enabled || !form.vf_upgrade_include_mixed || form.vf_upgrade_protect_existing_vf" :options="[{ value: 'episodes', label: 'Épisodes VO uniquement' }, { value: 'season', label: 'Pack saison complet' }]" />
       </SettingsRow>
       <SettingsRow label="Protéger les fichiers déjà en VF" description="Aucun fichier français existant ne sera remplacé automatiquement.">
         <ToggleSwitch v-model="form.vf_upgrade_protect_existing_vf" title="Protéger les fichiers déjà en VF" />
@@ -148,14 +145,7 @@
         <UiNumberField v-model="form.vf_upgrade_search_stagger_ms" :min="0" :max="60000" :step="100" />
       </SettingsRow>
       <SettingsRow label="Priorité des cibles" description="Détermine quelles recherches entrent dans la limite de chaque passage.">
-        <select v-model="form.vf_upgrade_priority">
-          <option value="mixed,vo,vf">Saisons mixtes, puis VO, puis VF</option>
-          <option value="mixed,vf,vo">Saisons mixtes, puis VF, puis VO</option>
-          <option value="vo,mixed,vf">VO, puis saisons mixtes, puis VF</option>
-          <option value="vo,vf,mixed">VO, puis VF, puis saisons mixtes</option>
-          <option value="vf,mixed,vo">VF, puis saisons mixtes, puis VO</option>
-          <option value="vf,vo,mixed">VF, puis VO, puis saisons mixtes</option>
-        </select>
+        <UiSelect v-model="form.vf_upgrade_priority" :options="[{ value: 'mixed,vo,vf', label: 'Saisons mixtes, puis VO, puis VF' }, { value: 'mixed,vf,vo', label: 'Saisons mixtes, puis VF, puis VO' }, { value: 'vo,mixed,vf', label: 'VO, puis saisons mixtes, puis VF' }, { value: 'vo,vf,mixed', label: 'VO, puis VF, puis saisons mixtes' }, { value: 'vf,mixed,vo', label: 'VF, puis saisons mixtes, puis VO' }, { value: 'vf,vo,mixed', label: 'VF, puis VO, puis saisons mixtes' }]" />
       </SettingsRow>
       <SettingsRow label="Prioriser les séries en cours de diffusion" description="Par défaut, l'efficacité prime (season pack d'une série terminée en tête, une seule recherche couvre toute la saison). Activé, les épisodes récents d'une série en cours passent devant.">
         <ToggleSwitch v-model="form.vf_upgrade_prioritize_continuing" title="Prioriser les séries en cours de diffusion" />
@@ -188,7 +178,7 @@
         <UiNumberField v-model="form.vf_upgrade_max_retries" :disabled="!form.vf_upgrade_verify_after_import" :min="0" :max="10" />
       </SettingsRow>
       <SettingsRow label="Demander une nouvelle analyse Plex" description="À la fin du téléchargement." :disabled="!form.vf_upgrade_verify_after_import">
-        <input v-model="form.vf_upgrade_trigger_plex_scan" :disabled="!form.vf_upgrade_verify_after_import" type="checkbox">
+        <UiCheckbox v-model="form.vf_upgrade_trigger_plex_scan" :disabled="!form.vf_upgrade_verify_after_import" />
       </SettingsRow>
       <SettingsRow label="Mettre en liste noire une release non validée">
         <ToggleSwitch v-model="form.vf_upgrade_blacklist_failed" title="Mettre en liste noire une release non validée" />
@@ -219,6 +209,8 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiSlider from '@/components/ui/UiSlider.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import { computed, ref } from 'vue';

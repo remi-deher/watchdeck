@@ -19,9 +19,9 @@
         :collapsible="false"
       >
         <template #actions>
-          <button class="secondary" @click.stop="toggleHistory(task.job)">
+          <UiButton @click.stop="toggleHistory(task.job)">
             <History/>{{ openHistory === task.job ? 'Masquer' : 'Historique' }}
-          </button>
+          </UiButton>
         </template>
 
         <div class="scheduled-task-info">
@@ -76,6 +76,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { formatElapsed as formatDuration, formatDateTimeSeconds as formatDate } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';

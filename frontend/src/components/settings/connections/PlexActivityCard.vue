@@ -9,7 +9,7 @@
     <div class="settings-grid two">
       <label>Historique à conserver (jours)<RetentionDaysInput v-model="form.activity_retention_days" :default-days="365" placeholder="365"/><small>Sessions plus anciennes supprimées automatiquement.</small></label>
       <label class="collection-toggle span-two" :class="{ active: form.activity_anonymize_ips }">
-        <input v-model="form.activity_anonymize_ips" type="checkbox" role="switch" :aria-checked="Boolean(form.activity_anonymize_ips)">
+        <UiCheckbox v-model="form.activity_anonymize_ips" />
         <span class="collection-toggle-copy">
           <strong>Anonymiser les adresses IP</strong>
           <small v-if="form.activity_anonymize_ips">Activée — le dernier segment de l’IP est remplacé par 0 avant stockage. La géolocalisation reste approximative et l’adresse exacte n’est jamais enregistrée.</small>
@@ -18,7 +18,7 @@
         <span class="collection-state">{{ form.activity_anonymize_ips ? 'Activée' : 'Désactivée' }}</span>
       </label>
       <label class="collection-toggle span-two" :class="{ active: form.live_activity_enabled }">
-        <input v-model="form.live_activity_enabled" type="checkbox" role="switch" :aria-checked="Boolean(form.live_activity_enabled)">
+        <UiCheckbox v-model="form.live_activity_enabled" />
         <span class="collection-toggle-copy">
           <strong>Activité Plex en direct</strong>
           <small v-if="form.live_activity_enabled">Activée — Watchdeck collecte directement les lectures Plex et les affiche sur le tableau de bord et dans Activité Plex.</small>
@@ -29,7 +29,7 @@
     </div>
     <p class="connection-result">Cette collecte utilise directement Plex. Elle ne dépend pas de Tautulli.</p>
     <div class="card-actions">
-      <button class="secondary" :disabled="busy" @click="recalculateLocations"><MapPinned/>Recalculer les lieux</button>
+      <UiButton :disabled="busy" @click="recalculateLocations"><MapPinned/>Recalculer les lieux</UiButton>
     </div>
     <p v-if="status" class="connection-result">{{ status }}</p>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)"/>
@@ -37,6 +37,8 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { Activity, MapPinned } from '@lucide/vue';
 import { api } from '@/api';
@@ -65,5 +67,5 @@ async function recalculateLocations(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
-.card-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;margin-top:4px}.connection-result{margin:0;color:var(--muted);font-size:var(--fs-sm);line-height:1.5}.collection-toggle{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:15px;border:1px solid rgba(239,68,68,.35);border-radius:var(--radius-md);background:rgba(239,68,68,.06);cursor:pointer}.collection-toggle.active{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.07)}.collection-toggle>input{width:20px;height:20px;margin:0;accent-color:var(--accent)}.collection-toggle-copy{display:grid;gap:var(--space-1)}.collection-toggle-copy strong{font-size:var(--fs-md)}.collection-toggle-copy small{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm);line-height:1.45}.collection-state{padding:5px 9px;border-radius:var(--radius-pill);background:rgba(239,68,68,.13);color:#f87171;font-size:var(--fs-xs);font-weight:750}.collection-toggle.active .collection-state{background:rgba(34,197,94,.13);color:var(--success)}@media(max-width:640px){.card-actions>*{width:100%;min-height:44px}.collection-toggle{grid-template-columns:auto minmax(0,1fr)}.collection-state{grid-column:2;justify-self:start}}
+.card-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;margin-top:4px}.connection-result{margin:0;color:var(--muted);font-size:var(--fs-sm);line-height:1.5}.collection-toggle{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:15px;border:1px solid rgba(239,68,68,.35);border-radius:var(--radius-md);background:rgba(239,68,68,.06);cursor:pointer}.collection-toggle.active{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.07)}.collection-toggle-copy{display:grid;gap:var(--space-1)}.collection-toggle-copy strong{font-size:var(--fs-md)}.collection-toggle-copy small{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm);line-height:1.45}.collection-state{padding:5px 9px;border-radius:var(--radius-pill);background:rgba(239,68,68,.13);color:#f87171;font-size:var(--fs-xs);font-weight:750}.collection-toggle.active .collection-state{background:rgba(34,197,94,.13);color:var(--success)}@media(max-width:640px){.card-actions>*{width:100%;min-height:44px}.collection-toggle{grid-template-columns:auto minmax(0,1fr)}.collection-state{grid-column:2;justify-self:start}}
 </style>

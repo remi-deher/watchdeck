@@ -10,7 +10,7 @@
       >
         <div v-if="!form.webhook_secret" class="notice warning">
           <p>Le secret webhook n'est pas configuré. L'authentification des webhooks entrants est désactivée.</p>
-          <button class="primary" @click="generateWebhookSecret">Générer un secret</button>
+          <UiButton variant="primary" @click="generateWebhookSecret">Générer un secret</UiButton>
         </div>
 
         <div v-else class="webhook-list">
@@ -20,15 +20,15 @@
             </div>
             <div class="webhook-url">
               <input type="text" readonly :aria-label="`URL webhook ${svc}`" :value="`${baseUrl}/webhook/${svc}?secret=${form.webhook_secret}`">
-              <button class="icon-button" @click="copyWebhook(svc)" title="Copier" aria-label="Copier"><Copy/></button>
-              <button v-if="svc === 'sonarr' || svc === 'radarr'" class="secondary" @click="configureWebhook(svc)" :disabled="configuringWebhook === svc">
+              <UiButton icon-only @click="copyWebhook(svc)" title="Copier" aria-label="Copier"><Copy/></UiButton>
+              <UiButton v-if="svc === 'sonarr' || svc === 'radarr'" @click="configureWebhook(svc)" :disabled="configuringWebhook === svc">
                 <RefreshCw v-if="configuringWebhook === svc" class="spin" />
                 <span v-else>Configurer automatiquement</span>
-              </button>
-              <button class="secondary" @click="testWebhook(svc)" :disabled="testingWebhook === svc">
+              </UiButton>
+              <UiButton @click="testWebhook(svc)" :disabled="testingWebhook === svc">
                 <RefreshCw v-if="testingWebhook === svc" class="spin" />
                 <span v-else>Tester</span>
-              </button>
+              </UiButton>
             </div>
             <div v-if="configureStatus[svc]" class="webhook-status" :class="{ 'status-ok': configureStatus[svc].success, 'status-error': !configureStatus[svc].success }">
               <span v-if="configureStatus[svc].success"><Check /> {{ configureStatus[svc].message }}</span>
@@ -41,7 +41,7 @@
           </div>
 
           <div class="actions" style="margin-top: 2rem;">
-            <button class="secondary" @click="generateWebhookSecret">Regénérer le secret</button>
+            <UiButton @click="generateWebhookSecret">Regénérer le secret</UiButton>
           </div>
         </div>
       </SettingsCard>
@@ -50,8 +50,8 @@
         <code class="secret-box">{{ apiToken || (tokenActive ? 'Actif (valeur masquee)' : 'Aucun token genere') }}</code>
         <p class="hint">Ce token donne un acces complet a l'API Watchdeck (creation de demandes, lecture des utilisateurs, etc.) — a passer en en-tete <code>Authorization: Bearer …</code>. Il n'est affiche qu'une seule fois a la generation ; regenerez-le si vous le perdez.</p>
         <div class="actions">
-          <button class="secondary" @click="generateToken"><KeyRound/>Generer</button>
-          <button class="secondary danger" @click="deleteToken"><Trash2/>Revoquer</button>
+          <UiButton @click="generateToken"><KeyRound/>Generer</UiButton>
+          <UiButton variant="danger" @click="deleteToken"><Trash2/>Revoquer</UiButton>
         </div>
       </SettingsCard>
     </div>
@@ -59,6 +59,7 @@
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, reactive, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Check, Copy, KeyRound, Link, RefreshCw, Trash2 } from '@lucide/vue';

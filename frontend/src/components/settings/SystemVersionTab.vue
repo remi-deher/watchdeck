@@ -19,9 +19,9 @@
             <dd class="commit-cell">
               <a v-if="info.repo_url" class="mono" :href="`${info.repo_url}/commit/${info.git_sha}`" target="_blank" rel="noopener noreferrer">{{ shortSha(info.git_sha) }}</a>
               <span v-else class="mono">{{ shortSha(info.git_sha) }}</span>
-              <button v-if="isRealSha(info.git_sha)" class="icon-button" type="button" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copySha(info.git_sha)">
+              <UiButton variant="ghost" size="sm" icon-only v-if="isRealSha(info.git_sha)" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copySha(info.git_sha)">
                 <Check v-if="copied" :size="14"/><Copy v-else :size="14"/>
-              </button>
+              </UiButton>
             </dd>
           </div>
           <div><dt>Build</dt><dd :title="formatDate(info.build_date)">{{ formatRelative(info.build_date) }}</dd></div>
@@ -230,8 +230,6 @@ onMounted(load);
 .version-grid dd { margin: 0; font-size: var(--fs-md); }
 .version-grid dd.mono, .version-grid dd .mono { font-family: var(--font-mono, monospace); }
 .commit-cell { display: flex; align-items: center; gap: var(--space-2); }
-.icon-button { display: inline-flex; align-items: center; justify-content: center; padding: 2px; border: none; background: transparent; color: var(--muted); cursor: pointer; border-radius: var(--radius-sm); }
-.icon-button:hover { color: var(--text); background: var(--surface-2); }
 .branch-badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; }
 .branch-badge.branch-main { color: var(--success); background: rgba(34,197,94,.13); }
 .branch-badge.branch-test { color: var(--accent); background: rgba(229,160,13,.13); }

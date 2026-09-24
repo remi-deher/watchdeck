@@ -77,29 +77,16 @@
 
         <!-- Zone 3 : Actions principales contextuelles -->
         <div class="card-action-col">
-          <button
-            v-if="item.media_type === 'show'"
-            class="secondary compact"
-            type="button"
-            :title="isAuditShowExpanded(item.id) ? 'Masquer les saisons' : 'Voir les saisons et épisodes'"
-            @click="toggleAuditShow(item)"
-          >
+          <UiButton v-if="item.media_type === 'show'" class="compact" :title="isAuditShowExpanded(item.id) ? 'Masquer les saisons' : 'Voir les saisons et épisodes'" @click="toggleAuditShow(item)">
             <ChevronUp v-if="isAuditShowExpanded(item.id)" :size="14" />
             <ChevronDown v-else :size="14" />
             <span>{{ isAuditShowExpanded(item.id) ? 'Masquer' : 'Saisons & Épisodes' }}</span>
-          </button>
+          </UiButton>
 
-          <button
-            v-if="canFixStreams(item)"
-            class="primary compact"
-            type="button"
-            :disabled="fixingAll"
-            title="Prévisualiser et aligner les flux audio et sous-titres sur Plex"
-            @click="emit('align', item)"
-          >
+          <UiButton variant="primary" v-if="canFixStreams(item)" class="compact" :disabled="fixingAll" title="Prévisualiser et aligner les flux audio et sous-titres sur Plex" @click="emit('align', item)">
             <SlidersHorizontal :size="14" />
             <span>Aligner sur Plex</span>
-          </button>
+          </UiButton>
 
           <VfUpgradeButton
             source-type="library_item"
@@ -110,9 +97,7 @@
             @updated="emit('refresh')"
           />
 
-          <RouterLink class="button secondary compact" :to="`/library/media/library/${item.id}`">
-            Fiche
-          </RouterLink>
+          <UiButton size="sm" :to="`/library/media/library/${item.id}`">Fiche</UiButton>
         </div>
       </div>
 
@@ -208,6 +193,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { ChevronDown, ChevronUp, Film, MessageSquare, MessageSquareOff, RotateCcw, SlidersHorizontal, Tv, Volume2, VolumeX } from '@lucide/vue';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';

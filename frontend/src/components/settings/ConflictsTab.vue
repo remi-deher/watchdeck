@@ -3,15 +3,15 @@
     <div class="settings-cards span-two">
       <SettingsCard :title="`Conflits de deduplication`" :subtitle="`Doublons TMDB, entrees orphelines ou demandes bloquees depuis longtemps a nettoyer — ${conflicts.length} element(s) a examiner`" :icon="WandSparkles" :status="conflicts.length ? 'error' : 'active'" :collapsible="false">
         <template #actions>
-          <button class="secondary" @click.stop="autoResolve"><WandSparkles/>Resolution automatique</button>
+          <UiButton @click.stop="autoResolve"><WandSparkles/>Resolution automatique</UiButton>
         </template>
         <p class="hint">"Fusionner" regroupe les entrees dupliquees en une seule (garde celle recommandee, supprime les autres). "Supprimer" retire une entree orpheline. "Ignorer" (coche) masque l'element sans le modifier.</p>
         <article v-for="group in conflicts" :key="group.key||group.tmdb_id" class="detail-row">
           <div><strong>{{ group.title||group.key||`TMDB ${group.tmdb_id}` }}</strong><span>{{ (group.entries||[]).length || 1 }} entree(s) · {{ group.type||'' }}</span></div>
           <div class="actions">
-            <button v-if="group.entries?.length" class="secondary" @click="resolve(group)">Fusionner</button>
-            <button v-if="group.type==='orphan'" class="secondary danger" @click="removeOrphan(group)"><Trash2/>Supprimer</button>
-            <button class="icon-button" title="Ignorer" aria-label="Ignorer" @click="ignore(group)"><Check/></button>
+            <UiButton v-if="group.entries?.length" @click="resolve(group)">Fusionner</UiButton>
+            <UiButton variant="danger" v-if="group.type==='orphan'" @click="removeOrphan(group)"><Trash2/>Supprimer</UiButton>
+            <UiButton icon-only title="Ignorer" aria-label="Ignorer" @click="ignore(group)"><Check/></UiButton>
           </div>
         </article>
         <p v-if="!conflicts.length" class="empty">Aucun conflit detecte.</p>
@@ -21,6 +21,7 @@
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Check, Trash2, WandSparkles } from '@lucide/vue';

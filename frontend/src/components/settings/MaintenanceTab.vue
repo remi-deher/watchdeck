@@ -18,9 +18,9 @@
             <i class="bi bi-exclamation-triangle"></i> {{ meta.disabled_reason }}
           </p>
         </div>
-        <button class="primary" :disabled="running || meta.enabled === false" @click="run(key)">
+        <UiButton variant="primary" :disabled="running || meta.enabled === false" @click="run(key)">
           <Play/>Executer
-        </button>
+        </UiButton>
       </article>
     </section>
     <section v-if="current" class="panel run-panel">
@@ -34,6 +34,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import { computed, ref } from "vue";
 import { useMutation, useQuery } from '@tanstack/vue-query';

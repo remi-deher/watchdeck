@@ -17,7 +17,7 @@ describe('PlexActivityCard', () => {
     const wrapper = mount(PlexActivityCard);
     expect(wrapper.text()).toContain('ne dépend pas de Tautulli');
     expect(toggle(wrapper, 'Activité Plex en direct').get('.collection-state').text()).toBe('Désactivée');
-    await toggle(wrapper, 'Activité Plex en direct').get('input').setValue(true);
+    await toggle(wrapper, 'Activité Plex en direct').get('[role="checkbox"]').trigger('click');
     expect(toggle(wrapper, 'Activité Plex en direct').text()).toContain('Watchdeck collecte directement');
   });
 

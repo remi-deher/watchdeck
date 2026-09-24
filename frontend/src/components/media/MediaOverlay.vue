@@ -106,7 +106,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 .media-overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-sheet);
   display: flex;
   align-items: flex-end;
   justify-content: center;

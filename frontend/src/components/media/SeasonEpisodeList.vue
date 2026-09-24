@@ -2,18 +2,18 @@
   <div class="se-list">
     <template v-for="season in seasons" :key="season.key ?? season.season_number ?? season.seasonNumber">
       <!-- Saison avec épisodes : bloc dépliable -->
-      <details
+      <CollapsibleRoot
         v-if="hasEpisodes(season)"
         class="se-season season-group"
         :class="{ 'has-pending': season.hasPending || (season.counts?.pending > 0) }"
-        :open="season.open ?? true"
-        @toggle="onToggle(season, $event)"
-      >
-        <summary class="se-season-summary season-summary">
+        :default-open="season.open ?? true"
+        @update:open="onToggle(season, $event)"
+       :unmount-on-hide="false">
+        <CollapsibleTrigger class="se-season-summary season-summary collapsible-trigger">
           <slot name="season-header" :season="season" :episodes="filteredEpisodes(season)">
             <span class="season-title">Saison {{ season.season_number ?? season.seasonNumber }}</span>
           </slot>
-        </summary>
+        </CollapsibleTrigger><CollapsibleContent class="collapsible-content">
 
         <div v-if="season.loading" class="se-season-loading">{{ loadingText }}</div>
         <p v-else-if="season.error" class="se-season-error">{{ errorText }}</p>
@@ -25,7 +25,7 @@
           </template>
           <p v-if="!filteredEpisodes(season).length" class="se-empty">{{ emptyText }}</p>
         </div>
-      </details>
+      </CollapsibleContent></CollapsibleRoot>
 
       <!-- Saison sans détail épisode (ex: choix de saisons avant ajout à la bibliothèque) -->
       <div v-else class="se-season-only">
@@ -39,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 const props = withDefaults(
   defineProps<{
     seasons: any[];
@@ -68,9 +69,9 @@ function filteredEpisodes(season: any): any[] {
   return list.filter((ep: any) => props.episodeFilter(ep, season));
 }
 
-function onToggle(season: any, event: Event): void {
+function onToggle(season: any, open: boolean): void {
   const num = season.season_number ?? season.seasonNumber;
-  if ((event.target as HTMLDetailsElement).open && num != null) emit('expand-season', num);
+  if (open && num != null) emit('expand-season', num);
 }
 </script>
 
@@ -82,7 +83,7 @@ function onToggle(season: any, event: Event): void {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
-.se-season-summary {
+.se-season-.collapsible-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;

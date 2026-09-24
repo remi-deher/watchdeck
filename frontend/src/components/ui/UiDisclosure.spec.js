@@ -9,67 +9,65 @@ function factory(props = {}) {
   });
 }
 
+/** Etat Reka du bloc : `open` ou `closed`. */
+const isOpen = (wrapper) => wrapper.get('.ui-disclosure').attributes('data-state') === 'open';
+
 describe('UiDisclosure', () => {
   beforeEach(() => localStorage.clear());
 
   it('reste fermé et ne rend pas son contenu par défaut', () => {
     const wrapper = factory();
-    expect(wrapper.get('details').element.open).toBe(false);
+    expect(isOpen(wrapper)).toBe(false);
     expect(wrapper.find('.payload').exists()).toBe(false);
   });
 
   it('émet open une seule fois et rend le contenu à la première ouverture', async () => {
     const wrapper = factory();
-    const details = wrapper.get('details');
+    const trigger = wrapper.get('.ui-disclosure-trigger');
 
-    details.element.open = true;
-    await details.trigger('toggle');
+    await trigger.trigger('click'); // true
     expect(wrapper.emitted('open')).toHaveLength(1);
     expect(wrapper.find('.payload').exists()).toBe(true);
 
     // Refermer puis rouvrir ne doit pas relancer le chargement du parent.
-    details.element.open = false;
-    await details.trigger('toggle');
-    details.element.open = true;
-    await details.trigger('toggle');
+    await trigger.trigger('click'); // false
+    await trigger.trigger('click'); // true
     expect(wrapper.emitted('open')).toHaveLength(1);
   });
 
   it('persiste l’état plié/déplié sous la clé fournie', async () => {
     const wrapper = factory({ storageKey: 'test.disclosure' });
-    const details = wrapper.get('details');
+    const trigger = wrapper.get('.ui-disclosure-trigger');
 
-    details.element.open = true;
-    await details.trigger('toggle');
+    await trigger.trigger('click'); // true
     expect(localStorage.getItem('watchdeck:test.disclosure')).toBe('true');
 
-    details.element.open = false;
-    await details.trigger('toggle');
+    await trigger.trigger('click'); // false
     expect(localStorage.getItem('watchdeck:test.disclosure')).toBe('false');
   });
 
   it('restaure un état ouvert persisté et charge immédiatement', () => {
     localStorage.setItem('test.disclosure', '1');
     const wrapper = factory({ storageKey: 'test.disclosure' });
-    expect(wrapper.get('details').element.open).toBe(true);
+    expect(isOpen(wrapper)).toBe(true);
     expect(wrapper.find('.payload').exists()).toBe(true);
     expect(wrapper.emitted('open')).toHaveLength(1);
   });
 
   it('relit les anciennes valeurs "true"/"false" des sections pré-composant', () => {
     localStorage.setItem('test.disclosure', 'true');
-    expect(factory({ storageKey: 'test.disclosure' }).get('details').element.open).toBe(true);
+    expect(isOpen(factory({ storageKey: 'test.disclosure' }))).toBe(true);
 
     localStorage.removeItem('watchdeck:test.disclosure');
     localStorage.setItem('test.disclosure', 'false');
-    expect(factory({ storageKey: 'test.disclosure' }).get('details').element.open).toBe(false);
+    expect(isOpen(factory({ storageKey: 'test.disclosure' }))).toBe(false);
   });
 
   it('respecte defaultOpen seulement en l’absence de préférence enregistrée', () => {
-    expect(factory({ defaultOpen: true }).get('details').element.open).toBe(true);
+    expect(isOpen(factory({ defaultOpen: true }))).toBe(true);
 
     localStorage.setItem('test.disclosure', '0');
     const stored = factory({ storageKey: 'test.disclosure', defaultOpen: true });
-    expect(stored.get('details').element.open).toBe(false);
+    expect(isOpen(stored)).toBe(false);
   });
 });

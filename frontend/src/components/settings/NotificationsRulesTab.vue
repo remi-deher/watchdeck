@@ -3,7 +3,7 @@
     <div class="settings-cards span-two">
       <SettingsCard title="Retention et digest" subtitle="Duree de conservation des journaux de notifications, et recapitulatif quotidien par email." :icon="Archive" status="active" :collapsible="false">
         <label>Journaux de notifications (jours)<RetentionDaysInput v-model="form.notification_log_retention_days" :default-days="30"/></label>
-        <label class="check"><input v-model="form.digest_enabled" type="checkbox"> Digest actif</label>
+        <UiCheckboxField v-model="form.digest_enabled" label="Digest actif" />
         <small class="check-hint">Envoie un recapitulatif quotidien par email, a l'heure choisie ci-dessous, aux utilisateurs ayant active le digest dans leurs preferences — au lieu de recevoir chaque notification individuellement.</small>
         <label>Heure du digest<TimeOfDayInput v-model:hour="form.digest_hour" v-model:minute="form.digest_minute"/></label>
       </SettingsCard>
@@ -25,23 +25,19 @@
           <!-- Une case au croisement d'une ligne et d'une colonne n'a de sens que
                reliee aux deux : le libelle enveloppant etait vide, et un lecteur
                d'ecran n'annoncait qu'« case à cocher ». -->
-          <label class="check"><input v-model="form[`email_on_${event.key}`]" type="checkbox" :aria-label="`${event.label} — Email`"></label>
-          <label v-for="channel in channels" :key="channel.key" class="check"><input v-model="form[`${channel.key}_send_${event.key}`]" type="checkbox" :aria-label="`${event.label} — ${channel.label}`"></label>
+          <label class="check"><UiCheckbox v-model="form[`email_on_${event.key}`]" :aria-label="`${event.label} — Email`" /></label>
+          <label v-for="channel in channels" :key="channel.key" class="check"><UiCheckbox v-model="form[`${channel.key}_send_${event.key}`]" :aria-label="`${event.label} — ${channel.label}`" /></label>
         </template>
       </div>
-      <label class="check"><input v-model="form.email_on_vf_available" type="checkbox"> Email lors d'une amelioration VO vers VF</label>
+      <UiCheckboxField v-model="form.email_on_vf_available" label="Email lors d'une amelioration VO vers VF" />
       <small class="check-hint">Notifie separement quand un media deja disponible en VO recoit sa VF, en plus de la notification de disponibilite initiale.</small>
       <div class="settings-grid two">
-        <label class="check"><input v-model="form.movie_notify_language" type="checkbox"> Distinguer VO/VF pour les films</label>
+        <UiCheckboxField v-model="form.movie_notify_language" label="Distinguer VO/VF pour les films" />
         <small class="check-hint">Actif : un film disponible d'abord en VO puis mis a jour en VF declenche deux notifications separees. Desactive : une seule notification generique "disponible", sans distinction de langue.</small>
-        <label class="check"><input v-model="form.series_notify_language" type="checkbox"> Distinguer VO/VF pour les series</label>
+        <UiCheckboxField v-model="form.series_notify_language" label="Distinguer VO/VF pour les series" />
         <small class="check-hint">Actif : les jalons VO/VF d'une serie suivent la granularite choisie ci-dessous. Desactive : suivi de disponibilite classique, sans notification liee a la langue.</small>
         <label>Granularite series
-          <select v-model="form.series_notify_granularity">
-            <option value="minimal">Serie complete</option>
-            <option value="jalons">Debut et fin de saison</option>
-            <option value="tout">Chaque episode</option>
-          </select>
+          <UiSelect v-model="form.series_notify_granularity" :options="[{ value: 'minimal', label: 'Serie complete' }, { value: 'jalons', label: 'Debut et fin de saison' }, { value: 'tout', label: 'Chaque episode' }]" />
           <small>A quel rythme une serie en cours declenche une notification : une seule fois a la fin, a chaque debut/fin de saison, ou a chaque episode disponible.</small>
         </label>
       </div>
@@ -49,6 +45,9 @@
   </div>
 </template>
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import { Archive, Bell, Megaphone, MessageSquare, Send } from '@lucide/vue';
 import { form } from '@/settingsForm';
 import SettingsCard from './SettingsCard.vue';

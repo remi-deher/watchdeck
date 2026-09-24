@@ -9,6 +9,12 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
   };
 }
 
+// jsdom n'implemente pas scrollIntoView : les listes Reka UI (Listbox, Select) y amenent
+// l'option active.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+
 // jsdom ne fournit pas non plus ResizeObserver : le curseur de Reka UI mesure sa poignee.
 if (typeof globalThis.ResizeObserver === "undefined") {
   globalThis.ResizeObserver = class ResizeObserver {

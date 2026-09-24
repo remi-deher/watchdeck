@@ -54,6 +54,7 @@ button:disabled { cursor: not-allowed; }
 }
 @media (max-width: 640px) {
   .panel,.page,.list,.table-wrap,.table-wrap table { min-width: 0; max-width: 100%; }
-  .panel-head,.actions,.ui-page-actions { flex-wrap: wrap; }
+  .panel-head,
+.actions { flex-wrap: wrap; }
   .table-wrap { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
 }

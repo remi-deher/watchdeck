@@ -35,15 +35,9 @@
                 <span v-if="season.counts?.sub_fr_absent" class="badge danger" title="Épisodes non-francophones sans sous-titre FR complet">Sub FR absent: {{ season.counts.sub_fr_absent }}</span>
                 <span v-if="season.counts?.sub_fr_not_default" class="badge pending" title="Épisodes avec sous-titre FR complet non activé par défaut">Sub FR non activé: {{ season.counts.sub_fr_not_default }}</span>
                 <span v-if="season.counts?.forced_fr_not_default" class="badge language-tag vf-secondary" title="Épisodes francophones avec sous-titre forcé FR (sign/trad) non activé par défaut">Forcé FR non activé: {{ season.counts.forced_fr_not_default }}</span>
-                <button
-                  v-if="admin && sourceId"
-                  class="icon-button"
-                  @click.prevent.stop="openAlignModal('season', season.season_number)"
-                  title="Aligner les pistes de cette saison sur Plex"
-                  aria-label="Aligner la saison"
-                >
+                <UiButton icon-only v-if="admin && sourceId" @click.prevent.stop="openAlignModal('season', season.season_number)" title="Aligner les pistes de cette saison sur Plex" aria-label="Aligner la saison">
                   <SlidersHorizontal :size="15" />
-                </button>
+                </UiButton>
                 <VfUpgradeButton
                   v-if="admin && sourceType && sourceId"
                   :source-type="sourceType"
@@ -53,7 +47,7 @@
                   :media-title="mediaTitle"
                   label="Rechercher"
                 />
-                <button class="icon-button" @click.prevent="$emit('correction', 'season', season.season_number, null)" title="Corriger Saison" aria-label="Corriger Saison"><MessageSquareWarning :size="16" /></button>
+                <UiButton icon-only @click.prevent="$emit('correction', 'season', season.season_number, null)" title="Corriger Saison" aria-label="Corriger Saison"><MessageSquareWarning :size="16" /></UiButton>
               </div>
             </div>
           </template>
@@ -73,15 +67,9 @@
                     <strong class="episode-title">{{ ep.episode }}. {{ ep.title || `Episode ${ep.episode}` }}</strong>
                     <span class="episode-actions">
                       <span v-if="ep.isKnownEpisode === false" class="badge pending" title="Non reconnu par Sonarr/TheTVDB : compté hors statut VF/VO/Mixte de la série">Hors TVDB</span>
-                      <button
-                        v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
-                        class="icon-button"
-                        @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)"
-                        title="Aligner les pistes de cet épisode sur Plex"
-                        aria-label="Aligner l'épisode"
-                      >
+                      <UiButton icon-only v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'" @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)" title="Aligner les pistes de cet épisode sur Plex" aria-label="Aligner l'épisode">
                         <SlidersHorizontal :size="14" />
-                      </button>
+                      </UiButton>
                       <VfUpgradeButton
                         v-if="admin && sourceType && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
                         :source-type="sourceType"
@@ -177,11 +165,11 @@
           <span v-if="movieSubtitleAlerts.subFrNotDefault" class="badge pending subtitle-alert-badge" title="Un sous-titre français complet est présent mais non activé par défaut">Sous-titre FR non activé</span>
           <span v-if="movieSubtitleAlerts.forcedFrNotDefault" class="badge language-tag vf-secondary subtitle-alert-badge" title="Un sous-titre FR sign/traduction est présent mais non activé par défaut">Sous-titre forcé FR non activé</span>
         </div>
-        <details class="season-details track-group" v-if="vfDetail.tracks?.length">
-          <summary class="track-group-summary">
+        <CollapsibleRoot class="season-details track-group" v-if="vfDetail.tracks?.length" :unmount-on-hide="false">
+          <CollapsibleTrigger class="track-group-summary collapsible-trigger">
             <span>Audio ({{ vfDetail.tracks.length }})</span>
             <ChevronDown :size="16" />
-          </summary>
+          </CollapsibleTrigger><CollapsibleContent class="collapsible-content">
           <div class="track-group-body">
             <article v-for="(track, index) in vfDetail.tracks" :key="'audio-'+index" class="detail-row track-row">
               <div>
@@ -191,14 +179,14 @@
               <span class="badge" :class="track.is_fr ? 'available' : ''">{{ track.lang ? track.lang.toUpperCase() : '??' }}</span>
             </article>
           </div>
-        </details>
+        </CollapsibleContent></CollapsibleRoot>
         <p v-if="!vfDetail.tracks?.length" class="empty track-empty">Aucune piste audio detectee.</p>
 
-        <details class="season-details" v-if="vfDetail.subtitles?.length">
-          <summary class="track-group-summary">
+        <CollapsibleRoot class="season-details" v-if="vfDetail.subtitles?.length" :unmount-on-hide="false">
+          <CollapsibleTrigger class="track-group-summary collapsible-trigger">
             <span>Sous-titres ({{ vfDetail.subtitles.length }})</span>
             <ChevronDown :size="16" />
-          </summary>
+          </CollapsibleTrigger><CollapsibleContent class="collapsible-content">
           <div class="track-group-body">
             <article v-for="(sub, index) in vfDetail.subtitles" :key="'sub-'+index" class="detail-row track-row">
               <div>
@@ -208,7 +196,7 @@
               <span class="badge">{{ sub.lang ? sub.lang.toUpperCase() : '??' }}</span>
             </article>
           </div>
-        </details>
+        </CollapsibleContent></CollapsibleRoot>
       </div>
     </div>
     <p v-else-if="envelopeError" class="notice error-text">Échec du chargement de l'analyse VF.</p>
@@ -228,6 +216,8 @@
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from "vue";
 import { MessageSquareWarning, ChevronDown, SlidersHorizontal } from "@lucide/vue";
 import VfUpgradeButton from "@/components/media/VfUpgradeButton.vue";
@@ -461,7 +451,7 @@ function formatAirDate(airDate: string): string {
 .track-group {
   margin-bottom: 0.5rem;
 }
-.track-group-summary {
+.track-group-.collapsible-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;

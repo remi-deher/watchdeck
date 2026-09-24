@@ -7,13 +7,7 @@
   >
     <template #action>
       <div class="head-controls">
-        <select v-model="pollFilter" class="compact-select" aria-label="Filtrer les exécutions">
-          <option value="all">Tous</option>
-          <option value="errors">Erreurs uniquement</option>
-          <option v-for="job in availableJobs" :key="job" :value="job">
-            {{ friendlyJobName(job) }}
-          </option>
-        </select>
+        <UiSelect v-model="pollFilter" class="compact-select" aria-label="Filtrer les exécutions" :options="[{ value: 'all', label: 'Tous' }, { value: 'errors', label: 'Erreurs uniquement' }, ...(availableJobs).map((job) => ({ value: job, label: String(friendlyJobName(job)) }))]" />
         <span v-if="nextPoll.next_run_seconds != null" class="countdown-badge">
           <Clock class="inline-icon" />
           <span>{{ countdown }}</span>
@@ -70,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import { formatDateTimeShort as formatDate } from '@/utils/format';
 import { Check, Clock, Copy, Download, Languages, RefreshCw, Tv } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';

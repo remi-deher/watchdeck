@@ -18,7 +18,7 @@
     <article v-for="group in groups" :key="group.key" class="upgrade-card" :class="{ 'is-selected': selectedKeys.has(group.key) }">
       <div class="poster-col">
         <label class="upgrade-select" :title="selectedKeys.has(group.key) ? 'Retirer de la sélection' : 'Sélectionner pour un scan groupé'">
-          <input type="checkbox" :checked="selectedKeys.has(group.key)" @change="emit('toggle-select', group)">
+          <UiCheckbox :model-value="selectedKeys.has(group.key)" :aria-label="`Sélectionner ${group.media?.title || group.key}`" @update:model-value="emit('toggle-select', group)" />
         </label>
         <img
           v-if="hasPoster(group)"
@@ -59,24 +59,12 @@
           <div class="media-meta-count">
             <span v-if="group.releaseCount > 0">{{ group.releaseCount }} release{{ group.releaseCount > 1 ? 's' : '' }}</span>
             <span v-else class="text-muted">VO sans release VF</span>
-            <button
-              v-if="groupIsIgnored(group)"
-              class="secondary compact"
-              type="button"
-              title="Réactiver le scan pour ce média"
-              @click="emit('ignore', group, false)"
-            >
+            <UiButton v-if="groupIsIgnored(group)" class="compact" title="Réactiver le scan pour ce média" @click="emit('ignore', group, false)">
               <Eye :size="14" /> Réactiver
-            </button>
-            <button
-              v-else
-              class="secondary danger compact"
-              type="button"
-              :title="group.media?.media_type === 'movie' ? 'Ignorer ce film : ne sera plus proposé par le scan de fond' : 'Ignorer cette série : ne sera plus proposée par le scan de fond'"
-              @click="emit('ignore', group, true)"
-            >
+            </UiButton>
+            <UiButton variant="danger" v-else class="compact" :title="group.media?.media_type === 'movie' ? 'Ignorer ce film : ne sera plus proposé par le scan de fond' : 'Ignorer cette série : ne sera plus proposée par le scan de fond'" @click="emit('ignore', group, true)">
               <EyeOff :size="14" /> Ignorer
-            </button>
+            </UiButton>
           </div>
         </header>
 
@@ -108,15 +96,9 @@
                   :label="releaseButtonLabel(item)"
                   @updated="emit('refresh')"
                 />
-                <button
-                  v-if="item.status === 'pending'"
-                  class="secondary danger compact"
-                  type="button"
-                  title="Ignorer cette suggestion"
-                  @click="emit('dismiss', item)"
-                >
+                <UiButton variant="danger" v-if="item.status === 'pending'" class="compact" title="Ignorer cette suggestion" @click="emit('dismiss', item)">
                   Ignorer
-                </button>
+                </UiButton>
               </div>
             </div>
             <p v-if="item.arr_message" class="arr-message">
@@ -180,15 +162,9 @@
                     :label="releaseButtonLabel(item)"
                     @updated="emit('refresh')"
                   />
-                  <button
-                    v-if="item.status === 'pending'"
-                    class="secondary danger compact"
-                    type="button"
-                    title="Ignorer cette suggestion"
-                    @click="emit('dismiss', item)"
-                  >
+                  <UiButton variant="danger" v-if="item.status === 'pending'" class="compact" title="Ignorer cette suggestion" @click="emit('dismiss', item)">
                     Ignorer
-                  </button>
+                  </UiButton>
                 </div>
               </div>
               <p v-if="item.arr_message" class="arr-message">
@@ -213,6 +189,8 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { Eye, EyeOff, Film, Tv } from '@lucide/vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -306,11 +284,6 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
   cursor: pointer;
 }
 
-.upgrade-select input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
 
 .upgrade-poster {
   width: 85px;

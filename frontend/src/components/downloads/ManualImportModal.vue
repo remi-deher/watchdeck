@@ -76,16 +76,10 @@
         <h3 class="section-label">Destination</h3>
         <div class="field-row">
           <label class="field">Saison
-            <select v-model.number="episodeForm.season">
-              <option v-for="season in seasonOptions" :key="season" :value="season">Saison {{ season }}</option>
-            </select>
+            <UiSelect v-model="episodeForm.season" :options="[...(seasonOptions).map((season) => ({ value: season, label: `Saison ${season}` }))]" />
           </label>
           <label class="field">Épisode
-            <select v-model.number="episodeForm.episode_id">
-              <option v-for="episode in filteredEpisodes" :key="episode.id" :value="episode.id">
-                E{{ String(episode.episodeNumber).padStart(2, '0') }} · {{ episode.title || 'Sans titre' }}
-              </option>
-            </select>
+            <UiSelect v-model="episodeForm.episode_id" :options="[...(filteredEpisodes).map((episode) => ({ value: episode.id, label: `E${String(episode.episodeNumber).padStart(2, '0')} · ${episode.title || 'Sans titre'}` }))]" />
           </label>
         </div>
       </section>
@@ -161,6 +155,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
