@@ -582,14 +582,38 @@ def test_notification_log_sorts_on_every_column(async_db):
     """Chaque colonne de l'historique d'envoi se trie, en base, dans les deux sens."""
     from datetime import datetime
 
-    async_db.add_all([
-        _make_log(log_id=1, event="request", recipient="zoe@x.fr", media_title="Brazil", success=True, sent_at=datetime(2026, 9, 1)),
-        _make_log(log_id=2, event="available", recipient="anna@x.fr", media_title="Casablanca", success=False, sent_at=datetime(2026, 9, 3)),
-        _make_log(log_id=3, event="failed", recipient="marc@x.fr", media_title="Amadeus", success=True, sent_at=datetime(2026, 9, 2)),
-    ])
+    async_db.add_all(
+        [
+            _make_log(
+                log_id=1,
+                event="request",
+                recipient="zoe@x.fr",
+                media_title="Brazil",
+                success=True,
+                sent_at=datetime(2026, 9, 1),
+            ),
+            _make_log(
+                log_id=2,
+                event="available",
+                recipient="anna@x.fr",
+                media_title="Casablanca",
+                success=False,
+                sent_at=datetime(2026, 9, 3),
+            ),
+            _make_log(
+                log_id=3,
+                event="failed",
+                recipient="marc@x.fr",
+                media_title="Amadeus",
+                success=True,
+                sent_at=datetime(2026, 9, 2),
+            ),
+        ]
+    )
     async_db.commit()
     client = _client_with_db(async_db)
     try:
+
         def ids(query):
             response = client.get(f"/api/notifications/log?{query}")
             assert response.status_code == 200, query

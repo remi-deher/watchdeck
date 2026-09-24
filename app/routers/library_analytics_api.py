@@ -161,7 +161,8 @@ async def get_library_analytics_items(
     insight_field: Optional[str] = None,
     insight_value: Optional[str] = None,
     sort: Optional[str] = Query(
-        None, pattern="^(title|library|studio|container|size_bytes|plays|watch_time|last_viewed|viewer|video|audio|subtitles)$"
+        None,
+        pattern="^(title|library|studio|container|size_bytes|plays|watch_time|last_viewed|viewer|video|audio|subtitles)$",
     ),
     direction: str = Query("asc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db_async),

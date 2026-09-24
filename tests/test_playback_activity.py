@@ -1469,7 +1469,13 @@ def test_session_times_are_sent_as_utc_and_peak_hours_read_in_local_time():
     from app.services.playback_activity import _analytics, _serialize
 
     # 18:10 UTC le 24 septembre = 20:10 a Paris (heure d'ete).
-    row = PlaybackSession(source_session_id="tz", title="Film", started_at=datetime(2026, 9, 24, 18, 10), ended_at=datetime(2026, 9, 24, 19, 0), watched_ms=1)
+    row = PlaybackSession(
+        source_session_id="tz",
+        title="Film",
+        started_at=datetime(2026, 9, 24, 18, 10),
+        ended_at=datetime(2026, 9, 24, 19, 0),
+        watched_ms=1,
+    )
     row.segments = []
     serialized = _serialize(row)
     assert serialized["started_at"] == "2026-09-24T18:10:00+00:00"

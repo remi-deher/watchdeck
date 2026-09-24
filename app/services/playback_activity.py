@@ -186,9 +186,9 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
     media_groups: dict[tuple[str, str], dict] = {}
     for row in rows:
         label = _media_label(row)
-        key = (row.media_type or "other", label)
+        media_key = (row.media_type or "other", label)
         item = media_groups.setdefault(
-            key,
+            media_key,
             {
                 "title": label,
                 "media_type": "show" if row.grandparent_title else row.media_type,
@@ -219,9 +219,9 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
 
     repeat_counts = Counter((row.user_name, row.rating_key) for row in rows if row.user_name and row.rating_key)
     for row in rows:
-        key = (row.media_type or "other", _media_label(row))
+        media_key = (row.media_type or "other", _media_label(row))
         if row.user_name and row.rating_key and repeat_counts[(row.user_name, row.rating_key)] > 1:
-            media_groups[key]["rewatches"] += 1
+            media_groups[media_key]["rewatches"] += 1
             repeat_counts[(row.user_name, row.rating_key)] -= 1
 
     ranked_media = list(media_groups.values())

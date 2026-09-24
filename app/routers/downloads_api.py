@@ -390,7 +390,11 @@ async def downloads_history(
     if instance_id is not None:
         q = q.filter(DownloadHistory.arr_instance_id == instance_id)
     rows = (
-        (await db.execute(q.order_by(*_history_order(DownloadHistory, sort, direction)).offset(eff_offset).limit(eff_limit)))
+        (
+            await db.execute(
+                q.order_by(*_history_order(DownloadHistory, sort, direction)).offset(eff_offset).limit(eff_limit)
+            )
+        )
         .scalars()
         .all()
     )

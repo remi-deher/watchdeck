@@ -74,7 +74,17 @@ async def test_download_history_sorts_on_every_column(async_db):
         ("Memento", "movie", None, "plex", None, 2),
     ]
     for title, media_type, mode, source, instance, age in rows:
-        async_db.add(DownloadHistory(title=title, year=2026, media_type=media_type, processing_mode=mode, source=source, instance_name=instance, completed_at=now - timedelta(minutes=age)))
+        async_db.add(
+            DownloadHistory(
+                title=title,
+                year=2026,
+                media_type=media_type,
+                processing_mode=mode,
+                source=source,
+                instance_name=instance,
+                completed_at=now - timedelta(minutes=age),
+            )
+        )
     async_db.commit()
 
     async def titles(sort, direction="asc"):
