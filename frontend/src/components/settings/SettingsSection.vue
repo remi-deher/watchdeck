@@ -1,5 +1,5 @@
 <template>
-  <section class="settings-section">
+  <CollapsibleRoot v-model:open="open" as="section" class="settings-section">
     <header class="settings-section-head">
       <div class="settings-section-heading">
         <h3>
@@ -10,25 +10,23 @@
       </div>
       <div class="settings-section-actions">
         <slot name="actions" />
-        <button
-          v-if="collapsible"
-          type="button"
-          class="settings-section-toggle"
-          :aria-expanded="open"
-          @click="open = !open"
-        >
+        <CollapsibleTrigger v-if="collapsible" class="settings-section-toggle">
           <span>{{ open ? 'Replier' : 'Déplier' }}</span>
           <ChevronDown :class="{ open }" />
-        </button>
+        </CollapsibleTrigger>
       </div>
     </header>
-    <div v-show="!collapsible || open" class="settings-section-body">
+    <!-- Reka relie le bouton au contenu (aria-controls, aria-expanded) ; `force-mount` garde
+         les champs montes une fois replies, comme le `v-show` d'avant. -->
+    <CollapsibleContent v-if="collapsible" force-mount class="settings-section-body" v-show="open">
       <slot />
-    </div>
-  </section>
+    </CollapsibleContent>
+    <div v-else class="settings-section-body"><slot /></div>
+  </CollapsibleRoot>
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 /**
  * Un groupe de reglages : titre en TEXTE, pas en boite.
  *

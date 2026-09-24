@@ -8,11 +8,11 @@
     <div class="filter-list">
       <!-- Statuts -->
       <FilterGroup label="Statut">
-        <button class="filter-badge" :class="{ active: !hasAnyStatusActive }" @click="emit('update:status', [])">
+        <button type="button" class="filter-badge" :class="{ active: !hasAnyStatusActive }" :aria-pressed="!hasAnyStatusActive" @click="emit('update:status', [])">
           <span>Tous les torrents</span>
           <span class="count">{{ rows.length }}</span>
         </button>
-        <button v-for="st in statusOptions" :key="st.key" class="filter-badge" :class="[st.key, filterState('activeStatus', st.key)]" @click="toggleItem('status', st.key)">
+        <button v-for="st in statusOptions" :key="st.key" type="button" class="filter-badge" :class="[st.key, filterState('activeStatus', st.key)]" v-bind="etat('activeStatus', st.key, st.label)" @click="toggleItem('status', st.key)">
           <span>{{ st.label }}</span>
           <span class="count">{{ st.count }}</span>
         </button>
@@ -20,7 +20,7 @@
 
       <!-- Catégories -->
       <FilterGroup v-if="categories.length" label="Catégorie">
-        <button v-for="cat in categories" :key="cat.name" class="filter-badge" :class="filterState('activeCategory', cat.name)" @click="toggleItem('category', cat.name)">
+        <button v-for="cat in categories" :key="cat.name" type="button" class="filter-badge" :class="filterState('activeCategory', cat.name)" v-bind="etat('activeCategory', cat.name, cat.name)" @click="toggleItem('category', cat.name)">
           <span>{{ cat.name }}</span>
           <span class="count">{{ cat.count }}</span>
         </button>
@@ -28,7 +28,7 @@
 
       <!-- Clients Torrent -->
       <FilterGroup v-if="clients.length > 1" label="Client">
-        <button v-for="cl in clients" :key="cl.name" class="filter-badge" :class="{ active: isSelected('activeClient', cl.name) }" @click="toggleItem('client', cl.name)">
+        <button v-for="cl in clients" :key="cl.name" type="button" class="filter-badge" :class="{ active: isSelected('activeClient', cl.name) }" v-bind="etat('activeClient', cl.name, cl.name)" @click="toggleItem('client', cl.name)">
           <span>{{ cl.name }}</span>
           <span class="count">{{ cl.count }}</span>
         </button>
@@ -36,7 +36,7 @@
 
       <!-- Trackers -->
       <FilterGroup v-if="trackers.length" label="Trackers">
-        <button v-for="tr in trackers" :key="tr.name" class="filter-badge" :class="filterState('activeTracker', tr.name)" @click="toggleItem('tracker', tr.name)">
+        <button v-for="tr in trackers" :key="tr.name" type="button" class="filter-badge" :class="filterState('activeTracker', tr.name)" v-bind="etat('activeTracker', tr.name, tr.name)" @click="toggleItem('tracker', tr.name)">
           <span>{{ tr.name }}</span>
           <span class="count">{{ tr.count }}</span>
         </button>
@@ -91,6 +91,14 @@ function isSelected(propName: keyof typeof props, val: string): boolean {
 }
 function filterState(propName: keyof typeof props, val: string): { active: boolean; excluded: boolean } {
   return { active: isSelected(propName, val), excluded: isSelected(propName, `!${val}`) };
+}
+
+/* Trois etats -- inclus, exclu, neutre -- qu'un groupe de bascules ne sait pas dire :
+   ces pastilles restent donc ici, mais annoncent leur etat. « Enfoncee » vaut inclus ;
+   l'exclusion est dite dans le nom, un lecteur d'ecran n'ayant pas d'etat pour elle. */
+function etat(propName: keyof typeof props, val: string, label: string): Record<string, string | boolean> {
+  const exclu = isSelected(propName, `!${val}`);
+  return { 'aria-pressed': isSelected(propName, val), 'aria-label': exclu ? `${label}, exclu` : label };
 }
 
 const hasAnyStatusActive = computed(() => toSet(props.activeStatus).size > 0);

@@ -344,19 +344,20 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   position: relative;
 }
 
-.multi-select.open .filter-pill.dropdown-toggle {
+.multi-select.open .filter-pill.dropdown-toggle,
+.filter-pill.dropdown-toggle[data-state="open"] {
   border-color: var(--accent);
   background: rgba(255, 255, 255, 0.08);
 }
 
-.multi-select.open .filter-pill.dropdown-toggle svg {
+.multi-select.open .filter-pill.dropdown-toggle svg,
+.filter-pill.dropdown-toggle[data-state="open"] svg {
   transform: rotate(180deg);
 }
 
+/* Place par Reka UI (DropdownMenu) quand il est rendu en portail : il ne reste ici que
+   l'apparence. */
 .multi-select-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -379,6 +380,17 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   transition: background var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
+.multi-select-menu .check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: 26px;
+  position: relative;
+  outline: none;
+  user-select: none;
+}
+.multi-select-menu .check-mark { position: absolute; left: 7px; display: grid; color: var(--accent); }
+.multi-select-menu .check[data-highlighted],
 .multi-select-menu .check:hover {
   background: rgba(255, 255, 255, 0.06);
 }
@@ -392,6 +404,8 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   text-align: left;
 }
 
+.multi-select-menu .clear-selection { cursor: pointer; outline: none; }
+.multi-select-menu .clear-selection[data-highlighted],
 .multi-select-menu .clear-selection:hover {
   color: var(--text);
 }

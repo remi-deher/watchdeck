@@ -5,58 +5,23 @@
          filtrage a diverger du reste de l'application. -->
     <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
       <FilterGroup label="Statut">
-        <button
-          v-for="entry in statusOptions"
-          :key="entry.value || 'all'"
-          class="filter-badge"
-          type="button"
-          :class="{ active: statusKey === entry.value }"
-          @click="setStatus(entry.value)"
-        ><span>{{ entry.label }}</span></button>
+        <UiChipGroup label="Statut" :options="statusOptions" :model-value="statusKey" @update:model-value="setStatus" />
       </FilterGroup>
 
       <FilterGroup label="Type de média">
-        <button
-          v-for="entry in typeOptions"
-          :key="entry.value || 'all'"
-          class="filter-badge"
-          type="button"
-          :class="{ active: typeKey === entry.value }"
-          @click="setType(entry.value)"
-        ><span>{{ entry.label }}</span></button>
+        <UiChipGroup label="Type de média" :options="typeOptions" :model-value="typeKey" @update:model-value="setType" />
       </FilterGroup>
 
       <FilterGroup v-if="requesterOptions.length > 1" label="Demandeur">
-        <button
-          v-for="entry in requesterOptions"
-          :key="entry.value || 'me'"
-          class="filter-badge"
-          type="button"
-          :class="{ active: requesterKey === entry.value }"
-          @click="requesterKey = entry.value"
-        ><span>{{ entry.label }}</span></button>
+        <UiChipGroup label="Demandeur" :options="requesterOptions" v-model="requesterKey" />
       </FilterGroup>
 
       <FilterGroup label="Version française">
-        <button
-          v-for="entry in vfOptions"
-          :key="entry.value || 'all'"
-          class="filter-badge"
-          type="button"
-          :class="{ active: vf === entry.value }"
-          @click="vf = entry.value"
-        ><span>{{ entry.label }}</span></button>
+        <UiChipGroup label="Version française" :options="vfOptions" v-model="vf" />
       </FilterGroup>
 
       <FilterGroup label="Tri">
-        <button
-          v-for="entry in sortOptions"
-          :key="entry.value || 'recent'"
-          class="filter-badge"
-          type="button"
-          :class="{ active: sort === entry.value }"
-          @click="sort = entry.value"
-        ><span>{{ entry.label }}</span></button>
+        <UiChipGroup label="Tri" :options="sortOptions" v-model="sort" />
       </FilterGroup>
 
       <FilterGroup label="Affichage" :default-open="false">
@@ -130,6 +95,7 @@ import { useDebounceFn } from '@vueuse/core';
 import { useRealtimeQuery } from '@/composables/useRealtimeQuery';
 import { providePageSearch, type PageSearch } from '@/composables/usePageSearch';
 import { canModerateSession, loadSession } from '@/composables/useSession';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';

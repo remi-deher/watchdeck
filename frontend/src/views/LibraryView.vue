@@ -11,69 +11,39 @@
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <template v-if="!isMusicShape">
           <FilterGroup label="Statut">
-            <button class="filter-badge" :class="{ active: !statusSingle }" @click="statusSingle = ''"><span>Tous les statuts</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'library' }" @click="statusSingle = 'library'"><span>Dans Plex</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'in_progress' }" @click="statusSingle = 'in_progress'"><span>En cours</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'partially_available' }" @click="statusSingle = 'partially_available'"><span>Partiellement dispo</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'orphan' }" @click="statusSingle = 'orphan'"><span>Suivi Sonarr/Radarr</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'pending_approval' }" @click="statusSingle = 'pending_approval'"><span>À approuver</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'pending' }" @click="statusSingle = 'pending'"><span>En attente</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'sent_to_arr' }" @click="statusSingle = 'sent_to_arr'"><span>Transmise</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'failed' }" @click="statusSingle = 'failed'"><span>Échec</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'rejected' }" @click="statusSingle = 'rejected'"><span>Refusée</span></button>
+            <UiChipGroup label="Statut" :options="[{ value: '', label: 'Tous les statuts' }, { value: 'library', label: 'Dans Plex' }, { value: 'in_progress', label: 'En cours' }, { value: 'partially_available', label: 'Partiellement dispo' }, { value: 'orphan', label: 'Suivi Sonarr/Radarr' }, { value: 'pending_approval', label: 'À approuver' }, { value: 'pending', label: 'En attente' }, { value: 'sent_to_arr', label: 'Transmise' }, { value: 'failed', label: 'Échec' }, { value: 'rejected', label: 'Refusée' }]" v-model="statusSingle" />
           </FilterGroup>
           <FilterGroup label="Version">
-            <button class="filter-badge" :class="{ active: !vf }" @click="vf = ''"><span>Toutes les langues</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'vf' }" @click="vf = 'vf'"><span>VF uniquement</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'vf_secondary' }" @click="vf = 'vf_secondary'"><span>VF secondaire</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'vo' }" @click="vf = 'vo'"><span>VO uniquement</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'mixed' }" @click="vf = 'mixed'"><span>Mixte (VF + VO)</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'unchecked' }" @click="vf = 'unchecked'"><span>Non analysée</span></button>
+            <UiChipGroup label="Version" :options="[{ value: '', label: 'Toutes les langues' }, { value: 'vf', label: 'VF uniquement' }, { value: 'vf_secondary', label: 'VF secondaire' }, { value: 'vo', label: 'VO uniquement' }, { value: 'mixed', label: 'Mixte (VF + VO)' }, { value: 'unchecked', label: 'Non analysée' }]" v-model="vf" />
           </FilterGroup>
           <FilterGroup label="Sous-titres">
-            <button class="filter-badge" :class="{ active: !subtitle }" @click="subtitle = ''"><span>Tous</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'any_issue' }" @click="subtitle = 'any_issue'"><span>Problème sous-titre FR</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_absent' }" @click="subtitle = 'sub_fr_absent'"><span>Sous-titre FR absent</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_no_track' }" @click="subtitle = 'sub_fr_no_track'"><span>Sous-titres incrustés</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_not_default' }" @click="subtitle = 'sub_fr_not_default'"><span>Sous-titre FR non activé</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'forced_fr_not_default' }" @click="subtitle = 'forced_fr_not_default'"><span>Sous-titre forcé FR non activé</span></button>
+            <UiChipGroup label="Sous-titres" :options="[{ value: '', label: 'Tous' }, { value: 'any_issue', label: 'Problème sous-titre FR' }, { value: 'sub_fr_absent', label: 'Sous-titre FR absent' }, { value: 'sub_fr_no_track', label: 'Sous-titres incrustés' }, { value: 'sub_fr_not_default', label: 'Sous-titre FR non activé' }, { value: 'forced_fr_not_default', label: 'Sous-titre forcé FR non activé' }]" v-model="subtitle" />
           </FilterGroup>
           <FilterGroup v-if="sources.length" label="Source">
-            <button class="filter-badge" :class="{ active: !sourceSingle }" @click="sourceSingle = ''"><span>Toutes</span></button>
-            <button v-for="s in sources" :key="s" class="filter-badge" :class="{ active: sourceSingle === s }" @click="sourceSingle = sourceSingle === s ? '' : s"><span>{{ s }}</span></button>
+            <UiChipGroup label="Source" :options="[{ value: '', label: 'Toutes' }, ...(sources).map((s: any) => ({ value: s, label: s }))]" v-model="sourceSingle" />
           </FilterGroup>
           <FilterGroup v-if="requesters.length > 1" label="Demandeur">
-            <button class="filter-badge" :class="{ active: !requesterSingle }" @click="requesterSingle = ''"><span>Tous</span></button>
-            <button v-for="r in requesters" :key="r.id" class="filter-badge" :class="{ active: requesterSingle === r.id }" @click="requesterSingle = requesterSingle === r.id ? '' : r.id"><span>{{ r.label }}</span></button>
+            <UiChipGroup label="Demandeur" :options="[{ value: '', label: 'Tous' }, ...requesters.map((r: any) => ({ value: r.id, label: r.label }))]" v-model="requesterSingle" />
           </FilterGroup>
         </template>
         <template v-else>
           <FilterGroup label="Tri">
-            <button class="filter-badge" :class="{ active: !sort }" @click="sort = ''"><span>Ajouts récents</span></button>
-            <button class="filter-badge" :class="{ active: sort === 'title_asc' }" @click="sort = 'title_asc'"><span>Titre (A-Z)</span></button>
-            <button class="filter-badge" :class="{ active: sort === 'title_desc' }" @click="sort = 'title_desc'"><span>Titre (Z-A)</span></button>
-            <button class="filter-badge" :class="{ active: sort === 'year_desc' }" @click="sort = 'year_desc'"><span>Année (récent → ancien)</span></button>
+            <UiChipGroup label="Tri" :options="[{ value: '', label: 'Ajouts récents' }, { value: 'title_asc', label: 'Titre (A-Z)' }, { value: 'title_desc', label: 'Titre (Z-A)' }, { value: 'year_desc', label: 'Année (récent → ancien)' }]" v-model="sort" />
           </FilterGroup>
           <FilterGroup label="Genre">
-            <button class="filter-badge" :class="{ active: !genre }" @click="genre = ''"><span>Tous</span></button>
-            <button v-for="g in ['Rock','Pop','Jazz','Electronic','Hip-Hop','Metal','Classical','Blues','Folk','Indie']" :key="g" class="filter-badge" :class="{ active: genre === g }" @click="genre = genre === g ? '' : g"><span>{{ g }}</span></button>
+            <UiChipGroup label="Genre" :options="[{ value: '', label: 'Tous' }, ...(['Rock','Pop','Jazz','Electronic','Hip-Hop','Metal','Classical','Blues','Folk','Indie']).map((g: any) => ({ value: g, label: g }))]" v-model="genre" />
           </FilterGroup>
           <FilterGroup label="Format">
-            <button class="filter-badge" :class="{ active: !audioFormat }" @click="audioFormat = ''"><span>Tous</span></button>
-            <button v-for="f in [['FLAC','FLAC'],['ALAC','ALAC'],['WAV','WAV'],['MP3','MP3'],['AAC','AAC / M4A'],['OGG','OGG']]" :key="f[0]" class="filter-badge" :class="{ active: audioFormat === f[0] }" @click="audioFormat = audioFormat === f[0] ? '' : f[0]"><span>{{ f[1] }}</span></button>
+            <UiChipGroup label="Format" :options="[{ value: '', label: 'Tous' }, ...([['FLAC','FLAC'],['ALAC','ALAC'],['WAV','WAV'],['MP3','MP3'],['AAC','AAC / M4A'],['OGG','OGG']]).map((f: any) => ({ value: f[0], label: f[1] }))]" v-model="audioFormat" />
           </FilterGroup>
           <FilterGroup label="Type">
-            <button class="filter-badge" :class="{ active: !releaseType }" @click="releaseType = ''"><span>Tous</span></button>
-            <button v-for="t in [['album','Album Studio'],['single','Single / EP'],['live','Concert / Live'],['compilation','Compilation']]" :key="t[0]" class="filter-badge" :class="{ active: releaseType === t[0] }" @click="releaseType = releaseType === t[0] ? '' : t[0]"><span>{{ t[1] }}</span></button>
+            <UiChipGroup label="Type" :options="[{ value: '', label: 'Tous' }, ...([['album','Album Studio'],['single','Single / EP'],['live','Concert / Live'],['compilation','Compilation']]).map((t: any) => ({ value: t[0], label: t[1] }))]" v-model="releaseType" />
           </FilterGroup>
           <FilterGroup label="Qualité">
-            <button class="filter-badge" :class="{ active: !hiRes }" @click="hiRes = ''"><span>Toutes</span></button>
-            <button class="filter-badge" :class="{ active: hiRes === 'hi_res' }" @click="hiRes = hiRes === 'hi_res' ? '' : 'hi_res'"><span>Hi-Res (24-bit / 96kHz+)</span></button>
-            <button class="filter-badge" :class="{ active: hiRes === 'standard' }" @click="hiRes = hiRes === 'standard' ? '' : 'standard'"><span>CD Standard (16-bit)</span></button>
+            <UiChipGroup label="Qualité" :options="[{ value: '', label: 'Toutes' }, { value: 'hi_res', label: 'Hi-Res (24-bit / 96kHz+)' }, { value: 'standard', label: 'CD Standard (16-bit)' }]" v-model="hiRes" />
           </FilterGroup>
           <FilterGroup label="Époque">
-            <button class="filter-badge" :class="{ active: !decade }" @click="decade = ''"><span>Toutes</span></button>
-            <button v-for="d in [['2020s','2020+'],['2010s','Années 2010'],['2000s','Années 2000'],['90s','Années 90'],['80s','Années 80'],['70s','Années 70 et avant']]" :key="d[0]" class="filter-badge" :class="{ active: decade === d[0] }" @click="decade = decade === d[0] ? '' : d[0]"><span>{{ d[1] }}</span></button>
+            <UiChipGroup label="Époque" :options="[{ value: '', label: 'Toutes' }, ...([['2020s','2020+'],['2010s','Années 2010'],['2000s','Années 2000'],['90s','Années 90'],['80s','Années 80'],['70s','Années 70 et avant']]).map((d: any) => ({ value: d[0], label: d[1] }))]" v-model="decade" />
           </FilterGroup>
         </template>
       </FilterSidebar>
@@ -161,6 +131,7 @@
 </template>
 
 <script setup lang="ts">
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useWindowVirtualGrid } from '@/composables/useWindowVirtualGrid';
 import { useRoute, useRouter } from 'vue-router';

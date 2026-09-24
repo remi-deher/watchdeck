@@ -1,5 +1,5 @@
 <template>
-  <div class="session-timeline-container" v-if="hasTimelineData">
+  <CollapsibleRoot v-if="hasTimelineData" v-model:open="isExpanded" class="session-timeline-container">
     <!-- En-tête avec titre, ratios et bouton de dépliage -->
     <div class="timeline-header">
       <div class="header-left">
@@ -9,16 +9,14 @@
         </span>
       </div>
 
-      <button
-        type="button"
+      <!-- Reka relie le bouton au journal (aria-controls) et tient aria-expanded. -->
+      <CollapsibleTrigger
         class="timeline-toggle-btn"
-        :aria-expanded="isExpanded"
         :aria-label="isExpanded ? 'Masquer le détail des segments' : 'Afficher le détail des segments'"
-        @click="toggleExpanded"
       >
         <span>{{ segments.length > 1 ? `${segments.length} segments` : 'Détails' }}</span>
         <ChevronDown :class="['toggle-chevron', { 'is-open': isExpanded }]" :size="14" />
-      </button>
+      </CollapsibleTrigger>
     </div>
 
     <!-- Barre visuelle segmentée -->
@@ -78,7 +76,7 @@
 
     <!-- Journal détaillé des segments (Dépliable) -->
     <transition name="expand">
-      <div class="segments-log-drawer" v-if="isExpanded">
+      <CollapsibleContent v-if="isExpanded" class="segments-log-drawer">
         <div class="log-header">
           <span class="log-eyebrow">Journal des événements</span>
           <span class="log-stats" v-if="pauseCount > 0">
@@ -124,12 +122,13 @@
             </div>
           </li>
         </ul>
-      </div>
+      </CollapsibleContent>
     </transition>
-  </div>
+  </CollapsibleRoot>
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { computed, ref } from 'vue';
 import { ChevronDown, Clock, FastForward, Pause, Play, RotateCw, Zap } from '@lucide/vue';
 import { formatDurationExact as formatDuration, formatTime } from '@/utils/format';
@@ -152,9 +151,7 @@ const props = defineProps<{
 const isExpanded = ref(false);
 const highlightedIndex = ref<number | null>(null);
 
-function toggleExpanded() {
-  isExpanded.value = !isExpanded.value;
-}
+
 
 function selectSegment(idx: number) {
   isExpanded.value = true;
