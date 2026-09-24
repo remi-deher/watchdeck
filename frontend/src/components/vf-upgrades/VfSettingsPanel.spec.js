@@ -6,14 +6,14 @@ import { api } from '@/api';
 import { createQueryClient } from '@/queryClient';
 import { form } from '@/settingsForm';
 
-import VfSettingsModal from './VfSettingsModal.vue';
+import VfSettingsPanel from './VfSettingsPanel.vue';
 
 vi.mock('@/api', () => ({ api: vi.fn() }));
 
 /* La modale doit rester synchronisée avec la page Réglages. Ce n'est pas une recopie de
    champs : elle monte le composant de cet onglet sur le même store et enregistre par le
    même endpoint. Ces tests verrouillent les trois propriétés qui font la synchro. */
-describe('VfSettingsModal', () => {
+describe('VfSettingsPanel', () => {
   // save() importe le schéma Zod à la demande : sa première compilation peut dépasser
   // le délai du test quand les workers sont chargés. On la paie une fois, ici.
   beforeAll(async () => { await import('@/settingsSchema'); }, 30_000);
@@ -32,8 +32,7 @@ describe('VfSettingsModal', () => {
 
   async function openModal(serverState = {}) {
     api.mockResolvedValueOnce({ vf_upgrade_min_confidence: 65, vf_upgrade_protect_resolution: true, ...serverState });
-    const wrapper = mount(VfSettingsModal, {
-      props: { open: true },
+    const wrapper = mount(VfSettingsPanel, {
       global: {
         plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]],
 

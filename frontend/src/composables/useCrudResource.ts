@@ -1,11 +1,8 @@
 import { computed, reactive, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
-import { fail, success } from '@/settingsForm';
 
 export interface CrudResourceMessages {
-  created?: string;
-  updated?: string;
   confirmTitle?: string;
   confirmMessage?: (name: string) => string;
 }
@@ -16,8 +13,6 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
   messages: CrudResourceMessages = {}
 ) {
   const {
-    created = 'Enregistré.',
-    updated = created,
     confirmTitle = 'Supprimer cet élément ?',
     confirmMessage = (name: string) => `${name} sera supprimé définitivement.`,
   } = messages;
@@ -30,7 +25,6 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
   });
   const items = computed<T[]>(() => listQuery.data.value || []);
   const editingId = ref<any>(null);
-  const showModal = ref(false);
   const form = reactive<Record<string, any>>({ ...defaults });
 
   const saveMutation = useMutation({
@@ -65,30 +59,18 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
     Object.assign(form, defaults);
   }
 
-  function openModal(item?: T | null): void {
+  /** Charge un element (ou rien, pour une creation) dans le formulaire. */
+  function edit(item?: T | null): void {
     reset();
     if (item) {
       editingId.value = item.id;
       Object.assign(form, defaults, item);
     }
-    showModal.value = true;
   }
 
-  function closeModal(): void {
-    showModal.value = false;
-    reset();
-  }
-
-  async function save(): Promise<void> {
-    try {
-      const editing = editingId.value;
-      await saveMutation.mutateAsync({ editing, payload: { ...form } });
-      success(editing ? updated : created);
-      showModal.value = false;
-      reset();
-    } catch (error) {
-      fail(error);
-    }
+  /** Enregistre le formulaire ; l'erreur remonte a l'appelant, qui l'affiche ou il veut. */
+  async function saveOrThrow(): Promise<any> {
+    return saveMutation.mutateAsync({ editing: editingId.value, payload: { ...form } });
   }
 
   async function toggle(item: T): Promise<void> {
@@ -108,15 +90,14 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
 
   return {
     items,
+    loaded: computed(() => listQuery.isSuccess.value),
+    edit,
+    saveOrThrow,
     editingId,
-    showModal,
     busy,
     form,
     load,
     reset,
-    openModal,
-    closeModal,
-    save,
     toggle,
     remove,
   };

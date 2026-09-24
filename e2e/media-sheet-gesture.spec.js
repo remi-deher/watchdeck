@@ -102,7 +102,7 @@ test("a la fermeture, la fiche garde son contenu pendant qu'elle s'en va", async
   // aller-retour de plus avec le navigateur pouvait tomber apres sa fin.
   const pendant = await page.evaluate(async () => {
     const voile = document.querySelector(".media-overlay");
-    document.querySelector(".media-overlay__close").click();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     // La fermeture passe par un retour d'historique : elle commence quelques images plus tard.
     for (let i = 0; i < 120 && voile.style.pointerEvents !== "none"; i += 1) {
       await new Promise((r) => requestAnimationFrame(() => r()));

@@ -5,13 +5,7 @@ import { VueQueryPlugin } from '@tanstack/vue-query';
 import { createQueryClient } from '@/queryClient';
 
 const api = vi.fn();
-const success = vi.fn();
-const fail = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => api(...args) }));
-vi.mock('@/settingsForm', () => ({
-  success: (...args) => success(...args),
-  fail: (...args) => fail(...args),
-}));
 
 const { useCrudResource } = await import('./useCrudResource');
 
@@ -31,8 +25,6 @@ function factory(messages) {
 describe('useCrudResource', () => {
   beforeEach(() => {
     api.mockReset().mockResolvedValue([]);
-    success.mockReset();
-    fail.mockReset();
   });
 
   it('charge la liste depuis la racine REST', async () => {
@@ -43,65 +35,51 @@ describe('useCrudResource', () => {
     expect(items.value).toEqual([{ id: 1, name: 'Un' }]);
   });
 
-  it('ouvre le formulaire vierge en création', () => {
-    const { form, editingId, showModal, openModal } = factory();
-    openModal();
+  it('prepare un formulaire vierge en creation', () => {
+    const { form, editingId, edit } = factory();
+    edit(null);
     expect(editingId.value).toBeNull();
-    expect(showModal.value).toBe(true);
     expect({ ...form }).toEqual(DEFAULTS);
   });
 
-  it('préremplit le formulaire en édition', () => {
-    const { form, editingId, openModal } = factory();
-    openModal({ id: 7, name: 'Sonarr', url: 'http://x' });
+  it('preremplit le formulaire en edition', () => {
+    const { form, editingId, edit } = factory();
+    edit({ id: 7, name: 'Sonarr', url: 'http://x' });
     expect(editingId.value).toBe(7);
     expect(form.name).toBe('Sonarr');
     expect(form.url).toBe('http://x');
   });
 
-  it('ne laisse pas traîner les champs de l’édition précédente', () => {
-    const { form, openModal } = factory();
-    openModal({ id: 1, name: 'Premier', url: 'http://a' });
-    openModal({ id: 2, name: 'Second' });
+  it('ne laisse pas trainer les champs de l’edition precedente', () => {
+    const { form, edit } = factory();
+    edit({ id: 1, name: 'Premier', url: 'http://a' });
+    edit({ id: 2, name: 'Second' });
     expect(form.name).toBe('Second');
     expect(form.url).toBe('');
   });
 
-  it('crée par POST sur la racine', async () => {
-    const { form, save, showModal } = factory({ created: 'Ajouté.' });
+  it('cree par POST sur la racine', async () => {
+    const { form, edit, saveOrThrow } = factory();
+    edit(null);
     form.name = 'Nouveau';
-    await save();
+    await saveOrThrow();
     const call = api.mock.calls.find(([path, options]) => path === '/api/things' && options?.method === 'POST');
     expect(call).toBeTruthy();
     expect(JSON.parse(call[1].body).name).toBe('Nouveau');
-    expect(success).toHaveBeenCalledWith('Ajouté.');
-    expect(showModal.value).toBe(false);
   });
 
-  it('met à jour par PUT sur l’élément, avec son propre libellé', async () => {
-    const { openModal, save } = factory({ created: 'Ajouté.', updated: 'Mis à jour.' });
-    openModal({ id: 42, name: 'Existant' });
-    await save();
+  it('met a jour par PUT sur l’element', async () => {
+    const { edit, saveOrThrow } = factory();
+    edit({ id: 42, name: 'Existant' });
+    await saveOrThrow();
     expect(api).toHaveBeenCalledWith('/api/things/42', expect.objectContaining({ method: 'PUT' }));
-    expect(success).toHaveBeenCalledWith('Mis à jour.');
   });
 
-  it('remet le formulaire à zéro après enregistrement', async () => {
-    const { form, openModal, save, editingId } = factory();
-    openModal({ id: 3, name: 'X' });
-    await save();
-    expect(editingId.value).toBeNull();
-    expect({ ...form }).toEqual(DEFAULTS);
-  });
-
-  it('signale l’échec sans fermer la modale ni rester occupé', async () => {
-    const { openModal, save, showModal, busy } = factory();
+  it('rend l’echec a l’appelant, sans rester occupe', async () => {
+    const { edit, saveOrThrow, busy } = factory();
     api.mockRejectedValueOnce(new Error('boum'));
-    openModal();
-    await save();
-    expect(fail).toHaveBeenCalled();
-    expect(success).not.toHaveBeenCalled();
-    expect(showModal.value).toBe(true);
+    edit(null);
+    await expect(saveOrThrow()).rejects.toThrow('boum');
     expect(busy.value).toBe(false);
   });
 
@@ -127,12 +105,4 @@ describe('useCrudResource', () => {
     expect(api).not.toHaveBeenCalled();
   });
 
-  it('ferme sans conserver la saisie en cours', () => {
-    const { form, showModal, openModal, closeModal, editingId } = factory();
-    openModal({ id: 4, name: 'Brouillon' });
-    closeModal();
-    expect(showModal.value).toBe(false);
-    expect(editingId.value).toBeNull();
-    expect({ ...form }).toEqual(DEFAULTS);
-  });
 });

@@ -7,7 +7,7 @@
     :collapsible="false"
   >
     <template #actions>
-      <UiButton @click.stop="openModal()"><Plus/>Ajouter</UiButton>
+      <UiButton @click.stop="openSheet()"><Plus/>Ajouter</UiButton>
     </template>
     <small style="margin-top:-4px;margin-bottom:4px;color:var(--muted)">
       Plusieurs fournisseurs peuvent être actifs en parallèle : en cas d'échec, l'envoi bascule
@@ -29,82 +29,18 @@
       </template>
       <template #cell-actions="{ row: provider }">
         <UiButton icon-only title="Tester" aria-label="Tester" @click="testProvider(provider)"><PlugZap/></UiButton>
-        <UiButton icon-only title="Modifier" aria-label="Modifier" @click="openModal(provider)"><Pencil/></UiButton>
+        <UiButton icon-only title="Modifier" aria-label="Modifier" @click="openSheet(provider)"><Pencil/></UiButton>
         <UiButton icon-only :title="provider.enabled?'Desactiver':'Activer'" :aria-label="provider.enabled?'Desactiver':'Activer'" @click="toggle(provider)"><Power/></UiButton>
         <UiButton variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="remove(provider)"><Trash2/></UiButton>
       </template>
     </UiDataTable>
   </SettingsCard>
 
-  <ModalShell
-    v-if="showModal"
-    :title="editingId?'Modifier le fournisseur':'Ajouter un fournisseur'"
-    panel-class="arr-instance-modal"
-    :busy="busy"
-    @close="closeModal"
-  >
-    <div class="compact-form">
-        <label>Nom<input v-model="form.name" placeholder="ex: Hotmail perso"></label>
-        <label>Type
-          <UiSelect v-model="form.provider_type" :options="[{ value: 'smtp', label: 'SMTP — Utilisateur / mot de passe' }, { value: 'smtp_oauth2', label: 'SMTP — OAuth2 (Microsoft — hotmail.fr / outlook.com)' }, { value: 'brevo', label: 'API Brevo (sans serveur SMTP)' }]" />
-        </label>
-
-        <template v-if="form.provider_type==='smtp'">
-          <label>Serveur SMTP<input v-model="form.smtp_host"></label>
-          <label>Port<UiNumberField v-model="form.smtp_port" /></label>
-          <UiCheckboxField v-model="form.smtp_tls" label="TLS" />
-          <label>Utilisateur<input v-model="form.smtp_user"></label>
-          <label>Mot de passe<input v-model="form.smtp_password" type="password" placeholder="Laisser vide pour conserver"></label>
-        </template>
-
-        <template v-else-if="form.provider_type==='smtp_oauth2'">
-          <small style="margin-top:-8px;color:var(--muted)">
-            Microsoft a désactivé l'authentification par mot de passe pour outlook.com/hotmail.fr : il faut
-            enregistrer une application dans <a href="https://portal.azure.com" target="_blank" rel="noopener">Azure AD (App registrations)</a>,
-            l'autoriser pour les comptes personnels, y ajouter l'URI de redirection
-            <code>{{ redirectUri }}</code>, puis renseigner ci-dessous son Client ID (et son secret s'il s'agit d'un client confidentiel).
-          </small>
-          <label>Serveur SMTP<input v-model="form.smtp_host" placeholder="smtp-mail.outlook.com"></label>
-          <label>Port<UiNumberField v-model="form.smtp_port" /></label>
-          <UiCheckboxField v-model="form.smtp_tls" label="TLS" />
-          <label>Boîte Microsoft (hotmail.fr / outlook.com)<input v-model="form.oauth_mailbox" type="email" placeholder="vous@hotmail.fr"></label>
-          <label>Tenant<input v-model="form.oauth_tenant" placeholder="consumers"><small>« consumers » pour un compte personnel hotmail.fr/outlook.com</small></label>
-          <label>Client ID<input v-model="form.oauth_client_id"></label>
-          <label>Client secret (optionnel)<input v-model="form.oauth_client_secret" type="password" placeholder="Laisser vide pour conserver / si client public"></label>
-          <div v-if="editingId" class="check" style="align-items:center;gap:10px">
-            <span class="settings-card-status" :class="editingProviderConnected ? 'active' : 'error'">
-              {{ editingProviderConnected ? 'Compte Microsoft connecté' : 'Non connecté' }}
-            </span>
-            <UiButton @click="connectMicrosoft"><PlugZap/>{{ editingProviderConnected ? 'Reconnecter' : 'Connecter avec Microsoft' }}</UiButton>
-            <UiButton v-if="editingProviderConnected" @click="disconnectMicrosoft">Déconnecter</UiButton>
-          </div>
-          <small v-else style="color:var(--muted)">Enregistrez d'abord le fournisseur pour pouvoir le connecter à un compte Microsoft.</small>
-        </template>
-
-        <template v-else-if="form.provider_type==='brevo'">
-          <small style="margin-top:-8px;color:var(--muted)">
-            Envoi via l'API <a href="https://developers.brevo.com/docs/getting-started" target="_blank" rel="noopener">Brevo</a>
-            (pas de serveur SMTP) : créez une clé API dans Brevo (Paramètres &gt; Clés API), et vérifiez
-            l'adresse expéditrice de l'application dans Brevo (Expéditeurs &amp; IP) avant le premier envoi.
-          </small>
-          <label>Clé API Brevo<input v-model="form.brevo_api_key" type="password" placeholder="Laisser vide pour conserver"></label>
-        </template>
-
-        <UiCheckboxField v-model="form.enabled" label="Fournisseur actif" />
-    </div>
-    <template #actions>
-      <UiButton variant="primary" :disabled="busy||!form.name" @click="save"><Save/>{{ editingId?'Mettre a jour':'Ajouter' }}</UiButton>
-      <UiButton @click="closeModal">Annuler</UiButton>
-    </template>
-  </ModalShell>
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 
 <script setup lang="ts">
-import UiSelect from '@/components/ui/UiSelect.vue';
-import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiButton from '@/components/ui/UiButton.vue';
-import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 // L'ordre compte : c'est celui dans lequel les fournisseurs sont essayes.
 const PROVIDER_COLUMNS: UiColumn[] = [
@@ -114,17 +50,17 @@ const PROVIDER_COLUMNS: UiColumn[] = [
   { key: 'status', label: 'Statut' },
   { key: 'actions', label: 'Actions', card: 'actions', className: 'actions' },
 ];
-import ModalShell from '@/components/ui/ModalShell.vue';
-import { computed, onMounted } from 'vue';
+import { onMounted } from 'vue';
 import { useMutation } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
-import { ChevronDown, ChevronUp, Mail, Pencil, Plus, PlugZap, Power, Save, Trash2 } from '@lucide/vue';
+import { ChevronDown, ChevronUp, Mail, Pencil, Plus, PlugZap, Power, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
 import { success, fail } from '@/settingsForm';
 import SettingsCard from './SettingsCard.vue';
 import ConfirmModal from '../ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 
 interface EmailProvider {
   id?: number;
@@ -154,21 +90,12 @@ const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 
 // Noms conservés côté template : le composable fournit la mécanique, pas le vocabulaire.
 const {
-  items: providers, editingId, showModal, busy, form,
-  load, openModal, closeModal, save, toggle, remove: removeProvider,
+  items: providers, load, toggle, remove: removeProvider,
 } = useCrudResource<EmailProvider>('/api/email-providers', defaults, {
-  created: 'Fournisseur ajoute.',
-  updated: 'Fournisseur mis a jour.',
   confirmTitle: 'Supprimer ce fournisseur ?',
 });
 
 function remove(provider: any): Promise<void> { return removeProvider(provider, askConfirm); }
-
-const redirectUri = `${window.location.origin}/api/email-providers/smtp-oauth/callback`;
-const editingProviderConnected = computed(() => {
-  const p = providers.value.find((x: any) => x.id === editingId.value);
-  return Boolean(p && p.oauth_connected);
-});
 
 const typeLabels: Record<string, string> = { smtp: 'SMTP', smtp_oauth2: 'SMTP OAuth2', brevo: 'Brevo' };
 function typeLabel(t: string): string { return typeLabels[t] || t; }
@@ -196,27 +123,13 @@ async function move(index: number, delta: number): Promise<void> {
   await load();
 }
 
-async function connectMicrosoft(): Promise<void> {
-  // L'identifiant est capturé avant l'enregistrement : `save` ferme la modale et remet le
-  // formulaire à zéro, `editingId` vaut donc null au retour et l'URL d'autorisation
-  // pointait jusqu'ici sur /api/email-providers/null/smtp-oauth/authorize.
-  const providerId = editingId.value;
-  if (!providerId) return;
-  await save();
-  window.location.href = `/api/email-providers/${providerId}/smtp-oauth/authorize`;
-}
-
-async function disconnectMicrosoft(): Promise<void> {
-  if (!editingId.value) return;
-  try {
-    await providerActionMutation.mutateAsync({ path: `/api/email-providers/${editingId.value}/smtp-oauth/disconnect` });
-    success('Compte Microsoft déconnecté.');
-    await load();
-  } catch (e) { fail(e); }
-}
-
 const route = useRoute();
 const router = useRouter();
+
+/* Ajout et modification se font dans la feuille, a leur propre adresse. */
+function openSheet(provider?: any): void {
+  ouvrirFiche(router, `/settings/resource/email-provider/${provider?.id ?? 'new'}`, route.fullPath);
+}
 
 onMounted(async () => {
   const status = route.query.email_oauth;

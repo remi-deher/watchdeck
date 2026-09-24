@@ -1,7 +1,7 @@
 <template>
   <!-- Cadre des fiches qui s'ouvrent dans la feuille (session, torrent, utilisateur...) :
        le meme en surface et en pleine page, pour qu'un lien direct montre exactement ce
-       que montrait la feuille. La feuille fournit deja la poignee et la croix. -->
+       que montrait la feuille. La feuille fournit la poignee ; on la ferme en la tirant, par Echap ou a cote. -->
   <article class="sheet-page" :class="{ 'is-standalone': !enSurface }" :aria-busy="loading || undefined">
     <header class="sheet-page__head">
       <div class="sheet-page__titles">
@@ -40,8 +40,7 @@ const { actif: enSurface } = useMediaOverlay();
 <style scoped>
 .sheet-page{display:grid;gap:var(--space-4);padding:8px max(18px,var(--safe-right)) max(24px,var(--safe-bottom)) max(18px,var(--safe-left))}
 .sheet-page.is-standalone{width:min(980px,100%);margin:0 auto;padding-top:var(--space-4)}
-.sheet-page__head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3);padding-right:44px}
-.sheet-page.is-standalone .sheet-page__head{padding-right:0}
+.sheet-page__head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3)}
 .sheet-page__titles{display:grid;gap:4px;min-width:0}
 .sheet-page__eyebrow{color:var(--accent);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .sheet-page__title{margin:0;overflow-wrap:anywhere;font-size:var(--fs-xl);line-height:1.2}
