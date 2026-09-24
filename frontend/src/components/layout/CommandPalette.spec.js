@@ -38,7 +38,8 @@ const optionTexts = (wrapper) => wrapper.findAll('[role="option"]').map((node) =
  */
 async function selectAppScope(wrapper) {
   const tabs = wrapper.findAll('[role="tab"]');
-  await tabs[tabs.length - 1].trigger('click');
+  // Les onglets (Reka UI) s'activent a l'appui, comme des onglets natifs.
+  await tabs[tabs.length - 1].trigger('mousedown', { button: 0 });
   await flushPromises();
 }
 
