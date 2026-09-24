@@ -14,61 +14,30 @@
     <div class="psh-layout">
       <FilterSidebar v-if="mode !== 'requests'" :open="filtersOpen" :active-count="activeFilterCount" :match-count="filteredCount" @close="closeFilters" @reset="resetFilters">
         <FilterGroup v-if="!isSourceMode" label="Section">
-          <button
-            v-for="entry in sections"
-            :key="entry.value"
-            class="filter-badge"
-            :class="{ active: section === entry.value && !query }"
-            @click="setSection(entry.value)"
-          ><span>{{ entry.label }}</span></button>
+          <UiChipGroup label="Section" :options="sections" :model-value="query ? null : section" @update:model-value="setSection" />
         </FilterGroup>
 
         <FilterGroup v-if="!fixedMediaType" label="Type de média">
-          <button
-            v-for="entry in availableMediaTypes"
-            :key="entry.value"
-            class="filter-badge"
-            :class="{ active: mediaType === entry.value }"
-            @click="setMediaType(entry.value)"
-          ><span>{{ entry.label }}</span></button>
+          <UiChipGroup label="Type de média" :options="availableMediaTypes" :model-value="mediaType" @update:model-value="setMediaType" />
         </FilterGroup>
 
         <FilterGroup v-if="isSourceMode" label="Tri">
-          <button class="filter-badge" :class="{ active: sortBy === 'popularity.desc' }" @click="setSort('popularity.desc')"><span>Plus populaires</span></button>
-          <button class="filter-badge" :class="{ active: sortBy === 'primary_release_date.desc' }" @click="setSort('primary_release_date.desc')"><span>Plus récents</span></button>
-          <button class="filter-badge" :class="{ active: sortBy === 'vote_average.desc' }" @click="setSort('vote_average.desc')"><span>Mieux notés</span></button>
+          <UiChipGroup label="Tri" :options="SORT_OPTIONS" :model-value="sortBy" @update:model-value="setSort" />
         </FilterGroup>
 
         <FilterGroup label="Disponibilité">
-          <button class="filter-badge" :class="{ active: !availability }" @click="setAvailability('')"><span>Tous les états</span></button>
-          <button class="filter-badge" :class="{ active: availability === 'available' }" @click="setAvailability('available')"><span>Dans Plex</span></button>
-          <button class="filter-badge" :class="{ active: availability === 'requested' }" @click="setAvailability('requested')"><span>Déjà demandé</span></button>
-          <button class="filter-badge" :class="{ active: availability === 'new' }" @click="setAvailability('new')"><span>À demander</span></button>
+          <UiChipGroup label="Disponibilité" :options="AVAILABILITY_OPTIONS" :model-value="availability || ''" @update:model-value="setAvailability" />
         </FilterGroup>
 
         <!-- Vingt-et-un genres et une trentaine de diffuseurs : deplies d'office, ces
              deux groupes portaient a eux seuls l'essentiel des 3168px du panneau. Ils
              s'ouvrent a la demande, en affichant ce qu'ils retiennent. -->
         <FilterGroup v-if="genres.length" label="Genre" :default-open="false" :value="genreLabel">
-          <button class="filter-badge" :class="{ active: !genre }" @click="setGenre('')"><span>Tous</span></button>
-          <button
-            v-for="entry in genres"
-            :key="entry.id"
-            class="filter-badge"
-            :class="{ active: String(genre) === String(entry.id) }"
-            @click="setGenre(String(entry.id))"
-          ><span>{{ entry.name }}</span></button>
+          <UiChipGroup label="Genre" :options="genreOptions" :model-value="genre ? String(genre) : ''" @update:model-value="setGenre" />
         </FilterGroup>
 
         <FilterGroup v-if="sources.length" label="Diffuseur / Studio" :default-open="false" :value="sourceLabel">
-          <button class="filter-badge" :class="{ active: !sourceKey }" @click="sourceKey = ''; selectSource()"><span>Tous</span></button>
-          <button
-            v-for="source in sources"
-            :key="`${source.kind}:${source.id}`"
-            class="filter-badge"
-            :class="{ active: sourceKey === `${source.kind}:${source.id}` }"
-            @click="sourceKey = sourceKey === `${source.kind}:${source.id}` ? '' : `${source.kind}:${source.id}`; selectSource()"
-          ><span>{{ source.name }}</span></button>
+          <UiChipGroup label="Diffuseur / Studio" :options="sourceOptions" :model-value="sourceKey || ''" @update:model-value="(key) => { sourceKey = key; selectSource(); }" />
         </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
@@ -423,6 +392,18 @@
 </template>
 
 <script setup lang="ts">
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+const SORT_OPTIONS = [
+  { value: 'popularity.desc', label: 'Plus populaires' },
+  { value: 'primary_release_date.desc', label: 'Plus récents' },
+  { value: 'vote_average.desc', label: 'Mieux notés' },
+];
+const AVAILABILITY_OPTIONS = [
+  { value: '', label: 'Tous les états' },
+  { value: 'available', label: 'Dans Plex' },
+  { value: 'requested', label: 'Déjà demandé' },
+  { value: 'new', label: 'À demander' },
+];
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ArrowRight } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -474,6 +455,8 @@ const sourceKey = ref(initialParams.get('source') || (window.location.pathname.s
 const sortBy = ref(initialParams.get('sort') || 'popularity.desc');
 const genres = ref<any[]>([]);
 const sources = ref<any[]>([]);
+const genreOptions = computed(() => [{ value: '', label: 'Tous' }, ...genres.value.map((entry) => ({ value: String(entry.id), label: entry.name }))]);
+const sourceOptions = computed(() => [{ value: '', label: 'Tous' }, ...sources.value.map((source) => ({ value: `${source.kind}:${source.id}`, label: source.name }))]);
 const sourcesLoading = ref(true);
 const sourcesError = ref('');
 const homeLoaded = ref(false);

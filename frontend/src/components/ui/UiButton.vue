@@ -1,36 +1,55 @@
 <template>
-  <component
-    :is="rootComponent"
-    class="ui-button"
-    :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'is-loading': loading, 'is-icon-only': iconOnly }]"
-    :type="isButton ? type : undefined"
-    :disabled="isButton ? unavailable : undefined"
-    :to="to || undefined"
-    :href="href || undefined"
-    :target="target || undefined"
-    :rel="rel || undefined"
-    :aria-busy="loading || undefined"
-    :aria-disabled="!isButton && unavailable ? 'true' : undefined"
-    :tabindex="!isButton && unavailable ? -1 : undefined"
-    v-bind="$attrs"
-    @click="handleClick"
-  >
-    <LoaderCircle v-if="loading" class="ui-button-spinner" aria-hidden="true" />
-    <template v-else-if="iconOnly"><slot /></template>
-    <template v-else>
-      <slot name="icon" />
-    </template>
-    <span v-if="!iconOnly" class="ui-button-label"><slot /></span>
-    <slot v-if="!loading" name="trailing" />
-  </component>
+  <DefineButton>
+    <component
+      :is="rootComponent"
+      class="ui-button"
+      :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'is-loading': loading, 'is-icon-only': iconOnly }]"
+      :type="isButton ? type : undefined"
+      :disabled="isButton ? unavailable : undefined"
+      :to="to || undefined"
+      :href="href || undefined"
+      :target="target || undefined"
+      :rel="rel || undefined"
+      :aria-busy="loading || undefined"
+      :aria-disabled="!isButton && unavailable ? 'true' : undefined"
+      :tabindex="!isButton && unavailable ? -1 : undefined"
+      v-bind="attributs"
+      @click="handleClick"
+    >
+      <LoaderCircle v-if="loading" class="ui-button-spinner" aria-hidden="true" />
+      <template v-else-if="iconOnly"><slot /></template>
+      <template v-else>
+        <slot name="icon" />
+      </template>
+      <span v-if="!iconOnly" class="ui-button-label"><slot /></span>
+      <slot v-if="!loading" name="trailing" />
+    </component>
+  </DefineButton>
+  <!-- Bouton-icone : son nom s'affiche dans une infobulle Reka UI, au survol comme au
+       focus clavier -- l'attribut `title` natif n'apparaissait qu'a la souris, apres un long
+       delai, et jamais au clavier. Le nom accessible reste porte par `aria-label`. -->
+  <TooltipProvider v-if="infobulle" :delay-duration="350">
+    <TooltipRoot>
+      <TooltipTrigger as-child><ReuseButton /></TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent class="ui-tooltip" side="top" :side-offset="6">{{ infobulle }}</TooltipContent>
+      </TooltipPortal>
+    </TooltipRoot>
+  </TooltipProvider>
+  <ReuseButton v-else />
 </template>
 
 <script setup lang="ts">
-import { computed, resolveComponent } from 'vue';
+import { computed, resolveComponent, useAttrs } from 'vue';
+import { createReusableTemplate } from '@vueuse/core';
+import { TooltipContent, TooltipPortal, TooltipProvider, TooltipRoot, TooltipTrigger } from 'reka-ui';
 import { LoaderCircle } from '@lucide/vue';
 import type { RouteLocationRaw } from 'vue-router';
 
 defineOptions({ inheritAttrs: false });
+
+const [DefineButton, ReuseButton] = createReusableTemplate();
+const attrs = useAttrs();
 
 const props = withDefaults(
   defineProps<{
@@ -64,6 +83,16 @@ function handleClick(event: MouseEvent) {
   }
   emit('click', event);
 }
+
+/* L'infobulle ne concerne que les boutons-icones, dont le nom ne se lit pas a l'ecran. */
+const infobulle = computed(() => (props.iconOnly ? String(attrs.title || attrs['aria-label'] || '') : ''));
+// Sans `title` natif quand l'infobulle le remplace : deux bulles se superposeraient.
+const attributs = computed(() => {
+  if (!infobulle.value) return attrs;
+  const { title, ...reste } = attrs as Record<string, unknown>;
+  // Le titre servait parfois de seul nom accessible : il passe alors dans aria-label.
+  return { ...reste, 'aria-label': reste['aria-label'] ?? title };
+});
 </script>
 
 <style scoped lang="scss">

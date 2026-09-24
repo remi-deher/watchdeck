@@ -3,8 +3,8 @@
     <div class="panel-head">
       <div><span v-if="eyebrow" class="eyebrow">{{eyebrow}}</span><h2>{{title}}</h2></div>
       <div class="chart-actions">
-        <button type="button" :class="{active:mode==='pie'}" aria-label="Afficher le camembert" @click="mode='pie'"><ChartPie/></button>
-        <button type="button" :class="{active:mode==='table'}" aria-label="Afficher le tableau" @click="mode='table'"><TableProperties/></button>
+        <button type="button" :class="{active:mode==='pie'}" :aria-pressed="mode==='pie'" aria-label="Afficher le camembert" @click="mode='pie'"><ChartPie/></button>
+        <button type="button" :class="{active:mode==='table'}" :aria-pressed="mode==='table'" aria-label="Afficher le tableau" @click="mode='table'"><TableProperties/></button>
         <slot name="action"/>
       </div>
     </div>

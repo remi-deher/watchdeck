@@ -29,10 +29,12 @@
          (`86dd231816e161be`), et jamais le pseudo reel. -->
     <template #cell-person="{ row: user }">
       <button class="text-button user-identity" @click="$emit('open',user.id)">
-        <span class="user-avatar" :class="{ 'is-off': !user.enabled }" aria-hidden="true">
-          <img v-if="user.avatar_url" :src="user.avatar_url" alt="">
-          <span v-else>{{ accountInitials(user) }}</span>
-        </span>
+        <!-- Reka Avatar : les initiales prennent le relais si l'image ne charge pas, au lieu
+             d'une image cassee. -->
+        <AvatarRoot class="user-avatar" :class="{ 'is-off': !user.enabled }" aria-hidden="true">
+          <AvatarImage v-if="user.avatar_url" :src="user.avatar_url" alt="" />
+          <AvatarFallback :delay-ms="user.avatar_url ? 300 : 0">{{ accountInitials(user) }}</AvatarFallback>
+        </AvatarRoot>
         <span class="user-identity-text">
           <strong>{{ accountName(user) }}</strong>
           <small v-if="accountHandle(user)">{{ accountHandle(user) }}</small>
@@ -69,6 +71,7 @@ import { formatDateShort } from '@/utils/format';
 import { ref, watch } from 'vue';
 import { Bell, BellOff, LogIn, LogOut, Pencil, Power, PowerOff, Shield, Trash2 } from '@lucide/vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import { AvatarFallback, AvatarImage, AvatarRoot } from 'reka-ui';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import BulkActionBar from '@/components/ui/BulkActionBar.vue';

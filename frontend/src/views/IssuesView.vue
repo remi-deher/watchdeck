@@ -23,31 +23,16 @@
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="filtersOpen = false" @reset="resetFilters">
         <FilterGroup label="Statut">
-          <button
-            v-for="entry in STATUS_OPTIONS"
-            :key="entry.value || 'all'"
-            class="filter-badge"
-            type="button"
-            :class="{ active: statusFilter === entry.value }"
-            @click="setStatus(entry.value)"
-          ><span>{{ entry.label }}</span></button>
+          <UiChipGroup label="Statut" :options="STATUS_OPTIONS" :model-value="statusFilter" @update:model-value="setStatus" />
         </FilterGroup>
 
         <FilterGroup v-if="types.length > 1" label="Type de problème">
-          <button
-            class="filter-badge"
-            type="button"
-            :class="{ active: !typeFilter }"
-            @click="setType('')"
-          ><span>Tous les types</span></button>
-          <button
-            v-for="value in types"
-            :key="value"
-            class="filter-badge"
-            type="button"
-            :class="{ active: typeFilter === value }"
-            @click="setType(value)"
-          ><span>{{ typeLabel(value) }}</span></button>
+          <UiChipGroup
+            label="Type de problème"
+            :options="[{ value: '', label: 'Tous les types' }, ...types.map((value: string) => ({ value, label: typeLabel(value) }))]"
+            :model-value="typeFilter || ''"
+            @update:model-value="setType"
+          />
         </FilterGroup>
       </FilterSidebar>
 
@@ -84,6 +69,7 @@
 </template>
 
 <script setup lang="ts">
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { humanizeError } from '@/utils/apiError';
 import { computed, ref } from 'vue';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';

@@ -55,7 +55,7 @@
 
         <template v-if="form.provider_type==='smtp'">
           <label>Serveur SMTP<input v-model="form.smtp_host"></label>
-          <label>Port<input v-model.number="form.smtp_port" type="number"></label>
+          <label>Port<UiNumberField v-model="form.smtp_port" /></label>
           <label class="check"><input v-model="form.smtp_tls" type="checkbox"> TLS</label>
           <label>Utilisateur<input v-model="form.smtp_user"></label>
           <label>Mot de passe<input v-model="form.smtp_password" type="password" placeholder="Laisser vide pour conserver"></label>
@@ -69,7 +69,7 @@
             <code>{{ redirectUri }}</code>, puis renseigner ci-dessous son Client ID (et son secret s'il s'agit d'un client confidentiel).
           </small>
           <label>Serveur SMTP<input v-model="form.smtp_host" placeholder="smtp-mail.outlook.com"></label>
-          <label>Port<input v-model.number="form.smtp_port" type="number"></label>
+          <label>Port<UiNumberField v-model="form.smtp_port" /></label>
           <label class="check"><input v-model="form.smtp_tls" type="checkbox"> TLS</label>
           <label>Boîte Microsoft (hotmail.fr / outlook.com)<input v-model="form.oauth_mailbox" type="email" placeholder="vous@hotmail.fr"></label>
           <label>Tenant<input v-model="form.oauth_tenant" placeholder="consumers"><small>« consumers » pour un compte personnel hotmail.fr/outlook.com</small></label>
@@ -105,6 +105,7 @@
 </template>
 
 <script setup lang="ts">
+import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 // L'ordre compte : c'est celui dans lequel les fournisseurs sont essayes.
 const PROVIDER_COLUMNS: UiColumn[] = [

@@ -11,12 +11,13 @@
       <UiSectionHeader eyebrow="Configuration" :title="`${configuredCount} sections opérationnelles sur ${cards.length}`">
         <template #meta><strong>{{ progress }}%</strong></template>
       </UiSectionHeader>
-      <progress :value="progress" max="100"></progress>
+      <UiProgress :value="progress" label="Progression de la configuration" />
       <p>Les sections incomplètes restent accessibles et indiquent les éléments à renseigner.</p>
     </section>
   </div>
 </template>
 <script setup lang="ts">
+import UiProgress from '@/components/ui/UiProgress.vue';
 import { computed, markRaw } from 'vue';
 import { Bell, Clock, Download, Link, Plug } from '@lucide/vue';
 import { form, secretsPresent } from '@/settingsForm';

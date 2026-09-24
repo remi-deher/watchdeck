@@ -34,8 +34,8 @@
         <select v-model="filters.subtitle_type" aria-label="Format sous-titres"><option value="">Tous les formats de sous-titres</option><option v-for="value in data.options?.subtitle_type || []" :key="value">{{ value }}</option></select>
         <select v-model="filters.viewer" aria-label="Filtrer par spectateur"><option value="">Tous les spectateurs</option><option v-for="value in data.options?.viewer || []" :key="value">{{ value }}</option></select>
         <select v-model="filters.watched" aria-label="Filtrer par visionnage"><option value="">Audience : indifférent</option><option value="yes">Visionnés</option><option value="no">Non visionnés</option></select>
-        <input v-model.number="filters.min_size_gb" type="number" min="0" step="0.5" placeholder="Poids min. (Go)" aria-label="Poids minimal en Go">
-        <input v-model.number="filters.max_size_gb" type="number" min="0" step="0.5" placeholder="Poids max. (Go)" aria-label="Poids maximal en Go">
+        <UiNumberField v-model="filters.min_size_gb" :min="0" :step="0.5" placeholder="Poids min. (Go)" aria-label="Poids minimal en Go" />
+        <UiNumberField v-model="filters.max_size_gb" :min="0" :step="0.5" placeholder="Poids max. (Go)" aria-label="Poids maximal en Go" />
       </FilterSidebar>
       <div class="psh-main">
 
@@ -114,6 +114,7 @@
 </template>
 
 <script setup lang="ts">
+import UiNumberField from '@/components/ui/UiNumberField.vue';
 import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';

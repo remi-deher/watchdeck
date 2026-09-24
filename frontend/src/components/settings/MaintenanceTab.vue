@@ -27,13 +27,14 @@
       <UiSectionHeader :title="current.action">
         <template #meta><StatusBadge :status="current.status" /></template>
       </UiSectionHeader>
-      <progress :value="current.progress" max="100"></progress>
+      <UiProgress :value="current.progress" label="Progression de la tâche" />
       <pre>{{ (current.logs || []).join('\n') }}</pre>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiProgress from '@/components/ui/UiProgress.vue';
 import { computed, ref } from "vue";
 import { useMutation, useQuery } from '@tanstack/vue-query';
 import { Play } from "@lucide/vue";
