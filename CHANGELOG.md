@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.40.0 — 2026-09-24
+
+
+### ✨ Nouveautés
+
+- réglages (instances, clients, fournisseurs email, réglages VF) dans la feuille ; plus de croix ni d'infobulle Fermer à l'ouverture ([8e701f3](https://github.com/remi-deher/watchdeck/commit/8e701f3981771115f06a1bd9f10fb79b83bf1f0e))
 ## 1.39.0 — 2026-09-24
 
 
@@ -11,6 +17,10 @@
 
 - sessions de lecture et torrents s'ouvrent dans la feuille, avec leur adresse ([c6f5ebe](https://github.com/remi-deher/watchdeck/commit/c6f5ebef3e2538d476bc99cb633309e392de09ab))
 - utilisateurs et fichiers analyses dans la feuille ; suppression de DrawerShell ([28a472b](https://github.com/remi-deher/watchdeck/commit/28a472b7840a8afab8e251cd92d071df4f92a581))
+
+### 🔧 Maintenance
+
+- v1.39.0 (#420) ([4095207](https://github.com/remi-deher/watchdeck/commit/4095207edcf5505890cba873c4ba18f5fd8f98bd))
 ## 1.38.2 — 2026-09-24
 
 
