@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.39.0 — 2026-09-24
+
+
+### test
+
+- couverture des fiches session et fichier analyse ; tri des imports ([0d2d1e9](https://github.com/remi-deher/watchdeck/commit/0d2d1e9d4e94eb29cd02f8235534bd403e9256fe))
+
+### ✨ Nouveautés
+
+- sessions de lecture et torrents s'ouvrent dans la feuille, avec leur adresse ([c6f5ebe](https://github.com/remi-deher/watchdeck/commit/c6f5ebef3e2538d476bc99cb633309e392de09ab))
+- utilisateurs et fichiers analyses dans la feuille ; suppression de DrawerShell ([28a472b](https://github.com/remi-deher/watchdeck/commit/28a472b7840a8afab8e251cd92d071df4f92a581))
 ## 1.38.2 — 2026-09-24
 
 
@@ -19,6 +30,10 @@
 ### 🐛 Corrections
 
 - Terminés affiche l'historique et les cartes de la file forment une grille ([93fca12](https://github.com/remi-deher/watchdeck/commit/93fca1293429659948233b3b27564a8b95b7ed90))
+
+### 🔧 Maintenance
+
+- v1.38.2 (#416) ([fe2887c](https://github.com/remi-deher/watchdeck/commit/fe2887c0e012b3d5a2732d80aba4c584cfabffcb))
 ## 1.38.1 — 2026-09-24
 
 
