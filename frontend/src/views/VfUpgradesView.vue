@@ -13,7 +13,7 @@
           variant="ghost"
           title="Réglages des améliorations VF"
           aria-label="Réglages des améliorations VF"
-          @click="settingsOpen = true"
+          @click="openSettings"
         >
           <template #icon><Settings :size="16" /></template>Réglages
         </UiButton>
@@ -138,12 +138,6 @@
       @applied="onStreamsAligned"
     />
 
-    <VfSettingsModal
-      v-if="settingsOpen"
-      :open="settingsOpen"
-      @close="settingsOpen = false"
-      @saved="onSettingsSaved"
-    />
   </AppPage>
 </template>
 
@@ -155,7 +149,8 @@ import AppSubnav from '@/components/ui/AppSubnav.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import AlignStreamsModal from '@/components/media/AlignStreamsModal.vue';
-import VfSettingsModal from '@/components/vf-upgrades/VfSettingsModal.vue';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
+import { useEventListener } from '@vueuse/core';
 import VfUpgradeKpiBanner from '@/components/vf-upgrades/VfUpgradeKpiBanner.vue';
 import VfScanHistory from '@/components/vf-upgrades/VfScanHistory.vue';
 import VfAuditPanel from '@/components/vf-upgrades/VfAuditPanel.vue';
@@ -174,11 +169,10 @@ import { useVfAudit } from '@/composables/vf/useVfAudit';
 import { useVfScanHistory } from '@/composables/vf/useVfScanHistory';
 import { useVfSelection } from '@/composables/vf/useVfSelection';
 import { useVfUpgrades } from '@/composables/vf/useVfUpgrades';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 type VfTab = 'upgrades' | 'audit' | 'history';
 const activeTab = ref<VfTab>('upgrades'); // *arr | audit des pistes Plex | historique des scans
-const settingsOpen = ref(false);
 const { message: feedback, type: feedbackType, show, clear: clearFeedback } = useFeedback();
 const { undoable } = useToast();
 
@@ -188,6 +182,7 @@ const { undoable } = useToast();
 // `useRoute()` ne renvoie rien quand la vue est montee hors routeur (tests unitaires) :
 // le filtre retombe alors sur sa valeur par defaut.
 const route = useRoute();
+const router = useRouter();
 const VALID_STATUS_FILTERS = ['pending', 'waiting_release', 'in_progress', 'failed', 'history', 'ignored', 'all'];
 const initialStatus = String(route?.query?.status || '');
 const statusFilter = ref<string>(VALID_STATUS_FILTERS.includes(initialStatus) ? initialStatus : 'pending');
@@ -241,13 +236,14 @@ function selectTab(value: string): void {
   else history.deactivate();
 }
 
-/* Un réglage modifié depuis la modale change ce que les cycles retiennent (seuil de
-   confiance, garde-fous techniques, portées) : on recharge la liste pour qu'elle
-   reflète la nouvelle configuration plutôt que l'ancienne. */
-async function onSettingsSaved(): Promise<void> {
-  settingsOpen.value = false;
-  await load({ silent: true });
+/* Les reglages s'ouvrent dans la feuille, a leur propre adresse (voir VfSettingsView).
+   Un reglage enregistre change ce que les cycles retiennent (seuil de confiance,
+   garde-fous techniques, portees) : on recharge la liste pour qu'elle reflete la
+   nouvelle configuration plutot que l'ancienne. */
+function openSettings(): void {
+  ouvrirFiche(router, '/vf-upgrades/settings', route?.fullPath || '/vf-upgrades');
 }
+useEventListener(window, 'watchdeck:vf-settings-saved', () => { void load({ silent: true }); });
 
 const { filtersOpen, toggle: toggleFilters, close: closeFilters } = useFiltersDrawer(
   { statusFilter, mediaTypeFilter },

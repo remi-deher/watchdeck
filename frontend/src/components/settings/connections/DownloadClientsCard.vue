@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <CrudResourceCard
     title="Clients de téléchargement direct"
     subtitle="Clients configurés — utilisés pour pousser une release choisie manuellement via la recherche Prowlarr"
@@ -7,56 +7,18 @@
     :columns="columns"
     empty-label="Aucun client configuré."
     add-label="Ajouter"
-    :show-modal="showClientModal"
-    :editing-id="editingClientId"
-    create-title="Ajouter un client"
-    update-title="Modifier le client"
-    modal-class="arr-instance-modal"
-    :can-save="Boolean(clientForm.name && clientForm.url)"
-    @open-modal="openClientModal"
-    @close-modal="closeClientModal"
-    @save="saveClient"
+    @open-modal="openSheet"
     @toggle="toggleClient"
     @remove="removeClient"
     @test="testClient"
-  >
-    <template #form>
-      <label>Nom<input v-model="clientForm.name"></label>
-      <label>Type
-        <UiSelect v-model="clientForm.client_type" :options="[{ value: 'qbittorrent', label: 'qBittorrent' }, { value: 'transmission', label: 'Transmission' }, { value: 'deluge', label: 'Deluge' }]" />
-      </label>
-      <label>URL<input v-model="clientForm.url" type="url"></label>
-      <label>Utilisateur <small>(facultatif)</small>
-        <input v-model="clientForm.username" autocomplete="username">
-        <small>Laisser vide si le client autorise Watchdeck par adresse IP ou sous-réseau.</small>
-      </label>
-      <label>Mot de passe <small>(facultatif)</small>
-        <input v-model="clientForm.password" type="password" autocomplete="current-password">
-      </label>
-      <label>Catégorie
-        <input v-model="clientForm.category">
-        <small>Catégorie appliquée aux torrents envoyés, pour les retrouver facilement dans le client.</small>
-      </label>
-      <label>Tags
-        <input v-model="clientForm.tags">
-        <small>Tags séparés par des virgules, appliqués aux torrents envoyés depuis Watchdeck.</small>
-      </label>
-      <UiCheckboxField v-model="clientForm.is_default" label="Client par défaut" />
-      <small class="check-hint">Client présélectionné quand plusieurs sont configurés et qu'aucun n'est explicitement choisi lors d'un envoi manuel.</small>
-    </template>
-
-    <template #modal-actions>
-      <ConnectionTestAction :loading="testing" :disabled="!clientForm.url" label="Tester la connexion" @test="testClient()" />
-    </template>
-  </CrudResourceCard>
+  />
 
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 
 <script setup lang="ts">
-import UiSelect from '@/components/ui/UiSelect.vue';
-import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
-import { computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { useMutation } from '@tanstack/vue-query';
 import { Download } from '@lucide/vue';
 import { api } from '@/api';
@@ -65,7 +27,6 @@ import ConfirmModal from '../../ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
 import { success, fail } from '@/settingsForm';
-import ConnectionTestAction from './ConnectionTestAction.vue';
 
 const columns = [
   { key: 'name', label: 'Nom', isTitle: true },
@@ -77,21 +38,16 @@ const columns = [
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const clientDefaults = { name: '', client_type: 'qbittorrent', url: '', username: '', password: '', category: '', tags: '', is_default: false, enabled: true };
 
-const {
-  items: clients,
-  editingId: editingClientId,
-  showModal: showClientModal,
-  form: clientForm,
-  openModal: openClientModal,
-  closeModal: closeClientModal,
-  save: saveClient,
-  toggle: toggleClient,
-  remove,
-} = useCrudResource('/api/download-clients', clientDefaults, {
-  created: 'Client enregistré.',
+const { items: clients, toggle: toggleClient, remove } = useCrudResource('/api/download-clients', clientDefaults, {
   confirmTitle: 'Supprimer ce client ?',
 });
 
+/* Ajout et modification se font dans la feuille, a leur propre adresse. */
+const route = useRoute();
+const router = useRouter();
+function openSheet(client?: any): void {
+  ouvrirFiche(router, `/settings/resource/download-client/${client?.id ?? 'new'}`, route.fullPath);
+}
 function removeClient(client: any): Promise<void> { return remove(client, askConfirm); }
 
 const testClientMutation = useMutation({
@@ -102,9 +58,8 @@ const testClientMutation = useMutation({
   },
   retry: 0,
 });
-const testing = computed(() => testClientMutation.isPending.value);
 
-async function testClient(client: any = clientForm): Promise<void> {
+async function testClient(client: any): Promise<void> {
   try {
     const data = await testClientMutation.mutateAsync(client);
     success(data.message || 'Client joignable.');

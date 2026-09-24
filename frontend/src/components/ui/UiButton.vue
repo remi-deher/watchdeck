@@ -28,7 +28,10 @@
   <!-- Bouton-icone : son nom s'affiche dans une infobulle Reka UI, au survol comme au
        focus clavier -- l'attribut `title` natif n'apparaissait qu'a la souris, apres un long
        delai, et jamais au clavier. Le nom accessible reste porte par `aria-label`. -->
-  <TooltipProvider v-if="infobulle" :delay-duration="350">
+  <!-- `ignore-non-keyboard-focus` : a l'ouverture d'une modale, le focus se pose sur son
+       premier bouton -- la croix -- et son infobulle « Fermer » s'affichait sans que
+       personne ne l'ait demandee. L'infobulle ne suit donc que le focus clavier. -->
+  <TooltipProvider v-if="infobulle" :delay-duration="350" ignore-non-keyboard-focus>
     <TooltipRoot>
       <TooltipTrigger as-child><ReuseButton /></TooltipTrigger>
       <TooltipPortal>

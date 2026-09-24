@@ -70,6 +70,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/requests', redirect: (to) => ({ path: '/library', query: to.query }) },
   { path: '/library', component: LibraryView, meta: { title: 'Bibliothèque' } },
   { path: '/vf-upgrades', component: VfUpgradesView, meta: { title: 'Améliorations VF' } },
+  { path: '/vf-upgrades/settings', component: () => import('@/views/VfSettingsView.vue'), meta: { title: 'Réglages VF' } },
   { path: '/issues', component: IssuesView, meta: { title: 'Problèmes signalés' } },
   { path: '/calendar', component: CalendarView, meta: { title: 'Calendrier' } },
   { path: '/users', component: UsersView, meta: { title: 'Administration' } },
@@ -80,6 +81,7 @@ const routes: RouteRecordRaw[] = [
   // Un chemin par section : partageable, marquable en favori, et coherent avec le reste
   // de l'application. Le parametre `?tab=` reste accepte et redirige (voir SettingsView).
   { path: '/settings', component: SettingsView, meta: { title: 'Configuration' } },
+  { path: '/settings/resource/:kind/:id', component: () => import('@/views/SettingsResourceView.vue'), meta: { title: 'Réglage' } },
   { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Services' } },
   { path: '/settings/automation/:section?', component: SettingsView, meta: { title: 'Automatisation' } },
   { path: '/settings/operations/:section?', component: SettingsView, meta: { title: 'Exploitation' } },

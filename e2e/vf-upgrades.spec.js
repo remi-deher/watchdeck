@@ -109,14 +109,17 @@ test("sélectionner des suggestions puis « Rechercher la sélection » envoie l
   await expect(page.getByRole("button", { name: /Rechercher la sélection/ })).toHaveCount(0);
 });
 
-test("le bouton Réglages ouvre la modale des réglages VF", async ({ page }) => {
+test("le bouton Réglages ouvre les réglages VF dans la feuille", async ({ page }) => {
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/vf-upgrades");
   await expect(page.locator(".upgrade-card").first()).toBeVisible({ timeout: 15000 });
 
   await page.getByRole("button", { name: "Réglages des améliorations VF" }).click();
-  await expect(page.getByRole("dialog", { name: /Réglages des améliorations VF/ })).toBeVisible();
+  const sheet = page.locator(".media-overlay__panel");
+  await expect(sheet).toBeVisible();
+  await expect(page).toHaveURL(/\/vf-upgrades\/settings$/);
+  await expect(sheet.getByRole("heading", { level: 1, name: "Réglages des améliorations VF" })).toBeVisible();
 });
 
 test("les trois onglets s'affichent sans erreur ni avertissement Vue", async ({ page }) => {
