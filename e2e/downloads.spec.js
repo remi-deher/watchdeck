@@ -36,7 +36,7 @@ async function mockApi(page) {
       "/api/arr/queue": QUEUE,
       "/api/downloads/direct": [],
       "/api/arr/wanted": WANTED,
-      "/api/downloads/history": { items: [], errors: [] },
+      "/api/downloads/history": { items: [{ id: 90, title: "Film importé", media_type: "movie", source: "radarr", processing_mode: "automatic", completed_at: "2026-09-20T10:00:00Z" }], errors: [] },
       "/api/downloads/clients": TORRENTS,
       "/api/downloads/global-stats": { download_speed: 2048, upload_speed: 0, connected: 1, total: 1, clients: [] },
       "/api/disk-space": [],
@@ -89,4 +89,27 @@ test("le tableau des torrents filtre, affiche les debits et ouvre l'inspecteur",
   await expect(drawer).toContainText("En pause");
   await expect(drawer).toContainText("Maison");
   await expect(drawer.getByRole("button", { name: "Reprendre" })).toBeVisible();
+});
+
+test("« Terminés » affiche l'historique, et la section Clients ne l'affiche jamais", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/downloads?view=queue&sub=completed");
+  const history = page.getByRole("tabpanel", { name: "Historique des téléchargements" });
+  await expect(history).toContainText("Film importé");
+  await expect(page.locator(".download-group")).toHaveCount(0);
+
+  await page.goto("/downloads?view=clients&sub=instances");
+  await expect(page.locator(".torrent-table")).toBeVisible();
+  await expect(page.getByRole("tabpanel", { name: "Historique des téléchargements" })).toHaveCount(0);
+});
+
+test("les cartes de la file forment une grille sur grand ecran", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/downloads?view=queue");
+  const grid = page.locator(".download-card-grid").first();
+  await expect(grid).toBeVisible();
+  const columns = await grid.evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" ").length);
+  const width = page.viewportSize().width;
+  if (width >= 1200) expect(columns).toBeGreaterThan(1);
+  else if (width < 500) expect(columns).toBe(1);
 });

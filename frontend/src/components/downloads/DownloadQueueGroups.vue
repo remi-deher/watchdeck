@@ -169,6 +169,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 <style scoped>
 .download-groups{display:grid;gap:var(--space-4)}
 .download-group{display:grid;gap:var(--space-3)}
+.download-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:var(--space-3)}
 .download-group-head{display:flex;align-items:center;justify-content:space-between;padding:0 2px}
 .download-group-head>div{display:flex;align-items:center;gap:var(--space-3)}
 .download-group-head svg{width:19px;color:var(--muted)}

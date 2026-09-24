@@ -148,7 +148,7 @@
 
         <div v-else-if="section==='clients'&&subview==='overview'" aria-hidden="true" />
 
-        <DownloadHistoryTable v-else :rows="filteredHistory" :errors="historyErrors" :has-more="hasMoreHistory" :loading="loadingHistory" @load-more="loadMoreHistory" />
+        <DownloadHistoryTable v-else-if="showHistory" :rows="filteredHistory" :errors="historyErrors" :has-more="hasMoreHistory" :loading="loadingHistory" @load-more="loadMoreHistory" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
 
@@ -233,7 +233,8 @@ const mediaType = computed({
 });
 const selectedClientId = computed(() => route.query.client ? String(route.query.client) : '');
 const selectedInstanceId = computed(() => route.query.instance ? String(route.query.instance) : '');
-const showHistory = computed(() => subview.value === 'completed' && section.value !== 'clients' && section.value !== 'queue');
+// « Terminés » dans la file : ce qui est fini vit dans l'historique, pas dans la file.
+const showHistory = computed(() => section.value === 'queue' && subview.value === 'completed');
 
 const MEDIA_TYPE_OPTIONS = [
   { value: '', label: 'Tous les médias' },
