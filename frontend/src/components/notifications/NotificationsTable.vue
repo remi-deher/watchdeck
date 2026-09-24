@@ -1,51 +1,43 @@
 <template>
-  <section class="panel table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des notifications, défilement horizontal">
-    <table>
-      <thead>
-        <tr>
-          <th><input v-if="tab==='pending'" type="checkbox" :checked="allSelected" aria-label="Selectionner toutes les notifications" @change="toggleAll"></th>
-          <th>Date</th>
-          <th>Evenement</th>
-          <th>Media</th>
-          <th>Destinataires</th>
-          <th>Etat</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in rows" :key="row.id">
-          <td class="card-select"><input v-if="tab==='pending'" type="checkbox" :checked="isSelected(row)" :aria-label="`Selectionner ${row.event_label||row.event}`" @change="toggle(row)"></td>
-          <td data-label="Date">{{ formatDate(row.sent_at||row.created_at) }}</td>
-          <td class="card-title">
-            <strong>{{ row.event_label||row.event }}</strong>
-            <small class="table-detail">{{ context(row) }}</small>
-          </td>
-          <td data-label="Media">{{ row.media_title||'-' }}</td>
-          <td data-label="Destinataires">{{ row.recipient||(row.recipients||[]).join(', ')||'-' }}</td>
-          <td data-label="Etat">
-            <UiBadge :tone="row.success===false||row.valid===false?'danger':tab==='pending'?'neutral':'success'">
-              {{ row.success===false?'Erreur':row.valid===false?'Invalide':tab==='pending'?'En attente':'Envoyee' }}
-            </UiBadge>
-            <small v-if="row.error_msg" class="table-detail error-text">{{ row.error_msg }}</small>
-          </td>
-          <td class="card-actions">
-            <UiButton v-if="tab==='history'" variant="ghost" icon-only title="Voir l'email" aria-label="Voir l'email" @click="$emit('preview',row)"><Eye/></UiButton>
-            <UiButton v-if="tab==='history'&&!row.success" variant="ghost" icon-only title="Renvoyer" aria-label="Renvoyer" @click="$emit('resend',row)"><Send/></UiButton>
-            <UiButton v-if="tab==='pending'" size="sm" title="Envoyer maintenant" :aria-label="`Envoyer ${row.event_label||row.event||'la notification'}`" @click="$emit('send',row)"><template #icon><Send/></template>Envoyer</UiButton>
-            <UiButton v-if="tab==='pending'" variant="ghost" icon-only title="Marquer comme traitee (sans envoyer)" aria-label="Marquer comme traitee" @click="$emit('markHandled',row)"><CheckCheck/></UiButton>
-            <UiButton v-if="tab==='pending'" variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="$emit('deleteOne',row)"><Trash2/></UiButton>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <UiEmptyState v-if="!loading&&!rows.length" message="Aucune notification." />
-  </section>
+  <UiDataTable
+    class="panel"
+    label="Tableau des notifications"
+    :rows="rows"
+    :columns="columns"
+    :row-key="(row: NotificationRow) => row.id"
+    :row-label="(row: NotificationRow) => row.event_label || row.event || 'la notification'"
+    :selectable="tab === 'pending'"
+    v-model:selection="selectedIds"
+  >
+    <template #empty><UiEmptyState v-if="!loading" message="Aucune notification." /></template>
+    <template #cell-date="{ row }">{{ formatDate(row.sent_at||row.created_at) }}</template>
+    <template #cell-event="{ row }">
+      <strong>{{ row.event_label||row.event }}</strong>
+      <small class="table-detail">{{ context(row) }}</small>
+    </template>
+    <template #cell-media="{ row }">{{ row.media_title||'-' }}</template>
+    <template #cell-recipients="{ row }">{{ row.recipient||(row.recipients||[]).join(', ')||'-' }}</template>
+    <template #cell-state="{ row }">
+      <UiBadge :tone="row.success===false||row.valid===false?'danger':tab==='pending'?'neutral':'success'">
+        {{ row.success===false?'Erreur':row.valid===false?'Invalide':tab==='pending'?'En attente':'Envoyee' }}
+      </UiBadge>
+      <small v-if="row.error_msg" class="table-detail error-text">{{ row.error_msg }}</small>
+    </template>
+    <template #cell-actions="{ row }">
+      <UiButton v-if="tab==='history'" variant="ghost" icon-only title="Voir l'email" aria-label="Voir l'email" @click="$emit('preview',row)"><Eye/></UiButton>
+      <UiButton v-if="tab==='history'&&!row.success" variant="ghost" icon-only title="Renvoyer" aria-label="Renvoyer" @click="$emit('resend',row)"><Send/></UiButton>
+      <UiButton v-if="tab==='pending'" size="sm" title="Envoyer maintenant" :aria-label="`Envoyer ${row.event_label||row.event||'la notification'}`" @click="$emit('send',row)"><template #icon><Send/></template>Envoyer</UiButton>
+      <UiButton v-if="tab==='pending'" variant="ghost" icon-only title="Marquer comme traitee (sans envoyer)" aria-label="Marquer comme traitee" @click="$emit('markHandled',row)"><CheckCheck/></UiButton>
+      <UiButton v-if="tab==='pending'" variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="$emit('deleteOne',row)"><Trash2/></UiButton>
+    </template>
+  </UiDataTable>
 </template>
 
 <script setup lang="ts">
 import { formatDateTimeShort as formatDate } from '@/utils/format';
 import { CheckCheck, Eye, Send, Trash2 } from '@lucide/vue';
-import { useTableSelection } from '@/composables/useTableSelection';
+import { ref, watch } from 'vue';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
@@ -87,7 +79,22 @@ defineEmits<{
   (e: 'preview', row: NotificationRow): void;
 }>();
 
-const { selectedIds, allSelected, isSelected, toggle, toggleAll, clear } = useTableSelection(() => props.rows);
+const columns: UiColumn<NotificationRow>[] = [
+  { key: 'date', label: 'Date' },
+  { key: 'event', label: 'Evenement', card: 'title' },
+  { key: 'media', label: 'Media' },
+  { key: 'recipients', label: 'Destinataires' },
+  { key: 'state', label: 'Etat' },
+  { key: 'actions', label: 'Actions', card: 'actions' },
+];
+const selectedIds = ref<Array<string | number>>([]);
+function clear(): void { selectedIds.value = []; }
+// Changer d'onglet, ou une ligne qui disparait, ne laisse pas de selection fantome.
+watch(() => [props.rows, props.tab], () => {
+  const presents = new Set(props.rows.map((row) => row.id));
+  if (props.tab !== 'pending') selectedIds.value = [];
+  else if (selectedIds.value.some((id) => !presents.has(id))) selectedIds.value = selectedIds.value.filter((id) => presents.has(id));
+});
 
 const SCOPE_LABELS: Record<string, string> = {
   episode: 'Épisode',

@@ -272,6 +272,11 @@ input[type="checkbox"]:focus-visible {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
+    /* Les largeurs de colonne (fixees ou redimensionnees sur ordinateur) n'ont pas de sens
+       dans une carte : elles coupaient les valeurs et ecrasaient les barres. */
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none;
     padding: 6px 0;
     border: 0;
     text-align: right;
@@ -290,6 +295,12 @@ input[type="checkbox"]:focus-visible {
     text-align: left;
   }
 
+  /* Colonnes que la carte n'affiche pas (`card: 'hidden'` dans UiDataTable) : utiles en
+     tableau, elles alourdiraient une carte de telephone. */
+  .table-cards td.card-hidden {
+    display: none;
+  }
+
   /* Cellules vides (colonnes de checkbox / actions sans contenu) masquées */
   .table-cards td:empty {
     display: none;
@@ -297,6 +308,10 @@ input[type="checkbox"]:focus-visible {
 
   /* Variante « riche » (Utilisateurs / Notifications) : 1re cellule = entête de carte */
   .table-cards.rich td.card-title {
+    /* Le titre et sa ligne secondaire s'empilent, et le titre passe a la ligne. */
+    display: grid;
+    gap: 2px;
+    white-space: normal;
     justify-content: flex-start;
     text-align: left;
     padding-top: 0;

@@ -38,13 +38,13 @@ describe('TorrentClientsTable', () => {
   it('trie les torrents en cliquant sur les colonnes', async () => {
     const wrapper = factory();
     expect(wrapper.findAll('.torrent-title').map(node => node.text())).toEqual(['Alpha', 'Zulu']);
-    await wrapper.findAll('th.p-datatable-sortable-column')[0].trigger('click');
+    await wrapper.findAll('thead .ui-data-table__sort')[0].trigger('click');
     expect(wrapper.findAll('.torrent-title').map(node => node.text())).toEqual(['Zulu', 'Alpha']);
   });
 
   it('applique une action à toute la sélection', async () => {
     const wrapper = factory();
-    await wrapper.find('thead input[type="checkbox"]').setValue(true);
+    await wrapper.find('thead [role="checkbox"]').trigger('click');
     await nextTick();
     expect(wrapper.text()).toContain('2 sélectionné(s)');
     await wrapper.find('.bulk-toolbar button').trigger('click');
@@ -144,16 +144,18 @@ describe('TorrentClientsTable', () => {
 
   it('supporte le drag and drop direct sur th et le redimensionnement', async () => {
     const wrapper = factory();
-    const headers = wrapper.findAll('.th-content');
+    const headers = wrapper.findAll('thead th[draggable="true"]');
     await headers[0].trigger('dragstart');
     await headers[1].trigger('drop');
     await nextTick();
     expect(JSON.parse(localStorage.getItem('watchdeck:torrent-table-columns:all')).order.slice(0, 2)).toEqual(['status', 'title']);
 
-    const resizer = wrapper.findAll('.col-resize-handle')[1];
-    resizer.element.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, bubbles: true }));
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 150, bubbles: true }));
-    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    // Apres l'echange, le titre est la deuxieme colonne ; TanStack redimensionne a la souris
+    // (et au doigt), pas par les evenements de pointeur.
+    const resizer = wrapper.findAll('.ui-data-table__resize')[1];
+    resizer.element.dispatchEvent(new MouseEvent('mousedown', { clientX: 100, bubbles: true }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 150, bubbles: true }));
+    document.dispatchEvent(new MouseEvent('mouseup', { clientX: 150, bubbles: true }));
     await nextTick();
     expect(JSON.parse(localStorage.getItem('watchdeck:torrent-table-columns:all')).widths.title).toBe(350);
   });

@@ -57,21 +57,26 @@
 
     <section v-if="trackerRows.length" class="tracker-panel">
       <header><h3>Répartition par tracker</h3><span>{{ trackerRows.length }} tracker(s)</span></header>
-      <div class="tracker-scroll">
-        <table>
-          <thead><tr><th>Tracker</th><th>Torrents</th><th>Envoi</th><th>Téléchargement</th><th>Ratio</th><th>Taille</th></tr></thead>
-          <tbody>
-            <tr v-for="row in trackerRows" :key="row.name">
-              <td>{{ row.name }}</td><td>{{ row.count }}</td><td>{{ formatSpeed(row.uploadSpeed) }}</td><td>{{ formatSpeed(row.downloadSpeed) }}</td><td>{{ formatRatio(row.ratioSum / row.count) }}</td><td>{{ formatBytes(row.size) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <UiDataTable class="tracker-scroll" label="Répartition par tracker" :rows="trackerRows" :columns="TRACKER_COLUMNS" :row-key="(row: any) => row.name">
+        <template #cell-upload="{ row }">{{ formatSpeed(row.uploadSpeed) }}</template>
+        <template #cell-download="{ row }">{{ formatSpeed(row.downloadSpeed) }}</template>
+        <template #cell-ratio="{ row }">{{ formatRatio(row.ratioSum / row.count) }}</template>
+        <template #cell-size="{ row }">{{ formatBytes(row.size) }}</template>
+      </UiDataTable>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+const TRACKER_COLUMNS: UiColumn[] = [
+  { key: 'name', label: 'Tracker', card: 'title', sortable: true },
+  { key: 'count', label: 'Torrents', sortable: true },
+  { key: 'upload', label: 'Envoi', sortable: true, sortValue: (row: any) => row.uploadSpeed },
+  { key: 'download', label: 'Téléchargement', sortable: true, sortValue: (row: any) => row.downloadSpeed },
+  { key: 'ratio', label: 'Ratio', sortable: true, sortValue: (row: any) => row.ratioSum / row.count },
+  { key: 'size', label: 'Taille', sortable: true },
+];
 import { computed } from 'vue';
 import { Activity, AlertTriangle, ChevronRight, Download, ExternalLink, HardDrive, Server, Upload } from '@lucide/vue';
 import MetricCard from '@/components/ui/MetricCard.vue';

@@ -13,36 +13,27 @@
       Plusieurs fournisseurs peuvent être actifs en parallèle : en cas d'échec, l'envoi bascule
       automatiquement sur le suivant, par ordre de priorité (haut de liste = essayé en premier).
     </small>
-    <div v-if="providers.length" class="table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des fournisseurs d'envoi d'email, défilement horizontal">
-      <table>
-        <thead>
-          <tr><th></th><th>Nom</th><th>Type</th><th>Statut</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="(provider, index) in providers" :key="provider.id">
-            <td class="actions">
-              <button class="icon-button" title="Monter" aria-label="Monter" :disabled="index===0" @click="move(index,-1)"><ChevronUp/></button>
-              <button class="icon-button" title="Descendre" aria-label="Descendre" :disabled="index===providers.length-1" @click="move(index,1)"><ChevronDown/></button>
-            </td>
-            <td class="card-title"><strong>{{ provider.name }}</strong></td>
-            <td data-label="Type"><span class="badge">{{ typeLabel(provider.provider_type) }}</span></td>
-            <td data-label="Statut">
-              <span class="badge" :class="provider.enabled?'available':'failed'">{{ provider.enabled?'Actif':'Inactif' }}</span>
-              <span v-if="provider.provider_type==='smtp_oauth2'" class="badge" :class="provider.oauth_connected?'available':'failed'">
-                {{ provider.oauth_connected?'Microsoft connecté':'Microsoft non connecté' }}
-              </span>
-            </td>
-            <td class="actions card-actions">
-              <button class="icon-button" title="Tester" aria-label="Tester" @click="testProvider(provider)"><PlugZap/></button>
-              <button class="icon-button" title="Modifier" aria-label="Modifier" @click="openModal(provider)"><Pencil/></button>
-              <button class="icon-button" :title="provider.enabled?'Desactiver':'Activer'" :aria-label="provider.enabled?'Desactiver':'Activer'" @click="toggle(provider)"><Power/></button>
-              <button class="icon-button danger" title="Supprimer" aria-label="Supprimer" @click="remove(provider)"><Trash2/></button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <p v-else class="empty">Aucun fournisseur configuré — les notifications par email ne peuvent pas partir.</p>
+    <UiDataTable label="Fournisseurs d'envoi d'email" :rows="providers" :columns="PROVIDER_COLUMNS" :row-key="(p: any) => p.id">
+      <template #empty><p class="empty">Aucun fournisseur configuré — les notifications par email ne peuvent pas partir.</p></template>
+      <template #cell-order="{ row: provider, index }">
+        <button class="icon-button" title="Monter" aria-label="Monter" :disabled="index===0" @click="move(Number(index),-1)"><ChevronUp/></button>
+        <button class="icon-button" title="Descendre" aria-label="Descendre" :disabled="index===providers.length-1" @click="move(Number(index),1)"><ChevronDown/></button>
+      </template>
+      <template #cell-name="{ row: provider }"><strong>{{ provider.name }}</strong></template>
+      <template #cell-type="{ row: provider }"><span class="badge">{{ typeLabel(provider.provider_type) }}</span></template>
+      <template #cell-status="{ row: provider }">
+        <span class="badge" :class="provider.enabled?'available':'failed'">{{ provider.enabled?'Actif':'Inactif' }}</span>
+        <span v-if="provider.provider_type==='smtp_oauth2'" class="badge" :class="provider.oauth_connected?'available':'failed'">
+          {{ provider.oauth_connected?'Microsoft connecté':'Microsoft non connecté' }}
+        </span>
+      </template>
+      <template #cell-actions="{ row: provider }">
+        <button class="icon-button" title="Tester" aria-label="Tester" @click="testProvider(provider)"><PlugZap/></button>
+        <button class="icon-button" title="Modifier" aria-label="Modifier" @click="openModal(provider)"><Pencil/></button>
+        <button class="icon-button" :title="provider.enabled?'Desactiver':'Activer'" :aria-label="provider.enabled?'Desactiver':'Activer'" @click="toggle(provider)"><Power/></button>
+        <button class="icon-button danger" title="Supprimer" aria-label="Supprimer" @click="remove(provider)"><Trash2/></button>
+      </template>
+    </UiDataTable>
   </SettingsCard>
 
   <ModalShell
@@ -114,6 +105,15 @@
 </template>
 
 <script setup lang="ts">
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+// L'ordre compte : c'est celui dans lequel les fournisseurs sont essayes.
+const PROVIDER_COLUMNS: UiColumn[] = [
+  { key: 'order', label: 'Ordre', className: 'actions' },
+  { key: 'name', label: 'Nom', card: 'title' },
+  { key: 'type', label: 'Type' },
+  { key: 'status', label: 'Statut' },
+  { key: 'actions', label: 'Actions', card: 'actions', className: 'actions' },
+];
 import ModalShell from '@/components/ui/ModalShell.vue';
 import { computed, onMounted } from 'vue';
 import { useMutation } from '@tanstack/vue-query';
