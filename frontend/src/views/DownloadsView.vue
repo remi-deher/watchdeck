@@ -120,161 +120,25 @@
           <UiButton variant="primary" to="/settings/services/integrations"><template #icon><Plus/></template>Ajouter un client</UiButton>
         </section>
 
-        <!-- Vue file active (Radarr/Sonarr/Overview) -->
-        <section v-if="section!=='clients'&&section!=='missing'&&!showHistory&&!sourceNeedsConfiguration" class="download-groups" role="tabpanel">
-          <section v-for="group in queueGroups" :key="group.key" class="download-group" :class="group.key">
-            <header class="download-group-head"><div><component :is="group.icon"/><div><h2>{{ group.title }}</h2><p>{{ group.description }}</p></div></div><span>{{ group.items.length }}</span></header>
-            <div class="download-card-grid">
-              <article v-for="row in group.items" :key="rowKey(row)" class="download-card rich-card">
-                <div class="card-cover-col">
-                  <div class="card-cover-wrapper">
-                    <img
-                      v-if="row.poster_url && !hasPosterError(row)"
-                      :src="proxyUrl(row.poster_url, { width: 200 }) ?? undefined"
-                      :alt="row.title"
-                      class="card-cover-img"
-                      loading="lazy"
-                      @error="onPosterError(row)"
-                    />
-                    <div class="card-cover-placeholder">
-                      <Film v-if="row.arr_type==='radarr'" />
-                      <Tv v-else-if="row.arr_type==='sonarr'" />
-                      <Download v-else />
-                    </div>
-                  </div>
-                </div>
-                <div class="card-content-col">
-                  <header>
-                    <div>
-                      <strong>{{ row.title }}</strong>
-                      <div class="card-sub-badges">
-                        <small>{{ row.instance||row.download_client||'Téléchargement direct' }}</small>
-                        <span v-if="extractQuality(row)" class="badge quality-badge">{{ extractQuality(row) }}</span>
-                      </div>
-                    </div>
-                    <span class="badge" :class="group.key==='intervention'?'failed':'pending'">{{ statusLabel(row) }}</span>
-                  </header>
-                  <div class="download-progress">
-                    <div><span>Progression</span><strong>{{ Math.round(row.progress||0) }}%</strong></div>
-                    <UiProgress :value="row.progress||0" :label="`Progression de ${row.title}`" />
-                    <div class="progress-details">
-                      <small>{{ row.timeleft||'Temps restant indisponible' }}</small>
-                      <small v-if="row.sizeleft_label">{{ row.sizeleft_label }}</small>
-                    </div>
-                  </div>
-                  <div v-if="row.waiting_reason||row.error" class="download-callout" :class="{error:row.error}">{{ row.error||row.waiting_reason }}</div>
-                  <div v-if="row.origin_label||row.operational_status_label" class="download-meta">{{ row.origin_label }}<template v-if="row.operational_status_label"> · {{ row.operational_status_label }}</template></div>
-                  <footer>
-                    <UiButton v-if="queueDetailPath(row)" size="sm" :to="queueDetailPath(row) ?? '/'">Voir la fiche</UiButton>
-                    <UiButton v-if="requiresIntervention(row)" size="sm" @click="openManual(row)"><template #icon><Link/></template>Associer / importer</UiButton>
-                    <UiButton v-if="canAct(row)" size="sm" :disabled="actingKeys.has(rowKey(row))" @click="queueAction(row,true,true)"><template #icon><RotateCcw/></template>Relancer</UiButton>
-                    <UiButton v-if="canAct(row)" variant="danger" size="sm" :disabled="actingKeys.has(rowKey(row))" @click="queueAction(row,false,false)"><template #icon><X/></template>Retirer</UiButton>
-                  </footer>
-                </div>
-              </article>
-            </div>
-          </section>
+        <DownloadQueueGroups
+          v-if="section!=='clients'&&section!=='missing'&&!showHistory&&!sourceNeedsConfiguration"
+          :groups="queueGroups"
+          :history="filteredHistory"
+          :show-recent="subview==='all'"
+          :empty-message="!filteredQueue.length && subview!=='all' ? 'Aucun téléchargement actif.' : ''"
+          :loading="loading"
+          :acting-keys="actingKeys"
+          @manual="openManual"
+          @action="queueAction"
+        />
 
-          <!-- Si aucun téléchargement en cours dans la sous-vue 'all', afficher les derniers éléments terminés avec leurs posters -->
-          <div v-if="subview==='all' && !queueGroups.length && !loading" class="recent-completed-section">
-            <HorizontalRail
-              v-if="filteredHistory.length"
-              aria-label="Derniers éléments terminés"
-              variant="poster"
-            >
-              <template #header>
-                <div class="section-subtitle">
-                  <CheckCircle2 />
-                  <h3>Derniers éléments terminés</h3>
-                </div>
-              </template>
-
-              <MediaCardShell
-                v-for="(row, index) in filteredHistory.slice(0, 10)"
-                :key="row.id"
-                :has-action="Boolean(queueDetailPath(row))"
-                action-padding="44px"
-                elevate-on-hover
-                animated
-                bordered
-                :style="{ '--card-index': index }"
-              >
-                <template #default="{ revealed, reveal }">
-                  <component
-                    :is="queueDetailPath(row) ? 'RouterLink' : 'div'"
-                    :to="queueDetailPath(row)"
-                    class="poster-link"
-                    :aria-label="`${row.title}${row.year ? ' (' + row.year + ')' : ''} - ${historyModeLabel(row)}`"
-                    @click="handleCompletedCardClick($event, row, revealed, reveal)"
-                  >
-                    <MediaPoster
-                      :poster-url="row.poster_url && !hasPosterError(row) ? proxyUrl(row.poster_url, { width: 320 }) : null"
-                      :alt="`Affiche de ${row.title}`"
-                      @error="onPosterError(row)"
-                    >
-                      <template #badges>
-                        <div class="poster-badges completed-badge-group">
-                          <span class="badge" :class="historyModeClass(row)">{{ historyModeLabel(row) }}</span>
-                          <span v-if="row.instance_name || row.source" class="badge badge-source">{{ row.instance_name || row.source }}</span>
-                        </div>
-                      </template>
-                      <template #overlay>
-                        <div class="poster-overlay completed-card-overlay">
-                          <div class="poster-copy">
-                            <div class="poster-meta">
-                              <span v-if="row.year" class="meta-year">{{ row.year }}</span>
-                              <span>{{ mediaTypeLabel(row.media_type) }}</span>
-                              <span v-if="row.completed_at" class="meta-date">{{ formatDate(row.completed_at) }}</span>
-                            </div>
-                            <strong class="completed-title">{{ row.title }}</strong>
-                          </div>
-                        </div>
-                      </template>
-                    </MediaPoster>
-                  </component>
-                </template>
-
-                <template v-if="queueDetailPath(row)" #action>
-                  <RouterLink
-                    :to="queueDetailPath(row) ?? '/'"
-                    class="poster-action nav-action"
-                    @click.stop
-                  >
-                    Voir la fiche
-                  </RouterLink>
-                </template>
-              </MediaCardShell>
-            </HorizontalRail>
-            <p v-else class="empty">Aucun téléchargement récent pour cette vue.</p>
-          </div>
-          <p v-else-if="!loading&&!filteredQueue.length&&subview!=='all'" class="empty">Aucun téléchargement actif.</p>
-        </section>
-
-        <!-- Vue Médias manquants / recherchés pour Radarr / Sonarr -->
-        <section v-else-if="section==='missing'" class="panel wanted-section" role="tabpanel">
-          <div class="panel-head">
-            <div>
-              <h3>Éléments manquants</h3>
-              <p>Cliquez sur un élément pour ouvrir sa fiche dans Bibliothèque et gérer son suivi.</p>
-            </div>
-            <span class="badge">{{ missingItemCount }} item(s)</span>
-          </div>
-          <div v-if="wantedItems.length" class="media-grid missing-items-grid" aria-label="Éléments manquants">
-            <MissingSeriesCard
-              v-for="series in mediaType === 'radarr' ? [] : missingSeriesGroups"
-              :key="`series-${series.instance_id}-${series.arr_id}`"
-              :series="series"
-              @error="setSourceError('wanted', $event)"
-            />
-            <LibraryCard
-              v-for="item in mediaType === 'sonarr' ? [] : movieWantedItems"
-              :key="`wanted-${item.instance_id}-${item.id}`"
-              :item="wantedLibraryItem(item)"
-              @error="setSourceError('wanted', $event)"
-            />
-          </div>
-          <p v-else-if="!loadingWanted" class="empty">Aucun élément manquant signalé.</p>
-        </section>
+        <MissingItemsSection
+          v-else-if="section==='missing'"
+          :items="wantedItems"
+          :media-type="mediaType"
+          :loading="loadingWanted"
+          @error="setSourceError('wanted', $event)"
+        />
 
         <section v-else-if="section==='clients'&&subview==='instances'&&!sourceNeedsConfiguration" class="client-table-main" role="tabpanel">
           <UiFeedback v-for="row in clientErrors" :key="row.client_id" type="error" :title="row.client_name" :message="row.client_error"/>
@@ -284,41 +148,7 @@
 
         <div v-else-if="section==='clients'&&subview==='overview'" aria-hidden="true" />
 
-        <!-- Vue Historique avec jaquettes posters -->
-        <section v-else class="history-section" role="tabpanel" aria-label="Historique des téléchargements">
-          <UiFeedback v-for="row in historyErrors" :key="row.instance_id" type="error" :title="row.instance_name" message="Historique temporairement indisponible pour cette instance."/>
-          <UiDataTable class="panel" label="Historique des téléchargements" :rows="filteredHistory" :columns="HISTORY_COLUMNS" :row-key="(row: any) => row.id">
-            <template #empty><p class="empty">Aucun téléchargement terminé.</p></template>
-            <template #cell-title="{ row }">
-              <div class="history-item-wrap">
-                <div class="history-poster-thumb">
-                  <img
-                    v-if="row.poster_url && !hasPosterError(row)"
-                    :src="proxyUrl(row.poster_url, { width: 120 }) ?? undefined"
-                    :alt="row.title"
-                    class="history-poster-img"
-                    loading="lazy"
-                    @error="onPosterError(row)"
-                  />
-                  <div v-else class="history-poster-fallback">
-                    <Film v-if="row.media_type==='movie'" />
-                    <Tv v-else />
-                  </div>
-                </div>
-                <div>
-                  <strong>{{ row.title }}</strong>
-                  <small v-if="row.year">{{ row.year }}</small>
-                </div>
-              </div>
-            </template>
-            <template #cell-type="{ row }">{{ mediaTypeLabel(row.media_type) }}</template>
-            <template #cell-mode="{ row }"><span class="badge" :class="historyModeClass(row)">{{ historyModeLabel(row) }}</span></template>
-            <template #cell-source="{ row }"><span class="badge">{{ row.source }}</span></template>
-            <template #cell-instance="{ row }">{{ row.instance_name||'-' }}</template>
-            <template #cell-completed="{ row }">{{ formatDate(row.completed_at) }}</template>
-            <template #after><LoadMore :has-more="hasMoreHistory" :loading="loadingHistory" @load="loadMoreHistory"/></template>
-          </UiDataTable>
-        </section>
+        <DownloadHistoryTable v-else :rows="filteredHistory" :errors="historyErrors" :has-more="hasMoreHistory" :loading="loadingHistory" @load-more="loadMoreHistory" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
 
@@ -329,65 +159,42 @@
 </template>
 
 <script setup lang="ts">
-import UiProgress from '@/components/ui/UiProgress.vue';
-import UiChipGroup from '@/components/ui/UiChipGroup.vue';
-import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
-const HISTORY_COLUMNS: UiColumn[] = [
-  { key: 'title', label: 'Titre', card: 'title' },
-  { key: 'type', label: 'Type' },
-  { key: 'mode', label: 'Traitement' },
-  { key: 'source', label: 'Source' },
-  { key: 'instance', label: 'Instance' },
-  { key: 'completed', label: 'Terminé' },
-];
-import FilterSidebar from '@/components/ui/FilterSidebar.vue';
-import FilterGroup from '@/components/ui/FilterGroup.vue';
-import LoadMore from '@/components/ui/LoadMore.vue';
-import UiButton from '@/components/ui/UiButton.vue';
-import UiEmptyState from '@/components/ui/UiEmptyState.vue';
-import { mediaTypeLabel } from '@/utils/labels';
-import { formatDateTime as formatDate } from '@/utils/format';
-import { computed,defineAsyncComponent,onMounted,ref,shallowRef,watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { useRoute,useRouter } from 'vue-router';
-import { AlertTriangle,CheckCircle2,Clock3,Columns,Download,Film,Link,Plus,RotateCcw,Server,SlidersHorizontal,Tv,X } from '@lucide/vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useMediaQuery } from '@vueuse/core';
+import { AlertTriangle, Clock3, Columns, Download, Plus, Server } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
+import { useDownloadHistory } from '@/composables/useDownloadHistory';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 import { readPreference, usePreference, writePreference } from '@/composables/usePreference';
-import { useMediaQuery } from '@vueuse/core';
-import { proxyUrl } from '@/utils/mediaImage';
-import {
-  canAct,
-  isUnmatched,
-  needsEpisodeImport,
-  queueCounts,
-  queueDetailPath,
-  requiresIntervention,
-  rowKey,
-  statusKey,
-  statusLabel,
-} from '@/downloads/queueRules';
-import UnmatchedImportsBanner from '@/components/downloads/UnmatchedImportsBanner.vue';
-import ManualImportModal from '@/components/downloads/ManualImportModal.vue';
-import AddTorrentModal from '@/components/downloads/AddTorrentModal.vue';
-import TorrentSidebarFilters from '@/components/downloads/TorrentSidebarFilters.vue';
-import TorrentOverviewDashboard from '@/components/downloads/TorrentOverviewDashboard.vue';
-import DownloadsOverview from '@/components/downloads/DownloadsOverview.vue';
-import ArrDownloadsLayout from '@/components/downloads/ArrDownloadsLayout.vue';
-import LibraryCard from '@/components/library/LibraryCard.vue';
-import MissingSeriesCard from '@/components/downloads/MissingSeriesCard.vue';
-import HorizontalRail from '@/components/ui/HorizontalRail.vue';
-import MediaCardShell from '@/components/media/MediaCardShell.vue';
-import MediaPoster from '@/components/media/MediaPoster.vue';
+import { filterClients } from '@/downloads/clientFilters';
+import { isUnmatched, needsEpisodeImport, requiresIntervention, rowKey, statusKey } from '@/downloads/queueRules';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import FilterSidebar from '@/components/ui/FilterSidebar.vue';
+import UiButton from '@/components/ui/UiButton.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import AddTorrentModal from '@/components/downloads/AddTorrentModal.vue';
+import ArrDownloadsLayout from '@/components/downloads/ArrDownloadsLayout.vue';
+import DownloadHistoryTable from '@/components/downloads/DownloadHistoryTable.vue';
+import DownloadQueueGroups, { type QueueGroup } from '@/components/downloads/DownloadQueueGroups.vue';
+import DownloadsOverview from '@/components/downloads/DownloadsOverview.vue';
+import ManualImportModal from '@/components/downloads/ManualImportModal.vue';
+import MissingItemsSection from '@/components/downloads/MissingItemsSection.vue';
+import TorrentOverviewDashboard from '@/components/downloads/TorrentOverviewDashboard.vue';
+import TorrentSidebarFilters from '@/components/downloads/TorrentSidebarFilters.vue';
+import UnmatchedImportsBanner from '@/components/downloads/UnmatchedImportsBanner.vue';
 
 // La table des torrents (TanStack, inspecteur, menus) n'est utile que sur l'onglet
 // Clients, la charger a la demande garde l'apercu et la file d'attente legers.
-const TorrentClientsTable=defineAsyncComponent(()=>import('@/components/downloads/TorrentClientsTable.vue'));
-const route=useRoute(),router=useRouter();
-const history=shallowRef<any[]>([]),diskSpaceVolumes=ref<any[]>([]),failedPosterIds=ref<Set<string>>(new Set());
+const TorrentClientsTable = defineAsyncComponent(() => import('@/components/downloads/TorrentClientsTable.vue'));
+
+const route = useRoute();
+const router = useRouter();
+
 /**
  * Une reponse mal formee ne doit pas se propager en liste.
  *
@@ -397,124 +204,197 @@ const history=shallowRef<any[]>([]),diskSpaceVolumes=ref<any[]>([]),failedPoster
  * c'est le shell entier qui reste a moitie rendu, sans rien a l'ecran pour l'expliquer.
  */
 function asList<T>(value: unknown): T[] { return Array.isArray(value) ? (value as T[]) : []; }
-const prowlarrStats=ref<Record<string, any>>({}),clientOverviewStats=ref<Record<string, any>>({});
-const { arrInstances:configuredArr,downloadClients:configuredClients,loading:configurationsLoading,error:configurationError,load:loadDownloadSources }=useDownloadSources();
-const query=ref(''),instance=ref(''),status=ref<string | string[]>(''),statusFilter=ref(''),clientCategory=ref<string | string[]>(''),clientOwnership=ref(''),clientTracker=ref<string | string[]>('');
-const clientTable=ref<any>(null),showAddModal=ref(false),droppedFile=ref<File | null>(null);
+
+/* ---- Section, sous-vue et filtres portes par l'adresse ---- */
+
+/* Quatre sections, plus aucune rangee d'onglets.
+ *
+ * « Films » et « Series » etaient deux fois la meme page au type de media pres, et
+ * « File d'attente » etait deja cette page sans le filtre : trois sections pour une
+ * seule liste. Le type de media est devenu un filtre, aux cotes de l'etat, de
+ * l'instance et du client -- tous au meme endroit, dans le tiroir, au lieu d'etre
+ * repartis entre une rangee d'onglets et un tiroir a moitie vide selon la page.
+ */
+const section = computed((): string => ['queue', 'missing', 'clients'].includes(String(route.query.view)) ? String(route.query.view) : 'overview');
+const VALID_SUBVIEWS: Record<string, string[]> = {
+  overview: ['all'],
+  queue: ['all', 'active', 'waiting', 'completed', 'errors', 'intervention'],
+  missing: ['all'],
+  clients: ['overview', 'instances'],
+};
+const subview = computed((): string => {
+  if (VALID_SUBVIEWS[section.value].includes(String(route.query.sub))) return String(route.query.sub);
+  return section.value === 'clients' ? 'overview' : 'all';
+});
+/** Filtre de type de media : remplace les anciennes sections Films et Series. */
+const mediaType = computed({
+  get: (): string => ['radarr', 'sonarr'].includes(String(route.query.type)) ? String(route.query.type) : '',
+  set: (value: string) => { router.replace({ query: { ...route.query, type: value || undefined } }); },
+});
+const selectedClientId = computed(() => route.query.client ? String(route.query.client) : '');
+const selectedInstanceId = computed(() => route.query.instance ? String(route.query.instance) : '');
+const showHistory = computed(() => subview.value === 'completed' && section.value !== 'clients' && section.value !== 'queue');
+
+const MEDIA_TYPE_OPTIONS = [
+  { value: '', label: 'Tous les médias' },
+  { value: 'radarr', label: 'Films' },
+  { value: 'sonarr', label: 'Séries' },
+];
+const QUEUE_STATE_OPTIONS = [
+  { value: 'all', label: 'Tout' },
+  { value: 'active', label: 'En cours' },
+  { value: 'waiting', label: 'En attente' },
+  { value: 'intervention', label: 'Interventions' },
+  { value: 'completed', label: 'Terminés' },
+  { value: 'errors', label: 'Erreurs' },
+];
+
+function selectSubview(value: string) {
+  statusFilter.value = '';
+  router.replace({ path: '/downloads', query: { ...route.query, view: section.value, sub: value } });
+}
+/** Restreint la file a une instance ; chaine vide pour les reprendre toutes. */
+function selectInstanceId(value: string) {
+  const next: Record<string, any> = { ...route.query, view: section.value };
+  if (value) next.instance = value; else delete next.instance;
+  router.replace({ path: '/downloads', query: next });
+}
+function selectClientDashboard(client: any) {
+  router.replace({ path: '/downloads', query: { view: 'clients', sub: 'instances', client: client.id } });
+}
+function openUnmatched() {
+  router.replace({ path: '/downloads', query: { view: 'queue', sub: 'intervention' } });
+  statusFilter.value = 'unmatched';
+}
+function setClientFilter(name: string) {
+  const found = configuredClients.value.find((c: any) => c.name === name);
+  const q: Record<string, any> = { ...route.query };
+  if (found) q.client = String(found.id); else delete q.client;
+  router.replace({ path: '/downloads', query: q });
+}
+
+/* ---- Filtres locaux ---- */
+
+const query = ref('');
+const instance = ref('');
+const status = ref<string | string[]>('');
+const statusFilter = ref('');
+const clientCategory = ref<string | string[]>('');
+const clientOwnership = ref('');
+const clientTracker = ref<string | string[]>('');
+
 /* En dessous de 900px, `FilterSidebar` n'est plus une colonne mais une feuille modale
    (meme seuil que le composant). Rejouer telle quelle la preference « colonne ouverte »
    du bureau ouvrait donc la page derriere une modale que personne n'avait demandee --
    vide de surcroit sur l'onglet « Vue d'ensemble », qui n'a pas de filtres -- en
    verrouillant au passage le defilement du corps. */
-const filtersAsModal=useMediaQuery('(max-width: 900px)');
-const filterSidebarCollapsed=usePreference('torrent-filter-sidebar-collapsed',false,{legacyKeys:['watchdeck:torrent-filter-sidebar-collapsed']});
-const filtersOpen=ref(!filtersAsModal.value && !filterSidebarCollapsed.value);
-watch(filtersAsModal, isModal => { if (isModal) filtersOpen.value=false; });
-
-function handleCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () => void): void {
-  if (queueDetailPath(row) && !revealed) {
-    e.preventDefault();
-    reveal();
-  }
-}
-
-function handleDroppedFile(file: File): void {
-  droppedFile.value = file;
-  showAddModal.value = true;
-}
+const filtersAsModal = useMediaQuery('(max-width: 900px)');
+const filterSidebarCollapsed = usePreference('torrent-filter-sidebar-collapsed', false, { legacyKeys: ['watchdeck:torrent-filter-sidebar-collapsed'] });
+const filtersOpen = ref(!filtersAsModal.value && !filterSidebarCollapsed.value);
+watch(filtersAsModal, isModal => { if (isModal) filtersOpen.value = false; });
 watch(filtersOpen, v => {
   // Fermer la feuille modale sur telephone ne doit pas replier la colonne du bureau :
   // ce sont deux gestes differents pour deux surfaces differentes.
   if (filtersAsModal.value) return;
-  filterSidebarCollapsed.value=!v;
+  filterSidebarCollapsed.value = !v;
 });
 
-function hasPosterError(row: any): boolean {
-  return failedPosterIds.value.has(posterKey(row));
+function resetFilters() {
+  query.value = ''; instance.value = ''; status.value = ''; statusFilter.value = '';
+  clientCategory.value = ''; clientOwnership.value = ''; clientTracker.value = '';
 }
-
-function onPosterError(row: any): void {
-  failedPosterIds.value = new Set([...failedPosterIds.value, posterKey(row)]);
+function resetClientFilters() {
+  query.value = ''; status.value = []; clientCategory.value = []; clientOwnership.value = ''; clientTracker.value = [];
 }
+function resetAllFilters() { resetFilters(); resetClientFilters(); }
 
-function posterKey(row: any): string {
-  return [row.arr_type || row.source || row.media_type || 'media', row.instance_id || row.client_id || '', row.id || row.arr_id || row.queue_id || row.hash || row.poster_url || row.title].join(':');
+/* Les filtres des torrents sont retenus par client. */
+const clientFilterStorageKey = () => `torrent-filters:${selectedClientId.value || 'all'}`;
+function loadClientFilterPreferences() {
+  try {
+    const saved = readPreference<any>(clientFilterStorageKey(), null);
+    if (!saved) { resetClientFilters(); return; }
+    query.value = saved.query || '';
+    status.value = saved.status || [];
+    clientCategory.value = saved.category || [];
+    clientOwnership.value = saved.ownership || '';
+    clientTracker.value = saved.tracker || [];
+  } catch { resetClientFilters(); }
 }
+watch([query, status, clientCategory, clientOwnership, clientTracker], () => {
+  if (section.value !== 'clients') return;
+  writePreference(clientFilterStorageKey(), { query: query.value, status: status.value, category: clientCategory.value, ownership: clientOwnership.value, tracker: clientTracker.value });
+}, { deep: true });
 
-function parseSearchQuery(qStr: string) {
-  const terms: string[] = [];
-  const filters: { cat: string | null; tag: string | null; is: string | null; tracker: string | null } = { cat: null, tag: null, is: null, tracker: null };
-  const parts = qStr.trim().split(/\s+/);
+/* ---- Erreurs par source ---- */
 
-  for (const part of parts) {
-    if (part.includes(':')) {
-      const [key, val] = part.split(':');
-      const k = key.toLowerCase();
-      const v = val.toLowerCase();
-      if (k === 'cat' || k === 'category') filters.cat = v;
-      else if (k === 'tag' || k === 'tags') filters.tag = v;
-      else if (k === 'is' || k === 'status') filters.is = v;
-      else if (k === 'tracker' || k === 'host') filters.tracker = v;
-      else terms.push(part.toLowerCase());
-    } else if (part) {
-      terms.push(part.toLowerCase());
-    }
-  }
-  return { terms: terms.join(' '), filters };
-}
-
-function setClientFilter(name: string) {
-  const found = configuredClients.value.find((c: any) => c.name === name);
-  if (found) {
-    router.replace({ path: '/downloads', query: { ...route.query, client: String(found.id) } });
-  } else {
-    const q: Record<string, any> = { ...route.query };
-    delete q.client;
-    router.replace({ path: '/downloads', query: q });
-  }
-}
-const manualRow=ref<any>(null),loadingHistory=ref(false),historyErrors=ref<any[]>([]);
-const sourceErrors=ref<Record<string, string>>({ queue:'', clients:'', wanted:'', history:'', configuration:'', disk:'', action:'', ui:'' });
-const error=computed({
-  get:(): string =>{
-    const relevant=['configuration','action','ui'];
-    if(section.value!=='clients')relevant.push('queue');
-    if(['overview','clients'].includes(section.value))relevant.push('clients');
-    if(['overview','queue','missing'].includes(section.value))relevant.push('wanted');
-    if(section.value==='overview'||showHistory.value||section.value==='queue')relevant.push('history');
-    if(section.value==='overview')relevant.push('disk');
-    return relevant.map(key=>sourceErrors.value[key]).filter(Boolean).join(' · ');
+const sourceErrors = ref<Record<string, string>>({ queue: '', clients: '', wanted: '', history: '', configuration: '', disk: '', action: '', ui: '' });
+function setSourceError(source: string, value = '') { sourceErrors.value = { ...sourceErrors.value, [source]: value || '' }; }
+// Le bandeau ne cite que les sources lues par la section affichee.
+const error = computed({
+  get: (): string => {
+    const relevant = ['configuration', 'action', 'ui'];
+    if (section.value !== 'clients') relevant.push('queue');
+    if (readsClients()) relevant.push('clients');
+    if (readsWanted()) relevant.push('wanted');
+    if (readsHistory()) relevant.push('history');
+    if (section.value === 'overview') relevant.push('disk');
+    return relevant.map(key => sourceErrors.value[key]).filter(Boolean).join(' · ');
   },
-  set:(value: string)=>setSourceError('ui',value),
+  set: (value: string) => setSourceError('ui', value),
 });
-function setSourceError(source: string,value=''){sourceErrors.value={...sourceErrors.value,[source]:value||''}}
-const hiddenItems=ref<Set<string>>(new Set()),actingKeys=ref<Set<string>>(new Set()),hasMoreHistory=ref(false);
-const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
-const HISTORY_PAGE_SIZE=100;
 
-/** Instances concernees par le filtre de type courant ; toutes s'il est vide.
- *  Prowlarr est exclu : c'est un indexeur, il n'alimente aucune file de telechargement. */
-const typedArrInstances = computed(() =>
-  configuredArr.value.filter(
-    (inst: any) => ['radarr', 'sonarr'].includes(inst.arr_type) && (!mediaType.value || inst.arr_type === mediaType.value)
-  )
-);
-const filteredSectionArrInstances = computed(() => typedArrInstances.value.filter(
-  (inst: any) => !selectedInstanceId.value || String(inst.id) === selectedInstanceId.value
-));
+/* ---- Sources ---- */
 
+const readsClients = () => ['overview', 'clients'].includes(section.value);
+const readsWanted = () => ['overview', 'queue', 'missing'].includes(section.value);
+const readsHistory = () => section.value === 'overview' || showHistory.value || section.value === 'queue';
 
-function extractQuality(row: any): string {
-  const quality = row?.quality;
-  const explicit = typeof quality === 'string'
-    ? quality
-    : quality?.quality?.name || quality?.name || row?.quality_label || row?.quality_name;
-  if (typeof explicit === 'string' && explicit.trim()) return explicit.trim();
-
-  const match = String(row?.title || '').match(/\b(2160p|1080p|720p|576p|480p|4k|uhd)\b/i);
-  return match?.[1]?.toUpperCase() || '';
+const { arrInstances: configuredArr, downloadClients: configuredClients, loading: configurationsLoading, error: configurationError, load: loadDownloadSources } = useDownloadSources();
+async function loadConfigurations(): Promise<void> {
+  await loadDownloadSources();
+  setSourceError('configuration', configurationError.value);
 }
 
+const clientsQuery = useQuery({
+  queryKey: ['downloads', 'clients'],
+  queryFn: ({ signal }) => api('/api/downloads/clients', { signal }),
+  select: (rows) => asList<any>(rows),
+  enabled: () => readsClients(),
+  staleTime: 5_000,
+});
+const clientQueue = computed<any[]>(() => clientsQuery.data.value || []);
+watch(clientsQuery.error, (value) => setSourceError('clients', value ? `Clients torrent : ${value.message}` : ''), { immediate: true });
+
+// Les deux sources de la file : chacune sa cle, pour qu'un echec de l'une n'efface pas
+// l'autre. Elles ne sont lues que hors de la section Clients.
+const queueEnabled = computed(() => section.value !== 'clients');
+const arrQueueQuery = useQuery({
+  queryKey: ['downloads', 'arr-queue'],
+  queryFn: ({ signal }) => api('/api/arr/queue', { signal }),
+  select: (rows) => asList<any>(rows),
+  enabled: queueEnabled,
+  staleTime: 5_000,
+});
+const directQueueQuery = useQuery({
+  queryKey: ['downloads', 'direct'],
+  queryFn: ({ signal }) => api('/api/downloads/direct', { signal }),
+  select: (rows) => asList<any>(rows),
+  enabled: queueEnabled,
+  staleTime: 5_000,
+});
+const arrQueue = computed<any[]>(() => arrQueueQuery.data.value || []);
+const directQueue = computed<any[]>(() => directQueueQuery.data.value || []);
+// Le bandeau nomme la source en defaut, comme le faisait le Promise.allSettled.
+watch([arrQueueQuery.error, directQueueQuery.error], ([arrError, directError]) => {
+  const failures = [
+    arrError ? `File Sonarr/Radarr : ${arrError.message}` : '',
+    directError ? `Téléchargements directs : ${directError.message}` : '',
+  ].filter(Boolean);
+  setSourceError('queue', failures.join(' · '));
+}, { immediate: true });
+
+const diskSpaceVolumes = ref<any[]>([]);
 async function loadDiskSpace(): Promise<void> {
   try {
     diskSpaceVolumes.value = asList(await api('/api/disk-space'));
@@ -524,6 +404,8 @@ async function loadDiskSpace(): Promise<void> {
   }
 }
 
+const prowlarrStats = ref<Record<string, any>>({});
+const clientOverviewStats = ref<Record<string, any>>({});
 async function loadOverviewInstanceStats(): Promise<void> {
   const prowlarrInstances = configuredArr.value.filter((inst: any) => inst.arr_type === 'prowlarr' && inst.enabled);
   const [prowlarrResults, clientResult] = await Promise.all([
@@ -539,43 +421,13 @@ async function loadOverviewInstanceStats(): Promise<void> {
 const wantedItems = ref<any[]>([]);
 const loadingWanted = ref(false);
 let wantedLoadVersion = 0;
-
-const missingSeriesGroups = computed(() => {
-  const groups = new Map<string, any>();
-  for (const episode of wantedItems.value.filter((item: any) => item.arr_type === 'sonarr')) {
-    const key = `${episode.instance_id}:${episode.arr_id}`;
-    if (!groups.has(key)) {
-      groups.set(key, {
-        arr_id: episode.arr_id,
-        instance_id: episode.instance_id,
-        instance_name: episode.instance_name,
-        title: episode.series_title || episode.title,
-        poster_url: episode.poster_url,
-        media_type: 'show',
-        episodes: [],
-      });
-    }
-    groups.get(key).episodes.push(episode);
-  }
-  return [...groups.values()].map(series => ({
-    ...series,
-    episodes: series.episodes.sort((a: any,b: any) => (a.season_number - b.season_number) || (a.episode_index - b.episode_index)),
-  })).sort((a,b) => a.title.localeCompare(b.title, 'fr'));
-});
-const movieWantedItems = computed(() => wantedItems.value.filter((row: any) => row.arr_type !== 'sonarr'));
-const missingItemCount = computed(() => {
-  if (mediaType.value === 'sonarr') return missingSeriesGroups.value.length;
-  if (mediaType.value === 'radarr') return movieWantedItems.value.length;
-  return missingSeriesGroups.value.length + movieWantedItems.value.length;
-});
-
 async function loadWanted(): Promise<void> {
-  if (!['overview', 'missing', 'queue'].includes(section.value)) return;
+  if (!readsWanted()) return;
   const loadVersion = ++wantedLoadVersion;
   if (!wantedItems.value.length) loadingWanted.value = true;
   try {
-    // `arr_type` vide = les deux sources : la section couvre desormais films et series,
-    // le filtre de type se charge de restreindre.
+    // `arr_type` vide = les deux sources : la section couvre films et series, le filtre
+    // de type se charge de restreindre.
     const params = new URLSearchParams();
     if (mediaType.value) params.set('arr_type', mediaType.value);
     if (selectedInstanceId.value) params.set('instance_id', selectedInstanceId.value);
@@ -588,342 +440,239 @@ async function loadWanted(): Promise<void> {
   }
 }
 
-function wantedLibraryItem(item: any) {
-  return {
-    ...item,
-    _kind: 'request',
-    orphan: true,
-    orphan_source: item.arr_type,
-    arr_instance_id: item.instance_id,
-    status: 'sent_to_arr',
-    title: item.episode_number ? `${item.title} · ${item.episode_number}` : item.title,
-  };
-}
+const {
+  history, errors: historyErrors, loading: loadingHistory, hasMore: hasMoreHistory,
+  load: loadHistory, loadMore: loadMoreHistory, reset: resetHistory,
+} = useDownloadHistory(
+  () => ({ source: mediaType.value, instanceId: selectedInstanceId.value }),
+  (message) => setSourceError('history', message),
+);
 
+/* ---- File d'attente ---- */
 
-/* Quatre sections, plus aucune rangee d'onglets.
- *
- * « Films » et « Series » etaient deux fois la meme page au type de media pres, et
- * « File d'attente » etait deja cette page sans le filtre : trois sections pour une
- * seule liste. Le type de media est devenu un filtre, aux cotes de l'etat, de
- * l'instance et du client -- tous au meme endroit, dans le tiroir, au lieu d'etre
- * repartis entre une rangee d'onglets et un tiroir a moitie vide selon la page.
- */
-const section=computed((): string =>['queue','missing','clients'].includes(String(route.query.view))?String(route.query.view):'overview');
-const clientsQuery=useQuery({
-  queryKey:['downloads','clients'],
-  queryFn:({signal})=>api('/api/downloads/clients',{signal}),
-  select:(rows)=>asList<any>(rows),
-  enabled:()=>section.value==='overview'||section.value==='clients',
-  staleTime:5_000,
-});
-const clientQueue=computed<any[]>(()=>clientsQuery.data.value||[]);
-watch(clientsQuery.error,(value)=>setSourceError('clients',value?`Clients torrent : ${value.message}`:''),{immediate:true});
-// Les deux sources de la file : chacune sa cle, pour qu'un echec de l'une n'efface pas
-// l'autre. Elles ne sont lues que hors de la section Clients.
-const queueEnabled=computed(()=>section.value!=='clients');
-const arrQueueQuery=useQuery({
-  queryKey:['downloads','arr-queue'],
-  queryFn:({signal})=>api('/api/arr/queue',{signal}),
-  select:(rows)=>asList<any>(rows),
-  enabled:queueEnabled,
-  staleTime:5_000,
-});
-const directQueueQuery=useQuery({
-  queryKey:['downloads','direct'],
-  queryFn:({signal})=>api('/api/downloads/direct',{signal}),
-  select:(rows)=>asList<any>(rows),
-  enabled:queueEnabled,
-  staleTime:5_000,
-});
-const arrQueue=computed<any[]>(()=>arrQueueQuery.data.value||[]);
-const directQueue=computed<any[]>(()=>directQueueQuery.data.value||[]);
-// Le bandeau nomme la source en defaut, comme le faisait le Promise.allSettled.
-watch([arrQueueQuery.error,directQueueQuery.error],([arrError,directError])=>{
-  const failures=[
-    arrError?`File Sonarr/Radarr : ${arrError.message}`:'',
-    directError?`Téléchargements directs : ${directError.message}`:'',
-  ].filter(Boolean);
-  setSourceError('queue',failures.join(' · '));
-},{immediate:true});
+const hiddenItems = ref<Set<string>>(new Set());
+const queue = computed(() => [...arrQueue.value, ...directQueue.value]
+  .filter((row: any) => !hiddenItems.value.has(rowKey(row)))
+  .sort((a: any, b: any) => (a.progress || 0) - (b.progress || 0)));
 // Le voile de chargement n'apparait que sans rien a afficher : un rafraichissement ne
 // doit pas faire clignoter une file deja remplie.
-const loading=computed(()=>(arrQueueQuery.isFetching.value||directQueueQuery.isFetching.value)&&!queue.value.length);
-const validSubviews: Record<string, string[]> ={
-  overview:['all'],
-  queue:['all','active','waiting','completed','errors','intervention'],
-  missing:['all'],
-  clients:['overview','instances']
-};
-const subview=computed((): string =>validSubviews[section.value].includes(String(route.query.sub))?String(route.query.sub):section.value==='clients'?'overview':'all');
+const loading = computed(() => (arrQueueQuery.isFetching.value || directQueueQuery.isFetching.value) && !queue.value.length);
 
-/** Filtre de type de media : remplace les anciennes sections Films et Series. */
-const mediaType=computed({
-  get: (): string => ['radarr','sonarr'].includes(String(route.query.type))?String(route.query.type):'',
-  set: (value: string) => { router.replace({ query: { ...route.query, type: value || undefined } }); },
-});
-const MEDIA_TYPE_OPTIONS=[
-  {value:'',label:'Tous les médias'},
-  {value:'radarr',label:'Films'},
-  {value:'sonarr',label:'Séries'},
-];
-const QUEUE_STATE_OPTIONS=[
-  {value:'all',label:'Tout'},
-  {value:'active',label:'En cours'},
-  {value:'waiting',label:'En attente'},
-  {value:'intervention',label:'Interventions'},
-  {value:'completed',label:'Terminés'},
-  {value:'errors',label:'Erreurs'},
-];
-const selectedClientId=computed(()=>route.query.client?String(route.query.client):'');
-const selectedInstanceId=computed(()=>route.query.instance?String(route.query.instance):'');
-const SECTION_TITLES: Record<string, string>={overview:'Vue d’ensemble',queue:'File d’attente',missing:'Éléments manquants',clients:'Clients'};
-const pageTitle=computed(()=>{
-  if (section.value==='clients') return selectedClientName.value || 'Clients';
-  return SECTION_TITLES[section.value] || 'Acquisition';
-});
-const pageDescription=computed(()=>({overview:'Vue d’ensemble de l’activité et des derniers téléchargements.',queue:'Suivi opérationnel consolidé de toutes les acquisitions.',missing:'Ce qui devrait être là et ne l’est pas encore.',clients:''})[section.value]);
-const sourceErrorCount=computed(()=>section.value==='clients'?clientErrors.value.length:errorItems.value.filter(row=>(!mediaType.value||row.arr_type===mediaType.value)&&(!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value)).length);
-const showHistory=computed(()=>subview.value==='completed'&&section.value!=='clients'&&section.value!=='queue');
-
-const queue=computed(()=>[...arrQueue.value,...directQueue.value].filter((row: any)=>!hiddenItems.value.has(rowKey(row))).sort((a: any,b: any)=>(a.progress||0)-(b.progress||0)));
-
-const instances=computed(()=>{
-  if(mediaType.value) return configuredArr.value.filter((row: any)=>row.enabled&&row.arr_type===mediaType.value).map((row: any)=>row.name);
-  if(section.value==='clients') return configuredClients.value.filter((row: any)=>row.enabled).map((row: any)=>row.name);
-  return [...new Set(queue.value.map((x: any)=>x.instance||x.download_client).filter(Boolean))];
+/** Instances concernees par le filtre de type courant ; toutes s'il est vide.
+ *  Prowlarr est exclu : c'est un indexeur, il n'alimente aucune file de telechargement. */
+const typedArrInstances = computed(() => configuredArr.value.filter(
+  (inst: any) => ['radarr', 'sonarr'].includes(inst.arr_type) && (!mediaType.value || inst.arr_type === mediaType.value)
+));
+const filteredSectionArrInstances = computed(() => typedArrInstances.value.filter(
+  (inst: any) => !selectedInstanceId.value || String(inst.id) === selectedInstanceId.value
+));
+const instances = computed(() => {
+  if (mediaType.value) return configuredArr.value.filter((row: any) => row.enabled && row.arr_type === mediaType.value).map((row: any) => row.name);
+  if (section.value === 'clients') return configuredClients.value.filter((row: any) => row.enabled).map((row: any) => row.name);
+  return [...new Set(queue.value.map((x: any) => x.instance || x.download_client).filter(Boolean))];
 });
 
+const matchesScope = (row: any) => (!mediaType.value || row.arr_type === mediaType.value)
+  && (!selectedInstanceId.value || String(row.instance_id) === selectedInstanceId.value);
+const unmatchedItems = computed(() => queue.value.filter((row: any) => matchesScope(row) && (isUnmatched(row) || needsEpisodeImport(row))));
+
+/** La sous-vue d'etat choisie dans le tiroir. */
+function matchesSubview(row: any): boolean {
+  const key = statusKey(row);
+  if (subview.value === 'active') return key === 'downloading';
+  if (subview.value === 'waiting') return ['queued', 'paused', 'completed'].includes(key);
+  if (subview.value === 'errors') return key === 'error';
+  if (subview.value === 'intervention') return requiresIntervention(row);
+  return true;
+}
+const filteredQueue = computed(() => {
+  const activeStatus = status.value || statusFilter.value;
+  const needle = query.value.trim().toLocaleLowerCase('fr');
+  return queue.value.filter((row: any) => {
+    if (!matchesScope(row) || !matchesSubview(row)) return false;
+    if (needle && !row.title?.toLocaleLowerCase('fr').includes(needle)) return false;
+    if (instance.value && (row.instance || row.download_client) !== instance.value) return false;
+    if (activeStatus === 'unmatched') return isUnmatched(row) || needsEpisodeImport(row);
+    return !activeStatus || statusKey(row) === activeStatus;
+  });
+});
+const queueGroups = computed((): QueueGroup[] => {
+  const intervention = filteredQueue.value.filter(requiresIntervention);
+  const ids = new Set(intervention.map(rowKey));
+  const remaining = filteredQueue.value.filter((row: any) => !ids.has(rowKey(row)));
+  return [
+    { key: 'intervention', title: 'Intervention requise', description: 'Import bloqué, erreur ou média à associer', icon: AlertTriangle, items: intervention },
+    { key: 'active', title: 'En téléchargement', description: 'Transferts actuellement en progression', icon: Download, items: remaining.filter((row: any) => statusKey(row) === 'downloading') },
+    { key: 'waiting', title: 'En attente', description: 'Éléments en file ou temporairement en pause', icon: Clock3, items: remaining.filter((row: any) => ['queued', 'paused', 'completed'].includes(statusKey(row))) },
+  ].filter(group => group.items.length);
+});
+
+const selectedInstanceName = computed(() => configuredArr.value.find((row: any) => String(row.id) === selectedInstanceId.value)?.name || '');
+const filteredHistory = computed(() => {
+  const needle = query.value.trim().toLocaleLowerCase('fr');
+  return history.value.filter((row: any) => (!mediaType.value || row.source === mediaType.value)
+    && (!selectedInstanceName.value || row.instance_name === selectedInstanceName.value)
+    && (!needle || row.title?.toLocaleLowerCase('fr').includes(needle)));
+});
+
+/* ---- Clients torrent ---- */
+
+const clientTable = ref<any>(null);
+const showAddModal = ref(false);
+const droppedFile = ref<File | null>(null);
+function handleDroppedFile(file: File): void {
+  droppedFile.value = file;
+  showAddModal.value = true;
+}
+
+const clientErrors = computed(() => clientQueue.value.filter((row: any) => row.client_error && (!selectedClientId.value || String(row.client_id) === selectedClientId.value)));
+const filteredClients = computed(() => filterClients(clientQueue.value, {
+  query: query.value,
+  clientId: selectedClientId.value,
+  category: clientCategory.value,
+  status: status.value,
+  tracker: clientTracker.value,
+  ownership: clientOwnership.value,
+}));
+const selectedClientName = computed(() => configuredClients.value.find((row: any) => String(row.id) === selectedClientId.value)?.name
+  || clientQueue.value.find((row: any) => String(row.client_id) === selectedClientId.value)?.client_name
+  || '');
+// Seuls les clients torrent peuvent encore manquer : la file couvre desormais toutes
+// les sources a la fois, et n'a plus de raison de se declarer « non configuree ».
+const sourceNeedsConfiguration = computed(() => !configurationsLoading.value && section.value === 'clients'
+  && configuredClients.value.filter((row: any) => row.enabled).length === 0);
+
+/* ---- En-tete de page ---- */
+
+const SECTION_TITLES: Record<string, string> = { overview: 'Vue d’ensemble', queue: 'File d’attente', missing: 'Éléments manquants', clients: 'Clients' };
+const pageTitle = computed(() => section.value === 'clients' ? selectedClientName.value || 'Clients' : SECTION_TITLES[section.value] || 'Acquisition');
+const searchPlaceholder = computed(() => {
+  if (section.value === 'clients') return 'Filtrer les torrents (ex: cat:radarr is:downloading)…';
+  if (section.value === 'missing') return 'Filtrer les éléments manquants…';
+  return 'Filtrer les téléchargements…';
+});
 /* Reprend a l'identique les conditions des `FilterGroup` du gabarit : si aucune ne
    passe, il n'y a pas de filtres a proposer et la surface entiere -- colonne, bouton de
    la barre du haut, feuille modale -- n'a pas lieu d'exister. */
-const hasFilterGroups=computed(()=>{
-  if(section.value==='queue'||section.value==='missing')return true;
-  if(section.value==='clients')return true;
-  return instances.value.length>1;
-});
-const unmatchedItems=computed(()=>queue.value.filter((row: any)=>(!mediaType.value||row.arr_type===mediaType.value)&&(!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value)&&(isUnmatched(row)||needsEpisodeImport(row))));
-const errorItems=computed(()=>queue.value.filter((row: any)=>statusKey(row)==='error'));
-const filteredQueue=computed(()=>{const activeStatus=status.value||statusFilter.value;const needle=query.value.trim().toLocaleLowerCase('fr');return queue.value.filter((row: any)=>{const key=statusKey(row);const sourceMatch=!mediaType.value||row.arr_type===mediaType.value;const selectedMatch=!selectedInstanceId.value||String(row.instance_id)===selectedInstanceId.value;const contextual=subview.value==='active'?key==='downloading':subview.value==='waiting'?['queued','paused','completed'].includes(key):subview.value==='errors'?key==='error':subview.value==='intervention'?requiresIntervention(row):true;return sourceMatch&&selectedMatch&&contextual&&(!needle||row.title?.toLocaleLowerCase('fr').includes(needle))&&(!instance.value||(row.instance||row.download_client)===instance.value)&&(activeStatus==='unmatched'?(isUnmatched(row)||needsEpisodeImport(row)):!activeStatus||key===activeStatus)})});
-const selectedInstanceName=computed(()=>configuredArr.value.find((row: any)=>String(row.id)===selectedInstanceId.value)?.name||'');
-const filteredHistory=computed(()=>{const needle=query.value.trim().toLocaleLowerCase('fr');return history.value.filter((row: any)=>(!mediaType.value||row.source===mediaType.value)&&(!selectedInstanceName.value||row.instance_name===selectedInstanceName.value)&&(!needle||row.title?.toLocaleLowerCase('fr').includes(needle)))});
-const clientErrors=computed(()=>clientQueue.value.filter((row: any)=>row.client_error&&(!selectedClientId.value||String(row.client_id)===selectedClientId.value)));
-const clientCategories=computed(()=>[...new Set(clientQueue.value.filter((row: any)=>!selectedClientId.value||String(row.client_id)===selectedClientId.value).map((row: any)=>row.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr')));
-function clientStatus(row: any): string {const value=String(row.status||'').toLowerCase();if(row.client_error||value.includes('error')||value.includes('missing'))return'error';if(Number(row.progress)>=100||['uploading','stalledup','pausedup','completed'].some(key=>value.includes(key)))return'seeding';if(['queued','paused','stopped','checking'].some(key=>value.includes(key)))return'paused';return'downloading'}
+const hasFilterGroups = computed(() => ['queue', 'missing', 'clients'].includes(section.value) || instances.value.length > 1);
+const isSet = (v: unknown) => Array.isArray(v) ? v.length > 0 : Boolean(v);
+const totalActiveFilterCount = computed(() => section.value === 'clients'
+  ? [query.value, status.value, clientCategory.value, clientOwnership.value, clientTracker.value].filter(isSet).length
+  : [query.value, instance.value, status.value || statusFilter.value].filter(Boolean).length);
 
-function matchFilterValue(filter: any, val: any, isSubstring = false): boolean {
-  if (!filter) return true;
-  let set: Set<any> = new Set();
-  if (filter instanceof Set) set = filter;
-  else if (Array.isArray(filter)) set = new Set(filter.filter(Boolean));
-  else if (typeof filter === 'string' && filter.trim()) set = new Set([filter.trim()]);
+/* ---- Actions ---- */
 
-  if (!set.size) return true;
+const actingKeys = ref<Set<string>>(new Set());
+const manualRow = ref<any>(null);
+const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 
-  const valStr = String(val || '').toLowerCase();
-  const included=[...set].filter(item=>!String(item).startsWith('!'));
-  const excluded=[...set].filter(item=>String(item).startsWith('!')).map(item=>String(item).slice(1));
-  const matches=(item: any)=>isSubstring?valStr.includes(String(item).toLowerCase()):valStr===String(item).toLowerCase();
-  if(excluded.some(matches)) return false;
-  if(!included.length) return true;
-  for (const item of included) {
-    const itemStr = String(item).toLowerCase();
-    if (isSubstring) {
-      if (valStr.includes(itemStr)) return true;
-    } else {
-      if (valStr === itemStr) return true;
-    }
-  }
-  return false;
-}
-
-const filteredClients=computed(()=>{
-  const { terms, filters } = parseSearchQuery(query.value);
-  return clientQueue.value.filter((row: any) => {
-    if (row.client_error) return false;
-    if (selectedClientId.value && String(row.client_id) !== selectedClientId.value) return false;
-    if (terms && !`${row.title || ''} ${row.tags || ''}`.toLowerCase().includes(terms)) return false;
-
-    const catTarget = filters.cat || clientCategory.value;
-    if (!matchFilterValue(catTarget, row.category || 'Non classé')) return false;
-
-    const tagTarget = filters.tag;
-    if (tagTarget && !(row.tags || '').toLowerCase().includes(tagTarget)) return false;
-
-    const isTarget = filters.is || status.value;
-    if (!matchFilterValue(isTarget, clientStatus(row))) return false;
-
-    const trackerTarget = filters.tracker || clientTracker.value;
-    if (!matchFilterValue(trackerTarget, row.trackers || row.tracker || '', true)) return false;
-
-    if (clientOwnership.value && row.managed_by !== clientOwnership.value) return false;
-    return true;
+async function queueAction(row: any, blocklist: boolean, search: boolean): Promise<void> {
+  const confirmed = await askConfirm({
+    title: blocklist ? 'Blocklister ce téléchargement ?' : 'Retirer ce téléchargement ?',
+    message: blocklist ? 'Le fichier sera blocklisté et une nouvelle recherche sera lancée.' : 'Le téléchargement sera retiré de la file.',
+    confirmLabel: blocklist ? 'Blocklister et rechercher' : 'Retirer',
+    danger: true,
   });
-});
-const selectedClientName=computed(()=>configuredClients.value.find((row: any)=>String(row.id)===selectedClientId.value)?.name||clientQueue.value.find((row: any)=>String(row.client_id)===selectedClientId.value)?.client_name||'');
-// Seuls les clients torrent peuvent encore manquer : la file couvre desormais toutes
-// les sources a la fois, et n'a plus de raison de se declarer « non configuree ».
-const sourceNeedsConfiguration=computed(()=>!configurationsLoading.value&&section.value==='clients'&&configuredClients.value.filter((row: any)=>row.enabled).length===0);
-const queueGroups=computed(()=>{const intervention=filteredQueue.value.filter(requiresIntervention),ids=new Set(intervention.map(rowKey)),remaining=filteredQueue.value.filter((row: any)=>!ids.has(rowKey(row)));return[{key:'intervention',title:'Intervention requise',description:'Import bloqué, erreur ou média à associer',icon:AlertTriangle,items:intervention},{key:'active',title:'En téléchargement',description:'Transferts actuellement en progression',icon:Download,items:remaining.filter((row: any)=>statusKey(row)==='downloading')},{key:'waiting',title:'En attente',description:'Éléments en file ou temporairement en pause',icon:Clock3,items:remaining.filter((row: any)=>['queued','paused','completed'].includes(statusKey(row)))}].filter(group=>group.items.length)});
-const counts=computed(()=>queueCounts(queue.value));
-const searchPlaceholder=computed(()=>{
-  if(section.value==='clients') return 'Filtrer les torrents (ex: cat:radarr is:downloading)…';
-  if(section.value==='missing') return 'Filtrer les éléments manquants…';
-  return 'Filtrer les téléchargements…';
-});
-const activeFilterCount=computed(()=>[query.value,mediaType.value,instance.value,status.value||statusFilter.value,clientCategory.value,clientOwnership.value,clientTracker.value].filter(v => Array.isArray(v) ? v.length : Boolean(v)).length);
-const activeClientFilterCount=computed(()=>[query.value,status.value,clientCategory.value,clientOwnership.value,clientTracker.value].filter(v => Array.isArray(v) ? v.length : Boolean(v)).length);
-const totalActiveFilterCount=computed(()=>section.value==='clients'?activeClientFilterCount.value:[query.value,instance.value,status.value||statusFilter.value].filter(Boolean).length);
-const resultCount=computed(()=>section.value==='clients'?filteredClients.value.length:subview.value==='missing'?missingItemCount.value:showHistory.value?filteredHistory.value.length:filteredQueue.value.length);
-function selectSubview(value: string){statusFilter.value='';router.replace({path:'/downloads',query:{...route.query,view:section.value,sub:value}})}
-/** Restreint la file a une instance ; chaine vide pour les reprendre toutes. */
-function selectInstanceId(value: string){
-  const next: Record<string, any>={...route.query,view:section.value};
-  if(value)next.instance=value;else delete next.instance;
-  router.replace({path:'/downloads',query:next});
+  if (!confirmed) return;
+  const key = rowKey(row);
+  actingKeys.value = new Set([...actingKeys.value, key]);
+  try {
+    await api(`/api/arr/queue/${row.instance_id}/${row.queue_id}?blocklist=${blocklist}&search=${search}`, { method: 'DELETE' });
+    setSourceError('action');
+    await loadAll();
+  } catch (e: any) {
+    setSourceError('action', e.message);
+  } finally {
+    const next = new Set(actingKeys.value);
+    next.delete(key);
+    actingKeys.value = next;
+  }
 }
-function selectClientDashboard(client: any){router.replace({path:'/downloads',query:{view:'clients',sub:'instances',client:client.id}})}
-function openUnmatched(){router.replace({path:'/downloads',query:{view:'queue',sub:'intervention'}});statusFilter.value='unmatched'}
-function resetFilters(){query.value='';instance.value='';status.value='';statusFilter.value='';clientCategory.value='';clientOwnership.value='';clientTracker.value=''}
-function resetClientFilters(){query.value='';status.value=[];clientCategory.value=[];clientOwnership.value='';clientTracker.value=[]}
-function resetAllFilters(){resetFilters();resetClientFilters()}
+function openManual(row: any): void { manualRow.value = row; }
+async function onManualSubmitted(): Promise<void> {
+  hiddenItems.value.add(rowKey(manualRow.value));
+  manualRow.value = null;
+  await loadAll();
+}
+
+/* ---- Rafraichissement ---- */
 
 /* Relit les deux sources de la file. Une lecture deja en vol n'est pas doublee : au
    montage, les queries partent d'elles-memes et `refreshCurrentView` passe ici juste
    apres. Ailleurs (action utilisateur, evenement SSE), on relance vraiment. */
-async function loadAll(): Promise<void>{
-  await Promise.all([arrQueueQuery.refetch({cancelRefetch:true}),directQueueQuery.refetch({cancelRefetch:true})]);
+async function loadAll(): Promise<void> {
+  await Promise.all([arrQueueQuery.refetch({ cancelRefetch: true }), directQueueQuery.refetch({ cancelRefetch: true })]);
 }
-async function loadClients(): Promise<void>{
+async function loadClients(): Promise<void> {
   // TanStack Query annule la requete precedente lors des rafales SSE, conserve la
   // derniere valeur pendant le rafraichissement et relance au retour en ligne/focus.
-  const result=await clientsQuery.refetch({cancelRefetch:true});
-  if(result.error)setSourceError('clients',`Clients torrent : ${result.error.message}`);
+  const result = await clientsQuery.refetch({ cancelRefetch: true });
+  if (result.error) setSourceError('clients', `Clients torrent : ${result.error.message}`);
 }
-async function loadConfigurations(): Promise<void>{await loadDownloadSources();setSourceError('configuration',configurationError.value)}
-let historyLoadVersion=0;
-async function loadHistory(): Promise<void>{
-  const loadVersion=++historyLoadVersion;
-  const url=historyUrl(0);
-  if(!history.value.length)loadingHistory.value=true;
-  try{
-    const payload=await api(url);if(loadVersion!==historyLoadVersion)return;const rows=asList(payload?.items||payload);
-    history.value=rows;
-    historyErrors.value=payload.errors||[];
-    hasMoreHistory.value=rows.length===HISTORY_PAGE_SIZE;
-    setSourceError('history');
-  }catch(e: any){if(loadVersion===historyLoadVersion)setSourceError('history',`Historique : ${e.message}`)}
-  finally{if(loadVersion===historyLoadVersion)loadingHistory.value=false}
-}
-function historyUrl(offset: number): string{const params=new URLSearchParams({limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});if(mediaType.value)params.set('source',mediaType.value);if(selectedInstanceId.value)params.set('instance_id',selectedInstanceId.value);return`/api/downloads/history?${params}`}
-function historyModeLabel(row: any): string{return row.processing_mode==='automatic'?'Automatique':row.processing_mode==='manual'?'Import manuel':'Détecté par Watchdeck'}
-function historyModeClass(row: any): string{return row.processing_mode==='automatic'?'available':row.processing_mode==='manual'?'pending':''}
-async function loadMoreHistory(): Promise<void>{if(loadingHistory.value||!hasMoreHistory.value)return;const loadVersion=historyLoadVersion;const url=historyUrl(history.value.length);loadingHistory.value=true;try{const payload=await api(url);if(loadVersion!==historyLoadVersion)return;const rows=asList(payload?.items||payload);history.value=[...history.value,...rows];historyErrors.value=payload.errors||[];hasMoreHistory.value=rows.length===HISTORY_PAGE_SIZE;setSourceError('history')}catch(e: any){if(loadVersion===historyLoadVersion)setSourceError('history',`Historique : ${e.message}`)}finally{if(loadVersion===historyLoadVersion)loadingHistory.value=false}}
-async function queueAction(row: any,blocklist: boolean,search: boolean): Promise<void>{if(!await askConfirm({title:blocklist?'Blocklister ce téléchargement ?':'Retirer ce téléchargement ?',message:blocklist?'Le fichier sera blocklisté et une nouvelle recherche sera lancée.':'Le téléchargement sera retiré de la file.',confirmLabel:blocklist?'Blocklister et rechercher':'Retirer',danger:true}))return;const key=rowKey(row);actingKeys.value=new Set([...actingKeys.value,key]);try{await api(`/api/arr/queue/${row.instance_id}/${row.queue_id}?blocklist=${blocklist}&search=${search}`,{method:'DELETE'});setSourceError('action');await loadAll()}catch(e: any){setSourceError('action',e.message)}finally{const next=new Set(actingKeys.value);next.delete(key);actingKeys.value=next}}
-function openManual(row: any): void{manualRow.value=row}
-async function onManualSubmitted(): Promise<void>{hiddenItems.value.add(rowKey(manualRow.value));manualRow.value=null;await loadAll()}
 
 /* `skipQueue` au premier appel : les deux queries de la file se chargent d'elles-memes
    au montage, les relancer ici doublerait l'aller-retour. */
-function refreshCurrentView({skipQueue=false}: {skipQueue?: boolean}={}){
-  const jobs: Promise<any>[]=[];
-  if(section.value!=='clients'&&!skipQueue) jobs.push(loadAll());
-  if(section.value==='overview'||section.value==='clients') jobs.push(loadClients());
-  if(['overview','queue','missing'].includes(section.value)) jobs.push(loadWanted());
-  if(section.value==='overview'||showHistory.value||section.value==='queue') jobs.push(loadHistory());
-  if(section.value==='overview') jobs.push(loadDiskSpace(),loadOverviewInstanceStats());
+function refreshCurrentView({ skipQueue = false }: { skipQueue?: boolean } = {}) {
+  const jobs: Promise<any>[] = [];
+  if (section.value !== 'clients' && !skipQueue) jobs.push(loadAll());
+  if (readsClients()) jobs.push(loadClients());
+  if (readsWanted()) jobs.push(loadWanted());
+  if (readsHistory()) jobs.push(loadHistory());
+  if (section.value === 'overview') jobs.push(loadDiskSpace(), loadOverviewInstanceStats());
   return Promise.allSettled(jobs);
 }
-function refreshFromDownloadEvent(detail: any={}){
-  const job=detail?.job||'';
-  const result=detail?.result||{};
-  const torrentOnly=Boolean(detail?.client_id)||job==='torrent-statuses';
-  const arrOnly=['sonarr-queue-monitor','radarr-queue-monitor'].includes(job);
+
+function refreshFromDownloadEvent(detail: any = {}) {
+  const job = detail?.job || '';
+  const result = detail?.result || {};
+  const torrentOnly = Boolean(detail?.client_id) || job === 'torrent-statuses';
+  const arrOnly = ['sonarr-queue-monitor', 'radarr-queue-monitor'].includes(job);
+  const jobs: Promise<any>[] = [];
   // Les actions utilisateur sans job sont ponctuelles : on actualise uniquement
   // les données opérationnelles, jamais l'historique immuable de la vue d'ensemble.
-  if(!torrentOnly&&!arrOnly){
-    const jobs: Promise<any>[]=[];
-    if(section.value!=='clients')jobs.push(loadAll());
-    if(['overview','clients'].includes(section.value))jobs.push(loadClients());
+  if (!torrentOnly && !arrOnly) {
+    if (section.value !== 'clients') jobs.push(loadAll());
+    if (readsClients()) jobs.push(loadClients());
     return Promise.allSettled(jobs);
   }
-  const jobs: Promise<any>[]=[];
-  if(torrentOnly){
-    if(['overview','clients'].includes(section.value))jobs.push(loadClients());
-  }
-  if(arrOnly){
-    if(section.value!=='clients')jobs.push(loadAll());
+  if (torrentOnly && readsClients()) jobs.push(loadClients());
+  if (arrOnly) {
+    if (section.value !== 'clients') jobs.push(loadAll());
     // Un cycle de surveillance sans résolution ne modifie ni les manquants ni
     // l'historique. Les garder en place évite le clignotement toutes les minutes.
-    if(Number(result.resolved||0)>0){
-      if(['overview','queue','missing'].includes(section.value))jobs.push(loadWanted());
-      if(section.value==='overview'||showHistory.value||section.value==='queue')jobs.push(loadHistory());
+    if (Number(result.resolved || 0) > 0) {
+      if (readsWanted()) jobs.push(loadWanted());
+      if (readsHistory()) jobs.push(loadHistory());
     }
   }
   return Promise.allSettled(jobs);
 }
-let mounted=false;
-const clientFilterScope=computed(()=>selectedClientId.value||'all');
-function clientFilterStorageKey(){return`torrent-filters:${clientFilterScope.value}`}
-function loadClientFilterPreferences(){
-  try{
-    const saved=readPreference<any>(clientFilterStorageKey(),null);
-    if(!saved){resetClientFilters();return}
-    query.value=saved.query||'';status.value=saved.status||[];clientCategory.value=saved.category||[];clientOwnership.value=saved.ownership||'';clientTracker.value=saved.tracker||[];
-  }catch{resetClientFilters()}
-}
-watch([query,status,clientCategory,clientOwnership,clientTracker],()=>{
-  if(section.value!=='clients')return;
-  writePreference(clientFilterStorageKey(),{query:query.value,status:status.value,category:clientCategory.value,ownership:clientOwnership.value,tracker:clientTracker.value});
-},{deep:true});
-watch(()=>`${section.value}:${subview.value}:${selectedInstanceId.value}:${selectedClientId.value}`,()=>{
-  if(!mounted)return;
-  if(section.value==='clients')loadClientFilterPreferences();else resetFilters();hasMoreHistory.value=false;refreshCurrentView();
+
+let mounted = false;
+watch(() => `${section.value}:${subview.value}:${selectedInstanceId.value}:${selectedClientId.value}`, () => {
+  if (!mounted) return;
+  if (section.value === 'clients') loadClientFilterPreferences(); else resetFilters();
+  resetHistory();
+  refreshCurrentView();
 });
-useRealtime(['download.updated'],(_type,detail)=>refreshFromDownloadEvent(detail),{debounceMs:350});
-onMounted(async()=>{await loadConfigurations();if(section.value==='clients')loadClientFilterPreferences();mounted=true;await refreshCurrentView({skipQueue:true})});
+useRealtime(['download.updated'], (_type, detail) => refreshFromDownloadEvent(detail), { debounceMs: 350 });
+onMounted(async () => {
+  await loadConfigurations();
+  if (section.value === 'clients') loadClientFilterPreferences();
+  mounted = true;
+  await refreshCurrentView({ skipQueue: true });
+});
 </script>
 
 <style scoped lang="scss">
-
-.wanted-section{display:grid;gap:var(--space-3);padding:16px}
-.pipeline-scope{display:flex;align-items:center;gap:var(--space-2);min-width:0}
-.pipeline-scope label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--fs-xs);font-weight:650}
-.pipeline-scope select{max-width:180px;min-height:34px;padding:0 28px 0 10px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--surface);color:var(--text);font:inherit}
-.wanted-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--space-3)}
-.wanted-card{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}
-.wanted-poster-wrap{width:42px;height:62px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.wanted-poster-img{width:100%;height:100%;object-fit:cover}
-.wanted-poster-fallback svg{width:18px;height:18px;color:var(--muted)}
-.wanted-info{display:flex;flex-direction:column;gap:3px;min-width:0}
-.wanted-info strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)}
-.wanted-info small{color:var(--muted);font-size: var(--fs-xs)}
-
-.client-header-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}.client-table-search{width:180px;height:40px}.client-header-actions .icon-button{display:inline-grid;place-items:center;width:40px;height:40px;padding:0}.client-header-actions .icon-button svg{width:18px;height:18px}.client-header-actions .icon-button.active{border-color:var(--accent);color:var(--accent)}.client-filter-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 11px;white-space:nowrap}.client-filter-toggle svg{width:17px;height:17px}.client-filter-toggle.active{border-color:var(--accent);color:var(--accent)}.filter-count{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:var(--radius-pill);background:var(--accent);color:#1a1400;font-size: var(--fs-xs)}.client-header-speeds{display:inline-flex;align-items:center;gap:10px}.client-header-speeds span{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-size:var(--fs-xs);white-space:nowrap}.client-header-speeds svg{width:15px;height:15px}.client-header-speeds strong{color:var(--text);font-size:var(--fs-sm)}.torrent-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-2);margin:0}.torrent-stats div{display:grid;gap:2px;padding:8px;border-radius:var(--radius-sm);background:var(--surface-2)}.torrent-stats dt{color:var(--muted);font-size:var(--fs-xs)}.torrent-stats dd{margin:0;font-size:var(--fs-sm);font-weight:700}@media(max-width:800px){.torrent-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.client-header-actions{width:100%;gap:6px;flex-wrap:wrap}.client-table-search{flex:1 1 180px;width:auto}.client-header-actions .badge{display:none}.client-filter-toggle{flex:0 1 auto}.client-header-speeds{gap:7px}.client-header-speeds strong{font-size:var(--fs-xs)}}
-.sidebar-ownership-filter{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:var(--fs-xs);font-weight:700}.sidebar-ownership-filter select{width:100%}
-:deep(.filter-sidebar-bare){top:92px;max-height:calc(100dvh - 108px)}
-.add-torrent-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;font-size:var(--fs-xs);height:34px;white-space:nowrap;border-radius:var(--radius-sm)}
-.add-torrent-btn svg{width:14px;height:14px}
-.download-source-empty{display:flex;align-items:center;gap:var(--space-4);padding:20px}.download-source-empty>svg{width:28px;color:var(--accent)}.download-source-empty>div{flex:1}.download-source-empty h2{margin:0;font-size:var(--fs-md)}.download-source-empty p{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}.download-source-empty>a{display:inline-flex;align-items:center;gap:var(--space-2);text-decoration:none}.download-source-empty>a svg{width:15px}@media(max-width:640px){.download-source-empty{align-items:flex-start;flex-wrap:wrap}.download-source-empty>div{min-width:calc(100% - 50px)}.download-source-empty>a{margin-left:44px}}
-.download-groups{display:grid;gap: var(--space-4)}.download-group{display:grid;gap: var(--space-3)}.download-group-head{display:flex;align-items:center;justify-content:space-between;padding:0 2px}.download-group-head>div{display:flex;align-items:center;gap: var(--space-3)}.download-group-head svg{width:19px;color:var(--muted)}.download-group.intervention .download-group-head svg{color:var(--danger)}.download-group-head h2{margin:0;font-size:var(--fs-md)}.download-group-head p{margin:2px 0 0;color:var(--muted);font-size:var(--fs-xs)}.download-group-head>span{min-width:27px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-pill);text-align:center;font-size:var(--fs-xs);font-weight:700}.download-card{display:grid;gap: var(--space-3);padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);content-visibility:auto;contain-intrinsic-size:0 120px}
-.history-card{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);padding:12px;content-visibility:auto;contain-intrinsic-size:0 120px}.download-card>header,.download-progress>div,.download-card footer{display:flex;align-items:flex-start;justify-content:space-between;gap: var(--space-3)}.download-card>header>div{display:grid;gap: var(--space-1);min-width:0}.download-card>header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.download-card>header small,.download-progress small,.download-meta{color:var(--muted);font-size:var(--fs-xs)}.download-progress{display:grid;gap: var(--space-2)}.download-progress span{color:var(--muted);font-size:var(--fs-xs)}.download-progress strong{font-size:var(--fs-sm)}.download-progress progress{width:100%;height:7px}.download-callout{padding:8px 10px;border-radius:var(--radius-sm);background:rgba(229,160,13,.09);color:var(--accent);font-size:var(--fs-xs)}.download-callout.error{background:rgba(239,68,68,.09);color:var(--danger)}.download-card footer{justify-content:flex-end;flex-wrap:wrap;margin-top:auto}.download-card footer button,.download-card footer a{display:inline-flex;align-items:center;gap: var(--space-2);padding:7px 9px;font-size:var(--fs-xs);text-decoration:none}.download-card footer svg{width:14px;height:14px}.load-more{display:flex;justify-content:center;padding:16px}
-.rich-card{display:flex;gap:var(--space-3);align-items:stretch}.card-cover-col{width:70px;flex-shrink:0}.card-cover-wrapper{position:relative;width:100%;aspect-ratio:2/3;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center}.card-cover-img{width:100%;height:100%;object-fit:cover}.card-cover-placeholder{color:var(--muted)}.card-cover-placeholder svg{width:22px;height:22px}.card-content-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}.card-sub-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.quality-badge{background:color-mix(in srgb, var(--accent) 15%, transparent);color:var(--accent);font-size: var(--fs-xs);padding:2px 6px}.progress-details{display:flex;justify-content:space-between;align-items:center;gap:6px}
-.history-item-wrap{display:flex;align-items:center;gap:10px}
-.history-poster-thumb{width:36px;height:52px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.history-poster-img{width:100%;height:100%;object-fit:cover}
-.history-poster-fallback svg{width:16px;height:16px;color:var(--muted)}
-.recent-completed-section{display:grid;gap:var(--space-3);margin-top:var(--space-3)}
-.section-subtitle{display:flex;align-items:center;gap:8px;color:var(--success)}
-.section-subtitle svg{width:18px;height:18px}
-.section-subtitle h3{margin:0;font-size:var(--fs-md);color:var(--text)}
-.completed-badge-group{display:flex;gap:5px;flex-wrap:wrap}
-.completed-badge-group .badge-source{background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);color:var(--text);border:1px solid rgba(255,255,255,0.15)}
-.completed-card-overlay .meta-year{color:#fff;font-weight:700}
-.completed-card-overlay .meta-date{color:rgba(255,255,255,0.75);font-size: var(--fs-xs)}
-.completed-title{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
-.missing-items-grid{margin-top:var(--space-4)}
-
+.client-header-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}
+.download-source-empty{display:flex;align-items:center;gap:var(--space-4);padding:20px}
+.download-source-empty>svg{width:28px;color:var(--accent)}
+.download-source-empty>div{flex:1}
+.download-source-empty h2{margin:0;font-size:var(--fs-md)}
+.download-source-empty p{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}
 .client-table-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-3)}
-@media(max-width:800px){.download-card-grid,.history-grid-cards{grid-template-columns:1fr 1fr}}@media(max-width:520px){.download-group-head p{display:none}.download-card{padding:12px}.rich-card{flex-direction:column}.card-cover-col{width:100%}.card-cover-wrapper{aspect-ratio:16/9}.download-card footer{display:grid;grid-template-columns:1fr 1fr}.download-card footer button,.download-card footer a{justify-content:center}}
-@media(max-width:767.98px){.client-header-actions{width:100%;flex-wrap:wrap}.client-table-search{flex:1 1 100%;width:auto;height:44px}.client-header-actions .icon-button{width:44px;height:44px}.client-filter-toggle{flex:1 1 auto;min-height:44px}.client-header-speeds{width:100%;justify-content:space-between}.download-card-grid,.history-grid-cards,.wanted-grid{grid-template-columns:1fr}.download-card footer{grid-template-columns:1fr}.download-card footer button,.download-card footer a{justify-content:center;min-height:44px}}
+:deep(.filter-sidebar-bare){top:92px;max-height:calc(100dvh - 108px)}
+@media(max-width:800px){.client-header-actions{width:100%;gap:6px;flex-wrap:wrap}.client-header-actions .badge{display:none}}
+@media(max-width:640px){.download-source-empty{align-items:flex-start;flex-wrap:wrap}.download-source-empty>div{min-width:calc(100% - 50px)}.download-source-empty>a{margin-left:44px}}
 </style>
