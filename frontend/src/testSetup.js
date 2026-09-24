@@ -9,6 +9,15 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
   };
 }
 
+// jsdom ne fournit pas non plus ResizeObserver : le curseur de Reka UI mesure sa poignee.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 // Les dialogues (ModalShell, DrawerShell, AppNavSheet...) se Teleport vers <body>
 // pour que useBodyScrollLock puisse rendre le reste de l'app inert pendant qu'ils sont
 // ouverts. Sans ce stub, wrapper.find() ne verrait plus leur contenu puisqu'il ne

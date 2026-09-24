@@ -170,7 +170,7 @@ describe('CalendarView', () => {
     await flushPromises();
 
     // Navigue vers le mois suivant
-    const nextBtn = wrapper.find('button[title="Mois suivant"]');
+    const nextBtn = wrapper.find('button[aria-label="Mois suivant"]');
     expect(nextBtn.exists()).toBe(true);
     await nextBtn.trigger('click');
     await flushPromises();

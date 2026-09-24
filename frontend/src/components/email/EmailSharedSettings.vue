@@ -15,9 +15,9 @@
       <div class="settings-grid two form-section">
         <label>Disposition<select v-model="shared.email_media_layout"><option value="left">Affiche a gauche</option><option value="right">Affiche a droite</option><option value="stacked">Affiche au-dessus</option></select></label>
         <label>Police<select v-model="shared.email_font_family"><option value="arial">Arial</option><option value="georgia">Georgia</option><option value="verdana">Verdana</option><option value="trebuchet">Trebuchet MS</option></select></label>
-        <label>Largeur de carte <span>{{ shared.email_card_width }} px</span><input v-model.number="shared.email_card_width" type="range" min="480" max="700" step="10"></label>
-        <label>Largeur affiche <span>{{ shared.email_poster_width }} px</span><input v-model.number="shared.email_poster_width" type="range" min="60" max="180" step="10"></label>
-        <label>Arrondi de carte <span>{{ shared.email_card_border_radius }} px</span><input v-model.number="shared.email_card_border_radius" type="range" min="0" max="24" step="2"></label>
+        <label>Largeur de carte <span>{{ shared.email_card_width }} px</span><UiSlider v-model="shared.email_card_width" :min="480" :max="700" :step="10" /></label>
+        <label>Largeur affiche <span>{{ shared.email_poster_width }} px</span><UiSlider v-model="shared.email_poster_width" :min="60" :max="180" :step="10" /></label>
+        <label>Arrondi de carte <span>{{ shared.email_card_border_radius }} px</span><UiSlider v-model="shared.email_card_border_radius" :min="0" :max="24" :step="2" /></label>
         <label>Taille du synopsis<select v-model="shared.email_synopsis_font_size"><option value="small">Petite</option><option value="normal">Normale</option><option value="large">Grande</option><option value="xlarge">Tres grande</option></select></label>
         <label>Fond de page<input v-model="shared.email_bg_color" type="color"></label>
         <label>Fond de carte<input v-model="shared.email_card_bg_color" type="color"></label>
@@ -41,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSlider from '@/components/ui/UiSlider.vue';
 import MarkdownTextarea from './MarkdownTextarea.vue';
 
 withDefaults(

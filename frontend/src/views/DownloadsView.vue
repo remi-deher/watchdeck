@@ -156,7 +156,7 @@
                   </header>
                   <div class="download-progress">
                     <div><span>Progression</span><strong>{{ Math.round(row.progress||0) }}%</strong></div>
-                    <progress :value="row.progress||0" max="100" :aria-label="`Progression de ${row.title}`"></progress>
+                    <UiProgress :value="row.progress||0" :label="`Progression de ${row.title}`" />
                     <div class="progress-details">
                       <small>{{ row.timeleft||'Temps restant indisponible' }}</small>
                       <small v-if="row.sizeleft_label">{{ row.sizeleft_label }}</small>
@@ -329,6 +329,7 @@
 </template>
 
 <script setup lang="ts">
+import UiProgress from '@/components/ui/UiProgress.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 const HISTORY_COLUMNS: UiColumn[] = [
