@@ -793,19 +793,13 @@ test("la palette trouve un film depuis n'importe quelle page", async ({ page }) 
   await expect(page.locator("#main-content")).toBeVisible();
 
   await page.keyboard.press("Control+k");
-  const palette = page.getByRole("dialog", { name: /Aller à/ });
+  const palette = page.getByRole("dialog", { name: /Rechercher/ });
   await expect(palette).toBeVisible();
 
   await palette.getByRole("combobox").fill("dune");
 
-  // Ouverte depuis les reglages, la palette propose d'abord la navigation et les
-  // reglages : c'est l'intention la plus probable a cet endroit. Les medias sont a
-  // une touche, dans l'autre onglet.
-  const tabs = palette.getByRole("tab");
-  await expect(tabs).toHaveCount(2);
-  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
-  await tabs.nth(0).click();
-
+  // Plus d'onglets : les medias arrivent en affiches, au-dessus de la navigation et des
+  // reglages, quelle que soit la page d'ou l'on ouvre la palette.
   const option = palette.getByRole("option", { name: /Dune \(2021\)/ });
   await expect(option).toBeVisible({ timeout: 10000 });
   expect(searchCalls, "la recherche doit etre differee, pas lancee a chaque frappe").toBeLessThanOrEqual(2);
@@ -813,7 +807,8 @@ test("la palette trouve un film depuis n'importe quelle page", async ({ page }) 
   await option.click();
   // La palette passe par mediaDetailPath, le meme assistant que la grille Explorer :
   // un media deja suivi mene ainsi a sa fiche bibliotheque ou a sa demande, et non a
-  // une fiche de decouverte qui ignorerait son etat.
+  // une fiche de decouverte qui ignorerait son etat. La fiche s'ouvre en feuille, par
+  // ouvrirFiche, au-dessus de la page d'ou l'on vient.
   await expect(page).toHaveURL(/\/discover\/media\/discover\/438631\?media_type=movie/);
 });
 
@@ -827,7 +822,7 @@ test("une saisie trop courte n'interroge pas le catalogue", async ({ page }) => 
   });
   await page.goto("/settings");
   await page.keyboard.press("Control+k");
-  const palette = page.getByRole("dialog", { name: /Aller à/ });
+  const palette = page.getByRole("dialog", { name: /Rechercher/ });
   await palette.getByRole("combobox").fill("d");
   await page.waitForTimeout(700);
   // Une seule lettre remonterait le catalogue entier pour rien.

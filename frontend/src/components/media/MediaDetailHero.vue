@@ -1,11 +1,11 @@
 <template>
-  <div class="mdh-backdrop" :style="detail.backdrop_url ? { backgroundImage: `url(${detail.backdrop_url})` } : {}">
+  <div class="mdh-backdrop" :style="backdropUrl ? { backgroundImage: `url(${backdropUrl})` } : {}">
     <div class="mdh-scrim"></div>
     <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
     <div class="mdh-content">
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
-          <img v-if="detail.poster_url" class="mdh-poster-img" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
+          <img v-if="detail.poster_url && !posterFailed" class="mdh-poster-img" @error="posterFailed = true" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
             <Music2 v-if="isMusic" />
             <Film v-else />
@@ -111,7 +111,7 @@
 <script setup lang="ts">
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
@@ -146,6 +146,15 @@ const props = withDefaults(
     preview: false,
   }
 );
+
+/* Fond du hero : l'URL du serveur est une vignette de 600 px, floue une fois etiree sur
+   toute la largeur. On demande une variante assez large pour l'ecran. */
+const backdropUrl = computed(() => (props.detail?.backdrop_url ? proxyUrl(props.detail.backdrop_url, { width: 1600 }) : null));
+
+/* Affiche introuvable (Plex a change son chemin, source disparue) : le repli plutot
+   qu'une image cassee. */
+const posterFailed = ref(false);
+watch(() => props.detail?.poster_url, () => { posterFailed.value = false; });
 
 
 

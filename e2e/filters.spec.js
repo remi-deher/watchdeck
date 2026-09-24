@@ -93,8 +93,7 @@ test("les groupes repliables annoncent leur etat et resument le choix", async ({
   await expect(header).toHaveAttribute("aria-expanded", "true");
 });
 
-test("sur telephone, la feuille de filtres ouverte garde la barre de recherche a l'ecran", async ({ page }) => {
-  test.skip(page.viewportSize().width > 900, "la feuille n'existe que sur petit ecran");
+test("le panneau de filtres ouvert garde la barre de recherche a l'ecran", async ({ page }) => {
   await mockApi(page);
   const many = Array.from({ length: 60 }, (_, i) => ({ client_id: 7, client_name: "Maison", hash: `h${i}`, title: `Torrent ${i}`, status: "downloading", progress: 10, category: "films" }));
   await page.route("**/api/downloads/clients", (route) => route.fulfill({ json: many }));

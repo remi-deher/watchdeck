@@ -52,6 +52,8 @@ export function proxyUrl(url?: string | null, options: ProxyUrlOptions = {}): st
         const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
         const u = new URL(url, origin);
         u.searchParams.set('width', String(options.width));
+        // Les URL du serveur sont encodees en 82 : on remonte a la qualite demandee.
+        if (Number(u.searchParams.get('quality') || 0) < quality) u.searchParams.set('quality', String(quality));
         return u.pathname + u.search;
       } catch {
         return url;

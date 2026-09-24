@@ -474,3 +474,44 @@ def test_plex_image_proxy_url_without_path_is_none():
 
     assert plex_image_proxy_url(None) is None
     assert plex_image_proxy_url("") is None
+
+
+def test_plex_path_stale_timestamp_falls_back_to_current_thumb(cache_dir, async_db):
+    """Plex change l'horodatage `/thumb/<ts>` a chaque rafraichissement : l'ancien chemin
+    repond 404, le proxy relit le chemin courant et sert l'affiche au lieu d'un 502."""
+    client = _client(async_db)
+    meta = _resp(content_type="application/json")
+    meta.json = MagicMock(return_value={"MediaContainer": {"Metadata": [{"thumb": "/library/metadata/42/thumb/200"}]}})
+    fake = _fake_httpx_client(side_effect=[_resp(status_code=404), meta, _resp()])
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F100")
+        assert resp.status_code == 200
+        assert fake.get.await_args_list[1].args[0] == "http://plex.local/library/metadata/42"
+        assert fake.get.await_args_list[2].args[0] == "http://plex.local/library/metadata/42/thumb/200"
+    finally:
+        _cleanup()
+
+
+def test_plex_path_stale_without_current_thumb_stays_502(cache_dir, async_db):
+    client = _client(async_db)
+    meta = _resp(content_type="application/json")
+    meta.json = MagicMock(return_value={"MediaContainer": {"Metadata": [{}]}})
+    fake = _fake_httpx_client(side_effect=[_resp(status_code=404), meta])
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F100")
+        assert resp.status_code == 502
+    finally:
+        _cleanup()
+
+
+def test_plex_path_stale_metadata_error_stays_502(cache_dir, async_db):
+    client = _client(async_db)
+    fake = _fake_httpx_client(side_effect=[_resp(status_code=404), _resp(status_code=500)])
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F100")
+        assert resp.status_code == 502
+    finally:
+        _cleanup()
