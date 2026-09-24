@@ -13,7 +13,9 @@
   reste de la liste.
 
   Bâtie sur ModalShell pour heriter du piege de focus, d'Echap, de l'inertie de
-  l'arriere-plan et de la fermeture au bouton « retour ».
+  l'arriere-plan et de la fermeture au bouton « retour ». La liste est un Listbox de
+  Reka UI : fleches, Entree, survol et annonce de l'option active sont les siens ; le
+  classement des resultats reste le notre.
 -->
 <template>
   <ModalShell
@@ -25,62 +27,51 @@
     initial-focus=".palette-input"
     @close="close"
   >
-    <input
-      ref="inputRef"
-      v-model="query"
-      type="search"
-      class="palette-input"
-      role="combobox"
-      aria-expanded="true"
-      aria-controls="command-palette-list"
-      :aria-activedescendant="activeId"
-      aria-label="Rechercher une destination"
-      placeholder="Rechercher une page, un réglage, un film ou une série…"
-      autocomplete="off"
-      @keydown.down.prevent="move(1)"
-      @keydown.up.prevent="move(-1)"
-      @keydown.enter.prevent="void activate(results[cursor])"
-    />
+    <ListboxRoot ref="listboxRef" class="palette" highlight-on-hover :model-value="undefined" @update:model-value="onPick">
+      <ListboxFilter
+        v-model="query"
+        class="palette-input"
+        role="combobox"
+        aria-expanded="true"
+        aria-controls="command-palette-list"
+        auto-focus
+        aria-label="Rechercher une destination"
+        placeholder="Rechercher une page, un réglage, un film ou une série…"
+        autocomplete="off"
+      />
 
-    <!-- Deux perimetres, deux onglets. L'onglet ouvert suit la page d'ou l'on vient :
-         depuis Explorer on cherche un media, depuis Administration un reglage. -->
-    <AppSubnav
-      v-if="query.trim()"
-      class="palette-scopes"
-      variant="tabs"
-      :items="scopeTabs"
-      :active="scope"
-      aria-label="Périmètre de recherche"
-      @update:active="scope = ($event as Scope)"
-    />
+      <!-- Deux perimetres, deux onglets. L'onglet ouvert suit la page d'ou l'on vient :
+           depuis Explorer on cherche un media, depuis Administration un reglage. -->
+      <AppSubnav
+        v-if="query.trim()"
+        class="palette-scopes"
+        variant="tabs"
+        :items="scopeTabs"
+        :active="scope"
+        aria-label="Périmètre de recherche"
+        @update:active="scope = ($event as Scope)"
+      />
 
-    <p v-if="!results.length && !searching" class="palette-empty">
-      Aucun résultat pour « {{ query }} » dans {{ scope === 'media' ? 'les médias' : 'la navigation et les réglages' }}.
-    </p>
+      <p v-if="!results.length && !searching" class="palette-empty">
+        Aucun résultat pour « {{ query }} » dans {{ scope === 'media' ? 'les médias' : 'la navigation et les réglages' }}.
+      </p>
 
-    <ul v-else id="command-palette-list" class="palette-list" role="listbox" aria-label="Destinations">
-      <li
-        v-for="(item, index) in results"
-        :id="`palette-option-${index}`"
-        :key="item.id"
-        role="option"
-        :aria-selected="index === cursor"
-        :class="{ active: index === cursor }"
-        @mousemove="cursor = index"
-        @click="void activate(item)"
-      >
-        <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
-        <span class="palette-label">{{ item.label }}</span>
-        <span class="palette-group">{{ item.group }}</span>
-      </li>
-    </ul>
+      <ListboxContent v-else id="command-palette-list" class="palette-list" aria-label="Destinations">
+        <ListboxItem v-for="item in results" :key="item.id" :value="item.id" class="palette-option">
+          <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
+          <span class="palette-label">{{ item.label }}</span>
+          <span class="palette-group">{{ item.group }}</span>
+        </ListboxItem>
+      </ListboxContent>
+    </ListboxRoot>
 
     <p v-if="searching" class="palette-empty" role="status">Recherche dans le catalogue…</p>
   </ModalShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { ListboxContent, ListboxFilter, ListboxItem, ListboxRoot } from 'reka-ui';
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import { refDebounced } from '@vueuse/core';
 import { useRouter } from 'vue-router';
@@ -112,8 +103,7 @@ const router = useRouter();
 const { arrInstances, downloadClients, load: loadSources } = useDownloadSources();
 const isOpen = ref(false);
 const query = ref('');
-const cursor = ref(0);
-const inputRef = ref<HTMLInputElement | null>(null);
+const listboxRef = ref<{ highlightFirstItem?: () => void } | null>(null);
 type Scope = 'media' | 'app';
 const scope = ref<Scope>('media');
 
@@ -241,15 +231,13 @@ const results = computed<Command[]>(() =>
   query.value.trim() && scope.value === 'media' ? mediaResults.value : appResults.value
 );
 
-const activeId = computed(() => (results.value.length ? `palette-option-${cursor.value}` : undefined));
-
+// Nouveaux resultats (frappe, onglet, reponse du catalogue) : Entree vise le premier.
 watch(results, () => {
-  cursor.value = 0;
+  void nextTick(() => listboxRef.value?.highlightFirstItem?.());
 });
 
-function move(delta: number): void {
-  if (!results.value.length) return;
-  cursor.value = (cursor.value + delta + results.value.length) % results.value.length;
+function onPick(id: unknown): void {
+  void activate(results.value.find((item) => item.id === id));
 }
 
 async function activate(item?: Command): Promise<void> {
@@ -269,7 +257,6 @@ function open(prefill = ''): void {
   isOpen.value = true;
   scope.value = MEDIA_FIRST.has(currentDestinationKey()) ? 'media' : 'app';
   query.value = prefill;
-  cursor.value = 0;
   if (props.isAdmin) void loadSources();
 }
 
@@ -322,7 +309,7 @@ defineExpose({ open, close });
   list-style: none;
 }
 
-.palette-list li {
+.palette-option {
   display: flex;
   gap: var(--space-3);
   align-items: center;
@@ -333,18 +320,19 @@ defineExpose({ open, close });
   cursor: pointer;
 }
 
-.palette-list li svg { flex: none; width: 16px; height: 16px; }
+.palette-option svg { flex: none; width: 16px; height: 16px; }
 .palette-label { flex: 1; min-width: 0; color: var(--text); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-group { flex: none; color: var(--muted); font-size: var(--fs-xs); }
 
-.palette-list li.active {
+.palette-option { outline: none; }
+.palette-option[data-highlighted] {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
-.palette-list li.active .palette-label { color: var(--accent); }
+.palette-option[data-highlighted] .palette-label { color: var(--accent); }
 
 @media (forced-colors: active) {
-  .palette-list li.active { forced-color-adjust: none; color: HighlightText; background: Highlight; }
-  .palette-list li.active .palette-label { color: HighlightText; }
+  .palette-option[data-highlighted] { forced-color-adjust: none; color: HighlightText; background: Highlight; }
+  .palette-option[data-highlighted] .palette-label { color: HighlightText; }
 }
 </style>
