@@ -92,3 +92,32 @@ test("les groupes repliables annoncent leur etat et resument le choix", async ({
   await header.click();
   await expect(header).toHaveAttribute("aria-expanded", "true");
 });
+
+test("sur telephone, la feuille de filtres ouverte garde la barre de recherche a l'ecran", async ({ page }) => {
+  test.skip(page.viewportSize().width > 900, "la feuille n'existe que sur petit ecran");
+  await mockApi(page);
+  const many = Array.from({ length: 60 }, (_, i) => ({ client_id: 7, client_name: "Maison", hash: `h${i}`, title: `Torrent ${i}`, status: "downloading", progress: 10, category: "films" }));
+  await page.route("**/api/downloads/clients", (route) => route.fulfill({ json: many }));
+  await page.goto("/downloads?view=clients&sub=instances");
+  await page.locator(".torrent-table").getByText("Torrent 0", { exact: true }).waitFor();
+
+  const bar = page.locator(".app-topbar");
+  // Sans feuille, descendre masque bien la barre : le mecanisme fonctionne.
+  const scrollThrough = (from, to) => page.evaluate(async ([a, b]) => {
+    const step = a < b ? 150 : -150;
+    for (let y = a; step > 0 ? y <= b : y >= b; y += step) {
+      window.scrollTo(0, y);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }
+  }, [from, to]);
+  await scrollThrough(0, 900);
+  await expect(bar).toHaveClass(/is-hidden/);
+  await scrollThrough(900, 0);
+  await expect(bar).not.toHaveClass(/is-hidden/);
+
+  await page.getByRole("button", { name: "Afficher les filtres" }).first().click();
+  await expect(page.locator(".filter-sheet")).toBeVisible();
+  // La page defile derriere la feuille : la barre ne doit pas partir.
+  await scrollThrough(0, 1200);
+  await expect(bar).not.toHaveClass(/is-hidden/);
+});

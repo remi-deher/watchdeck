@@ -26,8 +26,8 @@
   </Transition>
 
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
-  <details class="panel" @toggle="deliveriesOpen = $event.target.open">
-    <summary>Suivi des envois — clés uniques et confirmations</summary>
+  <CollapsibleRoot class="panel" @update:open="deliveriesOpen = $event" :unmount-on-hide="false">
+    <CollapsibleTrigger class="collapsible-trigger">Suivi des envois — clés uniques et confirmations</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
     <p>Les envois sans confirmation restent bloqués pour vérification. Un Message-ID SMTP ne garantit pas à lui seul l'absence de doublon.</p>
     <UiDataTable label="Suivi des envois" :rows="deliveries" :columns="DELIVERY_COLUMNS" :row-key="(d) => d.send_key">
       <template #empty>Aucun envoi enregistré dans le nouveau suivi.</template>
@@ -35,7 +35,7 @@
       <template #cell-state="{ row: delivery }">{{ deliveryStateLabels[delivery.state] || delivery.state }}<small>{{ delivery.detail }}</small></template>
       <template #cell-send_key="{ row: delivery }"><code>{{ delivery.send_key }}</code></template>
     </UiDataTable>
-  </details>
+  </CollapsibleContent></CollapsibleRoot>
 
   <div class="psh-layout">
     <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
@@ -92,6 +92,7 @@
 </template>
 
 <script setup>
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import UiDataTable from '@/components/ui/UiDataTable.vue';
 const DELIVERY_COLUMNS = [
   { key: 'request', label: 'Demande', card: 'title' },

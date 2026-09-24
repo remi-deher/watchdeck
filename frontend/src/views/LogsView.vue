@@ -28,7 +28,7 @@
         <strong>{{ titleOf(row) }}</strong><small class="table-detail">{{ detailOf(row) }}</small>
         <!-- Le contexte technique etait serialise en JSON a meme la colonne : illisible, et
              il poussait la description utile hors de vue. Il se deplie a la demande. -->
-        <details v-if="payloadOf(row)" class="log-payload"><summary>Détail technique</summary><pre>{{ payloadOf(row) }}</pre></details>
+        <CollapsibleRoot v-if="payloadOf(row)" class="log-payload" :unmount-on-hide="false"><CollapsibleTrigger class="collapsible-trigger">Détail technique</CollapsibleTrigger><CollapsibleContent class="collapsible-content"><pre>{{ payloadOf(row) }}</pre></CollapsibleContent></CollapsibleRoot>
       </template>
       <template #cell-result="{ row }">{{ resultOf(row) }}</template>
       <template #after>
@@ -46,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
@@ -176,12 +177,12 @@ useRealtime(['request.updated', 'job.updated', 'notification.updated'], () => { 
 .log-payload {
   margin-top: var(--space-1);
 }
-.log-payload summary {
+.log-payload .collapsible-trigger {
   color: var(--muted);
   font-size: var(--fs-xs);
   cursor: pointer;
 }
-.log-payload summary:hover { color: var(--text); }
+.log-payload .collapsible-trigger:hover { color: var(--text); }
 .log-payload pre {
   margin: var(--space-1) 0 0;
   max-height: 260px;

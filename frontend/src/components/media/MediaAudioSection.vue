@@ -165,11 +165,11 @@
           <span v-if="movieSubtitleAlerts.subFrNotDefault" class="badge pending subtitle-alert-badge" title="Un sous-titre français complet est présent mais non activé par défaut">Sous-titre FR non activé</span>
           <span v-if="movieSubtitleAlerts.forcedFrNotDefault" class="badge language-tag vf-secondary subtitle-alert-badge" title="Un sous-titre FR sign/traduction est présent mais non activé par défaut">Sous-titre forcé FR non activé</span>
         </div>
-        <details class="season-details track-group" v-if="vfDetail.tracks?.length">
-          <summary class="track-group-summary">
+        <CollapsibleRoot class="season-details track-group" v-if="vfDetail.tracks?.length" :unmount-on-hide="false">
+          <CollapsibleTrigger class="track-group-summary collapsible-trigger">
             <span>Audio ({{ vfDetail.tracks.length }})</span>
             <ChevronDown :size="16" />
-          </summary>
+          </CollapsibleTrigger><CollapsibleContent class="collapsible-content">
           <div class="track-group-body">
             <article v-for="(track, index) in vfDetail.tracks" :key="'audio-'+index" class="detail-row track-row">
               <div>
@@ -179,14 +179,14 @@
               <span class="badge" :class="track.is_fr ? 'available' : ''">{{ track.lang ? track.lang.toUpperCase() : '??' }}</span>
             </article>
           </div>
-        </details>
+        </CollapsibleContent></CollapsibleRoot>
         <p v-if="!vfDetail.tracks?.length" class="empty track-empty">Aucune piste audio detectee.</p>
 
-        <details class="season-details" v-if="vfDetail.subtitles?.length">
-          <summary class="track-group-summary">
+        <CollapsibleRoot class="season-details" v-if="vfDetail.subtitles?.length" :unmount-on-hide="false">
+          <CollapsibleTrigger class="track-group-summary collapsible-trigger">
             <span>Sous-titres ({{ vfDetail.subtitles.length }})</span>
             <ChevronDown :size="16" />
-          </summary>
+          </CollapsibleTrigger><CollapsibleContent class="collapsible-content">
           <div class="track-group-body">
             <article v-for="(sub, index) in vfDetail.subtitles" :key="'sub-'+index" class="detail-row track-row">
               <div>
@@ -196,7 +196,7 @@
               <span class="badge">{{ sub.lang ? sub.lang.toUpperCase() : '??' }}</span>
             </article>
           </div>
-        </details>
+        </CollapsibleContent></CollapsibleRoot>
       </div>
     </div>
     <p v-else-if="envelopeError" class="notice error-text">Échec du chargement de l'analyse VF.</p>
@@ -216,6 +216,7 @@
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from "vue";
 import { MessageSquareWarning, ChevronDown, SlidersHorizontal } from "@lucide/vue";
@@ -450,7 +451,7 @@ function formatAirDate(airDate: string): string {
 .track-group {
   margin-bottom: 0.5rem;
 }
-.track-group-summary {
+.track-group-.collapsible-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -871,7 +871,7 @@ button:disabled {
 .markdown-menu__item[data-highlighted] { background: var(--surface-2); }
 .markdown-menu__item span { color: var(--muted); }
 
-.template-settings > summary {
+.template-settings > .collapsible-trigger {
   padding: 14px 0;
   font-weight: 700;
   cursor: pointer;

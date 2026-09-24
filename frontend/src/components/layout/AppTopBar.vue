@@ -134,9 +134,8 @@ const { hidden: toolbarHidden, setHold, reveal } = useChromeAutoHide();
    les doigts de l'utilisateur en train de s'en servir.
    `filtersOpen` ne fait plus partie de la condition. Il visait la feuille modale des
    filtres, mais sur grand ecran c'est une colonne ouverte par defaut : la barre du haut
-   ne se masquait alors jamais sur /downloads, sans que rien ne l'explique. Le cas mobile
-   reste couvert sans lui -- une modale Reka UI verrouille le defilement de la page, donc
-   plus aucun evenement de defilement n'est emis tant qu'elle est ouverte. */
+   ne se masquait alors jamais sur /downloads, sans que rien ne l'explique. La feuille de
+   filtres du telephone, non modale, tient elle-meme la barre visible : voir FilterSidebar. */
 watch(searchFocused, (active) => setHold('topbar', active), { immediate: true });
 
 onMounted(() => {

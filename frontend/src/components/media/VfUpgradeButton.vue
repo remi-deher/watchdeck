@@ -101,8 +101,8 @@
             <UiButton variant="primary" size="sm" :loading="grabbing===release.guid" :disabled="Boolean(grabbing) || grabDisabled" @click="requestGrab(release)"><template #icon><Download :size="14" /></template>{{ grabbing===release.guid ? 'Envoi…' : 'Grab' }}</UiButton>
           </div>
 
-          <details v-if="hasReleaseDetails(release)" class="release-details">
-            <summary>Détails complémentaires</summary>
+          <CollapsibleRoot v-if="hasReleaseDetails(release)" class="release-details" :unmount-on-hide="false">
+            <CollapsibleTrigger class="collapsible-trigger">Détails complémentaires</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
             <dl class="vf-upgrade-release-meta release-secondary-meta">
               <div><dt>Publiée le</dt><dd>{{ formatReleaseDate(release.publish_date) }}</dd></div>
               <div><dt>Score CF</dt><dd>{{ release.custom_format_score ?? 0 }}</dd></div>
@@ -117,7 +117,7 @@
               <li v-for="warning in comparisonFor(release).warnings" :key="warning"><TriangleAlert :size="13" /> {{ warning }}</li>
             </ul>
             <p v-if="release.vf_evidence?.length" class="vf-upgrade-evidence">{{ release.vf_evidence.join(' · ') }}</p>
-          </details>
+          </CollapsibleContent></CollapsibleRoot>
         </li>
       </ul>
     </ModalShell>
@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { humanizeError } from '@/utils/apiError';
 import { computed, onMounted, ref } from 'vue';
 import { ArrowRight, Copy, Download, ExternalLink, RefreshCw, Search, Sparkles, TriangleAlert } from '@lucide/vue';
@@ -476,10 +477,10 @@ onMounted(load);
 .vf-upgrade-release-meta dd { margin: 0; font-weight: 650; }
 .vf-upgrade-release-actions { align-self: center; justify-content: flex-end; }
 .vf-upgrade-release-actions a, .vf-upgrade-release-actions button { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; min-height: 36px; padding: 0 12px; }
-.release-details { grid-column: 1 / -1; padding-top: 8px; border-top: 1px solid var(--border); }
-.release-details summary { width: fit-content; color: var(--muted); font-size: var(--fs-xs); font-weight: 650; cursor: pointer; }
-.release-details[open] summary { margin-bottom: 10px; color: var(--text); }
-.release-details > * + * { margin-top: 9px; }
+.release-[data-state] { grid-column: 1 / -1; padding-top: 8px; border-top: 1px solid var(--border); }
+.release-[data-state] .collapsible-trigger { width: fit-content; color: var(--muted); font-size: var(--fs-xs); font-weight: 650; cursor: pointer; }
+.release-[data-state][data-state="open"] .collapsible-trigger { margin-bottom: 10px; color: var(--text); }
+.release-[data-state] > * + * { margin-top: 9px; }
 .release-comparison { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 9px; border-radius: var(--radius-sm); background: var(--surface); }
 .release-comparison > div { display: grid; gap: 2px; }
 .release-comparison span { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; }
@@ -487,9 +488,9 @@ onMounted(load);
 .technical-warnings { display: grid; gap: 4px; margin: 0; padding: 0; color: var(--warning,#f59e0b); font-size: var(--fs-xs); list-style: none; }
 .technical-warnings li { display: flex; align-items: center; gap: 5px; }
 .vf-upgrade-evidence { margin: 0; color: var(--success,#22c55e); font-size: var(--fs-xs); }
-.grab-confirm-details { display: grid; gap: 12px; margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); overflow-wrap: anywhere; }
-.grab-confirm-details ul { display: grid; gap: 7px; margin: 0; padding: 0; color: var(--warning,#f59e0b); font-size: var(--fs-sm); list-style: none; }
-.grab-confirm-details li { display: flex; gap: 6px; }
+.grab-confirm-[data-state] { display: grid; gap: 12px; margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); overflow-wrap: anywhere; }
+.grab-confirm-[data-state] ul { display: grid; gap: 7px; margin: 0; padding: 0; color: var(--warning,#f59e0b); font-size: var(--fs-sm); list-style: none; }
+.grab-confirm-[data-state] li { display: flex; gap: 6px; }
 .spin { animation: vf-upgrade-spin 1s linear infinite; }
 @keyframes vf-upgrade-spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {

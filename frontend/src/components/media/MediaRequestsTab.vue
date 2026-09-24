@@ -22,13 +22,13 @@
 
         <RequestStatusStepper v-if="!['failed','rejected'].includes(row.status)" :row="row" />
 
-        <details v-if="row.media_type === 'show' && row.seasons?.length" class="mail-history-details">
-          <summary>Detail par saison ({{ seasonsSummary(row.seasons) }})</summary>
+        <CollapsibleRoot v-if="row.media_type === 'show' && row.seasons?.length" class="mail-history-details" :unmount-on-hide="false">
+          <CollapsibleTrigger class="collapsible-trigger">Detail par saison ({{ seasonsSummary(row.seasons) }})</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
           <div v-for="season in row.seasons" :key="season.season_number" class="inline-row compact" style="justify-content: space-between; margin-bottom: 4px;">
             <span>Saison {{ season.season_number }}</span>
             <span class="badge" :class="season.status">{{ season.episodes_available_count }}/{{ season.episodes_total_count }}</span>
           </div>
-        </details>
+        </CollapsibleContent></CollapsibleRoot>
 
         <RequestMailHistory :row="row" />
         <RequesterList
@@ -40,8 +40,8 @@
           @remove-requester="(...args) => $emit('remove-requester', ...args)"
         />
       </div>
-      <details v-if="admin" class="request-admin-actions">
-        <summary>Administration</summary>
+      <CollapsibleRoot v-if="admin" class="request-admin-actions" :unmount-on-hide="false">
+        <CollapsibleTrigger class="collapsible-trigger">Administration</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
         <div class="actions">
           <UiButton icon-only v-if="row.status === 'pending_approval'" class="success" title="Approuver" aria-label="Approuver" :disabled="busy" @click="$emit('approve', row.id)"><Check /></UiButton>
           <UiButton variant="danger" icon-only v-if="row.status === 'pending_approval'" title="Refuser" aria-label="Refuser" :disabled="busy" @click="$emit('reject', row)"><Ban /></UiButton>
@@ -60,7 +60,7 @@
           <span>Rapprochement des imports bloques</span>
           <UiSelect :model-value="autoImportValue(row)" :disabled="busy" @update:model-value="onAutoImportChange(row, $event)" :options="[{ value: 'inherit', label: 'Suivre le reglage global' }, { value: 'on', label: 'Automatique pour ce media' }, { value: 'off', label: 'Toujours manuel pour ce media' }]" />
         </label>
-      </details>
+      </CollapsibleContent></CollapsibleRoot>
     </article>
     <article v-if="!requests?.length && detail?.in_library" class="detail-row plex-origin-card">
       <div>
@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import { requestStatusLabel } from '@/utils/labels';
 import { Ban, Check, CheckCheck, Mail, MailCheck, PlusCircle, RotateCcw, Search, Trash2, Users, XCircle } from '@lucide/vue';
@@ -171,7 +172,7 @@ const emit = defineEmits<{
   align-self: start;
   min-width: 130px;
 }
-.request-admin-actions summary {
+.request-admin-actions .collapsible-trigger {
   cursor: pointer;
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -228,16 +229,16 @@ const emit = defineEmits<{
   font-weight: 600;
 }
 
-:deep(.mail-history-details) {
+:deep(.mail-history-[data-state]) {
   margin-top: 4px;
 }
-:deep(.mail-history-details summary) {
+:deep(.mail-history-[data-state] .collapsible-trigger) {
   cursor: pointer;
   font-size: var(--fs-xs);
   color: var(--muted);
   user-select: none;
 }
-:deep(.mail-history-details small) {
+:deep(.mail-history-[data-state] small) {
   display: block;
 }
 
