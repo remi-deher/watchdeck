@@ -2,7 +2,7 @@
   <section class="instance-overview-section" aria-label="Instances configurées">
     <div v-if="mediaInstances.length" class="instance-family">
       <h2><Library /> Gestionnaires de médias</h2>
-      <div class="instance-grid">
+      <div v-balanced-grid="{ min: 320 }" class="instance-grid">
         <article v-for="inst in mediaInstances" :key="`arr-${inst.id}`" class="instance-card" :class="{ disabled: !inst.enabled }" @click="filterByArr(inst)">
           <header class="instance-header">
             <div class="instance-identity">
@@ -24,7 +24,7 @@
 
     <div v-if="prowlarrInstances.length" class="instance-family">
       <h2><Search /> Indexeurs</h2>
-      <div class="instance-grid">
+      <div v-balanced-grid="{ min: 320 }" class="instance-grid">
         <article v-for="inst in prowlarrInstances" :key="`prowlarr-${inst.id}`" class="instance-card prowlarr-card" :class="{ disabled: !inst.enabled, error: getProwlarrStats(inst).connected === false }" @click="openProwlarr">
           <header class="instance-header">
             <div class="instance-identity"><span class="icon-avatar prowlarr"><Search /></span><div class="instance-title-wrap"><span class="type-label prowlarr">Prowlarr</span><div class="title-line"><strong>{{ inst.name }}</strong><ExternalLink /></div><small>{{ formatHost(inst.url) }}<template v-if="getProwlarrStats(inst).version"> · v{{ getProwlarrStats(inst).version }}</template></small></div></div>
@@ -39,7 +39,7 @@
 
     <div v-if="configuredClients.length" class="instance-family">
       <h2><Server /> Clients de téléchargement</h2>
-      <div class="instance-grid">
+      <div v-balanced-grid="{ min: 320 }" class="instance-grid">
         <article v-for="client in configuredClients" :key="`client-${client.id}`" class="instance-card client-card" :class="{ disabled: !client.enabled, error: getClientError(client.id) }" @click="filterByClient(client)">
           <header class="instance-header">
             <div class="instance-identity"><span class="icon-avatar client"><Server /></span><div class="instance-title-wrap"><span class="type-label client">{{ clientLabel(client) }}</span><div class="title-line"><strong>{{ client.name }}</strong><ExternalLink /></div><small>{{ formatHost(client.url) }}<template v-if="getClientOverview(client.id).version"> · {{ getClientOverview(client.id).version }}</template></small></div></div>
