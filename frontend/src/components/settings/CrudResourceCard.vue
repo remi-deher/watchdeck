@@ -36,32 +36,13 @@
     </UiDataTable>
   </SettingsCard>
 
-  <ModalShell
-    v-if="showModal"
-    :title="editingId ? updateTitle : createTitle"
-    :panel-class="modalClass"
-    :busy="busy"
-    @close="$emit('close-modal')"
-  >
-    <div class="compact-form">
-      <slot name="form" />
-    </div>
-    <template #actions>
-      <slot name="modal-actions" />
-      <UiButton variant="primary" :disabled="busy || !canSave" @click="$emit('save')">
-        <Save />{{ editingId ? 'Mettre à jour' : 'Ajouter' }}
-      </UiButton>
-      <UiButton @click="$emit('close-modal')">Annuler</UiButton>
-    </template>
-  </ModalShell>
 </template>
 
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, type Component } from 'vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
-import ModalShell from '@/components/ui/ModalShell.vue';
-import { Pencil, Plus, PlugZap, Power, Save, Trash2 } from '@lucide/vue';
+import { Pencil, Plus, PlugZap, Power, Trash2 } from '@lucide/vue';
 import SettingsCard from './SettingsCard.vue';
 
 const props = withDefaults(
@@ -73,13 +54,6 @@ const props = withDefaults(
     columns: Array<{ key: string; label: string; isTitle?: boolean; isBadge?: boolean; isStatus?: boolean; class?: string }>;
     emptyLabel?: string;
     addLabel?: string;
-    showModal?: boolean;
-    editingId?: number | string | null;
-    createTitle?: string;
-    updateTitle?: string;
-    modalClass?: string;
-    busy?: boolean;
-    canSave?: boolean;
     hasTest?: boolean;
   }>(),
   {
@@ -87,13 +61,6 @@ const props = withDefaults(
     items: () => [],
     emptyLabel: 'Aucun élément configuré.',
     addLabel: 'Ajouter',
-    showModal: false,
-    editingId: null,
-    createTitle: 'Ajouter un élément',
-    updateTitle: 'Modifier l\'élément',
-    modalClass: '',
-    busy: false,
-    canSave: true,
     hasTest: true,
   }
 );

@@ -31,9 +31,6 @@
             <div class="media-overlay__grab" aria-hidden="true">
               <span></span>
             </div>
-            <button class="media-overlay__close" type="button" aria-label="Fermer" @click="$emit('close')">
-              <X />
-            </button>
             <div class="media-overlay__scroll">
               <slot />
             </div>
@@ -49,7 +46,6 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref, toRef, watch } from 'vue';
-import { X } from '@lucide/vue';
 import { DialogContent, DialogRoot, FocusScope } from 'reka-ui';
 import { useSheetGesture } from '@/composables/useSheetGesture';
 
@@ -196,24 +192,6 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 }
 .media-overlay__scroll::-webkit-scrollbar { width: 0; height: 0; }
 
-.media-overlay__close {
-  position: absolute;
-  /* Le flou de cette pastille reste : elle ne bouge pas, donc il ne coute qu'une fois. */
-  top: calc(12px + var(--safe-top, 0px));
-  right: 14px;
-  z-index: 3;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(8px);
-  cursor: pointer;
-}
-.media-overlay__close svg { width: 19px; height: 19px; }
 
 @media (min-width: 768px) {
   .media-overlay { align-items: center; }
