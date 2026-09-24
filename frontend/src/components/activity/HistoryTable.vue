@@ -3,10 +3,24 @@
     <UiSectionHeader eyebrow="Historique" title="Dernières lectures">
       <template #meta><small>{{ countLabel }}</small></template>
       <template #actions>
-        <UiSegmentedControl :model-value="sort" :options="sortOptions" :ariaLabel="'Trier l’historique'" @update:model-value="$emit('update:sort', String($event))" />
         <UiButton variant="ghost" :disabled="!rows.length" title="Exporter en CSV" @click="exportCsv"><template #icon><FileDown /></template>CSV</UiButton>
       </template>
     </UiSectionHeader>
+    <!-- Chaque colonne se trie d'un clic, comme l'inventaire des Insights ; un second clic
+         inverse le sens. Le tri est fait par le serveur, sur toute la periode. -->
+    <div class="history-sort" role="toolbar" aria-label="Trier l’historique">
+      <span class="history-sort__spacer" aria-hidden="true"></span>
+      <span class="history-sort__cell">
+        <button v-for="column in ['title', 'user']" :key="column" type="button" class="history-sort__button" :class="{ active: sortColumn === column }" :aria-pressed="sortColumn === column" :aria-label="sortLabel(column)" @click="toggleSort(column)">
+          {{ SORT_COLUMNS[column] }}<component :is="sortIcon(column)" v-if="sortColumn === column" aria-hidden="true" />
+        </button>
+      </span>
+      <span v-for="column in ['device', 'method', 'duration', 'date']" :key="column" class="history-sort__cell">
+        <button type="button" class="history-sort__button" :class="{ active: sortColumn === column }" :aria-pressed="sortColumn === column" :aria-label="sortLabel(column)" @click="toggleSort(column)">
+          {{ SORT_COLUMNS[column] }}<component :is="sortIcon(column)" v-if="sortColumn === column" aria-hidden="true" />
+        </button>
+      </span>
+    </div>
     <div class="history-table">
       <!-- Un marathon produisait autant de lignes identiques que d’episodes. Les lectures
            consecutives d’un meme media par la meme personne sont donc repliees en une
@@ -52,9 +66,8 @@ import { computed, ref, watch } from 'vue';
 import { useIntersectionObserver } from '@vueuse/core';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 import UiButton from '@/components/ui/UiButton.vue';
-import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { downloadTextFile } from '@/utils/download';
-import { FileDown, MapPin, Monitor, Network } from '@lucide/vue';
+import { ArrowDown, ArrowUp, FileDown, MapPin, Monitor, Network } from '@lucide/vue';
 import { formatDurationExact as formatDuration, formatDateTimeShort, formatLongDay } from '@/utils/format';
 import { isToday, isYesterday } from 'date-fns';
 import { localIso } from '@/utils/timeBuckets';
@@ -116,11 +129,33 @@ const emit = defineEmits<{
   (e: 'update:sort', value: string): void;
 }>();
 
-const sortOptions = [
-  { value: 'recent', label: 'Récentes' },
-  { value: 'oldest', label: 'Anciennes' },
-  { value: 'longest', label: 'Durée' },
-];
+/* Tri : `<colonne>_<asc|desc>`, tel que l'attend l'API. Les anciennes valeurs
+   (`recent`, `oldest`, `longest`) sont encore comprises. */
+const SORT_COLUMNS: Record<string, string> = {
+  title: 'Titre', user: 'Utilisateur', device: 'Appareil', method: 'Lecture', duration: 'Durée', date: 'Date',
+};
+const ALIASES: Record<string, string> = { recent: 'date_desc', oldest: 'date_asc', longest: 'duration_desc' };
+const parsedSort = computed(() => {
+  const value = ALIASES[props.sort] || props.sort || 'date_desc';
+  const cut = value.lastIndexOf('_');
+  return { column: value.slice(0, cut), direction: value.slice(cut + 1) };
+});
+const sortColumn = computed(() => parsedSort.value.column);
+// Premier clic : les dates et durees commencent par les plus grandes, le texte par A.
+const FIRST_DIRECTION: Record<string, string> = { date: 'desc', duration: 'desc' };
+function toggleSort(column: string): void {
+  const direction = sortColumn.value === column
+    ? (parsedSort.value.direction === 'asc' ? 'desc' : 'asc')
+    : (FIRST_DIRECTION[column] || 'asc');
+  emit('update:sort', `${column}_${direction}`);
+}
+function sortIcon(column: string) {
+  return sortColumn.value === column && parsedSort.value.direction === 'asc' ? ArrowUp : ArrowDown;
+}
+function sortLabel(column: string): string {
+  const current = sortColumn.value === column ? (parsedSort.value.direction === 'asc' ? ', croissant' : ', décroissant') : '';
+  return `Trier par ${SORT_COLUMNS[column].toLowerCase()}${current}`;
+}
 
 interface HistoryRow { key: string; item: HistoryItem; count: number; watchedMs: number }
 
@@ -254,5 +289,16 @@ const formatDate = (value: any) => formatDateTimeShort(value, '—');
 </script>
 
 <style scoped lang="scss">
-.panel-head>small{color:var(--muted);font-size:var(--fs-sm)}.history-table{display:grid;margin-top:12px}.history-day{position:sticky;top:0;z-index:1;display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);margin:0;padding:8px 12px;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);color:var(--text);font-size:var(--fs-sm);text-transform:capitalize}.history-day small{color:var(--muted);font-size:var(--fs-xs);text-transform:none;white-space:nowrap}.history-sentinel{height:1px}.history-table button{display:grid;grid-template-columns:64px minmax(210px,1fr) minmax(190px,250px) 112px 84px 145px;gap: var(--space-4);align-items:center;width:100%;min-height:112px;padding:10px 12px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);text-align:left}.history-table button:hover{background:rgba(255,255,255,.045)}.history-title{display:grid;gap: var(--space-2);min-width:0}.history-title strong,.history-title small,.history-client strong,.history-client code,.history-place span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-title strong{font-size:var(--fs-base);line-height:1.4}.history-title small{color:color-mix(in srgb,var(--text) 76%,transparent);font-size:var(--fs-sm)}.history-client{display:grid;gap: var(--space-2);min-width:0}.history-client>span{display:flex;align-items:center;gap: var(--space-2);min-width:0;color:color-mix(in srgb,var(--text) 80%,transparent);font-size:var(--fs-sm);line-height:1.3}.history-client svg{flex:none;width:16px;height:16px;color:var(--muted)}.history-client code{font-family:inherit;font-size:var(--fs-sm);font-variant-numeric:tabular-nums}.history-place span{font-weight:600}.history-table time{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm);line-height:1.4}.history-duration{font-size:var(--fs-md);font-weight:700;white-space:nowrap}.history-group{margin-left:7px;padding:1px 6px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent);font-size:var(--fs-xs);font-style:normal;font-weight:700}.history-more{margin-top:12px}@media(max-width:1150px){.history-table button{grid-template-columns:64px minmax(190px,1fr) minmax(180px,230px) 112px 80px}.history-table time{grid-column:2/4;font-size:var(--fs-xs)}.history-duration{grid-column:5;grid-row:1/3}}@media(max-width:800px){.history-table button{grid-template-columns:64px minmax(0,1fr) auto;gap:var(--space-3) var(--space-4);align-items:start}.history-client{grid-column:2}.history-duration{grid-column:2;grid-row:auto;font-size:var(--fs-sm)}.history-table time{grid-column:3;grid-row:2;font-size:var(--fs-xs)}.history-table :deep(.playback-badge){grid-column:3;grid-row:1}}@media(max-width:480px){.history-table button{grid-template-columns:58px minmax(0,1fr) auto;padding-inline:6px}.history-table time{display:none}.history-title strong{font-size:var(--fs-md)}.history-title small,.history-client>span,.history-client code{font-size:var(--fs-xs)}}
+.panel-head>small{color:var(--muted);font-size:var(--fs-sm)}.history-table{display:grid;margin-top:12px}.history-day{position:sticky;top:0;z-index:1;display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);margin:0;padding:8px 12px;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);color:var(--text);font-size:var(--fs-sm);text-transform:capitalize}.history-day small{color:var(--muted);font-size:var(--fs-xs);text-transform:none;white-space:nowrap}.history-sentinel{height:1px}.history-table button{display:grid;grid-template-columns:64px minmax(210px,1fr) minmax(190px,250px) 112px 84px 145px;gap: var(--space-4);align-items:center;width:100%;min-height:112px;padding:10px 12px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);text-align:left}.history-table button:hover{background:rgba(255,255,255,.045)}.history-title{display:grid;gap: var(--space-2);min-width:0}.history-title strong,.history-title small,.history-client strong,.history-client code,.history-place span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-title strong{font-size:var(--fs-base);line-height:1.4}.history-title small{color:color-mix(in srgb,var(--text) 76%,transparent);font-size:var(--fs-sm)}.history-client{display:grid;gap: var(--space-2);min-width:0}.history-client>span{display:flex;align-items:center;gap: var(--space-2);min-width:0;color:color-mix(in srgb,var(--text) 80%,transparent);font-size:var(--fs-sm);line-height:1.3}.history-client svg{flex:none;width:16px;height:16px;color:var(--muted)}.history-client code{font-family:inherit;font-size:var(--fs-sm);font-variant-numeric:tabular-nums}.history-place span{font-weight:600}.history-table time{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm);line-height:1.4}.history-duration{font-size:var(--fs-md);font-weight:700;white-space:nowrap}.history-group{margin-left:7px;padding:1px 6px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent);font-size:var(--fs-xs);font-style:normal;font-weight:700}.history-more{margin-top:12px}
+.history-sort{display:grid;grid-template-columns:64px minmax(210px,1fr) minmax(190px,250px) 112px 84px 145px;gap:var(--space-4);align-items:center;margin-top:12px;padding:6px 12px;border-bottom:1px solid var(--border)}
+.history-sort__cell{display:flex;flex-wrap:wrap;gap:var(--space-2);min-width:0}
+.history-sort__button{display:inline-flex;align-items:center;gap:4px;min-height:28px;padding:2px 6px;margin-left:-6px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);font:inherit;font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;text-transform:uppercase;cursor:pointer}
+.history-sort__button:hover{color:var(--text);background:var(--surface-2)}
+.history-sort__button.active{color:var(--accent)}
+.history-sort__button svg{width:13px;height:13px}
+.history-sort__button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+@media(max-width:1150px){.history-sort{grid-template-columns:64px minmax(190px,1fr) minmax(180px,230px) 112px 80px}.history-sort__cell:last-child{grid-column:2/4;grid-row:2}}
+/* Sur telephone les lignes ne sont plus alignees en colonnes : les tris forment une
+   rangee de boutons. */
+@media(max-width:800px){.history-sort{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding:6px 6px}.history-sort__spacer{display:none}.history-sort__cell{display:contents}.history-sort__button{margin-left:0;min-height:36px}}@media(max-width:1150px){.history-table button{grid-template-columns:64px minmax(190px,1fr) minmax(180px,230px) 112px 80px}.history-table time{grid-column:2/4;font-size:var(--fs-xs)}.history-duration{grid-column:5;grid-row:1/3}}@media(max-width:800px){.history-table button{grid-template-columns:64px minmax(0,1fr) auto;gap:var(--space-3) var(--space-4);align-items:start}.history-client{grid-column:2}.history-duration{grid-column:2;grid-row:auto;font-size:var(--fs-sm)}.history-table time{grid-column:3;grid-row:2;font-size:var(--fs-xs)}.history-table :deep(.playback-badge){grid-column:3;grid-row:1}}@media(max-width:480px){.history-table button{grid-template-columns:58px minmax(0,1fr) auto;padding-inline:6px}.history-table time{display:none}.history-title strong{font-size:var(--fs-md)}.history-title small,.history-client>span,.history-client code{font-size:var(--fs-xs)}}
 </style>

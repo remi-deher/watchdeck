@@ -149,7 +149,7 @@
 
         <div v-else-if="section==='clients'&&subview==='overview'" aria-hidden="true" />
 
-        <DownloadHistoryTable v-else-if="showHistory" :rows="filteredHistory" :errors="historyErrors" :has-more="hasMoreHistory" :loading="loadingHistory" @load-more="loadMoreHistory" />
+        <DownloadHistoryTable v-else-if="showHistory" :rows="filteredHistory" :errors="historyErrors" :has-more="hasMoreHistory" :loading="loadingHistory" :sort="historySort" @update:sort="setHistorySort" @load-more="loadMoreHistory" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
 
@@ -441,11 +441,17 @@ async function loadWanted(): Promise<void> {
   }
 }
 
+/* Tri de l'historique, fait par le serveur : un nouveau tri relit la premiere page. */
+const historySort = ref<{ key: string; direction: 'asc' | 'desc' }>({ key: 'completed', direction: 'desc' });
+function setHistorySort(value: { key: string; direction: 'asc' | 'desc' }): void {
+  historySort.value = value;
+  void loadHistory();
+}
 const {
   history, errors: historyErrors, loading: loadingHistory, hasMore: hasMoreHistory,
   load: loadHistory, loadMore: loadMoreHistory, reset: resetHistory,
 } = useDownloadHistory(
-  () => ({ source: mediaType.value, instanceId: selectedInstanceId.value }),
+  () => ({ source: mediaType.value, instanceId: selectedInstanceId.value, sort: historySort.value.key, direction: historySort.value.direction }),
   (message) => setSourceError('history', message),
 );
 

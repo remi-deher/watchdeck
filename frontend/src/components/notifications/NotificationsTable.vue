@@ -8,6 +8,9 @@
     :row-label="(row: NotificationRow) => row.event_label || row.event || 'la notification'"
     :selectable="tab === 'pending'"
     v-model:selection="selectedIds"
+    manual-sort
+    :sort="tab === 'history' ? sort : null"
+    @update:sort="(value) => emit('update:sort', value || { key: 'date', direction: 'desc' })"
   >
     <template #empty><UiEmptyState v-if="!loading" message="Aucune notification." /></template>
     <template #cell-date="{ row }">{{ formatDate(row.sent_at||row.created_at) }}</template>
@@ -36,7 +39,7 @@
 <script setup lang="ts">
 import { formatDateTimeShort as formatDate } from '@/utils/format';
 import { CheckCheck, Eye, Send, Trash2 } from '@lucide/vue';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
@@ -68,10 +71,13 @@ const props = withDefaults(
     rows?: NotificationRow[];
     tab?: string;
     loading?: boolean;
+    /** Tri de l'historique, fait par le serveur sur tous les envois (pagination comprise). */
+    sort?: { key: string; direction: 'asc' | 'desc' } | null;
   }>(),
-  { rows: () => [], tab: 'history', loading: false }
+  { rows: () => [], tab: 'history', loading: false, sort: null }
 );
-defineEmits<{
+const emit = defineEmits<{
+  (e: 'update:sort', value: { key: string; direction: 'asc' | 'desc' }): void;
   (e: 'send', row: NotificationRow): void;
   (e: 'resend', row: NotificationRow): void;
   (e: 'markHandled', row: NotificationRow): void;
@@ -79,14 +85,18 @@ defineEmits<{
   (e: 'preview', row: NotificationRow): void;
 }>();
 
-const columns: UiColumn<NotificationRow>[] = [
-  { key: 'date', label: 'Date' },
-  { key: 'event', label: 'Evenement', card: 'title' },
-  { key: 'media', label: 'Media' },
-  { key: 'recipients', label: 'Destinataires' },
-  { key: 'state', label: 'Etat' },
-  { key: 'actions', label: 'Actions', card: 'actions' },
-];
+/* L'historique se trie d'un clic sur l'en-tete ; la file d'attente garde son ordre. */
+const columns = computed<UiColumn<NotificationRow>[]>(() => {
+  const sortable = props.tab === 'history';
+  return [
+    { key: 'date', label: 'Date', sortable },
+    { key: 'event', label: 'Evenement', card: 'title', sortable },
+    { key: 'media', label: 'Media', sortable },
+    { key: 'recipients', label: 'Destinataires', sortable },
+    { key: 'state', label: 'Etat', sortable },
+    { key: 'actions', label: 'Actions', card: 'actions' },
+  ];
+});
 const selectedIds = ref<Array<string | number>>([]);
 function clear(): void { selectedIds.value = []; }
 // Changer d'onglet, ou une ligne qui disparait, ne laisse pas de selection fantome.

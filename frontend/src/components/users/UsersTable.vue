@@ -113,13 +113,17 @@ defineEmits<{
   (e: 'bulk-delete'): void;
 }>();
 
+/* Toute la liste est chargee : le tableau trie lui-meme, d'un clic sur l'en-tete. Le
+   rang du role suit la hierarchie (administrateur, moderateur, utilisateur) plutot que
+   l'alphabet. */
+const ROLE_RANK: Record<string, number> = { admin: 0, moderator: 1, user: 2 };
 const columns: UiColumn<AppUser>[] = [
-  { key: 'person', label: 'Personne', card: 'title', className: 'user-identity-cell' },
+  { key: 'person', label: 'Personne', card: 'title', className: 'user-identity-cell', sortable: true, sortValue: (user) => accountName(user).toLocaleLowerCase('fr') },
   { key: 'notifications', label: 'Notifications' },
-  { key: 'source', label: 'Origine du compte' },
-  { key: 'role', label: 'Rôle' },
-  { key: 'requests', label: 'Demandes' },
-  { key: 'last', label: 'Dernière activité' },
+  { key: 'source', label: 'Origine du compte', sortable: true, sortValue: (user) => sourceLabel(resolveSource(user)) },
+  { key: 'role', label: 'Rôle', sortable: true, sortValue: (user) => ROLE_RANK[String(user.role)] ?? 3 },
+  { key: 'requests', label: 'Demandes', sortable: true, sortValue: (user) => Number(user.stats?.total ?? user.request_count ?? 0) },
+  { key: 'last', label: 'Dernière activité', sortable: true, sortValue: (user) => String(user.last_requested_at || '') },
   { key: 'actions', label: 'Actions', card: 'actions' },
 ];
 const selectedIds = ref<Array<string | number>>([]);

@@ -1,3 +1,4 @@
+import { parseApiDate } from '@/utils/format';
 /* Libelles et classes d'etat de la page « Ameliorations VF & Flux ».
  *
  * Fonctions pures, extraites telles quelles de VfUpgradesView : elles ne dependent que
@@ -40,7 +41,7 @@ export function releaseButtonLabel(item: Pick<VfUpgradeItem, 'status' | 'release
 
 export function formatBackoff(backoff?: { misses: number; next_check_at?: string | null } | null, now = Date.now()): string {
   if (!backoff) return '';
-  const nextCheck = backoff.next_check_at ? new Date(backoff.next_check_at) : null;
+  const nextCheck = backoff.next_check_at ? parseApiDate(backoff.next_check_at) : null;
   if (!nextCheck) return `${backoff.misses} recherche(s) sans résultat`;
   const diffMs = nextCheck.getTime() - now;
   if (diffMs <= 0) return `${backoff.misses} échec(s) — nouvelle tentative au prochain cycle`;
@@ -60,8 +61,8 @@ export function runStatusLabel(status: string): string {
 
 export function formatRunDuration(startedAt?: string | null, finishedAt?: string | null, now = Date.now()): string {
   if (!startedAt) return '—';
-  const start = new Date(startedAt);
-  const end = finishedAt ? new Date(finishedAt).getTime() : now;
+  const start = parseApiDate(startedAt);
+  const end = finishedAt ? parseApiDate(finishedAt).getTime() : now;
   const seconds = Math.max(0, Math.round((end - start.getTime()) / 1000));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
