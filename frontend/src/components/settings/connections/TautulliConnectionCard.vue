@@ -14,7 +14,7 @@
     </p>
     <div class="card-actions">
       <UiButton :disabled="busy" @click="testConnection"><PlugZap/>Tester</UiButton>
-      <select v-model.number="importLength"><option :value="500">500 sessions</option><option :value="2000">2 000 sessions</option><option :value="10000">Tout (10 000 max.)</option></select>
+      <UiSelect v-model="importLength" :options="[{ value: 500, label: '500 sessions' }, { value: 2000, label: '2 000 sessions' }, { value: 10000, label: 'Tout (10 000 max.)' }]" />
       <UiButton :disabled="busy" @click="runImport"><History/>Importer</UiButton>
       <UiButton :disabled="busy" @click="normalizeHistory"><RefreshCw/>Normaliser l'historique</UiButton>
     </div>
@@ -24,6 +24,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from 'vue';
 import { useMutation } from '@tanstack/vue-query';

@@ -34,12 +34,7 @@
 
     <div class="card-actions">
       <UiButton :disabled="busy" @click="testConnection"><PlugZap/>Tester</UiButton>
-      <select v-model.number="importDays">
-        <option :value="30">30 derniers jours</option>
-        <option :value="90">90 derniers jours</option>
-        <option :value="365">1 an</option>
-        <option :value="0">Tout l’historique</option>
-      </select>
+      <UiSelect v-model="importDays" :options="[{ value: 30, label: '30 derniers jours' }, { value: 90, label: '90 derniers jours' }, { value: 365, label: '1 an' }, { value: 0, label: 'Tout l’historique' }]" />
       <UiButton :disabled="busy" @click="runImport"><Sparkles/>Enrichir</UiButton>
     </div>
 
@@ -48,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { PlugZap, Sparkles } from '@lucide/vue';

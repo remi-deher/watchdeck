@@ -46,17 +46,13 @@
     <div class="compact-form">
         <label>Nom<input v-model="form.name" placeholder="ex: Hotmail perso"></label>
         <label>Type
-          <select v-model="form.provider_type">
-            <option value="smtp">SMTP — Utilisateur / mot de passe</option>
-            <option value="smtp_oauth2">SMTP — OAuth2 (Microsoft — hotmail.fr / outlook.com)</option>
-            <option value="brevo">API Brevo (sans serveur SMTP)</option>
-          </select>
+          <UiSelect v-model="form.provider_type" :options="[{ value: 'smtp', label: 'SMTP — Utilisateur / mot de passe' }, { value: 'smtp_oauth2', label: 'SMTP — OAuth2 (Microsoft — hotmail.fr / outlook.com)' }, { value: 'brevo', label: 'API Brevo (sans serveur SMTP)' }]" />
         </label>
 
         <template v-if="form.provider_type==='smtp'">
           <label>Serveur SMTP<input v-model="form.smtp_host"></label>
           <label>Port<UiNumberField v-model="form.smtp_port" /></label>
-          <label class="check"><input v-model="form.smtp_tls" type="checkbox"> TLS</label>
+          <UiCheckboxField v-model="form.smtp_tls" label="TLS" />
           <label>Utilisateur<input v-model="form.smtp_user"></label>
           <label>Mot de passe<input v-model="form.smtp_password" type="password" placeholder="Laisser vide pour conserver"></label>
         </template>
@@ -70,7 +66,7 @@
           </small>
           <label>Serveur SMTP<input v-model="form.smtp_host" placeholder="smtp-mail.outlook.com"></label>
           <label>Port<UiNumberField v-model="form.smtp_port" /></label>
-          <label class="check"><input v-model="form.smtp_tls" type="checkbox"> TLS</label>
+          <UiCheckboxField v-model="form.smtp_tls" label="TLS" />
           <label>Boîte Microsoft (hotmail.fr / outlook.com)<input v-model="form.oauth_mailbox" type="email" placeholder="vous@hotmail.fr"></label>
           <label>Tenant<input v-model="form.oauth_tenant" placeholder="consumers"><small>« consumers » pour un compte personnel hotmail.fr/outlook.com</small></label>
           <label>Client ID<input v-model="form.oauth_client_id"></label>
@@ -94,7 +90,7 @@
           <label>Clé API Brevo<input v-model="form.brevo_api_key" type="password" placeholder="Laisser vide pour conserver"></label>
         </template>
 
-        <label class="check"><input v-model="form.enabled" type="checkbox"> Fournisseur actif</label>
+        <UiCheckboxField v-model="form.enabled" label="Fournisseur actif" />
     </div>
     <template #actions>
       <UiButton variant="primary" :disabled="busy||!form.name" @click="save"><Save/>{{ editingId?'Mettre a jour':'Ajouter' }}</UiButton>
@@ -105,6 +101,8 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';

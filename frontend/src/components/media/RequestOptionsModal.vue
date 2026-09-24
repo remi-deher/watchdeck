@@ -13,32 +13,25 @@
     </p>
     <div class="request-options-grid">
       <label v-if="requesters.length">Demandeur
-        <select :value="plexUserId" @change="$emit('update:plexUserId', ($event.target as HTMLSelectElement).value)">
-          <option v-for="user in requesters" :key="user.plex_user_id" :value="user.plex_user_id">{{ user.custom_name || user.display_name || user.plex_user_id }}</option>
-        </select>
+        <UiSelect :model-value="plexUserId" @update:model-value="$emit('update:plexUserId', $event)" :options="[...(requesters).map((user) => ({ value: user.plex_user_id, label: String(user.custom_name || user.display_name || user.plex_user_id) }))]" />
       </label>
       <label v-if="folders.length">Dossier racine
-        <select :value="rootFolder" @change="$emit('update:rootFolder', ($event.target as HTMLSelectElement).value)">
-          <option value="">Dossier par défaut</option>
-          <option v-for="folder in folders" :key="folder.path || folder" :value="folder.path || folder">{{ folder.path || folder }}</option>
-        </select>
+        <UiSelect :model-value="rootFolder" @update:model-value="$emit('update:rootFolder', $event)" :options="[{ value: '', label: 'Dossier par défaut' }, ...(folders).map((folder) => ({ value: folder.path || folder, label: String(folder.path || folder) }))]" />
       </label>
     </div>
     <fieldset v-if="mediaType === 'show' && selectableSeasons.length" class="season-options">
       <legend>Saisons à demander</legend>
       <label class="season-toggle-all">
-        <input type="checkbox" :checked="allSeasonsSelected" @change="toggleAllSeasons">
+        <UiCheckbox :model-value="allSeasonsSelected" @update:model-value="toggleAllSeasons" />
         Toutes les saisons
       </label>
       <SeasonEpisodeList class="season-options-grid" :seasons="seasonItems">
         <template #season-header="{ season }">
           <label>
-            <input
-              type="checkbox"
-              :value="season.season_number"
-              :checked="seasons.includes(season.season_number)"
-              @change="toggleSeason(season.season_number, ($event.target as HTMLInputElement).checked)"
-            >
+            <UiCheckbox
+              :model-value="seasons.includes(season.season_number)"
+              @update:model-value="toggleSeason(season.season_number, $event)"
+            />
             Saison {{ season.season_number }}
           </label>
         </template>
@@ -55,6 +48,8 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import { computed } from 'vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import SeasonEpisodeList from '@/components/media/SeasonEpisodeList.vue';
@@ -108,8 +103,8 @@ const allSeasonsSelected = computed(
     selectableSeasons.value.every((season) => props.seasons.includes(season))
 );
 
-function toggleAllSeasons(event: Event): void {
-  emit('update:seasons', (event.target as HTMLInputElement).checked ? [...selectableSeasons.value] : []);
+function toggleAllSeasons(checked: boolean): void {
+  emit('update:seasons', checked ? [...selectableSeasons.value] : []);
 }
 function toggleSeason(season: number, checked: boolean): void {
   const selected = new Set(props.seasons);

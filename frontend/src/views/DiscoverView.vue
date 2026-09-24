@@ -82,8 +82,8 @@
                 <p v-if="personalized.seeds.length">Inspiré par {{ personalized.seeds.map((item: any) => item.title).join(', ') }}</p>
               </div>
               <div class="personalized-options" aria-label="Préférences de recommandation">
-                <label><input v-model="hideAvailable" type="checkbox" @change="reloadPersonalized"> Masquer les médias dans Plex</label>
-                <label><input v-model="hideWatched" type="checkbox" @change="reloadPersonalized"> Masquer les médias déjà vus</label>
+                <UiCheckboxField v-model="hideAvailable" @update:model-value="reloadPersonalized" label="Masquer les médias dans Plex" />
+                <UiCheckboxField v-model="hideWatched" @update:model-value="reloadPersonalized" label="Masquer les médias déjà vus" />
               </div>
             </header>
             <UiFeedback v-if="personalized.error" type="error" :message="personalized.error" retry @retry="loadPersonalized" />
@@ -392,6 +392,7 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 const SORT_OPTIONS = [
   { value: 'popularity.desc', label: 'Plus populaires' },

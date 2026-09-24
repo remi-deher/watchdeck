@@ -1,30 +1,40 @@
 <template>
   <div>
     <div class="markdown-toolbar" role="toolbar" aria-label="Mise en forme du modele">
-      <select title="Niveau de titre" @change="onHeadingChange">
-        <option value="">Titre</option><option value="1">Titre 1</option><option value="2">Titre 2</option><option value="3">Titre 3</option>
-      </select>
+      <!-- Menus d'actions Reka UI : ouvrir, parcourir aux fleches, choisir -- le choix agit
+           sur le texte, il n'y a pas de valeur a retenir. -->
+      <DropdownMenuRoot :modal="false">
+        <DropdownMenuTrigger class="markdown-menu-trigger" aria-label="Niveau de titre"><Heading aria-hidden="true" />Titre<ChevronDown aria-hidden="true" /></DropdownMenuTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuContent class="markdown-menu" align="start" :side-offset="6">
+            <DropdownMenuItem v-for="level in ['1', '2', '3']" :key="level" class="markdown-menu__item" @select="setHeading(level)">Titre {{ level }}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuPortal>
+      </DropdownMenuRoot>
       <UiButton icon-only title="Gras" aria-label="Gras" @click="wrapSelection('**','**','texte en gras')"><Bold/></UiButton>
       <UiButton icon-only title="Italique" aria-label="Italique" @click="wrapSelection('*','*','texte en italique')"><Italic/></UiButton>
       <UiButton icon-only title="Liste a puces" aria-label="Liste a puces" @click="prefixLines('- ')"><List/></UiButton>
       <UiButton icon-only title="Liste numerotee" aria-label="Liste numerotee" @click="prefixLines('1. ')"><ListOrdered/></UiButton>
       <UiButton icon-only title="Citation" aria-label="Citation" @click="prefixLines('> ')"><Quote/></UiButton>
       <UiButton icon-only title="Lien" aria-label="Lien" @click="insertLink"><LinkIcon/></UiButton>
-      <details v-if="variables.length" class="variable-picker">
-        <summary><Braces/>Variables</summary>
-        <div class="variable-menu">
-          <button v-for="variable in variables" :key="variable.tag" type="button" @click="insertText(variable.tag)"><code>{{ variable.tag }}</code><span>{{ variable.description }}</span></button>
-        </div>
-      </details>
+      <DropdownMenuRoot v-if="variables.length" :modal="false">
+        <DropdownMenuTrigger class="markdown-menu-trigger variable-picker"><Braces aria-hidden="true" />Variables<ChevronDown aria-hidden="true" /></DropdownMenuTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuContent class="markdown-menu variable-menu" align="end" :side-offset="6">
+            <DropdownMenuItem v-for="variable in variables" :key="variable.tag" class="markdown-menu__item" @select="insertText(variable.tag)"><code>{{ variable.tag }}</code><span>{{ variable.description }}</span></DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuPortal>
+      </DropdownMenuRoot>
     </div>
     <textarea ref="editor" :value="modelValue" :rows="rows" class="code-editor" @input="onInput"></textarea>
   </div>
 </template>
 
 <script setup lang="ts">
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui';
 import UiButton from '@/components/ui/UiButton.vue';
 import { nextTick, ref } from 'vue';
-import { Bold, Braces, Italic, Link as LinkIcon, List, ListOrdered, Quote } from '@lucide/vue';
+import { Bold, Braces, ChevronDown, Heading, Italic, Link as LinkIcon, List, ListOrdered, Quote } from '@lucide/vue';
 
 withDefaults(
   defineProps<{
@@ -55,12 +65,6 @@ function updateValue(value: string, start: number, end: number): void {
 
 function onInput(event: Event): void {
   emit('update:modelValue', (event.target as HTMLTextAreaElement).value);
-}
-
-function onHeadingChange(event: Event): void {
-  const select = event.target as HTMLSelectElement;
-  setHeading(select.value);
-  select.value = '';
 }
 
 function insertText(text: string): void {

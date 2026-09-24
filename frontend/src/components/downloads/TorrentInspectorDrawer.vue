@@ -47,11 +47,7 @@
         <template #cell-size="{ row: f }">{{ formatBytes(f.size) }}</template>
         <template #cell-progress="{ row: f }">{{ f.progress }}%</template>
         <template #cell-priority="{ row: f }">
-          <select :value="f.priority" class="prio-select" :aria-label="`Priorité de ${f.name}`" @change="changeFilePriority(f.id, ($event.target as HTMLSelectElement).value)">
-            <option :value="1">Normale</option>
-            <option :value="6">Haute</option>
-            <option :value="0">Ne pas télécharger</option>
-          </select>
+          <UiSelect :model-value="f.priority" class="prio-select" :aria-label="`Priorité de ${f.name}`" @update:model-value="changeFilePriority(f.id, $event)" :options="[{ value: 1, label: 'Normale' }, { value: 6, label: 'Haute' }, { value: 0, label: 'Ne pas télécharger' }]" />
         </template>
       </UiDataTable>
       <p v-else class="empty">Aucun fichier à afficher.</p>
@@ -88,6 +84,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import { ref, watch } from 'vue';
 import { FileText, Info, Pause, Play, Radio, RotateCcw, Tag, Trash2, Users } from '@lucide/vue';
 import { api } from '@/api';

@@ -20,7 +20,7 @@
             <input v-model="reason.label" type="text" :disabled="busy" @change="save(reason)">
           </label>
           <label class="reason-card__toggle check">
-            <input v-model="reason.enabled" type="checkbox" :disabled="busy" @change="save(reason)">
+            <UiCheckbox v-model="reason.enabled" :disabled="busy" @update:model-value="save(reason)" />
             <span>Proposé</span>
           </label>
           <UiButton size="sm" variant="ghost" icon-only title="Supprimer ce motif" :disabled="busy" @click="remove(reason)"><Trash2 /></UiButton>
@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import { humanizeError } from '@/utils/apiError';
 import { computed, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';

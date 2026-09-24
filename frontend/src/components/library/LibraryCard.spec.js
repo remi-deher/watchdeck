@@ -59,7 +59,7 @@ describe('LibraryCard - vue grille', () => {
       item: baseItem({ _kind: 'request', orphan: false }),
       canModerate: true,
     });
-    expect(wrapper.find('.select-tag input[type="checkbox"]').exists()).toBe(true);
+    expect(wrapper.find('.select-tag [role="checkbox"]').exists()).toBe(true);
   });
 
   it('n affiche pas de case de selection sans droit de moderation', async () => {
@@ -75,7 +75,7 @@ describe('LibraryCard - vue grille', () => {
       item: baseItem({ _kind: 'request', orphan: false, id: 42 }),
       canModerate: true,
     });
-    await wrapper.get('.select-tag input').trigger('change');
+    await wrapper.get('.select-tag [role="checkbox"]').trigger('click');
     expect(wrapper.emitted('toggle-select')).toEqual([[42]]);
   });
 });

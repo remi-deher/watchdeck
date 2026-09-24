@@ -2,7 +2,7 @@
   <div class="settings-grid">
     <div class="settings-cards span-two">
       <SettingsCard title="Export et sauvegarde" subtitle="Deux formats distincts : un export JSON portable, et un dump complet de la base." :icon="HardDriveDownload" status="neutral" :collapsible="false">
-        <label class="check"><input v-model="includeSecrets" type="checkbox"> Inclure les identifiants</label>
+        <UiCheckboxField v-model="includeSecrets" label="Inclure les identifiants" />
         <small class="check-hint">Sans cette case, les tokens Plex/*arr et cles de notification sont omis de l'export JSON — pratique pour partager une config sans exposer de secrets.</small>
         <div class="actions">
           <UiButton :href="includeSecrets?'/api/export?include_secrets=true':'/api/export'"><Download/>Exporter en JSON</UiButton>
@@ -73,6 +73,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { formatDate } from '@/utils/format';
 import { mediaTypeLabel } from '@/utils/labels';

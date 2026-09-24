@@ -1,3 +1,4 @@
+import { chooseOption, selectedValue, uiSelects } from '@/testing/uiSelect';
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import RequestOptionsModal from './RequestOptionsModal.vue';
@@ -19,7 +20,7 @@ describe('RequestOptionsModal', () => {
     expect(wrapper.text()).toContain('Breaking Bad');
     expect(wrapper.text()).toContain('Toutes les saisons');
 
-    const checkboxes = wrapper.findAll('.season-options-grid input');
+    const checkboxes = wrapper.findAll('.season-options-grid [role="checkbox"]');
     expect(checkboxes).toHaveLength(3); // seasons 1, 2, 3 (0 excluded)
 
     const confirmBtn = wrapper.find('.form-actions .ui-button--primary');
@@ -40,10 +41,10 @@ describe('RequestOptionsModal', () => {
       },
     });
 
-    const selects = wrapper.findAll('select');
+    const selects = uiSelects(wrapper);
     expect(selects).toHaveLength(2);
 
-    await selects[0].setValue('bob');
+    await chooseOption(selects[0], 'bob');
     expect(wrapper.emitted('update:plexUserId')).toBeTruthy();
     expect(wrapper.emitted('update:plexUserId')[0]).toEqual(['bob']);
   });

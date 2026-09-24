@@ -5,10 +5,10 @@
         <template #actions>
           <UiButton :disabled="!form.email_enabled" @click.stop="testSmtp"><PlugZap/>Tester</UiButton>
         </template>
-        <label class="check"><input v-model="form.email_enabled" type="checkbox"> Activer les emails</label>
+        <UiCheckboxField v-model="form.email_enabled" label="Activer les emails" />
         <label>Expediteur<input v-model="form.smtp_from" type="email"><small>Adresse "De :" utilisee pour tous les emails envoyes par Watchdeck.</small></label>
         <label>Email administrateur<input v-model="form.admin_notification_email"><small>Destinataire des alertes techniques (imports bloques, echecs) — distinct des notifications envoyees aux utilisateurs.</small></label>
-        <label class="check"><input v-model="form.notify_import_blocked" type="checkbox"> Alerter l'administrateur en cas d'import Sonarr bloqué</label>
+        <UiCheckboxField v-model="form.notify_import_blocked" label="Alerter l'administrateur en cas d'import Sonarr bloqué" />
         <small class="check-hint">Distinct d'un échec de transmission — se déclenche souvent avec les épisodes « TBA », désactivez si trop fréquent</small>
         <label>URL publique de l'application<input v-model="form.public_base_url" type="url" placeholder="https://watchdeck.mondomaine.fr"><small>Utilisee pour le lien vers la politique de confidentialite dans le pied de page des emails ; laisser vide pour ne pas l'afficher</small></label>
       </SettingsCard>
@@ -27,7 +27,7 @@
         <template #actions>
           <UiButton :disabled="!form[`${channel.key}_enabled`]" @click.stop="testSaved(`/api/test/${channel.key}`)"><PlugZap/>Tester</UiButton>
         </template>
-        <label class="check"><input v-model="form[`${channel.key}_enabled`]" type="checkbox"> Activer</label>
+        <UiCheckboxField v-model="form[`${channel.key}_enabled`]" label="Activer" />
         <template v-if="channel.key==='discord'">
           <label>Webhook<input v-model="form.discord_webhook_url" type="password" placeholder="Laisser vide pour conserver"><small>Sur le serveur Discord : Parametres du salon -&gt; Integrations -&gt; Webhooks -&gt; Nouveau webhook -&gt; Copier l'URL.</small></label>
         </template>
@@ -49,6 +49,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { Bell, Mail, Megaphone, MessageSquare, PlugZap, Send } from '@lucide/vue';
 import { api } from '@/api';

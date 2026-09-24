@@ -12,9 +12,7 @@
     <form class="add-torrent-form" @submit.prevent="submit">
       <div v-if="clients.length > 1" class="form-group">
         <label for="torrent-client">Client torrent cible</label>
-        <select id="torrent-client" v-model="selectedClientId">
-          <option v-for="cl in clients" :key="cl.id" :value="cl.id">{{ cl.name }} ({{ cl.client_type }})</option>
-        </select>
+        <UiSelect id="torrent-client" v-model="selectedClientId" :options="[...(clients).map((cl) => ({ value: cl.id, label: `${cl.name} (${cl.client_type})` }))]" />
       </div>
 
       <!-- Mode URL / Magnet -->
@@ -89,6 +87,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, reactive, ref, watch } from 'vue';
 import { Check, FileText, Link, Pencil, Plus, Tags, Trash2, Upload } from '@lucide/vue';

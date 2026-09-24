@@ -14,21 +14,16 @@
 
     <div class="simulation-bar">
       <label>Utilisateur simule
-        <select v-model="previewUser">
-          <option value="">Utilisateur exemple</option>
-          <option v-for="user in users" :key="user.id" :value="user.id">{{ userName(user) }}</option>
-        </select>
+        <UiSelect v-model="previewUser" :options="[{ value: '', label: 'Utilisateur exemple' }, ...(users).map((user) => ({ value: user.id, label: String(userName(user)) }))]" />
       </label>
       <label v-if="!showAppearance">Scenario
-        <select v-model="previewVariant">
-          <option v-for="scenario in scenarios" :key="scenario.value" :value="scenario.value">{{ scenario.label }}</option>
-        </select>
+        <UiSelect v-model="previewVariant" :options="[...(scenarios).map((scenario: any) => ({ value: scenario.value, label: String(scenario.label) }))]" />
       </label>
       <div class="view-switch" aria-label="Mode d'affichage">
         <button v-for="mode in viewModes" :key="mode.key" :class="{active:viewMode===mode.key}" @click="viewMode=mode.key"><component :is="mode.icon"/>{{ mode.label }}</button>
       </div>
       <label v-if="viewMode!=='edit'">Format
-        <select v-model="deviceMode"><option value="desktop">Ordinateur</option><option value="tablet">Tablette</option><option value="phone">Telephone</option></select>
+        <UiSelect v-model="deviceMode" :options="[{ value: 'desktop', label: 'Ordinateur' }, { value: 'tablet', label: 'Tablette' }, { value: 'phone', label: 'Telephone' }]" />
       </label>
     </div>
 
@@ -38,12 +33,7 @@
     </div>
 
     <label class="mobile-model-select">Modele
-      <select :value="showAppearance?'appearance':eventType" @change="selectMobile(($event.target as HTMLSelectElement).value)">
-        <optgroup v-for="group in eventGroups" :key="group.label" :label="group.label">
-          <option v-for="entry in group.items" :key="entry.key" :value="entry.key">{{ entry.label }}</option>
-        </optgroup>
-        <option value="appearance">Apparence generale</option>
-      </select>
+      <UiSelect :model-value="showAppearance?'appearance':eventType" @update:model-value="selectMobile($event)" :options="[...eventGroups.flatMap((group: any) => group.items.map((entry: any) => ({ value: entry.key, label: String(entry.label), group: group.label }))), { value: 'appearance', label: 'Apparence generale' }]" />
     </label>
 
     <div class="studio-layout" :class="`mode-${viewMode}`">
@@ -85,6 +75,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, markRaw, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';

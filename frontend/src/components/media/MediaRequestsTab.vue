@@ -3,10 +3,7 @@
     <div v-if="admin" class="add-requester-row">
       <span class="add-requester-label">Co-demandeur</span>
       <div class="inline-row compact">
-        <select :value="newRequesterId" :disabled="!addableUsers.length" @change="$emit('update:newRequesterId', ($event.target as HTMLSelectElement).value)">
-          <option value="">{{ addableUsers.length ? 'Sélectionnez un utilisateur' : 'Tous les utilisateurs sont déjà demandeurs' }}</option>
-          <option v-for="u in addableUsers" :key="u.plex_user_id" :value="u.plex_user_id">{{ u.custom_name || u.display_name || u.plex_user_id }}</option>
-        </select>
+        <UiSelect :model-value="newRequesterId" :disabled="!addableUsers.length" @update:model-value="$emit('update:newRequesterId', $event)" :options="[{ value: '', label: String(addableUsers.length ? 'Sélectionnez un utilisateur' : 'Tous les utilisateurs sont déjà demandeurs') }, ...(addableUsers).map((u) => ({ value: u.plex_user_id, label: String(u.custom_name || u.display_name || u.plex_user_id) }))]" />
         <UiButton variant="primary" size="sm" :disabled="busy || !newRequesterId" @click="$emit('add-requester')"><template #icon><PlusCircle/></template>Ajouter</UiButton>
       </div>
     </div>
@@ -61,11 +58,7 @@
              qu'on desactive le reglage pour tous les autres, et inversement. -->
         <label class="auto-import-choice">
           <span>Rapprochement des imports bloques</span>
-          <select :value="autoImportValue(row)" :disabled="busy" @change="onAutoImportChange(row, $event)">
-            <option value="inherit">Suivre le reglage global</option>
-            <option value="on">Automatique pour ce media</option>
-            <option value="off">Toujours manuel pour ce media</option>
-          </select>
+          <UiSelect :model-value="autoImportValue(row)" :disabled="busy" @update:model-value="onAutoImportChange(row, $event)" :options="[{ value: 'inherit', label: 'Suivre le reglage global' }, { value: 'on', label: 'Automatique pour ce media' }, { value: 'off', label: 'Toujours manuel pour ce media' }]" />
         </label>
       </details>
     </article>
@@ -84,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import { requestStatusLabel } from '@/utils/labels';
 import { Ban, Check, CheckCheck, Mail, MailCheck, PlusCircle, RotateCcw, Search, Trash2, Users, XCircle } from '@lucide/vue';
 import RequestMailHistory from './RequestMailHistory.vue';
@@ -99,8 +93,8 @@ const autoImportValue = (row: any): string =>
       ? 'on'
       : 'off';
 const autoImportFromChoice = (value: string): boolean | null => (value === 'inherit' ? null : value === 'on');
-function onAutoImportChange(row: any, event: Event): void {
-  emit('set-auto-import', row, autoImportFromChoice((event.target as HTMLSelectElement).value));
+function onAutoImportChange(row: any, choice: string): void {
+  emit('set-auto-import', row, autoImportFromChoice(choice));
 }
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';

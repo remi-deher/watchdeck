@@ -18,7 +18,7 @@
     <article v-for="group in groups" :key="group.key" class="upgrade-card" :class="{ 'is-selected': selectedKeys.has(group.key) }">
       <div class="poster-col">
         <label class="upgrade-select" :title="selectedKeys.has(group.key) ? 'Retirer de la sélection' : 'Sélectionner pour un scan groupé'">
-          <input type="checkbox" :checked="selectedKeys.has(group.key)" @change="emit('toggle-select', group)">
+          <UiCheckbox :model-value="selectedKeys.has(group.key)" :aria-label="`Sélectionner ${group.media?.title || group.key}`" @update:model-value="emit('toggle-select', group)" />
         </label>
         <img
           v-if="hasPoster(group)"
@@ -189,6 +189,7 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { Eye, EyeOff, Film, Tv } from '@lucide/vue';
@@ -283,11 +284,6 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
   cursor: pointer;
 }
 
-.upgrade-select input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
 
 .upgrade-poster {
   width: 85px;

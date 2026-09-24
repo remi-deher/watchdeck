@@ -1,3 +1,4 @@
+import { chooseOption, selectedValue, uiSelects } from '@/testing/uiSelect';
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { INTERVAL_PRESETS, presetsFor } from './settingsPresets';
@@ -54,23 +55,23 @@ describe('IntervalPresetInput — valeur modifiée depuis un autre écran', () =
     await wrapper.setProps({ modelValue: 300 });
 
     expect(wrapper.find('.ui-number-field input').exists()).toBe(false);
-    expect(wrapper.find('select').element.value).toBe('300');
+    expect(selectedValue(uiSelects(wrapper)[0])).toBe('300');
   });
 
   it('passe en saisie libre quand la valeur choisie ailleurs sort de la liste', async () => {
     const wrapper = mount(IntervalPresetInput, { props: { modelValue: 60, presets } });
-    expect(wrapper.find('select').element.value).toBe('60');
+    expect(selectedValue(uiSelects(wrapper)[0])).toBe('60');
 
     await wrapper.setProps({ modelValue: 137 });
 
-    expect(wrapper.find('select').element.value).toBe('custom');
+    expect(selectedValue(uiSelects(wrapper)[0])).toBe('custom');
     expect(wrapper.find('.ui-number-field input').exists()).toBe(true);
   });
 
   it('respecte une saisie libre demandée explicitement', async () => {
     const wrapper = mount(IntervalPresetInput, { props: { modelValue: 60, presets } });
 
-    await wrapper.find('select').setValue('custom');
+    await chooseOption(uiSelects(wrapper)[0], 'custom');
 
     expect(wrapper.find('.ui-number-field input').exists()).toBe(true);
     // Aucune valeur n'est émise tant que l'utilisateur n'a rien saisi.
@@ -105,12 +106,14 @@ describe('un même réglage vu depuis deux écrans', () => {
     });
 
     // Réglage modifié depuis l'écran Bibliothèque.
-    await bibliotheque.find('select').setValue('180');
+    await chooseOption(uiSelects(bibliotheque)[0], '180');
     expect(form.vff_recheck_interval_minutes).toBe(180);
 
     // L'autre écran, réaffiché avec la valeur partagée, montre la même chose.
+    // Les deux ecrans sont reaffiches avec la valeur partagee, comme dans l'application.
+    await bibliotheque.setProps({ modelValue: form.vff_recheck_interval_minutes });
     await planification.setProps({ modelValue: form.vff_recheck_interval_minutes });
-    expect(planification.find('select').element.value).toBe('180');
-    expect(bibliotheque.find('select').element.value).toBe(planification.find('select').element.value);
+    expect(selectedValue(uiSelects(planification)[0])).toBe('180');
+    expect(selectedValue(uiSelects(bibliotheque)[0])).toBe(selectedValue(uiSelects(planification)[0]));
   });
 });

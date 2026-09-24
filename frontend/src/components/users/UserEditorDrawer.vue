@@ -15,7 +15,7 @@
          une modification de profil qu'on met en brouillon jusqu'a « Enregistrer ». -->
     <section v-if="!creating" class="user-state-row">
       <label class="user-state-card" :class="{ on: editing.enabled }">
-        <input type="checkbox" :checked="editing.enabled" :disabled="busy" @change="$emit('set-enabled', !editing.enabled)">
+        <UiCheckbox :model-value="editing.enabled" :disabled="busy" @update:model-value="$emit('set-enabled', !editing.enabled)" />
         <span>
           <strong>{{ editing.enabled ? 'Compte actif' : 'Compte désactivé' }}</strong>
           <small>{{ editing.enabled ? 'Ses demandes sont traitées' : 'Ses demandes sont ignorées' }}</small>
@@ -23,7 +23,7 @@
       </label>
 
       <label class="user-state-card" :class="{ on: editing.can_login }">
-        <input type="checkbox" :checked="editing.can_login" :disabled="busy" @change="$emit('set-can-login', !editing.can_login)">
+        <UiCheckbox :model-value="editing.can_login" :disabled="busy" @update:model-value="$emit('set-can-login', !editing.can_login)" />
         <span>
           <strong>{{ editing.can_login ? 'Connexion autorisée' : 'Connexion bloquée' }}</strong>
           <small>{{ editing.can_login ? 'Peut ouvrir une session' : 'Ne peut pas se connecter' }}</small>
@@ -34,19 +34,19 @@
     <AppSubnav variant="tabs" :active="editorTab" @update:active="editorTab = $event" :items="editorTabItems" aria-label="Sections de l’utilisateur" />
 
     <section v-if="editorTab==='profile'" class="drawer-section form-section">
-      <label v-if="creating" class="check local-account-toggle"><input v-model="isLocalAccount" type="checkbox" @change="onLocalAccountToggle"> Compte local (sans Plex)</label>
+      <UiCheckboxField v-if="creating" class="local-account-toggle" v-model="isLocalAccount" @update:model-value="onLocalAccountToggle" label="Compte local (sans Plex)" />
       <div class="settings-grid two">
         <label>{{ isLocalAccount?"Identifiant de connexion":"ID Plex" }}<input v-model="form.plex_user_id" :disabled="!creating && editing.source!=='local'" :placeholder="isLocalAccount?'ex. jdupont':''"></label>
         <label>Nom affiche<input v-model="form.display_name"></label>
         <label>Nom d'usage<input v-model="form.custom_name"></label>
         <label>Email Plex<input v-model="form.plex_email" type="email"></label>
         <label>Email de notification<input v-model="form.notification_email"></label>
-        <label>Role<select v-model="form.role"><option value="user">Utilisateur</option><option value="moderator">Modérateur</option><option value="admin">Administrateur</option></select></label>
+        <label>Role<UiSelect v-model="form.role" :options="[{ value: 'user', label: 'Utilisateur' }, { value: 'moderator', label: 'Modérateur' }, { value: 'admin', label: 'Administrateur' }]" /></label>
         <!-- « Traiter les demandes » et « Autoriser la connexion » vivent desormais en
              haut de la fiche, avec effet immediat : les garder ici en aurait fait des
              champs de formulaire concurrents, portant deja un autre nom pour le meme
              etat (« Compte actif »). -->
-        <label class="check"><input v-model="form.auto_approve" type="checkbox"> Auto-approuver ses demandes</label>
+        <UiCheckboxField v-model="form.auto_approve" label="Auto-approuver ses demandes" />
       </div>
       <label v-if="creating && isLocalAccount">Mot de passe initial<input v-model="initialPassword" type="password" minlength="8" autocomplete="new-password"></label>
       <div class="actions">
@@ -75,13 +75,13 @@
       <div class="notif-group">
         <h3><Mail/>Emails</h3>
         <div class="settings-grid two">
-          <label class="check"><input v-model="form.notify_on_request" type="checkbox"> Nouvelle demande</label>
+          <UiCheckboxField v-model="form.notify_on_request" label="Nouvelle demande" />
           <small class="check-hint">Email envoyé à cette personne quand une de ses demandes est enregistrée.</small>
-          <label class="check"><input v-model="form.notify_on_available" type="checkbox"> Disponibilité</label>
+          <UiCheckboxField v-model="form.notify_on_available" label="Disponibilité" />
           <small class="check-hint">Email envoyé quand un média qu'elle a demandé devient disponible dans Plex.</small>
-          <label class="check"><input v-model="form.notify_digest" type="checkbox"> Récapitulatif quotidien (digest)</label>
+          <UiCheckboxField v-model="form.notify_digest" label="Récapitulatif quotidien (digest)" />
           <small class="check-hint">Reçoit un résumé une fois par jour au lieu d'un email par événement — nécessite que le digest soit activé globalement (Paramètres → Notifications → Règles).</small>
-          <label class="check"><input v-model="form.notify_admin" type="checkbox"> Copier l'administrateur</label>
+          <UiCheckboxField v-model="form.notify_admin" label="Copier l'administrateur" />
           <small class="check-hint">Ajoute l'adresse email admin en copie sur les notifications envoyées à cette personne.</small>
         </div>
       </div>
@@ -90,14 +90,10 @@
         <h3><Languages/>Disponibilité VF</h3>
         <p class="hint">Faut-il notifier cette personne quand un média qu'elle a demandé passe en VF ?</p>
         <div class="settings-grid two">
-          <label class="check"><input v-model="form.notify_vf_movie" type="checkbox"> Films</label>
-          <label class="check"><input v-model="form.notify_vf_series" type="checkbox"> Séries</label>
+          <UiCheckboxField v-model="form.notify_vf_movie" label="Films" />
+          <UiCheckboxField v-model="form.notify_vf_series" label="Séries" />
           <label>Fréquence pour les séries
-            <select v-model="form.series_notify_granularity">
-              <option value="minimal">Une seule fois, à la fin</option>
-              <option value="jalons">Début et fin de saison</option>
-              <option value="tout">Chaque épisode</option>
-            </select>
+            <UiSelect v-model="form.series_notify_granularity" :options="[{ value: 'minimal', label: 'Une seule fois, à la fin' }, { value: 'jalons', label: 'Début et fin de saison' }, { value: 'tout', label: 'Chaque épisode' }]" />
           </label>
         </div>
       </div>
@@ -142,12 +138,7 @@
         </template>
         <template v-else>
           <label>Compte Seer correspondant
-            <select v-model="seerTarget" :disabled="!seerCandidates.length">
-              <option value="">{{ seerCandidates.length ? 'Choisir un compte Seer…' : 'Aucun compte Seer disponible' }}</option>
-              <option v-for="candidate in seerCandidates" :key="candidate.id" :value="candidate.id" :disabled="candidate.linked">
-                {{ seerCandidateLabel(candidate) }}
-              </option>
-            </select>
+            <UiSelect v-model="seerTarget" :disabled="!seerCandidates.length" :options="[{ value: '', label: String(seerCandidates.length ? 'Choisir un compte Seer…' : 'Aucun compte Seer disponible') }, ...(seerCandidates).map((candidate) => ({ value: candidate.id, label: String(seerCandidateLabel(candidate)), disabled: candidate.linked }))]" />
           </label>
           <div class="actions">
             <UiButton :disabled="!seerTarget" @click="$emit('link-seer', seerTarget)"><Link/>Lier ce compte Seer</UiButton>
@@ -181,20 +172,14 @@
       <template v-if="resolvedMergeTarget">
         <fieldset class="merge-direction">
           <legend>Quel compte conserver&nbsp;?</legend>
-          <label class="merge-choice" :class="{ selected: mergeKeep === 'this' }">
-            <input v-model="mergeKeep" type="radio" value="this">
-            <span>
-              <strong>Conserver {{ displayName(editing) }}</strong>
-              <small>Les demandes de {{ displayName(resolvedMergeTarget) }} sont rattachées ici, puis ce compte-là est supprimé.</small>
-            </span>
-          </label>
-          <label class="merge-choice" :class="{ selected: mergeKeep === 'other' }">
-            <input v-model="mergeKeep" type="radio" value="other">
-            <span>
-              <strong>Conserver {{ displayName(resolvedMergeTarget) }}</strong>
-              <small>Les demandes de {{ displayName(editing) }} y sont rattachées, puis <em>ce</em> compte est supprimé et la fiche se ferme.</small>
-            </span>
-          </label>
+          <UiRadioCards
+            v-model="mergeKeep"
+            label="Quel compte conserver ?"
+            :options="[
+              { value: 'this', label: `Conserver ${displayName(editing)}`, description: `Les demandes de ${displayName(resolvedMergeTarget)} sont rattachées ici, puis ce compte-là est supprimé.` },
+              { value: 'other', label: `Conserver ${displayName(resolvedMergeTarget)}`, description: `Les demandes de ${displayName(editing)} y sont rattachées, puis ce compte est supprimé et la fiche se ferme.` },
+            ]"
+          />
         </fieldset>
 
         <!-- Bouton discret et colle au choix : pleine largeur en bas de panneau, il avait
@@ -225,6 +210,10 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiRadioCards from '@/components/ui/UiRadioCards.vue';
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
@@ -392,13 +381,6 @@ defineExpose({
 
 .merge-direction{display:grid;gap: var(--space-2);margin:0;padding:0;border:0}
 .merge-direction legend{padding:0;color:var(--muted);font-size:var(--fs-xs)}
-.merge-choice{display:flex;align-items:flex-start;gap: var(--space-3);padding:11px 13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);cursor:pointer}
-.merge-choice:hover{border-color:var(--accent)}
-.merge-choice.selected{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 8%, var(--surface-2))}
-.merge-choice input{flex:none;margin:3px 0 0;cursor:pointer}
-.merge-choice>span{display:grid;gap:2px;min-width:0}
-.merge-choice strong{font-size:var(--fs-sm)}
-.merge-choice small{color:var(--muted);font-size:var(--fs-xs)}
 
 /* L'action destructrice se tient a cote du choix qui la rend possible, pas en pleine
    largeur au bas du panneau ou elle avait l'allure de l'action principale. */

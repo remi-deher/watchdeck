@@ -13,12 +13,11 @@
         @dragover.prevent
         @drop="prefs.drop(col.key)"
       >
-        <input
-          type="checkbox"
-          :checked="col.required || prefs.visibleKeys.value.has(col.key)"
+        <UiCheckbox
+          :model-value="col.required || prefs.visibleKeys.value.has(col.key)"
           :disabled="col.required"
-          @change="prefs.toggleColumn(col.key)"
-        />
+          :aria-label="`Afficher la colonne ${col.label}`"
+          @update:model-value="prefs.toggleColumn(col.key)" />
         <span>{{ col.label }}</span>
         <span class="column-reorder-buttons">
           <button type="button" class="column-reorder-btn" :disabled="index === 0" :aria-label="`Déplacer ${col.label} vers le haut`" @click="prefs.moveColumn(col.key, -1)"><ChevronUp /></button>
@@ -34,6 +33,7 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import { ChevronDown, ChevronUp } from '@lucide/vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';

@@ -11,7 +11,7 @@
         <span v-for="badge in badges" :key="badge.key" :class="badge.cls">{{ badge.label }}</span>
       </div>
       <label v-if="canModerate && item._kind === 'request' && !item.orphan" class="select-tag" @click.stop>
-        <input :checked="selected" :disabled="busy" type="checkbox" :aria-label="`Sélectionner ${item.title}`" @change="$emit('toggle-select', item.id)">
+        <UiCheckbox :model-value="selected" :disabled="busy" :aria-label="`Sélectionner ${item.title}`" @update:model-value="$emit('toggle-select', item.id)" />
       </label>
     </template>
     <template #meta>
@@ -41,7 +41,7 @@
     <MediaPoster :poster-url="item.poster_url" :is-music="isMusic">
       <template #badges>
         <label v-if="canModerate && item._kind === 'request' && !item.orphan" class="select-tag" @click.stop>
-          <input :checked="selected" :disabled="busy" type="checkbox" :aria-label="`Sélectionner ${item.title}`" @change="$emit('toggle-select', item.id)">
+          <UiCheckbox :model-value="selected" :disabled="busy" :aria-label="`Sélectionner ${item.title}`" @update:model-value="$emit('toggle-select', item.id)" />
         </label>
       </template>
     </MediaPoster>
@@ -67,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from 'vue';
 import { Star } from '@lucide/vue';

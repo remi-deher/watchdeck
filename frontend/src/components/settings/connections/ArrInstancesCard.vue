@@ -24,11 +24,7 @@
     <template #form>
       <label>Nom<input v-model="arrForm.name"></label>
       <label>Type
-        <select v-model="arrForm.arr_type">
-          <option value="sonarr">Sonarr</option>
-          <option value="radarr">Radarr</option>
-          <option value="prowlarr">Prowlarr</option>
-        </select>
+        <UiSelect v-model="arrForm.arr_type" :options="[{ value: 'sonarr', label: 'Sonarr' }, { value: 'radarr', label: 'Radarr' }, { value: 'prowlarr', label: 'Prowlarr' }]" />
       </label>
       <label>URL<input v-model="arrForm.url" type="url"></label>
       <label>Clé API
@@ -36,19 +32,13 @@
         <small>Disponible dans Sonarr/Radarr/Prowlarr sous Réglages -> Général -> Clé API.</small>
       </label>
       <label>Profil
-        <select v-model.number="arrForm.quality_profile_id">
-          <option :value="null">Par défaut</option>
-          <option v-for="profile in arrProfiles" :key="profile.id" :value="profile.id">{{ profile.name }}</option>
-        </select>
+        <UiSelect v-model="arrForm.quality_profile_id" :options="[{ value: null, label: 'Par défaut' }, ...(arrProfiles).map((profile) => ({ value: profile.id, label: String(profile.name) }))]" />
       </label>
       <label>Dossier racine
-        <select v-model="arrForm.root_folder">
-          <option value="">Par défaut</option>
-          <option v-for="folder in arrFolders" :key="folder.path||folder" :value="folder.path||folder">{{ folder.path||folder }}</option>
-        </select>
+        <UiSelect v-model="arrForm.root_folder" :options="[{ value: '', label: 'Par défaut' }, ...(arrFolders).map((folder) => ({ value: folder.path||folder, label: String(folder.path||folder) }))]" />
       </label>
       <small class="check-hint">Renseigne URL et Clé API puis clique "Charger profils et dossiers" pour remplir les deux listes ci-dessus depuis cette instance.</small>
-      <label class="check"><input v-model="arrForm.is_default" type="checkbox"> Instance par défaut</label>
+      <UiCheckboxField v-model="arrForm.is_default" label="Instance par défaut" />
       <small class="check-hint">Instance utilisée par défaut pour ce type (Sonarr/Radarr) quand plusieurs sont configurées et qu'aucune n'est explicitement choisie pour une demande.</small>
     </template>
 
@@ -61,6 +51,8 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { useMutation } from '@tanstack/vue-query';

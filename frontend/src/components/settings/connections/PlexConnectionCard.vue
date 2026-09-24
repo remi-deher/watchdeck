@@ -6,7 +6,7 @@
     <UiField :error="validationErrors.plex_url" label="URL" hint="Adresse locale de votre serveur Plex (pas app.plex.tv), ex. http://192.168.1.10:32400 ou http://plex:32400 en Docker." v-slot="field"><input :id="field.id" v-model="form.plex_url" type="url" placeholder="http://plex:32400" :aria-describedby="field.describedBy"></UiField>
     <SecretField v-model="form.plex_token" label="Token" hint="Jeton d'authentification Plex (X-Plex-Token). Le plus simple est d'utiliser Connexion Plex SSO ci-dessous, qui le récupère automatiquement." :configured="Boolean(secretsPresent.plex_token)" />
     <UiField label="URL Universal Watchlist" hint="Agrège la watchlist de tous vos amis Plex sans qu'ils aient besoin de se connecter à Watchdeck. Nécessite Plex Pass." v-slot="field"><input :id="field.id" v-model="form.plex_rss_url" type="url" placeholder="https://rss.plex.tv/..." :aria-describedby="field.describedBy"></UiField>
-    <label class="check"><input v-model="form.plex_verify_ssl" type="checkbox"> Verifier le certificat TLS</label>
+    <UiCheckboxField v-model="form.plex_verify_ssl" label="Verifier le certificat TLS" />
     <div class="actions">
       <ConnectionTestAction :loading="testingWatchlist" label="Tester l'Universal Watchlist" @test="testWatchlist">
         <template #icon><Rss /></template>
@@ -17,6 +17,7 @@
 </template>
 
 <script setup lang="ts">
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed } from 'vue';
 import { LogIn, Rss, Server } from '@lucide/vue';
