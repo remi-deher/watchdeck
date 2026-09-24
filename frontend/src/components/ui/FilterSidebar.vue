@@ -6,14 +6,7 @@
   <ModalShell :open="open" title="Filtres" panel-class="filter-sheet" :modal="false" @close="$emit('close')">
     <!-- Ce qui est actif, en tete : on le voit en ouvrant, et on le retire d'un appui
          sans chercher le groupe qui le porte. -->
-    <ul v-if="activeChips.length" class="filter-chips" aria-label="Filtres actifs">
-      <li v-for="chip in activeChips" :key="chip.key">
-        <button type="button" class="filter-chip" :aria-label="`Retirer le filtre ${chip.label}`" @click="chip.onRemove()">
-          <span>{{ chip.label }}</span>
-          <X aria-hidden="true" />
-        </button>
-      </li>
-    </ul>
+    <FilterChips :groups="groups" :chips="chips" />
     <div class="filter-modal-body">
       <slot />
     </div>
@@ -31,8 +24,8 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, provide, shallowReactive, watch } from 'vue';
-import { X } from '@lucide/vue';
 import { FILTER_CHIP_REGISTRY, type FilterChip } from '@/composables/useFiltersDrawer';
+import FilterChips from './FilterChips.vue';
 import ModalShell from './ModalShell.vue';
 import UiButton from './UiButton.vue';
 import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
@@ -65,9 +58,9 @@ provide(FILTER_CHIP_REGISTRY, {
   register: (id, chips) => { groups.set(id, chips); },
   unregister: (id) => { groups.delete(id); },
 });
-const activeChips = computed<FilterChip[]>(() =>
-  props.chips.length ? props.chips : [...groups.values()].flatMap((chips) => chips())
-);
+/* Les puces se lisent dans un composant a part, jamais ici : ce rendu-ci englobe le
+   dialogue Reka, et y lire le registre -- que les groupes remplissent a leur montage,
+   donc pendant ce meme rendu -- le relancait en boucle (« Maximum recursive updates »). */
 
 /* Le libelle annonce le resultat quand la page le connait. Sans decompte fiable il
    reste generique : un chiffre faux serait pire que pas de chiffre. */
@@ -141,31 +134,6 @@ onUnmounted(() => {
 <style scoped lang="scss">
 /* filter-group / group-label / filter-badge : styles globaux dans styles/layout/_layout.scss.
    Geometrie du panneau (ancrage a la barre) : styles/components/_components.scss. */
-.filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-2);
-  padding: 0;
-  list-style: none;
-}
-.filter-chip {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  min-height: 30px;
-  padding: 0 10px 0 12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  cursor: pointer;
-}
-.filter-chip svg { width: 13px; height: 13px; }
-.filter-chip:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); }
-
 .filter-modal-body {
   display: flex;
   flex-direction: column;

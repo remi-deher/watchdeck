@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts" generic="V extends string | number | boolean | null">
-import { computed, inject, onUnmounted } from 'vue';
+import { computed, inject, onMounted, onUnmounted } from 'vue';
 import { ToggleGroupItem, ToggleGroupRoot } from 'reka-ui';
 import { FILTER_CHIP_REGISTRY, type FilterChip } from '@/composables/useFiltersDrawer';
 
@@ -63,11 +63,13 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ (e: 'update:modelValue', value: any): void }>();
 
 /* Dans un panneau de filtres, le groupe annonce ce qu'il retient : le panneau en fait des
-   puces retirables. Hors panneau (periodes d'un graphique...), rien n'est declare. */
+   puces retirables. Hors panneau (periodes d'un graphique...), rien n'est declare.
+   L'enregistrement attend le montage : fait pendant `setup`, il modifiait le registre
+   en plein rendu du panneau, qui se relancait alors en boucle. */
 const registry = inject(FILTER_CHIP_REGISTRY, null);
 if (registry) {
   const id = Symbol(props.label);
-  registry.register(id, activeChips);
+  onMounted(() => registry.register(id, activeChips));
   onUnmounted(() => registry.unregister(id));
 }
 
