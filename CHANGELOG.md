@@ -1,11 +1,22 @@
 # Changelog
 
+## 1.40.1 — 2026-09-24
+
+
+### 🐛 Corrections
+
+- l'affiche des fiches garde son format 2:3 sur telephone ([8376296](https://github.com/remi-deher/watchdeck/commit/83762967968ce9f4d81ef247f2fee63170110072))
+- grilles équilibrées, plus de bloc seul sur la dernière rangée ([8346233](https://github.com/remi-deher/watchdeck/commit/8346233420920ad46a91d87fc6464d23b9e42737))
 ## 1.40.0 — 2026-09-24
 
 
 ### ✨ Nouveautés
 
 - réglages (instances, clients, fournisseurs email, réglages VF) dans la feuille ; plus de croix ni d'infobulle Fermer à l'ouverture ([8e701f3](https://github.com/remi-deher/watchdeck/commit/8e701f3981771115f06a1bd9f10fb79b83bf1f0e))
+
+### 🔧 Maintenance
+
+- v1.40.0 (#423) ([9de1842](https://github.com/remi-deher/watchdeck/commit/9de1842a8ccde5579060307c94a5d9efbd02a77a))
 ## 1.39.0 — 2026-09-24
 
 
