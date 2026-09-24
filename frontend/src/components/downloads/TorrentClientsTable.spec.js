@@ -1,7 +1,6 @@
 ﻿import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
-import PrimeVue from 'primevue/config';
 
 import TorrentClientsTable from './TorrentClientsTable.vue';
 
@@ -17,7 +16,6 @@ function factory() {
   return mount(TorrentClientsTable, {
     props: { rows },
     global: {
-      plugins: [PrimeVue],
       stubs: {
         DrawerShell: { template: '<aside><slot/><slot name="actions"/></aside>' },
         ModalShell: { props: ['open', 'title'], template: '<div v-if="open"><h2>{{ title }}</h2><slot/><slot name="actions"/></div>' },

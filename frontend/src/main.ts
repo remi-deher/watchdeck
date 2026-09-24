@@ -3,9 +3,7 @@ import { vListMotion } from '@/motion/vListMotion';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import { brancherStockage } from '@/offline/stockage';
-import PrimeVue from 'primevue/config';
 import { installerSortieDePage } from '@/composables/usePageExit';
-import { WatchdeckPreset } from '@/theme/watchdeck';
 import { createQueryClient } from '@/queryClient';
 import { settingsPinia } from '@/settingsForm';
 import App from './App.vue';
@@ -154,15 +152,5 @@ createApp(App)
   .component('FormSaveBar', FormSaveBar)
   .use(settingsPinia)
   .use(VueQueryPlugin, { queryClient: createQueryClient(), clientPersister: brancherStockage })
-  .use(PrimeVue, {
-    ripple: false,
-    theme: {
-      preset: WatchdeckPreset,
-      options: {
-        darkModeSelector: ':root',
-        cssLayer: false,
-      },
-    },
-  })
   .use(router)
   .mount('#app');
