@@ -67,6 +67,11 @@ class PlaybackSession(Base):
     geo_asn: Mapped[Optional[str]]
     bandwidth_kbps: Mapped[Optional[int]]
     media_size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger)
+    # Transcodage en direct : avance du transcodeur sur la tete de lecture (le tampon),
+    # sa vitesse par rapport au temps reel, et s'il s'est bride faute de besoin.
+    transcode_buffer_ms: Mapped[Optional[int]]
+    transcode_speed: Mapped[Optional[float]]
+    transcode_throttled: Mapped[Optional[bool]]
     progress_ms: Mapped[Optional[int]] = mapped_column(BigInteger)
     initial_progress_ms: Mapped[int] = mapped_column(BigInteger, default=0)
     duration_ms: Mapped[Optional[int]] = mapped_column(BigInteger)

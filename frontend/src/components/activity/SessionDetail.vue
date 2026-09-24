@@ -26,12 +26,15 @@
       <SessionTimelineBar :session="session"/>
     </div>
 
-    <div class="session-kpis">
+    <div v-balanced-grid="{ min: 170 }" class="session-kpis">
       <article><Clock3/><span>Temps restant</span><strong>{{ remainingLabel(session) }}</strong><small>{{ estimatedEnd(session) }}</small></article>
       <!-- Un tiret se lit comme un zero : quand Plex ne communique pas le debit, on le
            dit plutot que d'afficher une valeur vide qui passerait pour une mesure. -->
       <article><Gauge/><span>Débit du flux</span><strong>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non mesuré' }}</strong><small>{{ bandwidthHint(session.bandwidth_kbps) }}</small></article>
       <article :class="['network-kpi', isRemoteConnection(session) ? 'remote' : 'local']"><Network/><span>Connexion</span><strong>{{ connectionLabel(session) }}</strong><small>{{ connectionHint(session) }}</small></article>
+      <!-- Transcodage en direct : l'avance du transcodeur sur la lecture. Un tampon qui
+           fond annonce une coupure ; un transcodeur bride a assez d'avance. -->
+      <article v-if="hasTranscodeBuffer(session)" class="buffer-kpi" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }"><Timer/><span>Tampon de transcodage</span><strong>{{ formatBuffer(session.transcode_buffer_ms) }}</strong><small>{{ transcodeSpeedLabel(session) }}</small></article>
     </div>
 
     <SessionLocationMap :session="session"/>
@@ -81,10 +84,11 @@
 </template>
 
 <script setup lang="ts">
+import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { ChevronLeft, ChevronRight, ClipboardCopy, Clock3, ExternalLink, Gauge, MonitorPlay, Network, Server, Workflow } from '@lucide/vue';
+import { ChevronLeft, ChevronRight, ClipboardCopy, Clock3, ExternalLink, Gauge, MonitorPlay, Network, Server, Timer, Workflow } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { useToast } from '@/composables/useToast';
 import { mediaDetailPath } from '@/mediaUrl';
@@ -226,6 +230,6 @@ function networkLabel(item: any): string {
 <style scoped lang="scss">
 .session-toolbar{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-1);margin-top:-8px}
 .session-hero{display:flex;gap: var(--space-4);align-items:center;margin:8px 0 20px}.session-hero>div:last-child{display:grid;gap: var(--space-1);min-width:0}.session-hero h3{margin:4px 0 0;font-size:var(--fs-lg)}.session-hero p,.session-hero span{margin:0;color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm)}.session-progress{display:grid;gap: var(--space-2);padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.session-progress>div:first-child{display:flex;justify-content:space-between}.session-progress span,.session-progress small{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}.progress-track{height:6px;overflow:hidden;border-radius:var(--radius-pill);background:rgba(255,255,255,.1)}.progress-track i{display:block;height:100%;border-radius:inherit;background:var(--accent)}.session-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap: var(--space-2);margin-top:10px}.session-kpis article{display:grid;gap: var(--space-1);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.session-kpis span,.session-kpis small{color:color-mix(in srgb,var(--text) 68%,transparent);font-size:var(--fs-xs)}.session-kpis strong{font-size:var(--fs-md)}.stream-route{margin-top:22px}.stream-route>div{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr) 28px minmax(0,1fr);align-items:center;margin-top:8px}.stream-route article{display:flex;align-items:center;gap: var(--space-2);min-width:0;padding:10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.stream-route article>svg{width:17px;color:var(--muted)}.stream-route article span{display:grid;min-width:0}.stream-route small{color:color-mix(in srgb,var(--text) 64%,transparent);font-size:var(--fs-xs);}.stream-route strong{overflow:hidden;font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.stream-route i{height:2px;background:var(--border)}.stream-route i.warning{background:#fb923c}.session-detail-columns{display:grid;gap:0}@media(min-width:900px){.session-detail-columns{grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start}.session-detail-columns>.session-detail-section{margin-top:22px}}.session-detail-section{margin-top:22px}.session-detail-section dl{display:grid;grid-template-columns:1fr 1fr;margin:8px 0 0;border:1px solid var(--border);border-radius:var(--radius-md)}.session-detail-section dl>div{display:grid;gap: var(--space-1);padding:13px;border-bottom:1px solid var(--border)}.session-detail-section dl>div:nth-child(odd){border-right:1px solid var(--border)}.session-detail-section dl>div:nth-last-child(-n+2){border-bottom:0}.session-detail-section dt{color:color-mix(in srgb,var(--text) 66%,transparent);font-size:var(--fs-xs);}.session-detail-section dd{margin:0;font-size:var(--fs-sm);line-height:1.4}.session-id{overflow:hidden;color:var(--muted);font-family:monospace;text-overflow:ellipsis;white-space:nowrap}.session-address{font-variant-numeric:tabular-nums}@media(max-width:620px){.session-kpis{grid-template-columns:1fr}.stream-route>div{grid-template-columns:1fr}.stream-route i{width:2px;height:14px;margin:auto}.stream-route article{width:100%}}@media(max-width:520px){.session-hero{align-items:flex-start}.session-detail-section dl{grid-template-columns:1fr}.session-detail-section dl>div,.session-detail-section dl>div:nth-child(odd){border-right:0;border-bottom:1px solid var(--border)}.session-detail-section dl>div:last-child{border-bottom:0}}
-.session-kpis article{grid-template-columns:20px minmax(0,1fr);gap:3px 9px}.session-kpis article>svg{grid-row:1/4;width:18px;height:18px;color:var(--accent)}.session-kpis article>*:not(svg){grid-column:2}.session-kpis .network-kpi.remote>svg{color:#fb923c}.session-kpis .network-kpi.local>svg{color:var(--success,#22c55e)}
+.session-kpis article{grid-template-columns:20px minmax(0,1fr);gap:3px 9px}.session-kpis article>svg{grid-row:1/4;width:18px;height:18px;color:var(--accent)}.session-kpis article>*:not(svg){grid-column:2}.session-kpis .network-kpi.remote>svg{color:#fb923c}.session-kpis .network-kpi.local>svg{color:var(--success,#22c55e)}.session-kpis .buffer-kpi.low>svg,.session-kpis .buffer-kpi.low strong{color:var(--warning,#f59e0b)}
 .session-detail-section dl>div{position:relative;padding-left:16px}.session-detail-section dl>div::before{position:absolute;top:15px;bottom:15px;left:0;width:3px;border-radius:3px;background:color-mix(in srgb,var(--accent) 70%,transparent);content:""}.session-detail-section dd{color:color-mix(in srgb,var(--text) 92%,transparent);font-weight:600}
 </style>

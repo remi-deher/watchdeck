@@ -1457,3 +1457,46 @@ def test_playback_session_detail_endpoint_returns_one_session(client, async_db):
     assert body["segments"] == []
 
     assert client.get("/api/playback/sessions/999999").status_code == 404
+
+
+def test_session_times_are_sent_as_utc_and_peak_hours_read_in_local_time():
+    """Les instants partent avec leur fuseau ; les heures de pointe sont en heure locale.
+
+    Stockes en UTC naif et envoyes sans fuseau, ils etaient lus par le navigateur comme
+    des heures locales : toutes les heures des sessions avaient deux heures de retard
+    l'ete. La carte des heures de pointe, elle, comptait en UTC.
+    """
+    from app.services.playback_activity import _analytics, _serialize
+
+    # 18:10 UTC le 24 septembre = 20:10 a Paris (heure d'ete).
+    row = PlaybackSession(source_session_id="tz", title="Film", started_at=datetime(2026, 9, 24, 18, 10), ended_at=datetime(2026, 9, 24, 19, 0), watched_ms=1)
+    row.segments = []
+    serialized = _serialize(row)
+    assert serialized["started_at"] == "2026-09-24T18:10:00+00:00"
+    assert serialized["ended_at"] == "2026-09-24T19:00:00+00:00"
+
+    heatmap = {(cell["weekday"], cell["hour"]): cell["sessions"] for cell in _analytics([row], [])["heatmap"]}
+    assert heatmap[(3, 20)] == 1  # jeudi, 20 h a Paris
+    assert heatmap[(3, 18)] == 0
+
+
+def test_parse_plex_sessions_reads_the_transcode_buffer():
+    """Le tampon d'un transcodage : l'avance du transcodeur sur la tete de lecture."""
+    xml = PLEX_SESSIONS_XML.replace(
+        '<TranscodeSession audioDecision="copy"',
+        '<TranscodeSession maxOffsetAvailable="960.5" speed="2.4" throttled="1" audioDecision="copy"',
+    )
+    session = parse_plex_sessions(xml)[0]
+    # viewOffset 900 000 ms, transcode jusqu'a 960,5 s : 60,5 s d'avance.
+    assert session["transcode_buffer_ms"] == 60_500
+    assert session["transcode_speed"] == 2.4
+    assert session["transcode_throttled"] is True
+
+
+def test_direct_play_has_no_transcode_buffer():
+    import re
+
+    xml = re.sub(r"<TranscodeSession[^>]*/>", "", PLEX_SESSIONS_XML)
+    session = parse_plex_sessions(xml)[0]
+    assert session["transcode_buffer_ms"] is None
+    assert session["transcode_speed"] is None

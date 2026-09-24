@@ -124,3 +124,21 @@ describe('formatage des tailles et des nombres', () => {
     expect(signedPercent(0)).toBe('0 %');
   });
 });
+
+
+describe('parseApiDate', () => {
+  it('lit en UTC une date avec heure sans fuseau, telle que la stocke le serveur', async () => {
+    const { parseApiDate } = await import('./format');
+    expect(parseApiDate('2026-09-24T18:10:32').toISOString()).toBe('2026-09-24T18:10:32.000Z');
+    expect(parseApiDate('2026-09-24T18:10:32.276722').toISOString()).toBe('2026-09-24T18:10:32.276Z');
+    expect(parseApiDate('2026-09-24 18:10').toISOString()).toBe('2026-09-24T18:10:00.000Z');
+  });
+
+  it('respecte un fuseau explicite et laisse une date seule en jour civil', async () => {
+    const { parseApiDate } = await import('./format');
+    expect(parseApiDate('2026-09-24T18:10:00+00:00').toISOString()).toBe('2026-09-24T18:10:00.000Z');
+    expect(parseApiDate('2026-09-24T20:10:00+02:00').toISOString()).toBe('2026-09-24T18:10:00.000Z');
+    const day = parseApiDate('2026-09-24');
+    expect([day.getFullYear(), day.getMonth(), day.getDate(), day.getHours()]).toEqual([2026, 8, 24, 0]);
+  });
+});

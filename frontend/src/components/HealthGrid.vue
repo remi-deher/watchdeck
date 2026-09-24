@@ -15,6 +15,7 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Compass, Mail, Rss, Search, Server, Tv, Video } from '@lucide/vue';
@@ -36,7 +37,7 @@ const healthQuery = useQuery({
   placeholderData: displayCache(),
 });
 const health = computed(() => healthQuery.data.value || null);
-const checkedAt = computed(() => health.value?.checked_at ? new Date(health.value.checked_at) : null);
+const checkedAt = computed(() => health.value?.checked_at ? parseApiDate(health.value.checked_at) : null);
 
 const meta: Record<string, [string, any]> = {
   sonarr: ['Sonarr', Tv],
