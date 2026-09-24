@@ -34,7 +34,6 @@
     </RouteScope>
   </MediaOverlay>
   <AppToast />
-  <AppConfirmDialog />
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
@@ -47,7 +46,6 @@ import AppShell from "@/components/layout/AppShell.vue";
 import MediaOverlay from "@/components/media/MediaOverlay.vue";
 import MediaDetailView from "@/views/MediaDetailView.vue";
 import AppToast from '@/components/ui/AppToast.vue';
-import AppConfirmDialog from '@/components/ui/AppConfirmDialog.vue';
 import { useMediaOverlay } from "@/composables/useMediaOverlay";
 import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
 import RouteScope from "@/components/layout/RouteScope.vue";

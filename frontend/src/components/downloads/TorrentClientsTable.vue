@@ -56,6 +56,9 @@
       <button class="text-button" :disabled="busy" @click="clearSelection">Annuler la sélection</button>
     </div>
 
+    <!-- Clic droit (ou appui long) sur le tableau : le menu contextuel s'ouvre au pointeur,
+         sur la ligne visee, que la ligne selectionne d'abord (son evenement remonte avant). -->
+    <TorrentContextMenu :selection="selectedRows.length ? selectedRows : (contextTarget ? [contextTarget] : [])" @action="handleContextMenuAction">
     <div class="torrent-table-wrap" tabindex="0" role="region" aria-label="Tableau des torrents, défilement horizontal" @dragover.prevent @drop.prevent="handleGlobalDrop">
       <DataTable
         v-model:selection="primeSelection"
@@ -135,16 +138,9 @@
         <LoadMore v-if="hasMore" :has-more="hasMore" :loading="false" @load="loadMore" />
       </div>
     </div>
+    </TorrentContextMenu>
     <footer class="torrent-status-bar"><span>{{ displayedRows.length }} / {{ sortedRows.length }} affichés</span><span v-if="selectedRows.length">{{ selectedRows.length }} sélectionné(s)</span><span v-if="staleInfo" class="stale-state">Données en cache</span></footer>
 
-    <!-- Menu Contextuel Clic Droit -->
-    <TorrentContextMenu
-      :open="contextMenuOpen"
-      :position="contextMenuPos"
-      :selection="selectedRows.length ? selectedRows : (contextTarget ? [contextTarget] : [])"
-      @close="contextMenuOpen = false"
-      @action="handleContextMenuAction"
-    />
 
     <!-- Modal Personnalisation des colonnes -->
     <ModalShell :open="showColumnPicker" title="Personnaliser les colonnes" subtitle="Sélectionnez les colonnes à afficher dans le tableau des torrents." @close="showColumnPicker = false">
@@ -597,8 +593,8 @@ function handlePrimeRowClick(event: { data: any; index: number; originalEvent: E
 }
 
 function handlePrimeContextMenu(event: { data: any; index: number; originalEvent: Event }): void {
-  event.originalEvent.preventDefault();
-  openContextMenu(event.data, event.index, event.originalEvent as MouseEvent);
+  // Le menu lui-meme est ouvert par Reka ; ici, on se contente de viser la ligne.
+  openContextMenu(event.data, event.index);
 }
 
 function rowClass(row: any): string {
@@ -811,19 +807,15 @@ async function toggleAltSpeed(): Promise<void> {
   }
 }
 
-const contextMenuOpen = ref(false);
-const contextMenuPos = ref({ x: 0, y: 0 });
 const contextTarget = ref<any>(null);
 
-function openContextMenu(row: any, index: number, event: MouseEvent): void {
+function openContextMenu(row: any, index: number): void {
   const key = rowKey(row);
   if (!selected.value.has(key)) {
     setSelection([key]);
     lastSelectedIndex.value = index;
   }
   contextTarget.value = row;
-  contextMenuPos.value = { x: event.clientX, y: event.clientY };
-  contextMenuOpen.value = true;
 }
 
 function handleContextMenuAction(actionType: string): void {

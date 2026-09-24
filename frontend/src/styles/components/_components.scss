@@ -624,6 +624,12 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 /* Surfaces Reka UI : le voile et le panneau sont freres dans <body>, et non plus parent
    et enfant -- chacun porte donc son propre rang. `data-state` n'existe que sur eux. */
 .drawer-backdrop[data-state] { z-index: 50; }
+.confirm-modal { width: min(440px, calc(100% - 24px)); }
+/* Une confirmation passe devant tout le reste : posee depuis un tiroir ou une modale, elle
+   se retrouvait dessous a rang egal, et aucun clic ne l'atteignait. */
+.drawer-backdrop--confirm-modal[data-state] { z-index: 60; }
+.modal-panel.confirm-modal[data-state] { z-index: 61; }
+.confirm-modal__message { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.5; }
 .modal-panel[data-state],
 .detail-drawer[data-state] { z-index: 51; }
 .modal-panel { z-index: 51; }

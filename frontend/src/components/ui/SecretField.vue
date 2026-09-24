@@ -14,15 +14,21 @@
 <template>
   <UiField :label="label" :hint="hint" v-slot="field">
     <div class="secret-field">
-      <Password
-        :input-id="field.id"
-        :model-value="modelValue"
-        :feedback="false"
-        :toggle-mask="Boolean(modelValue)"
+      <input
+        :id="field.id"
+        class="secret-input"
+        :type="visible ? 'text' : 'password'"
+        :value="modelValue"
         :placeholder="placeholder"
         :autocomplete="autocomplete"
-        :input-props="{ spellcheck: false, 'aria-describedby': [field.describedBy, stateId].filter(Boolean).join(' ') || undefined }"
-        @update:model-value="$emit('update:modelValue', $event)" />
+        spellcheck="false"
+        :aria-describedby="[field.describedBy, stateId].filter(Boolean).join(' ') || undefined"
+        @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)" />
+      <!-- Le bouton n'apparait qu'une fois une valeur saisie : il n'y a rien a relire avant. -->
+      <button v-if="modelValue" type="button" class="secret-toggle" :aria-pressed="visible"
+        :aria-label="visible ? 'Masquer la valeur' : 'Afficher la valeur'" @click="visible = !visible">
+        <component :is="visible ? EyeOff : Eye" :size="16" aria-hidden="true" />
+      </button>
     </div>
     <p :id="stateId" class="secret-state" :class="{ 'is-set': configured }">
       <component :is="configured ? ShieldCheck : ShieldAlert" :size="13" aria-hidden="true" />
@@ -32,9 +38,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useId } from 'vue';
-import { ShieldAlert, ShieldCheck } from '@lucide/vue';
-import Password from 'primevue/password';
+import { computed, ref, useId } from 'vue';
+import { Eye, EyeOff, ShieldAlert, ShieldCheck } from '@lucide/vue';
 import UiField from './UiField.vue';
 
 const props = withDefaults(
@@ -54,6 +59,7 @@ const props = withDefaults(
 defineEmits<{ 'update:modelValue': [value: string] }>();
 
 const stateId = `secret-state-${useId()}`;
+const visible = ref(false);
 
 const placeholder = computed(() =>
   props.configured ? 'Laisser vide pour conserver la valeur actuelle' : 'Aucune valeur enregistrée'
@@ -68,7 +74,11 @@ const stateLabel = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.secret-field :deep(.p-password),.secret-field :deep(.p-password-input){width:100%;min-width:0}
+.secret-field{position:relative;display:flex;align-items:center;min-width:0}
+.secret-input{width:100%;min-width:0;padding-right:44px}
+.secret-toggle{position:absolute;right:4px;display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);cursor:pointer}
+.secret-toggle:hover{color:var(--text)}
+.secret-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .secret-state {
   display: flex;
   align-items: center;

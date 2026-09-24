@@ -1,25 +1,30 @@
 <template>
-  <SelectButton ref="control" class="ui-segmented-control" role="tablist" :model-value="modelValue" :options="options" option-label="label"
-    option-value="value" option-disabled="disabled" :aria-label="ariaLabel" @update:model-value="emit('update:modelValue', $event)">
-    <template #option="{ option }"><span>{{ option.label }}</span><small v-if="option.count != null">{{ option.count }}</small></template>
-  </SelectButton>
+  <!-- Une rangee d'onglets sans panneaux : Reka UI donne `role="tablist"`/`tab`,
+       `aria-selected` et la navigation aux fleches, que le SelectButton de PrimeVue
+       obligeait a recoller a la main apres chaque rendu. -->
+  <TabsRoot class="ui-segmented-control" :model-value="modelValue" activation-mode="manual" @update:model-value="choisir">
+    <TabsList class="ui-segmented-list" :aria-label="ariaLabel">
+      <TabsTrigger v-for="option in options" :key="String(option.value)" class="ui-segmented-item" :value="option.value" :disabled="option.disabled">
+        <span>{{ option.label }}</span><small v-if="option.count != null">{{ option.count }}</small>
+      </TabsTrigger>
+    </TabsList>
+  </TabsRoot>
 </template>
 <script setup lang="ts" generic="T extends string | number">
-import { nextTick, onMounted, ref, watch } from 'vue';
-import SelectButton from 'primevue/selectbutton';
+import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 export interface UiSegmentedOption<T extends string | number> { value: T; label: string; count?: number; disabled?: boolean }
 const props = defineProps<{ modelValue: T; options: UiSegmentedOption<T>[]; ariaLabel: string }>();
 const emit = defineEmits<{ 'update:modelValue': [value: T] }>();
-const control = ref<{ $el: HTMLElement } | null>(null);
-function syncTabSemantics(): void {
-  for (const button of control.value?.$el?.querySelectorAll('button') ?? []) {
-    button.setAttribute('role', 'tab');
-    button.setAttribute('aria-selected', String(button.getAttribute('aria-pressed') === 'true'));
-  }
+function choisir(value: string | number): void {
+  if (value !== props.modelValue) emit('update:modelValue', value as T);
 }
-onMounted(syncTabSemantics);
-watch(() => props.modelValue, () => nextTick(syncTabSemantics));
 </script>
 <style scoped lang="scss">
-.ui-segmented-control :deep(.p-togglebutton-content){gap:var(--space-2)}small{min-width:18px;padding:2px 5px;border-radius:999px;background:var(--surface-1);color:inherit;font-size:var(--fs-xs);line-height:1.2}
+.ui-segmented-list{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-sunken,var(--surface))}
+.ui-segmented-item{display:inline-flex;align-items:center;gap:var(--space-2);min-height:32px;padding:0 12px;border:0;border-radius:calc(var(--radius-md) - 3px);background:transparent;color:var(--muted);font:inherit;font-size:var(--fs-sm);font-weight:600;white-space:nowrap;cursor:pointer;transition:background-color var(--motion-duration-instant) var(--motion-ease-standard),color var(--motion-duration-instant) var(--motion-ease-standard)}
+.ui-segmented-item:hover{color:var(--text)}
+.ui-segmented-item[data-state="active"]{background:var(--surface-3);color:var(--text);box-shadow:0 1px 2px rgb(0 0 0 / 25%)}
+.ui-segmented-item:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ui-segmented-item[data-disabled]{opacity:.45;cursor:not-allowed}
+small{min-width:18px;padding:2px 5px;border-radius:999px;background:var(--surface-1,var(--surface-2));color:inherit;font-size:var(--fs-xs);line-height:1.2}
 </style>

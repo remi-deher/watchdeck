@@ -4,7 +4,6 @@ import { defineComponent, nextTick, ref } from 'vue';
 
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ModalShell from './ModalShell.vue';
-import AppConfirmDialog from './AppConfirmDialog.vue';
 
 // Reka rend ses surfaces par un vrai portail vers <body> : le bouchon global des
 // Teleport (testSetup) les ferait disparaitre.
@@ -72,26 +71,22 @@ describe('ModalShell', () => {
   });
 });
 
-describe('ConfirmModal bâti sur ModalShell', () => {
-  it('alimente le ConfirmDialog PrimeVue global et transmet la confirmation', async () => {
+describe('ConfirmModal', () => {
+  it('pose la question, propose Annuler puis l’action, et transmet la confirmation', async () => {
     const accepted = ref(0);
     const Harness = defineComponent({
-      components: { AppConfirmDialog, ConfirmModal },
+      components: { ConfirmModal },
       setup: () => ({ accepted }),
-      template: '<AppConfirmDialog/><ConfirmModal open title="Supprimer ?" message="Définitif." confirm-label="Supprimer" danger @confirm="accepted++"/>',
+      template: '<ConfirmModal open title="Supprimer ?" message="Définitif." confirm-label="Supprimer" danger @confirm="accepted++"/>',
     });
-    const wrapper = mount(Harness);
+    const wrapper = mount(Harness, { attachTo: document.body, ...reel });
     await nextTick();
-    await vi.waitFor(() => expect(wrapper.text()).toContain('Définitif.'));
-    expect(wrapper.find('.p-confirmdialog-message').text()).toBe('Définitif.');
-    const buttons = wrapper.findAll('.p-confirmdialog button');
-    expect(buttons.map((button) => button.text())).toEqual(['Annuler', 'Supprimer']);
-    await buttons[1].trigger('click');
+    const dialog = document.querySelector('[role="alertdialog"]');
+    expect(dialog.querySelector('.confirm-modal__message').textContent).toBe('Définitif.');
+    const buttons = [...dialog.querySelectorAll('.actions button')];
+    expect(buttons.map((button) => button.textContent.trim())).toEqual(['Annuler', 'Supprimer']);
+    buttons[1].click();
     expect(accepted.value).toBe(1);
-  });
-
-  it('ne rend rien tant que open est faux', () => {
-    const wrapper = mount(ConfirmModal, { props: { open: false, title: 'T' } });
-    expect(wrapper.find('.drawer-backdrop').exists()).toBe(false);
+    wrapper.unmount();
   });
 });

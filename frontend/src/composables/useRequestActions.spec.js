@@ -9,7 +9,6 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
 import ConfirmModal from '@/components/ConfirmModal.vue';
-import AppConfirmDialog from '@/components/ui/AppConfirmDialog.vue';
 import ReasonPickerModal from '@/components/requests/ReasonPickerModal.vue';
 import { useConfirm } from './useConfirm';
 import { useRequestActions } from './useRequestActions';
@@ -50,7 +49,6 @@ describe('withdrawRequest', () => {
         }
         return () =>
           h('div', [
-            h(AppConfirmDialog),
             h('button', { onClick: () => actions.withdrawRequest({ id: 7, source: 'rss' }) }, 'Ouvrir'),
             h(ReasonPickerModal, {
               open: !!withdrawTarget.value,
@@ -79,9 +77,12 @@ describe('withdrawRequest', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     await nextTick();
 
-    const confirmer = findButton(wrapper, 'Annuler la demande');
-    expect(confirmer, 'la confirmation doit rester ouverte').toBeTruthy();
-    await confirmer.trigger('click');
+    // La confirmation est un AlertDialog : on y cherche son bouton, et non le premier
+    // « Annuler la demande » venu (le motif en porte un aussi).
+    const confirmation = document.querySelector('[role="alertdialog"]');
+    expect(confirmation, 'la confirmation doit rester ouverte').toBeTruthy();
+    const confirmer = [...confirmation.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Annuler la demande');
+    confirmer.click();
     await nextTick();
     await nextTick();
 
