@@ -576,3 +576,55 @@ def test_the_cancellation_preview_replays_the_reason_that_was_sent(async_db):
         assert envoi.await_args.kwargs["reason"] == "Absent du catalogue de telechargement."
     finally:
         _cleanup()
+
+
+def test_notification_log_sorts_on_every_column(async_db):
+    """Chaque colonne de l'historique d'envoi se trie, en base, dans les deux sens."""
+    from datetime import datetime
+
+    async_db.add_all(
+        [
+            _make_log(
+                log_id=1,
+                event="request",
+                recipient="zoe@x.fr",
+                media_title="Brazil",
+                success=True,
+                sent_at=datetime(2026, 9, 1),
+            ),
+            _make_log(
+                log_id=2,
+                event="available",
+                recipient="anna@x.fr",
+                media_title="Casablanca",
+                success=False,
+                sent_at=datetime(2026, 9, 3),
+            ),
+            _make_log(
+                log_id=3,
+                event="failed",
+                recipient="marc@x.fr",
+                media_title="Amadeus",
+                success=True,
+                sent_at=datetime(2026, 9, 2),
+            ),
+        ]
+    )
+    async_db.commit()
+    client = _client_with_db(async_db)
+    try:
+
+        def ids(query):
+            response = client.get(f"/api/notifications/log?{query}")
+            assert response.status_code == 200, query
+            return [item["id"] for item in response.json()["items"]]
+
+        assert ids("") == [2, 3, 1]  # par defaut : les plus recents d'abord
+        assert ids("sort=date&direction=asc") == [1, 3, 2]
+        assert ids("sort=media&direction=asc") == [3, 1, 2]
+        assert ids("sort=recipients&direction=asc") == [2, 3, 1]
+        assert ids("sort=event&direction=asc") == [2, 3, 1]
+        assert ids("sort=state&direction=asc")[0] == 2  # les echecs d'abord
+        assert client.get("/api/notifications/log?sort=nimporte").status_code == 422
+    finally:
+        _cleanup()

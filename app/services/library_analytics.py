@@ -402,6 +402,17 @@ async def analytics_summary_payload(
 
 
 #: Tris de l'inventaire, appliques sur le catalogue filtre entier.
+def _resolution_rank(value: Any) -> int:
+    """Hauteur d'image d'une resolution Plex (« 4k », « 1080 », « sd »...), pour la trier."""
+    text = str(value or "").strip().lower()
+    if text in ("4k", "uhd", "2160"):
+        return 2160
+    if text == "sd":
+        return 480
+    digits = "".join(ch for ch in text if ch.isdigit())
+    return int(digits) if digits else 0
+
+
 ITEM_SORTS: dict[str, Any] = {
     "title": lambda row: str(row.get("title") or "").casefold(),
     "library": lambda row: str(row.get("library") or "").casefold(),
@@ -413,6 +424,10 @@ ITEM_SORTS: dict[str, Any] = {
     # Un media jamais vu passe apres tous les autres en ordre decroissant.
     "last_viewed": lambda row: row.get("last_viewed_at") or "",
     "viewer": lambda row: (row.get("viewers") or [""])[0].casefold(),
+    # Qualite : la resolution d'abord, le codec departage.
+    "video": lambda row: (_resolution_rank(row.get("video_resolution")), str(row.get("video_codec") or "").casefold()),
+    "audio": lambda row: (str(row.get("audio_codec") or "").casefold(), row.get("audio_track_count") or 0),
+    "subtitles": lambda row: row.get("subtitle_count") or 0,
 }
 
 

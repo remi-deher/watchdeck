@@ -56,6 +56,7 @@
           </span>
           <PlaybackMethodBadge :method="session.playback_method" :title="decisionDetail(session)" />
           <span v-if="session.bandwidth_kbps" class="live-bandwidth">{{ formatBandwidth(session.bandwidth_kbps) }}</span>
+          <span v-if="hasTranscodeBuffer(session)" class="live-buffer" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }" :title="transcodeSpeedLabel(session)">Tampon {{ formatBuffer(session.transcode_buffer_ms) }}</span>
         </footer>
       </article>
     </div>
@@ -72,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref, watch } from 'vue';
 import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Smartphone, Tablet, Tv } from '@lucide/vue';
@@ -249,6 +251,8 @@ function formatRemaining(session: LiveSession): string {
 </script>
 
 <style scoped lang="scss">
+.live-buffer{color:var(--muted);font-size:var(--fs-xs);font-variant-numeric:tabular-nums;white-space:nowrap}
+.live-buffer.low{color:var(--warning,#f59e0b);font-weight:700}
 .live-panel{grid-column:1/-1}
 .live-disabled{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap: var(--space-4);align-items:center;margin-top:14px;padding:16px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--accent) 7%,var(--surface-2))}.live-disabled>svg{width:22px;height:22px;color:var(--accent)}.live-disabled>div{display:grid;gap: var(--space-1)}.live-disabled strong{font-size:var(--fs-md)}.live-disabled span{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm);line-height:1.45}.live-disabled .secondary{white-space:nowrap}
 .eyebrow{display:flex;align-items:center;gap: var(--space-2)}

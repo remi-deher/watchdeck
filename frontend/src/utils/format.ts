@@ -3,7 +3,18 @@ import { differenceInMinutes, format as formatDateFns, parseISO } from 'date-fns
 import { fr } from 'date-fns/locale';
 
 const LOCALE = 'fr-FR';
-const asDate = (value: string | number | Date): Date => typeof value === 'string' ? parseISO(value) : new Date(value);
+/* Le serveur stocke ses instants en UTC sans fuseau (« 2026-09-24T18:10:32 »). Lue
+   telle quelle, une telle date passe pour une heure LOCALE : toutes les heures
+   s'affichaient avec une a deux heures de retard (l'ecart d'heure d'ete). Une date avec
+   heure mais sans fuseau est donc lue en UTC ; une date seule (« 2026-09-24 », sortie
+   d'un film) reste un jour civil, et une valeur qui porte deja son fuseau est respectee. */
+const API_DATETIME_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+export function parseApiDate(value: string | number | Date): Date {
+  if (typeof value !== 'string') return new Date(value);
+  const text = value.trim();
+  return parseISO(API_DATETIME_WITHOUT_ZONE.test(text) ? `${text.replace(' ', 'T')}Z` : text);
+}
+const asDate = parseApiDate;
 const renderDate = (value: string | number | Date, pattern: string): string => formatDateFns(asDate(value), pattern, { locale: fr });
 
 // ---------------------------------------------------------------------------

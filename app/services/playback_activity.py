@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from datetime import time as datetime_time
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from xml.etree import ElementTree
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import and_, case, delete, func, or_, update
@@ -22,7 +23,7 @@ from ..cache import cache
 from ..database import AsyncSessionLocal
 from ..models import PlaybackDailyAggregate, PlaybackIpLocation, PlaybackSession, PlaybackSessionSegment, Settings
 from ..realtime import publish
-from ..utils import now_utc_naive, wrap_image_proxy
+from ..utils import APP_TIMEZONE, now_utc_naive, wrap_image_proxy
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
 from .ip_geolocation import lookup_ip_location, lookup_ip_locations
 
@@ -114,6 +115,20 @@ def _transcode_reason(row: PlaybackSession) -> str:
     return "Non déterminée"
 
 
+def _utc_iso(value: datetime | None) -> str | None:
+    """Instant stocke en UTC naif, envoye avec son fuseau : le navigateur le lisait
+    sinon comme une heure locale, et toutes les heures des sessions avaient une a deux
+    heures de retard."""
+    if not value:
+        return None
+    return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
+
+
+def _local(value: datetime) -> datetime:
+    """Heure murale (APP_TIMEZONE) d'un instant stocke en UTC naif."""
+    return value.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(APP_TIMEZONE))
+
+
 def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]) -> dict:
     total = len(rows)
     watch_ms = sum(row.watched_ms or 0 for row in rows)
@@ -123,7 +138,9 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
     heatmap: dict[tuple[int, int], dict[str, int]] = defaultdict(lambda: {"sessions": 0, "watch_ms": 0})
     for row in rows:
         if row.started_at:
-            key = (row.started_at.weekday(), row.started_at.hour)
+            # Les heures de pointe se lisent a l'heure locale, pas en UTC.
+            local = _local(row.started_at)
+            key = (local.weekday(), local.hour)
             heatmap[key]["sessions"] += 1
             heatmap[key]["watch_ms"] += row.watched_ms or 0
 
@@ -142,7 +159,7 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
         current += delta
         if current > peak:
             peak, peak_at = current, moment
-        day = moment.date().isoformat()
+        day = _local(moment).date().isoformat()
         concurrent_daily[day] = max(concurrent_daily[day], current)
 
     completion_groups: dict[str, list[tuple[float, bool]]] = defaultdict(list)
@@ -169,9 +186,9 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
     media_groups: dict[tuple[str, str], dict] = {}
     for row in rows:
         label = _media_label(row)
-        key = (row.media_type or "other", label)
+        media_key = (row.media_type or "other", label)
         item = media_groups.setdefault(
-            key,
+            media_key,
             {
                 "title": label,
                 "media_type": "show" if row.grandparent_title else row.media_type,
@@ -202,9 +219,9 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
 
     repeat_counts = Counter((row.user_name, row.rating_key) for row in rows if row.user_name and row.rating_key)
     for row in rows:
-        key = (row.media_type or "other", _media_label(row))
+        media_key = (row.media_type or "other", _media_label(row))
         if row.user_name and row.rating_key and repeat_counts[(row.user_name, row.rating_key)] > 1:
-            media_groups[key]["rewatches"] += 1
+            media_groups[media_key]["rewatches"] += 1
             repeat_counts[(row.user_name, row.rating_key)] -= 1
 
     ranked_media = list(media_groups.values())
@@ -273,7 +290,7 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             "title": chain[0].grandparent_title,
             "episodes": len(chain),
             "watch_ms": sum(row.watched_ms or 0 for row in chain),
-            "started_at": chain[0].started_at.isoformat() if chain[0].started_at else None,
+            "started_at": _utc_iso(chain[0].started_at),
         }
         for chain in sorted(binges, key=lambda value: sum(row.watched_ms or 0 for row in value), reverse=True)[:10]
     ]
@@ -318,7 +335,7 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
                 else (100 if item["watch_ms"] else 0),
                 "favorite_title": item["titles"].most_common(1)[0][0] if item["titles"] else None,
                 "favorite_device": item["devices"].most_common(1)[0][0] if item["devices"] else None,
-                "last_seen_at": item["last_seen_at"].isoformat() if item["last_seen_at"] else None,
+                "last_seen_at": _utc_iso(item["last_seen_at"]),
             }
         )
     user_trends.sort(key=lambda item: item["watch_ms"], reverse=True)
@@ -343,7 +360,7 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
         ],
         "concurrency": {
             "peak": peak,
-            "peak_at": peak_at.isoformat() if peak_at else None,
+            "peak_at": _utc_iso(peak_at),
             "daily": [{"date": day, "peak": value} for day, value in sorted(concurrent_daily.items())],
         },
         "completion": completion,
@@ -493,8 +510,8 @@ def _serialize_segment(segment: PlaybackSessionSegment) -> dict:
         "id": segment.id,
         "state": segment.state,
         "playback_method": segment.playback_method,
-        "started_at": segment.started_at.isoformat() if segment.started_at else None,
-        "ended_at": segment.ended_at.isoformat() if segment.ended_at else None,
+        "started_at": _utc_iso(segment.started_at),
+        "ended_at": _utc_iso(segment.ended_at),
         "duration_ms": segment.duration_ms,
         "view_offset_start_ms": segment.view_offset_start_ms,
         "view_offset_end_ms": segment.view_offset_end_ms,
@@ -543,6 +560,9 @@ def _serialize(row: PlaybackSession) -> dict:
         "geo_asn": row.geo_asn,
         "bandwidth_kbps": row.bandwidth_kbps,
         "media_size_bytes": row.media_size_bytes,
+        "transcode_buffer_ms": row.transcode_buffer_ms,
+        "transcode_speed": row.transcode_speed,
+        "transcode_throttled": row.transcode_throttled,
         "progress_ms": row.progress_ms,
         "initial_progress_ms": row.initial_progress_ms,
         "duration_ms": row.duration_ms,
@@ -560,9 +580,9 @@ def _serialize(row: PlaybackSession) -> dict:
         "group_count": row.group_count or 1,
         "reference_id": row.reference_id,
         "force_stopped": row.force_stopped,
-        "started_at": row.started_at.isoformat() if row.started_at else None,
-        "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
-        "ended_at": row.ended_at.isoformat() if row.ended_at else None,
+        "started_at": _utc_iso(row.started_at),
+        "last_seen_at": _utc_iso(row.last_seen_at),
+        "ended_at": _utc_iso(row.ended_at),
         "media_request_id": row.media_request_id,
         "segments": [_serialize_segment(s) for s in segments],
     }
@@ -613,6 +633,32 @@ def _thumb_url(row: PlaybackSession) -> str | None:
     if plex_thumb_path:
         return f"/api/playback/thumb?path={quote(plex_thumb_path, safe='')}"
     return wrap_image_proxy(row.thumb_url)
+
+
+def _float(value) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _transcode_buffer(transcode_attrs: dict, view_offset_ms: int) -> dict:
+    """Etat du transcodage en direct : tampon d'avance, vitesse et bridage.
+
+    `maxOffsetAvailable` (secondes) est l'endroit du media jusqu'ou le transcodeur a
+    deja produit ; retranche de la tete de lecture, c'est le tampon dont dispose le
+    lecteur avant de devoir attendre. Sans transcodage, les trois valeurs restent vides.
+    """
+    if not transcode_attrs:
+        return {"transcode_buffer_ms": None, "transcode_speed": None, "transcode_throttled": None}
+    max_offset = _float(transcode_attrs.get("maxOffsetAvailable"))
+    buffer_ms = max(0, round(max_offset * 1000) - view_offset_ms) if max_offset is not None else None
+    throttled = transcode_attrs.get("throttled")
+    return {
+        "transcode_buffer_ms": buffer_ms,
+        "transcode_speed": _float(transcode_attrs.get("speed")),
+        "transcode_throttled": throttled in ("1", "true") if throttled is not None else None,
+    }
 
 
 def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
@@ -711,6 +757,7 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
                 "stream_location": session_attrs.get("location"),
                 "bandwidth_kbps": _int(session_attrs.get("bandwidth") or transcode_attrs.get("bandwidth")),
                 "media_size_bytes": _int(part_attrs.get("size")),
+                **_transcode_buffer(transcode_attrs, _int(media.get("viewOffset"), 0)),
                 "progress_ms": _int(media.get("viewOffset"), 0),
                 "duration_ms": _int(media.get("duration")),
                 "progress_percent": (
@@ -1803,15 +1850,33 @@ def _device_expression():
 #: donc que sur la page chargée : « Anciennes » réordonnait les cent lectures les plus
 #: récentes entre elles — c'est-à-dire ne changeait rien de visible — et « Durée »
 #: donnait la plus longue des cent dernières, pas de la période.
-HISTORY_ORDERS = {
-    "recent": (PlaybackSession.started_at.desc(), PlaybackSession.id.desc()),
-    "oldest": (PlaybackSession.started_at.asc(), PlaybackSession.id.asc()),
-    "longest": (
-        PlaybackSession.watched_ms.desc().nulls_last(),
-        PlaybackSession.started_at.desc(),
-        PlaybackSession.id.desc(),
-    ),
-}
+#: Chaque colonne de l'historique se trie, dans les deux sens (`<colonne>_<asc|desc>`) ;
+#: les anciennes valeurs restent comprises.
+HISTORY_SORT_ALIASES = {"recent": "date_desc", "oldest": "date_asc", "longest": "duration_desc"}
+HISTORY_SORT_COLUMNS = ("title", "user", "device", "method", "date", "duration")
+
+
+def _history_order(sort: str, device_expression):
+    """Clause ORDER BY d'un tri d'historique ; la date, puis l'identifiant, departagent."""
+    sort = HISTORY_SORT_ALIASES.get(sort, sort)
+    column, _, direction = sort.rpartition("_")
+    if column not in HISTORY_SORT_COLUMNS or direction not in ("asc", "desc"):
+        column, direction = "date", "desc"
+    keys = {
+        # Un episode se range sous sa serie : trier par titre regroupe la serie.
+        "title": func.lower(func.coalesce(func.nullif(PlaybackSession.grandparent_title, ""), PlaybackSession.title)),
+        "user": func.lower(PlaybackSession.user_name),
+        "device": func.lower(device_expression),
+        "method": PlaybackSession.playback_method,
+        "date": PlaybackSession.started_at,
+        "duration": PlaybackSession.watched_ms,
+    }
+    key = keys[column]
+    primary = key.asc().nulls_last() if direction == "asc" else key.desc().nulls_last()
+    if column == "date":
+        tie = PlaybackSession.id.asc() if direction == "asc" else PlaybackSession.id.desc()
+        return (primary, tie)
+    return (primary, PlaybackSession.started_at.desc(), PlaybackSession.id.desc())
 
 
 async def activity_history(
@@ -1887,7 +1952,7 @@ async def activity_history(
                 select(PlaybackSession)
                 .options(selectinload(PlaybackSession.segments))
                 .filter(*filters)
-                .order_by(*HISTORY_ORDERS.get(sort, HISTORY_ORDERS["recent"]))
+                .order_by(*_history_order(sort, device_expression))
                 .offset(max(offset, 0))
                 .limit(min(max(limit, 1), 500))
             )

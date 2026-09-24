@@ -25,9 +25,6 @@
         <FilterGroup label="Origine">
           <UiChipGroup label="Origine" :options="[{ value: '', label: 'Toutes les origines' }, ...sources.map((value) => ({ value, label: sourceLabel(value) }))]" v-model="source" />
         </FilterGroup>
-        <FilterGroup label="Tri">
-          <UiChipGroup label="Tri" :options="[{ value: 'name', label: 'Nom' }, { value: 'requests', label: 'Demandes' }, { value: 'activity', label: 'Activité récente' }]" v-model="sort" />
-        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
     <!-- Ces tuiles sont le filtre de la page : `aria-pressed` dit laquelle est active,
@@ -72,7 +69,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import { accountName, seerActionLabel, sourceLabel } from '@/utils/userLabels';
 
 const route = useRoute(), router = useRouter();
-const query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref(''), sort = ref('name');
+const query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref('');
 const queryClient = useQueryClient();
 const usersQuery = useQuery({
   queryKey: ['users', 'list'],
@@ -94,8 +91,8 @@ const tableRef = ref(null);
 const { dialog: confirmDialog, resolveConfirm, runConfirmed } = useConfirmedAction({ busy, error: actionError });
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFilters } = useFiltersDrawer(
-  { query, status, role, attention, source, sort },
-  { query: '', status: '', role: '', attention: '', source: '', sort: 'name' }
+  { query, status, role, attention, source },
+  { query: '', status: '', role: '', attention: '', source: '' }
 );
 
 
@@ -117,7 +114,8 @@ const filtered = computed(() => users.value.filter(user =>
   (!role.value || user.role === role.value) &&
   (!attention.value || (attention.value==='enabled'&&user.enabled)||(attention.value==='pending'&&(user.stats?.pending_approval||0)>0)||(attention.value==='missing_email'&&!user.notification_email&&!user.plex_email&&!user.notify_admin)||(attention.value==='notification_error'&&user.has_notification_error)) &&
   (!source.value || user.source === source.value)
-).sort((a, b) => sort.value === 'requests' ? (b.stats?.total || 0) - (a.stats?.total || 0) : sort.value==='activity' ? String(b.last_requested_at||'').localeCompare(String(a.last_requested_at||'')) : displayName(a).localeCompare(displayName(b), 'fr')));
+).sort((a, b) => displayName(a).localeCompare(displayName(b), 'fr')));
+/* Ordre de depart par nom ; les en-tetes du tableau trient ensuite chaque colonne. */
 
 /* `accountName` est partage avec la table et la fiche : le nom affiche, celui qui sert
    au tri et celui que cherche la recherche ne peuvent plus diverger. */

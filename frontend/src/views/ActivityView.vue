@@ -138,7 +138,7 @@
           :loading-more="historyLoadingMore"
           :page-size="HISTORY_PAGE_SIZE"
           :sort="historySort"
-          :group-by-day="historySort!=='longest'"
+          :group-by-day="historySort.startsWith('date')"
           @select="openSession($event)"
           @load-more="loadHistory(true)"
           @update:sort="setHistorySort"
@@ -363,7 +363,7 @@ const relativeUpdate=computed(()=>{const seconds=Math.max(0,Math.floor((clock.va
    cent dernieres, sans que le compteur affiche ne le trahisse. */
 const HISTORY_PAGE_SIZE=100;
 interface HistoryPage {items?: any[]; total?: number; has_more?: boolean; facets?: {users?: string[]; devices?: string[]}}
-const historySort=ref('recent');
+const historySort=ref('date_desc');
 // La recherche part en base apres une pause de saisie ; les listes deroulantes, la periode
 // et le tri immediatement. Tous font partie de la cle : en changer annule la lecture en
 // cours et repart de la premiere page, ce que faisait `useLatestRequest` a la main.

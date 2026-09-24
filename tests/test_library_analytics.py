@@ -201,6 +201,37 @@ def test_analytics_item_endpoint_returns_the_media_or_404(monkeypatch):
             app.dependency_overrides.pop(dependency, None)
 
 
+@pytest.mark.asyncio
+async def test_items_sort_on_quality_audio_and_subtitles():
+    def row(title, resolution, codec, audio, tracks, subtitles):
+        item = parse_plex_item(sample_item(), "Films", "movie")
+        item.update(
+            title=title,
+            video_resolution=resolution,
+            video_codec=codec,
+            audio_codec=audio,
+            audio_track_count=tracks,
+            subtitle_count=subtitles,
+        )
+        return item
+
+    rows = [
+        row("SD", "sd", "h264", "ac3", 1, 3),
+        row("UHD", "4k", "hevc", "truehd", 2, 0),
+        row("HD", "1080", "h264", "eac3", 1, 1),
+    ]
+    db = SimpleNamespace(get=AsyncMock(return_value=LibraryAnalyticsSnapshot(payload_json=json.dumps({"items": rows}))))
+
+    async def titles(sort, direction):
+        page = await analytics_items_payload(SimpleNamespace(), db, {}, sort=sort, direction=direction)
+        return [item["title"] for item in page["items"]]
+
+    assert await titles("video", "desc") == ["UHD", "HD", "SD"]
+    assert await titles("video", "asc") == ["SD", "HD", "UHD"]
+    assert await titles("audio", "asc") == ["SD", "HD", "UHD"]
+    assert await titles("subtitles", "desc") == ["SD", "HD", "UHD"]
+
+
 def test_an_episode_inherits_the_studio_of_its_show():
     """Plex n'expose le studio que sur la série ; l'épisode n'en porte aucun.
 
