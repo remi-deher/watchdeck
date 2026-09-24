@@ -7,14 +7,14 @@ describe('RetentionDaysInput', () => {
     const wrapper = mount(RetentionDaysInput, { props: { modelValue: null } });
 
     expect(wrapper.get('input[type="checkbox"]').element.checked).toBe(true);
-    expect(wrapper.find('input[type="number"]').exists()).toBe(false);
+    expect(wrapper.find('.ui-number-field input').exists()).toBe(false);
   });
 
   it('affiche la checkbox décochée et le champ numérique quand une valeur est définie', () => {
     const wrapper = mount(RetentionDaysInput, { props: { modelValue: 30 } });
 
     expect(wrapper.get('input[type="checkbox"]').element.checked).toBe(false);
-    expect(wrapper.get('input[type="number"]').element.value).toBe('30');
+    expect(wrapper.get('.ui-number-field input').element.value).toBe('30');
   });
 
   it('émet null en cochant "Conserver indéfiniment"', async () => {

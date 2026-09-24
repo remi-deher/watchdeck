@@ -2,22 +2,14 @@
   <ModalShell :open="open" :title="title" :subtitle="subtitle" @close="$emit('cancel')">
     <!-- Le motif etait saisi a la main a chaque fois : le meme refus se formulait
          differemment d'une fois a l'autre, et les tournures utiles se perdaient. -->
-    <div v-if="reasons.length" class="reason-choices">
-      <button
-        v-for="reason in reasons"
-        :key="reason.id"
-        type="button"
-        class="filter-badge"
-        :class="{ active: selectedId === reason.id }"
-        @click="choose(reason)"
-      ><span>{{ reason.label }}</span></button>
-      <button
-        type="button"
-        class="filter-badge"
-        :class="{ active: selectedId === null }"
-        @click="choose(null)"
-      ><span>Message libre</span></button>
-    </div>
+    <UiChipGroup
+      v-if="reasons.length"
+      class="reason-choices"
+      label="Motif"
+      :options="[...reasons.map((reason) => ({ value: reason.id, label: reason.label })), { value: null, label: 'Message libre' }]"
+      :model-value="selectedId"
+      @update:model-value="(id) => choose(reasons.find((reason) => reason.id === id) ?? null)"
+    />
 
     <label class="reason-message">
       <span>Message envoyé au demandeur</span>
@@ -33,6 +25,7 @@
 </template>
 
 <script setup lang="ts">
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { ref, watch } from 'vue';
 import { api } from '@/api';
 import ModalShell from '@/components/ui/ModalShell.vue';

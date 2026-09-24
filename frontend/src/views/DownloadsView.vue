@@ -32,40 +32,20 @@
              sous « Affichage » sur les autres pages -- deux idiomes pour la meme
              chose, repartis au hasard des sections. -->
         <FilterGroup v-if="section === 'queue' || section === 'missing'" label="Type de média">
-          <button
-            v-for="option in MEDIA_TYPE_OPTIONS"
-            :key="option.value || 'all'"
-            class="filter-badge"
-            :class="{ active: mediaType === option.value }"
-            @click="mediaType = option.value"
-          ><span>{{ option.label }}</span></button>
+          <UiChipGroup label="Type de média" :options="MEDIA_TYPE_OPTIONS" v-model="mediaType" />
         </FilterGroup>
 
         <FilterGroup v-if="section === 'queue'" label="État">
-          <button
-            v-for="option in QUEUE_STATE_OPTIONS"
-            :key="option.value"
-            class="filter-badge"
-            :class="{ active: subview === option.value }"
-            @click="selectSubview(option.value)"
-          ><span>{{ option.label }}</span></button>
+          <UiChipGroup label="État" :options="QUEUE_STATE_OPTIONS" :model-value="subview" @update:model-value="selectSubview" />
         </FilterGroup>
 
         <FilterGroup v-if="(section === 'queue' || section === 'missing') && typedArrInstances.length > 1" label="Instance">
-          <button class="filter-badge" :class="{ active: !selectedInstanceId }" @click="selectInstanceId('')"><span>Toutes</span></button>
-          <button
-            v-for="source in typedArrInstances"
-            :key="source.id"
-            class="filter-badge"
-            :class="{ active: selectedInstanceId === String(source.id) }"
-            @click="selectInstanceId(String(source.id))"
-          ><span>{{ source.name }}</span></button>
+          <UiChipGroup label="Instance" :options="[{ value: '', label: 'Toutes' }, ...typedArrInstances.map((source: any) => ({ value: String(source.id), label: source.name }))]" :model-value="selectedInstanceId || ''" @update:model-value="selectInstanceId" />
         </FilterGroup>
 
         <template v-if="section==='clients'">
           <FilterGroup label="Vue">
-            <button class="filter-badge" :class="{ active: subview === 'instances' }" @click="selectSubview('instances')"><span>Torrents</span></button>
-            <button class="filter-badge" :class="{ active: subview === 'overview' }" @click="selectSubview('overview')"><span>Synthèse</span></button>
+            <UiChipGroup label="Vue" :options="[{ value: 'instances', label: 'Torrents' }, { value: 'overview', label: 'Synthèse' }]" v-model="subview" />
           </FilterGroup>
 
           <template v-if="subview==='instances'">
@@ -82,17 +62,14 @@
               @reset="resetClientFilters"
             />
             <FilterGroup label="Origine">
-              <button class="filter-badge" :class="{ active: !clientOwnership }" @click="clientOwnership = ''"><span>Toutes</span></button>
-              <button class="filter-badge" :class="{ active: clientOwnership === 'watchdeck' }" @click="clientOwnership = clientOwnership === 'watchdeck' ? '' : 'watchdeck'"><span>Watchdeck</span></button>
-              <button class="filter-badge" :class="{ active: clientOwnership === 'external' }" @click="clientOwnership = clientOwnership === 'external' ? '' : 'external'"><span>Externes</span></button>
+              <UiChipGroup label="Origine" :options="[{ value: '', label: 'Toutes' }, { value: 'watchdeck', label: 'Watchdeck' }, { value: 'external', label: 'Externes' }]" v-model="clientOwnership" />
             </FilterGroup>
           </template>
         </template>
 
         <template v-else>
           <FilterGroup v-if="instances.length > 1" label="Instance">
-            <button class="filter-badge" :class="{ active: !instance }" @click="instance = ''"><span>Toutes</span></button>
-            <button v-for="val in instances" :key="val" class="filter-badge" :class="{ active: instance === val }" @click="instance = instance === val ? '' : val"><span>{{ val }}</span></button>
+            <UiChipGroup label="Instance" :options="[{ value: '', label: 'Toutes' }, ...instances.map((val: string) => ({ value: val, label: val }))]" v-model="instance" />
           </FilterGroup>
         </template>
       </FilterSidebar>
@@ -179,7 +156,7 @@
                   </header>
                   <div class="download-progress">
                     <div><span>Progression</span><strong>{{ Math.round(row.progress||0) }}%</strong></div>
-                    <progress :value="row.progress||0" max="100" :aria-label="`Progression de ${row.title}`"></progress>
+                    <UiProgress :value="row.progress||0" :label="`Progression de ${row.title}`" />
                     <div class="progress-details">
                       <small>{{ row.timeleft||'Temps restant indisponible' }}</small>
                       <small v-if="row.sizeleft_label">{{ row.sizeleft_label }}</small>
@@ -352,6 +329,8 @@
 </template>
 
 <script setup lang="ts">
+import UiProgress from '@/components/ui/UiProgress.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 const HISTORY_COLUMNS: UiColumn[] = [
   { key: 'title', label: 'Titre', card: 'title' },

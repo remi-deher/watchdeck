@@ -92,7 +92,7 @@
       </template>
       <template #cell-status="{ row }"><span class="state-badge" :class="statusClass(row)">{{ statusLabel(row) }}</span></template>
       <template #cell-progress="{ row }">
-        <div class="progress-cell"><div><progress :value="row.progress||0" max="100"></progress><span>{{ Math.round(row.progress||0) }} %</span></div></div>
+        <div class="progress-cell"><div><UiProgress :value="row.progress||0" :label="`Progression de ${row.title}`" /><span>{{ Math.round(row.progress||0) }} %</span></div></div>
       </template>
       <template #cell-size="{ row }">{{ formatBytes(row.size) }}</template>
       <template #cell-download_speed="{ row }">{{ formatSpeed(row.download_speed) }}</template>
@@ -300,6 +300,7 @@
 </template>
 
 <script setup lang="ts">
+import UiProgress from '@/components/ui/UiProgress.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useEventListener, useIntersectionObserver } from '@vueuse/core';
 import { AlertTriangle, ChevronDown, ChevronUp, Download, Eye, EyeOff, FileText, FileX2, Gauge, Info, Maximize2, Minimize2, Pause, Play, Radio, RotateCcw, SlidersHorizontal, Tag, Trash2, Upload, Users } from '@lucide/vue';
@@ -834,7 +835,7 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 /* Densite et mode incognito : le tableau vient de UiDataTable, dont les cellules ne portent
    pas l'attribut de portee de ce composant -- d'ou :deep() pour les cellules elles-memes. */
 .torrent-table.compact-table :deep(th),.torrent-table.compact-table :deep(td){padding:4px 7px;font-size:var(--fs-xs)}
-.torrent-table.compact-table .progress-cell progress{height:4px}
+.torrent-table.compact-table .progress-cell :deep(.ui-progress){height:4px}
 .torrent-table.incognito-mode .torrent-title{font-family:monospace;letter-spacing:0.5px}
 @media (min-width: 641px){.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 /* Dans la carte, le titre passe a la ligne et la progression prend toute la largeur. */

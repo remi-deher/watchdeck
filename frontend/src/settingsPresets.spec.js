@@ -48,12 +48,12 @@ describe('IntervalPresetInput — valeur modifiée depuis un autre écran', () =
   it('suit une valeur de la liste choisie ailleurs, au lieu de rester en « Personnalisé »', async () => {
     // Monté sur une valeur hors liste, donc en saisie libre.
     const wrapper = mount(IntervalPresetInput, { props: { modelValue: 137, presets } });
-    expect(wrapper.find('input[type="number"]').exists()).toBe(true);
+    expect(wrapper.find('.ui-number-field input').exists()).toBe(true);
 
     // La même colonne est réglée depuis un autre écran sur une valeur de la liste.
     await wrapper.setProps({ modelValue: 300 });
 
-    expect(wrapper.find('input[type="number"]').exists()).toBe(false);
+    expect(wrapper.find('.ui-number-field input').exists()).toBe(false);
     expect(wrapper.find('select').element.value).toBe('300');
   });
 
@@ -64,7 +64,7 @@ describe('IntervalPresetInput — valeur modifiée depuis un autre écran', () =
     await wrapper.setProps({ modelValue: 137 });
 
     expect(wrapper.find('select').element.value).toBe('custom');
-    expect(wrapper.find('input[type="number"]').exists()).toBe(true);
+    expect(wrapper.find('.ui-number-field input').exists()).toBe(true);
   });
 
   it('respecte une saisie libre demandée explicitement', async () => {
@@ -72,7 +72,7 @@ describe('IntervalPresetInput — valeur modifiée depuis un autre écran', () =
 
     await wrapper.find('select').setValue('custom');
 
-    expect(wrapper.find('input[type="number"]').exists()).toBe(true);
+    expect(wrapper.find('.ui-number-field input').exists()).toBe(true);
     // Aucune valeur n'est émise tant que l'utilisateur n'a rien saisi.
     expect(wrapper.emitted('update:modelValue')).toBeUndefined();
   });
