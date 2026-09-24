@@ -21,8 +21,7 @@
   <ModalShell
     v-if="isOpen"
     :open="isOpen"
-    title="Aller à…"
-    subtitle="Tapez pour filtrer, ↑ ↓ pour choisir, Entrée pour ouvrir."
+    title="Rechercher"
     panel-class="command-palette"
     initial-focus=".palette-input"
     @close="close"
@@ -38,6 +37,7 @@
         aria-label="Rechercher une destination"
         placeholder="Rechercher un film, une série, une page ou un réglage…"
         autocomplete="off"
+        @keydown="onArrowAcross"
       />
 
       <!-- Palette vide : rien a montrer. Des qu'on tape, deux blocs : les medias en
@@ -242,7 +242,14 @@ const commands = computed<Command[]>(() => {
     }
   }
 
-  return items;
+  // Une meme destination peut venir de la navigation et des reglages (« Plex &
+  // Bibliotheque » sous Services) : on ne garde que la premiere occurrence d'un meme
+  // libelle dans un meme groupe.
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.group} ${item.label}`;
+    return !seen.has(key) && Boolean(seen.add(key));
+  });
 });
 
 // Les libelles commencant par la saisie passent devant les simples correspondances.
@@ -259,6 +266,19 @@ watch(query, () => { expanded.value = false; });
 watch(results, () => {
   void nextTick(() => listboxRef.value?.highlightFirstItem?.());
 });
+
+/* La rangee d'affiches se parcourt aussi avec ← → : elle est horizontale a l'ecran.
+   Les affiches se suivant dans la liste, gauche/droite equivalent a haut/bas tant que
+   l'option active en est une ; ailleurs, les fleches gardent leur role dans le champ. */
+function onArrowAcross(event: KeyboardEvent): void {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  const active = document.querySelector('.palette-cover[data-highlighted]');
+  if (!active) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const key = event.key === 'ArrowRight' ? 'ArrowDown' : 'ArrowUp';
+  event.target?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+}
 
 function onPick(id: unknown): void {
   if (id === MORE_APP) {
@@ -313,6 +333,19 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 
 defineExpose({ open, close });
 </script>
+
+<style lang="scss">
+/* En-tete de ModalShell masque : le champ suffit. Le titre reste lu par les lecteurs
+   d'ecran ; Echap et le clic a l'exterieur ferment la palette. */
+.command-palette .panel-head {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+</style>
 
 <style scoped lang="scss">
 .palette-input {

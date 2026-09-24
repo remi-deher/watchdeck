@@ -224,4 +224,34 @@ describe('CommandPalette', () => {
     expect(push).not.toHaveBeenCalled();
     wrapper.unmount();
   });
+  it('parcourt les affiches avec ← →', async () => {
+    vi.useFakeTimers();
+    const wrapper = factory();
+    pressCtrlK();
+    await flushPromises();
+    await wrapper.get('.palette-input').setValue('dune');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+    vi.useRealTimers();
+
+    const input = wrapper.get('.palette-input');
+    await input.trigger('keydown', { key: 'ArrowRight' });
+    await input.trigger('keydown', { key: 'ArrowRight' });
+    await input.trigger('keydown', { key: 'ArrowLeft' });
+    await input.trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    expect(push.mock.calls[0][0]).toMatchObject({ path: '/discover/media/discover/101' });
+    wrapper.unmount();
+  });
+
+  it('ne liste qu’une fois une destination présente dans la navigation et les réglages', async () => {
+    const wrapper = factory();
+    pressCtrlK();
+    await flushPromises();
+    await wrapper.get('.palette-input').setValue('plex');
+    await flushPromises();
+    const labels = wrapper.findAll('.palette-option .palette-label').map((n) => n.text());
+    expect(labels.filter((l) => l === 'Plex & Bibliothèque')).toHaveLength(1);
+    wrapper.unmount();
+  });
 });
