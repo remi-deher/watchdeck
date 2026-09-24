@@ -425,8 +425,13 @@ td {
   box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
 }
 
+.status-tag.sent_to_arr {
+  color: #1a1200;
+  background: var(--accent);
+  text-shadow: none;
+}
+
 .status-tag.available,
-.status-tag.sent_to_arr,
 .language-tag.vf {
   background: #166534;
 }

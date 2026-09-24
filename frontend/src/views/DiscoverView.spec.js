@@ -194,7 +194,7 @@ describe('DiscoverView', () => {
     expect(body).not.toHaveProperty('quality_profile_id');
     expect(body).not.toHaveProperty('root_folder');
     expect(body).not.toHaveProperty('seasons');
-    expect(wrapper.text()).toContain('Demandé');
+    expect(wrapper.text()).toContain('Transmise');
   });
 
   it('restaure les filtres Explorer depuis une URL partageable', async () => {
