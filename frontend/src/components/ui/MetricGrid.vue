@@ -1,5 +1,5 @@
 <template>
-  <section class="metric-grid shared-metric-grid" :class="gridClass" :aria-label="ariaLabel">
+  <section v-balanced-grid="{ min: 150 }" class="metric-grid shared-metric-grid" :class="gridClass" :aria-label="ariaLabel">
     <slot />
   </section>
 </template>
