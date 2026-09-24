@@ -308,44 +308,39 @@
         <div v-else-if="section==='clients'&&subview==='overview'" aria-hidden="true" />
 
         <!-- Vue Historique avec jaquettes posters -->
-        <section v-else class="panel table-wrap table-cards rich" role="tabpanel" tabindex="0" aria-label="Historique des téléchargements, défilement horizontal">
+        <section v-else class="history-section" role="tabpanel" aria-label="Historique des téléchargements">
           <UiFeedback v-for="row in historyErrors" :key="row.instance_id" type="error" :title="row.instance_name" message="Historique temporairement indisponible pour cette instance."/>
-          <table>
-            <thead><tr><th>Titre</th><th>Type</th><th>Traitement</th><th>Source</th><th>Instance</th><th>Terminé</th></tr></thead>
-            <tbody>
-              <tr v-for="row in filteredHistory" :key="row.id">
-                <td class="card-title">
-                  <div class="history-item-wrap">
-                    <div class="history-poster-thumb">
-                      <img
-                        v-if="row.poster_url && !hasPosterError(row)"
-                        :src="proxyUrl(row.poster_url, { width: 120 }) ?? undefined"
-                        :alt="row.title"
-                        class="history-poster-img"
-                        loading="lazy"
-                        @error="onPosterError(row)"
-                      />
-                      <div v-else class="history-poster-fallback">
-                        <Film v-if="row.media_type==='movie'" />
-                        <Tv v-else />
-                      </div>
-                    </div>
-                    <div>
-                      <strong>{{ row.title }}</strong>
-                      <small v-if="row.year">{{ row.year }}</small>
-                    </div>
+          <UiDataTable class="panel" label="Historique des téléchargements" :rows="filteredHistory" :columns="HISTORY_COLUMNS" :row-key="(row: any) => row.id">
+            <template #empty><p class="empty">Aucun téléchargement terminé.</p></template>
+            <template #cell-title="{ row }">
+              <div class="history-item-wrap">
+                <div class="history-poster-thumb">
+                  <img
+                    v-if="row.poster_url && !hasPosterError(row)"
+                    :src="proxyUrl(row.poster_url, { width: 120 }) ?? undefined"
+                    :alt="row.title"
+                    class="history-poster-img"
+                    loading="lazy"
+                    @error="onPosterError(row)"
+                  />
+                  <div v-else class="history-poster-fallback">
+                    <Film v-if="row.media_type==='movie'" />
+                    <Tv v-else />
                   </div>
-                </td>
-                <td data-label="Type">{{ mediaTypeLabel(row.media_type) }}</td>
-                <td data-label="Traitement"><span class="badge" :class="historyModeClass(row)">{{ historyModeLabel(row) }}</span></td>
-                <td data-label="Source"><span class="badge">{{ row.source }}</span></td>
-                <td data-label="Instance">{{ row.instance_name||'-' }}</td>
-                <td data-label="Terminé">{{ formatDate(row.completed_at) }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-if="!filteredHistory.length" class="empty">Aucun téléchargement terminé.</p>
-          <LoadMore :has-more="hasMoreHistory" :loading="loadingHistory" @load="loadMoreHistory"/>
+                </div>
+                <div>
+                  <strong>{{ row.title }}</strong>
+                  <small v-if="row.year">{{ row.year }}</small>
+                </div>
+              </div>
+            </template>
+            <template #cell-type="{ row }">{{ mediaTypeLabel(row.media_type) }}</template>
+            <template #cell-mode="{ row }"><span class="badge" :class="historyModeClass(row)">{{ historyModeLabel(row) }}</span></template>
+            <template #cell-source="{ row }"><span class="badge">{{ row.source }}</span></template>
+            <template #cell-instance="{ row }">{{ row.instance_name||'-' }}</template>
+            <template #cell-completed="{ row }">{{ formatDate(row.completed_at) }}</template>
+            <template #after><LoadMore :has-more="hasMoreHistory" :loading="loadingHistory" @load="loadMoreHistory"/></template>
+          </UiDataTable>
         </section>
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
@@ -357,6 +352,15 @@
 </template>
 
 <script setup lang="ts">
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+const HISTORY_COLUMNS: UiColumn[] = [
+  { key: 'title', label: 'Titre', card: 'title' },
+  { key: 'type', label: 'Type' },
+  { key: 'mode', label: 'Traitement' },
+  { key: 'source', label: 'Source' },
+  { key: 'instance', label: 'Instance' },
+  { key: 'completed', label: 'Terminé' },
+];
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import LoadMore from '@/components/ui/LoadMore.vue';

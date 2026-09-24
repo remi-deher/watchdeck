@@ -36,7 +36,7 @@ describe('VfSettingsModal', () => {
       props: { open: true },
       global: {
         plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]],
-        stubs: { teleport: true },
+
       },
     });
     await new Promise((resolve) => setTimeout(resolve, 0));

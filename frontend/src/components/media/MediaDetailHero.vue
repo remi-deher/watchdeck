@@ -4,7 +4,7 @@
     <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
     <div class="mdh-content">
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
-        <div ref="posterRef" class="mdh-poster" :class="{ 'is-music': isMusic }">
+        <div class="mdh-poster" :class="{ 'is-music': isMusic }">
           <img v-if="detail.poster_url" class="mdh-poster-img" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
             <Music2 v-if="isMusic" />
@@ -111,12 +111,11 @@
 <script setup lang="ts">
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
-import { rejouerTransport } from '@/composables/usePosterMorph';
 
 export interface SeasonSummaryGroup {
   vf: number[];
@@ -148,15 +147,7 @@ const props = withDefaults(
   }
 );
 
-const posterRef = ref<HTMLElement | null>(null);
 
-/* L'affiche rejoue le trajet depuis la vignette touchee, si l'on vient d'une grille.
-   `nextTick` parce que la banniere se monte avant que ses images aient une taille : la
-   mesurer trop tot donnerait un trajet calcule sur une boite vide. */
-onMounted(async () => {
-  await nextTick();
-  rejouerTransport(posterRef.value);
-});
 
 const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.detail?.media_type));
 const isShow = computed(() => props.detail?.media_type === 'show');

@@ -29,17 +29,12 @@
   <details class="panel" @toggle="deliveriesOpen = $event.target.open">
     <summary>Suivi des envois — clés uniques et confirmations</summary>
     <p>Les envois sans confirmation restent bloqués pour vérification. Un Message-ID SMTP ne garantit pas à lui seul l'absence de doublon.</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Demande</th><th>Événement</th><th>Destinataire</th><th>État</th><th>Clé d'envoi</th></tr></thead>
-        <tbody><tr v-for="delivery in deliveries" :key="delivery.send_key">
-          <td>#{{ delivery.req_id }}</td><td>{{ delivery.event }}</td><td>{{ delivery.recipient }}</td>
-          <td>{{ deliveryStateLabels[delivery.state] || delivery.state }}<small>{{ delivery.detail }}</small></td>
-          <td><code>{{ delivery.send_key }}</code></td>
-        </tr></tbody>
-      </table>
-      <p v-if="!deliveries.length">Aucun envoi enregistré dans le nouveau suivi.</p>
-    </div>
+    <UiDataTable label="Suivi des envois" :rows="deliveries" :columns="DELIVERY_COLUMNS" :row-key="(d) => d.send_key">
+      <template #empty>Aucun envoi enregistré dans le nouveau suivi.</template>
+      <template #cell-request="{ row: delivery }">#{{ delivery.req_id }}</template>
+      <template #cell-state="{ row: delivery }">{{ deliveryStateLabels[delivery.state] || delivery.state }}<small>{{ delivery.detail }}</small></template>
+      <template #cell-send_key="{ row: delivery }"><code>{{ delivery.send_key }}</code></template>
+    </UiDataTable>
   </details>
 
   <div class="psh-layout">
@@ -87,6 +82,14 @@
 </template>
 
 <script setup>
+import UiDataTable from '@/components/ui/UiDataTable.vue';
+const DELIVERY_COLUMNS = [
+  { key: 'request', label: 'Demande', card: 'title' },
+  { key: 'event', label: 'Événement' },
+  { key: 'recipient', label: 'Destinataire' },
+  { key: 'state', label: 'État' },
+  { key: 'send_key', label: "Clé d'envoi" },
+];
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import { notificationSections } from '@/notificationSections';

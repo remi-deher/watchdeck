@@ -2,11 +2,8 @@ import { createApp } from 'vue';
 import { vListMotion } from '@/motion/vListMotion';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { VueQueryPlugin } from '@tanstack/vue-query';
-import PrimeVue from 'primevue/config';
-import ToastService from 'primevue/toastservice';
-import ConfirmationService from 'primevue/confirmationservice';
+import { brancherStockage } from '@/offline/stockage';
 import { installerSortieDePage } from '@/composables/usePageExit';
-import { WatchdeckPreset } from '@/theme/watchdeck';
 import { createQueryClient } from '@/queryClient';
 import { settingsPinia } from '@/settingsForm';
 import App from './App.vue';
@@ -154,18 +151,6 @@ createApp(App)
   .component('UiFeedback', UiFeedback)
   .component('FormSaveBar', FormSaveBar)
   .use(settingsPinia)
-  .use(VueQueryPlugin, { queryClient: createQueryClient() })
-  .use(PrimeVue, {
-    ripple: false,
-    theme: {
-      preset: WatchdeckPreset,
-      options: {
-        darkModeSelector: ':root',
-        cssLayer: false,
-      },
-    },
-  })
-  .use(ToastService)
-  .use(ConfirmationService)
+  .use(VueQueryPlugin, { queryClient: createQueryClient(), clientPersister: brancherStockage })
   .use(router)
   .mount('#app');

@@ -7,24 +7,16 @@
            onglet APG ne navigue pas, il révèle un panneau déjà présent.
          · `tabs`   → chaque entrée révèle un panneau de la même page. C'est le pattern
            Tabs APG : `role="tablist"`, tabindex mobile et flèches directionnelles. -->
-    <component
-      :is="variant === 'links' ? 'nav' : 'div'"
+    <nav
+      v-if="variant === 'links'"
       ref="scroller"
       class="app-subnav__scroller"
-      :role="variant === 'tabs' ? 'tablist' : undefined"
       :aria-label="ariaLabel"
-      @keydown="onKeydown"
       @scroll="onScroll"
     >
       <template v-for="(item, index) in items" :key="item.key">
-        <span
-          v-if="index > 0 && item.group && item.group !== items[index - 1].group"
-          class="app-subnav__separator"
-          aria-hidden="true"
-        />
-
+        <span v-if="separe(index)" class="app-subnav__separator" aria-hidden="true" />
         <RouterLink
-          v-if="variant === 'links'"
           :ref="(el) => setItemRef(el, index)"
           class="app-subnav__item"
           :to="item.to!"
@@ -34,29 +26,29 @@
           <span>{{ item.label }}</span>
           <small v-if="item.count != null">{{ item.count }}</small>
         </RouterLink>
-
-        <button
-          v-else
-          :ref="(el) => setItemRef(el, index)"
-          type="button"
-          role="tab"
-          class="app-subnav__item"
-          :aria-selected="item.key === active"
-          :tabindex="item.key === active ? 0 : -1"
-          @click="$emit('update:active', item.key)"
-        >
-          <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-          <small v-if="item.count != null">{{ item.count }}</small>
-        </button>
       </template>
-    </component>
+    </nav>
+    <!-- Onglets : Reka UI porte `role="tablist"`/`tab`, le tabindex mobile et les fleches,
+         Origine et Fin du pattern Tabs -- une centaine de lignes de moins ici. -->
+    <TabsRoot v-else :model-value="active" @update:model-value="choisir">
+      <TabsList ref="scroller" class="app-subnav__scroller" :aria-label="ariaLabel" @scroll="onScroll">
+        <template v-for="(item, index) in items" :key="item.key">
+          <span v-if="separe(index)" class="app-subnav__separator" aria-hidden="true" />
+          <TabsTrigger :ref="(el) => setItemRef(el, index)" class="app-subnav__item" :value="item.key">
+            <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
+            <span>{{ item.label }}</span>
+            <small v-if="item.count != null">{{ item.count }}</small>
+          </TabsTrigger>
+        </template>
+      </TabsList>
+    </TabsRoot>
   </div>
 </template>
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { RouterLink } from 'vue-router';
+import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 
 export interface SubnavItem {
   key: string;
@@ -80,6 +72,12 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ (e: 'update:active', value: string): void }>();
+/* Seul un vrai changement d'onglet remonte : Reka peut signaler une valeur vide (montage,
+   liste d'onglets qui change), que la palette de commandes prenait pour un perimetre. */
+function choisir(key: string | number | undefined): void {
+  if (key === undefined || key === null || key === '' || String(key) === props.active) return;
+  emit('update:active', String(key));
+}
 
 const scroller = ref<HTMLElement | ComponentPublicInstance | null>(null);
 const itemRefs = ref<HTMLElement[]>([]);
@@ -90,6 +88,10 @@ const scrolled = ref(false);
    telephone de 390px. */
 const overflowing = ref(false);
 
+function separe(index: number): boolean {
+  const item = props.items[index];
+  return index > 0 && Boolean(item.group) && item.group !== props.items[index - 1].group;
+}
 function setItemRef(el: Element | ComponentPublicInstance | null, index: number): void {
   const node = (el as ComponentPublicInstance)?.$el ?? el;
   if (node instanceof HTMLElement) itemRefs.value[index] = node;
@@ -124,29 +126,6 @@ onMounted(() => {
 });
 onBeforeUnmount(() => resizeObserver?.disconnect());
 watch(() => props.items.length, () => void nextTick(measureOverflow));
-
-/**
- * Flèches, Origine et Fin, comme l'exige le pattern Tabs.
- *
- * En variante `links` on ne fait rien : la liste de liens se parcourt à la tabulation,
- * et intercepter les flèches y retirerait à l'utilisateur le défilement de la page.
- */
-function onKeydown(event: KeyboardEvent): void {
-  if (props.variant !== 'tabs') return;
-  const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
-  if (!keys.includes(event.key)) return;
-  const current = props.items.findIndex((item) => item.key === props.active);
-  const last = props.items.length - 1;
-  let next = current;
-  if (event.key === 'ArrowRight') next = current >= last ? 0 : current + 1;
-  else if (event.key === 'ArrowLeft') next = current <= 0 ? last : current - 1;
-  else if (event.key === 'Home') next = 0;
-  else next = last;
-  if (next < 0 || !props.items[next]) return;
-  event.preventDefault();
-  emit('update:active', props.items[next].key);
-  nextTick(() => itemRefs.value[next]?.focus());
-}
 
 // La section active peut être hors du champ visible sur un écran étroit : sans ce
 // recentrage, l'utilisateur ne voit pas où il se trouve après une navigation.

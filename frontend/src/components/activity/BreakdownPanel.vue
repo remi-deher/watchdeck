@@ -16,26 +16,39 @@
       :aria-label="title"
       @select="select"
     />
-    <div v-else class="breakdown-table" role="table" :aria-label="title">
-      <!-- Les colonnes se trient au clic : la repartition arrive ordonnee par valeur,
-           mais chercher une categorie precise demande l'ordre alphabetique. -->
-      <div role="row" class="table-head">
-        <button type="button" role="columnheader" :aria-sort="ariaSort('label')" @click="toggleSort('label')">Catégorie<ArrowUpDown/></button>
-        <button type="button" role="columnheader" :aria-sort="ariaSort('value')" @click="toggleSort('value')">Valeur<ArrowUpDown/></button>
-        <span role="columnheader">Part</span>
-      </div>
-      <button v-for="item in normalized" :key="item.label" type="button" role="row" :class="{selected:item.label===selected}" :disabled="item.grouped||!interactive" @click="select(item)">
-        <span role="cell">{{item.label}}</span><strong role="cell">{{formatValue(item.value)}}{{item.suffix||''}}</strong><span role="cell">{{formatValue(item.percent)}} %</span>
-      </button>
-    </div>
+    <!-- Les colonnes se trient au clic : la repartition arrive ordonnee par valeur, mais
+         chercher une categorie precise demande l'ordre alphabetique. Le tri reste ici,
+         car « Autres » doit toujours rester en queue. -->
+    <UiDataTable
+      v-else
+      class="breakdown-table"
+      :label="title"
+      :rows="normalized"
+      :columns="columns"
+      :row-key="(item: BreakdownItem) => item.label"
+      :row-class="(item: BreakdownItem) => ({ selected: item.label === selected, 'is-grouped': Boolean(item.grouped) })"
+      :sort="sortKey ? { key: sortKey, direction: sortDirection } : null"
+      manual-sort
+      :cards="false"
+      @update:sort="(value) => value && toggleSort(value.key as 'label' | 'value')"
+    >
+      <template #cell-label="{ row: item }">
+        <!-- La categorie est le bouton de filtre : atteignable au clavier, comme l'etait la ligne. -->
+        <button v-if="interactive && !item.grouped" type="button" class="breakdown-pick" :aria-pressed="item.label === selected" @click="select(item)">{{ item.label }}</button>
+        <span v-else>{{ item.label }}</span>
+      </template>
+      <template #cell-value="{ row: item }"><strong>{{ formatValue(item.value) }}{{ item.suffix || '' }}</strong></template>
+      <template #cell-percent="{ row: item }">{{ formatValue(item.percent) }} %</template>
+    </UiDataTable>
     <button v-if="hasHidden" type="button" class="show-all" @click="expanded=!expanded">{{expanded?'Réduire':`Afficher les ${items.length} catégories`}}</button>
   </section>
 </template>
 
 <script setup lang="ts">
 import { formatNumber as formatValue } from '@/utils/format';
-import { ArrowUpDown, ChartPie, TableProperties } from '@lucide/vue';
+import { ChartPie, TableProperties } from '@lucide/vue';
 import PieChart from '@/components/ui/charts/PieChart.vue';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 export interface BreakdownItem {
@@ -74,6 +87,11 @@ const emit = defineEmits<{
 /* Les barres ont disparu : a repartition egale, le camembert dit la meme chose sur
    deux fois moins de hauteur, ce qui permet d'aligner les cartes entre elles. */
 const mode = ref<'pie' | 'table'>('pie');
+const columns: UiColumn<BreakdownItem>[] = [
+  { key: 'label', label: 'Catégorie', sortable: true },
+  { key: 'value', label: 'Valeur', sortable: true },
+  { key: 'percent', label: 'Part' },
+];
 const sortKey = ref<'label' | 'value' | null>(null);
 const sortDirection = ref<'asc' | 'desc'>('desc');
 const expanded = ref(false);
@@ -140,5 +158,5 @@ onBeforeUnmount(() => window.removeEventListener('resize', resize));
 </script>
 
 <style scoped lang="scss">
-.breakdown-panel{--chart-color:var(--accent);--chart-end:#fbbf24;display:flex;flex-direction:column;height:100%}.breakdown-panel>.breakdown-table,.breakdown-panel :deep(.pie-chart){flex:1;min-height:0}.tone-blue{--chart-color:#38bdf8;--chart-end:#2563eb}.tone-green{--chart-color:#4ade80;--chart-end:#16a34a}.tone-red{--chart-color:#fb7185;--chart-end:#dc2626}.tone-purple{--chart-color:#c084fc;--chart-end:#7c3aed}.chart-actions{display:flex;align-items:center;gap: var(--space-1)}.chart-actions>button{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--muted)}.chart-actions>button.active{border-color:var(--border);background:var(--surface-2);color:var(--chart-color)}.chart-actions svg{width:15px}.breakdown-table{display:grid;margin-top:12px}.breakdown-table>div,.breakdown-table>button{display:grid;grid-template-columns:minmax(0,1fr) 80px 65px;gap: var(--space-3);align-items:center;min-height:40px;padding:6px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);font-size:var(--fs-xs);text-align:left}.breakdown-table>button:not(:disabled):hover{background:var(--surface-2)}.breakdown-table>button.selected{background:color-mix(in srgb,var(--accent) 14%,transparent)}.breakdown-table strong,.breakdown-table span:last-child{text-align:right;font-variant-numeric:tabular-nums}.table-head{color:var(--muted)!important;font-size:var(--fs-xs)!important;text-transform:uppercase}.table-head>button{display:flex;align-items:center;gap:4px;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-size:inherit;text-transform:inherit;cursor:pointer}.table-head>button:nth-child(2){justify-content:flex-end}.table-head>button:hover{color:var(--chart-color)!important}.table-head svg{width:12px;opacity:.6}.table-head>button[aria-sort=ascending] svg,.table-head>button[aria-sort=descending] svg{opacity:1;color:var(--chart-color)}.show-all{margin-top:10px;padding:6px 0;border:0;background:transparent;color:var(--chart-color);font-size:var(--fs-xs)}@media(max-width:640px){.chart-actions>button{width:44px;height:44px}}
+.breakdown-panel{--chart-color:var(--accent);--chart-end:#fbbf24;display:flex;flex-direction:column;height:100%}.breakdown-panel>.breakdown-table,.breakdown-panel :deep(.pie-chart){flex:1;min-height:0}.tone-blue{--chart-color:#38bdf8;--chart-end:#2563eb}.tone-green{--chart-color:#4ade80;--chart-end:#16a34a}.tone-red{--chart-color:#fb7185;--chart-end:#dc2626}.tone-purple{--chart-color:#c084fc;--chart-end:#7c3aed}.chart-actions{display:flex;align-items:center;gap: var(--space-1)}.chart-actions>button{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--muted)}.chart-actions>button.active{border-color:var(--border);background:var(--surface-2);color:var(--chart-color)}.chart-actions svg{width:15px}.breakdown-table{margin-top:12px}.breakdown-table :deep(th),.breakdown-table :deep(td){padding:6px;border-bottom:1px solid var(--border);font-size:var(--fs-xs)}.breakdown-table :deep(th){color:var(--muted);text-transform:uppercase}.breakdown-table :deep(th:nth-child(n+2)),.breakdown-table :deep(td:nth-child(n+2)){text-align:right;font-variant-numeric:tabular-nums}.breakdown-table :deep(tr.selected){background:color-mix(in srgb,var(--accent) 14%,transparent)}.breakdown-table :deep(.ui-data-table__sort:hover){color:var(--chart-color)}.breakdown-pick{min-height:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}.breakdown-pick:hover,.breakdown-pick[aria-pressed=true]{color:var(--chart-color)}.breakdown-pick:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.show-all{margin-top:10px;padding:6px 0;border:0;background:transparent;color:var(--chart-color);font-size:var(--fs-xs)}@media(max-width:640px){.chart-actions>button{width:44px;height:44px}}
 </style>

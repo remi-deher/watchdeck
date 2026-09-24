@@ -11,18 +11,28 @@
       <div class="psh-main">
     <AppSubnav variant="tabs" :active="tab" :items="tabItems" aria-label="Type de journal" @update:active="selectTab" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
-    <section class="panel table-wrap table-cards rich" tabindex="0" role="region" aria-label="Tableau des journaux, défilement horizontal">
-      <table><thead><tr><th>Date</th><th>Section</th><th>Description</th><th>Résultat</th></tr></thead>
-        <tbody><tr v-for="row in shown" :key="keyOf(row)"><td data-label="Date">{{ dateOf(row) }}</td><td data-label="Section"><UiBadge :tone="badgeTone(row)">{{ typeOf(row) }}</UiBadge></td><td class="card-title"><strong>{{ titleOf(row) }}</strong><small class="table-detail">{{ detailOf(row) }}</small><!-- Le contexte technique etait serialise en JSON a meme la colonne : illisible, et
+    <UiDataTable class="panel" label="Tableau des journaux" :rows="shown" :columns="LOG_COLUMNS" :row-key="keyOf">
+      <template #empty>
+        <UiFeedback v-if="loading" type="loading" message="Chargement des journaux…"/>
+        <UiEmptyState v-else message="Aucune entrée pour ce filtre." />
+      </template>
+      <template #cell-date="{ row }">{{ dateOf(row) }}</template>
+      <template #cell-section="{ row }"><UiBadge :tone="badgeTone(row)">{{ typeOf(row) }}</UiBadge></template>
+      <template #cell-description="{ row }">
+        <strong>{{ titleOf(row) }}</strong><small class="table-detail">{{ detailOf(row) }}</small>
+        <!-- Le contexte technique etait serialise en JSON a meme la colonne : illisible, et
              il poussait la description utile hors de vue. Il se deplie a la demande. -->
-        <details v-if="payloadOf(row)" class="log-payload"><summary>Détail technique</summary><pre>{{ payloadOf(row) }}</pre></details></td><td data-label="Résultat">{{ resultOf(row) }}</td></tr></tbody>
-      </table><UiFeedback v-if="loading" type="loading" message="Chargement des journaux…"/><UiEmptyState v-else-if="!filtered.length" message="Aucune entrée pour ce filtre." />
-      <LoadMore
-        :has-more="shown.length < filtered.length"
-        :label="`Afficher plus d'entrées (${shown.length} sur ${filtered.length})`"
-        @load="visibleCount += PAGE_SIZE"
-      />
-    </section>
+        <details v-if="payloadOf(row)" class="log-payload"><summary>Détail technique</summary><pre>{{ payloadOf(row) }}</pre></details>
+      </template>
+      <template #cell-result="{ row }">{{ resultOf(row) }}</template>
+      <template #after>
+        <LoadMore
+          :has-more="shown.length < filtered.length"
+          :label="`Afficher plus d'entrées (${shown.length} sur ${filtered.length})`"
+          @load="visibleCount += PAGE_SIZE"
+        />
+      </template>
+    </UiDataTable>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
@@ -39,6 +49,14 @@ import { api } from '@/api';
 import { useRealtime } from '@/events';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import LoadMore from '@/components/ui/LoadMore.vue';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+
+const LOG_COLUMNS: UiColumn[] = [
+  { key: 'date', label: 'Date' },
+  { key: 'section', label: 'Section' },
+  { key: 'description', label: 'Description', card: 'title' },
+  { key: 'result', label: 'Résultat' },
+];
 import { useConfirmedAction } from '@/composables/useConfirmedAction';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { humanizeError } from '@/utils/apiError';

@@ -56,95 +56,72 @@
       <button class="text-button" :disabled="busy" @click="clearSelection">Annuler la sélection</button>
     </div>
 
-    <div class="torrent-table-wrap" tabindex="0" role="region" aria-label="Tableau des torrents, défilement horizontal" @dragover.prevent @drop.prevent="handleGlobalDrop">
-      <DataTable
-        v-model:selection="primeSelection"
-        :value="displayedRows"
-        :class="['torrent-table', { 'compact-table': isCompact, 'incognito-mode': isIncognito }]"
-        :sort-field="sortKey"
-        :sort-order="sortDirection === 'asc' ? 1 : -1"
-        :row-class="rowClass"
-        scrollable
-        table-style="min-width: 900px; table-layout: fixed"
-        @sort="handlePrimeSort"
-        @row-click="handlePrimeRowClick"
-        @row-contextmenu="handlePrimeContextMenu"
-      >
-        <template #empty>Aucun torrent ne correspond aux filtres.</template>
-        <Column selection-mode="multiple" header-style="width: 38px" body-class="select-cell" :reorderable-column="false" />
-        <Column
-          v-for="column in columns"
-          :key="column.key"
-          :field="column.key"
-          :class="column.className"
-          :style="{ width: columnWidths[column.key] ? columnWidths[column.key] + 'px' : undefined }"
-          sortable
-        >
-          <template #header>
-            <div
-              class="th-content"
-              :class="{ 'drag-over': dragOverKey === column.key, 'is-dragging': draggedColumnKey === column.key }"
-              draggable="true"
-              @dragstart.stop="startColumnDrag(column.key, $event)"
-              @dragover.stop.prevent="dragOverColumn(column.key, $event)"
-              @dragleave.stop="dragLeaveColumn(column.key)"
-              @drop.stop.prevent="dropColumn(column.key)"
-            >
-              <span>{{ column.label }}</span>
-              <span class="col-resize-handle" title="Redimensionner la colonne" @pointerdown.prevent.stop="startColumnResize(column.key, $event)" />
-            </div>
-          </template>
-          <template #body="{ data: row, index }">
-            <template v-if="column.key === 'title'">
-              <button class="torrent-title" @click.stop="details=row">
-                {{ isIncognito ? maskTitle(row.title, index) : row.title }}
-              </button>
-              <small>{{ row.client_name }}<template v-if="row.tags"> · {{ row.tags }}</template></small>
-            </template>
-            <template v-else-if="column.key === 'status'">
-              <span class="state-badge" :class="statusClass(row)">{{ statusLabel(row) }}</span>
-            </template>
-            <template v-else-if="column.key === 'progress'">
-              <div class="progress-cell"><div><progress :value="row.progress||0" max="100"></progress><span>{{ Math.round(row.progress||0) }} %</span></div></div>
-            </template>
-            <template v-else-if="column.key === 'size'">{{ formatBytes(row.size) }}</template>
-            <template v-else-if="column.key === 'download_speed'">{{ formatSpeed(row.download_speed) }}</template>
-            <template v-else-if="column.key === 'upload_speed'">{{ formatSpeed(row.upload_speed) }}</template>
-            <template v-else-if="column.key === 'ratio'">{{ Number(row.ratio||0).toFixed(2) }}</template>
-            <template v-else-if="column.key === 'eta'">{{ formatEta(row.eta) }}</template>
-            <template v-else-if="column.key === 'category'">{{ row.category||'—' }}</template>
-            <template v-else-if="column.key === 'trackers'">
-              <span class="tracker-display">
-                <img v-if="trackerValue(row) && !failedFavicons.has(trackerKey(row))" :src="trackerFaviconUrl(row)" alt="" loading="lazy" @error="hideTrackerFavicon(row)" />
-                <span>{{ formatTracker(trackerValue(row)) }}</span>
-              </span>
-            </template>
-            <template v-else-if="column.key === 'added_on'">{{ formatTimestamp(row.added_on) }}</template>
-            <template v-else-if="column.key === 'completed_on'">{{ formatTimestamp(row.completed_on) }}</template>
-          </template>
-        </Column>
-        <Column header="Actions" header-class="actions-cell" body-class="actions-cell" style="width: 118px" :reorderable-column="false">
-          <template #body="{ data: row }">
-            <button class="secondary action-trigger-btn" :disabled="isBusy(row)" title="Actions sur ce torrent" @click.stop="actionTarget=row">
-              Actions
-            </button>
-          </template>
-        </Column>
-      </DataTable>
-      <div ref="sentinelRef" class="load-more-sentinel">
-        <LoadMore v-if="hasMore" :has-more="hasMore" :loading="false" @load="loadMore" />
-      </div>
-    </div>
+    <!-- Clic droit (ou appui long) sur le tableau : le menu contextuel s'ouvre au pointeur,
+         sur la ligne visee, que la ligne selectionne d'abord (son evenement remonte avant). -->
+    <TorrentContextMenu :selection="selectedRows.length ? selectedRows : (contextTarget ? [contextTarget] : [])" @action="handleContextMenuAction">
+    <UiDataTable
+      :class="['torrent-table', { 'compact-table': isCompact, 'incognito-mode': isIncognito }]"
+      label="Tableau des torrents"
+      :rows="displayedRows"
+      :columns="tableColumns"
+      :column-prefs="columnPrefs"
+      :row-key="rowKey"
+      :row-label="(row: any) => row.title"
+      :row-class="rowClass"
+      :sort="{ key: sortKey, direction: sortDirection as 'asc' | 'desc' }"
+      manual-sort
+      selectable
+      :selection="[...selected]"
+      resizable
+      reorderable
+      clickable
+      :density="isCompact ? 'compact' : 'comfortable'"
+      @update:sort="onSort"
+      @update:selection="(keys: Array<string | number>) => setSelection(keys.map(String))"
+      @row-click="onRowClick"
+      @row-contextmenu="(row: any, index: number) => openContextMenu(row, index)"
+      @dragover.prevent
+      @drop.prevent="handleGlobalDrop"
+    >
+      <template #empty>Aucun torrent ne correspond aux filtres.</template>
+      <template #cell-title="{ row, index }">
+        <button class="torrent-title" @click.stop="details=row">
+          {{ isIncognito ? maskTitle(row.title, Number(index)) : row.title }}
+        </button>
+        <small>{{ row.client_name }}<template v-if="row.tags"> · {{ row.tags }}</template></small>
+      </template>
+      <template #cell-status="{ row }"><span class="state-badge" :class="statusClass(row)">{{ statusLabel(row) }}</span></template>
+      <template #cell-progress="{ row }">
+        <div class="progress-cell"><div><progress :value="row.progress||0" max="100"></progress><span>{{ Math.round(row.progress||0) }} %</span></div></div>
+      </template>
+      <template #cell-size="{ row }">{{ formatBytes(row.size) }}</template>
+      <template #cell-download_speed="{ row }">{{ formatSpeed(row.download_speed) }}</template>
+      <template #cell-upload_speed="{ row }">{{ formatSpeed(row.upload_speed) }}</template>
+      <template #cell-ratio="{ row }">{{ Number(row.ratio||0).toFixed(2) }}</template>
+      <template #cell-eta="{ row }">{{ formatEta(row.eta) }}</template>
+      <template #cell-category="{ row }">{{ row.category||'—' }}</template>
+      <template #cell-trackers="{ row }">
+        <span class="tracker-display">
+          <img v-if="trackerValue(row) && !failedFavicons.has(trackerKey(row))" :src="trackerFaviconUrl(row)" alt="" loading="lazy" @error="hideTrackerFavicon(row)" />
+          <span>{{ formatTracker(trackerValue(row)) }}</span>
+        </span>
+      </template>
+      <template #cell-added_on="{ row }">{{ formatTimestamp(row.added_on) }}</template>
+      <template #cell-completed_on="{ row }">{{ formatTimestamp(row.completed_on) }}</template>
+      <template #cell-actions="{ row }">
+        <button class="secondary action-trigger-btn" :disabled="isBusy(row)" title="Actions sur ce torrent" @click.stop="actionTarget=row">
+          Actions
+        </button>
+      </template>
+      <template #after>
+        <div ref="sentinelRef" class="load-more-sentinel">
+          <LoadMore v-if="hasMore" :has-more="hasMore" :loading="false" @load="loadMore" />
+        </div>
+      </template>
+    </UiDataTable>
+    </TorrentContextMenu>
     <footer class="torrent-status-bar"><span>{{ displayedRows.length }} / {{ sortedRows.length }} affichés</span><span v-if="selectedRows.length">{{ selectedRows.length }} sélectionné(s)</span><span v-if="staleInfo" class="stale-state">Données en cache</span></footer>
 
-    <!-- Menu Contextuel Clic Droit -->
-    <TorrentContextMenu
-      :open="contextMenuOpen"
-      :position="contextMenuPos"
-      :selection="selectedRows.length ? selectedRows : (contextTarget ? [contextTarget] : [])"
-      @close="contextMenuOpen = false"
-      @action="handleContextMenuAction"
-    />
 
     <!-- Modal Personnalisation des colonnes -->
     <ModalShell :open="showColumnPicker" title="Personnaliser les colonnes" subtitle="Sélectionnez les colonnes à afficher dans le tableau des torrents." @close="showColumnPicker = false">
@@ -240,32 +217,18 @@
         <section class="drawer-section">
           <h3>Contenu du torrent</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des fichiers...</div>
-          <div v-else-if="inspectorFiles.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Contenu du torrent, défilement horizontal">
-            <table class="inspector-table">
-              <thead>
-                <tr>
-                  <th>Nom du fichier</th>
-                  <th>Taille</th>
-                  <th>Progrès</th>
-                  <th>Priorité</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="f in inspectorFiles" :key="f.id">
-                  <td class="file-name-cell" :title="f.name">{{ f.name }}</td>
-                  <td>{{ formatBytes(f.size) }}</td>
-                  <td>{{ f.progress }}%</td>
-                  <td>
-                    <select :value="f.priority" class="prio-select" @change="changeFilePriority(f.id, ($event.target as HTMLSelectElement).value)">
-                      <option :value="1">Normale</option>
-                      <option :value="6">Haute</option>
-                      <option :value="0">Ne pas télécharger</option>
-                    </select>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <UiDataTable v-else-if="inspectorFiles.length" class="inspector-table-wrap" label="Contenu du torrent" :rows="inspectorFiles" :columns="FILE_COLUMNS" :row-key="(f: any) => f.id">
+            <template #cell-name="{ row: f }"><span class="file-name-cell" :title="f.name">{{ f.name }}</span></template>
+            <template #cell-size="{ row: f }">{{ formatBytes(f.size) }}</template>
+            <template #cell-progress="{ row: f }">{{ f.progress }}%</template>
+            <template #cell-priority="{ row: f }">
+              <select :value="f.priority" class="prio-select" :aria-label="`Priorité de ${f.name}`" @change="changeFilePriority(f.id, ($event.target as HTMLSelectElement).value)">
+                <option :value="1">Normale</option>
+                <option :value="6">Haute</option>
+                <option :value="0">Ne pas télécharger</option>
+              </select>
+            </template>
+          </UiDataTable>
           <p v-else class="empty">Aucun fichier à afficher.</p>
         </section>
       </template>
@@ -275,26 +238,10 @@
         <section class="drawer-section">
           <h3>Annonces Trackers</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des trackers...</div>
-          <div v-else-if="inspectorTrackers.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Annonces trackers, défilement horizontal">
-            <table class="inspector-table">
-              <thead>
-                <tr>
-                  <th>URL Tracker</th>
-                  <th>Seeds</th>
-                  <th>Peers</th>
-                  <th>Message</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(tr, i) in inspectorTrackers" :key="i">
-                  <td class="file-name-cell" :title="tr.url">{{ tr.url }}</td>
-                  <td>{{ tr.num_seeds }}</td>
-                  <td>{{ tr.num_peers }}</td>
-                  <td><small>{{ tr.msg || 'Actif' }}</small></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <UiDataTable v-else-if="inspectorTrackers.length" class="inspector-table-wrap" label="Annonces trackers" :rows="inspectorTrackers" :columns="TRACKER_INSPECT_COLUMNS" :row-key="(tr: any) => tr.url">
+            <template #cell-url="{ row: tr }"><span class="file-name-cell" :title="tr.url">{{ tr.url }}</span></template>
+            <template #cell-msg="{ row: tr }"><small>{{ tr.msg || 'Actif' }}</small></template>
+          </UiDataTable>
           <p v-else class="empty">Aucun tracker à afficher.</p>
         </section>
       </template>
@@ -304,26 +251,10 @@
         <section class="drawer-section">
           <h3>Paires connectées</h3>
           <div v-if="loadingInspector" class="inspector-loading">Chargement des paires...</div>
-          <div v-else-if="inspectorPeers.length" class="inspector-table-wrap" tabindex="0" role="region" aria-label="Paires connectées, défilement horizontal">
-            <table class="inspector-table">
-              <thead>
-                <tr>
-                  <th>Adresse IP</th>
-                  <th>Client</th>
-                  <th>DL / UP</th>
-                  <th>Progrès</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(peer, i) in inspectorPeers" :key="i">
-                  <td>{{ peer.ip }}</td>
-                  <td>{{ peer.client }}</td>
-                  <td>{{ formatSpeed(peer.download_speed) }} / {{ formatSpeed(peer.upload_speed) }}</td>
-                  <td>{{ peer.progress }}%</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <UiDataTable v-else-if="inspectorPeers.length" class="inspector-table-wrap" label="Paires connectées" :rows="inspectorPeers" :columns="PEER_COLUMNS" :row-key="(peer: any) => `${peer.ip}:${peer.port ?? ''}`">
+            <template #cell-speed="{ row: peer }">{{ formatSpeed(peer.download_speed) }} / {{ formatSpeed(peer.upload_speed) }}</template>
+            <template #cell-progress="{ row: peer }">{{ peer.progress }}%</template>
+          </UiDataTable>
           <p v-else class="empty">Aucune paire connectée actuellement.</p>
         </section>
       </template>
@@ -372,8 +303,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useEventListener, useIntersectionObserver } from '@vueuse/core';
 import { AlertTriangle, ChevronDown, ChevronUp, Download, Eye, EyeOff, FileText, FileX2, Gauge, Info, Maximize2, Minimize2, Pause, Play, Radio, RotateCcw, SlidersHorizontal, Tag, Trash2, Upload, Users } from '@lucide/vue';
-import Column from 'primevue/column';
-import DataTable from 'primevue/datatable';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import { api } from '@/api';
 import { useConfirm } from '@/composables/useConfirm';
 import { useTableColumns } from '@/composables/useTableColumns';
@@ -495,27 +425,56 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   completed_on: 130,
 };
 
-const {
-  columnWidths,
-  orderedColumns,
-  visibleColumns: columns,
-  visibleKeys: visibleColumnKeys,
-  draggedKey: draggedColumnKey,
-  dragOverKey,
-  toggleColumn: toggleColumnKey,
-  startDrag: startColumnDrag,
-  dragOver: dragOverColumn,
-  dragLeave: dragLeaveColumn,
-  drop: dropColumn,
-  moveColumn: moveColumnKey,
-  startColumnResize,
-} = useTableColumns(() => ALL_COLUMNS, {
+const columnPrefs = useTableColumns(() => ALL_COLUMNS, {
   storageKey: `watchdeck:torrent-table-columns:${props.preferenceScope || 'all'}`,
   defaultVisible: DEFAULT_VISIBLE_COLUMNS,
   defaultWidths: DEFAULT_COLUMN_WIDTHS,
   // Deux colonnes au minimum : un tableau reduit a une colonne ne dit plus rien.
   minimumVisible: 2,
 });
+const {
+  orderedColumns,
+  visibleKeys: visibleColumnKeys,
+  toggleColumn: toggleColumnKey,
+  moveColumn: moveColumnKey,
+  draggedKey: draggedColumnKey,
+  startDrag: startColumnDrag,
+  drop: dropColumn,
+} = columnPrefs;
+
+/* Toutes les colonnes triables, avec leur role dans la carte de telephone : le titre en
+   tete, l'etat et la progression lisibles, le reste reserve au tableau. */
+const FILE_COLUMNS: UiColumn[] = [
+  { key: 'name', label: 'Nom du fichier', card: 'title', sortable: true },
+  { key: 'size', label: 'Taille', sortable: true },
+  { key: 'progress', label: 'Progrès', sortable: true },
+  { key: 'priority', label: 'Priorité' },
+];
+const TRACKER_INSPECT_COLUMNS: UiColumn[] = [
+  { key: 'url', label: 'URL Tracker', card: 'title' },
+  { key: 'num_seeds', label: 'Seeds', sortable: true },
+  { key: 'num_peers', label: 'Peers', sortable: true },
+  { key: 'msg', label: 'Message' },
+];
+const PEER_COLUMNS: UiColumn[] = [
+  { key: 'ip', label: 'Adresse IP', card: 'title' },
+  { key: 'client', label: 'Client', sortable: true },
+  { key: 'speed', label: 'DL / UP', sortable: true, sortValue: (peer: any) => (peer.download_speed || 0) + (peer.upload_speed || 0) },
+  { key: 'progress', label: 'Progrès', sortable: true },
+];
+const CARTE_VISIBLE = new Set(['status', 'progress']);
+const tableColumns = computed<UiColumn[]>(() => [
+  ...ALL_COLUMNS.map((column) => ({
+    key: column.key,
+    label: column.label,
+    sortable: true,
+    required: column.required,
+    width: DEFAULT_COLUMN_WIDTHS[column.key],
+    className: column.className,
+    card: column.key === 'title' ? 'title' as const : CARTE_VISIBLE.has(column.key) ? 'field' as const : 'hidden' as const,
+  })),
+  { key: 'actions', label: 'Actions', required: true, width: 118, card: 'actions' as const, className: 'actions-cell' },
+]);
 
 defineExpose({
   openColumnPicker: () => { showColumnPicker.value = true; },
@@ -565,10 +524,6 @@ const {
 /* PrimeVue expose la selection sous forme de lignes, tandis que le reste de la page
    conserve volontairement des cles stables : les rafraichissements remplacent les
    objets torrent, mais ne doivent pas vider la barre d'actions en lot. */
-const primeSelection = computed<any[]>({
-  get: () => selectedRows.value,
-  set: (rows) => setSelection((rows || []).map(rowKey)),
-});
 
 const displayedRows = computed(() => sortedRows.value.slice(0, displayLimit.value));
 const hasMore = computed(() => displayLimit.value < sortedRows.value.length);
@@ -577,28 +532,23 @@ function loadMore(): void {
   displayLimit.value += BATCH_SIZE;
 }
 
-function handlePrimeSort(event: { sortField?: string | ((item: any) => string); sortOrder?: number | null }): void {
-  if (typeof event.sortField !== 'string') return;
+function onSort(value: { key: string; direction: 'asc' | 'desc' } | null): void {
+  if (!value) return;
   displayLimit.value = BATCH_SIZE;
-  sortKey.value = event.sortField;
-  sortDirection.value = event.sortOrder === -1 ? 'desc' : 'asc';
+  sortKey.value = value.key;
+  sortDirection.value = value.direction;
 }
 
-function handlePrimeRowClick(event: { data: any; index: number; originalEvent: Event }): void {
-  const mouseEvent = event.originalEvent as MouseEvent;
-  const target = mouseEvent.target as HTMLElement | null;
-  if (target?.closest('button, input, a, .p-checkbox')) return;
-  if (mouseEvent.shiftKey || mouseEvent.ctrlKey || mouseEvent.metaKey) {
-    toggleRow(event.data, event.index, mouseEvent);
+/* Un clic ouvre le detail ; avec Maj ou Ctrl, il etend ou bascule la selection, comme
+   dans un gestionnaire de fichiers. */
+function onRowClick(row: any, index: number, event: MouseEvent): void {
+  if ((event.target as HTMLElement | null)?.closest('button, input, a, [role="checkbox"]')) return;
+  if (event.shiftKey || event.ctrlKey || event.metaKey) {
+    toggleRow(row, index, event);
     return;
   }
-  details.value = event.data;
-  lastSelectedIndex.value = event.index;
-}
-
-function handlePrimeContextMenu(event: { data: any; index: number; originalEvent: Event }): void {
-  event.originalEvent.preventDefault();
-  openContextMenu(event.data, event.index, event.originalEvent as MouseEvent);
+  details.value = row;
+  lastSelectedIndex.value = index;
 }
 
 function rowClass(row: any): string {
@@ -811,19 +761,15 @@ async function toggleAltSpeed(): Promise<void> {
   }
 }
 
-const contextMenuOpen = ref(false);
-const contextMenuPos = ref({ x: 0, y: 0 });
 const contextTarget = ref<any>(null);
 
-function openContextMenu(row: any, index: number, event: MouseEvent): void {
+function openContextMenu(row: any, index: number): void {
   const key = rowKey(row);
   if (!selected.value.has(key)) {
     setSelection([key]);
     lastSelectedIndex.value = index;
   }
   contextTarget.value = row;
-  contextMenuPos.value = { x: event.clientX, y: event.clientY };
-  contextMenuOpen.value = true;
 }
 
 function handleContextMenuAction(actionType: string): void {
@@ -885,6 +831,15 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 </script>
 
 <style scoped lang="scss">
+/* Densite et mode incognito : le tableau vient de UiDataTable, dont les cellules ne portent
+   pas l'attribut de portee de ce composant -- d'ou :deep() pour les cellules elles-memes. */
+.torrent-table.compact-table :deep(th),.torrent-table.compact-table :deep(td){padding:4px 7px;font-size:var(--fs-xs)}
+.torrent-table.compact-table .progress-cell progress{height:4px}
+.torrent-table.incognito-mode .torrent-title{font-family:monospace;letter-spacing:0.5px}
+@media (min-width: 641px){.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+/* Dans la carte, le titre passe a la ligne et la progression prend toute la largeur. */
+@media (max-width: 640px){.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
+
 .global-speed-bar{position:fixed;left:0;right:0;bottom:0;z-index:35;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:4px max(10px,var(--safe-right)) 4px max(10px,var(--safe-left));border:0;border-top:1px solid var(--border);border-radius:0;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 -6px 22px rgb(0 0 0 / 18%);backdrop-filter:blur(12px);flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain}
 :global(.shell.sidebar-collapsed) .global-speed-bar{left:72px}
 .speed-counters{display:flex;align-items:center;gap:18px;min-width:max-content}
@@ -898,10 +853,6 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 .speed-bar-actions button{min-height:32px;padding:4px 9px;white-space:nowrap}
 .tool-toggle-btn.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);border-color:var(--accent)}
 .alt-speed-btn.active{background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning);border-color:var(--warning)}
-
-.torrent-table.compact-table th,.torrent-table.compact-table td{padding:4px 7px!important;font-size: var(--fs-xs)!important}
-.torrent-table.compact-table .progress-cell progress{height:4px!important}
-.torrent-table.incognito-mode .torrent-title{font-family:monospace;letter-spacing:0.5px}
 .torrent-status-bar{display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);font-size:12px;font-weight:600}.torrent-status-bar span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}.torrent-status-bar svg{width:13px}.torrent-status-bar .stale-state{color:var(--warning)}
 
 .drawer-nav-tabs{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:12px;overflow-x:auto}
@@ -918,7 +869,7 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 .file-name-cell{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prio-select{padding:2px 6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size: var(--fs-xs)}
 
-.torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}.bulk-toolbar{position:sticky;top:8px;z-index:4;display:flex;align-items:center;gap:var(--space-2);padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(12px)}.bulk-toolbar strong{margin-right:auto}.bulk-toolbar button,.drawer-actions button{display:inline-flex;align-items:center;gap:6px}.bulk-toolbar svg,.row-actions svg,.drawer-actions svg{width:14px;height:14px}.torrent-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}.torrent-table{width:100%;min-width:900px;border-collapse:collapse;table-layout:fixed}.torrent-table th,.torrent-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}.torrent-table th{user-select:none;cursor:grab;background:var(--surface)}.th-content.is-dragging{opacity:0.45}.th-content.drag-over{border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 15%,var(--surface-2))}.th-content{position:relative;display:flex;align-items:center;width:100%;overflow:hidden}.col-resize-handle{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;user-select:none;z-index:3;touch-action:none}.col-resize-handle:hover,.col-resize-handle:active{background:var(--accent);opacity:0.85}.torrent-table tbody tr:last-child td{border-bottom:0}.torrent-table tbody tr{transition:background var(--motion-duration-instant);cursor:pointer}.torrent-table tbody tr:hover,.torrent-table tbody tr.selected{background:var(--surface-2)}.select-cell{width:38px;text-align:center!important}.torrent-name{min-width:0}.torrent-title{display:block;max-width:100%;overflow:hidden;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap}.torrent-title:hover{color:var(--accent);text-decoration:underline}.torrent-name small{display:block;overflow:hidden;margin-top:3px;color:var(--muted);text-overflow:ellipsis;white-space:nowrap}.progress-cell{min-width:0}.progress-cell>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}.progress-cell progress{width:100%;height:6px}.state-badge{display:inline-flex;padding:4px 7px;border-radius:var(--radius-pill);background:var(--surface-2);color:var(--muted);font-weight:700;white-space:nowrap}.state-badge.active{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}.state-badge.complete{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)}.state-badge.paused{background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--warning)}.state-badge.error{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}.actions-cell{position:sticky;right:0;z-index:1;min-width:118px;width:118px;background:var(--surface)}.torrent-table tbody tr:hover .actions-cell,.torrent-table tbody tr.selected .actions-cell{background:var(--surface-2)}.row-actions{display:flex;justify-content:flex-end;gap:3px}.row-actions .icon-button{width:30px;height:30px}.torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.drawer-section h3{margin:0 0 12px}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}.detail-grid div,.detail-list div{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}.detail-grid dt,.detail-list dt{color:var(--muted);font-size:var(--fs-xs)}.detail-grid dd,.detail-list dd{margin:4px 0 0;font-weight:700}.detail-list{display:grid;gap:var(--space-2);margin:0}.hash-value{overflow-wrap:anywhere;font-family:monospace;font-size:var(--fs-xs)}.drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}.removal-warning{color:var(--danger)}
+.torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}.bulk-toolbar{position:sticky;top:8px;z-index:4;display:flex;align-items:center;gap:var(--space-2);padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(12px)}.bulk-toolbar strong{margin-right:auto}.bulk-toolbar button,.drawer-actions button{display:inline-flex;align-items:center;gap:6px}.bulk-toolbar svg,.row-actions svg,.drawer-actions svg{width:14px;height:14px}.torrent-name{min-width:0}.torrent-title{display:block;max-width:100%;overflow:hidden;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap}.torrent-title:hover{color:var(--accent);text-decoration:underline}.torrent-name small{display:block;overflow:hidden;margin-top:3px;color:var(--muted);text-overflow:ellipsis;white-space:nowrap}.progress-cell{min-width:0}.progress-cell>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}.progress-cell progress{width:100%;height:6px}.state-badge{display:inline-flex;padding:4px 7px;border-radius:var(--radius-pill);background:var(--surface-2);color:var(--muted);font-weight:700;white-space:nowrap}.state-badge.active{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}.state-badge.complete{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)}.state-badge.paused{background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--warning)}.state-badge.error{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}.row-actions{display:flex;justify-content:flex-end;gap:3px}.row-actions .icon-button{width:30px;height:30px}.torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.drawer-section h3{margin:0 0 12px}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}.detail-grid div,.detail-list div{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}.detail-grid dt,.detail-list dt{color:var(--muted);font-size:var(--fs-xs)}.detail-grid dd,.detail-list dd{margin:4px 0 0;font-weight:700}.detail-list{display:grid;gap:var(--space-2);margin:0}.hash-value{overflow-wrap:anywhere;font-family:monospace;font-size:var(--fs-xs)}.drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}.removal-warning{color:var(--danger)}
 .meta-form{display:grid;gap:var(--space-3)}.form-group{display:grid;gap:6px}.form-group label{font-size:var(--fs-xs);font-weight:600}.form-group input{width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)}.form-actions{display:flex;justify-content:flex-end;gap:var(--space-2);margin-top:var(--space-2)}
 .action-trigger-btn{display:inline-flex;align-items:center;gap:6px;min-width:100px;padding:5px 9px;font-size:var(--fs-xs);white-space:nowrap}
 .action-trigger-btn svg{width:14px;height:14px}
@@ -933,12 +884,10 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 .stale-cache-banner p{margin:2px 0 0;font-size: var(--fs-xs);color:var(--muted)}
 
 .column-picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px 0}
-.torrent-table tbody tr{user-select:none;-webkit-user-select:none}
 .column-picker-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--surface-2);font-size:var(--fs-xs);user-select:none;cursor:grab}.column-picker-item.dragging{opacity:.45}.column-picker-item>span:not(.column-drag-handle):not(.column-reorder-buttons){flex:1}.column-picker-item input{cursor:pointer}.column-reorder-buttons{display:inline-flex;gap:2px}.column-reorder-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--radius-xs);background:transparent;color:var(--muted);cursor:pointer}.column-reorder-btn:hover:not(:disabled){color:var(--text);background:var(--surface-3)}.column-reorder-btn:disabled{opacity:.35;cursor:not-allowed}.column-reorder-btn svg{width:14px;height:14px}.column-drag-handle{color:var(--muted);font-size:18px;line-height:1}
 .column-picker-item.disabled{opacity:0.6;cursor:not-allowed}
 
 @media(min-width:761px){
-  .torrent-table th,.torrent-table td{padding:11px 10px;font-size:13px}
   .torrent-title{font-size:14px}
   .torrent-name small{color:var(--accent);font-size:12px;font-weight:600}
   .sort-button,.state-badge,.action-trigger-btn{font-size:13px}
@@ -957,19 +906,6 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
   .bulk-toolbar strong{grid-column:1/-1;margin:0}
   .bulk-toolbar button{justify-content:center;min-width:0;white-space:normal;text-align:center}
   .bulk-toolbar .text-button{grid-column:1/-1}
-  .torrent-table-wrap{max-width:100%;overflow:visible;border:0;background:transparent}
-  .torrent-table{display:block;width:100%;min-width:0}
-  .torrent-table thead{display:none}
-  .torrent-table tbody{display:grid;gap:8px;min-width:0}
-  .torrent-table tr{display:grid;grid-template-columns:28px minmax(0,1fr) auto;min-width:0;align-items:center;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}
-  .torrent-table tr{content-visibility:auto;contain-intrinsic-size:0 142px}
-  .torrent-table td{display:none;min-width:0;padding:7px 10px;border:0}
-  .torrent-table .select-cell,.torrent-table .torrent-name,.torrent-table .progress-cell,.torrent-table td[data-label="État"],.torrent-table .actions-cell{display:block}
-  .torrent-table .select-cell{grid-column:1;grid-row:1/3;padding-right:0}
-  .torrent-table .torrent-name{grid-column:2;grid-row:1;padding-bottom:2px}
-  .torrent-table td[data-label="État"]{grid-column:3;grid-row:1;max-width:34vw}
-  .torrent-table .progress-cell{grid-column:2/4;grid-row:2;padding-top:2px}
-  .torrent-table .actions-cell{position:static;grid-column:1/4;grid-row:3;width:auto;min-width:0;padding-top:3px;border-top:1px solid var(--border)}
   .action-trigger-btn{width:100%;justify-content:center}
   .torrent-name{min-width:0;max-width:none}
   .state-badge{max-width:100%;overflow:hidden;text-overflow:ellipsis}
@@ -981,11 +917,6 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
   .connection-status{font-size:0}.connection-status i{width:8px;height:8px}
   .bulk-toolbar{grid-template-columns:1fr}
   .bulk-toolbar strong,.bulk-toolbar .text-button{grid-column:auto}
-  .torrent-table tr{grid-template-columns:26px minmax(0,1fr)}
-  .torrent-table td[data-label="État"]{grid-column:2;grid-row:2;max-width:100%;padding-top:2px;padding-bottom:2px}
-  .torrent-table .select-cell{grid-row:1/4}
-  .torrent-table .progress-cell{grid-column:2;grid-row:3}
-  .torrent-table .actions-cell{grid-column:1/3;grid-row:4}
   .detail-grid,.column-picker-grid{grid-template-columns:1fr}
 }
 </style>

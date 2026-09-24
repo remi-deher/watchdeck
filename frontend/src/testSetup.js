@@ -22,11 +22,9 @@ import { config, enableAutoUnmount } from "@vue/test-utils";
    apres le nettoyage du suivant. C'etait la cause des echecs intermittents, plus
    frequents sous charge, de TorrentClientsTable.spec.js notamment. */
 enableAutoUnmount(afterEach);
-import PrimeVue from 'primevue/config';
-import ConfirmationService from 'primevue/confirmationservice';
-import ToastService from 'primevue/toastservice';
-config.global.stubs = { ...config.global.stubs, teleport: true };
-config.global.plugins = [...(config.global.plugins || []), PrimeVue, ConfirmationService, ToastService];
+/* Le bouchon par defaut (`teleport: true`) rend une balise vide pour les portails de
+   Reka UI : leurs dialogues disparaissaient des tests. Celui-ci rend le contenu sur place. */
+config.global.stubs = { ...config.global.stubs, teleport: { template: '<div class="teleport-stub"><slot /></div>' } };
 // Directive globale enregistree dans main.ts : sans elle, chaque liste animee avertit.
 import { vListMotion } from '@/motion/vListMotion';
 config.global.directives = { ...config.global.directives, 'list-motion': vListMotion };

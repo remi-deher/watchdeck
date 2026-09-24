@@ -17,7 +17,7 @@ const showTable = async (wrapper) => {
   return wrapper;
 };
 const labels = (wrapper) =>
-  wrapper.findAll('.breakdown-table > button').map((row) => row.findAll('span')[0].text());
+  wrapper.findAll('.breakdown-table tbody tr').map((row) => row.findAll('td')[0].text());
 
 describe('BreakdownPanel', () => {
   it('affiche un camembert par défaut', () => {
@@ -62,20 +62,20 @@ describe('BreakdownPanel', () => {
     const wrapper = await showTable(mountPanel());
     expect(labels(wrapper)).toEqual(['Warner', 'Ghibli', 'Pixar']);
 
-    await wrapper.find('.table-head button:first-child').trigger('click');
+    await wrapper.findAll('.breakdown-table thead .ui-data-table__sort')[0].trigger('click');
     expect(labels(wrapper)).toEqual(['Ghibli', 'Pixar', 'Warner']);
 
-    await wrapper.find('.table-head button:first-child').trigger('click');
+    await wrapper.findAll('.breakdown-table thead .ui-data-table__sort')[0].trigger('click');
     expect(labels(wrapper)).toEqual(['Warner', 'Pixar', 'Ghibli']);
   });
 
   it('trie par valeur, de la plus grande à la plus petite', async () => {
     const wrapper = await showTable(mountPanel());
 
-    await wrapper.findAll('.table-head button')[1].trigger('click');
+    await wrapper.findAll('.breakdown-table thead .ui-data-table__sort')[1].trigger('click');
 
     expect(labels(wrapper)).toEqual(['Ghibli', 'Warner', 'Pixar']);
-    expect(wrapper.findAll('.table-head button')[1].attributes('aria-sort')).toBe('descending');
+    expect(wrapper.findAll('.breakdown-table thead th')[1].attributes('aria-sort')).toBe('descending');
   });
 
   it('laisse « Autres » en queue quel que soit le tri', async () => {
@@ -84,7 +84,7 @@ describe('BreakdownPanel', () => {
     const many = Array.from({ length: 40 }, (_, i) => ({ label: `Studio ${i}`, value: i + 1 }));
     const wrapper = await showTable(mountPanel({ items: many }));
 
-    await wrapper.findAll('.table-head button')[1].trigger('click');
+    await wrapper.findAll('.breakdown-table thead .ui-data-table__sort')[1].trigger('click');
 
     expect(labels(wrapper).at(-1)).toBe('Autres');
   });

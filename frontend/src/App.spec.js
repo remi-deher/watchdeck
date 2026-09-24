@@ -1,3 +1,4 @@
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.vue';
@@ -45,6 +46,7 @@ vi.mock('@/cache', async (importOriginal) => {
 function mountApp() {
   return mount(App, {
     global: {
+      plugins: [[VueQueryPlugin, { queryClient: new QueryClient() }]],
       stubs: {
         RouterView: { template: '<div class="router-view-stub" />' },
         CommandPalette: true,

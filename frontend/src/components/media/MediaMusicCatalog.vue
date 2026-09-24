@@ -15,34 +15,36 @@
 
   <section v-else-if="detail.media_type === 'album'" class="music-catalog-section">
     <h2 class="section-title">Pistes de l'album {{ detail.title ? `« ${detail.title} »` : '' }}</h2>
-    <div v-if="albumTracks.length" class="tracks-table-wrapper" tabindex="0" role="region" aria-label="Pistes de l'album, défilement horizontal">
-      <table class="tracks-table">
-        <thead><tr><th class="col-num">#</th><th class="col-title">Titre de la piste</th><th class="col-artist">Artiste</th><th class="col-duration">Durée</th><th class="col-tech">Format & Qualité audio</th><th class="col-action">Écoute</th></tr></thead>
-        <tbody>
-          <tr v-for="track in albumTracks" :key="track.id">
-            <td class="col-num">{{ track.track_number || '-' }}</td>
-            <td class="col-title"><strong>{{ track.title }}</strong></td>
-            <td class="col-artist">{{ track.artist || detail.title }}</td>
-            <td class="col-duration">{{ track.duration_str || '--:--' }}</td>
-            <td class="col-tech">
-              <span v-if="track.codec" class="tech-badge codec-badge">{{ track.codec }}</span>
-              <span v-if="track.bitrate" class="tech-badge">{{ track.bitrate }}</span>
-              <span v-if="track.sample_rate" class="tech-badge hires-tag">{{ track.sample_rate }}</span>
-            </td>
-            <td class="col-action">
-              <button v-if="track.plex_guid" type="button" class="track-listen-btn" title="Écouter la piste sur Plex" @click="emit('listen', track.plex_guid)">
-                <Play :size="13" /> Écouter
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <p v-else class="empty-copy">Aucune piste répertoriée pour cet album dans Plex.</p>
+    <UiDataTable class="tracks-table-wrapper" :label="`Pistes de l'album ${detail.title || ''}`" :rows="albumTracks" :columns="TRACK_COLUMNS" :row-key="(t: any) => t.id">
+      <template #empty><p class="empty-copy">Aucune piste répertoriée pour cet album dans Plex.</p></template>
+      <template #cell-num="{ row: track }">{{ track.track_number || '-' }}</template>
+      <template #cell-title="{ row: track }"><strong>{{ track.title }}</strong></template>
+      <template #cell-artist="{ row: track }">{{ track.artist || detail.title }}</template>
+      <template #cell-duration="{ row: track }">{{ track.duration_str || '--:--' }}</template>
+      <template #cell-tech="{ row: track }">
+        <span v-if="track.codec" class="tech-badge codec-badge">{{ track.codec }}</span>
+        <span v-if="track.bitrate" class="tech-badge">{{ track.bitrate }}</span>
+        <span v-if="track.sample_rate" class="tech-badge hires-tag">{{ track.sample_rate }}</span>
+      </template>
+      <template #cell-action="{ row: track }">
+        <button v-if="track.plex_guid" type="button" class="track-listen-btn" title="Écouter la piste sur Plex" @click="emit('listen', track.plex_guid)">
+          <Play :size="13" /> Écouter
+        </button>
+      </template>
+    </UiDataTable>
   </section>
 </template>
 
 <script setup lang="ts">
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+const TRACK_COLUMNS: UiColumn[] = [
+  { key: 'num', label: '#', className: 'col-num', sortable: true, sortValue: (t: any) => Number(t.track_number) || 0 },
+  { key: 'title', label: 'Titre de la piste', className: 'col-title', card: 'title', sortable: true },
+  { key: 'artist', label: 'Artiste', className: 'col-artist' },
+  { key: 'duration', label: 'Durée', className: 'col-duration' },
+  { key: 'tech', label: 'Format & Qualité audio', className: 'col-tech' },
+  { key: 'action', label: 'Écoute', className: 'col-action', card: 'actions' },
+];
 import { Play } from '@lucide/vue';
 import LibraryCard from '@/components/library/LibraryCard.vue';
 

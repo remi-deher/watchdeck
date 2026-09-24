@@ -1,27 +1,27 @@
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import PrimeVue from 'primevue/config';
-import ToastService from 'primevue/toastservice';
 import AppToast from './AppToast.vue';
-import { useToast } from '@/composables/useToast';
+import { toasts, useToast } from '@/composables/useToast';
 
 let wrapper;
-afterEach(() => wrapper?.unmount());
+afterEach(() => { wrapper?.unmount(); toasts.value = []; });
 
 describe('AppToast', () => {
-  it('renders an action and runs it once before dismissing the toast', async () => {
-    wrapper = mount(AppToast, { global: { plugins: [PrimeVue, ToastService] } });
+  it("affiche l'action d'une notification et l'execute une fois avant de la retirer", async () => {
+    // Chaque notification Reka se teleporte dans sa zone : un vrai Teleport, pas le bouchon.
+    wrapper = mount(AppToast, { attachTo: document.body, global: { stubs: { teleport: false } } });
     const run = vi.fn();
     useToast().addToast({ title: 'Demande retirée', message: 'Vous pouvez revenir en arrière.', duration: 0, action: { label: 'Annuler', run } });
     await nextTick();
 
-    const action = wrapper.get('.app-toast-action');
-    expect(action.text()).toBe('Annuler');
-    await action.trigger('click');
+    const action = document.querySelector('.app-toast-action');
+    expect(action.textContent.trim()).toBe('Annuler');
+    expect(document.body.textContent).toContain('Demande retirée');
+    action.click();
     await nextTick();
 
     expect(run).toHaveBeenCalledOnce();
-    expect(wrapper.find('.app-toast-action').exists()).toBe(false);
+    expect(toasts.value).toEqual([]);
   });
 });

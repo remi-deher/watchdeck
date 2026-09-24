@@ -139,6 +139,38 @@
 .modal-fade-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-exit); }
 .modal-fade-enter-from,
 .modal-fade-leave-to { opacity: 0; }
+/* Meme mouvement pour les surfaces Reka UI, pilotees par `data-state` : Reka attend la
+   fin de l'animation de fermeture pour retirer la surface. */
+.drawer-backdrop[data-state="open"] { animation: surface-voile-in var(--motion-duration-base) var(--motion-ease-standard); }
+.drawer-backdrop[data-state="closed"] { animation: surface-voile-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
+.modal-panel[data-state="open"] { animation: surface-carte-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+.modal-panel[data-state="closed"] { animation: surface-carte-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
+@keyframes surface-voile-in { from { opacity: 0; } }
+@keyframes surface-voile-out { to { opacity: 0; } }
+@keyframes surface-carte-in { from { opacity: 0; transform: translate(-50%, 10px) scale(0.985); } }
+@keyframes surface-carte-out { to { opacity: 0; transform: translate(-50%, 10px) scale(0.985); } }
+@media (max-width: 767.98px) {
+  /* Feuille ancree en bas : elle monte de tout son long, et redescend. */
+  .modal-panel[data-state="open"] { animation: surface-feuille-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+  .modal-panel[data-state="closed"] { animation: surface-feuille-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
+}
+/* Tiroir de detail : il arrive du bord droit sur ordinateur, du bas sur telephone. */
+@media (min-width: 768px) {
+  .detail-drawer[data-state="open"] { animation: surface-tiroir-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+  .detail-drawer[data-state="closed"] { animation: surface-tiroir-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
+}
+@media (max-width: 767.98px) {
+  .detail-drawer[data-state="open"] { animation: surface-feuille-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+  .detail-drawer[data-state="closed"] { animation: surface-feuille-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
+}
+@keyframes surface-tiroir-in { from { transform: translate3d(100%, 0, 0); } }
+@keyframes surface-tiroir-out { to { transform: translate3d(100%, 0, 0); } }
+@keyframes surface-feuille-in { from { transform: translate3d(0, 100%, 0); } }
+@keyframes surface-feuille-out { to { transform: translate3d(0, 100%, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop[data-state], .modal-panel[data-state], .detail-drawer[data-state] { animation: none !important; }
+}
+
 /* Une surface qui s'en va ne capte plus rien.
    Vue retire l'element quand la transition se termine ; quand cette fin n'arrive pas --
    onglet ralenti, transition interrompue par une seconde bascule -- le voile restait
@@ -186,41 +218,8 @@
 }
 
 
-/* ───────────────────────── Passage d'une page a l'autre ─────────────────────────
- *
- * Fondu enchaine par les transitions de vue du navigateur (voir `usePageExit`). Seul le
- * contenu y participe : la racine est soustraite a la transition, pour que la barre
- * laterale, le dock et l'en-tete ne clignotent pas avec lui. La page qui part recule a
- * peine et s'efface vite ; celle qui arrive monte de quelques pixels et se pose.
- */
-:root { view-transition-name: none; }
-#main-content { view-transition-name: page; }
-::view-transition-group(page) { animation-duration: var(--motion-duration-base); }
-::view-transition-old(page) {
-  animation: page-vt-out var(--motion-duration-fast) var(--motion-ease-exit) both;
-}
-::view-transition-new(page) {
-  animation: page-vt-in var(--motion-duration-base) var(--motion-ease-emphasized) both;
-}
-/* Les deux photos gardent leur taille propre : sans cela le navigateur les etire l'une
-   vers l'autre quand les deux pages n'ont pas la meme hauteur. */
-::view-transition-old(page),
-::view-transition-new(page) { height: auto; width: 100%; object-fit: none; object-position: top; }
-@keyframes page-vt-out { to { opacity: 0; transform: translateY(-6px) scale(0.99); } }
-@keyframes page-vt-in { from { opacity: 0; transform: translateY(14px); } }
-
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) { animation: none !important; }
-}
-
-/* Le transport de l'affiche ne passe plus par les transitions de vue du navigateur.
- * Elles photographient l'ancien et le nouvel etat de part et d'autre d'une navigation,
- * or la fiche charge ses donnees apres coup : au moment de la seconde photo, l'affiche
- * d'arrivee n'existait pas encore et il n'y avait rien a relier. Le trajet est desormais
- * mesure et rejoue (voir `usePosterMorph`), ce qui l'affranchit du calendrier de la
- * navigation -- et du support de `startViewTransition`.
+/* Le transport de l'affiche jusqu'a la fiche a ete retire : il mesurait et deplacait
+ * l'affiche pendant que la fiche se construisait, et saccadait sur iPhone.
  */
 
 

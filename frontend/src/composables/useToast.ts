@@ -1,5 +1,4 @@
-import type { ToastMessageOptions } from 'primevue/toast';
-import type { ToastServiceMethods } from 'primevue/toastservice';
+import { shallowRef } from 'vue';
 
 export interface ToastAction {
   label: string;
@@ -15,35 +14,22 @@ export interface AddToastOptions {
   action?: ToastAction | null;
 }
 
-export interface AppToastData {
+export interface AppToastMessage {
   id: number;
+  title: string;
+  message: string;
+  type: NonNullable<AddToastOptions['type']>;
+  /** En millisecondes ; 0 = reste affiche jusqu'a sa fermeture. */
+  duration: number;
   image: string | null;
   action: ToastAction | null;
 }
 
-export type AppToastMessage = ToastMessageOptions & { data: AppToastData };
-
-const pending: AppToastMessage[] = [];
-const displayed = new Map<number, AppToastMessage>();
-let service: ToastServiceMethods | null = null;
+/* La file des notifications, lue par `AppToast` (Reka UI). Une simple liste reactive :
+   plus de service PrimeVue a enregistrer, ni de file d'attente pour les notifications
+   emises avant son montage. */
+export const toasts = shallowRef<AppToastMessage[]>([]);
 let nextId = 1;
-
-/** Relie l'API applicative au service PrimeVue lorsque le composant global est monte. */
-export function registerToastService(nextService: ToastServiceMethods): void {
-  service = nextService;
-  for (const message of pending.splice(0)) {
-    displayed.set(message.data.id, message);
-    service.add(message);
-  }
-}
-
-export function unregisterToastService(currentService: ToastServiceMethods): void {
-  if (service === currentService) service = null;
-}
-
-export function forgetToast(id: number): void {
-  displayed.delete(id);
-}
 
 export function useToast() {
   function addToast({
@@ -55,32 +41,12 @@ export function useToast() {
     action = null,
   }: AddToastOptions = {}): number {
     const id = nextId++;
-    const toast: AppToastMessage = {
-      severity: type === 'warning' ? 'warn' : type,
-      summary: title,
-      detail: message,
-      group: 'app',
-      closable: true,
-      data: { id, image, action },
-      ...(duration > 0 ? { life: duration } : {}),
-    };
-
-    if (service) {
-      displayed.set(id, toast);
-      service.add(toast);
-    } else {
-      pending.push(toast);
-    }
+    toasts.value = [...toasts.value, { id, title, message, type, duration, image, action }];
     return id;
   }
 
   function dismissToast(id: number): void {
-    const waitingIndex = pending.findIndex((toast) => toast.data.id === id);
-    if (waitingIndex !== -1) pending.splice(waitingIndex, 1);
-
-    const toast = displayed.get(id);
-    if (toast && service) service.remove(toast);
-    displayed.delete(id);
+    toasts.value = toasts.value.filter((toast) => toast.id !== id);
   }
 
   function success(title: string, message = ''): number {
