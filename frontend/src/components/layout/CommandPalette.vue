@@ -21,8 +21,7 @@
   <ModalShell
     v-if="isOpen"
     :open="isOpen"
-    title="Aller à…"
-    subtitle="Tapez pour filtrer, ↑ ↓ pour choisir, Entrée pour ouvrir."
+    title="Rechercher"
     panel-class="command-palette"
     initial-focus=".palette-input"
     @close="close"
@@ -36,55 +35,77 @@
         aria-controls="command-palette-list"
         auto-focus
         aria-label="Rechercher une destination"
-        placeholder="Rechercher une page, un réglage, un film ou une série…"
+        placeholder="Rechercher un film, une série, une page ou un réglage…"
         autocomplete="off"
+        @keydown="onArrowAcross"
       />
 
-      <!-- Deux perimetres, deux onglets. L'onglet ouvert suit la page d'ou l'on vient :
-           depuis Explorer on cherche un media, depuis Administration un reglage. -->
-      <AppSubnav
-        v-if="query.trim()"
-        class="palette-scopes"
-        variant="tabs"
-        :items="scopeTabs"
-        :active="scope"
-        aria-label="Périmètre de recherche"
-        @update:active="scope = ($event as Scope)"
-      />
+      <!-- Palette vide : rien a montrer. Des qu'on tape, deux blocs : les medias en
+           affiches, puis navigation et reglages en liste compacte. « Voir tous » deplie
+           le bloc concerne. -->
+      <template v-if="query.trim()">
+        <button v-if="expanded" type="button" class="palette-back" @click="expanded = false">
+          <ArrowLeft aria-hidden="true" /> Tous les résultats
+        </button>
 
-      <p v-if="!results.length && !searching" class="palette-empty">
-        Aucun résultat pour « {{ query }} » dans {{ scope === 'media' ? 'les médias' : 'la navigation et les réglages' }}.
-      </p>
+        <p v-if="!hasResults && !searching" class="palette-empty">Aucun résultat pour « {{ query }} ».</p>
 
-      <ListboxContent v-else id="command-palette-list" class="palette-list" aria-label="Destinations">
-        <ListboxItem v-for="item in results" :key="item.id" :value="item.id" class="palette-option">
-          <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
-          <span class="palette-label">{{ item.label }}</span>
-          <span class="palette-group">{{ item.group }}</span>
-        </ListboxItem>
-      </ListboxContent>
+        <ListboxContent v-else id="command-palette-list" class="palette-list" aria-label="Résultats">
+          <ListboxGroup v-if="!expanded && (mediaResults.length || searching)" class="palette-group-block">
+            <div class="palette-heading">
+              <ListboxGroupLabel>Médias</ListboxGroupLabel>
+            </div>
+            <div class="palette-covers">
+              <ListboxItem v-for="item in mediaPreview" :key="item.id" :value="item.id" class="palette-cover">
+                <img v-if="item.poster" :src="item.poster" alt="" loading="lazy" decoding="async" />
+                <span v-else class="palette-cover-fallback"><component :is="item.icon" aria-hidden="true" /></span>
+                <span class="palette-cover-title">{{ item.label }}</span>
+              </ListboxItem>
+              <ListboxItem v-if="mediaResults.length" :value="MORE_MEDIA" class="palette-cover palette-cover-more">
+                <span class="palette-cover-fallback"><ArrowRight aria-hidden="true" /></span>
+                <span class="palette-cover-title">Voir tous les médias</span>
+              </ListboxItem>
+            </div>
+          </ListboxGroup>
+
+          <ListboxGroup v-if="appVisible.length" class="palette-group-block">
+            <div v-if="!expanded" class="palette-heading">
+              <ListboxGroupLabel>Navigation &amp; réglages</ListboxGroupLabel>
+            </div>
+            <ListboxItem v-for="item in appVisible" :key="item.id" :value="item.id" class="palette-option">
+              <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
+              <span class="palette-label">{{ item.label }}</span>
+              <span class="palette-group">{{ item.group }}</span>
+            </ListboxItem>
+            <ListboxItem v-if="!expanded && appResults.length > APP_PREVIEW" :value="MORE_APP" class="palette-option palette-more">
+              <ArrowRight aria-hidden="true" />
+              <span class="palette-label">Voir les {{ appResults.length }} résultats</span>
+            </ListboxItem>
+          </ListboxGroup>
+        </ListboxContent>
+      </template>
     </ListboxRoot>
 
-    <p v-if="searching" class="palette-empty" role="status">Recherche dans le catalogue…</p>
+    <p v-if="searching && !expanded" class="palette-empty" role="status">Recherche dans le catalogue…</p>
   </ModalShell>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ListboxContent, ListboxFilter, ListboxItem, ListboxRoot } from 'reka-ui';
+import { ListboxContent, ListboxFilter, ListboxGroup, ListboxGroupLabel, ListboxItem, ListboxRoot } from 'reka-ui';
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import { refDebounced } from '@vueuse/core';
-import { useRouter } from 'vue-router';
-import { Film, Server, Tv } from '@lucide/vue';
+import { useRoute, useRouter } from 'vue-router';
+import { ArrowLeft, ArrowRight, Film, Server, Tv } from '@lucide/vue';
 import { api } from '@/api';
 import { mediaDetailPath } from '@/mediaUrl';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
-import { usePageSections } from '@/composables/usePageSections';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { destinationsFor, sectionsFor } from '@/navigation';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 import { settingsSections } from '@/settingsSections';
 import { rankCommands } from '@/utils/commandScore';
+import { proxyUrl } from '@/utils/mediaImage';
 
 const props = withDefaults(
   defineProps<{ isAdmin?: boolean; canModerate?: boolean }>(),
@@ -97,21 +118,24 @@ interface Command {
   group: string;
   to: string | Record<string, any>;
   icon?: any;
+  /** Affiche, pour les medias. */
+  poster?: string;
+  /** Une fiche media s'ouvre par-dessus la page courante, pas a sa place. */
+  media?: boolean;
 }
 
 const router = useRouter();
+const route = useRoute();
 const { arrInstances, downloadClients, load: loadSources } = useDownloadSources();
 const isOpen = ref(false);
 const query = ref('');
 const listboxRef = ref<{ highlightFirstItem?: () => void } | null>(null);
-type Scope = 'media' | 'app';
-const scope = ref<Scope>('media');
-
-/* Destinations dont on cherche d'abord un media ; ailleurs, on cherche d'abord une
-   page ou un reglage. C'est l'intention la plus probable, pas une regle stricte :
-   l'autre onglet reste a une touche. */
-const MEDIA_FIRST = new Set(['discover', 'requests', 'library']);
-const { destinationLabel } = usePageSections();
+// « Voir tous » cote navigation : la liste complete remplace l'apercu.
+const expanded = ref(false);
+const MEDIA_PREVIEW = 5;
+const APP_PREVIEW = 5;
+const MORE_MEDIA = '__more-media';
+const MORE_APP = '__more-app';
 /**
  * Recherche differee dans le catalogue.
  *
@@ -129,12 +153,14 @@ const mediaQuery = useQuery({
   queryFn: ({ signal }) => api<any>(`/api/discover/search?query=${encodeURIComponent(mediaNeedle.value)}&media_type=all`, { signal }),
   select: (payload: any): Command[] => {
     const items = Array.isArray(payload) ? payload : (payload?.items ?? []);
-    return items.slice(0, 8).map((item: any) => ({
+    return items.map((item: any) => ({
       id: `media-${item.media_type}-${item.tmdb_id || item.id}`,
       label: item.year ? `${item.title || item.name} (${item.year})` : (item.title || item.name),
       group: item.media_type === 'movie' ? 'Films' : 'Séries',
       to: mediaDetailPath(item, undefined, { discover: true }),
       icon: item.media_type === 'movie' ? Film : Tv,
+      poster: proxyUrl(item.poster_url, { width: 160 }) || undefined,
+      media: true,
     }));
   },
   enabled: computed(() => isOpen.value && mediaNeedle.value.length >= MIN_MEDIA_QUERY),
@@ -216,27 +242,53 @@ const commands = computed<Command[]>(() => {
     }
   }
 
-  return items;
+  // Une meme destination peut venir de la navigation et des reglages (« Plex &
+  // Bibliotheque » sous Services) : on ne garde que la premiere occurrence d'un meme
+  // libelle dans un meme groupe.
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.group} ${item.label}`;
+    return !seen.has(key) && Boolean(seen.add(key));
+  });
 });
 
-const scopeTabs = computed(() => [
-  { key: 'media', label: 'Médias', count: mediaResults.value.length || null },
-  { key: 'app', label: 'Navigation & réglages', count: appResults.value.length || null },
-]);
-
 // Les libelles commencant par la saisie passent devant les simples correspondances.
-const appResults = computed<Command[]>(() => rankCommands(commands.value, query.value));
+const appResults = computed<Command[]>(() => (query.value.trim() ? rankCommands(commands.value, query.value) : []));
+const mediaPreview = computed(() => mediaResults.value.slice(0, MEDIA_PREVIEW));
+const appVisible = computed(() => (expanded.value ? appResults.value : appResults.value.slice(0, APP_PREVIEW)));
+const results = computed<Command[]>(() => (expanded.value ? appVisible.value : [...mediaPreview.value, ...appVisible.value]));
+const hasResults = computed(() => results.value.length > 0);
 
-const results = computed<Command[]>(() =>
-  query.value.trim() && scope.value === 'media' ? mediaResults.value : appResults.value
-);
+// Nouvelle saisie : on revient a l'apercu des deux blocs.
+watch(query, () => { expanded.value = false; });
 
 // Nouveaux resultats (frappe, onglet, reponse du catalogue) : Entree vise le premier.
 watch(results, () => {
   void nextTick(() => listboxRef.value?.highlightFirstItem?.());
 });
 
+/* La rangee d'affiches se parcourt aussi avec ← → : elle est horizontale a l'ecran.
+   Les affiches se suivant dans la liste, gauche/droite equivalent a haut/bas tant que
+   l'option active en est une ; ailleurs, les fleches gardent leur role dans le champ. */
+function onArrowAcross(event: KeyboardEvent): void {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  const active = document.querySelector('.palette-cover[data-highlighted]');
+  if (!active) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const key = event.key === 'ArrowRight' ? 'ArrowDown' : 'ArrowUp';
+  event.target?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+}
+
 function onPick(id: unknown): void {
+  if (id === MORE_APP) {
+    expanded.value = true;
+    return;
+  }
+  if (id === MORE_MEDIA) {
+    void activate({ id: MORE_MEDIA, label: '', group: '', to: { path: '/discover', query: { q: query.value.trim() } } });
+    return;
+  }
   void activate(results.value.find((item) => item.id === id));
 }
 
@@ -247,7 +299,10 @@ async function activate(item?: Command): Promise<void> {
   // qui annulerait la navigation si celle-ci n'etait pas encore inscrite. Une fois la
   // route poussee, l'entree courante ne porte plus le jeton de la modale et ce back()
   // est correctement ignore.
-  await router.push(item.to as any);
+  // Une fiche media passe par ouvrirFiche, comme partout ailleurs : elle se pose en
+  // feuille au-dessus de la page d'ou l'on a ouvert la palette.
+  if (item.media) await ouvrirFiche(router, item.to, route.fullPath);
+  else await router.push(item.to as any);
   close();
 }
 
@@ -255,15 +310,9 @@ async function activate(item?: Command): Promise<void> {
  *  recherche globale ne doit pas obliger a retaper ce qu'on vient d'ecrire. */
 function open(prefill = ''): void {
   isOpen.value = true;
-  scope.value = MEDIA_FIRST.has(currentDestinationKey()) ? 'media' : 'app';
+  expanded.value = false;
   query.value = prefill;
   if (props.isAdmin) void loadSources();
-}
-
-/** Cle de la destination courante, deduite de son libelle affiche. */
-function currentDestinationKey(): string {
-  const label = destinationLabel.value;
-  return destinationsFor(props.isAdmin, props.canModerate).find((item) => item.label === label)?.key || '';
 }
 
 function close(): void {
@@ -285,6 +334,19 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 defineExpose({ open, close });
 </script>
 
+<style lang="scss">
+/* En-tete de ModalShell masque : le champ suffit. Le titre reste lu par les lecteurs
+   d'ecran ; Echap et le clic a l'exterieur ferment la palette. */
+.command-palette .panel-head {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+</style>
+
 <style scoped lang="scss">
 .palette-input {
   width: 100%;
@@ -296,7 +358,67 @@ defineExpose({ open, close });
   color: var(--text);
 }
 
-.palette-scopes { margin-bottom: var(--space-3); }
+.palette-back {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.palette-back svg { width: 14px; height: 14px; }
+
+.palette-group-block { display: grid; gap: 2px; }
+.palette-group-block + .palette-group-block { margin-top: var(--space-3); }
+.palette-heading { padding: 0 var(--space-3) var(--space-1); color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+
+/* Rangee d'affiches : cinq medias, defilable si l'ecran est etroit. */
+.palette-covers {
+  display: flex;
+  gap: var(--space-2);
+  padding: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.palette-cover {
+  display: grid;
+  flex: none;
+  gap: var(--space-1);
+  width: 88px;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+}
+
+.palette-cover img,
+.palette-cover-fallback {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.palette-cover-fallback { display: grid; place-items: center; color: var(--muted); }
+.palette-cover-fallback svg { width: 20px; height: 20px; }
+.palette-cover-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.palette-cover[data-highlighted] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.palette-cover[data-highlighted] .palette-cover-title { color: var(--accent); }
+.palette-more .palette-label { color: var(--muted); }
 .palette-empty { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 
 .palette-list {
@@ -334,5 +456,7 @@ defineExpose({ open, close });
 @media (forced-colors: active) {
   .palette-option[data-highlighted] { forced-color-adjust: none; color: HighlightText; background: Highlight; }
   .palette-option[data-highlighted] .palette-label { color: HighlightText; }
+  .palette-cover[data-highlighted] { forced-color-adjust: none; background: Highlight; }
+  .palette-cover[data-highlighted] .palette-cover-title { color: HighlightText; }
 }
 </style>

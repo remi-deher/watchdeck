@@ -163,14 +163,13 @@
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
-import { useMediaQuery } from '@vueuse/core';
 import { AlertTriangle, Clock3, Columns, Download, Plus, Server } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
 import { useDownloadHistory } from '@/composables/useDownloadHistory';
 import { useDownloadSources } from '@/composables/useDownloadSources';
-import { readPreference, usePreference, writePreference } from '@/composables/usePreference';
+import { readPreference, writePreference } from '@/composables/usePreference';
 import { filterClients, torrentFacets } from '@/downloads/clientFilters';
 import { isUnmatched, needsEpisodeImport, requiresIntervention, rowKey, statusKey } from '@/downloads/queueRules';
 import ConfirmModal from '@/components/ConfirmModal.vue';
@@ -284,21 +283,9 @@ const clientCategory = ref<string | string[]>('');
 const clientOwnership = ref('');
 const clientTracker = ref<string | string[]>('');
 
-/* En dessous de 900px, `FilterSidebar` n'est plus une colonne mais une feuille modale
-   (meme seuil que le composant). Rejouer telle quelle la preference « colonne ouverte »
-   du bureau ouvrait donc la page derriere une modale que personne n'avait demandee --
-   vide de surcroit sur l'onglet « Vue d'ensemble », qui n'a pas de filtres -- en
-   verrouillant au passage le defilement du corps. */
-const filtersAsModal = useMediaQuery('(max-width: 900px)');
-const filterSidebarCollapsed = usePreference('torrent-filter-sidebar-collapsed', false, { legacyKeys: ['watchdeck:torrent-filter-sidebar-collapsed'] });
-const filtersOpen = ref(!filtersAsModal.value && !filterSidebarCollapsed.value);
-watch(filtersAsModal, isModal => { if (isModal) filtersOpen.value = false; });
-watch(filtersOpen, v => {
-  // Fermer la feuille modale sur telephone ne doit pas replier la colonne du bureau :
-  // ce sont deux gestes differents pour deux surfaces differentes.
-  if (filtersAsModal.value) return;
-  filterSidebarCollapsed.value = !v;
-});
+// Le panneau de filtres s'ouvre a la demande, comme partout : il sort de la barre et
+// recouvre le haut de la page, il ne peut donc plus etre ouvert d'office.
+const filtersOpen = ref(false);
 
 function resetFilters() {
   query.value = ''; instance.value = ''; status.value = ''; statusFilter.value = '';
@@ -682,7 +669,6 @@ onMounted(async () => {
 .download-source-empty h2{margin:0;font-size:var(--fs-md)}
 .download-source-empty p{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}
 .client-table-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-3)}
-:deep(.filter-sidebar-bare){top:92px;max-height:calc(100dvh - 108px)}
 @media(max-width:800px){.client-header-actions{width:100%;gap:6px;flex-wrap:wrap}.client-header-actions .badge{display:none}}
 @media(max-width:640px){.download-source-empty{align-items:flex-start;flex-wrap:wrap}.download-source-empty>div{min-width:calc(100% - 50px)}.download-source-empty>a{margin-left:44px}}
 </style>

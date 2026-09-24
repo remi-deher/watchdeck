@@ -26,7 +26,7 @@ const TONES: Record<string, string> = {
   active: 'success',
   sent: 'success',
   closed: 'success',
-  sent_to_arr: 'info',
+  sent_to_arr: 'warning',
   downloading: 'info',
   investigating: 'info',
   running: 'info',

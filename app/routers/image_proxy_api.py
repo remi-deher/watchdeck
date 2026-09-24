@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import logging
 import os as _os
+import re
 import time
 from io import BytesIO
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -191,6 +192,7 @@ async def image_proxy(
         raise HTTPException(400, "Une source d'image unique est requise")
 
     upstream_headers: dict[str, str] = {}
+    plex_base: str | None = None
     if plex_path:
         parsed_path = urlparse(plex_path)
         if (
@@ -215,7 +217,8 @@ async def image_proxy(
             ]
         )
         safe_path = urlunparse(("", "", parsed_path.path, "", safe_query, ""))
-        url = f"{settings.plex_url.rstrip('/')}{safe_path}"
+        plex_base = settings.plex_url.rstrip("/")
+        url = f"{plex_base}{safe_path}"
         upstream_headers = {"X-Plex-Token": settings.plex_token}
 
     parsed = urlparse(url or "")
@@ -286,6 +289,13 @@ async def image_proxy(
                                 safe_url,
                                 redirect_target,
                             )
+                    if upstream.status_code == 404 and plex_base:
+                        # Plex change l'horodatage du chemin (`/thumb/<ts>`) a chaque
+                        # rafraichissement des metadonnees : l'ancien chemin memorise
+                        # repond 404. On relit le chemin courant de l'element.
+                        fresh = await _current_plex_image_path(client, plex_base, parsed.path, upstream_headers)
+                        if fresh:
+                            upstream = await client.get(f"{plex_base}{fresh}", headers=upstream_headers)
                     upstream.raise_for_status()
                 content_type = (
                     upstream.headers.get("content-type", "application/octet-stream").split(";")[0].strip().lower()
@@ -317,6 +327,32 @@ async def image_proxy(
             variant_cached_at = time.time()
             await asyncio.to_thread(_write_image_cache, variant_key, content, content_type, variant_cached_at)
         return _image_response(content, content_type, _variant_etag(variant_key, variant_cached_at))
+
+
+_PLEX_IMAGE_PATH = re.compile(r"^/library/metadata/(\d+)/(thumb|art|banner|clearLogo)(?:/\d+)?$")
+
+
+async def _current_plex_image_path(
+    client: httpx.AsyncClient, plex_base: str, path: str, headers: dict[str, str]
+) -> str | None:
+    """Chemin actuel d'une image Plex dont l'horodatage memorise a expire."""
+    match = _PLEX_IMAGE_PATH.match(path)
+    if not match:
+        return None
+    rating_key, kind = match.groups()
+    try:
+        response = await client.get(
+            f"{plex_base}/library/metadata/{rating_key}", headers={**headers, "Accept": "application/json"}
+        )
+        response.raise_for_status()
+        items = response.json().get("MediaContainer", {}).get("Metadata") or []
+    except Exception as exc:
+        logger.warning("Image proxy: metadonnees Plex illisibles pour %s: %s", rating_key, exc)
+        return None
+    fresh = items[0].get(kind) if items else None
+    if not isinstance(fresh, str) or not _PLEX_IMAGE_PATH.match(fresh) or fresh == path:
+        return None
+    return fresh
 
 
 @router.get("/image-proxy/library/{library_item_id}", dependencies=[Depends(require_auth)])

@@ -4,9 +4,20 @@ import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import CommandPalette from './CommandPalette.vue';
 
 const push = vi.fn(() => Promise.resolve());
+const resolve = (to) => {
+  if (typeof to !== 'string') return { path: to.path, query: to.query || {}, hash: '' };
+  const [path, qs = ''] = to.split('?');
+  return { path, query: Object.fromEntries(new URLSearchParams(qs)), hash: '' };
+};
+
+vi.mock('@/api', () => ({
+  api: vi.fn(() => Promise.resolve({ items: Array.from({ length: 7 }, (_, i) => ({
+    media_type: 'movie', tmdb_id: 100 + i, title: `Dune ${i}`, poster_url: `/api/image-proxy?url=p${i}`,
+  })) })),
+}));
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, resolve }),
   useRoute: () => ({ path: '/discover', query: {}, fullPath: '/discover' }),
 }));
 
@@ -31,33 +42,35 @@ function pressCtrlK() {
 
 const optionTexts = (wrapper) => wrapper.findAll('[role="option"]').map((node) => node.text());
 
-/**
- * La palette s'ouvre sur l'onglet le plus probable au vu de la page : depuis
- * /discover, c'est « Médias ». Les tests qui verifient la navigation et les reglages
- * basculent donc explicitement sur l'autre perimetre.
- */
-async function selectAppScope(wrapper) {
-  const tabs = wrapper.findAll('[role="tab"]');
-  // Les onglets (Reka UI) s'activent a l'appui, comme des onglets natifs.
-  await tabs[tabs.length - 1].trigger('mousedown', { button: 0 });
-  await flushPromises();
-}
-
 describe('CommandPalette', () => {
   beforeEach(() => push.mockClear());
 
   it('reste fermée tant que Ctrl+K n’a pas été pressé', () => {
     const wrapper = factory();
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    expect(wrapper.find('.palette-input').exists()).toBe(false);
     wrapper.unmount();
   });
 
-  it('s’ouvre sur Ctrl+K et liste navigation, réglages et instances', async () => {
+  it('n’affiche rien tant que rien n’est saisi', async () => {
+    const wrapper = factory();
+    pressCtrlK();
+    await flushPromises();
+    expect(wrapper.findAll('[role="option"]')).toHaveLength(0);
+    wrapper.unmount();
+  });
+
+  it('trouve navigation, réglages et instances par leur nom', async () => {
     const wrapper = factory();
     pressCtrlK();
     await flushPromises();
 
-    const texts = optionTexts(wrapper).join(' | ');
+    const all = [];
+    for (const needle of ['explorer', 'parametres', 'sonarr', 'qbittorrent']) {
+      await wrapper.get('.palette-input').setValue(needle);
+      await flushPromises();
+      all.push(...optionTexts(wrapper));
+    }
+    const texts = all.join(' | ');
     expect(texts).toContain('Explorer');
     expect(texts).toContain('Paramètres');
     expect(texts).toContain('Sonarr principal');
@@ -71,7 +84,6 @@ describe('CommandPalette', () => {
     await flushPromises();
 
     await wrapper.get('.palette-input').setValue('parametres');
-    await selectAppScope(wrapper);
 
     const texts = optionTexts(wrapper).join(' | ');
     expect(texts).toContain('Paramètres');
@@ -86,7 +98,6 @@ describe('CommandPalette', () => {
 
     const input = wrapper.get('.palette-input');
     await input.setValue('sonarr');
-    await selectAppScope(wrapper);
     await input.trigger('keydown', { key: 'Enter' });
     await flushPromises();
 
@@ -112,16 +123,15 @@ describe('CommandPalette', () => {
 
     const input = wrapper.get('.palette-input');
     await input.setValue('sonarr');
-    await selectAppScope(wrapper);
     await input.trigger('keydown', { key: 'Enter' });
     await flushPromises();
 
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
+    expect(wrapper.find('.palette-input').exists()).toBe(true);
 
     commitNavigation();
     await flushPromises();
 
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    expect(wrapper.find('.palette-input').exists()).toBe(false);
     wrapper.unmount();
   });
 
@@ -130,10 +140,15 @@ describe('CommandPalette', () => {
     pressCtrlK();
     await flushPromises();
 
-    const texts = optionTexts(wrapper).join(' | ');
-    expect(texts).toContain('Explorer');
-    expect(texts).not.toContain('Sonarr principal');
-    expect(texts).not.toContain('Version & mises à jour');
+    await wrapper.get('.palette-input').setValue('explorer');
+    await flushPromises();
+    expect(optionTexts(wrapper).join(' | ')).toContain('Explorer');
+    await wrapper.get('.palette-input').setValue('sonarr');
+    await flushPromises();
+    expect(optionTexts(wrapper).join(' | ')).not.toContain('Sonarr principal');
+    await wrapper.get('.palette-input').setValue('version');
+    await flushPromises();
+    expect(optionTexts(wrapper).join(' | ')).not.toContain('Version & mises à jour');
     wrapper.unmount();
   });
 
@@ -141,36 +156,102 @@ describe('CommandPalette', () => {
     const wrapper = factory();
     pressCtrlK();
     await flushPromises();
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
+    expect(wrapper.find('.palette-input').exists()).toBe(true);
 
     pressCtrlK();
     await flushPromises();
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    expect(wrapper.find('.palette-input').exists()).toBe(false);
     wrapper.unmount();
   });
 
-  it('ouvre l’onglet Médias depuis une page de contenu', async () => {
+  it('montre cinq affiches puis ouvre la fiche en feuille', async () => {
+    vi.useFakeTimers();
     const wrapper = factory();
     pressCtrlK();
     await flushPromises();
     await wrapper.get('.palette-input').setValue('dune');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+    vi.useRealTimers();
 
-    // Route mockee : /discover. Chercher « dune » y designe presque toujours un film,
-    // pas un reglage — l'onglet ouvert doit epouser cette intention.
-    const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs).toHaveLength(2);
-    expect(tabs[0].text()).toContain('Médias');
-    expect(tabs[0].attributes('aria-selected')).toBe('true');
+    const covers = wrapper.findAll('.palette-cover:not(.palette-cover-more)');
+    expect(covers).toHaveLength(5);
+    expect(covers[0].find('img').attributes('src')).toContain('image-proxy');
+
+    // Entree vise le premier resultat : la premiere affiche.
+    await wrapper.get('.palette-input').trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    // L'adresse de depart voyage dans l'etat : c'est elle qui fait de la fiche une feuille.
+    expect(push.mock.calls[0][0]).toMatchObject({
+      path: '/discover/media/discover/100',
+      state: { __overlayBackground: '/discover' },
+    });
     wrapper.unmount();
   });
 
-  it('n’affiche les onglets qu’une fois une recherche saisie', async () => {
+  it('« Voir tous les médias » ouvre Explorer sur la recherche', async () => {
+    vi.useFakeTimers();
     const wrapper = factory();
     pressCtrlK();
     await flushPromises();
-    // Palette vide : la liste complete des destinations suffit, un selecteur de
-    // perimetre n'aurait rien a departager.
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0);
+    await wrapper.get('.palette-input').setValue('dune');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+    vi.useRealTimers();
+
+    const input = wrapper.get('.palette-input');
+    for (let i = 0; i < 5; i += 1) await input.trigger('keydown', { key: 'ArrowDown' });
+    await input.trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    expect(push.mock.calls[0][0]).toMatchObject({ path: '/discover', query: { q: 'dune' } });
+    wrapper.unmount();
+  });
+
+  it('« Voir les résultats » déplie la liste de navigation', async () => {
+    const wrapper = factory();
+    pressCtrlK();
+    await flushPromises();
+    await wrapper.get('.palette-input').setValue('e');
+    await flushPromises();
+
+    expect(wrapper.findAll('.palette-option:not(.palette-more)')).toHaveLength(5);
+    const input = wrapper.get('.palette-input');
+    for (let i = 0; i < 5; i += 1) await input.trigger('keydown', { key: 'ArrowDown' });
+    await input.trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    expect(wrapper.findAll('.palette-option').length).toBeGreaterThan(5);
+    expect(wrapper.find('.palette-back').exists()).toBe(true);
+    expect(push).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+  it('parcourt les affiches avec ← →', async () => {
+    vi.useFakeTimers();
+    const wrapper = factory();
+    pressCtrlK();
+    await flushPromises();
+    await wrapper.get('.palette-input').setValue('dune');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+    vi.useRealTimers();
+
+    const input = wrapper.get('.palette-input');
+    await input.trigger('keydown', { key: 'ArrowRight' });
+    await input.trigger('keydown', { key: 'ArrowRight' });
+    await input.trigger('keydown', { key: 'ArrowLeft' });
+    await input.trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    expect(push.mock.calls[0][0]).toMatchObject({ path: '/discover/media/discover/101' });
+    wrapper.unmount();
+  });
+
+  it('ne liste qu’une fois une destination présente dans la navigation et les réglages', async () => {
+    const wrapper = factory();
+    pressCtrlK();
+    await flushPromises();
+    await wrapper.get('.palette-input').setValue('plex');
+    await flushPromises();
+    const labels = wrapper.findAll('.palette-option .palette-label').map((n) => n.text());
+    expect(labels.filter((l) => l === 'Plex & Bibliothèque')).toHaveLength(1);
     wrapper.unmount();
   });
 });

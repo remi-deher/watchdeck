@@ -30,6 +30,9 @@ const status = computed(() => {
   if (rawStatus === 'failed') {
     return { label: 'Échec', variant: 'error' };
   }
+  if (rawStatus === 'sent_to_arr') {
+    return { label: 'Transmise', variant: 'sent' };
+  }
   if (item.requested || item.request_id || rawStatus) {
     return { label: 'Demandé', variant: 'requested' };
   }
@@ -59,6 +62,7 @@ const status = computed(() => {
 .in-plex { background: rgba(22, 101, 52, .96); }
 .partial { color: #1a1200; background: rgba(245, 179, 26, .97); }
 .downloading { background: rgba(3, 105, 161, .96); }
+.sent { color: var(--accent-contrast, #1a1200); background: var(--accent); text-shadow: none; }
 .requested { background: rgba(63, 63, 70, .96); }
 .error { background: rgba(185, 28, 28, .96); }
 </style>

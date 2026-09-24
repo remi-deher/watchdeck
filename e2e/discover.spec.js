@@ -121,9 +121,8 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   await expect(navigation.getByRole("link", { name: "Calendrier" })).toBeVisible();
   await closeSections(page);
 
-  const filters = page.viewportSize().width <= 900
-    ? page.locator('.modal-panel')
-    : page.locator('.filter-sidebar');
+  // Un seul panneau a toutes les tailles : il sort de la barre de recherche.
+  const filters = page.locator('.filter-sheet');
   await expect(filters).toBeHidden();
   await page.getByRole("button", { name: /filtres/i }).click();
   await expect(filters).toBeVisible();
@@ -133,13 +132,9 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   const layoutFits = await filters.evaluate(element => element.scrollWidth <= element.clientWidth + 1);
   expect(layoutFits).toBe(true);
 
-  // Refermer avant de naviguer : sous 900px les filtres sont une modale, qui rend
-  // l'arriere-plan inert -- la navigation y est donc volontairement inatteignable.
-  if (page.viewportSize().width <= 900) {
-    await page.getByRole("button", { name: "Fermer" }).click();
-  } else {
-    await page.getByRole("button", { name: "Masquer les filtres" }).click();
-  }
+  // Refermer avant de naviguer, par le bouton meme qui l'a ouvert : le panneau
+  // prolonge la barre, qui reste atteignable.
+  await page.getByRole("button", { name: "Masquer les filtres" }).first().click();
   await expect(filters).toBeHidden();
 
   // Rouvrir : sur telephone la feuille a ete refermee pour atteindre les filtres.

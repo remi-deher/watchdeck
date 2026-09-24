@@ -1,4 +1,26 @@
-import { ref, computed, type Ref } from 'vue';
+import { ref, computed, type InjectionKey, type Ref } from 'vue';
+
+/** Filtre actif, affiche en puce retirable en tete du panneau de filtres. */
+export interface FilterChip {
+  key: string;
+  label: string;
+  onRemove: () => void;
+}
+
+/**
+ * Registre des groupes de puces poses dans le panneau de filtres.
+ *
+ * Chaque `UiChipGroup` rendu dans un `FilterSidebar` s'y declare et dit lui-meme ce qu'il
+ * retient : le panneau en tire ses puces de filtres actifs sans que chaque page ait a
+ * les decrire une seconde fois. L'ordre d'enregistrement suit celui du montage, donc
+ * celui des groupes a l'ecran.
+ */
+export interface FilterChipRegistry {
+  register: (id: symbol, chips: () => FilterChip[]) => void;
+  unregister: (id: symbol) => void;
+}
+
+export const FILTER_CHIP_REGISTRY: InjectionKey<FilterChipRegistry> = Symbol('filter-chip-registry');
 
 export interface UseFiltersDrawerOptions {
   onReset?: () => void;

@@ -46,8 +46,10 @@ export function ouvrirFiche(
   depuis: string,
   /** Etat supplementaire de l'entree : la liste parcourue, pour « precedent / suivant ». */
   extra: Record<string, unknown> = {},
-): void {
-  void router.push({ ...destinationDeFiche(router, cible), state: { ...extra, ...etatDeSurface(depuis) } });
+): Promise<unknown> {
+  // La promesse est rendue pour qui doit attendre la navigation (la palette, qui ne
+  // se ferme qu'une fois la fiche inscrite dans l'historique).
+  return Promise.resolve(router.push({ ...destinationDeFiche(router, cible), state: { ...extra, ...etatDeSurface(depuis) } }));
 }
 
 const CLE_VOISINS = '__sheetSiblings';
