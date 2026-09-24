@@ -1,9 +1,9 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
-import SessionDetailDrawer from './SessionDetailDrawer.vue';
+import SessionDetail from './SessionDetail.vue';
 
 function factory(session) {
-  return mount(SessionDetailDrawer, {
+  return mount(SessionDetail, {
     props: { session },
     global: {
       stubs: {
@@ -21,7 +21,7 @@ function connectionKpi(wrapper) {
   return wrapper.get('.network-kpi');
 }
 
-describe('SessionDetailDrawer - connexion', () => {
+describe('SessionDetail - connexion', () => {
   it('affiche Locale pour stream_location=lan', () => {
     const wrapper = factory({ title: 'Film', location: 'lan', geo_status: 'resolved' });
     expect(connectionKpi(wrapper).text()).toContain('Locale');

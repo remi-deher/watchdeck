@@ -7,6 +7,21 @@ import TorrentClientsTable from './TorrentClientsTable.vue';
 const api = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => api(...args) }));
 
+// Le detail d'un torrent s'ouvre dans la feuille : une navigation vers sa route, posee
+// sur la page courante.
+const push = vi.fn();
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ fullPath: '/downloads?view=clients&sub=instances' }),
+  useRouter: () => ({
+    push,
+    resolve: (to) => {
+      const [path, query = ''] = String(to).split('?');
+      return { path, query: Object.fromEntries(new URLSearchParams(query)), hash: '' };
+    },
+  }),
+}));
+const openedPath = () => push.mock.calls.at(-1)?.[0]?.path;
+
 const rows = [
   { client_id: 1, client_name: 'Maison', hash: 'bbb', title: 'Zulu', status: 'downloading', progress: 20, size: 2000, download_speed: 20, upload_speed: 2, ratio: 0.1, eta: 90, category: 'series', tags: 'watchdeck' },
   { client_id: 2, client_name: 'Seedbox', hash: 'aaa', title: 'Alpha', status: 'pausedDL', progress: 60, size: 1000, download_speed: 0, upload_speed: 1, ratio: 1.2, eta: 0, category: 'films', tags: '' },
@@ -30,6 +45,7 @@ function factory() {
 describe('TorrentClientsTable', () => {
   beforeEach(() => {
     api.mockReset().mockResolvedValue({ ok: true });
+    push.mockReset();
     localStorage.clear();
   });
 
@@ -60,17 +76,18 @@ describe('TorrentClientsTable', () => {
     expect(controlCalls.every(call => JSON.parse(call[1].body).action === 'pause')).toBe(true);
   });
 
-  it('ouvre le panneau de détails depuis le titre', async () => {
+  it('ouvre la fiche du torrent dans la feuille depuis le titre', async () => {
     const wrapper = factory();
     await wrapper.find('.torrent-title').trigger('click');
-    expect(wrapper.find('aside').text()).toContain('Seedbox');
-    expect(wrapper.find('aside').text()).toContain('aaa');
+    expect(openedPath()).toBe('/downloads/torrent/2/aaa');
+    // Posee sur la page courante, et non a sa place.
+    expect(push.mock.calls.at(-1)[0].state.__overlayBackground).toBe('/downloads?view=clients&sub=instances');
   });
 
   it('ouvre le détail au clic sur une ligne desktop sans la sélectionner', async () => {
     const wrapper = factory();
     await wrapper.find('tbody tr').trigger('click');
-    expect(wrapper.find('aside').text()).toContain('Seedbox');
+    expect(openedPath()).toBe('/downloads/torrent/2/aaa');
     expect(wrapper.text()).not.toContain('1 sélectionné(s)');
   });
 
@@ -79,7 +96,7 @@ describe('TorrentClientsTable', () => {
     window.matchMedia = vi.fn().mockReturnValue({ matches: true });
     const wrapper = factory();
     await wrapper.find('tbody tr').trigger('click');
-    expect(wrapper.find('aside').text()).toContain('Seedbox');
+    expect(openedPath()).toBe('/downloads/torrent/2/aaa');
     expect(wrapper.text()).not.toContain('1 sélectionné(s)');
     window.matchMedia = originalMatchMedia;
   });
@@ -101,7 +118,7 @@ describe('TorrentClientsTable', () => {
     const wrapper = factory();
     await wrapper.find('tbody tr').trigger('click', { ctrlKey: true });
     expect(wrapper.text()).toContain('1 sélectionné(s)');
-    expect(wrapper.find('aside').exists()).toBe(false);
+    expect(push).not.toHaveBeenCalled();
   });
 
   it('sélectionne tous les torrents avec Ctrl+A', async () => {
