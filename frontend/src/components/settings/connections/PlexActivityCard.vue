@@ -29,7 +29,7 @@
     </div>
     <p class="connection-result">Cette collecte utilise directement Plex. Elle ne dépend pas de Tautulli.</p>
     <div class="card-actions">
-      <button class="secondary" :disabled="busy" @click="recalculateLocations"><MapPinned/>Recalculer les lieux</button>
+      <UiButton :disabled="busy" @click="recalculateLocations"><MapPinned/>Recalculer les lieux</UiButton>
     </div>
     <p v-if="status" class="connection-result">{{ status }}</p>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)"/>
@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { Activity, MapPinned } from '@lucide/vue';
 import { api } from '@/api';

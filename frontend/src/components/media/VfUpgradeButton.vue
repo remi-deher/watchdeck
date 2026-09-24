@@ -3,10 +3,10 @@
     <button v-if="label" type="button" class="badge mdh-link vf-upgrade-trigger" :class="{ active: hasSuggestion }" @click="toggle">
       <Search :size="14" /> {{ label }}<strong v-if="hasSuggestion" class="vf-upgrade-count">{{ publishedReleases.length }}</strong>
     </button>
-    <button v-else class="icon-button vf-upgrade-trigger" :class="{ active: hasSuggestion }" type="button" :title="triggerTitle" :aria-label="triggerTitle" @click="toggle">
+    <UiButton v-else class="vf-upgrade-trigger" :class="{ active: hasSuggestion }" :title="triggerTitle" :aria-label="triggerTitle" @click="toggle">
       <Search v-if="!hasSuggestion" :size="16" />
       <span v-else class="vf-upgrade-count vf-upgrade-badge">{{ publishedReleases.length }}</span>
-    </button>
+    </UiButton>
 
     <ModalShell v-if="open" :title="modalTitle" :subtitle="`Recherche via ${arrName}`" panel-class="vf-upgrade-modal" :error="error" :busy="Boolean(grabbing)" @close="open=false">
       <UiSegmentedControl :model-value="mode" :options="modeOptions" :ariaLabel="'Mode de recherche'" @update:model-value="handleModeChange" />
@@ -69,7 +69,7 @@
               </div>
               <strong class="vf-upgrade-release-title">{{ release.title }}</strong>
             </div>
-            <button class="icon-button copy-button" type="button" title="Copier le nom" aria-label="Copier le nom de la release" @click="copyTitle(release.title)"><Copy :size="15" /></button>
+            <UiButton icon-only class="copy-button" title="Copier le nom" aria-label="Copier le nom de la release" @click="copyTitle(release.title)"><Copy :size="15" /></UiButton>
           </header>
 
           <!-- Motif de rejet explicite et lisible directement -->

@@ -136,8 +136,8 @@
 
         <template v-if="editing.seer_user_id">
           <div class="actions">
-            <button class="secondary" @click="$emit('user-action','seer-complete')"><RefreshCw/>Compléter depuis Seer</button>
-            <button class="secondary danger" @click="$emit('unlink-seer')"><Unlink/>Dissocier</button>
+            <UiButton @click="$emit('user-action','seer-complete')"><RefreshCw/>Compléter depuis Seer</UiButton>
+            <UiButton variant="danger" @click="$emit('unlink-seer')"><Unlink/>Dissocier</UiButton>
           </div>
         </template>
         <template v-else>
@@ -150,8 +150,8 @@
             </select>
           </label>
           <div class="actions">
-            <button class="secondary" :disabled="!seerTarget" @click="$emit('link-seer', seerTarget)"><Link/>Lier ce compte Seer</button>
-            <button class="secondary" @click="$emit('user-action','seer-automatch')"><RefreshCw/>Chercher automatiquement</button>
+            <UiButton :disabled="!seerTarget" @click="$emit('link-seer', seerTarget)"><Link/>Lier ce compte Seer</UiButton>
+            <UiButton @click="$emit('user-action','seer-automatch')"><RefreshCw/>Chercher automatiquement</UiButton>
           </div>
         </template>
       </template>
@@ -201,7 +201,7 @@
              l'allure de l'action principale alors qu'il supprime un compte pour de bon. -->
         <div v-if="mergeKeep" class="merge-commit">
           <span class="merge-warning"><TriangleAlert/>{{ displayName(mergeKeep === 'this' ? resolvedMergeTarget : editing) }} sera supprimé définitivement.</span>
-          <button class="secondary danger" @click="$emit('merge', { otherId: resolvedMergeTarget.id, keep: mergeKeep })"><Merge/>Fusionner</button>
+          <UiButton variant="danger" @click="$emit('merge', { otherId: resolvedMergeTarget.id, keep: mergeKeep })"><Merge/>Fusionner</UiButton>
         </div>
       </template>
     </section>

@@ -383,7 +383,7 @@ import MediaCardShell from '@/components/media/MediaCardShell.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 
-// La table embarque la DataTable PrimeVue (~500 Ko) : elle n'est utile que sur l'onglet
+// La table des torrents (TanStack, inspecteur, menus) n'est utile que sur l'onglet
 // Clients, la charger a la demande garde l'apercu et la file d'attente legers.
 const TorrentClientsTable=defineAsyncComponent(()=>import('@/components/downloads/TorrentClientsTable.vue'));
 const route=useRoute(),router=useRouter();

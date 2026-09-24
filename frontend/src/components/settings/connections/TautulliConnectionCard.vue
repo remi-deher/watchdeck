@@ -13,10 +13,10 @@
       Aucun import automatique n’est effectué : Tautulli reste une source historique manuelle et facultative.
     </p>
     <div class="card-actions">
-      <button class="secondary" :disabled="busy" @click="testConnection"><PlugZap/>Tester</button>
+      <UiButton :disabled="busy" @click="testConnection"><PlugZap/>Tester</UiButton>
       <select v-model.number="importLength"><option :value="500">500 sessions</option><option :value="2000">2 000 sessions</option><option :value="10000">Tout (10 000 max.)</option></select>
-      <button class="secondary" :disabled="busy" @click="runImport"><History/>Importer</button>
-      <button class="secondary" :disabled="busy" @click="normalizeHistory"><RefreshCw/>Normaliser l'historique</button>
+      <UiButton :disabled="busy" @click="runImport"><History/>Importer</UiButton>
+      <UiButton :disabled="busy" @click="normalizeHistory"><RefreshCw/>Normaliser l'historique</UiButton>
     </div>
     <p v-if="status" class="connection-result">{{ status }}</p>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)"/>
@@ -24,6 +24,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from 'vue';
 import { useMutation } from '@tanstack/vue-query';
 import { History, PlugZap, RefreshCw } from '@lucide/vue';

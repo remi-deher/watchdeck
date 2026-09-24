@@ -11,12 +11,13 @@
       <ConnectionTestAction :loading="testingWatchlist" label="Tester l'Universal Watchlist" @test="testWatchlist">
         <template #icon><Rss /></template>
       </ConnectionTestAction>
-      <button class="secondary" @click="startPlexSso"><LogIn/>Connexion Plex SSO</button>
+      <UiButton @click="startPlexSso"><LogIn/>Connexion Plex SSO</UiButton>
     </div>
   </SettingsCard>
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed } from 'vue';
 import { LogIn, Rss, Server } from '@lucide/vue';
 import { api } from '@/api';

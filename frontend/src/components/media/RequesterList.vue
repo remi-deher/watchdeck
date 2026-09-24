@@ -11,9 +11,9 @@
         />
       </span>
       <div v-if="admin" class="requester-menu-wrap">
-        <button class="icon-button" title="Actions" aria-label="Actions" @click.stop="toggleMenu(uid)">
+        <UiButton icon-only title="Actions" aria-label="Actions" @click.stop="toggleMenu(uid)">
           <MoreVertical />
-        </button>
+        </UiButton>
         <div v-if="openMenu === uid" class="requester-menu" @click.stop>
           <button :disabled="busy" @click="emitAndClose('notify-user', row.id, uid, ['request'])">
             <Mail /> Renvoyer mail demande
@@ -24,9 +24,9 @@
           <button v-if="index !== 0" :disabled="busy" @click="emitAndClose('promote-requester', row, uid)">
             <Crown /> Promouvoir principal
           </button>
-          <button class="danger" :disabled="busy" @click="emitAndClose('remove-requester', row, uid)">
+          <UiButton variant="danger" :disabled="busy" @click="emitAndClose('remove-requester', row, uid)">
             <UserMinus /> Retirer
-          </button>
+          </UiButton>
         </div>
       </div>
     </div>
@@ -34,6 +34,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Crown, Mail, MailCheck, MoreVertical, UserMinus } from '@lucide/vue';
 import { notifiedStatus } from './requestRules';

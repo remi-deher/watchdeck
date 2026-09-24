@@ -3,7 +3,7 @@
     <div class="settings-cards span-two">
       <SettingsCard title="Email" subtitle="Envoi des notifications par email (demandes, disponibilite, echecs) via un serveur SMTP." :icon="Mail" :status="form.email_enabled ? 'active' : 'inactive'" :collapsible="false">
         <template #actions>
-          <button class="secondary" :disabled="!form.email_enabled" @click.stop="testSmtp"><PlugZap/>Tester</button>
+          <UiButton :disabled="!form.email_enabled" @click.stop="testSmtp"><PlugZap/>Tester</UiButton>
         </template>
         <label class="check"><input v-model="form.email_enabled" type="checkbox"> Activer les emails</label>
         <label>Expediteur<input v-model="form.smtp_from" type="email"><small>Adresse "De :" utilisee pour tous les emails envoyes par Watchdeck.</small></label>
@@ -25,7 +25,7 @@
         :collapsible="false"
       >
         <template #actions>
-          <button class="secondary" :disabled="!form[`${channel.key}_enabled`]" @click.stop="testSaved(`/api/test/${channel.key}`)"><PlugZap/>Tester</button>
+          <UiButton :disabled="!form[`${channel.key}_enabled`]" @click.stop="testSaved(`/api/test/${channel.key}`)"><PlugZap/>Tester</UiButton>
         </template>
         <label class="check"><input v-model="form[`${channel.key}_enabled`]" type="checkbox"> Activer</label>
         <template v-if="channel.key==='discord'">
@@ -49,6 +49,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { Bell, Mail, Megaphone, MessageSquare, PlugZap, Send } from '@lucide/vue';
 import { api } from '@/api';
 import { form, success, fail, testSaved, save } from '@/settingsForm';

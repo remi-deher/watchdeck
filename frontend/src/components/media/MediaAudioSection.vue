@@ -35,15 +35,9 @@
                 <span v-if="season.counts?.sub_fr_absent" class="badge danger" title="Épisodes non-francophones sans sous-titre FR complet">Sub FR absent: {{ season.counts.sub_fr_absent }}</span>
                 <span v-if="season.counts?.sub_fr_not_default" class="badge pending" title="Épisodes avec sous-titre FR complet non activé par défaut">Sub FR non activé: {{ season.counts.sub_fr_not_default }}</span>
                 <span v-if="season.counts?.forced_fr_not_default" class="badge language-tag vf-secondary" title="Épisodes francophones avec sous-titre forcé FR (sign/trad) non activé par défaut">Forcé FR non activé: {{ season.counts.forced_fr_not_default }}</span>
-                <button
-                  v-if="admin && sourceId"
-                  class="icon-button"
-                  @click.prevent.stop="openAlignModal('season', season.season_number)"
-                  title="Aligner les pistes de cette saison sur Plex"
-                  aria-label="Aligner la saison"
-                >
+                <UiButton icon-only v-if="admin && sourceId" @click.prevent.stop="openAlignModal('season', season.season_number)" title="Aligner les pistes de cette saison sur Plex" aria-label="Aligner la saison">
                   <SlidersHorizontal :size="15" />
-                </button>
+                </UiButton>
                 <VfUpgradeButton
                   v-if="admin && sourceType && sourceId"
                   :source-type="sourceType"
@@ -53,7 +47,7 @@
                   :media-title="mediaTitle"
                   label="Rechercher"
                 />
-                <button class="icon-button" @click.prevent="$emit('correction', 'season', season.season_number, null)" title="Corriger Saison" aria-label="Corriger Saison"><MessageSquareWarning :size="16" /></button>
+                <UiButton icon-only @click.prevent="$emit('correction', 'season', season.season_number, null)" title="Corriger Saison" aria-label="Corriger Saison"><MessageSquareWarning :size="16" /></UiButton>
               </div>
             </div>
           </template>
@@ -73,15 +67,9 @@
                     <strong class="episode-title">{{ ep.episode }}. {{ ep.title || `Episode ${ep.episode}` }}</strong>
                     <span class="episode-actions">
                       <span v-if="ep.isKnownEpisode === false" class="badge pending" title="Non reconnu par Sonarr/TheTVDB : compté hors statut VF/VO/Mixte de la série">Hors TVDB</span>
-                      <button
-                        v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
-                        class="icon-button"
-                        @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)"
-                        title="Aligner les pistes de cet épisode sur Plex"
-                        aria-label="Aligner l'épisode"
-                      >
+                      <UiButton icon-only v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'" @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)" title="Aligner les pistes de cet épisode sur Plex" aria-label="Aligner l'épisode">
                         <SlidersHorizontal :size="14" />
-                      </button>
+                      </UiButton>
                       <VfUpgradeButton
                         v-if="admin && sourceType && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
                         :source-type="sourceType"
@@ -228,6 +216,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from "vue";
 import { MessageSquareWarning, ChevronDown, SlidersHorizontal } from "@lucide/vue";
 import VfUpgradeButton from "@/components/media/VfUpgradeButton.vue";

@@ -5,8 +5,8 @@
         <label class="check"><input v-model="includeSecrets" type="checkbox"> Inclure les identifiants</label>
         <small class="check-hint">Sans cette case, les tokens Plex/*arr et cles de notification sont omis de l'export JSON — pratique pour partager une config sans exposer de secrets.</small>
         <div class="actions">
-          <a class="secondary" :href="includeSecrets?'/api/export?include_secrets=true':'/api/export'"><Download/>Exporter en JSON</a>
-          <a class="secondary" href="/api/backup/db"><HardDriveDownload/>Backup complet</a>
+          <UiButton :href="includeSecrets?'/api/export?include_secrets=true':'/api/export'"><Download/>Exporter en JSON</UiButton>
+          <UiButton href="/api/backup/db"><HardDriveDownload/>Backup complet</UiButton>
         </div>
         <p class="warning-text">Ces fichiers peuvent contenir des secrets.</p>
         <p class="hint">"Exporter en JSON" produit un fichier lisible et portable (utilisateurs, parametres, demandes, instances *arr, clients de telechargement, fournisseurs et modeles d'email) reutilisable avec "Importer un export JSON" ci-dessous. Les journaux et donnees regenerables (bibliotheque, historiques, cache) sont inclus pour reference mais jamais reimportes. "Backup complet" produit un dump PostgreSQL brut, destine a une restauration via <code>docker compose --profile operations run --rm restore</code> (voir le README).</p>
@@ -15,14 +15,14 @@
       <SettingsCard title="Importer un export JSON" subtitle="Fusionne un export JSON precedent dans cette instance, sans rien supprimer." :icon="Upload" status="neutral" :collapsible="false">
         <input ref="jsonInput" type="file" accept=".json">
         <div class="actions">
-          <button class="secondary" :disabled="busy" @click="importJson"><Upload/>Fusionner les donnees</button>
+          <UiButton :disabled="busy" @click="importJson"><Upload/>Fusionner les donnees</UiButton>
         </div>
         <p class="hint">Les utilisateurs et donnees du fichier sont ajoutes ou mis a jour (upsert) par-dessus l'existant — rien n'est efface. Utile pour restaurer un export JSON ou fusionner deux instances.</p>
       </SettingsCard>
 
       <SettingsCard title="Reprise apres sinistre" subtitle="Sauvegarde complete (base + cles + configuration) et restauration a l'identique." :icon="ShieldAlert" status="neutral" :collapsible="false">
         <div class="actions">
-          <a class="secondary" href="/api/backup/full"><ShieldAlert/>Telecharger la sauvegarde complete</a>
+          <UiButton href="/api/backup/full"><ShieldAlert/>Telecharger la sauvegarde complete</UiButton>
         </div>
         <p class="hint">Archive unique contenant le dump PostgreSQL complet, la cle de chiffrement et les autres fichiers hors base, plus un export JSON de repli. C'est la seule methode qui restaure absolument tout a l'identique (y compris le compte admin et les historiques) — l'export JSON ci-dessus en est volontairement une version partielle.</p>
 
@@ -30,7 +30,7 @@
         <template v-if="fullBackupSelected">
           <p class="warning-text">Cette action remplace ENTIEREMENT la base de donnees et la configuration actuelles par celles de l'archive. Rien n'est fusionne : tout ce qui existe aujourd'hui sur cette instance (reglages, utilisateurs, demandes, historiques) sera perdu, hormis une sauvegarde de securite automatique prise juste avant. L'application redemarre ensuite.</p>
           <label>Confirmation<input v-model="fullRestoreConfirmation" class="mono" placeholder="REMPLACER"></label>
-          <button class="primary danger-button" :disabled="busy||fullRestoreConfirmation!=='REMPLACER'" @click="restoreFullBackup"><ShieldAlert/>Tout remplacer</button>
+          <UiButton variant="primary" class="danger-button" :disabled="busy||fullRestoreConfirmation!=='REMPLACER'" @click="restoreFullBackup"><ShieldAlert/>Tout remplacer</UiButton>
         </template>
         <p v-if="restoreRestarting" class="hint">Restauration terminee, l'application redemarre. Cette page va se recharger automatiquement.</p>
       </SettingsCard>
@@ -38,7 +38,7 @@
       <SettingsCard title="Ancienne base SQLite" subtitle="Migration ponctuelle depuis une installation Plex RSS Monitor / Plexarr / Watchdeck pre-PostgreSQL." :icon="DatabaseZap" status="neutral" :collapsible="false">
         <input ref="sqliteInput" type="file" accept=".db,.sqlite,.sqlite3" @change="resetInspection">
         <div class="actions">
-          <button class="secondary" :disabled="busy" @click="inspectSqlite"><Search/>Inspecter</button>
+          <UiButton :disabled="busy" @click="inspectSqlite"><Search/>Inspecter</UiButton>
         </div>
         <div v-if="inspection" class="migration-summary">
           <strong>{{ inspection.total_rows.toLocaleString() }} lignes</strong>
@@ -50,7 +50,7 @@
         <template v-if="inspection">
           <p class="warning-text">Une sauvegarde PostgreSQL sera creee avant le remplacement.</p>
           <label>Confirmation<input v-model="confirmation" class="mono" placeholder="REMPLACER"></label>
-          <button class="primary danger-button" :disabled="busy||confirmation!=='REMPLACER'" @click="migrateSqlite"><DatabaseZap/>Remplacer</button>
+          <UiButton variant="primary" class="danger-button" :disabled="busy||confirmation!=='REMPLACER'" @click="migrateSqlite"><DatabaseZap/>Remplacer</UiButton>
         </template>
       </SettingsCard>
 
@@ -66,13 +66,14 @@
             <strong>{{ entry.title }}</strong><br>
             <small>{{ mediaTypeLabel(entry.media_type) }} · supprime le {{ formatDate(entry.deleted_at) }}{{ entry.deleted_by ? ` par ${entry.deleted_by}` : '' }}</small>
           </div>
-          <button class="secondary" :disabled="busy" @click="forgetEntry(entry.id)">Oublier</button>
+          <UiButton :disabled="busy" @click="forgetEntry(entry.id)">Oublier</UiButton>
         </div>
       </SettingsCard>
     </div>
   </div>
 </template>
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { formatDate } from '@/utils/format';
 import { mediaTypeLabel } from '@/utils/labels';
 import { computed, ref } from 'vue';

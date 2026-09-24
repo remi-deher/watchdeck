@@ -4,12 +4,12 @@
       <select title="Niveau de titre" @change="onHeadingChange">
         <option value="">Titre</option><option value="1">Titre 1</option><option value="2">Titre 2</option><option value="3">Titre 3</option>
       </select>
-      <button class="icon-button" title="Gras" aria-label="Gras" @click="wrapSelection('**','**','texte en gras')"><Bold/></button>
-      <button class="icon-button" title="Italique" aria-label="Italique" @click="wrapSelection('*','*','texte en italique')"><Italic/></button>
-      <button class="icon-button" title="Liste a puces" aria-label="Liste a puces" @click="prefixLines('- ')"><List/></button>
-      <button class="icon-button" title="Liste numerotee" aria-label="Liste numerotee" @click="prefixLines('1. ')"><ListOrdered/></button>
-      <button class="icon-button" title="Citation" aria-label="Citation" @click="prefixLines('> ')"><Quote/></button>
-      <button class="icon-button" title="Lien" aria-label="Lien" @click="insertLink"><LinkIcon/></button>
+      <UiButton icon-only title="Gras" aria-label="Gras" @click="wrapSelection('**','**','texte en gras')"><Bold/></UiButton>
+      <UiButton icon-only title="Italique" aria-label="Italique" @click="wrapSelection('*','*','texte en italique')"><Italic/></UiButton>
+      <UiButton icon-only title="Liste a puces" aria-label="Liste a puces" @click="prefixLines('- ')"><List/></UiButton>
+      <UiButton icon-only title="Liste numerotee" aria-label="Liste numerotee" @click="prefixLines('1. ')"><ListOrdered/></UiButton>
+      <UiButton icon-only title="Citation" aria-label="Citation" @click="prefixLines('> ')"><Quote/></UiButton>
+      <UiButton icon-only title="Lien" aria-label="Lien" @click="insertLink"><LinkIcon/></UiButton>
       <details v-if="variables.length" class="variable-picker">
         <summary><Braces/>Variables</summary>
         <div class="variable-menu">
@@ -22,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { nextTick, ref } from 'vue';
 import { Bold, Braces, Italic, Link as LinkIcon, List, ListOrdered, Quote } from '@lucide/vue';
 

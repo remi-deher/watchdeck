@@ -7,7 +7,7 @@
     :collapsible="false"
   >
     <template #actions>
-      <button class="secondary" @click.stop="openModal()"><Plus/>Ajouter</button>
+      <UiButton @click.stop="openModal()"><Plus/>Ajouter</UiButton>
     </template>
     <small style="margin-top:-4px;margin-bottom:4px;color:var(--muted)">
       Plusieurs fournisseurs peuvent être actifs en parallèle : en cas d'échec, l'envoi bascule
@@ -16,8 +16,8 @@
     <UiDataTable label="Fournisseurs d'envoi d'email" :rows="providers" :columns="PROVIDER_COLUMNS" :row-key="(p: any) => p.id">
       <template #empty><p class="empty">Aucun fournisseur configuré — les notifications par email ne peuvent pas partir.</p></template>
       <template #cell-order="{ row: provider, index }">
-        <button class="icon-button" title="Monter" aria-label="Monter" :disabled="index===0" @click="move(Number(index),-1)"><ChevronUp/></button>
-        <button class="icon-button" title="Descendre" aria-label="Descendre" :disabled="index===providers.length-1" @click="move(Number(index),1)"><ChevronDown/></button>
+        <UiButton icon-only title="Monter" aria-label="Monter" :disabled="index===0" @click="move(Number(index),-1)"><ChevronUp/></UiButton>
+        <UiButton icon-only title="Descendre" aria-label="Descendre" :disabled="index===providers.length-1" @click="move(Number(index),1)"><ChevronDown/></UiButton>
       </template>
       <template #cell-name="{ row: provider }"><strong>{{ provider.name }}</strong></template>
       <template #cell-type="{ row: provider }"><span class="badge">{{ typeLabel(provider.provider_type) }}</span></template>
@@ -28,10 +28,10 @@
         </span>
       </template>
       <template #cell-actions="{ row: provider }">
-        <button class="icon-button" title="Tester" aria-label="Tester" @click="testProvider(provider)"><PlugZap/></button>
-        <button class="icon-button" title="Modifier" aria-label="Modifier" @click="openModal(provider)"><Pencil/></button>
-        <button class="icon-button" :title="provider.enabled?'Desactiver':'Activer'" :aria-label="provider.enabled?'Desactiver':'Activer'" @click="toggle(provider)"><Power/></button>
-        <button class="icon-button danger" title="Supprimer" aria-label="Supprimer" @click="remove(provider)"><Trash2/></button>
+        <UiButton icon-only title="Tester" aria-label="Tester" @click="testProvider(provider)"><PlugZap/></UiButton>
+        <UiButton icon-only title="Modifier" aria-label="Modifier" @click="openModal(provider)"><Pencil/></UiButton>
+        <UiButton icon-only :title="provider.enabled?'Desactiver':'Activer'" :aria-label="provider.enabled?'Desactiver':'Activer'" @click="toggle(provider)"><Power/></UiButton>
+        <UiButton variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="remove(provider)"><Trash2/></UiButton>
       </template>
     </UiDataTable>
   </SettingsCard>
@@ -79,8 +79,8 @@
             <span class="settings-card-status" :class="editingProviderConnected ? 'active' : 'error'">
               {{ editingProviderConnected ? 'Compte Microsoft connecté' : 'Non connecté' }}
             </span>
-            <button type="button" class="secondary" @click="connectMicrosoft"><PlugZap/>{{ editingProviderConnected ? 'Reconnecter' : 'Connecter avec Microsoft' }}</button>
-            <button v-if="editingProviderConnected" type="button" class="secondary" @click="disconnectMicrosoft">Déconnecter</button>
+            <UiButton @click="connectMicrosoft"><PlugZap/>{{ editingProviderConnected ? 'Reconnecter' : 'Connecter avec Microsoft' }}</UiButton>
+            <UiButton v-if="editingProviderConnected" @click="disconnectMicrosoft">Déconnecter</UiButton>
           </div>
           <small v-else style="color:var(--muted)">Enregistrez d'abord le fournisseur pour pouvoir le connecter à un compte Microsoft.</small>
         </template>
@@ -97,14 +97,15 @@
         <label class="check"><input v-model="form.enabled" type="checkbox"> Fournisseur actif</label>
     </div>
     <template #actions>
-      <button class="primary" :disabled="busy||!form.name" @click="save"><Save/>{{ editingId?'Mettre a jour':'Ajouter' }}</button>
-      <button class="secondary" @click="closeModal">Annuler</button>
+      <UiButton variant="primary" :disabled="busy||!form.name" @click="save"><Save/>{{ editingId?'Mettre a jour':'Ajouter' }}</UiButton>
+      <UiButton @click="closeModal">Annuler</UiButton>
     </template>
   </ModalShell>
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 // L'ordre compte : c'est celui dans lequel les fournisseurs sont essayes.

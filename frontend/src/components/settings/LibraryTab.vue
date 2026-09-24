@@ -37,8 +37,8 @@
       :status="form.vff_enabled ? 'active' : 'inactive'"
     >
       <template #actions>
-        <button class="secondary" @click="vff('/api/vff/scan?force=true')"><ScanSearch />Scanner maintenant</button>
-        <button class="secondary" @click="vff('/api/vff/sync-plex')"><RefreshCw />Synchroniser Plex</button>
+        <UiButton @click="vff('/api/vff/scan?force=true')"><ScanSearch />Scanner maintenant</UiButton>
+        <UiButton @click="vff('/api/vff/sync-plex')"><RefreshCw />Synchroniser Plex</UiButton>
       </template>
 
       <SettingsRow
@@ -111,6 +111,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { RouterLink } from 'vue-router';
 
 /** Etat d'une tache de fond, dans la langue de l'interface. */

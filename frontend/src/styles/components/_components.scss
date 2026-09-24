@@ -163,10 +163,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .form-save-bar .ui-button--primary { padding: 0 12px; }
 }
 
-/* Barre de filtres unifiée : inline sur grand écran, feuille tactile sur petit écran. */
-.filter-sheet-enter-active,.filter-sheet-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-standard); }
-.filter-sheet-enter-from,.filter-sheet-leave-to { opacity: 0; }
-
 /* Badge dans le flux, par defaut.
  *
  * Cette regle etait `position: absolute; top: 8px; right: 8px`, ecrite pour le seul cas
@@ -297,14 +293,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   flex-shrink: 0;
 }
 
-.filter-select {
-  min-height: 34px;
-  padding: 0 30px 0 10px;
-  border-radius: var(--radius-pill);
-  font-size: var(--fs-sm);
-  width: auto;
-}
-
 .filter-pill {
   min-height: 34px;
   display: inline-flex;
@@ -340,17 +328,11 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
-.multi-select {
-  position: relative;
-}
-
-.multi-select.open .filter-pill.dropdown-toggle,
 .filter-pill.dropdown-toggle[data-state="open"] {
   border-color: var(--accent);
   background: rgba(255, 255, 255, 0.08);
 }
 
-.multi-select.open .filter-pill.dropdown-toggle svg,
 .filter-pill.dropdown-toggle[data-state="open"] svg {
   transform: rotate(180deg);
 }
@@ -819,7 +801,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .skeleton-line::after,
   .skeleton-pill::after { animation: none; }
 }
-
 
 /* Infobulle des boutons-icones (UiButton, Reka Tooltip). */
 .ui-tooltip {

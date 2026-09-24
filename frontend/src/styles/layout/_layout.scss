@@ -253,7 +253,6 @@
   .psh-layout { display: block; }
 }
 
-
 /* ── Filter-badge design system (global) ────────────────────────────────────
    Utilisé dans les sidebars de filtres (FilterGroup + FilterSidebar).
    Styles globaux pour traverser les niveaux de composants sans :deep().
@@ -283,9 +282,7 @@
   text-align: left;
   white-space: nowrap;
 }
-/* Les entrees a compteur gardent la pleine largeur : le compteur se lit aligne a droite,
-   en colonne, pas noye au fil des pastilles. */
-.filter-badge--wide,
+
 .filter-badge:has(.count) {
   width: 100%;
   justify-content: space-between;

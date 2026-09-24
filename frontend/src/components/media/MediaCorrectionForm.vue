@@ -25,13 +25,14 @@
     </label>
     
     <div class="inline-row compact" style="margin-top: 1rem;">
-      <button class="primary" :disabled="busy || !localForm.corrections.length || !localForm.recipient_user_ids.length" @click="$emit('submit', localForm)">Envoyer la correction</button>
-      <button class="secondary" @click="$emit('cancel')">Annuler</button>
+      <UiButton variant="primary" :disabled="busy || !localForm.corrections.length || !localForm.recipient_user_ids.length" @click="$emit('submit', localForm)">Envoyer la correction</UiButton>
+      <UiButton @click="$emit('cancel')">Annuler</UiButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, reactive, watch } from 'vue';
 
 const props = withDefaults(

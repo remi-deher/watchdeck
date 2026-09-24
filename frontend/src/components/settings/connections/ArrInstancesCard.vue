@@ -53,7 +53,7 @@
     </template>
 
     <template #modal-actions>
-      <button class="secondary" @click="loadArrOptions"><ListRestart />Charger profils et dossiers</button>
+      <UiButton @click="loadArrOptions"><ListRestart />Charger profils et dossiers</UiButton>
     </template>
   </CrudResourceCard>
 
@@ -61,6 +61,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { useMutation } from '@tanstack/vue-query';
 import { ListRestart, ServerCog } from '@lucide/vue';

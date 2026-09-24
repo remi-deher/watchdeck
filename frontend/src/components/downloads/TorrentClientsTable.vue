@@ -17,42 +17,27 @@
         <span class="connection-status" :class="connectionClass"><i />{{ connectionLabel }}</span>
       </div>
       <div class="speed-bar-actions">
-        <button
-          class="secondary text-xs tool-toggle-btn"
-          :class="{ active: isCompact }"
-          title="Basculer entre affichage compact et confortable"
-          @click="toggleCompact"
-        >
+        <UiButton class="text-xs tool-toggle-btn" :class="{ active: isCompact }" title="Basculer entre affichage compact et confortable" @click="toggleCompact">
           <Minimize2 v-if="isCompact" /><Maximize2 v-else /> {{ isCompact ? 'Compact' : 'Normal' }}
-        </button>
-        <button
-          class="secondary text-xs tool-toggle-btn"
-          :class="{ active: isIncognito }"
-          title="Mode Incognito (masquer / anonymiser les noms de torrents)"
-          @click="toggleIncognito"
-        >
+        </UiButton>
+        <UiButton class="text-xs tool-toggle-btn" :class="{ active: isIncognito }" title="Mode Incognito (masquer / anonymiser les noms de torrents)" @click="toggleIncognito">
           <EyeOff v-if="isIncognito" /><Eye v-else /> {{ isIncognito ? 'Incognito' : 'Discret' }}
-        </button>
-        <button
-          class="secondary text-xs alt-speed-btn"
-          :class="{ active: globalAltSpeed }"
-          title="Activer / désactiver les limites de vitesse alternatives (Turtle mode)"
-          @click="toggleAltSpeed"
-        >
+        </UiButton>
+        <UiButton class="text-xs alt-speed-btn" :class="{ active: globalAltSpeed }" title="Activer / désactiver les limites de vitesse alternatives (Turtle mode)" @click="toggleAltSpeed">
           <Gauge /> Mode alternatif : <strong>{{ globalAltSpeed ? 'ON' : 'OFF' }}</strong>
-        </button>
+        </UiButton>
       </div>
     </div>
 
     <div v-if="selectedRows.length" class="bulk-toolbar" role="toolbar" aria-label="Actions sur la sélection">
       <strong>{{ selectedRows.length }} sélectionné(s)</strong>
-      <button class="secondary" :disabled="busy" @click="runAction('pause', selectedRows)"><Pause />Mettre en pause</button>
-      <button class="secondary" :disabled="busy" @click="runAction('resume', selectedRows)"><Play />Reprendre</button>
-      <button class="secondary" :disabled="busy" @click="runAction('recheck', selectedRows)"><RotateCcw />Revérifier</button>
-      <button class="secondary" :disabled="busy" @click="runAction('reannounce', selectedRows)"><Radio />Réannoncer</button>
-      <button class="secondary" :disabled="busy" @click="openMetaModal(selectedRows)"><Tag />Catégorie & Tags</button>
-      <button class="secondary danger" :disabled="busy" @click="confirmRemoval(selectedRows, false)"><Trash2 />Retirer</button>
-      <button class="secondary danger" :disabled="busy" @click="confirmRemoval(selectedRows, true)"><FileX2 />Supprimer avec les fichiers</button>
+      <UiButton :disabled="busy" @click="runAction('pause', selectedRows)"><Pause />Mettre en pause</UiButton>
+      <UiButton :disabled="busy" @click="runAction('resume', selectedRows)"><Play />Reprendre</UiButton>
+      <UiButton :disabled="busy" @click="runAction('recheck', selectedRows)"><RotateCcw />Revérifier</UiButton>
+      <UiButton :disabled="busy" @click="runAction('reannounce', selectedRows)"><Radio />Réannoncer</UiButton>
+      <UiButton :disabled="busy" @click="openMetaModal(selectedRows)"><Tag />Catégorie & Tags</UiButton>
+      <UiButton variant="danger" :disabled="busy" @click="confirmRemoval(selectedRows, false)"><Trash2 />Retirer</UiButton>
+      <UiButton variant="danger" :disabled="busy" @click="confirmRemoval(selectedRows, true)"><FileX2 />Supprimer avec les fichiers</UiButton>
       <button class="text-button" :disabled="busy" @click="clearSelection">Annuler la sélection</button>
     </div>
 
@@ -109,9 +94,9 @@
       <template #cell-added_on="{ row }">{{ formatTimestamp(row.added_on) }}</template>
       <template #cell-completed_on="{ row }">{{ formatTimestamp(row.completed_on) }}</template>
       <template #cell-actions="{ row }">
-        <button class="secondary action-trigger-btn" :disabled="isBusy(row)" title="Actions sur ce torrent" @click.stop="actionTarget=row">
+        <UiButton class="action-trigger-btn" :disabled="isBusy(row)" title="Actions sur ce torrent" @click.stop="actionTarget=row">
           Actions
-        </button>
+        </UiButton>
       </template>
       <template #after>
         <div ref="sentinelRef" class="load-more-sentinel">
@@ -142,33 +127,33 @@
         </div>
       </div>
       <template #actions>
-        <button class="primary" @click="showColumnPicker = false">Valider</button>
+        <UiButton variant="primary" @click="showColumnPicker = false">Valider</UiButton>
       </template>
     </ModalShell>
 
     <!-- Modal Actions individuelles -->
     <ModalShell :open="!!actionTarget" title="Actions sur le torrent" :subtitle="actionTarget?.title" @close="actionTarget=null">
       <div v-if="actionTarget" class="torrent-actions-menu">
-        <button class="secondary action-menu-btn" :disabled="isBusy(actionTarget)" @click="runAction(isPaused(actionTarget)?'resume':'pause',[actionTarget]);actionTarget=null;">
+        <UiButton class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="runAction(isPaused(actionTarget)?'resume':'pause',[actionTarget]);actionTarget=null;">
           <Play v-if="isPaused(actionTarget)" /><Pause v-else />
           {{ isPaused(actionTarget) ? 'Reprendre le téléchargement' : 'Mettre en pause' }}
-        </button>
+        </UiButton>
 
-        <button class="secondary action-menu-btn" :disabled="isBusy(actionTarget)" @click="runAction('recheck',[actionTarget]);actionTarget=null;">
+        <UiButton class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="runAction('recheck',[actionTarget]);actionTarget=null;">
           <RotateCcw /> Revérifier les fichiers
-        </button>
+        </UiButton>
 
-        <button class="secondary action-menu-btn" :disabled="isBusy(actionTarget)" @click="runAction('reannounce',[actionTarget]);actionTarget=null;">
+        <UiButton class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="runAction('reannounce',[actionTarget]);actionTarget=null;">
           <Radio /> Réannoncer aux trackers
-        </button>
+        </UiButton>
 
-        <button class="secondary action-menu-btn" :disabled="isBusy(actionTarget)" @click="openMetaModal([actionTarget]);actionTarget=null;">
+        <UiButton class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="openMetaModal([actionTarget]);actionTarget=null;">
           <Tag /> Modifier Catégorie & Tags
-        </button>
+        </UiButton>
 
-        <button class="secondary danger action-menu-btn" :disabled="isBusy(actionTarget)" @click="removalTarget=actionTarget;actionTarget=null;">
+        <UiButton variant="danger" class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="removalTarget=actionTarget;actionTarget=null;">
           <Trash2 /> Supprimer ou retirer...
-        </button>
+        </UiButton>
       </div>
     </ModalShell>
 
@@ -260,11 +245,11 @@
       </template>
 
       <div class="drawer-actions">
-        <button class="secondary" :disabled="isBusy(details)" @click="runAction(isPaused(details)?'resume':'pause',[details])"><Play v-if="isPaused(details)"/><Pause v-else/>{{ isPaused(details)?'Reprendre':'Mettre en pause' }}</button>
-        <button class="secondary" :disabled="isBusy(details)" @click="runAction('recheck',[details])"><RotateCcw />Revérifier</button>
-        <button class="secondary" :disabled="isBusy(details)" @click="runAction('reannounce',[details])"><Radio />Réannoncer</button>
-        <button class="secondary" :disabled="isBusy(details)" @click="openMetaModal([details])"><Tag />Catégorie & Tags</button>
-        <button class="secondary danger" :disabled="isBusy(details)" @click="removalTarget=details"><Trash2 />Supprimer</button>
+        <UiButton :disabled="isBusy(details)" @click="runAction(isPaused(details)?'resume':'pause',[details])"><Play v-if="isPaused(details)"/><Pause v-else/>{{ isPaused(details)?'Reprendre':'Mettre en pause' }}</UiButton>
+        <UiButton :disabled="isBusy(details)" @click="runAction('recheck',[details])"><RotateCcw />Revérifier</UiButton>
+        <UiButton :disabled="isBusy(details)" @click="runAction('reannounce',[details])"><Radio />Réannoncer</UiButton>
+        <UiButton :disabled="isBusy(details)" @click="openMetaModal([details])"><Tag />Catégorie & Tags</UiButton>
+        <UiButton variant="danger" :disabled="isBusy(details)" @click="removalTarget=details"><Trash2 />Supprimer</UiButton>
       </div>
     </DrawerShell>
 
@@ -280,8 +265,8 @@
           <input id="meta-tags" v-model="metaTags" type="text" placeholder="Ex: watchdeck, vff, 1080p" />
         </div>
         <div class="form-actions">
-          <button type="button" class="secondary" :disabled="busy" @click="metaTarget=null">Annuler</button>
-          <button type="submit" class="primary" :disabled="busy">Enregistrer</button>
+          <UiButton :disabled="busy" @click="metaTarget=null">Annuler</UiButton>
+          <UiButton variant="primary" type="submit" :disabled="busy">Enregistrer</UiButton>
         </div>
       </form>
     </ModalShell>
@@ -290,9 +275,9 @@
       <p><strong>{{ removalTarget?.title }}</strong></p>
       <p class="removal-warning">La suppression des fichiers est définitive et peut retirer des médias encore utilisés ailleurs.</p>
       <template #actions>
-        <button class="secondary" :disabled="busy" @click="removalTarget=null">Annuler</button>
-        <button class="secondary danger" :disabled="busy" @click="confirmRemoval([removalTarget],false)"><Trash2 />Retirer seulement</button>
-        <button class="primary danger" :disabled="busy" @click="confirmRemoval([removalTarget],true)"><FileX2 />Supprimer avec les fichiers</button>
+        <UiButton :disabled="busy" @click="removalTarget=null">Annuler</UiButton>
+        <UiButton variant="danger" :disabled="busy" @click="confirmRemoval([removalTarget],false)"><Trash2 />Retirer seulement</UiButton>
+        <UiButton variant="danger" :disabled="busy" @click="confirmRemoval([removalTarget],true)"><FileX2 />Supprimer avec les fichiers</UiButton>
       </template>
     </ModalShell>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
@@ -300,6 +285,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useEventListener, useIntersectionObserver } from '@vueuse/core';
@@ -522,8 +508,7 @@ const {
   toggle: toggleRow, toggleAll, clear: clearSelection, setKeys: setSelection, lastIndex: lastSelectedIndex,
 } = useTableSelection(() => sortedRows.value, rowKey);
 
-/* PrimeVue expose la selection sous forme de lignes, tandis que le reste de la page
-   conserve volontairement des cles stables : les rafraichissements remplacent les
+/* UiDataTable recoit et renvoie des cles stables : les rafraichissements remplacent les
    objets torrent, mais ne doivent pas vider la barre d'actions en lot. */
 
 const displayedRows = computed(() => sortedRows.value.slice(0, displayLimit.value));
@@ -870,7 +855,7 @@ async function changeFilePriority(fileId: number, newPrio: string): Promise<void
 .file-name-cell{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prio-select{padding:2px 6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size: var(--fs-xs)}
 
-.torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}.bulk-toolbar{position:sticky;top:8px;z-index:4;display:flex;align-items:center;gap:var(--space-2);padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(12px)}.bulk-toolbar strong{margin-right:auto}.bulk-toolbar button,.drawer-actions button{display:inline-flex;align-items:center;gap:6px}.bulk-toolbar svg,.row-actions svg,.drawer-actions svg{width:14px;height:14px}.torrent-name{min-width:0}.torrent-title{display:block;max-width:100%;overflow:hidden;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap}.torrent-title:hover{color:var(--accent);text-decoration:underline}.torrent-name small{display:block;overflow:hidden;margin-top:3px;color:var(--muted);text-overflow:ellipsis;white-space:nowrap}.progress-cell{min-width:0}.progress-cell>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}.progress-cell progress{width:100%;height:6px}.state-badge{display:inline-flex;padding:4px 7px;border-radius:var(--radius-pill);background:var(--surface-2);color:var(--muted);font-weight:700;white-space:nowrap}.state-badge.active{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}.state-badge.complete{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)}.state-badge.paused{background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--warning)}.state-badge.error{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}.row-actions{display:flex;justify-content:flex-end;gap:3px}.row-actions .icon-button{width:30px;height:30px}.torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.drawer-section h3{margin:0 0 12px}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}.detail-grid div,.detail-list div{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}.detail-grid dt,.detail-list dt{color:var(--muted);font-size:var(--fs-xs)}.detail-grid dd,.detail-list dd{margin:4px 0 0;font-weight:700}.detail-list{display:grid;gap:var(--space-2);margin:0}.hash-value{overflow-wrap:anywhere;font-family:monospace;font-size:var(--fs-xs)}.drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}.removal-warning{color:var(--danger)}
+.torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}.bulk-toolbar{position:sticky;top:8px;z-index:4;display:flex;align-items:center;gap:var(--space-2);padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(12px)}.bulk-toolbar strong{margin-right:auto}.bulk-toolbar button,.drawer-actions button{display:inline-flex;align-items:center;gap:6px}.bulk-toolbar svg,.row-actions svg,.drawer-actions svg{width:14px;height:14px}.torrent-name{min-width:0}.torrent-title{display:block;max-width:100%;overflow:hidden;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap}.torrent-title:hover{color:var(--accent);text-decoration:underline}.torrent-name small{display:block;overflow:hidden;margin-top:3px;color:var(--muted);text-overflow:ellipsis;white-space:nowrap}.progress-cell{min-width:0}.progress-cell>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}.progress-cell progress{width:100%;height:6px}.state-badge{display:inline-flex;padding:4px 7px;border-radius:var(--radius-pill);background:var(--surface-2);color:var(--muted);font-weight:700;white-space:nowrap}.state-badge.active{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}.state-badge.complete{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)}.state-badge.paused{background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--warning)}.state-badge.error{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}.row-actions{display:flex;justify-content:flex-end;gap:3px}.row-actions :deep(.ui-button){width:30px;height:30px}.torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.drawer-section h3{margin:0 0 12px}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}.detail-grid div,.detail-list div{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}.detail-grid dt,.detail-list dt{color:var(--muted);font-size:var(--fs-xs)}.detail-grid dd,.detail-list dd{margin:4px 0 0;font-weight:700}.detail-list{display:grid;gap:var(--space-2);margin:0}.hash-value{overflow-wrap:anywhere;font-family:monospace;font-size:var(--fs-xs)}.drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}.removal-warning{color:var(--danger)}
 .meta-form{display:grid;gap:var(--space-3)}.form-group{display:grid;gap:6px}.form-group label{font-size:var(--fs-xs);font-weight:600}.form-group input{width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)}.form-actions{display:flex;justify-content:flex-end;gap:var(--space-2);margin-top:var(--space-2)}
 .action-trigger-btn{display:inline-flex;align-items:center;gap:6px;min-width:100px;padding:5px 9px;font-size:var(--fs-xs);white-space:nowrap}
 .action-trigger-btn svg{width:14px;height:14px}

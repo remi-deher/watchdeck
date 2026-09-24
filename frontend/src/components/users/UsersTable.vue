@@ -60,8 +60,8 @@
     <template #cell-requests="{ row: user }"><strong>{{ user.stats?.total??user.request_count??0 }}</strong><small v-if="user.stats?.pending_approval" class="pending-copy">{{ user.stats.pending_approval }} à approuver</small></template>
     <template #cell-last="{ row: user }">{{ formatDate(user.last_requested_at) }}<small v-if="!user.can_login" class="blocked-copy">Connexion bloquée</small></template>
     <template #cell-actions="{ row: user }">
-      <button class="icon-button" :title="`Modifier ${accountName(user)}`" :aria-label="`Modifier ${accountName(user)}`" @click="$emit('open',user.id)"><Pencil/></button>
-      <button class="icon-button" :title="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" :aria-label="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" @click="$emit('toggle',user)"><Power/></button>
+      <UiButton icon-only :title="`Modifier ${accountName(user)}`" :aria-label="`Modifier ${accountName(user)}`" @click="$emit('open',user.id)"><Pencil/></UiButton>
+      <UiButton icon-only :title="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" :aria-label="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" @click="$emit('toggle',user)"><Power/></UiButton>
     </template>
   </UiDataTable>
 </template>

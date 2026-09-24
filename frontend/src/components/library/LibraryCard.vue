@@ -60,19 +60,14 @@
            action il revient a chaque cycle de la watchlist. -->
       <template v-if="item._kind === 'request' && item.status === 'failed'">
         <small v-if="item.fulfillment_error" class="card-failure">{{ item.fulfillment_error }}</small>
-        <button
-          v-if="canModerate"
-          type="button"
-          class="secondary text-xs card-withdraw"
-          :disabled="busy"
-          @click.stop="$emit('act', item, 'withdraw')"
-        >Annuler et bloquer…</button>
+        <UiButton v-if="canModerate" class="text-xs card-withdraw" :disabled="busy" @click.stop="$emit('act', item, 'withdraw')">Annuler et bloquer…</UiButton>
       </template>
     </div>
   </article>
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from 'vue';
 import { Star } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';

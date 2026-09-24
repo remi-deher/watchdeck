@@ -69,15 +69,9 @@
               <div class="season-header-row">
                 <strong>Saison {{ season.season_number }}</strong>
                 <span v-if="eps.length" class="badge pending">{{ eps.length }}</span>
-                <button
-                  type="button"
-                  class="icon-button"
-                  :disabled="busy || rescanning"
-                  title="Réanalyser cette saison"
-                  @click.stop="rescanSeason(season.season_number)"
-                >
+                <UiButton variant="ghost" size="sm" icon-only :disabled="busy || rescanning" title="Réanalyser cette saison" @click.stop="rescanSeason(season.season_number)">
                   <RotateCcw :size="13" />
-                </button>
+                </UiButton>
               </div>
             </template>
 
@@ -90,15 +84,9 @@
                   @change="toggleEpisode(season.season_number, ep.episode)"
                 >
                 <span class="episode-label"><strong>{{ ep.episode }}.</strong> {{ ep.title }}</span>
-                <button
-                  type="button"
-                  class="icon-button"
-                  :disabled="busy || rescanning"
-                  title="Réanalyser cet épisode"
-                  @click.stop="rescanEpisode(season.season_number, ep.episode)"
-                >
+                <UiButton variant="ghost" size="sm" icon-only :disabled="busy || rescanning" title="Réanalyser cet épisode" @click.stop="rescanEpisode(season.season_number, ep.episode)">
                   <RotateCcw :size="12" />
-                </button>
+                </UiButton>
               </label>
             </template>
           </SeasonEpisodeList>
@@ -885,27 +873,8 @@ async function confirmAlign(): Promise<void> {
   flex: 1;
 }
 
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-}
 
-.icon-button:hover {
-  color: var(--text);
-  background: var(--surface-hover, var(--surface-2));
-}
 
-.icon-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
 
 .episode-check-item {
   display: flex;

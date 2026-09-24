@@ -3,9 +3,9 @@
     <div class="panel-head studio-head">
       <div><h2>Modeles d'emails</h2><p>Declencheurs, contenu et simulation des destinataires.</p></div>
       <div class="actions">
-        <button v-if="hasPrevious" class="secondary" :disabled="busy" @click="restorePrevious"><Undo2/>Version precedente</button>
-        <button class="secondary" :disabled="busy" @click="reset"><RotateCcw/>Valeurs par defaut</button>
-        <button class="primary" :disabled="busy||!isDirty" @click="save"><Save/>Enregistrer</button>
+        <UiButton v-if="hasPrevious" :disabled="busy" @click="restorePrevious"><Undo2/>Version precedente</UiButton>
+        <UiButton :disabled="busy" @click="reset"><RotateCcw/>Valeurs par defaut</UiButton>
+        <UiButton variant="primary" :disabled="busy||!isDirty" @click="save"><Save/>Enregistrer</UiButton>
       </div>
     </div>
 
@@ -70,10 +70,10 @@
           <EmailSharedSettings :shared="shared" :variables="variables" />
         </template>
         <div class="studio-actions">
-          <button class="secondary" :disabled="previewing" @click="preview"><Eye/>Générer l'aperçu</button>
-          <button class="secondary" :disabled="busy" @click="testSend('admin')"><Send/>Tester vers l'admin</button>
-          <button v-if="selectedUser" class="secondary" :disabled="busy" @click="testSend('user')"><UserRoundCheck/>Tester vers cet utilisateur</button>
-          <button class="primary" :disabled="busy||!isDirty" @click="save"><Save/>Enregistrer</button>
+          <UiButton :disabled="previewing" @click="preview"><Eye/>Générer l'aperçu</UiButton>
+          <UiButton :disabled="busy" @click="testSend('admin')"><Send/>Tester vers l'admin</UiButton>
+          <UiButton v-if="selectedUser" :disabled="busy" @click="testSend('user')"><UserRoundCheck/>Tester vers cet utilisateur</UiButton>
+          <UiButton variant="primary" :disabled="busy||!isDirty" @click="save"><Save/>Enregistrer</UiButton>
         </div>
       </main>
 
@@ -85,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, markRaw, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Ban,CircleAlert,CircleCheck,Eye,FileWarning,Film,LayoutPanelLeft,MailCheck,Monitor,Palette,RotateCcw,Save,Send,ShieldAlert,Sparkles,Tv,Undo2,UserRoundCheck } from '@lucide/vue';

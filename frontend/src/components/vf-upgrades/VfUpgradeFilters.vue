@@ -12,20 +12,21 @@
 
     <FilterGroup label="Maintenance">
       <div class="filter-maintenance-buttons">
-        <button class="secondary compact" type="button" title="Réouvrir les suggestions en échec" @click="emit('maintenance', 'recompute')">
+        <UiButton class="compact" title="Réouvrir les suggestions en échec" @click="emit('maintenance', 'recompute')">
           <RotateCcw :size="14" />
           <span>Réouvrir les échecs</span>
-        </button>
-        <button class="secondary compact" type="button" title="Supprimer les entrées archivées" @click="emit('maintenance', 'purge')">
+        </UiButton>
+        <UiButton class="compact" title="Supprimer les entrées archivées" @click="emit('maintenance', 'purge')">
           <Trash2 :size="14" />
           <span>Purger l'historique</span>
-        </button>
+        </UiButton>
       </div>
     </FilterGroup>
   </FilterSidebar>
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { RotateCcw, Trash2 } from '@lucide/vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
