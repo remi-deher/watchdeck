@@ -42,6 +42,9 @@ async function mountView({ home = false, url = '', attachTo } = {}) {
           template: `<div class="app-page-stub"><input type="search" :value="query || modelValue" @input="$emit('update:query', $event.target.value); $emit('update:modelValue', $event.target.value); $emit('search', $event.target.value)" /><slot name="tools" /><slot /></div>`,
         },
         UiFeedback: true,
+        // Le panneau ne rend ses filtres qu'ouvert, dans un portail : ici on teste les
+        // filtres eux-memes, rendus en place.
+        FilterSidebar: { template: '<div class="filter-sidebar-stub"><slot /></div>' },
         RouterLink: {
           props: ['to'],
           template: '<a :href="to"><slot /></a>',
@@ -54,7 +57,7 @@ async function mountView({ home = false, url = '', attachTo } = {}) {
 describe('DiscoverView', () => {
   beforeEach(() => {
     apiMock.mockReset();
-    window.matchMedia = vi.fn(() => ({ matches: false }));
+    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     window.history.replaceState({}, '', '/discover/explore');
     localStorage.clear();
   });

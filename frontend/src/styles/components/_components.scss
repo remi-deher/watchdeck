@@ -415,6 +415,59 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   }
 }
 
+/* Au-dela du telephone, la meme pile retournee : la barre est en haut, le panneau
+   descend de son bord bas, a la largeur exacte du champ (mesuree par FilterSidebar et
+   publiee en `--filter-anchor-*`). Le voile commence sous la barre : le champ et le
+   bouton « Filtres » restent atteignables, et retoucher le bouton referme. */
+@include bp.from(shell-medium) {
+  body:has(.app-topbar) {
+    .drawer-backdrop:has(> .filter-sheet),
+    .drawer-backdrop--filter-sheet {
+      top: var(--filter-anchor-top, 64px);
+      background: color-mix(in srgb, #000 28%, transparent);
+    }
+    .modal-panel.filter-sheet {
+      inset: var(--filter-anchor-top, 64px) auto auto var(--filter-anchor-left, 50%);
+      width: var(--filter-anchor-width, min(720px, calc(100% - 24px)));
+      max-width: none;
+      max-height: min(70dvh, calc(100dvh - var(--filter-anchor-top, 64px) - 16px));
+      padding-top: var(--space-3);
+      transform: none;
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+      border-top: 0;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, .45);
+    }
+    /* Pas de poignee de glissement ni d'en-tete : le panneau prolonge la barre, il n'a
+       pas a se presenter. Le titre reste lu par les lecteurs d'ecran. */
+    .modal-panel.filter-sheet .sheet-grab { display: none; }
+    .modal-panel.filter-sheet .panel-head {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .modal-panel.filter-sheet[data-state="open"] { animation: surface-deroule-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+    .modal-panel.filter-sheet[data-state="closed"] { animation: surface-deroule-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
+    /* Le champ perd ses coins bas tant que le panneau y est accroche : arrondis, ils
+       creusaient deux encoches au raccord. */
+    &[data-filter-sheet] .app-topbar .ui-search-field,
+    &[data-filter-sheet] .app-topbar .app-topbar__filter-only {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+    &[data-filter-sheet] .app-topbar .ui-search-field__filter {
+      border-bottom-right-radius: 0;
+    }
+  }
+}
+
+@keyframes surface-deroule-in { from { opacity: 0; transform: translateY(-8px); } }
+@keyframes surface-deroule-out { to { opacity: 0; transform: translateY(-8px); } }
+
 /* Pendant le geste, la feuille suit le doigt sans transition : une interpolation entre
    deux positions rendrait le suivi mou et en retard sur la main. C'est au relachement
    que le mouvement redevient anime -- retour en place, ou sortie par le bas. */
