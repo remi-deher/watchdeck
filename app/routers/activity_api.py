@@ -24,6 +24,7 @@ from ..services.playback_activity import (
     import_tautulli_history,
     live_activity_snapshot,
     normalize_tautulli_history,
+    playback_session_detail,
     recalculate_playback_locations,
     test_tautulli,
 )
@@ -49,6 +50,15 @@ async def get_activity(
 @router.get("/live")
 async def get_live_activity(db: AsyncSession = Depends(get_db_async)):
     return await live_activity_snapshot(db=db)
+
+
+@router.get("/sessions/{session_id}")
+async def get_playback_session(session_id: int, db: AsyncSession = Depends(get_db_async)):
+    """Detail d'une session, pour ouvrir sa fiche depuis un lien ou apres un rechargement."""
+    session = await playback_session_detail(session_id, db=db)
+    if session is None:
+        raise HTTPException(404, "Session introuvable.")
+    return session
 
 
 @router.get("/statistics")

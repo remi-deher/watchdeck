@@ -1,15 +1,14 @@
-﻿<template>
-  <DrawerShell wide eyebrow="Administration" :title="creating?'Nouvel utilisateur':displayName(editing)" :error="editorError" @close="$emit('close')">
+<template>
+  <div class="user-editor">
     <!-- Role et origine rejoignent la ligne du nom : ils identifient le compte, ils ne
          se pilotent pas. Les deux interrupteurs, eux, prennent leur propre rangee --
          melanges aux badges, ils formaient une bande ou l'on ne savait plus ce qui etait
          cliquable. -->
-    <template v-if="!creating" #head-actions>
-      <span class="user-head-meta">
-        <span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(editing.role) }}</span>
-        <small>{{ sourceLabel(resolveSource(editing)) }}</small>
-      </span>
-    </template>
+    <span v-if="!creating" class="user-head-meta">
+      <span class="badge" :class="editing.role==='admin'?'available':editing.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(editing.role) }}</span>
+      <small>{{ sourceLabel(resolveSource(editing)) }}</small>
+    </span>
+    <UiFeedback v-if="editorError" type="error" :message="editorError" />
 
     <!-- Effet immediat, comme l'interrupteur de la liste : couper un compte n'est pas
          une modification de profil qu'on met en brouillon jusqu'a « Enregistrer ». -->
@@ -206,7 +205,7 @@
       </article>
       <UiEmptyState v-if="!editing.diagnostic" title="Aucun diagnostic disponible" compact />
     </section>
-  </DrawerShell>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -219,7 +218,6 @@ import { formatDate, formatDateTime } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { accountName, resolveSource, roleLabel, seerLinkLabel, sourceLabel } from '@/utils/userLabels';
 import { Download, KeyRound, Languages, Link, Mail, MailCheck, Merge, RefreshCw, Save, Send, Trash2, TriangleAlert, Unlink } from '@lucide/vue';
-import DrawerShell from '@/components/DrawerShell.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
@@ -247,7 +245,6 @@ const props = withDefaults(
   }
 );
 const emit = defineEmits<{
-  (e: 'close'): void;
   (e: 'save'): void;
   (e: 'delete'): void;
   (e: 'test-email'): void;
@@ -352,6 +349,7 @@ defineExpose({
 });
 </script>
 <style scoped lang="scss">
+.user-editor{display:grid;gap:var(--space-4)}
 .user-head-meta{display:flex;align-items:center;gap: var(--space-2);margin-right: var(--space-2)}
 .user-head-meta small{color:var(--muted);font-size:var(--fs-xs);white-space:nowrap}
 

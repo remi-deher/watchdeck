@@ -1,13 +1,13 @@
 <template>
-  <DrawerShell wide eyebrow="Session Plex" :title="displayTitle(session)" @close="$emit('close')">
+  <div class="session-detail">
     <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
          fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
-    <template #head-actions>
+    <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
       <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session precedente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="$emit('navigate', -1)"><ChevronLeft /></UiButton>
       <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session suivante (j)" aria-label="Session suivante" :disabled="!hasNext" @click="$emit('navigate', 1)"><ChevronRight /></UiButton>
       <UiButton variant="ghost" icon-only title="Copier le diagnostic" aria-label="Copier le diagnostic" @click="copyDiagnostic"><ClipboardCopy /></UiButton>
       <UiButton v-if="mediaPath" variant="ghost" icon-only title="Ouvrir la fiche du media" aria-label="Ouvrir la fiche du media" @click="openMedia"><ExternalLink /></UiButton>
-    </template>
+    </div>
 
     <div class="session-hero">
       <MediaArtwork :src="session.thumb_url" :alt="displayTitle(session)" :type="session.media_type" size="large"/>
@@ -77,7 +77,7 @@
       </dl>
     </section>
     </div>
-  </DrawerShell>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -85,10 +85,10 @@ import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime,
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronLeft, ChevronRight, ClipboardCopy, Clock3, ExternalLink, Gauge, MonitorPlay, Network, Server, Workflow } from '@lucide/vue';
-import DrawerShell from '@/components/DrawerShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { useToast } from '@/composables/useToast';
 import { mediaDetailPath } from '@/mediaUrl';
+import { ouvrirFiche, useMediaOverlay } from '@/composables/useMediaOverlay';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 import SessionLocationMap from './SessionLocationMap.vue';
@@ -104,7 +104,6 @@ const props = withDefaults(
 );
 
 defineEmits<{
-  (e: 'close'): void;
   (e: 'navigate', direction: number): void;
 }>();
 
@@ -120,8 +119,13 @@ const mediaPath = computed(() => {
   if (session.library_item_id) return mediaDetailPath({ library_id: session.library_item_id }, 'library');
   return '';
 });
+/* Dans la feuille, la fiche du media la remplace sur la meme page de fond : retour
+   ramene a la session, puis a la page. En pleine page, simple navigation. */
+const { routeDeFond } = useMediaOverlay();
 function openMedia(): void {
-  if (mediaPath.value) router.push(mediaPath.value);
+  if (!mediaPath.value) return;
+  if (routeDeFond.value) ouvrirFiche(router, mediaPath.value, routeDeFond.value.fullPath);
+  else router.push(mediaPath.value);
 }
 
 /* Ce que l'on colle dans un message quand on aide quelqu'un a distance : l'essentiel du
@@ -220,6 +224,7 @@ function networkLabel(item: any): string {
 </script>
 
 <style scoped lang="scss">
+.session-toolbar{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-1);margin-top:-8px}
 .session-hero{display:flex;gap: var(--space-4);align-items:center;margin:8px 0 20px}.session-hero>div:last-child{display:grid;gap: var(--space-1);min-width:0}.session-hero h3{margin:4px 0 0;font-size:var(--fs-lg)}.session-hero p,.session-hero span{margin:0;color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm)}.session-progress{display:grid;gap: var(--space-2);padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.session-progress>div:first-child{display:flex;justify-content:space-between}.session-progress span,.session-progress small{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}.progress-track{height:6px;overflow:hidden;border-radius:var(--radius-pill);background:rgba(255,255,255,.1)}.progress-track i{display:block;height:100%;border-radius:inherit;background:var(--accent)}.session-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap: var(--space-2);margin-top:10px}.session-kpis article{display:grid;gap: var(--space-1);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.session-kpis span,.session-kpis small{color:color-mix(in srgb,var(--text) 68%,transparent);font-size:var(--fs-xs)}.session-kpis strong{font-size:var(--fs-md)}.stream-route{margin-top:22px}.stream-route>div{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr) 28px minmax(0,1fr);align-items:center;margin-top:8px}.stream-route article{display:flex;align-items:center;gap: var(--space-2);min-width:0;padding:10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.stream-route article>svg{width:17px;color:var(--muted)}.stream-route article span{display:grid;min-width:0}.stream-route small{color:color-mix(in srgb,var(--text) 64%,transparent);font-size:var(--fs-xs);}.stream-route strong{overflow:hidden;font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.stream-route i{height:2px;background:var(--border)}.stream-route i.warning{background:#fb923c}.session-detail-columns{display:grid;gap:0}@media(min-width:900px){.session-detail-columns{grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start}.session-detail-columns>.session-detail-section{margin-top:22px}}.session-detail-section{margin-top:22px}.session-detail-section dl{display:grid;grid-template-columns:1fr 1fr;margin:8px 0 0;border:1px solid var(--border);border-radius:var(--radius-md)}.session-detail-section dl>div{display:grid;gap: var(--space-1);padding:13px;border-bottom:1px solid var(--border)}.session-detail-section dl>div:nth-child(odd){border-right:1px solid var(--border)}.session-detail-section dl>div:nth-last-child(-n+2){border-bottom:0}.session-detail-section dt{color:color-mix(in srgb,var(--text) 66%,transparent);font-size:var(--fs-xs);}.session-detail-section dd{margin:0;font-size:var(--fs-sm);line-height:1.4}.session-id{overflow:hidden;color:var(--muted);font-family:monospace;text-overflow:ellipsis;white-space:nowrap}.session-address{font-variant-numeric:tabular-nums}@media(max-width:620px){.session-kpis{grid-template-columns:1fr}.stream-route>div{grid-template-columns:1fr}.stream-route i{width:2px;height:14px;margin:auto}.stream-route article{width:100%}}@media(max-width:520px){.session-hero{align-items:flex-start}.session-detail-section dl{grid-template-columns:1fr}.session-detail-section dl>div,.session-detail-section dl>div:nth-child(odd){border-right:0;border-bottom:1px solid var(--border)}.session-detail-section dl>div:last-child{border-bottom:0}}
 .session-kpis article{grid-template-columns:20px minmax(0,1fr);gap:3px 9px}.session-kpis article>svg{grid-row:1/4;width:18px;height:18px;color:var(--accent)}.session-kpis article>*:not(svg){grid-column:2}.session-kpis .network-kpi.remote>svg{color:#fb923c}.session-kpis .network-kpi.local>svg{color:var(--success,#22c55e)}
 .session-detail-section dl>div{position:relative;padding-left:16px}.session-detail-section dl>div::before{position:absolute;top:15px;bottom:15px;left:0;width:3px;border-radius:3px;background:color-mix(in srgb,var(--accent) 70%,transparent);content:""}.session-detail-section dd{color:color-mix(in srgb,var(--text) 92%,transparent);font-weight:600}

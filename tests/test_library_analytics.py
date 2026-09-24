@@ -7,6 +7,7 @@ import pytest
 
 from app.models import LibraryAnalyticsSnapshot
 from app.services.library_analytics import (
+    analytics_item,
     analytics_items_payload,
     analytics_payload,
     analytics_summary_payload,
@@ -148,6 +149,56 @@ async def test_summary_and_items_do_not_return_the_whole_snapshot():
     assert page["total"] == 3
     assert page["has_more"] is True
     assert [row["title"] for row in page["items"]] == ["Episode 2", "Episode 1"]
+
+
+@pytest.mark.asyncio
+async def test_analytics_item_finds_one_media_by_its_plex_key():
+    rows = []
+    for index in range(2):
+        row = parse_plex_item(sample_item(), "Films", "movie")
+        row.update(title=f"Film {index}", rating_key=f"k{index}")
+        rows.append(row)
+    db = SimpleNamespace(get=AsyncMock(return_value=LibraryAnalyticsSnapshot(payload_json=json.dumps({"items": rows}))))
+
+    assert (await analytics_item(SimpleNamespace(), db, "k1"))["title"] == "Film 1"
+    assert await analytics_item(SimpleNamespace(), db, "absent") is None
+
+
+@pytest.mark.asyncio
+async def test_analytics_item_rebuilds_a_missing_or_unreadable_snapshot(monkeypatch):
+    rebuilt = {"items": [{"rating_key": "k1", "title": "Reconstruit"}]}
+    refresh = AsyncMock(return_value=rebuilt)
+    monkeypatch.setattr("app.services.library_analytics.refresh_library_analytics_snapshot", refresh)
+
+    missing = SimpleNamespace(get=AsyncMock(return_value=None))
+    assert (await analytics_item(SimpleNamespace(), missing, "k1"))["title"] == "Reconstruit"
+
+    unreadable = SimpleNamespace(get=AsyncMock(return_value=LibraryAnalyticsSnapshot(payload_json="{pas du json")))
+    assert (await analytics_item(SimpleNamespace(), unreadable, "k1"))["title"] == "Reconstruit"
+    assert refresh.await_count == 2
+
+
+def test_analytics_item_endpoint_returns_the_media_or_404(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.database import get_db_async
+    from app.dependencies import get_settings_or_404, require_admin
+    from app.main import app
+
+    async def fake_item(settings, db, rating_key):
+        return {"rating_key": rating_key, "title": "Dune"} if rating_key == "k1" else None
+
+    monkeypatch.setattr("app.routers.library_analytics_api.analytics_item", fake_item)
+    app.dependency_overrides[require_admin] = lambda: None
+    app.dependency_overrides[get_settings_or_404] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_db_async] = lambda: None
+    try:
+        client = TestClient(app, raise_server_exceptions=False)
+        assert client.get("/api/library-analytics/items/k1").json()["title"] == "Dune"
+        assert client.get("/api/library-analytics/items/absent").status_code == 404
+    finally:
+        for dependency in (require_admin, get_settings_or_404, get_db_async):
+            app.dependency_overrides.pop(dependency, None)
 
 
 def test_an_episode_inherits_the_studio_of_its_show():

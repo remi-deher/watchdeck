@@ -1933,6 +1933,22 @@ async def activity_history(
     }
 
 
+async def playback_session_detail(session_id: int, db) -> dict | None:
+    """Une session, en cours ou terminee : ce qu'affiche sa fiche, a partir de son adresse."""
+    row = (
+        (
+            await db.execute(
+                select(PlaybackSession)
+                .options(selectinload(PlaybackSession.segments))
+                .filter(PlaybackSession.id == session_id)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    return _serialize(row) if row else None
+
+
 async def live_activity_snapshot(db=None) -> dict:
     """Retourne uniquement les sessions actives, pour le polling fréquent."""
     if db is None:

@@ -43,9 +43,25 @@ export function etatDeSurface(depuis: string): Record<string, unknown> {
 export function ouvrirFiche(
   router: { push: (to: any) => unknown; resolve: (to: any) => { path: string; query: any; hash: string } },
   cible: string | Record<string, unknown>,
-  depuis: string
+  depuis: string,
+  /** Etat supplementaire de l'entree : la liste parcourue, pour « precedent / suivant ». */
+  extra: Record<string, unknown> = {},
 ): void {
-  void router.push({ ...destinationDeFiche(router, cible), state: etatDeSurface(depuis) });
+  void router.push({ ...destinationDeFiche(router, cible), state: { ...extra, ...etatDeSurface(depuis) } });
+}
+
+const CLE_VOISINS = '__sheetSiblings';
+
+/** Etat portant la liste d'ou l'on ouvre une fiche : ses identifiants, dans l'ordre. */
+export function etatDeVoisins(ids: Array<string | number>): Record<string, unknown> {
+  return { [CLE_VOISINS]: ids.map(String) };
+}
+
+/** Identifiants de la liste d'origine, relus dans l'entree d'historique courante. */
+export function voisinsCourants(): string[] {
+  if (typeof history === 'undefined') return [];
+  const valeur = (history.state as Record<string, unknown> | null)?.[CLE_VOISINS];
+  return Array.isArray(valeur) ? valeur.map(String) : [];
 }
 
 /**
@@ -108,4 +124,12 @@ export function useMediaOverlay(): MediaOverlayState {
   }
 
   return { actif, routeDeFond, fermer };
+}
+
+/** Etat de surface de l'entree courante (page de fond, voisins), a reporter sur une
+ *  navigation qui remplace la fiche par une autre. Sans les cles internes du routeur. */
+export function etatDeSurfaceCourant(): Record<string, unknown> {
+  if (typeof history === 'undefined' || !history.state) return {};
+  const etat = history.state as Record<string, unknown>;
+  return Object.fromEntries([CLE_FOND, CLE_VOISINS].filter((cle) => cle in etat).map((cle) => [cle, etat[cle]]));
 }
