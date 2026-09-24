@@ -238,16 +238,18 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 }
 
 /* L'affiche grandit avec la surface : c'est elle qu'on a touchee, elle doit arriver
-   quelque part de visiblement plus grand que la vignette dont elle vient. */
-.media-overlay :deep(.mdh-poster) {
-  flex-basis: 156px;
+   quelque part de visiblement plus grand que la vignette dont elle vient.
+   La taille passe par la largeur seule (`flex-basis: auto`) : sur telephone l'en-tete
+   s'empile en colonne, et une base de 156px y fixait la HAUTEUR -- l'affiche 2:3
+   devenait un carre de 156 x 156. */
+.media-overlay :deep(.mdh-poster:not(.is-music)) {
+  flex: 0 0 auto;
   width: 156px;
 }
 
 @media (min-width: 768px) {
   .media-overlay :deep(.mdh-backdrop) { min-height: min(52dvh, 480px); }
-  .media-overlay :deep(.mdh-poster) {
-    flex-basis: 232px;
+  .media-overlay :deep(.mdh-poster:not(.is-music)) {
     width: 232px;
   }
 }

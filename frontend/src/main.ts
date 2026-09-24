@@ -1,4 +1,5 @@
 import { createApp } from 'vue';
+import { vBalancedGrid } from '@/directives/vBalancedGrid';
 import { vListMotion } from '@/motion/vListMotion';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { VueQueryPlugin } from '@tanstack/vue-query';
@@ -150,6 +151,7 @@ router.beforeEach(async (to) => {
 
 createApp(App)
   .directive('list-motion', vListMotion)
+  .directive('balanced-grid', vBalancedGrid)
   .component('AppPage', AppPage)
   .component('AppSubnav', AppSubnav)
   .component('FilterSidebar', FilterSidebar)

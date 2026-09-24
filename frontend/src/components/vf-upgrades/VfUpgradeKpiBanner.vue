@@ -1,5 +1,5 @@
 <template>
-  <section class="kpi-banner" :aria-label="audit ? 'Indicateurs clés de l’audit' : 'Indicateurs des opportunités'">
+  <section v-balanced-grid="{ min: 212 }" class="kpi-banner" :aria-label="audit ? 'Indicateurs clés de l’audit' : 'Indicateurs des opportunités'">
     <!-- Ces tuiles sont le filtre de la page, pas un tableau de bord : un vrai `button`
          apporte l'activation au clavier (Entrée et Espace) et `aria-pressed` dit lequel
          est actif, ce qu'un `role="button"` pose a la main ne faisait pas. -->

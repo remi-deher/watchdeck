@@ -41,5 +41,6 @@ enableAutoUnmount(afterEach);
    Reka UI : leurs dialogues disparaissaient des tests. Celui-ci rend le contenu sur place. */
 config.global.stubs = { ...config.global.stubs, teleport: { template: '<div class="teleport-stub"><slot /></div>' } };
 // Directive globale enregistree dans main.ts : sans elle, chaque liste animee avertit.
+import { vBalancedGrid } from './directives/vBalancedGrid';
 import { vListMotion } from '@/motion/vListMotion';
-config.global.directives = { ...config.global.directives, 'list-motion': vListMotion };
+config.global.directives = { ...config.global.directives, 'list-motion': vListMotion, 'balanced-grid': vBalancedGrid };
