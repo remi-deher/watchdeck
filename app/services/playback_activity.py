@@ -1803,15 +1803,33 @@ def _device_expression():
 #: donc que sur la page chargée : « Anciennes » réordonnait les cent lectures les plus
 #: récentes entre elles — c'est-à-dire ne changeait rien de visible — et « Durée »
 #: donnait la plus longue des cent dernières, pas de la période.
-HISTORY_ORDERS = {
-    "recent": (PlaybackSession.started_at.desc(), PlaybackSession.id.desc()),
-    "oldest": (PlaybackSession.started_at.asc(), PlaybackSession.id.asc()),
-    "longest": (
-        PlaybackSession.watched_ms.desc().nulls_last(),
-        PlaybackSession.started_at.desc(),
-        PlaybackSession.id.desc(),
-    ),
-}
+#: Chaque colonne de l'historique se trie, dans les deux sens (`<colonne>_<asc|desc>`) ;
+#: les anciennes valeurs restent comprises.
+HISTORY_SORT_ALIASES = {"recent": "date_desc", "oldest": "date_asc", "longest": "duration_desc"}
+HISTORY_SORT_COLUMNS = ("title", "user", "device", "method", "date", "duration")
+
+
+def _history_order(sort: str, device_expression):
+    """Clause ORDER BY d'un tri d'historique ; la date, puis l'identifiant, departagent."""
+    sort = HISTORY_SORT_ALIASES.get(sort, sort)
+    column, _, direction = sort.rpartition("_")
+    if column not in HISTORY_SORT_COLUMNS or direction not in ("asc", "desc"):
+        column, direction = "date", "desc"
+    keys = {
+        # Un episode se range sous sa serie : trier par titre regroupe la serie.
+        "title": func.lower(func.coalesce(func.nullif(PlaybackSession.grandparent_title, ""), PlaybackSession.title)),
+        "user": func.lower(PlaybackSession.user_name),
+        "device": func.lower(device_expression),
+        "method": PlaybackSession.playback_method,
+        "date": PlaybackSession.started_at,
+        "duration": PlaybackSession.watched_ms,
+    }
+    key = keys[column]
+    primary = key.asc().nulls_last() if direction == "asc" else key.desc().nulls_last()
+    if column == "date":
+        tie = PlaybackSession.id.asc() if direction == "asc" else PlaybackSession.id.desc()
+        return (primary, tie)
+    return (primary, PlaybackSession.started_at.desc(), PlaybackSession.id.desc())
 
 
 async def activity_history(
@@ -1887,7 +1905,7 @@ async def activity_history(
                 select(PlaybackSession)
                 .options(selectinload(PlaybackSession.segments))
                 .filter(*filters)
-                .order_by(*HISTORY_ORDERS.get(sort, HISTORY_ORDERS["recent"]))
+                .order_by(*_history_order(sort, device_expression))
                 .offset(max(offset, 0))
                 .limit(min(max(limit, 1), 500))
             )

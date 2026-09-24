@@ -361,11 +361,15 @@ test("changer le tri de l'historique redemande la periode entiere", async ({ pag
   });
 
   await page.goto("/activity?view=history");
-  const segmented = page.getByRole("tablist", { name: /Trier/ }).first();
-  await expect(segmented).toBeVisible({ timeout: 15000 });
-  await segmented.getByRole("tab", { name: "Anciennes" }).click();
-
-  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("oldest");
+  // Chaque colonne se trie d'un clic ; un second clic inverse le sens.
+  const bar = page.getByRole("toolbar", { name: /Trier/ });
+  await expect(bar).toBeVisible({ timeout: 15000 });
+  await bar.getByRole("button", { name: /Trier par date/ }).click();
+  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("date_asc");
+  await bar.getByRole("button", { name: /Trier par titre/ }).click();
+  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("title_asc");
+  await bar.getByRole("button", { name: /Trier par titre/ }).click();
+  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("title_desc");
 });
 
 test("une session s'ouvre dans la feuille, avec son adresse, et retour la referme", async ({ page }) => {

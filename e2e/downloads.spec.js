@@ -74,7 +74,9 @@ test("le tableau des torrents filtre, affiche les debits et ouvre l'inspecteur",
   await mockApi(page);
   await page.goto("/downloads?view=clients&sub=instances");
   const table = page.locator(".torrent-table");
-  await expect(table).toContainText("Alpha.2024.1080p");
+  // Le tableau est charge a la demande : sa premiere compilation par le serveur de dev
+  // depasse parfois les 5 s par defaut.
+  await expect(table).toContainText("Alpha.2024.1080p", { timeout: 15_000 });
   await expect(table).toContainText("Bravo.S01");
   await expect(page.locator(".global-speed-bar")).toContainText("2 Ko/s");
   await expect(page.locator(".global-speed-bar")).toContainText("Connecté");

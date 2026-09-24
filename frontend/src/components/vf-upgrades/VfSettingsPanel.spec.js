@@ -13,6 +13,11 @@ vi.mock('@/api', () => ({ api: vi.fn() }));
 /* La modale doit rester synchronisée avec la page Réglages. Ce n'est pas une recopie de
    champs : elle monte le composant de cet onglet sur le même store et enregistre par le
    même endpoint. Ces tests verrouillent les trois propriétés qui font la synchro. */
+// Le premier montage du formulaire VF complet est lourd : sous la charge de la suite
+// entiere, il depassait les 5 s par defaut. La marge ne masque rien -- chaque test verifie
+// un comportement, pas une duree.
+vi.setConfig({ testTimeout: 20_000 });
+
 describe('VfSettingsPanel', () => {
   // save() importe le schéma Zod à la demande : sa première compilation peut dépasser
   // le délai du test quand les workers sont chargés. On la paie une fois, ici.

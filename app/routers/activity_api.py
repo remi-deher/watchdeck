@@ -79,7 +79,11 @@ async def get_activity_history(
     media_type: str | None = Query(None, max_length=50),
     device: str | None = Query(None, max_length=200),
     query: str | None = Query(None, max_length=200),
-    sort: str = Query("recent", pattern="^(recent|oldest|longest)$"),
+    sort: str = Query(
+        "recent",
+        pattern="^(recent|oldest|longest|(title|user|device|method|date|duration)_(asc|desc))$",
+        description="Colonne et sens : title_asc, duration_desc... (recent, oldest, longest restent acceptés).",
+    ),
     pagination: PaginationParams = Depends(pagination_params(max_limit=500, default_limit=100)),
     db: AsyncSession = Depends(get_db_async),
 ):

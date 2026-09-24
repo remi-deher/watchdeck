@@ -1352,6 +1352,54 @@ def test_history_sorting_covers_the_period_not_the_loaded_page(client, async_db)
     assert client.get("/api/playback/history?days=7&sort=nimporte").status_code == 422
 
 
+def test_history_sorts_on_every_column_in_both_directions(client, async_db):
+    """Chaque colonne de l'historique se trie, en base, dans les deux sens."""
+    base = now_utc_naive()
+    rows = [
+        # titre, serie, utilisateur, appareil, methode, duree, anciennete (minutes)
+        ("Zorro", None, "bob", "Salon", "transcode", 3_000, 10),
+        ("Episode 1", "Andor", "alice", "Chambre", "direct_play", 1_000, 5),
+        ("Mulan", None, "carole", "Bureau", "direct_stream", 2_000, 1),
+    ]
+    for index, (title, series, user, device, method, watched, age) in enumerate(rows):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"col-{index}",
+                title=title,
+                grandparent_title=series,
+                user_name=user,
+                player_title=device,
+                playback_method=method,
+                media_type="episode" if series else "movie",
+                watched_ms=watched,
+                started_at=base - timedelta(minutes=age),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    async_db.commit()
+
+    def first(sort):
+        response = client.get(f"/api/playback/history?days=7&sort={sort}")
+        assert response.status_code == 200, sort
+        return response.json()["items"][0]["title"]
+
+    # Un episode se range sous le nom de sa serie.
+    assert first("title_asc") == "Episode 1"
+    assert first("title_desc") == "Zorro"
+    assert first("user_asc") == "Episode 1"
+    assert first("user_desc") == "Mulan"
+    assert first("device_asc") == "Mulan"
+    assert first("device_desc") == "Zorro"
+    assert first("method_asc") == "Episode 1"
+    assert first("method_desc") == "Zorro"
+    assert first("duration_asc") == "Episode 1"
+    assert first("duration_desc") == "Zorro"
+    assert first("date_asc") == "Zorro"
+    assert first("date_desc") == "Mulan"
+    assert client.get("/api/playback/history?days=7&sort=title_sideways").status_code == 422
+
+
 def test_history_leaves_the_running_playback_to_the_live_view(client, async_db):
     """Une lecture en cours n'est pas encore une trace d'historique.
 
