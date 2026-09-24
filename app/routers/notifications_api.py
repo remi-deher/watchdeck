@@ -5,7 +5,7 @@ from html import escape
 from typing import Any, Optional
 
 import sqlalchemy
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import bindparam, text
@@ -353,6 +353,8 @@ async def list_notification_logs(
     types: str = None,
     users: str = None,
     search: str = None,
+    sort: str = Query("date", pattern="^(date|event|media|recipients|state)$"),
+    direction: str = Query("desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db_async),
 ):
     q = select(NotificationLog)
@@ -410,7 +412,17 @@ async def list_notification_logs(
             )
         )
 
-    q = q.order_by(NotificationLog.sent_at.desc())
+    # Chaque colonne de l'historique d'envoi se trie, en base, avant la pagination.
+    sort_keys = {
+        "date": NotificationLog.sent_at,
+        "event": NotificationLog.event,
+        "media": sqlalchemy.func.lower(NotificationLog.media_title),
+        "recipients": sqlalchemy.func.lower(NotificationLog.recipient),
+        "state": NotificationLog.success,
+    }
+    key = sort_keys[sort]
+    ordered = key.asc().nulls_last() if direction == "asc" else key.desc().nulls_last()
+    q = q.order_by(ordered, NotificationLog.sent_at.desc(), NotificationLog.id.desc())
     total = (await db.execute(sqlalchemy.select(sqlalchemy.func.count()).select_from(q.subquery()))).scalar()
     logs = (await db.execute(q.offset(pagination.offset).limit(pagination.limit))).scalars().all()
     return paginated_response(

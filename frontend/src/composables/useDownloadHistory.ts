@@ -10,7 +10,7 @@ function asList<T>(value: unknown): T[] { return Array.isArray(value) ? (value a
  * lectures en vol : une reponse arrivee apres un changement de filtre est ignoree.
  */
 export function useDownloadHistory(
-  filters: () => { source: string; instanceId: string },
+  filters: () => { source: string; instanceId: string; sort?: string; direction?: string },
   setError: (message: string) => void,
 ) {
   const history = shallowRef<any[]>([]);
@@ -20,10 +20,13 @@ export function useDownloadHistory(
   let version = 0;
 
   function url(offset: number): string {
-    const { source, instanceId } = filters();
+    const { source, instanceId, sort, direction } = filters();
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
     if (source) params.set('source', source);
     if (instanceId) params.set('instance_id', instanceId);
+    // Le tri est fait par le serveur, sur tout l'historique : « Afficher plus » suit l'ordre.
+    if (sort) params.set('sort', sort);
+    if (direction) params.set('direction', direction);
     return `/api/downloads/history?${params}`;
   }
 

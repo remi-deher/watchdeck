@@ -17,7 +17,7 @@
       <div class="psh-main">
     <AppSubnav variant="tabs" :active="tab" :items="tabItems" aria-label="Type de journal" @update:active="selectTab" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
-    <UiDataTable class="panel" label="Tableau des journaux" :rows="shown" :columns="LOG_COLUMNS" :row-key="keyOf">
+    <UiDataTable class="panel" label="Tableau des journaux" :rows="shown" :columns="LOG_COLUMNS" :row-key="keyOf" manual-sort :sort="sort" @update:sort="setSort">
       <template #empty>
         <UiFeedback v-if="loading" type="loading" message="Chargement des journaux…"/>
         <UiEmptyState v-else message="Aucune entrée pour ce filtre." />
@@ -50,7 +50,7 @@ import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
-import { formatDateTimeSeconds } from '@/utils/format';
+import { formatDateTimeSeconds, parseApiDate } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { refDebounced } from '@vueuse/core';
@@ -62,10 +62,10 @@ import LoadMore from '@/components/ui/LoadMore.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 
 const LOG_COLUMNS: UiColumn[] = [
-  { key: 'date', label: 'Date' },
-  { key: 'section', label: 'Section' },
-  { key: 'description', label: 'Description', card: 'title' },
-  { key: 'result', label: 'Résultat' },
+  { key: 'date', label: 'Date', sortable: true },
+  { key: 'section', label: 'Section', sortable: true },
+  { key: 'description', label: 'Description', card: 'title', sortable: true },
+  { key: 'result', label: 'Résultat', sortable: true },
 ];
 import { useConfirmedAction } from '@/composables/useConfirmedAction';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
@@ -110,7 +110,30 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
 );
 const PAGE_SIZE = 50;
 const visibleCount = ref(PAGE_SIZE);
-const shown = computed(() => filtered.value.slice(0, visibleCount.value));
+/* Le tri porte sur toutes les entrees filtrees, AVANT l'affichage par tranches : trier
+   le tableau lui-meme n'aurait range que les cinquante lignes visibles. */
+const sort = ref<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+function setSort(value: { key: string; direction: 'asc' | 'desc' } | null): void {
+  sort.value = value || { key: 'date', direction: 'desc' };
+}
+// Les niveaux se rangent par gravite, pas par ordre alphabetique.
+const LEVEL_RANK: Record<string, number> = { CRITICAL: 4, ERROR: 3, WARNING: 2, INFO: 1, DEBUG: 0 };
+function sortValueOf(r: any, key: string): string | number {
+  if (key === 'date') { const v = r.created_at || r.time || r.started_at; return v ? parseApiDate(String(v)).getTime() || 0 : 0; }
+  if (key === 'section') return r.level ? (LEVEL_RANK[String(r.level).toUpperCase()] ?? -1) : typeOf(r).toLocaleLowerCase('fr');
+  if (key === 'description') return titleOf(r).toLocaleLowerCase('fr');
+  if (tab.value === 'polls') return (Number(r.errors) || 0) * 1e9 + (Number(r.duration_ms) || 0);
+  return resultOf(r).toLocaleLowerCase('fr');
+}
+const sorted = computed(() => {
+  const { key, direction } = sort.value;
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...filtered.value].sort((a, b) => {
+    const x = sortValueOf(a, key), y = sortValueOf(b, key);
+    return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'fr')) * sign;
+  });
+});
+const shown = computed(() => sorted.value.slice(0, visibleCount.value));
 watch(filtered, () => { visibleCount.value = PAGE_SIZE; });
 function resetFilters(): void { resetFiltersDrawer(); }
 

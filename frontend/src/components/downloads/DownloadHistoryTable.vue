@@ -1,7 +1,7 @@
 <template>
   <section class="history-section" role="tabpanel" aria-label="Historique des téléchargements">
     <UiFeedback v-for="row in errors" :key="row.instance_id" type="error" :title="row.instance_name" message="Historique temporairement indisponible pour cette instance."/>
-    <UiDataTable class="panel" label="Historique des téléchargements" :rows="rows" :columns="HISTORY_COLUMNS" :row-key="(row: any) => row.id">
+    <UiDataTable class="panel" label="Historique des téléchargements" :rows="rows" :columns="HISTORY_COLUMNS" :row-key="(row: any) => row.id" manual-sort :sort="sort" @update:sort="(value) => emit('update:sort', value || { key: 'completed', direction: 'desc' })">
       <template #empty><p class="empty">Aucun téléchargement terminé.</p></template>
       <template #cell-title="{ row }">
         <div class="history-item-wrap">
@@ -46,16 +46,26 @@ import { mediaTypeLabel } from '@/utils/labels';
 import { formatDateTime as formatDate } from '@/utils/format';
 import { proxyUrl } from '@/utils/mediaImage';
 
-defineProps<{ rows: any[]; errors: any[]; hasMore: boolean; loading: boolean }>();
-const emit = defineEmits<{ (e: 'load-more'): void }>();
+defineProps<{
+  rows: any[];
+  errors: any[];
+  hasMore: boolean;
+  loading: boolean;
+  /** Tri, fait par le serveur sur tout l'historique. */
+  sort?: { key: string; direction: 'asc' | 'desc' } | null;
+}>();
+const emit = defineEmits<{
+  (e: 'load-more'): void;
+  (e: 'update:sort', value: { key: string; direction: 'asc' | 'desc' }): void;
+}>();
 
 const HISTORY_COLUMNS: UiColumn[] = [
-  { key: 'title', label: 'Titre', card: 'title' },
-  { key: 'type', label: 'Type' },
-  { key: 'mode', label: 'Traitement' },
-  { key: 'source', label: 'Source' },
-  { key: 'instance', label: 'Instance' },
-  { key: 'completed', label: 'Terminé' },
+  { key: 'title', label: 'Titre', card: 'title', sortable: true },
+  { key: 'type', label: 'Type', sortable: true },
+  { key: 'mode', label: 'Traitement', sortable: true },
+  { key: 'source', label: 'Source', sortable: true },
+  { key: 'instance', label: 'Instance', sortable: true },
+  { key: 'completed', label: 'Terminé', sortable: true },
 ];
 
 const { hasPosterError, onPosterError } = usePosterErrors();

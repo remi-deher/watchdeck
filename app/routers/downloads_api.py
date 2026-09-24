@@ -3,11 +3,12 @@
 import asyncio
 import logging
 import time
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -341,6 +342,21 @@ async def direct_downloads(db: AsyncSession = Depends(get_db_async)):
     return out
 
 
+def _history_order(model, sort: str, direction: str):
+    """Tri de l'historique des telechargements, en base, avant la pagination."""
+    keys = {
+        "title": func.lower(model.title),
+        "type": model.media_type,
+        "mode": model.processing_mode,
+        "source": model.source,
+        "instance": func.lower(model.instance_name),
+        "completed": model.completed_at,
+    }
+    key = keys[sort]
+    ordered = key.asc().nulls_last() if direction == "asc" else key.desc().nulls_last()
+    return (ordered, model.completed_at.desc(), model.id.desc())
+
+
 @router.get("/downloads/history")
 async def downloads_history(
     limit: int = Query(100, ge=1, le=500),
@@ -348,6 +364,8 @@ async def downloads_history(
     media_type: Optional[str] = None,
     source: Optional[str] = None,
     instance_id: Optional[int] = None,
+    sort: Annotated[str, Query(pattern="^(title|type|mode|source|instance|completed)$")] = "completed",
+    direction: Annotated[str, Query(pattern="^(asc|desc)$")] = "desc",
     db: AsyncSession = Depends(get_db_async),
 ):
     """Historique local; aucune consultation des instances *Arr à l'affichage."""
@@ -372,7 +390,7 @@ async def downloads_history(
     if instance_id is not None:
         q = q.filter(DownloadHistory.arr_instance_id == instance_id)
     rows = (
-        (await db.execute(q.order_by(DownloadHistory.completed_at.desc()).offset(eff_offset).limit(eff_limit)))
+        (await db.execute(q.order_by(*_history_order(DownloadHistory, sort, direction)).offset(eff_offset).limit(eff_limit)))
         .scalars()
         .all()
     )

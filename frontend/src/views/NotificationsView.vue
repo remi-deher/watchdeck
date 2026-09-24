@@ -68,7 +68,7 @@
     <UiButton size="sm" @click="sendSelected"><template #icon><Send/></template>Envoyer</UiButton>
     <UiButton variant="danger" size="sm" @click="deleteSelected"><template #icon><Trash2/></template>Supprimer</UiButton>
   </BulkActionBar>
-  <NotificationsTable ref="tableRef" :rows="rows" :tab="tab" :loading="loading" @send="sendPending" @resend="resend" @mark-handled="markHandled" @delete-one="deleteOne" @preview="openPreview"/>
+  <NotificationsTable ref="tableRef" :rows="rows" :tab="tab" :loading="loading" :sort="historySort" @update:sort="setHistorySort" @send="sendPending" @resend="resend" @mark-handled="markHandled" @delete-one="deleteOne" @preview="openPreview"/>
 
   <NotificationPreviewModal
     :open="previewOpen"
@@ -173,6 +173,13 @@ const userOptions = computed(() => (users.value || []).map((user) => ({
 })));
 
 const offset = ref(0);
+/* Tri de l'historique, fait par le serveur avant la pagination : un nouveau tri repart
+   de la premiere page. */
+const historySort = ref({ key: 'date', direction: 'desc' });
+function setHistorySort(value) {
+  historySort.value = value;
+  offset.value = 0;
+}
 const limit = 50;
 const { message: feedbackMessage, type: feedbackType, show: showFeedbackMessage } = useFeedback({ timeoutMs: 6000 });
 const previewOpen = ref(false);
@@ -234,7 +241,7 @@ async function toggleHold(enabled) {
 const serverSearch = refDebounced(search, 300);
 const listQuery = useQuery({
   queryKey: computed(() => tab.value === 'history'
-    ? ['notifications', 'history', { offset: offset.value, state: state.value, types: selectedTypes.value.join(','), users: selectedUsers.value.join(','), search: serverSearch.value }]
+    ? ['notifications', 'history', { offset: offset.value, state: state.value, types: selectedTypes.value.join(','), users: selectedUsers.value.join(','), search: serverSearch.value, sort: historySort.value.key, direction: historySort.value.direction }]
     : ['notifications', 'pending', { offset: offset.value }]),
   queryFn: ({ signal }) => {
     if (tab.value === 'pending') return api(`/api/notifications/pending?limit=${limit}&offset=${offset.value}`, { signal });
@@ -243,6 +250,8 @@ const listQuery = useQuery({
     if (selectedTypes.value.length) q.append('types', selectedTypes.value.join(','));
     if (selectedUsers.value.length) q.append('users', selectedUsers.value.join(','));
     if (serverSearch.value) q.append('search', serverSearch.value);
+    q.append('sort', historySort.value.key);
+    q.append('direction', historySort.value.direction);
     return api(`/api/notifications/log?${q.toString()}`, { signal });
   },
   // Garder la page precedente pendant le chargement, mais pas d'un onglet a l'autre.
