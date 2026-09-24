@@ -11,7 +11,7 @@
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <template v-if="!isMusicShape">
           <FilterGroup label="Statut">
-            <UiChipGroup label="Statut" :options="[{ value: '', label: 'Tous les statuts' }, { value: 'library', label: 'Dans Plex' }, { value: 'in_progress', label: 'En cours' }, { value: 'partially_available', label: 'Partiellement dispo' }, { value: 'orphan', label: 'Suivi Sonarr/Radarr' }, { value: 'pending_approval', label: 'À approuver' }, { value: 'pending', label: 'En attente' }, { value: 'sent_to_arr', label: 'Transmise' }, { value: 'failed', label: 'Échec' }, { value: 'rejected', label: 'Refusée' }]" v-model="statusSingle" />
+            <UiChipGroup label="Statut" :options="[{ value: '', label: 'Tous les statuts' }, { value: 'library', label: 'Dans Plex' }, { value: 'in_progress', label: 'En cours' }, { value: 'partially_available', label: 'Partiellement dispo' }, { value: 'orphan', label: 'Suivi Sonarr/Radarr' }, { value: 'pending_approval', label: 'À approuver' }, { value: 'pending', label: 'En attente' }, { value: 'sent_to_arr', label: 'Transmise' }, { value: 'failed', label: 'Échec' }, { value: 'rejected', label: 'Refusée' }]" default-value="library" v-model="statusSingle" />
           </FilterGroup>
           <FilterGroup label="Version">
             <UiChipGroup label="Version" :options="[{ value: '', label: 'Toutes les langues' }, { value: 'vf', label: 'VF uniquement' }, { value: 'vf_secondary', label: 'VF secondaire' }, { value: 'vo', label: 'VO uniquement' }, { value: 'mixed', label: 'Mixte (VF + VO)' }, { value: 'unchecked', label: 'Non analysée' }]" v-model="vf" />

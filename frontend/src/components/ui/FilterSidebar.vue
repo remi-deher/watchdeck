@@ -4,6 +4,16 @@
        haut, il descend en dessous. La colonne de 210px du bureau a disparu : elle
        retrecissait la grille et decalait la page selon qu'elle etait ouverte ou non. -->
   <ModalShell :open="open" title="Filtres" panel-class="filter-sheet" :modal="false" @close="$emit('close')">
+    <!-- Ce qui est actif, en tete : on le voit en ouvrant, et on le retire d'un appui
+         sans chercher le groupe qui le porte. -->
+    <ul v-if="activeChips.length" class="filter-chips" aria-label="Filtres actifs">
+      <li v-for="chip in activeChips" :key="chip.key">
+        <button type="button" class="filter-chip" :aria-label="`Retirer le filtre ${chip.label}`" @click="chip.onRemove()">
+          <span>{{ chip.label }}</span>
+          <X aria-hidden="true" />
+        </button>
+      </li>
+    </ul>
     <div class="filter-modal-body">
       <slot />
     </div>
@@ -20,7 +30,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, watch } from 'vue';
+import { computed, onUnmounted, provide, shallowReactive, watch } from 'vue';
+import { X } from '@lucide/vue';
+import { FILTER_CHIP_REGISTRY, type FilterChip } from '@/composables/useFiltersDrawer';
 import ModalShell from './ModalShell.vue';
 import UiButton from './UiButton.vue';
 import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
@@ -29,12 +41,16 @@ const props = withDefaults(
   defineProps<{
     open?: boolean;
     activeCount?: number;
+    /** Filtres actifs, en puces retirables en tete du panneau. Facultatif : par defaut
+     *  elles sont deduites des groupes de puces du panneau (voir FILTER_CHIP_REGISTRY). */
+    chips?: FilterChip[];
     /** Nombre de resultats retenus, quand la page sait le donner avant fermeture. */
     matchCount?: number | null;
   }>(),
   {
     open: false,
     activeCount: 0,
+    chips: () => [],
     matchCount: null,
   }
 );
@@ -43,6 +59,15 @@ defineEmits<{
   (e: 'close'): void;
   (e: 'reset'): void;
 }>();
+
+const groups = shallowReactive(new Map<symbol, () => FilterChip[]>());
+provide(FILTER_CHIP_REGISTRY, {
+  register: (id, chips) => { groups.set(id, chips); },
+  unregister: (id) => { groups.delete(id); },
+});
+const activeChips = computed<FilterChip[]>(() =>
+  props.chips.length ? props.chips : [...groups.values()].flatMap((chips) => chips())
+);
 
 /* Le libelle annonce le resultat quand la page le connait. Sans decompte fiable il
    reste generique : un chiffre faux serait pire que pas de chiffre. */
@@ -116,6 +141,31 @@ onUnmounted(() => {
 <style scoped lang="scss">
 /* filter-group / group-label / filter-badge : styles globaux dans styles/layout/_layout.scss.
    Geometrie du panneau (ancrage a la barre) : styles/components/_components.scss. */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+.filter-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px 0 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+.filter-chip svg { width: 13px; height: 13px; }
+.filter-chip:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+
 .filter-modal-body {
   display: flex;
   flex-direction: column;

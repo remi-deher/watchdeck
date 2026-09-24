@@ -29,8 +29,9 @@
 </template>
 
 <script setup lang="ts" generic="V extends string | number | boolean | null">
-import { computed } from 'vue';
+import { computed, inject, onUnmounted } from 'vue';
 import { ToggleGroupItem, ToggleGroupRoot } from 'reka-ui';
+import { FILTER_CHIP_REGISTRY, type FilterChip } from '@/composables/useFiltersDrawer';
 
 export interface UiChipOption<Value = string> {
   value: Value;
@@ -54,9 +55,45 @@ const props = withDefaults(defineProps<{
   /** Classe de chaque bouton : pastille de filtre par defaut, ou l'apparence d'un autre
    *  groupe de bascules (periodes d'un graphique, filtres rapides...). */
   itemClass?: string;
+  /** Valeur « neutre » du filtre, quand ce n'est pas la premiere option (« Tous »).
+   *  Sert a savoir si le filtre est actif, et a le retirer depuis sa puce. */
+  defaultValue?: V;
 }>(), { multiple: false, exclusion: false, itemClass: 'filter-badge' });
 
 const emit = defineEmits<{ (e: 'update:modelValue', value: any): void }>();
+
+/* Dans un panneau de filtres, le groupe annonce ce qu'il retient : le panneau en fait des
+   puces retirables. Hors panneau (periodes d'un graphique...), rien n'est declare. */
+const registry = inject(FILTER_CHIP_REGISTRY, null);
+if (registry) {
+  const id = Symbol(props.label);
+  registry.register(id, activeChips);
+  onUnmounted(() => registry.unregister(id));
+}
+
+function activeChips(): FilterChip[] {
+  const labelOf = (value: unknown) => props.options.find((option) => option.value === value)?.label ?? String(value);
+  if (props.multiple || props.exclusion) {
+    const values = ((props.modelValue as V[]) || []) as unknown[];
+    return values.map((value) => {
+      const excluded = typeof value === 'string' && value.startsWith('!');
+      const label = excluded ? `Sauf ${labelOf((value as string).slice(1))}` : labelOf(value);
+      return {
+        key: `${props.label}:${String(value)}`,
+        label,
+        onRemove: () => emit('update:modelValue', values.filter((v) => v !== value)),
+      };
+    });
+  }
+  const neutral = props.defaultValue !== undefined ? props.defaultValue : props.options[0]?.value;
+  if (props.modelValue === neutral || props.modelValue === undefined || props.modelValue === null) return [];
+  if (indexDe(props.modelValue as V) < 0) return [];
+  return [{
+    key: props.label,
+    label: labelOf(props.modelValue),
+    onRemove: () => emit('update:modelValue', neutral),
+  }];
+}
 
 /* Reka compare les valeurs, et plusieurs filtres utilisent la chaine vide pour « Tous » :
    il la confondrait avec « rien de choisi ». Chaque option recoit donc une cle interne. */
