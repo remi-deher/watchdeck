@@ -39,7 +39,17 @@
 
   <div class="psh-layout">
     <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
-      <NotificationsFiltersBar v-if="tab==='history'" v-model:state="state" v-model:selected-types="selectedTypes" v-model:selected-users="selectedUsers" :users="users" :type-options="typeOptions" />
+      <template v-if="tab==='history'">
+        <FilterGroup label="État">
+          <UiChipGroup label="État" :options="STATE_OPTIONS" v-model="state" />
+        </FilterGroup>
+        <FilterGroup label="Type">
+          <UiChipGroup label="Type" multiple :options="typeOptions" v-model="selectedTypes" />
+        </FilterGroup>
+        <FilterGroup label="Utilisateur">
+          <UiCombobox label="Utilisateur" multiple placeholder="Tous les utilisateurs" :options="userOptions" v-model="selectedUsers" />
+        </FilterGroup>
+      </template>
       <template v-if="tab==='pending' && rows.length">
         <UiButton @click="purge(true)"><CheckCheck/>Purger et marquer traitées</UiButton>
         <UiButton variant="danger" @click="purge(false)"><Trash2/>Purger</UiButton>
@@ -99,7 +109,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, ChevronLeft, ChevronRight, PauseCircle, PlayCircle, Send, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
-import NotificationsFiltersBar from '@/components/notifications/NotificationsFiltersBar.vue';
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import UiCombobox from '@/components/ui/UiCombobox.vue';
 import NotificationsTable from '@/components/notifications/NotificationsTable.vue';
 import NotificationPreviewModal from '@/components/notifications/NotificationPreviewModal.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
@@ -148,6 +160,16 @@ const typeOptions = [
   { value: 'correction', label: 'Corrections' },
   { value: 'failed', label: 'Erreurs systeme' }
 ];
+
+const STATE_OPTIONS = [
+  { value: '', label: 'Tous les états' },
+  { value: 'success', label: 'Envoyées' },
+  { value: 'error', label: 'Erreurs' },
+];
+const userOptions = computed(() => (users.value || []).map((user) => ({
+  value: user.id,
+  label: user.custom_name || user.display_name || user.plex_user_id,
+})));
 
 const offset = ref(0);
 const limit = 50;

@@ -3,9 +3,15 @@
     
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
-        <select v-if="tab === 'diagnostic'" v-model="category" aria-label="Filtrer par section"><option value="">Toutes les sections</option><option value="request">Demande</option><option value="arr">Arr</option><option value="plex">Plex</option><option value="vf_vo">VF / VO</option><option value="notification">Notification</option></select>
-        <select v-if="tab === 'app'" v-model="level" aria-label="Filtrer par niveau de journal"><option value="">Tous les niveaux</option><option>INFO</option><option>WARNING</option><option>ERROR</option><option>CRITICAL</option></select>
-        <select v-if="tab === 'polls'" v-model="job" aria-label="Filtrer par tâche planifiée"><option value="">Toutes les tâches</option><option v-for="name in jobs" :key="name">{{ name }}</option></select>
+        <FilterGroup v-if="tab === 'diagnostic'" label="Section">
+          <UiChipGroup label="Section" :options="[{ value: '', label: 'Toutes les sections' }, { value: 'request', label: 'Demande' }, { value: 'arr', label: 'Arr' }, { value: 'plex', label: 'Plex' }, { value: 'vf_vo', label: 'VF / VO' }, { value: 'notification', label: 'Notification' }]" v-model="category" />
+        </FilterGroup>
+        <FilterGroup v-if="tab === 'app'" label="Niveau">
+          <UiChipGroup label="Niveau" :options="[{ value: '', label: 'Tous les niveaux' }, ...['INFO', 'WARNING', 'ERROR', 'CRITICAL'].map((value) => ({ value, label: value }))]" v-model="level" />
+        </FilterGroup>
+        <FilterGroup v-if="tab === 'polls'" label="Tâche">
+          <UiCombobox label="Tâche planifiée" placeholder="Toutes les tâches" :options="jobs.map((name) => ({ value: name, label: name }))" v-model="job" />
+        </FilterGroup>
         <UiButton v-if="tab === 'pending' && rows.length" variant="danger" @click="purge"><Trash2 />Purger la file</UiButton>
       </FilterSidebar>
       <div class="psh-main">
@@ -40,6 +46,9 @@
 </template>
 
 <script setup lang="ts">
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import UiCombobox from '@/components/ui/UiCombobox.vue';
 import { formatDateTimeSeconds } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/vue-query';

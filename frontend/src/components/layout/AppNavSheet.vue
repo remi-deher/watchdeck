@@ -129,7 +129,7 @@ useBackButtonClose(null, () => emit('close'));
 .app-sheet__scrim {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-sheet);
   background: rgba(9, 9, 11, .62);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -140,7 +140,7 @@ useBackButtonClose(null, () => emit('close'));
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 61;
+  z-index: calc(var(--z-sheet) + 1);
   display: flex;
   flex-direction: column;
   max-height: min(84dvh, calc(var(--visual-viewport-height) - var(--safe-top)));

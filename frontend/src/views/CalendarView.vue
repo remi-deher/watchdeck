@@ -11,8 +11,12 @@
     
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
-        <select v-model="type"><option value="">Films et séries</option><option value="movie">Films</option><option value="episode">Séries</option></select>
-        <UiCheckboxField v-model="tracked" label="Suivis uniquement" @update:model-value="load()" />
+        <FilterGroup label="Type de média">
+          <UiChipGroup label="Type de média" :options="[{ value: '', label: 'Films et séries' }, { value: 'movie', label: 'Films' }, { value: 'episode', label: 'Séries' }]" v-model="type" />
+        </FilterGroup>
+        <FilterGroup label="Suivi">
+          <UiChipGroup label="Suivi" :options="[{ value: false, label: 'Tout' }, { value: true, label: 'Suivis uniquement' }]" :model-value="tracked" @update:model-value="(v) => { tracked = v; load(); }" />
+        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
     <!-- La grille mensuelle ne tient pas sous 640px : le sélecteur disparaît -->
@@ -125,6 +129,8 @@
 </template>
 
 <script setup lang="ts">
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { formatLongDay as longDate, formatMonthYear, formatTime as formatClockTime } from '@/utils/format';
 import { buildMonthGrid, localIso, monthBounds } from '@/utils/timeBuckets';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
@@ -140,7 +146,6 @@ import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 import { useSession } from '@/composables/useSession';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import UiButton from '@/components/ui/UiButton.vue';
-import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { usePreference } from '@/composables/usePreference';

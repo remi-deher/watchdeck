@@ -77,3 +77,44 @@ export function filterClients(rows: any[], state: ClientFilterState): any[] {
     return true;
   });
 }
+
+/* ---- Facettes du tiroir : chaque valeur presente, avec son nombre de torrents ---- */
+
+export interface Facet { value: string; label: string; count: number }
+
+function trackerHost(val?: string): string {
+  if (!val) return '';
+  const first = String(val).split(',')[0].trim();
+  try {
+    const raw = first.startsWith('http') || first.startsWith('udp') ? first : `http://${first}`;
+    return new URL(raw).hostname || first;
+  } catch {
+    return first;
+  }
+}
+
+function countBy(rows: any[], keyOf: (row: any) => string): Facet[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return [...counts].map(([value, count]) => ({ value, label: value, count })).sort((a, b) => b.count - a.count);
+}
+
+const STATUS_FACETS = [
+  { value: 'downloading', label: 'En téléchargement' },
+  { value: 'seeding', label: 'En seed / Partage' },
+  { value: 'paused', label: 'En pause / Attente' },
+  { value: 'error', label: 'Erreurs' },
+];
+
+export function torrentFacets(rows: any[]): { status: Facet[]; category: Facet[]; client: Facet[]; tracker: Facet[] } {
+  const statusCounts = new Map(countBy(rows, clientStatus).map((facet) => [facet.value, facet.count]));
+  return {
+    status: STATUS_FACETS.map((facet) => ({ ...facet, count: statusCounts.get(facet.value) || 0 })).filter((facet) => facet.count > 0),
+    category: countBy(rows, (row) => row.category || 'Non classé'),
+    client: countBy(rows, (row) => row.client_name || 'Client'),
+    tracker: countBy(rows, (row) => trackerHost(row.trackers || row.tracker)),
+  };
+}

@@ -49,18 +49,19 @@
           </FilterGroup>
 
           <template v-if="subview==='instances'">
-            <TorrentSidebarFilters
-              :rows="clientQueue"
-              :active-status="status"
-              :active-category="clientCategory"
-              :active-client="selectedClientName"
-              :active-tracker="clientTracker"
-              @update:status="status = $event"
-              @update:category="clientCategory = $event"
-              @update:client="setClientFilter($event[0] || '')"
-              @update:tracker="clientTracker = $event"
-              @reset="resetClientFilters"
-            />
+            <!-- Trois etats par pastille : un appui inclut, le suivant exclut, le troisieme libere. -->
+            <FilterGroup v-if="torrentFacetOptions.status.length" label="Statut">
+              <UiChipGroup label="Statut" exclusion :options="torrentFacetOptions.status" :model-value="asArray(status)" @update:model-value="status = $event" />
+            </FilterGroup>
+            <FilterGroup v-if="torrentFacetOptions.category.length" label="Catégorie">
+              <UiChipGroup label="Catégorie" exclusion :options="torrentFacetOptions.category" :model-value="asArray(clientCategory)" @update:model-value="clientCategory = $event" />
+            </FilterGroup>
+            <FilterGroup v-if="torrentFacetOptions.client.length > 1" label="Client">
+              <UiChipGroup label="Client" :options="[{ value: '', label: 'Tous' }, ...torrentFacetOptions.client]" :model-value="selectedClientName" @update:model-value="setClientFilter" />
+            </FilterGroup>
+            <FilterGroup v-if="torrentFacetOptions.tracker.length" label="Tracker" :default-open="false" :value="asArray(clientTracker).join(', ')">
+              <UiChipGroup label="Tracker" exclusion :options="torrentFacetOptions.tracker" :model-value="asArray(clientTracker)" @update:model-value="clientTracker = $event" />
+            </FilterGroup>
             <FilterGroup label="Origine">
               <UiChipGroup label="Origine" :options="[{ value: '', label: 'Toutes' }, { value: 'watchdeck', label: 'Watchdeck' }, { value: 'external', label: 'Externes' }]" v-model="clientOwnership" />
             </FilterGroup>
@@ -170,7 +171,7 @@ import { useConfirm } from '@/composables/useConfirm';
 import { useDownloadHistory } from '@/composables/useDownloadHistory';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 import { readPreference, usePreference, writePreference } from '@/composables/usePreference';
-import { filterClients } from '@/downloads/clientFilters';
+import { filterClients, torrentFacets } from '@/downloads/clientFilters';
 import { isUnmatched, needsEpisodeImport, requiresIntervention, rowKey, statusKey } from '@/downloads/queueRules';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
@@ -185,7 +186,6 @@ import DownloadsOverview from '@/components/downloads/DownloadsOverview.vue';
 import ManualImportModal from '@/components/downloads/ManualImportModal.vue';
 import MissingItemsSection from '@/components/downloads/MissingItemsSection.vue';
 import TorrentOverviewDashboard from '@/components/downloads/TorrentOverviewDashboard.vue';
-import TorrentSidebarFilters from '@/components/downloads/TorrentSidebarFilters.vue';
 import UnmatchedImportsBanner from '@/components/downloads/UnmatchedImportsBanner.vue';
 
 // La table des torrents (TanStack, inspecteur, menus) n'est utile que sur l'onglet
@@ -526,6 +526,9 @@ function handleDroppedFile(file: File): void {
   showAddModal.value = true;
 }
 
+// Les compteurs portent sur tous les torrents, avant filtrage.
+const torrentFacetOptions = computed(() => torrentFacets(clientQueue.value));
+const asArray = (value: string | string[]): string[] => Array.isArray(value) ? value : value ? [value] : [];
 const clientErrors = computed(() => clientQueue.value.filter((row: any) => row.client_error && (!selectedClientId.value || String(row.client_id) === selectedClientId.value)));
 const filteredClients = computed(() => filterClients(clientQueue.value, {
   query: query.value,

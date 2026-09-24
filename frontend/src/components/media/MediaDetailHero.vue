@@ -491,9 +491,12 @@ const releaseDates = computed(() => {
   cursor: pointer;
   transition: transform var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
-.mdh-listen-btn:hover {
-  transform: translateY(-1px);
-  background: var(--accent-hover, #e05206);
+/* Au doigt, pas de survol : le soulevement restait accroche apres un appui. */
+@media (hover: hover) and (pointer: fine) {
+  .mdh-listen-btn:hover {
+    transform: translateY(-1px);
+    background: var(--accent-hover, #e05206);
+  }
 }
 
 @media (max-width: 767.98px) {

@@ -142,7 +142,7 @@ async function handleInstall(): Promise<void> {
   backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
-  z-index: 1000;
+  z-index: var(--z-toast);
   padding: max(var(--space-4), calc(var(--safe-top) + var(--app-shell-offset-top))) max(var(--space-4), var(--safe-right)) max(var(--space-4), var(--safe-bottom)) max(var(--space-4), var(--safe-left));
 }
 
