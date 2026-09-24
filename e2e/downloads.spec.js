@@ -85,6 +85,8 @@ test("le tableau des torrents filtre, affiche les debits et ouvre l'inspecteur",
   await expect(table).toContainText("Bravo.S01");
 
   await page.getByRole("button", { name: "Bravo.S01" }).click();
+  // La fiche du torrent s'ouvre dans la feuille, a sa propre adresse.
+  await expect(page).toHaveURL(/\/downloads\/torrent\/7\/bbb$/);
   const drawer = page.getByRole("dialog");
   await expect(drawer).toContainText("En pause");
   await expect(drawer).toContainText("Maison");

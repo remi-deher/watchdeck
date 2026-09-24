@@ -7,6 +7,7 @@ import pytest
 
 from app.models import LibraryAnalyticsSnapshot
 from app.services.library_analytics import (
+    analytics_item,
     analytics_items_payload,
     analytics_payload,
     analytics_summary_payload,
@@ -148,6 +149,19 @@ async def test_summary_and_items_do_not_return_the_whole_snapshot():
     assert page["total"] == 3
     assert page["has_more"] is True
     assert [row["title"] for row in page["items"]] == ["Episode 2", "Episode 1"]
+
+
+@pytest.mark.asyncio
+async def test_analytics_item_finds_one_media_by_its_plex_key():
+    rows = []
+    for index in range(2):
+        row = parse_plex_item(sample_item(), "Films", "movie")
+        row.update(title=f"Film {index}", rating_key=f"k{index}")
+        rows.append(row)
+    db = SimpleNamespace(get=AsyncMock(return_value=LibraryAnalyticsSnapshot(payload_json=json.dumps({"items": rows}))))
+
+    assert (await analytics_item(SimpleNamespace(), db, "k1"))["title"] == "Film 1"
+    assert await analytics_item(SimpleNamespace(), db, "absent") is None
 
 
 def test_an_episode_inherits_the_studio_of_its_show():

@@ -24,7 +24,7 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
-// Les dialogues (ModalShell, DrawerShell, AppNavSheet...) se Teleport vers <body>
+// Les dialogues (ModalShell, AppNavSheet...) se Teleport vers <body>
 // pour que useBodyScrollLock puisse rendre le reste de l'app inert pendant qu'ils sont
 // ouverts. Sans ce stub, wrapper.find() ne verrait plus leur contenu puisqu'il ne
 // cherche pas hors du sous-arbre monté par @vue/test-utils.

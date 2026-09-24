@@ -368,67 +368,60 @@ test("changer le tri de l'historique redemande la periode entiere", async ({ pag
   await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("oldest");
 });
 
-test("le tiroir d'une session occupe toute la hauteur, sans barre de defilement", async ({ page }) => {
-  test.skip(isCompact(page), "en compact le tiroir est une feuille ancree en bas");
-  // L'historique du serveur de test est vide : on fournit une lecture, seul moyen
-  // d'ouvrir le tiroir.
+test("une session s'ouvre dans la feuille, avec son adresse, et retour la referme", async ({ page }) => {
+  // L'historique du serveur de test est vide : on fournit deux lectures.
+  const session = (id, title) => ({
+    id,
+    source: "plex",
+    session_id: `s${id}`,
+    title,
+    user_name: "Lisa",
+    media_type: "movie",
+    playback_method: "direct_play",
+    watched_ms: 3_600_000,
+    duration_ms: 7_200_000,
+    started_at: "2026-01-01T20:00:00",
+    ended_at: "2026-01-01T21:00:00",
+    segments: [],
+  });
+  const sessions = [session(1, "Le Voyage de Chihiro"), session(2, "Princesse Mononoké")];
   await page.route("**/api/playback/history**", (route) =>
-    route.fulfill({
-      json: {
-        items: [
-          {
-            id: 1,
-            source: "plex",
-            session_id: "s1",
-            title: "Le Voyage de Chihiro",
-            user_name: "Lisa",
-            media_type: "movie",
-            playback_method: "direct_play",
-            watched_ms: 3_600_000,
-            duration_ms: 7_200_000,
-            started_at: "2026-01-01T20:00:00",
-            ended_at: "2026-01-01T21:00:00",
-            segments: [],
-          },
-        ],
-        total: 1,
-        has_more: false,
-        facets: { users: ["Lisa"], devices: [] },
-      },
-    }),
+    route.fulfill({ json: { items: sessions, total: 2, has_more: false, facets: { users: ["Lisa"], devices: [] } } }),
   );
+  await page.route("**/api/playback/sessions/*", (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/").pop());
+    route.fulfill({ json: sessions.find((item) => item.id === id) });
+  });
   await page.goto("/activity?view=history");
   const row = page.locator(".history-table button").first();
   await expect(row).toBeVisible({ timeout: 15000 });
   await row.click();
 
-  const drawer = page.locator(".detail-drawer");
-  await expect(drawer).toBeVisible();
-  const metrics = await drawer.evaluate((node) => {
-    const box = node.getBoundingClientRect();
-    return {
-      top: box.top,
-      bottomGap: window.innerHeight - box.bottom,
-      // La difference entre largeur de bordure a bordure et largeur utile revient a la
-      // barre de defilement : masquee, elle ne prend plus rien.
-      scrollbar: node.offsetWidth - node.clientWidth - 2,
-      scrollable: node.scrollHeight > node.clientHeight,
-    };
-  });
+  // La meme feuille que les fiches media, posee sur la page : l'historique reste derriere.
+  const sheet = page.locator(".media-overlay__panel");
+  await expect(sheet).toBeVisible();
+  await expect(page).toHaveURL(/\/activity\/session\/1$/);
+  await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Le Voyage de Chihiro");
+  await expect(page.locator(".history-table")).toBeAttached();
 
-  // La feuille part du haut de la fenetre : elle passe devant la barre flottante au lieu
-  // de lui ceder sa hauteur.
-  expect(metrics.top).toBeLessThanOrEqual(12);
-  expect(metrics.bottomGap).toBeLessThanOrEqual(12);
-  expect(metrics.scrollbar).toBeLessThanOrEqual(0);
-  // Masquer la barre ne doit pas empecher de lire la suite.
-  if (metrics.scrollable) {
-    const moved = await drawer.evaluate((node) => {
-      node.scrollTop = 200;
-      return node.scrollTop;
-    });
-    expect(moved).toBeGreaterThan(0);
-  }
+  // Suivant : la session voisine de la liste, sans nouvelle entree d'historique.
+  await sheet.getByRole("button", { name: "Session suivante" }).click();
+  await expect(page).toHaveURL(/\/activity\/session\/2$/);
+  await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Princesse Mononoké");
+
+  // Retour referme la feuille et ramene a la liste.
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/\/activity\?view=history$/);
+});
+
+test("ouverte par son adresse, une session s'affiche en pleine page", async ({ page }) => {
+  await page.route("**/api/playback/sessions/7", (route) =>
+    route.fulfill({ json: { id: 7, source: "plex", title: "Dune", user_name: "Lisa", media_type: "movie", segments: [] } }),
+  );
+  await page.goto("/activity/session/7");
+  await expect(page.getByRole("heading", { level: 1, name: "Dune" })).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".media-overlay__panel")).toHaveCount(0);
 });
 
 test("l'historique charge la suite au defilement", async ({ page }) => {
@@ -501,8 +494,10 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
   await expect(row).toBeVisible({ timeout: 15000 });
   await row.click();
 
-  const drawer = page.locator(".detail-drawer");
+  // La fiche d'un compte s'ouvre dans la feuille, a sa propre adresse.
+  const drawer = page.locator(".media-overlay__panel");
   await expect(drawer).toBeVisible();
+  await expect(page).toHaveURL(/\/users\/1$/);
   // La fusion vit desormais sous « Comptes lies » : elle etait rangee sous un onglet
   // « Seer » avec lequel elle n'a aucun rapport.
   await drawer.getByText("Comptes liés", { exact: true }).click();

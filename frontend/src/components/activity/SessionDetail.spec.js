@@ -7,7 +7,6 @@ function factory(session) {
     props: { session },
     global: {
       stubs: {
-        DrawerShell: { template: '<aside><slot/></aside>' },
         MediaArtwork: true,
         PlaybackMethodBadge: true,
         SessionLocationMap: true,

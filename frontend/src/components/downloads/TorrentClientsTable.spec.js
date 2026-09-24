@@ -32,7 +32,6 @@ function factory() {
     props: { rows },
     global: {
       stubs: {
-        DrawerShell: { template: '<aside><slot/><slot name="actions"/></aside>' },
         ModalShell: { props: ['open', 'title'], template: '<div v-if="open"><h2>{{ title }}</h2><slot/><slot name="actions"/></div>' },
         ConfirmModal: true,
       },
