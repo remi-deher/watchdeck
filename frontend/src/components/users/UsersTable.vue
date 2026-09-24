@@ -12,79 +12,63 @@
     <UiButton variant="danger" size="sm" @click="$emit('bulk-delete')"><template #icon><Trash2/></template>Supprimer</UiButton>
   </BulkActionBar>
 
-  <section class="panel table-wrap table-cards rich users-table" tabindex="0" role="region" aria-label="Tableau des utilisateurs, défilement horizontal">
-    <table>
-      <thead>
-        <tr>
-          <th><label class="select-tag"><input type="checkbox" :checked="allSelected" aria-label="Sélectionner tous les utilisateurs" @change="toggleAll"></label></th>
-          <th>Personne</th>
-          <th>Notifications</th>
-          <th>Origine du compte</th>
-          <th>Rôle</th>
-          <th>Demandes</th>
-          <th>Dernière activité</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="user in rows" :key="user.id" :class="{ 'is-disabled': !user.enabled }">
-          <td class="card-select"><label class="select-tag"><input type="checkbox" :checked="isSelected(user)" :aria-label="`Sélectionner ${accountName(user)}`" @change="toggle(user)"></label></td>
-
-          <!-- L'identite passe devant : un visage, un nom, puis le pseudo sous lequel la
-               personne se reconnait. La ligne montrait jusqu'ici le nom surmontant un
-               hachage opaque (`86dd231816e161be`), et jamais le pseudo reel. -->
-          <td class="card-title user-identity-cell">
-            <button class="text-button user-identity" @click="$emit('open',user.id)">
-              <span class="user-avatar" :class="{ 'is-off': !user.enabled }" aria-hidden="true">
-                <img v-if="user.avatar_url" :src="user.avatar_url" alt="">
-                <span v-else>{{ accountInitials(user) }}</span>
-              </span>
-              <span class="user-identity-text">
-                <strong>{{ accountName(user) }}</strong>
-                <small v-if="accountHandle(user)">{{ accountHandle(user) }}</small>
-                <small v-if="!user.enabled" class="user-off">Compte désactivé</small>
-              </span>
-            </button>
-          </td>
-
-          <td data-label="Notifications">
-            <div class="user-notification-cell">
-              <span :class="['status-dot',notificationState(user)]"></span>
-              <div>{{ notificationTarget(user) }}<small v-if="user.has_notification_error">Échec récent</small></div>
-            </div>
-          </td>
-
-          <!-- Libelles lisibles, et surtout plus d'invention : l'origine absente etait
-               rendue « plex », ce qui presentait une supposition comme une donnee. -->
-          <td data-label="Origine du compte">
-            <span class="user-source">{{ sourceLabel(resolveSource(user)) }}</span>
-            <small v-if="user.seer_user_id" class="user-seer-link">{{ seerLinkLabel(user) }}</small>
-          </td>
-
-          <td data-label="Rôle">
-            <span class="badge" :class="user.role==='admin'?'available':user.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(user.role) }}</span>
-          </td>
-
-          <td data-label="Demandes"><strong>{{ user.stats?.total??user.request_count??0 }}</strong><small v-if="user.stats?.pending_approval" class="pending-copy">{{ user.stats.pending_approval }} à approuver</small></td>
-
-          <td data-label="Dernière activité">{{ formatDate(user.last_requested_at) }}<small v-if="!user.can_login" class="blocked-copy">Connexion bloquée</small></td>
-
-          <td class="card-actions">
-            <button class="icon-button" :title="`Modifier ${accountName(user)}`" :aria-label="`Modifier ${accountName(user)}`" @click="$emit('open',user.id)"><Pencil/></button>
-            <button class="icon-button" :title="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" :aria-label="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" @click="$emit('toggle',user)"><Power/></button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <UiEmptyState v-if="!loading&&!rows.length" title="Aucun utilisateur" compact />
-  </section>
+  <UiDataTable
+    class="panel users-table"
+    label="Tableau des utilisateurs"
+    :rows="rows"
+    :columns="columns"
+    :row-key="(user: AppUser) => user.id"
+    :row-label="(user: AppUser) => accountName(user)"
+    :row-class="(user: AppUser) => ({ 'is-disabled': !user.enabled })"
+    selectable
+    v-model:selection="selectedIds"
+  >
+    <template #empty><UiEmptyState v-if="!loading" title="Aucun utilisateur" compact /></template>
+    <!-- L'identite passe devant : un visage, un nom, puis le pseudo sous lequel la personne
+         se reconnait. La ligne montrait jusqu'ici le nom surmontant un hachage opaque
+         (`86dd231816e161be`), et jamais le pseudo reel. -->
+    <template #cell-person="{ row: user }">
+      <button class="text-button user-identity" @click="$emit('open',user.id)">
+        <span class="user-avatar" :class="{ 'is-off': !user.enabled }" aria-hidden="true">
+          <img v-if="user.avatar_url" :src="user.avatar_url" alt="">
+          <span v-else>{{ accountInitials(user) }}</span>
+        </span>
+        <span class="user-identity-text">
+          <strong>{{ accountName(user) }}</strong>
+          <small v-if="accountHandle(user)">{{ accountHandle(user) }}</small>
+          <small v-if="!user.enabled" class="user-off">Compte désactivé</small>
+        </span>
+      </button>
+    </template>
+    <template #cell-notifications="{ row: user }">
+      <div class="user-notification-cell">
+        <span :class="['status-dot',notificationState(user)]"></span>
+        <div>{{ notificationTarget(user) }}<small v-if="user.has_notification_error">Échec récent</small></div>
+      </div>
+    </template>
+    <!-- Libelles lisibles, et surtout plus d'invention : l'origine absente etait rendue
+         « plex », ce qui presentait une supposition comme une donnee. -->
+    <template #cell-source="{ row: user }">
+      <span class="user-source">{{ sourceLabel(resolveSource(user)) }}</span>
+      <small v-if="user.seer_user_id" class="user-seer-link">{{ seerLinkLabel(user) }}</small>
+    </template>
+    <template #cell-role="{ row: user }">
+      <span class="badge" :class="user.role==='admin'?'available':user.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(user.role) }}</span>
+    </template>
+    <template #cell-requests="{ row: user }"><strong>{{ user.stats?.total??user.request_count??0 }}</strong><small v-if="user.stats?.pending_approval" class="pending-copy">{{ user.stats.pending_approval }} à approuver</small></template>
+    <template #cell-last="{ row: user }">{{ formatDate(user.last_requested_at) }}<small v-if="!user.can_login" class="blocked-copy">Connexion bloquée</small></template>
+    <template #cell-actions="{ row: user }">
+      <button class="icon-button" :title="`Modifier ${accountName(user)}`" :aria-label="`Modifier ${accountName(user)}`" @click="$emit('open',user.id)"><Pencil/></button>
+      <button class="icon-button" :title="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" :aria-label="user.enabled?`Désactiver ${accountName(user)}`:`Activer ${accountName(user)}`" @click="$emit('toggle',user)"><Power/></button>
+    </template>
+  </UiDataTable>
 </template>
 
 <script setup lang="ts">
 import { formatDateShort } from '@/utils/format';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { Bell, BellOff, LogIn, LogOut, Pencil, Power, PowerOff, Shield, Trash2 } from '@lucide/vue';
-import { useTableSelection } from '@/composables/useTableSelection';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import BulkActionBar from '@/components/ui/BulkActionBar.vue';
@@ -125,7 +109,22 @@ defineEmits<{
   (e: 'bulk-delete'): void;
 }>();
 
-const { selectedIds, allSelected, isSelected, toggle, toggleAll, clear } = useTableSelection(() => props.rows);
+const columns: UiColumn<AppUser>[] = [
+  { key: 'person', label: 'Personne', card: 'title', className: 'user-identity-cell' },
+  { key: 'notifications', label: 'Notifications' },
+  { key: 'source', label: 'Origine du compte' },
+  { key: 'role', label: 'Rôle' },
+  { key: 'requests', label: 'Demandes' },
+  { key: 'last', label: 'Dernière activité' },
+  { key: 'actions', label: 'Actions', card: 'actions' },
+];
+const selectedIds = ref<Array<string | number>>([]);
+function clear(): void { selectedIds.value = []; }
+// Une ligne disparue (suppression, filtre) ne reste pas selectionnee en silence.
+watch(() => props.rows, (rows) => {
+  const presents = new Set(rows.map((user) => user.id));
+  if (selectedIds.value.some((id) => !presents.has(id))) selectedIds.value = selectedIds.value.filter((id) => presents.has(id));
+});
 const bulkNotifyField = ref('notify_on_request');
 const bulkRole = ref('user');
 /* Libelles completes : « Notif. demande », « Digest » et « VF series » etaient abreges

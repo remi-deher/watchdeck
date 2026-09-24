@@ -86,7 +86,7 @@ test("le tiroir des filtres se referme du meme geste", async ({ page, browserNam
   test.skip(info.project.name !== "mobile" || browserName !== "chromium", "touches natives Chromium, en compact");
   await page.goto("/discover/requests");
   await page.getByRole("button", { name: /filtres/i }).click();
-  const panel = page.locator(".drawer-backdrop .modal-panel");
+  const panel = page.locator(".modal-panel");
   await expect(panel).toBeVisible();
   await page.waitForTimeout(700);
   const box = await panel.boundingBox();
@@ -98,11 +98,20 @@ test("le tiroir des filtres se referme du meme geste", async ({ page, browserNam
 test("a la fermeture, la fiche garde son contenu pendant qu'elle s'en va", async ({ page }, info) => {
   test.skip(info.project.name !== "mobile", "une largeur suffit");
   await preparer(page);
-  await page.locator(".media-overlay__close").click();
+  // Clic et lecture dans la meme evaluation, des le debut de la sortie : sous charge, un
+  // aller-retour de plus avec le navigateur pouvait tomber apres sa fin.
+  const pendant = await page.evaluate(async () => {
+    const voile = document.querySelector(".media-overlay");
+    document.querySelector(".media-overlay__close").click();
+    // La fermeture passe par un retour d'historique : elle commence quelques images plus tard.
+    for (let i = 0; i < 120 && voile.style.pointerEvents !== "none"; i += 1) {
+      await new Promise((r) => requestAnimationFrame(() => r()));
+    }
+    return { titre: voile?.querySelector("h1")?.textContent || "", appuis: voile ? getComputedStyle(voile).pointerEvents : "" };
+  });
   // Le contenu disparaissait a l'instant du clic : c'est une surface vide qui glissait.
-  const pendant = await page.evaluate(() => document.querySelector(".media-overlay h1")?.textContent || "");
-  expect(pendant).toContain("Film");
+  expect(pendant.titre).toContain("Film");
   // Et la page reprend la main tout de suite : le voile sortant n'avale plus les appuis.
-  expect(await page.evaluate(() => getComputedStyle(document.querySelector(".media-overlay")).pointerEvents)).toBe("none");
+  expect(pendant.appuis).toBe("none");
   await expect(page.locator(".media-overlay")).toHaveCount(0);
 });

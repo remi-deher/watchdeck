@@ -73,7 +73,7 @@ import { mediaTypeLabel } from '@/utils/labels';
 import MediaCardShell from './MediaCardShell.vue';
 import MediaPoster from './MediaPoster.vue';
 import MediaStatusBadge from './MediaStatusBadge.vue';
-import { memoriserOrigine } from '@/composables/usePosterMorph';
+import { memoriserApercu } from '@/composables/useFicheApercu';
 import { destinationDeFiche, etatDeSurface } from '@/composables/useMediaOverlay';
 
 const props = withDefaults(
@@ -137,13 +137,10 @@ const resolvedTo = computed(() => props.to || '/');
    clic milieu, « ouvrir dans un nouvel onglet » et partage continuent de donner une page
    entiere -- mais un clic ordinaire passe par ici. */
 function handleActivate(event?: MouseEvent | KeyboardEvent): void {
-  /* On releve la vignette avant de naviguer : c'est de la qu'elle partira pour
-     rejoindre la fiche, et c'est avec ce qu'elle sait que la fiche se dessine avant
-     d'avoir sa reponse. Vrai aussi quand la carte delegue l'ouverture a son parent
-     (mediatheque) -- faute de quoi le transport ne s'y jouait jamais. */
-  const cadre = (event?.target as HTMLElement | null)?.closest?.('.poster-shell') as HTMLElement | null;
+  /* Ce que la carte sait du media sert a dessiner la fiche avant sa reponse -- y compris
+     quand la carte delegue l'ouverture a son parent (mediatheque). */
   if (!props.to) {
-    memoriserOrigine(cadre, props.item);
+    memoriserApercu(props.item);
     emit('open', props.item);
     return;
   }
@@ -156,7 +153,7 @@ function handleActivate(event?: MouseEvent | KeyboardEvent): void {
 
   /* On releve la position de la vignette avant de naviguer : c'est de la qu'elle partira
      quand l'affiche de la fiche apparaitra, une fois les donnees chargees. */
-  memoriserOrigine(cadre, props.item);
+  memoriserApercu(props.item);
   void router.push(cible);
 }
 

@@ -13,82 +13,27 @@
       <slot name="header-actions" />
     </template>
 
-    <div v-if="items.length" class="table-wrap table-cards rich" tabindex="0" role="region" :aria-label="`Tableau ${title}, défilement horizontal`">
-      <table>
-        <thead>
-          <tr>
-            <th v-for="col in columns" :key="col.key">{{ col.label }}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in items" :key="item.id">
-            <template v-for="col in columns" :key="col.key">
-              <td v-if="col.isTitle" class="card-title">
-                <slot :name="`col-${col.key}`" :item="item">
-                  <strong>{{ item[col.key] }}</strong>
-                  <small v-if="item.is_default">Par défaut</small>
-                </slot>
-              </td>
-              <td v-else-if="col.isBadge" :data-label="col.label">
-                <slot :name="`col-${col.key}`" :item="item">
-                  <span class="badge">{{ item[col.key] }}</span>
-                </slot>
-              </td>
-              <td v-else-if="col.isStatus" :data-label="col.label">
-                <slot :name="`col-${col.key}`" :item="item">
-                  <span class="badge" :class="item.enabled ? 'available' : 'failed'">
-                    {{ item.enabled ? 'Actif' : 'Inactif' }}
-                  </span>
-                </slot>
-              </td>
-              <td v-else :class="col.class" :data-label="col.label">
-                <slot :name="`col-${col.key}`" :item="item">
-                  {{ item[col.key] }}
-                </slot>
-              </td>
-            </template>
-
-            <td class="actions card-actions">
-              <button
-                v-if="hasTest"
-                class="icon-button"
-                title="Tester"
-                aria-label="Tester"
-                @click="$emit('test', item)"
-              >
-                <PlugZap />
-              </button>
-              <button
-                class="icon-button"
-                title="Modifier"
-                aria-label="Modifier"
-                @click="$emit('open-modal', item)"
-              >
-                <Pencil />
-              </button>
-              <button
-                class="icon-button"
-                :title="item.enabled ? 'Désactiver' : 'Activer'"
-                :aria-label="item.enabled ? 'Désactiver' : 'Activer'"
-                @click="$emit('toggle', item)"
-              >
-                <Power />
-              </button>
-              <button
-                class="icon-button danger"
-                title="Supprimer"
-                aria-label="Supprimer"
-                @click="$emit('remove', item)"
-              >
-                <Trash2 />
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <p v-else class="empty">{{ emptyLabel }}</p>
+    <UiDataTable :label="`Tableau ${title}`" :rows="items" :columns="tableColumns" :row-key="(item: any) => item.id">
+      <template #empty><p class="empty">{{ emptyLabel }}</p></template>
+      <!-- Les slots `col-<cle>` des appelants restent les memes : ils sont relayes aux cellules. -->
+      <template v-for="col in columns" :key="col.key" #[`cell-${col.key}`]="{ row: item }">
+        <slot :name="`col-${col.key}`" :item="item">
+          <template v-if="col.isTitle">
+            <strong>{{ item[col.key] }}</strong>
+            <small v-if="item.is_default">Par défaut</small>
+          </template>
+          <span v-else-if="col.isBadge" class="badge">{{ item[col.key] }}</span>
+          <span v-else-if="col.isStatus" class="badge" :class="item.enabled ? 'available' : 'failed'">{{ item.enabled ? 'Actif' : 'Inactif' }}</span>
+          <template v-else>{{ item[col.key] }}</template>
+        </slot>
+      </template>
+      <template #cell-actions="{ row: item }">
+        <button v-if="hasTest" class="icon-button" title="Tester" aria-label="Tester" @click="$emit('test', item)"><PlugZap /></button>
+        <button class="icon-button" title="Modifier" aria-label="Modifier" @click="$emit('open-modal', item)"><Pencil /></button>
+        <button class="icon-button" :title="item.enabled ? 'Désactiver' : 'Activer'" :aria-label="item.enabled ? 'Désactiver' : 'Activer'" @click="$emit('toggle', item)"><Power /></button>
+        <button class="icon-button danger" title="Supprimer" aria-label="Supprimer" @click="$emit('remove', item)"><Trash2 /></button>
+      </template>
+    </UiDataTable>
   </SettingsCard>
 
   <ModalShell
@@ -116,12 +61,13 @@
 </template>
 
 <script setup lang="ts">
-import type { Component } from 'vue';
+import { computed, type Component } from 'vue';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import { Pencil, Plus, PlugZap, Power, Save, Trash2 } from '@lucide/vue';
 import SettingsCard from './SettingsCard.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     title: string;
     subtitle?: string;
@@ -163,4 +109,9 @@ defineEmits<{
   (e: 'remove', item: any): void;
   (e: 'test', item?: any): void;
 }>();
+
+const tableColumns = computed<UiColumn[]>(() => [
+  ...props.columns.map((col) => ({ key: col.key, label: col.label, className: col.class, card: col.isTitle ? 'title' as const : 'field' as const })),
+  { key: 'actions', label: 'Actions', card: 'actions' as const, className: 'actions' },
+]);
 </script>

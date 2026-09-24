@@ -16,7 +16,7 @@ describe('NotificationsTable pending actions', () => {
 
   it('expose la selection au parent pour la barre groupee commune', async () => {
     const wrapper = mount(NotificationsTable, { props: { rows: [row], tab: 'pending' } });
-    await wrapper.get('tbody input[type="checkbox"]').setValue(true);
+    await wrapper.get('tbody [role="checkbox"]').trigger('click');
 
     expect(wrapper.vm.selectedIds).toEqual([42]);
     wrapper.vm.clearSelection();

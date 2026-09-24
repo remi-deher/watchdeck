@@ -199,7 +199,7 @@ import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api";
 import { mediaDetailPath, openPlexLink } from "@/mediaUrl";
 import MediaDetailHero from "@/components/media/MediaDetailHero.vue";
-import { apercuRecent } from "@/composables/usePosterMorph";
+import { apercuRecent } from "@/composables/useFicheApercu";
 import MediaSummaryTab from "@/components/media/MediaSummaryTab.vue";
 import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
 import MediaCalendarTab from "@/components/media/MediaCalendarTab.vue";

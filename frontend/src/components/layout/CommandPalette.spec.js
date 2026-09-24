@@ -38,7 +38,8 @@ const optionTexts = (wrapper) => wrapper.findAll('[role="option"]').map((node) =
  */
 async function selectAppScope(wrapper) {
   const tabs = wrapper.findAll('[role="tab"]');
-  await tabs[tabs.length - 1].trigger('click');
+  // Les onglets (Reka UI) s'activent a l'appui, comme des onglets natifs.
+  await tabs[tabs.length - 1].trigger('mousedown', { button: 0 });
   await flushPromises();
 }
 
@@ -98,7 +99,7 @@ describe('CommandPalette', () => {
   });
 
   it('ne se ferme qu’une fois la navigation résolue', async () => {
-    // useModalA11y consomme son entree d'historique par un history.back() a la
+    // useBackButtonClose consomme son entree d'historique par un history.back() a la
     // fermeture : si la palette fermait avant que la navigation soit commitee, ce
     // back() ramenerait l'utilisateur sur la page de depart. Le contrat verifiable
     // ici est donc que `activate` attend router.push avant d'appeler close().

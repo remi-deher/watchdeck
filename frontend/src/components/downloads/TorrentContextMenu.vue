@@ -1,53 +1,39 @@
 <template>
-  <Teleport to="body">
-    <div
-      v-if="open"
-      class="torrent-context-menu-backdrop"
-      @click="emit('close')"
-      @contextmenu.prevent="emit('close')"
-    >
-      <div
-        class="torrent-context-menu"
-        :style="{ top: `${position.y}px`, left: `${position.x}px` }"
-        @click.stop
-      >
-        <div class="menu-header">
-          <strong>{{ selection.length > 1 ? `${selection.length} torrents sélectionnés` : (selection[0]?.title || 'Actions') }}</strong>
-        </div>
-        <div class="menu-divider"></div>
-        <button class="menu-item" @click="trigger('pause')">
-          <Pause /> Mettre en pause
-        </button>
-        <button class="menu-item" @click="trigger('resume')">
-          <Play /> Reprendre
-        </button>
-        <button class="menu-item" @click="trigger('recheck')">
-          <RotateCcw /> Revérifier les fichiers
-        </button>
-        <button class="menu-item" @click="trigger('reannounce')">
-          <Radio /> Réannoncer aux trackers
-        </button>
-        <div class="menu-divider"></div>
-        <button class="menu-item" @click="trigger('meta')">
-          <Tag /> Catégorie & Tags...
-        </button>
-        <button v-if="selection.length === 1" class="menu-item" @click="trigger('details')">
-          <Info /> Inspecter le torrent
-        </button>
-        <div class="menu-divider"></div>
-        <button class="menu-item danger" @click="trigger('remove-torrent')">
-          <Trash2 /> Retirer du client
-        </button>
-        <button class="menu-item danger" @click="trigger('remove-files')">
-          <FileX2 /> Supprimer avec les fichiers
-        </button>
-      </div>
-    </div>
-  </Teleport>
+  <!-- Menu contextuel Reka UI : il s'ouvre au clic droit (ou a l'appui long au doigt) sur
+       la zone qu'il enveloppe, se place au pointeur sans deborder de l'ecran, se parcourt
+       aux fleches et se ferme a Echap ou au clic a cote. Plus de voile ni de coordonnees
+       calculees a la main. -->
+  <ContextMenuRoot :modal="false">
+    <ContextMenuTrigger as-child>
+      <slot />
+    </ContextMenuTrigger>
+    <ContextMenuPortal>
+      <ContextMenuContent class="torrent-context-menu" :collision-padding="8">
+        <ContextMenuLabel class="menu-header">
+          {{ selection.length > 1 ? `${selection.length} torrents sélectionnés` : (selection[0]?.title || 'Actions') }}
+        </ContextMenuLabel>
+        <ContextMenuSeparator class="menu-divider" />
+        <ContextMenuItem class="menu-item" @select="emit('action', 'pause')"><Pause /> Mettre en pause</ContextMenuItem>
+        <ContextMenuItem class="menu-item" @select="emit('action', 'resume')"><Play /> Reprendre</ContextMenuItem>
+        <ContextMenuItem class="menu-item" @select="emit('action', 'recheck')"><RotateCcw /> Revérifier les fichiers</ContextMenuItem>
+        <ContextMenuItem class="menu-item" @select="emit('action', 'reannounce')"><Radio /> Réannoncer aux trackers</ContextMenuItem>
+        <ContextMenuSeparator class="menu-divider" />
+        <ContextMenuItem class="menu-item" @select="emit('action', 'meta')"><Tag /> Catégorie & Tags...</ContextMenuItem>
+        <ContextMenuItem v-if="selection.length === 1" class="menu-item" @select="emit('action', 'details')"><Info /> Inspecter le torrent</ContextMenuItem>
+        <ContextMenuSeparator class="menu-divider" />
+        <ContextMenuItem class="menu-item danger" @select="emit('action', 'remove-torrent')"><Trash2 /> Retirer du client</ContextMenuItem>
+        <ContextMenuItem class="menu-item danger" @select="emit('action', 'remove-files')"><FileX2 /> Supprimer avec les fichiers</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenuPortal>
+  </ContextMenuRoot>
 </template>
 
 <script setup lang="ts">
 import { FileX2, Info, Pause, Play, Radio, RotateCcw, Tag, Trash2 } from '@lucide/vue';
+import {
+  ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuPortal, ContextMenuRoot,
+  ContextMenuSeparator, ContextMenuTrigger,
+} from 'reka-ui';
 
 export type TorrentAction = 'pause' | 'resume' | 'recheck' | 'reannounce' | 'meta' | 'details' | 'remove-torrent' | 'remove-files';
 
@@ -56,83 +42,49 @@ export interface TorrentItem {
   [key: string]: any;
 }
 
-withDefaults(
-  defineProps<{
-    open?: boolean;
-    position?: { x: number; y: number };
-    selection?: TorrentItem[];
-  }>(),
-  { open: false, position: () => ({ x: 0, y: 0 }), selection: () => [] }
-);
+withDefaults(defineProps<{ selection?: TorrentItem[] }>(), { selection: () => [] });
 
-const emit = defineEmits<{
-  (e: 'close'): void;
-  (e: 'action', action: TorrentAction): void;
-}>();
-
-function trigger(actionType: TorrentAction): void {
-  emit('action', actionType);
-  emit('close');
-}
+const emit = defineEmits<{ (e: 'action', action: TorrentAction): void }>();
 </script>
 
 <style scoped lang="scss">
-.torrent-context-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-}
 .torrent-context-menu {
-  position: fixed;
+  z-index: 80;
   min-width: 210px;
-  background: var(--surface);
+  padding: 6px 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  background: var(--surface);
   box-shadow: var(--shadow-lg);
-  padding: 6px 0;
-  z-index: 10000;
-  display: flex;
-  flex-direction: column;
+  outline: none;
 }
+.torrent-context-menu[data-state="open"] { animation: menu-in var(--motion-duration-fast) var(--motion-ease-emphasized); }
+@keyframes menu-in { from { opacity: 0; transform: scale(0.97); } }
 .menu-header {
-  padding: 6px 12px;
-  font-size: var(--fs-xs);
-  color: var(--muted);
+  max-width: 260px;
   overflow: hidden;
+  padding: 6px 12px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 260px;
 }
-.menu-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 4px 0;
-}
+.menu-divider { height: 1px; margin: 4px 0; background: var(--border); }
 .menu-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
   padding: 7px 12px;
-  border: 0;
-  background: transparent;
   color: var(--text);
   font-size: var(--fs-xs);
-  text-align: left;
   cursor: pointer;
-  transition: background var(--motion-duration-instant) var(--motion-ease-standard);
+  outline: none;
+  user-select: none;
 }
-.menu-item:hover {
-  background: var(--surface-2);
-  color: var(--accent);
-}
-.menu-item.danger:hover {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
-}
-.menu-item svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
+/* Survol et clavier, meme apparence : Reka pose `data-highlighted` dans les deux cas. */
+.menu-item[data-highlighted] { background: var(--surface-2); color: var(--accent); }
+.menu-item.danger[data-highlighted] { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.menu-item svg { flex-shrink: 0; width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) { .torrent-context-menu { animation: none !important; } }
 </style>

@@ -3,14 +3,6 @@ import { defineComponent, h, nextTick, ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import { doitFermer, positionPourDelta, useSheetGesture } from './useSheetGesture';
 
-vi.mock('motion-v', () => ({
-  // Les ressorts aboutissent immediatement : on teste les decisions, pas la physique.
-  animate: (from, to, { onUpdate }) => {
-    onUpdate(to);
-    return { stop() {}, finished: Promise.resolve() };
-  },
-}));
-
 function toucher(el, type, y, x = 100, t = 0) {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, 'touches', { value: type === 'touchend' ? [] : [{ clientX: x, clientY: y }] });
@@ -43,8 +35,8 @@ async function glisser(el, de, a, duree = 300) {
   let dernier;
   for (let i = 1; i <= pas; i += 1) dernier = toucher(el, 'touchmove', de + ((a - de) * i) / pas, 100, (duree * i) / pas);
   toucher(el, 'touchend', a, 100, duree);
-  await nextTick();
-  await Promise.resolve();
+  // jsdom ne joue pas les transitions : on attend le filet qui les acheve.
+  await new Promise((r) => setTimeout(r, 400));
   return dernier;
 }
 
@@ -96,7 +88,7 @@ describe('useSheetGesture', () => {
     scroll.scrollTop = 0; // l'elan atteint le haut pendant le meme geste
     toucher(texte, 'touchmove', 300, 100, 100);
     toucher(texte, 'touchend', 300, 100, 120);
-    await nextTick();
+    await new Promise((r) => setTimeout(r, 400));
     expect(onClose).not.toHaveBeenCalled();
     await glisser(texte, 100, 400); // nouveau geste, parti du haut
     expect(onClose).toHaveBeenCalledTimes(1);

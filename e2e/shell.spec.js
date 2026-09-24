@@ -339,14 +339,14 @@ test("le selecteur de periode de l'activite change bien de valeur", async ({ pag
   const count = await options.count();
   expect(count).toBeGreaterThan(1);
 
-  const activeBefore = await segmented.locator('[aria-pressed="true"], button.active').first().textContent();
+  const activeBefore = await segmented.locator('[role="tab"][aria-selected="true"]').first().textContent();
   // On clique une option differente de celle en cours.
   for (let i = 0; i < count; i += 1) {
     const label = await options.nth(i).textContent();
     if (label !== activeBefore) { await options.nth(i).click(); break; }
   }
   await page.waitForTimeout(400);
-  const activeAfter = await segmented.locator('[aria-pressed="true"], button.active').first().textContent();
+  const activeAfter = await segmented.locator('[role="tab"][aria-selected="true"]').first().textContent();
   expect(activeAfter).not.toBe(activeBefore);
 });
 
@@ -520,6 +520,9 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
   // (C'est la premiere des deux : supprimer un compte en demande maintenant deux.)
   const modal = page.locator(".modal-panel");
   await expect(modal).toBeVisible();
+  // Sur telephone la confirmation monte depuis le bas : on attend qu'elle soit posee, sans
+  // quoi le centre vise tombe encore sous l'ecran.
+  await modal.evaluate((node) => Promise.all(node.getAnimations().map((a) => a.finished)));
   const reachable = await modal.evaluate((node) => {
     const box = node.getBoundingClientRect();
     const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);

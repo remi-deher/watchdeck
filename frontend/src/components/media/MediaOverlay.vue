@@ -1,36 +1,31 @@
 <template>
+  <!-- Dialogue Reka UI NON modal, et c'est voulu : en mode modal, Reka masque toute
+       l'application aux lecteurs d'ecran et bloque les appuis sur <body>, ce qui coutait a
+       Safari un recalcul complet a l'ouverture et a la fermeture (on l'avait deja retire
+       une fois sous la forme d'un `inert`). Reka garde ici le role de dialogue, Echap et
+       le clic a cote ; le focus est tenu par `FocusScope`, le defilement verrouille a part. -->
+  <DialogRoot :open="open" :modal="false" @update:open="(o) => { if (!o) $emit('close'); }">
   <Teleport to="body">
-    <AnimatePresence :on-exit-complete="() => $emit('after-leave')">
-      <motion.div
+    <!-- Transition CSS pure, sur `transform` et `opacity` seulement : Safari la confie au
+         GPU, et elle reste fluide pendant que la fiche se construit sur le fil principal.
+         Un ressort pilote en script (motion-v) saccadait justement a ce moment-la. -->
+    <Transition name="media-overlay" @after-leave="$emit('after-leave')">
+      <div
         v-if="open"
-        key="media-overlay"
         ref="voileRef"
         class="media-overlay"
-        :initial="{ opacity: 0 }"
-        :animate="{ opacity: 1 }"
-        :exit="{ opacity: 0, transition: { duration: duree.rapide, ease: courbe.sortie } }"
-        :transition="{ duration: duree.base, ease: courbe.entree }"
-        @click.self="$emit('close')"
       >
-        <!-- Deux etages. L'enveloppe porte l'ouverture et la fermeture -- la surface monte
-             depuis le bas avec un leger depassement, ce qui distingue une surface qu'on
-             ouvre d'un panneau qui apparait. Le panneau, dedans, porte le geste : sa
-             translation s'ajoute a celle de l'enveloppe, et aucune ne defait l'autre. -->
-        <motion.div
-          class="media-overlay__frame"
-          :initial="{ opacity: 0, y: 90, scale: 0.96 }"
-          :animate="{ opacity: 1, y: 0, scale: 1 }"
-          :exit="{ opacity: 0, y: 70, scale: 0.97, transition: { duration: duree.rapide, ease: courbe.sortie } }"
-          :transition="{ type: 'spring', ...ressort.surface }"
-          @click.self="$emit('close')"
-        >
-          <div
-            ref="panelRef"
-            class="media-overlay__panel"
-            role="dialog"
-            aria-modal="true"
+        <!-- Deux etages : l'enveloppe porte l'ouverture et la fermeture, le panneau porte
+             le geste. Leurs translations s'additionnent sans se defaire. -->
+        <div class="media-overlay__frame">
+          <DialogContent
+            as-child
+            force-mount
+            :aria-describedby="undefined"
             :aria-label="ariaLabel"
           >
+          <FocusScope trapped loop as-child>
+          <div ref="panelRef" class="media-overlay__panel">
             <!-- La poignee reste le repere du geste, et son point de depart a la souris.
                  Au doigt, toute la fiche se tire des qu'elle est lue depuis le haut. -->
             <div class="media-overlay__grab" aria-hidden="true">
@@ -43,20 +38,20 @@
               <slot />
             </div>
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          </FocusScope>
+          </DialogContent>
+        </div>
+      </div>
+    </Transition>
   </Teleport>
+  </DialogRoot>
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, watch } from 'vue';
-import { AnimatePresence, motion } from 'motion-v';
+import { onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { X } from '@lucide/vue';
-import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
-import { useModalA11y } from '@/composables/useModalA11y';
+import { DialogContent, DialogRoot, FocusScope } from 'reka-ui';
 import { useSheetGesture } from '@/composables/useSheetGesture';
-import { courbe, duree, ressort } from '@/motion/tokens';
 
 const props = withDefaults(
   defineProps<{
@@ -71,18 +66,23 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'after-leave'): void }>();
 /* La page de fond reste visible mais ne defile plus : sans ce verrou, faire glisser la
    fiche entrainait la grille derriere elle, et l'on perdait la place qu'on voulait
    justement garder. */
-useBodyScrollLock(toRef(props, 'open'), { inertBackground: false });
+/* Verrou minimal, et pas celui de Reka : le sien rend aussi <body> insensible aux appuis
+   (`pointer-events: none`), ce qui suppose un dialogue modal qui s'en excepte -- la fiche,
+   non modale, ne recevait plus un seul toucher. Le verrou porte sur les deux elements
+   racine : `overflow: hidden` sur <body> seul ne retient pas iOS. */
+function verrouiller(actif: boolean): void {
+  for (const el of [document.documentElement, document.body]) el.style.overflow = actif ? 'hidden' : '';
+}
+watch(() => props.open, verrouiller, { immediate: true });
+onBeforeUnmount(() => verrouiller(false));
 
 
 const panelRef = ref<HTMLElement | null>(null);
-const voileRef = ref<unknown>(null);
+const voileRef = ref<HTMLElement | null>(null);
 
-/* Pas d'`inert` sur l'application : le poser puis le retirer sur un arbre de cette taille
-   coutait a Safari un recalcul complet des styles et de l'accessibilite, dans l'image
-   meme de l'ouverture et de la fermeture -- d'ou la latence avant de reprendre la main.
-   Le focus est tenu dans la fiche par le piege des modales, et `aria-modal` dit le
-   reste aux lecteurs d'ecran. */
-useModalA11y(panelRef, toRef(props, 'open'), () => emit('close'), { trapFocus: true });
+/* Pas d'entree d'historique supplementaire : la fiche EST deja une entree (sa route), et
+   « retour » la referme naturellement. En ajouter une obligeait chaque fermeture a reculer
+   deux fois -- la seconde passant par un aller-retour `popstate` de plus. */
 
 /* Tirer la fiche vers le bas la referme : c'est le geste qu'on attend d'une surface posee
    sur une page, et il evite d'aller chercher la croix a l'autre bout de l'ecran. Voir
@@ -92,18 +92,13 @@ useModalA11y(panelRef, toRef(props, 'open'), () => emit('close'), { trapFocus: t
    quelques dixiemes de seconde apres chaque fermeture. */
 watch(() => props.open, (ouverte) => {
   if (ouverte) return;
-  const v = voileRef.value as { $el?: unknown } | HTMLElement | null;
-  const el = v instanceof HTMLElement ? v : ((v?.$el as HTMLElement | undefined) ?? null);
-  if (el) el.style.pointerEvents = 'none';
+  if (voileRef.value) voileRef.value.style.pointerEvents = 'none';
 }, { flush: 'sync' });
 
 useSheetGesture(panelRef, toRef(props, 'open'), {
   onClose: () => emit('close'),
   poignee: '.media-overlay__grab',
-  voile: () => {
-    const v = voileRef.value as { $el?: unknown } | HTMLElement | null;
-    return v instanceof HTMLElement ? v : ((v?.$el as HTMLElement | undefined) ?? null);
-  },
+  voile: () => voileRef.value,
 });
 </script>
 
@@ -127,9 +122,24 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
   display: flex;
   justify-content: center;
   width: 100%;
-  transform-origin: center bottom;
-  will-change: transform, opacity;
 }
+
+/* Ouverture : le fond se fonce, la feuille monte de tout son long. Fermeture : plus
+   courte, en accelerant -- on ne fait pas attendre sur ce qu'on quitte. */
+.media-overlay-enter-active { transition: opacity var(--motion-duration-base) var(--motion-ease-standard); }
+.media-overlay-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-exit); }
+.media-overlay-enter-active .media-overlay__frame {
+  transition: transform var(--motion-duration-base) var(--motion-ease-emphasized);
+}
+.media-overlay-leave-active .media-overlay__frame {
+  transition: transform var(--motion-duration-fast) var(--motion-ease-exit);
+}
+.media-overlay-enter-from,
+.media-overlay-leave-to { opacity: 0; }
+.media-overlay-enter-from .media-overlay__frame,
+.media-overlay-leave-to .media-overlay__frame { transform: translate3d(0, 100%, 0); }
+.media-overlay-enter-active .media-overlay__frame,
+.media-overlay-leave-active .media-overlay__frame { will-change: transform; }
 
 .media-overlay__panel {
   position: relative;
@@ -207,7 +217,9 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 
 @media (min-width: 768px) {
   .media-overlay { align-items: center; }
-  .media-overlay__frame { transform-origin: center; }
+  /* Carte centree : elle ne vient pas du bord, elle se pose. */
+  .media-overlay-enter-from .media-overlay__frame,
+  .media-overlay-leave-to .media-overlay__frame { transform: translate3d(0, 24px, 0); }
   .media-overlay__panel {
     max-height: 90dvh;
     border-bottom: 1px solid var(--border);
@@ -263,6 +275,9 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .media-overlay__panel, .media-overlay__frame { will-change: auto; }
+  .media-overlay__panel { will-change: auto; }
+  .media-overlay-enter-active, .media-overlay-leave-active,
+  .media-overlay-enter-active .media-overlay__frame,
+  .media-overlay-leave-active .media-overlay__frame { transition: none; }
 }
 </style>

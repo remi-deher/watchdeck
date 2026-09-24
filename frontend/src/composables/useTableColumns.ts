@@ -1,9 +1,8 @@
 /* Colonnes d'un tableau : ordre, visibilite, largeurs, et leur persistance.
  *
- * Ce code existait en double, presque a l'identique, dans `DataTable` et dans le tableau
- * des clients torrent -- avec une difference : seul le second savait redimensionner ses
- * colonnes et se resserrer. Les deux partagent desormais la meme mecanique, ce qui donne
- * a l'inventaire l'ergonomie de la page Acquisition sans la recoder. */
+ * Le moteur du tableau (tri, selection, redimensionnement) est TanStack Table, dans
+ * UiDataTable ; ce qui reste ici, c'est la memoire de l'utilisateur : quelles colonnes il
+ * veut voir, dans quel ordre, a quelle largeur. */
 import { computed, ref, watch, type Ref } from 'vue';
 import { readPreference, writePreference } from './usePreference';
 
@@ -138,28 +137,8 @@ export function useTableColumns<T extends TableColumnLike>(
     columnOrder.value = next;
   }
 
-  let resizingKey: string | null = null;
-  let resizeStartX = 0;
-  let resizeStartWidth = 0;
-
-  // pointerdown/move/up plutot que mousedown/mousemove/mouseup : le redimensionnement
-  // fonctionne ainsi aussi au doigt sur tablette, pas seulement a la souris.
-  function startColumnResize(key: string, event: PointerEvent): void {
-    resizingKey = key;
-    resizeStartX = event.clientX;
-    resizeStartWidth = columnWidths.value[key] || (event.currentTarget as HTMLElement)?.closest('th')?.offsetWidth || 100;
-    window.addEventListener('pointermove', onResizeMove);
-    window.addEventListener('pointerup', onResizeEnd);
-  }
-  function onResizeMove(event: PointerEvent): void {
-    if (!resizingKey) return;
-    columnWidths.value = { ...columnWidths.value, [resizingKey]: Math.max(50, resizeStartWidth + event.clientX - resizeStartX) };
-  }
-  function onResizeEnd(): void {
-    resizingKey = null;
-    window.removeEventListener('pointermove', onResizeMove);
-    window.removeEventListener('pointerup', onResizeEnd);
-  }
+  // Le redimensionnement est l'affaire de TanStack Table (UiDataTable), qui ecrit ici les
+  // largeurs atteintes : elles sont memorisees avec le reste.
 
   function toggleDensity(): void {
     density.value = density.value === 'compact' ? 'comfortable' : 'compact';
@@ -180,7 +159,6 @@ export function useTableColumns<T extends TableColumnLike>(
     dragLeave,
     drop,
     moveColumn,
-    startColumnResize,
     toggleDensity,
   };
 }

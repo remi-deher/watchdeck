@@ -272,6 +272,11 @@ input[type="checkbox"]:focus-visible {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
+    /* Les largeurs de colonne (fixees ou redimensionnees sur ordinateur) n'ont pas de sens
+       dans une carte : elles coupaient les valeurs et ecrasaient les barres. */
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none;
     padding: 6px 0;
     border: 0;
     text-align: right;
@@ -290,6 +295,12 @@ input[type="checkbox"]:focus-visible {
     text-align: left;
   }
 
+  /* Colonnes que la carte n'affiche pas (`card: 'hidden'` dans UiDataTable) : utiles en
+     tableau, elles alourdiraient une carte de telephone. */
+  .table-cards td.card-hidden {
+    display: none;
+  }
+
   /* Cellules vides (colonnes de checkbox / actions sans contenu) masquées */
   .table-cards td:empty {
     display: none;
@@ -297,6 +308,10 @@ input[type="checkbox"]:focus-visible {
 
   /* Variante « riche » (Utilisateurs / Notifications) : 1re cellule = entête de carte */
   .table-cards.rich td.card-title {
+    /* Le titre et sa ligne secondaire s'empilent, et le titre passe a la ligne. */
+    display: grid;
+    gap: 2px;
+    white-space: normal;
     justify-content: flex-start;
     text-align: left;
     padding-top: 0;
@@ -722,7 +737,8 @@ button:disabled {
    retombait sur la carte centrée à 90dvh et perdait un sixième de la hauteur de
    l'écran alors qu'il y avait toute la place d'une feuille latérale pleine hauteur. */
 @media (min-width: 768px) {
-  .drawer-backdrop:has(> .detail-drawer) {
+  .drawer-backdrop:has(> .detail-drawer),
+  .drawer-backdrop--detail-drawer {
     background: linear-gradient(90deg, rgba(0,0,0,.12), rgba(0,0,0,.48));
     backdrop-filter: none;
   }

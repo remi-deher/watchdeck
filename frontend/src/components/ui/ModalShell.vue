@@ -1,31 +1,45 @@
 <template>
-  <Teleport v-if="shellMode === 'compact'" to="body">
-    <Transition name="modal-fade">
-      <div v-if="open" class="drawer-backdrop" @click.self="requestClose">
-        <aside ref="panelRef" tabindex="-1" class="modal-panel" :class="panelClass" role="dialog"
-          :aria-modal="modal ? 'true' : 'false'" :aria-label="ariaLabel || title">
-          <div class="sheet-grab" aria-hidden="true"><span /></div>
-          <ModalContent />
-        </aside>
-      </div>
-    </Transition>
-  </Teleport>
-  <Dialog v-else class="modal-shell-dialog" :visible="open" :modal="modal" :dismissable-mask="!busy" :closable="false" :block-scroll="false"
-    :draggable="false" :aria-label="ariaLabel || title" @update:visible="onVisibleChange">
-    <template #container>
-      <aside tabindex="-1" class="modal-panel modal-panel--prime" :class="panelClass">
-        <ModalContent />
-      </aside>
-    </template>
-  </Dialog>
+  <!-- Reka UI porte le comportement -- focus tenu dans la modale puis rendu a l'appelant,
+       Echap, clic exterieur, defilement verrouille, fond rendu inerte -- et ne dessine
+       rien : la geometrie (carte centree sur ordinateur, feuille ancree en bas sur
+       telephone) reste celle de `.modal-panel` dans `_components.scss`. -->
+  <DialogRoot :open="open" :modal="modal" @update:open="onOpenChange">
+    <DialogPortal>
+      <DialogOverlay v-if="modal" ref="voileRef" class="drawer-backdrop" :class="overlayClass" />
+      <DialogContent
+        ref="panelRef"
+        class="modal-panel"
+        :class="panelClass"
+        :aria-label="ariaLabel || undefined"
+        v-bind="subtitle ? {} : { 'aria-describedby': undefined }"
+        @open-auto-focus="onOpenAutoFocus"
+        @escape-key-down="retenirSiOccupe"
+        @pointer-down-outside="retenirSiOccupe"
+        @interact-outside="retenirSiOccupe"
+      >
+        <div class="sheet-grab" aria-hidden="true"><span /></div>
+        <div class="panel-head">
+          <div>
+            <DialogTitle as-child>
+              <slot name="title"><h2>{{ title }}</h2></slot>
+            </DialogTitle>
+            <DialogDescription v-if="subtitle">{{ subtitle }}</DialogDescription>
+          </div>
+          <UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" :disabled="busy" @click="requestClose"><X /></UiButton>
+        </div>
+        <UiFeedback v-if="error" type="error" :message="error" />
+        <slot />
+        <div v-if="$slots.actions" class="actions"><slot name="actions" /></div>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, ref, toRef, useSlots } from 'vue';
+import { computed, ref, toRef } from 'vue';
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
 import { X } from '@lucide/vue';
-import Dialog from 'primevue/dialog';
-import { useModalA11y } from '@/composables/useModalA11y';
-import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
+import { useBackButtonClose } from '@/composables/useBackButtonClose';
 import { useSheetGesture } from '@/composables/useSheetGesture';
 import { useShellMode } from '@/composables/useShellMode';
 import UiButton from './UiButton.vue';
@@ -34,30 +48,40 @@ import UiFeedback from './UiFeedback.vue';
 const props = withDefaults(defineProps<{ open?: boolean; title: string; subtitle?: string; ariaLabel?: string; panelClass?: string; error?: string; busy?: boolean; initialFocus?: string; modal?: boolean }>(),
   { open: true, subtitle: '', ariaLabel: '', panelClass: '', error: '', busy: false, initialFocus: '', modal: true });
 const emit = defineEmits<{ (e: 'close'): void }>();
-const slots = useSlots();
 const shellMode = useShellMode();
-const panelRef = ref<HTMLElement | null>(null);
-const openRef = toRef(props, 'open');
+const panelRef = ref<unknown>(null);
+const voileRef = ref<{ $el?: HTMLElement } | null>(null);
 const compactOpen = computed(() => props.open && shellMode.value === 'compact');
 
+/* Le voile porte les memes variantes que le panneau (`drawer-backdrop--filter-sheet`...) :
+   il n'en est plus le parent, et les regles qui s'ecrivaient `:has(> .filter-sheet)` s'y
+   accrochent desormais par la classe. */
+const overlayClass = computed(() => props.panelClass.split(/\s+/).filter(Boolean).map((c) => `drawer-backdrop--${c}`));
+
 function requestClose(): void { if (!props.busy) emit('close'); }
-function onVisibleChange(visible: boolean): void { if (!visible) requestClose(); }
+function onOpenChange(open: boolean): void { if (!open) requestClose(); }
+/** Une action en cours ne se laisse pas interrompre par Echap ou un clic a cote. */
+function retenirSiOccupe(event: Event): void { if (props.busy) event.preventDefault(); }
 
-useBodyScrollLock(openRef, { inertBackground: props.modal });
-useModalA11y(panelRef, compactOpen, requestClose, { initialFocus: props.initialFocus, trapFocus: props.modal });
-useSheetGesture(panelRef, compactOpen, { onClose: requestClose, enabled: () => shellMode.value === 'compact' && !props.busy, poignee: '.sheet-grab' });
+function onOpenAutoFocus(event: Event): void {
+  if (!props.initialFocus) return;
+  const panel = (panelRef.value as { $el?: HTMLElement } | null)?.$el;
+  const cible = panel?.querySelector<HTMLElement>(props.initialFocus);
+  if (!cible) return;
+  event.preventDefault();
+  cible.focus();
+}
 
-const ModalContent = defineComponent({
-  setup() {
-    return () => [
-      h('div', { class: 'panel-head' }, [
-        h('div', {}, [slots.title?.() ?? h('h2', {}, props.title), props.subtitle ? h('p', {}, props.subtitle) : null]),
-        h(UiButton, { variant: 'ghost', iconOnly: true, title: 'Fermer', 'aria-label': 'Fermer', disabled: props.busy, onClick: requestClose }, () => h(X)),
-      ]),
-      props.error ? h(UiFeedback, { type: 'error', message: props.error }) : null,
-      slots.default?.(),
-      slots.actions ? h('div', { class: 'actions' }, slots.actions()) : null,
-    ];
-  },
+/* « Retour » referme la modale au lieu de quitter la page. */
+useBackButtonClose(toRef(props, 'open'), requestClose);
+
+/* Sur telephone, la feuille se tire vers le bas pour se fermer (voir `useSheetGesture`). */
+useSheetGesture(panelRef, compactOpen, {
+  onClose: requestClose,
+  enabled: () => shellMode.value === 'compact' && !props.busy,
+  poignee: '.sheet-grab',
+  voile: () => voileRef.value?.$el ?? null,
 });
+
+defineExpose({ open: toRef(props, 'open') });
 </script>

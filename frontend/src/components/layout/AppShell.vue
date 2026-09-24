@@ -27,6 +27,7 @@
     />
 
     <main id="main-content" class="app-shell__main" tabindex="-1">
+      <OfflineBanner />
       <slot />
     </main>
 
@@ -82,6 +83,7 @@ import { useRailCollapsed } from '@/composables/useRailCollapsed';
 import { isTypingTarget } from '@/utils/focus';
 import { usePageSections } from '@/composables/usePageSections';
 import { usePageTitle } from '@/composables/usePageTitle';
+import OfflineBanner from './OfflineBanner.vue';
 import { useShellMode } from '@/composables/useShellMode';
 import { destinationForPath, dockDestinationsFor } from '@/navigation';
 
@@ -137,7 +139,7 @@ function openSheet(): void {
 }
 
 /* C'est la route qui referme les deux feuilles, et non le clic sur l'une de leurs
-   entrees : tant qu'une feuille reste montee, `useModalA11y` garde son entree
+   entrees : tant qu'une feuille reste montee, `useBackButtonClose` garde son entree
    d'historique et n'ira pas la reprendre au milieu de la navigation en cours -- ce qui
    ramenait l'URL a la page precedente pendant que le contenu, lui, avait change.
    On suit `fullPath` parce que plusieurs sections ne different que par leur query

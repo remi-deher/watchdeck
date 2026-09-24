@@ -34,18 +34,18 @@
     </RouteScope>
   </MediaOverlay>
   <AppToast />
-  <AppConfirmDialog />
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { useRoute, type RouteLocationNormalizedLoaded } from "vue-router";
 import { clearCache, syncCacheOwner } from "@/cache";
+import { useQueryClient } from "@tanstack/vue-query";
+import { synchroniserProprietaire } from "@/offline/stockage";
 import { connectRealtime } from "@/events";
 import AppShell from "@/components/layout/AppShell.vue";
 import MediaOverlay from "@/components/media/MediaOverlay.vue";
 import MediaDetailView from "@/views/MediaDetailView.vue";
 import AppToast from '@/components/ui/AppToast.vue';
-import AppConfirmDialog from '@/components/ui/AppConfirmDialog.vue';
 import { useMediaOverlay } from "@/composables/useMediaOverlay";
 import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
 import RouteScope from "@/components/layout/RouteScope.vue";
@@ -69,6 +69,7 @@ watch(
   { immediate: true },
 );
 
+const queryClient = useQueryClient();
 const session=ref<any>(null);
 useVisualViewport();
 const isAdmin=computed(()=>isAdminSession(session.value));
@@ -97,7 +98,7 @@ function onSwUpdateAvailable(): void {
   addToast({type:'info',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.',duration:0,action:{label:'Recharger',run:()=>window.location.reload()}});
 }
 onMounted(async()=>{
-  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
+  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);void synchroniserProprietaire(queryClient,session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
 onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable)});
 </script>
 

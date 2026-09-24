@@ -1,18 +1,12 @@
 <template>
-  <Teleport to="body">
-    <div class="app-sheet__scrim" @click="$emit('close')" />
-    <div
-      ref="panel"
-      class="app-sheet app-section-sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="app-section-sheet-title"
-      tabindex="-1"
-    >
+  <DialogRoot :open="true" @update:open="(open) => { if (!open) $emit('close'); }">
+    <DialogPortal>
+    <DialogOverlay class="app-sheet__scrim" />
+    <DialogContent class="app-sheet app-section-sheet" :aria-describedby="undefined" @interact-outside="laisserAuDock">
       <!-- Les liens ne referment pas la feuille eux-memes : c'est le shell qui la ferme
            une fois la route changee. Emettre `close` au clic la demontait avant que le
            routeur n'ait pousse son entree d'historique, et le `history.back()` par
-           lequel `useModalA11y` reprend la sienne annulait alors la navigation --
+           lequel `useBackButtonClose` reprend la sienne annulait alors la navigation --
            l'URL revenait a la section d'avant pendant que la page, elle, avait change.
 
            La poignee tient lieu d'en-tete : la feuille n'a qu'une liste, et lui donner
@@ -20,7 +14,7 @@
            qui doit rester sous le pouce. Le nom de la destination suffit a dire de quoi
            ces sections sont les sections. -->
       <div class="app-section-sheet__grab" aria-hidden="true" />
-      <p id="app-section-sheet-title" class="app-section-sheet__title">{{ destinationLabel }}</p>
+      <DialogTitle as="p" class="app-section-sheet__title">{{ destinationLabel }}</DialogTitle>
 
       <nav class="app-section-sheet__list" :aria-label="`Sections ${destinationLabel}`">
         <RouterLink
@@ -36,17 +30,18 @@
           <Check v-if="section.key === activeKey" class="app-section-sheet__tick" aria-hidden="true" />
         </RouterLink>
       </nav>
-    </div>
-  </Teleport>
+    </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { laisserAuDock } from './sheetDock';
 import { RouterLink } from 'vue-router';
 import { Check } from '@lucide/vue';
 import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
-import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
-import { useModalA11y } from '@/composables/useModalA11y';
+import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
+import { useBackButtonClose } from '@/composables/useBackButtonClose';
 
 withDefaults(
   defineProps<{ sections: SubnavItem[]; activeKey?: string; destinationLabel?: string }>(),
@@ -55,13 +50,9 @@ withDefaults(
 
 const emit = defineEmits<{ (e: 'close'): void }>();
 
-const panel = ref<HTMLElement | null>(null);
-const alwaysOpen = ref(true);
-
 // Meme contrat que la feuille de navigation : le composant n'existe que pendant
-// l'ouverture, donc le piege a focus et le verrou de defilement valent des le montage.
-useBodyScrollLock(alwaysOpen);
-useModalA11y(panel, null, () => emit('close'));
+// l'ouverture, donc « retour » la referme des le montage.
+useBackButtonClose(null, () => emit('close'));
 </script>
 
 <style scoped lang="scss">
