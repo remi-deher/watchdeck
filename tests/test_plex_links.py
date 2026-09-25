@@ -68,3 +68,28 @@ async def test_resolve_searches_plex_only_as_a_fallback():
 
     assert link.endswith("%2Flibrary%2Fmetadata%2Ffallback-guid")
     finder.assert_called_once()
+
+
+def test_find_plex_guid_searches_music_sections_for_music_items():
+    """Un album etait cherche dans les bibliotheques de films : jamais trouve, ou un film
+    homonyme a sa place."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from app.models import LibraryItem, Settings
+    from app.services.plex_links import _find_plex_guid_sync
+
+    plex = MagicMock()
+    plex.library.sections.return_value = [
+        SimpleNamespace(title="Films", type="movie"),
+        SimpleNamespace(title="Musique", type="artist"),
+    ]
+    found = SimpleNamespace(guid="plex://album/abc")
+    settings = Settings(plex_url="http://plex", plex_token="t")
+    album = LibraryItem(title="Mirage", year=2026, media_type="album")
+    with (
+        patch("app.services.plex_links.plex_finder.connect", return_value=plex),
+        patch("app.services.plex_links.plex_finder.find_item_in_libraries", return_value=found) as find,
+    ):
+        assert _find_plex_guid_sync(settings, album) == "plex://album/abc"
+    assert find.call_args.args[1] == ["Musique"]

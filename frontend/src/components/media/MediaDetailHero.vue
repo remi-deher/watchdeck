@@ -110,7 +110,7 @@
 
 <script setup lang="ts">
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
-import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
+import { mediaTypeLabel, vfLanguageState, isMusicType } from '@/utils/labels';
 import { computed, ref, watch } from 'vue';
 import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
@@ -158,7 +158,7 @@ watch(() => props.detail?.poster_url, () => { posterFailed.value = false; });
 
 
 
-const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.detail?.media_type));
+const isMusic = computed(() => isMusicType(props.detail?.media_type));
 const isShow = computed(() => props.detail?.media_type === 'show');
 const canRequest = computed(() => !props.detail?.available && !props.detail?.in_library && !props.detail?.requested && !props.detail?.request_id);
 

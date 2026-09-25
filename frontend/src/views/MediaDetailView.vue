@@ -118,7 +118,7 @@
           title="Recommandés pour vous"
           :items="detail.recommendations || []"
           :requesting="recRequesting"
-          @open="item => router.push(relatedMediaPath(item))"
+          @open="openDetail"
           @request="requestRecMedia"
         />
         <MediaRecommendations
@@ -126,7 +126,7 @@
           title="Titres similaires"
           :items="detail.similar || []"
           :requesting="recRequesting"
-          @open="item => router.push(relatedMediaPath(item))"
+          @open="openDetail"
           @request="requestRecMedia"
         />
       </div>
@@ -191,6 +191,7 @@
 </template>
 
 <script setup lang="ts">
+import { isMusicType } from '@/utils/labels';
 import { humanizeError } from '@/utils/apiError';
 import { computed, reactive, ref, watch } from "vue";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -248,7 +249,7 @@ const {
 const busy = ref(false), actionError = ref(''), successMessage = ref(''), tab = ref('summary');
 const showRequestOptions = ref(false);
 const requestForm = reactive<{ plex_user_id: string; root_folder: string; seasons: number[] }>({ plex_user_id: '', root_folder: '', seasons: [] });
-const isMusic = computed(() => ['artist', 'album', 'track'].includes(detail.value?.media_type));
+const isMusic = computed(() => isMusicType(detail.value?.media_type));
 const artistAlbums = computed(() => detail.value?.albums || []);
 const albumTracks = computed(() => detail.value?.tracks || []);
 const tabs = computed(() => {
@@ -475,12 +476,17 @@ function goBack(): void {
   else router.push(inDiscoverShell.value ? '/discover' : '/library');
 }
 
+/* Recommandations et saga viennent de TMDB (mode Decouvrir), mais le catalogue d'un
+   artiste renvoie des elements de bibliotheque : leur `_kind` doit primer, sinon l'id de
+   bibliotheque d'un album etait pris pour un id TMDB (fiche cassee, libelle « Film »). */
 function relatedMediaPath(item: any): string {
-  return mediaDetailPath(item, 'discover', { discover: inDiscoverShell.value });
+  const kind = item._kind || (item.library_id ? 'library' : item.request_id ? 'request' : 'discover');
+  return mediaDetailPath(item, kind, { discover: inDiscoverShell.value });
 }
 
 function openDetail(item: any): void {
-  router.push(relatedMediaPath(item));
+  const path = relatedMediaPath(item);
+  if (path) router.push(path);
 }
 
 async function openCorrection(scope: string, season: number | null, episode: number | null): Promise<void> {
