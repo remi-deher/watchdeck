@@ -64,7 +64,7 @@
 import { formatDateTime } from '@/utils/format';
 import { computed } from 'vue';
 import { Activity, BellRing, CalendarClock, Layers3, Users } from '@lucide/vue';
-import { vfLanguageState } from '@/utils/labels';
+import { vfLanguageState, isMusicType } from '@/utils/labels';
 
 const props = withDefaults(
   defineProps<{
@@ -75,7 +75,7 @@ const props = withDefaults(
     vfDetail: null,
   }
 );
-const isMusic = computed(() => props.detail?.media_type === 'artist' || props.detail?.media_type === 'album');
+const isMusic = computed(() => isMusicType(props.detail?.media_type));
 const requests = computed(() => props.detail.requests || []);
 const notifications = computed(() => props.detail.notification_history || []);
 const currentState = computed(() => props.detail.operational_status_label || (props.detail.in_library ? 'Disponible' : 'En attente'));

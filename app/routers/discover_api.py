@@ -233,6 +233,9 @@ async def _personalization_seeds(db: AsyncSession, plex_user_id: str, limit: int
     seed_keys: set[tuple[str, str]] = set()
     watched: set[tuple[str, str]] = set()
     for session in sessions:
+        # Une ecoute de musique n'est pas un film vu : elle faussait les recommandations.
+        if session.media_type not in ("movie", "show", "episode"):
+            continue
         media_type = "show" if session.media_type in ("show", "episode") else "movie"
         title = session.grandparent_title if media_type == "show" else session.title
         if not title:
