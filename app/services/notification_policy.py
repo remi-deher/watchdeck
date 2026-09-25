@@ -22,6 +22,11 @@ TECHNICAL_ORIGINS = {"arr", "arr_sync", "manual_import", "plex", "plex_sync", "l
 PSEUDO_REQUESTERS = {"", "manual", "system", "unknown", "arr", "plex"}
 
 
+def is_pseudo_requester(plex_user_id: str | None) -> bool:
+    """Demande creee par Watchdeck lui-meme (import manuel, synchro *arr) : pas de vrai demandeur."""
+    return (plex_user_id or "") in PSEUDO_REQUESTERS
+
+
 def notification_intent_for_transition(event: str) -> str | None:
     return TRANSITION_NOTIFICATION_EVENTS.get(event)
 

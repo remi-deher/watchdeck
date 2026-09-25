@@ -28,6 +28,7 @@ from ..services import deleted_media, radarr, sonarr
 from ..services import seer as seer_service
 from ..services.diagnostics import record_event, update_request_context
 from ..services.email_service import build_correction_email, send_correction_notification
+from ..services.notification_policy import PSEUDO_REQUESTERS
 from ..services.request_lifecycle import transition_request
 from ..utils import async_get_or_404, identity_keys, now_utc_naive, wrap_image_proxy
 from .arr_shared import _resolve_arr_instance
@@ -389,7 +390,11 @@ async def list_library(
                     sqlalchemy.func.max(MediaRequest.plex_user_id),
                 )
                 .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
-                .filter(MediaRequest.library_item_id.in_(item_ids))
+                .filter(
+                    MediaRequest.library_item_id.in_(item_ids),
+                    # Import manuel / synchro *arr : pas de demandeur a afficher.
+                    MediaRequest.plex_user_id.notin_(PSEUDO_REQUESTERS),
+                )
                 .group_by(MediaRequest.library_item_id)
             )
         ).all()
