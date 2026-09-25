@@ -292,7 +292,7 @@ function segmentTooltip(seg: Segment): string {
   margin-top: 0.35rem;
   padding: 0.75rem;
   background: var(--bg-surface-elevated, rgba(15, 23, 42, 0.4));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.08));
   border-radius: var(--radius-md, 0.5rem);
 }
 
@@ -332,7 +332,7 @@ function segmentTooltip(seg: Segment): string {
   align-items: center;
   gap: 0.3rem;
   background: transparent;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.12));
   color: var(--text-secondary, #cbd5e1);
   font-size: var(--fs-xs);
   font-weight: 500;
@@ -343,9 +343,9 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .timeline-toggle-btn:hover {
-  background: var(--bg-surface-hover, rgba(255, 255, 255, 0.08));
+  background: var(--bg-surface-hover, rgb(var(--ink) / 0.08));
   color: var(--text-primary, #ffffff);
-  border-color: var(--border-strong, rgba(255, 255, 255, 0.2));
+  border-color: var(--border-strong, rgb(var(--ink) / 0.2));
 }
 
 .toggle-chevron {
@@ -365,7 +365,7 @@ function segmentTooltip(seg: Segment): string {
 .timeline-track {
   display: flex;
   height: 0.8rem;
-  background: var(--bg-surface-soft, rgba(255, 255, 255, 0.06));
+  background: var(--bg-surface-soft, rgb(var(--ink) / 0.06));
   border-radius: 9999px;
   overflow: hidden;
   gap: 2px;
@@ -399,7 +399,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .seg-playing.method-transcode {
-  background: #f59e0b; /* Amber 500 */
+  background: var(--amber); /* Amber 500 */
 }
 
 .seg-paused {
@@ -466,7 +466,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .dot-transcode {
-  background: #f59e0b;
+  background: var(--amber);
 }
 
 .dot-pause {
@@ -480,7 +480,7 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.4rem;
   margin-top: 0.4rem;
   padding-top: 0.6rem;
-  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--border-subtle, rgb(var(--ink) / 0.08));
 }
 
 .log-header {
@@ -519,16 +519,16 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.6rem;
   padding: 0.4rem 0.5rem;
   border-radius: var(--radius-sm, 0.35rem);
-  background: var(--bg-surface-soft, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  background: var(--bg-surface-soft, rgb(var(--ink) / 0.04));
+  border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.06));
   cursor: pointer;
   transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .segment-row:hover,
 .segment-row:focus-visible {
-  background: var(--bg-surface-hover, rgba(255, 255, 255, 0.08));
-  border-color: var(--border-strong, rgba(255, 255, 255, 0.15));
+  background: var(--bg-surface-hover, rgb(var(--ink) / 0.08));
+  border-color: var(--border-strong, rgb(var(--ink) / 0.15));
 }
 
 .segment-row.row-highlighted {
@@ -552,7 +552,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .row-playing .icon-transcode {
-  color: #f59e0b;
+  color: var(--amber-text);
 }
 
 .row-paused .segment-icon-wrapper {

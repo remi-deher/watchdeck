@@ -265,8 +265,8 @@ function jobIcon(job: string) {
 }
 
 .job-icon-wrap.error {
-  color: var(--danger, #ef4444);
-  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--red-text);
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
 }
 
 .job-icon {
@@ -313,7 +313,7 @@ function jobIcon(job: string) {
 .error-box-title {
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--danger, #ef4444);
+  color: var(--red-text);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -343,7 +343,7 @@ function jobIcon(job: string) {
 }
 
 .text-success {
-  color: var(--success);
+  color: var(--green-text);
 }
 
 .error-detail-box code {

@@ -98,7 +98,7 @@ const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : p
 }
 
 .settings-section-status.active {
-  color: var(--green-text, #4ade80);
+  color: var(--green-text);
 }
 
 .settings-section-actions {

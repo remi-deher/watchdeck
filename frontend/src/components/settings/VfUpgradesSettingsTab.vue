@@ -336,7 +336,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
   color: var(--text-muted);
 }
 
-.diag-error { color: var(--warning, #e5a00d); }
+.diag-error { color: var(--amber-text); }
 
 .diag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
 
@@ -357,7 +357,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 }
 
 .verdict-native { background: rgba(29, 185, 84, 0.15); color: #1db954; }
-.verdict-partial { background: rgba(229, 160, 13, 0.15); color: #e5a00d; }
+.verdict-partial { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
 .verdict-absent,
 .verdict-unknown { background: rgba(231, 76, 60, 0.12); color: #e74c3c; }
 

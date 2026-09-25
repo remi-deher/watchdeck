@@ -66,14 +66,14 @@ const emit = defineEmits<{
 .empty-copy { color: var(--muted); font-size: var(--fs-sm); }
 .tracks-table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md, 8px); background: var(--surface-2); }
 .tracks-table { width: 100%; border-collapse: collapse; text-align: left; font-size: var(--fs-sm); }
-.tracks-table th { padding: 12px 16px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.04); color: var(--muted); font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; }
-.tracks-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.05); color: var(--text); vertical-align: middle; }
+.tracks-table th { padding: 12px 16px; border-bottom: 1px solid var(--border); background: rgb(var(--ink) / .04); color: var(--muted); font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; }
+.tracks-table td { padding: 12px 16px; border-bottom: 1px solid rgb(var(--ink) / .05); color: var(--text); vertical-align: middle; }
 .tracks-table tr:last-child td { border-bottom: 0; }
-.tracks-table tr:hover td { background: rgba(255,255,255,.03); }
+.tracks-table tr:hover td { background: rgb(var(--ink) / .03); }
 .col-num { width: 48px; color: var(--muted); font-weight: 700; }
 .col-duration { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .col-action { white-space: nowrap; }
-.tech-badge { display: inline-block; padding: 2px 7px; margin-right: 4px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: #27272a; color: #a1a1aa; font-size: var(--fs-xs); font-weight: 700; }
+.tech-badge { display: inline-block; padding: 2px 7px; margin-right: 4px; border: 1px solid rgb(var(--ink) / .1); border-radius: 4px; background: #27272a; color: #a1a1aa; font-size: var(--fs-xs); font-weight: 700; }
 .codec-badge { border: 0; background: #3b82f6; color: #fff; }
 .hires-tag { border: 0; background: #7e22ce; color: #fff; }
 .track-listen-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 0; border-radius: var(--radius-sm, 6px); background: var(--accent); color: #fff; cursor: pointer; font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard); }

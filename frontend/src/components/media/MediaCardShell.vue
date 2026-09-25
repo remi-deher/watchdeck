@@ -215,7 +215,7 @@ function interceptFirstTap(e: MouseEvent): void {
 .poster-wrap :deep(.poster-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding: 0 !important; }
 .poster-wrap :deep(.poster-meta > span) { color: rgba(255, 255, 255, .82); font-size: var(--fs-xs); font-weight: 650; }
 .poster-wrap :deep(.poster-rating) { display: inline-flex !important; align-items: center; gap: var(--space-1); }
-.poster-wrap :deep(.poster-rating svg) { width: 12px; height: 12px; color: #fbbf24; fill: currentColor; }
+.poster-wrap :deep(.poster-rating svg) { width: 12px; height: 12px; color: var(--amber-text); fill: currentColor; }
 .poster-wrap :deep(.poster-action) {
   position: absolute;
   inset: auto 9px 9px;

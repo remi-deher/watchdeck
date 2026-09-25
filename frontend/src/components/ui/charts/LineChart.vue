@@ -46,7 +46,7 @@ const config = computed<ChartConfiguration<'line'>>(() => {
         label: (item: TooltipItem<'line'>) => `${formatInteger(Number(item.raw || 0))}${props.unit ? ` ${props.unit}` : ''}`,
         afterLabel: item => visiblePoints.value[item.dataIndex]?.detail || '',
       } } },
-      scales: { x: { grid: { display: false }, ticks: { color: '#a1a1aa', maxTicksLimit: 6, maxRotation: 0 } }, y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.08)' }, ticks: { color: '#a1a1aa', precision: 0 } } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#a1a1aa', maxTicksLimit: 6, maxRotation: 0 } }, y: { beginAtZero: true, grid: { color: 'rgb(var(--ink) / .08)' }, ticks: { color: '#a1a1aa', precision: 0 } } },
     },
   };
 });

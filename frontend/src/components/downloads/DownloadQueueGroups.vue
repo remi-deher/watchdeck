@@ -173,7 +173,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .download-group-head{display:flex;align-items:center;justify-content:space-between;padding:0 2px}
 .download-group-head>div{display:flex;align-items:center;gap:var(--space-3)}
 .download-group-head svg{width:19px;color:var(--muted)}
-.download-group.intervention .download-group-head svg{color:var(--danger)}
+.download-group.intervention .download-group-head svg{color: var(--red-text)}
 .download-group-head h2{margin:0;font-size:var(--fs-md)}
 .download-group-head p{margin:2px 0 0;color:var(--muted);font-size:var(--fs-xs)}
 .download-group-head>span{min-width:27px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-pill);text-align:center;font-size:var(--fs-xs);font-weight:700}
@@ -185,8 +185,8 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .download-progress{display:grid;gap:var(--space-2)}
 .download-progress span{color:var(--muted);font-size:var(--fs-xs)}
 .download-progress strong{font-size:var(--fs-sm)}
-.download-callout{padding:8px 10px;border-radius:var(--radius-sm);background:rgba(229,160,13,.09);color:var(--accent);font-size:var(--fs-xs)}
-.download-callout.error{background:rgba(239,68,68,.09);color:var(--danger)}
+.download-callout{padding:8px 10px;border-radius:var(--radius-sm);background:color-mix(in srgb, var(--accent) 9%, transparent);color:var(--accent);font-size:var(--fs-xs)}
+.download-callout.error{background:color-mix(in srgb, var(--red) 9%, transparent);color: var(--red-text)}
 .download-card footer{justify-content:flex-end;flex-wrap:wrap;margin-top:auto}
 .download-card footer :deep(.ui-button){font-size:var(--fs-xs)}
 .rich-card{display:flex;gap:var(--space-3);align-items:stretch}
@@ -201,7 +201,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .progress-details{display:flex;justify-content:space-between;align-items:center;gap:6px}
 
 .recent-completed-section{display:grid;gap:var(--space-3);margin-top:var(--space-3)}
-.section-subtitle{display:flex;align-items:center;gap:8px;color:var(--success)}
+.section-subtitle{display:flex;align-items:center;gap:8px;color: var(--green-text)}
 .section-subtitle svg{width:18px;height:18px}
 .section-subtitle h3{margin:0;font-size:var(--fs-md);color:var(--text)}
 .completed-badge-group{display:flex;gap:5px;flex-wrap:wrap}

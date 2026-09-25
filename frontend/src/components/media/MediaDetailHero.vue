@@ -388,7 +388,7 @@ const releaseDates = computed(() => {
   color: #fff !important;
 }
 .mdh-badges > .badge.available {
-  border-color: #22c55e;
+  border-color: var(--green);
   background: #166534;
   color: #fff;
 }

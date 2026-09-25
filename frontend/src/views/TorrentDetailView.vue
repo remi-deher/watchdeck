@@ -103,5 +103,5 @@ async function remove(deleteFiles: boolean): Promise<void> {
 </script>
 
 <style scoped>
-.removal-warning{color:var(--danger)}
+.removal-warning{color: var(--red-text)}
 </style>

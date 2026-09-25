@@ -371,7 +371,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
 .target-row.status-accepted,
 .target-row.status-downloading,
 .target-row.status-importing {
-  border-left-color: #60a5fa;
+  border-left-color: var(--blue-text);
 }
 
 .target-row.status-awaiting_verification {
@@ -380,11 +380,11 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
 
 .target-row.status-verified,
 .target-row.status-grabbed {
-  border-left-color: var(--green-text, #22c55e);
+  border-left-color: var(--green-text, var(--green));
 }
 
 .target-row.status-failed {
-  border-left-color: var(--red-text, #ef4444);
+  border-left-color: var(--red-text, var(--red));
 }
 
 .target-row.status-dismissed {
@@ -459,7 +459,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
 }
 
 .backoff-info {
-  color: var(--warning, #b45309);
+  color: var(--amber-text);
 }
 
 .waiting-truncated {

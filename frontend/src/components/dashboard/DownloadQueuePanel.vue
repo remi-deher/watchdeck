@@ -197,7 +197,7 @@ function metaLine(item: any): string {
   height: 5px;
   overflow: hidden;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, .08);
+  background: rgb(var(--ink) / .08);
 }
 .queue-progress i {
   display: block;
@@ -206,8 +206,8 @@ function metaLine(item: any): string {
   background: var(--accent);
   transition: width var(--motion-duration-base) var(--motion-ease-standard);
 }
-.queue-progress i.is-done { background: #22c55e; }
-.queue-progress i.is-error { background: #ef4444; }
+.queue-progress i.is-done { background: var(--green); }
+.queue-progress i.is-error { background: var(--red); }
 .queue-progress i.is-idle { background: var(--muted); }
 
 .queue-meta {

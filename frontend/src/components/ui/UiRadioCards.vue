@@ -62,7 +62,7 @@ const cleCourante = computed(() => {
 .ui-radio-card[data-state="checked"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface-2))}
 .ui-radio-card[data-disabled]{opacity:.55;cursor:not-allowed}
 .ui-radio-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.ui-radio-card__dot{display:grid;place-items:center;width:18px;height:18px;margin-top:1px;border:1.5px solid color-mix(in srgb,var(--text) 55%,transparent);border-radius:50%}
+.ui-radio-card__dot{display:grid;place-items:center;width:18px;height:18px;margin-top:1px;border:1.5px solid var(--border-control);border-radius:50%}
 .ui-radio-card[data-state="checked"] .ui-radio-card__dot{border-color:var(--accent)}
 .ui-radio-card__fill{width:8px;height:8px;border-radius:50%;background:var(--accent)}
 .ui-radio-card__copy{display:grid;gap:3px;min-width:0}

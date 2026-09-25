@@ -129,10 +129,10 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
 }
 
 .kpi-accent { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
-.kpi-warning { background: rgba(234, 179, 8, 0.14); color: #fde047; }
-.kpi-danger { background: rgba(239, 68, 68, 0.14); color: #fca5a5; }
-.kpi-info { background: rgba(56, 189, 248, 0.14); color: #7dd3fc; }
-.kpi-ok { background: rgba(34, 197, 94, 0.14); color: #86efac; }
+.kpi-warning { background: color-mix(in srgb, var(--amber) 14%, transparent); color: #fde047; }
+.kpi-danger { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red-text); }
+.kpi-info { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue-text); }
+.kpi-ok { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green-text); }
 .kpi-muted, .kpi-neutral { background: var(--surface-2); color: var(--muted); }
 
 .kpi-body { display: grid; min-width: 0; gap: 1px; }

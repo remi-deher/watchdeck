@@ -103,13 +103,13 @@ watch(() => props.clientId, loadStats);
 .speed-item svg{width:15px;height:15px;color:var(--muted)}
 .connection-status{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}
 .connection-status i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 14%,transparent)}
-.connection-status.connected{color:var(--success)}
-.connection-status.partial{color:var(--warning)}
-.connection-status.offline{color:var(--danger)}
+.connection-status.connected{color: var(--green-text)}
+.connection-status.partial{color: var(--amber-text)}
+.connection-status.offline{color: var(--red-text)}
 .speed-bar-actions{display:flex;align-items:center;gap:6px;min-width:max-content}
 .speed-bar-actions button{min-height:32px;padding:4px 9px;white-space:nowrap}
 .tool-toggle-btn.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);border-color:var(--accent)}
-.alt-speed-btn.active{background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning);border-color:var(--warning)}
+.alt-speed-btn.active{background:color-mix(in srgb,var(--warning) 16%,transparent);color: var(--amber-text);border-color:var(--warning)}
 @media(min-width:761px){.global-speed-bar button{font-size:13px}}
 @media(max-width:760px){
   .global-speed-bar{left:0;bottom:var(--app-shell-offset-bottom);min-width:0;min-height:42px;padding:3px 8px}

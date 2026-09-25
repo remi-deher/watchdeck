@@ -2,7 +2,7 @@
 html { min-width: 0; width: 100%; max-width: 100%; overflow-x: clip; overflow-wrap: anywhere; text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 72%, white); outline-offset: 3px; }
 button:focus:not(:focus-visible),a:focus:not(:focus-visible) { outline: none; }
-::selection { color: #151515; background: var(--accent); }
+::selection { color: var(--on-accent); background: var(--accent); }
 /* `touch-action: manipulation` sur toute la page supprime le zoom au double-tap, et
    avec lui le delai de 300ms que le navigateur s'accordait pour savoir si un appui
    allait en devenir un. Le defilement et le zoom a deux doigts, eux, restent
@@ -26,7 +26,7 @@ th { color: var(--muted); font-size: var(--fs-sm); text-transform: uppercase; }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; scroll-behavior: auto!important; } }
 @media (forced-colors: active) { :focus-visible { outline: 3px solid Highlight; } .app-nav-link[aria-current="page"] { forced-color-adjust: none; color: HighlightText; background: Highlight; } }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
-.skip-link { position: absolute; top: -100%; left: max(var(--space-3), var(--safe-left)); z-index: 100; display: inline-flex; align-items: center; min-height: var(--touch-target); padding: var(--space-2) var(--space-4); border-radius: var(--radius-sm); background: var(--accent); color: #151515; font-weight: 700; text-decoration: none; transition: top var(--motion-duration-instant) var(--motion-ease-standard); }
+.skip-link { position: absolute; top: -100%; left: max(var(--space-3), var(--safe-left)); z-index: 100; display: inline-flex; align-items: center; min-height: var(--touch-target); padding: var(--space-2) var(--space-4); border-radius: var(--radius-sm); background: var(--accent); color: var(--on-accent); font-weight: 700; text-decoration: none; transition: top var(--motion-duration-instant) var(--motion-ease-standard); }
 .skip-link:focus-visible { top: max(var(--space-3), var(--safe-top)); }
 td strong,td small { display: block; }
 button,input,select,textarea { font: inherit; }

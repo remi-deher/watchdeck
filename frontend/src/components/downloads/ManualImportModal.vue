@@ -345,7 +345,7 @@ onMounted(() => {
 
 .media-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600; }
 .media-chip svg { width: 12px; height: 12px; }
-.media-chip.ok { background: color-mix(in srgb, var(--green-text, #4ade80) 16%, transparent); color: var(--green-text, #4ade80); }
+.media-chip.ok { background: color-mix(in srgb, var(--green-text) 16%, transparent); color: var(--green-text); }
 .media-chip.warn { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
 
 .link-btn { padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; cursor: pointer; }

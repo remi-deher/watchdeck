@@ -407,7 +407,7 @@ const failedPosters = ref(new Set<string>());
 }
 
 .diag-row.is-ok {
-  color: var(--green-text, #22c55e);
+  color: var(--green-text, var(--green));
 }
 
 .diag-row.is-warning {
@@ -415,7 +415,7 @@ const failedPosters = ref(new Set<string>());
 }
 
 .diag-row.is-danger {
-  color: #fca5a5;
+  color: var(--red-text);
 }
 
 .diag-row.is-muted {

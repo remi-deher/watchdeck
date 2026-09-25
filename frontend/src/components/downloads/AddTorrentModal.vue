@@ -417,7 +417,7 @@ async function submit(): Promise<void> {
   color: var(--accent);
 }
 .error-msg {
-  color: var(--danger);
+  color: var(--red-text);
   font-size: var(--fs-xs);
   margin: 0;
   padding: 6px 10px;

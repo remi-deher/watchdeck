@@ -144,7 +144,7 @@ const progressObj = computed(() => {
   margin-top: 8px;
   color: var(--text);
   font-size: var(--fs-3xl);
-  text-shadow: 0 2px 12px rgba(229, 160, 13, 0.3);
+  text-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 30%, transparent);
   font-variant-numeric: tabular-nums;
 }
 .metric-card-link {
@@ -164,11 +164,11 @@ const progressObj = computed(() => {
   border-radius: var(--radius-pill);
 }
 .metric-trend.up {
-  color: var(--success);
+  color: var(--green-text);
   background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 .metric-trend.down {
-  color: var(--danger);
+  color: var(--red-text);
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 .metric-trend.stable {

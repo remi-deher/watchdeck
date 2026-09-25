@@ -300,15 +300,15 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .month-calendar-shell { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); scrollbar-width: thin; overscroll-behavior-x: contain; }
 .month-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
 .month-weekday { position: sticky; top: 0; z-index: 2; padding: 8px; text-align: center; border-bottom: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; }
-.month-cell { min-width: 0; min-height: 132px; padding: 8px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: rgba(255, 255, 255, 0.008); overflow: hidden; }
+.month-cell { min-width: 0; min-height: 132px; padding: 8px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: rgb(var(--ink) / 0.008); overflow: hidden; }
 .month-cell:nth-child(7n) { border-right: 0; }
 .month-cell:nth-last-child(-n+7) { border-bottom: 0; }
 .month-cell.outside { opacity: 0.35; }
-.month-cell.today { background: rgba(229, 160, 13, 0.06); box-shadow: inset 0 0 0 1px rgba(229, 160, 13, 0.3); }
+.month-cell.today { background: color-mix(in srgb, var(--accent) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
 .month-cell header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .month-cell header > span { color: var(--text); font-weight: 700; }
 .month-cell header small { color: var(--accent); font-size: var(--fs-xs); }
-.month-event, .month-more { display: flex; align-items: center; gap: var(--space-1); width: 100%; min-width: 0; margin: 3px 0; padding: 4px 5px; border: 0; border-left: 2px solid var(--muted); border-radius: var(--radius-xs); background: rgba(255, 255, 255, 0.035); color: var(--text); font-size: var(--fs-xs); text-align: left; cursor: pointer; }
+.month-event, .month-more { display: flex; align-items: center; gap: var(--space-1); width: 100%; min-width: 0; margin: 3px 0; padding: 4px 5px; border: 0; border-left: 2px solid var(--muted); border-radius: var(--radius-xs); background: rgb(var(--ink) / 0.035); color: var(--text); font-size: var(--fs-xs); text-align: left; cursor: pointer; }
 .month-event.available { border-color: var(--success); }
 .month-event span { flex: 0 0 auto; font-size: var(--fs-xs); }
 .month-event strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
@@ -331,7 +331,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .calendar-day-header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 700; color: var(--text); line-height: 1.25; text-transform: capitalize; }
 .calendar-day-sub { display: flex; align-items: center; gap: var(--space-2); }
 .day-event-count { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
-.today-badge { display: inline-flex; padding: 2px 8px; border-radius: var(--radius-pill); background: rgba(229, 160, 13, 0.15); color: var(--accent); font-size: var(--fs-xs); font-weight: 700; }
+.today-badge { display: inline-flex; padding: 2px 8px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); font-size: var(--fs-xs); font-weight: 700; }
 
 /* Vertically stacked full-width cards */
 .calendar-events { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; }
@@ -442,7 +442,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   gap: 3px;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
-  background: rgba(229, 160, 13, 0.22);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
   color: var(--accent);
   font-size: var(--fs-xs);
   font-weight: 700;
@@ -476,7 +476,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .instance-tag {
   padding: 1px 6px;
   border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--ink) / 0.08);
   font-size: var(--fs-xs);
 }
 
@@ -490,7 +490,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .genre-pill {
   padding: 1px 6px;
   border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(var(--ink) / 0.1);
   color: var(--muted);
   font-size: var(--fs-xs);
   font-weight: 500;
@@ -515,19 +515,19 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   gap: 6px;
   padding: 6px 14px;
   border-radius: var(--radius-sm);
-  background: #e5a00d !important;
+  background: var(--accent) !important;
   font-size: var(--fs-xs);
   font-weight: 700;
   border: 0;
   cursor: pointer;
   text-decoration: none;
-  box-shadow: 0 2px 8px rgba(229, 160, 13, 0.35);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
   transition: transform var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .plex-action-btn:hover {
   background: #f5b01d !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(229, 160, 13, 0.45);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .plex-action-btn svg { width: 14px; height: 14px; fill: #000000 !important; color: #000000 !important; }
 

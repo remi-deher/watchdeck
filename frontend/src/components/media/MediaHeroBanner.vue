@@ -483,7 +483,7 @@ onUnmounted(stopAutoplay);
   max-height: 8px;
   flex: 0 0 26px;
   background: var(--accent);
-  box-shadow: 0 0 12px rgba(229, 160, 13, 0.6);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 60%, transparent);
   transform: none;
 }
 
