@@ -49,20 +49,35 @@ export function requestStatusShortLabel(value?: string | null, fallback?: string
   return REQUEST_STATUS_SHORT_LABELS[value] || requestStatusLabel(value, fallback);
 }
 
-/** Film / Série / Musique — types réels de `LibraryItem.media_type` */
-const MEDIA_TYPE_LABELS: Record<string, string> = { show: 'Série', artist: 'Musique' };
-const MEDIA_TYPE_PLURAL_LABELS: Record<string, string> = { show: 'Séries', artist: 'Musique' };
+/** Types musicaux de `LibraryItem.media_type` : une seule liste pour toute l'interface. */
+export const MUSIC_MEDIA_TYPES = ['artist', 'album', 'track'] as const;
 
-/** « Film » / « Série » / « Musique » — au singulier, pour une fiche ou une ligne de tableau. */
+export function isMusicType(value?: string | null): boolean {
+  return (MUSIC_MEDIA_TYPES as readonly string[]).includes(value || '');
+}
+
+/** Film / Série / Artiste / Album / Titre — types réels de `LibraryItem.media_type`. */
+const MEDIA_TYPE_LABELS: Record<string, string> = {
+  movie: 'Film', show: 'Série', artist: 'Artiste', album: 'Album', track: 'Titre',
+};
+const MEDIA_TYPE_PLURAL_LABELS: Record<string, string> = {
+  movie: 'Films', show: 'Séries', artist: 'Musique', album: 'Musique', track: 'Musique',
+};
+
+/* Sans type, c'est une demande ancienne : elles etaient toutes des films. Un type inconnu
+   n'est en revanche plus presente comme un film -- c'est ainsi que les albums et les
+   titres s'affichaient « Film ». */
+
+/** « Film » / « Série » / « Album »… — au singulier, pour une fiche ou une ligne de tableau. */
 export function mediaTypeLabel(value?: string | null): string {
   if (!value) return 'Film';
-  return MEDIA_TYPE_LABELS[value] || 'Film';
+  return MEDIA_TYPE_LABELS[value] || 'Média';
 }
 
 /** « Films » / « Séries » / « Musique » — au pluriel, pour un filtre ou un en-tête de section. */
 export function mediaTypePluralLabel(value?: string | null): string {
   if (!value) return 'Films';
-  return MEDIA_TYPE_PLURAL_LABELS[value] || 'Films';
+  return MEDIA_TYPE_PLURAL_LABELS[value] || 'Médias';
 }
 
 export interface VfLanguageStateResult {

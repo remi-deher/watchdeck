@@ -63,7 +63,13 @@ def _find_plex_guid_sync(
     media: MediaRequest | LibraryItem,
 ) -> str | None:
     plex = plex_finder.connect(settings.plex_url, settings.plex_token)
-    section_type = "show" if media.media_type == "show" else "movie"
+    section_type = (
+        "artist"
+        if media.media_type in ("artist", "album", "track")
+        else "show"
+        if media.media_type == "show"
+        else "movie"
+    )
     library_names = [section.title for section in plex.library.sections() if section.type == section_type]
     item = plex_finder.find_item_in_libraries(
         plex,

@@ -35,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import { isMusicType } from '@/utils/labels';
 import { computed } from 'vue';
 import { RefreshCw, MessageSquareWarning } from '@lucide/vue';
 import MediaIssueForm from './MediaIssueForm.vue';
@@ -65,7 +66,7 @@ const props = withDefaults(
   }
 );
 
-const isMusic = computed(() => props.detail?.media_type === 'artist' || props.detail?.media_type === 'album');
+const isMusic = computed(() => isMusicType(props.detail?.media_type));
 
 defineEmits<{
   (e: 'recheck-plex'): void;

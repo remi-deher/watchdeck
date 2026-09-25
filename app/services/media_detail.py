@@ -363,8 +363,11 @@ async def build_media_detail(
                                 for alb in artist.albums():
                                     albums.append(
                                         {
-                                            "id": getattr(alb, "ratingKey", hash(alb.title)),
-                                            "_kind": "library",
+                                            # Album absent de la bibliotheque : son ratingKey
+                                            # Plex n'est pas un id de LibraryItem, le marquer
+                                            # « library » ouvrait un autre element. Sans _kind,
+                                            # la carte s'affiche sans fiche a ouvrir.
+                                            "id": f"plex-{getattr(alb, 'ratingKey', hash(alb.title))}",
                                             "title": alb.title,
                                             "year": getattr(alb, "year", None),
                                             "media_type": "album",

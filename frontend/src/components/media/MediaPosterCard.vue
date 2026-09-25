@@ -69,7 +69,7 @@
 import { computed } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { Download, Star } from '@lucide/vue';
-import { mediaTypeLabel } from '@/utils/labels';
+import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaCardShell from './MediaCardShell.vue';
 import MediaPoster from './MediaPoster.vue';
 import MediaStatusBadge from './MediaStatusBadge.vue';
@@ -106,7 +106,7 @@ const emit = defineEmits<{
 const router = useRouter();
 const route = useRoute();
 
-const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.item.media_type));
+const isMusic = computed(() => isMusicType(props.item.media_type));
 const title = computed(() => props.item.title || props.item.name || 'Sans titre');
 const rating = computed(() => {
   const value = Number(props.item.vote_average || props.item.vote || 0);

@@ -75,7 +75,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
-import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
+import { mediaTypeLabel, vfLanguageState, isMusicType } from '@/utils/labels';
 import { requesterName } from '@/utils/userLabels';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
@@ -107,7 +107,7 @@ const router = useRouter();
 const route = useRoute();
 const opening = ref(false);
 
-const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.item.media_type));
+const isMusic = computed(() => isMusicType(props.item.media_type));
 
 const artistName = computed(() => {
   const match = /^Artiste \/ Album: (.+)$/m.exec(props.item.overview || '');
