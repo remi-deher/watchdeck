@@ -76,6 +76,7 @@ import { api } from '@/api';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
 import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
+import { requesterName } from '@/utils/userLabels';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import { statusLabel, statusShortLabel } from '@/components/media/mediaListHelpers';
@@ -146,7 +147,7 @@ async function handleOpen(): Promise<void> {
 }
 
 function requesterLabel(item: any): string {
-  return item.custom_name || item.requested_by || item.plex_user || item.plex_user_id || '';
+  return requesterName(item);
 }
 
 const badges = computed(() => {

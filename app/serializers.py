@@ -40,6 +40,12 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
                 requester_ids.append(uid)
     except Exception:
         extras = []
+    from .services.notification_policy import is_pseudo_requester
+
+    # Import manuel / synchro *arr : aucun libelle de demandeur plutot qu'un faux nom.
+    pseudo = is_pseudo_requester(req.plex_user_id)
+    if pseudo:
+        requester_ids = requester_ids[1:]
     requesters = [users.get(uid, uid) for uid in requester_ids]
     return {
         "id": req.id,
@@ -52,7 +58,7 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
         "fulfillment_error": req.fulfillment_error,
         "source": req.source,
         "plex_user_id": req.plex_user_id,
-        "plex_user": users.get(req.plex_user_id, req.plex_user or req.plex_user_id),
+        "plex_user": None if pseudo else users.get(req.plex_user_id, req.plex_user or req.plex_user_id),
         "requester_ids": requester_ids,
         "requesters": requesters,
         "requested_by": ", ".join(requesters),

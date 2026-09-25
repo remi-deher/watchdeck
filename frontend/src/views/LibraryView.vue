@@ -139,6 +139,7 @@ import { CheckCheck, Film, Layers, Music2, RefreshCw, RotateCcw, Trash2, Tv } fr
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
 import { REQUEST_STATUSES } from '@/utils/labels';
+import { isPseudoRequester } from '@/utils/userLabels';
 import { proxyUrl } from '@/utils/mediaImage';
 import { api } from '@/api';
 import { readCache, writeCache } from '@/cache';
@@ -522,7 +523,7 @@ const requesters = computed(() => {
   const seen = new Map<string, string>();
   for (const row of allRequestsRaw.value) {
     const id = row.plex_user_id;
-    if (!id || seen.has(id)) continue;
+    if (isPseudoRequester(id) || seen.has(id)) continue;
     seen.set(id, row.requested_by || row.plex_user || id);
   }
   return [...seen.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
