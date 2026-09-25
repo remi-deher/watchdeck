@@ -381,7 +381,7 @@ function handleContextMenuAction(actionType: string): void {
    pas l'attribut de portee de ce composant -- d'ou :deep() pour les cellules elles-memes. */
 .torrent-table.compact-table :deep(th),.torrent-table.compact-table :deep(td){padding:4px 7px;font-size:var(--fs-xs)}
 .torrent-table.compact-table .progress-cell :deep(.ui-progress){height:4px}
-.torrent-table.incognito-mode .torrent-title{font-family:monospace;letter-spacing:0.5px}
+.torrent-table.incognito-mode .torrent-title{font-family: var(--font-mono);letter-spacing:0.5px}
 @media (min-width: 641px){.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 /* Dans la carte, le titre passe a la ligne et la progression prend toute la largeur. */
 @media (max-width: 640px){.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
@@ -403,7 +403,7 @@ function handleContextMenuAction(actionType: string): void {
 .progress-cell{min-width:0}
 .progress-cell>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}
 .tracker-display{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
-.tracker-display img{width:14px;height:14px;flex:0 0 14px;border-radius:3px;object-fit:contain}
+.tracker-display img{width:14px;height:14px;flex:0 0 14px;border-radius: var(--radius-xs);object-fit:contain}
 .tracker-display span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .action-trigger-btn{display:inline-flex;align-items:center;gap:6px;min-width:100px;padding:5px 9px;font-size:var(--fs-xs);white-space:nowrap}
 

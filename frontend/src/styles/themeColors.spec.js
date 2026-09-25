@@ -7,7 +7,7 @@ import { join, relative } from 'node:path';
    se retrouvaient sur fond blanc. Le compte ne peut que baisser : on convertit les
    restes au fil de l'eau, et toute nouvelle couleur passe par une variable. Les voiles
    poses sur les affiches et bannieres (texte blanc sur image) sont legitimes. */
-const PLAFOND = 306;
+const PLAFOND = 135;
 const COULEUR = /#[0-9a-fA-F]{3,8}\b|rgba?\(\s*\d/g;
 
 function fichiers(dir) {

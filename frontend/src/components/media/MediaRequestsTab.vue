@@ -301,7 +301,7 @@ const emit = defineEmits<{
   background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 40px rgb(var(--shadow-color) / calc(0.45 * var(--shadow-scale)));
 }
 :deep(.requester-menu button) {
   display: flex;

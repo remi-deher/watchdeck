@@ -129,7 +129,7 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
 }
 
 .kpi-accent { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
-.kpi-warning { background: color-mix(in srgb, var(--amber) 14%, transparent); color: #fde047; }
+.kpi-warning { background: color-mix(in srgb, var(--amber) 14%, transparent); color: var(--amber-text); }
 .kpi-danger { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red-text); }
 .kpi-info { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue-text); }
 .kpi-ok { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green-text); }

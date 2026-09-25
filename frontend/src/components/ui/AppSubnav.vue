@@ -195,7 +195,7 @@ watch(
   border: 0;
   /* Un cran sous le rayon du cadre : a rayon egal, la pastille active semblait deborder
      dans les coins. */
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);

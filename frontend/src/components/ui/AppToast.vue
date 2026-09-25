@@ -49,9 +49,9 @@ function runAction(toast: AppToastMessage): void {
 .app-toast {
   position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: var(--space-3); align-items: center;
   min-width: 0; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface) 94%, black); box-shadow: 0 18px 50px rgb(0 0 0 / 42%); color: var(--text);
+  background: color-mix(in srgb, var(--surface) 94%, black); box-shadow: 0 18px 50px rgb(var(--shadow-color) / calc(0.42 * var(--shadow-scale))); color: var(--text);
 }
-.app-toast.is-error { border-color: color-mix(in srgb, var(--danger, #e5484d) 45%, var(--border)); }
+.app-toast.is-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 .app-toast[data-state="open"] { animation: toast-in var(--motion-duration-base) var(--motion-ease-emphasized); }
 .app-toast[data-state="closed"] { animation: toast-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
 .app-toast[data-swipe="move"] { transform: translateX(var(--reka-toast-swipe-move-x)); }
@@ -60,7 +60,7 @@ function runAction(toast: AppToastMessage): void {
 @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(8px); } }
 @keyframes toast-swipe-out { from { transform: translateX(var(--reka-toast-swipe-end-x)); } to { transform: translateX(110%); } }
-.app-toast-icon { display: grid; place-items: center; width: 38px; height: 38px; overflow: hidden; border-radius: var(--radius-sm); background: rgb(229 160 13 / 14%); color: var(--accent); }
+.app-toast-icon { display: grid; place-items: center; width: 38px; height: 38px; overflow: hidden; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .app-toast-icon img { width: 100%; height: 100%; object-fit: cover; }
 .app-toast-icon svg { width: 17px; }
 .app-toast-copy { display: grid; gap: var(--space-1); min-width: 0; }

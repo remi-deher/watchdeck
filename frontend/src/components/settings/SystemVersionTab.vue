@@ -233,7 +233,7 @@ onMounted(load);
 .branch-badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; }
 .branch-badge.branch-main { color: var(--green-text); background: color-mix(in srgb, var(--green) 13%, transparent); }
 .branch-badge.branch-test { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
-.branch-badge.branch-dev { color: var(--blue-text); background: rgba(96,165,250,.13); }
+.branch-badge.branch-dev { color: var(--blue-text); background: color-mix(in srgb,var(--blue) 13%,transparent); }
 .status-badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: 700; }
 .status-badge.status-success { color: var(--green-text); background: color-mix(in srgb, var(--green) 13%, transparent); }
 .status-badge.status-warning { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }

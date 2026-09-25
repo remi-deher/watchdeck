@@ -16,7 +16,7 @@ withDefaults(defineProps<{ tone?: 'neutral' | 'info' | 'success' | 'warning' | '
 .ui-badge--pill,.ui-badge:has(.ui-status-dot) { min-height: 26px; padding-inline: 9px; border-radius: var(--radius-pill); }
 .ui-status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb,currentColor 14%,transparent); }
 .is-success { color: var(--green-text); border-color: color-mix(in srgb, var(--green) 35%, transparent); background: color-mix(in srgb, var(--green) 8%, transparent); }
-.is-info { color: var(--blue-text); border-color: rgba(96,165,250,.35); background: rgba(96,165,250,.08); }
+.is-info { color: var(--blue-text); border-color: color-mix(in srgb,var(--blue) 35%,transparent); background: color-mix(in srgb,var(--blue) 8%,transparent); }
 .is-warning { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .is-danger { color: var(--red-text); border-color: color-mix(in srgb, var(--red) 40%, transparent); background: color-mix(in srgb, var(--red) 8%, transparent); }
 </style>

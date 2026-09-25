@@ -73,9 +73,9 @@ const emit = defineEmits<{
 .col-num { width: 48px; color: var(--muted); font-weight: 700; }
 .col-duration { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .col-action { white-space: nowrap; }
-.tech-badge { display: inline-block; padding: 2px 7px; margin-right: 4px; border: 1px solid rgb(var(--ink) / .1); border-radius: 4px; background: #27272a; color: #a1a1aa; font-size: var(--fs-xs); font-weight: 700; }
-.codec-badge { border: 0; background: #3b82f6; color: #fff; }
-.hires-tag { border: 0; background: #7e22ce; color: #fff; }
+.tech-badge { display: inline-block; padding: 2px 7px; margin-right: 4px; border: 1px solid rgb(var(--ink) / .1); border-radius: var(--radius-xs); background: var(--surface-3); color: var(--muted); font-size: var(--fs-xs); font-weight: 700; }
+.codec-badge { border: 0; background: var(--blue); color: #fff; }
+.hires-tag { border: 0; background: var(--violet); color: #fff; }
 .track-listen-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 0; border-radius: var(--radius-sm, 6px); background: var(--accent); color: #fff; cursor: pointer; font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard); }
-.track-listen-btn:hover { background: var(--accent-hover, #e05206); transform: translateY(-1px); }
+.track-listen-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
 </style>

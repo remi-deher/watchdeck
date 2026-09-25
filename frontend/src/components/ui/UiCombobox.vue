@@ -114,7 +114,7 @@ function effacer(): void {
 
 <!-- Le contenu est teleporte dans <body> : ses styles ne peuvent pas etre scoped. -->
 <style>
-.ui-combobox__content{z-index:var(--z-popover);width:var(--reka-combobox-trigger-width);max-height:min(320px,var(--reka-combobox-content-available-height));overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-lg, 0 12px 32px rgb(0 0 0 / 35%))}
+.ui-combobox__content{z-index:var(--z-popover);width:var(--reka-combobox-trigger-width);max-height:min(320px,var(--reka-combobox-content-available-height));overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-lg, 0 12px 32px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale))))}
 .ui-combobox__viewport{max-height:inherit;padding:4px;overflow-y:auto}
 .ui-combobox__item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:6px;min-height:34px;padding:4px 8px;border-radius:var(--radius-sm);color:var(--text);font-size:var(--fs-sm);cursor:pointer;user-select:none}
 .ui-combobox__item[data-highlighted]{background:var(--surface-3)}

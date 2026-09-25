@@ -504,7 +504,7 @@ const releaseDates = computed(() => {
 @media (hover: hover) and (pointer: fine) {
   .mdh-listen-btn:hover {
     transform: translateY(-1px);
-    background: var(--accent-hover, #e05206);
+    background: var(--accent-hover);
   }
 }
 

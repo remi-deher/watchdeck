@@ -254,7 +254,7 @@ const failedPosters = ref(new Set<string>());
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgb(var(--shadow-color) / calc(0.12 * var(--shadow-scale)));
   transition: border-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
@@ -340,7 +340,7 @@ const failedPosters = ref(new Set<string>());
   object-fit: cover;
   border-radius: var(--radius-xs);
   background: var(--surface-2);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 6px rgb(var(--shadow-color) / calc(0.25 * var(--shadow-scale)));
 }
 
 .media-poster.placeholder {
@@ -411,7 +411,7 @@ const failedPosters = ref(new Set<string>());
 }
 
 .diag-row.is-warning {
-  color: #fde047;
+  color: var(--amber-text);
 }
 
 .diag-row.is-danger {

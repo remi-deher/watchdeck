@@ -66,7 +66,7 @@ const open = ref(props.defaultOpen);
 .filter-group-chevron {
   width: 14px;
   height: 14px;
-  color: var(--text-muted, #888);
+  color: var(--text-muted);
   transition: transform var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-instant);
   flex-shrink: 0;
 }

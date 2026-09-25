@@ -136,7 +136,7 @@ const progressObj = computed(() => {
 }
 .metric-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 24px rgb(var(--shadow-color) / calc(0.25 * var(--shadow-scale)));
   border-color: var(--border-hover, var(--border));
 }
 .metric-card strong {

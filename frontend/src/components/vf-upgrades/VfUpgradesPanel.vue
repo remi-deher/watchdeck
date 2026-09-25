@@ -257,7 +257,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgb(var(--shadow-color) / calc(0.12 * var(--shadow-scale)));
   transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
@@ -280,7 +280,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
   display: flex;
   padding: 3px;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg, #09090b) 70%, transparent);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
   cursor: pointer;
 }
 
@@ -291,7 +291,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
   border-radius: var(--radius-sm);
   object-fit: cover;
   display: block;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 8px rgb(var(--shadow-color) / calc(0.25 * var(--shadow-scale)));
   background: var(--surface-2);
 }
 

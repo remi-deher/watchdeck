@@ -354,7 +354,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .calendar-event-card.interactive:hover {
   border-color: var(--accent);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 20px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale)));
 }
 
 .card-backdrop {
@@ -395,7 +395,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale)));
 }
 
 .card-poster img {
@@ -454,7 +454,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  color: #a0a0ab;
+  color: var(--muted);
   font-size: var(--fs-xs);
 }
 

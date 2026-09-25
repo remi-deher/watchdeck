@@ -350,16 +350,16 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 
 .diag-verdict {
   padding: 0 var(--space-2);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.verdict-native { background: rgba(29, 185, 84, 0.15); color: #1db954; }
+.verdict-native { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green-text); }
 .verdict-partial { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
 .verdict-absent,
-.verdict-unknown { background: rgba(231, 76, 60, 0.12); color: #e74c3c; }
+.verdict-unknown { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red-text); }
 
 .diag-verdict-dot {
   display: inline-block;
@@ -413,7 +413,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 
 .effective-summary > span {
   padding: 4px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
   font-size: var(--fs-xs);
 }

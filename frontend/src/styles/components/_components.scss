@@ -132,7 +132,7 @@
   .ui-feedback > .ui-button { grid-column: 2 / -1; justify-self: start; }
 }
 
-.form-save-bar { position: fixed; right: max(22px,var(--safe-right)); bottom: max(22px,var(--safe-bottom),var(--keyboard-inset)); left: max(22px,var(--safe-left)); z-index: 38; display: flex; align-items: center; gap: var(--space-4); width: auto; max-width: 540px; margin-left: auto; padding: 11px 12px 11px 15px; border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent); border-radius: var(--radius-md); color: var(--text); background: rgba(20,20,24,.96); box-shadow: 0 16px 45px rgba(0,0,0,.5); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.form-save-bar { position: fixed; right: max(22px,var(--safe-right)); bottom: max(22px,var(--safe-bottom),var(--keyboard-inset)); left: max(22px,var(--safe-left)); z-index: 38; display: flex; align-items: center; gap: var(--space-4); width: auto; max-width: 540px; margin-left: auto; padding: 11px 12px 11px 15px; border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent); border-radius: var(--radius-md); color: var(--text); background: var(--surface-glass); box-shadow: 0 16px 45px rgb(var(--shadow-color) / calc(.5 * var(--shadow-scale))); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
 .form-save-bar > div { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1; }
 .form-save-bar > div > span:last-child { display: grid; gap: var(--space-1); }
 .form-save-bar strong { font-size: var(--fs-sm); }
@@ -316,7 +316,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   overflow-x: hidden;
   background: var(--surface-3);
   border: 1px solid var(--border);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 20px 60px rgb(var(--shadow-color) / calc(0.55 * var(--shadow-scale)));
   border-radius: var(--panel-radius, 16px);
   inset: calc(5vh + var(--safe-top) + var(--app-shell-offset-top)) auto auto 50%;
   width: min(680px, calc(100% - 24px));
@@ -439,7 +439,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
       border-color: color-mix(in srgb, var(--accent) 55%, transparent);
       border-top: 0;
       border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-      box-shadow: 0 24px 48px rgba(0, 0, 0, .45);
+      box-shadow: 0 24px 48px rgb(var(--shadow-color) / calc(.45 * var(--shadow-scale)));
     }
     /* Pas de poignee de glissement ni d'en-tete : le panneau prolonge la barre, il n'a
        pas a se presenter. Le titre reste lu par les lecteurs d'ecran. */
@@ -524,8 +524,8 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   width: 42px;
   height: 4px;
   margin: 0 auto;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text, #fff) 26%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 26%, transparent);
 }
 .modal-panel.is-dragging .sheet-grab { cursor: grabbing; }
 
@@ -592,7 +592,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--font-mono);
   line-height: 1.45;
 }
 
@@ -732,7 +732,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   height: 12px;
   margin: 0 0 10px;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--text, #fff) 8%, transparent);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 .skeleton-line.is-short { width: 58%; }
 .skeleton-line.is-tabs { height: 34px; width: 72%; margin-bottom: var(--space-5); border-radius: var(--radius-md); }
@@ -743,7 +743,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text, #fff) 9%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 9%, transparent), transparent);
   animation: skeleton-sweep 1.4s var(--motion-ease-standard) infinite;
 }
 @keyframes skeleton-sweep { to { transform: translateX(100%); } }
@@ -768,7 +768,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-3);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  box-shadow: 0 8px 24px rgb(var(--shadow-color) / calc(0.4 * var(--shadow-scale)));
   color: var(--text);
   font-size: var(--fs-xs);
   font-weight: 600;

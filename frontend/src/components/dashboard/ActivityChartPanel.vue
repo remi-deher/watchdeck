@@ -225,7 +225,7 @@ const chartPoints = computed(() => {
 .activity-period button.active {
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgb(var(--shadow-color) / calc(0.2 * var(--shadow-scale)));
 }
 
 .activity-trend {

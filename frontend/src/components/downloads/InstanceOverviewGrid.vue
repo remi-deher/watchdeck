@@ -242,7 +242,7 @@ function filterByClient(client: any): void {
 
 .instance-identity { display:flex; align-items:flex-start; gap:11px; min-width:0; }
 .type-label { display:block; margin-bottom:3px; color:var(--muted); font-size: var(--fs-xs); font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
-.type-label.radarr { color:var(--accent); }.type-label.sonarr { color:var(--green-text); }.type-label.prowlarr { color:#8b7cf6; }.type-label.client { color:var(--accent); }
+.type-label.radarr { color:var(--accent); }.type-label.sonarr { color:var(--green-text); }.type-label.prowlarr { color:var(--violet-text); }.type-label.client { color:var(--accent); }
 
 .instance-title-wrap {
   min-width: 0;
@@ -275,8 +275,8 @@ function filterByClient(client: any): void {
 }
 
 .icon-avatar.sonarr {
-  background: color-mix(in srgb, #00c49f 20%, var(--surface-2));
-  color: #00c49f;
+  background: color-mix(in srgb, var(--green) 20%, var(--surface-2));
+  color: var(--green-text);
 }
 
 .icon-avatar.client {
@@ -284,7 +284,7 @@ function filterByClient(client: any): void {
   color: var(--accent);
 }
 
-.icon-avatar.prowlarr { background:color-mix(in srgb,#8b7cf6 20%,var(--surface-2)); color:#a99cff; }
+.icon-avatar.prowlarr { background:color-mix(in srgb,var(--violet) 20%,var(--surface-2)); color:var(--violet-text); }
 
 .instance-title-wrap strong {
   display: block;

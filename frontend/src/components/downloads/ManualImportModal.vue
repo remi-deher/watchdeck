@@ -331,7 +331,7 @@ onMounted(() => {
   aspect-ratio: 2 / 3;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  background: linear-gradient(150deg, #3f3f46, #1f1f24);
+  background: linear-gradient(150deg, var(--surface-3), var(--surface-2));
   color: color-mix(in srgb, var(--muted) 60%, transparent);
 }
 .media-poster img { width: 100%; height: 100%; object-fit: cover; }
@@ -372,10 +372,10 @@ onMounted(() => {
   text-align: left;
   cursor: pointer;
 }
-.lookup-result:hover:not(:disabled) { background: rgb(255 255 255 / 4.5%); }
+.lookup-result:hover:not(:disabled) { background: rgb(var(--ink) / 4.5%); }
 .lookup-result.unavailable { cursor: not-allowed; opacity: .5; }
 .lookup-result.selected { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.result-poster { display: grid; place-items: center; width: 34px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-xs, 6px); background: linear-gradient(150deg, #3f3f46, #1f1f24); color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.result-poster { display: grid; place-items: center; width: 34px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-xs, 6px); background: linear-gradient(150deg, var(--surface-3), var(--surface-2)); color: color-mix(in srgb, var(--muted) 60%, transparent); }
 .result-poster img { width: 100%; height: 100%; object-fit: cover; }
 .result-poster svg { width: 14px; height: 14px; }
 .result-meta { display: grid; gap: 2px; min-width: 0; }
@@ -405,7 +405,7 @@ onMounted(() => {
 }
 .file-line > svg, .file-option > svg { flex: none; width: 17px; height: 17px; color: var(--muted); }
 .file-name { display: grid; gap: 2px; min-width: 0; }
-.file-name code { overflow: hidden; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
+.file-name code { overflow: hidden; font-family: var(--font-mono); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
 .file-name small { color: var(--muted); font-size: var(--fs-xs); }
 
 .file-list { display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }

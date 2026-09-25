@@ -739,7 +739,7 @@ async function confirmAlign(): Promise<void> {
 
 .badge-warning {
   border-color: color-mix(in srgb, var(--amber) 50%, transparent);
-  color: #fde047;
+  color: var(--amber-text);
   background: color-mix(in srgb, var(--amber) 14%, transparent);
   font-size: var(--fs-xs);
 }
@@ -912,7 +912,7 @@ async function confirmAlign(): Promise<void> {
 
 .user-tag-guest {
   background: color-mix(in srgb, var(--amber) 14%, transparent);
-  color: #eab308;
+  color: var(--amber-text);
 }
 
 .spin {

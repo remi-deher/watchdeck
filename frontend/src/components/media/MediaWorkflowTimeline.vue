@@ -151,7 +151,7 @@ const hiddenCount = computed(() =>
 .workflow-timeline strong { color: inherit; font-size: var(--fs-sm); line-height: 1.25; }
 .workflow-timeline small { margin-top: 4px; font-size: var(--fs-xs); cursor: default; }
 .workflow-timeline .is-completed { color: var(--green-text); }
-.workflow-timeline .is-completed::after { background: var(--success, #42b883); }
+.workflow-timeline .is-completed::after { background: var(--success); }
 .workflow-timeline .is-current { color: var(--text); }
 .workflow-timeline .is-current .workflow-marker { border-color: var(--accent); color: var(--accent); }
 .workflow-timeline .is-error { color: var(--red-text); }

@@ -177,7 +177,7 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 .detail-grid div,.detail-list div{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}
 .detail-grid dt,.detail-list dt{color:var(--muted);font-size:var(--fs-xs)}
 .detail-grid dd,.detail-list dd{margin:4px 0 0;font-weight:700}
-.hash-value{overflow-wrap:anywhere;font-family:monospace;font-size:var(--fs-xs)}
+.hash-value{overflow-wrap:anywhere;font-family: var(--font-mono);font-size:var(--fs-xs)}
 .inspector-loading{padding:16px 0;font-size:var(--fs-xs);color:var(--muted)}
 .inspector-table-wrap{overflow-x:auto;margin-top:8px;border:1px solid var(--border);border-radius:var(--radius-sm)}
 .file-name-cell{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

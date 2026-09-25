@@ -291,7 +291,7 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.6rem;
   margin-top: 0.35rem;
   padding: 0.75rem;
-  background: var(--bg-surface-elevated, rgba(15, 23, 42, 0.4));
+  background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.08));
   border-radius: var(--radius-md, 0.5rem);
 }
@@ -314,17 +314,17 @@ function segmentTooltip(seg: Segment): string {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted);
 }
 
 .timeline-ratio-badge {
   font-size: var(--fs-xs);
   font-weight: 600;
   padding: 0.1rem 0.4rem;
-  border-radius: 9999px;
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--green) 15%, transparent);
+  color: var(--green);
+  border: 1px solid color-mix(in srgb, var(--green) 25%, transparent);
 }
 
 .timeline-toggle-btn {
@@ -333,7 +333,7 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.3rem;
   background: transparent;
   border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.12));
-  color: var(--text-secondary, #cbd5e1);
+  color: var(--text-secondary);
   font-size: var(--fs-xs);
   font-weight: 500;
   padding: 0.2rem 0.5rem;
@@ -344,7 +344,7 @@ function segmentTooltip(seg: Segment): string {
 
 .timeline-toggle-btn:hover {
   background: var(--bg-surface-hover, rgb(var(--ink) / 0.08));
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
   border-color: var(--border-strong, rgb(var(--ink) / 0.2));
 }
 
@@ -366,17 +366,17 @@ function segmentTooltip(seg: Segment): string {
   display: flex;
   height: 0.8rem;
   background: var(--bg-surface-soft, rgb(var(--ink) / 0.06));
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
   gap: 2px;
   padding: 1px;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 2px rgb(var(--shadow-color) / calc(0.3 * var(--shadow-scale)));
 }
 
 .timeline-segment {
   position: relative;
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   transition: opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard), filter var(--motion-duration-instant) var(--motion-ease-standard);
   cursor: pointer;
 }
@@ -386,16 +386,16 @@ function segmentTooltip(seg: Segment): string {
   opacity: 0.9;
   filter: brightness(1.25);
   transform: scaleY(1.15);
-  outline: 1px solid var(--accent, #6366f1);
+  outline: 1px solid var(--accent);
 }
 
 .timeline-segment.is-selected {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--text);
   filter: brightness(1.3);
 }
 
 .seg-playing {
-  background: #10b981; /* Emerald 500 */
+  background: var(--green); /* Emerald 500 */
 }
 
 .seg-playing.method-transcode {
@@ -403,11 +403,11 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .seg-paused {
-  background: #64748b; /* Slate 500 */
+  background: var(--slate); /* Slate 500 */
 }
 
 .seg-buffering {
-  background: #a855f7; /* Purple 500 */
+  background: var(--violet); /* Purple 500 */
 }
 
 .live-pulse {
@@ -416,8 +416,8 @@ function segmentTooltip(seg: Segment): string {
   right: 0;
   bottom: 0;
   width: 4px;
-  background: #ffffff;
-  border-radius: 9999px;
+  background: var(--text);
+  border-radius: var(--radius-pill);
   animation: pulse-glow 1.5s infinite ease-in-out;
 }
 
@@ -427,7 +427,7 @@ function segmentTooltip(seg: Segment): string {
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 6px #ffffff;
+    box-shadow: 0 0 6px var(--text);
   }
 }
 
@@ -436,7 +436,7 @@ function segmentTooltip(seg: Segment): string {
   justify-content: space-between;
   font-size: var(--fs-xs);
   font-weight: 500;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted);
   padding: 0 0.15rem;
 }
 
@@ -445,7 +445,7 @@ function segmentTooltip(seg: Segment): string {
   flex-wrap: wrap;
   gap: 0.85rem;
   font-size: 0.75rem;
-  color: var(--text-secondary, #cbd5e1);
+  color: var(--text-secondary);
   margin-top: 0.1rem;
 }
 
@@ -462,7 +462,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .dot-direct {
-  background: #10b981;
+  background: var(--green);
 }
 
 .dot-transcode {
@@ -470,7 +470,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .dot-pause {
-  background: #64748b;
+  background: var(--slate);
 }
 
 /* Journal détaillé des segments */
@@ -488,7 +488,7 @@ function segmentTooltip(seg: Segment): string {
   justify-content: space-between;
   align-items: center;
   font-size: var(--fs-xs);
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted);
 }
 
 .log-eyebrow {
@@ -498,7 +498,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .log-stats {
-  color: var(--text-secondary, #cbd5e1);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -532,8 +532,8 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .segment-row.row-highlighted {
-  border-color: var(--accent, #6366f1);
-  background: rgba(99, 102, 241, 0.12);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
 }
 
 .segment-icon-wrapper {
@@ -547,8 +547,8 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .row-playing .segment-icon-wrapper {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  background: color-mix(in srgb, var(--green) 15%, transparent);
+  color: var(--green);
 }
 
 .row-playing .icon-transcode {
@@ -556,13 +556,13 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .row-paused .segment-icon-wrapper {
-  background: rgba(100, 116, 139, 0.15);
-  color: #94a3b8;
+  background: color-mix(in srgb, var(--slate) 15%, transparent);
+  color: var(--muted);
 }
 
 .row-buffering .segment-icon-wrapper {
-  background: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
+  background: color-mix(in srgb, var(--violet) 15%, transparent);
+  color: var(--violet-text);
 }
 
 .segment-main-info {
@@ -583,13 +583,13 @@ function segmentTooltip(seg: Segment): string {
 .segment-name {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 .segment-duration-tag {
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--text-secondary, #cbd5e1);
+  color: var(--text-secondary);
 }
 
 .segment-sub-info {
@@ -597,7 +597,7 @@ function segmentTooltip(seg: Segment): string {
   flex-wrap: wrap;
   gap: 0.5rem;
   font-size: var(--fs-xs);
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted);
 }
 
 .info-pill {

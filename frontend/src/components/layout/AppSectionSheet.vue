@@ -85,7 +85,7 @@ useBackButtonClose(null, () => emit('close'));
   border-top: 1px solid var(--border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--surface);
-  box-shadow: 0 -18px 50px rgba(0, 0, 0, .55);
+  box-shadow: 0 -18px 50px rgb(var(--shadow-color) / calc(.55 * var(--shadow-scale)));
   overflow-y: auto;
   overscroll-behavior: contain;
 }

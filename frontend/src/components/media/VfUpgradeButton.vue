@@ -422,14 +422,14 @@ onMounted(load);
 <style scoped lang="scss">
 .vf-upgrade-wrap { display: inline-flex; }
 .vf-upgrade-trigger.active { color: var(--accent); border-color: var(--accent); }
-.vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: #151515; font-size: var(--fs-xs); font-weight: 700; }
+.vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 700; }
 .vf-upgrade-badge { min-width: 20px; height: 20px; font-size: var(--fs-xs); }
 :deep(.vf-upgrade-modal) { width: min(880px, 96vw); max-height: 92vh; }
 .release-search-tabs { display: flex; gap: 4px; max-width: 100%; margin-bottom: 12px; padding: 4px; overflow-x: auto; border-radius: var(--radius-md); background: var(--surface-hover); scrollbar-width: none; overscroll-behavior-x: contain; }
 .release-search-tabs::-webkit-scrollbar { display: none; }
 .release-search-tabs button { display: inline-flex; flex: 1 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 14px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--muted); white-space: nowrap; cursor: pointer; transition: background var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard); }
 .release-search-tabs button span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: var(--radius-pill); background: rgb(var(--ink) / .07); font-size: var(--fs-xs); }
-.release-search-tabs button.active { background: var(--accent); color: #17130a; font-weight: 600; box-shadow: 0 1px 5px rgba(0,0,0,.22); }
+.release-search-tabs button.active { background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: 0 1px 5px rgb(var(--shadow-color) / calc(.22 * var(--shadow-scale))); }
 .release-search-tabs button.active span { background: rgba(0,0,0,.18); font-weight: 700; }
 .vf-upgrade-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 9px 0 12px; border-bottom: 1px solid var(--border); }
 .compact-search-button, .compact-check, .release-head, .vf-upgrade-release-actions, .arr-status { display: flex; align-items: center; gap: 7px; }
@@ -457,8 +457,8 @@ onMounted(load);
 .release-title-wrap { display: grid; gap: 6px; min-width: 0; }
 .release-badges { gap: 6px; }
 .recommended-badge { border-color: var(--accent); color: var(--accent); font-weight: 700; background: color-mix(in srgb, var(--accent) 15%, var(--surface)); }
-.badge-4k { border-color: rgba(99, 102, 241, 0.6); color: #818cf8; background: rgba(99, 102, 241, 0.12); }
-.hdr-badge { border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe; background: rgba(168, 85, 247, 0.12); }
+.badge-4k { border-color: color-mix(in srgb, var(--blue) 60%, transparent); color: var(--blue-text); background: color-mix(in srgb, var(--blue) 12%, transparent); }
+.hdr-badge { border-color: color-mix(in srgb, var(--violet) 60%, transparent); color: var(--violet-text); background: color-mix(in srgb, var(--violet) 12%, transparent); }
 .score-badge { border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: var(--accent); }
 .seed-badge { font-weight: 600; }
 .vf-upgrade-release-title { font-size: var(--fs-sm); line-height: 1.4; overflow-wrap: anywhere; word-break: break-word; }

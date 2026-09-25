@@ -124,7 +124,7 @@ select {
 select option,
 select optgroup {
   color: var(--text);
-  background: #1e1e23;
+  background: var(--surface-2);
 }
 
 select option:checked {
@@ -176,14 +176,14 @@ input[type="checkbox"]:hover {
 input[type="checkbox"]:checked {
   background: var(--accent-gradient);
   border-color: transparent;
-  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 input[type="checkbox"]:checked::before {
   content: "";
   width: 4px;
   height: 8px;
-  border: solid #fff;
+  border: solid var(--on-accent);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) translate(-0.5px, -1.2px);
   display: block;
@@ -240,7 +240,7 @@ input[type="checkbox"]:focus-visible {
   color: var(--on-accent);
   background: var(--accent-gradient);
   font-weight: 600;
-  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.3);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .table-wrap {
@@ -423,49 +423,50 @@ td {
   line-height: 1.25;
   letter-spacing: 0.01em;
   border: none;
-  color: #fff;
-  background: #27272a;
+  color: var(--on-lang);
+  background: var(--poster-neutral);
   text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
 }
 
+/* Posees sur l'affiche : ombre fixe, quel que soit le theme. */
 .poster-shell .status-tag,
 .poster-shell .language-tag {
   box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
 }
 
 .status-tag.sent_to_arr {
-  color: #1a1200;
-  /* Fixe : la pastille est posee sur l'affiche, pas sur le fond du theme. */
-  background: #f2b233;
+  color: var(--on-lang-mixed);
+  background: var(--lang-mixed);
   text-shadow: none;
 }
 
 .status-tag.available,
 .language-tag.vf {
-  color: #fff;
-  background: #166534;
+  color: var(--on-lang);
+  background: var(--lang-vf);
 }
 
 .status-tag.failed,
 .status-tag.rejected,
 .language-tag.vo {
-  color: #fff;
-  background: #991b1b;
+  color: var(--on-lang);
+  background: var(--lang-vo);
 }
 
 .status-tag.pending_approval,
 .status-tag.partially_available,
 .language-tag.mixed {
-  color: #1a1200;
-  background: rgba(245, 179, 26, .97);
+  color: var(--on-lang-mixed);
+  background: var(--lang-mixed);
+  text-shadow: none;
 }
 
 /* VF presente mais pas la piste par defaut (film) ou pas sur tous les episodes VF
    (serie) -- teinte orange distincte de l'ambre "Mixte" pour ne pas confondre les deux
    etats "a nuancer" au premier coup d'oeil. */
 .language-tag.vf-secondary {
-  color: #fff;
-  background: #c2410c;
+  color: var(--on-lang);
+  background: var(--lang-vf-secondary);
 }
 
 .timeline,
@@ -538,7 +539,7 @@ td {
 
 .mono,
 code {
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .warning-text {
@@ -626,7 +627,7 @@ button:disabled {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, .2);
+  box-shadow: 0 10px 28px rgb(var(--shadow-color) / calc(.2 * var(--shadow-scale)));
 }
 
 @media (max-width: 600px) {
@@ -692,7 +693,7 @@ button:disabled {
 .media-card.interactive:hover {
   border-color: var(--accent);
   transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 24px rgb(var(--shadow-color) / calc(0.4 * var(--shadow-scale)));
 }
 
 .media-card.interactive:hover img {
@@ -758,7 +759,7 @@ button:disabled {
     max-height: none;
     transform: none;
     border-radius: var(--radius-lg);
-    box-shadow: -24px 0 55px rgba(0,0,0,.48);
+    box-shadow: -24px 0 55px rgb(var(--shadow-color) / calc(.48 * var(--shadow-scale)));
   }
 
   .detail-drawer.wide { width: min(820px, calc(100vw - 116px)); }
@@ -869,7 +870,7 @@ button:disabled {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: 0 14px 32px rgb(0 0 0 / 35%);
+  box-shadow: 0 14px 32px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale)));
 }
 .markdown-menu.variable-menu { width: min(390px, 80vw); }
 .markdown-menu__item {
@@ -1041,7 +1042,7 @@ button:disabled {
 .calendar-event.interactive:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale)));
 }
 
 .today-badge {
@@ -1164,7 +1165,7 @@ button:disabled {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--panel-radius);
   overflow: hidden;
   transition: border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
@@ -1181,7 +1182,7 @@ button:disabled {
 }
 
 .settings-card.active::before {
-  background: var(--green, #10b981);
+  background: var(--green);
 }
 
 .settings-card.error::before {
@@ -1194,7 +1195,7 @@ button:disabled {
 }
 
 .settings-card:not(.collapsed) {
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 12px 32px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale)));
 }
 
 .settings-card-head {
@@ -1265,9 +1266,9 @@ button:disabled {
 }
 
 .settings-card-status.active {
-  background: rgba(16, 185, 129, 0.12);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
   color: var(--green-text);
-  border-color: rgba(16, 185, 129, 0.3);
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
 }
 
 .settings-card-status.error {
@@ -1360,7 +1361,7 @@ button:disabled {
 }
 
 .settings-card-feedback.ok {
-  background: rgba(16, 185, 129, 0.1);
+  background: color-mix(in srgb, var(--green) 10%, transparent);
   color: var(--green-text);
 }
 
@@ -1576,7 +1577,7 @@ button:disabled {
   width: 100%;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--media-placeholder);
 }
 
 .poster-wrap img {
@@ -1626,7 +1627,7 @@ button:disabled {
   height: 36px;
   object-fit: cover;
   border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--media-placeholder);
 }
 
 .gap-10 {
@@ -1832,7 +1833,7 @@ button:disabled {
 
 .webhook-url { display: flex; gap: 0.5rem; align-items: center; }
 
-.webhook-url input { flex: 1; font-family: monospace; font-size: var(--fs-sm); padding: 0.5rem; background: var(--bg-hover); color: var(--text-muted); cursor: text; }
+.webhook-url input { flex: 1; font-family: var(--font-mono); font-size: var(--fs-sm); padding: 0.5rem; background: var(--bg-hover); color: var(--text-muted); cursor: text; }
 
 .webhook-status { margin-top: 0.5rem; font-size: var(--fs-md); display: flex; align-items: center; gap: 0.25rem; }
 
