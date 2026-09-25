@@ -19,6 +19,7 @@ import logging
 import httpx
 
 from ..models import MediaRequest, Settings
+from ..utils import public_image_url
 from .notification_catalog import event_color
 
 logger = logging.getLogger(__name__)
@@ -63,8 +64,9 @@ def _build_discord_embed(
     """Construit un embed Discord pour un événement donné."""
     title, body = _build_message(event, request, context)
     embed: dict = {"title": title, "description": body, "color": event_color(event)}
-    if request.poster_url:
-        embed["thumbnail"] = {"url": request.poster_url}
+    poster = public_image_url(request.poster_url)
+    if poster:
+        embed["thumbnail"] = {"url": poster}
     if include_synopsis and request.overview:
         embed["fields"] = [{"name": "Synopsis", "value": request.overview[:500], "inline": False}]
     return embed

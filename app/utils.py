@@ -175,6 +175,80 @@ def wrap_image_proxy(url: str | None) -> str | None:
     return f"/api/image-proxy?url={urllib.parse.quote_plus(url)}&width=600&quality=82&format=webp"
 
 
+def unwrap_image_proxy(url: str | None) -> str | None:
+    """Inverse de `wrap_image_proxy` pour une URL a stocker.
+
+    Le client recoit les affiches deja enveloppees dans /api/image-proxy ; quand il les
+    renvoie (import manuel, demande), c'est l'URL source qu'il faut memoriser. Une URL
+    relative du proxy, stockee telle quelle, n'a ni schema ni hote : les routes
+    /api/image-proxy/request|library/{id} la refusaient (400) et l'affiche manquait dans
+    les rails, alors que la fiche, servie depuis la source, l'affichait.
+    Les URL `plex_path` restent enveloppees : le jeton Plex n'est pas a reconstituer ici,
+    et `image_proxy_source` sait les servir.
+    """
+    if not url or not url.startswith("/api/image-proxy"):
+        return url
+    import urllib.parse
+
+    params = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query))
+    source = params.get("url")
+    return unwrap_image_proxy(source) if source else url
+
+
+def image_proxy_source(url: str) -> tuple[str | None, str | None]:
+    """(url, plex_path) a transmettre a /api/image-proxy pour une URL stockee, y compris
+    une URL du proxy lui-meme enregistree par erreur (voir `unwrap_image_proxy`)."""
+    import urllib.parse
+
+    url = unwrap_image_proxy(url) or url
+    if url.startswith("/api/image-proxy"):
+        plex_path = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query)).get("plex_path")
+        return None, plex_path
+    return url, None
+
+
+def public_image_url(url: str | None) -> str | None:
+    """Affiche utilisable hors de l'application (e-mail, Discord) : le destinataire n'a
+    ni session ni acces au reseau local. Une URL du proxy (relative, derriere
+    l'authentification), un hote prive (Plex, *arr) ou une URL portant un jeton Plex
+    donnent une image cassee, voire exposent le jeton : on n'envoie alors pas d'affiche."""
+    import ipaddress
+    import urllib.parse
+
+    url = unwrap_image_proxy(url)
+    if not url:
+        return None
+    parsed = urllib.parse.urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in ("http", "https") or not host or "." not in host:
+        return None
+    if "x-plex-token" in parsed.query.lower() or host == "localhost" or host.endswith((".local", ".lan", ".home")):
+        return None
+    try:
+        if not ipaddress.ip_address(host).is_global:
+            return None
+    except ValueError:
+        pass
+    return url
+
+
+def arr_image_url(url: str | None, inst_url: str | None) -> str | None:
+    """URL cliente d'une image Sonarr/Radarr : les chemins locaux de l'instance
+    (`/MediaCover/...`, servis quand l'image n'a pas d'URL distante) sont completes par
+    l'adresse de l'instance, puis tout passe par le proxy. Une URL deja proxifiee n'est
+    pas prise pour un chemin de l'instance."""
+    url = unwrap_image_proxy(url)
+    if not url:
+        return None
+    if url.startswith("/api/image-proxy"):
+        return url
+    if url.startswith("/"):
+        if not inst_url:
+            return None
+        url = f"{inst_url.rstrip('/')}{url}"
+    return wrap_image_proxy(url)
+
+
 def plex_image_proxy_url(path: str | None) -> str | None:
     """Construit une URL cliente opaque ; le jeton Plex reste côté serveur."""
     if not path:

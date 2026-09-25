@@ -38,7 +38,7 @@ from ..services.episode_availability import sync_episode_availability_for_show
 from ..services.notification_orchestrator import _notify, _queue_milestone
 from ..services.radarr import lookup_movie
 from ..services.sonarr import get_episodes, lookup_series
-from ..utils import async_get_or_404, now_utc_naive, plex_image_proxy_url, wrap_image_proxy
+from ..utils import arr_image_url, async_get_or_404, now_utc_naive, plex_image_proxy_url, wrap_image_proxy
 from .arr_shared import _resolve_arr_instance
 
 logger = logging.getLogger(__name__)
@@ -134,11 +134,7 @@ async def _vf_detail_payload(db: AsyncSession, req):
         inst = await _resolve_arr_instance(db, req.arr_instance_id, "sonarr")
 
         def wrap_local(url: Optional[str]) -> Optional[str]:
-            if not url:
-                return url
-            if url.startswith("/"):
-                url = f"{inst.url.rstrip('/')}{url}"
-            return wrap_image_proxy(url)
+            return arr_image_url(url, inst.url)
 
         series_id = None
         data = None
@@ -201,7 +197,7 @@ async def _vf_detail_payload(db: AsyncSession, req):
                 "status": status,
                 "air_date": ep.get("airDateUtc") or ep.get("airDate"),
                 "has_file": bool(ep.get("hasFile")),
-                "thumb_url": _arr_image_url(ep.get("images"), "screenshot", "poster"),
+                "thumb_url": wrap_local(_arr_image_url(ep.get("images"), "screenshot", "poster")),
             }
     else:
         for sn, eps in plex_eps.items():

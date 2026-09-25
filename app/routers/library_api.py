@@ -30,7 +30,7 @@ from ..services.diagnostics import record_event, update_request_context
 from ..services.email_service import build_correction_email, send_correction_notification
 from ..services.notification_policy import PSEUDO_REQUESTERS
 from ..services.request_lifecycle import transition_request
-from ..utils import async_get_or_404, identity_keys, now_utc_naive, wrap_image_proxy
+from ..utils import arr_image_url, async_get_or_404, identity_keys, now_utc_naive, unwrap_image_proxy, wrap_image_proxy
 from .arr_shared import _resolve_arr_instance
 from .issues_api import _serialize_issue
 
@@ -676,7 +676,7 @@ async def recheck_plex(
             tvdb_id=tvdb_id,
             imdb_id=imdb_id,
             plex_guid=plex_guid,
-            poster_url=(f"{settings.plex_url.rstrip('/')}{thumb}" if thumb else media.poster_url),
+            poster_url=(f"{settings.plex_url.rstrip('/')}{thumb}" if thumb else unwrap_image_proxy(media.poster_url)),
             overview=getattr(found, "summary", None) or media.overview,
             added_at=added,
             arr_instance_id=media.arr_instance_id,
@@ -744,7 +744,7 @@ async def media_lookup(query: str, type: str = "movie", db: AsyncSession = Depen
             if img.get("coverType") == "poster":
                 remote = img.get("remoteUrl") or img.get("url", "")
                 if remote:
-                    return remote
+                    return arr_image_url(remote, base)
         return None
 
     normalized = []
@@ -869,7 +869,7 @@ async def _create_pending_request(db: AsyncSession, body: "MediaAddRequest") -> 
         imdb_id=body.imdb_id,
         status=RequestStatus.pending_approval,
         source="user_request",
-        poster_url=body.poster_url,
+        poster_url=unwrap_image_proxy(body.poster_url),
         overview=body.overview,
         requested_at=now_utc_naive(),
     )
@@ -1040,7 +1040,7 @@ async def media_add(body: MediaAddRequest, request: Request, db: AsyncSession = 
             arr_id=arr_id if isinstance(arr_id, int) else None,
             arr_slug=chosen_slug,
             arr_instance_id=chosen_instance_id,
-            poster_url=body.poster_url,
+            poster_url=unwrap_image_proxy(body.poster_url),
             overview=body.overview,
         )
         db.add(req)
@@ -1073,7 +1073,7 @@ async def media_add(body: MediaAddRequest, request: Request, db: AsyncSession = 
         if via == "seer" and existing.source != "seer":
             existing.source = "seer"
         if body.poster_url and not existing.poster_url:
-            existing.poster_url = body.poster_url
+            existing.poster_url = unwrap_image_proxy(body.poster_url)
         if body.overview and not existing.overview:
             existing.overview = body.overview
         # Ré-attribue un demandeur réel si la demande était orpheline ("manual")
