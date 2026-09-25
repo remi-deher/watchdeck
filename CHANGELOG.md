@@ -1,11 +1,26 @@
 # Changelog
 
+## 1.45.0 — 2026-09-25
+
+
+### ✨ Nouveautés
+
+- theme clair/sombre et couleurs centralisees dans les tokens ([d1de468](https://github.com/remi-deher/watchdeck/commit/d1de468b354bc9ce673316700553ab00a7a312b2))
+- suite du theme -- couleurs, pastilles de langue, typo et arrondis ([6431026](https://github.com/remi-deher/watchdeck/commit/6431026e58251ac0414b452ce781c0d8f6b8d6b5))
+
+### 🐛 Corrections
+
+- lisibilite des cases a cocher et des controles Reka ([1de5ae0](https://github.com/remi-deher/watchdeck/commit/1de5ae070f37dc4db62a34d5b0de93019983a456))
 ## 1.44.1 — 2026-09-25
 
 
 ### 🐛 Corrections
 
 - plus de libelle de demandeur pour les imports manuels et la synchro *arr ([fddbb53](https://github.com/remi-deher/watchdeck/commit/fddbb53e96c93005fda05b747b5e868b33c15643))
+
+### 🔧 Maintenance
+
+- v1.44.1 (#448) ([40170bf](https://github.com/remi-deher/watchdeck/commit/40170bf3b55ef021d2e5ddc0d416b528c27d5f2b))
 ## 1.44.0 — 2026-09-25
 
 
