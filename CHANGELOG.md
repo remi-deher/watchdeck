@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.44.1 — 2026-09-25
+
+
+### 🐛 Corrections
+
+- plus de libelle de demandeur pour les imports manuels et la synchro *arr ([fddbb53](https://github.com/remi-deher/watchdeck/commit/fddbb53e96c93005fda05b747b5e868b33c15643))
 ## 1.44.0 — 2026-09-25
 
 
 ### ✨ Nouveautés
 
 - tire vers le bas, le panneau rentre dans la barre au doigt ([3f83943](https://github.com/remi-deher/watchdeck/commit/3f83943bfae38f1f7ddbcc9a03c50c30fcd5a97f))
+
+### 🔧 Maintenance
+
+- v1.44.0 (#444) ([ea14647](https://github.com/remi-deher/watchdeck/commit/ea14647a2caac6f149a951b1e5e65f39bda2e507))
 ## 1.43.0 — 2026-09-25
 
 
