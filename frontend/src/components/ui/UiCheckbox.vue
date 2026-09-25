@@ -32,11 +32,13 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
 </script>
 
 <style scoped>
-.ui-checkbox{display:inline-grid;flex:none;place-items:center;width:18px;height:18px;min-height:0;padding:0;border:1.5px solid color-mix(in srgb,var(--text) 26%,transparent);border-radius:var(--radius-xs);background:var(--surface-2);color:var(--on-accent,#111);cursor:pointer;transition:background-color var(--motion-duration-instant) var(--motion-ease-standard),border-color var(--motion-duration-instant) var(--motion-ease-standard)}
+.ui-checkbox{display:inline-grid;flex:none;place-items:center;width:18px;height:18px;min-height:0;padding:0;border:1.5px solid color-mix(in srgb,var(--text) 55%,transparent);border-radius:var(--radius-xs);background:var(--surface-2);color:#0b0b0e;cursor:pointer;transition:background-color var(--motion-duration-instant) var(--motion-ease-standard),border-color var(--motion-duration-instant) var(--motion-ease-standard)}
 .ui-checkbox[data-state="checked"],.ui-checkbox[data-state="indeterminate"]{border-color:var(--accent);background:var(--accent)}
+.ui-checkbox:hover:not(:disabled):not([data-state="checked"]){border-color:var(--text)}
 .ui-checkbox:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ui-checkbox:disabled{cursor:not-allowed;opacity:.55}
-.ui-checkbox-indicator{display:grid;place-items:center}
+.ui-checkbox-indicator{display:grid;place-items:center;color:inherit}
+.ui-checkbox-indicator :deep(svg){color:#0b0b0e;stroke-width:3.5}
 /* Au doigt, la zone d'appui depasse la case sans l'agrandir a l'oeil. */
 @media (pointer:coarse){.ui-checkbox{position:relative}.ui-checkbox::after{content:"";position:absolute;inset:-13px}}
 </style>

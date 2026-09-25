@@ -39,7 +39,7 @@ defineEmits<{
   /* `min-height: 0` : la cible tactile de 44px imposee aux boutons vaut pour le libelle
      cliquable qui l'enveloppe, pas pour la piste, qui debordait de son conteneur. */
   position: relative; flex: none; width: 40px; height: 24px; min-height: 0; padding: 0;
-  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-3);
+  border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); border-radius: 999px; background: var(--surface-3);
   cursor: inherit; transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .ui-switch-track[data-state="checked"] { border-color: var(--accent); background: var(--accent); }
