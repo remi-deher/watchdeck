@@ -19,7 +19,7 @@ from sqlalchemy.future import select
 from ..database import AsyncSessionLocal
 from ..dependencies import require_auth
 from ..models import ArrInstance, LibraryItem, MediaRequest, Settings
-from ..utils import safe_error_message
+from ..utils import image_proxy_source, safe_error_message
 
 router = APIRouter(prefix="/api", tags=["misc"])
 logger = logging.getLogger(__name__)
@@ -355,6 +355,34 @@ async def _current_plex_image_path(
     return fresh
 
 
+async def _proxy_stored_poster(
+    request: Request,
+    poster_url: str,
+    settings: Settings | None,
+    width: int | None,
+    height: int | None,
+    quality: int,
+    image_format: str,
+) -> Response:
+    """Sert une affiche memorisee en base : URL Plex signee, URL externe, ou URL du proxy
+    lui-meme stockee par erreur."""
+    url, plex_path = image_proxy_source(poster_url)
+    if url:
+        parsed = urlparse(url)
+        configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
+        if configured_host and parsed.hostname == configured_host:
+            url, plex_path = None, urlunparse(("", "", parsed.path, parsed.params, parsed.query, ""))
+    return await image_proxy(
+        request=request,
+        url=url,
+        plex_path=plex_path,
+        width=width,
+        height=height,
+        quality=quality,
+        image_format=image_format,
+    )
+
+
 @router.get("/image-proxy/library/{library_item_id}", dependencies=[Depends(require_auth)])
 async def library_image_proxy(
     request: Request,
@@ -370,18 +398,7 @@ async def library_image_proxy(
         settings = (await db.execute(select(Settings))).scalars().first()
     if not item or not item.poster_url:
         raise HTTPException(404, "Affiche introuvable")
-    parsed = urlparse(item.poster_url)
-    configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
-    is_plex = bool(configured_host and parsed.hostname == configured_host)
-    return await image_proxy(
-        request=request,
-        url=None if is_plex else item.poster_url,
-        plex_path=urlunparse(("", "", parsed.path, parsed.params, parsed.query, "")) if is_plex else None,
-        width=width,
-        height=height,
-        quality=quality,
-        image_format=image_format,
-    )
+    return await _proxy_stored_poster(request, item.poster_url, settings, width, height, quality, image_format)
 
 
 @router.get("/image-proxy/request/{request_id}", dependencies=[Depends(require_auth)])
@@ -399,15 +416,4 @@ async def request_image_proxy(
         settings = (await db.execute(select(Settings))).scalars().first()
     if not media_request or not media_request.poster_url:
         raise HTTPException(404, "Affiche introuvable")
-    parsed = urlparse(media_request.poster_url)
-    configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
-    is_plex = bool(configured_host and parsed.hostname == configured_host)
-    return await image_proxy(
-        request=request,
-        url=None if is_plex else media_request.poster_url,
-        plex_path=urlunparse(("", "", parsed.path, parsed.params, parsed.query, "")) if is_plex else None,
-        width=width,
-        height=height,
-        quality=quality,
-        image_format=image_format,
-    )
+    return await _proxy_stored_poster(request, media_request.poster_url, settings, width, height, quality, image_format)

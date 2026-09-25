@@ -7,7 +7,7 @@ from jinja2.sandbox import SandboxedEnvironment
 
 from ..database import AsyncSessionLocal
 from ..models import LibraryItem, MediaRequest, Settings
-from ..utils import mask_email
+from ..utils import mask_email, public_image_url
 from . import audio_analyzer, email_providers
 from .diagnostics import request_context
 from .plex_links import resolve_plex_web_url
@@ -434,7 +434,7 @@ def _build_tags(
         "{titre}": request.title or "",
         "{type}": type_media,
         "{annee}": str(request.year) if request.year else "",
-        "{affiche}": request.poster_url or "",
+        "{affiche}": public_image_url(request.poster_url) or "",
         "{details_saison_episode}": details_se,
         "{numero_saison}": str(season_number) if season_number is not None else "",
         "{saison}": f"Saison {season_number}" if season_number is not None else "",
@@ -480,7 +480,7 @@ def _build_jinja_ctx(request: MediaRequest | LibraryItem, display_name: str | No
     return {
         "_title": request.title or "",
         "_year": request.year,
-        "_poster_url": request.poster_url or "",
+        "_poster_url": public_image_url(request.poster_url) or "",
         "_plex_user": display_name
         or getattr(request, "plex_user", None)
         or getattr(request, "plex_user_id", None)
