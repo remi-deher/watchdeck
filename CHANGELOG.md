@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.43.0 — 2026-09-25
+
+
+### ✨ Nouveautés
+
+- le panneau sort de la barre de recherche, et y rentre ([4b93d29](https://github.com/remi-deher/watchdeck/commit/4b93d292ccd26e31bae620ddaa604020699aab01))
 ## 1.42.0 — 2026-09-24
 
 
@@ -15,6 +21,10 @@
 - affiches Plex rafraichies, fond du hero net, statut « Transmise » ([a7e1107](https://github.com/remi-deher/watchdeck/commit/a7e1107c71c72cf77328a23c30137d683d2c9609))
 - barre de recherche de l'Accueil a la meme taille qu'ailleurs ([a2915ea](https://github.com/remi-deher/watchdeck/commit/a2915eaf9cae00647fd97f0f137fec2aed146aed))
 - boucle de rendu des puces, et tests e2e de la palette ([5ee47ef](https://github.com/remi-deher/watchdeck/commit/5ee47efeb33d912e37cff8ef41845216b9bbc109))
+
+### 🔧 Maintenance
+
+- v1.42.0 (#436) ([af5d2b5](https://github.com/remi-deher/watchdeck/commit/af5d2b585f6916c78fdd0ee694fd55abd3855906))
 ## 1.41.0 — 2026-09-24
 
 
