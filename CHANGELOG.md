@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.42.0 — 2026-09-24
+
+
+### ✨ Nouveautés
+
+- affiches des medias et fiche en feuille depuis Ctrl+K ([7707179](https://github.com/remi-deher/watchdeck/commit/7707179a8050e29754664b957ac4e59518794765))
+- fleches gauche/droite sur les affiches, en-tete masque, sans doublons ([11e6f49](https://github.com/remi-deher/watchdeck/commit/11e6f49cae57c65be502cc48800a69f02254edf6))
+- un seul panneau, qui sort de la barre de recherche ([d385cf6](https://github.com/remi-deher/watchdeck/commit/d385cf66d18d953389c258f8cdb3693a25d60dc3))
+- puces des filtres actifs en tete du panneau ([382ce5d](https://github.com/remi-deher/watchdeck/commit/382ce5d078c51b689638207b0c6645778d82c102))
+
+### 🐛 Corrections
+
+- affiches Plex rafraichies, fond du hero net, statut « Transmise » ([a7e1107](https://github.com/remi-deher/watchdeck/commit/a7e1107c71c72cf77328a23c30137d683d2c9609))
+- barre de recherche de l'Accueil a la meme taille qu'ailleurs ([a2915ea](https://github.com/remi-deher/watchdeck/commit/a2915eaf9cae00647fd97f0f137fec2aed146aed))
+- boucle de rendu des puces, et tests e2e de la palette ([5ee47ef](https://github.com/remi-deher/watchdeck/commit/5ee47efeb33d912e37cff8ef41845216b9bbc109))
 ## 1.41.0 — 2026-09-24
 
 
@@ -12,6 +27,10 @@
 
 - heures des sessions Plex en heure locale ; tampon et vitesse du transcodage en direct ([8155d0e](https://github.com/remi-deher/watchdeck/commit/8155d0ea37d9017bfa9da7e6149e8ab38c9c77be))
 - formatage ruff et typage mypy ([cc27d0e](https://github.com/remi-deher/watchdeck/commit/cc27d0e0a90cf9fa2b63a98130abb20ae1bea93d))
+
+### 🔧 Maintenance
+
+- v1.41.0 (#432) ([c400e70](https://github.com/remi-deher/watchdeck/commit/c400e708120822f2e46b0ef82840a6f2d0944937))
 ## 1.40.1 — 2026-09-24
 
 
