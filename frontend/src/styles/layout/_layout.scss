@@ -275,7 +275,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--surface-2);
-  color: var(--text-muted, #aaa);
+  color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
   transition: border-color var(--motion-duration-instant), background var(--motion-duration-instant), color var(--motion-duration-instant);
@@ -302,7 +302,7 @@
 .filter-badge.excluded {
   border-color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
-  color: var(--danger);
+  color: var(--red-text);
   text-decoration: line-through;
 }
 .filter-badge .count {
@@ -315,13 +315,13 @@
 }
 .filter-badge.active .count {
   background: var(--accent);
-  color: #1a1400;
+  color: var(--on-accent);
 }
 .group-label {
   font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--text);
   letter-spacing: 0.5px;
 }
 

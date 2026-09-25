@@ -56,7 +56,7 @@ const formatOptions = computed(() => {
   align-items: stretch;
   max-width: 220px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--btn-radius);
   background: var(--surface-2);
   overflow: hidden;
 }

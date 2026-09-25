@@ -323,10 +323,12 @@ function libelleLigne(row: T): string {
 .ui-data-table__select { width: 38px; }
 .ui-data-table__check {
   display: grid; place-items: center; width: 18px; height: 18px; min-height: 0; padding: 0;
-  border: 1.5px solid color-mix(in srgb, var(--text) 26%, transparent); border-radius: var(--radius-xs);
-  background: var(--surface-2); color: var(--on-accent, #111); cursor: pointer;
+  border: 1.5px solid var(--border-control); border-radius: var(--radius-xs);
+  background: var(--surface-2); color: var(--on-accent); cursor: pointer;
 }
 .ui-data-table__check[data-state="checked"], .ui-data-table__check[data-state="indeterminate"] { border-color: var(--accent); background: var(--accent); }
+/* Coche forcee en noir epais : la regle globale `span { color: muted }` la grisait. */
+.ui-data-table__check :deep(svg) { color: var(--on-accent); stroke-width: 3.5; }
 .ui-data-table__check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ui-data-table tr.is-clickable { cursor: pointer; }
 .ui-data-table tbody tr.is-selected { background: color-mix(in srgb, var(--accent) 8%, transparent); }

@@ -50,8 +50,8 @@ const status = computed(() => {
   overflow: hidden;
   border-radius: var(--radius-sm);
   box-shadow: 0 1px 5px rgba(0, 0, 0, .55);
-  color: #fff;
-  background: rgba(39, 39, 42, .94);
+  color: var(--on-lang);
+  background: color-mix(in srgb, var(--poster-neutral) 94%, transparent);
   font-size: var(--poster-badge-font-size);
   font-weight: 800;
   line-height: 1.2;
@@ -59,10 +59,10 @@ const status = computed(() => {
   text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
   white-space: nowrap;
 }
-.in-plex { background: rgba(22, 101, 52, .96); }
-.partial { color: #1a1200; background: rgba(245, 179, 26, .97); }
+.in-plex { background: color-mix(in srgb, var(--lang-vf) 96%, transparent); }
+.partial { color: var(--on-lang-mixed); background: var(--lang-mixed); text-shadow: none; }
 .downloading { background: rgba(3, 105, 161, .96); }
-.sent { color: var(--accent-contrast, #1a1200); background: var(--accent); text-shadow: none; }
+.sent { color: var(--on-lang-mixed); background: var(--lang-mixed); text-shadow: none; }
 .requested { background: rgba(63, 63, 70, .96); }
-.error { background: rgba(185, 28, 28, .96); }
+.error { background: color-mix(in srgb, var(--lang-vo) 96%, transparent); }
 </style>

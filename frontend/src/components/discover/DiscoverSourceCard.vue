@@ -152,7 +152,7 @@ const fallbackStyle = computed(() => {
 .discover-source-card:hover .logo-wrapper,
 .discover-source-card:focus-within .logo-wrapper {
   border-color: color-mix(in srgb, var(--accent) 80%, white);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, .55), 0 0 18px rgba(229, 160, 13, 0.25);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .55), 0 0 18px color-mix(in srgb, var(--accent) 25%, transparent);
   transform: translateY(-3px) scale(1.03);
 }
 

@@ -16,7 +16,7 @@ const valeur = computed(() => Math.min(props.max, Math.max(0, Number(props.value
 </script>
 
 <style scoped lang="scss">
-.ui-progress { position: relative; overflow: hidden; width: 100%; height: 6px; border-radius: 999px; background: var(--surface-3); }
+.ui-progress { position: relative; overflow: hidden; width: 100%; height: 6px; border-radius: var(--radius-pill); background: var(--surface-3); }
 .ui-progress__bar { width: 100%; height: 100%; border-radius: inherit; background: var(--accent); transition: transform var(--motion-duration-base) var(--motion-ease-standard); }
 @media (prefers-reduced-motion: reduce) { .ui-progress__bar { transition: none; } }
 </style>

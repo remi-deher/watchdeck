@@ -388,7 +388,7 @@ const releaseDates = computed(() => {
   color: #fff !important;
 }
 .mdh-badges > .badge.available {
-  border-color: #22c55e;
+  border-color: var(--green);
   background: #166534;
   color: #fff;
 }
@@ -504,7 +504,7 @@ const releaseDates = computed(() => {
 @media (hover: hover) and (pointer: fine) {
   .mdh-listen-btn:hover {
     transform: translateY(-1px);
-    background: var(--accent-hover, #e05206);
+    background: var(--accent-hover);
   }
 }
 

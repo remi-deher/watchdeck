@@ -26,11 +26,11 @@ const emit = defineEmits<{ (e: 'update:modelValue', value: number): void }>();
 <style scoped lang="scss">
 .ui-slider { position: relative; display: flex; align-items: center; width: 100%; height: 28px; touch-action: none; user-select: none; }
 .ui-slider[data-disabled] { opacity: .5; }
-.ui-slider__track { position: relative; flex: 1; height: 4px; border-radius: 999px; background: var(--surface-3); }
+.ui-slider__track { position: relative; flex: 1; height: 4px; border-radius: var(--radius-pill); background: var(--surface-3); }
 .ui-slider__range { position: absolute; height: 100%; border-radius: inherit; background: var(--accent); }
 .ui-slider__thumb {
   display: block; width: 20px; height: 20px; border: 2px solid var(--accent); border-radius: 50%;
-  background: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / 40%); cursor: grab;
+  background: var(--text); box-shadow: 0 1px 4px rgb(var(--shadow-color) / calc(0.4 * var(--shadow-scale))); cursor: grab;
 }
 .ui-slider__thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 </style>

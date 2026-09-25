@@ -104,6 +104,10 @@
           </div>
         </SettingsCard>
 
+        <SettingsCard title="Apparence" subtitle="Thème de l'interface sur cet appareil." :icon="Palette" status="active" :collapsible="false">
+          <UiRadioCards v-model="themeChoice" :options="themeCards" label="Thème de l'interface" />
+        </SettingsCard>
+
         <p v-if="!canManageSecurity" class="hint">La double authentification et les passkeys nécessitent un compte lié à un utilisateur Plex.</p>
       </div>
     </div>
@@ -114,10 +118,19 @@
 import { formatDate } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Fingerprint, KeyRound, ShieldCheck, UserRound, Smartphone, Download, Trash2 } from '@lucide/vue';
+import { Fingerprint, KeyRound, Palette, ShieldCheck, UserRound, Smartphone, Download, Trash2 } from '@lucide/vue';
+import UiRadioCards from '@/components/ui/UiRadioCards.vue';
+import { useTheme } from '@/composables/useTheme';
 import QRCode from 'qrcode';
 import { api } from '@/api';
 import SettingsCard from '@/components/settings/SettingsCard.vue';
+
+const { choice: themeChoice } = useTheme();
+const themeCards = [
+  { value: 'system', label: 'Système', description: "Suit le réglage clair ou sombre de l'appareil." },
+  { value: 'dark', label: 'Sombre', description: 'Fond bleu nuit, idéal le soir et pour les affiches.' },
+  { value: 'light', label: 'Clair', description: 'Fond clair, plus lisible en plein jour.' },
+];
 import { usePwaInstall } from '@/composables/usePwaInstall';
 import UiField from '@/components/ui/UiField.vue';
 import UiButton from '@/components/ui/UiButton.vue';

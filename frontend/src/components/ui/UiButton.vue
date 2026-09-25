@@ -101,13 +101,13 @@ const attributs = computed(() => {
 <style scoped lang="scss">
 .ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--btn-radius); font: inherit; font-size: var(--fs-sm); font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard); }
 .ui-button--sm { min-height: 36px; padding-inline: 11px; }
-.ui-button--primary { border-color: var(--accent); background: var(--accent); color: #151515; }
+.ui-button--primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .ui-button--secondary { border-color: var(--border); background: var(--surface-2); color: var(--text); }
 .ui-button--ghost { border-color: transparent; background: transparent; color: var(--muted); }
-.ui-button--danger { border-color: rgba(239,68,68,.38); background: rgba(239,68,68,.1); color: var(--red-text); }
-.ui-button--primary:hover:not(:disabled):not([aria-disabled="true"]) { background: color-mix(in srgb, var(--accent) 88%, white); }
+.ui-button--danger { border-color: color-mix(in srgb, var(--red) 38%, transparent); background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red-text); }
+.ui-button--primary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--accent-hover); }
 .ui-button--secondary:hover:not(:disabled):not([aria-disabled="true"]),.ui-button--ghost:hover:not(:disabled):not([aria-disabled="true"]) { border-color: color-mix(in srgb, var(--border) 65%, white); background: var(--surface-3); color: var(--text); }
-.ui-button--danger:hover:not(:disabled):not([aria-disabled="true"]) { border-color: rgba(239,68,68,.58); background: rgba(239,68,68,.17); }
+.ui-button--danger:hover:not(:disabled):not([aria-disabled="true"]) { border-color: color-mix(in srgb, var(--red) 58%, transparent); background: color-mix(in srgb, var(--red) 17%, transparent); }
 .ui-button-label { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); color: inherit; }
 .ui-button:active:not(:disabled) { transform: translateY(1px); }
 .ui-button:disabled,.ui-button[aria-disabled="true"] { cursor: not-allowed; opacity: .55; }

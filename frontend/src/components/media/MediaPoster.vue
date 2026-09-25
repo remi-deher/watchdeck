@@ -92,7 +92,7 @@ watch(() => props.posterUrl, () => { failed.value = false; isLoaded.value = fals
   background: linear-gradient(
     100deg,
     transparent 0%,
-    color-mix(in srgb, var(--text, #fff) 7%, transparent) 50%,
+    color-mix(in srgb, var(--text) 7%, transparent) 50%,
     transparent 100%
   );
   animation: poster-shimmer 1.4s ease-in-out infinite;

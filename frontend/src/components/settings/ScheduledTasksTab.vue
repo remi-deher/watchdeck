@@ -206,7 +206,7 @@ async function toggleHistory(job: string): Promise<void> {
   background: var(--surface-2);
 }
 .scheduled-task-history li.failed {
-  background: rgba(239, 68, 68, 0.08);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
 }
 .history-status {
   font-weight: 600;

@@ -242,7 +242,7 @@ function filterByClient(client: any): void {
 
 .instance-identity { display:flex; align-items:flex-start; gap:11px; min-width:0; }
 .type-label { display:block; margin-bottom:3px; color:var(--muted); font-size: var(--fs-xs); font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
-.type-label.radarr { color:#e5a00d; }.type-label.sonarr { color:#00c49f; }.type-label.prowlarr { color:#8b7cf6; }.type-label.client { color:var(--accent); }
+.type-label.radarr { color:var(--accent); }.type-label.sonarr { color:var(--green-text); }.type-label.prowlarr { color:var(--violet-text); }.type-label.client { color:var(--accent); }
 
 .instance-title-wrap {
   min-width: 0;
@@ -270,13 +270,13 @@ function filterByClient(client: any): void {
 }
 
 .icon-avatar.radarr {
-  background: color-mix(in srgb, #e5a00d 20%, var(--surface-2));
-  color: #e5a00d;
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface-2));
+  color: var(--accent);
 }
 
 .icon-avatar.sonarr {
-  background: color-mix(in srgb, #00c49f 20%, var(--surface-2));
-  color: #00c49f;
+  background: color-mix(in srgb, var(--green) 20%, var(--surface-2));
+  color: var(--green-text);
 }
 
 .icon-avatar.client {
@@ -284,7 +284,7 @@ function filterByClient(client: any): void {
   color: var(--accent);
 }
 
-.icon-avatar.prowlarr { background:color-mix(in srgb,#8b7cf6 20%,var(--surface-2)); color:#a99cff; }
+.icon-avatar.prowlarr { background:color-mix(in srgb,var(--violet) 20%,var(--surface-2)); color:var(--violet-text); }
 
 .instance-title-wrap strong {
   display: block;
@@ -320,7 +320,7 @@ function filterByClient(client: any): void {
   font-size: var(--fs-lg);
   font-weight: 700;
 }
-.stat-value.danger { color: var(--danger); }
+.stat-value.danger { color: var(--red-text); }
 
 .badges-row {
   display: flex;
@@ -337,12 +337,12 @@ function filterByClient(client: any): void {
 .detail-list span { display:grid; grid-template-columns:18px minmax(0,1fr) auto; align-items:center; gap:7px; color:var(--muted); font-size:var(--fs-xs); }
 .detail-list svg { width:15px; height:15px; }
 .detail-list strong { color:var(--text); font-weight:700; }
-.detail-list span.danger,.detail-list span.danger strong { color:var(--danger); }
+.detail-list span.danger,.detail-list span.danger strong { color: var(--red-text); }
 
 .connection-state { padding:4px 0; font-size:var(--fs-xs); font-weight:700; white-space:nowrap; }
-.connection-state.ok,.connection-state.active { color:var(--success); }
+.connection-state.ok,.connection-state.active { color: var(--green-text); }
 .connection-state.off,.connection-state.disabled-badge { color:var(--muted); }
-.connection-state.error-badge { color:var(--danger); }
+.connection-state.error-badge { color: var(--red-text); }
 
 .stat-status {
   display: inline-flex;
@@ -359,7 +359,7 @@ function filterByClient(client: any): void {
 }
 
 .stat-status.ok {
-  color: var(--success);
+  color: var(--green-text);
 }
 
 .stat-status.off {
@@ -378,7 +378,7 @@ function filterByClient(client: any): void {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #f4bd00;
+  color: var(--accent);
   font-size: var(--fs-xs);
   font-weight: 600;
 }
@@ -400,6 +400,6 @@ function filterByClient(client: any): void {
 
 .error-badge {
   background: color-mix(in srgb, var(--danger) 15%, transparent);
-  color: var(--danger);
+  color: var(--red-text);
 }
 </style>

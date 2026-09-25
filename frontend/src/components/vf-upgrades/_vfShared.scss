@@ -50,16 +50,16 @@
 .skeleton-line.row { height: 44px; width: 100%; }
 
 .badge-movie {
-  border-color: rgba(59, 130, 246, 0.4);
-  color: #93c5fd;
-  background: rgba(59, 130, 246, 0.1);
+  border-color: color-mix(in srgb, var(--blue) 40%, transparent);
+  color: var(--blue-text);
+  background: color-mix(in srgb, var(--blue) 10%, transparent);
   font-size: var(--fs-xs);
 }
 
 .badge-show {
-  border-color: rgba(168, 85, 247, 0.4);
-  color: #d8b4fe;
-  background: rgba(168, 85, 247, 0.1);
+  border-color: color-mix(in srgb, var(--violet) 40%, transparent);
+  color: var(--violet-text);
+  background: color-mix(in srgb, var(--violet) 10%, transparent);
   font-size: var(--fs-xs);
 }
 

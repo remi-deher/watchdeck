@@ -1106,7 +1106,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 .personalized-options input { accent-color: var(--accent); }
 .discover-sections { display: flex; align-items: center; gap: var(--space-1); overflow-x: auto; scrollbar-width: none; }
 .discover-sections button { padding: 6px 10px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); white-space: nowrap; }
-.discover-sections button.active { background: var(--accent); color: #111; }
+.discover-sections button.active { background: var(--accent); color: var(--on-accent); }
 .discover-heading {
   display: flex;
   align-items: flex-end;
