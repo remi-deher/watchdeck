@@ -479,7 +479,7 @@ def _request_with_poster(async_db, poster_url):
         plex_user_id="manual",
         plex_user="Import manuel",
         title="Smoking Behind the Supermarket with You",
-        media_type="tv",
+        media_type="show",
         status="pending",
         requested_at=datetime(2026, 1, 15),
         poster_url=poster_url,

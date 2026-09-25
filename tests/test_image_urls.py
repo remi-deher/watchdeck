@@ -79,7 +79,7 @@ def test_public_image_url_only_keeps_urls_reachable_by_recipients():
 
 
 def test_discord_embed_uses_public_poster_only():
-    request = MediaRequest(title="X", media_type="tv", plex_user_id="u", poster_url=WRAPPED)
+    request = MediaRequest(title="X", media_type="show", plex_user_id="u", poster_url=WRAPPED)
     assert _build_discord_embed("request_created", request)["thumbnail"] == {"url": TVDB}
     request.poster_url = "http://192.168.1.51:32400/library/metadata/1/thumb"
     assert "thumbnail" not in _build_discord_embed("request_created", request)
