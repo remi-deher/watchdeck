@@ -30,6 +30,7 @@ from ..pagination import PaginationParams, paginated_response, pagination_params
 from ..scheduler import check_arr_statuses, poll_watchlists
 from ..services import arr_orphans, deleted_media, email_service, radarr, sonarr
 from ..services.notification_orchestrator import _get_recipients, _notify, _resolve_requester_users, notify_single_user
+from ..services.notification_policy import is_pseudo_requester
 from ..services.request_lifecycle import transition_request
 from ..services.vf_cache import delete_request_episode_cache
 from ..utils import async_get_or_404, now_utc_naive, parse_email_list, plex_image_proxy_url, wrap_image_proxy
@@ -465,9 +466,11 @@ async def list_requests_compact(
                 "status": row.status.value if hasattr(row.status, "value") else row.status,
                 "source": row.source,
                 "plex_user_id": row.plex_user_id,
-                "plex_user": row.plex_user,
+                "plex_user": None if is_pseudo_requester(row.plex_user_id) else row.plex_user,
                 "custom_name": row.custom_name,
-                "requested_by": row.custom_name or row.plex_user or row.plex_user_id,
+                "requested_by": None
+                if is_pseudo_requester(row.plex_user_id)
+                else row.custom_name or row.plex_user or row.plex_user_id,
                 "poster_url": wrap_image_proxy(row.poster_url),
                 "has_vf": row.has_vf,
                 "fr_is_default": row.fr_is_default,
@@ -486,7 +489,11 @@ async def list_requests_compact(
         facets={
             "by_type": {kind: count for kind, count in type_rows},
             "sources": sorted(source_rows),
-            "requesters": [{"id": row[0], "label": row[1] or row[2] or row[0]} for row in requester_rows if row[0]],
+            "requesters": [
+                {"id": row[0], "label": row[1] or row[2] or row[0]}
+                for row in requester_rows
+                if not is_pseudo_requester(row[0])
+            ],
         },
     )
 

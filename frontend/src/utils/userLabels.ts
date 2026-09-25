@@ -141,3 +141,17 @@ export function seerLinkLabel(user: AccountLike): string {
   if (!user.seer_user_id) return 'Non lié';
   return user.seer_active ? 'Lié et actif' : 'Lié, inactif côté Seer';
 }
+
+/* Demandes creees par Watchdeck lui-meme (import manuel, synchro *arr) : miroir de
+   PSEUDO_REQUESTERS cote backend. Elles n'ont pas de demandeur, on n'affiche rien. */
+const PSEUDO_REQUESTERS = new Set(['', 'manual', 'system', 'unknown', 'arr', 'plex']);
+
+export function isPseudoRequester(id?: string | null): boolean {
+  return PSEUDO_REQUESTERS.has(id || '');
+}
+
+/** Nom du demandeur d'une demande, ou chaîne vide quand il n'y en a pas de réel. */
+export function requesterName(row: { plex_user_id?: string | null; requested_by?: string | null; plex_user?: string | null; custom_name?: string | null }): string {
+  if (isPseudoRequester(row.plex_user_id)) return '';
+  return row.custom_name || row.requested_by || row.plex_user || row.plex_user_id || '';
+}

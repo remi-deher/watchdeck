@@ -10,7 +10,7 @@
     <article v-for="row in requests || []" :key="row.id" class="detail-row request-detail-row">
       <div>
         <div class="request-detail-top">
-          <strong>{{ row.requested_by || row.plex_user || row.plex_user_id }}</strong>
+          <strong v-if="requesterName(row)">{{ requesterName(row) }}</strong>
           <span class="badge status-tag" :class="row.status">{{ requestStatusLabel(row.status) }}</span>
         </div>
 
@@ -80,6 +80,7 @@
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import { requestStatusLabel } from '@/utils/labels';
+import { requesterName } from '@/utils/userLabels';
 import { Ban, Check, CheckCheck, Mail, MailCheck, PlusCircle, RotateCcw, Search, Trash2, Users, XCircle } from '@lucide/vue';
 import RequestMailHistory from './RequestMailHistory.vue';
 import RequestStatusStepper from './RequestStatusStepper.vue';
