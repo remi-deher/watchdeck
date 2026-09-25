@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.45.1 — 2026-09-25
+
+
+### test
+
+- media_type valide (show) pour PostgreSQL ([7c958d5](https://github.com/remi-deher/watchdeck/commit/7c958d54378a03cd5f93c715868ad7f6504bf48e))
+
+### 🐛 Corrections
+
+- affiches stockees sous forme d'URL du proxy ([e316ee0](https://github.com/remi-deher/watchdeck/commit/e316ee0c9f130468388d47cfc0b37b9a6e4d4d56))
 ## 1.45.0 — 2026-09-25
 
 
@@ -11,6 +21,10 @@
 ### 🐛 Corrections
 
 - lisibilite des cases a cocher et des controles Reka ([1de5ae0](https://github.com/remi-deher/watchdeck/commit/1de5ae070f37dc4db62a34d5b0de93019983a456))
+
+### 🔧 Maintenance
+
+- v1.45.0 (#452) ([0aba051](https://github.com/remi-deher/watchdeck/commit/0aba051673d75f08c27f552556fe63d3853c0543))
 ## 1.44.1 — 2026-09-25
 
 
