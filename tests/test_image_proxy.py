@@ -2,6 +2,7 @@
 
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import quote_plus
 
 import pytest
 from fastapi.testclient import TestClient
@@ -467,6 +468,72 @@ def test_request_image_proxy_hides_signed_plex_url(cache_dir, async_db):
         assert fake.get.await_args.kwargs["headers"] == {"X-Plex-Token": "server-secret"}
     finally:
         _cleanup()
+
+
+def _request_with_poster(async_db, poster_url):
+    from datetime import datetime
+
+    from app.models import MediaRequest
+
+    media_request = MediaRequest(
+        plex_user_id="manual",
+        plex_user="Import manuel",
+        title="Smoking Behind the Supermarket with You",
+        media_type="tv",
+        status="pending",
+        requested_at=datetime(2026, 1, 15),
+        poster_url=poster_url,
+    )
+    async_db.add(media_request)
+    async_db.commit()
+    return media_request
+
+
+def test_request_image_proxy_serves_poster_stored_as_proxy_url(cache_dir, async_db):
+    """Une URL du proxy lui-meme, enregistree par un import manuel, faisait repondre 400 :
+    l'affiche manquait dans les rails alors que la fiche l'affichait."""
+    source = "https://artworks.thetvdb.com/banners/v4/series/465973/posters/69ed2d3756d09.jpg"
+    stored = f"/api/image-proxy?url={quote_plus(source)}&width=600&quality=82&format=webp"
+    media_request = _request_with_poster(async_db, stored)
+    client = _client(async_db)
+    fake = _fake_httpx_client(resp=_resp(content=_png(), content_type="image/png"))
+    try:
+        with (
+            patch.object(image_proxy_api, "_allowed_image_hosts", AsyncMock(return_value={"artworks.thetvdb.com"})),
+            patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake),
+        ):
+            resp = client.get(f"/api/image-proxy/request/{media_request.id}")
+        assert resp.status_code == 200
+        assert fake.get.await_args.args[0] == source
+    finally:
+        _cleanup()
+
+
+def test_request_image_proxy_serves_poster_stored_as_plex_path_proxy_url(cache_dir, async_db):
+    media_request = _request_with_poster(
+        async_db, "/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F9%2Fthumb&width=600&quality=82&format=webp"
+    )
+    client = _client(async_db)
+    fake = _fake_httpx_client(resp=_resp(content=_png(), content_type="image/png"))
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get(f"/api/image-proxy/request/{media_request.id}")
+        assert resp.status_code == 200
+        assert fake.get.await_args.args[0] == "http://plex.local/library/metadata/9/thumb"
+        assert fake.get.await_args.kwargs["headers"] == {"X-Plex-Token": "server-secret"}
+    finally:
+        _cleanup()
+
+
+def test_unwrap_image_proxy_returns_source_url():
+    from app.utils import unwrap_image_proxy, wrap_image_proxy
+
+    source = "https://image.tmdb.org/t/p/w500/a.jpg"
+    assert unwrap_image_proxy(wrap_image_proxy(source)) == source
+    assert unwrap_image_proxy(source) == source
+    assert unwrap_image_proxy(None) is None
+    plex = "/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F9%2Fthumb"
+    assert unwrap_image_proxy(plex) == plex
 
 
 def test_plex_image_proxy_url_without_path_is_none():
