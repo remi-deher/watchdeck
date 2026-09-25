@@ -19,6 +19,10 @@ import StatusBadge from './components/ui/StatusBadge.vue';
 import UiFeedback from './components/ui/UiFeedback.vue';
 import FormSaveBar from './components/ui/FormSaveBar.vue';
 import { registerServiceWorker } from './pwa';
+import { useTheme } from './composables/useTheme';
+
+// Theme : branche des le demarrage pour suivre le systeme et synchroniser la barre d'etat.
+useTheme();
 import { recoverFromStaleAssets } from './assetRecovery';
 import './styles.scss';
 

@@ -422,14 +422,14 @@ onMounted(load);
 <style scoped lang="scss">
 .vf-upgrade-wrap { display: inline-flex; }
 .vf-upgrade-trigger.active { color: var(--accent); border-color: var(--accent); }
-.vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: #151515; font-size: var(--fs-xs); font-weight: 700; }
+.vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 700; }
 .vf-upgrade-badge { min-width: 20px; height: 20px; font-size: var(--fs-xs); }
 :deep(.vf-upgrade-modal) { width: min(880px, 96vw); max-height: 92vh; }
 .release-search-tabs { display: flex; gap: 4px; max-width: 100%; margin-bottom: 12px; padding: 4px; overflow-x: auto; border-radius: var(--radius-md); background: var(--surface-hover); scrollbar-width: none; overscroll-behavior-x: contain; }
 .release-search-tabs::-webkit-scrollbar { display: none; }
 .release-search-tabs button { display: inline-flex; flex: 1 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 14px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--muted); white-space: nowrap; cursor: pointer; transition: background var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard); }
-.release-search-tabs button span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: var(--radius-pill); background: rgba(255,255,255,.07); font-size: var(--fs-xs); }
-.release-search-tabs button.active { background: var(--accent); color: #17130a; font-weight: 600; box-shadow: 0 1px 5px rgba(0,0,0,.22); }
+.release-search-tabs button span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: var(--radius-pill); background: rgb(var(--ink) / .07); font-size: var(--fs-xs); }
+.release-search-tabs button.active { background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: 0 1px 5px rgb(var(--shadow-color) / calc(.22 * var(--shadow-scale))); }
 .release-search-tabs button.active span { background: rgba(0,0,0,.18); font-weight: 700; }
 .vf-upgrade-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 9px 0 12px; border-bottom: 1px solid var(--border); }
 .compact-search-button, .compact-check, .release-head, .vf-upgrade-release-actions, .arr-status { display: flex; align-items: center; gap: 7px; }
@@ -457,9 +457,9 @@ onMounted(load);
 .release-title-wrap { display: grid; gap: 6px; min-width: 0; }
 .release-badges { gap: 6px; }
 .recommended-badge { border-color: var(--accent); color: var(--accent); font-weight: 700; background: color-mix(in srgb, var(--accent) 15%, var(--surface)); }
-.badge-4k { border-color: rgba(99, 102, 241, 0.6); color: #818cf8; background: rgba(99, 102, 241, 0.12); }
-.hdr-badge { border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe; background: rgba(168, 85, 247, 0.12); }
-.score-badge { border-color: rgba(229, 160, 13, 0.5); color: var(--accent); }
+.badge-4k { border-color: color-mix(in srgb, var(--blue) 60%, transparent); color: var(--blue-text); background: color-mix(in srgb, var(--blue) 12%, transparent); }
+.hdr-badge { border-color: color-mix(in srgb, var(--violet) 60%, transparent); color: var(--violet-text); background: color-mix(in srgb, var(--violet) 12%, transparent); }
+.score-badge { border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: var(--accent); }
 .seed-badge { font-weight: 600; }
 .vf-upgrade-release-title { font-size: var(--fs-sm); line-height: 1.4; overflow-wrap: anywhere; word-break: break-word; }
 .copy-button { flex: 0 0 auto; }
@@ -467,7 +467,7 @@ onMounted(load);
 /* Bloc de rejets clair et immédiat */
 .release-rejections-box { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); border-left: 3px solid var(--danger); }
 .rejection-box-header { display: flex; align-items: center; gap: 6px; }
-.rejection-reasons-list { margin: 0; padding-left: 18px; color: var(--red-text, #fca5a5); font-size: var(--fs-xs); display: grid; gap: 3px; }
+.rejection-reasons-list { margin: 0; padding-left: 18px; color: var(--red-text); font-size: var(--fs-xs); display: grid; gap: 3px; }
 
 .vf-upgrade-release-meta { display: grid; gap: 7px; margin: 0; }
 .release-primary-meta { grid-template-columns: repeat(4,minmax(72px,auto)); align-items: center; }
@@ -485,11 +485,11 @@ onMounted(load);
 .release-comparison > div { display: grid; gap: 2px; }
 .release-comparison span { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; }
 .release-comparison strong { font-size: var(--fs-xs); }
-.technical-warnings { display: grid; gap: 4px; margin: 0; padding: 0; color: var(--warning,#f59e0b); font-size: var(--fs-xs); list-style: none; }
+.technical-warnings { display: grid; gap: 4px; margin: 0; padding: 0; color: var(--amber-text); font-size: var(--fs-xs); list-style: none; }
 .technical-warnings li { display: flex; align-items: center; gap: 5px; }
-.vf-upgrade-evidence { margin: 0; color: var(--success,#22c55e); font-size: var(--fs-xs); }
+.vf-upgrade-evidence { margin: 0; color: var(--green-text); font-size: var(--fs-xs); }
 .grab-confirm-[data-state] { display: grid; gap: 12px; margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); overflow-wrap: anywhere; }
-.grab-confirm-[data-state] ul { display: grid; gap: 7px; margin: 0; padding: 0; color: var(--warning,#f59e0b); font-size: var(--fs-sm); list-style: none; }
+.grab-confirm-[data-state] ul { display: grid; gap: 7px; margin: 0; padding: 0; color: var(--amber-text); font-size: var(--fs-sm); list-style: none; }
 .grab-confirm-[data-state] li { display: flex; gap: 6px; }
 .spin { animation: vf-upgrade-spin 1s linear infinite; }
 @keyframes vf-upgrade-spin { to { transform: rotate(360deg); } }

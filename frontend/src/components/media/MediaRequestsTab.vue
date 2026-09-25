@@ -221,7 +221,7 @@ const emit = defineEmits<{
   background: var(--surface-2);
 }
 :deep(.status-stepper .step.done) {
-  border-color: rgba(34, 197, 94, .45);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
   color: var(--green-text);
 }
 :deep(.status-stepper .step.current) {
@@ -301,7 +301,7 @@ const emit = defineEmits<{
   background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 40px rgb(var(--shadow-color) / calc(0.45 * var(--shadow-scale)));
 }
 :deep(.requester-menu button) {
   display: flex;
@@ -317,7 +317,7 @@ const emit = defineEmits<{
   text-align: left;
 }
 :deep(.requester-menu button:hover:not(:disabled)) {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgb(var(--ink) / 0.06);
 }
 :deep(.requester-menu button.danger) {
   color: var(--red-text);

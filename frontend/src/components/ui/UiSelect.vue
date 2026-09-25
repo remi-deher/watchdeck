@@ -90,7 +90,7 @@ function choisir(k: unknown): void {
 </script>
 
 <style scoped>
-.ui-select-trigger{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:38px;padding:0 10px 0 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);color:var(--text);font:inherit;font-size:var(--fs-sm);text-align:left;cursor:pointer}
+.ui-select-trigger{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:38px;padding:0 10px 0 12px;border:1px solid var(--border);border-radius:var(--btn-radius);background:var(--surface-2);color:var(--text);font:inherit;font-size:var(--fs-sm);text-align:left;cursor:pointer}
 .ui-select-trigger:hover:not(:disabled){border-color:color-mix(in srgb,var(--border) 65%,white)}
 .ui-select-trigger:focus-visible,.ui-select-trigger[data-state="open"]{outline:none;border-color:var(--accent)}
 .ui-select-trigger:disabled{opacity:.55;cursor:not-allowed}
@@ -103,7 +103,7 @@ function choisir(k: unknown): void {
 
 <!-- Le contenu est teleporte dans <body> : ses styles ne peuvent pas etre scoped. -->
 <style>
-.ui-select-content{z-index:var(--z-popover);min-width:var(--reka-select-trigger-width);max-height:min(360px,var(--reka-select-content-available-height));overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-lg, 0 12px 32px rgb(0 0 0 / 35%))}
+.ui-select-content{z-index:var(--z-popover);min-width:var(--reka-select-trigger-width);max-height:min(360px,var(--reka-select-content-available-height));overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-lg, 0 12px 32px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale))))}
 .ui-select-viewport{padding:4px}
 .ui-select-item{position:relative;display:flex;align-items:center;min-height:34px;padding:4px 10px 4px 28px;border-radius:var(--radius-sm);color:var(--text);font-size:var(--fs-sm);cursor:pointer;user-select:none;outline:none}
 .ui-select-item[data-highlighted]{background:var(--surface-3)}

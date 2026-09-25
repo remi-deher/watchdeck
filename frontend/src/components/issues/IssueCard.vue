@@ -142,7 +142,7 @@ function saveNote(): void {
 /* Un liseré de statut : la couleur porte l'urgence sans ajouter de texte. */
 .issue-card { border-left: 3px solid var(--border); }
 .issue-card.open { border-left-color: var(--accent); }
-.issue-card.investigating { border-left-color: #38bdf8; }
+.issue-card.investigating { border-left-color: var(--blue); }
 .issue-card.closed { border-left-color: color-mix(in srgb, var(--border) 70%, transparent); }
 
 .issue-cover {
@@ -184,7 +184,7 @@ function saveNote(): void {
   font-size: var(--fs-sm);
   resize: vertical;
 }
-.issue-note-saved { color: var(--green-text, #4ade80); font-size: var(--fs-xs); }
+.issue-note-saved { color: var(--green-text); font-size: var(--fs-xs); }
 
 .issue-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 

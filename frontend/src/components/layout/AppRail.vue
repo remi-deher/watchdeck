@@ -60,6 +60,12 @@
     </div>
 
     <div class="app-rail__footer">
+      <!-- Bascule sombre/clair en un clic ; le mode « Systeme » se choisit dans le
+           profil ou par la palette (Ctrl+K « theme »). -->
+      <button type="button" class="app-nav-link app-rail__link" :aria-label="themeLabel" :title="themeLabel" @click="toggleTheme">
+        <component :is="resolvedTheme === 'dark' ? Sun : Moon" aria-hidden="true" />
+        <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">{{ resolvedTheme === 'dark' ? 'Thème clair' : 'Thème sombre' }}</span>
+      </button>
       <RouterLink class="app-nav-link app-rail__link" to="/profile" :title="density === 'medium' ? 'Profil' : undefined">
         <UserRound aria-hidden="true" />
         <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">Profil</span>
@@ -71,8 +77,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { Clapperboard, PanelLeftClose, PanelLeftOpen, UserRound } from '@lucide/vue';
+import { Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Sun, UserRound } from '@lucide/vue';
+import { useTheme } from '@/composables/useTheme';
 import { destinationsFor, type NavDestination } from '@/navigation';
+
+const { resolved: resolvedTheme, toggle: toggleTheme } = useTheme();
+const themeLabel = computed(() => (resolvedTheme.value === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'));
 import { usePageSections } from '@/composables/usePageSections';
 
 const props = withDefaults(

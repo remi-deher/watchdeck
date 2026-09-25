@@ -203,7 +203,7 @@ withDefaults(
 }
 
 .step-icon-wrap.downloading {
-  color: #38bdf8;
+  color: var(--blue-text);
 }
 
 .step-icon-wrap.import-pending {
@@ -211,7 +211,7 @@ withDefaults(
 }
 
 .step-icon-wrap.available {
-  color: var(--success);
+  color: var(--green-text);
 }
 
 .pipeline-step.has-items {
@@ -280,14 +280,14 @@ withDefaults(
 }
 
 .pipeline-alert.is-danger {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+  color: var(--red-text);
 }
 
 .pipeline-alert.is-danger:hover {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: #ef4444;
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-color: var(--red);
   transform: translateY(-1px);
 }
 
@@ -308,14 +308,14 @@ withDefaults(
 }
 
 .pipeline-alert.is-danger .alert-icon-wrap {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+  color: var(--red-text);
 }
 
 .pipeline-alert.is-ok .alert-icon-wrap {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  color: var(--success);
+  color: var(--green-text);
 }
 
 .alert-icon-wrap svg {
@@ -341,7 +341,7 @@ withDefaults(
 }
 
 .pipeline-alert.is-danger .alert-value {
-  color: #ef4444;
+  color: var(--red-text);
 }
 
 .alert-detail {

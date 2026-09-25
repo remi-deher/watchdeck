@@ -208,7 +208,7 @@ const trackerRows = computed(() => {
   font-weight: 700;
 }
 .state.ok {
-  color: var(--success);
+  color: var(--green-text);
   background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 .state.off {
@@ -216,7 +216,7 @@ const trackerRows = computed(() => {
   background: var(--surface-2);
 }
 .state.error {
-  color: var(--danger);
+  color: var(--red-text);
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 .client-counts {
@@ -241,7 +241,7 @@ const trackerRows = computed(() => {
   display: flex;
   gap: 7px;
   margin: 0 0 10px;
-  color: var(--warning);
+  color: var(--amber-text);
   font-size: var(--fs-xs);
 }
 .client-warning svg {

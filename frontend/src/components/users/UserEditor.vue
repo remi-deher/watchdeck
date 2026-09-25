@@ -383,7 +383,7 @@ defineExpose({
 /* L'action destructrice se tient a cote du choix qui la rend possible, pas en pleine
    largeur au bas du panneau ou elle avait l'allure de l'action principale. */
 .merge-commit{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap: var(--space-2)}
-.merge-warning{display:flex;align-items:center;gap: var(--space-2);color:var(--danger);font-size:var(--fs-xs)}
+.merge-warning{display:flex;align-items:center;gap: var(--space-2);color: var(--red-text);font-size:var(--fs-xs)}
 .merge-warning svg{width:15px;height:15px;flex:none}
 .merge-commit button{flex:none}
 

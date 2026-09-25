@@ -172,7 +172,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
   width: 42px;
   height: 4px;
   margin: 0 auto;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.34);
 }
 .media-overlay__grab:active { cursor: grabbing; }

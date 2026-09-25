@@ -225,7 +225,7 @@ const chartPoints = computed(() => {
 .activity-period button.active {
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgb(var(--shadow-color) / calc(0.2 * var(--shadow-scale)));
 }
 
 .activity-trend {
@@ -239,15 +239,15 @@ const chartPoints = computed(() => {
 }
 
 .activity-trend.up {
-  color: var(--success);
-  border-color: rgba(34, 197, 94, 0.3);
-  background: rgba(34, 197, 94, 0.08);
+  color: var(--green-text);
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+  background: color-mix(in srgb, var(--green) 8%, transparent);
 }
 
 .activity-trend.down {
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.3);
-  background: rgba(239, 68, 68, 0.08);
+  color: var(--red-text);
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
 }
 
 .activity-series {
@@ -362,11 +362,11 @@ const chartPoints = computed(() => {
 }
 
 .text-accent {
-  color: #fbbf24;
+  color: var(--amber-text);
 }
 
 .text-success {
-  color: var(--success);
+  color: var(--green-text);
 }
 
 @media (max-width: 900px) {

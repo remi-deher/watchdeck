@@ -150,11 +150,11 @@ const hiddenCount = computed(() =>
 .workflow-timeline strong, .workflow-timeline small { display: block; }
 .workflow-timeline strong { color: inherit; font-size: var(--fs-sm); line-height: 1.25; }
 .workflow-timeline small { margin-top: 4px; font-size: var(--fs-xs); cursor: default; }
-.workflow-timeline .is-completed { color: var(--success, #42b883); }
-.workflow-timeline .is-completed::after { background: var(--success, #42b883); }
+.workflow-timeline .is-completed { color: var(--green-text); }
+.workflow-timeline .is-completed::after { background: var(--success); }
 .workflow-timeline .is-current { color: var(--text); }
 .workflow-timeline .is-current .workflow-marker { border-color: var(--accent); color: var(--accent); }
-.workflow-timeline .is-error { color: var(--danger, #ef5350); }
+.workflow-timeline .is-error { color: var(--red-text); }
 .workflow-timeline .is-error .workflow-marker { border-color: currentColor; }
 .workflow-history { margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--border); }
 .workflow-history-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); margin-bottom: 10px; }
@@ -168,8 +168,8 @@ const hiddenCount = computed(() =>
 .workflow-history strong, .workflow-history small { display: block; }
 .workflow-history strong { color: inherit; font-size: var(--fs-sm); line-height: 1.25; }
 .workflow-history small { margin-top: 2px; font-size: var(--fs-xs); cursor: default; }
-.workflow-history .is-completed { color: var(--success, #42b883); }
-.workflow-history .is-error { color: var(--danger, #ef5350); }
+.workflow-history .is-completed { color: var(--green-text); }
+.workflow-history .is-error { color: var(--red-text); }
 .workflow-history .is-error .workflow-marker { border-color: currentColor; }
 .workflow-history-empty { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
 .workflow-history-count { color: var(--muted); font-weight: 500; }

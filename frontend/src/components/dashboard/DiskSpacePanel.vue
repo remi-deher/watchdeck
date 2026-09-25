@@ -144,13 +144,13 @@ function usedRatio(volume: DiskVolume): number {
   transition: width var(--motion-duration-base) var(--motion-ease-standard);
 }
 .progress-bar.is-warning {
-  background: #f59e0b;
+  background: var(--amber);
 }
 .progress-bar.is-critical {
   background: var(--danger);
 }
-.volume-chip-footer .level-warning { color: #f59e0b; font-weight: 700; }
-.volume-chip-footer .level-critical { color: var(--danger); font-weight: 700; }
+.volume-chip-footer .level-warning { color: var(--amber-text); font-weight: 700; }
+.volume-chip-footer .level-critical { color: var(--red-text); font-weight: 700; }
 .volume-chip-footer {
   display: flex;
   justify-content: space-between;

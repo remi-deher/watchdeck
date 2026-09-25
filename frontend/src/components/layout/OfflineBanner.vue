@@ -27,10 +27,10 @@ const enLigne = useOnline();
   gap: var(--space-2);
   margin: 0 0 var(--space-3);
   padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--warning, #e0a300) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
   border-radius: var(--radius-md);
   color: var(--text);
-  background: color-mix(in srgb, var(--warning, #e0a300) 12%, transparent);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
   font-size: var(--fs-sm);
 }
 .offline-banner svg { flex: none; width: 16px; height: 16px; }

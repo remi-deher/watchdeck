@@ -271,7 +271,7 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
 .app-page__sentinel { display: block; width: 1px; height: 1px; margin-bottom: -1px; pointer-events: none; }
 /* L'ombre n'apparait qu'une fois decolle : au repos, elle soulignerait une barre qui
    ne flotte pas encore au-dessus de quoi que ce soit. */
-.app-page__sticky.is-stuck { box-shadow: 0 10px 24px -18px rgba(0, 0, 0, .9); }
+.app-page__sticky.is-stuck { box-shadow: 0 10px 24px -18px rgb(var(--shadow-color) / calc(.9 * var(--shadow-scale))); }
 
 /* Meme geste que la barre du haut, meme duree : les deux surfaces doivent partir et
    revenir d'un seul mouvement, pas l'une apres l'autre. `:focus-within` protege le

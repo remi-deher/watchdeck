@@ -98,7 +98,7 @@ function onToggle(season: any, open: boolean): void {
 }
 .se-season-error {
   margin: 0;
-  color: var(--danger, #f87171);
+  color: var(--red-text);
 }
 .se-episode-list {
   margin-top: 0.5rem;

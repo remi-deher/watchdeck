@@ -711,7 +711,7 @@ async function confirmAlign(): Promise<void> {
 }
 
 .stream-name.highlight {
-  color: var(--green-text, #22c55e);
+  color: var(--green-text, var(--green));
 }
 
 .highlight-none {
@@ -731,16 +731,16 @@ async function confirmAlign(): Promise<void> {
 }
 
 .badge-ok {
-  border-color: rgba(34, 197, 94, 0.4);
-  color: var(--green-text, #22c55e);
-  background: rgba(34, 197, 94, 0.1);
+  border-color: color-mix(in srgb, var(--green) 40%, transparent);
+  color: var(--green-text, var(--green));
+  background: color-mix(in srgb, var(--green) 10%, transparent);
   font-size: var(--fs-xs);
 }
 
 .badge-warning {
-  border-color: rgba(234, 179, 8, 0.5);
-  color: #fde047;
-  background: rgba(234, 179, 8, 0.14);
+  border-color: color-mix(in srgb, var(--amber) 50%, transparent);
+  color: var(--amber-text);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
   font-size: var(--fs-xs);
 }
 
@@ -906,13 +906,13 @@ async function confirmAlign(): Promise<void> {
 }
 
 .user-tag-home {
-  background: rgba(34, 197, 94, 0.14);
-  color: var(--green-text, #22c55e);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green-text, var(--green));
 }
 
 .user-tag-guest {
-  background: rgba(234, 179, 8, 0.14);
-  color: #eab308;
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--amber-text);
 }
 
 .spin {

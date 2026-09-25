@@ -381,7 +381,7 @@ function handleContextMenuAction(actionType: string): void {
    pas l'attribut de portee de ce composant -- d'ou :deep() pour les cellules elles-memes. */
 .torrent-table.compact-table :deep(th),.torrent-table.compact-table :deep(td){padding:4px 7px;font-size:var(--fs-xs)}
 .torrent-table.compact-table .progress-cell :deep(.ui-progress){height:4px}
-.torrent-table.incognito-mode .torrent-title{font-family:monospace;letter-spacing:0.5px}
+.torrent-table.incognito-mode .torrent-title{font-family: var(--font-mono);letter-spacing:0.5px}
 @media (min-width: 641px){.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 /* Dans la carte, le titre passe a la ligne et la progression prend toute la largeur. */
 @media (max-width: 640px){.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
@@ -389,7 +389,7 @@ function handleContextMenuAction(actionType: string): void {
 .torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}
 .torrent-status-bar{display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);font-size:12px;font-weight:600}
 .torrent-status-bar span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
-.torrent-status-bar .stale-state{color:var(--warning)}
+.torrent-status-bar .stale-state{color: var(--amber-text)}
 
 .bulk-toolbar{position:sticky;top:8px;z-index:4;display:flex;align-items:center;gap:var(--space-2);padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(12px)}
 .bulk-toolbar strong{margin-right:auto}
@@ -403,18 +403,18 @@ function handleContextMenuAction(actionType: string): void {
 .progress-cell{min-width:0}
 .progress-cell>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}
 .tracker-display{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
-.tracker-display img{width:14px;height:14px;flex:0 0 14px;border-radius:3px;object-fit:contain}
+.tracker-display img{width:14px;height:14px;flex:0 0 14px;border-radius: var(--radius-xs);object-fit:contain}
 .tracker-display span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .action-trigger-btn{display:inline-flex;align-items:center;gap:6px;min-width:100px;padding:5px 9px;font-size:var(--fs-xs);white-space:nowrap}
 
 .torrent-actions-menu{display:flex;flex-direction:column;gap:var(--space-2)}
 .action-menu-btn{display:inline-flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:10px 14px;font-size:var(--fs-sm)}
 .action-menu-btn svg{width:16px;height:16px}
-.removal-warning{color:var(--danger)}
+.removal-warning{color: var(--red-text)}
 
 .stale-cache-banner{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--warning) 40%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--warning) 12%,transparent);color:var(--text)}
-.stale-cache-banner svg{width:20px;height:20px;color:var(--warning);flex-shrink:0}
-.stale-cache-banner strong{font-size:var(--fs-xs);color:var(--warning)}
+.stale-cache-banner svg{width:20px;height:20px;color: var(--amber-text);flex-shrink:0}
+.stale-cache-banner strong{font-size:var(--fs-xs);color: var(--amber-text)}
 .stale-cache-banner p{margin:2px 0 0;font-size:var(--fs-xs);color:var(--muted)}
 
 @media(min-width:761px){

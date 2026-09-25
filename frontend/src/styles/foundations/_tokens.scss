@@ -1,24 +1,11 @@
 @use "breakpoints" as bp;
 
 :root {
-  color-scheme: dark;
-  --bg: #09090b;
-  --surface-sunken: #0b0b0e;
-  --surface: #18181d;
-  --surface-2: #25252c;
-  --surface-3: #32323a;
-  --surface-glass: rgba(24, 24, 29, 0.92);
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #f4f4f5;
-  --muted: #a1a1aa;
-  --text-muted: var(--muted);
-  --accent: #e5a00d;
-  --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
-  --green: #22c55e;
-  --red: #ef4444;
-  --green-text: #86efac;
-  --red-text: #fecaca;
-  --blue: #38bdf8;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: Outfit, var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  /* Couleurs : voir le bloc `Themes` en fin de fichier. Seules les variables qui ne
+     changent pas d'un theme a l'autre restent ici. */
   /* Plancher typographique de l'application : 12px. En dessous, le texte passe sous le
      minimum recommande par Apple (11pt) comme par Material (12px), et ce sont
      justement les legendes d'indicateurs et les intitules de groupes de filtres qui y
@@ -50,8 +37,8 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-pill: 999px;
-  --panel-radius: var(--radius-lg);
-  --btn-radius: var(--radius-md);
+  --panel-radius: var(--radius-md);   /* cartes */
+  --btn-radius: var(--radius-sm);     /* boutons et champs ; feuilles et modales : --radius-lg */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -164,4 +151,116 @@
 
 @include bp.from(wide) {
   :root { --content-padding: 32px; --grid-gutter: 24px; }
+}
+
+/* ── Themes ────────────────────────────────────────────────────────────────
+   Sombre par defaut (« Nuit cinema »), clair sur demande. Le choix vit dans
+   `data-theme` sur <html> (pose avant le rendu par index.html, voir useTheme.ts) ;
+   sans choix explicite, le theme suit le systeme. Aucune couleur ne doit etre ecrite
+   en dur ailleurs : tout passe par ces variables.
+   `--ink` porte les canaux RVB de l'encre du theme, pour les voiles et bordures
+   translucides : `rgb(var(--ink) / 8%)` eclaircit en sombre et assombrit en clair. */
+@mixin theme-dark {
+  color-scheme: dark;
+  --ink: 226 232 245;
+  --bg: #0c0e14;
+  --surface-sunken: #090b10;
+  --surface: #151925;
+  --surface-2: #1d2231;
+  --surface-3: #283043;
+  --surface-glass: rgb(21 25 37 / 92%);
+  --text: #eef1f8;
+  --muted: #9aa4ba;
+  --accent: #f2b233;
+  --accent-hover: #f7c35a;
+  --on-accent: #1a1204;
+  --green: #22c55e;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --blue: #38bdf8;
+  --green-text: #86efac;
+  --red-text: #fecaca;
+  --amber-text: #fcd34d;
+  --blue-text: #7dd3fc;
+  --violet: #a855f7;
+  --violet-text: #d8b4fe;
+  --slate: #64748b;
+  --shadow-color: 0 0 0;
+  --shadow-strength: 45%;
+  --shadow-scale: 1;
+}
+
+@mixin theme-light {
+  color-scheme: light;
+  --ink: 28 26 22;
+  --bg: #f4f2ed;
+  --surface-sunken: #ebe8e1;
+  --surface: #ffffff;
+  --surface-2: #f5f3ee;
+  --surface-3: #e8e4db;
+  --surface-glass: rgb(255 255 255 / 92%);
+  --text: #1c1a16;
+  --muted: #5f5a50;
+  --accent: #a35f00;
+  --accent-hover: #8a5000;
+  --on-accent: #ffffff;
+  --green: #16a34a;
+  --red: #dc2626;
+  --amber: #d97706;
+  --blue: #0284c7;
+  --green-text: #166534;
+  --red-text: #b91c1c;
+  --amber-text: #92400e;
+  --blue-text: #075985;
+  --violet: #7c3aed;
+  --violet-text: #6d28d9;
+  --slate: #64748b;
+  --shadow-color: 40 30 10;
+  --shadow-strength: 14%;
+  /* Les ombres pensees pour le sombre (35 a 55 % de noir) salissent un fond clair. */
+  --shadow-scale: .35;
+}
+
+:root { @include theme-dark; }
+:root[data-theme="light"] { @include theme-light; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { @include theme-light; }
+}
+
+/* Roles derives : identiques dans les deux themes, ils suivent les valeurs ci-dessus.
+   Plusieurs etaient deja lus par les composants sans avoir jamais ete definis. */
+:root {
+  --text-muted: var(--muted);
+  --text-primary: var(--text);
+  --text-secondary: var(--muted);
+  --color-text-muted: var(--muted);
+  --surface-1: var(--surface);
+  --surface-hover: rgb(var(--ink) / 6%);
+  --bg-hover: rgb(var(--ink) / 6%);
+  --bg-surface-hover: rgb(var(--ink) / 6%);
+  --bg-surface-soft: rgb(var(--ink) / 4%);
+  --bg-surface-elevated: var(--surface-2);
+  --border: rgb(var(--ink) / 11%);
+  --border-subtle: rgb(var(--ink) / 7%);
+  --border-strong: rgb(var(--ink) / 20%);
+  --border-hover: rgb(var(--ink) / 24%);
+  /* Bordure d'un controle vide (case, radio, interrupteur) : contraste >= 3:1. */
+  --border-control: rgb(var(--ink) / 55%);
+  /* Un seul accent, plein : l'ancien degrade orange concurrencait l'ambre. */
+  --accent-gradient: var(--accent);
+  --success: var(--green);
+  --danger: var(--red);
+  --error: var(--red);
+  --warning: var(--amber);
+  /* Langue et statut sur affiche : couleurs fixes, lisibles sur n'importe quelle image
+     et identiques dans les deux themes -- c'est le code couleur central de l'appli. */
+  --lang-vf: #166534;
+  --lang-vo: #991b1b;
+  --lang-mixed: #f5b31a;
+  --lang-vf-secondary: #c2410c;
+  --on-lang: #ffffff;
+  --on-lang-mixed: #1a1200;
+  --poster-neutral: #27272a;
+  --shadow-md: 0 4px 14px rgb(var(--shadow-color) / var(--shadow-strength));
+  --shadow-lg: 0 12px 32px rgb(var(--shadow-color) / var(--shadow-strength));
 }

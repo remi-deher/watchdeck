@@ -231,13 +231,13 @@ onMounted(load);
 .version-grid dd.mono, .version-grid dd .mono { font-family: var(--font-mono, monospace); }
 .commit-cell { display: flex; align-items: center; gap: var(--space-2); }
 .branch-badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; }
-.branch-badge.branch-main { color: var(--success); background: rgba(34,197,94,.13); }
-.branch-badge.branch-test { color: var(--accent); background: rgba(229,160,13,.13); }
-.branch-badge.branch-dev { color: #60a5fa; background: rgba(96,165,250,.13); }
+.branch-badge.branch-main { color: var(--green-text); background: color-mix(in srgb, var(--green) 13%, transparent); }
+.branch-badge.branch-test { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.branch-badge.branch-dev { color: var(--blue-text); background: color-mix(in srgb,var(--blue) 13%,transparent); }
 .status-badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: 700; }
-.status-badge.status-success { color: var(--success); background: rgba(34,197,94,.13); }
-.status-badge.status-warning { color: var(--accent); background: rgba(229,160,13,.13); }
-.status-badge.status-error { color: var(--danger, #ef4444); background: rgba(239,68,68,.13); }
+.status-badge.status-success { color: var(--green-text); background: color-mix(in srgb, var(--green) 13%, transparent); }
+.status-badge.status-warning { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.status-badge.status-error { color: var(--red-text); background: color-mix(in srgb, var(--red) 13%, transparent); }
 .status-badge.status-info { color: var(--muted); background: var(--surface-2); }
 .ui-feedback { margin-top: var(--space-3); }
 .checked-at { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-xs); }

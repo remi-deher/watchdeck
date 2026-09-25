@@ -84,7 +84,7 @@ const emit = defineEmits<{ (e: 'action', action: TorrentAction): void }>();
 }
 /* Survol et clavier, meme apparence : Reka pose `data-highlighted` dans les deux cas. */
 .menu-item[data-highlighted] { background: var(--surface-2); color: var(--accent); }
-.menu-item.danger[data-highlighted] { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.menu-item.danger[data-highlighted] { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--red-text); }
 .menu-item svg { flex-shrink: 0; width: 14px; height: 14px; }
 @media (prefers-reduced-motion: reduce) { .torrent-context-menu { animation: none !important; } }
 </style>

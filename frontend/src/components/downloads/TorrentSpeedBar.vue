@@ -93,7 +93,7 @@ watch(() => props.clientId, loadStats);
 </script>
 
 <style scoped>
-.global-speed-bar{position:fixed;left:0;right:0;bottom:0;z-index:35;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:4px max(10px,var(--safe-right)) 4px max(10px,var(--safe-left));border:0;border-top:1px solid var(--border);border-radius:0;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 -6px 22px rgb(0 0 0 / 18%);backdrop-filter:blur(12px);flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain}
+.global-speed-bar{position:fixed;left:0;right:0;bottom:0;z-index:35;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:4px max(10px,var(--safe-right)) 4px max(10px,var(--safe-left));border:0;border-top:1px solid var(--border);border-radius:0;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 -6px 22px rgb(var(--shadow-color) / calc(0.18 * var(--shadow-scale)));backdrop-filter:blur(12px);flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain}
 :global(.shell.sidebar-collapsed) .global-speed-bar{left:72px}
 .speed-counters{display:flex;align-items:center;gap:18px;min-width:max-content}
 .speed-item{display:inline-flex;align-items:center;gap:8px;color:var(--text)}
@@ -103,13 +103,13 @@ watch(() => props.clientId, loadStats);
 .speed-item svg{width:15px;height:15px;color:var(--muted)}
 .connection-status{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}
 .connection-status i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 14%,transparent)}
-.connection-status.connected{color:var(--success)}
-.connection-status.partial{color:var(--warning)}
-.connection-status.offline{color:var(--danger)}
+.connection-status.connected{color: var(--green-text)}
+.connection-status.partial{color: var(--amber-text)}
+.connection-status.offline{color: var(--red-text)}
 .speed-bar-actions{display:flex;align-items:center;gap:6px;min-width:max-content}
 .speed-bar-actions button{min-height:32px;padding:4px 9px;white-space:nowrap}
 .tool-toggle-btn.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);border-color:var(--accent)}
-.alt-speed-btn.active{background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning);border-color:var(--warning)}
+.alt-speed-btn.active{background:color-mix(in srgb,var(--warning) 16%,transparent);color: var(--amber-text);border-color:var(--warning)}
 @media(min-width:761px){.global-speed-bar button{font-size:13px}}
 @media(max-width:760px){
   .global-speed-bar{left:0;bottom:var(--app-shell-offset-bottom);min-width:0;min-height:42px;padding:3px 8px}

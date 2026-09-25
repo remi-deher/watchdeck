@@ -170,7 +170,7 @@ function handleKeyboardActivate(e: KeyboardEvent): void {
 <style scoped lang="scss">
 .poster-action {
   background: var(--accent);
-  color: #111;
+  color: var(--on-accent);
 }
 .poster-action svg { width: 15px; height: 15px; }
 .request-action {

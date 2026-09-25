@@ -195,7 +195,7 @@ watch(
   border: 0;
   /* Un cran sous le rayon du cadre : a rayon egal, la pastille active semblait deborder
      dans les coins. */
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -205,7 +205,7 @@ watch(
   cursor: pointer;
   scroll-snap-align: start;
 }
-.app-subnav__item:hover { color: var(--text); background: rgba(255, 255, 255, .04); }
+.app-subnav__item:hover { color: var(--text); background: rgb(var(--ink) / .04); }
 .app-subnav__item[aria-current='page'],
 .app-subnav__item[aria-selected='true'] {
   color: var(--text);

@@ -96,7 +96,8 @@ import { ListboxContent, ListboxFilter, ListboxGroup, ListboxGroupLabel, Listbox
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import { refDebounced } from '@vueuse/core';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, ArrowRight, Film, Server, Tv } from '@lucide/vue';
+import { ArrowLeft, ArrowRight, Film, Monitor, Moon, Server, Sun, Tv } from '@lucide/vue';
+import { THEME_OPTIONS, useTheme, type ThemeChoice } from '@/composables/useTheme';
 import { api } from '@/api';
 import { mediaDetailPath } from '@/mediaUrl';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -122,12 +123,16 @@ interface Command {
   poster?: string;
   /** Une fiche media s'ouvre par-dessus la page courante, pas a sa place. */
   media?: boolean;
+  /** Action sur place, sans navigation (choix du theme). */
+  run?: () => void;
 }
 
 const router = useRouter();
 const route = useRoute();
 const { arrInstances, downloadClients, load: loadSources } = useDownloadSources();
 const isOpen = ref(false);
+const { setTheme } = useTheme();
+const THEME_ICONS: Record<ThemeChoice, any> = { system: Monitor, dark: Moon, light: Sun };
 const query = ref('');
 const listboxRef = ref<{ highlightFirstItem?: () => void } | null>(null);
 // « Voir tous » cote navigation : la liste complete remplace l'apercu.
@@ -242,6 +247,18 @@ const commands = computed<Command[]>(() => {
     }
   }
 
+  // Le theme se change d'ici sans quitter la page (« theme », « clair », « sombre »).
+  for (const option of THEME_OPTIONS) {
+    items.push({
+      id: `theme-${option.value}`,
+      label: `Thème ${option.label.toLowerCase()}`,
+      group: 'Apparence',
+      to: '',
+      icon: THEME_ICONS[option.value],
+      run: () => setTheme(option.value),
+    });
+  }
+
   // Une meme destination peut venir de la navigation et des reglages (« Plex &
   // Bibliotheque » sous Services) : on ne garde que la premiere occurrence d'un meme
   // libelle dans un meme groupe.
@@ -294,6 +311,11 @@ function onPick(id: unknown): void {
 
 async function activate(item?: Command): Promise<void> {
   if (!item) return;
+  if (item.run) {
+    item.run();
+    close();
+    return;
+  }
   // Naviguer AVANT de fermer, et attendre que la navigation soit reellement commitee :
   // useBackButtonClose consomme son entree d'historique par un history.back() a la fermeture,
   // qui annulerait la navigation si celle-ci n'etait pas encore inscrite. Une fois la

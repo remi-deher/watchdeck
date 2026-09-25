@@ -257,7 +257,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
      arrondi, ce qui posait un voile sur le haut du champ de recherche. Un fond plein
      donne le meme resultat visuel, net, et sans couche compositee. */
   background: var(--surface-sunken);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, .28);
+  box-shadow: 0 10px 32px rgb(var(--shadow-color) / calc(.28 * var(--shadow-scale)));
   /* Pas de transition sur `left` : la valeur vient d'une variable qui change au
      repliement du rail, et l'animer figeait la position a l'ancienne valeur. Le rail
      lui-meme n'anime pas sa largeur, la barre n'a donc rien a rattraper. */
@@ -394,7 +394,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
 .app-topbar__filter-only:hover,
 .app-topbar__filter-only.active { background: color-mix(in srgb, var(--accent) 25%, var(--surface)); color: var(--accent); }
 .app-topbar__filter-only svg { width: 17px; height: 17px; }
-.app-topbar__filter-only strong { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: #1a1400; font-size: var(--fs-xs); }
+.app-topbar__filter-only strong { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); }
 .app-topbar__field :deep(.ui-search-field__filter:hover),
 .app-topbar__field :deep(.ui-search-field__filter.active) {
   background: color-mix(in srgb, var(--accent) 25%, var(--surface-2));
@@ -427,7 +427,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, .35);
+  box-shadow: 0 10px 26px rgb(var(--shadow-color) / calc(.35 * var(--shadow-scale)));
 }
 .app-topbar__escape:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 
@@ -443,7 +443,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   border-radius: var(--radius-md);
   /* Meme raison que la barre elle-meme : opaque plutot que floute. */
   background: var(--surface-sunken);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, .38);
+  box-shadow: 0 14px 36px rgb(var(--shadow-color) / calc(.38 * var(--shadow-scale)));
 }
 .app-topbar__recent small { padding: 5px 8px; color: var(--muted); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; }
 .app-topbar__recent button { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
@@ -485,7 +485,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   body[data-filter-sheet] .app-topbar:has(.app-topbar__field) { align-items: stretch; }
   body[data-filter-sheet] .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) { height: auto; }
   .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) {
-    box-shadow: 0 -8px 28px rgba(0, 0, 0, .38);
+    box-shadow: 0 -8px 28px rgb(var(--shadow-color) / calc(.38 * var(--shadow-scale)));
   }
   /* Elle s'efface vers le bas, du cote ou elle vit. */
   .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(100% + 14px)); }
