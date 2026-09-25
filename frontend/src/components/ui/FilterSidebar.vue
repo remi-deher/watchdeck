@@ -119,13 +119,26 @@ function trackAnchor(on: boolean): void {
 /* La feuille n'est pas modale : la page defile derriere elle. Sans verrou, ce defilement
    masquait la barre -- et avec elle le panneau qui en sort -- pendant qu'on filtrait. */
 const { setHold } = useChromeAutoHide();
+/* La barre garde son habillage (coins droits au raccord) jusqu'a ce que le panneau soit
+   rentre : retire des le debut de la fermeture, il rendait a la barre sa forme de
+   capsule pendant que le panneau y rentrait encore. Le delai couvre l'animation de
+   sortie (160ms, voir `surface-sortie-barre-*`). */
+const DUREE_SORTIE = 200;
+let retrait: ReturnType<typeof setTimeout> | undefined;
 watch(
   () => props.open,
-  (posee) => { flagSheet(posee); setHold('filter-sheet', posee); trackAnchor(posee); },
+  (posee) => {
+    clearTimeout(retrait);
+    if (posee) flagSheet(true);
+    else retrait = setTimeout(() => flagSheet(false), DUREE_SORTIE);
+    setHold('filter-sheet', posee);
+    trackAnchor(posee);
+  },
   { immediate: true }
 );
 
 onUnmounted(() => {
+  clearTimeout(retrait);
   flagSheet(false);
   setHold('filter-sheet', false);
   trackAnchor(false);

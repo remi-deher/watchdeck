@@ -38,6 +38,13 @@ export interface SheetGestureOptions {
   voile?: () => HTMLElement | null;
   /** Poignee d'ou peut partir un glissement a la souris. */
   poignee?: string;
+  /**
+   * La feuille est posee sur la barre de recherche (panneau de filtres) : au lieu de
+   * glisser d'un bloc hors de l'ecran, elle rentre DANS la barre. Ce qui descend sous le
+   * bord de la barre est masque (`clip-path`, de la hauteur du deplacement) : on la voit
+   * s'y enfoncer au rythme du doigt, jamais passer par-dessus.
+   */
+  rentreDansLaBarre?: () => boolean;
 }
 
 interface Echantillon { t: number; y: number }
@@ -69,7 +76,7 @@ function mouvementReduit(): boolean {
 export function useSheetGesture(
   panelRef: Ref<unknown>,
   openRef: Ref<boolean>,
-  { onClose, enabled, voile, poignee }: SheetGestureOptions,
+  { onClose, enabled, voile, poignee, rentreDansLaBarre }: SheetGestureOptions,
 ): void {
   let departY = 0;
   let departX = 0;
@@ -81,12 +88,17 @@ export function useSheetGesture(
 
   const panel = () => resoudre(panelRef.value);
   const leVoile = () => (voile ? voile() : panel()?.parentElement ?? null);
+  const dansLaBarre = () => Boolean(rentreDansLaBarre?.());
 
   function poser(y: number): void {
     const el = panel();
     if (!el) return;
     position = y;
     el.style.transform = y ? `translate3d(0, ${y}px, 0)` : '';
+    // Rentrer dans la barre : le bas du panneau, passe sous le bord de la barre, est
+    // rogne d'autant. Deux proprietes de composition seulement (transform, clip-path) :
+    // ni mise en page ni relayout a chaque mouvement du doigt.
+    if (dansLaBarre()) el.style.clipPath = y ? `inset(0 0 ${Math.max(0, y)}px 0)` : '';
     // Le voile s'eclaircit a mesure : le geste doit se voir avant d'aboutir. On passe
     // par une variable plutot que par l'opacite, qui estomperait aussi la feuille posee
     // dedans, et que motion-v reprendrait a la fermeture.
@@ -118,7 +130,9 @@ export function useSheetGesture(
     const el = panel();
     if (!el) { fin?.(); return; }
     const v = leVoile();
-    el.style.transition = `transform ${duree}ms ${courbe}`;
+    el.style.transition = dansLaBarre()
+      ? `transform ${duree}ms ${courbe}, clip-path ${duree}ms ${courbe}`
+      : `transform ${duree}ms ${courbe}`;
     if (v) v.style.transition = `background-color ${duree}ms ${courbe}`;
     let fait = false;
     const achever = () => {
@@ -182,11 +196,14 @@ export function useSheetGesture(
       fermee = true;
       if (mouvementReduit()) { onClose(); return; }
       // Plus le lancer est vif, plus la feuille part vite : elle garde l'allure du doigt.
-      const restant = hauteur + 40 - position;
+      // Dans la barre, elle est entierement rentree a sa propre hauteur : pas besoin de
+      // la pousser hors de l'ecran.
+      const cible = dansLaBarre() ? hauteur : hauteur + 40;
+      const restant = cible - position;
       const duree = Math.round(Math.min(280, Math.max(140, v > 0 ? restant / v : 280)));
       // Deja hors de l'ecran : l'animation de sortie de la surface la ferait remonter
       // pour la faire redescendre. On la coupe, et la surface est retiree aussitot.
-      glisserVers(hauteur + 40, duree, 'cubic-bezier(0.2, 0.6, 0.4, 1)', () => {
+      glisserVers(cible, duree, 'cubic-bezier(0.2, 0.6, 0.4, 1)', () => {
         const el = panel();
         if (el) el.style.animation = 'none';
         onClose();

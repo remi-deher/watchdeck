@@ -11,12 +11,12 @@ function toucher(el, type, y, x = 100, t = 0) {
   return event;
 }
 
-async function monter() {
+async function monter(options = {}) {
   const onClose = vi.fn();
   const Feuille = defineComponent({
     setup() {
       const panel = ref(null);
-      useSheetGesture(panel, ref(true), { onClose });
+      useSheetGesture(panel, ref(true), { onClose, ...options });
       return () => h('div', { class: 'voile' }, [
         h('div', { ref: panel, class: 'panel' }, [h('div', { class: 'scroll' }, [h('p', { class: 'texte' }, 'x')])]),
       ]);
@@ -111,6 +111,41 @@ describe('useSheetGesture', () => {
     toucher(texte, 'touchstart', 100, 100, 0);
     toucher(texte, 'touchmove', 508, 100, 50);
     expect(wrapper.find('.voile').element.style.getPropertyValue('--sheet-progress')).toBe('0.5');
+    wrapper.unmount();
+  });
+});
+
+describe('useSheetGesture — panneau pose sur la barre', () => {
+  it('rentre dans la barre au rythme du doigt : ce qui passe sous son bord est masque', async () => {
+    const { texte, panel, onClose, wrapper } = await monter({ rentreDansLaBarre: () => true });
+    toucher(texte, 'touchstart', 100, 100, 0);
+    toucher(texte, 'touchmove', 120, 100, 20);
+    toucher(texte, 'touchmove', 220, 100, 400);
+    // 120px parcourus, moins le seuil de decision de 8px : le panneau descend d'autant, et
+    // autant de son bas disparait sous la barre.
+    expect(panel.style.transform).toBe('translate3d(0, 112px, 0)');
+    expect(panel.style.clipPath).toBe('inset(0 0 112px 0)');
+    toucher(texte, 'touchend', 220, 100, 800);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(onClose).not.toHaveBeenCalled(); // pas assez loin, pas assez vite
+    expect(panel.style.clipPath).toBe(''); // revenu entier
+    wrapper.unmount();
+  });
+
+  it('au-dela du seuil, il finit de rentrer puis se ferme', async () => {
+    const { texte, panel, onClose, wrapper } = await monter({ rentreDansLaBarre: () => true });
+    await glisser(texte, 100, 400);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(panel.style.clipPath).toBe('inset(0 0 800px 0)'); // entierement rentre
+    wrapper.unmount();
+  });
+
+  it('hors barre, le masque n est jamais pose', async () => {
+    const { texte, panel, wrapper } = await monter();
+    toucher(texte, 'touchstart', 100, 100, 0);
+    toucher(texte, 'touchmove', 200, 100, 100);
+    expect(panel.style.clipPath).toBe('');
+    toucher(texte, 'touchend', 200, 100, 800);
     wrapper.unmount();
   });
 });
