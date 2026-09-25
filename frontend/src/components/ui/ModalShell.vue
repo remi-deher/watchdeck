@@ -81,6 +81,8 @@ useSheetGesture(panelRef, compactOpen, {
   enabled: () => shellMode.value === 'compact' && !props.busy,
   poignee: '.sheet-grab',
   voile: () => voileRef.value?.$el ?? null,
+  // Le panneau de filtres est pose sur la barre de recherche : il y rentre au doigt.
+  rentreDansLaBarre: () => props.panelClass.split(/\s+/).includes('filter-sheet'),
 });
 
 defineExpose({ open: toRef(props, 'open') });
