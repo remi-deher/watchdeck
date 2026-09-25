@@ -396,6 +396,9 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
          continuité. Un seul objet, un seul trait. */
       border-color: color-mix(in srgb, var(--accent) 55%, transparent);
     }
+    /* Il sort du bord haut de la barre, et y rentre : voir `surface-sortie-barre`. */
+    .modal-panel.filter-sheet[data-state="open"] { animation: surface-sortie-barre-haut-in 220ms var(--motion-ease-emphasized); }
+    .modal-panel.filter-sheet[data-state="closed"] { animation: surface-sortie-barre-haut-out 160ms var(--motion-ease-exit) forwards; }
     /* La capsule perd ses coins hauts tant que la feuille est posee dessus : arrondis,
        ils creusaient deux encoches sombres sous le bord bas du panneau. Son ombre
        portee vers le haut s'efface aussi -- elle aurait assombri le pied du panneau
@@ -449,8 +452,8 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
       clip-path: inset(50%);
       white-space: nowrap;
     }
-    .modal-panel.filter-sheet[data-state="open"] { animation: surface-deroule-in var(--motion-duration-base) var(--motion-ease-emphasized); }
-    .modal-panel.filter-sheet[data-state="closed"] { animation: surface-deroule-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
+    .modal-panel.filter-sheet[data-state="open"] { animation: surface-sortie-barre-bas-in 220ms var(--motion-ease-emphasized); }
+    .modal-panel.filter-sheet[data-state="closed"] { animation: surface-sortie-barre-bas-out 160ms var(--motion-ease-exit) forwards; }
     /* Le champ perd ses coins bas tant que le panneau y est accroche : arrondis, ils
        creusaient deux encoches au raccord. */
     &[data-filter-sheet] .app-topbar .ui-search-field,
@@ -465,8 +468,33 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   }
 }
 
-@keyframes surface-deroule-in { from { opacity: 0; transform: translateY(-8px); } }
-@keyframes surface-deroule-out { to { opacity: 0; transform: translateY(-8px); } }
+/* Le panneau de filtres sort de la barre de recherche, et y rentre.
+   Glisse et estompe : il part de la barre (translation) et le bord qui la touche reste
+   fixe pendant que l'autre se deplie (`clip-path`). Rien ne depasse donc de l'autre
+   cote du raccord : on le voit sortir de dessous le champ, pas flotter devant. Un
+   fondu leger adoucit les deux extremites. Deux sens : vers le bas sur ordinateur (la
+   barre est en haut), vers le haut sur telephone (elle est en bas). */
+/* Le masque rogne aussi, cote barre, la distance de la translation (16px) : les deux
+   progressent au meme rythme, et la partie du panneau qui remonterait devant le champ
+   reste cachee -- il sort de dessous la barre, pas par-dessus.
+   `clip-path` part et arrive sur `inset(0)`, jamais sur `none` : le navigateur ne sait
+   pas interpoler vers `none`, et le depliage sautait d'un coup a la premiere image. */
+@keyframes surface-sortie-barre-bas-in {
+  from { opacity: .35; transform: translateY(-16px); clip-path: inset(16px 0 100% 0); }
+  to { opacity: 1; transform: none; clip-path: inset(0); }
+}
+@keyframes surface-sortie-barre-bas-out {
+  from { opacity: 1; transform: none; clip-path: inset(0); }
+  to { opacity: 0; transform: translateY(-16px); clip-path: inset(16px 0 100% 0); }
+}
+@keyframes surface-sortie-barre-haut-in {
+  from { opacity: .35; transform: translateY(16px); clip-path: inset(100% 0 16px 0); }
+  to { opacity: 1; transform: none; clip-path: inset(0); }
+}
+@keyframes surface-sortie-barre-haut-out {
+  from { opacity: 1; transform: none; clip-path: inset(0); }
+  to { opacity: 0; transform: translateY(16px); clip-path: inset(100% 0 16px 0); }
+}
 
 /* Pendant le geste, la feuille suit le doigt sans transition : une interpolation entre
    deux positions rendrait le suivi mou et en retard sur la main. C'est au relachement

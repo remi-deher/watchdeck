@@ -1,9 +1,16 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { defineComponent, nextTick, ref } from 'vue';
 
 import FilterSidebar from './FilterSidebar.vue';
 import UiChipGroup from './UiChipGroup.vue';
+
+// Les groupes s'enregistrent a leur montage, dans un dialogue rendu par portail : une
+// seule mise a jour ne suffit pas toujours a voir les puces.
+async function stable() {
+  await flushPromises();
+  await nextTick();
+}
 
 // Reka rend ses surfaces par un vrai portail vers <body> : le bouchon global des
 // Teleport (testSetup) les ferait disparaitre.
@@ -36,7 +43,7 @@ const puces = () => [...document.querySelectorAll('.filter-chip')].map((node) =>
 describe('FilterSidebar — puces des filtres actifs', () => {
   it('n’affiche aucune puce tant que les filtres sont neutres', async () => {
     const { wrapper } = monter();
-    await nextTick();
+    await stable();
     expect(document.querySelector('.filter-chips')).toBeNull();
     wrapper.unmount();
   });
@@ -46,7 +53,7 @@ describe('FilterSidebar — puces des filtres actifs', () => {
     type.value = 'movie';
     statut.value = '';
     genres.value = ['rock', '!jazz'];
-    await nextTick();
+    await stable();
     // « Tous » n'est pas le neutre du statut (c'est « Dans Plex ») : il devient une puce.
     expect(puces()).toEqual(['Films', 'Tous', 'Rock', 'Sauf Jazz']);
     wrapper.unmount();
@@ -56,11 +63,11 @@ describe('FilterSidebar — puces des filtres actifs', () => {
     const { wrapper, type, genres } = monter();
     type.value = 'show';
     genres.value = ['rock', '!jazz'];
-    await nextTick();
+    await stable();
 
     document.querySelector('[aria-label="Retirer le filtre Séries"]').click();
     document.querySelector('[aria-label="Retirer le filtre Sauf Jazz"]').click();
-    await nextTick();
+    await stable();
 
     expect(type.value).toBe('all');
     expect(genres.value).toEqual(['rock']);

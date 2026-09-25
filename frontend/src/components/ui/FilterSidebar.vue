@@ -102,10 +102,11 @@ function trackAnchor(on: boolean): void {
   observer?.disconnect();
   observer = undefined;
   window.removeEventListener('resize', measureAnchor);
-  if (!on) {
-    ANCHOR_VARS.forEach((name) => document.documentElement.style.removeProperty(name));
-    return;
-  }
+  // A la fermeture, les variables restent : l'animation de sortie en a encore besoin.
+  // Les retirer ici faisait retomber le panneau sur sa geometrie par defaut, et il
+  // partait sur le cote au lieu de rentrer dans la barre. Elles sont remesurees a
+  // chaque ouverture, et retirees au demontage.
+  if (!on) return;
   measureAnchor();
   window.addEventListener('resize', measureAnchor);
   const bar = document.querySelector('.app-topbar');
@@ -128,6 +129,7 @@ onUnmounted(() => {
   flagSheet(false);
   setHold('filter-sheet', false);
   trackAnchor(false);
+  ANCHOR_VARS.forEach((name) => document.documentElement.style.removeProperty(name));
 });
 </script>
 
