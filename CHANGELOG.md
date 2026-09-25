@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.44.0 — 2026-09-25
+
+
+### ✨ Nouveautés
+
+- tire vers le bas, le panneau rentre dans la barre au doigt ([3f83943](https://github.com/remi-deher/watchdeck/commit/3f83943bfae38f1f7ddbcc9a03c50c30fcd5a97f))
 ## 1.43.0 — 2026-09-25
 
 
 ### ✨ Nouveautés
 
 - le panneau sort de la barre de recherche, et y rentre ([4b93d29](https://github.com/remi-deher/watchdeck/commit/4b93d292ccd26e31bae620ddaa604020699aab01))
+
+### 🔧 Maintenance
+
+- v1.43.0 (#440) ([a57bd31](https://github.com/remi-deher/watchdeck/commit/a57bd31cace603ab91f2ba0b3266ffa3c55f727a))
 ## 1.42.0 — 2026-09-24
 
 
