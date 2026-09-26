@@ -19,6 +19,7 @@
       class="ui-segmented-item"
       :value="String(option.value)"
       :disabled="option.disabled"
+      :aria-label="option.ariaLabel"
     >
       <span>{{ option.label }}</span><small v-if="option.count != null">{{ option.count }}</small>
     </ToggleGroupItem>
@@ -26,7 +27,7 @@
 </template>
 <script setup lang="ts" generic="T extends string | number">
 import { ToggleGroupItem, ToggleGroupRoot } from 'reka-ui';
-export interface UiSegmentedOption<T extends string | number> { value: T; label: string; count?: number; disabled?: boolean }
+export interface UiSegmentedOption<T extends string | number> { value: T; label: string; count?: number; disabled?: boolean; ariaLabel?: string }
 const props = defineProps<{ modelValue: T; options: UiSegmentedOption<T>[]; ariaLabel: string }>();
 const emit = defineEmits<{ 'update:modelValue': [value: T] }>();
 /* Les valeurs passent en chaine (Reka compare des chaines) et reprennent ici leur type.

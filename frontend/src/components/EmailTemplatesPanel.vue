@@ -19,9 +19,7 @@
       <label v-if="!showAppearance">Scenario
         <UiSelect v-model="previewVariant" :options="[...(scenarios).map((scenario: any) => ({ value: scenario.value, label: String(scenario.label) }))]" />
       </label>
-      <div class="view-switch" aria-label="Mode d'affichage">
-        <button v-for="mode in viewModes" :key="mode.key" :class="{active:viewMode===mode.key}" @click="viewMode=mode.key"><component :is="mode.icon"/>{{ mode.label }}</button>
-      </div>
+      <UiSegmentedControl v-model="viewMode" :options="viewModeOptions" aria-label="Mode d'affichage" />
       <label v-if="viewMode!=='edit'">Format
         <UiSelect v-model="deviceMode" :options="[{ value: 'desktop', label: 'Ordinateur' }, { value: 'tablet', label: 'Tablette' }, { value: 'phone', label: 'Telephone' }]" />
       </label>
@@ -77,9 +75,10 @@
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { computed, markRaw, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Ban,CircleAlert,CircleCheck,Eye,FileWarning,Film,LayoutPanelLeft,MailCheck,Monitor,Palette,RotateCcw,Save,Send,ShieldAlert,Sparkles,Tv,Undo2,UserRoundCheck } from '@lucide/vue';
+import { Ban,CircleAlert,CircleCheck,Eye,FileWarning,Film,MailCheck,Palette,RotateCcw,Save,Send,ShieldAlert,Sparkles,Tv,Undo2,UserRoundCheck } from '@lucide/vue';
 import { api } from '@/api';
 import EmailEventEditor from './email/EmailEventEditor.vue';
 import EmailSharedSettings from './email/EmailSharedSettings.vue';
@@ -124,7 +123,8 @@ const variables=[
   {tag:'{titre}',description:"Titre de l'oeuvre"},{tag:'{type}',description:'Le film ou La serie'},{tag:'{media_type_et_titre}',description:'Type et titre combines'},{tag:'{annee}',description:'Annee de sortie'},{tag:'{affiche}',description:"URL de l'affiche"},{tag:'{details_saison_episode}',description:'Saison et episode'},{tag:'{numero_saison}',description:'Numero seul de la saison, par exemple 1'},{tag:'{saison}',description:'Libelle complet, par exemple Saison 1'},{tag:'{saisons_concernees}',description:'Saisons du mail, par exemple Saison 1, 2 et 4'},{tag:'{langue}',description:'Version VF ou VO'},{tag:'{nom_utilisateur}',description:'Nom du demandeur'},{tag:'{synopsis}',description:'Resume du media'},{tag:'{raison}',description:"Raison de l'echec"},{tag:'{corrections}',description:'Corrections appliquees'},{tag:'{note_correction}',description:'Note de correction'},{tag:'{message_admin}',description:'Votre texte libre, dans un encadre attribue (rien si vide)'},{tag:'{resume_disponibilite}',description:'Resume complet de la disponibilite'},{tag:'{saisons_disponibles}',description:'Numeros des saisons disponibles'},{tag:'{saisons_completes}',description:'Numeros des saisons completes'},{tag:'{saisons_partielles}',description:'Numeros des saisons partielles'},{tag:'{saisons_manquantes}',description:'Numeros des saisons encore absentes'},{tag:'{nombre_saisons_disponibles}',description:'Nombre de saisons disponibles'},{tag:'{nombre_saisons_completes}',description:'Nombre de saisons completes'},{tag:'{nombre_saisons_attendues}',description:'Nombre total de saisons attendues'},{tag:'{nombre_episodes_disponibles}',description:'Nombre d episodes disponibles dans le lot'},
 ];
 const variableTags={request:['{titre}','{type}','{annee}','{nom_utilisateur}','{synopsis}'],failure:['{titre}','{raison}','{nom_utilisateur}'],correction:['{titre}','{details_saison_episode}','{numero_saison}','{saison}','{saisons_concernees}','{corrections}','{message_admin}','{note_correction}','{nom_utilisateur}'],cancelled:['{titre}','{media_type_et_titre}','{message_admin}','{motif}','{nom_utilisateur}']};
-const viewModes=[{key:'edit',label:'Edition',icon:markRaw(Monitor)},{key:'split',label:'Partagee',icon:markRaw(LayoutPanelLeft)},{key:'preview',label:'Apercu',icon:markRaw(Eye)}];
+const viewModes=[{key:'edit',label:'Edition'},{key:'split',label:'Partagee'},{key:'preview',label:'Apercu'}];
+const viewModeOptions=viewModes.map(mode=>({value:mode.key,label:mode.label}));
 const eventType=ref('request'),showAppearance=ref(false),viewMode=ref('split'),deviceMode=ref('desktop'),users=ref<any[]>([]),previewHtml=ref(''),previewVariant=ref('default'),previewUser=ref('');
 const error=ref(''),message=ref(''),previewing=ref(false),hasPrevious=ref(false),simulationSettings=ref<Record<string, any>>({});
 const savedSnapshot=ref('');

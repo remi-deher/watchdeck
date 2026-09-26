@@ -3,8 +3,7 @@
     <div class="panel-head">
       <div><span v-if="eyebrow" class="eyebrow">{{eyebrow}}</span><h2>{{title}}</h2></div>
       <div class="chart-actions">
-        <button type="button" :class="{active:mode==='pie'}" :aria-pressed="mode==='pie'" aria-label="Afficher le camembert" @click="mode='pie'"><ChartPie/></button>
-        <button type="button" :class="{active:mode==='table'}" :aria-pressed="mode==='table'" aria-label="Afficher le tableau" @click="mode='table'"><TableProperties/></button>
+        <UiSegmentedControl v-model="mode" :options="modeOptions" aria-label="Mode d'affichage" />
         <slot name="action"/>
       </div>
     </div>
@@ -46,9 +45,9 @@
 
 <script setup lang="ts">
 import { formatNumber as formatValue } from '@/utils/format';
-import { ChartPie, TableProperties } from '@lucide/vue';
 import PieChart from '@/components/ui/charts/PieChart.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 export interface BreakdownItem {
@@ -87,6 +86,10 @@ const emit = defineEmits<{
 /* Les barres ont disparu : a repartition egale, le camembert dit la meme chose sur
    deux fois moins de hauteur, ce qui permet d'aligner les cartes entre elles. */
 const mode = ref<'pie' | 'table'>('pie');
+const modeOptions = [
+  { value: 'pie' as const, label: 'Camembert', ariaLabel: 'Afficher le camembert' },
+  { value: 'table' as const, label: 'Tableau', ariaLabel: 'Afficher le tableau' },
+];
 const columns: UiColumn<BreakdownItem>[] = [
   { key: 'label', label: 'Catégorie', sortable: true },
   { key: 'value', label: 'Valeur', sortable: true },

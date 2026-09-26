@@ -425,12 +425,6 @@ onMounted(load);
 .vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 700; }
 .vf-upgrade-badge { min-width: 20px; height: 20px; font-size: var(--fs-xs); }
 :deep(.vf-upgrade-modal) { width: min(880px, 96vw); max-height: 92vh; }
-.release-search-tabs { display: flex; gap: 4px; max-width: 100%; margin-bottom: 12px; padding: 4px; overflow-x: auto; border-radius: var(--radius-md); background: var(--surface-hover); scrollbar-width: none; overscroll-behavior-x: contain; }
-.release-search-tabs::-webkit-scrollbar { display: none; }
-.release-search-tabs button { display: inline-flex; flex: 1 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 14px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--muted); white-space: nowrap; cursor: pointer; transition: background var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard); }
-.release-search-tabs button span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: var(--radius-pill); background: rgb(var(--ink) / .07); font-size: var(--fs-xs); }
-.release-search-tabs button.active { background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: 0 1px 5px rgb(var(--shadow-color) / calc(.22 * var(--shadow-scale))); }
-.release-search-tabs button.active span { background: rgba(0,0,0,.18); font-weight: 700; }
 .vf-upgrade-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 9px 0 12px; border-bottom: 1px solid var(--border); }
 .compact-search-button, .compact-check, .release-head, .vf-upgrade-release-actions, .arr-status { display: flex; align-items: center; gap: 7px; }
 .compact-search-button { min-height: 38px; }
@@ -504,7 +498,6 @@ onMounted(load);
   .vf-upgrade-release-actions > * { flex: 1; justify-content: center; min-height: 42px; }
 }
 @media (max-width: 480px) {
-  .release-search-tabs button { min-height: 44px; padding-inline: 11px; }
   .compact-search-button { width: 100%; justify-content: center; }
   .release-secondary-meta { grid-template-columns: 1fr 1fr; }
   .release-comparison { grid-template-columns: 1fr; }

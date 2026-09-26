@@ -19,9 +19,7 @@
       <section class="credits-section">
         <div class="credits-heading">
           <div><span class="eyebrow">Filmographie</span><h2>Films et séries</h2></div>
-          <div class="credit-filters" aria-label="Filtrer la filmographie">
-            <button v-for="option in filters" :key="option.value" :class="{ active: filter === option.value }" @click="filter = option.value">{{ option.label }}</button>
-          </div>
+          <UiSegmentedControl v-model="filter" :options="filters" aria-label="Filtrer la filmographie" />
         </div>
         <MediaGrid
           :items="visibleCredits"
@@ -43,6 +41,7 @@ import { api } from '@/api';
 import { mediaDetailPath } from '@/mediaUrl';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaGrid from '@/components/ui/MediaGrid.vue';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { formatDateLong } from '@/utils/format';
 
 interface Credit {
@@ -108,10 +107,7 @@ watch(() => route.params.id, load, { immediate: true });
 .credits-section { display: grid; gap: var(--space-4); }
 .credits-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-3); }
 .credits-heading > div:first-child { display: grid; gap: var(--space-1); }
-.credit-filters { display: flex; gap: var(--space-1); padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface-2); }
-.credit-filters button { padding: 7px 13px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); }
-.credit-filters button.active { background: var(--accent); color: var(--on-accent); }
 .credits-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-4); }
 .empty-state { padding: 40px; color: var(--muted); text-align: center; }
-@media (max-width: 767.98px) { .person-page { padding-top: 16px; } .person-hero { grid-template-columns: 110px minmax(0, 1fr); gap: 18px; } .person-copy { padding: 0; } .person-copy h1 { font-size: clamp(1.65rem, 8vw, 2rem); } .person-meta { font-size: var(--fs-xs); } .biography, .bio-toggle { grid-column: 1 / -1; } .credits-heading { align-items: stretch; flex-direction: column; } .credit-filters { align-self: start; max-width: 100%; overflow-x: auto; } .credit-filters button { min-height: 44px; } .credits-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); } }
+@media (max-width: 767.98px) { .person-page { padding-top: 16px; } .person-hero { grid-template-columns: 110px minmax(0, 1fr); gap: 18px; } .person-copy { padding: 0; } .person-copy h1 { font-size: clamp(1.65rem, 8vw, 2rem); } .person-meta { font-size: var(--fs-xs); } .biography, .bio-toggle { grid-column: 1 / -1; } .credits-heading { align-items: stretch; flex-direction: column; } .credits-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); } }
 </style>
