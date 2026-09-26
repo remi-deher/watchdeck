@@ -261,17 +261,22 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
   gap: var(--space-3);
   min-width: 0;
   padding: var(--space-2) 0;
-  background: var(--bg);
+  /* Plus de bande pleine largeur : seules les capsules flottent, comme la recherche.
+     La bande laisse passer les clics vers le contenu visible entre elles. */
+  background: transparent;
+  pointer-events: none;
 }
-/* La rangee de sections prend la place disponible, les outils juste la leur : a
-   parts egales, les onglets se faisaient tronquer par un bouton qui n'en demandait
-   pas tant. En dessous de 320px de reste, chacun reprend sa propre ligne. */
-.app-page__sticky > .app-subnav { flex: 1 1 320px; min-width: 0; }
+.app-page__sticky > * { pointer-events: auto; }
+/* Les sections forment une capsule centree, sur le meme axe que la recherche ; les
+   outils gardent leur place a droite. */
+.app-page__sticky > .app-subnav { flex: 0 1 auto; min-width: 0; max-width: 100%; margin-inline: auto; }
 .app-page__sticky > .app-page__tools { flex: 0 1 auto; min-width: 0; }
 .app-page__sentinel { display: block; width: 1px; height: 1px; margin-bottom: -1px; pointer-events: none; }
-/* L'ombre n'apparait qu'une fois decolle : au repos, elle soulignerait une barre qui
-   ne flotte pas encore au-dessus de quoi que ce soit. */
-.app-page__sticky.is-stuck { box-shadow: 0 10px 24px -18px rgb(var(--shadow-color) / calc(.9 * var(--shadow-scale))); }
+/* L'ombre n'apparait qu'une fois decolle, et sur la capsule seule : au repos, elle
+   soulignerait une barre qui ne flotte pas encore au-dessus de quoi que ce soit. */
+.app-page__sticky.is-stuck > .app-subnav :deep(.app-subnav__scroller) {
+  box-shadow: 0 10px 28px rgb(var(--shadow-color) / calc(.3 * var(--shadow-scale)));
+}
 
 /* Meme geste que la barre du haut, meme duree : les deux surfaces doivent partir et
    revenir d'un seul mouvement, pas l'une apres l'autre. `:focus-within` protege le

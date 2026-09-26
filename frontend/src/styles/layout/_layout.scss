@@ -326,9 +326,24 @@
 }
 
 
-/* Onglets de vue en tete de page (Explorer, Bibliotheque) : ils defilent avec la page,
-   sans rester colles -- sur telephone, une rangee fixe de plus s'ajouterait a la barre
-   et au dock. */
-.page-type-tabs {
+/* Onglets de vue en tete de page (Explorer, Bibliotheque) : une capsule centree, sur
+   l'axe de la recherche, qui reste collee sous la barre du haut au defilement. */
+/* Trois classes : le style scope du composant pose `position: relative` sur
+   `.app-subnav[data-v]`, qui l'emportait -- et `top` ne faisait plus que decaler la
+   rangee vers le bas, par-dessus le contenu. */
+.app-page > .app-subnav.page-type-tabs {
+  position: sticky;
+  top: calc(var(--app-shell-offset-top) + var(--space-2));
+  z-index: 20;
+  align-self: center;
+  max-width: 100%;
   margin-bottom: var(--space-4);
+}
+/* La barre du haut s'efface au defilement : les onglets remontent a sa place au lieu
+   de flotter sous un vide. */
+body:has(.app-topbar.is-hidden:not(:focus-within)) .app-page > .app-subnav.page-type-tabs {
+  top: calc(var(--safe-top) + var(--space-2));
+}
+.page-type-tabs .app-subnav__scroller {
+  box-shadow: 0 10px 28px rgb(var(--shadow-color) / calc(.22 * var(--shadow-scale)));
 }

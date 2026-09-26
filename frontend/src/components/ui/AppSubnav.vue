@@ -173,14 +173,32 @@ watch(
     opacity: 0;
     transition: opacity var(--motion-duration-instant) var(--motion-ease-standard);
     position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 24px;
-    background: linear-gradient(to right, transparent, var(--bg));
+    /* A l'interieur du bord de la capsule, dans sa couleur de fond. */
+    top: 1px;
+    right: 1px;
+    bottom: 1px;
+    width: 28px;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    background: linear-gradient(to right, transparent, var(--surface) 70%);
     pointer-events: none;
   }
   &.app-subnav--overflowing::after { opacity: 1; }
+  /* Pendant du degrade de droite : il reste des sections a gauche. */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    left: 1px;
+    z-index: 1;
+    width: 28px;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    background: linear-gradient(to left, transparent, var(--surface) 70%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-duration-instant) var(--motion-ease-standard);
+  }
+  &.app-subnav--scrolled::before { opacity: 1; }
 }
 
 /* Le cadre se fait le plus discret possible : il n'a qu'a rassembler les sections, pas
@@ -205,16 +223,19 @@ watch(
   display: flex;
   flex: none;
 }
+/* Meme famille que le champ de recherche : une capsule posee, bord fin, fond de
+   surface. Elle flotte au-dessus du contenu quand la rangee colle en haut. */
 :deep(.app-subnav__scroller) {
   display: flex;
   gap: 2px;
   min-width: 0;
   max-width: 100%;
-  padding: 2px;
+  padding: 4px;
   overflow-x: auto;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
   scrollbar-width: none;
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
@@ -222,16 +243,16 @@ watch(
 :deep(.app-subnav__scroller)::-webkit-scrollbar { display: none; }
 
 .app-subnav__item {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--touch-target);
-  padding: 0 10px;
+  padding: 0 14px;
   border: 0;
-  /* Un cran sous le rayon du cadre : a rayon egal, la pastille active semblait deborder
-     dans les coins. */
-  border-radius: var(--radius-sm);
+  /* Rayon de la capsule moins son coussin : a rayon egal, la pastille semblait deborder. */
+  border-radius: calc(var(--radius-lg) - 4px);
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -240,13 +261,29 @@ watch(
   text-decoration: none;
   cursor: pointer;
   scroll-snap-align: start;
+  transition: color var(--motion-duration-instant) var(--motion-ease-standard),
+    background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
-.app-subnav__item:hover { color: var(--text); background: rgb(var(--ink) / .04); }
+.app-subnav__item:hover { color: var(--text); background: rgb(var(--ink) / .05); }
+.app-subnav__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* L'onglet actif : une pastille teintee d'accent dans la capsule, le meme langage que
+   le bouton « Filtres » de la recherche. */
 .app-subnav__item[aria-current='page'],
 .app-subnav__item[aria-selected='true'] {
   color: var(--text);
-  background: var(--surface-2);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  font-weight: 700;
+}
+@media (min-width: 768px) {
+  /* A la hauteur du champ de recherche (46px) : 36 + 2x4 de coussin + 2x1 de bord. */
+  .app-subnav__item { min-height: 36px; font-size: 15px; }
+  .app-subnav .app-subnav__item svg { width: 16px; height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-subnav__item { transition: none; }
 }
 .app-subnav__item svg { flex: none; width: 15px; height: 15px; }
 .app-subnav__item[aria-current='page'] svg,
