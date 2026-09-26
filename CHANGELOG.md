@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.50.0 — 2026-09-26
+
+
+### ✨ Nouveautés
+
+- quantites telechargees et partagees dans la fiche ([8deb488](https://github.com/remi-deher/watchdeck/commit/8deb488256c093f89f3317780e7d72ae85e57918))
+
+### 🐛 Corrections
+
+- passer tri et sens a l'historique des envois ([acb1fd7](https://github.com/remi-deher/watchdeck/commit/acb1fd74dd1ebe1e15faf75c525a7fa4eba11c76))
+- ne plus recharger la grille a l'ouverture et a la fermeture d'une fiche ([8c99557](https://github.com/remi-deher/watchdeck/commit/8c99557d22c55b4419224c35cc62e90aa02db0c0))
 ## 1.49.0 — 2026-09-26
 
 
@@ -39,6 +50,10 @@
 - classify completed Radarr imports correctly ([d13236a](https://github.com/remi-deher/watchdeck/commit/d13236ab28ef5fb3af5ca89df6b33e4f5a6bddf2))
 - corriger le typage vue-tsc des controles segmentes et du clic de ligne ([fff8091](https://github.com/remi-deher/watchdeck/commit/fff80914577f473de208cdcae630050a64ac4524))
 - regressions E2E du lot d'harmonisation ([314d929](https://github.com/remi-deher/watchdeck/commit/314d92939f9045715b7a93b5bdef57e2b29504c1))
+
+### 🔧 Maintenance
+
+- v1.49.0 (#485) ([1382f3a](https://github.com/remi-deher/watchdeck/commit/1382f3ad4355fbb8e045e7184f87ccc43de03ce9))
 ## 1.48.0 — 2026-09-26
 
 
