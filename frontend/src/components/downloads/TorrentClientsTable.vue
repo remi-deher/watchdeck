@@ -383,7 +383,7 @@ function handleContextMenuAction(actionType: string): void {
 .torrent-table.compact-table :deep(th),.torrent-table.compact-table :deep(td){padding:4px 7px;font-size:var(--fs-xs)}
 .torrent-table.compact-table .progress-cell :deep(.ui-progress){height:4px}
 .torrent-table.incognito-mode .torrent-title{font-family: var(--font-mono);letter-spacing:0.5px}
-@media (min-width: 641px){.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+@include bp.from(phablet) {.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 /* Dans la carte, le titre passe a la ligne et la progression prend toute la largeur. */
 @include bp.until(phablet) {.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
 
@@ -418,12 +418,12 @@ function handleContextMenuAction(actionType: string): void {
 .stale-cache-banner strong{font-size:var(--fs-xs);color: var(--amber-text)}
 .stale-cache-banner p{margin:2px 0 0;font-size:var(--fs-xs);color:var(--muted)}
 
-@media(min-width:761px){
+@include bp.from(tablet) {
   .torrent-title{font-size:var(--fs-sm)}
   .torrent-name small{color:var(--accent);font-size:var(--fs-xs);font-weight:600}
   .action-trigger-btn,.bulk-toolbar button{font-size:var(--fs-sm)}
 }
-@media(max-width:760px){
+@include bp.until(tablet) {
   .torrent-manager{min-width:0}
   .bulk-toolbar{top:4px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:hidden}
   .bulk-toolbar strong{grid-column:1/-1;margin:0}

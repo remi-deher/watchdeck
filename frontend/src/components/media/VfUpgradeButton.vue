@@ -420,6 +420,7 @@ onMounted(load);
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .vf-upgrade-wrap { display: inline-flex; }
 .vf-upgrade-trigger.active { color: var(--accent); border-color: var(--accent); }
 .vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 700; }
@@ -487,7 +488,7 @@ onMounted(load);
 .grab-confirm-[data-state] li { display: flex; gap: 6px; }
 .spin { animation: vf-upgrade-spin 1s linear infinite; }
 @keyframes vf-upgrade-spin { to { transform: rotate(360deg); } }
-@media (max-width: 760px) {
+@include bp.until(tablet) {
   :deep(.vf-upgrade-modal) { width: 96vw; }
   .vf-upgrade-toolbar { flex-wrap: wrap; }
   .compact-check { margin-left: 0; }

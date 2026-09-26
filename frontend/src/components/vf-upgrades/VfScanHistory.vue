@@ -148,7 +148,8 @@ const itemLabel = (item) =>
         : "Sans résultat";
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .scan-history {
   display: grid;
   gap: var(--space-3);
@@ -270,7 +271,7 @@ const itemLabel = (item) =>
 .empty {
   color: var(--muted);
 }
-@media (max-width: 760px) {
+@include bp.until(tablet) {
   .scan-live-banner {
     grid-template-columns: auto 1fr;
   }

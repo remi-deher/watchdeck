@@ -170,7 +170,8 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .torrent-inspector{display:grid;gap:var(--space-4)}
 .torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}
 .drawer-section h3{margin:0 0 12px}
@@ -187,6 +188,6 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 .drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}
 .drawer-actions button{display:inline-flex;align-items:center;gap:6px}
 .drawer-actions svg{width:14px;height:14px}
-@media(min-width:761px){.detail-grid dt,.detail-list dt{color:var(--accent);font-size:var(--fs-xs)}}
+@include bp.from(tablet) {.detail-grid dt,.detail-list dt{color:var(--accent);font-size:var(--fs-xs)}}
 @media(max-width:380px){.detail-grid{grid-template-columns:1fr}}
 </style>

@@ -148,7 +148,7 @@
 textarea:focus-visible,input:focus-visible,select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),select:invalid { border-color: var(--red); }
 
-@media (min-width: 768px) and (max-width: 1024px) {
+@include bp.between(tablet, desktop) {
   .form-save-bar { right: max(18px,var(--safe-right)); bottom: max(18px,var(--safe-bottom)); }
 }
 
@@ -158,7 +158,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .form-save-bar .ui-button--primary { min-height: 46px; }
 }
 
-@media (max-width: 420px) {
+@include bp.until(mobile-wide) {
   .form-save-bar strong { font-size: var(--fs-xs); }
   .form-save-bar .ui-button--primary { padding: 0 12px; }
 }
