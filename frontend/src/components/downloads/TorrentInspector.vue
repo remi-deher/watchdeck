@@ -2,12 +2,7 @@
   <!-- Inspection d'un torrent : general, puis fichiers, trackers et paires lus a la
        demande aupres du client. Les actions remontent a la fiche, qui les execute. -->
   <div class="torrent-inspector">
-    <div class="drawer-nav-tabs">
-      <button class="drawer-tab" :class="{ active: tab==='general' }" @click="tab='general'"><Info /> Général</button>
-      <button class="drawer-tab" :class="{ active: tab==='files' }" @click="selectTab('files')"><FileText /> Fichiers ({{ files.length }})</button>
-      <button class="drawer-tab" :class="{ active: tab==='trackers' }" @click="selectTab('trackers')"><Radio /> Trackers ({{ trackers.length }})</button>
-      <button class="drawer-tab" :class="{ active: tab==='peers' }" @click="selectTab('peers')"><Users /> Peers ({{ peers.length }})</button>
-    </div>
+    <AppSubnav :items="tabs" :active="tab" variant="tabs" aria-label="Sections du torrent" @update:active="changeTab" />
 
     <template v-if="tab==='general'">
       <section class="torrent-detail-summary">
@@ -85,11 +80,12 @@
 
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { FileText, Info, Pause, Play, Radio, RotateCcw, Tag, Trash2, Users } from '@lucide/vue';
 import { api } from '@/api';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import TorrentStateBadge from './TorrentStateBadge.vue';
 import { formatBytes, formatEta, formatSpeed, formatTimestamp, isPaused } from '@/downloads/torrentFormat';
 
@@ -126,6 +122,17 @@ const files = ref<any[]>([]);
 const trackers = ref<any[]>([]);
 const peers = ref<any[]>([]);
 const loading = ref(false);
+const tabs = computed(() => [
+  { key: 'general', label: 'Général', icon: Info },
+  { key: 'files', label: 'Fichiers', icon: FileText, count: files.value.length },
+  { key: 'trackers', label: 'Trackers', icon: Radio, count: trackers.value.length },
+  { key: 'peers', label: 'Peers', icon: Users, count: peers.value.length },
+]);
+
+function changeTab(name: string): void {
+  if (name === 'general') tab.value = name;
+  else void selectTab(name);
+}
 
 // Un autre torrent : on repart de l'onglet general, sans les listes du precedent.
 watch(() => `${props.torrent.client_id}:${props.torrent.hash}`, () => {
@@ -163,13 +170,9 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .torrent-inspector{display:grid;gap:var(--space-4)}
-.drawer-nav-tabs{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:12px;overflow-x:auto}
-.drawer-tab{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);font:inherit;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap}
-.drawer-tab:hover{color:var(--text);background:var(--surface-2)}
-.drawer-tab.active{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);font-weight:700}
-.drawer-tab svg{width:13px;height:13px}
 .torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}
 .drawer-section h3{margin:0 0 12px}
 .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}
@@ -185,6 +188,6 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 .drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}
 .drawer-actions button{display:inline-flex;align-items:center;gap:6px}
 .drawer-actions svg{width:14px;height:14px}
-@media(min-width:761px){.detail-grid dt,.detail-list dt{color:var(--accent);font-size:12px}}
-@media(max-width:380px){.detail-grid{grid-template-columns:1fr}}
+@include bp.from(tablet) {.detail-grid dt,.detail-list dt{color:var(--accent);font-size:var(--fs-xs)}}
+@container sheet (max-width: 342px) {.detail-grid{grid-template-columns:1fr}}
 </style>

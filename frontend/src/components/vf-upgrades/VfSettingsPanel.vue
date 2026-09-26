@@ -102,7 +102,7 @@ async function persist(): Promise<void> {
 
 .vf-settings-dirty {
   margin-right: auto;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
 }
 </style>

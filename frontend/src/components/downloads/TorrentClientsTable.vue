@@ -295,7 +295,7 @@ function openDetails(row: any): void {
 
 /* Un clic ouvre le detail ; avec Maj ou Ctrl, il etend ou bascule la selection, comme
    dans un gestionnaire de fichiers. */
-function onRowClick(row: any, index: number, event: MouseEvent): void {
+function onRowClick(row: any, index: number, event: MouseEvent | KeyboardEvent): void {
   if ((event.target as HTMLElement | null)?.closest('button, input, a, [role="checkbox"]')) return;
   if (event.shiftKey || event.ctrlKey || event.metaKey) {
     toggleRow(row, index, event);
@@ -377,17 +377,18 @@ function handleContextMenuAction(actionType: string): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 /* Densite et mode incognito : le tableau vient de UiDataTable, dont les cellules ne portent
    pas l'attribut de portee de ce composant -- d'ou :deep() pour les cellules elles-memes. */
 .torrent-table.compact-table :deep(th),.torrent-table.compact-table :deep(td){padding:4px 7px;font-size:var(--fs-xs)}
 .torrent-table.compact-table .progress-cell :deep(.ui-progress){height:4px}
 .torrent-table.incognito-mode .torrent-title{font-family: var(--font-mono);letter-spacing:0.5px}
-@media (min-width: 641px){.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+@include bp.from(phablet) {.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 /* Dans la carte, le titre passe a la ligne et la progression prend toute la largeur. */
-@media (max-width: 640px){.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
+@include bp.until(phablet) {.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
 
 .torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}
-.torrent-status-bar{display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);font-size:12px;font-weight:600}
+.torrent-status-bar{display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);font-size:var(--fs-xs);font-weight:600}
 .torrent-status-bar span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .torrent-status-bar .stale-state{color: var(--amber-text)}
 
@@ -417,12 +418,12 @@ function handleContextMenuAction(actionType: string): void {
 .stale-cache-banner strong{font-size:var(--fs-xs);color: var(--amber-text)}
 .stale-cache-banner p{margin:2px 0 0;font-size:var(--fs-xs);color:var(--muted)}
 
-@media(min-width:761px){
-  .torrent-title{font-size:14px}
-  .torrent-name small{color:var(--accent);font-size:12px;font-weight:600}
-  .action-trigger-btn,.bulk-toolbar button{font-size:13px}
+@include bp.from(tablet) {
+  .torrent-title{font-size:var(--fs-sm)}
+  .torrent-name small{color:var(--accent);font-size:var(--fs-xs);font-weight:600}
+  .action-trigger-btn,.bulk-toolbar button{font-size:var(--fs-sm)}
 }
-@media(max-width:760px){
+@include bp.until(tablet) {
   .torrent-manager{min-width:0}
   .bulk-toolbar{top:4px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:hidden}
   .bulk-toolbar strong{grid-column:1/-1;margin:0}
@@ -432,7 +433,7 @@ function handleContextMenuAction(actionType: string): void {
   .torrent-name{min-width:0;max-width:none}
   .torrent-status-bar{justify-content:flex-start;max-width:100%;overflow-x:auto}
 }
-@media(max-width:380px){
+@container page (max-width: 352px) {
   .bulk-toolbar{grid-template-columns:1fr}
   .bulk-toolbar strong,.bulk-toolbar .text-button{grid-column:auto}
 }

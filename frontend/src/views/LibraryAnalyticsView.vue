@@ -314,6 +314,7 @@ useRealtime(['library.analytics.updated'], () => load());
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .export-link{display:inline-flex;align-items:center;gap: var(--space-2);text-decoration:none}
 .workspace-section{display:grid;gap: var(--space-4);padding-top:4px}
 .section-heading{display:flex;align-items:flex-end;justify-content:space-between;gap: var(--space-5)}
@@ -327,8 +328,8 @@ useRealtime(['library.analytics.updated'], () => load());
 .analytics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap: var(--space-4)}
 .insight-results{display:grid;gap: var(--space-3)}.panel-head>strong{color:var(--text)}
 .load-more{justify-self:center}
-@media(max-width:900px){.analytics-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.insight-grid{grid-template-columns:1fr}.section-heading{align-items:flex-start}}
-@media(max-width:720px){.analytics-grid{grid-template-columns:1fr}.section-heading{display:grid}}
-@media(max-width:640px){.export-link{width:100%;justify-content:center}}
-@media(max-width:420px){.analytics-metrics{grid-template-columns:1fr}}
+@container page (max-width: 757px) {.analytics-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.insight-grid{grid-template-columns:1fr}.section-heading{align-items:flex-start}}
+@include bp.until(tablet) {.analytics-grid{grid-template-columns:1fr}.section-heading{display:grid}}
+@include bp.until(phablet) {.export-link{width:100%;justify-content:center}}
+@include bp.until(mobile-wide) {.analytics-metrics{grid-template-columns:1fr}}
 </style>

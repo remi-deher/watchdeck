@@ -20,7 +20,8 @@ from ..models import (
 )
 from ..utils import now_utc_naive
 from . import notification_orchestrator
-from .arr_queue_service import fetch_queue_entity_ids
+from .arr_queue_common import classify_queue_record
+from .arr_queue_service import fetch_queue_by_entity
 from .availability_service import confirm_available_from_plex, note_arr_processed, should_confirm_available
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
 from .download_clients import delete_torrent, get_torrent_status
@@ -230,7 +231,7 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
             # Prefetch list for the instance
             series_list = None
             movies_list = None
-            queue_ids: set[int] = set()
+            queue_by_entity: dict[int, list[dict]] = {}
             if inst.arr_type == "sonarr":
                 try:
                     series_list = await get_all_series(inst.url, inst.api_key)
@@ -238,7 +239,7 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                     logger.warning(f"Sonarr series prefetch failed for '{inst.name}': {e}")
                     errors_count += 1
                     error_details.append(f"[{inst.name}] prefetch Sonarr: {e}")
-                queue_ids = await fetch_queue_entity_ids(inst)
+                queue_by_entity = await fetch_queue_by_entity(inst)
             elif inst.arr_type == "radarr":
                 try:
                     movies_list = await get_all_movies(inst.url, inst.api_key)
@@ -246,7 +247,7 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                     logger.warning(f"Radarr movies prefetch failed for '{inst.name}': {e}")
                     errors_count += 1
                     error_details.append(f"[{inst.name}] prefetch Radarr: {e}")
-                queue_ids = await fetch_queue_entity_ids(inst)
+                queue_by_entity = await fetch_queue_by_entity(inst)
 
             seer_mode = seer_resolve_mode(settings)
             for req in inst_candidates:
@@ -388,10 +389,24 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                 # (fichier importé mais introuvable dans Plex) d'un média encore en cours de
                 # téléchargement/import (ex: série avec d'autres épisodes en cours de téléchargement).
                 effective_arr_id = None if seer_checked else (new_arr_id or arr_lookup_id)
-                in_queue = bool(effective_arr_id and effective_arr_id in queue_ids)
-                if in_queue:
-                    await transition_request(db, req, "download_started", source=inst.arr_type)
-                elif req.is_downloading:
+                queue_records = queue_by_entity.get(int(effective_arr_id), []) if effective_arr_id else []
+                if queue_records:
+                    queue_states = {classify_queue_record(record).state for record in queue_records}
+                    if queue_states & {"importing", "awaiting_import", "completed"} and not queue_states & {
+                        "queued",
+                        "downloading",
+                    }:
+                        # Radarr garde notamment une release terminee dans sa file avec
+                        # trackedDownloadState=importPending quand un import manuel est
+                        # requis. La presence dans la file ne signifie donc pas que le
+                        # client telecharge encore.
+                        await transition_request(db, req, "import_started", source=inst.arr_type)
+                    else:
+                        await transition_request(db, req, "download_started", source=inst.arr_type)
+                elif (
+                    req.is_downloading
+                    or str(getattr(req.fulfillment_status, "value", req.fulfillment_status)) == "importing"
+                ):
                     await transition_request(db, req, "download_finished", source=inst.arr_type)
 
                 # Série en cours de diffusion : au moins un épisode déjà diffusé n'a pas de

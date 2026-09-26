@@ -50,6 +50,7 @@ const { state, scroll } = useHorizontalRail(track);
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .discover-sources { display: grid; gap: var(--space-3); min-width: 0; }
 .rail-header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }
 .rail-heading { display: grid; gap: 3px; }
@@ -68,7 +69,7 @@ const { state, scroll } = useHorizontalRail(track);
 .source-track::-webkit-scrollbar { display: none; }
 :deep(.media-rail-skeleton) { grid-auto-columns: clamp(100px, 12vw, 130px); gap: var(--space-3); }
 :deep(.skeleton-poster) { aspect-ratio: 1 / 1; }
-@media (max-width: 720px) {
+@include bp.until(tablet) {
   .source-track { grid-auto-columns: minmax(88px, 26vw); margin-right: -12px; }
   :deep(.media-rail-skeleton) { grid-auto-columns: minmax(88px, 26vw); }
 }

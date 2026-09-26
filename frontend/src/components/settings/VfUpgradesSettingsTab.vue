@@ -316,6 +316,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .diag-btn {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
@@ -323,7 +324,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
   background: var(--surface-2);
   color: var(--text);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 
   &:disabled { opacity: 0.6; cursor: default; }
 }
@@ -332,7 +333,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 .diag-error,
 .diag-explain {
   margin: 0 0 var(--space-2);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
 }
 
@@ -351,7 +352,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 .diag-verdict {
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -374,7 +375,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
   list-style: none;
   margin: 0 0 var(--space-2);
   padding: 0;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -424,7 +425,7 @@ select:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .effective-summary {
     flex-direction: column;
   }

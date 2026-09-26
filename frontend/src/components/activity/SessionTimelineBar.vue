@@ -310,7 +310,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .timeline-title {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -444,7 +444,7 @@ function segmentTooltip(seg: Segment): string {
   display: flex;
   flex-wrap: wrap;
   gap: 0.85rem;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-secondary);
   margin-top: 0.1rem;
 }
@@ -581,13 +581,13 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .segment-name {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .segment-duration-tag {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-secondary);
 }

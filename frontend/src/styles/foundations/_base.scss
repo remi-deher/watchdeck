@@ -1,3 +1,4 @@
+@use '@/styles/foundations/breakpoints' as bp;
 * { box-sizing: border-box; }
 html { min-width: 0; width: 100%; max-width: 100%; overflow-x: clip; overflow-wrap: anywhere; text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 72%, white); outline-offset: 3px; }
@@ -57,7 +58,7 @@ button:disabled { cursor: not-allowed; }
      plancher tactile. */
   button.badge,a[href].badge { min-height: var(--touch-target); }
 }
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .panel,.page,.list,.table-wrap,.table-wrap table { min-width: 0; max-width: 100%; }
   .panel-head,
 .actions { flex-wrap: wrap; }

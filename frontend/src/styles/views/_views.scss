@@ -1,3 +1,4 @@
+@use '@/styles/foundations/breakpoints' as bp;
 button,
 input,
 select {
@@ -35,7 +36,7 @@ small {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .metric-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -204,7 +205,7 @@ input[type="checkbox"]:focus-visible {
 }
 
 /* ===== Tables -> cartes empilees sur mobile ===== */
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .table-cards table,
   .table-cards thead,
   .table-cards tbody,
@@ -526,7 +527,7 @@ code {
   border-radius: var(--radius-sm);
 }
 
-@media (min-width: 1201px) {
+@include bp.from(wide) {
   .media-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
@@ -586,7 +587,7 @@ button:disabled {
   box-shadow: 0 10px 28px rgb(var(--shadow-color) / calc(.2 * var(--shadow-scale)));
 }
 
-@media (max-width: 600px) {
+@include bp.until(phablet) {
   .page:has(.calendar-day) .toolbar.wrap,
   .downloads-page .toolbar.wrap {
     top: 8px;
@@ -628,7 +629,7 @@ button:disabled {
   white-space: normal;
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .compact-metrics {
     grid-template-columns: repeat(4, minmax(120px, 1fr));
   }
@@ -694,7 +695,7 @@ button:disabled {
    Le seuil suit celui du shell (768px) et non plus 821 : entre les deux, le tiroir
    retombait sur la carte centrée à 90dvh et perdait un sixième de la hauteur de
    l'écran alors qu'il y avait toute la place d'une feuille latérale pleine hauteur. */
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   .drawer-backdrop:has(> .detail-drawer),
   .drawer-backdrop--detail-drawer {
     background: linear-gradient(90deg, rgba(0,0,0,.12), rgba(0,0,0,.48));
@@ -721,12 +722,12 @@ button:disabled {
   .detail-drawer.wide { width: min(820px, calc(100vw - 116px)); }
 }
 
-@media (min-width: 768px) and (max-width: 1100px) {
+@include bp.between(tablet, wide) {
   .detail-drawer,
   .detail-drawer.wide { width: min(620px, calc(100vw - 96px)); }
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
 }
 
 .detail-row > div:first-child,
@@ -758,7 +759,7 @@ button:disabled {
   min-width: 76px;
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .settings-grid.two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -897,7 +898,7 @@ button:disabled {
    hauteur de son contenu. */
 .dashboard-ops-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-4); align-items: start; }
 .dashboard-ops-grid > .panel { min-width: 0; }
-.scan-status-panel { grid-column: auto!important; }
+.dashboard-ops-grid > .scan-status-panel { grid-column: auto; }
 
 .dashboard-action-center { display: grid; gap: var(--space-4); padding: 18px; border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); border-radius: var(--radius-lg); background: linear-gradient(135deg,color-mix(in srgb, var(--accent) 8%, transparent),var(--surface) 46%); }
 .dashboard-action-center.clear { border-color: color-mix(in srgb, var(--green) 20%, transparent); background: linear-gradient(135deg,color-mix(in srgb, var(--green) 7%, transparent),var(--surface) 46%); }
@@ -923,12 +924,12 @@ button:disabled {
 .dashboard-supervision-groups > section > header span { color: var(--muted); font-size: var(--fs-xs); font-weight: 650; }
 .dashboard-supervision-groups > section > header h3 { margin: 0; font-size: var(--fs-md); }
 
-@media (max-width: 1100px) {
+@container page (max-width: 957px) {
   .dashboard-ops-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .dashboard-ops-grid > :last-child:nth-child(odd) { grid-column: 1/-1; }
 }
 
-@media (max-width: 700px) {
+@include bp.until(tablet) {
   .dashboard-action-center { padding: 14px; }
   .dashboard-section-head { align-items: flex-start; }
   .dashboard-action-grid,
@@ -942,7 +943,7 @@ button:disabled {
   .dashboard-action-center.clear { padding: 10px 12px; }
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1389,7 +1390,7 @@ button:disabled {
   padding-top: 2px;
 }
 
-@media (min-width: 641px) and (max-width: 1024px) {
+@include bp.between(phablet, desktop) {
   .settings-cards { gap: var(--space-4); }
   .settings-card-head { padding: 20px; }
   .settings-card-body { padding: 20px; }
@@ -1398,7 +1399,7 @@ button:disabled {
   .settings-card-body > .actions > * { width: 100%; min-height: 44px; }
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .settings-cards { gap: var(--space-4); }
   .settings-card { border-radius: var(--radius-md); }
   .settings-card-head { display: grid; grid-template-columns:minmax(0,1fr); gap: var(--space-4); padding: 17px 16px; }
@@ -1462,19 +1463,19 @@ button:disabled {
 
 
 /* --- Dashboard Specific Styles --- */
-.compact-select {
+.page .compact-select {
   height: 28px;
-  min-height: 28px !important;
-  padding: 0 24px 0 8px !important;
-  font-size: var(--fs-sm) !important;
-  border-radius: var(--radius-sm) !important;
-  background-color: var(--surface-2) !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
-  background-repeat: no-repeat !important;
-  background-position: right 7px center !important;
-  background-size: 13px !important;
-  border-color: var(--border) !important;
-  width: auto !important;
+  min-height: 28px;
+  padding: 0 24px 0 8px;
+  font-size: var(--fs-sm);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 13px;
+  border-color: var(--border);
+  width: auto;
   cursor: pointer;
 }
 
@@ -1680,9 +1681,9 @@ button:disabled {
 .ratio-segment.show-seg { background: var(--blue); }
 
 /* --- Unmatched imports alert --- */
-.unmatched-alert {
-  border-color: color-mix(in srgb, var(--red) 25%, transparent) !important;
-  background: color-mix(in srgb, var(--red) 4%, transparent) !important;
+.settings-card.unmatched-alert {
+  border-color: color-mix(in srgb, var(--red) 25%, transparent);
+  background: color-mix(in srgb, var(--red) 4%, transparent);
 }
 
 .unmatched-icon {
@@ -1757,18 +1758,18 @@ button:disabled {
 }
 
 /* --- Modale d'import manuel --- */
-.import-modal {
+.modal-panel.import-modal {
   display: flex;
   flex-direction: column;
   gap: 0;
-  max-width: 560px !important;
+  max-width: 560px;
 }
 
-.arr-instance-modal {
+.modal-panel.arr-instance-modal {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  width: min(720px, calc(100% - 24px)) !important;
+  width: min(720px, calc(100% - 24px));
 }
 
 .arr-instance-modal .compact-form {

@@ -17,11 +17,12 @@ withDefaults(defineProps<{
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .ui-toolbar { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .ui-toolbar--wrap { flex-wrap: wrap; }
 .ui-toolbar--between { justify-content: space-between; }
 .ui-toolbar--end { justify-content: flex-end; }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .ui-toolbar--mobile-stack { align-items: stretch; flex-direction: column; width: 100%; }
   .ui-toolbar--mobile-stack > :deep(*) { width: 100%; min-width: 0; }
 }

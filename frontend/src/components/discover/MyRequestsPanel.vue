@@ -425,6 +425,7 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .my-requests-panel .psh-main {
   display: grid;
   gap: var(--space-4);
@@ -443,7 +444,7 @@ onMounted(async () => {
 :deep(.select-tag) {
   display: none;
 }
-@media (min-width: 1201px) {
+@include bp.from(wide) {
   .library-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

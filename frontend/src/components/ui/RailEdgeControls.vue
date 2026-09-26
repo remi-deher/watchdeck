@@ -19,6 +19,7 @@ defineEmits<{
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .rail-edge-controls { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .rail-edge {
   position: absolute;
@@ -42,7 +43,7 @@ defineEmits<{
 .rail-edge-left { left: -8px; background: linear-gradient(90deg, rgba(0,0,0,.88) 0%, rgba(0,0,0,.52) 48%, transparent 100%); }
 .rail-edge-right { right: -8px; background: linear-gradient(270deg, rgba(0,0,0,.88) 0%, rgba(0,0,0,.52) 48%, transparent 100%); }
 .rail-edge svg { width: 28px; height: 28px; filter: drop-shadow(0 1px 4px rgba(0,0,0,.9)); }
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .rail-edge-left { display: none; }
   .rail-edge { width: 48px; opacity: .72; }
   .rail-edge-right { right: -12px; }

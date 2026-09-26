@@ -667,7 +667,8 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
     }),
   );
   await page.goto("/library/media/request/1");
-  const hero = page.locator(".mdh-backdrop");
+  // Le hero passe par le fond partage UiHeroBackdrop ; `.mdh-hero` reste propre a la fiche.
+  const hero = page.locator(".mdh-hero");
   await expect(hero).toBeVisible({ timeout: 15000 });
 
   const cadre = await hero.evaluate((node) => {

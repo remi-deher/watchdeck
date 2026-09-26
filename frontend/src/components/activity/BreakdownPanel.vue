@@ -3,8 +3,7 @@
     <div class="panel-head">
       <div><span v-if="eyebrow" class="eyebrow">{{eyebrow}}</span><h2>{{title}}</h2></div>
       <div class="chart-actions">
-        <button type="button" :class="{active:mode==='pie'}" :aria-pressed="mode==='pie'" aria-label="Afficher le camembert" @click="mode='pie'"><ChartPie/></button>
-        <button type="button" :class="{active:mode==='table'}" :aria-pressed="mode==='table'" aria-label="Afficher le tableau" @click="mode='table'"><TableProperties/></button>
+        <UiSegmentedControl v-model="mode" :options="modeOptions" ariaLabel="Mode d'affichage" />
         <slot name="action"/>
       </div>
     </div>
@@ -46,9 +45,9 @@
 
 <script setup lang="ts">
 import { formatNumber as formatValue } from '@/utils/format';
-import { ChartPie, TableProperties } from '@lucide/vue';
 import PieChart from '@/components/ui/charts/PieChart.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 export interface BreakdownItem {
@@ -87,6 +86,10 @@ const emit = defineEmits<{
 /* Les barres ont disparu : a repartition egale, le camembert dit la meme chose sur
    deux fois moins de hauteur, ce qui permet d'aligner les cartes entre elles. */
 const mode = ref<'pie' | 'table'>('pie');
+const modeOptions = [
+  { value: 'pie' as const, label: 'Camembert', ariaLabel: 'Afficher le camembert' },
+  { value: 'table' as const, label: 'Tableau', ariaLabel: 'Afficher le tableau' },
+];
 const columns: UiColumn<BreakdownItem>[] = [
   { key: 'label', label: 'Catégorie', sortable: true },
   { key: 'value', label: 'Valeur', sortable: true },
@@ -158,5 +161,6 @@ onBeforeUnmount(() => window.removeEventListener('resize', resize));
 </script>
 
 <style scoped lang="scss">
-.breakdown-panel{--chart-color:var(--accent);--chart-end:var(--amber-text);display:flex;flex-direction:column;height:100%}.breakdown-panel>.breakdown-table,.breakdown-panel :deep(.pie-chart){flex:1;min-height:0}.tone-blue{--chart-color:var(--blue);--chart-end:#2563eb}.tone-green{--chart-color:var(--green-text);--chart-end:#16a34a}.tone-red{--chart-color:#fb7185;--chart-end:#dc2626}.tone-purple{--chart-color:var(--violet-text);--chart-end:#7c3aed}.chart-actions{display:flex;align-items:center;gap: var(--space-1)}.chart-actions>button{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--muted)}.chart-actions>button.active{border-color:var(--border);background:var(--surface-2);color:var(--chart-color)}.chart-actions svg{width:15px}.breakdown-table{margin-top:12px}.breakdown-table :deep(th),.breakdown-table :deep(td){padding:6px;border-bottom:1px solid var(--border);font-size:var(--fs-xs)}.breakdown-table :deep(th){color:var(--muted);text-transform:uppercase}.breakdown-table :deep(th:nth-child(n+2)),.breakdown-table :deep(td:nth-child(n+2)){text-align:right;font-variant-numeric:tabular-nums}.breakdown-table :deep(tr.selected){background:color-mix(in srgb,var(--accent) 14%,transparent)}.breakdown-table :deep(.ui-data-table__sort:hover){color:var(--chart-color)}.breakdown-pick{min-height:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}.breakdown-pick:hover,.breakdown-pick[aria-pressed=true]{color:var(--chart-color)}.breakdown-pick:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.show-all{margin-top:10px;padding:6px 0;border:0;background:transparent;color:var(--chart-color);font-size:var(--fs-xs)}@media(max-width:640px){.chart-actions>button{width:44px;height:44px}}
+@use '@/styles/foundations/breakpoints' as bp;
+.breakdown-panel{--chart-color:var(--accent);--chart-end:var(--amber-text);display:flex;flex-direction:column;height:100%}.breakdown-panel>.breakdown-table,.breakdown-panel :deep(.pie-chart){flex:1;min-height:0}.tone-blue{--chart-color:var(--blue);--chart-end:#2563eb}.tone-green{--chart-color:var(--green-text);--chart-end:#16a34a}.tone-red{--chart-color:#fb7185;--chart-end:#dc2626}.tone-purple{--chart-color:var(--violet-text);--chart-end:#7c3aed}.chart-actions{display:flex;align-items:center;gap: var(--space-1)}.chart-actions>button{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--muted)}.chart-actions>button.active{border-color:var(--border);background:var(--surface-2);color:var(--chart-color)}.chart-actions svg{width:15px}.breakdown-table{margin-top:12px}.breakdown-table :deep(th),.breakdown-table :deep(td){padding:6px;border-bottom:1px solid var(--border);font-size:var(--fs-xs)}.breakdown-table :deep(th){color:var(--muted);text-transform:uppercase}.breakdown-table :deep(th:nth-child(n+2)),.breakdown-table :deep(td:nth-child(n+2)){text-align:right;font-variant-numeric:tabular-nums}.breakdown-table :deep(tr.selected){background:color-mix(in srgb,var(--accent) 14%,transparent)}.breakdown-table :deep(.ui-data-table__sort:hover){color:var(--chart-color)}.breakdown-pick{min-height:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}.breakdown-pick:hover,.breakdown-pick[aria-pressed=true]{color:var(--chart-color)}.breakdown-pick:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.show-all{margin-top:10px;padding:6px 0;border:0;background:transparent;color:var(--chart-color);font-size:var(--fs-xs)}@include bp.until(phablet) {.chart-actions>button{width:44px;height:44px}}
 </style>

@@ -262,7 +262,7 @@ const chartPoints = computed(() => {
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -369,7 +369,7 @@ const chartPoints = computed(() => {
   color: var(--green-text);
 }
 
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .activity-panel-container {
     grid-template-columns: 1fr;
   }

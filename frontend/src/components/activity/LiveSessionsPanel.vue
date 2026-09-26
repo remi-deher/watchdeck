@@ -290,7 +290,7 @@ function formatRemaining(session: LiveSession): string {
 .live-quality,.live-bandwidth{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs);white-space:nowrap}
 .live-bandwidth{font-variant-numeric:tabular-nums}
 
-@media(max-width:560px){
+@container page (max-width: 524px) {
   .live-disabled{grid-template-columns:auto minmax(0,1fr);align-items:start}.live-disabled .secondary{grid-column:1/-1;width:100%;min-height:44px}
   .live-list{grid-template-columns:1fr}
   .live-footer{grid-template-columns:minmax(0,1fr) auto auto}.live-quality{display:none}
