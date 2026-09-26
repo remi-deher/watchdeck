@@ -136,6 +136,7 @@ const hiddenCount = computed(() =>
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .workflow-card { margin-bottom: 18px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); overflow: hidden; }
 .workflow-heading { display: flex; justify-content: space-between; gap: var(--space-3); align-items: baseline; margin-bottom: 16px; }
 .workflow-heading h2 { margin: 0; font-size: var(--fs-base); }
@@ -177,7 +178,7 @@ const hiddenCount = computed(() =>
 }
 .workflow-history-toggle:hover { text-decoration: underline; }
 .workflow-history-toggle svg { width: 14px; height: 14px; }
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .workflow-card { padding: 19px 20px; }
   .workflow-heading h2 { font-size: var(--fs-lg); }
   .workflow-heading span { font-size: var(--fs-sm); }

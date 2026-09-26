@@ -841,6 +841,7 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 /* Les styles filter-group / group-label / filter-badge viennent de FilterSidebar.vue */
 
 .music-hub {
@@ -870,7 +871,7 @@ onMounted(async () => {
   text-align: right;
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .music-hub { gap: var(--space-5); }
   .library-result-count { text-align: left; }
 }

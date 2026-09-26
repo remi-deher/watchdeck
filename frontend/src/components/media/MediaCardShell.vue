@@ -81,6 +81,7 @@ function interceptFirstTap(e: MouseEvent): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 @keyframes card-reveal {
   from {
     opacity: 0;
@@ -248,7 +249,7 @@ function interceptFirstTap(e: MouseEvent): void {
   background: color-mix(in srgb, var(--surface) 80%, transparent);
   color: var(--text);
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .poster-card:hover,
   .poster-card:focus-within { transform: translateY(-2px); }
   .poster-wrap :deep(.poster-overlay) { padding-inline: 10px; }

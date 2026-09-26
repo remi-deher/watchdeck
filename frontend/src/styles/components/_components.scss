@@ -127,7 +127,7 @@
 .ui-feedback-close:hover { background: rgb(var(--ink) / .06); }
 .ui-feedback-close svg { width: 17px; }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .ui-feedback { grid-template-columns: auto minmax(0,1fr) auto; }
   .ui-feedback > .ui-button { grid-column: 2 / -1; justify-self: start; }
 }
@@ -152,7 +152,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .form-save-bar { right: max(18px,var(--safe-right)); bottom: max(18px,var(--safe-bottom)); }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .form-save-bar { left: max(10px,var(--safe-left)); right: max(10px,var(--safe-right)); bottom: calc(var(--app-shell-offset-bottom) + 10px); width: auto; gap: var(--space-3); }
   .form-save-bar small { display: none; }
   .form-save-bar .ui-button--primary { min-height: 46px; }
@@ -261,7 +261,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   gap: var(--space-4);
 }
 
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   .settings-grid.two.form-section { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settings-grid.two.form-section > .span-two { grid-column: 1 / -1; }
 }
@@ -602,7 +602,7 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 .detail-drawer[data-state] { z-index: var(--z-modal-panel); }
 .modal-panel { z-index: var(--z-modal-panel); }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .modal-panel > .actions,
   .detail-drawer > .drawer-actions {
     position: sticky;

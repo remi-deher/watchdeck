@@ -88,6 +88,7 @@ watch(() => route.params.id, load, { immediate: true });
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .person-page { display: grid; gap: var(--space-5); max-width: 1440px; margin: 0 auto; padding: 24px clamp(16px, 3vw, 42px) 48px; }
 .person-back { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; border: 0; background: transparent; color: var(--muted); }
 .person-back svg { width: 18px; }
@@ -109,5 +110,5 @@ watch(() => route.params.id, load, { immediate: true });
 .credits-heading > div:first-child { display: grid; gap: var(--space-1); }
 .credits-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-4); }
 .empty-state { padding: 40px; color: var(--muted); text-align: center; }
-@media (max-width: 767.98px) { .person-page { padding-top: 16px; } .person-hero { grid-template-columns: 110px minmax(0, 1fr); gap: 18px; } .person-copy { padding: 0; } .person-copy h1 { font-size: clamp(1.65rem, 8vw, 2rem); } .person-meta { font-size: var(--fs-xs); } .biography, .bio-toggle { grid-column: 1 / -1; } .credits-heading { align-items: stretch; flex-direction: column; } .credits-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); } }
+@include bp.until(tablet) { .person-page { padding-top: 16px; } .person-hero { grid-template-columns: 110px minmax(0, 1fr); gap: 18px; } .person-copy { padding: 0; } .person-copy h1 { font-size: clamp(1.65rem, 8vw, 2rem); } .person-meta { font-size: var(--fs-xs); } .biography, .bio-toggle { grid-column: 1 / -1; } .credits-heading { align-items: stretch; flex-direction: column; } .credits-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); } }
 </style>

@@ -619,6 +619,7 @@ watch([requesters, sessionUserId], ([rows, userId]) => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-detail-page {
   min-height: 100%;
   overflow-x: hidden;
@@ -639,14 +640,14 @@ watch([requesters, sessionUserId], ([rows, userId]) => {
   padding: 80px 0;
   color: var(--muted);
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .media-detail-body {
     padding-right: 16px;
     padding-bottom: calc(var(--app-shell-offset-bottom) + 76px);
     padding-left: 16px;
   }
 }
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .media-detail-body { font-size: var(--fs-md); gap: var(--space-5); }
   .media-detail-body :deep(.drawer-section > h2),
   .media-detail-body :deep(.drawer-section > h3) { font-size: var(--fs-lg); }

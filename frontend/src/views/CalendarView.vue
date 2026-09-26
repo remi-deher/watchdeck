@@ -288,6 +288,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .calendar-navigation, .calendar-legend { display: flex; align-items: center; gap: var(--space-2); }
 .calendar-view-switch button { gap: var(--space-2); min-width: 92px; }
 .calendar-view-switch svg { width: 15px; }
@@ -550,7 +551,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   .calendar-legend { justify-content: flex-start; }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .calendar-navigation { width: 100%; justify-content: space-between; }
 .calendar-events { gap: var(--space-2); width: 100%; }
   .calendar-event-card { padding: 10px 12px; gap: var(--space-2); width: 100%; flex-wrap: wrap; }

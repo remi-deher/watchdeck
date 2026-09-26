@@ -173,6 +173,7 @@ watch(
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .app-subnav {
   /* La capsule est portee par la racine, pas par la rangee qui defile : la rangee peut
      ainsi estomper ses bords par un masque sans estomper le contour avec. Les anciens
@@ -273,7 +274,7 @@ watch(
   background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   font-weight: 700;
 }
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   /* A la hauteur du champ de recherche (46px) : 36 + 2x4 de coussin + 2x1 de bord. */
   .app-subnav__item { min-height: 36px; font-size: var(--fs-md); }
   .app-subnav .app-subnav__item svg { width: 16px; height: 16px; }

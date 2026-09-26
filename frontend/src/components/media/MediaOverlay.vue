@@ -118,6 +118,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-overlay {
   position: fixed;
   inset: 0;
@@ -199,7 +200,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 /* En bas d'ecran, la feuille a d'emblee sa hauteur definitive, comme celles d'iOS : pendant
    le chargement elle montait courte, puis grandissait d'un coup a l'arrivee du contenu,
    en pleine animation. Au-dela, la carte centree garde une hauteur ajustee au contenu. */
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .media-overlay__panel { height: 94dvh; }
 }
 
@@ -212,7 +213,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 .media-overlay__scroll::-webkit-scrollbar { width: 0; height: 0; }
 
 
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   .media-overlay { align-items: center; }
   /* Carte centree : elle ne vient pas du bord, elle se pose. */
   .media-overlay-enter-from .media-overlay__frame,
@@ -241,7 +242,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
   width: 156px;
 }
 
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   .media-overlay :deep(.mdh-poster:not(.is-music)) {
     width: 232px;
   }

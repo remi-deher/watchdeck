@@ -166,7 +166,8 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .download-groups{display:grid;gap:var(--space-4)}
 .download-group{display:grid;gap:var(--space-3)}
 .download-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:var(--space-3)}
@@ -219,7 +220,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
   .download-card footer{display:grid;grid-template-columns:1fr 1fr}
   .download-card footer :deep(.ui-button){justify-content:center}
 }
-@media(max-width:767.98px){
+@include bp.until(tablet) {
   .download-card footer{grid-template-columns:1fr}
   .download-card footer :deep(.ui-button){min-height:44px}
 }

@@ -397,6 +397,7 @@ const notificationSubnavItems = computed(() =>
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .notification-control {
   display: flex;
   align-items: center;
@@ -431,7 +432,7 @@ const notificationSubnavItems = computed(() =>
   .notification-control { min-width: 0; max-width: calc(100vw - 3rem); }
   .notification-control-action { flex-wrap: wrap; justify-content: flex-end; }
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .notification-control { align-items: flex-start; flex-direction: column; height: auto; padding: .65rem; }
   .notification-control-action { width: 100%; padding: .65rem 0 0; border-top: 1px solid var(--border); border-left: 0; }
   .notification-control-action button { flex: 1 1 auto; min-height: 44px; }

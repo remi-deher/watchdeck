@@ -267,6 +267,7 @@ const releaseDates = computed(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .mdh-hero {
   margin-bottom: var(--space-6);
 }
@@ -494,7 +495,7 @@ const releaseDates = computed(() => {
   }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .mdh-hero {
     /* Sur telephone, le portrait et le texte empiles ont besoin de la hauteur d'ecran. */
     min-height: clamp(320px, 58vh, 420px);
@@ -545,7 +546,7 @@ const releaseDates = computed(() => {
   .mdh-links > .mdh-listen-btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
 }
 
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   .mdh-hero.is-sheet {
     min-height: min(52dvh, 480px);
   }

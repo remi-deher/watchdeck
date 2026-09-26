@@ -115,6 +115,7 @@ function onInput(event: Event): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .ui-search-field {
   display: flex;
   flex: 1;
@@ -180,7 +181,7 @@ function onInput(event: Event): void {
 /* Sur telephone, le champ se confondait avec le fond de la barre : meme gris pour le
    contour, la barre et la page. Le contour prend donc la couleur de l'application, et
    la loupe avec lui -- c'est le seul repere qui dit ou taper. */
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .ui-search-field {
     border-color: color-mix(in srgb, var(--accent) 55%, transparent);
     background: color-mix(in srgb, var(--accent) 7%, var(--surface));

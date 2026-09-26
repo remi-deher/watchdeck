@@ -1107,6 +1107,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .discover-home-rails :deep(.ui-disclosure-content) { gap: var(--space-5); }
 .discover-body { display: grid; gap: var(--space-5); }
 .discover-home-view,
@@ -1225,7 +1226,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
   }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .discover-heading {
     flex-direction: column;
     align-items: flex-start;

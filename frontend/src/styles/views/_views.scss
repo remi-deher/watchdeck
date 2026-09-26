@@ -1,3 +1,4 @@
+@use '@/styles/foundations/breakpoints' as bp;
 button,
 input,
 select {
@@ -35,7 +36,7 @@ small {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .metric-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -628,7 +629,7 @@ button:disabled {
   white-space: normal;
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .compact-metrics {
     grid-template-columns: repeat(4, minmax(120px, 1fr));
   }
@@ -694,7 +695,7 @@ button:disabled {
    Le seuil suit celui du shell (768px) et non plus 821 : entre les deux, le tiroir
    retombait sur la carte centrée à 90dvh et perdait un sixième de la hauteur de
    l'écran alors qu'il y avait toute la place d'une feuille latérale pleine hauteur. */
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   .drawer-backdrop:has(> .detail-drawer),
   .drawer-backdrop--detail-drawer {
     background: linear-gradient(90deg, rgba(0,0,0,.12), rgba(0,0,0,.48));
@@ -758,7 +759,7 @@ button:disabled {
   min-width: 76px;
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .settings-grid.two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -942,7 +943,7 @@ button:disabled {
   .dashboard-action-center.clear { padding: 10px 12px; }
 }
 
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
