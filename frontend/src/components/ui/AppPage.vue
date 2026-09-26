@@ -258,6 +258,9 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  /* Tout sur l'axe de la recherche : sections et outils centres, cote a cote quand
+     les deux sont la (Activite en tablette), sur deux lignes si la place manque. */
+  justify-content: center;
   gap: var(--space-3);
   min-width: 0;
   padding: var(--space-2) 0;
@@ -267,14 +270,13 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
   pointer-events: none;
 }
 .app-page__sticky > * { pointer-events: auto; }
-/* Les sections forment une capsule centree, sur le meme axe que la recherche ; les
-   outils gardent leur place a droite. */
-.app-page__sticky > .app-subnav { flex: 0 1 auto; min-width: 0; max-width: 100%; margin-inline: auto; }
-.app-page__sticky > .app-page__tools { flex: 0 1 auto; min-width: 0; }
+.app-page__sticky > .app-subnav { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.app-page__sticky > .app-page__tools { flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .app-page__sentinel { display: block; width: 1px; height: 1px; margin-bottom: -1px; pointer-events: none; }
 /* L'ombre n'apparait qu'une fois decolle, et sur la capsule seule : au repos, elle
    soulignerait une barre qui ne flotte pas encore au-dessus de quoi que ce soit. */
-.app-page__sticky.is-stuck > .app-subnav :deep(.app-subnav__scroller) {
+.app-page__sticky.is-stuck > .app-subnav :deep(.app-subnav__scroller),
+.app-page__sticky.is-stuck > .app-page__tools {
   box-shadow: 0 10px 28px rgb(var(--shadow-color) / calc(.3 * var(--shadow-scale)));
 }
 
@@ -297,14 +299,32 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
   flex-wrap: wrap;
   min-width: 0;
 }
+/* Dans la rangee collante, les outils forment une capsule de la meme famille que la
+   recherche et les sections : posee sur le contenu qui defile, elle garde lisibles les
+   boutons sans fond (Reglages, fleches du calendrier). */
+.app-page__sticky > .app-page__tools {
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+}
+/* Un controle segmente (periode d'Activite) s'aplatit dans la capsule, et sa pastille
+   active parle le meme langage que l'onglet actif des sections. */
+.app-page__sticky > .app-page__tools :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
+.app-page__sticky > .app-page__tools :deep(.ui-segmented-item[data-state='on']) {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  box-shadow: none;
+  font-weight: 700;
+}
+/* Un slot rendu vide (outils conditionnels) ne doit pas laisser une capsule vide. */
+.app-page__sticky > .app-page__tools:not(:has(.app-page__tool-actions > *)) { display: none; }
 
 .app-page__tool-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  margin-left: auto;
   flex-wrap: wrap;
 }
-/* Sans recherche, les actions occupent toute la rangee et se rangent a gauche. */
-.app-page__tools:not(:has(.ui-search-field)) .app-page__tool-actions { margin-left: 0; }
 </style>
