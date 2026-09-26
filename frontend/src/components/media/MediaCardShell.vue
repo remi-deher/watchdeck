@@ -8,8 +8,9 @@
     <div
       class="poster-wrap"
       :class="{ revealed, 'has-action': hasAction }"
+      @pointerdown.capture="notePointer"
       @click.capture="interceptFirstTap"
-      @mouseenter="reveal"
+      @mouseenter="revealOnHover"
       @mouseleave="conceal"
       @focusin="reveal"
       @focusout="conceal"
@@ -21,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useCardReveal } from '@/composables/useCardReveal';
 
 const props = withDefaults(
@@ -69,14 +70,39 @@ function onRevealEnd(event: AnimationEvent): void {
  * l'utilisateur vers la fiche avant que l'action ait pu se montrer. Depuis le parent,
  * la capture precede toujours le lien.
  */
+/* Au doigt, Safari simule un survol (`mouseenter`) juste avant le clic : la carte etait
+   donc deja revelee quand le clic arrivait, et il ouvrait la fiche au premier appui.
+   Le double appui ne tenait qu'a une heuristique d'iOS (annuler le clic quand le survol
+   change la page), qu'il a cesse d'appliquer. On retient donc le type du dernier
+   pointeur -- `pointerdown` precede toujours ces evenements simules -- et seul un appui
+   qui a lui-meme revele la carte laisse passer le suivant. */
+const lastPointer = ref<string>('');
+const revealedByTap = ref(false);
+watch(revealed, (value) => { if (!value) revealedByTap.value = false; });
+
+function notePointer(e: PointerEvent): void {
+  lastPointer.value = e.pointerType || '';
+}
+
+function revealOnHover(): void {
+  if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
+  reveal();
+}
+
 function interceptFirstTap(e: MouseEvent): void {
-  if (revealed.value) return;
-  // Avec une souris, le survol a deja revele la carte : n'intercepter que la ou il
-  // n'existe pas, pour ne rien changer au clic au bureau.
-  if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+  // Le type du pointeur qui a appuye fait foi : une souris ouvre au premier clic, meme
+  // sur un appareil tactile. Faute de pointerdown (clic clavier, appel programme), on
+  // retombe sur la nature de l'ecran.
+  const tactile = lastPointer.value
+    ? lastPointer.value === 'touch' || lastPointer.value === 'pen'
+    : Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+  // A la souris, le survol a deja revele la carte : le clic ouvre, comme avant.
+  if (!tactile) return;
+  if (revealed.value && revealedByTap.value) return;
   e.preventDefault();
   e.stopPropagation();
   reveal();
+  revealedByTap.value = true;
 }
 </script>
 
