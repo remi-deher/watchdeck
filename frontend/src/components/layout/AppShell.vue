@@ -139,10 +139,7 @@ function openSheet(): void {
 }
 
 /* C'est la route qui referme les deux feuilles, et non le clic sur l'une de leurs
-   entrees : tant qu'une feuille reste montee, `useBackButtonClose` garde son entree
-   d'historique et n'ira pas la reprendre au milieu de la navigation en cours -- ce qui
-   ramenait l'URL a la page precedente pendant que le contenu, lui, avait change.
-   On suit `fullPath` parce que plusieurs sections ne different que par leur query
+   entrees : la feuille reste en place jusqu'a l'arrivee de la page demandee. On suit `fullPath` parce que plusieurs sections ne different que par leur query
    (`?view=`). */
 watch(() => route.fullPath, (_next, previous) => {
   /* Sauf la toute premiere resolution : le shell et son dock s'affichent pendant que la

@@ -117,10 +117,27 @@ const itemKey = computed(() => {
   return `${activeItem.value.media_type || 'item'}-${id}-${activeIndex.value}`;
 });
 
+const backdropOf = (item: any): string | null => item?.backdrop_url || item?.art_url || null;
 const backdropStyle = computed(() => {
-  const url = activeItem.value?.backdrop_url || activeItem.value?.art_url;
+  const url = backdropOf(activeItem.value);
   return url ? { backgroundImage: `url("${url}")` } : {};
 });
+
+/* Les fonds sont charges d'avance : une diapositive qui entrait avant son image glissait
+   vide, et le defilement montrait un trou le temps du chargement. Les images restent
+   referencees pour que le navigateur les garde decodees. */
+const prechargees = new Map<string, HTMLImageElement>();
+watch(normalizedItems, (items) => {
+  if (typeof Image === 'undefined') return;
+  for (const item of items) {
+    const url = backdropOf(item);
+    if (!url || prechargees.has(url)) continue;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    prechargees.set(url, img);
+  }
+}, { immediate: true });
 
 const eyebrowText = computed(() => {
   if (props.eyebrow) return props.eyebrow;
@@ -497,31 +514,21 @@ onUnmounted(stopAutoplay);
   50% { opacity: 0.3; }
 }
 
+/* Les deux diapositives glissent ensemble, collees bord a bord : meme duree, meme
+   courbe, et aucune ne s'efface. Le fondu a zero des deux cotes laissait voir le fond
+   noir entre elles au milieu du mouvement -- le « trou » du defilement. */
 .hero-slide-next-enter-active,
 .hero-slide-next-leave-active,
 .hero-slide-prev-enter-active,
 .hero-slide-prev-leave-active {
-  transition: transform 0.48s cubic-bezier(0.25, 1, 0.5, 1), opacity var(--motion-duration-base) var(--motion-ease-standard);
-  will-change: transform, opacity;
+  transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  will-change: transform;
 }
 
-.hero-slide-next-enter-from {
-  transform: translateX(100%);
-  opacity: 0;
-}
-.hero-slide-next-leave-to {
-  transform: translateX(-100%);
-  opacity: 0;
-}
-
-.hero-slide-prev-enter-from {
-  transform: translateX(-100%);
-  opacity: 0;
-}
-.hero-slide-prev-leave-to {
-  transform: translateX(100%);
-  opacity: 0;
-}
+.hero-slide-next-enter-from { transform: translateX(100%); }
+.hero-slide-next-leave-to { transform: translateX(-100%); }
+.hero-slide-prev-enter-from { transform: translateX(-100%); }
+.hero-slide-prev-leave-to { transform: translateX(100%); }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-slide-next-enter-active,
@@ -531,6 +538,9 @@ onUnmounted(stopAutoplay);
     transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
     transform: none !important;
   }
+  /* Sans mouvement, un fondu enchaine : la sortante reste pleine sous l'entrante. */
+  .hero-slide-next-enter-from,
+  .hero-slide-prev-enter-from { opacity: 0; }
 }
 
 @media (max-width: 640px) {

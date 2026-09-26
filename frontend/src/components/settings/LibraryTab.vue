@@ -78,11 +78,12 @@
               <span class="badge">{{ mediaTypeLabel(section.type) }}</span>
             </label>
             <div v-if="isLibrarySelected(section.name)" class="vff-lib-kind">
-              <div class="segmented small">
-                <button :class="{ active: getLibraryKind(section.name) === 'series' }" @click="setLibraryKind(section.name, 'series')">Série</button>
-                <button :class="{ active: getLibraryKind(section.name) === 'movie' }" @click="setLibraryKind(section.name, 'movie')">Film</button>
-                <button :class="{ active: getLibraryKind(section.name) === 'music' }" @click="setLibraryKind(section.name, 'music')">Musique</button>
-              </div>
+              <UiSegmentedControl
+                :model-value="getLibraryKind(section.name)"
+                :options="LIBRARY_KIND_OPTIONS"
+                :ariaLabel="`Type de la bibliothèque ${section.name}`"
+                @update:model-value="setLibraryKind(section.name, String($event))"
+              />
             </div>
           </div>
         </div>
@@ -108,6 +109,13 @@
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+
+const LIBRARY_KIND_OPTIONS = [
+  { value: 'series', label: 'Série' },
+  { value: 'movie', label: 'Film' },
+  { value: 'music', label: 'Musique' },
+];
 import UiButton from '@/components/ui/UiButton.vue';
 import { RouterLink } from 'vue-router';
 

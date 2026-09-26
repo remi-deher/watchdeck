@@ -20,6 +20,9 @@ import UiFeedback from './components/ui/UiFeedback.vue';
 import FormSaveBar from './components/ui/FormSaveBar.vue';
 import { registerServiceWorker } from './pwa';
 import { useTheme } from './composables/useTheme';
+import { installerRetourDesSurfaces } from './composables/useBackButtonClose';
+import { installerRetourNatif } from './composables/useRetourNatif';
+import { installerMemoireDesAdresses } from './composables/useMemoireDesFiltres';
 
 // Theme : branche des le demarrage pour suivre le systeme et synchroniser la barre d'etat.
 useTheme();
@@ -117,6 +120,12 @@ const router = createRouter({
     return { top: 0 };
   },
 });
+
+// Avant les autres gardes : un retour qui ferme une surface ne doit declencher ni
+// chargement de session ni redirection.
+installerRetourDesSurfaces(router);
+installerRetourNatif(router);
+installerMemoireDesAdresses(router);
 
 if (import.meta.env.PROD) {
   router.onError((error) => { void recoverFromStaleAssets(error); });

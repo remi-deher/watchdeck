@@ -106,7 +106,8 @@ const jobs = computed(() => [...new Set(rows.value.map((x) => x.job).filter(Bool
 const filtered = computed(() => rows.value.filter((row) => (!level.value || row.level === level.value) && (!search.value || JSON.stringify(row).toLowerCase().includes(search.value.toLowerCase()))));
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFiltersDrawer } = useFiltersDrawer(
   { search, level, category, job },
-  { search: '', level: '', category: '', job: '' }
+  { search: '', level: '', category: '', job: '' },
+  { memoriser: 'journaux' }
 );
 const PAGE_SIZE = 50;
 const visibleCount = ref(PAGE_SIZE);

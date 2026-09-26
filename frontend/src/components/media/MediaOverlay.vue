@@ -9,7 +9,9 @@
     <!-- Transition CSS pure, sur `transform` et `opacity` seulement : Safari la confie au
          GPU, et elle reste fluide pendant que la fiche se construit sur le fil principal.
          Un ressort pilote en script (motion-v) saccadait justement a ce moment-la. -->
-    <Transition name="media-overlay" @after-leave="$emit('after-leave')">
+    <!-- Sortie sautee quand Safari a deja anime le retour (geste de bord) : voir
+         `useRetourNatif`. -->
+    <Transition name="media-overlay" :css="!retourNatif" @after-leave="$emit('after-leave')">
       <div
         v-if="open"
         ref="voileRef"
@@ -48,6 +50,7 @@
 import { onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { DialogContent, DialogRoot, FocusScope } from 'reka-ui';
 import { useSheetGesture } from '@/composables/useSheetGesture';
+import { retourNatif } from '@/composables/useRetourNatif';
 
 const props = withDefaults(
   defineProps<{
@@ -66,8 +69,24 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'after-leave'): void }>();
    (`pointer-events: none`), ce qui suppose un dialogue modal qui s'en excepte -- la fiche,
    non modale, ne recevait plus un seul toucher. Le verrou porte sur les deux elements
    racine : `overflow: hidden` sur <body> seul ne retient pas iOS. */
+/* Sur iPhone, `overflow: hidden` ne suffit pas : Safari fait defiler la page quand
+   meme, ou la remet en haut en verrouillant. On fige donc <body> a sa position
+   (`position: fixed` decale de la hauteur deja defilee), puis on rend exactement cette
+   position a la fermeture. */
+let positionFigee: number | null = null;
 function verrouiller(actif: boolean): void {
-  for (const el of [document.documentElement, document.body]) el.style.overflow = actif ? 'hidden' : '';
+  const body = document.body;
+  if (actif && positionFigee === null) {
+    positionFigee = window.scrollY;
+    document.documentElement.style.overflow = 'hidden';
+    Object.assign(body.style, { position: 'fixed', top: `-${positionFigee}px`, left: '0', right: '0', width: '100%' });
+  } else if (!actif && positionFigee !== null) {
+    const position = positionFigee;
+    positionFigee = null;
+    document.documentElement.style.overflow = '';
+    Object.assign(body.style, { position: '', top: '', left: '', right: '', width: '' });
+    window.scrollTo(0, position);
+  }
 }
 watch(() => props.open, verrouiller, { immediate: true });
 onBeforeUnmount(() => verrouiller(false));

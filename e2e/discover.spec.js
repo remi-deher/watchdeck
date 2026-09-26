@@ -22,31 +22,6 @@ function catalog(page, totalPages = 2) {
   };
 }
 
-/**
- * Ouvre le second niveau de navigation et renvoie la surface qui le porte.
- *
- * Sur telephone il n'est plus affiche en permanence : retoucher la destination deja
- * active dans le dock ouvre ses sections.
- */
-async function openSections(page) {
-  const width = page.viewportSize().width;
-  if (width >= 1200) return page.locator('.app-rail__subnav');
-  if (width >= 768) return page.locator('.app-subnav');
-
-  await expect(page.locator('.app-subnav')).toHaveCount(0);
-  await page.locator('.app-dock button[aria-current="page"]').click();
-  const sheet = page.locator('.app-section-sheet');
-  await expect(sheet).toBeVisible();
-  return sheet;
-}
-
-/** Referme la feuille du dock, qui recouvre la page tant qu'elle est ouverte. */
-async function closeSections(page) {
-  if (page.viewportSize().width >= 768) return;
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.app-section-sheet')).toHaveCount(0);
-}
-
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -110,16 +85,16 @@ test("conserve le catalogue Films lors d'une recherche", async ({ page }) => {
 });
 
 test("affiche la navigation dédiée et replie les filtres", async ({ page }) => {
-  // Trois largeurs, trois porteurs du second niveau, jamais deux a la fois : le rail
-  // en deploye, une rangee dans la page en intermediaire, et le dock sur telephone --
-  // ou la rangee s'ajoutait a la barre du haut et au dock sur un ecran qui n'a la
-  // hauteur d'aucune des trois.
-  const navigation = await openSections(page);
-  await expect(navigation.getByRole("link", { name: "Séries" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "Films" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "Accueil" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "Calendrier" })).toBeVisible();
-  await closeSections(page);
+  // Accueil, Films et Series sont des vues de la meme page : des onglets dans la page, a
+  // toutes les largeurs, et non plus des sous-entrees du rail. Le calendrier est devenu
+  // une destination a part.
+  const onglets = page.getByRole("navigation", { name: "Vues d’Explorer" });
+  await expect(onglets.getByRole("link", { name: "Séries" })).toBeVisible();
+  await expect(onglets.getByRole("link", { name: "Films" })).toBeVisible();
+  // La page s'ouvre sur /discover/movies (voir beforeEach) : Films est l'onglet courant.
+  await expect(onglets.getByRole("link", { name: "Films" })).toHaveAttribute("aria-current", "page");
+  await expect(onglets.getByRole("link", { name: "Accueil" })).not.toHaveAttribute("aria-current", "page");
+  await expect(onglets.getByRole("link", { name: "Calendrier" })).toHaveCount(0);
 
   // Un seul panneau a toutes les tailles : il sort de la barre de recherche.
   const filters = page.locator('.filter-sheet');
@@ -137,18 +112,14 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   await page.getByRole("button", { name: "Masquer les filtres" }).first().click();
   await expect(filters).toBeHidden();
 
-  // Rouvrir : sur telephone la feuille a ete refermee pour atteindre les filtres.
-  const shows = await openSections(page);
-  await shows.getByRole("link", { name: "Séries" }).click();
+  // Changer d'onglet met a jour le champ de la barre : la page suivante fournit sa propre
+  // recherche, et le demontage de la precedente ne doit pas l'effacer.
+  await onglets.getByRole("link", { name: "Séries" }).click();
   await expect(page).toHaveURL(/\/discover\/shows$/);
-  // Changer de section met a jour le champ de la barre : la page suivante fournit sa
-  // propre recherche, et le demontage de la precedente ne doit pas l'effacer.
   await expect(await pageSearchBox(page)).toHaveAttribute("aria-label", /Rechercher une série/);
+  await expect(onglets.getByRole("link", { name: "Séries" })).toHaveAttribute("aria-current", "page");
 
-  // La feuille se referme sur la navigation : il faut la rouvrir pour la section
-  // suivante, et c'est aussi la preuve qu'elle n'est pas restee ouverte par-dessus.
-  const next = await openSections(page);
-  await next.getByRole("link", { name: "Films" }).click();
+  await onglets.getByRole("link", { name: "Films" }).click();
   await expect(page).toHaveURL(/\/discover\/movies$/);
 });
 

@@ -184,6 +184,7 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
   { search, type, tracked },
   { search: '', type: '', tracked: false },
   {
+    memoriser: 'calendrier',
     onReset: () => {
       visibleDays.value = DAYS_PAGE;
       load({ scrollToToday: false });

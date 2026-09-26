@@ -7,6 +7,16 @@
       <UiButton variant="danger" size="sm" @click="bulk('delete')"><template #icon><Trash2/></template>Supprimer</UiButton>
     </BulkActionBar>
 
+    <!-- Tout, Films, Series, Musique : des onglets dans la page, a toutes les largeurs.
+         Les types etaient jusque-la caches dans le panneau de filtres ou dans les titres
+         des rangees de l'accueil. -->
+    <AppSubnav
+      class="page-type-tabs"
+      :items="LIBRARY_TYPE_TABS"
+      :active="libraryTypeTabFor(route)"
+      aria-label="Types de médias"
+    />
+
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <template v-if="!isMusicShape">
@@ -153,6 +163,8 @@ import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { canModerateSession, isAdminSession, loadSession } from '@/composables/useSession';
 import LibraryCard from '@/components/library/LibraryCard.vue';
 import MusicHubRow from '@/components/library/MusicHubRow.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
+import { LIBRARY_TYPE_TABS, libraryTypeTabFor } from '@/navigation';
 import MediaHeroBanner from '@/components/media/MediaHeroBanner.vue';
 import MediaPosterCollection from '@/components/media/MediaPosterCollection.vue';
 import UiButton from '@/components/ui/UiButton.vue';

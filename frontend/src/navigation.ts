@@ -9,6 +9,7 @@
  */
 import type { Component } from 'vue';
 import type { RouteLocationNormalizedLoaded } from 'vue-router';
+import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 import {
   Activity,
   Bell,
@@ -32,6 +33,7 @@ import {
   ListRestart,
   MessageSquareWarning,
   MonitorPlay,
+  Music2,
   PackageSearch,
   Plug,
   Radio,
@@ -95,7 +97,10 @@ export interface NavContext {
 
 export const DESTINATIONS: NavDestination[] = [
   { key: 'dashboard', label: 'Accueil', icon: Gauge, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/dashboard') || p.startsWith('/issues'), to: '/dashboard' },
-  { key: 'discover', label: 'Explorer', icon: Compass, group: 'Explorer', match: (p) => (p.startsWith('/discover') && !p.startsWith('/discover/requests')) || p.startsWith('/calendar'), to: '/discover' },
+  { key: 'discover', label: 'Explorer', icon: Compass, group: 'Explorer', match: (p) => p.startsWith('/discover') && !p.startsWith('/discover/requests'), to: '/discover' },
+  // Le calendrier suit les sorties : un outil de suivi, pas une facon de parcourir le
+  // catalogue. Il etait une section d'Explorer ; il devient une destination.
+  { key: 'calendar', label: 'Calendrier', icon: CalendarDays, group: 'Explorer', match: (p) => p.startsWith('/calendar'), to: '/calendar' },
   { key: 'requests', label: 'Demandes', icon: Inbox, group: 'Workflow', match: (p) => p.startsWith('/discover/requests') || p.startsWith('/releases/'), to: '/discover/requests' },
   { key: 'downloads', label: 'Acquisition', icon: GitBranch, group: 'Workflow', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
   { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
@@ -228,13 +233,14 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
   let sections: NavSection[] = [];
 
   switch (destinationKey) {
+    // Explorer n'a plus de sous-entrees dans le rail : Accueil, Films et Series sont des
+    // vues de la meme page, en onglets dans la page (voir `EXPLORER_TABS`). Une section
+    // unique, comme les Demandes : le rail n'affiche de sous-entrees qu'a partir de deux.
     case 'discover':
-      sections = [
-        { key: 'home', label: 'Accueil', to: '/discover', icon: House },
-        { key: 'shows', label: 'Séries', to: '/discover/shows', icon: Tv },
-        { key: 'movies', label: 'Films', to: '/discover/movies', icon: Film },
-        { key: 'calendar', label: 'Calendrier', to: '/calendar', icon: CalendarDays },
-      ];
+      sections = [{ key: 'home', label: 'Explorer', to: '/discover', icon: Compass }];
+      break;
+    case 'calendar':
+      sections = [{ key: 'calendar', label: 'Calendrier', to: '/calendar', icon: CalendarDays }];
       break;
     case 'requests':
       sections = [{ key: 'tracking', label: 'Suivi des demandes', to: '/discover/requests', icon: Inbox }];
@@ -373,4 +379,40 @@ export function activeSectionKey(
     }
   }
   return best;
+}
+
+/* ─────────────────────────── Onglets dans la page ────────────────────────── */
+
+/* Explorer et la Bibliotheque presentent leurs vues par type de media en onglets dans la
+   page, a toutes les largeurs, plutot qu'en sous-entrees du rail : ce ne sont pas des
+   destinations mais des facons de regarder le meme ensemble. */
+
+/** Onglets d'Explorer : les vues de la page `/discover`. */
+export const EXPLORER_TABS: SubnavItem[] = [
+  { key: 'home', label: 'Accueil', to: '/discover', icon: House },
+  { key: 'movies', label: 'Films', to: '/discover/movies', icon: Film },
+  { key: 'shows', label: 'Séries', to: '/discover/shows', icon: Tv },
+];
+
+export function explorerTabFor(path: string): string {
+  if (path.startsWith('/discover/movies')) return 'movies';
+  if (path.startsWith('/discover/shows')) return 'shows';
+  return 'home';
+}
+
+const MUSIC_TYPES = ['artist', 'album', 'track'];
+
+/** Onglets du catalogue de la Bibliotheque : tout, ou un type de media. */
+export const LIBRARY_TYPE_TABS: SubnavItem[] = [
+  { key: 'all', label: 'Tout', to: { path: '/library', query: { hub: '1' } }, icon: Library },
+  { key: 'movie', label: 'Films', to: { path: '/library', query: { hub: '1', type: ['movie'] } }, icon: Film },
+  { key: 'show', label: 'Séries', to: { path: '/library', query: { hub: '1', type: ['show'] } }, icon: Tv },
+  { key: 'music', label: 'Musique', to: { path: '/library', query: { hub: '1', type: MUSIC_TYPES } }, icon: Music2 },
+];
+
+export function libraryTypeTabFor(route?: RouteLocationNormalizedLoaded): string {
+  const types = libraryTypeFilters(route);
+  if (types.length === 1 && (types[0] === 'movie' || types[0] === 'show')) return types[0];
+  if (types.length && types.every((type) => MUSIC_TYPES.includes(type))) return 'music';
+  return 'all';
 }

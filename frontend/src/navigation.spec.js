@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   DESTINATIONS,
+  EXPLORER_TABS,
+  LIBRARY_TYPE_TABS,
   activeSectionKey,
+  explorerTabFor,
+  libraryTypeTabFor,
   destinationForPath,
   destinationsFor,
   groupedSections,
@@ -37,7 +41,8 @@ describe('navigation — destinations', () => {
     expect(destinationForPath('/settings/services/webhooks', true, true)?.key).toBe('admin-services');
     expect(destinationForPath('/settings/automation/scheduled-tasks', true, true)?.key).toBe('admin-automation');
     expect(destinationForPath('/settings/system/version', true, true)?.key).toBe('admin-system');
-    expect(destinationForPath('/calendar', false, false)?.key).toBe('discover');
+    // Le calendrier est une destination a part entiere, et non plus une section d'Explorer.
+    expect(destinationForPath('/calendar', false, false)?.key).toBe('calendar');
     expect(destinationForPath('/profile', true, true)).toBeNull();
   });
 
@@ -70,15 +75,25 @@ describe('navigation — destinations', () => {
 });
 
 describe('navigation — sections', () => {
-  it('donne à Explorer quatre sections, Calendrier compris', () => {
-    const sections = sectionsFor('discover', ctx());
-    expect(keys(sections)).toEqual(['home', 'shows', 'movies', 'calendar']);
+  it("ne donne plus de sous-entrees a Explorer : ses vues sont des onglets dans la page", () => {
+    expect(keys(sectionsFor('discover', ctx()))).toEqual(['home']);
+    expect(keys(EXPLORER_TABS)).toEqual(['home', 'movies', 'shows']);
+    expect(explorerTabFor('/discover/movies')).toBe('movies');
+    expect(explorerTabFor('/discover')).toBe('home');
   });
 
   it('remplit la barre d’un utilisateur simple sans rien lui cacher', () => {
     const plain = destinationsFor(false, false);
-    expect(keys(plain)).toEqual(['discover', 'requests']);
-    expect(sectionsFor('discover', ctx({ isAdmin: false, canModerate: false }))).toHaveLength(4);
+    expect(keys(plain)).toEqual(['discover', 'calendar', 'requests']);
+  });
+
+  it('range les types de la Bibliotheque en onglets', () => {
+    expect(keys(LIBRARY_TYPE_TABS)).toEqual(['all', 'movie', 'show', 'music']);
+    const route = (type) => ({ query: type ? { type } : {} });
+    expect(libraryTypeTabFor(route())).toBe('all');
+    expect(libraryTypeTabFor(route('movie'))).toBe('movie');
+    expect(libraryTypeTabFor(route(['artist', 'album', 'track']))).toBe('music');
+    expect(libraryTypeTabFor(route(['movie', 'show']))).toBe('all');
   });
 
   it('réserve Améliorations VF aux admins dans la Bibliothèque', () => {

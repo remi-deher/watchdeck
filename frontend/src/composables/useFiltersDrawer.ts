@@ -1,4 +1,5 @@
-import { ref, computed, type InjectionKey, type Ref } from 'vue';
+import { ref, computed, watch, type InjectionKey, type Ref } from 'vue';
+import { memoriserFiltres } from './useMemoireDesFiltres';
 
 /** Filtre actif, affiche en puce retirable en tete du panneau de filtres. */
 export interface FilterChip {
@@ -25,6 +26,12 @@ export const FILTER_CHIP_REGISTRY: InjectionKey<FilterChipRegistry> = Symbol('fi
 export interface UseFiltersDrawerOptions {
   onReset?: () => void;
   activeCountFn?: () => number;
+  /** Retient les filtres le temps de la session sous cette cle (voir `memoriserFiltres`). */
+  memoriser?: string;
+  /** Sous-ensemble a retenir, quand certains champs sont de la navigation (Decouvrir). */
+  champsMemorises?: string[];
+  /** Parametre d'adresse d'un champ quand son nom differe : l'adresse prime sur la memoire. */
+  parametresAdresse?: Record<string, string>;
 }
 
 export function useFiltersDrawer<T extends Record<string, Ref<any>>>(
@@ -33,6 +40,14 @@ export function useFiltersDrawer<T extends Record<string, Ref<any>>>(
   options?: UseFiltersDrawerOptions
 ) {
   const filtersOpen = ref(false);
+  if (options?.memoriser) {
+    const champs = options.champsMemorises;
+    const retenus = champs ? Object.fromEntries(Object.entries(filters).filter(([nom]) => champs.includes(nom))) : filters;
+    memoriserFiltres(options.memoriser, retenus, defaults as Record<string, unknown>, (source, rappel) =>
+      watch(source, rappel, { deep: true }),
+      options.parametresAdresse,
+    );
+  }
 
   function isDifferentFromDefault(value: any, def: any): boolean {
     if (Array.isArray(value)) {

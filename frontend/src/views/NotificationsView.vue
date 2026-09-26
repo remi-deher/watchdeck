@@ -195,6 +195,7 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
   {
     activeCountFn: () => Number(Boolean(state.value)) + selectedTypes.value.length + selectedUsers.value.length,
     onReset: () => { offset.value = 0; },
+    memoriser: 'notifications',
   }
 );
 function resetFilters() { resetFiltersDrawer(); }

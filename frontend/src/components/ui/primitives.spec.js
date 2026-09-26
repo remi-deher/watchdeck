@@ -87,17 +87,30 @@ describe('UiCheckboxField', () => {
 });
 
 describe('UiSegmentedControl', () => {
-  it('expose la sélection comme des onglets et émet le nouvel onglet', async () => {
+  it('expose un choix exclusif (groupe de boutons bascules), pas des onglets', async () => {
     const wrapper = mount(UiSegmentedControl, { props: {
       modelValue: 'week', ariaLabel: 'Période',
       options: [{ value: 'week', label: 'Semaine' }, { value: 'month', label: 'Mois', count: 3 }],
     } });
-    expect(wrapper.find('[role="tablist"]').attributes('aria-label')).toBe('Période');
-    const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs[0].attributes('aria-selected')).toBe('true');
-    // Reka active un onglet a l'appui (mousedown), pas au relachement.
-    await tabs[1].trigger('mousedown', { button: 0 });
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+    expect(wrapper.find('[role="group"]').attributes('aria-label')).toBe('Période');
+    const boutons = wrapper.findAll('button');
+    expect(boutons[0].attributes('data-state')).toBe('on');
+    expect(boutons[1].attributes('data-state')).toBe('off');
+    await boutons[1].trigger('click');
     expect(wrapper.emitted('update:modelValue')).toEqual([['month']]);
+  });
+
+  it('ne deselectionne pas la valeur choisie et rend son type a la valeur', async () => {
+    const wrapper = mount(UiSegmentedControl, { props: {
+      modelValue: 30, ariaLabel: 'Période',
+      options: [{ value: 7, label: '7 j' }, { value: 30, label: '30 j' }],
+    } });
+    const boutons = wrapper.findAll('button');
+    await boutons[1].trigger('click');
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    await boutons[0].trigger('click');
+    expect(wrapper.emitted('update:modelValue')).toEqual([[7]]);
   });
 });
 
