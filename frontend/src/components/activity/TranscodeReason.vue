@@ -7,6 +7,9 @@
       <small v-if="!compact">{{ sourceLabel }}</small>
     </p>
     <template v-if="!compact && reason.source === 'plex'">
+      <!-- Plex motive parfois un refus par une piste que personne n'ecoute : sans ce
+           contexte, sa raison passe pour une erreur. -->
+      <p v-if="reason.note" class="reason-note">{{ reason.note }}</p>
       <p v-if="reason.deduced" class="deduced-line">{{ reason.deduced }}</p>
       <ul v-if="reason.mde?.length">
         <li v-for="line in reason.mde" :key="line">{{ line }}</li>
@@ -28,6 +31,7 @@ export interface TranscodeReasonData {
   deduced?: string | null;
   mde?: string[];
   client?: Record<string, string>;
+  note?: string | null;
 }
 
 const props = defineProps<{ reason?: TranscodeReasonData | null; compact?: boolean }>();
@@ -37,7 +41,9 @@ const sourceLabel = computed(() =>
     ? `Décision de Plex${props.reason.code ? ` · code ${props.reason.code}` : ''}`
     : 'Déduit du flux · journaux de débogage Plex indisponibles',
 );
-const tooltip = computed(() => `${sourceLabel.value}${props.reason?.deduced ? `\n${props.reason.deduced}` : ''}`);
+const tooltip = computed(() =>
+  [sourceLabel.value, props.reason?.note, props.reason?.deduced].filter(Boolean).join('\n'),
+);
 
 // Ce que le lecteur a demande : c'est ce qui change entre un lancement transcode et
 // une relance en lecture directe du meme fichier.
@@ -69,6 +75,7 @@ const clientParams = computed(() =>
 .transcode-reason strong { color: var(--reason-color); font-weight: 600; overflow-wrap: anywhere; }
 .transcode-reason small, .deduced-line { color: var(--text-muted, inherit); font-size: .8rem; }
 .transcode-reason.compact strong { font-size: .78rem; font-weight: 500; }
+.reason-note { font-size: .82rem; color: var(--text); }
 .transcode-reason ul { margin: 0; padding-left: 1.1rem; font-size: .82rem; }
 .transcode-reason dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 12px; font-size: .8rem; }
 .transcode-reason dl div { display: flex; justify-content: space-between; gap: 8px; }

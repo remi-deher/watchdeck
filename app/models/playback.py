@@ -78,6 +78,7 @@ class PlaybackSession(Base):
     transcode_session: Mapped[Optional[str]]
     transcode_reason: Mapped[Optional[str]] = mapped_column(Text)
     transcode_hw: Mapped[Optional[str]]
+    audio_channels: Mapped[Optional[int]]
     plex_decision_code: Mapped[Optional[int]]
     plex_decision_text: Mapped[Optional[str]] = mapped_column(Text)
     plex_decision_details: Mapped[Optional[str]] = mapped_column(Text)

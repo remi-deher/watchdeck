@@ -323,3 +323,143 @@ async def test_collection_survives_unreadable_plex_logs():
         ),
     ):
         assert await playback_activity.collect_plex_activity() == {"status": "complete"}
+
+
+# Episode reel (2026-09-27) : piste FR stereo ecoutee, VO japonaise et anglaise 5.1 dans le
+# fichier, sous-titres ASS forces convertis en WebVTT pour un Chromecast.
+FLIBUSTIERS_STREAMS = [
+    {"id": "11", "streamType": "2", "codec": "aac", "channels": "2", "language": "Français", "selected": "1"},
+    {"id": "12", "streamType": "2", "codec": "aac", "channels": "6", "language": "日本語"},
+    {"id": "13", "streamType": "2", "codec": "aac", "channels": "6", "language": "English"},
+    {"id": "21", "streamType": "3", "codec": "ass", "language": "Français", "title": "Fr Forced"},
+]
+FLIBUSTIERS_SESSION = """<MediaContainer size="1"><Video ratingKey="5198" sessionKey="9" title="Les flibustiers de la nuit"
+ type="episode" viewOffset="0" duration="1000"><Media><Part decision="transcode">
+<Stream id="11" streamType="2" codec="aac" channels="2" selected="1" decision="copy"/>
+<Stream id="21" streamType="3" codec="webvtt" selected="1" decision="transcode" location="sidecar"/>
+</Part></Media><User title="u"/><Player title="Chromecast" state="playing"/><Session id="s9" bandwidth="1" location="wan"/>
+<TranscodeSession key="/transcode/sessions/1pi9" videoDecision="copy" audioDecision="copy" subtitleDecision="transcode"/>
+</Video></MediaContainer>"""
+CHANNELS_TEXT = "This app cannot play this item. The reason is: audio.channels limitation applies: 6 > 2."
+
+
+def test_subtitle_reason_names_the_source_format_when_known():
+    (session,) = parse_plex_sessions(FLIBUSTIERS_SESSION, stream_sources={"21": "ass"})
+    assert session["transcode_reason"] == "Sous-titres ASS → WebVTT (vidéo et audio copiés)"
+    assert session["audio_channels"] == 2
+    # Fiche du média illisible : on garde le format de sortie, sans inventer de source.
+    (fallback,) = parse_plex_sessions(FLIBUSTIERS_SESSION)
+    assert fallback["transcode_reason"] == "Sous-titres WebVTT convertis (vidéo et audio copiés)"
+
+
+def test_decision_note_points_at_unselected_surround_tracks():
+    note = playback_activity._decision_note(CHANNELS_TEXT, 2, FLIBUSTIERS_STREAMS)
+    assert note.startswith("Porte sur des pistes non écoutées : 日本語 (AAC 5.1), English (AAC 5.1).")
+    assert "La piste écoutée est en stéréo" in note
+    # La piste écoutée est elle-même en 5.1 : la raison de Plex est littérale, pas de note.
+    assert playback_activity._decision_note(CHANNELS_TEXT, 6, FLIBUSTIERS_STREAMS) is None
+    assert playback_activity._decision_note(CHANNELS_TEXT, None, FLIBUSTIERS_STREAMS) is None
+    assert playback_activity._decision_note("Direct play is disabled.", 2, FLIBUSTIERS_STREAMS) is None
+    assert playback_activity._decision_note(CHANNELS_TEXT, 2, FLIBUSTIERS_STREAMS[:1]) is None
+
+
+@pytest.mark.asyncio
+async def test_enrichment_adds_the_unselected_track_note(async_db):
+    now = datetime(2026, 9, 26, 22, 52)
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    row = PlaybackSession(
+        source="plex",
+        source_session_id="s9",
+        title="Les flibustiers",
+        rating_key="5192",
+        playback_method="direct_stream",
+        audio_channels=2,
+        transcode_reason="Sous-titres ASS → WebVTT (vidéo et audio copiés)",
+        started_at=datetime(2026, 9, 26, 22, 50),
+        last_seen_at=now,
+    )
+    async_db.add(row)
+    async_db.commit()
+    with (
+        patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
+        patch.object(playback_activity, "now_utc_naive", return_value=now),
+        patch.object(
+            playback_activity.plex_decision_logs,
+            "fetch_decisions",
+            new=AsyncMock(return_value=(parse_decisions(LOG), datetime(2026, 9, 26, 20))),
+        ),
+        patch.object(playback_activity, "media_streams", new=AsyncMock(return_value=FLIBUSTIERS_STREAMS)),
+        patch.object(playback_activity, "publish", new=AsyncMock()),
+    ):
+        await playback_activity.enrich_decisions_from_plex_logs(force=True)
+    reason = playback_activity._serialize(row)["transcode_reason"]
+    assert reason["text"].endswith("6 > 2.")
+    assert reason["note"].startswith("Porte sur des pistes non écoutées")
+
+
+@pytest.mark.asyncio
+async def test_media_streams_reads_audio_and_subtitle_tracks_once():
+    import httpx
+
+    xml = (
+        "<MediaContainer><Video><Media><Part>"
+        + "".join(
+            f'<Stream id="{s["id"]}" streamType="{s["streamType"]}" codec="{s["codec"]}"/>' for s in FLIBUSTIERS_STREAMS
+        )
+        + '<Stream id="1" streamType="1" codec="hevc"/></Part></Media></Video></MediaContainer>'
+    )
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        return httpx.Response(200, text=xml)
+
+    real_client = httpx.AsyncClient
+    with (
+        patch.object(
+            playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=httpx.MockTransport(handler))
+        ),
+        patch.dict(playback_activity._STREAMS_CACHE, clear=True),
+    ):
+        first = await playback_activity.media_streams("http://plex.local/", "t", True, "5198")
+        again = await playback_activity.media_streams("http://plex.local/", "t", True, "5198")
+    assert [s["id"] for s in first] == ["11", "12", "13", "21"]  # la vidéo n'est pas gardée
+    assert again is first
+    assert calls == ["/library/metadata/5198"]
+
+
+@pytest.mark.asyncio
+async def test_collection_resolves_subtitle_source_from_media_sheet(async_db):
+    import httpx
+
+    async_db.add(Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"))
+    async_db.commit()
+    real_client = httpx.AsyncClient
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, text=FLIBUSTIERS_SESSION))
+    with (
+        patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
+        patch.object(playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)),
+        patch.object(playback_activity, "media_streams", new=AsyncMock(return_value=FLIBUSTIERS_STREAMS)),
+        patch.object(playback_activity, "lookup_ip_locations", new=AsyncMock(return_value={})),
+        patch.object(playback_activity, "lookup_ip_location", new=AsyncMock(return_value={})),
+        patch.object(playback_activity, "publish", new=AsyncMock()),
+    ):
+        await playback_activity._collect_plex_activity_unlocked()
+    stored = async_db.query(PlaybackSession).filter_by(rating_key="5198").one()
+    assert stored.transcode_reason == "Sous-titres ASS → WebVTT (vidéo et audio copiés)"
+    assert stored.audio_channels == 2
+
+    # Fiche du média injoignable : la collecte continue avec la déduction de base.
+    async_db.query(PlaybackSession).delete()
+    async_db.commit()
+    with (
+        patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
+        patch.object(playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)),
+        patch.object(playback_activity, "media_streams", new=AsyncMock(side_effect=httpx.ConnectError("down"))),
+        patch.object(playback_activity, "lookup_ip_locations", new=AsyncMock(return_value={})),
+        patch.object(playback_activity, "lookup_ip_location", new=AsyncMock(return_value={})),
+        patch.object(playback_activity, "publish", new=AsyncMock()),
+    ):
+        await playback_activity._collect_plex_activity_unlocked()
+    fallback = async_db.query(PlaybackSession).filter_by(rating_key="5198").one()
+    assert fallback.transcode_reason == "Sous-titres WebVTT convertis (vidéo et audio copiés)"

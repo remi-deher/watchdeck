@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 import time
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -739,7 +740,9 @@ def _codec(value: str | None) -> str:
     return _CODEC_LABELS.get(str(value or "").lower(), str(value or "?").upper())
 
 
-def _deduce_transcode_reason(transcode_attrs: dict, video_stream, subtitle_stream) -> str | None:
+def _deduce_transcode_reason(
+    transcode_attrs: dict, video_stream, subtitle_stream, subtitle_source: str | None = None
+) -> str | None:
     """Ce qui est converti, lu dans le `TranscodeSession` : une deduction, pas la raison de Plex.
 
     Plex ne dit pas *pourquoi* il convertit dans /status/sessions, seulement *quoi* :
@@ -769,8 +772,16 @@ def _deduce_transcode_reason(transcode_attrs: dict, video_stream, subtitle_strea
         else:
             parts.append("Audio réencodé")
     if subtitles in {"transcode", "burn"}:
-        codec = _codec(subtitle_stream.get("codec")) if subtitle_stream is not None else "?"
-        parts.append(f"Sous-titres {codec} incrustés" if subtitles == "burn" else f"Sous-titres {codec} convertis")
+        # Le flux de la session décrit la *sortie* (WebVTT pour un Chromecast) : le format
+        # d'origine vient de la fiche du média, quand on a pu la lire.
+        target = subtitle_stream.get("codec") if subtitle_stream is not None else None
+        source = subtitle_source or target
+        if subtitles == "burn":
+            parts.append(f"Sous-titres {_codec(source)} incrustés")
+        elif source and target and str(source).lower() != str(target).lower():
+            parts.append(f"Sous-titres {_codec(source)} → {_codec(target)}")
+        else:
+            parts.append(f"Sous-titres {_codec(source)} convertis")
         if video != "transcode" and audio != "transcode":
             parts[-1] += " (vidéo et audio copiés)"
     return " · ".join(parts) or None
@@ -788,7 +799,10 @@ def _transcode_hw(transcode_attrs: dict) -> str | None:
     return None
 
 
-def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
+def parse_plex_sessions(
+    xml: str, *, anonymize_ips: bool = True, stream_sources: dict[str, str] | None = None
+) -> list[dict]:
+    """Sessions en cours. `stream_sources` : codec d'origine par id de flux (fiche du média)."""
     root = ElementTree.fromstring(xml)
     sessions: list[dict] = []
     for media in root:
@@ -888,7 +902,17 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
                 # Clé du transcodeur : c'est le `session=` de la requête de décision dans
                 # les journaux de Plex, qui départage deux lectures du même média.
                 "transcode_session": (transcode_attrs.get("key") or "").rsplit("/", 1)[-1] or None,
-                "transcode_reason": _deduce_transcode_reason(transcode_attrs, video_stream, subtitle_stream),
+                "transcode_reason": _deduce_transcode_reason(
+                    transcode_attrs,
+                    video_stream,
+                    subtitle_stream,
+                    (stream_sources or {}).get(subtitle_stream.get("id") or "")
+                    if subtitle_stream is not None
+                    else None,
+                ),
+                # Canaux de la piste réellement écoutée : Plex motive parfois un refus par
+                # une *autre* piste du fichier (« 6 > 2 » pour une VO 5.1 non sélectionnée).
+                "audio_channels": _int(audio_stream.get("channels")) if audio_stream is not None else None,
                 "transcode_hw": _transcode_hw(transcode_attrs),
                 "progress_ms": _int(media.get("viewOffset"), 0),
                 "duration_ms": _int(media.get("duration")),
@@ -1152,6 +1176,24 @@ async def _collect_plex_activity_unlocked() -> dict:
             response = await client.get(f"{settings.plex_url.rstrip('/')}/status/sessions", headers=headers)
             response.raise_for_status()
         snapshots = parse_plex_sessions(response.text, anonymize_ips=settings.activity_anonymize_ips)
+        subtitled = {
+            snapshot["rating_key"]
+            for snapshot in snapshots
+            if snapshot.get("rating_key") and "Sous-titres" in (snapshot.get("transcode_reason") or "")
+        }
+        if subtitled:
+            try:
+                sources: dict[str, str] = {}
+                for rating_key in subtitled:
+                    streams = await media_streams(
+                        settings.plex_url, settings.plex_token, settings.plex_verify_ssl, rating_key
+                    )
+                    sources.update({stream["id"]: stream.get("codec") for stream in streams if stream.get("id")})
+                snapshots = parse_plex_sessions(
+                    response.text, anonymize_ips=settings.activity_anonymize_ips, stream_sources=sources
+                )
+            except Exception as exc:  # la déduction reste valable, seulement moins précise
+                logger.debug("Fiche média Plex illisible : %s", exc)
         # Plex peut exposer deux nœuds pour une même lecture (notamment pendant une
         # transition de lecteur/transcodage). Sans déduplication, la boucle ajoutait
         # deux objets ORM portant la même clé unique avant le premier flush.
@@ -1279,6 +1321,72 @@ async def collect_plex_activity() -> dict:
     return result
 
 
+_STREAMS_CACHE: dict[str, list[dict]] = {}
+_STREAMS_CACHE_SIZE = 256
+
+
+async def media_streams(base_url: str, token: str, verify: bool, rating_key: str) -> list[dict]:
+    """Pistes audio et sous-titres d'un média (fiche Plex), mises en cache.
+
+    Les pistes d'un fichier ne changent pas en cours de lecture : une lecture par média
+    suffit, alors que la collecte tourne toutes les quelques secondes.
+    """
+    if rating_key in _STREAMS_CACHE:
+        return _STREAMS_CACHE[rating_key]
+    async with httpx.AsyncClient(timeout=10, verify=verify) as client:
+        response = await client.get(
+            f"{base_url.rstrip('/')}/library/metadata/{rating_key}",
+            headers={"X-Plex-Token": token, "Accept": "application/xml"},
+        )
+        response.raise_for_status()
+    streams = [
+        dict(stream.attrib)
+        for stream in ElementTree.fromstring(response.text).iter("Stream")
+        if stream.get("streamType") in {"2", "3"}
+    ]
+    if len(_STREAMS_CACHE) >= _STREAMS_CACHE_SIZE:
+        _STREAMS_CACHE.pop(next(iter(_STREAMS_CACHE)))
+    _STREAMS_CACHE[rating_key] = streams
+    return streams
+
+
+_CHANNEL_LIMIT = re.compile(r"audio\.channels limitation applies: (\d+) > (\d+)")
+_CHANNEL_LABELS = {1: "mono", 2: "stéréo", 6: "5.1", 8: "7.1"}
+
+
+def _channels(value) -> str:
+    count = _int(value)
+    return _CHANNEL_LABELS.get(count, f"{count} canaux") if count else "?"
+
+
+def _decision_note(text: str, listened_channels: int | None, streams: list[dict]) -> str | None:
+    """Précise la raison de Plex quand elle porte sur une piste que personne n'écoute.
+
+    Plex n'autorise la lecture directe que si l'appareil lit le fichier *entier* : une VO
+    5.1 non sélectionnée suffit à la refuser à un Chromecast stéréo, alors que la piste
+    écoutée, elle, est compatible. Sans ce contexte, « 6 > 2 » passe pour une erreur.
+    """
+    match = _CHANNEL_LIMIT.search(text or "")
+    if not match or listened_channels is None:
+        return None
+    limit = int(match.group(2))
+    if listened_channels > limit:
+        return None
+    culprits = [
+        f"{stream.get('language') or stream.get('title') or 'piste'}"
+        f" ({_codec(stream.get('codec'))} {_channels(stream.get('channels'))})"
+        for stream in streams
+        if stream.get("streamType") == "2" and (_int(stream.get("channels")) or 0) > limit
+    ]
+    if not culprits:
+        return None
+    return (
+        f"Porte sur des pistes non écoutées : {', '.join(culprits)}. "
+        f"La piste écoutée est en {_channels(listened_channels)}, compatible : "
+        "c'est la présence de ces pistes dans le fichier qui empêche la lecture directe."
+    )
+
+
 # Les journaux de débogage tournent en quelques heures : au-delà, rien à y retrouver.
 _DECISION_LOOKBACK = timedelta(hours=12)
 # Le zip des journaux pèse plusieurs Mo : une lecture par minute au plus, et une toutes
@@ -1341,9 +1449,18 @@ async def enrich_decisions_from_plex_logs(*, force: bool = False) -> dict:
             code, text = decision.reason if decision else (None, None)
             if not text:
                 continue
+            note = None
+            if _CHANNEL_LIMIT.search(text) and row.rating_key:
+                try:
+                    streams = await media_streams(
+                        settings.plex_url, settings.plex_token, settings.plex_verify_ssl, row.rating_key
+                    )
+                    note = _decision_note(text, row.audio_channels, streams)
+                except Exception as exc:
+                    logger.debug("Fiche média Plex illisible : %s", exc)
             row.plex_decision_code = code
             row.plex_decision_text = text
-            row.plex_decision_details = decision.details_json()
+            row.plex_decision_details = decision.details_json(note=note)
             matched += 1
         if matched:
             await db.commit()

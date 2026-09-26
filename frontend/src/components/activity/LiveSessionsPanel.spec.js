@@ -120,6 +120,12 @@ describe('LiveSessionsPanel — bande passante, réseau et transcodage', () => {
     expect(render([session({ transcode_reason: null })]).find('.live-reason').exists()).toBe(false);
   });
 
+  it('met la précision sur les pistes non écoutées dans l’infobulle', () => {
+    const note = 'Porte sur des pistes non écoutées : English (AAC 5.1).';
+    const wrapper = render([session({ transcode_reason: { source: 'plex', text: '6 > 2.', code: 3000, note } })]);
+    expect(wrapper.get('.live-reason p').attributes('title')).toContain(note);
+  });
+
   it('résume la charge du serveur en en-tête', () => {
     const texte = render([
       session({ session_id: 'a', bandwidth_kbps: 8000 }),
