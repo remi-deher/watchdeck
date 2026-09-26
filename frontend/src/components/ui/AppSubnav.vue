@@ -181,8 +181,13 @@ watch(
   --subnav-fade-left: 0px;
   --subnav-fade-right: 0px;
   position: relative;
+  /* Centree partout, a la largeur de ses onglets : meme axe que la recherche, qu'elle
+     soit dans la rangee collante, dans une fiche ou dans une fenetre. `margin-inline:
+     auto` centre aussi bien dans un bloc que dans une colonne flex. */
+  width: fit-content;
   min-width: 0;
   max-width: 100%;
+  margin-inline: auto;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

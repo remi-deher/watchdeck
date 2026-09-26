@@ -11,10 +11,6 @@
   </div>
 
   <section v-else class="upgrade-list">
-    <p v-if="waitingTruncated > 0" class="waiting-truncated">
-      {{ waitingTruncated }} autre(s) média(s) VO ne sont pas affichés ici : la liste est bornée
-      pour rester rapide. Ils restent pris en charge par les cycles de recherche automatiques.
-    </p>
     <article v-for="group in groups" :key="group.key" class="upgrade-card" :class="{ 'is-selected': selectedKeys.has(group.key) }">
       <div class="poster-col">
         <label class="upgrade-select" :title="selectedKeys.has(group.key) ? 'Retirer de la sélection' : 'Sélectionner pour un scan groupé'">
@@ -184,6 +180,15 @@
 
     <p v-if="!loading && !groups.length" class="empty">
       Aucune amélioration VF ne correspond à vos critères de recherche.
+    </p>
+    <!-- En fin de liste : c'est une precision sur ce qu'on vient de parcourir. En tete,
+         ce paragraphe pleine largeur se lisait comme un texte egare avant le contenu. -->
+    <p
+      v-if="waitingTruncated > 0"
+      class="waiting-truncated"
+      title="La liste est bornée pour rester rapide. Ces médias restent pris en charge par les cycles de recherche automatiques."
+    >
+      + {{ waitingTruncated }} média{{ waitingTruncated > 1 ? 's' : '' }} VO suivi{{ waitingTruncated > 1 ? 's' : '' }} automatiquement, non affiché{{ waitingTruncated > 1 ? 's' : '' }}
     </p>
   </section>
 </template>
@@ -463,9 +468,10 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
 }
 
 .waiting-truncated {
-  margin: 0 0 var(--space-3);
-  font-size: 0.85rem;
+  margin: var(--space-2) 0 0;
   color: var(--text-muted);
+  font-size: var(--fs-xs);
+  text-align: center;
 }
 
 /* Les variantes compactes descendent a 30-32px : acceptable a la souris, sous le
