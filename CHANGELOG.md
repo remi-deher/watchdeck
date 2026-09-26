@@ -1,11 +1,54 @@
 # Changelog
 
+## 1.49.0 — 2026-09-26
+
+
+### test
+
+- verrouiller le budget de couleurs hero ([be6b574](https://github.com/remi-deher/watchdeck/commit/be6b574353b25cea926d4167bdea886d9d995426))
+- cliquet sur les seuils de media queries en pixels ([6f8eb0c](https://github.com/remi-deher/watchdeck/commit/6f8eb0cc027f5edfa5929e0a3bdd624ff6885e40))
+- couvrir le regroupement de la file *arr par media ([d41ad19](https://github.com/remi-deher/watchdeck/commit/d41ad1964193652d915f60064a2c56cd53dc6470))
+
+### ♻️ Refactoring
+
+- centraliser les en-tetes de panneau ([d4bfcd4](https://github.com/remi-deher/watchdeck/commit/d4bfcd49ca162dc1d0cc649bb350c0e6c60475a1))
+- etendre les filtres en pastilles ([898329c](https://github.com/remi-deher/watchdeck/commit/898329c2a12522c8a2d562edca8294e3292e121c))
+- harmoniser onglets bascules et filtres ([975cb69](https://github.com/remi-deher/watchdeck/commit/975cb69f1e774c7a493c70000f1e99dfe4ec8a59))
+- normaliser typographie et cascade ([dc094ec](https://github.com/remi-deher/watchdeck/commit/dc094ec6773d869e07cb6ddca6c0fb3e0874419c))
+- migrer historique des scans vers UiDataTable ([5911749](https://github.com/remi-deher/watchdeck/commit/59117494672bdb1ea2cd1f5d6e0f337e6debe517))
+- reutiliser cartes et panneaux telechargements ([f3d9ce9](https://github.com/remi-deher/watchdeck/commit/f3d9ce9a740d0fd899bc1a69716cd46ddd14559d))
+- ajouter le fond hero partage ([5314c35](https://github.com/remi-deher/watchdeck/commit/5314c353140d430c0e7629ce12328aa34f359922))
+- migrer le hero media vers le fond partage ([318ed8a](https://github.com/remi-deher/watchdeck/commit/318ed8ab83719bbec351b4d51dde5dd394770347))
+- migrer la banniere media vers le fond partage ([7834ed9](https://github.com/remi-deher/watchdeck/commit/7834ed9eeba5eb288c263ef5b951b2c5ba7e3398))
+- convertir les media queries equivalentes en mixins bp.* ([9dfee13](https://github.com/remi-deher/watchdeck/commit/9dfee13e0df4a907914c5ede5f885fa0323fd9ad))
+- aligner les seuils a un pixel pres sur les mixins bp.* ([a34592a](https://github.com/remi-deher/watchdeck/commit/a34592aa29a807efb6664be913642f51fbcb44ed))
+- ramener les seuils 760/761, 641, 420 et 768-1024 sur les mixins bp.* ([bede541](https://github.com/remi-deher/watchdeck/commit/bede5412425b2e839b3f7c1c677cf71d4cb1209f))
+- ramener les seuils 600/620, 700/720 et 800 sur phablet et tablet ([5d1907c](https://github.com/remi-deher/watchdeck/commit/5d1907c6b93b49a2273f68b1ce459ce040177732))
+- passer les derniers seuils locaux en container queries etalonnees ([eda363c](https://github.com/remi-deher/watchdeck/commit/eda363cdc9531b1319a113b623fe9e68ecbf05ef))
+
+### ✨ Nouveautés
+
+- Bibliotheque avant Explorer et Calendrier dans le rail et le dock ([39dc961](https://github.com/remi-deher/watchdeck/commit/39dc961c481ef6b515f2c19d141cc9d42137ac1c))
+
+### 🎨 Style
+
+- formater les services arr selon ruff ([363d51c](https://github.com/remi-deher/watchdeck/commit/363d51c8b9c7fab4a09d980cb7ef1a177b339cf7))
+
+### 🐛 Corrections
+
+- classify completed Radarr imports correctly ([d13236a](https://github.com/remi-deher/watchdeck/commit/d13236ab28ef5fb3af5ca89df6b33e4f5a6bddf2))
+- corriger le typage vue-tsc des controles segmentes et du clic de ligne ([fff8091](https://github.com/remi-deher/watchdeck/commit/fff80914577f473de208cdcae630050a64ac4524))
+- regressions E2E du lot d'harmonisation ([314d929](https://github.com/remi-deher/watchdeck/commit/314d92939f9045715b7a93b5bdef57e2b29504c1))
 ## 1.48.0 — 2026-09-26
 
 
 ### ✨ Nouveautés
 
 - onglets centres par defaut, Ameliorations VF en rangee collante et filtres compacts ([c72b96c](https://github.com/remi-deher/watchdeck/commit/c72b96c28a2a60dca0a4919e77b2c238c55e28c9))
+
+### 🔧 Maintenance
+
+- v1.48.0 (#481) ([ec0f857](https://github.com/remi-deher/watchdeck/commit/ec0f8575ce351debe8d46f75e632e899d44a414c))
 ## 1.47.1 — 2026-09-26
 
 
