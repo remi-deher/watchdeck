@@ -319,14 +319,14 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .calendar-agenda { display: flex; flex-direction: column; gap: var(--space-5); width: 100%; }
 
 .calendar-day {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: var(--space-3) !important;
-  width: 100% !important;
-  padding-bottom: var(--space-4) !important;
-  border-bottom: 1px solid var(--border) !important;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
 }
-.calendar-day:last-child { border-bottom: 0 !important; }
+.calendar-day:last-child { border-bottom: 0; }
 
 .calendar-day-header { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; }
 .calendar-day-header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 700; color: var(--text); line-height: 1.25; text-transform: capitalize; }
@@ -507,7 +507,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .plex-action-btn,
 .plex-action-btn *,
 .plex-action-btn span {
-  color: #000000 !important;
+  color: var(--on-accent);
 }
 
 .plex-action-btn {
@@ -516,7 +516,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   gap: 6px;
   padding: 6px 14px;
   border-radius: var(--radius-sm);
-  background: var(--accent) !important;
+  background: var(--accent);
   font-size: var(--fs-xs);
   font-weight: 700;
   border: 0;
@@ -526,20 +526,20 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   transition: transform var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .plex-action-btn:hover {
-  background: #f5b01d !important;
+  background: color-mix(in srgb, var(--accent) 88%, white);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.plex-action-btn svg { width: 14px; height: 14px; fill: #000000 !important; color: #000000 !important; }
+.plex-action-btn svg { width: 14px; height: 14px; fill: currentColor; color: currentColor; }
 
 .status-badge.available {
   padding: 4px 10px;
   border-radius: var(--radius-pill);
   font-size: var(--fs-xs);
   font-weight: 700;
-  background: #15803d !important;
-  color: #ffffff !important;
-  opacity: 1 !important;
+  background: var(--green);
+  color: var(--on-accent);
+  opacity: 1;
 }
 
 /* Adaptations Responsives Mobile */

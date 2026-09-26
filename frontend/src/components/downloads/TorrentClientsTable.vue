@@ -387,7 +387,7 @@ function handleContextMenuAction(actionType: string): void {
 @media (max-width: 640px){.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
 
 .torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}
-.torrent-status-bar{display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);font-size:12px;font-weight:600}
+.torrent-status-bar{display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);font-size:var(--fs-xs);font-weight:600}
 .torrent-status-bar span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .torrent-status-bar .stale-state{color: var(--amber-text)}
 
@@ -418,9 +418,9 @@ function handleContextMenuAction(actionType: string): void {
 .stale-cache-banner p{margin:2px 0 0;font-size:var(--fs-xs);color:var(--muted)}
 
 @media(min-width:761px){
-  .torrent-title{font-size:14px}
-  .torrent-name small{color:var(--accent);font-size:12px;font-weight:600}
-  .action-trigger-btn,.bulk-toolbar button{font-size:13px}
+  .torrent-title{font-size:var(--fs-sm)}
+  .torrent-name small{color:var(--accent);font-size:var(--fs-xs);font-weight:600}
+  .action-trigger-btn,.bulk-toolbar button{font-size:var(--fs-sm)}
 }
 @media(max-width:760px){
   .torrent-manager{min-width:0}

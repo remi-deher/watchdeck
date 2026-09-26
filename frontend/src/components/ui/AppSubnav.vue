@@ -275,7 +275,7 @@ watch(
 }
 @media (min-width: 768px) {
   /* A la hauteur du champ de recherche (46px) : 36 + 2x4 de coussin + 2x1 de bord. */
-  .app-subnav__item { min-height: 36px; font-size: 15px; }
+  .app-subnav__item { min-height: 36px; font-size: var(--fs-md); }
   .app-subnav .app-subnav__item svg { width: 16px; height: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {

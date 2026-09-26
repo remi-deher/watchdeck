@@ -382,10 +382,10 @@ const releaseDates = computed(() => {
   line-height: 1.25;
   text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
 }
-.music-badge {
-  border-color: #a855f7 !important;
-  background: #7e22ce !important;
-  color: #fff !important;
+.mdh-badges > .music-badge {
+  border-color: var(--violet-text);
+  background: var(--violet);
+  color: var(--text);
 }
 .mdh-badges > .badge.available {
   border-color: var(--green);

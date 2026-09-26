@@ -141,7 +141,7 @@ function interceptFirstTap(e: MouseEvent): void {
   position: relative;
   width: 100%;
   height: 100%;
-  padding: 0 !important;
+  padding: 0;
   border-radius: inherit;
   overflow: hidden;
 }
@@ -199,7 +199,7 @@ function interceptFirstTap(e: MouseEvent): void {
 .poster-wrap:hover :deep(.poster-overlay),
 .poster-wrap:focus-within :deep(.poster-overlay),
 .poster-wrap.revealed :deep(.poster-overlay) { opacity: 1; pointer-events: auto; }
-.poster-wrap :deep(.poster-copy) { display: grid; gap: var(--space-1); width: 100%; min-width: 0; padding: 0 !important; }
+.poster-wrap :deep(.poster-copy) { display: grid; gap: var(--space-1); width: 100%; min-width: 0; padding: 0; }
 .poster-wrap :deep(.poster-copy > strong) {
   display: -webkit-box;
   overflow: hidden;
@@ -212,9 +212,9 @@ function interceptFirstTap(e: MouseEvent): void {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.poster-wrap :deep(.poster-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding: 0 !important; }
+.poster-wrap :deep(.poster-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding: 0; }
 .poster-wrap :deep(.poster-meta > span) { color: rgba(255, 255, 255, .82); font-size: var(--fs-xs); font-weight: 650; }
-.poster-wrap :deep(.poster-rating) { display: inline-flex !important; align-items: center; gap: var(--space-1); }
+.poster-wrap :deep(.poster-rating) { display: inline-flex; align-items: center; gap: var(--space-1); }
 .poster-wrap :deep(.poster-rating svg) { width: 12px; height: 12px; color: var(--amber-text); fill: currentColor; }
 .poster-wrap :deep(.poster-action) {
   position: absolute;
@@ -246,7 +246,7 @@ function interceptFirstTap(e: MouseEvent): void {
 .poster-wrap :deep(.poster-action.nav-action) {
   border: 1px solid color-mix(in srgb, var(--text) 60%, transparent);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
-  color: var(--text) !important;
+  color: var(--text);
 }
 @media (max-width: 767.98px) {
   .poster-card:hover,

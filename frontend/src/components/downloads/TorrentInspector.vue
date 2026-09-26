@@ -187,6 +187,6 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 .drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}
 .drawer-actions button{display:inline-flex;align-items:center;gap:6px}
 .drawer-actions svg{width:14px;height:14px}
-@media(min-width:761px){.detail-grid dt,.detail-list dt{color:var(--accent);font-size:12px}}
+@media(min-width:761px){.detail-grid dt,.detail-list dt{color:var(--accent);font-size:var(--fs-xs)}}
 @media(max-width:380px){.detail-grid{grid-template-columns:1fr}}
 </style>

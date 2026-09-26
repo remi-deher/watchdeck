@@ -14,5 +14,5 @@ defineProps<{ torrent: any }>();
 .state-badge.complete{background:color-mix(in srgb,var(--success) 14%,transparent);color: var(--green-text)}
 .state-badge.paused{background:color-mix(in srgb,var(--warning) 14%,transparent);color: var(--amber-text)}
 .state-badge.error{background:color-mix(in srgb,var(--danger) 14%,transparent);color: var(--red-text)}
-@media(min-width:761px){.state-badge{font-size:13px}}
+@media(min-width:761px){.state-badge{font-size:var(--fs-sm)}}
 </style>

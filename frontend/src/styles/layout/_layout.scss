@@ -269,7 +269,7 @@
   border-radius: var(--radius-pill);
   background: var(--surface-2);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   cursor: pointer;
   transition: border-color var(--motion-duration-instant), background var(--motion-duration-instant), color var(--motion-duration-instant);
   text-align: left;
