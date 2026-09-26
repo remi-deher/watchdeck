@@ -133,6 +133,14 @@ function interceptFirstTap(e: MouseEvent): void {
   z-index: 5;
 }
 
+/* `.media-card div:last-child` (_views.scss) donne 10px de marge a toute derniere div
+   d'une carte, affiche comprise : elle debordait alors de 20px autour de l'image. Le
+   `!important` qui l'en protegeait est remplace par un selecteur plus specifique
+   (0,3,0 contre 0,2,1). */
+.poster-card .poster-wrap {
+  padding: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .poster-card.animated {
     animation: none;
@@ -142,7 +150,6 @@ function interceptFirstTap(e: MouseEvent): void {
   position: relative;
   width: 100%;
   height: 100%;
-  padding: 0;
   border-radius: inherit;
   overflow: hidden;
 }

@@ -60,10 +60,13 @@
           <td :colspan="table.getVisibleLeafColumns().length + (selectable ? 1 : 0)"><slot name="empty">Aucun élément.</slot></td>
         </tr>
         <template v-for="(row, index) in visibleRows" :key="row.id">
+          <!-- Une ligne cliquable reste une ligne : `role="button"` effacait la structure du
+               tableau pour les lecteurs d'ecran, et faisait d'une ligne qui contient deja
+               des boutons (titre, case) un bouton dans un bouton. Le focus et Entree
+               suffisent a l'activer au clavier. -->
           <tr
             :class="[rowClass?.(row.original), { 'is-selected': row.getIsSelected(), 'is-clickable': clickable }]"
             :tabindex="clickable ? 0 : undefined"
-            :role="clickable ? 'button' : undefined"
             :aria-expanded="rowExpanded?.(row.original)"
             @click="$emit('row-click', row.original, Number(index), $event)"
             @keydown.enter="$emit('row-click', row.original, Number(index), $event)"
