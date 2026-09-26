@@ -4,6 +4,9 @@ WORKDIR /frontend
 
 COPY package.json package-lock.json vite.config.ts tsconfig.json tsconfig.node.json index.html ./
 COPY frontend/ frontend/
+# Manifeste, service worker et icones : Vite les copie depuis `public/`. Sans lui, l'image
+# servait une application sans PWA ni favicon (404 sur /sw.js, /manifest.webmanifest...).
+COPY public/ public/
 RUN npm ci && npm run build
 
 # ---

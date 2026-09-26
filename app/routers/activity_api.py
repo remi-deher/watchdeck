@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +30,7 @@ from ..services.playback_activity import (
 )
 from ..services.tracearr import TracearrError, import_tracearr_history, test_tracearr
 from ..utils import now_utc_naive
+from .image_proxy_api import image_proxy
 
 router = APIRouter(prefix="/api/playback", tags=["activity"], dependencies=[Depends(require_admin)])
 
@@ -103,28 +104,18 @@ async def get_activity_history(
 
 
 @router.get("/thumb")
-async def playback_thumb(path: str, settings: Settings = Depends(get_settings_or_404)):
-    """Sert une vignette Plex sans exposer le token Plex dans l'URL du navigateur."""
+async def playback_thumb(request: Request, path: str, settings: Settings = Depends(get_settings_or_404)):
+    """Sert une vignette Plex sans exposer le token Plex dans l'URL du navigateur.
+
+    Passe par le proxy d'images commun : cache disque, chemin `/thumb/<ts>` perime
+    rattrape, et 404 (non 502) pour une vignette absente de Plex -- media supprime depuis
+    la lecture, ou bande-annonce dont Plex n'a jamais genere la vignette."""
     if not path.startswith("/library/metadata/") or "://" in path or ".." in path:
         raise HTTPException(400, "Chemin de vignette Plex invalide.")
     if not settings.plex_url or not settings.plex_token:
         raise HTTPException(404, "Plex n'est pas configuré.")
-    try:
-        async with httpx.AsyncClient(timeout=15, verify=settings.plex_verify_ssl, follow_redirects=False) as client:
-            response = await client.get(
-                f"{settings.plex_url.rstrip('/')}{path}",
-                headers={"X-Plex-Token": settings.plex_token},
-            )
-            response.raise_for_status()
-    except Exception as exc:
-        raise HTTPException(502, f"Vignette Plex inaccessible : {exc}") from exc
-    content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
-    if not content_type.startswith("image/"):
-        raise HTTPException(415, "La ressource Plex n'est pas une image.")
-    return Response(
-        content=response.content,
-        media_type=content_type,
-        headers={"Cache-Control": "private, max-age=86400"},
+    return await image_proxy(
+        request=request, url=None, plex_path=path, width=None, height=None, quality=82, image_format="original"
     )
 
 

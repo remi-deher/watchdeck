@@ -194,7 +194,10 @@ watch(
   min-width: 0;
   max-width: 100%;
 }
-ul.app-subnav__scroller {
+/* La liste des liens est rendue a l'interieur de `NavigationMenuList` : elle ne porte
+   pas l'attribut de portee du composant, d'ou `:deep()` sur toutes les regles de la
+   rangee (sans quoi les liens s'empilaient a la verticale). */
+:deep(ul.app-subnav__scroller) {
   margin: 0;
   list-style: none;
 }
@@ -202,7 +205,7 @@ ul.app-subnav__scroller {
   display: flex;
   flex: none;
 }
-.app-subnav__scroller {
+:deep(.app-subnav__scroller) {
   display: flex;
   gap: 2px;
   min-width: 0;
@@ -216,7 +219,7 @@ ul.app-subnav__scroller {
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
 }
-.app-subnav__scroller::-webkit-scrollbar { display: none; }
+:deep(.app-subnav__scroller)::-webkit-scrollbar { display: none; }
 
 .app-subnav__item {
   display: flex;

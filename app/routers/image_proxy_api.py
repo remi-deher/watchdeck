@@ -160,6 +160,21 @@ def _transform_image(
 
 _CACHE_HEADERS = {"Cache-Control": "private, max-age=86400, stale-while-revalidate=604800"}
 
+# Images absentes a la source (media supprime de Plex, bande-annonce sans vignette) : retenues
+# une heure, pour ne pas interroger Plex a chaque affichage d'un historique qui les cite.
+_MISSING_TTL = 3600
+_missing: dict[str, float] = {}
+
+
+def _is_missing(url: str) -> bool:
+    expiry = _missing.get(url)
+    if expiry is None:
+        return False
+    if expiry < time.monotonic():
+        _missing.pop(url, None)
+        return False
+    return True
+
 
 def _variant_etag(variant_key: str, cached_at: float) -> str:
     """ETag derive de l'identite de la variante et de sa date de mise en cache.
@@ -257,6 +272,8 @@ async def image_proxy(
     response = await _serve_if_cached()
     if response is not None:
         return response
+    if _is_missing(safe_url):
+        raise HTTPException(404, "Image introuvable a la source")
 
     # Une seule récupération/transformation à la fois par variante, même lors du rendu
     # simultané de plusieurs cartes qui utilisent la même affiche.
@@ -296,6 +313,11 @@ async def image_proxy(
                         fresh = await _current_plex_image_path(client, plex_base, parsed.path, upstream_headers)
                         if fresh:
                             upstream = await client.get(f"{plex_base}{fresh}", headers=upstream_headers)
+                    if upstream.status_code == 404 and not source:
+                        # Absente a la source, et jamais vue : ce n'est pas une panne (502)
+                        # mais une image qui n'existe pas. Le client affiche son repli.
+                        _missing[safe_url] = time.monotonic() + _MISSING_TTL
+                        raise HTTPException(404, "Image introuvable a la source")
                     upstream.raise_for_status()
                 content_type = (
                     upstream.headers.get("content-type", "application/octet-stream").split(";")[0].strip().lower()

@@ -50,7 +50,13 @@ describe('RequestTrackingCard', () => {
     const approbation = carte({ tracking: { kind: 'approval', label: 'x', since: ilYA(0.1) } }, { canModerate: true });
     expect(approbation.findAll('.rt-actions button').map((b) => b.text())).toEqual(['Approuver', 'Refuser…']);
 
-    const vf = carte({ tracking: null, vf_missing: true }, { canModerate: true });
+    const vf = carte({
+      tracking: null, vf_missing: true, episodes_total_count: 12, episodes_available_count: 12,
+      lifecycle: [{ key: 'requested', label: 'Demandée', done: true }],
+    }, { canModerate: true });
+    // Deja disponible : ni barre d'episodes ni fil de vie, tout y serait coche.
+    expect(vf.find('.rt-episodes').exists()).toBe(false);
+    expect(vf.find('.rt-life').exists()).toBe(false);
     expect(vf.find('.rt-motif').text()).toBe('Disponible en VO · VF recherchée');
     expect(vf.findAll('.rt-actions button').map((b) => b.text())).toEqual(['Chercher une VF']);
   });
