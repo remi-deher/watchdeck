@@ -52,8 +52,10 @@ def _snapshot_calls() -> dict[str, Callable]:
         "recently_available": lambda db: metrics_api.stats_recently_available(db, limit=5),
         "recent_requests": lambda db: metrics_api.stats_recent_requests(db, limit=10),
         "upcoming": lambda db: calendar_api.upcoming_releases(db=db, limit=8),
+        # Appel direct, sans FastAPI : chaque parametre declare en `Query(...)` doit etre
+        # passe explicitement, sinon il arrive comme objet Query (« KeyError: Query(date) »).
         "notifications": lambda db: notifications_api.list_notification_logs(
-            pagination=PaginationParams(offset=0, limit=5), db=db
+            pagination=PaginationParams(offset=0, limit=5), sort="date", direction="desc", db=db
         ),
     }
 

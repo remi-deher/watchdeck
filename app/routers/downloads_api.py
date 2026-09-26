@@ -127,6 +127,10 @@ async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
                     "download_speed": 0 if is_stale else (torrent.get("dlspeed") or 0),
                     "upload_speed": 0 if is_stale else (torrent.get("upspeed") or 0),
                     "ratio": torrent.get("ratio") or 0,
+                    # Quantites cumulees recues et envoyees : le ratio seul ne dit pas si
+                    # l'on a partage 10 Mo ou 10 Go.
+                    "downloaded": torrent.get("downloaded") or 0,
+                    "uploaded": torrent.get("uploaded") or 0,
                     "eta": torrent.get("eta") or 0,
                     "category": torrent.get("category") or "",
                     "tags": torrent.get("tags") or "",
