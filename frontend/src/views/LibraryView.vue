@@ -594,9 +594,15 @@ function toggleSelect(id: any): void {
   selectedIds.value = selectedIds.value.includes(id) ? selectedIds.value.filter(x => x !== id) : [...selectedIds.value, id];
 }
 
+/* Surveille l'adresse, pas l'objet `route.query`. Posee derriere une fiche, la page lit
+   la route de fond (RouteScope), puis la route courante a la fermeture : deux objets
+   differents pour la meme adresse. Chacun relancait ce watcher, qui reassignait les
+   filtres et rechargeait la grille -- la page se rafraichissait et remontait en haut a
+   chaque ouverture et fermeture de fiche. */
 watch(
-  () => route.query,
-  (value: any) => {
+  () => route.fullPath,
+  () => {
+    const value: any = route.query;
     const returningToHub = value.hub === '1';
     query.value = value.query || '';
     statusFilters.value = value.status
@@ -619,7 +625,6 @@ watch(
     }
     load();
   },
-  { deep: true },
 );
 // `vf` fait partie de la liste depuis que le filtre est applique en SQL : tant qu'il ne
 // servait qu'au filtrage client, le changer suffisait a recalculer `filtered` sans
