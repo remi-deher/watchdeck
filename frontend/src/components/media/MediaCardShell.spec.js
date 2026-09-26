@@ -28,6 +28,22 @@ describe('MediaCardShell', () => {
     expect(second.defaultPrevented, 'le second appui ouvre la fiche').toBe(false);
   });
 
+  it('ouvre au second appui meme si le navigateur a supprime le clic du premier', async () => {
+    // Chromium (et Safari) annulent le clic quand le survol simule change la page :
+    // le premier appui ne revele alors la carte que par le focus.
+    const wrapper = mount(MediaCardShell, { slots: { default: '<div class="cible">affiche</div>' } });
+    const wrap = wrapper.find('.poster-wrap');
+    const down = new Event('pointerdown', { bubbles: true });
+    Object.defineProperty(down, 'pointerType', { value: 'touch' });
+    wrap.element.dispatchEvent(down);
+    wrap.element.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    await wrapper.vm.$nextTick();
+    expect(wrap.classes()).toContain('revealed');
+
+    const second = tap(wrap);
+    expect(second.defaultPrevented, 'le second appui ouvre la fiche').toBe(false);
+  });
+
   it('laisse le clic ouvrir directement a la souris', () => {
     const wrapper = mount(MediaCardShell, { slots: { default: '<div class="cible">affiche</div>' } });
     const wrap = wrapper.find('.poster-wrap');

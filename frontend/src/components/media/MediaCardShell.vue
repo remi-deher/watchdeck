@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { useCardReveal } from '@/composables/useCardReveal';
 
 const props = withDefaults(
@@ -70,18 +70,20 @@ function onRevealEnd(event: AnimationEvent): void {
  * l'utilisateur vers la fiche avant que l'action ait pu se montrer. Depuis le parent,
  * la capture precede toujours le lien.
  */
-/* Au doigt, Safari simule un survol (`mouseenter`) juste avant le clic : la carte etait
-   donc deja revelee quand le clic arrivait, et il ouvrait la fiche au premier appui.
-   Le double appui ne tenait qu'a une heuristique d'iOS (annuler le clic quand le survol
-   change la page), qu'il a cesse d'appliquer. On retient donc le type du dernier
-   pointeur -- `pointerdown` precede toujours ces evenements simules -- et seul un appui
-   qui a lui-meme revele la carte laisse passer le suivant. */
+/* Au doigt, les navigateurs simulent un survol et un focus avant le clic, et ceux-ci
+   revelent deja la carte : un test « revelee ? » au moment du clic ouvrait donc la fiche
+   au premier appui (Safari). A l'inverse, quand ce survol change la page, Safari comme
+   Chromium peuvent *supprimer* le clic du premier appui : un drapeau pose par ce clic
+   manquait alors, et le second appui n'etait qu'un nouveau premier appui (la fiche ne
+   s'ouvrait jamais). La seule chose fiable est l'etat de la carte au `pointerdown`,
+   qui precede tous ces evenements simules : deja revelee avant l'appui, la carte
+   s'ouvre ; sinon l'appui ne fait que la reveler. */
 const lastPointer = ref<string>('');
-const revealedByTap = ref(false);
-watch(revealed, (value) => { if (!value) revealedByTap.value = false; });
+const revealedBeforePress = ref<boolean | null>(null);
 
 function notePointer(e: PointerEvent): void {
   lastPointer.value = e.pointerType || '';
+  revealedBeforePress.value = revealed.value;
 }
 
 function revealOnHover(): void {
@@ -90,6 +92,8 @@ function revealOnHover(): void {
 }
 
 function interceptFirstTap(e: MouseEvent): void {
+  const wasRevealed = revealedBeforePress.value;
+  revealedBeforePress.value = null;
   // Le type du pointeur qui a appuye fait foi : une souris ouvre au premier clic, meme
   // sur un appareil tactile. Faute de pointerdown (clic clavier, appel programme), on
   // retombe sur la nature de l'ecran.
@@ -98,11 +102,11 @@ function interceptFirstTap(e: MouseEvent): void {
     : Boolean(window.matchMedia?.('(pointer: coarse)').matches);
   // A la souris, le survol a deja revele la carte : le clic ouvre, comme avant.
   if (!tactile) return;
-  if (revealed.value && revealedByTap.value) return;
+  // Sans pointerdown (clavier), le focus a revele la carte : Entree l'ouvre.
+  if (wasRevealed ?? revealed.value) return;
   e.preventDefault();
   e.stopPropagation();
   reveal();
-  revealedByTap.value = true;
 }
 </script>
 
