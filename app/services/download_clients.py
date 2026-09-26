@@ -584,6 +584,8 @@ async def list_transmission_torrents(url: str, username: Optional[str], password
         "rateDownload",
         "rateUpload",
         "uploadRatio",
+        "downloadedEver",
+        "uploadedEver",
         "eta",
         "labels",
         "downloadDir",
@@ -619,6 +621,9 @@ async def list_transmission_torrents(url: str, username: Optional[str], password
                 "dlspeed": torrent.get("rateDownload") or 0,
                 "upspeed": torrent.get("rateUpload") or 0,
                 "ratio": torrent.get("uploadRatio") or 0,
+                # Memes cles que qBittorrent (`downloaded` / `uploaded`), en octets cumules.
+                "downloaded": torrent.get("downloadedEver") or 0,
+                "uploaded": torrent.get("uploadedEver") or 0,
                 "eta": torrent.get("eta") or 0,
                 "category": "",
                 "tags": ", ".join(torrent.get("labels") or []),

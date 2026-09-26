@@ -5,8 +5,15 @@
     <AppSubnav :items="tabs" :active="tab" variant="tabs" aria-label="Sections du torrent" @update:active="changeTab" />
 
     <template v-if="tab==='general'">
+      <!-- En tete : l'etat, puis ce qui a ete recu, rendu et le rapport des deux. Le ratio
+           seul ne disait pas si l'on avait partage 10 Mo ou 10 Go. -->
       <section class="torrent-detail-summary">
         <TorrentStateBadge :torrent="torrent" />
+        <dl class="torrent-summary-stats">
+          <div><dt>Téléchargé</dt><dd>{{ torrent.downloaded != null ? formatBytes(torrent.downloaded) : '—' }}</dd></div>
+          <div><dt>Partagé</dt><dd>{{ torrent.uploaded != null ? formatBytes(torrent.uploaded) : '—' }}</dd></div>
+          <div><dt>Ratio</dt><dd>{{ Number(torrent.ratio||0).toFixed(2) }}</dd></div>
+        </dl>
       </section>
       <section class="drawer-section">
         <h3>Transfert</h3>
@@ -15,7 +22,6 @@
           <div><dt>Taille</dt><dd>{{ formatBytes(torrent.size) }}</dd></div>
           <div><dt>Réception</dt><dd>{{ formatSpeed(torrent.download_speed) }}</dd></div>
           <div><dt>Envoi</dt><dd>{{ formatSpeed(torrent.upload_speed) }}</dd></div>
-          <div><dt>Ratio</dt><dd>{{ Number(torrent.ratio||0).toFixed(2) }}</dd></div>
           <div><dt>Temps restant</dt><dd>{{ formatEta(torrent.eta) }}</dd></div>
         </dl>
       </section>
@@ -122,11 +128,15 @@ const files = ref<any[]>([]);
 const trackers = ref<any[]>([]);
 const peers = ref<any[]>([]);
 const loading = ref(false);
+/* Les listes sont lues a la demande : avant, leurs onglets affichaient « 0 » alors que
+   rien n'avait encore ete demande au client. Le compte n'apparait qu'une fois connu. */
+const loaded = ref(new Set<string>());
+const countOf = (name: string, list: any[]) => (loaded.value.has(name) ? list.length : null);
 const tabs = computed(() => [
   { key: 'general', label: 'Général', icon: Info },
-  { key: 'files', label: 'Fichiers', icon: FileText, count: files.value.length },
-  { key: 'trackers', label: 'Trackers', icon: Radio, count: trackers.value.length },
-  { key: 'peers', label: 'Peers', icon: Users, count: peers.value.length },
+  { key: 'files', label: 'Fichiers', icon: FileText, count: countOf('files', files.value) },
+  { key: 'trackers', label: 'Trackers', icon: Radio, count: countOf('trackers', trackers.value) },
+  { key: 'peers', label: 'Peers', icon: Users, count: countOf('peers', peers.value) },
 ]);
 
 function changeTab(name: string): void {
@@ -140,6 +150,7 @@ watch(() => `${props.torrent.client_id}:${props.torrent.hash}`, () => {
   files.value = [];
   trackers.value = [];
   peers.value = [];
+  loaded.value = new Set();
 });
 
 async function selectTab(name: string): Promise<void> {
@@ -150,6 +161,7 @@ async function selectTab(name: string): Promise<void> {
     if (name === 'files') files.value = await api(`${base}/files`);
     else if (name === 'trackers') trackers.value = await api(`${base}/trackers`);
     else if (name === 'peers') peers.value = await api(`${base}/peers`);
+    loaded.value = new Set([...loaded.value, name]);
   } catch (e: any) {
     emit('error', e.message);
   } finally {
@@ -173,7 +185,11 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 .torrent-inspector{display:grid;gap:var(--space-4)}
-.torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}
+.torrent-detail-summary{display:grid;justify-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);text-align:center}
+.torrent-summary-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2);width:100%;max-width:420px;margin:0}
+.torrent-summary-stats>div{display:grid;gap:2px;min-width:0}
+.torrent-summary-stats dt{color:var(--muted);font-size:var(--fs-xs)}
+.torrent-summary-stats dd{margin:0;overflow:hidden;color:var(--text);font-size:var(--fs-lg);font-weight:700;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}
 .drawer-section h3{margin:0 0 12px}
 .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}
 .detail-list{display:grid;gap:var(--space-2);margin:0}
