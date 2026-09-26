@@ -1,13 +1,15 @@
 <template>
   <ModalShell :open="open" title="Ajouter un torrent" subtitle="Envoyer un torrent ou un lien Magnet vers un client configuré." @close="emit('close')">
-    <div class="add-torrent-tabs" role="tablist" aria-label="Source du torrent">
-      <button class="tab-btn" :class="{ active: mode === 'url' }" type="button" role="tab" :aria-selected="mode === 'url'" @click="mode = 'url'">
-        <Link /> Lien Magnet / URL
-      </button>
-      <button class="tab-btn" :class="{ active: mode === 'file' }" type="button" role="tab" :aria-selected="mode === 'file'" @click="mode = 'file'">
-        <Upload /> Fichier .torrent
-      </button>
-    </div>
+    <!-- Deux sources, deux panneaux : le pattern Tabs d'AppSubnav (Reka UI) remplace les
+         boutons `role="tab"` poses a la main, qui n'avaient ni fleches ni tabindex mobile. -->
+    <AppSubnav
+      class="add-torrent-tabs"
+      variant="tabs"
+      :items="SOURCE_TABS"
+      :active="mode"
+      aria-label="Source du torrent"
+      @update:active="mode = $event"
+    />
 
     <form class="add-torrent-form" @submit.prevent="submit">
       <div v-if="clients.length > 1" class="form-group">
@@ -87,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import AppSubnav, { type SubnavItem } from '@/components/ui/AppSubnav.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, reactive, ref, watch } from 'vue';
@@ -112,6 +115,10 @@ const emit = defineEmits<{
   (e: 'added'): void;
 }>();
 
+const SOURCE_TABS: SubnavItem[] = [
+  { key: 'url', label: 'Lien Magnet / URL', icon: Link },
+  { key: 'file', label: 'Fichier .torrent', icon: Upload },
+];
 const mode = ref('url');
 const selectedClientId = ref<string | number | null>(null);
 const torrentUrl = ref('');
@@ -300,51 +307,7 @@ async function submit(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
-.add-torrent-tabs {
-  display: flex;
-  gap: 6px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 10px;
-  margin-bottom: 14px;
-  max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-.add-torrent-tabs::-webkit-scrollbar { display: none; }
-.tab-btn {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
-}
-@media (max-width: 640px) {
-  .tab-btn { min-height: 44px; }
-}
-.tab-btn:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-.tab-btn.active {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  font-weight: 700;
-}
-.tab-btn svg {
-  width: 14px;
-  height: 14px;
-}
+.add-torrent-tabs { margin-bottom: var(--space-3); }
 .add-torrent-form {
   display: flex;
   flex-direction: column;

@@ -1,4 +1,5 @@
 import type { Router } from 'vue-router';
+import { retourNatif } from './useRetourNatif';
 
 /**
  * Passage d'une destination a l'autre : un fondu court a l'arrivee, rien d'autre.
@@ -31,7 +32,8 @@ export function installerSortieDePage(router: Router): void {
     const quitteSurface = depuisSurface;
     depuisSurface = surfaceIci;
 
-    if (failure || mouvementReduit()) return;
+    // Safari a deja fait glisser l'ecran (geste de bord) : pas de fondu par-dessus.
+    if (failure || mouvementReduit() || retourNatif.value) return;
     // Rien a faire au premier affichage : il n'y a pas d'ecran a quitter.
     if (!from.name && !from.matched.length) return;
     // Une meme page qui republie son adresse -- un filtre, une section -- n'est pas un

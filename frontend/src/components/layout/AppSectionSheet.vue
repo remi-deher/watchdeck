@@ -4,10 +4,8 @@
     <DialogOverlay class="app-sheet__scrim" />
     <DialogContent class="app-sheet app-section-sheet" :aria-describedby="undefined" @interact-outside="laisserAuDock">
       <!-- Les liens ne referment pas la feuille eux-memes : c'est le shell qui la ferme
-           une fois la route changee. Emettre `close` au clic la demontait avant que le
-           routeur n'ait pousse son entree d'historique, et le `history.back()` par
-           lequel `useBackButtonClose` reprend la sienne annulait alors la navigation --
-           l'URL revenait a la section d'avant pendant que la page, elle, avait change.
+           une fois la route changee : la feuille reste visible jusqu'a ce que la section
+           d'arrivee soit la.
 
            La poignee tient lieu d'en-tete : la feuille n'a qu'une liste, et lui donner
            la barre de titre complete de la navigation aurait coute 60px a un panneau

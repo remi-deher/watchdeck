@@ -35,11 +35,8 @@
              dans le rail : c'est le même modèle, jamais un sous-ensemble arbitraire.
 
              Les liens ne la referment pas eux-mêmes : c'est le shell qui s'en charge
-             une fois la route changée. Fermer au clic la démontait avant que le routeur
-             n'ait poussé son entrée d'historique, et le `history.back()` par lequel
-             `useBackButtonClose` reprend la sienne annulait la navigation -- la page changeait
-             mais l'URL restait celle d'avant, si bien qu'un rechargement ou un partage
-             du lien ramenait ailleurs. -->
+             une fois la route changée : la feuille reste visible jusqu'à ce que la page
+             d'arrivée soit là, au lieu de disparaître sur un écran encore inchangé. -->
         <section v-for="group in groups" :key="group.label" class="app-sheet__group">
           <p class="app-sheet__group-label">{{ group.label }}</p>
           <RouterLink

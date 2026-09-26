@@ -10,7 +10,18 @@
       :filters-open="filtersOpen"
       @search="handleSearchInput"
       @toggle-filters="toggleFilters">
-    
+
+    <!-- Accueil, Films et Series : trois vues de la meme page, en onglets a toutes les
+         largeurs (elles etaient des sous-entrees du rail). Absents des Demandes, qui
+         partagent cette vue, et d'une page de diffuseur ou de studio. -->
+    <AppSubnav
+      v-if="mode !== 'requests' && !isSourceMode"
+      class="page-type-tabs"
+      :items="EXPLORER_TABS"
+      :active="explorerTabFor(route.path)"
+      aria-label="Vues d’Explorer"
+    />
+
     <div class="psh-layout">
       <FilterSidebar v-if="mode !== 'requests'" :open="filtersOpen" :active-count="activeFilterCount" :match-count="filteredCount" @close="closeFilters" @reset="resetFilters">
         <FilterGroup v-if="!isSourceMode" label="Section">
@@ -419,6 +430,8 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import RequestOptionsModal from '@/components/media/RequestOptionsModal.vue';
 import MyRequestsPanel from '@/components/discover/MyRequestsPanel.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
+import { EXPLORER_TABS, explorerTabFor } from '@/navigation';
 import { useDebounceFn } from '@vueuse/core';
 import { mediaRequestKey, useDirectMediaRequest } from '@/composables/useDirectMediaRequest';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/vue-query';
@@ -643,6 +656,10 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
     sortBy: 'popularity.desc',
   },
   {
+    memoriser: 'decouvrir',
+    // Section et source sont de la navigation, pas des filtres a retenir.
+    champsMemorises: ['genre', 'availability', 'sortBy'],
+    parametresAdresse: { sortBy: 'sort' },
     activeCountFn: () => [
       !fixedMediaType.value && mediaType.value !== 'all',
       !isSourceMode.value && section.value !== 'trending',

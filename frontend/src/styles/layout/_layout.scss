@@ -325,3 +325,10 @@
   letter-spacing: 0.5px;
 }
 
+
+/* Onglets de vue en tete de page (Explorer, Bibliotheque) : ils defilent avec la page,
+   sans rester colles -- sur telephone, une rangee fixe de plus s'ajouterait a la barre
+   et au dock. */
+.page-type-tabs {
+  margin-bottom: var(--space-4);
+}

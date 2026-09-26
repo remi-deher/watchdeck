@@ -102,7 +102,7 @@ import { api } from '@/api';
 import { mediaDetailPath } from '@/mediaUrl';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
-import { destinationsFor, sectionsFor } from '@/navigation';
+import { destinationsFor, EXPLORER_TABS, LIBRARY_TYPE_TABS, sectionsFor } from '@/navigation';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 import { settingsSections } from '@/settingsSections';
 import { rankCommands } from '@/utils/commandScore';
@@ -247,6 +247,17 @@ const commands = computed<Command[]>(() => {
     }
   }
 
+  // Les onglets d'Explorer et de la Bibliotheque ne sont plus des sections : on les
+  // ajoute a part pour que « films » ou « musique » y menent toujours.
+  for (const tab of EXPLORER_TABS) {
+    items.push({ id: `tab-explorer-${tab.key}`, label: tab.label, group: 'Explorer', to: tab.to!, icon: tab.icon });
+  }
+  if (props.canModerate) {
+    for (const tab of LIBRARY_TYPE_TABS) {
+      items.push({ id: `tab-library-${tab.key}`, label: tab.label, group: 'Bibliothèque', to: tab.to!, icon: tab.icon });
+    }
+  }
+
   // Le theme se change d'ici sans quitter la page (« theme », « clair », « sombre »).
   for (const option of THEME_OPTIONS) {
     items.push({
@@ -316,11 +327,7 @@ async function activate(item?: Command): Promise<void> {
     close();
     return;
   }
-  // Naviguer AVANT de fermer, et attendre que la navigation soit reellement commitee :
-  // useBackButtonClose consomme son entree d'historique par un history.back() a la fermeture,
-  // qui annulerait la navigation si celle-ci n'etait pas encore inscrite. Une fois la
-  // route poussee, l'entree courante ne porte plus le jeton de la modale et ce back()
-  // est correctement ignore.
+  // Naviguer AVANT de fermer : la palette reste affichee jusqu'a l'arrivee de la page.
   // Une fiche media passe par ouvrirFiche, comme partout ailleurs : elle se pose en
   // feuille au-dessus de la page d'ou l'on a ouvert la palette.
   if (item.media) await ouvrirFiche(router, item.to, route.fullPath);

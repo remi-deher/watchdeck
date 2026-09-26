@@ -28,7 +28,7 @@ from ..models import (
 )
 from ..pagination import PaginationParams, paginated_response, pagination_params
 from ..scheduler import check_arr_statuses, poll_watchlists
-from ..services import arr_orphans, deleted_media, email_service, radarr, sonarr
+from ..services import arr_orphans, deleted_media, email_service, radarr, request_tracking, sonarr
 from ..services.notification_orchestrator import _get_recipients, _notify, _resolve_requester_users, notify_single_user
 from ..services.notification_policy import is_pseudo_requester
 from ..services.request_lifecycle import transition_request
@@ -420,7 +420,17 @@ async def list_requests_compact(
                 MediaRequest.arr_id,
                 MediaRequest.episodes_available_count,
                 MediaRequest.episodes_aired_count,
+                MediaRequest.episodes_total_count,
                 MediaRequest.requested_at,
+                MediaRequest.fulfillment_status,
+                MediaRequest.fulfillment_updated_at,
+                MediaRequest.fulfillment_error,
+                MediaRequest.next_release_at,
+                MediaRequest.next_release_label,
+                MediaRequest.arr_processed_at,
+                MediaRequest.torrent_completed_at,
+                MediaRequest.available_at,
+                MediaRequest.vf_tracking_disabled,
             )
             .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
             .filter(*filters)
@@ -456,9 +466,27 @@ async def list_requests_compact(
         )
     ).all()
 
+    # Suivi de la page Demandes : motif d'attente, progression, fil de vie. La file de
+    # telechargement n'est lue que si une demande est encore en cours, depuis le cache
+    # commun ; indisponible, les cartes gardent leur motif sans pourcentage.
+    now = now_utc_naive()
+    queue_index: dict[int, dict] = {}
+    if any((row.status.value if hasattr(row.status, "value") else row.status) != "available" for row in rows):
+        try:
+            from .arr_queue_api import cached_download_queue
+
+            queue_index = request_tracking.queue_by_request(await cached_download_queue(db))
+        except Exception as exc:  # file illisible : le suivi reste utile sans elle
+            logger.debug("File de telechargement indisponible pour le suivi des demandes: %s", exc)
+
     return paginated_response(
         items=[
             {
+                "tracking": request_tracking.tracking_state(row, now, queue_index.get(row.id)),
+                "lifecycle": request_tracking.lifecycle(row),
+                "vf_missing": request_tracking.vf_missing(row),
+                "episodes_total_count": row.episodes_total_count,
+                "fulfillment_error": row.fulfillment_error,
                 "id": row.id,
                 "title": row.title,
                 "year": row.year,

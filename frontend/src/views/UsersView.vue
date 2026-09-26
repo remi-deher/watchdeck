@@ -92,7 +92,8 @@ const { dialog: confirmDialog, resolveConfirm, runConfirmed } = useConfirmedActi
 
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFilters } = useFiltersDrawer(
   { query, status, role, attention, source },
-  { query: '', status: '', role: '', attention: '', source: '' }
+  { query: '', status: '', role: '', attention: '', source: '' },
+  { memoriser: 'utilisateurs' }
 );
 
 
