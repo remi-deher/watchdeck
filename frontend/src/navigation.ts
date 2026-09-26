@@ -69,7 +69,7 @@ export interface NavSection {
  * destinations restent atteignables en entier depuis la feuille de navigation, qui
  * n'en cache aucune.
  */
-export const DOCK_DESTINATION_KEYS = ['dashboard', 'discover', 'requests', 'library'];
+export const DOCK_DESTINATION_KEYS = ['dashboard', 'library', 'discover', 'requests'];
 
 /** Une destination de premier niveau, présente dans le rail comme dans le dock. */
 export interface NavDestination {
@@ -97,13 +97,15 @@ export interface NavContext {
 
 export const DESTINATIONS: NavDestination[] = [
   { key: 'dashboard', label: 'Accueil', icon: Gauge, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/dashboard') || p.startsWith('/issues'), to: '/dashboard' },
+  // Groupe Explorer : la bibliotheque d'abord (ce qu'on possede), puis ce qu'on peut
+  // decouvrir, puis ce qui sort.
+  { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
   { key: 'discover', label: 'Explorer', icon: Compass, group: 'Explorer', match: (p) => p.startsWith('/discover') && !p.startsWith('/discover/requests'), to: '/discover' },
   // Le calendrier suit les sorties : un outil de suivi, pas une facon de parcourir le
   // catalogue. Il etait une section d'Explorer ; il devient une destination.
   { key: 'calendar', label: 'Calendrier', icon: CalendarDays, group: 'Explorer', match: (p) => p.startsWith('/calendar'), to: '/calendar' },
   { key: 'requests', label: 'Demandes', icon: Inbox, group: 'Workflow', match: (p) => p.startsWith('/discover/requests') || p.startsWith('/releases/'), to: '/discover/requests' },
   { key: 'downloads', label: 'Acquisition', icon: GitBranch, group: 'Workflow', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
-  { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
   // Lectures Plex et analyse du catalogue sont deux espaces distincts, pas deux
   // sections d'un meme : les regrouper obligeait chaque page a empiler sa propre
   // rangee d'onglets sous celle de la destination.
