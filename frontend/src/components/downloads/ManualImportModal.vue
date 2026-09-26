@@ -423,7 +423,7 @@ onMounted(() => {
 
 .action-hint { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }
 
-@media (width <= 520px) {
+@container panel (max-width: 488px) {
   .field-row { grid-template-columns: 1fr; }
 }
 </style>

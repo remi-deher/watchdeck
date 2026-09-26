@@ -244,7 +244,12 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
   animation: none;
 }
 
+/* Conteneur de requetes : les composants de la page s'adaptent a la largeur du
+   contenu, pas a celle de la fenetre. Les deux divergent des 1200px, ou le menu passe
+   de 72 a 232px : le contenu y est plus etroit qu'a 1150px, et un seuil de fenetre
+   remettait la disposition large pile quand la place diminuait. */
 .app-page {
+  container: page / inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);

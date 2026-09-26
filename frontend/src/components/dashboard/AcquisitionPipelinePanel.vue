@@ -131,6 +131,7 @@ withDefaults(
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .pipeline-wrapper {
   display: grid;
   grid-template-columns: 1fr 220px;
@@ -349,13 +350,13 @@ withDefaults(
   color: var(--muted);
 }
 
-@media (max-width: 1024px) {
+@include bp.until(desktop) {
   .pipeline-wrapper {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .pipeline-flow {
     flex-direction: column;
     align-items: stretch;

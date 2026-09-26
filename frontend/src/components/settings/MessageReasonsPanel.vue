@@ -111,6 +111,7 @@ async function remove(reason: Reason): Promise<void> {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .reason-group { margin-top: var(--space-5); }
 .reason-group:first-of-type { margin-top: var(--space-2); }
 .reason-group__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -125,7 +126,7 @@ async function remove(reason: Reason): Promise<void> {
 .reason-card__toggle { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .reason-card textarea { resize: vertical; }
 
-@media (max-width: 620px) {
+@include bp.until(phablet) {
   .reason-card__row { grid-template-columns: minmax(0, 1fr) auto; }
 }
 </style>

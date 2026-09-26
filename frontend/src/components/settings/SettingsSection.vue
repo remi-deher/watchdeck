@@ -60,6 +60,7 @@ const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : p
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .settings-section + .settings-section {
   margin-top: var(--space-5, 28px);
 }
@@ -135,7 +136,7 @@ const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : p
   transform: rotate(180deg);
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .settings-section-head {
     flex-wrap: wrap;
   }

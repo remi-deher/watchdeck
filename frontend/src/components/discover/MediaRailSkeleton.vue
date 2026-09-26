@@ -18,6 +18,7 @@ withDefaults(
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-rail-skeleton {
   display: grid;
   grid-auto-columns: clamp(180px, 20vw, 245px);
@@ -35,6 +36,6 @@ withDefaults(
 }
 .skeleton-poster { aspect-ratio: 2 / 3; }
 @keyframes discover-shimmer { to { background-position-x: -220%; } }
-@media (max-width: 640px) { .media-rail-skeleton { grid-auto-columns: minmax(165px, 48vw); } }
+@include bp.until(phablet) { .media-rail-skeleton { grid-auto-columns: minmax(165px, 48vw); } }
 @media (prefers-reduced-motion: reduce) { .skeleton-poster { animation: none; } }
 </style>

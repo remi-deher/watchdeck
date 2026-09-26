@@ -15,6 +15,7 @@
       :season-summary="seasonSummary"
       :busy="busy"
       :available="isInPlex"
+      :variant="enSurface ? 'sheet' : 'card'"
       @back="goBack"
       @report-issue="showIssueForm = !showIssueForm"
       @scan="scanVff"
@@ -200,6 +201,7 @@ import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api";
 import { mediaDetailPath, openPlexLink } from "@/mediaUrl";
 import MediaDetailHero from "@/components/media/MediaDetailHero.vue";
+import { useMediaOverlay } from '@/composables/useMediaOverlay';
 import { apercuRecent } from "@/composables/useFicheApercu";
 import MediaSummaryTab from "@/components/media/MediaSummaryTab.vue";
 import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
@@ -224,6 +226,7 @@ import { patchedAll } from '@/composables/useRealtimeQuery';
 
 const route = useRoute();
 const router = useRouter();
+const { actif: enSurface } = useMediaOverlay();
 const queryClient = useQueryClient();
 const kind = computed(() => String(route.params.kind || ''));
 const mediaId = computed(() => String(route.params.id || ''));
@@ -616,6 +619,7 @@ watch([requesters, sessionUserId], ([rows, userId]) => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-detail-page {
   min-height: 100%;
   overflow-x: hidden;
@@ -636,14 +640,14 @@ watch([requesters, sessionUserId], ([rows, userId]) => {
   padding: 80px 0;
   color: var(--muted);
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .media-detail-body {
     padding-right: 16px;
     padding-bottom: calc(var(--app-shell-offset-bottom) + 76px);
     padding-left: 16px;
   }
 }
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .media-detail-body { font-size: var(--fs-md); gap: var(--space-5); }
   .media-detail-body :deep(.drawer-section > h2),
   .media-detail-body :deep(.drawer-section > h3) { font-size: var(--fs-lg); }

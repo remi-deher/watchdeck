@@ -547,6 +547,7 @@ async function confirmAlign(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .align-streams-modal {
   max-width: 620px;
   width: 95vw;
@@ -601,7 +602,7 @@ async function confirmAlign(): Promise<void> {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 
-  @media (max-width: 600px) {
+  @include bp.until(phablet) {
     grid-template-columns: 1fr;
   }
 }
@@ -923,7 +924,7 @@ async function confirmAlign(): Promise<void> {
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 600px) {
+@include bp.until(phablet) {
   .diff-cols {
     grid-template-columns: 1fr;
     gap: 8px;

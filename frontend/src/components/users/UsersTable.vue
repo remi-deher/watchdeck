@@ -186,7 +186,7 @@ defineExpose({ selectedIds, clearSelection: clear });
   border-radius: 50%;
   background: var(--surface-2, var(--surface));
   color: var(--muted);
-  font-size: .72rem;
+  font-size: var(--fs-xs);
   font-weight: 700;
 
   img { width: 100%; height: 100%; object-fit: cover; }

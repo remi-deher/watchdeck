@@ -139,7 +139,7 @@ def _patch_session_arr(db):
         patch("app.services.arr_tracker.AsyncSessionLocal", return_value=db),
         patch("app.services.arr_tracker.get_all_movies", new=AsyncMock(return_value=[])),
         patch("app.services.arr_tracker.get_all_series", new=AsyncMock(return_value=[])),
-        patch("app.services.arr_tracker.fetch_queue_entity_ids", new=AsyncMock(return_value=set())),
+        patch("app.services.arr_tracker.fetch_queue_by_entity", new=AsyncMock(return_value={})),
         patch("app.services.arr_tracker.movie_exists", new=AsyncMock(return_value=True)),
         patch("app.services.arr_tracker.series_exists", new=AsyncMock(return_value=True)),
         patch("app.services.arr_tracker._refresh_next_release", new=AsyncMock()),
@@ -651,6 +651,36 @@ async def test_check_arr_movie_not_yet_available(db):
     req = db.query(MediaRequest).first()
     assert req.status == RequestStatus.sent_to_arr
     mock_enqueue.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_check_arr_completed_radarr_download_waiting_for_manual_import_is_not_downloading(db):
+    """Une ligne Radarr importPending a 100 % est un import bloque, pas un download actif."""
+    db.add(_settings())
+    db.add(_sent_request(is_downloading=True, fulfillment_status="downloading"))
+    db.commit()
+
+    completed = {
+        "arr_media_id": 42,
+        "status": "completed",
+        "tracked_state": "importPending",
+        "tracked_status": "warning",
+        "progress": 100.0,
+        "size": 1000,
+        "sizeleft": 0,
+        "error": "Found matching movie via grab history, but release was matched to movie by ID. Manual Import required",
+    }
+    with (
+        _patch_session_arr(db),
+        patch("app.services.arr_tracker.fetch_queue_by_entity", new=AsyncMock(return_value={42: [completed]})),
+        patch("app.services.arr_tracker.is_movie_available", new=AsyncMock(return_value=(False, 42, None))),
+        _patch_enqueue(),
+    ):
+        await check_arr_statuses()
+
+    req = db.query(MediaRequest).first()
+    assert getattr(req.fulfillment_status, "value", req.fulfillment_status) == "importing"
+    assert req.is_downloading is False
 
 
 @pytest.mark.asyncio

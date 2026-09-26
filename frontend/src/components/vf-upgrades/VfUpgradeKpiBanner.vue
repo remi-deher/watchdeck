@@ -5,25 +5,22 @@
        Un vrai `button` apporte l'activation au clavier et `aria-pressed` dit lequel
        filtre la liste. La legende detaillee passe dans `title`. -->
   <section class="kpi-banner" :aria-label="audit ? 'Filtres de l’audit' : 'Filtres des opportunités'">
-    <button
-      v-for="card in cards"
-      :key="card.filter"
-      type="button"
-      class="kpi-chip"
-      :class="[card.tone, { active: activeFilter === card.filter, 'is-empty': !card.value }]"
-      :aria-pressed="activeFilter === card.filter"
-      :title="card.description"
-      @click="emit('select', card.filter)"
-    >
-      <component :is="card.icon" :size="15" aria-hidden="true" />
-      <span class="kpi-label">{{ card.label }}</span>
-      <strong class="kpi-count">{{ card.value }}</strong>
-    </button>
+    <UiChipGroup
+      :model-value="activeFilter"
+      :options="options"
+      :label="audit ? 'Filtres de l’audit' : 'Filtres des opportunités'"
+      reselectable
+      align="center"
+      scroll
+      item-class="filter-badge vf-kpi-filter"
+      @update:model-value="emit('select', $event)"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, type Component } from 'vue';
+import UiChipGroup, { type UiChipOption } from '@/components/ui/UiChipGroup.vue';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -85,80 +82,30 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
   { filter: 'history', label: 'Historique', value: props.historyCount, description: 'VF validées ou rejetées', tone: 'kpi-ok', icon: CheckCircle2 },
   { filter: 'ignored', label: 'Ignorées', value: props.ignoredCount, description: 'Séries/films exclus du scan', tone: 'kpi-muted', icon: EyeOff },
 ]);
+const toneMap: Record<string, UiChipOption['tone']> = {
+  'kpi-accent': 'accent',
+  'kpi-danger': 'danger',
+  'kpi-warning': 'warning',
+  'kpi-info': 'info',
+  'kpi-ok': 'ok',
+};
+const options = computed(() => cards.value.map((card) => ({
+  value: card.filter,
+  label: card.label,
+  count: card.value,
+  icon: card.icon,
+  tone: toneMap[card.tone],
+  title: card.description,
+})));
 </script>
 
 <style scoped lang="scss">
 .kpi-banner {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
+  min-width: 0;
 }
-
-.kpi-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  padding: 0 6px 0 12px;
-  border: 1px solid var(--border);
+.kpi-banner :deep(.vf-kpi-filter) {
+  width: auto;
+  justify-content: flex-start;
   border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: 650;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard);
-}
-.kpi-chip svg { flex: none; }
-.kpi-chip:hover { border-color: var(--border-strong); color: var(--text); }
-.kpi-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-.kpi-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 7px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: var(--fs-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Ce qui demande une action se signale des qu'il y a quelque chose a faire ; a zero,
-   la pastille rentre dans le rang. */
-.kpi-accent:not(.is-empty) { color: var(--text); }
-.kpi-accent:not(.is-empty) svg { color: var(--accent); }
-.kpi-accent:not(.is-empty) .kpi-count { background: var(--accent); color: var(--on-accent); }
-.kpi-danger:not(.is-empty) svg { color: var(--red-text); }
-.kpi-danger:not(.is-empty) .kpi-count { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red-text); }
-.kpi-warning:not(.is-empty) svg { color: var(--amber-text); }
-.kpi-info:not(.is-empty) svg { color: var(--blue-text); }
-.kpi-ok:not(.is-empty) svg { color: var(--green-text); }
-.kpi-chip.is-empty .kpi-count { color: var(--muted); }
-
-/* Le filtre actif : meme pastille teintee que l'onglet actif, pour qu'on lise « c'est
-   ce qui est affiche » et non un deuxieme niveau d'onglets. */
-.kpi-chip.active {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
-  color: var(--text);
-}
-
-/* Sur telephone, une seule ligne qui defile plutot que trois rangees de pastilles. */
-@media (max-width: 767.98px) {
-  .kpi-banner {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    scrollbar-width: none;
-    overscroll-behavior-x: contain;
-  }
-  .kpi-banner::-webkit-scrollbar { display: none; }
-  .kpi-chip { flex: none; }
 }
 </style>
