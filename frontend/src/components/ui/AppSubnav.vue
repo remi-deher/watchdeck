@@ -1,5 +1,5 @@
 <template>
-  <div class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing }">
+  <div ref="racine" class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing }">
     <!-- Deux variantes, un seul composant, parce que le besoin est le même et que la
          différence est purement sémantique :
          · `links`  → chaque entrée change d'URL. C'est une navigation : `<nav>` +
@@ -7,27 +7,40 @@
            onglet APG ne navigue pas, il révèle un panneau déjà présent.
          · `tabs`   → chaque entrée révèle un panneau de la même page. C'est le pattern
            Tabs APG : `role="tablist"`, tabindex mobile et flèches directionnelles. -->
-    <nav
+    <!-- Liens : `NavigationMenu` de Reka UI. Il porte le `<nav>` nomme, `aria-current` sur
+         la section courante et le deplacement aux fleches d'un lien a l'autre, que la
+         version maison n'offrait pas (seule la tabulation, lien par lien). -->
+    <NavigationMenuRoot
       v-if="variant === 'links'"
-      ref="scroller"
-      class="app-subnav__scroller"
+      class="app-subnav__root"
       :aria-label="ariaLabel"
-      @scroll="onScroll"
+      orientation="horizontal"
     >
-      <template v-for="(item, index) in items" :key="item.key">
-        <span v-if="separe(index)" class="app-subnav__separator" aria-hidden="true" />
-        <RouterLink
-          :ref="(el) => setItemRef(el, index)"
-          class="app-subnav__item"
-          :to="item.to!"
-          :aria-current="item.key === active ? 'page' : undefined"
-        >
-          <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-          <small v-if="item.count != null">{{ item.count }}</small>
-        </RouterLink>
-      </template>
-    </nav>
+      <NavigationMenuList class="app-subnav__scroller" @scroll="onScroll">
+        <template v-for="(item, index) in items" :key="item.key">
+          <li v-if="separe(index)" class="app-subnav__separator" role="none" aria-hidden="true" />
+          <NavigationMenuItem :value="item.key" class="app-subnav__entry">
+            <!-- `RouterLink` en mode `custom` ne fournit que l'adresse et la navigation ;
+                 c'est le lien de Reka qui rend l'element et porte seul `aria-current`.
+                 Imbriques autrement, RouterLink effacait l'attribut des qu'on n'etait
+                 pas exactement a son adresse (Accueil actif sur /discover/explore). -->
+            <RouterLink v-slot="{ href, navigate }" :to="item.to!" custom>
+              <NavigationMenuLink
+                :ref="(el) => setItemRef(el, index)"
+                class="app-subnav__item"
+                :href="href"
+                :active="item.key === active"
+                @click="navigate"
+              >
+                <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
+                <span>{{ item.label }}</span>
+                <small v-if="item.count != null">{{ item.count }}</small>
+              </NavigationMenuLink>
+            </RouterLink>
+          </NavigationMenuItem>
+        </template>
+      </NavigationMenuList>
+    </NavigationMenuRoot>
     <!-- Onglets : Reka UI porte `role="tablist"`/`tab`, le tabindex mobile et les fleches,
          Origine et Fin du pattern Tabs -- une centaine de lignes de moins ici. -->
     <TabsRoot v-else :model-value="active" @update:model-value="choisir">
@@ -48,7 +61,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { RouterLink } from 'vue-router';
-import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
+import { NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuRoot, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 
 export interface SubnavItem {
   key: string;
@@ -97,9 +110,14 @@ function setItemRef(el: Element | ComponentPublicInstance | null, index: number)
   if (node instanceof HTMLElement) itemRefs.value[index] = node;
 }
 
+/* La rangee qui defile : la liste de `NavigationMenu` (liens) ou de `Tabs` (onglets).
+   Cherchee par sa classe plutot que par une ref de composant : `NavigationMenuList`
+   enveloppe sa liste dans un conteneur, et la ref designerait ce dernier. */
+const racine = ref<HTMLElement | null>(null);
 function scrollerEl(): HTMLElement | null {
   const node = (scroller.value as ComponentPublicInstance)?.$el ?? scroller.value;
-  return node instanceof HTMLElement ? node : null;
+  if (node instanceof HTMLElement && node.classList.contains('app-subnav__scroller')) return node;
+  return racine.value?.querySelector<HTMLElement>('.app-subnav__scroller') ?? null;
 }
 
 function onScroll(): void {
@@ -169,6 +187,21 @@ watch(
    a se presenter comme un objet a part. Reglages serres (2px de gouttiere, coins de
    8px au lieu de 12) parce que la hauteur, elle, est fixee par la cible tactile de
    44px des items et ne peut pas descendre. */
+/* `NavigationMenu` rend un `<nav>`, puis un conteneur, puis la liste : les deux premiers
+   ne doivent pas s'elargir a leur contenu, sinon la liste ne defilerait plus. */
+.app-subnav__root,
+.app-subnav__root > div {
+  min-width: 0;
+  max-width: 100%;
+}
+ul.app-subnav__scroller {
+  margin: 0;
+  list-style: none;
+}
+.app-subnav__entry {
+  display: flex;
+  flex: none;
+}
 .app-subnav__scroller {
   display: flex;
   gap: 2px;

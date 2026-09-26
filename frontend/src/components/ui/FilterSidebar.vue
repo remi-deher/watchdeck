@@ -78,6 +78,9 @@ const SHEET_FLAG = 'data-filter-sheet';
 function flagSheet(on: boolean): void {
   if (typeof document === 'undefined') return;
   document.body.toggleAttribute(SHEET_FLAG, on);
+  // Progression laissee par un geste au doigt (voir `useSheetGesture`) : remise a zero en
+  // meme temps que l'habillage, sinon la barre s'ouvrirait deja a moitie arrondie.
+  document.body.style.removeProperty('--filter-sheet-progress');
 }
 
 /* Le panneau se cale sur le champ de la barre : meme bord gauche, meme largeur, pose
@@ -119,18 +122,16 @@ function trackAnchor(on: boolean): void {
 /* La feuille n'est pas modale : la page defile derriere elle. Sans verrou, ce defilement
    masquait la barre -- et avec elle le panneau qui en sort -- pendant qu'on filtrait. */
 const { setHold } = useChromeAutoHide();
-/* La barre garde son habillage (coins droits au raccord) jusqu'a ce que le panneau soit
-   rentre : retire des le debut de la fermeture, il rendait a la barre sa forme de
-   capsule pendant que le panneau y rentrait encore. Le delai couvre l'animation de
-   sortie (160ms, voir `surface-sortie-barre-*`). */
-const DUREE_SORTIE = 200;
-let retrait: ReturnType<typeof setTimeout> | undefined;
+/* L'habillage de la barre (coins droits au raccord) suit le panneau dans les deux sens :
+   pose des l'ouverture, retire des le debut de la fermeture. Ce ne sont pas des bascules :
+   les coins, le contour et l'ombre passent d'une forme a l'autre en transition, a la duree
+   du panneau (220ms en sortie de barre, 160ms au retour, voir `surface-sortie-barre-*`) --
+   la capsule se redresse pendant que le panneau sort, et se rarrondit pendant qu'il rentre,
+   au lieu de changer de forme d'un coup avant ou apres lui. */
 watch(
   () => props.open,
   (posee) => {
-    clearTimeout(retrait);
-    if (posee) flagSheet(true);
-    else retrait = setTimeout(() => flagSheet(false), DUREE_SORTIE);
+    flagSheet(posee);
     setHold('filter-sheet', posee);
     trackAnchor(posee);
   },
@@ -138,7 +139,6 @@ watch(
 );
 
 onUnmounted(() => {
-  clearTimeout(retrait);
   flagSheet(false);
   setHold('filter-sheet', false);
   trackAnchor(false);

@@ -404,8 +404,12 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
        portee vers le haut s'efface aussi -- elle aurait assombri le pied du panneau
        qu'elle est censee detacher du contenu. C'est la capsule qu'on vise, pas la barre :
        en compact cette derniere n'a plus ni fond ni contour, elle ne fait que porter. */
+    /* Coins du raccord : droits panneau ouvert, et de nouveau arrondis a mesure qu'on
+       fait rentrer le panneau au doigt (`--filter-sheet-progress`, 0 a 1, pose par
+       `useSheetGesture` pendant le geste). */
     &[data-filter-sheet] .app-topbar .ui-search-field {
-      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      --raccord: calc(var(--radius-lg) * var(--filter-sheet-progress, 0));
+      border-radius: var(--raccord) var(--raccord) var(--radius-lg) var(--radius-lg);
       box-shadow: none;
     }
     /* Le bouton « Filtres » suit la capsule : son coin haut-droit, seul arrondi restant,
@@ -413,7 +417,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
        droit sur toute sa largeur, et ce sont ses arrondis du BAS qui referment la pile --
        la forme dit alors d'elle-meme ou le panneau s'arrete. */
     &[data-filter-sheet] .app-topbar .ui-search-field__filter {
-      border-radius: 0 0 calc(var(--radius-lg) - 1px) 0;
+      border-radius: 0 calc((var(--radius-lg) - 1px) * var(--filter-sheet-progress, 0)) calc(var(--radius-lg) - 1px) 0;
     }
   }
 }
@@ -466,6 +470,40 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
       border-bottom-right-radius: 0;
     }
   }
+}
+
+/* La capsule de recherche change de forme avec le panneau de filtres, progressivement :
+   ses coins au raccord se redressent pendant que le panneau sort, et se rarrondissent
+   pendant qu'il rentre. Hors ouverture (donc a la fermeture) : la duree du retour, 160ms ;
+   pendant l'ouverture, celle de la sortie, 220ms. Sans transition, la barre changeait de
+   forme d'un coup, avant ou apres le panneau. */
+.app-topbar .ui-search-field,
+.app-topbar .app-topbar__filter-only,
+.app-topbar .ui-search-field__filter {
+  transition:
+    border-radius 160ms var(--motion-ease-exit),
+    border-color 160ms var(--motion-ease-exit),
+    box-shadow 160ms var(--motion-ease-exit);
+}
+body[data-filter-sheet] .app-topbar .ui-search-field,
+body[data-filter-sheet] .app-topbar .app-topbar__filter-only,
+body[data-filter-sheet] .app-topbar .ui-search-field__filter {
+  transition:
+    border-radius var(--filter-sheet-duree, 220ms) var(--filter-sheet-courbe, var(--motion-ease-emphasized)),
+    border-color 220ms var(--motion-ease-emphasized),
+    box-shadow 220ms var(--motion-ease-emphasized);
+}
+/* Au doigt (ou a la souris, par la poignee), la barre suit le panneau sans delai : ses
+   coins dependent directement de `--filter-sheet-progress`, pose a chaque mouvement. */
+body[data-filter-sheet-drag] .app-topbar .ui-search-field,
+body[data-filter-sheet-drag] .app-topbar .app-topbar__filter-only,
+body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-topbar .ui-search-field,
+  .app-topbar .app-topbar__filter-only,
+  .app-topbar .ui-search-field__filter { transition: none; }
 }
 
 /* Le panneau de filtres sort de la barre de recherche, et y rentre.
@@ -672,8 +710,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .secondary,
   .icon-button,
   .filter-select,
-  .panel-link,
-  .segmented button {
+  .panel-link {
     min-height: 44px;
   }
 

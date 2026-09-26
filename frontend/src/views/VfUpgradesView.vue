@@ -247,7 +247,8 @@ useEventListener(window, 'watchdeck:vf-settings-saved', () => { void load({ sile
 
 const { filtersOpen, toggle: toggleFilters, close: closeFilters } = useFiltersDrawer(
   { statusFilter, mediaTypeFilter },
-  { statusFilter: 'pending', mediaTypeFilter: '' }
+  { statusFilter: 'pending', mediaTypeFilter: '' },
+  { memoriser: 'ameliorations-vf' }
 );
 const upgradeDrawer = useFiltersDrawer(
   { statusFilter, mediaTypeFilter, query },
@@ -255,7 +256,8 @@ const upgradeDrawer = useFiltersDrawer(
 );
 const auditDrawer = useFiltersDrawer(
   { auditIssueFilter, auditMediaTypeFilter, query },
-  { auditIssueFilter: '', auditMediaTypeFilter: '', query: '' }
+  { auditIssueFilter: '', auditMediaTypeFilter: '', query: '' },
+  { memoriser: 'audit-vf', champsMemorises: ['auditIssueFilter', 'auditMediaTypeFilter'] }
 );
 
 const activeFilterCount = computed(() => {

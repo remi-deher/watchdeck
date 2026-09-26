@@ -1,70 +1,94 @@
 import { onBeforeUnmount, watch, type Ref } from 'vue';
+import type { Router } from 'vue-router';
 
 /**
  * Le bouton ou le geste « retour » referme la surface ouverte au lieu de quitter la page.
  *
  * Le focus, Echap et le piege de tabulation sont l'affaire de Reka UI ; le retour systeme
- * (Android, application installee sur iPhone), lui, passe par l'historique, que Reka ne
- * touche pas. A l'ouverture on ajoute une entree marquee ; « retour » la consomme et
- * ferme la surface. A une fermeture explicite (croix, Echap, clic a cote), on la consomme
- * nous-memes, sans quoi le premier « retour » suivant ne ferait rien de visible.
+ * (Android, geste de bord sur iPhone), lui, arrive comme une navigation arriere du routeur.
+ *
+ * Les surfaces ne touchent plus a l'historique. Chacune poussait auparavant sa propre
+ * entree « fantome » et la retirait a la fermeture par un `history.back()` differe --
+ * un second mecanisme a cote du routeur, qui se desalignait :
+ * - un filtre choisi pendant que le panneau etait ouvert reecrivait l'adresse de cette
+ *   entree ; a la fermeture elle restait en place, et le retour suivant ramenait les
+ *   anciens filtres au lieu de quitter la page ;
+ * - le recul differe d'une surface fermee pouvait refermer la fiche ouverte juste apres.
+ *
+ * Desormais les surfaces ouvertes forment une pile, et un garde du routeur (voir
+ * `installerRetourDesSurfaces`) annule une navigation arriere tant qu'il en reste une :
+ * il referme la plus recente, et le routeur retablit l'adresse. L'historique ne contient
+ * plus que de vraies pages.
  */
 
-const HISTORY_MARKER = '__modalOpen';
+interface Surface {
+  fermer: () => void;
+}
 
-/* Surfaces dont l'ecouteur `popstate` est actif.
- *
- * Reculer declenche une navigation, et la navigation emporte tout ce qui vient de s'ouvrir :
- * annuler une demande enchaine le choix du motif puis la confirmation, et cette derniere
- * disparaissait une seconde apres etre apparue. On ne recule donc que si personne n'a pris
- * la releve -- decide un tour complet de boucle d'evenements plus tard, la surface suivante
- * n'arrivant qu'au bout d'une chaine de promesses. */
-let listeningSurfaces = 0;
+const pile: Surface[] = [];
+
+/** Nombre de surfaces ouvertes : pour les tests et le diagnostic. */
+export function surfacesOuvertes(): number {
+  return pile.length;
+}
+
+/** Referme la surface la plus recente ; vrai si une surface a ete refermee. */
+export function fermerSurfaceDuDessus(): boolean {
+  const surface = pile[pile.length - 1];
+  if (!surface) return false;
+  surface.fermer();
+  return true;
+}
 
 /**
  * @param openRef Ref d'ouverture, ou `null` si le composant n'est monte que pendant
  *   l'ouverture.
  */
 export function useBackButtonClose(openRef: Ref<boolean> | null | undefined, onClose: () => void): void {
-  let dismissedByBackButton = false;
-  let historyToken: string | null = null;
-  let historyHref: string | null = null;
-
-  function handlePopState(): void {
-    dismissedByBackButton = true;
-    onClose();
-  }
+  const surface: Surface = { fermer: onClose };
 
   function activate(): void {
-    if (typeof window === 'undefined' || historyToken) return;
-    dismissedByBackButton = false;
-    historyToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    window.addEventListener('popstate', handlePopState);
-    listeningSurfaces += 1;
-    history.pushState({ ...history.state, [HISTORY_MARKER]: historyToken }, '');
-    historyHref = location.href;
+    if (!pile.includes(surface)) pile.push(surface);
   }
 
   function deactivate(): void {
-    if (!historyToken) return;
-    window.removeEventListener('popstate', handlePopState);
-    listeningSurfaces = Math.max(0, listeningSurfaces - 1);
-    /* On ne consomme l'entree que si c'est bien la notre (jeton exact) et que l'adresse n'a
-       pas change : une page peut republier son URL pendant que la surface est ouverte -- le
-       panneau de filtres porte chaque choix dans la barre d'adresse. Reculer alors
-       annulait le filtre qu'on venait d'appliquer. */
-    if (!dismissedByBackButton && history.state?.[HISTORY_MARKER] === historyToken && location.href === historyHref) {
-      setTimeout(() => {
-        if (listeningSurfaces > 0) return;
-        history.back();
-      }, 0);
-    }
-    historyToken = null;
-    historyHref = null;
+    const index = pile.indexOf(surface);
+    if (index >= 0) pile.splice(index, 1);
   }
 
   if (openRef) watch(openRef, (open) => (open ? activate() : deactivate()), { immediate: true });
   else activate();
 
   onBeforeUnmount(deactivate);
+}
+
+/* Drapeau d'une navigation arriere en cours : le garde ne doit bloquer qu'un retour, jamais
+   un lien ou un `router.push`.
+
+   Il est pose par l'historique du routeur (`history.listen`), et non par un ecouteur
+   `popstate` du navigateur : le routeur lance sa navigation -- et ses gardes -- de
+   facon synchrone depuis son propre ecouteur, qui passait avant le notre quelle que soit
+   la phase (verifie en E2E : le garde voyait le retour avant le drapeau, et le retour
+   quittait la page au lieu de fermer la surface). Les abonnes de l'historique sont
+   appeles dans l'ordre d'inscription, et le routeur n'inscrit le sien qu'a sa premiere
+   navigation : celui-ci, pose a la creation du routeur, passe toujours avant. */
+let navigationArriere = false;
+
+/**
+ * Branche la pile sur le routeur : une navigation arriere avec une surface ouverte ferme
+ * cette surface et reste sur la page. A appeler une fois, a la creation du routeur, avant
+ * sa premiere navigation.
+ */
+export function installerRetourDesSurfaces(router: Router): void {
+  router.options.history.listen((_to, _from, info) => {
+    navigationArriere = info.direction === 'back';
+  });
+  router.beforeEach(() => {
+    const arriere = navigationArriere;
+    navigationArriere = false;
+    if (!arriere || !pile.length) return true;
+    // Annuler rend l'adresse au routeur (il avance d'un cran) : la page ne bouge pas.
+    fermerSurfaceDuDessus();
+    return false;
+  });
 }

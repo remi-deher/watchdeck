@@ -98,7 +98,14 @@ export function useSheetGesture(
     // Rentrer dans la barre : le bas du panneau, passe sous le bord de la barre, est
     // rogne d'autant. Deux proprietes de composition seulement (transform, clip-path) :
     // ni mise en page ni relayout a chaque mouvement du doigt.
-    if (dansLaBarre()) el.style.clipPath = y ? `inset(0 0 ${Math.max(0, y)}px 0)` : '';
+    if (dansLaBarre()) {
+      el.style.clipPath = y ? `inset(0 0 ${Math.max(0, y)}px 0)` : '';
+      // La barre suit : ses coins au raccord s'arrondissent a mesure que le panneau y
+      // rentre (voir `--filter-sheet-progress` dans _components.scss).
+      const corps = document.body.style;
+      if (y) corps.setProperty('--filter-sheet-progress', String(Math.min(1, y / (el.offsetHeight || 1))));
+      else corps.removeProperty('--filter-sheet-progress');
+    }
     // Le voile s'eclaircit a mesure : le geste doit se voir avant d'aboutir. On passe
     // par une variable plutot que par l'opacite, qui estomperait aussi la feuille posee
     // dedans, et que motion-v reprendrait a la fermeture.
@@ -134,6 +141,11 @@ export function useSheetGesture(
       ? `transform ${duree}ms ${courbe}, clip-path ${duree}ms ${courbe}`
       : `transform ${duree}ms ${courbe}`;
     if (v) v.style.transition = `background-color ${duree}ms ${courbe}`;
+    // La barre finit son changement de forme au meme rythme que le panneau.
+    if (dansLaBarre()) {
+      document.body.style.setProperty('--filter-sheet-duree', `${duree}ms`);
+      document.body.style.setProperty('--filter-sheet-courbe', courbe);
+    }
     let fait = false;
     const achever = () => {
       if (fait) return;
@@ -141,6 +153,8 @@ export function useSheetGesture(
       el.removeEventListener('transitionend', achever);
       el.style.transition = '';
       if (v) v.style.transition = '';
+      document.body.style.removeProperty('--filter-sheet-duree');
+      document.body.style.removeProperty('--filter-sheet-courbe');
       finTransition = null;
       fin?.();
     };
@@ -176,6 +190,8 @@ export function useSheetGesture(
       mode = 'geste';
       departY += SEUIL_DECISION; // pas de saut : la feuille part de sous le doigt
       el.classList.add('is-dragging');
+      // Pendant le geste, la barre suit le doigt sans transition, sinon elle trainerait.
+      if (dansLaBarre()) document.body.toggleAttribute('data-filter-sheet-drag', true);
     }
     const y2 = positionPourDelta(y - departY, el.offsetHeight || window.innerHeight);
     echantillons.push({ t, y: y2 });
@@ -190,6 +206,7 @@ export function useSheetGesture(
     mode = null;
     if (!el || etait !== 'geste') return;
     el.classList.remove('is-dragging');
+    document.body.toggleAttribute('data-filter-sheet-drag', false);
     const hauteur = el.offsetHeight || window.innerHeight;
     const v = vitesse();
     if (doitFermer(position, v, hauteur)) {
@@ -279,6 +296,7 @@ export function useSheetGesture(
 
   onBeforeUnmount(() => {
     finTransition = null;
+    if (typeof document !== 'undefined') document.body.toggleAttribute('data-filter-sheet-drag', false);
     if (courant) debrancher(courant);
     courant = null;
   });

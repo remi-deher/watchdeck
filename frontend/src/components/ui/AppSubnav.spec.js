@@ -1,18 +1,21 @@
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import { describe, expect, it } from 'vitest';
 import AppSubnav from './AppSubnav.vue';
 
-const RouterLinkStub = {
-  props: ['to'],
-  template: '<a :href="typeof to === \'string\' ? to : to.path"><slot /></a>',
-};
+/* Le vrai routeur, et non une imitation de RouterLink : c'est leur assemblage avec le lien
+   de Reka qui effacait `aria-current`, ce qu'une imitation ne pouvait pas montrer. */
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [{ path: '/:p(.*)*', component: { render: () => null } }],
+});
 
 function mountSubnav(props, options = {}) {
   return mount(AppSubnav, {
     props,
     ...options,
-    global: { stubs: { RouterLink: RouterLinkStub } },
+    global: { plugins: [router] },
   });
 }
 
@@ -41,6 +44,44 @@ describe('AppSubnav', () => {
       const links = wrapper.findAll('a');
       expect(links[1].attributes('aria-current')).toBe('page');
       expect(links[0].attributes('aria-current')).toBeUndefined();
+    });
+  });
+
+  describe('variante links (NavigationMenu de Reka UI)', () => {
+    it("marque l'onglet actif meme hors de son adresse exacte", async () => {
+      // Accueil d'Explorer reste l'onglet actif sur /discover/explore.
+      await router.push('/discover/explore');
+      const wrapper = mountSubnav({
+        items: [
+          { key: 'home', label: 'Accueil', to: '/discover' },
+          { key: 'movies', label: 'Films', to: '/discover/movies' },
+        ],
+        active: 'home',
+        variant: 'links',
+      });
+      const links = wrapper.findAll('a');
+      expect(links[0].attributes('aria-current')).toBe('page');
+      expect(links[0].attributes('href')).toBe('/discover');
+      expect(links[1].attributes('aria-current')).toBeUndefined();
+    });
+
+    it('range les liens dans une liste et marque le lien actif pour Reka', () => {
+      const wrapper = mountSubnav({
+        items: [
+          { key: 'a', label: 'Catalogue', to: '/library', group: 'x' },
+          { key: 'b', label: 'VF', to: '/vf-upgrades', group: 'y', count: 4 },
+        ],
+        active: 'a',
+        variant: 'links',
+      });
+      expect(wrapper.find('nav').attributes('aria-label')).toBe('Sections');
+      expect(wrapper.findAll('ul.app-subnav__scroller > li[data-menu-item]')).toHaveLength(2);
+      // Le separateur entre groupes reste un element de liste, masque aux lecteurs d'ecran.
+      expect(wrapper.find('li.app-subnav__separator').attributes('aria-hidden')).toBe('true');
+      const links = wrapper.findAll('a');
+      expect(links[0].attributes('data-active')).toBe('');
+      expect(links[1].attributes('data-active')).toBeUndefined();
+      expect(links[1].find('small').text()).toBe('4');
     });
   });
 

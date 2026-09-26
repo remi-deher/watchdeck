@@ -333,20 +333,21 @@ test("le selecteur de periode de l'activite change bien de valeur", async ({ pag
   // collante des sections, ou la barre du haut en mode deploye -- dans les deux cas
   // visible sans ouvrir quoi que ce soit.
   await page.goto("/activity");
-  const segmented = page.getByRole("tablist", { name: /Période/ }).first();
+  // Un choix exclusif (groupe de boutons bascules de Reka), et non des onglets.
+  const segmented = page.getByRole("group", { name: /Période/ }).first();
   await expect(segmented).toBeVisible({ timeout: 15000 });
   const options = segmented.locator("button");
   const count = await options.count();
   expect(count).toBeGreaterThan(1);
 
-  const activeBefore = await segmented.locator('[role="tab"][aria-selected="true"]').first().textContent();
+  const activeBefore = await segmented.locator('button[data-state="on"]').first().textContent();
   // On clique une option differente de celle en cours.
   for (let i = 0; i < count; i += 1) {
     const label = await options.nth(i).textContent();
     if (label !== activeBefore) { await options.nth(i).click(); break; }
   }
   await page.waitForTimeout(400);
-  const activeAfter = await segmented.locator('[role="tab"][aria-selected="true"]').first().textContent();
+  const activeAfter = await segmented.locator('button[data-state="on"]').first().textContent();
   expect(activeAfter).not.toBe(activeBefore);
 });
 
@@ -640,7 +641,7 @@ test("les commandes d'une page ne recouvrent jamais la recherche", async ({ page
   await expect(tools).toHaveCount(0);
 
   // Le selecteur reste atteignable, dans la rangee de la page.
-  await expect(page.getByRole("tablist", { name: /Période/ }).first()).toBeVisible();
+  await expect(page.getByRole("group", { name: /Période/ }).first()).toBeVisible();
 });
 
 test("le hero d'une fiche est une carte posee dans la colonne", async ({ page }) => {
