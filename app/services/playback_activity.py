@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
+import math
 import time
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -24,6 +26,7 @@ from ..database import AsyncSessionLocal
 from ..models import PlaybackDailyAggregate, PlaybackIpLocation, PlaybackSession, PlaybackSessionSegment, Settings
 from ..realtime import publish
 from ..utils import APP_TIMEZONE, now_utc_naive, wrap_image_proxy
+from . import plex_decision_logs
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
 from .ip_geolocation import lookup_ip_location, lookup_ip_locations
 
@@ -46,6 +49,7 @@ _MAX_ACTIVE_SESSION_AGE = timedelta(days=7)
 # une remise à zéro au redémarrage du worker n'a qu'un impact mineur (un cycle de
 # tolérance perdu au pire).
 _MISS_THRESHOLD = 2
+_STICKY_TRANSCODE_FIELDS = frozenset({"transcode_session", "transcode_reason", "transcode_hw"})
 _miss_counts: dict[int, int] = {}
 _GEO_FIELDS = (
     "geo_status",
@@ -103,7 +107,37 @@ def _media_label(row: PlaybackSession) -> str:
     return row.grandparent_title or row.title
 
 
+def _deduced_reason(row: PlaybackSession) -> str | None:
+    """Raison deduite, y compris pour les lectures enregistrees avant qu'on la capture.
+
+    Celles-la n'ont garde que les decisions par flux : on dit au moins quel flux est
+    converti, sans codec de sortie qu'on n'a jamais lu.
+    """
+    if row.transcode_reason:
+        return row.transcode_reason
+    parts = []
+    if str(row.video_decision or "").lower() == "transcode":
+        parts.append("Vidéo convertie")
+    if str(row.audio_decision or "").lower() == "transcode":
+        parts.append("Audio converti")
+    if str(row.subtitle_decision or "").lower() in {"burn", "transcode"}:
+        parts.append("Sous-titres convertis")
+    return " · ".join(parts) or None
+
+
+def _plex_decision_details(row: PlaybackSession) -> dict | None:
+    if not row.plex_decision_details:
+        return None
+    try:
+        return json.loads(row.plex_decision_details)
+    except ValueError:
+        return None
+
+
 def _transcode_reason(row: PlaybackSession) -> str:
+    # La raison de Plex prime : elle regroupe les lectures par vraie cause (3000, 3001...).
+    if row.plex_decision_text:
+        return row.plex_decision_text
     if str(row.subtitle_decision or "").lower() in {"burn", "transcode"}:
         return "Sous-titres"
     if str(row.video_decision or "").lower() == "transcode":
@@ -561,8 +595,23 @@ def _serialize(row: PlaybackSession) -> dict:
         "bandwidth_kbps": row.bandwidth_kbps,
         "media_size_bytes": row.media_size_bytes,
         "transcode_buffer_ms": row.transcode_buffer_ms,
-        "transcode_speed": row.transcode_speed,
+        "transcode_speed": _float(row.transcode_speed),
         "transcode_throttled": row.transcode_throttled,
+        "transcode_hw": row.transcode_hw,
+        # Vert : la decision de Plex, relue dans ses journaux. Orange : notre deduction.
+        "transcode_reason": (
+            {
+                "source": "plex",
+                "text": row.plex_decision_text,
+                "code": row.plex_decision_code,
+                "deduced": _deduced_reason(row),
+                **(_plex_decision_details(row) or {}),
+            }
+            if row.plex_decision_text
+            else {"source": "deduced", "text": text}
+            if (text := _deduced_reason(row))
+            else None
+        ),
         "progress_ms": row.progress_ms,
         "initial_progress_ms": row.initial_progress_ms,
         "duration_ms": row.duration_ms,
@@ -636,10 +685,13 @@ def _thumb_url(row: PlaybackSession) -> str | None:
 
 
 def _float(value) -> float | None:
+    # Plex écrit parfois `speed="nan"` : un NaN stocké rendait ensuite toute réponse JSON
+    # qui le contenait impossible à sérialiser (erreur 500 sur les statistiques).
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    return number if math.isfinite(number) else None
 
 
 def _transcode_buffer(transcode_attrs: dict, view_offset_ms: int) -> dict:
@@ -659,6 +711,81 @@ def _transcode_buffer(transcode_attrs: dict, view_offset_ms: int) -> dict:
         "transcode_speed": _float(transcode_attrs.get("speed")),
         "transcode_throttled": throttled in ("1", "true") if throttled is not None else None,
     }
+
+
+_CODEC_LABELS = {
+    "hevc": "HEVC",
+    "h264": "H.264",
+    "av1": "AV1",
+    "mpeg2video": "MPEG-2",
+    "vc1": "VC-1",
+    "truehd": "TrueHD",
+    "eac3": "E-AC3",
+    "ac3": "AC3",
+    "dca": "DTS",
+    "aac": "AAC",
+    "opus": "Opus",
+    "mp3": "MP3",
+    "flac": "FLAC",
+    "pgs": "PGS",
+    "ass": "ASS",
+    "srt": "SRT",
+    "webvtt": "WebVTT",
+    "vobsub": "VobSub",
+}
+
+
+def _codec(value: str | None) -> str:
+    return _CODEC_LABELS.get(str(value or "").lower(), str(value or "?").upper())
+
+
+def _deduce_transcode_reason(transcode_attrs: dict, video_stream, subtitle_stream) -> str | None:
+    """Ce qui est converti, lu dans le `TranscodeSession` : une deduction, pas la raison de Plex.
+
+    Plex ne dit pas *pourquoi* il convertit dans /status/sessions, seulement *quoi* :
+    codec source -> sortie, resolution de sortie, sous-titres. Assez pour orienter le
+    diagnostic (« TrueHD -> AAC » annonce un lecteur sans TrueHD), pas pour trancher.
+    """
+    if not transcode_attrs:
+        return None
+    parts: list[str] = []
+    video = str(transcode_attrs.get("videoDecision") or "").lower()
+    audio = str(transcode_attrs.get("audioDecision") or "").lower()
+    subtitles = str(transcode_attrs.get("subtitleDecision") or "").lower()
+    if video == "transcode":
+        source, target = transcode_attrs.get("sourceVideoCodec"), transcode_attrs.get("videoCodec")
+        # En transcodage, le flux de la session décrit déjà la sortie, pas la source.
+        height = _int(transcode_attrs.get("height")) or (
+            _int(video_stream.get("height")) if video_stream is not None else None
+        )
+        if source and target and str(source).lower() != str(target).lower():
+            parts.append(f"Vidéo {_codec(source)} → {_codec(target)}")
+        else:
+            parts.append(f"Vidéo réencodée{f' en {height}p' if height else ''} (qualité ou débit)")
+    if audio == "transcode":
+        source, target = transcode_attrs.get("sourceAudioCodec"), transcode_attrs.get("audioCodec")
+        if source and target and str(source).lower() != str(target).lower():
+            parts.append(f"Audio {_codec(source)} → {_codec(target)}")
+        else:
+            parts.append("Audio réencodé")
+    if subtitles in {"transcode", "burn"}:
+        codec = _codec(subtitle_stream.get("codec")) if subtitle_stream is not None else "?"
+        parts.append(f"Sous-titres {codec} incrustés" if subtitles == "burn" else f"Sous-titres {codec} convertis")
+        if video != "transcode" and audio != "transcode":
+            parts[-1] += " (vidéo et audio copiés)"
+    return " · ".join(parts) or None
+
+
+def _transcode_hw(transcode_attrs: dict) -> str | None:
+    if not transcode_attrs:
+        return None
+    encoding = transcode_attrs.get("transcodeHwEncodingTitle") or transcode_attrs.get("transcodeHwEncoding")
+    decoding = transcode_attrs.get("transcodeHwDecodingTitle") or transcode_attrs.get("transcodeHwDecoding")
+    if encoding or decoding:
+        return encoding or decoding
+    if str(transcode_attrs.get("videoDecision") or "").lower() == "transcode":
+        return "Processeur"
+    return None
 
 
 def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
@@ -758,6 +885,11 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
                 "bandwidth_kbps": _int(session_attrs.get("bandwidth") or transcode_attrs.get("bandwidth")),
                 "media_size_bytes": _int(part_attrs.get("size")),
                 **_transcode_buffer(transcode_attrs, _int(media.get("viewOffset"), 0)),
+                # Clé du transcodeur : c'est le `session=` de la requête de décision dans
+                # les journaux de Plex, qui départage deux lectures du même média.
+                "transcode_session": (transcode_attrs.get("key") or "").rsplit("/", 1)[-1] or None,
+                "transcode_reason": _deduce_transcode_reason(transcode_attrs, video_stream, subtitle_stream),
+                "transcode_hw": _transcode_hw(transcode_attrs),
                 "progress_ms": _int(media.get("viewOffset"), 0),
                 "duration_ms": _int(media.get("duration")),
                 "progress_percent": (
@@ -1085,6 +1217,10 @@ async def _collect_plex_activity_unlocked() -> dict:
             # FAI/organisation/ASN encore manquant peut en revanche être complété.
             _protect_resolved_location(row, snapshot)
             for key, value in snapshot.items():
+                # La raison du transcodage appartient à l'historique de la lecture : un
+                # passage ultérieur en lecture directe ne doit pas l'effacer.
+                if value is None and key in _STICKY_TRANSCODE_FIELDS:
+                    continue
                 setattr(row, key, value)
             row.last_seen_at = now
             row.ended_at = None
@@ -1133,9 +1269,87 @@ async def collect_plex_activity() -> dict:
         if token is None:
             return {"status": "skipped", "reason": "already_running"}
         try:
-            return await _collect_plex_activity_unlocked()
+            result = await _collect_plex_activity_unlocked()
         finally:
             await release_distributed_lock(_PLEX_COLLECTION_LOCK_KEY, token)
+    try:
+        await enrich_decisions_from_plex_logs()
+    except Exception as exc:  # un journal illisible ne doit jamais casser la collecte
+        logger.warning("Lecture des décisions Plex impossible : %s", exc)
+    return result
+
+
+# Les journaux de débogage tournent en quelques heures : au-delà, rien à y retrouver.
+_DECISION_LOOKBACK = timedelta(hours=12)
+# Le zip des journaux pèse plusieurs Mo : une lecture par minute au plus, et une toutes
+# les cinq minutes quand le débogage est coupé, le temps que quelqu'un le rallume.
+_DECISION_RETRY = timedelta(minutes=1)
+_DECISION_RETRY_DISABLED = timedelta(minutes=5)
+_decision_next_attempt: datetime | None = None
+
+
+async def enrich_decisions_from_plex_logs(*, force: bool = False) -> dict:
+    """Rattache aux lectures transcodées la décision que Plex a écrite dans ses journaux.
+
+    Vaut pour les lectures en cours comme pour celles terminées depuis peu, tant que
+    leurs lignes sont encore dans les journaux. Sans journaux de débogage, rien n'est
+    téléchargé : la raison déduite reste la seule affichée.
+    """
+    global _decision_next_attempt
+    now = now_utc_naive()
+    if not force and _decision_next_attempt and now < _decision_next_attempt:
+        return {"status": "throttled"}
+    async with AsyncSessionLocal() as db:
+        settings = (await db.execute(select(Settings))).scalars().first()
+        if not settings or not settings.plex_url or not settings.plex_token:
+            return {"status": "disabled"}
+        candidates = (
+            (
+                await db.execute(
+                    select(PlaybackSession).filter(
+                        PlaybackSession.source == "plex",
+                        PlaybackSession.started_at >= now - _DECISION_LOOKBACK,
+                        PlaybackSession.plex_decision_text.is_(None),
+                        or_(
+                            PlaybackSession.transcode_reason.is_not(None),
+                            PlaybackSession.playback_method == "transcode",
+                        ),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not candidates:
+            return {"status": "nothing_to_match"}
+        _decision_next_attempt = now + _DECISION_RETRY
+        decisions, oldest = await plex_decision_logs.fetch_decisions(
+            settings.plex_url, settings.plex_token, settings.plex_verify_ssl
+        )
+        if oldest is None:
+            _decision_next_attempt = now + _DECISION_RETRY_DISABLED
+            return {"status": "debug_logs_disabled"}
+        matched = 0
+        for row in candidates:
+            decision = plex_decision_logs.match_decision(
+                decisions,
+                rating_key=row.rating_key,
+                started_at=row.started_at,
+                ended_at=row.ended_at,
+                session_ids={row.transcode_session} if row.transcode_session else set(),
+            )
+            code, text = decision.reason if decision else (None, None)
+            if not text:
+                continue
+            row.plex_decision_code = code
+            row.plex_decision_text = text
+            row.plex_decision_details = decision.details_json()
+            matched += 1
+        if matched:
+            await db.commit()
+    if matched:
+        await publish("activity.updated", {"decisions": matched}, admin_only=True)
+    return {"status": "complete", "matched": matched, "decisions": len(decisions)}
 
 
 async def handle_websocket_state(
@@ -1776,6 +1990,7 @@ async def activity_snapshot(days: int = 30, db=None, user: str | None = None) ->
                         PlaybackSession.video_codec,
                         PlaybackSession.container,
                         PlaybackSession.subtitle_decision,
+                        PlaybackSession.plex_decision_text,
                         PlaybackSession.bandwidth_kbps,
                         PlaybackSession.media_size_bytes,
                         PlaybackSession.progress_ms,

@@ -50,6 +50,7 @@
 import { onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { DialogContent, DialogRoot, FocusScope } from 'reka-ui';
 import { useSheetGesture } from '@/composables/useSheetGesture';
+import { resumeAutoHide, suspendAutoHide } from '@/composables/useChromeAutoHide';
 import { retourNatif } from '@/composables/useRetourNatif';
 
 const props = withDefaults(
@@ -77,6 +78,7 @@ let positionFigee: number | null = null;
 function verrouiller(actif: boolean): void {
   const body = document.body;
   if (actif && positionFigee === null) {
+    suspendAutoHide();
     positionFigee = window.scrollY;
     document.documentElement.style.overflow = 'hidden';
     Object.assign(body.style, { position: 'fixed', top: `-${positionFigee}px`, left: '0', right: '0', width: '100%' });
@@ -86,6 +88,9 @@ function verrouiller(actif: boolean): void {
     document.documentElement.style.overflow = '';
     Object.assign(body.style, { position: '', top: '', left: '', right: '', width: '' });
     window.scrollTo(0, position);
+    // `scrollTo` met a jour la position sur-le-champ : le suivi repart de la, et
+    // l'evenement de defilement qui arrive ensuite ne voit aucun mouvement.
+    resumeAutoHide();
   }
 }
 watch(() => props.open, verrouiller, { immediate: true });

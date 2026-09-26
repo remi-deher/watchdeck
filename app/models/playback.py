@@ -72,6 +72,15 @@ class PlaybackSession(Base):
     transcode_buffer_ms: Mapped[Optional[int]]
     transcode_speed: Mapped[Optional[float]]
     transcode_throttled: Mapped[Optional[bool]]
+    # Pourquoi ca transcode. Deux sources de fiabilite differente, gardees separees :
+    # la deduction de /status/sessions (ce qui est converti), toujours disponible, et la
+    # decision de Plex relue dans ses journaux de debogage (le vrai pourquoi), si actives.
+    transcode_session: Mapped[Optional[str]]
+    transcode_reason: Mapped[Optional[str]] = mapped_column(Text)
+    transcode_hw: Mapped[Optional[str]]
+    plex_decision_code: Mapped[Optional[int]]
+    plex_decision_text: Mapped[Optional[str]] = mapped_column(Text)
+    plex_decision_details: Mapped[Optional[str]] = mapped_column(Text)
     progress_ms: Mapped[Optional[int]] = mapped_column(BigInteger)
     initial_progress_ms: Mapped[int] = mapped_column(BigInteger, default=0)
     duration_ms: Mapped[Optional[int]] = mapped_column(BigInteger)
