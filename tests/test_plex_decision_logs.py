@@ -200,3 +200,126 @@ def test_nan_transcoder_speed_is_dropped():
     assert parse_plex_sessions(xml)[0]["transcode_speed"] is None
     row = PlaybackSession(source="plex", source_session_id="x", title="T", transcode_speed=float("nan"))
     assert playback_activity._serialize(row)["transcode_speed"] is None
+
+
+def _plex_transport(debug: bool, archive_files: dict[str, str], date: str = "Sat, 26 Sep 2026 20:50:00 GMT"):
+    """Faux serveur Plex : préférences et zip des journaux."""
+    import io
+    import zipfile
+
+    import httpx
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, content in archive_files.items():
+            archive.writestr(name, content)
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/:/prefs":
+            settings = [{"id": "logDebug", "value": debug}, {"id": "LogVerbose", "value": False}]
+            return httpx.Response(200, json={"MediaContainer": {"Setting": settings}})
+        return httpx.Response(200, content=buffer.getvalue(), headers={"date": date})
+
+    return httpx.MockTransport(handler), calls
+
+
+@pytest.mark.asyncio
+async def test_fetch_decisions_reads_every_rotated_log_in_utc():
+    import httpx
+
+    from app.services import plex_decision_logs
+
+    older = LOG.splitlines()[0] + "\n" + LOG.splitlines()[6] + "\n"  # la décision 40859, dans le .1
+    newer = "\n".join(LOG.splitlines()[8:]) + "\n"  # la décision 5192, dans le fichier courant
+    transport, calls = _plex_transport(True, {"Plex Media Server.log": newer, "Plex Media Server.1.log": older})
+    real_client = httpx.AsyncClient
+    with patch.object(plex_decision_logs.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)):
+        decisions, oldest = await plex_decision_logs.fetch_decisions("http://plex.local/", "t")
+
+    assert calls == ["/:/prefs", "/diagnostics/logs"]
+    # Plex en UTC+2 : l'en-tête Date le révèle, toutes les heures sont ramenées en UTC.
+    assert [d.rating_key for d in decisions] == ["40859", "5192"]
+    assert decisions[0].at == datetime(2026, 9, 26, 20, 48, 26, 457000)
+    assert oldest == datetime(2026, 9, 26, 20, 48, 26, 451000)
+
+
+@pytest.mark.asyncio
+async def test_fetch_decisions_downloads_nothing_without_debug_logs():
+    import httpx
+
+    from app.services import plex_decision_logs
+
+    transport, calls = _plex_transport(False, {"Plex Media Server.log": LOG})
+    real_client = httpx.AsyncClient
+    with patch.object(plex_decision_logs.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)):
+        assert await plex_decision_logs.fetch_decisions("http://plex.local", "t") == ([], None)
+    assert calls == ["/:/prefs"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_decisions_tolerates_missing_date_and_logs():
+    import httpx
+
+    from app.services import plex_decision_logs
+
+    transport, _ = _plex_transport(True, {"Plex Media Scanner.log": "x"}, date="")
+    real_client = httpx.AsyncClient
+    with patch.object(plex_decision_logs.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)):
+        assert await plex_decision_logs.fetch_decisions("http://plex.local", "t") == ([], None)
+
+
+def test_utc_offset_without_parsable_line_is_zero():
+    assert _utc_offset("garbage\n", datetime(2026, 9, 26)) == timedelta(0)
+
+
+@pytest.mark.asyncio
+async def test_enrichment_is_throttled_and_backs_off_when_debug_logs_are_off(async_db):
+    now = datetime(2026, 9, 26, 22, 50)
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    async_db.add(
+        PlaybackSession(
+            source="plex",
+            source_session_id="a",
+            title="T",
+            rating_key="1",
+            playback_method="transcode",
+            started_at=now - timedelta(minutes=5),
+            last_seen_at=now,
+        )
+    )
+    async_db.commit()
+    fetch = AsyncMock(return_value=([], None))
+    with (
+        patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
+        patch.object(playback_activity, "now_utc_naive", return_value=now),
+        patch.object(playback_activity.plex_decision_logs, "fetch_decisions", new=fetch),
+        patch.object(playback_activity, "_decision_next_attempt", None),
+    ):
+        assert (await playback_activity.enrich_decisions_from_plex_logs())["status"] == "debug_logs_disabled"
+        # Débogage coupé : on ne redemande pas à chaque collecte.
+        assert (await playback_activity.enrich_decisions_from_plex_logs())["status"] == "throttled"
+        assert playback_activity._decision_next_attempt == now + playback_activity._DECISION_RETRY_DISABLED
+    assert fetch.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_enrichment_without_plex_settings_is_disabled(async_db):
+    with patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db):
+        assert (await playback_activity.enrich_decisions_from_plex_logs(force=True))["status"] == "disabled"
+
+
+@pytest.mark.asyncio
+async def test_collection_survives_unreadable_plex_logs():
+    with (
+        patch.object(
+            playback_activity, "_collect_plex_activity_unlocked", new=AsyncMock(return_value={"status": "complete"})
+        ),
+        patch.object(playback_activity, "acquire_distributed_lock", new=AsyncMock(return_value="tok")),
+        patch.object(playback_activity, "release_distributed_lock", new=AsyncMock()),
+        patch.object(
+            playback_activity, "enrich_decisions_from_plex_logs", new=AsyncMock(side_effect=RuntimeError("zip"))
+        ),
+    ):
+        assert await playback_activity.collect_plex_activity() == {"status": "complete"}
