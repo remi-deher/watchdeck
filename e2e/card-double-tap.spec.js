@@ -27,7 +27,12 @@ test.beforeEach(async ({ page }) => {
 test("une affiche se revele au premier appui et s'ouvre au second", async ({ page }) => {
   const carte = page.locator(".media-grid > .poster-card").first();
   const affiche = carte.locator(".poster-wrap");
-  await expect(affiche).toBeVisible({ timeout: 15_000 });
+  // Attendre la grille definitive : sur une machine lente (CI), une premiere grille est
+  // encore remplacee apres le chargement du catalogue, et le premier appui tombait sur
+  // une carte aussitot demontee -- le second n'etait alors qu'un premier appui.
+  await expect(page.getByText("12 médias affichés")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Chargement du catalogue")).toHaveCount(0);
+  await expect(affiche).toBeVisible();
 
   await affiche.tap();
   await expect(affiche).toHaveClass(/revealed/);
