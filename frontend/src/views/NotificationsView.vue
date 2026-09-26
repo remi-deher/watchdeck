@@ -21,6 +21,10 @@
         </div>
       </template>
 
+      <template #tabs>
+        <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
+      </template>
+
   <Transition name="notification-feedback">
     <UiFeedback v-if="feedbackMessage" :type="feedbackType" :message="feedbackMessage" />
   </Transition>
@@ -56,7 +60,6 @@
       </template>
     </FilterSidebar>
     <div class="psh-main">
-  <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
   <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
   <BulkActionBar
     v-if="tab === 'pending'"
@@ -399,18 +402,17 @@ const notificationSubnavItems = computed(() =>
   align-items: center;
   gap: .6rem;
   min-width: min(520px, 52vw);
-  height: 40px;
-  padding: 0 .65rem;
-  border: 1px solid var(--border);
-  border-radius: var(--panel-radius);
-  background: var(--surface);
-  box-shadow: 0 8px 24px rgb(var(--shadow-color) / calc(.14 * var(--shadow-scale)));
+  height: 36px;
+  /* La capsule d'outils de la page porte deja bord, fond et ombre : le bandeau n'en
+     redessine pas une seconde a l'interieur. */
+  padding: 0 .4rem;
+  border: 0;
+  background: transparent;
   order: 3;
   width: 100%;
   min-width: 0;
   overflow: hidden;
 }
-.notification-control.paused { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .notification-control-icon { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border-radius: var(--radius-sm); color: var(--green-text); background: color-mix(in srgb, var(--green) 12%, transparent); }
 .notification-control-icon :deep(svg) { width: 17px; height: 17px; }
 .notification-control.paused .notification-control-icon { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
