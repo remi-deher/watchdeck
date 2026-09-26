@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useChromeAutoHide } from './useChromeAutoHide';
+import { resumeAutoHide, suspendAutoHide, useChromeAutoHide } from './useChromeAutoHide';
 
 /**
  * L'etat est volontairement partage entre la barre du haut et la rangee de sections :
@@ -89,5 +89,37 @@ describe('useChromeAutoHide', () => {
 
     reveal();
     expect(hidden.value).toBe(false);
+  });
+
+  it('ignore les sauts du verrou d’une fiche et garde l’etat de la barre', () => {
+    const { hidden } = useChromeAutoHide();
+    scrollTo(900);
+    scrollTo(850);
+    expect(hidden.value, 'la barre est visible avant la fiche').toBe(false);
+
+    // Ouverture : le verrou ramene la page a 0 ; fermeture : il la renvoie a 850.
+    suspendAutoHide();
+    scrollTo(0);
+    window.scrollY = 850;
+    resumeAutoHide();
+    window.dispatchEvent(new Event('scroll'));
+
+    expect(hidden.value, 'le retour a la position ne doit pas masquer la barre').toBe(false);
+    scrollTo(1000);
+    expect(hidden.value, 'le suivi reprend normalement ensuite').toBe(true);
+  });
+
+  it('ne fait pas reapparaitre la barre quand le verrou ramene la page en haut', () => {
+    const { hidden } = useChromeAutoHide();
+    scrollTo(900);
+    expect(hidden.value, 'la barre est masquee avant la fiche').toBe(true);
+
+    suspendAutoHide();
+    scrollTo(0);
+    expect(hidden.value, 'le verrou n’est pas un retour en haut de page').toBe(true);
+    window.scrollY = 900;
+    resumeAutoHide();
+    window.dispatchEvent(new Event('scroll'));
+    expect(hidden.value, 'la barre retrouve l’etat qu’elle avait').toBe(true);
   });
 });
