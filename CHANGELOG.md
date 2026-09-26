@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.46.0 — 2026-09-26
+
+
+### ✨ Nouveautés
+
+- navigation au retour, memoire des filtres et refonte de la page Demandes ([c5edaea](https://github.com/remi-deher/watchdeck/commit/c5edaea73ae4c31f0d602c03c92c61158d08379d))
 ## 1.45.2 — 2026-09-25
 
 
@@ -10,6 +16,10 @@
 ### 🐛 Corrections
 
 - albums ouverts comme des films depuis la fiche artiste ([178e55d](https://github.com/remi-deher/watchdeck/commit/178e55d454193630c868701c38891baac7f7c82d))
+
+### 🔧 Maintenance
+
+- v1.45.2 (#461) ([83d1ae9](https://github.com/remi-deher/watchdeck/commit/83d1ae965650bb5bdbade7760d89ff8330f0d6ca))
 ## 1.45.1 — 2026-09-25
 
 
