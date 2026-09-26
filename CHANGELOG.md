@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.47.1 — 2026-09-26
+
+
+### 🐛 Corrections
+
+- rangee collante qui remplace la recherche sur PC, hero toujours sombre, fondus d'onglets par masque ([f5f377e](https://github.com/remi-deher/watchdeck/commit/f5f377ea173268e25bfa355513e9877bc987d986))
 ## 1.47.0 — 2026-09-26
 
 
@@ -11,6 +17,10 @@
 
 - onglets en capsule centree et collante, barre de recherche sans enveloppe ([781214c](https://github.com/remi-deher/watchdeck/commit/781214c8f14025e915a78a6197c4ca6e4a823107))
 - outils de page en capsule centree sous la recherche ([8632ff0](https://github.com/remi-deher/watchdeck/commit/8632ff0af1410e5124f5951777eaa9485ba79e80))
+
+### 🔧 Maintenance
+
+- v1.47.0 (#473) ([ccde40c](https://github.com/remi-deher/watchdeck/commit/ccde40c8336ab66b7a656a09d8f8bfca0eeb61b6))
 ## 1.46.1 — 2026-09-26
 
 
