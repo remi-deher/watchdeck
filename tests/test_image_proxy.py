@@ -31,6 +31,7 @@ def _client(db):
     app.dependency_overrides[get_db] = lambda: db
     image_proxy_api.AsyncSessionLocal = lambda: db
     image_proxy_api._allowed_hosts_cache = (0.0, set())
+    image_proxy_api._missing.clear()
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -560,7 +561,9 @@ def test_plex_path_stale_timestamp_falls_back_to_current_thumb(cache_dir, async_
         _cleanup()
 
 
-def test_plex_path_stale_without_current_thumb_stays_502(cache_dir, async_db):
+def test_plex_path_stale_without_current_thumb_is_404(cache_dir, async_db):
+    """Vignette absente de Plex (bande-annonce jamais illustree) : une image qui n'existe
+    pas, pas une panne -- 404 et non 502."""
     client = _client(async_db)
     meta = _resp(content_type="application/json")
     meta.json = MagicMock(return_value={"MediaContainer": {"Metadata": [{}]}})
@@ -568,14 +571,30 @@ def test_plex_path_stale_without_current_thumb_stays_502(cache_dir, async_db):
     try:
         with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
             resp = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F100")
-        assert resp.status_code == 502
+        assert resp.status_code == 404
     finally:
         _cleanup()
 
 
-def test_plex_path_stale_metadata_error_stays_502(cache_dir, async_db):
+def test_plex_path_missing_item_is_404_and_remembered(cache_dir, async_db):
+    """Media supprime de Plex depuis la lecture : 404, puis plus aucune requete a Plex
+    pendant une heure (un historique affiche la meme vignette a chaque visite)."""
     client = _client(async_db)
     fake = _fake_httpx_client(side_effect=[_resp(status_code=404), _resp(status_code=500)])
+    try:
+        with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
+            resp = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F100")
+            again = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F100")
+        assert resp.status_code == 404
+        assert again.status_code == 404
+        assert fake.get.await_count == 2  # la premiere requete et sa relecture des metadonnees, rien de plus
+    finally:
+        _cleanup()
+
+
+def test_une_panne_de_plex_reste_un_502(cache_dir, async_db):
+    client = _client(async_db)
+    fake = _fake_httpx_client(side_effect=[_resp(status_code=500)])
     try:
         with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
             resp = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F100")
