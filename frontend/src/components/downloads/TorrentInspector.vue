@@ -189,5 +189,5 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 .drawer-actions button{display:inline-flex;align-items:center;gap:6px}
 .drawer-actions svg{width:14px;height:14px}
 @include bp.from(tablet) {.detail-grid dt,.detail-list dt{color:var(--accent);font-size:var(--fs-xs)}}
-@media(max-width:380px){.detail-grid{grid-template-columns:1fr}}
+@container sheet (max-width: 342px) {.detail-grid{grid-template-columns:1fr}}
 </style>

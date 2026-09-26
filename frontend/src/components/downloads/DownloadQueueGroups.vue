@@ -211,7 +211,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .completed-card-overlay .meta-date{color:rgba(255,255,255,0.75);font-size:var(--fs-xs)}
 .completed-title{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
 
-@media(max-width:520px){
+@container page (max-width: 484px) {
   .download-group-head p{display:none}
   .download-card{padding:12px}
   .rich-card{flex-direction:column}

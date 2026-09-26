@@ -39,7 +39,7 @@ const { actif: enSurface } = useMediaOverlay();
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.sheet-page{display:grid;gap:var(--space-4);padding:8px max(18px,var(--safe-right)) max(24px,var(--safe-bottom)) max(18px,var(--safe-left))}
+.sheet-page{container:sheet/inline-size;display:grid;gap:var(--space-4);padding:8px max(18px,var(--safe-right)) max(24px,var(--safe-bottom)) max(18px,var(--safe-left))}
 .sheet-page.is-standalone{width:min(980px,100%);margin:0 auto;padding-top:var(--space-4)}
 .sheet-page__head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3)}
 .sheet-page__titles{display:grid;gap:4px;min-width:0}

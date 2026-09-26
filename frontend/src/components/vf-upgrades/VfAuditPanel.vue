@@ -453,7 +453,7 @@ const failedPosters = ref(new Set<string>());
   }
 }
 
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .audit-card {
     grid-template-columns: 1fr;
     gap: var(--space-3);

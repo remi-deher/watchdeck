@@ -119,5 +119,5 @@ watch(() => props.clientId, loadStats);
   .speed-bar-actions{gap:4px}
   .speed-bar-actions button{justify-content:center;min-width:0;padding:3px 7px;font-size:var(--fs-xs)}
 }
-@media(max-width:380px){.connection-status{font-size:0}.connection-status i{width:8px;height:8px}}
+@container page (max-width: 352px) {.connection-status{font-size:0}.connection-status i{width:8px;height:8px}}
 </style>

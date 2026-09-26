@@ -7,14 +7,12 @@ import { join, relative, sep } from 'node:path';
    finit toujours par diverger : l'application en comptait dix-neuf differents, dont
    neuf absents de la liste officielle, et 640px valait tantot 640, tantot 639.98.
 
-   Deux regles :
-   - les composants partages (ui, layout) n'ont droit a aucun seuil local ;
-   - ailleurs, les seuils restants sont des bornes pilotees par le contenu (une grille
-     de carte qui passe sur une colonne sous 480px, un calendrier qui defile sous
-     900px). Leur nombre ne peut que baisser : ceux de 900 a 1150px dependent de la
-     largeur du contenu plutot que de la fenetre, et gagneraient a devenir des
-     container queries. Les requetes de hauteur (paysage) ne sont pas concernees. */
-const PLAFOND = 33;
+   Une borne pilotee par le contenu (une grille de carte qui passe sur une colonne) ne
+   depend pas de la fenetre mais de la place du composant : elle s'ecrit en container
+   query, sur l'un des trois conteneurs nommes -- `page` (.app-page), `sheet`
+   (.sheet-page) ou `panel` (.modal-panel). Les requetes de hauteur (paysage) ne sont
+   pas concernees. */
+const PLAFOND = 0;
 const SEUIL = /@media[^{]*\bwidth\b[^{]*\d+(\.\d+)?px/g;
 const FONDATIONS = /foundations[\\/]_(breakpoints|motion)\.scss$/;
 const PARTAGES = ['components' + sep + 'ui' + sep, 'components' + sep + 'layout' + sep];
@@ -41,12 +39,22 @@ function seuilsParFichier() {
 }
 
 describe('points de rupture', () => {
+  it('chaque container query nomme son conteneur', () => {
+    // Sans nom, la requete vise le conteneur le plus proche : ajouter un conteneur plus
+    // haut dans l'arbre en change silencieusement la cible.
+    const racine = join(__dirname, '..');
+    const anonymes = fichiers(racine)
+      .map((file) => [relative(racine, file), (styles(readFileSync(file, 'utf8'), file).match(/@container\s*\(/g) || []).length])
+      .filter(([, n]) => n > 0);
+    expect(anonymes).toEqual([]);
+  });
+
   it('aucun seuil en pixels dans les composants partages', () => {
     const partages = seuilsParFichier().filter(([file]) => PARTAGES.some((dossier) => file.startsWith(dossier)));
     expect(partages).toEqual([]);
   });
 
-  it(`au plus ${PLAFOND} seuils locaux en pixels hors des mixins`, () => {
+  it('aucun seuil de fenetre en pixels hors des mixins', () => {
     const parFichier = seuilsParFichier();
     const total = parFichier.reduce((somme, [, n]) => somme + n, 0);
     expect(total, JSON.stringify(parFichier.sort((a, b) => b[1] - a[1]).slice(0, 10))).toBeLessThanOrEqual(PLAFOND);

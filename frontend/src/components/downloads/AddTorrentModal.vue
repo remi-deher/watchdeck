@@ -348,7 +348,7 @@ async function submit(): Promise<void> {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-@media (max-width: 480px) {
+@container panel (max-width: 448px) {
   .form-row {
     grid-template-columns: 1fr;
   }

@@ -433,7 +433,7 @@ function handleContextMenuAction(actionType: string): void {
   .torrent-name{min-width:0;max-width:none}
   .torrent-status-bar{justify-content:flex-start;max-width:100%;overflow-x:auto}
 }
-@media(max-width:380px){
+@container page (max-width: 352px) {
   .bulk-toolbar{grid-template-columns:1fr}
   .bulk-toolbar strong,.bulk-toolbar .text-button{grid-column:auto}
 }

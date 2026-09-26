@@ -309,6 +309,9 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 
 .detail-drawer,
 .modal-panel {
+  /* Conteneur de requetes : le contenu d'une fenetre s'adapte a la largeur de la
+     fenetre elle-meme (680px sur ordinateur, tout l'ecran sur telephone). */
+  container: panel / inline-size;
   --drawer-pad: 24px;
   position: fixed;
   z-index: var(--z-modal-panel);

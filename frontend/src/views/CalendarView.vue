@@ -544,7 +544,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 }
 
 /* Adaptations Responsives Mobile */
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .month-calendar { min-width: 760px; }
   .month-cell { min-height: 112px; padding: 6px; }
   .calendar-view-switch { justify-self: start; }

@@ -498,7 +498,7 @@ onMounted(load);
   .vf-upgrade-release-actions { justify-content: stretch; }
   .vf-upgrade-release-actions > * { flex: 1; justify-content: center; min-height: 42px; }
 }
-@media (max-width: 480px) {
+@container panel (max-width: 429px) {
   .compact-search-button { width: 100%; justify-content: center; }
   .release-secondary-meta { grid-template-columns: 1fr 1fr; }
   .release-comparison { grid-template-columns: 1fr; }

@@ -428,7 +428,7 @@ const notificationSubnavItems = computed(() =>
 .notification-feedback.error { color: var(--red-text); background: color-mix(in srgb, var(--red) 10%, transparent); }
 .notification-feedback-enter-active, .notification-feedback-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard); }
 .notification-feedback-enter-from, .notification-feedback-leave-to { opacity: 0; transform: translateY(-4px); }
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .notification-control { min-width: 0; max-width: calc(100vw - 3rem); }
   .notification-control-action { flex-wrap: wrap; justify-content: flex-end; }
 }

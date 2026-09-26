@@ -55,5 +55,5 @@ const emit = defineEmits<{ (e: 'close'): void }>();
 .column-reorder-btn:disabled{opacity:.35;cursor:not-allowed}
 .column-reorder-btn svg{width:14px;height:14px}
 .column-drag-handle{color:var(--muted);font-size:var(--fs-lg);line-height:1}
-@media(max-width:380px){.column-picker-grid{grid-template-columns:1fr}}
+@container panel (max-width: 348px) {.column-picker-grid{grid-template-columns:1fr}}
 </style>
