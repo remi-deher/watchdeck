@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.51.0 — 2026-09-26
+
+
+### test
+
+- couvrir la lecture des journaux Plex et ses replis ([e9dcdca](https://github.com/remi-deher/watchdeck/commit/e9dcdca06937e8fe517d545e97cd9bbf4929c2f7))
+- attendre la grille definitive avant le double appui ([969490c](https://github.com/remi-deher/watchdeck/commit/969490cbb1e4e562a5da4112c3c0417c141c2436))
+
+### ✨ Nouveautés
+
+- raison du transcodage, deduite du flux ou relue dans les journaux Plex ([2662293](https://github.com/remi-deher/watchdeck/commit/26622938932121bfece129da3c7911d461ed9794))
+
+### 🐛 Corrections
+
+- ne plus deplacer la barre a l'ouverture et a la fermeture d'une fiche ([fbd63f4](https://github.com/remi-deher/watchdeck/commit/fbd63f46e79c9aaa76904af5392b60146b521273))
+- rendre le double appui tactile independant de Safari ([f89a263](https://github.com/remi-deher/watchdeck/commit/f89a26309d3e56b02838a8c3abf494e949d7c6e9))
+- typer les identifiants de session du rapprochement des decisions Plex ([35bc271](https://github.com/remi-deher/watchdeck/commit/35bc271697ccfbb6f56d8e3dc11226b3e046ca26))
+- ouvrir au second appui meme si le premier clic a ete supprime ([88ef679](https://github.com/remi-deher/watchdeck/commit/88ef6799992edc371839dfac1051da1c098f06d0))
+- ignorer le mouseleave simule qui suit un appui ([77f49b6](https://github.com/remi-deher/watchdeck/commit/77f49b60f5ba11c58f44b409511acec2b4aa3b8a))
 ## 1.50.0 — 2026-09-26
 
 
@@ -11,6 +30,10 @@
 
 - passer tri et sens a l'historique des envois ([acb1fd7](https://github.com/remi-deher/watchdeck/commit/acb1fd74dd1ebe1e15faf75c525a7fa4eba11c76))
 - ne plus recharger la grille a l'ouverture et a la fermeture d'une fiche ([8c99557](https://github.com/remi-deher/watchdeck/commit/8c99557d22c55b4419224c35cc62e90aa02db0c0))
+
+### 🔧 Maintenance
+
+- v1.50.0 (#489) ([63f6870](https://github.com/remi-deher/watchdeck/commit/63f68706db8c2d273aedd96281dc1c96c5421ee9))
 ## 1.49.0 — 2026-09-26
 
 
