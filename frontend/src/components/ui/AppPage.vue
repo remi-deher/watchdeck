@@ -227,6 +227,8 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+
 /* La cascade d'arrivee ne concerne que le contenu.
  *
  * `page-motion` anime chaque enfant direct : le temoin de collage et la rangee collante
@@ -281,7 +283,7 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
 .app-page__sentinel { display: block; width: 1px; height: 1px; margin-bottom: -1px; pointer-events: none; }
 /* L'ombre n'apparait qu'une fois decolle, et sur la capsule seule : au repos, elle
    soulignerait une barre qui ne flotte pas encore au-dessus de quoi que ce soit. */
-.app-page__sticky.is-stuck > :deep(.app-subnav) .app-subnav__scroller,
+.app-page__sticky.is-stuck > :deep(.app-subnav),
 .app-page__sticky.is-stuck > .app-page__tools {
   box-shadow: 0 10px 28px rgb(var(--shadow-color) / calc(.3 * var(--shadow-scale)));
 }
@@ -297,6 +299,17 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
   transform: translateY(calc(-100% - var(--app-shell-offset-top, 54px)));
   pointer-events: none;
 }
+/* Sur PC, la rangee ne part pas avec la barre : elle monte prendre sa place, du meme
+   mouvement et a la meme duree. Les sections et outils restent ainsi a portee pendant
+   la lecture, sans vide au-dessus d'eux. Sur telephone la barre vit en bas : la rangee
+   garde l'effacement ci-dessus, pour rendre toute la hauteur au contenu. */
+@include bp.from(shell-medium) {
+  .app-page__sticky.is-hidden:not(:focus-within) {
+    opacity: 1;
+    transform: translateY(calc(var(--safe-top, 0px) - var(--app-shell-offset-top, 54px)));
+    pointer-events: none;
+  }
+}
 
 .app-page__tools {
   display: flex;
@@ -309,12 +322,22 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
    recherche et les sections : posee sur le contenu qui defile, elle garde lisibles les
    boutons sans fond (Reglages, fleches du calendrier). */
 .app-page__sticky > .app-page__tools {
+  /* Une seule ligne qui defile, comme les sections : sur telephone la periode
+     d'Activite (neuf choix) debordait de la capsule. `safe center` retombe sur un
+     alignement a gauche quand ca deborde, sans quoi le debut serait coupe. */
+  flex-wrap: nowrap;
+  justify-content: safe center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
   transition: box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
+.app-page__sticky > .app-page__tools::-webkit-scrollbar { display: none; }
+.app-page__sticky > .app-page__tools > .app-page__tool-actions { flex-wrap: nowrap; justify-content: safe center; min-width: max-content; }
 /* Un controle segmente (periode d'Activite) s'aplatit dans la capsule, et sa pastille
    active parle le meme langage que l'onglet actif des sections. */
 .app-page__sticky > .app-page__tools :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
