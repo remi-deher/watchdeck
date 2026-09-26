@@ -10,12 +10,13 @@
     <!-- Tout, Films, Series, Musique : des onglets dans la page, a toutes les largeurs.
          Les types etaient jusque-la caches dans le panneau de filtres ou dans les titres
          des rangees de l'accueil. -->
-    <AppSubnav
-      class="page-type-tabs"
-      :items="LIBRARY_TYPE_TABS"
-      :active="libraryTypeTabFor(route)"
-      aria-label="Types de médias"
-    />
+    <template #tabs>
+      <AppSubnav
+        :items="LIBRARY_TYPE_TABS"
+        :active="libraryTypeTabFor(route)"
+        aria-label="Types de médias"
+      />
+    </template>
 
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">

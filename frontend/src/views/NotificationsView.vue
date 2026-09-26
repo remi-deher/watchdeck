@@ -21,6 +21,10 @@
         </div>
       </template>
 
+      <template #tabs>
+        <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
+      </template>
+
   <Transition name="notification-feedback">
     <UiFeedback v-if="feedbackMessage" :type="feedbackType" :message="feedbackMessage" />
   </Transition>
@@ -56,7 +60,6 @@
       </template>
     </FilterSidebar>
     <div class="psh-main">
-  <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
   <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
   <BulkActionBar
     v-if="tab === 'pending'"

@@ -30,6 +30,11 @@
         @update:active="$emit('update:activeSection', $event)"
       />
 
+      <!-- Onglets propres a la page (types de Bibliotheque, vues d'Explorer) : ils
+           partagent le collage, l'ombre et l'effacement de la rangee au lieu d'en
+           reimplementer une copie dans la feuille globale. -->
+      <slot name="tabs" />
+
       <div v-if="hasTools && !toolsInBar" class="app-page__tools">
         <div class="app-page__tool-actions">
           <slot name="tools" />
@@ -180,6 +185,7 @@ providePageSearch(
 const mode = useShellMode();
 const slots = useSlots();
 const hasTools = computed(() => Boolean(slots.tools || slots.actions));
+const hasTabs = computed(() => Boolean(slots.tabs));
 /* La cible du teleport appartient a la barre du haut, montee avant la page : elle est
    donc la des le premier rendu. On la verifie quand meme, pour qu'un AppPage monte hors
    du shell (tests isoles, tiroirs) retombe simplement sur sa rangee collante. */
@@ -201,7 +207,7 @@ const { hidden: chromeHidden } = useChromeAutoHide();
    ecran qui n'a la hauteur d'aucune des trois. */
 const showSections = computed(() => mode.value === 'medium');
 const showStickyRow = computed(
-  () => (showSections.value && resolvedSections.value.length > 1) || (hasTools.value && !toolsInBar.value)
+  () => (showSections.value && resolvedSections.value.length > 1) || hasTabs.value || (hasTools.value && !toolsInBar.value)
 );
 const resolvedSections = computed<SubnavItem[]>(() =>
   props.sections.length ? props.sections : derivedSections.value
@@ -270,12 +276,12 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
   pointer-events: none;
 }
 .app-page__sticky > * { pointer-events: auto; }
-.app-page__sticky > .app-subnav { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.app-page__sticky > :deep(.app-subnav) { flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .app-page__sticky > .app-page__tools { flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .app-page__sentinel { display: block; width: 1px; height: 1px; margin-bottom: -1px; pointer-events: none; }
 /* L'ombre n'apparait qu'une fois decolle, et sur la capsule seule : au repos, elle
    soulignerait une barre qui ne flotte pas encore au-dessus de quoi que ce soit. */
-.app-page__sticky.is-stuck > .app-subnav :deep(.app-subnav__scroller),
+.app-page__sticky.is-stuck > :deep(.app-subnav) .app-subnav__scroller,
 .app-page__sticky.is-stuck > .app-page__tools {
   box-shadow: 0 10px 28px rgb(var(--shadow-color) / calc(.3 * var(--shadow-scale)));
 }
