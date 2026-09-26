@@ -377,6 +377,7 @@ function handleContextMenuAction(actionType: string): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 /* Densite et mode incognito : le tableau vient de UiDataTable, dont les cellules ne portent
    pas l'attribut de portee de ce composant -- d'ou :deep() pour les cellules elles-memes. */
 .torrent-table.compact-table :deep(th),.torrent-table.compact-table :deep(td){padding:4px 7px;font-size:var(--fs-xs)}
@@ -384,7 +385,7 @@ function handleContextMenuAction(actionType: string): void {
 .torrent-table.incognito-mode .torrent-title{font-family: var(--font-mono);letter-spacing:0.5px}
 @media (min-width: 641px){.torrent-table :deep(td){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 /* Dans la carte, le titre passe a la ligne et la progression prend toute la largeur. */
-@media (max-width: 640px){.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
+@include bp.until(phablet) {.torrent-table .torrent-title{white-space:normal;overflow-wrap:anywhere}.progress-cell{flex:1;min-width:0}}
 
 .torrent-manager{display:grid;gap:var(--space-3);padding-bottom:52px}
 .torrent-status-bar{display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);font-size:var(--fs-xs);font-weight:600}

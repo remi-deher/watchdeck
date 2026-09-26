@@ -307,6 +307,7 @@ async function submit(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .add-torrent-tabs { margin-bottom: var(--space-3); }
 .add-torrent-form {
   display: flex;
@@ -401,5 +402,5 @@ async function submit(): Promise<void> {
 .metadata-kind{display:grid;align-content:start;gap:8px;min-width:0}.metadata-kind>header{display:flex;align-items:center;justify-content:space-between}.metadata-kind>header span{color:var(--muted);font-size:var(--fs-xs)}
 .metadata-create{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}.metadata-create input,.metadata-item input{min-width:0;width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)}.metadata-create button{display:inline-flex;align-items:center;gap:5px;padding:0 9px}
 .metadata-list{display:grid;gap:4px;max-height:190px;overflow-y:auto;overscroll-behavior:contain}.metadata-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:4px;min-height:36px;padding:3px 4px 3px 9px;border-radius:var(--radius-sm);background:var(--surface)}.metadata-item>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)}.metadata-item :deep(.ui-button){width:30px;height:30px;padding:0}.metadata-item :deep(.ui-button svg){width:14px;height:14px}
-@media(max-width:640px){.metadata-manager{grid-template-columns:1fr}.metadata-toggle{align-self:stretch}.metadata-list{max-height:150px}}
+@include bp.until(phablet) {.metadata-manager{grid-template-columns:1fr}.metadata-toggle{align-self:stretch}.metadata-list{max-height:150px}}
 </style>

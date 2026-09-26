@@ -38,6 +38,7 @@ withDefaults(
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .settings-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, auto);
@@ -122,7 +123,7 @@ label.settings-row-title {
 
 /* Sous 640 px la colonne de droite n'a plus la place : on empile, en gardant le
    filet de separation qui structure la lecture. */
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .settings-row {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;

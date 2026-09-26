@@ -297,6 +297,7 @@ onUnmounted(stopAutoplay);
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-hero-banner {
   position: relative;
   min-height: clamp(300px, 42vw, 460px);
@@ -513,7 +514,7 @@ onUnmounted(stopAutoplay);
   .hero-slide-prev-enter-from { opacity: 0; }
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .media-hero-banner {
     min-height: clamp(320px, 58vh, 420px);
     border-radius: var(--radius-md);

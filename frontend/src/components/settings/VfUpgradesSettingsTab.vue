@@ -316,6 +316,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .diag-btn {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
@@ -424,7 +425,7 @@ select:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .effective-summary {
     flex-direction: column;
   }
