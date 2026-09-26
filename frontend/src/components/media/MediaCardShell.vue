@@ -11,7 +11,7 @@
       @pointerdown.capture="notePointer"
       @click.capture="interceptFirstTap"
       @mouseenter="revealOnHover"
-      @mouseleave="conceal"
+      @mouseleave="concealOnHover"
       @focusin="reveal"
       @focusout="conceal"
     >
@@ -89,6 +89,15 @@ function notePointer(e: PointerEvent): void {
 function revealOnHover(): void {
   if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
   reveal();
+}
+
+/* Le survol simule d'un appui se termine aussi : Chromium (Linux, Android) envoie un
+   `mouseleave` juste apres le clic, qui refermait aussitot la carte que l'appui venait
+   de reveler. Au doigt, c'est la perte du focus (appui ailleurs) ou la revelation
+   d'une autre carte qui la referme. */
+function concealOnHover(): void {
+  if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
+  conceal();
 }
 
 function interceptFirstTap(e: MouseEvent): void {

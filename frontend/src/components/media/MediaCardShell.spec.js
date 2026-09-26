@@ -44,6 +44,30 @@ describe('MediaCardShell', () => {
     expect(second.defaultPrevented, 'le second appui ouvre la fiche').toBe(false);
   });
 
+  it('ne referme pas la carte sur le mouseleave simule qui suit un appui', async () => {
+    // Sequence mesuree dans Chromium Linux : ... focusin, click, puis mouseleave.
+    const wrapper = mount(MediaCardShell, { slots: { default: '<div class="cible">affiche</div>' } });
+    const wrap = wrapper.find('.poster-wrap');
+    tap(wrap);
+    wrap.element.dispatchEvent(new Event('mouseleave'));
+    await wrapper.vm.$nextTick();
+    expect(wrap.classes()).toContain('revealed');
+  });
+
+  it('referme la carte quand la souris la quitte', async () => {
+    const wrapper = mount(MediaCardShell, { slots: { default: '<div class="cible">affiche</div>' } });
+    const wrap = wrapper.find('.poster-wrap');
+    const down = new Event('pointerdown', { bubbles: true });
+    Object.defineProperty(down, 'pointerType', { value: 'mouse' });
+    wrap.element.dispatchEvent(down);
+    wrap.element.dispatchEvent(new Event('mouseenter'));
+    await wrapper.vm.$nextTick();
+    expect(wrap.classes()).toContain('revealed');
+    wrap.element.dispatchEvent(new Event('mouseleave'));
+    await wrapper.vm.$nextTick();
+    expect(wrap.classes()).not.toContain('revealed');
+  });
+
   it('laisse le clic ouvrir directement a la souris', () => {
     const wrapper = mount(MediaCardShell, { slots: { default: '<div class="cible">affiche</div>' } });
     const wrap = wrapper.find('.poster-wrap');
