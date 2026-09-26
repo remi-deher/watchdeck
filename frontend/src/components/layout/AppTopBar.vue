@@ -525,6 +525,14 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
      laissait a gauche d'une bande deux fois plus large -- 480px cales dans 972, soit
      246px hors du centre, alors que le conteneur, lui, etait bien centre. */
   .app-topbar__field :deep(.ui-search-field) { width: 100%; max-width: none; }
+  /* Meme effacement qu'en compact : sans lui, la barre dessinait une capsule grise
+     bordee autour du champ, un second contenant qui ne groupait rien. */
+  .app-topbar:has(.app-topbar__field) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
 }
 
 @include bp.from(shell-expanded) {
