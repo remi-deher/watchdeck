@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.48.0 — 2026-09-26
+
+
+### ✨ Nouveautés
+
+- onglets centres par defaut, Ameliorations VF en rangee collante et filtres compacts ([c72b96c](https://github.com/remi-deher/watchdeck/commit/c72b96c28a2a60dca0a4919e77b2c238c55e28c9))
 ## 1.47.1 — 2026-09-26
 
 
 ### 🐛 Corrections
 
 - rangee collante qui remplace la recherche sur PC, hero toujours sombre, fondus d'onglets par masque ([f5f377e](https://github.com/remi-deher/watchdeck/commit/f5f377ea173268e25bfa355513e9877bc987d986))
+
+### 🔧 Maintenance
+
+- v1.47.1 (#477) ([ceeaf0c](https://github.com/remi-deher/watchdeck/commit/ceeaf0c948e8cac1ff5ad9a7e74d6f89ee2ae2ea))
 ## 1.47.0 — 2026-09-26
 
 
