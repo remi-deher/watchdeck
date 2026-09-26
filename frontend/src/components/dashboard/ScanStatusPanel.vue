@@ -48,6 +48,6 @@ function progress(current?: number, total?: number): number | null {
 .count-pill.available { border-left: 2px solid var(--success); }
 .count-pill.pending { border-left: 2px solid var(--warning); }
 .count-pill.neutral { border-left: 2px solid var(--muted); }
-.count-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+.count-label { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
 .count-value { font-size: var(--fs-xs); font-weight: 700; color: var(--text); }
 </style>

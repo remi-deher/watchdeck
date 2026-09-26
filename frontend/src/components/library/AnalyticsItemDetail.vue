@@ -80,5 +80,5 @@ defineProps<{ item: Record<string, any> }>();
 .view-log time { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .view-log strong { font-variant-numeric: tabular-nums; }
 .view-log-empty { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
-@media (max-width: 520px) { .detail-grid { grid-template-columns: 1fr; } }
+@container sheet (max-width: 482px) { .detail-grid { grid-template-columns: 1fr; } }
 </style>

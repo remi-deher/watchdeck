@@ -232,6 +232,7 @@ const failedPosters = ref(new Set<string>());
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 @use './vfShared' as *;
 
 .audit-list {
@@ -452,7 +453,7 @@ const failedPosters = ref(new Set<string>());
   }
 }
 
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .audit-card {
     grid-template-columns: 1fr;
     gap: var(--space-3);
@@ -462,7 +463,7 @@ const failedPosters = ref(new Set<string>());
   }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .audit-card { padding: 12px; }
   .audit-card-top { gap: var(--space-3); }
   .audit-episode-row { align-items: stretch; flex-direction: column; }

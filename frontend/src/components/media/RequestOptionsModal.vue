@@ -115,6 +115,7 @@ function toggleSeason(season: number, checked: boolean): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 :deep(.request-options-modal) { width: min(480px, calc(100% - 24px)); }
 .request-options-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .request-options-intro { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.5; }
@@ -126,7 +127,7 @@ function toggleSeason(season: number, checked: boolean): void {
 .season-options small { color: var(--muted); line-height: 1.4; }
 .season-options input { accent-color: var(--accent); }
 .form-actions { justify-content: flex-end; margin-top: 1.5rem; }
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .request-options-grid { grid-template-columns: 1fr; }
 }
 </style>

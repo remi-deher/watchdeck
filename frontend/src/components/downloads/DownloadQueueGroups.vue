@@ -166,7 +166,8 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .download-groups{display:grid;gap:var(--space-4)}
 .download-group{display:grid;gap:var(--space-3)}
 .download-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:var(--space-3)}
@@ -210,7 +211,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .completed-card-overlay .meta-date{color:rgba(255,255,255,0.75);font-size:var(--fs-xs)}
 .completed-title{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
 
-@media(max-width:520px){
+@container page (max-width: 484px) {
   .download-group-head p{display:none}
   .download-card{padding:12px}
   .rich-card{flex-direction:column}
@@ -219,7 +220,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
   .download-card footer{display:grid;grid-template-columns:1fr 1fr}
   .download-card footer :deep(.ui-button){justify-content:center}
 }
-@media(max-width:767.98px){
+@include bp.until(tablet) {
   .download-card footer{grid-template-columns:1fr}
   .download-card footer :deep(.ui-button){min-height:44px}
 }

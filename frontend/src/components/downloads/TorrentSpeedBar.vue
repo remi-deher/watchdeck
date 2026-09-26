@@ -92,16 +92,17 @@ watch(() => props.rows, scheduleStats);
 watch(() => props.clientId, loadStats);
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .global-speed-bar{position:fixed;left:0;right:0;bottom:0;z-index:35;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:4px max(10px,var(--safe-right)) 4px max(10px,var(--safe-left));border:0;border-top:1px solid var(--border);border-radius:0;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 -6px 22px rgb(var(--shadow-color) / calc(0.18 * var(--shadow-scale)));backdrop-filter:blur(12px);flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain}
 :global(.shell.sidebar-collapsed) .global-speed-bar{left:72px}
 .speed-counters{display:flex;align-items:center;gap:18px;min-width:max-content}
 .speed-item{display:inline-flex;align-items:center;gap:8px;color:var(--text)}
 .speed-item>span{display:grid;gap:1px}
 .speed-item small{color:var(--accent);font-size:var(--fs-xs);font-weight:700}
-.speed-item strong{font-size:13px}
+.speed-item strong{font-size:var(--fs-sm)}
 .speed-item svg{width:15px;height:15px;color:var(--muted)}
-.connection-status{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}
+.connection-status{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
 .connection-status i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 14%,transparent)}
 .connection-status.connected{color: var(--green-text)}
 .connection-status.partial{color: var(--amber-text)}
@@ -110,13 +111,13 @@ watch(() => props.clientId, loadStats);
 .speed-bar-actions button{min-height:32px;padding:4px 9px;white-space:nowrap}
 .tool-toggle-btn.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);border-color:var(--accent)}
 .alt-speed-btn.active{background:color-mix(in srgb,var(--warning) 16%,transparent);color: var(--amber-text);border-color:var(--warning)}
-@media(min-width:761px){.global-speed-bar button{font-size:13px}}
-@media(max-width:760px){
+@include bp.from(tablet) {.global-speed-bar button{font-size:var(--fs-sm)}}
+@include bp.until(tablet) {
   .global-speed-bar{left:0;bottom:var(--app-shell-offset-bottom);min-width:0;min-height:42px;padding:3px 8px}
   .speed-counters{gap:12px}
-  .speed-item{gap:5px}.speed-item small{display:none}.speed-item strong{font-size:12px}
+  .speed-item{gap:5px}.speed-item small{display:none}.speed-item strong{font-size:var(--fs-xs)}
   .speed-bar-actions{gap:4px}
   .speed-bar-actions button{justify-content:center;min-width:0;padding:3px 7px;font-size:var(--fs-xs)}
 }
-@media(max-width:380px){.connection-status{font-size:0}.connection-status i{width:8px;height:8px}}
+@container page (max-width: 352px) {.connection-status{font-size:0}.connection-status i{width:8px;height:8px}}
 </style>

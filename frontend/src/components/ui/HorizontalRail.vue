@@ -111,6 +111,7 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .horizontal-rail-section {
   display: grid;
   gap: var(--space-3);
@@ -226,7 +227,7 @@ button.rail-title.as-button {
   gap: var(--space-3);
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .track-poster {
     grid-auto-columns: minmax(var(--poster-rail-min), var(--poster-rail-fluid));
     margin-right: -12px;

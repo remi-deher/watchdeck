@@ -215,7 +215,7 @@ const actions = computed(() => {
 
 .rt-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
-@media (max-width: 480px) {
+@container page (max-width: 444px) {
   .rt-card { grid-template-columns: 52px minmax(0, 1fr); }
   .rt-poster { width: 52px; }
 }

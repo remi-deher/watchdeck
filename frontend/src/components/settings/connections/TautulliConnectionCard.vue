@@ -72,5 +72,6 @@ async function normalizeHistory(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
-.card-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;margin-top:4px}.card-actions select{width:auto}.connection-result{margin:0;color:var(--muted);font-size:var(--fs-sm);line-height:1.5}@media(max-width:640px){.card-actions{display:grid;grid-template-columns:1fr 1fr}.card-actions>*{width:100%!important;min-height:44px}}@media(max-width:420px){.card-actions{grid-template-columns:1fr}}
+@use '@/styles/foundations/breakpoints' as bp;
+.card-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;margin-top:4px}.card-actions select{width:auto}.connection-result{margin:0;color:var(--muted);font-size:var(--fs-sm);line-height:1.5}@include bp.until(phablet) {.card-actions{display:grid;grid-template-columns:1fr 1fr}.card-actions>*{width:100%!important;min-height:44px}}@include bp.until(mobile-wide) {.card-actions{grid-template-columns:1fr}}
 </style>
