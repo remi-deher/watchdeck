@@ -58,6 +58,7 @@
           <span v-if="session.bandwidth_kbps" class="live-bandwidth">{{ formatBandwidth(session.bandwidth_kbps) }}</span>
           <span v-if="hasTranscodeBuffer(session)" class="live-buffer" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }" :title="transcodeSpeedLabel(session)">Tampon {{ formatBuffer(session.transcode_buffer_ms) }}</span>
         </footer>
+        <TranscodeReason v-if="session.transcode_reason" class="live-reason" :reason="session.transcode_reason" compact/>
       </article>
     </div>
     <div v-else-if="!collectionEnabled" class="live-disabled" role="status">
@@ -73,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import TranscodeReason, { type TranscodeReasonData } from './TranscodeReason.vue';
 import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref, watch } from 'vue';
@@ -105,6 +107,7 @@ export interface LiveSession {
   video_decision?: string;
   audio_decision?: string;
   subtitle_decision?: string;
+  transcode_reason?: TranscodeReasonData | null;
   geo_status?: string;
   geo_city?: string;
   geo_region?: string;
@@ -285,6 +288,7 @@ function formatRemaining(session: LiveSession): string {
 .progress-track i.paused{background:var(--muted);transition:none}
 .live-progress-label{display:flex;justify-content:space-between;margin-top:6px;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}
 
+.live-reason{padding:6px 14px 9px;border-top:1px solid var(--border);background:var(--surface)}
 .live-footer{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap: var(--space-2);align-items:center;padding:9px 14px;border-top:1px solid var(--border);background:var(--surface)}
 .live-location{display:flex;align-items:center;gap: var(--space-1);min-width:0;overflow:hidden;color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.live-location svg{flex:none;width:13px;height:13px;color:var(--muted)}
 .live-quality,.live-bandwidth{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs);white-space:nowrap}

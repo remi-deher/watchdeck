@@ -110,6 +110,16 @@ describe('LiveSessionsPanel — bande passante, réseau et transcodage', () => {
     expect(wrapper.get('.playback-badge').attributes('title')).toBe('Vidéo transcodée · Audio copiée');
   });
 
+  it('affiche la raison en vert si elle vient de Plex, en orange si elle est déduite', () => {
+    const plex = render([session({ transcode_reason: { source: 'plex', text: 'Direct play is disabled.', code: 3000 } })]);
+    expect(plex.get('.live-reason').classes()).toContain('from-plex');
+    expect(plex.get('.live-reason').text()).toContain('Direct play is disabled.');
+
+    const deduced = render([session({ transcode_reason: { source: 'deduced', text: 'Audio TrueHD → AAC' } })]);
+    expect(deduced.get('.live-reason').classes()).toContain('deduced');
+    expect(render([session({ transcode_reason: null })]).find('.live-reason').exists()).toBe(false);
+  });
+
   it('résume la charge du serveur en en-tête', () => {
     const texte = render([
       session({ session_id: 'a', bandwidth_kbps: 8000 }),

@@ -50,6 +50,11 @@
       </div>
     </section>
 
+    <section v-if="session.transcode_reason" class="session-detail-section transcode-reason-section">
+      <span class="eyebrow">Raison du transcodage<template v-if="session.transcode_hw"> · {{ session.transcode_hw }}</template></span>
+      <TranscodeReason :reason="session.transcode_reason"/>
+    </section>
+
     <div class="session-detail-columns">
     <section class="session-detail-section">
       <span class="eyebrow">Lecture</span>
@@ -84,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import TranscodeReason from './TranscodeReason.vue';
 import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
 import { computed } from 'vue';
