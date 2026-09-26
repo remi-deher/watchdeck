@@ -37,7 +37,9 @@
         <p class="rt-detail">{{ episodes.text }}</p>
       </template>
 
-      <ol v-if="item.lifecycle?.length" class="rt-life" aria-label="Étapes de la demande">
+      <!-- Fil de vie masque une fois la demande disponible (VF manquante) : toutes les
+           etapes y seraient cochees, sans rien apprendre. -->
+      <ol v-if="item.lifecycle?.length && kind !== 'vf'" class="rt-life" aria-label="Étapes de la demande">
         <li v-for="step in item.lifecycle" :key="step.key" :class="{ done: step.done }">
           <span>{{ step.label }}</span>
         </li>
@@ -119,7 +121,8 @@ const episodes = computed(() => {
   const total = Number(props.item.episodes_total_count || 0);
   const available = Number(props.item.episodes_available_count || 0);
   const aired = Number(props.item.episodes_aired_count || 0);
-  if (!total || kind.value === 'available') return null;
+  // Disponible (VF manquante) : tous les episodes sont la, la barre n'apprend rien.
+  if (!total || kind.value === 'available' || kind.value === 'vf') return null;
   return {
     total,
     available,
