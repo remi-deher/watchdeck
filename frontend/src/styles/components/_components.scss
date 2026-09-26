@@ -816,3 +816,11 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 .ui-tooltip[data-state="instant-open"] { animation: ui-tooltip-in var(--motion-duration-instant) var(--motion-ease-emphasized); }
 @keyframes ui-tooltip-in { from { opacity: 0; transform: translateY(2px); } }
 @media (prefers-reduced-motion: reduce) { .ui-tooltip { animation: none !important; } }
+/* En-tete commun des panneaux : les variantes restent contextualisees dans leur vue
+   quand leur contenu impose un empilement ou une presentation particuliere. */
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
