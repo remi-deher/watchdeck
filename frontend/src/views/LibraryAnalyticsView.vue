@@ -329,7 +329,7 @@ useRealtime(['library.analytics.updated'], () => load());
 .insight-results{display:grid;gap: var(--space-3)}.panel-head>strong{color:var(--text)}
 .load-more{justify-self:center}
 @media(max-width:900px){.analytics-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.insight-grid{grid-template-columns:1fr}.section-heading{align-items:flex-start}}
-@media(max-width:720px){.analytics-grid{grid-template-columns:1fr}.section-heading{display:grid}}
+@include bp.until(tablet) {.analytics-grid{grid-template-columns:1fr}.section-heading{display:grid}}
 @include bp.until(phablet) {.export-link{width:100%;justify-content:center}}
 @include bp.until(mobile-wide) {.analytics-metrics{grid-template-columns:1fr}}
 </style>

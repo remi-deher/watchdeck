@@ -132,6 +132,7 @@ function saveNote(): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .issue-card {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr);
@@ -188,7 +189,7 @@ function saveNote(): void {
 
 .issue-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
-@media (max-width: 620px) {
+@include bp.until(phablet) {
   .issue-card { grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-3); }
 }
 </style>

@@ -274,6 +274,7 @@ function formatTimestamp(value: number | string): string {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .downloads-overview {
   display: grid;
 }
@@ -384,7 +385,7 @@ function formatTimestamp(value: number | string): string {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
-@media (max-width: 800px) {
+@include bp.until(tablet) {
   .overview-activity-grid,
   .health-kpi-grid {
     grid-template-columns: 1fr 1fr;

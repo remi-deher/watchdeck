@@ -37,7 +37,8 @@ withDefaults(defineProps<{
 const { actif: enSurface } = useMediaOverlay();
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .sheet-page{display:grid;gap:var(--space-4);padding:8px max(18px,var(--safe-right)) max(24px,var(--safe-bottom)) max(18px,var(--safe-left))}
 .sheet-page.is-standalone{width:min(980px,100%);margin:0 auto;padding-top:var(--space-4)}
 .sheet-page__head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3)}
@@ -48,5 +49,5 @@ const { actif: enSurface } = useMediaOverlay();
 .sheet-page__actions{display:flex;flex-wrap:wrap;gap:var(--space-1);flex:none}
 .sheet-page__body{display:grid;gap:var(--space-4);min-width:0}
 .sheet-page__footer{position:sticky;bottom:0;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin:0 calc(-1 * max(18px,var(--safe-left)));padding:var(--space-3) max(18px,var(--safe-right)) max(var(--space-3),var(--safe-bottom)) max(18px,var(--safe-left));border-top:1px solid var(--border);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px)}
-@media(max-width:620px){.sheet-page__head{flex-direction:column}.sheet-page__actions{align-self:stretch}}
+@include bp.until(phablet) {.sheet-page__head{flex-direction:column}.sheet-page__actions{align-self:stretch}}
 </style>

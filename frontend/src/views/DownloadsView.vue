@@ -670,6 +670,6 @@ onMounted(async () => {
 .download-source-empty h2{margin:0;font-size:var(--fs-md)}
 .download-source-empty p{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}
 .client-table-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-3)}
-@media(max-width:800px){.client-header-actions{width:100%;gap:6px;flex-wrap:wrap}.client-header-actions .badge{display:none}}
+@include bp.until(tablet) {.client-header-actions{width:100%;gap:6px;flex-wrap:wrap}.client-header-actions .badge{display:none}}
 @include bp.until(phablet) {.download-source-empty{align-items:flex-start;flex-wrap:wrap}.download-source-empty>div{min-width:calc(100% - 50px)}.download-source-empty>a{margin-left:44px}}
 </style>

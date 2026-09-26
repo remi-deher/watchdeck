@@ -60,11 +60,12 @@ const mapLink = computed(() => hasCoordinates.value
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .session-location{overflow:hidden;margin-top:22px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}
 .location-head{display:flex;align-items:center;justify-content:space-between;gap: var(--space-3);padding:12px 14px}.location-head>span{display:grid;grid-template-columns:19px minmax(0,1fr);align-items:center;min-width:0}.location-head svg{grid-row:1/3;width:16px;color:var(--muted)}.location-head small{color:var(--muted);font-size:var(--fs-xs);}.location-head strong{overflow:hidden;font-size:var(--fs-sm);text-overflow:ellipsis;white-space:nowrap}.location-head a{display:flex;align-items:center;gap: var(--space-1);color:var(--accent);font-size:var(--fs-xs);text-decoration:none;white-space:nowrap}.location-head a svg{width:12px}
 iframe{display:block;width:100%;height:220px;border:0;border-block:1px solid var(--border);filter:saturate(.72) contrast(.95)}
 .location-placeholder{display:grid;place-items:center;min-height:130px;padding:24px;border-block:1px solid var(--border);color:var(--muted);text-align:center}.location-placeholder svg{width:28px;margin-bottom:7px}.location-placeholder span{max-width:360px;font-size:var(--fs-xs)}
 dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0}dl>div{display:grid;grid-template-columns:18px minmax(0,1fr);align-items:center;gap:8px;padding:11px 12px;border-top:1px solid var(--border);border-right:1px solid var(--border)}dl>div>svg{width:15px;height:15px;color:var(--accent)}dl>div>.location-copy{min-width:0}dt{color:var(--muted);font-size:var(--fs-xs);}dd{overflow:hidden;margin:2px 0 0;font-size:var(--fs-xs);font-weight:600;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:620px){iframe{height:180px}dl{grid-template-columns:1fr 1fr}dl>div:nth-child(2n){border-right:0}}
+@include bp.until(phablet) {iframe{height:180px}dl{grid-template-columns:1fr 1fr}dl>div:nth-child(2n){border-right:0}}
 @media(max-width:390px){dl{grid-template-columns:1fr}dl>div{border-right:0}}
 </style>
