@@ -16,9 +16,12 @@
   >
     <div class="hero-slider">
       <Transition :name="transitionName">
-        <div class="hero-slide" :key="itemKey">
-          <div class="hero-backdrop" :style="backdropStyle" />
-          <div class="hero-shade" />
+        <UiHeroBackdrop
+          :key="itemKey"
+          class="hero-slide"
+          :image-url="backdropOf(activeItem)"
+          zoom-on-hover
+        >
           <div class="hero-content">
             <span class="eyebrow">{{ eyebrowText }}</span>
             <h1>{{ activeItem.title || activeItem.name }}</h1>
@@ -34,31 +37,31 @@
               <UiButton variant="primary" v-else class="hero-btn" @click="$emit('open', activeItem)">Voir la fiche</UiButton>
             </div>
           </div>
-        </div>
+          <template #overlay>
+            <div
+              v-if="normalizedItems.length > 1"
+              class="hero-dots"
+              role="tablist"
+              aria-label="Sélection à la une"
+              @pointerdown.stop
+              @pointermove.stop
+              @pointerup.stop
+            >
+              <button
+                v-for="(_, i) in normalizedItems"
+                :key="i"
+                type="button"
+                role="tab"
+                class="hero-dot"
+                :class="{ active: i === activeIndex }"
+                :aria-selected="i === activeIndex"
+                :aria-label="`Voir la sélection ${i + 1}`"
+                @click.stop="goTo(i)"
+              />
+            </div>
+          </template>
+        </UiHeroBackdrop>
       </Transition>
-    </div>
-
-    <!-- Points de pagination -->
-    <div
-      v-if="normalizedItems.length > 1"
-      class="hero-dots"
-      role="tablist"
-      aria-label="Sélection à la une"
-      @pointerdown.stop
-      @pointermove.stop
-      @pointerup.stop
-    >
-      <button
-        v-for="(_, i) in normalizedItems"
-        :key="i"
-        type="button"
-        role="tab"
-        class="hero-dot"
-        :class="{ active: i === activeIndex }"
-        :aria-selected="i === activeIndex"
-        :aria-label="`Voir la sélection ${i + 1}`"
-        @click.stop="goTo(i)"
-      />
     </div>
   </section>
   <div v-else-if="loading" class="media-hero-banner hero-loading" aria-label="Chargement de la sélection" />
@@ -72,6 +75,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { memoriserApercu } from '@/composables/useFicheApercu';
 import MediaStatusBadge from '@/components/media/MediaStatusBadge.vue';
+import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -118,11 +122,6 @@ const itemKey = computed(() => {
 });
 
 const backdropOf = (item: any): string | null => item?.backdrop_url || item?.art_url || null;
-const backdropStyle = computed(() => {
-  const url = backdropOf(activeItem.value);
-  return url ? { backgroundImage: `url("${url}")` } : {};
-});
-
 /* Les fonds sont charges d'avance : une diapositive qui entrait avant son image glissait
    vide, et le defilement montrait un trou le temps du chargement. Les images restent
    referencees pour que le navigateur les garde decodees. */
@@ -304,8 +303,6 @@ onUnmounted(stopAutoplay);
   margin-bottom: var(--space-6);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--border);
   touch-action: pan-y;
   user-select: none;
   outline: none;
@@ -325,33 +322,6 @@ onUnmounted(stopAutoplay);
 .hero-slide {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: flex-end;
-  border-radius: inherit;
-  overflow: hidden;
-}
-
-.hero-backdrop {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center 20%;
-  transform: scale(1.02);
-  transition: transform 5s cubic-bezier(0.25, 1, 0.5, 1);
-  will-change: transform;
-}
-
-.hero-slide:hover .hero-backdrop {
-  transform: scale(1.05);
-}
-
-.hero-shade {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to top, rgba(9, 9, 11, 0.98) 0%, rgba(9, 9, 11, 0.65) 45%, rgba(9, 9, 11, 0.15) 100%),
-    linear-gradient(to right, rgba(9, 9, 11, 0.88) 0%, rgba(9, 9, 11, 0.4) 50%, transparent 80%);
-  pointer-events: none;
 }
 
 .hero-content {
@@ -374,7 +344,7 @@ onUnmounted(stopAutoplay);
 
 .hero-content h1 {
   margin: 0;
-  color: #fff;
+  color: var(--text);
   font-size: clamp(1.5rem, 3.5vw, 2.3rem);
   font-weight: 800;
   line-height: 1.15;
@@ -384,7 +354,7 @@ onUnmounted(stopAutoplay);
 
 .hero-overview {
   margin: var(--space-1) 0 var(--space-2);
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--muted);
   font-size: var(--fs-sm);
   line-height: 1.5;
   display: -webkit-box;
@@ -399,7 +369,7 @@ onUnmounted(stopAutoplay);
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--muted);
   font-size: var(--fs-xs);
   font-weight: 600;
 }
@@ -547,14 +517,6 @@ onUnmounted(stopAutoplay);
   .media-hero-banner {
     min-height: clamp(320px, 58vh, 420px);
     border-radius: var(--radius-md);
-  }
-  .hero-backdrop {
-    background-position: center 15%;
-  }
-  .hero-shade {
-    background:
-      linear-gradient(to top, rgba(9, 9, 11, 0.98) 0%, rgba(9, 9, 11, 0.75) 55%, rgba(9, 9, 11, 0.2) 100%),
-      linear-gradient(to right, rgba(9, 9, 11, 0.7) 0%, transparent 100%);
   }
   .hero-content {
     padding: var(--space-4) var(--space-4) calc(var(--space-6) + 12px);
