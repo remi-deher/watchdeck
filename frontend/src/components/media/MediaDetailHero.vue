@@ -1,7 +1,13 @@
 <template>
-  <div class="mdh-backdrop theme-dark-scope" :style="backdropUrl ? { backgroundImage: `url(${backdropUrl})` } : {}">
-    <div class="mdh-scrim"></div>
-    <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
+  <UiHeroBackdrop
+    class="mdh-hero"
+    :image-url="backdropUrl"
+    :position="variant === 'sheet' ? 'center 18%' : undefined"
+    :variant="variant"
+  >
+    <template #overlay>
+      <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
+    </template>
     <div class="mdh-content">
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
@@ -105,7 +111,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </UiHeroBackdrop>
 </template>
 
 <script setup lang="ts">
@@ -116,6 +122,7 @@ import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, Re
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
+import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 
 export interface SeasonSummaryGroup {
   vf: number[];
@@ -135,6 +142,7 @@ const props = withDefaults(
     available?: boolean;
     /** Donnees partielles de la carte touchee, en attendant la fiche : pas d'actions. */
     preview?: boolean;
+    variant?: 'card' | 'sheet';
   }>(),
   {
     statusLabel: '',
@@ -144,6 +152,7 @@ const props = withDefaults(
     busy: false,
     available: true,
     preview: false,
+    variant: 'card',
   }
 );
 
@@ -258,36 +267,13 @@ const releaseDates = computed(() => {
 </script>
 
 <style scoped lang="scss">
-/* Meme grammaire que la banniere d'Explorer : une hauteur qui laisse respirer le
-   backdrop, un contenu ancre en bas, et surtout un double degrade -- vertical pour
-   detacher le texte du bas de l'image, horizontal pour le detacher de la gauche. Le
-   voile unique precedent assombrissait l'affiche entiere sans jamais garantir le
-   contraste la ou le texte se pose. */
-/* Meme cadre que la banniere d'Explorer : une carte bordee, posee dans la colonne de
-   contenu. Le hero debordait jusqu'ici sur les gouttieres, par marges negatives -- une
-   ouverture pleine largeur, mais un objet different de tout le reste de l'application.
-   L'image reste fixe : sur une page de consultation, une animation declenchee au
-   passage de souris distrait de la lecture. */
-.mdh-backdrop {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  min-height: clamp(300px, 42vw, 460px);
+.mdh-hero {
   margin-bottom: var(--space-6);
-  background-size: cover;
-  background-position: center 20%;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
 }
-.mdh-scrim {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to top, rgba(9, 9, 11, 0.98) 0%, rgba(9, 9, 11, 0.65) 45%, rgba(9, 9, 11, 0.15) 100%),
-    linear-gradient(to right, rgba(9, 9, 11, 0.88) 0%, rgba(9, 9, 11, 0.4) 50%, transparent 80%);
-  pointer-events: none;
+
+.mdh-hero.is-sheet {
+  min-height: min(46dvh, 420px);
+  margin-bottom: var(--space-5);
 }
 .mdh-content {
   position: relative;
@@ -358,7 +344,7 @@ const releaseDates = computed(() => {
 }
 .mdh-info h1 {
   margin: 4px 0 10px;
-  color: #fff;
+  color: var(--text);
   font-size: clamp(1.5rem, 3.5vw, 2.3rem);
   font-weight: 800;
   line-height: 1.15;
@@ -374,9 +360,9 @@ const releaseDates = computed(() => {
 .mdh-badges > .badge {
   min-height: 28px;
   padding: 3px 10px;
-  border-color: rgba(255, 255, 255, .22);
-  background: #27272a;
-  color: #fff;
+  border-color: color-mix(in srgb, var(--text) 22%, transparent);
+  background: var(--surface-2);
+  color: var(--text);
   font-size: var(--fs-sm);
   font-weight: 800;
   line-height: 1.25;
@@ -389,8 +375,8 @@ const releaseDates = computed(() => {
 }
 .mdh-badges > .badge.available {
   border-color: var(--green);
-  background: #166534;
-  color: #fff;
+  background: var(--green);
+  color: var(--text);
 }
 .mdh-overview-wrapper {
   max-width: 800px;
@@ -398,7 +384,7 @@ const releaseDates = computed(() => {
 }
 .mdh-overview {
   margin: 0;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--muted);
   font-size: var(--fs-md);
   line-height: 1.6;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
@@ -457,7 +443,7 @@ const releaseDates = computed(() => {
   font-size: var(--fs-sm);
 }
 .origin-badge {
-  border-color: rgba(255, 255, 255, .24);
+  border-color: color-mix(in srgb, var(--text) 24%, transparent);
 }
 .mdh-links {
   display: flex;
@@ -493,7 +479,7 @@ const releaseDates = computed(() => {
   padding: 8px 18px;
   border-radius: var(--radius-md);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 700;
   font-size: var(--fs-sm);
   border: 0;
@@ -509,10 +495,14 @@ const releaseDates = computed(() => {
 }
 
 @media (max-width: 767.98px) {
-  .mdh-backdrop {
+  .mdh-hero {
     /* Sur telephone, le portrait et le texte empiles ont besoin de la hauteur d'ecran. */
     min-height: clamp(320px, 58vh, 420px);
     margin-bottom: var(--space-4);
+  }
+  .mdh-hero.is-sheet {
+    min-height: min(46dvh, 420px);
+    margin-bottom: var(--space-5);
   }
   .mdh-content {
     padding: var(--space-5) var(--space-4) 20px;
@@ -553,5 +543,11 @@ const releaseDates = computed(() => {
   .mdh-language-summary { order: 4; }
   .mdh-links > .mdh-request-btn,
   .mdh-links > .mdh-listen-btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
+}
+
+@media (min-width: 768px) {
+  .mdh-hero.is-sheet {
+    min-height: min(52dvh, 480px);
+  }
 }
 </style>

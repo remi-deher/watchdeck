@@ -231,31 +231,6 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
    l'un evoque une navigation qui n'a pas lieu. */
 .media-overlay :deep(.mdh-back) { display: none; }
 
-/* ─────────────────── L'en-tete prend toute la surface ───────────────────
- *
- * En pleine page, la banniere est une carte posee dans une colonne : elle garde ses
- * marges, son contour et ses coins arrondis. Ici elle EST le haut de la surface, du bord
- * gauche au bord droit, et c'est ce qui donne au transport quelque chose a franchir --
- * une vignette de 172 px qui devient une image pleine largeur. Sans cet ecart, l'affiche
- * se contentait de glisser de quelques centimetres sans changer de taille, et l'on ne
- * voyait rien.
- */
-.media-overlay :deep(.mdh-backdrop) {
-  min-height: min(46dvh, 420px);
-  margin-bottom: var(--space-5);
-  border: 0;
-  border-radius: 0;
-  background-position: center 18%;
-}
-
-/* Le degrade descend plus bas et plus fort : le titre et l'affiche se posent dessus, et
-   une image claire les rendait illisibles. */
-.media-overlay :deep(.mdh-scrim) {
-  background:
-    linear-gradient(to top, var(--bg) 2%, rgba(9, 9, 11, 0.92) 26%, rgba(9, 9, 11, 0.45) 62%, rgba(9, 9, 11, 0.1) 100%),
-    linear-gradient(to right, rgba(9, 9, 11, 0.7) 0%, rgba(9, 9, 11, 0.25) 55%, transparent 85%);
-}
-
 /* L'affiche grandit avec la surface : c'est elle qu'on a touchee, elle doit arriver
    quelque part de visiblement plus grand que la vignette dont elle vient.
    La taille passe par la largeur seule (`flex-basis: auto`) : sur telephone l'en-tete
@@ -267,7 +242,6 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 }
 
 @media (min-width: 768px) {
-  .media-overlay :deep(.mdh-backdrop) { min-height: min(52dvh, 480px); }
   .media-overlay :deep(.mdh-poster:not(.is-music)) {
     width: 232px;
   }
