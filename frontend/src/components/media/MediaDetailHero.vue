@@ -1,5 +1,5 @@
 <template>
-  <div class="mdh-backdrop" :style="backdropUrl ? { backgroundImage: `url(${backdropUrl})` } : {}">
+  <div class="mdh-backdrop theme-dark-scope" :style="backdropUrl ? { backgroundImage: `url(${backdropUrl})` } : {}">
     <div class="mdh-scrim"></div>
     <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
     <div class="mdh-content">

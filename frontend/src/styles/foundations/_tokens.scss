@@ -228,8 +228,10 @@
 }
 
 /* Roles derives : identiques dans les deux themes, ils suivent les valeurs ci-dessus.
-   Plusieurs etaient deja lus par les composants sans avoir jamais ete definis. */
-:root {
+   Plusieurs etaient deja lus par les composants sans avoir jamais ete definis.
+   En mixin : une variable qui en lit une autre est resolue la ou elle est declaree, donc
+   une zone qui change de palette doit les redeclarer aussi (voir `.theme-dark-scope`). */
+@mixin theme-roles {
   --text-muted: var(--muted);
   --text-primary: var(--text);
   --text-secondary: var(--muted);
@@ -263,4 +265,14 @@
   --poster-neutral: #27272a;
   --shadow-md: 0 4px 14px rgb(var(--shadow-color) / var(--shadow-strength));
   --shadow-lg: 0 12px 32px rgb(var(--shadow-color) / var(--shadow-strength));
+}
+:root { @include theme-roles; }
+
+/* Zone toujours sombre, quel que soit le theme : un texte pose sur une image voilee de
+   noir (hero de fiche, banniere) doit garder la palette « Nuit cinema ». En theme clair,
+   les dates, bandeaux et boutons y prenaient l'encre sombre et devenaient illisibles. */
+.theme-dark-scope {
+  @include theme-dark;
+  @include theme-roles;
+  color: var(--text);
 }

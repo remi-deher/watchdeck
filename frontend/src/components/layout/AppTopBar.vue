@@ -359,7 +359,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
 /* Ce sont les sections qui cedent la place, pas le titre : elles defilent dans leur
    propre cadre, alors qu'un titre tronque ne se recupere nulle part ailleurs. */
 .app-topbar__sections { flex: 1 1 0; min-width: 0; }
-.app-topbar__sections :deep(.app-subnav__scroller) { border: 0; background: transparent; padding: 0; }
+.app-topbar__sections :deep(.app-subnav) { border: 0; background: transparent; padding: 0; }
 .app-topbar__crumbs:has(~ .app-topbar__sections) { flex: 0 0 auto; max-width: 260px; }
 
 /* ── Recherche de page ──────────────────────────────────────────────────────── */
