@@ -1,11 +1,26 @@
 # Changelog
 
+## 1.47.0 — 2026-09-26
+
+
+### ♻️ Refactoring
+
+- onglets de page via le slot #tabs d'AppPage, un seul mecanisme collant ([bf880d6](https://github.com/remi-deher/watchdeck/commit/bf880d6164d945cc3a8b367b79ba998dc9b87e6e))
+
+### ✨ Nouveautés
+
+- onglets en capsule centree et collante, barre de recherche sans enveloppe ([781214c](https://github.com/remi-deher/watchdeck/commit/781214c8f14025e915a78a6197c4ca6e4a823107))
+- outils de page en capsule centree sous la recherche ([8632ff0](https://github.com/remi-deher/watchdeck/commit/8632ff0af1410e5124f5951777eaa9485ba79e80))
 ## 1.46.1 — 2026-09-26
 
 
 ### 🐛 Corrections
 
 - onglets de sous-navigation, cartes VF manquante, fichiers PWA et vignettes absentes ([a2eb96f](https://github.com/remi-deher/watchdeck/commit/a2eb96f46fa6f873ff6a0d755a84f2276268d166))
+
+### 🔧 Maintenance
+
+- v1.46.1 (#469) ([5d3b678](https://github.com/remi-deher/watchdeck/commit/5d3b67826f03ea2c80e6e1a0d3807f94ca36facc))
 ## 1.46.0 — 2026-09-26
 
 
