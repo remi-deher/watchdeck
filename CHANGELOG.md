@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.45.2 — 2026-09-25
+
+
+### test
+
+- lien Plex cherche dans les bibliotheques musicales ([fa4078c](https://github.com/remi-deher/watchdeck/commit/fa4078c98435384ba78abcc2c9b93939529d9fbd))
+
+### 🐛 Corrections
+
+- albums ouverts comme des films depuis la fiche artiste ([178e55d](https://github.com/remi-deher/watchdeck/commit/178e55d454193630c868701c38891baac7f7c82d))
 ## 1.45.1 — 2026-09-25
 
 
@@ -10,6 +20,10 @@
 ### 🐛 Corrections
 
 - affiches stockees sous forme d'URL du proxy ([e316ee0](https://github.com/remi-deher/watchdeck/commit/e316ee0c9f130468388d47cfc0b37b9a6e4d4d56))
+
+### 🔧 Maintenance
+
+- v1.45.1 (#456) ([7c16881](https://github.com/remi-deher/watchdeck/commit/7c16881d0b0f3c2c54ed8c6efd3d8db0b7f43ef0))
 ## 1.45.0 — 2026-09-25
 
 
