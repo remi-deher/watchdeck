@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.46.1 — 2026-09-26
+
+
+### 🐛 Corrections
+
+- onglets de sous-navigation, cartes VF manquante, fichiers PWA et vignettes absentes ([a2eb96f](https://github.com/remi-deher/watchdeck/commit/a2eb96f46fa6f873ff6a0d755a84f2276268d166))
 ## 1.46.0 — 2026-09-26
 
 
 ### ✨ Nouveautés
 
 - navigation au retour, memoire des filtres et refonte de la page Demandes ([c5edaea](https://github.com/remi-deher/watchdeck/commit/c5edaea73ae4c31f0d602c03c92c61158d08379d))
+
+### 🔧 Maintenance
+
+- v1.46.0 (#465) ([cf984dd](https://github.com/remi-deher/watchdeck/commit/cf984dd3683e112427d3968fc58818bbde6b707e))
 ## 1.45.2 — 2026-09-25
 
 
