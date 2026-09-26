@@ -403,7 +403,10 @@ async def check_arr_statuses(full_resync: bool = False, notify: bool = True):
                         await transition_request(db, req, "import_started", source=inst.arr_type)
                     else:
                         await transition_request(db, req, "download_started", source=inst.arr_type)
-                elif req.is_downloading or str(getattr(req.fulfillment_status, "value", req.fulfillment_status)) == "importing":
+                elif (
+                    req.is_downloading
+                    or str(getattr(req.fulfillment_status, "value", req.fulfillment_status)) == "importing"
+                ):
                     await transition_request(db, req, "download_finished", source=inst.arr_type)
 
                 # Série en cours de diffusion : au moins un épisode déjà diffusé n'a pas de
