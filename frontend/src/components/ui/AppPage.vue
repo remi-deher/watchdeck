@@ -278,7 +278,7 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
   pointer-events: none;
 }
 .app-page__sticky > * { pointer-events: auto; }
-.app-page__sticky > :deep(.app-subnav) { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.app-page__sticky > :deep(.app-subnav) { flex: 0 1 auto; min-width: 0; max-width: 100%; margin-inline: 0; }
 .app-page__sticky > .app-page__tools { flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .app-page__sentinel { display: block; width: 1px; height: 1px; margin-bottom: -1px; pointer-events: none; }
 /* L'ombre n'apparait qu'une fois decolle, et sur la capsule seule : au repos, elle

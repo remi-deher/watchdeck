@@ -11,11 +11,12 @@
       <template #tools>
         <UiButton
           variant="ghost"
+          icon-only
           title="Réglages des améliorations VF"
           aria-label="Réglages des améliorations VF"
           @click="openSettings"
         >
-          <template #icon><Settings :size="16" /></template>Réglages
+          <Settings :size="16" />
         </UiButton>
         <template v-if="activeTab === 'upgrades'">
           <UiButton v-if="selectedKeys.size > 0" variant="primary" :loading="scanning" @click="scanSelected"><template #icon><ScanSearch :size="16" /></template>{{ scanning ? 'Recherche en cours…' : `Rechercher la sélection (${selectedKeys.size})` }}</UiButton>
@@ -35,13 +36,16 @@
         </template>
       </template>
 
-    <!-- Navigation par onglets -->
-    <AppSubnav variant="tabs"
-      :active="activeTab"
-      :items="tabs"
-      aria-label="Modes des améliorations VF"
-      @update:active="selectTab"
-    />
+    <!-- Les modes de la page rejoignent la rangee collante, a cote des outils : centres
+         sur l'axe de la recherche et toujours a portee pendant le defilement. -->
+    <template #tabs>
+      <AppSubnav variant="tabs"
+        :active="activeTab"
+        :items="tabs"
+        aria-label="Modes des améliorations VF"
+        @update:active="selectTab"
+      />
+    </template>
 
     <template v-if="activeTab !== 'history'">
       <VfUpgradeKpiBanner

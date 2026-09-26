@@ -1,25 +1,23 @@
 <template>
-  <section v-balanced-grid="{ min: 212 }" class="kpi-banner" :aria-label="audit ? 'Indicateurs clés de l’audit' : 'Indicateurs des opportunités'">
-    <!-- Ces tuiles sont le filtre de la page, pas un tableau de bord : un vrai `button`
-         apporte l'activation au clavier (Entrée et Espace) et `aria-pressed` dit lequel
-         est actif, ce qu'un `role="button"` pose a la main ne faisait pas. -->
+  <!-- Ces pastilles sont le filtre de la page, pas un tableau de bord. Elles etaient six
+       grandes tuiles de meme poids, sur deux rangees : on lisait des chiffres avant la
+       liste, et rien ne distinguait ce qui demande une action de ce qui est archive.
+       Un vrai `button` apporte l'activation au clavier et `aria-pressed` dit lequel
+       filtre la liste. La legende detaillee passe dans `title`. -->
+  <section class="kpi-banner" :aria-label="audit ? 'Filtres de l’audit' : 'Filtres des opportunités'">
     <button
       v-for="card in cards"
       :key="card.filter"
       type="button"
-      class="kpi-card"
-      :class="{ active: activeFilter === card.filter }"
+      class="kpi-chip"
+      :class="[card.tone, { active: activeFilter === card.filter, 'is-empty': !card.value }]"
       :aria-pressed="activeFilter === card.filter"
+      :title="card.description"
       @click="emit('select', card.filter)"
     >
-      <span class="kpi-icon-wrap" :class="card.tone">
-        <component :is="card.icon" :size="20" />
-      </span>
-      <span class="kpi-body">
-        <span class="kpi-label">{{ card.label }}</span>
-        <strong>{{ card.value }}</strong>
-        <small class="kpi-sub" :title="card.description">{{ card.description }}</small>
-      </span>
+      <component :is="card.icon" :size="15" aria-hidden="true" />
+      <span class="kpi-label">{{ card.label }}</span>
+      <strong class="kpi-count">{{ card.value }}</strong>
     </button>
   </section>
 </template>
@@ -91,63 +89,76 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
 
 <style scoped lang="scss">
 .kpi-banner {
-  display: grid;
-  /* 175px pour six tuiles sur 1440 : cinq legendes sur six se coupaient en plein mot
-     (« Nouvelles opportuni… », « Médias VO sans rel… »). Elles passent sur deux lignes
-     et la tuile s'elargit, quitte a repasser sur deux rangees en dessous de 1280. */
-  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
-  gap: var(--space-3);
-  align-items: stretch;
-}
-
-.kpi-card {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.kpi-chip {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-3);
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 6px 0 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-1);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
-}
-
-.kpi-card:hover { transform: translateY(-1px); border-color: var(--border-strong); }
-.kpi-card.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface-1)); }
-
-.kpi-icon-wrap {
-  display: grid;
-  flex: 0 0 38px;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border-radius: var(--radius-md);
-}
-
-.kpi-accent { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
-.kpi-warning { background: color-mix(in srgb, var(--amber) 14%, transparent); color: var(--amber-text); }
-.kpi-danger { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red-text); }
-.kpi-info { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue-text); }
-.kpi-ok { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green-text); }
-.kpi-muted, .kpi-neutral { background: var(--surface-2); color: var(--muted); }
-
-.kpi-body { display: grid; min-width: 0; gap: 1px; }
-.kpi-label { color: var(--muted); font-size: var(--fs-xs); font-weight: 650; }
-.kpi-body strong { color: var(--text); font-size: var(--fs-xl); line-height: 1.1; }
-/* Deux lignes plutot qu'une coupure : la legende explique ce que compte la tuile, elle
-   n'est pas decorative. Au-dela, l'attribut `title` prend le relais. */
-.kpi-sub {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
   color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard);
+}
+.kpi-chip svg { flex: none; }
+.kpi-chip:hover { border-color: var(--border-strong); color: var(--text); }
+.kpi-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.kpi-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
   font-size: var(--fs-xs);
-  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ce qui demande une action se signale des qu'il y a quelque chose a faire ; a zero,
+   la pastille rentre dans le rang. */
+.kpi-accent:not(.is-empty) { color: var(--text); }
+.kpi-accent:not(.is-empty) svg { color: var(--accent); }
+.kpi-accent:not(.is-empty) .kpi-count { background: var(--accent); color: var(--on-accent); }
+.kpi-danger:not(.is-empty) svg { color: var(--red-text); }
+.kpi-danger:not(.is-empty) .kpi-count { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red-text); }
+.kpi-warning:not(.is-empty) svg { color: var(--amber-text); }
+.kpi-info:not(.is-empty) svg { color: var(--blue-text); }
+.kpi-ok:not(.is-empty) svg { color: var(--green-text); }
+.kpi-chip.is-empty .kpi-count { color: var(--muted); }
+
+/* Le filtre actif : meme pastille teintee que l'onglet actif, pour qu'on lise « c'est
+   ce qui est affiche » et non un deuxieme niveau d'onglets. */
+.kpi-chip.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--text);
+}
+
+/* Sur telephone, une seule ligne qui defile plutot que trois rangees de pastilles. */
+@media (max-width: 767.98px) {
+  .kpi-banner {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .kpi-banner::-webkit-scrollbar { display: none; }
+  .kpi-chip { flex: none; }
 }
 </style>
