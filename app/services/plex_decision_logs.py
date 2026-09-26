@@ -21,6 +21,7 @@ import json
 import logging
 import re
 import zipfile
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -207,7 +208,7 @@ def match_decision(
     rating_key: str | None,
     started_at: datetime,
     ended_at: datetime | None,
-    session_ids: set[str] = frozenset(),
+    session_ids: Collection[str] = (),
 ) -> PlexDecision | None:
     """Derniere decision prise pour cette lecture.
 
