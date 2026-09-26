@@ -19,7 +19,7 @@
       <label v-if="!showAppearance">Scenario
         <UiSelect v-model="previewVariant" :options="[...(scenarios).map((scenario: any) => ({ value: scenario.value, label: String(scenario.label) }))]" />
       </label>
-      <UiSegmentedControl v-model="viewMode" :options="viewModeOptions" aria-label="Mode d'affichage" />
+      <UiSegmentedControl v-model="viewMode" :options="viewModeOptions" ariaLabel="Mode d'affichage" />
       <label v-if="viewMode!=='edit'">Format
         <UiSelect v-model="deviceMode" :options="[{ value: 'desktop', label: 'Ordinateur' }, { value: 'tablet', label: 'Tablette' }, { value: 'phone', label: 'Telephone' }]" />
       </label>

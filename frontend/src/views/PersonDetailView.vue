@@ -19,7 +19,7 @@
       <section class="credits-section">
         <div class="credits-heading">
           <div><span class="eyebrow">Filmographie</span><h2>Films et séries</h2></div>
-          <UiSegmentedControl v-model="filter" :options="filters" aria-label="Filtrer la filmographie" />
+          <UiSegmentedControl v-model="filter" :options="filters" ariaLabel="Filtrer la filmographie" />
         </div>
         <MediaGrid
           :items="visibleCredits"

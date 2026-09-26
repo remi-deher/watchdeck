@@ -295,7 +295,7 @@ function openDetails(row: any): void {
 
 /* Un clic ouvre le detail ; avec Maj ou Ctrl, il etend ou bascule la selection, comme
    dans un gestionnaire de fichiers. */
-function onRowClick(row: any, index: number, event: MouseEvent): void {
+function onRowClick(row: any, index: number, event: MouseEvent | KeyboardEvent): void {
   if ((event.target as HTMLElement | null)?.closest('button, input, a, [role="checkbox"]')) return;
   if (event.shiftKey || event.ctrlKey || event.metaKey) {
     toggleRow(row, index, event);

@@ -3,7 +3,7 @@
     <div class="panel-head">
       <div><span v-if="eyebrow" class="eyebrow">{{eyebrow}}</span><h2>{{title}}</h2></div>
       <div class="chart-actions">
-        <UiSegmentedControl v-model="mode" :options="modeOptions" aria-label="Mode d'affichage" />
+        <UiSegmentedControl v-model="mode" :options="modeOptions" ariaLabel="Mode d'affichage" />
         <slot name="action"/>
       </div>
     </div>
