@@ -59,14 +59,17 @@
         <tr v-if="!visibleRows.length" class="ui-data-table__empty">
           <td :colspan="table.getVisibleLeafColumns().length + (selectable ? 1 : 0)"><slot name="empty">Aucun élément.</slot></td>
         </tr>
-        <tr
-          v-for="(row, index) in visibleRows"
-          :key="row.id"
-          :class="[rowClass?.(row.original), { 'is-selected': row.getIsSelected(), 'is-clickable': clickable }]"
-          @click="$emit('row-click', row.original, Number(index), $event)"
-          @contextmenu="$emit('row-contextmenu', row.original, Number(index), $event)"
-        >
-          <td v-if="selectable" class="card-select ui-data-table__select" @click.stop>
+        <template v-for="(row, index) in visibleRows" :key="row.id">
+          <tr
+            :class="[rowClass?.(row.original), { 'is-selected': row.getIsSelected(), 'is-clickable': clickable }]"
+            :tabindex="clickable ? 0 : undefined"
+            :role="clickable ? 'button' : undefined"
+            :aria-expanded="rowExpanded?.(row.original)"
+            @click="$emit('row-click', row.original, Number(index), $event)"
+            @keydown.enter="$emit('row-click', row.original, Number(index), $event)"
+            @contextmenu="$emit('row-contextmenu', row.original, Number(index), $event)"
+          >
+            <td v-if="selectable" class="card-select ui-data-table__select" @click.stop>
             <CheckboxRoot
               class="ui-data-table__check"
               :model-value="row.getIsSelected()"
@@ -75,17 +78,23 @@
             >
               <CheckboxIndicator><Check :size="12" /></CheckboxIndicator>
             </CheckboxRoot>
-          </td>
-          <td
-            v-for="cell in row.getVisibleCells()"
-            :key="cell.id"
-            :data-label="colonne(cell.column.id)?.label"
-            :class="[classeCarte(cell.column.id), colonne(cell.column.id)?.className]"
-            :style="largeur(cell.column.id)"
-          >
-            <slot :name="`cell-${cell.column.id}`" :row="row.original" :value="cell.getValue()" :index="index">{{ affichage(cell.getValue()) }}</slot>
-          </td>
-        </tr>
+            </td>
+            <td
+              v-for="cell in row.getVisibleCells()"
+              :key="cell.id"
+              :data-label="colonne(cell.column.id)?.label"
+              :class="[classeCarte(cell.column.id), colonne(cell.column.id)?.className]"
+              :style="largeur(cell.column.id)"
+            >
+              <slot :name="`cell-${cell.column.id}`" :row="row.original" :value="cell.getValue()" :index="index">{{ affichage(cell.getValue()) }}</slot>
+            </td>
+          </tr>
+          <tr v-if="$slots['row-after']" class="ui-data-table__row-after">
+            <td :colspan="row.getVisibleCells().length + (selectable ? 1 : 0)">
+              <slot name="row-after" :row="row.original" :index="index" />
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
     <slot name="after" />
@@ -145,6 +154,7 @@ const props = withDefaults(defineProps<{
   density?: 'comfortable' | 'compact';
   clickable?: boolean;
   rowClass?: (row: T) => string | Record<string, boolean> | undefined;
+  rowExpanded?: (row: T) => boolean | undefined;
   /** Rendu progressif : seules les N premieres lignes (triees) sont montees. */
   limit?: number;
   /** Libelle d'une ligne pour sa case de selection. */
@@ -156,13 +166,13 @@ const props = withDefaults(defineProps<{
   cards: true,
   sort: null, manualSort: false, selectable: false, selection: () => [], storageKey: '', columnPrefs: null,
   resizable: false, reorderable: false, density: 'comfortable', clickable: false,
-  rowClass: undefined, limit: 0, rowLabel: undefined,
+  rowClass: undefined, rowExpanded: undefined, limit: 0, rowLabel: undefined,
 });
 
 const emit = defineEmits<{
   (e: 'update:sort', value: UiSort | null): void;
   (e: 'update:selection', value: Array<string | number>): void;
-  (e: 'row-click', row: T, index: number, event: MouseEvent): void;
+  (e: 'row-click', row: T, index: number, event: MouseEvent | KeyboardEvent): void;
   (e: 'row-contextmenu', row: T, index: number, event: MouseEvent): void;
 }>();
 
@@ -331,6 +341,8 @@ function libelleLigne(row: T): string {
 .ui-data-table__check :deep(svg) { color: var(--on-accent); stroke-width: 3.5; }
 .ui-data-table__check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ui-data-table tr.is-clickable { cursor: pointer; }
+.ui-data-table tr.is-clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ui-data-table__row-after:has(> td:empty) { display: none; }
 .ui-data-table tbody tr.is-selected { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .ui-data-table__empty td { padding: var(--space-5); color: var(--muted); text-align: center; }
 .ui-data-table.is-compact th, .ui-data-table.is-compact td { padding-top: 6px; padding-bottom: 6px; }
