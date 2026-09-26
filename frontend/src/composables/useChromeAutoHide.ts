@@ -31,8 +31,26 @@ const hidden = ref(false);
 const holds = new Set<string>();
 let listeners = 0;
 let lastScrollY = 0;
+/* Tant qu'une surface verrouille la page (fiche posee par-dessus), la position lue n'est
+   plus celle du lecteur : le verrou ramene la page a 0 a l'ouverture, puis la renvoie
+   d'un bond a sa place a la fermeture. Lus comme des gestes, ces deux sauts faisaient
+   reapparaitre la barre sous la fiche, puis la masquer a la fermeture -- un decalage
+   visible a chaque aller-retour. */
+let suspensions = 0;
+
+/** Gele l'etat des surfaces pendant qu'un verrou deplace la page. */
+export function suspendAutoHide(): void {
+  suspensions += 1;
+}
+
+/** Reprend le suivi depuis la position courante, sans reagir au saut qui precede. */
+export function resumeAutoHide(): void {
+  suspensions = Math.max(0, suspensions - 1);
+  if (suspensions === 0 && typeof window !== 'undefined') lastScrollY = Math.max(0, window.scrollY);
+}
 
 function onScroll(): void {
+  if (suspensions > 0) return;
   const current = Math.max(0, window.scrollY);
   const delta = current - lastScrollY;
   if (current < TOP_ZONE_PX || delta < SHOW_DELTA_PX || holds.size > 0) hidden.value = false;

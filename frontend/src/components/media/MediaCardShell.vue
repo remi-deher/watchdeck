@@ -8,9 +8,10 @@
     <div
       class="poster-wrap"
       :class="{ revealed, 'has-action': hasAction }"
+      @pointerdown.capture="notePointer"
       @click.capture="interceptFirstTap"
-      @mouseenter="reveal"
-      @mouseleave="conceal"
+      @mouseenter="revealOnHover"
+      @mouseleave="concealOnHover"
       @focusin="reveal"
       @focusout="conceal"
     >
@@ -69,11 +70,49 @@ function onRevealEnd(event: AnimationEvent): void {
  * l'utilisateur vers la fiche avant que l'action ait pu se montrer. Depuis le parent,
  * la capture precede toujours le lien.
  */
+/* Au doigt, les navigateurs simulent un survol et un focus avant le clic, et ceux-ci
+   revelent deja la carte : un test « revelee ? » au moment du clic ouvrait donc la fiche
+   au premier appui (Safari). A l'inverse, quand ce survol change la page, Safari comme
+   Chromium peuvent *supprimer* le clic du premier appui : un drapeau pose par ce clic
+   manquait alors, et le second appui n'etait qu'un nouveau premier appui (la fiche ne
+   s'ouvrait jamais). La seule chose fiable est l'etat de la carte au `pointerdown`,
+   qui precede tous ces evenements simules : deja revelee avant l'appui, la carte
+   s'ouvre ; sinon l'appui ne fait que la reveler. */
+const lastPointer = ref<string>('');
+const revealedBeforePress = ref<boolean | null>(null);
+
+function notePointer(e: PointerEvent): void {
+  lastPointer.value = e.pointerType || '';
+  revealedBeforePress.value = revealed.value;
+}
+
+function revealOnHover(): void {
+  if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
+  reveal();
+}
+
+/* Le survol simule d'un appui se termine aussi : Chromium (Linux, Android) envoie un
+   `mouseleave` juste apres le clic, qui refermait aussitot la carte que l'appui venait
+   de reveler. Au doigt, c'est la perte du focus (appui ailleurs) ou la revelation
+   d'une autre carte qui la referme. */
+function concealOnHover(): void {
+  if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
+  conceal();
+}
+
 function interceptFirstTap(e: MouseEvent): void {
-  if (revealed.value) return;
-  // Avec une souris, le survol a deja revele la carte : n'intercepter que la ou il
-  // n'existe pas, pour ne rien changer au clic au bureau.
-  if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+  const wasRevealed = revealedBeforePress.value;
+  revealedBeforePress.value = null;
+  // Le type du pointeur qui a appuye fait foi : une souris ouvre au premier clic, meme
+  // sur un appareil tactile. Faute de pointerdown (clic clavier, appel programme), on
+  // retombe sur la nature de l'ecran.
+  const tactile = lastPointer.value
+    ? lastPointer.value === 'touch' || lastPointer.value === 'pen'
+    : Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+  // A la souris, le survol a deja revele la carte : le clic ouvre, comme avant.
+  if (!tactile) return;
+  // Sans pointerdown (clavier), le focus a revele la carte : Entree l'ouvre.
+  if (wasRevealed ?? revealed.value) return;
   e.preventDefault();
   e.stopPropagation();
   reveal();
