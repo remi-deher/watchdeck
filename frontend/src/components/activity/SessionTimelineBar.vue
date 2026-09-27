@@ -291,9 +291,11 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.6rem;
   margin-top: 0.35rem;
   padding: 0.75rem;
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.08));
-  border-radius: var(--radius-md, 0.5rem);
+  /* Bloc dans la carte « Progression » : un fond un cran plus clair suffit a le
+     distinguer, un second cadre empilait les bordures. */
+  background: rgb(var(--ink) / 0.04);
+  border: 0;
+  border-radius: var(--radius-sm);
 }
 
 .timeline-header {

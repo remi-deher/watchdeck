@@ -89,13 +89,13 @@ defineExpose({ load });
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.plex-tasks { container: plex-tasks / inline-size; display: grid; gap: 10px; margin-top: 16px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+.plex-tasks { container: plex-tasks / inline-size; display: grid; gap: 10px; margin-top: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-2); }
 .plex-tasks header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; }
 .plex-tasks h3 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-md); }
 .plex-tasks h3 svg { width: 17px; height: 17px; color: var(--accent); }
 .plex-tasks header small, .task-text small, .task-progress small { color: var(--text-muted); font-size: var(--fs-xs); }
 .plex-tasks ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.plex-tasks li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 160px) auto; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+.plex-tasks li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 160px) auto; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
 .plex-tasks li:first-child { padding-top: 0; border-top: 0; }
 .task-text { display: grid; min-width: 0; }
 .task-text strong, .task-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
