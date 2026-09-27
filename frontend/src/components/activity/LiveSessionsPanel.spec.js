@@ -120,6 +120,11 @@ describe('LiveSessionsPanel — bande passante, réseau et transcodage', () => {
     expect(render([session({ transcode_reason: null })]).find('.live-reason').exists()).toBe(false);
   });
 
+  it('affiche le réemballage d’un Direct Stream en bleu, même sans autre conversion', () => {
+    const wrapper = render([session({ playback_method: 'direct_stream', transcode_reason: null, transcode_remux: 'Conteneur MKV → MP4' })]);
+    expect(wrapper.get('.live-reason .remux-line').text()).toBe('Conteneur MKV → MP4');
+  });
+
   it('met la précision sur les pistes non écoutées dans l’infobulle', () => {
     const note = 'Porte sur des pistes non écoutées : English (AAC 5.1).';
     const wrapper = render([session({ transcode_reason: { source: 'plex', text: '6 > 2.', code: 3000, note } })]);

@@ -50,9 +50,9 @@
       </div>
     </section>
 
-    <section v-if="session.transcode_reason" class="session-detail-section transcode-reason-section">
+    <section v-if="session.transcode_reason || session.transcode_remux" class="session-detail-section transcode-reason-section">
       <span class="eyebrow">Raison du transcodage<template v-if="session.transcode_hw"> · {{ session.transcode_hw }}</template></span>
-      <TranscodeReason :reason="session.transcode_reason"/>
+      <TranscodeReason :reason="session.transcode_reason" :remux="session.transcode_remux"/>
     </section>
 
     <div class="session-detail-columns">

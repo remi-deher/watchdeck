@@ -1,4 +1,4 @@
-"""Canaux de la piste audio ecoutee, pour situer la raison de Plex
+"""Canaux de la piste audio ecoutee et detail source -> sortie de la conversion
 
 Revision ID: 0029_playback_audio_channels
 Revises: 0028_playback_transcode_reason
@@ -18,8 +18,10 @@ depends_on = None
 def upgrade() -> None:
     with op.batch_alter_table("playback_sessions") as batch_op:
         batch_op.add_column(sa.Column("audio_channels", sa.Integer(), nullable=True))
+        batch_op.add_column(sa.Column("transcode_details", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:
     with op.batch_alter_table("playback_sessions") as batch_op:
+        batch_op.drop_column("transcode_details")
         batch_op.drop_column("audio_channels")

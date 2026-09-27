@@ -50,7 +50,7 @@ _MAX_ACTIVE_SESSION_AGE = timedelta(days=7)
 # une remise à zéro au redémarrage du worker n'a qu'un impact mineur (un cycle de
 # tolérance perdu au pire).
 _MISS_THRESHOLD = 2
-_STICKY_TRANSCODE_FIELDS = frozenset({"transcode_session", "transcode_reason", "transcode_hw"})
+_STICKY_TRANSCODE_FIELDS = frozenset({"transcode_session", "transcode_reason", "transcode_hw", "transcode_details"})
 _miss_counts: dict[int, int] = {}
 _GEO_FIELDS = (
     "geo_status",
@@ -126,13 +126,17 @@ def _deduced_reason(row: PlaybackSession) -> str | None:
     return " · ".join(parts) or None
 
 
-def _plex_decision_details(row: PlaybackSession) -> dict | None:
-    if not row.plex_decision_details:
+def _json_or_none(value: str | None) -> dict | None:
+    if not value:
         return None
     try:
-        return json.loads(row.plex_decision_details)
+        return json.loads(value)
     except ValueError:
         return None
+
+
+def _plex_decision_details(row: PlaybackSession) -> dict | None:
+    return _json_or_none(row.plex_decision_details)
 
 
 def _transcode_reason(row: PlaybackSession) -> str:
@@ -599,6 +603,9 @@ def _serialize(row: PlaybackSession) -> dict:
         "transcode_speed": _float(row.transcode_speed),
         "transcode_throttled": row.transcode_throttled,
         "transcode_hw": row.transcode_hw,
+        "transcode_details": _json_or_none(row.transcode_details),
+        # Bleu, comme la pastille Direct Stream : un réemballage, rien de réencodé.
+        "transcode_remux": _remux_label(_json_or_none(row.transcode_details)),
         # Vert : la decision de Plex, relue dans ses journaux. Orange : notre deduction.
         "transcode_reason": (
             {
@@ -799,10 +806,70 @@ def _transcode_hw(transcode_attrs: dict) -> str | None:
     return None
 
 
+def _transcode_details(
+    transcode_attrs: dict, media_attrs: dict, video_stream, audio_stream, subtitle_stream, sheet: dict | None
+) -> dict | None:
+    """Ce que Plex fait de chaque flux, source -> sortie, pour la fiche de la session."""
+    if not transcode_attrs:
+        return None
+    sources = {stream.get("id"): stream for stream in (sheet or {}).get("streams", [])}
+
+    def attr(stream, name):
+        return stream.get(name) if stream is not None else None
+
+    subtitle_source = sources.get(attr(subtitle_stream, "id")) or {}
+    return {
+        "protocol": transcode_attrs.get("protocol"),
+        "container": {
+            "from": (sheet or {}).get("container"),
+            "to": transcode_attrs.get("container") or media_attrs.get("container"),
+        },
+        "video": {
+            "decision": transcode_attrs.get("videoDecision"),
+            "from": transcode_attrs.get("sourceVideoCodec") or attr(video_stream, "codec"),
+            "to": transcode_attrs.get("videoCodec") or attr(video_stream, "codec"),
+            "height": _int(transcode_attrs.get("height")) or _int(attr(video_stream, "height")),
+        },
+        "audio": {
+            "decision": transcode_attrs.get("audioDecision"),
+            "from": transcode_attrs.get("sourceAudioCodec") or attr(audio_stream, "codec"),
+            "to": transcode_attrs.get("audioCodec") or attr(audio_stream, "codec"),
+            "channels": _int(transcode_attrs.get("audioChannels")) or _int(attr(audio_stream, "channels")),
+            "language": attr(audio_stream, "language"),
+        },
+        "subtitles": (
+            {
+                "decision": transcode_attrs.get("subtitleDecision") or attr(subtitle_stream, "decision"),
+                "from": subtitle_source.get("codec") or attr(subtitle_stream, "codec"),
+                "to": attr(subtitle_stream, "codec"),
+                "language": attr(subtitle_stream, "language") or subtitle_source.get("language"),
+                "forced": attr(subtitle_stream, "forced") == "1",
+            }
+            if subtitle_stream is not None
+            else None
+        ),
+    }
+
+
+def _remux_label(details: dict | None) -> str | None:
+    """Le réemballage du flux : ce que fait un Direct Stream, sans rien réencoder."""
+    if not details:
+        return None
+    container = details.get("container") or {}
+    source, target = container.get("from"), container.get("to")
+    protocol = str(details.get("protocol") or "").lower()
+    segments = f" (segments {protocol.upper()})" if protocol in {"dash", "hls"} else ""
+    if source and target and str(source).lower() != str(target).lower():
+        return f"Conteneur {str(source).upper()} → {str(target).upper()}{segments}"
+    if segments and target:
+        return f"Réemballé en {str(target).upper()}{segments}"
+    return None
+
+
 def parse_plex_sessions(
-    xml: str, *, anonymize_ips: bool = True, stream_sources: dict[str, str] | None = None
+    xml: str, *, anonymize_ips: bool = True, media_sheets: dict[str, dict] | None = None
 ) -> list[dict]:
-    """Sessions en cours. `stream_sources` : codec d'origine par id de flux (fiche du média)."""
+    """Sessions en cours. `media_sheets` : fiche d'origine par ratingKey (conteneur, pistes)."""
     root = ElementTree.fromstring(xml)
     sessions: list[dict] = []
     for media in root:
@@ -837,6 +904,14 @@ def parse_plex_sessions(
         subtitle_stream = next(
             (stream for stream in part_streams if stream.get("streamType") == "3" and stream.get("selected") == "1"),
             None,
+        )
+        details = _transcode_details(
+            transcode_attrs,
+            media_attrs,
+            _stream("1"),
+            _stream("2"),
+            subtitle_stream,
+            (media_sheets or {}).get(media.get("ratingKey") or ""),
         )
         session_id = session_attrs.get("id") or transcode_attrs.get("key") or player_attrs.get("machineIdentifier")
         if not session_id:
@@ -906,10 +981,9 @@ def parse_plex_sessions(
                     transcode_attrs,
                     video_stream,
                     subtitle_stream,
-                    (stream_sources or {}).get(subtitle_stream.get("id") or "")
-                    if subtitle_stream is not None
-                    else None,
+                    (details["subtitles"] or {}).get("from") if details else None,
                 ),
+                "transcode_details": json.dumps(details, ensure_ascii=False) if details else None,
                 # Canaux de la piste réellement écoutée : Plex motive parfois un refus par
                 # une *autre* piste du fichier (« 6 > 2 » pour une VO 5.1 non sélectionnée).
                 "audio_channels": _int(audio_stream.get("channels")) if audio_stream is not None else None,
@@ -1176,21 +1250,19 @@ async def _collect_plex_activity_unlocked() -> dict:
             response = await client.get(f"{settings.plex_url.rstrip('/')}/status/sessions", headers=headers)
             response.raise_for_status()
         snapshots = parse_plex_sessions(response.text, anonymize_ips=settings.activity_anonymize_ips)
-        subtitled = {
-            snapshot["rating_key"]
-            for snapshot in snapshots
-            if snapshot.get("rating_key") and "Sous-titres" in (snapshot.get("transcode_reason") or "")
-        }
-        if subtitled:
+        # Une conversion (même un simple réemballage) ne se lit qu'en sortie dans
+        # /status/sessions : la fiche du média donne la source (conteneur, sous-titres).
+        converted = {s["rating_key"] for s in snapshots if s.get("rating_key") and s.get("transcode_details")}
+        if converted:
             try:
-                sources: dict[str, str] = {}
-                for rating_key in subtitled:
-                    streams = await media_streams(
+                sheets = {
+                    rating_key: await media_sheet(
                         settings.plex_url, settings.plex_token, settings.plex_verify_ssl, rating_key
                     )
-                    sources.update({stream["id"]: stream.get("codec") for stream in streams if stream.get("id")})
+                    for rating_key in converted
+                }
                 snapshots = parse_plex_sessions(
-                    response.text, anonymize_ips=settings.activity_anonymize_ips, stream_sources=sources
+                    response.text, anonymize_ips=settings.activity_anonymize_ips, media_sheets=sheets
                 )
             except Exception as exc:  # la déduction reste valable, seulement moins précise
                 logger.debug("Fiche média Plex illisible : %s", exc)
@@ -1321,15 +1393,16 @@ async def collect_plex_activity() -> dict:
     return result
 
 
-_STREAMS_CACHE: dict[str, list[dict]] = {}
+_STREAMS_CACHE: dict[str, dict] = {}
 _STREAMS_CACHE_SIZE = 256
 
 
-async def media_streams(base_url: str, token: str, verify: bool, rating_key: str) -> list[dict]:
-    """Pistes audio et sous-titres d'un média (fiche Plex), mises en cache.
+async def media_sheet(base_url: str, token: str, verify: bool, rating_key: str) -> dict:
+    """Conteneur et pistes audio / sous-titres d'origine d'un média (fiche Plex), en cache.
 
-    Les pistes d'un fichier ne changent pas en cours de lecture : une lecture par média
-    suffit, alors que la collecte tourne toutes les quelques secondes.
+    Pendant une conversion, /status/sessions décrit la *sortie* (conteneur, codecs) : la
+    source se lit ici. Le fichier ne change pas en cours de lecture : une lecture par
+    média suffit, alors que la collecte tourne toutes les quelques secondes.
     """
     if rating_key in _STREAMS_CACHE:
         return _STREAMS_CACHE[rating_key]
@@ -1339,15 +1412,23 @@ async def media_streams(base_url: str, token: str, verify: bool, rating_key: str
             headers={"X-Plex-Token": token, "Accept": "application/xml"},
         )
         response.raise_for_status()
-    streams = [
-        dict(stream.attrib)
-        for stream in ElementTree.fromstring(response.text).iter("Stream")
-        if stream.get("streamType") in {"2", "3"}
-    ]
+    root = ElementTree.fromstring(response.text)
+    media = root.find(".//Media")
+    part = media.find("Part") if media is not None else None
+    sheet = {
+        "container": (part.get("container") if part is not None else None)
+        or (media.get("container") if media is not None else None),
+        "streams": [dict(stream.attrib) for stream in root.iter("Stream") if stream.get("streamType") in {"2", "3"}],
+    }
     if len(_STREAMS_CACHE) >= _STREAMS_CACHE_SIZE:
         _STREAMS_CACHE.pop(next(iter(_STREAMS_CACHE)))
-    _STREAMS_CACHE[rating_key] = streams
-    return streams
+    _STREAMS_CACHE[rating_key] = sheet
+    return sheet
+
+
+async def media_streams(base_url: str, token: str, verify: bool, rating_key: str) -> list[dict]:
+    """Pistes audio et sous-titres d'origine d'un média."""
+    return (await media_sheet(base_url, token, verify, rating_key))["streams"]
 
 
 _CHANNEL_LIMIT = re.compile(r"audio\.channels limitation applies: (\d+) > (\d+)")

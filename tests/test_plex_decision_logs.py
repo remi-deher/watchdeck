@@ -340,11 +340,12 @@ FLIBUSTIERS_SESSION = """<MediaContainer size="1"><Video ratingKey="5198" sessio
 </Part></Media><User title="u"/><Player title="Chromecast" state="playing"/><Session id="s9" bandwidth="1" location="wan"/>
 <TranscodeSession key="/transcode/sessions/1pi9" videoDecision="copy" audioDecision="copy" subtitleDecision="transcode"/>
 </Video></MediaContainer>"""
+FLIBUSTIERS_SHEET = {"container": "mkv", "streams": FLIBUSTIERS_STREAMS}
 CHANNELS_TEXT = "This app cannot play this item. The reason is: audio.channels limitation applies: 6 > 2."
 
 
 def test_subtitle_reason_names_the_source_format_when_known():
-    (session,) = parse_plex_sessions(FLIBUSTIERS_SESSION, stream_sources={"21": "ass"})
+    (session,) = parse_plex_sessions(FLIBUSTIERS_SESSION, media_sheets={"5198": FLIBUSTIERS_SHEET})
     assert session["transcode_reason"] == "Sous-titres ASS → WebVTT (vidéo et audio copiés)"
     assert session["audio_channels"] == 2
     # Fiche du média illisible : on garde le format de sortie, sans inventer de source.
@@ -402,7 +403,7 @@ async def test_media_streams_reads_audio_and_subtitle_tracks_once():
     import httpx
 
     xml = (
-        "<MediaContainer><Video><Media><Part>"
+        '<MediaContainer><Video><Media container="mkv"><Part container="mkv">'
         + "".join(
             f'<Stream id="{s["id"]}" streamType="{s["streamType"]}" codec="{s["codec"]}"/>' for s in FLIBUSTIERS_STREAMS
         )
@@ -423,7 +424,9 @@ async def test_media_streams_reads_audio_and_subtitle_tracks_once():
     ):
         first = await playback_activity.media_streams("http://plex.local/", "t", True, "5198")
         again = await playback_activity.media_streams("http://plex.local/", "t", True, "5198")
+        sheet = await playback_activity.media_sheet("http://plex.local/", "t", True, "5198")
     assert [s["id"] for s in first] == ["11", "12", "13", "21"]  # la vidéo n'est pas gardée
+    assert sheet["container"] == "mkv"
     assert again is first
     assert calls == ["/library/metadata/5198"]
 
@@ -439,7 +442,7 @@ async def test_collection_resolves_subtitle_source_from_media_sheet(async_db):
     with (
         patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
         patch.object(playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)),
-        patch.object(playback_activity, "media_streams", new=AsyncMock(return_value=FLIBUSTIERS_STREAMS)),
+        patch.object(playback_activity, "media_sheet", new=AsyncMock(return_value=FLIBUSTIERS_SHEET)),
         patch.object(playback_activity, "lookup_ip_locations", new=AsyncMock(return_value={})),
         patch.object(playback_activity, "lookup_ip_location", new=AsyncMock(return_value={})),
         patch.object(playback_activity, "publish", new=AsyncMock()),
@@ -455,7 +458,7 @@ async def test_collection_resolves_subtitle_source_from_media_sheet(async_db):
     with (
         patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
         patch.object(playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)),
-        patch.object(playback_activity, "media_streams", new=AsyncMock(side_effect=httpx.ConnectError("down"))),
+        patch.object(playback_activity, "media_sheet", new=AsyncMock(side_effect=httpx.ConnectError("down"))),
         patch.object(playback_activity, "lookup_ip_locations", new=AsyncMock(return_value={})),
         patch.object(playback_activity, "lookup_ip_location", new=AsyncMock(return_value={})),
         patch.object(playback_activity, "publish", new=AsyncMock()),
@@ -463,3 +466,41 @@ async def test_collection_resolves_subtitle_source_from_media_sheet(async_db):
         await playback_activity._collect_plex_activity_unlocked()
     fallback = async_db.query(PlaybackSession).filter_by(rating_key="5198").one()
     assert fallback.transcode_reason == "Sous-titres WebVTT convertis (vidéo et audio copiés)"
+
+
+REMUX_SESSION = """<MediaContainer size="1"><Video ratingKey="77" sessionKey="3" title="Remux" type="movie"
+ viewOffset="0" duration="1000"><Media container="mp4"><Part decision="transcode" container="mp4" protocol="dash">
+<Stream id="1" streamType="1" codec="hevc" height="1080" decision="copy"/>
+<Stream id="2" streamType="2" codec="eac3" channels="6" selected="1" decision="copy" language="Français"/>
+</Part></Media><User title="u"/><Player title="TV" state="playing"/><Session id="r3" bandwidth="1" location="lan"/>
+<TranscodeSession key="/transcode/sessions/r3" videoDecision="copy" audioDecision="copy" protocol="dash"
+ container="mp4" videoCodec="hevc" audioCodec="eac3" sourceVideoCodec="hevc" sourceAudioCodec="eac3" audioChannels="6"/>
+</Video></MediaContainer>"""
+
+
+def test_direct_stream_remux_is_described_in_blue_and_in_detail():
+    import json
+
+    (session,) = parse_plex_sessions(REMUX_SESSION, media_sheets={"77": {"container": "mkv", "streams": []}})
+    # Rien de réencodé : pas de raison orange, seulement le réemballage.
+    assert session["transcode_reason"] is None
+    details = json.loads(session["transcode_details"])
+    assert details["container"] == {"from": "mkv", "to": "mp4"}
+    assert details["video"] == {"decision": "copy", "from": "hevc", "to": "hevc", "height": 1080}
+    assert details["audio"]["channels"] == 6
+    assert details["subtitles"] is None
+
+    row = PlaybackSession(
+        source="plex", source_session_id="r3", title="Remux", transcode_details=session["transcode_details"]
+    )
+    serialized = playback_activity._serialize(row)
+    assert serialized["transcode_remux"] == "Conteneur MKV → MP4 (segments DASH)"
+    assert serialized["transcode_details"]["protocol"] == "dash"
+
+
+def test_remux_label_variants():
+    label = playback_activity._remux_label
+    assert label({"container": {"from": None, "to": "mp4"}, "protocol": "hls"}) == "Réemballé en MP4 (segments HLS)"
+    assert label({"container": {"from": "mkv", "to": "mkv"}, "protocol": "http"}) is None
+    assert label(None) is None
+    assert playback_activity._json_or_none("{pas du json") is None

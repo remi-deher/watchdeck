@@ -1,7 +1,10 @@
 <template>
   <!-- Deux fiabilites, deux couleurs : en vert la decision que Plex a ecrite dans ses
        journaux (le vrai pourquoi), en orange ce qu'on deduit du flux (le quoi). -->
-  <div v-if="reason" class="transcode-reason" :class="[reason.source === 'plex' ? 'from-plex' : 'deduced', { compact }]">
+  <div v-if="reason || remux" class="transcode-reason" :class="[reason?.source === 'plex' ? 'from-plex' : 'deduced', { compact }]">
+    <!-- Bleu, comme la pastille Direct Stream : le flux est reemballe, rien n'est reencode. -->
+    <p v-if="remux" class="remux-line" title="Réemballage du flux, sans réencodage"><strong>{{ remux }}</strong></p>
+    <template v-if="reason">
     <p :title="compact ? tooltip : undefined">
       <strong>{{ reason.text }}</strong>
       <small v-if="!compact">{{ sourceLabel }}</small>
@@ -17,6 +20,7 @@
       <dl v-if="clientParams.length">
         <div v-for="[label, value] in clientParams" :key="label"><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
       </dl>
+    </template>
     </template>
   </div>
 </template>
@@ -34,7 +38,7 @@ export interface TranscodeReasonData {
   note?: string | null;
 }
 
-const props = defineProps<{ reason?: TranscodeReasonData | null; compact?: boolean }>();
+const props = defineProps<{ reason?: TranscodeReasonData | null; remux?: string | null; compact?: boolean }>();
 
 const sourceLabel = computed(() =>
   props.reason?.source === 'plex'
@@ -71,6 +75,7 @@ const clientParams = computed(() =>
 <style scoped>
 .transcode-reason { --reason-color: var(--amber-text); display: grid; gap: 6px; }
 .transcode-reason.from-plex { --reason-color: var(--green-text); }
+.transcode-reason .remux-line strong { color: var(--blue-text); }
 .transcode-reason p { margin: 0; display: grid; gap: 2px; }
 .transcode-reason strong { color: var(--reason-color); font-weight: 600; overflow-wrap: anywhere; }
 .transcode-reason small, .deduced-line { color: var(--text-muted, inherit); font-size: .8rem; }

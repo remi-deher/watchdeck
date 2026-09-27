@@ -58,7 +58,7 @@
           <span v-if="session.bandwidth_kbps" class="live-bandwidth">{{ formatBandwidth(session.bandwidth_kbps) }}</span>
           <span v-if="hasTranscodeBuffer(session)" class="live-buffer" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }" :title="transcodeSpeedLabel(session)">Tampon {{ formatBuffer(session.transcode_buffer_ms) }}</span>
         </footer>
-        <TranscodeReason v-if="session.transcode_reason" class="live-reason" :reason="session.transcode_reason" compact/>
+        <TranscodeReason v-if="session.transcode_reason || session.transcode_remux" class="live-reason" :reason="session.transcode_reason" :remux="session.transcode_remux" compact/>
       </article>
     </div>
     <div v-else-if="!collectionEnabled" class="live-disabled" role="status">
@@ -108,6 +108,7 @@ export interface LiveSession {
   audio_decision?: string;
   subtitle_decision?: string;
   transcode_reason?: TranscodeReasonData | null;
+  transcode_remux?: string | null;
   geo_status?: string;
   geo_city?: string;
   geo_region?: string;
