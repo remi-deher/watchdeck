@@ -45,7 +45,8 @@
             <span><Network/>{{ addressLabel(session) }}</span>
           </div>
           <div class="progress-track"><i :class="{ paused: isPaused(session) }" :style="{width:`${percent(session)}%`}"></i></div>
-          <div class="live-progress-label"><small>{{ percent(session) }} %</small><small>{{ formatRemaining(session) }}</small></div>
+          <!-- Comme un lecteur (et Tracearr) : position ecoulee a gauche, temps restant a droite. -->
+          <div class="live-progress-label"><small><time>{{ timecode(elapsedMs(session)) }}</time> · {{ percent(session) }} %</small><small>{{ formatRemaining(session) }}</small></div>
         </div>
         </div>
 
@@ -85,6 +86,7 @@ import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Smartphone, Tablet, 
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 import { useIntervalFn } from '@vueuse/core';
+import { timecode } from '@/utils/playbackClock';
 import { formatBandwidth } from '@/utils/format';
 
 export interface LiveSession {
@@ -253,11 +255,8 @@ function formatRemaining(session: LiveSession): string {
   if (isPaused(session)) return stateLabel(session);
   if (!session.duration_ms) return 'Durée inconnue';
   const remaining = Math.max(0, session.duration_ms - elapsedMs(session));
-  const minutes = Math.ceil(remaining / 60000);
-  if (minutes < 1) return 'bientôt terminé';
-  return minutes < 60
-    ? `${minutes} min restantes`
-    : `${Math.floor(minutes / 60)} h ${minutes % 60} min restantes`;
+  if (remaining < 1000) return 'bientôt terminé';
+  return `-${timecode(remaining)}`;
 }
 </script>
 
@@ -294,7 +293,7 @@ function formatRemaining(session: LiveSession): string {
 .progress-track{height:5px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .1)}
 .progress-track i{display:block;height:100%;background:var(--accent);transition:width 1s linear}
 .progress-track i.paused{background:var(--muted);transition:none}
-.live-progress-label{display:flex;justify-content:space-between;margin-top:6px;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}
+.live-progress-label{display:flex;justify-content:space-between;margin-top:6px;font-variant-numeric:tabular-nums;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}
 
 .live-flag{padding:2px 7px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--muted) 14%,transparent);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
 .live-flag.relay{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}

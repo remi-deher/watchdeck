@@ -79,7 +79,13 @@ const imageStyle = computed(() => ({
    quelle image. Le voile couvre toute la banniere : pas de liseré ni de bordure. */
 .ui-hero-backdrop__scrim {
   border-radius: inherit;
-  background: radial-gradient(120% 95% at 0% 100%, var(--hero-scrim-side-strong) 0%, var(--hero-scrim-side-medium) 42%, transparent 74%);
+  /* Le texte d'une fiche (titre, badges, resume, boutons) occupe toute la moitie
+     gauche, pas seulement le coin : un voile limite au coin le laissait illisible sur une
+     image claire. Une ellipse large couvre donc la zone de texte, sur un voile uniforme
+     qui assombrit l'image partout pareil -- le bord reste egal sur les quatre cotes. */
+  background:
+    radial-gradient(ellipse 80% 115% at 22% 62%, var(--hero-scrim-side-strong) 0%, var(--hero-scrim-side-medium) 55%, transparent 88%),
+    linear-gradient(var(--hero-scrim-side-medium), var(--hero-scrim-side-medium));
   box-shadow: inset 0 0 64px 10px var(--hero-scrim-side-medium);
   pointer-events: none;
 }

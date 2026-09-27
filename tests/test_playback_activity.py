@@ -1544,3 +1544,19 @@ def test_playback_action_routes(client):
         assert client.delete("/api/playback/server-activities/a1").status_code == 409
     with patch(f"{target}.cancel_plex_activity", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
         assert client.delete("/api/playback/server-activities/a1").status_code == 502
+
+
+def test_playback_thumb_is_resized_when_the_view_asks(client):
+    from app.dependencies import get_settings_or_404
+
+    proxy = AsyncMock(return_value=None)
+    client.app.dependency_overrides[get_settings_or_404] = lambda: Settings(plex_url="http://plex", plex_token="t")
+    try:
+        with patch("app.routers.activity_api.image_proxy", new=proxy):
+            client.get("/api/playback/thumb", params={"path": "/library/metadata/5190/thumb/2", "width": 312})
+            client.get("/api/playback/thumb", params={"path": "/library/metadata/5190/thumb/2"})
+    finally:
+        client.app.dependency_overrides.pop(get_settings_or_404, None)
+    sized, original = proxy.await_args_list
+    assert (sized.kwargs["width"], sized.kwargs["image_format"]) == (312, "webp")
+    assert (original.kwargs["width"], original.kwargs["image_format"]) == (None, "original")
