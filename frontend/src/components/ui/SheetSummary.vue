@@ -38,7 +38,9 @@ watch(() => props.text, () => {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
-  color: color-mix(in srgb, var(--text) 90%, transparent);
+  /* Le resume est du contenu : couleur de texte principale. Le gris reste aux
+     libelles (dates, reperes), c'est lui qui fait la hierarchie. */
+  color: var(--text);
   font-size: var(--fs-base);
   line-height: 1.6;
   -webkit-line-clamp: var(--summary-lines, 3);
