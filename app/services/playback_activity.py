@@ -24,7 +24,14 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from ..cache import cache
 from ..database import AsyncSessionLocal
-from ..models import PlaybackDailyAggregate, PlaybackIpLocation, PlaybackSession, PlaybackSessionSegment, Settings
+from ..models import (
+    LibraryItem,
+    PlaybackDailyAggregate,
+    PlaybackIpLocation,
+    PlaybackSession,
+    PlaybackSessionSegment,
+    Settings,
+)
 from ..realtime import publish
 from ..utils import APP_TIMEZONE, now_utc_naive, wrap_image_proxy
 from . import plex_decision_logs
@@ -569,6 +576,8 @@ def _serialize(row: PlaybackSession) -> dict:
         "title": row.title,
         "grandparent_title": row.grandparent_title,
         "parent_title": row.parent_title,
+        "season_number": row.season_number,
+        "episode_number": row.episode_number,
         "year": row.year,
         "rating_key": row.rating_key,
         "library": row.library_section_title,
@@ -604,7 +613,7 @@ def _serialize(row: PlaybackSession) -> dict:
         "transcode_throttled": row.transcode_throttled,
         "transcode_hw": row.transcode_hw,
         "transcode_details": _json_or_none(row.transcode_details),
-        # Bleu, comme la pastille Direct Stream : un réemballage, rien de réencodé.
+        # Bleu, comme la pastille Direct Stream : conteneur changé, rien de réencodé.
         "transcode_remux": _remux_label(_json_or_none(row.transcode_details)),
         # Vert : la decision de Plex, relue dans ses journaux. Orange : notre deduction.
         "transcode_reason": (
@@ -660,6 +669,8 @@ def _tautulli_session_values(item: dict, settings: Settings, location: dict) -> 
         "title": item.get("title") or "Lecture Plex",
         "grandparent_title": item.get("grandparent_title"),
         "parent_title": item.get("parent_title"),
+        "season_number": _int(item.get("parent_media_index")) if item.get("media_type") == "episode" else None,
+        "episode_number": _int(item.get("media_index")) if item.get("media_type") == "episode" else None,
         "year": _int(item.get("year")),
         "rating_key": str(item.get("rating_key") or "") or None,
         "library_section_title": item.get("section_name"),
@@ -818,7 +829,13 @@ def _transcode_details(
         return stream.get(name) if stream is not None else None
 
     subtitle_source = sources.get(attr(subtitle_stream, "id")) or {}
+    complete = transcode_attrs.get("complete")
     return {
+        # Terminé : tout le fichier est prêt, plus rien ne peut couper la lecture.
+        "transcoder": {
+            "complete": complete in ("1", "true") if complete is not None else None,
+            "progress": _float(transcode_attrs.get("progress")),
+        },
         "protocol": transcode_attrs.get("protocol"),
         "container": {
             "from": (sheet or {}).get("container"),
@@ -852,7 +869,7 @@ def _transcode_details(
 
 
 def _remux_label(details: dict | None) -> str | None:
-    """Le réemballage du flux : ce que fait un Direct Stream, sans rien réencoder."""
+    """Le changement de conteneur d'un Direct Stream, sans rien réencoder."""
     if not details:
         return None
     container = details.get("container") or {}
@@ -862,7 +879,7 @@ def _remux_label(details: dict | None) -> str | None:
     if source and target and str(source).lower() != str(target).lower():
         return f"Conteneur {str(source).upper()} → {str(target).upper()}{segments}"
     if segments and target:
-        return f"Réemballé en {str(target).upper()}{segments}"
+        return f"Diffusé en {str(target).upper()}{segments}"
     return None
 
 
@@ -953,6 +970,8 @@ def parse_plex_sessions(
                 "title": media.get("title") or "Lecture Plex",
                 "grandparent_title": media.get("grandparentTitle"),
                 "parent_title": media.get("parentTitle"),
+                "season_number": _int(media.get("parentIndex")) if media.get("type") == "episode" else None,
+                "episode_number": _int(media.get("index")) if media.get("type") == "episode" else None,
                 "year": _int(media.get("year")),
                 "rating_key": media.get("ratingKey"),
                 "library_section_title": media.get("librarySectionTitle"),
@@ -1250,7 +1269,7 @@ async def _collect_plex_activity_unlocked() -> dict:
             response = await client.get(f"{settings.plex_url.rstrip('/')}/status/sessions", headers=headers)
             response.raise_for_status()
         snapshots = parse_plex_sessions(response.text, anonymize_ips=settings.activity_anonymize_ips)
-        # Une conversion (même un simple réemballage) ne se lit qu'en sortie dans
+        # Une conversion (même un simple changement de conteneur) ne se lit qu'en sortie dans
         # /status/sessions : la fiche du média donne la source (conteneur, sous-titres).
         converted = {s["rating_key"] for s in snapshots if s.get("rating_key") and s.get("transcode_details")}
         if converted:
@@ -1415,7 +1434,16 @@ async def media_sheet(base_url: str, token: str, verify: bool, rating_key: str) 
     root = ElementTree.fromstring(response.text)
     media = root.find(".//Media")
     part = media.find("Part") if media is not None else None
+    item = next((node for node in root if node.tag in {"Video", "Track", "Photo"}), None)
+    meta = item.attrib if item is not None else {}
     sheet = {
+        "meta": {
+            "summary": meta.get("summary"),
+            "art": meta.get("grandparentArt") or meta.get("art"),
+            "guid": meta.get("grandparentGuid") or meta.get("guid"),
+            "season": _int(meta.get("parentIndex")),
+            "episode": _int(meta.get("index")),
+        },
         "container": (part.get("container") if part is not None else None)
         or (media.get("container") if media is not None else None),
         "streams": [dict(stream.attrib) for stream in root.iter("Stream") if stream.get("streamType") in {"2", "3"}],
@@ -2424,7 +2452,41 @@ async def playback_session_detail(session_id: int, db) -> dict | None:
         .scalars()
         .first()
     )
-    return _serialize(row) if row else None
+    if not row:
+        return None
+    return {**_serialize(row), "media": await _session_media(row, db)}
+
+
+async def _session_media(row: PlaybackSession, db) -> dict | None:
+    """Bannière, résumé et fiche bibliothèque de l'œuvre lue, depuis la fiche Plex.
+
+    Facultatif : Plex injoignable ou média supprimé, la fiche de la session s'affiche
+    sans, plutôt que d'échouer.
+    """
+    if not row.rating_key:
+        return None
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings or not settings.plex_url or not settings.plex_token:
+        return None
+    try:
+        sheet = await media_sheet(settings.plex_url, settings.plex_token, settings.plex_verify_ssl, row.rating_key)
+    except Exception as exc:
+        logger.debug("Fiche média Plex illisible : %s", exc)
+        return None
+    meta = sheet.get("meta") or {}
+    library_id = None
+    if meta.get("guid"):
+        library_id = (
+            await db.execute(select(LibraryItem.id).filter(LibraryItem.plex_guid == meta["guid"]).limit(1))
+        ).scalar()
+    art = meta.get("art")
+    return {
+        "summary": meta.get("summary"),
+        "art_url": f"/api/playback/thumb?path={quote(art, safe='')}" if art else None,
+        "season": meta.get("season"),
+        "episode": meta.get("episode"),
+        "library_item_id": library_id,
+    }
 
 
 async def live_activity_snapshot(db=None) -> dict:

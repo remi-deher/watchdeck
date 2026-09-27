@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import { playbackTitle } from '@/playbackToast';
 import { computed, ref, watch } from 'vue';
 import { useIntersectionObserver } from '@vueuse/core';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
@@ -82,6 +83,8 @@ export interface HistoryItem {
   media_type?: string;
   title?: string;
   grandparent_title?: string;
+  season_number?: number | null;
+  episode_number?: number | null;
   user_name?: string;
   player?: string;
   product?: string;
@@ -272,7 +275,7 @@ function exportCsv(): void {
 }
 
 function displayTitle(item: HistoryItem): string {
-  return item.grandparent_title ? `${item.grandparent_title} · ${item.title}` : item.title || '';
+  return item.grandparent_title || item.title ? playbackTitle(item) : '';
 }
 function deviceLabel(item: HistoryItem): string {
   return item.player || item.product || item.platform || 'Appareil inconnu';

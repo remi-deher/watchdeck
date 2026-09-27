@@ -37,6 +37,9 @@ class PlaybackSession(Base):
     title: Mapped[str]
     grandparent_title: Mapped[Optional[str]]
     parent_title: Mapped[Optional[str]]
+    # Numeros de saison et d'episode : « S1 · E11 » dit plus que « Saison 1 ».
+    season_number: Mapped[Optional[int]]
+    episode_number: Mapped[Optional[int]]
     year: Mapped[Optional[int]]
     rating_key: Mapped[Optional[str]]
     library_section_title: Mapped[Optional[str]]

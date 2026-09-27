@@ -75,6 +75,7 @@
 
 <script setup lang="ts">
 import TranscodeReason, { type TranscodeReasonData } from './TranscodeReason.vue';
+import { episodeLabel } from '@/utils/episode';
 import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref, watch } from 'vue';
@@ -91,6 +92,8 @@ export interface LiveSession {
   title?: string;
   grandparent_title?: string;
   parent_title?: string;
+  season_number?: number | null;
+  episode_number?: number | null;
   year?: number | string;
   user_name?: string;
   player?: string;
@@ -203,7 +206,7 @@ function decisionDetail(session: LiveSession): string {
 }
 
 function mediaSubtitle(session: LiveSession): string {
-  return [session.parent_title, session.year].filter(Boolean).join(' · ') || 'Lecture Plex';
+  return [episodeLabel(session), session.year].filter(Boolean).join(' · ') || 'Lecture Plex';
 }
 
 function deviceLabel(session: LiveSession): string {

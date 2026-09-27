@@ -2,8 +2,8 @@
   <!-- Deux fiabilites, deux couleurs : en vert la decision que Plex a ecrite dans ses
        journaux (le vrai pourquoi), en orange ce qu'on deduit du flux (le quoi). -->
   <div v-if="reason || remux" class="transcode-reason" :class="[reason?.source === 'plex' ? 'from-plex' : 'deduced', { compact }]">
-    <!-- Bleu, comme la pastille Direct Stream : le flux est reemballe, rien n'est reencode. -->
-    <p v-if="remux" class="remux-line" title="Réemballage du flux, sans réencodage"><strong>{{ remux }}</strong></p>
+    <!-- Bleu, comme la pastille Direct Stream : conteneur change, rien n'est reencode. -->
+    <p v-if="remux" class="remux-line" title="Conteneur changé, sans réencodage"><strong>{{ remux }}</strong></p>
     <template v-if="reason">
     <p :title="compact ? tooltip : undefined">
       <strong>{{ reason.text }}</strong>

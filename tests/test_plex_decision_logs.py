@@ -500,7 +500,58 @@ def test_direct_stream_remux_is_described_in_blue_and_in_detail():
 
 def test_remux_label_variants():
     label = playback_activity._remux_label
-    assert label({"container": {"from": None, "to": "mp4"}, "protocol": "hls"}) == "Réemballé en MP4 (segments HLS)"
+    assert label({"container": {"from": None, "to": "mp4"}, "protocol": "hls"}) == "Diffusé en MP4 (segments HLS)"
     assert label({"container": {"from": "mkv", "to": "mkv"}, "protocol": "http"}) is None
     assert label(None) is None
     assert playback_activity._json_or_none("{pas du json") is None
+
+
+@pytest.mark.asyncio
+async def test_session_detail_adds_banner_summary_and_library_link(async_db):
+    from app.models import LibraryItem
+
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    async_db.add(LibraryItem(id=42, title="Samurai Champloo", media_type="show", plex_guid="plex://show/abc"))
+    row = PlaybackSession(source="plex", source_session_id="s", title="Les flibustiers", rating_key="5198")
+    async_db.add(row)
+    async_db.commit()
+    sheet = {
+        "meta": {
+            "summary": "Mugen embarque…",
+            "art": "/library/metadata/5183/art/1",
+            "guid": "plex://show/abc",
+            "season": 1,
+            "episode": 11,
+        },
+        "container": "mkv",
+        "streams": [],
+    }
+    with patch.object(playback_activity, "media_sheet", new=AsyncMock(return_value=sheet)):
+        detail = await playback_activity.playback_session_detail(row.id, async_db)
+    assert detail["media"] == {
+        "summary": "Mugen embarque…",
+        "art_url": "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F5183%2Fart%2F1",
+        "season": 1,
+        "episode": 11,
+        "library_item_id": 42,
+    }
+    with patch.object(playback_activity, "media_sheet", new=AsyncMock(side_effect=RuntimeError("plex"))):
+        assert (await playback_activity.playback_session_detail(row.id, async_db))["media"] is None
+
+
+def test_transcoder_state_is_kept_in_details():
+    import json
+
+    xml = REMUX_SESSION.replace('audioChannels="6"/>', 'audioChannels="6" complete="1" progress="100"/>')
+    details = json.loads(parse_plex_sessions(xml)[0]["transcode_details"])
+    assert details["transcoder"] == {"complete": True, "progress": 100.0}
+
+
+def test_episode_numbers_come_from_the_session():
+    xml = FLIBUSTIERS_SESSION.replace('type="episode"', 'type="episode" parentIndex="1" index="11"')
+    session = parse_plex_sessions(xml)[0]
+    assert (session["season_number"], session["episode_number"]) == (1, 11)
+    movie = parse_plex_sessions(REMUX_SESSION.replace('type="movie"', 'type="movie" index="3"'))[0]
+    assert (movie["season_number"], movie["episode_number"]) == (None, None)
+    row = PlaybackSession(source="plex", source_session_id="x", title="T", season_number=1, episode_number=11)
+    assert playback_activity._serialize(row)["episode_number"] == 11
