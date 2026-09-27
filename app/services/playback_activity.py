@@ -1058,7 +1058,14 @@ def parse_plex_sessions(
                 "year": _int(media.get("year")),
                 "rating_key": media.get("ratingKey"),
                 "library_section_title": media.get("librarySectionTitle"),
-                "thumb_url": media.get("thumb") or media.get("grandparentThumb"),
+                # Un episode n'a pas d'affiche : son `thumb` est une capture 16:9, que le
+                # cadre portrait rognait puis agrandissait. On prend l'affiche de la saison,
+                # a defaut celle de la serie.
+                "thumb_url": (
+                    media.get("parentThumb") or media.get("grandparentThumb") or media.get("thumb")
+                    if media.get("type") == "episode"
+                    else media.get("thumb") or media.get("grandparentThumb")
+                ),
                 "player_title": player_attrs.get("title"),
                 "platform": player_attrs.get("platform"),
                 "product": player_attrs.get("product"),
@@ -1531,6 +1538,9 @@ async def media_sheet(base_url: str, token: str, verify: bool, rating_key: str) 
             "guid": meta.get("grandparentGuid") or meta.get("guid"),
             "season": _int(meta.get("parentIndex")),
             "episode": _int(meta.get("index")),
+            "poster": (meta.get("parentThumb") or meta.get("grandparentThumb"))
+            if meta.get("type") == "episode"
+            else meta.get("thumb"),
         },
         "container": (part.get("container") if part is not None else None)
         or (media.get("container") if media is not None else None),
@@ -2571,7 +2581,9 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
             await db.execute(select(LibraryItem.id).filter(LibraryItem.plex_guid == meta["guid"]).limit(1))
         ).scalar()
     art = meta.get("art")
+    poster = meta.get("poster")
     return {
+        "poster_url": f"/api/playback/thumb?path={quote(poster, safe='')}" if poster else None,
         "summary": meta.get("summary"),
         "art_url": f"/api/playback/thumb?path={quote(art, safe='')}" if art else None,
         "season": meta.get("season"),

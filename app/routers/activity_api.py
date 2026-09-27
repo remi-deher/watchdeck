@@ -147,7 +147,12 @@ async def get_activity_history(
 
 
 @router.get("/thumb")
-async def playback_thumb(request: Request, path: str, settings: Settings = Depends(get_settings_or_404)):
+async def playback_thumb(
+    request: Request,
+    path: str,
+    width: Optional[int] = Query(None, ge=32, le=1600),
+    settings: Settings = Depends(get_settings_or_404),
+):
     """Sert une vignette Plex sans exposer le token Plex dans l'URL du navigateur.
 
     Passe par le proxy d'images commun : cache disque, chemin `/thumb/<ts>` perime
@@ -158,7 +163,15 @@ async def playback_thumb(request: Request, path: str, settings: Settings = Depen
     if not settings.plex_url or not settings.plex_token:
         raise HTTPException(404, "Plex n'est pas configuré.")
     return await image_proxy(
-        request=request, url=None, plex_path=path, width=None, height=None, quality=82, image_format="original"
+        # Redimensionnee cote serveur quand la vue donne sa taille : une capture de 1800 px
+        # reduite 7 fois par le navigateur sortait crenelee dans une vignette.
+        request=request,
+        url=None,
+        plex_path=path,
+        width=width,
+        height=None,
+        quality=90 if width else 82,
+        image_format="webp" if width else "original",
     )
 
 

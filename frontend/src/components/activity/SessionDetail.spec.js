@@ -257,3 +257,17 @@ describe('SessionDetail - repères de temps', () => {
   });
 });
 
+describe('SessionDetail - identifiant', () => {
+  it('copie l’identifiant de la session', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const wrapper = factory({ title: 'Film', session_id: 'abc123def456' });
+    await wrapper.get('.copy-id').trigger('click');
+    expect(writeText).toHaveBeenCalledWith('abc123def456');
+  });
+
+  it('pas de bouton sans identifiant', () => {
+    expect(factory({ title: 'Film' }).find('.copy-id').exists()).toBe(false);
+  });
+});
+
