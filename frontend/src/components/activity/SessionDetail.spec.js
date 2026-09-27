@@ -131,7 +131,7 @@ describe('SessionDetail - fiche de l’œuvre et conversion', () => {
 
   it('ne propose « Lire la suite » que si le résumé déborde', async () => {
     // jsdom ne mesure rien : un résumé qui tient dans ses lignes n'a pas de bouton.
-    expect(factory(flibustiers).find('.summary-toggle').exists()).toBe(false);
+    expect(factory(flibustiers).find('.sheet-summary__toggle').exists()).toBe(false);
   });
 
   it('sans fiche bibliothèque, l’affiche n’est pas un bouton', () => {
