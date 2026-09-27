@@ -73,8 +73,8 @@ Alternative a la procedure CLI ci-dessus, accessible sans acces shell/`docker co
   de la creation manuelle d'un compte sur une instance fraiche pas encore configuree — bloque des
   qu'un compte existe deja.
 
-Verrouillage partage (Redis) avec la migration SQLite legacy : les deux operations remplacent
-entierement la base et ne peuvent pas s'executer en parallele l'une de l'autre.
+Verrouillage (Redis) : deux restaurations ne peuvent pas s'executer en parallele, et le worker
+ARQ suspend ses taches tant qu'une restauration remplace la base.
 
 ## Mise a jour
 

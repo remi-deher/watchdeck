@@ -2,35 +2,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-# In-memory SQLite DB for tests
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.dependencies import current_user
 from app.main import app
-from app.models import Base, PasskeyCredential, PlexUser, Settings
+from app.models import PasskeyCredential, PlexUser, Settings
 from app.services.auth import hash_password, verify_password
-from tests.async_support import TestSession
-
-engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from tests.async_support import make_test_session
 
 
 def _db():
-    Base.metadata.create_all(bind=engine)
-    db = TestSession(TestingSessionLocal())
+    db = make_test_session()
     # Seed default settings
     s = Settings(id=1, auth_username="admin", auth_password_hash=hash_password("adminpass"))
     db.add(s)
     db.commit()
     return db
-
-
-def _cleanup():
-    Base.metadata.drop_all(bind=engine)
 
 
 def test_password_and_totp_security():
@@ -112,7 +99,6 @@ def test_password_and_totp_security():
     finally:
         app.dependency_overrides.pop(get_db, None)
         app.dependency_overrides.pop(current_user, None)
-        _cleanup()
         db.close()
 
 
@@ -148,5 +134,4 @@ def test_webauthn_registration_options(mock_gen):
     finally:
         app.dependency_overrides.pop(get_db, None)
         app.dependency_overrides.pop(current_user, None)
-        _cleanup()
         db.close()

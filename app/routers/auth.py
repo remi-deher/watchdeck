@@ -34,7 +34,7 @@ from webauthn import (
 )
 from webauthn.helpers import options_to_json
 
-from ..backup_restore import LegacyMigrationError, perform_full_restore
+from ..backup_restore import BackupRestoreError, perform_full_restore
 from ..database import DATABASE_URL, get_db_async
 from ..dependencies import current_user, require_auth
 from ..models import LoginAttempt, PasskeyCredential, PlexUser, Settings
@@ -146,9 +146,6 @@ async def setup_restore(
     """Restaure une archive de sauvegarde complète à la place de la création manuelle d'un
     compte. Uniquement disponible tant qu'aucun compte n'existe déjà sur cette instance —
     revérifié juste avant l'action destructrice, pas seulement à l'entrée de la route."""
-    if not DATABASE_URL.startswith("postgresql"):
-        raise HTTPException(409, "La restauration complète nécessite PostgreSQL")
-
     s = (await db.execute(select(Settings))).scalars().first()
     if s and s.auth_username:
         raise HTTPException(403, "Un compte existe déjà sur cette instance")
@@ -161,7 +158,7 @@ async def setup_restore(
     await db.commit()
     try:
         report = await perform_full_restore(content, DATABASE_URL)
-    except LegacyMigrationError as exc:
+    except BackupRestoreError as exc:
         raise HTTPException(400, str(exc)) from exc
 
     # Re-verification post-restauration : par construction improbable ici (personne d'autre

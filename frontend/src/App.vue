@@ -49,7 +49,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { useRoute, type RouteLocationNormalizedLoaded } from "vue-router";
-import { clearCache, syncCacheOwner } from "@/cache";
+import { syncCacheOwner } from "@/cache";
 import { useQueryClient } from "@tanstack/vue-query";
 import { synchroniserProprietaire } from "@/offline/stockage";
 import { connectRealtime } from "@/events";
@@ -107,10 +107,6 @@ function showPlaybackToasts(event: any): void {
     addToast({type:'info',title:`${session.user_name||'Un utilisateur'} lance une lecture`,message:playbackTitle(session),image:session.thumb_url||'',duration:7000});
   }
 }
-// Un import complet a remplace toute la base : tout ce que cet onglet affiche, et tout ce
-// qu'il a mis en cache, reference des lignes qui n'existent plus. On purge et on recharge
-// plutot que de laisser l'utilisateur agir sur des donnees fantomes.
-function onMigrationCompleted(): void {clearCache();window.location.reload()}
 // Sans ce toast, un nouveau service worker installe restait silencieux : l'utilisateur
 // continuait a utiliser une version perimee de l'app sans jamais etre invite a recharger.
 function onSwUpdateAvailable(): void {
@@ -120,7 +116,7 @@ function onSwUpdateAvailable(): void {
 }
 onMounted(async()=>{
   if(chargementPublic)return;
-  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);void synchroniserProprietaire(queryClient,session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
-onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable)});
+  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);void synchroniserProprietaire(queryClient,session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
+onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable)});
 </script>
 

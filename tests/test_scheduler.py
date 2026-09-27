@@ -4,12 +4,10 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.models import Base, LibraryItem, MediaRequest, PlexUser, RequestSeasonStatus, RequestStatus, Settings
+from app.models import LibraryItem, MediaRequest, PlexUser, RequestSeasonStatus, RequestStatus, Settings
 from app.scheduler import check_arr_statuses, poll_watchlists, sync_users_from_feed
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 # ---------------------------------------------------------------------------
 # Fixtures DB in-memory
@@ -18,10 +16,7 @@ from tests.async_support import TestSession
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = TestSession(Session())
+    session = make_test_session()
     yield session
     session.close()
 

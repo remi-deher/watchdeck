@@ -35,25 +35,6 @@
         <p v-if="restoreRestarting" class="hint">Restauration terminee, l'application redemarre. Cette page va se recharger automatiquement.</p>
       </SettingsCard>
 
-      <SettingsCard title="Ancienne base SQLite" subtitle="Migration ponctuelle depuis une installation Plex RSS Monitor / Plexarr / Watchdeck pre-PostgreSQL." :icon="DatabaseZap" status="neutral" :collapsible="false">
-        <input ref="sqliteInput" type="file" accept=".db,.sqlite,.sqlite3" @change="resetInspection">
-        <div class="actions">
-          <UiButton :disabled="busy" @click="inspectSqlite"><Search/>Inspecter</UiButton>
-        </div>
-        <div v-if="inspection" class="migration-summary">
-          <strong>{{ inspection.total_rows.toLocaleString() }} lignes</strong>
-          <span>{{ inspection.populated_tables }} tables · integrite {{ inspection.integrity }}</span>
-          <div class="table-badges">
-            <span v-for="(count,name) in populatedTables" :key="name" class="badge">{{ name }} : {{ count.toLocaleString() }}</span>
-          </div>
-        </div>
-        <template v-if="inspection">
-          <p class="warning-text">Une sauvegarde PostgreSQL sera creee avant le remplacement.</p>
-          <label>Confirmation<input v-model="confirmation" class="mono" placeholder="REMPLACER"></label>
-          <UiButton variant="primary" class="danger-button" :disabled="busy||confirmation!=='REMPLACER'" @click="migrateSqlite"><DatabaseZap/>Remplacer</UiButton>
-        </template>
-      </SettingsCard>
-
       <SettingsCard title="Medias supprimes" :icon="Trash2" status="neutral" :collapsible="false">
         <p>
           Ces medias ont ete deliberement supprimes par un admin. Toute nouvelle demande
@@ -79,24 +60,19 @@ import { formatDate } from '@/utils/format';
 import { mediaTypeLabel } from '@/utils/labels';
 import { computed, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { DatabaseZap, Download, HardDriveDownload, Search, ShieldAlert, Trash2, Upload } from '@lucide/vue';
+import { Download, HardDriveDownload, ShieldAlert, Trash2, Upload } from '@lucide/vue';
 import { api } from '@/api';
 import { load, success, fail } from '@/settingsForm';
 import SettingsCard from './SettingsCard.vue';
 
 const includeSecrets = ref(false);
 const queryClient = useQueryClient();
-const jsonInput = ref<HTMLInputElement | null>(null), sqliteInput = ref<HTMLInputElement | null>(null), inspection = ref<any>(null), confirmation = ref('');
+const jsonInput = ref<HTMLInputElement | null>(null);
 const fullBackupInput = ref<HTMLInputElement | null>(null), fullRestoreConfirmation = ref(''), restoreRestarting = ref(false), fullBackupSelected = ref(false);
 function onFullBackupFileChange(): void {
   fullBackupSelected.value = Boolean(fullBackupInput.value?.files?.[0]);
   fullRestoreConfirmation.value = '';
 }
-const populatedTables = computed((): Record<string, number> => Object.fromEntries(
-  Object.entries(inspection.value?.tables || {})
-    .map(([name, count]): [string, number] => [name, Number(count)])
-    .filter(([, count]) => count > 0)
-));
 
 const deletedLogQuery = useQuery({ queryKey: ['settings', 'deleted-log'], queryFn: () => api<any[]>('/api/requests/deleted-log').catch(() => []) });
 const deletedLog = computed(() => deletedLogQuery.data.value || []);
@@ -139,24 +115,6 @@ async function restoreFullBackup(): Promise<void> {
     await uploadMutation.mutateAsync({ path: '/api/backup/full/restore', file, extra: { confirm: fullRestoreConfirmation.value } });
     restoreRestarting.value = true;
     setTimeout(() => location.assign('/login'), 8000);
-  } catch (e) { fail(e); }
-}
-function resetInspection(): void { inspection.value = null; confirmation.value = ''; }
-async function inspectSqlite(): Promise<void> {
-  const file = sqliteInput.value?.files?.[0];
-  if (!file) return;
-  try {
-    inspection.value = await uploadMutation.mutateAsync({ path: '/api/migration/sqlite/inspect', file });
-    success('Base SQLite valide.');
-  } catch (e) { fail(e); }
-}
-async function migrateSqlite(): Promise<void> {
-  const file = sqliteInput.value?.files?.[0];
-  if (!file || confirmation.value !== 'REMPLACER') return;
-  try {
-    const data = await uploadMutation.mutateAsync({ path: '/api/migration/sqlite', file, extra: { confirm: confirmation.value } });
-    success(`Migration terminee : ${data.report.copied_rows.toLocaleString()} lignes.`);
-    setTimeout(() => location.assign('/dashboard'), 1500);
   } catch (e) { fail(e); }
 }
 </script>

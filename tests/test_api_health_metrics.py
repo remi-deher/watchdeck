@@ -4,14 +4,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth
 from app.main import app
-from app.models import ArrInstance, Base, LibraryItem, MediaRequest, RequestStatus, Settings
+from app.models import ArrInstance, LibraryItem, MediaRequest, RequestStatus, Settings
 
 # ---------------------------------------------------------------------------
 # Fixtures

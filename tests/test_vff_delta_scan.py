@@ -286,17 +286,11 @@ async def test_library_is_indexed_once_per_scan_not_once_per_group():
     appelait `_scan_vf_blocking`, donc indexait la bibliothèque de son côté : le même
     index était construit deux fois à l'identique. Mesuré en production, ~14 des 17,6 s
     d'un cycle partaient dans ces deux passes, dont une entièrement redondante."""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import StaticPool
-
-    from app.models import Base, LibraryItem, MediaRequest, RequestStatus
+    from app.models import LibraryItem, MediaRequest, RequestStatus
     from app.scheduler import check_vf_statuses
-    from tests.async_support import TestSession
+    from tests.async_support import make_test_session
 
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    db = TestSession(sessionmaker(bind=engine, expire_on_commit=False)())
+    db = make_test_session()
     db.add(
         Settings(
             id=1,

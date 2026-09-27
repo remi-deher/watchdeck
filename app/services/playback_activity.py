@@ -2043,10 +2043,9 @@ async def _rebuild_daily_aggregates(db, days: set[date]) -> None:
         return
     # Toutes les voies d'ecriture PostgreSQL partagent un verrou transactionnel par
     # jour. Deux reconstructions ne peuvent plus entrelacer leur DELETE puis INSERT.
-    if db.get_bind().dialect.name == "postgresql":
-        for day in sorted(days):
-            lock_key = f"watchdeck:playback-daily:{day.isoformat()}"
-            await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
+    for day in sorted(days):
+        lock_key = f"watchdeck:playback-daily:{day.isoformat()}"
+        await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
     await db.execute(delete(PlaybackDailyAggregate).where(PlaybackDailyAggregate.day.in_(days)))
     rows = (await db.execute(_daily_aggregate_query(days))).all()
     db.add_all(

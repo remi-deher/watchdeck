@@ -8,7 +8,7 @@ import pytest
 
 from app.backup_restore import (
     ARCHIVE_DUMP_NAME,
-    LegacyMigrationError,
+    BackupRestoreError,
     build_full_backup_zip,
     bundle_data_files,
     extract_data_files,
@@ -112,7 +112,7 @@ def test_read_full_backup_zip_rejects_missing_dump(tmp_path):
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("manifest.json", "{}")
 
-    with pytest.raises(LegacyMigrationError, match="database.dump"):
+    with pytest.raises(BackupRestoreError, match="database.dump"):
         read_full_backup_zip(zip_path, tmp_path / "extracted")
 
 
@@ -120,5 +120,5 @@ def test_read_full_backup_zip_rejects_corrupt_zip(tmp_path):
     bad_path = tmp_path / "not-a-zip.zip"
     bad_path.write_bytes(b"this is not a zip file")
 
-    with pytest.raises(LegacyMigrationError, match="invalide"):
+    with pytest.raises(BackupRestoreError, match="invalide"):
         read_full_backup_zip(bad_path, tmp_path / "extracted")

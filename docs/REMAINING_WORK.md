@@ -9,7 +9,7 @@ limiter les régressions et de garder un point de retour fonctionnel entre les c
 État vérifié le 13 juillet 2026 :
 
 - backend FastAPI et accès SQLAlchemy migrés en asynchrone ;
-- SQLite via `aiosqlite` et PostgreSQL via `asyncpg` supportés ;
+- PostgreSQL via `asyncpg`, seul moteur pris en charge (SQLite retiré) ;
 - suite applicative verte : **612 tests réussis** dans la dernière exécution locale ;
 - Redis optionnel disponible via `app/cache.py` ;
 - PostgreSQL et Redis déclarés dans `docker-compose.yml` ;

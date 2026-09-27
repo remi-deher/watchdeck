@@ -91,12 +91,9 @@ jobs:
       - name: Run tests with coverage
         env:
           REDIS_URL: "redis://127.0.0.1:6379/0"
-          # Fait tourner la suite sur PostgreSQL, comme la production, au lieu de
-          # SQLite en memoire. SQLite n'applique pas les cles etrangeres, ignore les
-          # contraintes de longueur et n'a pas le modele de verrouillage de PostgreSQL :
-          # des defauts reels passaient inapercus (une ligne download_history orpheline
-          # etait acceptee, par exemple). Sans cette variable, la suite retombe sur
-          # SQLite pour rester lancable en local sans PostgreSQL.
+          # La suite tourne sur PostgreSQL, comme la production (seul moteur pris en
+          # charge). En local, la meme base jetable s'obtient avec
+          # `docker compose --profile test up -d postgres-test` (voir tests/async_support.py).
           TEST_DATABASE_URL: postgresql+psycopg2://watchdeck:ci-password@127.0.0.1:5432/watchdeck_test
         # Seuil global remonte de 60 a 65 : c'est la couverture reellement atteinte,
         # l'ecart precedent laissait de la marge pour regresser sans que rien n'alerte.

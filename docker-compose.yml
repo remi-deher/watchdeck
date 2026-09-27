@@ -8,19 +8,15 @@ services:
     volumes:
       - ./data:/app/data
     restart: unless-stopped
-    # Docker's default is 10s before SIGKILL — too short if a scheduler job (Plex/*arr
-    # network call) is mid-flight on shutdown. A process killed mid SQLite write is a
-    # real corruption risk, so give the graceful-shutdown path (see app/main.py lifespan)
-    # enough room to let the current job/notification finish and commit cleanly.
+    # Docker's default is 10s before SIGKILL — too short if a request (Plex/*arr network
+    # call) is mid-flight on shutdown: give the graceful-shutdown path (see app/main.py
+    # lifespan) enough room to let it finish and commit cleanly.
     stop_grace_period: 30s
     environment:
       TZ: ${TZ:-Europe/Paris}
       DATABASE_URL: postgresql://watchdeck:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-watchdeck}
       REDIS_URL: redis://redis:6379/0
       ENABLE_ARQ: "1"
-      AUTO_MIGRATE_LEGACY_SQLITE: ${AUTO_MIGRATE_LEGACY_SQLITE:-1}
-      LEGACY_SQLITE_PATH: ${LEGACY_SQLITE_PATH:-/app/data/plex_rss.db}
-      LEGACY_IMPORT_MAX_BYTES: ${LEGACY_IMPORT_MAX_BYTES:-268435456}
       # Optionnelle : si absente, une clé est générée au premier démarrage et persistée
       # dans data/.encryption_key (voir app/crypto.py). La définir explicitement n'est
       # utile que pour fixer la clé à l'avance ou la partager avec une autre instance.
@@ -51,7 +47,6 @@ services:
       DATABASE_URL: postgresql://watchdeck:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-watchdeck}
       REDIS_URL: redis://redis:6379/0
       ENABLE_ARQ: "1"
-      AUTO_MIGRATE_LEGACY_SQLITE: "0"
       # Optionnelle : si absente, une clé est générée au premier démarrage et persistée
       # dans data/.encryption_key (voir app/crypto.py). La définir explicitement n'est
       # utile que pour fixer la clé à l'avance ou la partager avec une autre instance.
@@ -116,6 +111,27 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # Base jetable de la suite pytest (voir tests/async_support.py) : en memoire, rien n'est
+  # conserve entre deux demarrages. `docker compose --profile test up -d postgres-test`
+  postgres-test:
+    image: postgres:15-alpine
+    profiles: ["test"]
+    container_name: watchdeck-postgres-test
+    environment:
+      POSTGRES_USER: watchdeck
+      POSTGRES_PASSWORD: watchdeck-test
+      POSTGRES_DB: watchdeck_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watchdeck -d watchdeck_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
 
   restore:
     image: postgres:15-alpine

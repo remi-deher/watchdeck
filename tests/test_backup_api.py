@@ -1,43 +1,25 @@
 """Tests unitaires pour les routes de sauvegarde/restauration complète (reprise après sinistre).
 
-DATABASE_URL est SQLite sous pytest (voir pytest.ini / app.database) : les deux routes
-refusent donc systématiquement avant toute action destructrice (`_require_postgres`),
-ce qui est justement le comportement à vérifier ici. Le chemin PostgreSQL réel (pg_dump/
-pg_restore effectifs) est vérifié manuellement avec des conteneurs jetables, pas sous pytest.
+Les garde-fous (confirmation, compte déjà existant, session validée avant la restauration)
+sont vérifiés ici avec une restauration simulée. Le chemin réel (pg_dump/pg_restore
+effectifs) est vérifié manuellement avec des conteneurs jetables, pas sous pytest.
 """
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.main import app
-from app.models import Base, Settings
+from app.models import Settings
 from app.routers import auth as auth_router
 from app.routers.backup_api import require_admin as backup_require_admin
-from tests.async_support import TestSession
-
-
-@pytest.fixture(scope="module")
-def db_engine():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    yield engine
-    engine.dispose()
+from tests.async_support import make_test_session
 
 
 @pytest.fixture()
-def db_session(db_engine):
-    Session = sessionmaker(bind=db_engine)
-    session = TestSession(Session())
+def db_session():
+    session = make_test_session()
     yield session
-    session.rollback()
     session.close()
 
 
@@ -59,14 +41,8 @@ def anon_client(db_session):
     app.dependency_overrides.pop(get_db, None)
 
 
-def test_full_backup_download_refuses_on_sqlite(admin_client):
-    r = admin_client.get("/api/backup/full")
-    assert r.status_code == 409
-
-
-def test_full_restore_requires_confirm_phrase(admin_client, monkeypatch):
-    """Sous PostgreSQL, une confirmation incorrecte est refusée avant toute action destructrice."""
-    monkeypatch.setattr("app.routers.backup_api.DATABASE_URL", "postgresql://fake")
+def test_full_restore_requires_confirm_phrase(admin_client):
+    """Une confirmation incorrecte est refusée avant toute action destructrice."""
     r = admin_client.post(
         "/api/backup/full/restore",
         files={"file": ("backup.zip", b"fake", "application/zip")},
@@ -76,25 +52,7 @@ def test_full_restore_requires_confirm_phrase(admin_client, monkeypatch):
     assert "REMPLACER" in r.json()["detail"]
 
 
-def test_full_restore_refuses_on_sqlite_even_with_correct_confirm(admin_client):
-    r = admin_client.post(
-        "/api/backup/full/restore",
-        files={"file": ("backup.zip", b"fake", "application/zip")},
-        data={"confirm": "REMPLACER"},
-    )
-    assert r.status_code == 409
-
-
-def test_setup_restore_refuses_on_sqlite(anon_client, db_session):
-    db_session.query(Settings).delete()
-    db_session.commit()
-
-    r = anon_client.post("/api/auth/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
-    assert r.status_code == 409
-
-
-def test_setup_restore_refuses_when_account_already_exists(anon_client, db_session, monkeypatch):
-    monkeypatch.setattr(auth_router, "DATABASE_URL", "postgresql://fake")
+def test_setup_restore_refuses_when_account_already_exists(anon_client, db_session):
     db_session.query(Settings).delete()
     db_session.add(Settings(id=1, auth_username="admin", auth_password_hash="hash"))
     db_session.commit()
@@ -110,8 +68,6 @@ def test_setup_restore_refuses_when_account_already_exists(anon_client, db_sessi
 # verrous de lecture (Settings -> email_templates) que le `pg_restore --clean` doit
 # obtenir en exclusif pour ses DROP. La restauration attendait donc un verrou que la
 # requete elle-meme detenait : blocage de 13 minutes, jusqu'a tuer la session a la main.
-#
-# Les tests ci-dessus s'arretent tous au refus SQLite et n'atteignent jamais ce commit.
 
 
 def _restore_probe(monkeypatch, module, db_session):
@@ -126,7 +82,6 @@ def _restore_probe(monkeypatch, module, db_session):
         observed["committed_before_restore"] = bool(committed)
         return {"status": "ok", "safety_backup": "/tmp/x.dump", "restored_data_files": []}
 
-    monkeypatch.setattr(module, "DATABASE_URL", "postgresql://fake")
     monkeypatch.setattr(module, "perform_full_restore", fake_restore)
     # La route programme os._exit pour redemarrer le conteneur : sans neutralisation,
     # elle tuerait le processus pytest deux secondes plus tard.

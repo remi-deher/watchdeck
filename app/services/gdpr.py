@@ -80,8 +80,7 @@ async def erase_user_data(db: AsyncSession, user: PlexUser) -> dict[str, int]:
     emails = {e for e in (user.plex_email, user.notification_email) if e}
     counts: dict[str, int] = {}
 
-    # Passkeys : la FK ondelete=CASCADE n'est pas garantie sous SQLite (PRAGMA
-    # foreign_keys off par défaut), on supprime donc explicitement.
+    # Passkeys : suppression explicite, sans dependre de la FK ondelete=CASCADE.
     result = await db.execute(sqlalchemy.delete(PasskeyCredential).where(PasskeyCredential.user_id == user.id))
     counts["passkeys"] = int(result.rowcount or 0)
 

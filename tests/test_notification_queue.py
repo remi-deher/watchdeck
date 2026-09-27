@@ -12,7 +12,6 @@ from app.job_queue import (
 )
 from app.models import MediaRequest, PlexUser, RequesterNotificationReceipt, Settings
 from app.notification_queue import NotificationDeliveryError, _process, enqueue
-from tests.async_support import TestSession
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -844,17 +843,12 @@ async def test_enqueue_persists_row_without_arq(mock_session_local, monkeypatch)
 def pending_db():
     import json as _json
 
-    from sqlalchemy import create_engine
     from sqlalchemy import text as _text
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import StaticPool
 
-    from app.models import Base
+    from tests.async_support import make_test_session
 
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    db = make_test_session()
+    session = db.sync_session
 
     def _insert(event, req_id, recipients, reason=""):
         session.execute(
@@ -872,10 +866,9 @@ def pending_db():
         )
         session.commit()
 
-    db = TestSession(session)
     db.insert = _insert
     yield db
-    session.close()
+    db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -974,8 +967,8 @@ def _insert_notification_log(
             "INSERT INTO notification_logs "
             "(sent_at, event, channel, recipient, is_admin, success, req_id, triggered_by, scope, language, "
             "is_upgrade, season_number, episode_number) "
-            "VALUES (:sent_at, :event, 'email', :recipient, 0, :success, :req_id, 'auto', :scope, :language, "
-            "0, :season_number, :episode_number)"
+            "VALUES (:sent_at, :event, 'email', :recipient, false, :success, :req_id, 'auto', :scope, :language, "
+            "false, :season_number, :episode_number)"
         ),
         {
             "sent_at": sent_at,
