@@ -1,13 +1,16 @@
 """
 Router d'authentification.
 
-Routes :
-- GET  /setup  : wizard de création du premier compte (affiché si aucun compte n'existe)
-- POST /setup  : enregistrement du compte admin
-- POST /setup/restore : restauration complète depuis une archive de sauvegarde, en
-  alternative à la création manuelle d'un compte (voir app/backup_restore.py)
-- GET  /login  : formulaire de connexion
-- POST /login  : vérification des identifiants et création de session
+Les pages /login, /setup et /privacy sont rendues par la SPA Vue (voir serve_spa dans
+app/main.py) ; ce routeur n'expose que leurs API JSON :
+
+- GET  /api/auth/state : compte à créer ? session ouverte ?
+- POST /api/auth/setup : création du compte admin (tant qu'aucun compte n'existe)
+- POST /api/auth/setup/restore : restauration complète depuis une archive de sauvegarde,
+  en alternative à la création manuelle d'un compte (voir app/backup_restore.py)
+- POST /api/auth/login : vérification des identifiants et création de session
+- POST /api/auth/plex/pin, GET /api/auth/plex/check/{id} : connexion Plex SSO
+- GET  /api/privacy : données de la politique de confidentialité
 - GET  /logout : destruction de la session
 """
 
@@ -19,9 +22,9 @@ import os
 from base64 import b64decode, b64encode
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -43,7 +46,6 @@ from ..utils import now_utc_naive, safe_redirect_path
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["auth"])
-templates = Jinja2Templates(directory="app/templates")
 
 _MAX_ATTEMPTS = 5
 _WINDOW_SECONDS = 600
@@ -75,47 +77,55 @@ async def _record_login_attempt(
     await db.commit()
 
 
-@router.get("/setup", response_class=HTMLResponse)
-async def setup_get(request: Request, db: AsyncSession = Depends(get_db_async)):
-    """Affiche le wizard si aucun compte n'est défini. Redirige sinon."""
+class SetupBody(BaseModel):
+    username: str
+    password: str
+    password_confirm: str
+
+
+class LoginBody(BaseModel):
+    username: str
+    password: str
+    otp_code: str = ""
+
+
+async def setup_required(db: AsyncSession) -> bool:
+    """Vrai tant qu'aucun compte administrateur n'a été créé sur cette instance."""
     s = (await db.execute(select(Settings))).scalars().first()
-    if s and s.auth_username:
-        return RedirectResponse("/", status_code=302)
-    return templates.TemplateResponse(request, "setup.html", {"error": None})
+    return not (s and s.auth_username)
 
 
-@router.post("/setup", response_class=HTMLResponse)
-async def setup_post(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    password_confirm: str = Form(...),
-    db: AsyncSession = Depends(get_db_async),
-):
-    """Crée le compte admin. Redirige vers le login une fois enregistré."""
+@router.get("/api/auth/state")
+async def auth_state(request: Request, db: AsyncSession = Depends(get_db_async)):
+    """État minimal lu par les pages publiques (connexion, installation) avant toute session."""
+    return {
+        "setup_required": await setup_required(db),
+        "authenticated": bool(request.session.get("authenticated")),
+    }
+
+
+@router.post("/api/auth/setup")
+async def setup_account(request: Request, body: SetupBody, db: AsyncSession = Depends(get_db_async)):
+    """Crée le compte admin puis ouvre la session. Refusé dès qu'un compte existe."""
     s = (await db.execute(select(Settings))).scalars().first()
-
-    # Ne pas permettre de redéfinir les identifiants via ce wizard
+    # Ne pas permettre de redéfinir les identifiants via cet assistant
     if s and s.auth_username:
-        return RedirectResponse("/", status_code=302)
+        raise HTTPException(403, "Un compte existe déjà sur cette instance")
 
-    def error(msg: str):
-        return templates.TemplateResponse(request, "setup.html", {"error": msg})
-
-    username = username.strip()
+    username = body.username.strip()
     if not username:
-        return error("Le nom d'utilisateur ne peut pas être vide.")
-    if len(password) < 8:
-        return error("Le mot de passe doit contenir au moins 8 caractères.")
-    if password != password_confirm:
-        return error("Les mots de passe ne correspondent pas.")
+        raise HTTPException(400, "Le nom d'utilisateur ne peut pas être vide.")
+    if len(body.password) < 8:
+        raise HTTPException(400, "Le mot de passe doit contenir au moins 8 caractères.")
+    if body.password != body.password_confirm:
+        raise HTTPException(400, "Les mots de passe ne correspondent pas.")
 
     if not s:
         s = Settings(id=1)
         db.add(s)
 
     s.auth_username = username
-    s.auth_password_hash = hash_password(password)
+    s.auth_password_hash = hash_password(body.password)
     await db.commit()
 
     # Connecter l'utilisateur immédiatement après la création du compte
@@ -123,11 +133,11 @@ async def setup_post(
     request.session["username"] = username
     request.session["is_owner"] = True
     request.session["role"] = "admin"
-    # Enchaîner sur l'assistant de configuration adaptatif (Plex, *arr, notifications…)
-    return RedirectResponse("/setup/wizard?first=1", status_code=302)
+    # Enchaîner sur la configuration des services (Plex, *arr, notifications…)
+    return {"authenticated": True, "redirect": "/settings?tab=connections"}
 
 
-@router.post("/setup/restore")
+@router.post("/api/auth/setup/restore")
 async def setup_restore(
     request: Request,
     file: UploadFile = File(...),
@@ -162,24 +172,13 @@ async def setup_restore(
     return {"status": "ok", "restarting": True, **report}
 
 
-@router.get("/login", response_class=HTMLResponse)
-async def login_get(request: Request, next: str = "/", db: AsyncSession = Depends(get_db_async)):
-    """Affiche le formulaire de connexion. Redirige vers /setup si aucun compte."""
-    s = (await db.execute(select(Settings))).scalars().first()
-    if not s or not s.auth_username:
-        return RedirectResponse("/setup", status_code=302)
-    if request.session.get("authenticated"):
-        return RedirectResponse(safe_redirect_path(next), status_code=302)
-    return templates.TemplateResponse(request, "login.html", {"next": next, "error": None})
+@router.get("/api/privacy")
+async def privacy_policy(db: AsyncSession = Depends(get_db_async)):
+    """Données publiques de la politique de confidentialité -- liée depuis la connexion,
+    la barre latérale et le pied de page des emails.
 
-
-@router.get("/privacy", response_class=HTMLResponse)
-async def privacy_policy(request: Request, db: AsyncSession = Depends(get_db_async)):
-    """Page publique, sans authentification -- liee depuis la connexion, la barre
-    laterale et le pied de page des emails.
-
-    Rendue avec les reglages reels de l'instance (retention, canaux actifs) plutot
-    qu'un texte generique fige, pour que le contenu reste vrai sans maintenance manuelle."""
+    Construite avec les réglages réels de l'instance (rétention, canaux actifs) plutôt
+    qu'un texte générique figé, pour que le contenu reste vrai sans maintenance manuelle."""
     s = (await db.execute(select(Settings))).scalars().first()
     channels = []
     if s:
@@ -193,7 +192,7 @@ async def privacy_policy(request: Request, db: AsyncSession = Depends(get_db_asy
             channels.append("ntfy")
         if s.gotify_enabled and s.gotify_url:
             channels.append("Gotify")
-    context = {
+    return {
         "notification_retention_days": s.notification_log_retention_days if s else None,
         "poll_history_retention_days": s.poll_history_retention_days if s else None,
         "login_attempt_retention_days": s.login_attempt_retention_days if s else None,
@@ -202,44 +201,33 @@ async def privacy_policy(request: Request, db: AsyncSession = Depends(get_db_asy
         "gdpr_contact_name": (s.gdpr_contact_name if s else None) or None,
         "gdpr_contact_email": (s.gdpr_contact_email if s else None) or None,
     }
-    return templates.TemplateResponse(request, "privacy.html", context)
 
 
-@router.post("/login", response_class=HTMLResponse)
-async def login_post(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    otp_code: str = Form(default=""),
-    next: str = Form(default="/"),
-    db: AsyncSession = Depends(get_db_async),
-):
+@router.post("/api/auth/login")
+async def login(request: Request, body: LoginBody, db: AsyncSession = Depends(get_db_async)):
     """Vérifie les identifiants et ouvre une session."""
     ip = request.client.host if request.client else "unknown"
     if await _is_rate_limited(db, ip):
         raise HTTPException(status_code=429, detail="Trop de tentatives. Réessayez dans 10 minutes.")
 
+    username, password, otp_code = body.username, body.password, body.otp_code
     s = (await db.execute(select(Settings))).scalars().first()
-
-    def error(msg: str):
-        return templates.TemplateResponse(request, "login.html", {"next": next, "error": msg})
-
     if not s or not s.auth_username or not s.auth_password_hash:
-        return RedirectResponse("/setup", status_code=302)
+        raise HTTPException(409, "Aucun compte n'est encore configuré sur cette instance.")
 
     # 1. Vérifier dans la table PlexUser si l'utilisateur existe localement
     user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == username))).scalars().first()
     if user and user.password_hash:
         if not user.enabled or not user.can_login:
-            return error("Ce compte n'est pas autorisé à se connecter.")
+            raise HTTPException(403, "Ce compte n'est pas autorisé à se connecter.")
 
         if not verify_password(password, user.password_hash):
             await _record_login_attempt(db, ip, username, False, "bad_credentials")
-            return error("Identifiants incorrects.")
+            raise HTTPException(401, "Identifiants incorrects.")
 
         if user.totp_enabled and not verify_code(user.totp_secret, otp_code):
             await _record_login_attempt(db, ip, username, False, "bad_totp")
-            return error("Code 2FA incorrect.")
+            raise HTTPException(401, "Code 2FA incorrect.")
 
         request.session["authenticated"] = True
         request.session["username"] = user.plex_user_id
@@ -248,17 +236,16 @@ async def login_post(
         request.session["plex_user_id"] = user.plex_user_id if user.source == "plex_sso" else None
         request.session["user_id"] = user.id
         await _record_login_attempt(db, ip, username, True)
-
-        return RedirectResponse(safe_redirect_path(next), status_code=302)
+        return {"authenticated": True}
 
     # 2. Repli historique (Settings global admin)
     if not hmac.compare_digest(username, s.auth_username) or not verify_password(password, s.auth_password_hash):
         await _record_login_attempt(db, ip, username, False, "bad_credentials")
-        return error("Identifiants incorrects.")
+        raise HTTPException(401, "Identifiants incorrects.")
 
     if s.totp_enabled and not verify_code(s.totp_secret, otp_code):
         await _record_login_attempt(db, ip, username, False, "bad_totp")
-        return error("Code 2FA incorrect.")
+        raise HTTPException(401, "Code 2FA incorrect.")
 
     admin_user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == username))).scalars().first()
     user_id = admin_user.id if admin_user else None
@@ -269,15 +256,14 @@ async def login_post(
     request.session["role"] = "admin"
     request.session["user_id"] = user_id
     await _record_login_attempt(db, ip, username, True)
+    return {"authenticated": True}
 
-    return RedirectResponse(safe_redirect_path(next), status_code=302)
 
-
-@router.post("/login/plex/pin")
+@router.post("/api/auth/plex/pin")
 async def login_plex_pin(request: Request):
     """Initie une connexion Plex SSO : crée un PIN et retourne l'URL d'auth Plex.
 
-    Le front ouvre `auth_url` dans une popup, puis interroge /login/plex/check/{id}.
+    Le front ouvre `auth_url` dans une popup, puis interroge /api/auth/plex/check/{id}.
     """
     scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
     host = request.headers.get("x-forwarded-host", request.url.netloc)
@@ -288,7 +274,7 @@ async def login_plex_pin(request: Request):
         raise HTTPException(status_code=502, detail=f"Erreur d'initialisation SSO Plex : {e}")
 
 
-@router.get("/login/plex/check/{pin_id}")
+@router.get("/api/auth/plex/check/{pin_id}")
 async def login_plex_check(pin_id: int, request: Request, db: AsyncSession = Depends(get_db_async)):
     """Vérifie si le PIN Plex a été validé ; si oui, ouvre la session du bon utilisateur.
 

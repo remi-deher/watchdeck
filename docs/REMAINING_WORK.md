@@ -24,7 +24,8 @@ limiter les régressions et de garder un point de retour fonctionnel entre les c
 - **Priorité 2 livrée** : l'interface authentifiée Vue est servie à la racine et couvre
   dashboard, découverte, demandes, bibliothèque, calendrier, téléchargements, utilisateurs,
   notifications, maintenance, paramètres, migration des données et sécurité du profil.
-  `/app/...` redirige vers la route racine équivalente ; Jinja reste limité au login/setup.
+  `/app/...` redirige vers la route racine équivalente ; connexion, installation et
+  confidentialité sont aussi des pages Vue (plus aucun rendu Jinja côté pages).
 - **Priorité 3 livrée** : recherche de releases Vue, tri VF/MULTI avant les résultats anglais,
   grab protégé contre les doubles clics et ouverture du suivi dans un nouvel onglet.
 

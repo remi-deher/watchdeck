@@ -409,6 +409,8 @@ SPA_ROOTS = {
     "analytics",
     "vf-upgrades",
 }
+# Pages servies sans session : la SPA les rend avec une mise en page nue (sans navigation).
+SPA_PUBLIC_ROOTS = {"login", "setup", "privacy"}
 
 PWA_STATIC_FILES = {
     "manifest.webmanifest": ("app/static/vue/manifest.webmanifest", "application/manifest+json"),
@@ -483,14 +485,34 @@ async def redirect_legacy_wizard():
     return RedirectResponse("/settings?tab=connections", status_code=308)
 
 
+async def _public_page_redirect(request: Request, root: str, db: SqlSession) -> str | None:
+    """Aiguillage des pages publiques, fait côté serveur pour éviter un aller-retour de la SPA."""
+    if root == "privacy":
+        return None
+    from .routers.auth import setup_required
+
+    needs_setup = await setup_required(db)
+    if root == "setup":
+        return None if needs_setup else "/"
+    if needs_setup:
+        return "/setup"
+    if request.session.get("authenticated"):
+        return safe_redirect_path(request.query_params.get("next") or "/")
+    return None
+
+
 @app.get("/", include_in_schema=False)
 @app.get("/{spa_path:path}", include_in_schema=False)
-async def serve_spa(request: Request, spa_path: str = ""):
+async def serve_spa(request: Request, spa_path: str = "", db: SqlSession = Depends(get_db)):
     """Serve Vue history routes at the site root after every backend router."""
     root = spa_path.split("/", 1)[0] if spa_path else ""
-    if root and root not in SPA_ROOTS:
+    if root in SPA_PUBLIC_ROOTS and "/" not in spa_path.strip("/"):
+        destination = await _public_page_redirect(request, root, db)
+        if destination:
+            return RedirectResponse(destination, status_code=302)
+    elif root and root not in SPA_ROOTS:
         raise HTTPException(404, "Route introuvable")
-    if not request.session.get("authenticated"):
+    elif not request.session.get("authenticated"):
         if spa_path:
             next_value = quote(safe_redirect_path(f"/{spa_path}"), safe="")
             return RedirectResponse(f"/login?next={next_value}", status_code=302)

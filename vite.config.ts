@@ -29,7 +29,6 @@ export default defineConfig(({ command }) => ({
     port: 5173,
     proxy: {
       '/api': 'http://127.0.0.1:8000',
-      '/login': 'http://127.0.0.1:8000',
       '/logout': 'http://127.0.0.1:8000',
     },
   },

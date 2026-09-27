@@ -89,7 +89,7 @@ def test_setup_restore_refuses_on_sqlite(anon_client, db_session):
     db_session.query(Settings).delete()
     db_session.commit()
 
-    r = anon_client.post("/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
+    r = anon_client.post("/api/auth/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
     assert r.status_code == 409
 
 
@@ -99,7 +99,7 @@ def test_setup_restore_refuses_when_account_already_exists(anon_client, db_sessi
     db_session.add(Settings(id=1, auth_username="admin", auth_password_hash="hash"))
     db_session.commit()
 
-    r = anon_client.post("/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
+    r = anon_client.post("/api/auth/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
     assert r.status_code == 403
 
 
@@ -158,7 +158,7 @@ def test_setup_restore_commits_session_before_touching_the_database(anon_client,
 
     observed = _restore_probe(monkeypatch, auth_router, db_session)
 
-    r = anon_client.post("/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
+    r = anon_client.post("/api/auth/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
 
     assert r.status_code == 200
     assert observed["committed_before_restore"], (

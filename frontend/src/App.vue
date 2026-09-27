@@ -1,4 +1,7 @@
 <template>
+  <!-- Connexion, installation, confidentialite : ni shell, ni session, ni temps reel. -->
+  <RouterView v-if="pagePublique" />
+  <template v-else>
   <AppShell :is-admin="isAdmin" :can-moderate="canModerate">
     <RouteErrorBoundary>
       <!-- Quand la fiche d'un media s'ouvre depuis une grille, c'est la page de depart
@@ -40,6 +43,7 @@
       </RouterView>
     </RouteScope>
   </MediaOverlay>
+  </template>
   <AppToast />
 </template>
 <script setup lang="ts">
@@ -79,6 +83,13 @@ watch(
   { immediate: true },
 );
 
+/* Avant la premiere navigation, la route n'est pas encore resolue : on se fie a l'adresse
+   de chargement. Les pages publiques sont toujours ouvertes par un chargement complet
+   (le serveur les aiguille), et les quitter recharge la page. */
+const PUBLIC_PATHS = new Set(['/login', '/setup', '/privacy']);
+const chargementPublic = PUBLIC_PATHS.has(window.location.pathname.replace(/\/+$/, '') || '/');
+const pagePublique = computed(() => (routeCourante.matched.length ? routeCourante.meta.public === true : chargementPublic));
+
 const queryClient = useQueryClient();
 const session=ref<any>(null);
 useVisualViewport();
@@ -108,6 +119,7 @@ function onSwUpdateAvailable(): void {
   addToast({type:'info',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.',duration:0,action:{label:'Recharger',run:()=>window.location.reload()}});
 }
 onMounted(async()=>{
+  if(chargementPublic)return;
   window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);void synchroniserProprietaire(queryClient,session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
 onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable)});
 </script>

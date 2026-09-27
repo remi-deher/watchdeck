@@ -69,7 +69,7 @@ Alternative a la procedure CLI ci-dessus, accessible sans acces shell/`docker co
   Une sauvegarde de securite de l'etat courant est prise automatiquement juste avant (dans
   `data/backups/`), mais rien de l'etat actuel n'est fusionne ou conserve au-dela. Le conteneur
   redemarre ensuite (`restart: unless-stopped`) pour repartir sur des connexions fraiches.
-- **Restauration depuis `/setup`** (`POST /setup/restore`) : meme mecanisme, utilisable a la place
+- **Restauration depuis `/setup`** (`POST /api/auth/setup/restore`) : meme mecanisme, utilisable a la place
   de la creation manuelle d'un compte sur une instance fraiche pas encore configuree — bloque des
   qu'un compte existe deja.
 

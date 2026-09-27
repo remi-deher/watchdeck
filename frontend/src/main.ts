@@ -58,6 +58,10 @@ if (import.meta.env.PROD) {
 }
 
 const routes: RouteRecordRaw[] = [
+  // Pages publiques : servies sans session et affichees hors du shell (voir App.vue).
+  { path: '/login', component: () => import('./views/auth/LoginView.vue'), meta: { title: 'Connexion', public: true } },
+  { path: '/setup', component: () => import('./views/auth/SetupView.vue'), meta: { title: 'Installation', public: true } },
+  { path: '/privacy', component: () => import('./views/auth/PrivacyView.vue'), meta: { title: 'Confidentialité', public: true } },
   { path: '/', redirect: '/discover' },
   { path: '/dashboard', component: DashboardView, meta: { title: 'Accueil' } },
   { path: '/discover/source/:kind/:id', component: DiscoverView, meta: { title: 'Explorer' } },
@@ -143,6 +147,7 @@ router.afterEach((to) => {
 
 const PLAIN_USER_ALLOWED_PREFIXES = ['/discover', '/calendar', '/profile', '/media', '/releases'];
 router.beforeEach(async (to) => {
+  if (to.meta.public) return true;
   const session = await loadSession();
   const originalPath = to.redirectedFrom?.path ?? to.path;
   if (originalPath === '/') {

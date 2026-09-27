@@ -203,17 +203,16 @@ Les migrations sont dans `alembic/versions/`. Vérifiez toujours le fichier gén
 
 ```
 app/
-├── main.py                  # Point d'entrée FastAPI, lifespan (scheduler + worker)
+├── main.py                  # Point d'entrée FastAPI, lifespan, service de la SPA Vue
 ├── models.py                # Modèles SQLAlchemy : Settings, PlexUser, MediaRequest
 ├── database.py              # Engine SQLite, SessionLocal, get_db
-├── scheduler.py             # poll_watchlists() + check_arr_statuses() (APScheduler)
-├── notification_queue.py    # Worker asyncio.Queue pour les emails / Discord / Telegram
+├── jobs.py                  # Worker ARQ : tâches planifiées et envoi des notifications
+├── notification_queue.py    # Notifications persistées puis envoyées par le worker ARQ
 ├── metrics.py               # Compteurs in-memory (latences, taux d'erreur)
 ├── log_buffer.py            # Handler logging circulaire (500 entrées, vue /logs)
 ├── routers/
 │   ├── api.py               # API REST JSON (/api/*)
-│   ├── auth.py              # Login, logout, setup wizard
-│   ├── pages.py             # Pages HTML rendues côté serveur (Jinja2)
+│   ├── auth.py              # API de connexion, installation, confidentialité (pages en Vue)
 │   ├── webhook.py           # Webhooks entrants Sonarr / Radarr / Plex
 │   ├── importexport.py      # Import / Export JSON
 │   └── email_templates.py   # Éditeur de templates email custom

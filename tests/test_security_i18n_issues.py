@@ -177,13 +177,13 @@ def test_plex_sso_server_access_control(mock_has_access, mock_get_account, mock_
     try:
         # Case 1: Unauthorized user
         mock_has_access.return_value = False
-        resp = client.get("/login/plex/check/123")
+        resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 403
         assert "n'a pas accès au serveur" in resp.json()["detail"]
 
         # Case 2: Authorized user
         mock_has_access.return_value = True
-        resp = client.get("/login/plex/check/123")
+        resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 200
         assert resp.json()["authenticated"] is True
     finally:
