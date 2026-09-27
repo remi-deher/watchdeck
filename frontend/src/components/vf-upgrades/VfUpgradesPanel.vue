@@ -260,7 +260,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
   gap: var(--space-5);
   padding: 20px 22px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--panel-radius);
   background: var(--surface);
   box-shadow: 0 2px 8px rgb(var(--shadow-color) / calc(0.12 * var(--shadow-scale)));
   transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background-color var(--motion-duration-instant) var(--motion-ease-standard);

@@ -1,4 +1,4 @@
-import { computed, type ComputedRef } from 'vue';
+import { computed, ref, type ComputedRef } from 'vue';
 import { useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
 
 /**
@@ -82,6 +82,53 @@ export function destinationDeFiche(
 ): { path: string; query: unknown; hash: string } {
   const resolue = router.resolve(cible as any);
   return { path: resolue.path, query: resolue.query, hash: resolue.hash };
+}
+
+/* `router.resolve` ne charge pas les vues paresseuses (`() => import(...)`) : seule la
+   navigation le fait. Apres un rechargement sur une fiche ouverte depuis une page, la
+   page de fond est restauree par `resolve` seul ; `RouterView` recevait alors la
+   fonction de chargement en guise de composant et affichait la promesse en texte
+   (« [object Promise] »). On charge donc ces vues comme le fait le routeur, et le fond
+   n'est rendu qu'une fois pret. */
+const vuesChargees = ref(0);
+const chargementsEnCours = new Set<string>();
+
+function estVueParesseuse(composant: unknown): composant is () => Promise<any> {
+  return (
+    typeof composant === 'function' &&
+    !('displayName' in composant) &&
+    !('props' in composant) &&
+    !('__vccOpts' in composant)
+  );
+}
+
+/** Vrai si toutes les vues de la route sont chargees ; sinon lance leur chargement. */
+export function vuesDeRoutePretes(route: RouteLocationNormalizedLoaded | null): boolean {
+  if (!route) return true;
+  void vuesChargees.value;
+  const enAttente = route.matched.flatMap((record) =>
+    Object.entries(record.components || {})
+      .filter(([, composant]) => estVueParesseuse(composant))
+      .map(([nom, composant]) => ({ record, nom, charger: composant as () => Promise<any> })),
+  );
+  if (!enAttente.length) return true;
+  const cle = route.fullPath;
+  if (!chargementsEnCours.has(cle)) {
+    chargementsEnCours.add(cle);
+    void Promise.all(
+      enAttente.map(async ({ record, nom, charger }) => {
+        const module = await charger();
+        // Meme remplacement que le routeur apres une navigation.
+        (record.components as Record<string, unknown>)[nom] = module?.default ?? module;
+      }),
+    )
+      .catch(() => {})
+      .finally(() => {
+        chargementsEnCours.delete(cle);
+        vuesChargees.value += 1;
+      });
+  }
+  return false;
 }
 
 export function useMediaOverlay(): MediaOverlayState {

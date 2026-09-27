@@ -241,7 +241,7 @@ onMounted(load);
 .status-badge.status-info { color: var(--muted); background: var(--surface-2); }
 .ui-feedback { margin-top: var(--space-3); }
 .checked-at { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-xs); }
-.release-body { max-height: 420px; margin: var(--space-3) 0 0; padding: var(--space-3); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); font-size: var(--fs-sm); line-height: 1.5; }
+.release-body { max-height: 420px; margin: var(--space-3) 0 0; padding: var(--space-3); overflow: auto; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-2); font-size: var(--fs-sm); line-height: 1.5; }
 .release-body :deep(h3), .release-body :deep(h4) { margin: var(--space-3) 0 var(--space-2); font-size: var(--fs-md); }
 .release-body :deep(h3:first-child), .release-body :deep(h4:first-child) { margin-top: 0; }
 .release-body :deep(ul) { margin: 0 0 var(--space-2); padding-left: 1.3em; }

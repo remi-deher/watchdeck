@@ -1,5 +1,13 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { ref } from 'vue';
+
+/* La fiche lit l'etat de la feuille (en surface ou en pleine page) dans la route : sans
+   routeur dans ces tests, on la pose en pleine page. */
+vi.mock('@/composables/useMediaOverlay', () => ({
+  useMediaOverlay: () => ({ routeDeFond: ref(null), actif: ref(false) }),
+  ouvrirFiche: () => {},
+}));
 import SessionDetail from './SessionDetail.vue';
 
 function factory(session) {
@@ -114,10 +122,16 @@ describe('SessionDetail - fiche de l’œuvre et conversion', () => {
 
   it('montre la bannière, l’épisode et le résumé, et rend l’affiche cliquable', () => {
     const wrapper = factory(flibustiers);
-    expect(wrapper.get('.session-banner').classes()).toContain('has-art');
+    // Meme en-tete que la fiche d'un media : l'image de la serie en fond.
+    expect(wrapper.get('.ui-hero-backdrop__image').attributes('style')).toContain('/api/playback/thumb?path=x');
     expect(wrapper.get('.session-heading').text()).toContain('Samurai Champloo · S1 · É11 · 2004');
     expect(wrapper.get('.session-summary').text()).toContain('Mugen embarque');
     expect(wrapper.get('.session-poster').element.tagName).toBe('BUTTON');
+  });
+
+  it('ne propose « Lire la suite » que si le résumé déborde', async () => {
+    // jsdom ne mesure rien : un résumé qui tient dans ses lignes n'a pas de bouton.
+    expect(factory(flibustiers).find('.summary-toggle').exists()).toBe(false);
   });
 
   it('sans fiche bibliothèque, l’affiche n’est pas un bouton', () => {

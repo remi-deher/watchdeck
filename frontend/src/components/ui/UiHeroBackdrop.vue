@@ -44,9 +44,6 @@ const imageStyle = computed(() => ({
 
 <style scoped lang="scss">
 .ui-hero-backdrop {
-  --hero-scrim-strong: rgba(9, 9, 11, 0.98);
-  --hero-scrim-medium: rgba(9, 9, 11, 0.65);
-  --hero-scrim-light: rgba(9, 9, 11, 0.15);
   --hero-scrim-side-strong: rgba(9, 9, 11, 0.88);
   --hero-scrim-side-medium: rgba(9, 9, 11, 0.4);
 
@@ -58,8 +55,8 @@ const imageStyle = computed(() => ({
   background: var(--surface);
 }
 
+/* Pas de trait autour d'une image : le voile en dessine deja le bord, egal partout. */
 .ui-hero-backdrop.is-card {
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
 
@@ -75,17 +72,16 @@ const imageStyle = computed(() => ({
   background-color: var(--surface);
 }
 
+/* Voile en deux temps. Une vignette identique sur les quatre bords : les anciens
+   degrades (bas + gauche) assombrissaient deux cotes seulement, et le bord de la
+   banniere paraissait lourd d'un cote, net de l'autre. Puis un voile plus dense, mais
+   seulement dans le coin ou se pose le texte, pour qu'il reste lisible sur n'importe
+   quelle image. Le voile couvre toute la banniere : pas de liseré ni de bordure. */
 .ui-hero-backdrop__scrim {
-  background:
-    linear-gradient(to top, var(--hero-scrim-strong) 0%, var(--hero-scrim-medium) 45%, var(--hero-scrim-light) 100%),
-    linear-gradient(to right, var(--hero-scrim-side-strong) 0%, var(--hero-scrim-side-medium) 50%, transparent 80%);
+  border-radius: inherit;
+  background: radial-gradient(120% 95% at 0% 100%, var(--hero-scrim-side-strong) 0%, var(--hero-scrim-side-medium) 42%, transparent 74%);
+  box-shadow: inset 0 0 64px 10px var(--hero-scrim-side-medium);
   pointer-events: none;
-}
-
-.ui-hero-backdrop.is-sheet .ui-hero-backdrop__scrim {
-  background:
-    linear-gradient(to top, var(--bg) 0%, var(--hero-scrim-medium) 45%, var(--hero-scrim-light) 100%),
-    linear-gradient(to right, var(--hero-scrim-side-strong) 0%, var(--hero-scrim-side-medium) 50%, transparent 80%);
 }
 
 .ui-hero-backdrop__overlay {

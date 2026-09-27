@@ -129,7 +129,7 @@ const progressObj = computed(() => {
   padding: 18px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--panel-radius);
   transition: transform var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard);
   position: relative;
   overflow: hidden;

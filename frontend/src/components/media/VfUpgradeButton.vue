@@ -436,7 +436,7 @@ onMounted(load);
 
 /* Squelettes animés */
 .release-skeletons { display: grid; gap: 10px; max-height: 61vh; overflow-y: auto; padding: 2px; }
-.release-skeleton-card { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-hover); }
+.release-skeleton-card { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-hover); }
 .skeleton-badges { display: flex; gap: 6px; }
 .skeleton-box { display: block; border-radius: var(--radius-xs); background: linear-gradient(100deg, var(--surface-2) 20%, color-mix(in srgb, var(--surface-2) 55%, var(--border)) 40%, var(--surface-2) 60%); background-size: 220% 100%; animation: vf-shimmer 1.4s ease-in-out infinite; }
 .skeleton-pill { height: 22px; border-radius: var(--radius-pill); }
@@ -445,7 +445,7 @@ onMounted(load);
 @keyframes vf-shimmer { to { background-position-x: -220%; } }
 
 .vf-upgrade-list { display: grid; gap: 10px; max-height: 61vh; margin: 0; padding: 0 2px; overflow-y: auto; list-style: none; }
-.vf-upgrade-release { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px 14px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-hover); transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard); }
+.vf-upgrade-release { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px 14px; padding: 13px; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-hover); transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard); }
 .vf-upgrade-release.recommended { border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); background: color-mix(in srgb, var(--accent) 4%, var(--surface-hover)); }
 .vf-upgrade-release.rejected { opacity: .88; border-left: 3px solid var(--danger); }
 .release-head { grid-column: 1 / -1; align-items: flex-start; justify-content: space-between; }

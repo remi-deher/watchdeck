@@ -37,7 +37,13 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-pill: 999px;
-  --panel-radius: var(--radius-md);   /* cartes */
+  /* Bordures et arrondis par niveau : une surface (carte, panneau, banniere) porte un
+     seul contour et des coins de 16 px ; un bloc pose DANS une surface n'a pas de cadre,
+     il se distingue par son fond et des coins plus petits, pour que les coins suivent
+     l'imbrication. Les separations internes passent par --divider. */
+  --panel-radius: var(--radius-lg);   /* surfaces : cartes, panneaux */
+  --inset-radius: var(--radius-sm);   /* blocs poses dans une surface */
+  --divider: var(--border-subtle);
   --btn-radius: var(--radius-sm);     /* boutons et champs ; feuilles et modales : --radius-lg */
   --space-1: 4px;
   --space-2: 8px;
@@ -54,12 +60,6 @@
   --grid-gutter: 12px;
   --touch-target: 44px;
   --media-placeholder: var(--surface-2);
-  /* Voile et texte poses sur une banniere d'oeuvre (fiche de session) : du texte clair
-     sur une photo, identique dans les deux themes. */
-  --banner-scrim-strong: rgb(0 0 0 / 0.78);
-  --banner-scrim-light: rgb(0 0 0 / 0.15);
-  --on-banner: #fff;
-  --on-banner-muted: rgb(255 255 255 / 0.82);
   /* Source unique des dimensions d'affiches pour les grilles et les rails. */
   --poster-grid-min: 220px;
   --poster-grid-gap: var(--space-4);

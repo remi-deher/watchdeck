@@ -213,7 +213,7 @@ function filterByClient(client: any): void {
   min-height: 290px;
   padding: 22px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--panel-radius);
   background: var(--surface);
   cursor: pointer;
   transition: transform var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);

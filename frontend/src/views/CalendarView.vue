@@ -299,7 +299,7 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .calendar-legend i.available { background: var(--success); }
 
 /* Vue Grille Mensuelle */
-.month-calendar-shell { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); scrollbar-width: thin; overscroll-behavior-x: contain; }
+.month-calendar-shell { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); scrollbar-width: thin; overscroll-behavior-x: contain; }
 .month-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
 .month-weekday { position: sticky; top: 0; z-index: 2; padding: 8px; text-align: center; border-bottom: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; }
 .month-cell { min-width: 0; min-height: 132px; padding: 8px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: rgb(var(--ink) / 0.008); overflow: hidden; }
@@ -346,8 +346,8 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
   gap: var(--space-3);
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: var(--inset-radius);
   background-color: var(--surface);
   transition: transform var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
 }
