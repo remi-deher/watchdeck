@@ -89,3 +89,118 @@ describe('SessionDetail - connexion', () => {
     expect(wrapper.text()).toContain('15 min');
   });
 });
+
+describe('SessionDetail - fiche de l’œuvre et conversion', () => {
+  const flibustiers = {
+    title: 'Les flibustiers de la nuit [2/2]',
+    grandparent_title: 'Samurai Champloo',
+    year: 2004,
+    playback_method: 'direct_stream',
+    progress_ms: 25000,
+    duration_ms: 100000,
+    transcode_buffer_ms: 25000,
+    transcode_throttled: true,
+    transcode_remux: null,
+    transcode_details: {
+      protocol: 'http',
+      transcoder: { complete: false, progress: 40 },
+      container: { from: 'mkv', to: 'mkv' },
+      video: { decision: 'copy', from: 'hevc', to: 'hevc', height: 1080 },
+      audio: { decision: 'copy', from: 'aac', to: 'aac', channels: 2, language: 'Français' },
+      subtitles: { decision: 'transcode', from: 'ass', to: 'webvtt', language: 'Français', forced: true },
+    },
+    media: { summary: 'Mugen embarque sur un navire.', art_url: '/api/playback/thumb?path=x', season: 1, episode: 11, library_item_id: 42 },
+  };
+
+  it('montre la bannière, l’épisode et le résumé, et rend l’affiche cliquable', () => {
+    const wrapper = factory(flibustiers);
+    expect(wrapper.get('.session-banner').classes()).toContain('has-art');
+    expect(wrapper.get('.session-heading').text()).toContain('Samurai Champloo · S1 · É11 · 2004');
+    expect(wrapper.get('.session-summary').text()).toContain('Mugen embarque');
+    expect(wrapper.get('.session-poster').element.tagName).toBe('BUTTON');
+  });
+
+  it('sans fiche bibliothèque, l’affiche n’est pas un bouton', () => {
+    const wrapper = factory({ ...flibustiers, media: { ...flibustiers.media, library_item_id: null } });
+    expect(wrapper.get('.session-poster').element.tagName).toBe('DIV');
+  });
+
+  it('dessine le tampon devant la tête de lecture et l’état du transcodeur', () => {
+    const wrapper = factory(flibustiers);
+    const zone = wrapper.get('.buffer-zone');
+    expect(zone.attributes('style')).toContain('left: 25%');
+    expect(zone.attributes('style')).toContain('width: 25%');
+    expect(wrapper.get('.buffer-legend').text()).toContain('Transcodeur en pause : assez d’avance');
+  });
+
+  it('détaille la conversion flux par flux, avec les couleurs des pastilles', () => {
+    const rows = factory(flibustiers).findAll('.conversion-row');
+    expect(rows.map((row) => row.get('.conversion-label').text())).toEqual(['Conteneur', 'Vidéo', 'Audio', 'Sous-titres']);
+    expect(rows[0].get('.conversion-treatment').text()).toBe('Identique');
+    expect(rows[1].get('.conversion-treatment').classes()).toContain('copied');
+    expect(rows[3].text()).toContain('ASS · Français forcés');
+    expect(rows[3].get('.conversion-treatment').classes()).toContain('converted');
+  });
+
+  it('signale un changement de conteneur en bleu', () => {
+    const details = { ...flibustiers.transcode_details, container: { from: 'mkv', to: 'mp4' }, protocol: 'dash' };
+    const row = factory({ ...flibustiers, transcode_details: details }).findAll('.conversion-row')[0];
+    expect(row.text()).toContain('MP4 · DASH');
+    expect(row.get('.conversion-treatment').classes()).toContain('remuxed');
+  });
+
+  it('une ancienne lecture sans détail garde le chemin du flux', () => {
+    const wrapper = factory({ title: 'Film', playback_method: 'transcode', video_decision: 'transcode' });
+    expect(wrapper.find('.stream-route').exists()).toBe(true);
+    expect(wrapper.find('.conversion-table').exists()).toBe(false);
+  });
+});
+
+describe('SessionDetail - réseau, HDR, lecteur et arrêt', () => {
+  const live = {
+    id: 12,
+    title: 'Dune',
+    playback_method: 'transcode',
+    bandwidth_kbps: 4200,
+    transcode_details: { container: { from: 'mkv', to: 'mkv' }, video: { decision: 'transcode', from: 'hevc', to: 'h264', height: 1080 } },
+    stream_details: {
+      relayed: true,
+      secure: true,
+      player: { product: 'Plex for Android (TV)', version: '10.2', vendor: 'NVIDIA', model: 'SHIELD', platform: 'Android', platform_version: '11' },
+      bitrate: { source_kbps: 62000, stream_kbps: 4200, video_kbps: 3800, audio_kbps: 192 },
+      dynamic_range: { source: 'HDR10', output: 'SDR' },
+    },
+  };
+
+  it('signale le relais, le tone mapping et la qualité réduite', () => {
+    const wrapper = factory(live);
+    expect(wrapper.get('.session-flag.relay').text()).toContain('Relais Plex');
+    expect(wrapper.get('.session-flag.hdr').text()).toBe('HDR10 → SDR');
+    expect(wrapper.get('.session-flag.hdr').classes()).toContain('tonemap');
+    expect(wrapper.text()).toContain('qualité réduite');
+    const range = wrapper.findAll('.conversion-row').find((row) => row.text().includes('Plage dynamique'));
+    expect(range.get('.conversion-treatment').text()).toBe('Tone mapping');
+  });
+
+  it('ne parle de qualité réduite que si la vidéo est réencodée', () => {
+    expect(factory({ ...live, playback_method: 'direct_play', transcode_details: null }).text()).not.toContain('qualité réduite');
+    // Audio seul converti (DTS -> AAC), vidéo copiée : l'image n'est pas touchée.
+    const audioOnly = { ...live.transcode_details, video: { decision: 'copy', from: 'hevc', to: 'hevc' } };
+    expect(factory({ ...live, transcode_details: audioOnly }).text()).not.toContain('qualité réduite');
+  });
+
+  it('décrit l’application et l’appareil du lecteur', () => {
+    const text = factory(live).text();
+    expect(text).toContain('Plex for Android (TV) 10.2');
+    expect(text).toContain('NVIDIA SHIELD · Android 11');
+  });
+
+  it('propose d’arrêter une lecture en cours, pas une lecture terminée', () => {
+    expect(factory(live).find('.terminate-button').exists()).toBe(true);
+    expect(factory({ ...live, ended_at: '2026-09-27T10:00:00Z' }).find('.terminate-button').exists()).toBe(false);
+  });
+
+  it('signale un téléchargement', () => {
+    expect(factory({ ...live, is_download: true }).get('.session-flag.download').text()).toContain('Téléchargement');
+  });
+});

@@ -323,3 +323,396 @@ async def test_collection_survives_unreadable_plex_logs():
         ),
     ):
         assert await playback_activity.collect_plex_activity() == {"status": "complete"}
+
+
+# Episode reel (2026-09-27) : piste FR stereo ecoutee, VO japonaise et anglaise 5.1 dans le
+# fichier, sous-titres ASS forces convertis en WebVTT pour un Chromecast.
+FLIBUSTIERS_STREAMS = [
+    {"id": "11", "streamType": "2", "codec": "aac", "channels": "2", "language": "Français", "selected": "1"},
+    {"id": "12", "streamType": "2", "codec": "aac", "channels": "6", "language": "日本語"},
+    {"id": "13", "streamType": "2", "codec": "aac", "channels": "6", "language": "English"},
+    {"id": "21", "streamType": "3", "codec": "ass", "language": "Français", "title": "Fr Forced"},
+]
+FLIBUSTIERS_SESSION = """<MediaContainer size="1"><Video ratingKey="5198" sessionKey="9" title="Les flibustiers de la nuit"
+ type="episode" viewOffset="0" duration="1000"><Media><Part decision="transcode">
+<Stream id="11" streamType="2" codec="aac" channels="2" selected="1" decision="copy"/>
+<Stream id="21" streamType="3" codec="webvtt" selected="1" decision="transcode" location="sidecar"/>
+</Part></Media><User title="u"/><Player title="Chromecast" state="playing"/><Session id="s9" bandwidth="1" location="wan"/>
+<TranscodeSession key="/transcode/sessions/1pi9" videoDecision="copy" audioDecision="copy" subtitleDecision="transcode"/>
+</Video></MediaContainer>"""
+FLIBUSTIERS_SHEET = {"container": "mkv", "streams": FLIBUSTIERS_STREAMS}
+CHANNELS_TEXT = "This app cannot play this item. The reason is: audio.channels limitation applies: 6 > 2."
+
+
+def test_subtitle_reason_names_the_source_format_when_known():
+    (session,) = parse_plex_sessions(FLIBUSTIERS_SESSION, media_sheets={"5198": FLIBUSTIERS_SHEET})
+    assert session["transcode_reason"] == "Sous-titres ASS → WebVTT (vidéo et audio copiés)"
+    assert session["audio_channels"] == 2
+    # Fiche du média illisible : on garde le format de sortie, sans inventer de source.
+    (fallback,) = parse_plex_sessions(FLIBUSTIERS_SESSION)
+    assert fallback["transcode_reason"] == "Sous-titres WebVTT convertis (vidéo et audio copiés)"
+
+
+def test_decision_note_points_at_unselected_surround_tracks():
+    note = playback_activity._decision_note(CHANNELS_TEXT, 2, FLIBUSTIERS_STREAMS)
+    assert note.startswith("Porte sur des pistes non écoutées : 日本語 (AAC 5.1), English (AAC 5.1).")
+    assert "La piste écoutée est en stéréo" in note
+    # La piste écoutée est elle-même en 5.1 : la raison de Plex est littérale, pas de note.
+    assert playback_activity._decision_note(CHANNELS_TEXT, 6, FLIBUSTIERS_STREAMS) is None
+    assert playback_activity._decision_note(CHANNELS_TEXT, None, FLIBUSTIERS_STREAMS) is None
+    assert playback_activity._decision_note("Direct play is disabled.", 2, FLIBUSTIERS_STREAMS) is None
+    assert playback_activity._decision_note(CHANNELS_TEXT, 2, FLIBUSTIERS_STREAMS[:1]) is None
+
+
+@pytest.mark.asyncio
+async def test_enrichment_adds_the_unselected_track_note(async_db):
+    now = datetime(2026, 9, 26, 22, 52)
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    row = PlaybackSession(
+        source="plex",
+        source_session_id="s9",
+        title="Les flibustiers",
+        rating_key="5192",
+        playback_method="direct_stream",
+        audio_channels=2,
+        transcode_reason="Sous-titres ASS → WebVTT (vidéo et audio copiés)",
+        started_at=datetime(2026, 9, 26, 22, 50),
+        last_seen_at=now,
+    )
+    async_db.add(row)
+    async_db.commit()
+    with (
+        patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
+        patch.object(playback_activity, "now_utc_naive", return_value=now),
+        patch.object(
+            playback_activity.plex_decision_logs,
+            "fetch_decisions",
+            new=AsyncMock(return_value=(parse_decisions(LOG), datetime(2026, 9, 26, 20))),
+        ),
+        patch.object(playback_activity, "media_streams", new=AsyncMock(return_value=FLIBUSTIERS_STREAMS)),
+        patch.object(playback_activity, "publish", new=AsyncMock()),
+    ):
+        await playback_activity.enrich_decisions_from_plex_logs(force=True)
+    reason = playback_activity._serialize(row)["transcode_reason"]
+    assert reason["text"].endswith("6 > 2.")
+    assert reason["note"].startswith("Porte sur des pistes non écoutées")
+
+
+@pytest.mark.asyncio
+async def test_media_streams_reads_audio_and_subtitle_tracks_once():
+    import httpx
+
+    xml = (
+        '<MediaContainer><Video><Media container="mkv"><Part container="mkv">'
+        + "".join(
+            f'<Stream id="{s["id"]}" streamType="{s["streamType"]}" codec="{s["codec"]}"/>' for s in FLIBUSTIERS_STREAMS
+        )
+        + '<Stream id="1" streamType="1" codec="hevc"/></Part></Media></Video></MediaContainer>'
+    )
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        return httpx.Response(200, text=xml)
+
+    real_client = httpx.AsyncClient
+    with (
+        patch.object(
+            playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=httpx.MockTransport(handler))
+        ),
+        patch.dict(playback_activity._STREAMS_CACHE, clear=True),
+    ):
+        first = await playback_activity.media_streams("http://plex.local/", "t", True, "5198")
+        again = await playback_activity.media_streams("http://plex.local/", "t", True, "5198")
+        sheet = await playback_activity.media_sheet("http://plex.local/", "t", True, "5198")
+    # La piste vidéo est gardée aussi : elle porte la plage dynamique d'origine (HDR).
+    assert [s["id"] for s in first] == ["11", "12", "13", "21", "1"]
+    assert sheet["container"] == "mkv"
+    assert again is first
+    assert calls == ["/library/metadata/5198"]
+
+
+@pytest.mark.asyncio
+async def test_collection_resolves_subtitle_source_from_media_sheet(async_db):
+    import httpx
+
+    async_db.add(Settings(id=1, live_activity_enabled=True, plex_url="http://plex.local:32400", plex_token="tok"))
+    async_db.commit()
+    real_client = httpx.AsyncClient
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, text=FLIBUSTIERS_SESSION))
+    with (
+        patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
+        patch.object(playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)),
+        patch.object(playback_activity, "media_sheet", new=AsyncMock(return_value=FLIBUSTIERS_SHEET)),
+        patch.object(playback_activity, "lookup_ip_locations", new=AsyncMock(return_value={})),
+        patch.object(playback_activity, "lookup_ip_location", new=AsyncMock(return_value={})),
+        patch.object(playback_activity, "publish", new=AsyncMock()),
+    ):
+        await playback_activity._collect_plex_activity_unlocked()
+    stored = async_db.query(PlaybackSession).filter_by(rating_key="5198").one()
+    assert stored.transcode_reason == "Sous-titres ASS → WebVTT (vidéo et audio copiés)"
+    assert stored.audio_channels == 2
+
+    # Fiche du média injoignable : la collecte continue avec la déduction de base.
+    async_db.query(PlaybackSession).delete()
+    async_db.commit()
+    with (
+        patch.object(playback_activity, "AsyncSessionLocal", return_value=async_db),
+        patch.object(playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)),
+        patch.object(playback_activity, "media_sheet", new=AsyncMock(side_effect=httpx.ConnectError("down"))),
+        patch.object(playback_activity, "lookup_ip_locations", new=AsyncMock(return_value={})),
+        patch.object(playback_activity, "lookup_ip_location", new=AsyncMock(return_value={})),
+        patch.object(playback_activity, "publish", new=AsyncMock()),
+    ):
+        await playback_activity._collect_plex_activity_unlocked()
+    fallback = async_db.query(PlaybackSession).filter_by(rating_key="5198").one()
+    assert fallback.transcode_reason == "Sous-titres WebVTT convertis (vidéo et audio copiés)"
+
+
+REMUX_SESSION = """<MediaContainer size="1"><Video ratingKey="77" sessionKey="3" title="Remux" type="movie"
+ viewOffset="0" duration="1000"><Media container="mp4"><Part decision="transcode" container="mp4" protocol="dash">
+<Stream id="1" streamType="1" codec="hevc" height="1080" decision="copy"/>
+<Stream id="2" streamType="2" codec="eac3" channels="6" selected="1" decision="copy" language="Français"/>
+</Part></Media><User title="u"/><Player title="TV" state="playing"/><Session id="r3" bandwidth="1" location="lan"/>
+<TranscodeSession key="/transcode/sessions/r3" videoDecision="copy" audioDecision="copy" protocol="dash"
+ container="mp4" videoCodec="hevc" audioCodec="eac3" sourceVideoCodec="hevc" sourceAudioCodec="eac3" audioChannels="6"/>
+</Video></MediaContainer>"""
+
+
+def test_direct_stream_remux_is_described_in_blue_and_in_detail():
+    import json
+
+    (session,) = parse_plex_sessions(REMUX_SESSION, media_sheets={"77": {"container": "mkv", "streams": []}})
+    # Rien de réencodé : pas de raison orange, seulement le réemballage.
+    assert session["transcode_reason"] is None
+    details = json.loads(session["transcode_details"])
+    assert details["container"] == {"from": "mkv", "to": "mp4"}
+    assert details["video"] == {"decision": "copy", "from": "hevc", "to": "hevc", "height": 1080}
+    assert details["audio"]["channels"] == 6
+    assert details["subtitles"] is None
+
+    row = PlaybackSession(
+        source="plex", source_session_id="r3", title="Remux", transcode_details=session["transcode_details"]
+    )
+    serialized = playback_activity._serialize(row)
+    assert serialized["transcode_remux"] == "Conteneur MKV → MP4 (segments DASH)"
+    assert serialized["transcode_details"]["protocol"] == "dash"
+
+
+def test_remux_label_variants():
+    label = playback_activity._remux_label
+    assert label({"container": {"from": None, "to": "mp4"}, "protocol": "hls"}) == "Diffusé en MP4 (segments HLS)"
+    assert label({"container": {"from": "mkv", "to": "mkv"}, "protocol": "http"}) is None
+    assert label(None) is None
+    assert playback_activity._json_or_none("{pas du json") is None
+
+
+@pytest.mark.asyncio
+async def test_session_detail_adds_banner_summary_and_library_link(async_db):
+    from app.models import LibraryItem
+
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    async_db.add(LibraryItem(id=42, title="Samurai Champloo", media_type="show", plex_guid="plex://show/abc"))
+    row = PlaybackSession(source="plex", source_session_id="s", title="Les flibustiers", rating_key="5198")
+    async_db.add(row)
+    async_db.commit()
+    sheet = {
+        "meta": {
+            "summary": "Mugen embarque…",
+            "art": "/library/metadata/5183/art/1",
+            "guid": "plex://show/abc",
+            "season": 1,
+            "episode": 11,
+        },
+        "container": "mkv",
+        "streams": [],
+    }
+    with patch.object(playback_activity, "media_sheet", new=AsyncMock(return_value=sheet)):
+        detail = await playback_activity.playback_session_detail(row.id, async_db)
+    assert detail["media"] == {
+        "summary": "Mugen embarque…",
+        "art_url": "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F5183%2Fart%2F1",
+        "season": 1,
+        "episode": 11,
+        "library_item_id": 42,
+    }
+    with patch.object(playback_activity, "media_sheet", new=AsyncMock(side_effect=RuntimeError("plex"))):
+        assert (await playback_activity.playback_session_detail(row.id, async_db))["media"] is None
+
+
+def test_transcoder_state_is_kept_in_details():
+    import json
+
+    xml = REMUX_SESSION.replace('audioChannels="6"/>', 'audioChannels="6" complete="1" progress="100"/>')
+    details = json.loads(parse_plex_sessions(xml)[0]["transcode_details"])
+    assert details["transcoder"] == {"complete": True, "progress": 100.0}
+
+
+def test_episode_numbers_come_from_the_session():
+    xml = FLIBUSTIERS_SESSION.replace('type="episode"', 'type="episode" parentIndex="1" index="11"')
+    session = parse_plex_sessions(xml)[0]
+    assert (session["season_number"], session["episode_number"]) == (1, 11)
+    movie = parse_plex_sessions(REMUX_SESSION.replace('type="movie"', 'type="movie" index="3"'))[0]
+    assert (movie["season_number"], movie["episode_number"]) == (None, None)
+    row = PlaybackSession(source="plex", source_session_id="x", title="T", season_number=1, episode_number=11)
+    assert playback_activity._serialize(row)["episode_number"] == 11
+
+
+HDR_SESSION = """<MediaContainer size="1"><Video ratingKey="88" sessionKey="4" title="Dune" type="movie"
+ viewOffset="0" duration="1000"><Media bitrate="4000" container="mkv"><Part decision="transcode" container="mkv">
+<Stream id="1" streamType="1" codec="h264" height="1080" bitrate="3800" decision="transcode"/>
+<Stream id="2" streamType="2" codec="aac" channels="2" bitrate="192" selected="1" decision="transcode"/>
+</Part></Media><User title="u"/>
+<Player title="TV" state="playing" local="0" relayed="1" secure="1" product="Plex for Android (TV)" version="10.2"
+ platform="Android" platformVersion="11" model="SHIELD" vendor="NVIDIA"/>
+<Session id="plex-sess-4" bandwidth="4200" location="wan"/>
+<TranscodeSession key="/transcode/sessions/t4" videoDecision="transcode" audioDecision="transcode" context="streaming"
+ sourceVideoCodec="hevc" videoCodec="h264" sourceAudioCodec="truehd" audioCodec="aac"/>
+</Video></MediaContainer>"""
+HDR_SHEET = {
+    "container": "mkv",
+    "bitrate": 62000,
+    "streams": [{"id": "1", "streamType": "1", "codec": "hevc", "colorTrc": "smpte2084", "colorPrimaries": "bt2020"}],
+}
+
+
+def test_stream_details_explain_relay_hdr_bitrates_and_player():
+    import json
+
+    session = parse_plex_sessions(HDR_SESSION, media_sheets={"88": HDR_SHEET})[0]
+    details = json.loads(session["stream_details"])
+    assert details["plex_session_id"] == "plex-sess-4"
+    assert (details["local"], details["relayed"], details["secure"]) == (False, True, True)
+    assert details["player"]["model"] == "SHIELD"
+    assert details["player"]["version"] == "10.2"
+    assert details["bitrate"] == {"source_kbps": 62000, "stream_kbps": 4200, "video_kbps": 3800, "audio_kbps": 192}
+    # HDR10 réencodé : la sortie est en SDR (tone mapping).
+    assert details["dynamic_range"] == {"source": "HDR10", "output": "SDR"}
+    assert session["is_download"] is False
+
+
+def test_dynamic_range_labels():
+    label = playback_activity._dynamic_range
+    assert label({"DOVIPresent": "1", "DOVIProfile": "8"}) == "Dolby Vision 8"
+    assert label({"colorTrc": "arib-std-b67"}) == "HLG"
+    assert label({"colorTrc": "bt709"}) == "SDR"
+    assert label({}) is None
+    assert label(None) is None
+
+
+def test_static_transcoder_context_is_a_download():
+    xml = HDR_SESSION.replace('context="streaming"', 'context="static"')
+    assert parse_plex_sessions(xml)[0]["is_download"] is True
+    row = PlaybackSession(source="plex", source_session_id="x", title="T", is_download=True)
+    assert playback_activity._serialize(row)["is_download"] is True
+
+
+def _plex_client(handler):
+    import httpx
+
+    real_client = httpx.AsyncClient
+    return patch.object(
+        playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=httpx.MockTransport(handler))
+    )
+
+
+@pytest.mark.asyncio
+async def test_terminate_playback_sends_the_plex_session_id_and_message(async_db):
+    import httpx
+
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    row = PlaybackSession(
+        source="plex", source_session_id="fallback", title="Dune", stream_details='{"plex_session_id": "plex-sess-4"}'
+    )
+    async_db.add(row)
+    async_db.commit()
+    seen = []
+
+    def handler(request):
+        seen.append((request.method, request.url.path, dict(request.url.params)))
+        return httpx.Response(200)
+
+    with _plex_client(handler):
+        await playback_activity.terminate_playback(row.id, "  Serveur en maintenance  ", async_db)
+    assert seen == [
+        ("POST", "/status/sessions/terminate", {"sessionId": "plex-sess-4", "reason": "Serveur en maintenance"})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_terminate_playback_refuses_what_cannot_be_stopped(async_db):
+    import httpx
+
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    ended = PlaybackSession(source="plex", source_session_id="e", title="Fin", ended_at=datetime(2026, 9, 26))
+    live = PlaybackSession(source="plex", source_session_id="l", title="Live")
+    async_db.add_all([ended, live])
+    async_db.commit()
+    with pytest.raises(playback_activity.PlaybackActionError, match="déjà terminée"):
+        await playback_activity.terminate_playback(ended.id, "", async_db)
+    with pytest.raises(playback_activity.PlaybackActionError, match="introuvable"):
+        await playback_activity.terminate_playback(999, "", async_db)
+    with _plex_client(lambda request: httpx.Response(401)):
+        with pytest.raises(playback_activity.PlaybackActionError, match="Plex Pass"):
+            await playback_activity.terminate_playback(live.id, "", async_db)
+    with _plex_client(lambda request: httpx.Response(404)):
+        with pytest.raises(playback_activity.PlaybackActionError, match="ne connaît plus"):
+            await playback_activity.terminate_playback(live.id, "", async_db)
+
+
+@pytest.mark.asyncio
+async def test_server_activities_are_listed_and_cancellable(async_db):
+    import httpx
+
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    async_db.commit()
+    payload = {
+        "MediaContainer": {
+            "Activity": [
+                {
+                    "uuid": "a1",
+                    "type": "media.generate.bif",
+                    "title": "Création des miniatures",
+                    "subtitle": "Dune",
+                    "progress": 42,
+                    "cancellable": True,
+                },
+                {
+                    "uuid": "a2",
+                    "type": "library.update.section",
+                    "title": "Analyse",
+                    "progress": -1,
+                    "cancellable": False,
+                },
+            ]
+        }
+    }
+    calls = []
+
+    def handler(request):
+        calls.append((request.method, request.url.path))
+        return httpx.Response(200, json=payload) if request.method == "GET" else httpx.Response(200)
+
+    with _plex_client(handler):
+        activities = await playback_activity.plex_server_activities(async_db)
+        await playback_activity.cancel_plex_activity("a1", async_db)
+    assert activities[0] == {
+        "uuid": "a1",
+        "type": "media.generate.bif",
+        "title": "Création des miniatures",
+        "subtitle": "Dune",
+        "progress": 42.0,
+        "cancellable": True,
+    }
+    assert activities[1]["progress"] is None  # -1 : progression indéterminée
+    assert calls == [("GET", "/activities"), ("DELETE", "/activities/a1")]
+    with _plex_client(lambda request: httpx.Response(404)):
+        with pytest.raises(playback_activity.PlaybackActionError, match="déjà terminée"):
+            await playback_activity.cancel_plex_activity("gone", async_db)
+
+
+@pytest.mark.asyncio
+async def test_actions_without_plex_configuration(async_db):
+    assert await playback_activity.plex_server_activities(async_db) == []
+    with pytest.raises(playback_activity.PlaybackActionError):
+        await playback_activity.cancel_plex_activity("a", async_db)

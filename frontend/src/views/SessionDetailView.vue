@@ -13,6 +13,7 @@
       :has-previous="index > 0"
       :has-next="index >= 0 && index < voisins.length - 1"
       @navigate="naviguer"
+      @terminated="query.refetch()"
     />
   </SheetPage>
 </template>

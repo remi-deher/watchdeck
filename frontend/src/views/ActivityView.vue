@@ -127,6 +127,7 @@
           <span class="live-updated">Actualisé {{ relativeUpdate }}</span>
         </section>
         <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" :show-link="false" interactive @select="openSession($event)"/>
+        <PlexServerTasks v-if="data.liveEnabled"/>
       </template>
 
       <template v-else-if="currentView==='history'">
@@ -238,6 +239,7 @@ import ConcurrencyPanel from '@/components/activity/ConcurrencyPanel.vue';
 import DailyActivityChart from '@/components/activity/DailyActivityChart.vue';
 import HistoryTable from '@/components/activity/HistoryTable.vue';
 import LiveSessionsPanel from '@/components/activity/LiveSessionsPanel.vue';
+import PlexServerTasks from '@/components/activity/PlexServerTasks.vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import PopularMediaPanel from '@/components/activity/PopularMediaPanel.vue';

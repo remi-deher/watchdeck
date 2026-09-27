@@ -37,6 +37,9 @@ class PlaybackSession(Base):
     title: Mapped[str]
     grandparent_title: Mapped[Optional[str]]
     parent_title: Mapped[Optional[str]]
+    # Numeros de saison et d'episode : « S1 · E11 » dit plus que « Saison 1 ».
+    season_number: Mapped[Optional[int]]
+    episode_number: Mapped[Optional[int]]
     year: Mapped[Optional[int]]
     rating_key: Mapped[Optional[str]]
     library_section_title: Mapped[Optional[str]]
@@ -78,6 +81,13 @@ class PlaybackSession(Base):
     transcode_session: Mapped[Optional[str]]
     transcode_reason: Mapped[Optional[str]] = mapped_column(Text)
     transcode_hw: Mapped[Optional[str]]
+    audio_channels: Mapped[Optional[int]]
+    # Source -> sortie flux par flux (conteneur, vidéo, audio, sous-titres), en JSON.
+    transcode_details: Mapped[Optional[str]] = mapped_column(Text)
+    # Réseau (relais Plex), lecteur, HDR et débits de la lecture, en JSON.
+    stream_details: Mapped[Optional[str]] = mapped_column(Text)
+    # Téléchargement (synchro hors ligne) plutôt que lecture : gardé, mais signalé.
+    is_download: Mapped[Optional[bool]] = mapped_column(default=False)
     plex_decision_code: Mapped[Optional[int]]
     plex_decision_text: Mapped[Optional[str]] = mapped_column(Text)
     plex_decision_details: Mapped[Optional[str]] = mapped_column(Text)

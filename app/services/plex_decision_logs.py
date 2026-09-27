@@ -76,8 +76,11 @@ class PlexDecision:
             return self.mde_code, self.mde_text
         return None, None
 
-    def details_json(self) -> str:
-        return json.dumps({"mde": self.details, "client": self.client}, ensure_ascii=False)
+    def details_json(self, note: str | None = None) -> str:
+        details: dict = {"mde": self.details, "client": self.client}
+        if note:
+            details["note"] = note
+        return json.dumps(details, ensure_ascii=False)
 
 
 def _parse_ts(value: str) -> datetime | None:
