@@ -1,21 +1,21 @@
 <template>
-  <!-- La banniere ne porte plus que l'image : pose dessus, le texte (titre, dates,
-       resume, boutons) devenait illisible des que l'image etait claire, quel que soit le
-       voile. Il passe dessous, sur le fond de la page, et suit le theme comme le reste ;
-       l'affiche chevauche le bas de la banniere pour garder le lien entre les deux. -->
-  <div class="mdh" :class="`is-${variant}`">
-  <UiHeroBackdrop
-    class="mdh-hero"
+  <!-- En-tete commun des fiches (SheetHero) : l'image seule dans la banniere, l'affiche
+       qui en chevauche le bas, le texte dessous. Les classes `mdh-*` restent posees sur
+       les memes elements : la feuille (MediaOverlay) et les tests s'y appuient. -->
+  <SheetHero
+    class="mdh"
+    banner-class="mdh-hero"
+    content-class="mdh-content"
+    :row-class="['mdh-row', { 'is-music': isMusic }]"
     :image-url="backdropUrl"
     :position="variant === 'sheet' ? 'center 18%' : undefined"
     :variant="variant"
+    stack-on-mobile
   >
     <template #overlay>
       <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
     </template>
-  </UiHeroBackdrop>
-    <div class="mdh-content">
-      <div class="mdh-row" :class="{ 'is-music': isMusic }">
+    <template #poster>
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
           <img v-if="detail.poster_url && !posterFailed" class="mdh-poster-img" @error="posterFailed = true" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
@@ -23,6 +23,7 @@
             <Film v-else />
           </div>
         </div>
+    </template>
         <div class="mdh-info">
           <span class="eyebrow">{{ typeLabel }}</span>
           <h1>{{ detail.title }}</h1>
@@ -46,17 +47,7 @@
             <span class="skeleton-line" /><span class="skeleton-line" /><span class="skeleton-line is-short" />
           </div>
           <div v-else class="mdh-overview-wrapper">
-            <p class="mdh-overview" :class="{ clamped: !showFullOverview && isOverviewLong }">
-              {{ overviewText }}
-            </p>
-            <button
-              v-if="isOverviewLong"
-              type="button"
-              class="overview-toggle-btn"
-              @click="showFullOverview = !showFullOverview"
-            >
-              {{ showFullOverview ? 'Voir moins' : 'Plus...' }}
-            </button>
+            <SheetSummary class="mdh-overview" :text="overviewText" :lines="4" />
           </div>
           <div v-if="detail.genres?.length" class="tag-row">
             <span v-for="genre in detail.genres" :key="genre" class="badge">{{ genre }}</span>
@@ -117,9 +108,7 @@
             <span v-else class="badge language-tag" :class="languageState.variant">{{ languageState.label }}</span>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
+  </SheetHero>
 </template>
 
 <script setup lang="ts">
@@ -130,7 +119,8 @@ import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, Re
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
-import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
+import SheetHero from '@/components/ui/SheetHero.vue';
+import SheetSummary from '@/components/ui/SheetSummary.vue';
 
 export interface SeasonSummaryGroup {
   vf: number[];
@@ -242,9 +232,7 @@ function formatSeasonLabel(seasonNumbers: number[]): string {
   return `${label} ${ranges.join(', ')}`;
 }
 
-const showFullOverview = ref(false);
 const overviewText = computed(() => props.detail.overview || (isMusic.value ? 'Aucune biographie disponible pour cet artiste.' : 'Aucun résumé disponible.'));
-const isOverviewLong = computed(() => overviewText.value.length > 260);
 
 const typeLabel = computed(() => mediaTypeLabel(props.detail.media_type));
 
@@ -282,29 +270,10 @@ const releaseDates = computed(() => {
 .mdh.is-sheet {
   margin-bottom: var(--space-5);
 }
-/* Image seule : plus basse qu'avant, elle n'a plus a loger tout le texte. */
-.mdh-hero {
-  min-height: clamp(180px, 28vw, 320px);
-}
-.mdh-hero.is-sheet {
-  min-height: min(32dvh, 300px);
-}
-.mdh-content {
-  position: relative;
-  z-index: 2;
-  width: 100%;
+.mdh :deep(.mdh-content) {
   padding: 0 var(--space-5) var(--space-2);
   max-width: 1280px;
   margin: 0 auto;
-}
-/* L'affiche remonte sur le bas de la banniere ; le texte reste sous l'image. */
-.mdh-row .mdh-poster {
-  margin-top: calc(-1 * var(--mdh-poster-overlap, 120px));
-  position: relative;
-  z-index: 2;
-}
-.mdh-info {
-  padding-top: var(--space-4);
 }
 /* Le contenu est ancre en bas : le retour doit rester en haut a gauche, hors du flux,
    sinon il descend avec le titre au fond de la banniere. */
@@ -313,14 +282,6 @@ const releaseDates = computed(() => {
   top: var(--space-4);
   left: var(--space-4);
   z-index: 3;
-}
-.mdh-row {
-  display: flex;
-  gap: var(--space-5);
-  align-items: flex-start;
-}
-.mdh-row.is-music {
-  align-items: flex-start;
 }
 .mdh-poster {
   flex: 0 0 180px;
@@ -402,32 +363,6 @@ const releaseDates = computed(() => {
 .mdh-overview-wrapper {
   max-width: 800px;
   margin-bottom: 12px;
-}
-.mdh-overview {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--fs-md);
-  line-height: 1.6;
-}
-.mdh-overview.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.overview-toggle-btn {
-  background: transparent;
-  border: 0;
-  color: var(--accent);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  cursor: pointer;
-  padding: 4px 0 0 0;
-  display: inline-flex;
-  align-items: center;
-}
-.overview-toggle-btn:hover {
-  text-decoration: underline;
 }
 .mdh-dates {
   display: flex;
@@ -515,24 +450,12 @@ const releaseDates = computed(() => {
 }
 
 @include bp.until(tablet) {
-  /* Sur telephone, l'image seule : le texte est dessous, elle n'a plus a prendre
-     la moitie de l'ecran. */
-  .mdh-hero,
-  .mdh-hero.is-sheet {
-    min-height: clamp(170px, 30vh, 240px);
-  }
-  .mdh-content {
+  .mdh :deep(.mdh-content) {
     padding: 0 var(--space-4) 20px;
-    --mdh-poster-overlap: 90px;
   }
   .mdh-back {
     top: var(--space-2);
     left: var(--space-2);
-  }
-  .mdh-row {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
   }
   .mdh-info { display: flex; flex-direction: column; width: 100%; }
   .mdh-poster {
@@ -552,7 +475,6 @@ const releaseDates = computed(() => {
     justify-content: center;
   }
   .mdh-overview {
-    font-size: var(--fs-base);
     text-align: left;
   }
   .mdh-links { order: 1; width: 100%; }
@@ -563,12 +485,4 @@ const releaseDates = computed(() => {
   .mdh-links > .mdh-listen-btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
 }
 
-@include bp.from(tablet) {
-  .mdh-hero.is-sheet {
-    min-height: min(36dvh, 340px);
-  }
-  .mdh-content {
-    --mdh-poster-overlap: 150px;
-  }
-}
 </style>
