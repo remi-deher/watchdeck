@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.55.1 — 2026-09-27
+
+
+### 🎨 Style
+
+- texte principal pour le contenu, blanc sur les images, gris aux libelles ([44bfd9b](https://github.com/remi-deher/watchdeck/commit/44bfd9ba5c75fc6e1817b4fa6ee717bba84a52ab))
 ## 1.55.0 — 2026-09-27
 
 
@@ -10,6 +16,10 @@
 ### ✨ Nouveautés
 
 - texte sous la banniere, parcours reel des medias deja dans Plex ([0991a48](https://github.com/remi-deher/watchdeck/commit/0991a48f4b4f421a6c67de016f7f11c6debb08c9))
+
+### 🔧 Maintenance
+
+- v1.55.0 (#509) ([7de6834](https://github.com/remi-deher/watchdeck/commit/7de6834a730f28f5d8eb8819016d016b4d69d622))
 ## 1.54.0 — 2026-09-27
 
 
