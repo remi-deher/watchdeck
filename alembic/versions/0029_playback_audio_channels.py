@@ -21,10 +21,14 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("transcode_details", sa.Text(), nullable=True))
         batch_op.add_column(sa.Column("season_number", sa.Integer(), nullable=True))
         batch_op.add_column(sa.Column("episode_number", sa.Integer(), nullable=True))
+        batch_op.add_column(sa.Column("stream_details", sa.Text(), nullable=True))
+        batch_op.add_column(sa.Column("is_download", sa.Boolean(), nullable=True))
 
 
 def downgrade() -> None:
     with op.batch_alter_table("playback_sessions") as batch_op:
+        batch_op.drop_column("is_download")
+        batch_op.drop_column("stream_details")
         batch_op.drop_column("episode_number")
         batch_op.drop_column("season_number")
         batch_op.drop_column("transcode_details")

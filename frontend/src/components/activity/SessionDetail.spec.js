@@ -155,3 +155,52 @@ describe('SessionDetail - fiche de l’œuvre et conversion', () => {
     expect(wrapper.find('.conversion-table').exists()).toBe(false);
   });
 });
+
+describe('SessionDetail - réseau, HDR, lecteur et arrêt', () => {
+  const live = {
+    id: 12,
+    title: 'Dune',
+    playback_method: 'transcode',
+    bandwidth_kbps: 4200,
+    transcode_details: { container: { from: 'mkv', to: 'mkv' }, video: { decision: 'transcode', from: 'hevc', to: 'h264', height: 1080 } },
+    stream_details: {
+      relayed: true,
+      secure: true,
+      player: { product: 'Plex for Android (TV)', version: '10.2', vendor: 'NVIDIA', model: 'SHIELD', platform: 'Android', platform_version: '11' },
+      bitrate: { source_kbps: 62000, stream_kbps: 4200, video_kbps: 3800, audio_kbps: 192 },
+      dynamic_range: { source: 'HDR10', output: 'SDR' },
+    },
+  };
+
+  it('signale le relais, le tone mapping et la qualité réduite', () => {
+    const wrapper = factory(live);
+    expect(wrapper.get('.session-flag.relay').text()).toContain('Relais Plex');
+    expect(wrapper.get('.session-flag.hdr').text()).toBe('HDR10 → SDR');
+    expect(wrapper.get('.session-flag.hdr').classes()).toContain('tonemap');
+    expect(wrapper.text()).toContain('qualité réduite');
+    const range = wrapper.findAll('.conversion-row').find((row) => row.text().includes('Plage dynamique'));
+    expect(range.get('.conversion-treatment').text()).toBe('Tone mapping');
+  });
+
+  it('ne parle de qualité réduite que si la vidéo est réencodée', () => {
+    expect(factory({ ...live, playback_method: 'direct_play', transcode_details: null }).text()).not.toContain('qualité réduite');
+    // Audio seul converti (DTS -> AAC), vidéo copiée : l'image n'est pas touchée.
+    const audioOnly = { ...live.transcode_details, video: { decision: 'copy', from: 'hevc', to: 'hevc' } };
+    expect(factory({ ...live, transcode_details: audioOnly }).text()).not.toContain('qualité réduite');
+  });
+
+  it('décrit l’application et l’appareil du lecteur', () => {
+    const text = factory(live).text();
+    expect(text).toContain('Plex for Android (TV) 10.2');
+    expect(text).toContain('NVIDIA SHIELD · Android 11');
+  });
+
+  it('propose d’arrêter une lecture en cours, pas une lecture terminée', () => {
+    expect(factory(live).find('.terminate-button').exists()).toBe(true);
+    expect(factory({ ...live, ended_at: '2026-09-27T10:00:00Z' }).find('.terminate-button').exists()).toBe(false);
+  });
+
+  it('signale un téléchargement', () => {
+    expect(factory({ ...live, is_download: true }).get('.session-flag.download').text()).toContain('Téléchargement');
+  });
+});

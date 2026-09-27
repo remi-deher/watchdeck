@@ -35,7 +35,7 @@
         <button v-for="row in day.rows" :key="row.key" @click="$emit('select', row.item)">
         <MediaArtwork :src="row.item.thumb_url" :alt="displayTitle(row.item)" :type="row.item.media_type" size="history"/>
         <span class="history-title">
-          <strong>{{ displayTitle(row.item) }}<em v-if="row.count > 1" class="history-group">&times;{{ row.count }}</em></strong>
+          <strong>{{ displayTitle(row.item) }}<em v-if="row.count > 1" class="history-group">&times;{{ row.count }}</em><em v-if="row.item.is_download" class="history-download" title="Téléchargement pour une lecture hors ligne, pas une lecture">Téléchargement</em></strong>
           <small>{{ row.item.user_name || 'Utilisateur Plex' }}<template v-if="row.count > 1"> &middot; {{ row.count }} lectures consécutives</template></small>
         </span>
         <span class="history-client">
@@ -85,6 +85,7 @@ export interface HistoryItem {
   grandparent_title?: string;
   season_number?: number | null;
   episode_number?: number | null;
+  is_download?: boolean;
   user_name?: string;
   player?: string;
   product?: string;
@@ -305,4 +306,5 @@ const formatDate = (value: any) => formatDateTimeShort(value, '—');
 /* Sur telephone les lignes ne sont plus alignees en colonnes : les tris forment une
    rangee de boutons. */
 @include bp.until(tablet) {.history-sort{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding:6px 6px}.history-sort__spacer{display:none}.history-sort__cell{display:contents}.history-sort__button{margin-left:0;min-height:36px}}@container page (max-width: 1007px) {.history-table button{grid-template-columns:64px minmax(190px,1fr) minmax(180px,230px) 112px 80px}.history-table time{grid-column:2/4;font-size:var(--fs-xs)}.history-duration{grid-column:5;grid-row:1/3}}@include bp.until(tablet) {.history-table button{grid-template-columns:64px minmax(0,1fr) auto;gap:var(--space-3) var(--space-4);align-items:start}.history-client{grid-column:2}.history-duration{grid-column:2;grid-row:auto;font-size:var(--fs-sm)}.history-table time{grid-column:3;grid-row:2;font-size:var(--fs-xs)}.history-table :deep(.playback-badge){grid-column:3;grid-row:1}}@container page (max-width: 444px) {.history-table button{grid-template-columns:58px minmax(0,1fr) auto;padding-inline:6px}.history-table time{display:none}.history-title strong{font-size:var(--fs-md)}.history-title small,.history-client>span,.history-client code{font-size:var(--fs-xs)}}
+.history-download{margin-left:8px;padding:1px 7px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--muted) 14%,transparent);font-size:var(--fs-xs);font-style:normal;font-weight:700}
 </style>

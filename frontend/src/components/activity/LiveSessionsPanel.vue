@@ -55,6 +55,8 @@
             {{ session.quality || 'Auto' }}<template v-if="locationLabel(session)"> · {{ locationLabel(session) }}</template>
           </span>
           <PlaybackMethodBadge :method="session.playback_method" :title="decisionDetail(session)" />
+          <span v-if="session.is_download" class="live-flag">Téléchargement</span>
+          <span v-if="session.stream_details?.relayed" class="live-flag relay" title="Débit limité par le relais Plex">Relais</span>
           <span v-if="session.bandwidth_kbps" class="live-bandwidth">{{ formatBandwidth(session.bandwidth_kbps) }}</span>
           <span v-if="hasTranscodeBuffer(session)" class="live-buffer" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }" :title="transcodeSpeedLabel(session)">Tampon {{ formatBuffer(session.transcode_buffer_ms) }}</span>
         </footer>
@@ -112,6 +114,8 @@ export interface LiveSession {
   subtitle_decision?: string;
   transcode_reason?: TranscodeReasonData | null;
   transcode_remux?: string | null;
+  is_download?: boolean;
+  stream_details?: { relayed?: boolean | null } | null;
   geo_status?: string;
   geo_city?: string;
   geo_region?: string;
@@ -292,6 +296,8 @@ function formatRemaining(session: LiveSession): string {
 .progress-track i.paused{background:var(--muted);transition:none}
 .live-progress-label{display:flex;justify-content:space-between;margin-top:6px;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}
 
+.live-flag{padding:2px 7px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--muted) 14%,transparent);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
+.live-flag.relay{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
 .live-reason{padding:6px 14px 9px;border-top:1px solid var(--border);background:var(--surface)}
 .live-footer{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap: var(--space-2);align-items:center;padding:9px 14px;border-top:1px solid var(--border);background:var(--surface)}
 .live-location{display:flex;align-items:center;gap: var(--space-1);min-width:0;overflow:hidden;color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.live-location svg{flex:none;width:13px;height:13px;color:var(--muted)}

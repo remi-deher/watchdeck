@@ -3,11 +3,19 @@
     <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
          fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
     <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
-      <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session precedente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="$emit('navigate', -1)"><ChevronLeft /></UiButton>
-      <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session suivante (j)" aria-label="Session suivante" :disabled="!hasNext" @click="$emit('navigate', 1)"><ChevronRight /></UiButton>
+      <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session precedente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="emitParent('navigate', -1)"><ChevronLeft /></UiButton>
+      <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session suivante (j)" aria-label="Session suivante" :disabled="!hasNext" @click="emitParent('navigate', 1)"><ChevronRight /></UiButton>
       <UiButton variant="ghost" icon-only title="Copier le diagnostic" aria-label="Copier le diagnostic" @click="copyDiagnostic"><ClipboardCopy /></UiButton>
       <UiButton v-if="mediaPath" variant="ghost" icon-only title="Ouvrir la fiche du media" aria-label="Ouvrir la fiche du media" @click="openMedia"><ExternalLink /></UiButton>
+      <UiButton v-if="canTerminate" class="terminate-button" variant="danger" size="sm" @click="terminateOpen = true"><CircleStop />Arrêter</UiButton>
     </div>
+    <TerminatePlaybackModal
+      :open="terminateOpen"
+      :session-id="session.id"
+      :subtitle="`${session.user_name || 'Utilisateur Plex'} · ${displayTitle(session)}`"
+      @close="terminateOpen = false"
+      @terminated="onTerminated"
+    />
 
     <!-- L'oeuvre d'abord : banniere de la serie ou du film, affiche qui mene a sa fiche
          dans la bibliotheque, resume de l'episode. Sans fiche Plex (media supprime,
@@ -36,6 +44,11 @@
 
     <div class="session-who">
       <PlaybackMethodBadge :method="session.playback_method"/>
+      <!-- Un telechargement (synchro hors ligne) reste dans l'historique, mais ne se
+           confond pas avec une lecture. -->
+      <span v-if="session.is_download" class="session-flag download"><Download/>Téléchargement</span>
+      <span v-if="stream.relayed" class="session-flag relay" title="Débit limité par le relais Plex (~2 Mb/s) : souvent la cause d'une qualité réduite"><RadioTower/>Relais Plex</span>
+      <span v-if="dynamicRange" class="session-flag hdr" :class="{ tonemap: toneMapping }" :title="toneMapping ? 'HDR converti en SDR : le transcodage le plus coûteux' : undefined">{{ dynamicRange }}</span>
       <span><User/>{{ session.user_name || 'Utilisateur Plex' }}</span>
       <span><MonitorPlay/>{{ session.player || session.product || session.platform || 'Lecteur Plex' }}</span>
     </div>
@@ -60,8 +73,8 @@
       <article><Clock3/><span>Temps restant</span><strong>{{ remainingLabel(session) }}</strong><small>{{ estimatedEnd(session) }}</small></article>
       <!-- Un tiret se lit comme un zero : quand Plex ne communique pas le debit, on le
            dit plutot que d'afficher une valeur vide qui passerait pour une mesure. -->
-      <article><Gauge/><span>Débit du flux</span><strong>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non mesuré' }}</strong><small>{{ bandwidthHint(session.bandwidth_kbps) }}</small></article>
-      <article :class="['network-kpi', isRemoteConnection(session) ? 'remote' : 'local']"><Network/><span>Connexion</span><strong>{{ connectionLabel(session) }}</strong><small>{{ connectionHint(session) }}</small></article>
+      <article><Gauge/><span>Débit du flux</span><strong>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non mesuré' }}</strong><small>{{ bitrateHint }}</small></article>
+      <article :class="['network-kpi', isRemoteConnection(session) ? 'remote' : 'local']"><Network/><span>Connexion</span><strong>{{ connectionLabel(session) }}</strong><small>{{ stream.relayed ? 'via le relais Plex, débit bridé' : connectionHint(session) }}</small></article>
     </div>
 
     <SessionLocationMap :session="session"/>
@@ -117,6 +130,9 @@
         <div><dt>Bibliothèque</dt><dd>{{ session.library || '—' }}</dd></div>
         <div><dt>Plateforme</dt><dd>{{ session.platform || '—' }}</dd></div>
         <div><dt>Appareil</dt><dd>{{ session.player || session.product || session.platform || '—' }}</dd></div>
+        <div v-if="playerApp"><dt>Application</dt><dd>{{ playerApp }}</dd></div>
+        <div v-if="playerDevice"><dt>Modèle</dt><dd>{{ playerDevice }}</dd></div>
+        <div v-if="stream.secure != null"><dt>Connexion chiffrée</dt><dd>{{ stream.secure ? 'Oui' : 'Non' }}</dd></div>
         <div><dt>Adresse IP</dt><dd class="session-address">{{ session.address || 'Indisponible' }}</dd></div>
         <div><dt>Début</dt><dd>{{ formatDate(session.started_at) }}</dd></div>
         <div><dt>Dernière activité</dt><dd>{{ formatDate(session.last_seen_at || session.ended_at) }}</dd></div>
@@ -130,12 +146,13 @@
 
 <script setup lang="ts">
 import TranscodeReason from './TranscodeReason.vue';
+import TerminatePlaybackModal from './TerminatePlaybackModal.vue';
 import { episodeLabel } from '@/utils/episode';
 import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@/utils/transcodeBuffer';
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { ArrowRight, ChevronLeft, ChevronRight, ClipboardCopy, Clock3, Cpu, ExternalLink, Gauge, MonitorPlay, Network, Server, Timer, User, Workflow } from '@lucide/vue';
+import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Cpu, Download, ExternalLink, Gauge, MonitorPlay, Network, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { useToast } from '@/composables/useToast';
 import { mediaDetailPath } from '@/mediaUrl';
@@ -154,9 +171,6 @@ const props = withDefaults(
   { hasPrevious: false, hasNext: false }
 );
 
-defineEmits<{
-  (e: 'navigate', direction: number): void;
-}>();
 
 const router = useRouter();
 const { addToast } = useToast();
@@ -214,11 +228,56 @@ const headingEyebrow = computed(() => {
 });
 
 const details = computed<Record<string, any> | null>(() => props.session.transcode_details || null);
+const stream = computed<Record<string, any>>(() => props.session.stream_details || {});
+
+/* Arreter une lecture : seulement tant qu'elle est en cours, et pas un telechargement. */
+const emitParent = defineEmits<{ (e: 'navigate', direction: number): void; (e: 'terminated'): void }>();
+const terminateOpen = ref(false);
+const canTerminate = computed(() => !props.session.ended_at && props.session.source !== 'tautulli' && Boolean(props.session.id));
+function onTerminated(): void {
+  addToast({ type: 'success', message: 'Lecture arrêtée : Plex a affiché votre message sur le lecteur.' });
+  emitParent('terminated');
+}
+
+const dynamicRange = computed(() => {
+  const range = stream.value.dynamic_range || {};
+  if (!range.source || range.source === 'SDR') return '';
+  return range.output && range.output !== range.source ? `${range.source} → ${range.output}` : range.source;
+});
+const toneMapping = computed(() => {
+  const range = stream.value.dynamic_range || {};
+  return Boolean(range.source && range.source !== 'SDR' && range.output === 'SDR');
+});
+const bitrateHint = computed(() => {
+  const source = stream.value.bitrate?.source_kbps;
+  const flow = props.session.bandwidth_kbps;
+  // Le debit d'origine montre de combien la qualite a ete reduite pour ce lecteur.
+  // Seule une video reencodee perd en qualite : en lecture directe ou quand seul l'audio
+  // est converti, l'ecart de debit n'est qu'une estimation de Plex.
+  const videoConverted = String(details.value?.video?.decision || props.session.video_decision || '').toLowerCase() === 'transcode';
+  if (source && flow && videoConverted && source > flow * 1.2) {
+    return `source ${formatBandwidth(source)} : qualité réduite`;
+  }
+  if (source) return `source ${formatBandwidth(source)}`;
+  return bandwidthHint(flow);
+});
+const playerApp = computed(() => {
+  const player = stream.value.player || {};
+  return [player.product, player.version].filter(Boolean).join(' ');
+});
+const playerDevice = computed(() => {
+  const player = stream.value.player || {};
+  const system = [player.platform, player.platform_version].filter(Boolean).join(' ');
+  return [[player.vendor, player.model].filter(Boolean).join(' '), system].filter(Boolean).join(' · ');
+});
 const buffer = computed(() => (hasTranscodeBuffer(props.session as any) ? bufferSpan(props.session as any) : null));
 const transcoder = computed(() => transcoderState(props.session as any));
 
 const CODECS: Record<string, string> = { hevc: 'HEVC', h264: 'H.264', av1: 'AV1', truehd: 'TrueHD', eac3: 'E-AC3', ac3: 'AC3', dca: 'DTS', aac: 'AAC', opus: 'Opus', flac: 'FLAC', ass: 'ASS', srt: 'SRT', webvtt: 'WebVTT', pgs: 'PGS', mov_text: 'MOV text' };
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'stéréo', 6: '5.1', 8: '7.1' };
+function kbps(value: any): string {
+  return value ? ` · ${formatBandwidth(value)}` : '';
+}
 function codec(value: any): string {
   return value ? CODECS[String(value).toLowerCase()] || String(value).toUpperCase() : '—';
 }
@@ -252,8 +311,19 @@ const conversionRows = computed(() => {
     rows.push({
       label: 'Vidéo',
       from: codec(d.video.from),
-      to: `${codec(d.video.to)}${d.video.height ? ` ${d.video.height}p` : ''}`,
+      to: `${codec(d.video.to)}${d.video.height ? ` ${d.video.height}p` : ''}${kbps(stream.value.bitrate?.video_kbps)}`,
       ...treatment(d.video.decision),
+    });
+  }
+  const range = stream.value.dynamic_range || {};
+  if (range.source && range.source !== 'SDR') {
+    const mapped = range.output === 'SDR';
+    rows.push({
+      label: 'Plage dynamique',
+      from: range.source,
+      to: range.output || range.source,
+      treatment: mapped ? 'Tone mapping' : 'Conservée',
+      tone: mapped ? 'converted' : 'copied',
     });
   }
   if (d.audio) {
@@ -261,7 +331,7 @@ const conversionRows = computed(() => {
     rows.push({
       label: 'Audio',
       from: `${codec(d.audio.from)}${d.audio.language ? ` · ${d.audio.language}` : ''}`,
-      to: `${codec(d.audio.to)}${channels}`,
+      to: `${codec(d.audio.to)}${channels}${kbps(stream.value.bitrate?.audio_kbps)}`,
       ...treatment(d.audio.decision),
     });
   }
@@ -351,7 +421,7 @@ function networkLabel(item: any): string {
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 .session-banner{position:relative;display:flex;align-items:flex-end;gap:var(--space-4);min-height:170px;margin:4px 0 0;padding:16px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}
-.session-banner.has-art{background:linear-gradient(to top,rgb(0 0 0 / .78),rgb(0 0 0 / .15) 70%),var(--banner-art) center 30%/cover no-repeat,var(--surface-2)}
+.session-banner.has-art{background:linear-gradient(to top,var(--banner-scrim-strong),var(--banner-scrim-light) 70%),var(--banner-art) center 30%/cover no-repeat,var(--surface-2)}
 .session-poster{flex:none;padding:0;border:0;border-radius:var(--radius-sm);background:none;cursor:default}
 button.session-poster{cursor:pointer;transition:transform .15s}
 button.session-poster:hover,button.session-poster:focus-visible{transform:translateY(-2px)}
@@ -359,13 +429,20 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .session-heading{display:grid;gap:4px;min-width:0}
 .session-heading span{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm)}
 .session-heading h3{margin:0;font-size:var(--fs-lg);line-height:1.25;overflow-wrap:anywhere}
-.session-banner.has-art .session-heading span{color:rgb(255 255 255 / .82)}
-.session-banner.has-art .session-heading h3{color:#fff}
+.session-banner.has-art .session-heading span{color:var(--on-banner-muted)}
+.session-banner.has-art .session-heading h3{color:var(--on-banner)}
 .session-summary{margin-top:12px}
 .session-summary p{display:-webkit-box;margin:0;overflow:hidden;color:color-mix(in srgb,var(--text) 80%,transparent);font-size:var(--fs-sm);line-height:1.6;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .session-summary p.open{display:block}
 .summary-toggle{margin-top:4px;padding:0;border:0;background:none;color:var(--accent);font-size:var(--fs-xs);font-weight:600;cursor:pointer}
 .session-who{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:12px 0 16px;color:color-mix(in srgb,var(--text) 78%,transparent);font-size:var(--fs-sm)}
+.session-flag{padding:3px 8px;border-radius:var(--radius-pill);font-size:var(--fs-xs);font-weight:700}
+.session-flag.download{background:color-mix(in srgb,var(--slate,var(--muted)) 14%,transparent);color:var(--text)}
+.session-flag.relay{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
+.session-flag.relay svg{color:var(--amber-text)}
+.session-flag.hdr{background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue-text)}
+.session-flag.hdr.tonemap{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
+.terminate-button{margin-left:auto}
 .session-who span{display:inline-flex;align-items:center;gap:6px;min-width:0}
 .session-who svg{width:15px;height:15px;color:var(--muted)}
 .progress-track{position:relative}

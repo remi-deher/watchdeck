@@ -84,6 +84,10 @@ class PlaybackSession(Base):
     audio_channels: Mapped[Optional[int]]
     # Source -> sortie flux par flux (conteneur, vidéo, audio, sous-titres), en JSON.
     transcode_details: Mapped[Optional[str]] = mapped_column(Text)
+    # Réseau (relais Plex), lecteur, HDR et débits de la lecture, en JSON.
+    stream_details: Mapped[Optional[str]] = mapped_column(Text)
+    # Téléchargement (synchro hors ligne) plutôt que lecture : gardé, mais signalé.
+    is_download: Mapped[Optional[bool]] = mapped_column(default=False)
     plex_decision_code: Mapped[Optional[int]]
     plex_decision_text: Mapped[Optional[str]] = mapped_column(Text)
     plex_decision_details: Mapped[Optional[str]] = mapped_column(Text)

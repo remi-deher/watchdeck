@@ -425,7 +425,8 @@ async def test_media_streams_reads_audio_and_subtitle_tracks_once():
         first = await playback_activity.media_streams("http://plex.local/", "t", True, "5198")
         again = await playback_activity.media_streams("http://plex.local/", "t", True, "5198")
         sheet = await playback_activity.media_sheet("http://plex.local/", "t", True, "5198")
-    assert [s["id"] for s in first] == ["11", "12", "13", "21"]  # la vidéo n'est pas gardée
+    # La piste vidéo est gardée aussi : elle porte la plage dynamique d'origine (HDR).
+    assert [s["id"] for s in first] == ["11", "12", "13", "21", "1"]
     assert sheet["container"] == "mkv"
     assert again is first
     assert calls == ["/library/metadata/5198"]
@@ -555,3 +556,163 @@ def test_episode_numbers_come_from_the_session():
     assert (movie["season_number"], movie["episode_number"]) == (None, None)
     row = PlaybackSession(source="plex", source_session_id="x", title="T", season_number=1, episode_number=11)
     assert playback_activity._serialize(row)["episode_number"] == 11
+
+
+HDR_SESSION = """<MediaContainer size="1"><Video ratingKey="88" sessionKey="4" title="Dune" type="movie"
+ viewOffset="0" duration="1000"><Media bitrate="4000" container="mkv"><Part decision="transcode" container="mkv">
+<Stream id="1" streamType="1" codec="h264" height="1080" bitrate="3800" decision="transcode"/>
+<Stream id="2" streamType="2" codec="aac" channels="2" bitrate="192" selected="1" decision="transcode"/>
+</Part></Media><User title="u"/>
+<Player title="TV" state="playing" local="0" relayed="1" secure="1" product="Plex for Android (TV)" version="10.2"
+ platform="Android" platformVersion="11" model="SHIELD" vendor="NVIDIA"/>
+<Session id="plex-sess-4" bandwidth="4200" location="wan"/>
+<TranscodeSession key="/transcode/sessions/t4" videoDecision="transcode" audioDecision="transcode" context="streaming"
+ sourceVideoCodec="hevc" videoCodec="h264" sourceAudioCodec="truehd" audioCodec="aac"/>
+</Video></MediaContainer>"""
+HDR_SHEET = {
+    "container": "mkv",
+    "bitrate": 62000,
+    "streams": [{"id": "1", "streamType": "1", "codec": "hevc", "colorTrc": "smpte2084", "colorPrimaries": "bt2020"}],
+}
+
+
+def test_stream_details_explain_relay_hdr_bitrates_and_player():
+    import json
+
+    session = parse_plex_sessions(HDR_SESSION, media_sheets={"88": HDR_SHEET})[0]
+    details = json.loads(session["stream_details"])
+    assert details["plex_session_id"] == "plex-sess-4"
+    assert (details["local"], details["relayed"], details["secure"]) == (False, True, True)
+    assert details["player"]["model"] == "SHIELD"
+    assert details["player"]["version"] == "10.2"
+    assert details["bitrate"] == {"source_kbps": 62000, "stream_kbps": 4200, "video_kbps": 3800, "audio_kbps": 192}
+    # HDR10 réencodé : la sortie est en SDR (tone mapping).
+    assert details["dynamic_range"] == {"source": "HDR10", "output": "SDR"}
+    assert session["is_download"] is False
+
+
+def test_dynamic_range_labels():
+    label = playback_activity._dynamic_range
+    assert label({"DOVIPresent": "1", "DOVIProfile": "8"}) == "Dolby Vision 8"
+    assert label({"colorTrc": "arib-std-b67"}) == "HLG"
+    assert label({"colorTrc": "bt709"}) == "SDR"
+    assert label({}) is None
+    assert label(None) is None
+
+
+def test_static_transcoder_context_is_a_download():
+    xml = HDR_SESSION.replace('context="streaming"', 'context="static"')
+    assert parse_plex_sessions(xml)[0]["is_download"] is True
+    row = PlaybackSession(source="plex", source_session_id="x", title="T", is_download=True)
+    assert playback_activity._serialize(row)["is_download"] is True
+
+
+def _plex_client(handler):
+    import httpx
+
+    real_client = httpx.AsyncClient
+    return patch.object(
+        playback_activity.httpx, "AsyncClient", lambda **kw: real_client(transport=httpx.MockTransport(handler))
+    )
+
+
+@pytest.mark.asyncio
+async def test_terminate_playback_sends_the_plex_session_id_and_message(async_db):
+    import httpx
+
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    row = PlaybackSession(
+        source="plex", source_session_id="fallback", title="Dune", stream_details='{"plex_session_id": "plex-sess-4"}'
+    )
+    async_db.add(row)
+    async_db.commit()
+    seen = []
+
+    def handler(request):
+        seen.append((request.method, request.url.path, dict(request.url.params)))
+        return httpx.Response(200)
+
+    with _plex_client(handler):
+        await playback_activity.terminate_playback(row.id, "  Serveur en maintenance  ", async_db)
+    assert seen == [
+        ("POST", "/status/sessions/terminate", {"sessionId": "plex-sess-4", "reason": "Serveur en maintenance"})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_terminate_playback_refuses_what_cannot_be_stopped(async_db):
+    import httpx
+
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    ended = PlaybackSession(source="plex", source_session_id="e", title="Fin", ended_at=datetime(2026, 9, 26))
+    live = PlaybackSession(source="plex", source_session_id="l", title="Live")
+    async_db.add_all([ended, live])
+    async_db.commit()
+    with pytest.raises(playback_activity.PlaybackActionError, match="déjà terminée"):
+        await playback_activity.terminate_playback(ended.id, "", async_db)
+    with pytest.raises(playback_activity.PlaybackActionError, match="introuvable"):
+        await playback_activity.terminate_playback(999, "", async_db)
+    with _plex_client(lambda request: httpx.Response(401)):
+        with pytest.raises(playback_activity.PlaybackActionError, match="Plex Pass"):
+            await playback_activity.terminate_playback(live.id, "", async_db)
+    with _plex_client(lambda request: httpx.Response(404)):
+        with pytest.raises(playback_activity.PlaybackActionError, match="ne connaît plus"):
+            await playback_activity.terminate_playback(live.id, "", async_db)
+
+
+@pytest.mark.asyncio
+async def test_server_activities_are_listed_and_cancellable(async_db):
+    import httpx
+
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    async_db.commit()
+    payload = {
+        "MediaContainer": {
+            "Activity": [
+                {
+                    "uuid": "a1",
+                    "type": "media.generate.bif",
+                    "title": "Création des miniatures",
+                    "subtitle": "Dune",
+                    "progress": 42,
+                    "cancellable": True,
+                },
+                {
+                    "uuid": "a2",
+                    "type": "library.update.section",
+                    "title": "Analyse",
+                    "progress": -1,
+                    "cancellable": False,
+                },
+            ]
+        }
+    }
+    calls = []
+
+    def handler(request):
+        calls.append((request.method, request.url.path))
+        return httpx.Response(200, json=payload) if request.method == "GET" else httpx.Response(200)
+
+    with _plex_client(handler):
+        activities = await playback_activity.plex_server_activities(async_db)
+        await playback_activity.cancel_plex_activity("a1", async_db)
+    assert activities[0] == {
+        "uuid": "a1",
+        "type": "media.generate.bif",
+        "title": "Création des miniatures",
+        "subtitle": "Dune",
+        "progress": 42.0,
+        "cancellable": True,
+    }
+    assert activities[1]["progress"] is None  # -1 : progression indéterminée
+    assert calls == [("GET", "/activities"), ("DELETE", "/activities/a1")]
+    with _plex_client(lambda request: httpx.Response(404)):
+        with pytest.raises(playback_activity.PlaybackActionError, match="déjà terminée"):
+            await playback_activity.cancel_plex_activity("gone", async_db)
+
+
+@pytest.mark.asyncio
+async def test_actions_without_plex_configuration(async_db):
+    assert await playback_activity.plex_server_activities(async_db) == []
+    with pytest.raises(playback_activity.PlaybackActionError):
+        await playback_activity.cancel_plex_activity("a", async_db)
