@@ -649,8 +649,9 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
      largeur, mais un objet different de tout le reste de l'application. Il reprend le
      cadre de la banniere d'Explorer -- carte bordee dans la colonne -- et son image
      reste fixe : sur une page de consultation, une animation au survol distrait de la
-     lecture. La comparaison ligne a ligne avec la banniere est verifiee separement,
-     sur les sources (MediaDetailHero.spec). */
+     lecture. Pas de trait autour de l'image : le voile en dessine le bord, egal sur les
+     quatre cotes. La comparaison ligne a ligne avec la banniere est verifiee
+     separement, sur les sources (MediaDetailHero.spec). */
   await page.route("**/api/media/detail**", (route) =>
     route.fulfill({
       json: {
@@ -675,7 +676,7 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
     const cs = getComputedStyle(node);
     return { bordure: cs.borderTopWidth, rayon: cs.borderTopLeftRadius, transform: cs.transform };
   });
-  expect(cadre.bordure).toBe("1px");
+  expect(cadre.bordure).toBe("0px");
   expect(cadre.rayon).not.toBe("0px");
   // Ni echelle permanente, ni reaction au survol.
   expect(cadre.transform).toBe("none");
