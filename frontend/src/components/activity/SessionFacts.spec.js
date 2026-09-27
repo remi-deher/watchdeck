@@ -34,18 +34,15 @@ const base = {
 const card = (wrapper, title) => wrapper.findAll('.facts-card').find((c) => c.get('h3').text() === title).text();
 
 describe('SessionFacts', () => {
-  it('range les détails en quatre cartes', () => {
+  it('range les détails en trois cartes : le réseau est sous la carte de localisation', () => {
     const wrapper = mount(SessionFacts, { props: { session: base } });
-    expect(wrapper.findAll('.facts-card h3').map((h) => h.text())).toEqual(['Lecture', 'Lecteur', 'Réseau', 'Chronologie']);
+    expect(wrapper.findAll('.facts-card h3').map((h) => h.text())).toEqual(['Lecture', 'Lecteur', 'Chronologie']);
   });
 
-  it('ajoute reprise, séances, fournisseur et relais', () => {
+  it('ajoute la reprise et les séances', () => {
     const wrapper = mount(SessionFacts, { props: { session: base } });
     expect(card(wrapper, 'Lecture')).toContain('depuis 18 %');
     expect(card(wrapper, 'Lecture')).toContain('2e séance');
-    expect(card(wrapper, 'Réseau')).toContain('Distante · chiffrée');
-    expect(card(wrapper, 'Réseau')).toContain('Free SAS');
-    expect(card(wrapper, 'Réseau')).toContain('Relais Plex (limité à ~2 Mb/s)Non');
   });
 
   it('masque le modèle « standalone » et ne répète pas le navigateur', () => {

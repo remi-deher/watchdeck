@@ -49,6 +49,7 @@
       <span v-if="dynamicRange" class="session-flag hdr" :class="{ tonemap: toneMapping }" :title="toneMapping ? 'HDR converti en SDR : le transcodage le plus coûteux' : undefined">{{ dynamicRange }}</span>
       <span><User/>{{ session.user_name || 'Utilisateur Plex' }}</span>
       <span><MonitorPlay/>{{ session.player || session.product || session.platform || 'Lecteur Plex' }}</span>
+      <span v-if="stream.secure != null" class="session-secure" :class="{ insecure: !stream.secure }" :title="stream.secure ? 'Connexion chiffrée (HTTPS)' : 'Connexion non chiffrée (HTTP)'"><Lock v-if="stream.secure"/><LockOpen v-else/>{{ stream.secure ? 'Chiffrée' : 'Non chiffrée' }}</span>
       <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
            fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
       <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
@@ -127,7 +128,7 @@ import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime,
 import { computed, ref } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
 import { useRouter } from 'vue-router';
-import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Download, Flag, Gauge, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
+import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Download, Flag, Gauge, Lock, LockOpen, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
 import { estimateProgressMs, estimatedEnd, isAdvancing, timecode } from '@/utils/playbackClock';
 import UiButton from '@/components/ui/UiButton.vue';
 import SheetHero from '@/components/ui/SheetHero.vue';
@@ -359,6 +360,7 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .session-flag.relay svg{color:var(--amber-text)}
 .session-flag.hdr{background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue-text)}
 .session-flag.hdr.tonemap{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
+.session-secure.insecure,.session-secure.insecure svg{color:var(--amber-text)}
 .session-who span{display:inline-flex;align-items:center;gap:6px;min-width:0}
 .session-who svg{width:15px;height:15px;color:var(--muted)}
 .progress-track{position:relative}
