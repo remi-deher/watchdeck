@@ -7,6 +7,7 @@ import { ref } from 'vue';
 vi.mock('@/composables/useMediaOverlay', () => ({
   useMediaOverlay: () => ({ routeDeFond: ref(null), actif: ref(false) }),
   ouvrirFiche: () => {},
+  useOuvrirFiche: () => ({ ouvrir: () => {}, auClic: () => {} }),
 }));
 import SessionDetail from './SessionDetail.vue';
 

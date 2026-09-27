@@ -127,7 +127,6 @@ import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
-import { useRouter } from 'vue-router';
 import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Download, Flag, Gauge, Lock, LockOpen, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
 import { estimateProgressMs, estimatedEnd, isAdvancing, timecode } from '@/utils/playbackClock';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -135,7 +134,7 @@ import SheetHero from '@/components/ui/SheetHero.vue';
 import SheetSummary from '@/components/ui/SheetSummary.vue';
 import { useToast } from '@/composables/useToast';
 import { mediaDetailPath } from '@/mediaUrl';
-import { ouvrirFiche, useMediaOverlay } from '@/composables/useMediaOverlay';
+import { useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 import SessionLocationMap from './SessionLocationMap.vue';
@@ -151,7 +150,6 @@ const props = withDefaults(
 );
 
 
-const router = useRouter();
 const { addToast } = useToast();
 const hasSiblings = computed(() => props.hasPrevious || props.hasNext);
 
@@ -166,11 +164,11 @@ const mediaPath = computed(() => {
 });
 /* Dans la feuille, la fiche du media la remplace sur la meme page de fond : retour
    ramene a la session, puis a la page. En pleine page, simple navigation. */
-const { routeDeFond, actif: enSurface } = useMediaOverlay();
+const { actif: enSurface } = useMediaOverlay();
+const { ouvrir } = useOuvrirFiche();
 function openMedia(): void {
   if (!mediaPath.value) return;
-  if (routeDeFond.value) ouvrirFiche(router, mediaPath.value, routeDeFond.value.fullPath);
-  else router.push(mediaPath.value);
+  ouvrir(mediaPath.value);
 }
 
 /* Ce que l'on colle dans un message quand on aide quelqu'un a distance : l'essentiel du

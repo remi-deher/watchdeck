@@ -16,6 +16,6 @@ export function extractQuality(row: any): string {
     : quality?.quality?.name || quality?.name || row?.quality_label || row?.quality_name;
   if (typeof explicit === 'string' && explicit.trim()) return explicit.trim();
 
-  const match = String(row?.title || '').match(/\b(2160p|1080p|720p|576p|480p|4k|uhd)\b/i);
+  const match = String(row?.release_title || row?.title || '').match(/\b(2160p|1080p|720p|576p|480p|4k|uhd)\b/i);
   return match?.[1]?.toUpperCase() || '';
 }

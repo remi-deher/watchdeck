@@ -175,6 +175,35 @@ export function useMediaOverlay(): MediaOverlayState {
   return { actif, routeDeFond, fermer };
 }
 
+/**
+ * Ouverture de fiche pour un lien ou un bouton quelconque.
+ *
+ * `ouvrir` pose la fiche en surface ; depuis une surface deja ouverte (session, autre
+ * fiche), elle la remplace sur la meme page de fond, pour que « retour » y ramene.
+ * `auClic` s'accroche au `@click` d'un lien qui garde son `:to` : le clic simple ouvre
+ * la surface, les clics enrichis (milieu, Ctrl, nouvel onglet) restent au navigateur.
+ */
+export function useOuvrirFiche(): {
+  ouvrir: (cible: string | Record<string, unknown>) => void;
+  auClic: (event: MouseEvent, cible: string | Record<string, unknown> | null | undefined) => void;
+} {
+  const route = useRoute();
+  const router = useRouter();
+  const { routeDeFond } = useMediaOverlay();
+
+  function ouvrir(cible: string | Record<string, unknown>): void {
+    void ouvrirFiche(router, cible, routeDeFond.value?.fullPath ?? route.fullPath);
+  }
+
+  function auClic(event: MouseEvent, cible: string | Record<string, unknown> | null | undefined): void {
+    if (!cible || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) return;
+    event.preventDefault();
+    ouvrir(cible);
+  }
+
+  return { ouvrir, auClic };
+}
+
 /** Etat de surface de l'entree courante (page de fond, voisins), a reporter sur une
  *  navigation qui remplace la fiche par une autre. Sans les cles internes du routeur. */
 export function etatDeSurfaceCourant(): Record<string, unknown> {
