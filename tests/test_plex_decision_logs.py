@@ -535,6 +535,7 @@ async def test_session_detail_adds_banner_summary_and_library_link(async_db):
         "season": 1,
         "episode": 11,
         "library_item_id": 42,
+        "poster_url": None,
     }
     with patch.object(playback_activity, "media_sheet", new=AsyncMock(side_effect=RuntimeError("plex"))):
         assert (await playback_activity.playback_session_detail(row.id, async_db))["media"] is None
@@ -716,3 +717,29 @@ async def test_actions_without_plex_configuration(async_db):
     assert await playback_activity.plex_server_activities(async_db) == []
     with pytest.raises(playback_activity.PlaybackActionError):
         await playback_activity.cancel_plex_activity("a", async_db)
+
+
+def test_episode_poster_is_the_season_poster_not_the_still():
+    xml = FLIBUSTIERS_SESSION.replace(
+        'type="episode"',
+        'type="episode" thumb="/library/metadata/5198/thumb/1" parentThumb="/library/metadata/5190/thumb/2"'
+        ' grandparentThumb="/library/metadata/5183/thumb/3"',
+    )
+    assert parse_plex_sessions(xml)[0]["thumb_url"] == "/library/metadata/5190/thumb/2"
+    no_season = xml.replace(' parentThumb="/library/metadata/5190/thumb/2"', "")
+    assert parse_plex_sessions(no_season)[0]["thumb_url"] == "/library/metadata/5183/thumb/3"
+    # Un film garde sa propre affiche.
+    movie = REMUX_SESSION.replace('type="movie"', 'type="movie" thumb="/library/metadata/77/thumb/9"')
+    assert parse_plex_sessions(movie)[0]["thumb_url"] == "/library/metadata/77/thumb/9"
+
+
+@pytest.mark.asyncio
+async def test_session_detail_gives_the_poster_of_an_old_episode(async_db):
+    async_db.add(Settings(id=1, plex_url="http://plex.local:32400", plex_token="t"))
+    row = PlaybackSession(source="plex", source_session_id="old", title="E", rating_key="5198", media_type="episode")
+    async_db.add(row)
+    async_db.commit()
+    sheet = {"meta": {"poster": "/library/metadata/5190/thumb/2"}, "container": "mkv", "streams": []}
+    with patch.object(playback_activity, "media_sheet", new=AsyncMock(return_value=sheet)):
+        detail = await playback_activity.playback_session_detail(row.id, async_db)
+    assert detail["media"]["poster_url"] == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F5190%2Fthumb%2F2"
