@@ -9,42 +9,36 @@
       @terminated="onTerminated"
     />
 
-    <!-- L'oeuvre d'abord, comme la fiche d'un media dans Decouvrir ou la Bibliotheque :
-         meme en-tete (UiHeroBackdrop), bord a bord dans la feuille, en carte en pleine
-         page. L'affiche mene a la fiche de la bibliotheque. Sans fiche Plex (media
-         supprime, serveur injoignable), l'en-tete garde l'affiche sur un fond uni. -->
-    <UiHeroBackdrop
+    <!-- L'oeuvre d'abord, avec l'en-tete commun des fiches (SheetHero), comme un media
+         dans Decouvrir ou la Bibliotheque : image seule dans la banniere, bord a bord dans
+         la feuille, affiche qui en chevauche le bas et mene a la fiche de la
+         bibliotheque, titre et resume dessous. -->
+    <SheetHero
       class="session-banner"
-      :class="{ 'in-sheet': enSurface }"
       :image-url="artUrl || null"
       :variant="enSurface ? 'sheet' : 'card'"
-      position="center 18%"
-      min-height="clamp(220px, 32vw, 320px)"
+      min-height="clamp(150px, 24vw, 230px)"
+      bleed
     >
-      <div class="session-banner__content">
-      <component
-        :is="mediaPath ? 'button' : 'div'"
-        class="session-poster"
-        :type="mediaPath ? 'button' : undefined"
-        :title="mediaPath ? 'Ouvrir la fiche dans la bibliothèque' : undefined"
-        :aria-label="mediaPath ? `Ouvrir ${session.grandparent_title || session.title} dans la bibliothèque` : undefined"
-        @click="openMedia"
-      >
-        <MediaArtwork :src="session.media?.poster_url || session.thumb_url" :alt="displayTitle(session)" :type="session.media_type" size="large"/>
-      </component>
+      <template #poster>
+        <component
+          :is="mediaPath ? 'button' : 'div'"
+          class="session-poster"
+          :type="mediaPath ? 'button' : undefined"
+          :title="mediaPath ? 'Ouvrir la fiche dans la bibliothèque' : undefined"
+          :aria-label="mediaPath ? `Ouvrir ${session.grandparent_title || session.title} dans la bibliothèque` : undefined"
+          @click="openMedia"
+        >
+          <MediaArtwork :src="session.media?.poster_url || session.thumb_url" :alt="displayTitle(session)" :type="session.media_type" size="large"/>
+        </component>
+      </template>
       <div class="session-heading">
         <span>{{ headingEyebrow }}</span>
         <h2>{{ session.title || 'Lecture Plex' }}</h2>
       </div>
-      </div>
-    </UiHeroBackdrop>
+    </SheetHero>
 
-    <section v-if="summary" class="session-summary">
-      <p ref="summaryRef" :class="{ open: summaryOpen }">{{ summary }}</p>
-      <!-- Le bouton n'apparait que si le resume deborde reellement ses trois lignes : un
-           compte de caracteres se trompait selon la largeur de l'ecran. -->
-      <button v-if="summaryOpen || summaryClamped" type="button" class="summary-toggle" @click="summaryOpen = !summaryOpen">{{ summaryOpen ? 'Réduire' : 'Lire la suite' }}</button>
-    </section>
+    <SheetSummary v-if="summary" class="session-summary" :text="summary" />
 
     <div class="session-who">
       <PlaybackMethodBadge :method="session.playback_method"/>
@@ -177,13 +171,14 @@ import TerminatePlaybackModal from './TerminatePlaybackModal.vue';
 import { episodeLabel } from '@/utils/episode';
 import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@/utils/transcodeBuffer';
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
-import { computed, nextTick, ref, watch } from 'vue';
-import { useIntervalFn, useResizeObserver } from '@vueuse/core';
+import { computed, ref } from 'vue';
+import { useIntervalFn } from '@vueuse/core';
 import { useRouter } from 'vue-router';
 import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Download, Flag, Gauge, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
 import { estimateProgressMs, estimatedEnd, isAdvancing, timecode } from '@/utils/playbackClock';
 import UiButton from '@/components/ui/UiButton.vue';
-import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
+import SheetHero from '@/components/ui/SheetHero.vue';
+import SheetSummary from '@/components/ui/SheetSummary.vue';
 import { useToast } from '@/composables/useToast';
 import { mediaDetailPath } from '@/mediaUrl';
 import { ouvrirFiche, useMediaOverlay } from '@/composables/useMediaOverlay';
@@ -249,15 +244,6 @@ async function copyDiagnostic(): Promise<void> {
 
 const artUrl = computed(() => props.session.media?.art_url || '');
 const summary = computed(() => String(props.session.media?.summary || '').trim());
-const summaryOpen = ref(false);
-const summaryRef = ref<HTMLElement | null>(null);
-const summaryClamped = ref(false);
-function measureSummary(): void {
-  const el = summaryRef.value;
-  summaryClamped.value = Boolean(el && !summaryOpen.value && el.scrollHeight > el.clientHeight + 1);
-}
-useResizeObserver(summaryRef, measureSummary);
-watch(summary, () => { summaryOpen.value = false; void nextTick(measureSummary); });
 const headingEyebrow = computed(() => {
   const s = props.session;
   const media = s.media || {};
@@ -480,11 +466,7 @@ function networkLabel(item: any): string {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.session-banner__content{display:flex;align-items:flex-end;gap:var(--space-4);padding:var(--space-5)}
-/* Dans la feuille, l'en-tete touche les bords comme celui d'un media : il annule les
-   marges de la page (8px en haut, les gouttieres sur les cotes). */
-.session-banner.in-sheet{margin:-8px calc(-1 * max(18px,var(--safe-right))) 0 calc(-1 * max(18px,var(--safe-left)))}
-.session-banner.in-sheet .session-banner__content{padding:var(--space-6) max(18px,var(--safe-right)) var(--space-4) max(18px,var(--safe-left))}
+
 .session-poster{flex:none;padding:0;border:0;border-radius:var(--radius-sm);background:none;cursor:default}
 button.session-poster{cursor:pointer;transition:transform .15s}
 button.session-poster:hover,button.session-poster:focus-visible{transform:translateY(-2px)}
@@ -493,9 +475,6 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .session-heading span{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm)}
 .session-heading h2{margin:0;font-size:var(--fs-xl);line-height:1.2;overflow-wrap:anywhere}
 .session-summary{margin-top:12px}
-.session-summary p{display:-webkit-box;margin:0;overflow:hidden;color:color-mix(in srgb,var(--text) 80%,transparent);font-size:var(--fs-sm);line-height:1.6;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.session-summary p.open{display:block}
-.summary-toggle{margin-top:4px;padding:0;border:0;background:none;color:var(--accent);font-size:var(--fs-xs);font-weight:600;cursor:pointer}
 .session-who{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:12px 0 16px;color:color-mix(in srgb,var(--text) 78%,transparent);font-size:var(--fs-sm)}
 .session-flag{padding:3px 8px;border-radius:var(--radius-pill);font-size:var(--fs-xs);font-weight:700}
 .session-flag.download{background:color-mix(in srgb,var(--slate,var(--muted)) 14%,transparent);color:var(--text)}
@@ -537,8 +516,6 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .conversion-treatment.remuxed{color:var(--blue-text)}
 .conversion-treatment.converted{color:var(--amber-text)}
 @container sheet (max-width: 520px){
-  .session-banner__content{gap:12px}
-  .session-banner.in-sheet .session-banner__content{padding-top:var(--space-5)}
   .session-poster :deep(.media-artwork),.session-poster :deep(img){max-width:76px}
   .conversion-head{display:none}
   .conversion-row{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px}

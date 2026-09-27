@@ -44,7 +44,7 @@ def test_plex_only_projection_is_immediately_available():
     assert projection["workflow_timeline"] == [
         {
             "key": "completed",
-            "label": "Deja present dans Plex",
+            "label": "Disponible dans Plex",
             "state": "completed",
             "occurred_at": None,
         }
@@ -169,3 +169,30 @@ def test_build_media_history_sorts_all_sources_by_date_descending():
 
     dates = [event["occurred_at"] for event in events]
     assert dates == sorted(dates, reverse=True)
+
+
+def test_plex_only_journey_uses_what_is_known_about_the_item():
+    """Sans demande, le parcours reprend les faits connus au lieu d'une seule etape."""
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    item = SimpleNamespace(
+        added_at=datetime(2026, 1, 10, 20, 0),
+        arr_id=12,
+        media_type="show",
+        vf_checked_at=datetime(2026, 1, 11, 8, 0),
+        vf_available_at=datetime(2026, 1, 11, 8, 5),
+    )
+    steps = plex_library_projection(item)["workflow_timeline"]
+    assert [step["label"] for step in steps] == [
+        "Ajoute a la bibliotheque Plex",
+        "Suivi par Sonarr",
+        "Langues analysees",
+        "VF disponible",
+        "Disponible dans Plex",
+    ]
+    assert [step["state"] for step in steps] == ["completed"] * 4 + ["current"]
+    assert steps[0]["occurred_at"] is not None
+    # Rien de connu : on ne fabrique pas d'etapes.
+    bare = SimpleNamespace(added_at=None, arr_id=None, media_type="movie", vf_checked_at=None, vf_available_at=None)
+    assert [step["key"] for step in plex_library_projection(bare)["workflow_timeline"]] == ["completed"]

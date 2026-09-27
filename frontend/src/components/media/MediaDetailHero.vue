@@ -1,15 +1,21 @@
 <template>
-  <UiHeroBackdrop
-    class="mdh-hero"
+  <!-- En-tete commun des fiches (SheetHero) : l'image seule dans la banniere, l'affiche
+       qui en chevauche le bas, le texte dessous. Les classes `mdh-*` restent posees sur
+       les memes elements : la feuille (MediaOverlay) et les tests s'y appuient. -->
+  <SheetHero
+    class="mdh"
+    banner-class="mdh-hero"
+    content-class="mdh-content"
+    :row-class="['mdh-row', { 'is-music': isMusic }]"
     :image-url="backdropUrl"
     :position="variant === 'sheet' ? 'center 18%' : undefined"
     :variant="variant"
+    stack-on-mobile
   >
     <template #overlay>
       <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
     </template>
-    <div class="mdh-content">
-      <div class="mdh-row" :class="{ 'is-music': isMusic }">
+    <template #poster>
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
           <img v-if="detail.poster_url && !posterFailed" class="mdh-poster-img" @error="posterFailed = true" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
@@ -17,6 +23,7 @@
             <Film v-else />
           </div>
         </div>
+    </template>
         <div class="mdh-info">
           <span class="eyebrow">{{ typeLabel }}</span>
           <h1>{{ detail.title }}</h1>
@@ -25,7 +32,9 @@
             <span v-if="detail.year" class="badge">{{ detail.year }}</span>
             <span v-if="detail.vote" class="badge"><Star :size="14" />{{ detail.vote }}</span>
             <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
-            <span v-if="detail.origin_label && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
+            <!-- « Deja present dans Plex » redit « Disponible dans Plex » : l'origine ne
+                 s'affiche que lorsqu'elle apprend quelque chose (demande Seerr, ajout *ARR). -->
+            <span v-if="detail.origin_label && detail.origin_kind !== 'plex' && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
           </div>
           <p v-if="detail.waiting_reason && !isMusic" class="mdh-waiting">{{ detail.waiting_reason }}</p>
           <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
@@ -38,17 +47,7 @@
             <span class="skeleton-line" /><span class="skeleton-line" /><span class="skeleton-line is-short" />
           </div>
           <div v-else class="mdh-overview-wrapper">
-            <p class="mdh-overview" :class="{ clamped: !showFullOverview && isOverviewLong }">
-              {{ overviewText }}
-            </p>
-            <button
-              v-if="isOverviewLong"
-              type="button"
-              class="overview-toggle-btn"
-              @click="showFullOverview = !showFullOverview"
-            >
-              {{ showFullOverview ? 'Voir moins' : 'Plus...' }}
-            </button>
+            <SheetSummary class="mdh-overview" :text="overviewText" :lines="4" />
           </div>
           <div v-if="detail.genres?.length" class="tag-row">
             <span v-for="genre in detail.genres" :key="genre" class="badge">{{ genre }}</span>
@@ -109,9 +108,7 @@
             <span v-else class="badge language-tag" :class="languageState.variant">{{ languageState.label }}</span>
           </div>
         </div>
-      </div>
-    </div>
-  </UiHeroBackdrop>
+  </SheetHero>
 </template>
 
 <script setup lang="ts">
@@ -122,7 +119,8 @@ import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, Re
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
-import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
+import SheetHero from '@/components/ui/SheetHero.vue';
+import SheetSummary from '@/components/ui/SheetSummary.vue';
 
 export interface SeasonSummaryGroup {
   vf: number[];
@@ -234,9 +232,7 @@ function formatSeasonLabel(seasonNumbers: number[]): string {
   return `${label} ${ranges.join(', ')}`;
 }
 
-const showFullOverview = ref(false);
 const overviewText = computed(() => props.detail.overview || (isMusic.value ? 'Aucune biographie disponible pour cet artiste.' : 'Aucun résumé disponible.'));
-const isOverviewLong = computed(() => overviewText.value.length > 260);
 
 const typeLabel = computed(() => mediaTypeLabel(props.detail.media_type));
 
@@ -268,19 +264,14 @@ const releaseDates = computed(() => {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.mdh-hero {
+.mdh {
   margin-bottom: var(--space-6);
 }
-
-.mdh-hero.is-sheet {
-  min-height: min(46dvh, 420px);
+.mdh.is-sheet {
   margin-bottom: var(--space-5);
 }
-.mdh-content {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  padding: var(--space-6) var(--space-5) var(--space-5);
+.mdh :deep(.mdh-content) {
+  padding: 0 var(--space-5) var(--space-2);
   max-width: 1280px;
   margin: 0 auto;
 }
@@ -291,14 +282,6 @@ const releaseDates = computed(() => {
   top: var(--space-4);
   left: var(--space-4);
   z-index: 3;
-}
-.mdh-row {
-  display: flex;
-  gap: var(--space-5);
-  align-items: flex-end;
-}
-.mdh-row.is-music {
-  align-items: flex-start;
 }
 .mdh-poster {
   flex: 0 0 180px;
@@ -350,7 +333,6 @@ const releaseDates = computed(() => {
   font-weight: 800;
   line-height: 1.15;
   text-wrap: balance;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 .mdh-badges {
   display: flex;
@@ -367,7 +349,6 @@ const releaseDates = computed(() => {
   font-size: var(--fs-sm);
   font-weight: 800;
   line-height: 1.25;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
 }
 .mdh-badges > .music-badge {
   border-color: var(--violet-text);
@@ -382,33 +363,6 @@ const releaseDates = computed(() => {
 .mdh-overview-wrapper {
   max-width: 800px;
   margin-bottom: 12px;
-}
-.mdh-overview {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--fs-md);
-  line-height: 1.6;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-}
-.mdh-overview.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.overview-toggle-btn {
-  background: transparent;
-  border: 0;
-  color: var(--accent);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  cursor: pointer;
-  padding: 4px 0 0 0;
-  display: inline-flex;
-  align-items: center;
-}
-.overview-toggle-btn:hover {
-  text-decoration: underline;
 }
 .mdh-dates {
   display: flex;
@@ -496,26 +450,12 @@ const releaseDates = computed(() => {
 }
 
 @include bp.until(tablet) {
-  .mdh-hero {
-    /* Sur telephone, le portrait et le texte empiles ont besoin de la hauteur d'ecran. */
-    min-height: clamp(320px, 58vh, 420px);
-    margin-bottom: var(--space-4);
-  }
-  .mdh-hero.is-sheet {
-    min-height: min(46dvh, 420px);
-    margin-bottom: var(--space-5);
-  }
-  .mdh-content {
-    padding: var(--space-5) var(--space-4) 20px;
+  .mdh :deep(.mdh-content) {
+    padding: 0 var(--space-4) 20px;
   }
   .mdh-back {
     top: var(--space-2);
     left: var(--space-2);
-  }
-  .mdh-row {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
   }
   .mdh-info { display: flex; flex-direction: column; width: 100%; }
   .mdh-poster {
@@ -535,7 +475,6 @@ const releaseDates = computed(() => {
     justify-content: center;
   }
   .mdh-overview {
-    font-size: var(--fs-base);
     text-align: left;
   }
   .mdh-links { order: 1; width: 100%; }
@@ -546,9 +485,4 @@ const releaseDates = computed(() => {
   .mdh-links > .mdh-listen-btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
 }
 
-@include bp.from(tablet) {
-  .mdh-hero.is-sheet {
-    min-height: min(52dvh, 480px);
-  }
-}
 </style>
