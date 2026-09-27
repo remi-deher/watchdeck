@@ -282,37 +282,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
-      - name: Resolve the tested image
+      # Le tag arrive souvent AVANT que l'image :test de son code soit prete : le build
+      # de `test` attend d'abord la CI du commit (E2E compris, ~10 min), alors que la
+      # promotion vers main et la release passent en moins de temps. Le tag trouvait
+      # donc l'image :test de la version precedente et refusait la release a chaque
+      # cycle, jusqu'a une relance manuelle. On attend desormais que :test porte le
+      # code de cette release ; seul un ecart qui persiste (hotfix direct sur main)
+      # fait echouer.
+      - name: Resolve the tested image (waits for :test to carry this release)
         id: tested
+        env:
+          WAIT_MINUTES: "30"
         run: |
           set -euo pipefail
           REF="mrcryllix/watchdeck:test"
-          # On passe par un `pull` + `docker inspect` plutot que par
-          # `imagetools inspect --format` : nos images sont publiees sous forme de
-          # liste de manifestes (multi-plateforme + attestations), et dans ce cas le
-          # champ .Image de imagetools devient une map indexee par plateforme --
-          # `.Image.Config.Labels` n'y resout pas. `docker inspect` sur l'image tiree
-          # a, lui, une forme stable et documentee.
-          docker pull --quiet "$REF"
-          DIGEST="$(docker inspect --format '{{ index .RepoDigests 0 }}' "$REF" | cut -d@ -f2)"
-          REVISION="$(docker inspect \
-            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$REF")"
-          if [ -z "$DIGEST" ] || [ -z "$REVISION" ] || [ "$REVISION" = "<no value>" ]; then
-            echo "::error::Impossible de determiner l'image testee (digest='$DIGEST', revision='$REVISION')."
-            echo "::error::L'image :test doit avoir ete construite APRES l'ajout du label de revision"
-            echo "::error::(voir 'labels:' dans le job build-and-push). Promouvoir une image dont on ne"
-            echo "::error::peut pas prouver l'origine reviendrait a publier du code non verifie."
-            exit 1
-          fi
-          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
-          echo "Image testee : $REF@$DIGEST (commit $REVISION)"
-
-      - name: Verify the tested image matches this release
-        env:
-          REVISION: ${{ steps.tested.outputs.revision }}
-        run: |
-          set -euo pipefail
           # Seuls ces chemins entrent dans l'image (voir les COPY du Dockerfile).
           # On les compare volontairement plutot que l'arbre complet : le commit de
           # release ajoute CHANGELOG.md, qui ne fait PAS partie de l'image -- une
@@ -320,20 +303,39 @@ jobs:
           PATHS="app alembic alembic.ini scripts docker-entrypoint.sh Dockerfile \
                  frontend package.json package-lock.json vite.config.ts \
                  tsconfig.json tsconfig.node.json index.html requirements.txt"
-          if ! git cat-file -e "$REVISION^{commit}" 2>/dev/null; then
-            echo "::error::Le commit $REVISION de l'image testee est introuvable dans ce depot."
-            exit 1
-          fi
-          if git diff --quiet "$REVISION" "${{ github.sha }}" -- $PATHS; then
-            echo "L'image testee correspond exactement au code de cette release."
-          else
-            echo "::error::Le code de cette release DIFFERE de l'image testee :"
-            git diff --name-only "$REVISION" "${{ github.sha }}" -- $PATHS
-            echo "::error::Promotion refusee -- publier cette image livrerait autre chose que le code tague."
-            echo "::error::Cause probable : un commit est arrive sur main sans passer par test (hotfix direct)."
-            echo "::error::Corriger en resynchronisant main dans test, puis en repromouvant test -> main."
-            exit 1
-          fi
+          deadline=$(( $(date +%s) + WAIT_MINUTES * 60 ))
+          while :; do
+            # `pull` + `docker inspect` plutot que `imagetools inspect --format` : nos
+            # images sont des listes de manifestes (multi-plateforme + attestations),
+            # ou `.Image.Config.Labels` ne resout pas.
+            docker pull --quiet "$REF" >/dev/null
+            DIGEST="$(docker inspect --format '{{ index .RepoDigests 0 }}' "$REF" | cut -d@ -f2)"
+            REVISION="$(docker inspect \
+              --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$REF")"
+            if [ -z "$DIGEST" ] || [ -z "$REVISION" ] || [ "$REVISION" = "<no value>" ]; then
+              echo "::error::Impossible de determiner l'image testee (digest='$DIGEST', revision='$REVISION')."
+              echo "::error::Promouvoir une image dont on ne peut pas prouver l'origine reviendrait a publier du code non verifie."
+              exit 1
+            fi
+            if git cat-file -e "$REVISION^{commit}" 2>/dev/null \
+              && git diff --quiet "$REVISION" "${{ github.sha }}" -- $PATHS; then
+              echo "Image testee : $REF@$DIGEST (commit $REVISION), identique au code de cette release."
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Apres ${WAIT_MINUTES} min, l'image testee ($REVISION) DIFFERE encore de cette release :"
+              git diff --name-only "$REVISION" "${{ github.sha }}" -- $PATHS || true
+              echo "::error::Promotion refusee -- publier cette image livrerait autre chose que le code tague."
+              echo "::error::Cause probable : un commit est arrive sur main sans passer par test (hotfix direct)."
+              echo "::error::Corriger en resynchronisant main dans test, puis en repromouvant test -> main."
+              exit 1
+            fi
+            echo "L'image :test porte encore $REVISION : attente de la construction de test (nouvel essai dans 60 s)."
+            sleep 60
+            git fetch --quiet origin test || true
+          done
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
 
       - name: Compute release metadata
         id: meta
