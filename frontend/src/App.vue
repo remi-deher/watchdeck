@@ -17,7 +17,9 @@
              laisse la vue sortante dans le document, qui se superpose a la nouvelle.
              L'arrivee du contenu passe donc par la composition echelonnee de
              `page-motion`, et l'ouverture d'une fiche par la surface ci-dessous. -->
-        <RouteScope :route="routeDeFond">
+        <!-- Page de fond restauree apres un rechargement : ses vues paresseuses ne sont
+             pas encore chargees (voir `vuesDeRoutePretes`), on attend qu'elles le soient. -->
+        <RouteScope v-if="fondPret" :route="routeDeFond">
           <component :is="Component" />
         </RouteScope>
       </RouterView>
@@ -50,7 +52,7 @@ import { connectRealtime } from "@/events";
 import AppShell from "@/components/layout/AppShell.vue";
 import MediaOverlay from "@/components/media/MediaOverlay.vue";
 import AppToast from '@/components/ui/AppToast.vue';
-import { useMediaOverlay } from "@/composables/useMediaOverlay";
+import { useMediaOverlay, vuesDeRoutePretes } from "@/composables/useMediaOverlay";
 import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
 import RouteScope from "@/components/layout/RouteScope.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
@@ -61,6 +63,7 @@ import { useToast } from "@/composables/useToast";
 /* La fiche media se pose au-dessus de la page d'ou l'on vient plutot que de la
    remplacer -- voir `useMediaOverlay` pour le pourquoi. */
 const { actif: surfaceOuverte, routeDeFond, fermer: fermerSurface } = useMediaOverlay();
+const fondPret = computed(() => vuesDeRoutePretes(routeDeFond.value));
 const routeCourante = useRoute();
 /* Nom de la surface pour les lecteurs d'ecran : le titre de la route (« Média »,
    « Session de lecture »...). */

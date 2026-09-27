@@ -358,7 +358,7 @@ defineExpose({
    on ne savait plus ce qui etait cliquable, et la description se collait a son
    intitule faute de mise en forme -- le balisage avait ete pose sans ses styles. */
 .user-state-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap: var(--space-2)}
-.user-state-card{display:flex;align-items:flex-start;gap: var(--space-3);padding:11px 13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);cursor:pointer}
+.user-state-card{display:flex;align-items:flex-start;gap: var(--space-3);padding:11px 13px;border:1px solid var(--border);border-radius:var(--panel-radius);background:var(--surface-2);cursor:pointer}
 .user-state-card:hover{border-color:var(--accent)}
 .user-state-card.on{border-color:color-mix(in srgb, var(--success) 45%, var(--border))}
 .user-state-card input{flex:none;margin:2px 0 0;cursor:pointer}

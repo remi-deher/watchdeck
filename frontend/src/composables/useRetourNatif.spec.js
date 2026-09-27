@@ -1,5 +1,5 @@
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { installerRetourNatif, retourNatif } from './useRetourNatif';
 
 function popstate(hasUAVisualTransition) {
@@ -17,8 +17,9 @@ describe('useRetourNatif', () => {
     popstate(true);
     expect(retourNatif.value).toBe(true);
     await router.push('/b');
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(retourNatif.value).toBe(false);
+    // Attendre la condition, pas un delai fixe : sous la charge de la suite complete,
+    // 50 ms ne suffisaient pas toujours et le test echouait une fois sur trois.
+    await vi.waitFor(() => expect(retourNatif.value).toBe(false), { timeout: 2000 });
   });
 
   it('reste baisse pour un retour que le navigateur n\'a pas anime', () => {

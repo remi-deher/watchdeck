@@ -271,7 +271,7 @@ function formatRemaining(session: LiveSession): string {
 .eyebrow i.idle{background:var(--muted);box-shadow:0 0 0 4px color-mix(in srgb,var(--slate) 10%,transparent)}
 .live-summary{margin:4px 0 0;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-sm);line-height:1.45}
 .live-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap: var(--space-4);margin-top:14px}
-.live-session{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);box-shadow:0 10px 30px rgb(var(--shadow-color) / calc(.15 * var(--shadow-scale)))}
+.live-session{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-2);box-shadow:0 10px 30px rgb(var(--shadow-color) / calc(.15 * var(--shadow-scale)))}
 .live-session.paused .live-card-body{opacity:.76}
 .live-session.interactive{cursor:pointer;transition:border-color var(--motion-duration-instant), transform var(--motion-duration-instant)}
 .live-session.interactive:hover,.live-session.interactive:focus-visible{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));transform:translateY(-2px);outline:none}
@@ -298,8 +298,8 @@ function formatRemaining(session: LiveSession): string {
 
 .live-flag{padding:2px 7px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--muted) 14%,transparent);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
 .live-flag.relay{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
-.live-reason{padding:6px 14px 9px;border-top:1px solid var(--border);background:var(--surface)}
-.live-footer{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap: var(--space-2);align-items:center;padding:9px 14px;border-top:1px solid var(--border);background:var(--surface)}
+.live-reason{padding:6px 14px 9px;border-top:1px solid var(--border-subtle);background:var(--surface)}
+.live-footer{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap: var(--space-2);align-items:center;padding:9px 14px;border-top:1px solid var(--border-subtle);background:var(--surface)}
 .live-location{display:flex;align-items:center;gap: var(--space-1);min-width:0;overflow:hidden;color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.live-location svg{flex:none;width:13px;height:13px;color:var(--muted)}
 .live-quality,.live-bandwidth{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs);white-space:nowrap}
 .live-bandwidth{font-variant-numeric:tabular-nums}

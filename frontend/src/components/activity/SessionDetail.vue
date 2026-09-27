@@ -1,14 +1,5 @@
 <template>
   <div class="session-detail">
-    <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
-         fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
-    <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
-      <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session precedente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="emitParent('navigate', -1)"><ChevronLeft /></UiButton>
-      <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session suivante (j)" aria-label="Session suivante" :disabled="!hasNext" @click="emitParent('navigate', 1)"><ChevronRight /></UiButton>
-      <UiButton variant="ghost" icon-only title="Copier le diagnostic" aria-label="Copier le diagnostic" @click="copyDiagnostic"><ClipboardCopy /></UiButton>
-      <UiButton v-if="mediaPath" variant="ghost" icon-only title="Ouvrir la fiche du media" aria-label="Ouvrir la fiche du media" @click="openMedia"><ExternalLink /></UiButton>
-      <UiButton v-if="canTerminate" class="terminate-button" variant="danger" size="sm" @click="terminateOpen = true"><CircleStop />Arrêter</UiButton>
-    </div>
     <TerminatePlaybackModal
       :open="terminateOpen"
       :session-id="session.id"
@@ -17,10 +8,19 @@
       @terminated="onTerminated"
     />
 
-    <!-- L'oeuvre d'abord : banniere de la serie ou du film, affiche qui mene a sa fiche
-         dans la bibliotheque, resume de l'episode. Sans fiche Plex (media supprime,
-         serveur injoignable), l'en-tete retombe sur l'affiche seule. -->
-    <header class="session-banner" :class="{ 'has-art': artUrl }" :style="artUrl ? { '--banner-art': `url(${artUrl})` } : undefined">
+    <!-- L'oeuvre d'abord, comme la fiche d'un media dans Decouvrir ou la Bibliotheque :
+         meme en-tete (UiHeroBackdrop), bord a bord dans la feuille, en carte en pleine
+         page. L'affiche mene a la fiche de la bibliotheque. Sans fiche Plex (media
+         supprime, serveur injoignable), l'en-tete garde l'affiche sur un fond uni. -->
+    <UiHeroBackdrop
+      class="session-banner"
+      :class="{ 'in-sheet': enSurface }"
+      :image-url="artUrl || null"
+      :variant="enSurface ? 'sheet' : 'card'"
+      position="center 18%"
+      min-height="clamp(220px, 32vw, 320px)"
+    >
+      <div class="session-banner__content">
       <component
         :is="mediaPath ? 'button' : 'div'"
         class="session-poster"
@@ -33,13 +33,16 @@
       </component>
       <div class="session-heading">
         <span>{{ headingEyebrow }}</span>
-        <h3>{{ session.title || 'Lecture Plex' }}</h3>
+        <h2>{{ session.title || 'Lecture Plex' }}</h2>
       </div>
-    </header>
+      </div>
+    </UiHeroBackdrop>
 
     <section v-if="summary" class="session-summary">
-      <p :class="{ open: summaryOpen }">{{ summary }}</p>
-      <button v-if="summary.length > 220" type="button" class="summary-toggle" @click="summaryOpen = !summaryOpen">{{ summaryOpen ? 'Réduire' : 'Lire la suite' }}</button>
+      <p ref="summaryRef" :class="{ open: summaryOpen }">{{ summary }}</p>
+      <!-- Le bouton n'apparait que si le resume deborde reellement ses trois lignes : un
+           compte de caracteres se trompait selon la largeur de l'ecran. -->
+      <button v-if="summaryOpen || summaryClamped" type="button" class="summary-toggle" @click="summaryOpen = !summaryOpen">{{ summaryOpen ? 'Réduire' : 'Lire la suite' }}</button>
     </section>
 
     <div class="session-who">
@@ -51,6 +54,15 @@
       <span v-if="dynamicRange" class="session-flag hdr" :class="{ tonemap: toneMapping }" :title="toneMapping ? 'HDR converti en SDR : le transcodage le plus coûteux' : undefined">{{ dynamicRange }}</span>
       <span><User/>{{ session.user_name || 'Utilisateur Plex' }}</span>
       <span><MonitorPlay/>{{ session.player || session.product || session.platform || 'Lecteur Plex' }}</span>
+      <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
+           fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
+      <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
+        <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session precedente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="emitParent('navigate', -1)"><ChevronLeft /></UiButton>
+        <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session suivante (j)" aria-label="Session suivante" :disabled="!hasNext" @click="emitParent('navigate', 1)"><ChevronRight /></UiButton>
+        <UiButton variant="ghost" icon-only title="Copier le diagnostic" aria-label="Copier le diagnostic" @click="copyDiagnostic"><ClipboardCopy /></UiButton>
+        <UiButton v-if="mediaPath" variant="ghost" icon-only title="Ouvrir la fiche du media" aria-label="Ouvrir la fiche du media" @click="openMedia"><ExternalLink /></UiButton>
+        <UiButton v-if="canTerminate" class="terminate-button" variant="danger" size="sm" @click="terminateOpen = true"><CircleStop />Arrêter</UiButton>
+      </div>
     </div>
 
     <div class="session-progress">
@@ -61,7 +73,12 @@
         <b v-if="buffer" class="buffer-zone" :style="{ left: `${buffer.played}%`, width: `${buffer.buffered - buffer.played}%` }"></b>
         <i :style="{width:`${buffer ? buffer.played : session.progress || 0}%`}"></i>
       </div>
-      <small>{{ formatDuration(session.progress_ms || session.watched_ms) }} / {{ formatDuration(session.duration_ms) }}</small>
+      <!-- Timecodes aux deux bouts ; au milieu, jusqu'ou le transcodeur a deja prepare. -->
+      <div class="progress-times">
+        <time>{{ timecode(session.progress_ms || session.watched_ms) }}</time>
+        <span v-if="buffer && bufferEndMs != null" class="buffer-end">prêt jusqu’à {{ timecode(bufferEndMs) }}</span>
+        <time>{{ timecode(session.duration_ms) }}</time>
+      </div>
       <p v-if="buffer" class="buffer-legend" :class="transcoder.tone">
         <span><Timer/>Tampon <strong>{{ formatBuffer(session.transcode_buffer_ms) }}</strong></span>
         <span class="transcoder-state"><Cpu/>{{ transcoder.label }}</span>
@@ -150,10 +167,12 @@ import TerminatePlaybackModal from './TerminatePlaybackModal.vue';
 import { episodeLabel } from '@/utils/episode';
 import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@/utils/transcodeBuffer';
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
+import { useResizeObserver } from '@vueuse/core';
 import { useRouter } from 'vue-router';
 import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Cpu, Download, ExternalLink, Gauge, MonitorPlay, Network, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 import { useToast } from '@/composables/useToast';
 import { mediaDetailPath } from '@/mediaUrl';
 import { ouvrirFiche, useMediaOverlay } from '@/composables/useMediaOverlay';
@@ -187,7 +206,7 @@ const mediaPath = computed(() => {
 });
 /* Dans la feuille, la fiche du media la remplace sur la meme page de fond : retour
    ramene a la session, puis a la page. En pleine page, simple navigation. */
-const { routeDeFond } = useMediaOverlay();
+const { routeDeFond, actif: enSurface } = useMediaOverlay();
 function openMedia(): void {
   if (!mediaPath.value) return;
   if (routeDeFond.value) ouvrirFiche(router, mediaPath.value, routeDeFond.value.fullPath);
@@ -220,6 +239,14 @@ async function copyDiagnostic(): Promise<void> {
 const artUrl = computed(() => props.session.media?.art_url || '');
 const summary = computed(() => String(props.session.media?.summary || '').trim());
 const summaryOpen = ref(false);
+const summaryRef = ref<HTMLElement | null>(null);
+const summaryClamped = ref(false);
+function measureSummary(): void {
+  const el = summaryRef.value;
+  summaryClamped.value = Boolean(el && !summaryOpen.value && el.scrollHeight > el.clientHeight + 1);
+}
+useResizeObserver(summaryRef, measureSummary);
+watch(summary, () => { summaryOpen.value = false; void nextTick(measureSummary); });
 const headingEyebrow = computed(() => {
   const s = props.session;
   const media = s.media || {};
@@ -272,6 +299,20 @@ const playerDevice = computed(() => {
 });
 const buffer = computed(() => (hasTranscodeBuffer(props.session as any) ? bufferSpan(props.session as any) : null));
 const transcoder = computed(() => transcoderState(props.session as any));
+const bufferEndMs = computed(() => {
+  const s = props.session;
+  if (s.transcode_details?.transcoder?.complete) return s.duration_ms ?? null;
+  if (s.transcode_buffer_ms == null) return null;
+  return Math.min(s.duration_ms || Infinity, (s.progress_ms || 0) + s.transcode_buffer_ms);
+});
+/** « 1:04:09 », « 12:07 » : la position telle que l'affiche un lecteur. */
+function timecode(ms: any): string {
+  const total = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
 
 const CODECS: Record<string, string> = { hevc: 'HEVC', h264: 'H.264', av1: 'AV1', truehd: 'TrueHD', eac3: 'E-AC3', ac3: 'AC3', dca: 'DTS', aac: 'AAC', opus: 'Opus', flac: 'FLAC', ass: 'ASS', srt: 'SRT', webvtt: 'WebVTT', pgs: 'PGS', mov_text: 'MOV text' };
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'stéréo', 6: '5.1', 8: '7.1' };
@@ -420,17 +461,18 @@ function networkLabel(item: any): string {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.session-banner{position:relative;display:flex;align-items:flex-end;gap:var(--space-4);min-height:170px;margin:4px 0 0;padding:16px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}
-.session-banner.has-art{background:linear-gradient(to top,var(--banner-scrim-strong),var(--banner-scrim-light) 70%),var(--banner-art) center 30%/cover no-repeat,var(--surface-2)}
+.session-banner__content{display:flex;align-items:flex-end;gap:var(--space-4);padding:var(--space-5)}
+/* Dans la feuille, l'en-tete touche les bords comme celui d'un media : il annule les
+   marges de la page (8px en haut, les gouttieres sur les cotes). */
+.session-banner.in-sheet{margin:-8px calc(-1 * max(18px,var(--safe-right))) 0 calc(-1 * max(18px,var(--safe-left)))}
+.session-banner.in-sheet .session-banner__content{padding:var(--space-6) max(18px,var(--safe-right)) var(--space-4) max(18px,var(--safe-left))}
 .session-poster{flex:none;padding:0;border:0;border-radius:var(--radius-sm);background:none;cursor:default}
 button.session-poster{cursor:pointer;transition:transform .15s}
 button.session-poster:hover,button.session-poster:focus-visible{transform:translateY(-2px)}
 button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .session-heading{display:grid;gap:4px;min-width:0}
 .session-heading span{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm)}
-.session-heading h3{margin:0;font-size:var(--fs-lg);line-height:1.25;overflow-wrap:anywhere}
-.session-banner.has-art .session-heading span{color:var(--on-banner-muted)}
-.session-banner.has-art .session-heading h3{color:var(--on-banner)}
+.session-heading h2{margin:0;font-size:var(--fs-xl);line-height:1.2;overflow-wrap:anywhere}
 .session-summary{margin-top:12px}
 .session-summary p{display:-webkit-box;margin:0;overflow:hidden;color:color-mix(in srgb,var(--text) 80%,transparent);font-size:var(--fs-sm);line-height:1.6;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .session-summary p.open{display:block}
@@ -442,22 +484,23 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .session-flag.relay svg{color:var(--amber-text)}
 .session-flag.hdr{background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue-text)}
 .session-flag.hdr.tonemap{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
-.terminate-button{margin-left:auto}
 .session-who span{display:inline-flex;align-items:center;gap:6px;min-width:0}
 .session-who svg{width:15px;height:15px;color:var(--muted)}
 .progress-track{position:relative}
 .progress-track .buffer-zone{position:absolute;top:0;bottom:0;border-radius:inherit;background:color-mix(in srgb,var(--accent) 35%,transparent)}
 .progress-track i{position:relative}
+.progress-times{display:flex;justify-content:space-between;gap:8px;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
+.progress-times .buffer-end{color:var(--blue-text)}
 .buffer-legend{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 14px;margin:0;font-size:var(--fs-xs);color:color-mix(in srgb,var(--text) 75%,transparent)}
 .buffer-legend span{display:inline-flex;align-items:center;gap:6px}
 .buffer-legend svg{width:14px;height:14px}
 .buffer-legend.done .transcoder-state,.buffer-legend.paused .transcoder-state{color:var(--green-text)}
 .buffer-legend.running .transcoder-state{color:var(--blue-text)}
 .buffer-legend.low,.buffer-legend.low strong{color:var(--amber-text)}
-.conversion-table{display:grid;margin-top:12px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:var(--fs-sm)}
+.conversion-table{display:grid;margin-top:12px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);font-size:var(--fs-sm)}
 .conversion-head,.conversion-row{display:grid;grid-template-columns:minmax(80px,.8fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(80px,.8fr);gap:10px;align-items:center;padding:9px 12px}
 .conversion-head{color:color-mix(in srgb,var(--text) 60%,transparent);font-size:var(--fs-xs)}
-.conversion-row{border-top:1px solid var(--border)}
+.conversion-row{border-top:1px solid var(--border-subtle)}
 .conversion-label{color:color-mix(in srgb,var(--text) 70%,transparent)}
 .conversion-row span{min-width:0;overflow-wrap:anywhere}
 .conversion-arrow{display:none;width:13px;height:13px;margin-right:4px;vertical-align:-2px;color:var(--muted)}
@@ -466,8 +509,9 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .conversion-treatment.remuxed{color:var(--blue-text)}
 .conversion-treatment.converted{color:var(--amber-text)}
 @container sheet (max-width: 520px){
-  .session-banner{min-height:150px;padding:12px;gap:12px}
-  .session-banner :deep(.media-artwork),.session-banner :deep(img){max-width:76px}
+  .session-banner__content{gap:12px}
+  .session-banner.in-sheet .session-banner__content{padding-top:var(--space-5)}
+  .session-poster :deep(.media-artwork),.session-poster :deep(img){max-width:76px}
   .conversion-head{display:none}
   .conversion-row{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px}
   .conversion-label{grid-column:1;font-weight:600;color:var(--text)}
@@ -477,8 +521,8 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
   .conversion-row span:nth-child(3){grid-row:3}
   .conversion-arrow{display:inline-block}
 }
-.session-toolbar{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-1);margin-top:-8px}
-.session-progress{display:grid;gap: var(--space-2);padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.session-progress>div:first-child{display:flex;justify-content:space-between}.session-progress span,.session-progress small{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}.progress-track{height:6px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .1)}.progress-track i{display:block;height:100%;border-radius:inherit;background:var(--accent)}.session-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap: var(--space-2);margin-top:10px}.session-kpis article{display:grid;gap: var(--space-1);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.session-kpis span,.session-kpis small{color:color-mix(in srgb,var(--text) 68%,transparent);font-size:var(--fs-xs)}.session-kpis strong{font-size:var(--fs-md)}.stream-route{margin-top:22px}.stream-route>div{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr) 28px minmax(0,1fr);align-items:center;margin-top:8px}.stream-route article{display:flex;align-items:center;gap: var(--space-2);min-width:0;padding:10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}.stream-route article>svg{width:17px;color:var(--muted)}.stream-route article span{display:grid;min-width:0}.stream-route small{color:color-mix(in srgb,var(--text) 64%,transparent);font-size:var(--fs-xs);}.stream-route strong{overflow:hidden;font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.stream-route i{height:2px;background:var(--border)}.stream-route i.warning{background:var(--amber)}.session-detail-columns{display:grid;gap:0}@container sheet (min-width: 862px) {.session-detail-columns{grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start}.session-detail-columns>.session-detail-section{margin-top:22px}}.session-detail-section{margin-top:22px}.session-detail-section dl{display:grid;grid-template-columns:1fr 1fr;margin:8px 0 0;border:1px solid var(--border);border-radius:var(--radius-md)}.session-detail-section dl>div{display:grid;gap: var(--space-1);padding:13px;border-bottom:1px solid var(--border)}.session-detail-section dl>div:nth-child(odd){border-right:1px solid var(--border)}.session-detail-section dl>div:nth-last-child(-n+2){border-bottom:0}.session-detail-section dt{color:color-mix(in srgb,var(--text) 66%,transparent);font-size:var(--fs-xs);}.session-detail-section dd{margin:0;font-size:var(--fs-sm);line-height:1.4}.session-id{overflow:hidden;color:var(--muted);font-family: var(--font-mono);text-overflow:ellipsis;white-space:nowrap}.session-address{font-variant-numeric:tabular-nums}@include bp.until(phablet) {.session-kpis{grid-template-columns:1fr}.stream-route>div{grid-template-columns:1fr}.stream-route i{width:2px;height:14px;margin:auto}.stream-route article{width:100%}}@container sheet (max-width: 482px) {.session-detail-section dl{grid-template-columns:1fr}.session-detail-section dl>div,.session-detail-section dl>div:nth-child(odd){border-right:0;border-bottom:1px solid var(--border)}.session-detail-section dl>div:last-child{border-bottom:0}}
+.session-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1);margin-left:auto}
+.session-progress{display:grid;gap: var(--space-2);padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-2)}.session-progress>div:first-child{display:flex;justify-content:space-between}.session-progress span,.session-progress small{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}.progress-track{height:6px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .1)}.progress-track i{display:block;height:100%;border-radius:inherit;background:var(--accent)}.session-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-top:10px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--border-subtle)}.session-kpis article{display:grid;gap: var(--space-1);padding:12px 14px;background:var(--surface-2)}.session-kpis span,.session-kpis small{color:color-mix(in srgb,var(--text) 68%,transparent);font-size:var(--fs-xs)}.session-kpis strong{font-size:var(--fs-md)}.stream-route{margin-top:22px}.stream-route>div{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr) 28px minmax(0,1fr);align-items:center;margin-top:8px}.stream-route article{display:flex;align-items:center;gap: var(--space-2);min-width:0;padding:10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-2)}.stream-route article>svg{width:17px;color:var(--muted)}.stream-route article span{display:grid;min-width:0}.stream-route small{color:color-mix(in srgb,var(--text) 64%,transparent);font-size:var(--fs-xs);}.stream-route strong{overflow:hidden;font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.stream-route i{height:2px;background:var(--border)}.stream-route i.warning{background:var(--amber)}.session-detail-columns{display:grid;gap:0}@container sheet (min-width: 862px) {.session-detail-columns{grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start}.session-detail-columns>.session-detail-section{margin-top:22px}}.session-detail-section{margin-top:22px}.session-detail-section dl{display:grid;grid-template-columns:1fr 1fr;margin:8px 0 0;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg)}.session-detail-section dl>div{display:grid;gap: var(--space-1);padding:13px;border-bottom:1px solid var(--border-subtle)}.session-detail-section dl>div:nth-child(odd){border-right:1px solid var(--border-subtle)}.session-detail-section dl>div:nth-last-child(-n+2){border-bottom:0}.session-detail-section dt{color:color-mix(in srgb,var(--text) 66%,transparent);font-size:var(--fs-xs);}.session-detail-section dd{margin:0;font-size:var(--fs-sm);line-height:1.4}.session-id{overflow:hidden;color:var(--muted);font-family: var(--font-mono);text-overflow:ellipsis;white-space:nowrap}.session-address{font-variant-numeric:tabular-nums}@include bp.until(phablet) {.session-kpis{grid-template-columns:1fr}.stream-route>div{grid-template-columns:1fr}.stream-route i{width:2px;height:14px;margin:auto}.stream-route article{width:100%}}@container sheet (max-width: 482px) {.session-detail-section dl{grid-template-columns:1fr}.session-detail-section dl>div,.session-detail-section dl>div:nth-child(odd){border-right:0;border-bottom:1px solid var(--border-subtle)}.session-detail-section dl>div:last-child{border-bottom:0}}
 .session-kpis article{grid-template-columns:20px minmax(0,1fr);gap:3px 9px}.session-kpis article>svg{grid-row:1/4;width:18px;height:18px;color:var(--accent)}.session-kpis article>*:not(svg){grid-column:2}.session-kpis .network-kpi.remote>svg{color:var(--amber-text)}.session-kpis .network-kpi.local>svg{color: var(--green-text)}
 .session-detail-section dl>div{position:relative;padding-left:16px}.session-detail-section dl>div::before{position:absolute;top:15px;bottom:15px;left:0;width:3px;border-radius: var(--radius-xs);background:color-mix(in srgb,var(--accent) 70%,transparent);content:""}.session-detail-section dd{color:color-mix(in srgb,var(--text) 92%,transparent);font-weight:600}
 </style>

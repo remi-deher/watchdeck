@@ -75,7 +75,7 @@ function onToggle(open: boolean): void {
 </script>
 
 <style scoped lang="scss">
-.ui-disclosure { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-sunken); }
+.ui-disclosure { overflow: hidden; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-sunken); }
 .ui-disclosure-trigger { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); width: 100%; min-height: 58px; padding: 12px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .ui-disclosure-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .ui-disclosure-trigger > div { display: grid; gap: var(--space-1); }

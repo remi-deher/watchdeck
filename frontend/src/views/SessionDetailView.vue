@@ -3,6 +3,7 @@
        le tableau de bord, elle se pose dans la feuille ; par son adresse, en pleine page. -->
   <SheetPage
     eyebrow="Session Plex"
+    headless
     :title="session ? playbackTitle(session) : 'Session de lecture'"
     :loading="query.isPending.value"
     :error="query.error.value ? 'Cette session est introuvable ou n’a pas pu être chargée.' : ''"

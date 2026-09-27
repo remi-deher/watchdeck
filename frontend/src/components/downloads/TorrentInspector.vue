@@ -185,7 +185,7 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 .torrent-inspector{display:grid;gap:var(--space-4)}
-.torrent-detail-summary{display:grid;justify-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);text-align:center}
+.torrent-detail-summary{display:grid;justify-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-3);border:1px solid var(--border);border-radius:var(--panel-radius);background:var(--surface-2);text-align:center}
 .torrent-summary-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2);width:100%;max-width:420px;margin:0}
 .torrent-summary-stats>div{display:grid;gap:2px;min-width:0}
 .torrent-summary-stats dt{color:var(--muted);font-size:var(--fs-xs)}
