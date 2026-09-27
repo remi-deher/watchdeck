@@ -688,8 +688,8 @@ async def test_check_arr_statuses_skipped_when_distributed_lock_held_elsewhere(d
     """Verrou Redis déjà détenu (autre process/conteneur) → cycle ignoré, aucun traitement.
 
     Même schéma que poll_watchlists : check_arr_statuses est déclenché à la fois par
-    APScheduler (conteneur API), le cron ARQ (conteneur worker) et /api/requests/poll
-    (HTTP manuel) — le verrou asyncio local ne protège que dans un seul process.
+    le cron ARQ (conteneur worker) et /api/requests/poll (HTTP manuel, conteneur API)
+    — le verrou asyncio local ne protège que dans un seul process.
     """
     db.add(_settings())
     db.add(_sent_request())

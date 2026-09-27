@@ -88,9 +88,9 @@ async def _upsert_season_status(db: AsyncSession, request_id: int, seasons: list
 
 # Empêche un déclenchement manuel (/api/requests/poll) de tourner en même temps qu'un
 # cycle planifié (toutes les 15 min) sur les mêmes demandes DANS LE MÊME PROCESS.
-# Insuffisant seul en déploiement multi-conteneurs (APScheduler tourne dans le
-# conteneur API, le cron ARQ dans le conteneur worker, et /api/requests/poll peut
-# aussi être déclenché manuellement depuis l'API) — d'où le verrou Redis ci-dessous,
+# Insuffisant seul en déploiement multi-conteneurs (le cron ARQ tourne dans le
+# conteneur worker, et /api/requests/poll peut être déclenché depuis le conteneur
+# API) — d'où le verrou Redis ci-dessous,
 # même schéma que poll_watchlists (voir distributed_lock.py).
 _arr_status_lock = asyncio.Lock()
 

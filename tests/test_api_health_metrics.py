@@ -522,3 +522,29 @@ def test_disk_space_is_cached_between_calls(client, db):
     assert first.json() == second.json()
     assert len(first.json()) == 1
     mock_disk.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_next_poll_info_is_first_arq_tick_after_last_scheduled_expiry():
+    """Le polling ARQ tourne aux ticks de 30 s dès que `last-scheduled` a expiré."""
+    from datetime import datetime, timezone
+
+    from app.routers import metrics_api
+
+    now = datetime(2026, 9, 27, 12, 0, 10, tzinfo=timezone.utc)
+    with (
+        patch("app.job_queue.key_ttl_ms", new=AsyncMock(return_value=95_000)),
+        patch.object(metrics_api, "now_utc", return_value=now),
+    ):
+        info = await metrics_api.next_poll_info()
+
+    # Expiration à 12:01:45 → premier tick ARQ à 12:02:00.
+    assert info == {"next_run_seconds": 110, "next_run_iso": "2026-09-27T12:02:00+00:00"}
+
+
+@pytest.mark.asyncio
+async def test_next_poll_info_is_empty_without_redis():
+    from app.routers import metrics_api
+
+    with patch("app.job_queue.key_ttl_ms", new=AsyncMock(return_value=None)):
+        assert await metrics_api.next_poll_info() == {"next_run_seconds": None, "next_run_iso": None}

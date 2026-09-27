@@ -7,8 +7,8 @@
 3. Generer `WATCHDECK_ENCRYPTION_KEY` avec `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
 4. Demarrer avec `docker compose up -d --build`.
 
-L'API et le worker ARQ sont deux services independants. APScheduler est desactive par defaut.
-`ENABLE_LEGACY_SCHEDULER=1` ne doit servir qu'au retour arriere temporaire, sans worker ARQ actif.
+L'API et le worker ARQ sont deux services independants : toutes les taches planifiees
+et l'envoi des notifications passent par le worker ARQ.
 
 ## Verification
 

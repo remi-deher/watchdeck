@@ -11,16 +11,6 @@ from tests.async_support import close_leaked_sessions, make_test_session, reset_
 
 
 @pytest.fixture(autouse=True)
-def _patch_app_startup():
-    """Empêche le scheduler et le worker de démarrer pendant les tests."""
-    with (
-        patch("app.scheduler.start_scheduler"),
-        patch("app.notification_queue.start_worker", return_value=None),
-    ):
-        yield
-
-
-@pytest.fixture(autouse=True)
 def _isolate_application_cache(monkeypatch):
     """Keep cache tests deterministic when CI exposes a shared Redis service.
 
