@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.52.0 — 2026-09-27
+
+
+### ✨ Nouveautés
+
+- situer la raison de Plex et nommer le format d'origine des sous-titres ([e0f4c10](https://github.com/remi-deher/watchdeck/commit/e0f4c107fde43db575993054b9a02998e261414e))
+- montrer le reemballage d'un Direct Stream et detailler la conversion ([ec373da](https://github.com/remi-deher/watchdeck/commit/ec373dae7775e3619cfd8e5b84a4544e6483dc36))
+- refonte de la fiche de session ([af20a34](https://github.com/remi-deher/watchdeck/commit/af20a348819ae592520863c230e85d132f90c161))
+- relais, HDR, debits, lecteur, telechargements, arret de lecture et taches Plex ([327febe](https://github.com/remi-deher/watchdeck/commit/327febe3e96230bf52b66012a7df6e5a254254e6))
 ## 1.51.0 — 2026-09-26
 
 
@@ -19,6 +28,10 @@
 - typer les identifiants de session du rapprochement des decisions Plex ([35bc271](https://github.com/remi-deher/watchdeck/commit/35bc271697ccfbb6f56d8e3dc11226b3e046ca26))
 - ouvrir au second appui meme si le premier clic a ete supprime ([88ef679](https://github.com/remi-deher/watchdeck/commit/88ef6799992edc371839dfac1051da1c098f06d0))
 - ignorer le mouseleave simule qui suit un appui ([77f49b6](https://github.com/remi-deher/watchdeck/commit/77f49b60f5ba11c58f44b409511acec2b4aa3b8a))
+
+### 🔧 Maintenance
+
+- v1.51.0 (#493) ([e1700ef](https://github.com/remi-deher/watchdeck/commit/e1700ef67ecf57d9fbe30f4c8f3208e4604830ac))
 ## 1.50.0 — 2026-09-26
 
 
