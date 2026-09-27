@@ -1,11 +1,25 @@
 # Changelog
 
+## 1.55.2 — 2026-09-27
+
+
+### 👷 CI/CD
+
+- la release attend l'image testee au lieu d'echouer ; E2E a 20 min ([92dd6a7](https://github.com/remi-deher/watchdeck/commit/92dd6a7e15711995d9fda7efcb86caa35d770087))
+
+### 🔧 Maintenance
+
+- bump the github-actions group across 1 directory with 6 updates (#515) ([37bd4cb](https://github.com/remi-deher/watchdeck/commit/37bd4cbf47f732f24f5358ed7ab020cd327b9f8b))
 ## 1.55.1 — 2026-09-27
 
 
 ### 🎨 Style
 
 - texte principal pour le contenu, blanc sur les images, gris aux libelles ([44bfd9b](https://github.com/remi-deher/watchdeck/commit/44bfd9ba5c75fc6e1817b4fa6ee717bba84a52ab))
+
+### 🔧 Maintenance
+
+- v1.55.1 (#513) ([9cf71ff](https://github.com/remi-deher/watchdeck/commit/9cf71ffbc10b292378c3faf13e66df08e6d193d1))
 ## 1.55.0 — 2026-09-27
 
 
