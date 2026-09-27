@@ -111,7 +111,9 @@ async def build_media_detail(
             arr_url = f"{instance.url.rstrip('/')}/{entity}/{media_obj.arr_slug}"
 
     if core_only:
-        operational = serialize_media_request(selected_request, {}) if selected_request else plex_library_projection()
+        operational = (
+            serialize_media_request(selected_request, {}) if selected_request else plex_library_projection(library_item)
+        )
         return {
             "media": _media_payload(
                 media_obj,
@@ -466,7 +468,9 @@ async def build_media_detail(
             except Exception as exc:
                 logger.debug("Plex direct tracks fetch error: %s", exc)
 
-    operational = request_payloads[0] if request_payloads else (plex_library_projection() if library_item else {})
+    operational = (
+        request_payloads[0] if request_payloads else (plex_library_projection(library_item) if library_item else {})
+    )
     return {
         "media": _media_payload(
             media_obj,

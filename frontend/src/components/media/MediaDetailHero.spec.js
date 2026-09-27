@@ -159,4 +159,11 @@ describe('MediaDetailHero', () => {
     await wrapper.setProps({ variant: 'sheet' });
     expect(wrapper.getComponent(UiHeroBackdrop).props()).toMatchObject({ variant: 'sheet', position: 'center 18%' });
   });
+
+  it('n’affiche pas l’origine « Déjà présent dans Plex », redondante avec le statut', () => {
+    const plex = mount(MediaDetailHero, { props: { detail: { title: 'X', media_type: 'show', origin_kind: 'plex', origin_label: 'Deja present dans Plex' }, statusLabel: 'Disponible dans Plex' } });
+    expect(plex.find('.origin-badge').exists()).toBe(false);
+    const seerr = mount(MediaDetailHero, { props: { detail: { title: 'X', media_type: 'movie', origin_kind: 'request', origin_label: 'Demande via Seerr' } } });
+    expect(seerr.get('.origin-badge').text()).toBe('Demande via Seerr');
+  });
 });

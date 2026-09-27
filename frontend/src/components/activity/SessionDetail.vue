@@ -19,9 +19,11 @@
       :image-url="artUrl || null"
       :variant="enSurface ? 'sheet' : 'card'"
       position="center 18%"
-      min-height="clamp(220px, 32vw, 320px)"
-    >
-      <div class="session-banner__content">
+      min-height="clamp(150px, 24vw, 230px)"
+    />
+    <!-- Le titre sous l'image, comme la fiche d'un media : pose dessus, il devenait
+         illisible sur une image claire. L'affiche chevauche le bas de la banniere. -->
+    <div class="session-banner__content">
       <component
         :is="mediaPath ? 'button' : 'div'"
         class="session-poster"
@@ -36,8 +38,7 @@
         <span>{{ headingEyebrow }}</span>
         <h2>{{ session.title || 'Lecture Plex' }}</h2>
       </div>
-      </div>
-    </UiHeroBackdrop>
+    </div>
 
     <section v-if="summary" class="session-summary">
       <p ref="summaryRef" :class="{ open: summaryOpen }">{{ summary }}</p>
@@ -480,11 +481,13 @@ function networkLabel(item: any): string {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.session-banner__content{display:flex;align-items:flex-end;gap:var(--space-4);padding:var(--space-5)}
+.session-banner__content{position:relative;z-index:2;display:flex;align-items:flex-end;gap:var(--space-4);padding:0 4px}
+.session-banner__content .session-poster{margin-top:-84px}
+.session-banner__content .session-heading{padding-bottom:4px}
 /* Dans la feuille, l'en-tete touche les bords comme celui d'un media : il annule les
    marges de la page (8px en haut, les gouttieres sur les cotes). */
 .session-banner.in-sheet{margin:-8px calc(-1 * max(18px,var(--safe-right))) 0 calc(-1 * max(18px,var(--safe-left)))}
-.session-banner.in-sheet .session-banner__content{padding:var(--space-6) max(18px,var(--safe-right)) var(--space-4) max(18px,var(--safe-left))}
+
 .session-poster{flex:none;padding:0;border:0;border-radius:var(--radius-sm);background:none;cursor:default}
 button.session-poster{cursor:pointer;transition:transform .15s}
 button.session-poster:hover,button.session-poster:focus-visible{transform:translateY(-2px)}
@@ -493,7 +496,7 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .session-heading span{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm)}
 .session-heading h2{margin:0;font-size:var(--fs-xl);line-height:1.2;overflow-wrap:anywhere}
 .session-summary{margin-top:12px}
-.session-summary p{display:-webkit-box;margin:0;overflow:hidden;color:color-mix(in srgb,var(--text) 80%,transparent);font-size:var(--fs-sm);line-height:1.6;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.session-summary p{display:-webkit-box;margin:0;overflow:hidden;color:color-mix(in srgb,var(--text) 90%,transparent);font-size:var(--fs-base);line-height:1.6;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .session-summary p.open{display:block}
 .summary-toggle{margin-top:4px;padding:0;border:0;background:none;color:var(--accent);font-size:var(--fs-xs);font-weight:600;cursor:pointer}
 .session-who{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:12px 0 16px;color:color-mix(in srgb,var(--text) 78%,transparent);font-size:var(--fs-sm)}
@@ -538,7 +541,7 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .conversion-treatment.converted{color:var(--amber-text)}
 @container sheet (max-width: 520px){
   .session-banner__content{gap:12px}
-  .session-banner.in-sheet .session-banner__content{padding-top:var(--space-5)}
+  .session-banner__content .session-poster{margin-top:-60px}
   .session-poster :deep(.media-artwork),.session-poster :deep(img){max-width:76px}
   .conversion-head{display:none}
   .conversion-row{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px}

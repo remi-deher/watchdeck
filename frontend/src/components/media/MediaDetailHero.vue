@@ -1,4 +1,9 @@
 <template>
+  <!-- La banniere ne porte plus que l'image : pose dessus, le texte (titre, dates,
+       resume, boutons) devenait illisible des que l'image etait claire, quel que soit le
+       voile. Il passe dessous, sur le fond de la page, et suit le theme comme le reste ;
+       l'affiche chevauche le bas de la banniere pour garder le lien entre les deux. -->
+  <div class="mdh" :class="`is-${variant}`">
   <UiHeroBackdrop
     class="mdh-hero"
     :image-url="backdropUrl"
@@ -8,6 +13,7 @@
     <template #overlay>
       <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
     </template>
+  </UiHeroBackdrop>
     <div class="mdh-content">
       <div class="mdh-row" :class="{ 'is-music': isMusic }">
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
@@ -25,7 +31,9 @@
             <span v-if="detail.year" class="badge">{{ detail.year }}</span>
             <span v-if="detail.vote" class="badge"><Star :size="14" />{{ detail.vote }}</span>
             <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
-            <span v-if="detail.origin_label && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
+            <!-- « Deja present dans Plex » redit « Disponible dans Plex » : l'origine ne
+                 s'affiche que lorsqu'elle apprend quelque chose (demande Seerr, ajout *ARR). -->
+            <span v-if="detail.origin_label && detail.origin_kind !== 'plex' && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
           </div>
           <p v-if="detail.waiting_reason && !isMusic" class="mdh-waiting">{{ detail.waiting_reason }}</p>
           <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
@@ -111,7 +119,7 @@
         </div>
       </div>
     </div>
-  </UiHeroBackdrop>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -268,21 +276,35 @@ const releaseDates = computed(() => {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.mdh-hero {
+.mdh {
   margin-bottom: var(--space-6);
 }
-
-.mdh-hero.is-sheet {
-  min-height: min(46dvh, 420px);
+.mdh.is-sheet {
   margin-bottom: var(--space-5);
+}
+/* Image seule : plus basse qu'avant, elle n'a plus a loger tout le texte. */
+.mdh-hero {
+  min-height: clamp(180px, 28vw, 320px);
+}
+.mdh-hero.is-sheet {
+  min-height: min(32dvh, 300px);
 }
 .mdh-content {
   position: relative;
   z-index: 2;
   width: 100%;
-  padding: var(--space-6) var(--space-5) var(--space-5);
+  padding: 0 var(--space-5) var(--space-2);
   max-width: 1280px;
   margin: 0 auto;
+}
+/* L'affiche remonte sur le bas de la banniere ; le texte reste sous l'image. */
+.mdh-row .mdh-poster {
+  margin-top: calc(-1 * var(--mdh-poster-overlap, 120px));
+  position: relative;
+  z-index: 2;
+}
+.mdh-info {
+  padding-top: var(--space-4);
 }
 /* Le contenu est ancre en bas : le retour doit rester en haut a gauche, hors du flux,
    sinon il descend avec le titre au fond de la banniere. */
@@ -295,7 +317,7 @@ const releaseDates = computed(() => {
 .mdh-row {
   display: flex;
   gap: var(--space-5);
-  align-items: flex-end;
+  align-items: flex-start;
 }
 .mdh-row.is-music {
   align-items: flex-start;
@@ -350,7 +372,6 @@ const releaseDates = computed(() => {
   font-weight: 800;
   line-height: 1.15;
   text-wrap: balance;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 .mdh-badges {
   display: flex;
@@ -367,7 +388,6 @@ const releaseDates = computed(() => {
   font-size: var(--fs-sm);
   font-weight: 800;
   line-height: 1.25;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
 }
 .mdh-badges > .music-badge {
   border-color: var(--violet-text);
@@ -388,7 +408,6 @@ const releaseDates = computed(() => {
   color: var(--muted);
   font-size: var(--fs-md);
   line-height: 1.6;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .mdh-overview.clamped {
   display: -webkit-box;
@@ -496,17 +515,15 @@ const releaseDates = computed(() => {
 }
 
 @include bp.until(tablet) {
-  .mdh-hero {
-    /* Sur telephone, le portrait et le texte empiles ont besoin de la hauteur d'ecran. */
-    min-height: clamp(320px, 58vh, 420px);
-    margin-bottom: var(--space-4);
-  }
+  /* Sur telephone, l'image seule : le texte est dessous, elle n'a plus a prendre
+     la moitie de l'ecran. */
+  .mdh-hero,
   .mdh-hero.is-sheet {
-    min-height: min(46dvh, 420px);
-    margin-bottom: var(--space-5);
+    min-height: clamp(170px, 30vh, 240px);
   }
   .mdh-content {
-    padding: var(--space-5) var(--space-4) 20px;
+    padding: 0 var(--space-4) 20px;
+    --mdh-poster-overlap: 90px;
   }
   .mdh-back {
     top: var(--space-2);
@@ -548,7 +565,10 @@ const releaseDates = computed(() => {
 
 @include bp.from(tablet) {
   .mdh-hero.is-sheet {
-    min-height: min(52dvh, 480px);
+    min-height: min(36dvh, 340px);
+  }
+  .mdh-content {
+    --mdh-poster-overlap: 150px;
   }
 }
 </style>
