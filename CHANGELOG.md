@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.56.0 — 2026-09-27
+
+
+### ✨ Nouveautés
+
+- section Conversion en clair et details de session en quatre cartes ([e176aba](https://github.com/remi-deher/watchdeck/commit/e176aba610484e794f61b72a979059ec58289064))
 ## 1.55.2 — 2026-09-27
 
 
@@ -10,6 +16,7 @@
 ### 🔧 Maintenance
 
 - bump the github-actions group across 1 directory with 6 updates (#515) ([37bd4cb](https://github.com/remi-deher/watchdeck/commit/37bd4cbf47f732f24f5358ed7ab020cd327b9f8b))
+- v1.55.2 (#518) ([55e732e](https://github.com/remi-deher/watchdeck/commit/55e732e8ccce606baf23ba86bef87ea272d3294c))
 ## 1.55.1 — 2026-09-27
 
 
