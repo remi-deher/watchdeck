@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 import time
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -23,7 +24,14 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from ..cache import cache
 from ..database import AsyncSessionLocal
-from ..models import PlaybackDailyAggregate, PlaybackIpLocation, PlaybackSession, PlaybackSessionSegment, Settings
+from ..models import (
+    LibraryItem,
+    PlaybackDailyAggregate,
+    PlaybackIpLocation,
+    PlaybackSession,
+    PlaybackSessionSegment,
+    Settings,
+)
 from ..realtime import publish
 from ..utils import APP_TIMEZONE, now_utc_naive, wrap_image_proxy
 from . import plex_decision_logs
@@ -49,7 +57,7 @@ _MAX_ACTIVE_SESSION_AGE = timedelta(days=7)
 # une remise à zéro au redémarrage du worker n'a qu'un impact mineur (un cycle de
 # tolérance perdu au pire).
 _MISS_THRESHOLD = 2
-_STICKY_TRANSCODE_FIELDS = frozenset({"transcode_session", "transcode_reason", "transcode_hw"})
+_STICKY_TRANSCODE_FIELDS = frozenset({"transcode_session", "transcode_reason", "transcode_hw", "transcode_details"})
 _miss_counts: dict[int, int] = {}
 _GEO_FIELDS = (
     "geo_status",
@@ -125,13 +133,17 @@ def _deduced_reason(row: PlaybackSession) -> str | None:
     return " · ".join(parts) or None
 
 
-def _plex_decision_details(row: PlaybackSession) -> dict | None:
-    if not row.plex_decision_details:
+def _json_or_none(value: str | None) -> dict | None:
+    if not value:
         return None
     try:
-        return json.loads(row.plex_decision_details)
+        return json.loads(value)
     except ValueError:
         return None
+
+
+def _plex_decision_details(row: PlaybackSession) -> dict | None:
+    return _json_or_none(row.plex_decision_details)
 
 
 def _transcode_reason(row: PlaybackSession) -> str:
@@ -564,6 +576,8 @@ def _serialize(row: PlaybackSession) -> dict:
         "title": row.title,
         "grandparent_title": row.grandparent_title,
         "parent_title": row.parent_title,
+        "season_number": row.season_number,
+        "episode_number": row.episode_number,
         "year": row.year,
         "rating_key": row.rating_key,
         "library": row.library_section_title,
@@ -598,6 +612,11 @@ def _serialize(row: PlaybackSession) -> dict:
         "transcode_speed": _float(row.transcode_speed),
         "transcode_throttled": row.transcode_throttled,
         "transcode_hw": row.transcode_hw,
+        "transcode_details": _json_or_none(row.transcode_details),
+        "stream_details": _json_or_none(row.stream_details),
+        "is_download": bool(row.is_download),
+        # Bleu, comme la pastille Direct Stream : conteneur changé, rien de réencodé.
+        "transcode_remux": _remux_label(_json_or_none(row.transcode_details)),
         # Vert : la decision de Plex, relue dans ses journaux. Orange : notre deduction.
         "transcode_reason": (
             {
@@ -652,6 +671,8 @@ def _tautulli_session_values(item: dict, settings: Settings, location: dict) -> 
         "title": item.get("title") or "Lecture Plex",
         "grandparent_title": item.get("grandparent_title"),
         "parent_title": item.get("parent_title"),
+        "season_number": _int(item.get("parent_media_index")) if item.get("media_type") == "episode" else None,
+        "episode_number": _int(item.get("media_index")) if item.get("media_type") == "episode" else None,
         "year": _int(item.get("year")),
         "rating_key": str(item.get("rating_key") or "") or None,
         "library_section_title": item.get("section_name"),
@@ -739,7 +760,9 @@ def _codec(value: str | None) -> str:
     return _CODEC_LABELS.get(str(value or "").lower(), str(value or "?").upper())
 
 
-def _deduce_transcode_reason(transcode_attrs: dict, video_stream, subtitle_stream) -> str | None:
+def _deduce_transcode_reason(
+    transcode_attrs: dict, video_stream, subtitle_stream, subtitle_source: str | None = None
+) -> str | None:
     """Ce qui est converti, lu dans le `TranscodeSession` : une deduction, pas la raison de Plex.
 
     Plex ne dit pas *pourquoi* il convertit dans /status/sessions, seulement *quoi* :
@@ -769,8 +792,16 @@ def _deduce_transcode_reason(transcode_attrs: dict, video_stream, subtitle_strea
         else:
             parts.append("Audio réencodé")
     if subtitles in {"transcode", "burn"}:
-        codec = _codec(subtitle_stream.get("codec")) if subtitle_stream is not None else "?"
-        parts.append(f"Sous-titres {codec} incrustés" if subtitles == "burn" else f"Sous-titres {codec} convertis")
+        # Le flux de la session décrit la *sortie* (WebVTT pour un Chromecast) : le format
+        # d'origine vient de la fiche du média, quand on a pu la lire.
+        target = subtitle_stream.get("codec") if subtitle_stream is not None else None
+        source = subtitle_source or target
+        if subtitles == "burn":
+            parts.append(f"Sous-titres {_codec(source)} incrustés")
+        elif source and target and str(source).lower() != str(target).lower():
+            parts.append(f"Sous-titres {_codec(source)} → {_codec(target)}")
+        else:
+            parts.append(f"Sous-titres {_codec(source)} convertis")
         if video != "transcode" and audio != "transcode":
             parts[-1] += " (vidéo et audio copiés)"
     return " · ".join(parts) or None
@@ -788,7 +819,148 @@ def _transcode_hw(transcode_attrs: dict) -> str | None:
     return None
 
 
-def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
+def _transcode_details(
+    transcode_attrs: dict, media_attrs: dict, video_stream, audio_stream, subtitle_stream, sheet: dict | None
+) -> dict | None:
+    """Ce que Plex fait de chaque flux, source -> sortie, pour la fiche de la session."""
+    if not transcode_attrs:
+        return None
+    sources = {stream.get("id"): stream for stream in (sheet or {}).get("streams", [])}
+
+    def attr(stream, name):
+        return stream.get(name) if stream is not None else None
+
+    subtitle_source = sources.get(attr(subtitle_stream, "id")) or {}
+    complete = transcode_attrs.get("complete")
+    return {
+        # Terminé : tout le fichier est prêt, plus rien ne peut couper la lecture.
+        "transcoder": {
+            "complete": complete in ("1", "true") if complete is not None else None,
+            "progress": _float(transcode_attrs.get("progress")),
+        },
+        "protocol": transcode_attrs.get("protocol"),
+        "container": {
+            "from": (sheet or {}).get("container"),
+            "to": transcode_attrs.get("container") or media_attrs.get("container"),
+        },
+        "video": {
+            "decision": transcode_attrs.get("videoDecision"),
+            "from": transcode_attrs.get("sourceVideoCodec") or attr(video_stream, "codec"),
+            "to": transcode_attrs.get("videoCodec") or attr(video_stream, "codec"),
+            "height": _int(transcode_attrs.get("height")) or _int(attr(video_stream, "height")),
+        },
+        "audio": {
+            "decision": transcode_attrs.get("audioDecision"),
+            "from": transcode_attrs.get("sourceAudioCodec") or attr(audio_stream, "codec"),
+            "to": transcode_attrs.get("audioCodec") or attr(audio_stream, "codec"),
+            "channels": _int(transcode_attrs.get("audioChannels")) or _int(attr(audio_stream, "channels")),
+            "language": attr(audio_stream, "language"),
+        },
+        "subtitles": (
+            {
+                "decision": transcode_attrs.get("subtitleDecision") or attr(subtitle_stream, "decision"),
+                "from": subtitle_source.get("codec") or attr(subtitle_stream, "codec"),
+                "to": attr(subtitle_stream, "codec"),
+                "language": attr(subtitle_stream, "language") or subtitle_source.get("language"),
+                "forced": attr(subtitle_stream, "forced") == "1",
+            }
+            if subtitle_stream is not None
+            else None
+        ),
+    }
+
+
+def _dynamic_range(stream) -> str | None:
+    """Plage dynamique d'une piste vidéo : Dolby Vision, HDR10, HLG ou SDR."""
+    if stream is None:
+        return None
+    attrs = stream if isinstance(stream, dict) else stream.attrib
+    if attrs.get("DOVIPresent") == "1":
+        profile = attrs.get("DOVIProfile")
+        return f"Dolby Vision{f' {profile}' if profile else ''}"
+    trc = str(attrs.get("colorTrc") or "").lower()
+    if trc == "smpte2084":
+        return "HDR10"
+    if trc in {"arib-std-b67", "hlg"}:
+        return "HLG"
+    if trc or attrs.get("colorPrimaries"):
+        return "SDR"
+    return None
+
+
+def _flag(value) -> bool | None:
+    return None if value is None else str(value).lower() in {"1", "true"}
+
+
+def _stream_details(
+    session_attrs: dict,
+    player_attrs: dict,
+    media_attrs: dict,
+    transcode_attrs: dict,
+    video_stream,
+    audio_stream,
+    sheet: dict | None,
+) -> dict:
+    """Ce qui situe la lecture au-delà de la conversion : réseau, lecteur, HDR, débits.
+
+    Pendant une conversion, les flux de la session décrivent la *sortie* : la plage
+    dynamique et le débit d'origine se lisent dans la fiche du média quand on l'a.
+    """
+    source_video = next((s for s in (sheet or {}).get("streams", []) if s.get("streamType") == "1"), None)
+    video_converted = str(transcode_attrs.get("videoDecision") or "").lower() == "transcode"
+    source_range = _dynamic_range(source_video) or (None if video_converted else _dynamic_range(video_stream))
+    output_range = _dynamic_range(video_stream) if video_converted else source_range
+    return {
+        # Identifiant attendu par /status/sessions/terminate pour arrêter la lecture.
+        "plex_session_id": session_attrs.get("id"),
+        "local": _flag(player_attrs.get("local")),
+        # Relais Plex : débit bridé (~2 Mb/s), cause fréquente d'une qualité réduite.
+        "relayed": _flag(player_attrs.get("relayed")),
+        "secure": _flag(player_attrs.get("secure")),
+        "player": {
+            "product": player_attrs.get("product"),
+            "version": player_attrs.get("version"),
+            "platform": player_attrs.get("platform"),
+            "platform_version": player_attrs.get("platformVersion"),
+            "model": player_attrs.get("model"),
+            "vendor": player_attrs.get("vendor"),
+        },
+        "bitrate": {
+            "source_kbps": (sheet or {}).get("bitrate")
+            or (None if transcode_attrs else _int(media_attrs.get("bitrate"))),
+            "stream_kbps": _int(session_attrs.get("bandwidth")),
+            "video_kbps": _int(video_stream.get("bitrate")) if video_stream is not None else None,
+            "audio_kbps": _int(audio_stream.get("bitrate")) if audio_stream is not None else None,
+        },
+        "dynamic_range": {
+            "source": source_range,
+            # Un HDR réencodé en SDR : le tone mapping, la conversion la plus coûteuse.
+            "output": output_range
+            if output_range
+            else ("SDR" if video_converted and source_range not in (None, "SDR") else None),
+        },
+    }
+
+
+def _remux_label(details: dict | None) -> str | None:
+    """Le changement de conteneur d'un Direct Stream, sans rien réencoder."""
+    if not details:
+        return None
+    container = details.get("container") or {}
+    source, target = container.get("from"), container.get("to")
+    protocol = str(details.get("protocol") or "").lower()
+    segments = f" (segments {protocol.upper()})" if protocol in {"dash", "hls"} else ""
+    if source and target and str(source).lower() != str(target).lower():
+        return f"Conteneur {str(source).upper()} → {str(target).upper()}{segments}"
+    if segments and target:
+        return f"Diffusé en {str(target).upper()}{segments}"
+    return None
+
+
+def parse_plex_sessions(
+    xml: str, *, anonymize_ips: bool = True, media_sheets: dict[str, dict] | None = None
+) -> list[dict]:
+    """Sessions en cours. `media_sheets` : fiche d'origine par ratingKey (conteneur, pistes)."""
     root = ElementTree.fromstring(xml)
     sessions: list[dict] = []
     for media in root:
@@ -823,6 +995,23 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
         subtitle_stream = next(
             (stream for stream in part_streams if stream.get("streamType") == "3" and stream.get("selected") == "1"),
             None,
+        )
+        details = _transcode_details(
+            transcode_attrs,
+            media_attrs,
+            _stream("1"),
+            _stream("2"),
+            subtitle_stream,
+            (media_sheets or {}).get(media.get("ratingKey") or ""),
+        )
+        stream_details = _stream_details(
+            session_attrs,
+            player_attrs,
+            media_attrs,
+            transcode_attrs,
+            _stream("1"),
+            _stream("2"),
+            (media_sheets or {}).get(media.get("ratingKey") or ""),
         )
         session_id = session_attrs.get("id") or transcode_attrs.get("key") or player_attrs.get("machineIdentifier")
         if not session_id:
@@ -864,6 +1053,8 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
                 "title": media.get("title") or "Lecture Plex",
                 "grandparent_title": media.get("grandparentTitle"),
                 "parent_title": media.get("parentTitle"),
+                "season_number": _int(media.get("parentIndex")) if media.get("type") == "episode" else None,
+                "episode_number": _int(media.get("index")) if media.get("type") == "episode" else None,
                 "year": _int(media.get("year")),
                 "rating_key": media.get("ratingKey"),
                 "library_section_title": media.get("librarySectionTitle"),
@@ -888,7 +1079,20 @@ def parse_plex_sessions(xml: str, *, anonymize_ips: bool = True) -> list[dict]:
                 # Clé du transcodeur : c'est le `session=` de la requête de décision dans
                 # les journaux de Plex, qui départage deux lectures du même média.
                 "transcode_session": (transcode_attrs.get("key") or "").rsplit("/", 1)[-1] or None,
-                "transcode_reason": _deduce_transcode_reason(transcode_attrs, video_stream, subtitle_stream),
+                "transcode_reason": _deduce_transcode_reason(
+                    transcode_attrs,
+                    video_stream,
+                    subtitle_stream,
+                    (details["subtitles"] or {}).get("from") if details else None,
+                ),
+                "transcode_details": json.dumps(details, ensure_ascii=False) if details else None,
+                "stream_details": json.dumps(stream_details, ensure_ascii=False),
+                # Transcodeur en contexte « static » : un téléchargement (synchro hors
+                # ligne), pas une lecture. Gardé dans l'historique, mais signalé.
+                "is_download": str(transcode_attrs.get("context") or "").lower() == "static",
+                # Canaux de la piste réellement écoutée : Plex motive parfois un refus par
+                # une *autre* piste du fichier (« 6 > 2 » pour une VO 5.1 non sélectionnée).
+                "audio_channels": _int(audio_stream.get("channels")) if audio_stream is not None else None,
                 "transcode_hw": _transcode_hw(transcode_attrs),
                 "progress_ms": _int(media.get("viewOffset"), 0),
                 "duration_ms": _int(media.get("duration")),
@@ -1152,6 +1356,23 @@ async def _collect_plex_activity_unlocked() -> dict:
             response = await client.get(f"{settings.plex_url.rstrip('/')}/status/sessions", headers=headers)
             response.raise_for_status()
         snapshots = parse_plex_sessions(response.text, anonymize_ips=settings.activity_anonymize_ips)
+        # Une conversion (même un simple changement de conteneur) ne se lit qu'en sortie dans
+        # /status/sessions : la fiche du média donne la source (conteneur, sous-titres,
+        # HDR, débit). En cache par média : une lecture Plex par œuvre, pas par collecte.
+        converted = {s["rating_key"] for s in snapshots if s.get("rating_key")}
+        if converted:
+            try:
+                sheets = {
+                    rating_key: await media_sheet(
+                        settings.plex_url, settings.plex_token, settings.plex_verify_ssl, rating_key
+                    )
+                    for rating_key in converted
+                }
+                snapshots = parse_plex_sessions(
+                    response.text, anonymize_ips=settings.activity_anonymize_ips, media_sheets=sheets
+                )
+            except Exception as exc:  # la déduction reste valable, seulement moins précise
+                logger.debug("Fiche média Plex illisible : %s", exc)
         # Plex peut exposer deux nœuds pour une même lecture (notamment pendant une
         # transition de lecteur/transcodage). Sans déduplication, la boucle ajoutait
         # deux objets ORM portant la même clé unique avant le premier flush.
@@ -1279,6 +1500,93 @@ async def collect_plex_activity() -> dict:
     return result
 
 
+_STREAMS_CACHE: dict[str, dict] = {}
+_STREAMS_CACHE_SIZE = 256
+
+
+async def media_sheet(base_url: str, token: str, verify: bool, rating_key: str) -> dict:
+    """Conteneur et pistes audio / sous-titres d'origine d'un média (fiche Plex), en cache.
+
+    Pendant une conversion, /status/sessions décrit la *sortie* (conteneur, codecs) : la
+    source se lit ici. Le fichier ne change pas en cours de lecture : une lecture par
+    média suffit, alors que la collecte tourne toutes les quelques secondes.
+    """
+    if rating_key in _STREAMS_CACHE:
+        return _STREAMS_CACHE[rating_key]
+    async with httpx.AsyncClient(timeout=10, verify=verify) as client:
+        response = await client.get(
+            f"{base_url.rstrip('/')}/library/metadata/{rating_key}",
+            headers={"X-Plex-Token": token, "Accept": "application/xml"},
+        )
+        response.raise_for_status()
+    root = ElementTree.fromstring(response.text)
+    media = root.find(".//Media")
+    part = media.find("Part") if media is not None else None
+    item = next((node for node in root if node.tag in {"Video", "Track", "Photo"}), None)
+    meta = item.attrib if item is not None else {}
+    sheet = {
+        "meta": {
+            "summary": meta.get("summary"),
+            "art": meta.get("grandparentArt") or meta.get("art"),
+            "guid": meta.get("grandparentGuid") or meta.get("guid"),
+            "season": _int(meta.get("parentIndex")),
+            "episode": _int(meta.get("index")),
+        },
+        "container": (part.get("container") if part is not None else None)
+        or (media.get("container") if media is not None else None),
+        "bitrate": _int(media.get("bitrate")) if media is not None else None,
+        "streams": [
+            dict(stream.attrib) for stream in root.iter("Stream") if stream.get("streamType") in {"1", "2", "3"}
+        ],
+    }
+    if len(_STREAMS_CACHE) >= _STREAMS_CACHE_SIZE:
+        _STREAMS_CACHE.pop(next(iter(_STREAMS_CACHE)))
+    _STREAMS_CACHE[rating_key] = sheet
+    return sheet
+
+
+async def media_streams(base_url: str, token: str, verify: bool, rating_key: str) -> list[dict]:
+    """Pistes audio et sous-titres d'origine d'un média."""
+    return (await media_sheet(base_url, token, verify, rating_key))["streams"]
+
+
+_CHANNEL_LIMIT = re.compile(r"audio\.channels limitation applies: (\d+) > (\d+)")
+_CHANNEL_LABELS = {1: "mono", 2: "stéréo", 6: "5.1", 8: "7.1"}
+
+
+def _channels(value) -> str:
+    count = _int(value)
+    return _CHANNEL_LABELS.get(count, f"{count} canaux") if count else "?"
+
+
+def _decision_note(text: str, listened_channels: int | None, streams: list[dict]) -> str | None:
+    """Précise la raison de Plex quand elle porte sur une piste que personne n'écoute.
+
+    Plex n'autorise la lecture directe que si l'appareil lit le fichier *entier* : une VO
+    5.1 non sélectionnée suffit à la refuser à un Chromecast stéréo, alors que la piste
+    écoutée, elle, est compatible. Sans ce contexte, « 6 > 2 » passe pour une erreur.
+    """
+    match = _CHANNEL_LIMIT.search(text or "")
+    if not match or listened_channels is None:
+        return None
+    limit = int(match.group(2))
+    if listened_channels > limit:
+        return None
+    culprits = [
+        f"{stream.get('language') or stream.get('title') or 'piste'}"
+        f" ({_codec(stream.get('codec'))} {_channels(stream.get('channels'))})"
+        for stream in streams
+        if stream.get("streamType") == "2" and (_int(stream.get("channels")) or 0) > limit
+    ]
+    if not culprits:
+        return None
+    return (
+        f"Porte sur des pistes non écoutées : {', '.join(culprits)}. "
+        f"La piste écoutée est en {_channels(listened_channels)}, compatible : "
+        "c'est la présence de ces pistes dans le fichier qui empêche la lecture directe."
+    )
+
+
 # Les journaux de débogage tournent en quelques heures : au-delà, rien à y retrouver.
 _DECISION_LOOKBACK = timedelta(hours=12)
 # Le zip des journaux pèse plusieurs Mo : une lecture par minute au plus, et une toutes
@@ -1341,9 +1649,18 @@ async def enrich_decisions_from_plex_logs(*, force: bool = False) -> dict:
             code, text = decision.reason if decision else (None, None)
             if not text:
                 continue
+            note = None
+            if _CHANNEL_LIMIT.search(text) and row.rating_key:
+                try:
+                    streams = await media_streams(
+                        settings.plex_url, settings.plex_token, settings.plex_verify_ssl, row.rating_key
+                    )
+                    note = _decision_note(text, row.audio_channels, streams)
+                except Exception as exc:
+                    logger.debug("Fiche média Plex illisible : %s", exc)
             row.plex_decision_code = code
             row.plex_decision_text = text
-            row.plex_decision_details = decision.details_json()
+            row.plex_decision_details = decision.details_json(note=note)
             matched += 1
         if matched:
             await db.commit()
@@ -2226,7 +2543,41 @@ async def playback_session_detail(session_id: int, db) -> dict | None:
         .scalars()
         .first()
     )
-    return _serialize(row) if row else None
+    if not row:
+        return None
+    return {**_serialize(row), "media": await _session_media(row, db)}
+
+
+async def _session_media(row: PlaybackSession, db) -> dict | None:
+    """Bannière, résumé et fiche bibliothèque de l'œuvre lue, depuis la fiche Plex.
+
+    Facultatif : Plex injoignable ou média supprimé, la fiche de la session s'affiche
+    sans, plutôt que d'échouer.
+    """
+    if not row.rating_key:
+        return None
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings or not settings.plex_url or not settings.plex_token:
+        return None
+    try:
+        sheet = await media_sheet(settings.plex_url, settings.plex_token, settings.plex_verify_ssl, row.rating_key)
+    except Exception as exc:
+        logger.debug("Fiche média Plex illisible : %s", exc)
+        return None
+    meta = sheet.get("meta") or {}
+    library_id = None
+    if meta.get("guid"):
+        library_id = (
+            await db.execute(select(LibraryItem.id).filter(LibraryItem.plex_guid == meta["guid"]).limit(1))
+        ).scalar()
+    art = meta.get("art")
+    return {
+        "summary": meta.get("summary"),
+        "art_url": f"/api/playback/thumb?path={quote(art, safe='')}" if art else None,
+        "season": meta.get("season"),
+        "episode": meta.get("episode"),
+        "library_item_id": library_id,
+    }
 
 
 async def live_activity_snapshot(db=None) -> dict:
@@ -2289,3 +2640,77 @@ async def activity_statistics(days: int = 30, db=None, refresh: bool = False, us
         async with AsyncSessionLocal() as owned_db:
             return await cache.get_or_refresh(cache_key, 60, 600, lambda: _compute(owned_db), _background)
     return await cache.get_or_refresh(cache_key, 60, 600, lambda: _compute(db), _background)
+
+
+class PlaybackActionError(Exception):
+    """Action impossible sur une lecture : le message est destiné à l'utilisateur."""
+
+
+async def terminate_playback(session_id: int, reason: str, db) -> None:
+    """Arrête une lecture en cours, avec un message affiché sur le lecteur.
+
+    Plex attend l'identifiant de `Session`, pas celui de la ligne en base : il est
+    relu dans le détail de flux, à défaut dans l'identifiant de source.
+    """
+    row = (await db.execute(select(PlaybackSession).filter(PlaybackSession.id == session_id))).scalars().first()
+    if row is None:
+        raise PlaybackActionError("Lecture introuvable.")
+    if row.ended_at is not None:
+        raise PlaybackActionError("Cette lecture est déjà terminée.")
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings or not settings.plex_url or not settings.plex_token:
+        raise PlaybackActionError("Plex n'est pas configuré.")
+    plex_session_id = (_json_or_none(row.stream_details) or {}).get("plex_session_id") or row.source_session_id
+    async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
+        response = await client.post(
+            f"{settings.plex_url.rstrip('/')}/status/sessions/terminate",
+            params={"sessionId": plex_session_id, "reason": reason.strip() or "Lecture arrêtée par l'administrateur."},
+            headers={"X-Plex-Token": settings.plex_token},
+        )
+    if response.status_code in {401, 403}:
+        raise PlaybackActionError("Plex refuse l'arrêt : il faut un compte administrateur avec Plex Pass.")
+    if response.status_code == 404:
+        raise PlaybackActionError("Plex ne connaît plus cette lecture : elle vient sans doute de s'arrêter.")
+    response.raise_for_status()
+
+
+async def plex_server_activities(db) -> list[dict]:
+    """Tâches en cours sur le serveur Plex : miniatures, analyse, scan de bibliothèque…"""
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings or not settings.plex_url or not settings.plex_token:
+        return []
+    async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
+        response = await client.get(
+            f"{settings.plex_url.rstrip('/')}/activities",
+            headers={"X-Plex-Token": settings.plex_token, "Accept": "application/json"},
+        )
+        response.raise_for_status()
+    activities = []
+    for activity in response.json().get("MediaContainer", {}).get("Activity", []) or []:
+        progress = _float(activity.get("progress"))
+        activities.append(
+            {
+                "uuid": activity.get("uuid"),
+                "type": activity.get("type"),
+                "title": activity.get("title"),
+                "subtitle": activity.get("subtitle"),
+                # -1 : progression indéterminée (Plex ne sait pas combien il reste).
+                "progress": progress if progress is not None and progress >= 0 else None,
+                "cancellable": bool(activity.get("cancellable")),
+            }
+        )
+    return activities
+
+
+async def cancel_plex_activity(uuid: str, db) -> None:
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings or not settings.plex_url or not settings.plex_token:
+        raise PlaybackActionError("Plex n'est pas configuré.")
+    async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
+        response = await client.delete(
+            f"{settings.plex_url.rstrip('/')}/activities/{quote(uuid, safe='')}",
+            headers={"X-Plex-Token": settings.plex_token},
+        )
+    if response.status_code == 404:
+        raise PlaybackActionError("Cette tâche est déjà terminée.")
+    response.raise_for_status()

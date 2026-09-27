@@ -16,16 +16,20 @@ from ..pagination import PaginationParams, pagination_params
 from ..realtime import publish
 from ..services.playback_activity import (
     MAX_PERIOD_DAYS,
+    PlaybackActionError,
     _rebuild_daily_aggregates,
     activity_history,
     activity_snapshot,
     activity_statistics,
+    cancel_plex_activity,
     collect_plex_activity,
     import_tautulli_history,
     live_activity_snapshot,
     normalize_tautulli_history,
     playback_session_detail,
+    plex_server_activities,
     recalculate_playback_locations,
+    terminate_playback,
     test_tautulli,
 )
 from ..services.tracearr import TracearrError, import_tracearr_history, test_tracearr
@@ -60,6 +64,45 @@ async def get_playback_session(session_id: int, db: AsyncSession = Depends(get_d
     if session is None:
         raise HTTPException(404, "Session introuvable.")
     return session
+
+
+class TerminateRequest(BaseModel):
+    reason: str = ""
+
+
+@router.post("/sessions/{session_id}/terminate")
+async def terminate_playback_session(
+    session_id: int, payload: TerminateRequest, db: AsyncSession = Depends(get_db_async)
+):
+    """Arrête une lecture en cours ; le message s'affiche sur le lecteur de l'utilisateur."""
+    try:
+        await terminate_playback(session_id, payload.reason[:300], db)
+    except PlaybackActionError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Plex injoignable : {exc}") from exc
+    await publish("activity.updated", {"terminated": session_id}, admin_only=True)
+    return {"status": "terminated"}
+
+
+@router.get("/server-activities")
+async def get_plex_server_activities(db: AsyncSession = Depends(get_db_async)):
+    """Tâches en cours sur le serveur Plex (miniatures, analyses, scans)."""
+    try:
+        return {"activities": await plex_server_activities(db)}
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Plex injoignable : {exc}") from exc
+
+
+@router.delete("/server-activities/{uuid}")
+async def cancel_plex_server_activity(uuid: str, db: AsyncSession = Depends(get_db_async)):
+    try:
+        await cancel_plex_activity(uuid, db)
+    except PlaybackActionError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Plex injoignable : {exc}") from exc
+    return {"status": "cancelled"}
 
 
 @router.get("/statistics")

@@ -1506,3 +1506,41 @@ def test_direct_play_has_no_transcode_buffer():
     session = parse_plex_sessions(xml)[0]
     assert session["transcode_buffer_ms"] is None
     assert session["transcode_speed"] is None
+
+
+def test_playback_action_routes(client):
+    import httpx
+
+    target = "app.routers.activity_api"
+    with (
+        patch(f"{target}.terminate_playback", new=AsyncMock()) as terminate,
+        patch(f"{target}.publish", new=AsyncMock()),
+    ):
+        response = client.post("/api/playback/sessions/7/terminate", json={"reason": "Maintenance"})
+    assert response.status_code == 200
+    assert terminate.await_args.args[:2] == (7, "Maintenance")
+
+    with patch(
+        f"{target}.terminate_playback",
+        new=AsyncMock(side_effect=playback_activity.PlaybackActionError("déjà terminée")),
+    ):
+        response = client.post("/api/playback/sessions/7/terminate", json={"reason": ""})
+    assert response.status_code == 409
+    assert "déjà terminée" in response.json()["detail"]
+
+    with patch(f"{target}.terminate_playback", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.post("/api/playback/sessions/7/terminate", json={}).status_code == 502
+
+    with patch(f"{target}.plex_server_activities", new=AsyncMock(return_value=[{"uuid": "a1"}])):
+        assert client.get("/api/playback/server-activities").json() == {"activities": [{"uuid": "a1"}]}
+    with patch(f"{target}.plex_server_activities", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.get("/api/playback/server-activities").status_code == 502
+
+    with patch(f"{target}.cancel_plex_activity", new=AsyncMock()):
+        assert client.delete("/api/playback/server-activities/a1").json() == {"status": "cancelled"}
+    with patch(
+        f"{target}.cancel_plex_activity", new=AsyncMock(side_effect=playback_activity.PlaybackActionError("finie"))
+    ):
+        assert client.delete("/api/playback/server-activities/a1").status_code == 409
+    with patch(f"{target}.cancel_plex_activity", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.delete("/api/playback/server-activities/a1").status_code == 502

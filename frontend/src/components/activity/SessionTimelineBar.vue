@@ -298,15 +298,25 @@ function segmentTooltip(seg: Segment): string {
 
 .timeline-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
 }
 
+/* Sur mobile, le titre et le badge passent a la ligne plutot que d'ecraser le bouton
+   (« 10 segment / s » sur deux lignes). */
 .header-left {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.timeline-title,
+.timeline-ratio-badge {
+  white-space: nowrap;
 }
 
 .timeline-title {
@@ -329,6 +339,8 @@ function segmentTooltip(seg: Segment): string {
 
 .timeline-toggle-btn {
   display: flex;
+  flex: none;
+  white-space: nowrap;
   align-items: center;
   gap: 0.3rem;
   background: transparent;
