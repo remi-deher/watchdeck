@@ -1,6 +1,7 @@
 <template>
   <div class="session-detail">
     <TerminatePlaybackModal
+      v-if="canTerminate"
       :open="terminateOpen"
       :session-id="session.id"
       :subtitle="`${session.user_name || 'Utilisateur Plex'} · ${displayTitle(session)}`"
@@ -60,25 +61,35 @@
         <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session precedente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="emitParent('navigate', -1)"><ChevronLeft /></UiButton>
         <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session suivante (j)" aria-label="Session suivante" :disabled="!hasNext" @click="emitParent('navigate', 1)"><ChevronRight /></UiButton>
         <UiButton variant="ghost" icon-only title="Copier le diagnostic" aria-label="Copier le diagnostic" @click="copyDiagnostic"><ClipboardCopy /></UiButton>
-        <UiButton v-if="mediaPath" variant="ghost" icon-only title="Ouvrir la fiche du media" aria-label="Ouvrir la fiche du media" @click="openMedia"><ExternalLink /></UiButton>
         <UiButton v-if="canTerminate" class="terminate-button" variant="danger" size="sm" @click="terminateOpen = true"><CircleStop />Arrêter</UiButton>
       </div>
     </div>
 
     <div class="session-progress">
-      <div><span>Progression</span><strong>{{ Math.round(session.progress || 0) }} %</strong></div>
-      <!-- En conversion, la barre montre aussi le tampon : la zone deja preparee par le
-           transcodeur devant la tete de lecture. Tant qu'elle n'est pas vide, rien ne coupe. -->
-      <div class="progress-track" :class="{ buffered: buffer }">
-        <b v-if="buffer" class="buffer-zone" :style="{ left: `${buffer.played}%`, width: `${buffer.buffered - buffer.played}%` }"></b>
-        <i :style="{width:`${buffer ? buffer.played : session.progress || 0}%`}"></i>
+      <div><span>Progression</span><strong>{{ Math.round(percentPlayed) }} %</strong></div>
+      <!-- La position avance d'elle-meme entre deux releves de Plex (voir playbackClock).
+           En conversion, la barre montre aussi le tampon : la zone deja preparee par le
+           transcodeur devant la tete de lecture. Le curseur marque la position. -->
+      <div class="progress-track" :class="{ buffered: buffer }" role="progressbar" :aria-valuenow="Math.round(percentPlayed)" aria-valuemin="0" aria-valuemax="100" :aria-valuetext="`${timecode(positionMs)} sur ${timecode(session.duration_ms)}`">
+        <b v-if="buffer" class="buffer-zone" :style="{ left: `${percentPlayed}%`, width: `${Math.max(0, buffer.buffered - percentPlayed)}%` }"></b>
+        <i :style="{width:`${percentPlayed}%`}"></i>
+        <span v-if="session.duration_ms" class="progress-cursor" :class="{ paused: !advancing && !session.ended_at }" :style="{ left: `${percentPlayed}%` }"></span>
       </div>
-      <!-- Timecodes aux deux bouts ; au milieu, jusqu'ou le transcodeur a deja prepare. -->
+      <!-- Comme un lecteur : ecoule a gauche, restant a droite ; au milieu, la fin du tampon. -->
       <div class="progress-times">
-        <time>{{ timecode(session.progress_ms || session.watched_ms) }}</time>
+        <time>{{ timecode(positionMs) }}</time>
         <span v-if="buffer && bufferEndMs != null" class="buffer-end">prêt jusqu’à {{ timecode(bufferEndMs) }}</span>
-        <time>{{ timecode(session.duration_ms) }}</time>
+        <span v-if="!session.ended_at && !advancing" class="paused-label">En pause</span>
+        <time v-else-if="session.duration_ms">-{{ timecode(remainingMs) }}</time>
       </div>
+      <!-- Reperes de temps : quand la lecture finira, ce qu'elle dure, depuis quand elle tourne. -->
+      <dl class="progress-markers">
+        <div v-if="!session.ended_at"><dt><Flag/>Fin prévue</dt><dd>{{ etaLabel }}</dd></div>
+        <div v-else><dt><Flag/>Terminée</dt><dd>{{ formatTime(session.ended_at) }}</dd></div>
+        <div v-if="session.duration_ms"><dt><Clock3/>Durée</dt><dd>{{ timecode(session.duration_ms) }}</dd></div>
+        <div v-if="session.started_at"><dt><Play/>Commencée</dt><dd>{{ formatTime(session.started_at) }}</dd></div>
+        <div v-if="session.paused_ms"><dt><Pause/>En pause</dt><dd>{{ formatDuration(session.paused_ms) }}</dd></div>
+      </dl>
       <p v-if="buffer" class="buffer-legend" :class="transcoder.tone">
         <span><Timer/>Tampon <strong>{{ formatBuffer(session.transcode_buffer_ms) }}</strong></span>
         <span class="transcoder-state"><Cpu/>{{ transcoder.label }}</span>
@@ -87,7 +98,7 @@
     </div>
 
     <div v-balanced-grid="{ min: 170 }" class="session-kpis">
-      <article><Clock3/><span>Temps restant</span><strong>{{ remainingLabel(session) }}</strong><small>{{ estimatedEnd(session) }}</small></article>
+      <article><Clock3/><span>Temps restant</span><strong>{{ session.duration_ms ? formatDuration(remainingMs) : 'Inconnu' }}</strong><small>{{ session.ended_at ? 'Lecture terminée' : advancing ? `Fin vers ${etaLabel}` : 'En pause : fin suspendue' }}</small></article>
       <!-- Un tiret se lit comme un zero : quand Plex ne communique pas le debit, on le
            dit plutot que d'afficher une valeur vide qui passerait pour une mesure. -->
       <article><Gauge/><span>Débit du flux</span><strong>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non mesuré' }}</strong><small>{{ bitrateHint }}</small></article>
@@ -137,7 +148,6 @@
         <div><dt>Réseau</dt><dd>{{ networkLabel(session) }}</dd></div>
         <div><dt>Durée totale</dt><dd>{{ formatDuration(session.duration_ms) }}</dd></div>
         <div><dt>Temps visionné</dt><dd>{{ formatDuration(session.progress_ms || session.watched_ms) }}</dd></div>
-        <div v-if="session.paused_ms"><dt>Temps en pause</dt><dd>{{ formatDuration(session.paused_ms) }}</dd></div>
       </dl>
     </section>
 
@@ -168,9 +178,10 @@ import { episodeLabel } from '@/utils/episode';
 import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@/utils/transcodeBuffer';
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
 import { computed, nextTick, ref, watch } from 'vue';
-import { useResizeObserver } from '@vueuse/core';
+import { useIntervalFn, useResizeObserver } from '@vueuse/core';
 import { useRouter } from 'vue-router';
-import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Cpu, Download, ExternalLink, Gauge, MonitorPlay, Network, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
+import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Cpu, Download, Flag, Gauge, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
+import { estimateProgressMs, estimatedEnd, isAdvancing, timecode } from '@/utils/playbackClock';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 import { useToast } from '@/composables/useToast';
@@ -305,14 +316,20 @@ const bufferEndMs = computed(() => {
   if (s.transcode_buffer_ms == null) return null;
   return Math.min(s.duration_ms || Infinity, (s.progress_ms || 0) + s.transcode_buffer_ms);
 });
-/** « 1:04:09 », « 12:07 » : la position telle que l'affiche un lecteur. */
-function timecode(ms: any): string {
-  const total = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const sec = String(total % 60).padStart(2, '0');
-  return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
-}
+/* Horloge : une seconde de pas tant que la lecture avance, rien sinon. */
+const now = ref(new Date());
+useIntervalFn(() => { now.value = new Date(); }, 1000);
+const advancing = computed(() => isAdvancing(props.session));
+const positionMs = computed(() => estimateProgressMs(props.session, now.value.getTime()));
+const remainingMs = computed(() => Math.max(0, (props.session.duration_ms || 0) - positionMs.value));
+const percentPlayed = computed(() => {
+  const duration = props.session.duration_ms;
+  return duration ? Math.min(100, (positionMs.value / duration) * 100) : Number(props.session.progress || 0);
+});
+const etaLabel = computed(() => {
+  const end = estimatedEnd(props.session, now.value.getTime());
+  return end ? formatTime(end.getTime()) : advancing.value ? '—' : 'suspendue';
+});
 
 const CODECS: Record<string, string> = { hevc: 'HEVC', h264: 'H.264', av1: 'AV1', truehd: 'TrueHD', eac3: 'E-AC3', ac3: 'AC3', dca: 'DTS', aac: 'AAC', opus: 'Opus', flac: 'FLAC', ass: 'ASS', srt: 'SRT', webvtt: 'WebVTT', pgs: 'PGS', mov_text: 'MOV text' };
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'stéréo', 6: '5.1', 8: '7.1' };
@@ -391,15 +408,6 @@ function displayTitle(item: any): string {
   return item.grandparent_title ? `${item.grandparent_title} · ${item.title}` : (item.title || 'Session Plex');
 }
 const formatDate = (value: any) => formatDateTime(value, '—');
-function remainingLabel(item: any): string {
-  const remaining = Math.max(0, (item.duration_ms || 0) - (item.progress_ms || item.watched_ms || 0));
-  return item.duration_ms ? formatDuration(remaining) : 'Inconnu';
-}
-function estimatedEnd(item: any): string {
-  const remaining = Math.max(0, (item.duration_ms || 0) - (item.progress_ms || item.watched_ms || 0));
-  if (!remaining || item.state === 'paused') return item.state === 'paused' ? 'Estimation suspendue' : 'Fin non estimée';
-  return `Fin vers ${formatTime(Date.now() + remaining)}`;
-}
 function bandwidthHint(value: any): string {
   if (!value) return 'Plex ne l’a pas communiqué';
   return value >= 20000 ? 'bande passante élevée' : value >= 8000 ? 'bande passante modérée' : 'flux léger';
@@ -491,6 +499,15 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .progress-track i{position:relative}
 .progress-times{display:flex;justify-content:space-between;gap:8px;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
 .progress-times .buffer-end{color:var(--blue-text)}
+.progress-times .paused-label{color:var(--amber-text);font-weight:600}
+.session-progress .progress-track{overflow:visible}
+.progress-cursor{position:absolute;top:50%;width:12px;height:12px;border:2px solid var(--surface-2);border-radius:50%;background:var(--accent);transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgb(var(--ink) / .12)}
+.progress-cursor.paused{background:var(--amber)}
+.progress-markers{display:flex;flex-wrap:wrap;gap:6px 18px;margin:2px 0 0;font-size:var(--fs-xs)}
+.progress-markers div{display:flex;align-items:center;gap:6px}
+.progress-markers dt{display:inline-flex;align-items:center;gap:5px;color:color-mix(in srgb,var(--text) 62%,transparent)}
+.progress-markers dt svg{width:13px;height:13px}
+.progress-markers dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
 .buffer-legend{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 14px;margin:0;font-size:var(--fs-xs);color:color-mix(in srgb,var(--text) 75%,transparent)}
 .buffer-legend span{display:inline-flex;align-items:center;gap:6px}
 .buffer-legend svg{width:14px;height:14px}

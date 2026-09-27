@@ -93,7 +93,7 @@ describe('SessionDetail - connexion', () => {
       watched_ms: 3600000,
       paused_ms: 900000,
     });
-    expect(wrapper.text()).toContain('Temps en pause');
+    expect(wrapper.text()).toContain('En pause');
     expect(wrapper.text()).toContain('15 min');
   });
 });
@@ -218,3 +218,42 @@ describe('SessionDetail - réseau, HDR, lecteur et arrêt', () => {
     expect(factory({ ...live, is_download: true }).get('.session-flag.download').text()).toContain('Téléchargement');
   });
 });
+
+describe('SessionDetail - repères de temps', () => {
+  const now = Date.parse('2026-09-27T20:00:00Z');
+  const base = {
+    id: 3, title: 'Film', state: 'playing', last_seen_at: '2026-09-27T20:00:00Z', started_at: '2026-09-27T19:30:00Z',
+    progress_ms: 1_800_000, duration_ms: 5_400_000, paused_ms: 120_000,
+    media: { library_item_id: 42 },
+  };
+
+  it('affiche position, restant, fin prévue, durée, début et pause', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const wrapper = factory(base);
+    const times = wrapper.get('.progress-times').text();
+    expect(times).toContain('30:00');
+    expect(times).toContain('-1:00:00');
+    const markers = wrapper.get('.progress-markers').text();
+    expect(markers).toContain('Fin prévue');
+    expect(markers).toContain('1:30:00');
+    expect(markers).toContain('Commencée');
+    expect(markers).toContain('En pause');
+    expect(wrapper.get('.progress-cursor').attributes('style')).toContain('left: 33.3');
+    vi.useRealTimers();
+  });
+
+  it('en pause, remplace le restant par « En pause » et suspend la fin', () => {
+    const wrapper = factory({ ...base, state: 'paused' });
+    expect(wrapper.get('.progress-times').text()).toContain('En pause');
+    expect(wrapper.get('.progress-cursor').classes()).toContain('paused');
+    expect(wrapper.get('.progress-markers').text()).toContain('suspendue');
+  });
+
+  it('n’a plus de bouton « Ouvrir la fiche du media » : l’affiche y mène', () => {
+    const wrapper = factory(base);
+    expect(wrapper.find('[aria-label="Ouvrir la fiche du media"]').exists()).toBe(false);
+    expect(wrapper.get('.session-poster').element.tagName).toBe('BUTTON');
+  });
+});
+
