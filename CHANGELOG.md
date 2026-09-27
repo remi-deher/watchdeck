@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.53.0 — 2026-09-27
+
+
+### test
+
+- le hero d'une fiche n'a plus de bordure autour de l'image ([cc3a40c](https://github.com/remi-deher/watchdeck/commit/cc3a40ca32bf7afee56cb364a3e217275d48924e))
+- stabiliser deux tests qui echouaient sous charge ([4346e18](https://github.com/remi-deher/watchdeck/commit/4346e18e5588bf74f9b4d10eac1cda16648e5732))
+
+### ✨ Nouveautés
+
+- en-tete de session comme la fiche d'un media ([774e1ab](https://github.com/remi-deher/watchdeck/commit/774e1abab017e95d5746aaa7370e5aa02605df4c))
+- voile de banniere egal sur les quatre bords, sans bordure ([b741020](https://github.com/remi-deher/watchdeck/commit/b7410202c9c17218a387e93da2fb7f084a445ad4))
+
+### 🎨 Style
+
+- une bordure par surface dans la fiche de session et Activite ([4b24e81](https://github.com/remi-deher/watchdeck/commit/4b24e81b6f4032dbd33356c3d8c19967fb5e3aeb))
+- une bordure par surface dans toute l'application ([9e65d92](https://github.com/remi-deher/watchdeck/commit/9e65d92011c9516b4757485e3036a7c2c8c43917))
+
+### 🐛 Corrections
+
+- ne plus afficher « [object Promise] » sous une fiche rechargee ([ac618a9](https://github.com/remi-deher/watchdeck/commit/ac618a93c55c0715fbebf6e9de0beddc4d85d811))
 ## 1.52.0 — 2026-09-27
 
 
@@ -9,6 +30,10 @@
 - montrer le reemballage d'un Direct Stream et detailler la conversion ([ec373da](https://github.com/remi-deher/watchdeck/commit/ec373dae7775e3619cfd8e5b84a4544e6483dc36))
 - refonte de la fiche de session ([af20a34](https://github.com/remi-deher/watchdeck/commit/af20a348819ae592520863c230e85d132f90c161))
 - relais, HDR, debits, lecteur, telechargements, arret de lecture et taches Plex ([327febe](https://github.com/remi-deher/watchdeck/commit/327febe3e96230bf52b66012a7df6e5a254254e6))
+
+### 🔧 Maintenance
+
+- v1.52.0 (#497) ([0e5d043](https://github.com/remi-deher/watchdeck/commit/0e5d043a515b0547ad9988de25ec7c16f799517e))
 ## 1.51.0 — 2026-09-26
 
 
