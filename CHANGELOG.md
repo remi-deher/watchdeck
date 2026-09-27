@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.54.0 — 2026-09-27
+
+
+### ✨ Nouveautés
+
+- reperes de temps sur la progression d'une lecture ([9fb5d08](https://github.com/remi-deher/watchdeck/commit/9fb5d08337c0b4e48426e806cc511dcc08b59d3d))
+
+### 🐛 Corrections
+
+- affiches des episodes nettes, identifiant copiable ([3aa0184](https://github.com/remi-deher/watchdeck/commit/3aa01849f0bb5059c703240c22096b59da9da2fd))
+- rendre le texte des bannieres lisible sur les images claires ([c73fbae](https://github.com/remi-deher/watchdeck/commit/c73fbaeb993d0753279fc1ad527ea1edb37e82ae))
 ## 1.53.0 — 2026-09-27
 
 
@@ -21,6 +32,10 @@
 ### 🐛 Corrections
 
 - ne plus afficher « [object Promise] » sous une fiche rechargee ([ac618a9](https://github.com/remi-deher/watchdeck/commit/ac618a93c55c0715fbebf6e9de0beddc4d85d811))
+
+### 🔧 Maintenance
+
+- v1.53.0 (#500) ([6eb2402](https://github.com/remi-deher/watchdeck/commit/6eb2402e363c7ebb8aed87655075e9f546ec59c4))
 ## 1.52.0 — 2026-09-27
 
 
