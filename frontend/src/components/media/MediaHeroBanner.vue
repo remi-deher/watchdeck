@@ -353,9 +353,12 @@ onUnmounted(stopAutoplay);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
+/* Texte pose sur l'image : blanc. La banniere force le theme sombre (theme-dark-scope),
+   ou --text est quasi blanc dans les deux themes ; un gris n'a pas de contraste fiable
+   sur une photo. */
 .hero-overview {
   margin: var(--space-1) 0 var(--space-2);
-  color: var(--muted);
+  color: var(--text);
   font-size: var(--fs-sm);
   line-height: 1.5;
   display: -webkit-box;
@@ -370,7 +373,7 @@ onUnmounted(stopAutoplay);
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
-  color: var(--muted);
+  color: var(--text);
   font-size: var(--fs-xs);
   font-weight: 600;
 }

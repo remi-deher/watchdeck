@@ -393,8 +393,8 @@ const releaseDates = computed(() => {
   padding: 8px 10px;
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, .28);
-  color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text);
   font-size: var(--fs-sm);
 }
 .origin-badge {
