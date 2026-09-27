@@ -1,11 +1,30 @@
 # Changelog
 
+## 1.57.0 — 2026-09-27
+
+
+### ✨ Nouveautés
+
+- reseau sous la carte, chiffrement dans la ligne d'identite ([f4fb696](https://github.com/remi-deher/watchdeck/commit/f4fb6965e100b4c55f665405d826fb262557ccb7))
+- carte d'intervention lisible et fiches ouvertes en panneau ([ce6dfe4](https://github.com/remi-deher/watchdeck/commit/ce6dfe4da1e54722ebd23e9d3542c844815e1227))
+
+### 🐛 Corrections
+
+- adapter la mise en page a la place disponible sur tablette ([a233a45](https://github.com/remi-deher/watchdeck/commit/a233a4541933e0a23a5995626c97947da5c9158b))
+
+### 👷 CI/CD
+
+- ne plus annuler le build de test ni le sauter a tort ([6ffb384](https://github.com/remi-deher/watchdeck/commit/6ffb3840afe327b13fd8dec1d24899bdad6650c1))
 ## 1.56.0 — 2026-09-27
 
 
 ### ✨ Nouveautés
 
 - section Conversion en clair et details de session en quatre cartes ([e176aba](https://github.com/remi-deher/watchdeck/commit/e176aba610484e794f61b72a979059ec58289064))
+
+### 🔧 Maintenance
+
+- v1.56.0 (#521) ([329dc4d](https://github.com/remi-deher/watchdeck/commit/329dc4d05e811f1e8a948d3e3d98637282661437))
 ## 1.55.2 — 2026-09-27
 
 
