@@ -409,3 +409,17 @@ def test_one_year_of_drift_is_tolerated():
     results = [_lookup_result("Christmas Time in South Park", 2008, tmdb=148039)]
 
     assert _accepts_title_match("Christmas in South Park", 2007, results)["tmdbId"] == 148039
+
+
+def test_queue_record_keeps_release_and_status_messages():
+    """La carte d'intervention affiche la release et les messages *arr bruts."""
+    from app.services.radarr import _normalize_queue_record
+
+    messages = [{"title": "Film.2024.1080p.mkv", "messages": ["Not an upgrade"]}]
+    record = _normalize_queue_record(
+        {"id": 7, "movieId": 3, "title": "Film.2024.1080p-GRP", "statusMessages": messages}, "Film"
+    )
+
+    assert record["release_title"] == "Film.2024.1080p-GRP"
+    assert record["status_messages"] == messages
+    assert _normalize_queue_record({"id": 8}, "Film")["status_messages"] == []

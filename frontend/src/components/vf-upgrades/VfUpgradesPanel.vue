@@ -48,7 +48,7 @@
                 {{ group.items.length }} opportunité{{ group.items.length > 1 ? 's' : '' }}
               </span>
             </div>
-            <RouterLink class="media-title" :to="mediaLink(group)">
+            <RouterLink class="media-title" :to="mediaLink(group)" @click="ouvrirFicheAuClic($event, mediaLink(group))">
               {{ group.media?.title || 'Média sans titre' }}
             </RouterLink>
           </div>
@@ -194,6 +194,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
@@ -217,6 +218,7 @@ defineProps<{
   waitingTruncated: number;
   selectedKeys: ReadonlySet<string>;
 }>();
+const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
 const emit = defineEmits<{
   'toggle-select': [group: VfUpgradeGroup];
   ignore: [group: VfUpgradeGroup, ignored: boolean];

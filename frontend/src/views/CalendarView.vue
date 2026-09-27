@@ -307,8 +307,8 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 .month-cell:nth-last-child(-n+7) { border-bottom: 0; }
 .month-cell.outside { opacity: 0.35; }
 .month-cell.today { background: color-mix(in srgb, var(--accent) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
-.month-cell header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.month-cell header > span { color: var(--text); font-weight: 700; }
+.month-cell header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0 var(--space-1); margin-bottom: 6px; }
+.month-cell header > span { color: var(--text); font-weight: 700; white-space: nowrap; }
 .month-cell header small { color: var(--accent); font-size: var(--fs-xs); }
 .month-event, .month-more { display: flex; align-items: center; gap: var(--space-1); width: 100%; min-width: 0; margin: 3px 0; padding: 4px 5px; border: 0; border-left: 2px solid var(--muted); border-radius: var(--radius-xs); background: rgb(var(--ink) / 0.035); color: var(--text); font-size: var(--fs-xs); text-align: left; cursor: pointer; }
 .month-event.available { border-color: var(--success); }
@@ -545,7 +545,9 @@ onBeforeUnmount(() => { compactQuery.removeEventListener('change', syncCompact);
 
 /* Adaptations Responsives Mobile */
 @container page (max-width: 757px) {
-  .month-calendar { min-width: 760px; }
+  /* 600px et non 760 : une tablette en portrait n'offre que 620 a 660px une fois le
+     rail lateral deduit, et le mois y defilait horizontalement. */
+  .month-calendar { min-width: 600px; }
   .month-cell { min-height: 112px; padding: 6px; }
   .calendar-view-switch { justify-self: start; }
   .calendar-legend { justify-content: flex-start; }

@@ -17,6 +17,8 @@
       <div><Wifi/><div class="location-copy"><dt>Opérateur</dt><dd>{{ session.geo_isp || 'Indisponible' }}</dd></div></div>
       <div><Building2/><div class="location-copy"><dt>Organisation</dt><dd>{{ session.geo_organization || 'Indisponible' }}</dd></div></div>
       <div><Network/><div class="location-copy"><dt>ASN</dt><dd>{{ session.geo_asn || 'Indisponible' }}</dd></div></div>
+      <!-- Relais Plex : debit bride (~2 Mb/s), cause frequente d'une qualite reduite. -->
+      <div v-if="session.stream_details?.relayed != null"><RadioTower/><div class="location-copy"><dt>Relais Plex (limité à ~2 Mb/s)</dt><dd>{{ session.stream_details.relayed ? 'Oui' : 'Non' }}</dd></div></div>
       <div><MapPin/><div class="location-copy"><dt>Ville</dt><dd>{{ session.geo_city || 'Indisponible' }}</dd></div></div>
       <div><Map/><div class="location-copy"><dt>Région</dt><dd>{{ session.geo_region || 'Indisponible' }}</dd></div></div>
       <div><Flag/><div class="location-copy"><dt>Pays</dt><dd>{{ session.geo_country || session.geo_country_code || 'Indisponible' }}</dd></div></div>
@@ -26,7 +28,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Building2, ExternalLink, Flag, Globe2, Map, MapPin, MapPinned, Network, Wifi } from '@lucide/vue';
+import { Building2, ExternalLink, Flag, Globe2, Map, MapPin, MapPinned, Network, RadioTower, Wifi } from '@lucide/vue';
 
 const props = defineProps<{ session: Record<string, any> }>();
 const latitude = computed(() => Number(props.session.geo_lat));

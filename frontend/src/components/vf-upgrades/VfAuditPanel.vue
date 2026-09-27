@@ -43,7 +43,7 @@
               </span>
               <span v-if="item.year" class="badge badge-year">{{ item.year }}</span>
             </div>
-            <RouterLink class="media-title" :to="`/library/media/library/${item.id}`">
+            <RouterLink class="media-title" :to="`/library/media/library/${item.id}`" @click="ouvrirFicheAuClic($event, `/library/media/library/${item.id}`)">
               {{ item.title || 'Média sans titre' }}
             </RouterLink>
           </div>
@@ -97,7 +97,7 @@
             @updated="emit('refresh')"
           />
 
-          <UiButton size="sm" :to="`/library/media/library/${item.id}`">Fiche</UiButton>
+          <UiButton size="sm" :to="`/library/media/library/${item.id}`" @click="ouvrirFicheAuClic($event, `/library/media/library/${item.id}`)">Fiche</UiButton>
         </div>
       </div>
 
@@ -193,6 +193,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { ChevronDown, ChevronUp, Film, MessageSquare, MessageSquareOff, RotateCcw, SlidersHorizontal, Tv, Volume2, VolumeX } from '@lucide/vue';
@@ -216,6 +217,7 @@ defineProps<{
   /** « Tout aligner » en cours : les alignements unitaires attendent. */
   fixingAll: boolean;
 }>();
+const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
 const emit = defineEmits<{
   /** Ouvrir la previsualisation d'alignement de ce media. */
   align: [item: AuditItem];

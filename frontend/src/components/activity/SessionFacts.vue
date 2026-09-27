@@ -1,8 +1,7 @@
 <template>
   <!-- Details de la session, ranges par theme : ce qui se passe (Lecture), qui regarde et
-       avec quoi (Lecteur), par ou passe le flux (Reseau), quand (Chronologie). Quatre
-       cartes de taille voisine, plutot qu'un bloc « Contexte » de onze lignes qui melait
-       tout, avec « Opera » trois fois. -->
+       avec quoi (Lecteur), quand (Chronologie). Le reseau (adresse, operateur, ASN, relais)
+       est sous la carte de localisation, le chiffrement dans la ligne d'identite. -->
   <section class="session-facts" aria-label="Détails de la session">
     <article v-for="card in cards" :key="card.title" class="facts-card">
       <h3><component :is="card.icon" aria-hidden="true" />{{ card.title }}</h3>
@@ -21,7 +20,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Clock3, Copy, Globe, MonitorPlay, Play } from '@lucide/vue';
+import { Clock3, Copy, MonitorPlay, Play } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { useToast } from '@/composables/useToast';
 import { formatDurationExact as formatDuration, formatDateTime, formatTime } from '@/utils/format';
@@ -38,9 +37,6 @@ const clean = (value: unknown) => {
   return text && text.toLowerCase() !== 'standalone' ? text : '';
 };
 
-function isLocal(s: Record<string, any>): boolean {
-  return s.geo_status === 'local' || s.location === 'lan' || s.stream_location === 'lan' || s.stream_details?.local === true;
-}
 
 const cards = computed(() => {
   const s = props.session;
@@ -68,15 +64,6 @@ const cards = computed(() => {
   lecteur.push({ label: 'Utilisateur', value: s.user_name || 'Utilisateur Plex' });
   lecteur.push({ label: 'Bibliothèque', value: s.library || '—' });
 
-  const reseau: Row[] = [];
-  const secure = stream.secure == null ? '' : stream.secure ? ' · chiffrée' : ' · non chiffrée';
-  reseau.push({ label: 'Connexion', value: `${isLocal(s) ? 'Locale' : 'Distante'}${secure}` });
-  const place = [s.geo_city, s.geo_country_code || s.geo_country].filter(Boolean).join(', ');
-  if (place) reseau.push({ label: 'Lieu', value: place });
-  const isp = s.geo_isp || s.geo_organization;
-  if (isp) reseau.push({ label: 'Fournisseur', value: isp });
-  if (stream.relayed != null) reseau.push({ label: 'Relais Plex (limité à ~2 Mb/s)', value: stream.relayed ? 'Oui' : 'Non' });
-  reseau.push({ label: 'Adresse IP', value: s.address || 'Indisponible', mono: true });
 
   const chrono: Row[] = [{ label: 'Début', value: formatDateTime(s.started_at, '—') }];
   chrono.push(s.ended_at
@@ -92,7 +79,6 @@ const cards = computed(() => {
   return [
     { title: 'Lecture', icon: Play, rows: lecture },
     { title: 'Lecteur', icon: MonitorPlay, rows: lecteur },
-    { title: 'Réseau', icon: Globe, rows: reseau },
     { title: 'Chronologie', icon: Clock3, rows: chrono },
   ];
 });

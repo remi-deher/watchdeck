@@ -55,7 +55,7 @@ def request_operational_projection(req: Any) -> dict[str, Any]:
         "downloading": "Le client de telechargement n'a pas encore termine.",
         "importing": "Sonarr/Radarr est en train d'importer les fichiers termines.",
         "awaiting_plex": "L'import *ARR est termine; Plex doit encore indexer et confirmer le media.",
-        "partially_available": "Une partie seulement du media est confirmee dans Plex.",
+        "partially_available": "Une partie des episodes ou saisons est deja dans Plex.",
         "failed": error or "Une erreur technique bloque le parcours.",
         "removed": "Le media n'est plus suivi par *ARR.",
     }
