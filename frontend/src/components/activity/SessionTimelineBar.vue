@@ -3,9 +3,9 @@
     <!-- En-tête avec titre, ratios et bouton de dépliage -->
     <div class="timeline-header">
       <div class="header-left">
-        <span class="timeline-title">Timeline de lecture</span>
+        <span class="timeline-title">Déroulé de la lecture</span>
         <span class="timeline-ratio-badge" v-if="activePlayRatio !== null && (hasPause || segments.length > 1)">
-          {{ activePlayRatio }}% actif
+          {{ activePlayRatio }} % en lecture
         </span>
       </div>
 
@@ -14,7 +14,7 @@
         class="timeline-toggle-btn"
         :aria-label="isExpanded ? 'Masquer le détail des segments' : 'Afficher le détail des segments'"
       >
-        <span>{{ segments.length > 1 ? `${segments.length} segments` : 'Détails' }}</span>
+        <span>{{ segments.length > 1 ? `${segments.length} passages` : 'Détails' }}</span>
         <ChevronDown :class="['toggle-chevron', { 'is-open': isExpanded }]" :size="14" />
       </CollapsibleTrigger>
     </div>

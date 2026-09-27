@@ -93,7 +93,8 @@ describe('SessionDetail - connexion', () => {
       watched_ms: 3600000,
       paused_ms: 900000,
     });
-    expect(wrapper.text()).toContain('En pause');
+    // Le temps en pause est dans la carte « Chronologie ».
+    expect(wrapper.text()).toContain('Temps en pause');
     expect(wrapper.text()).toContain('15 min');
   });
 });
@@ -148,19 +149,22 @@ describe('SessionDetail - fiche de l’œuvre et conversion', () => {
   });
 
   it('détaille la conversion flux par flux, avec les couleurs des pastilles', () => {
-    const rows = factory(flibustiers).findAll('.conversion-row');
-    expect(rows.map((row) => row.get('.conversion-label').text())).toEqual(['Conteneur', 'Vidéo', 'Audio', 'Sous-titres']);
-    expect(rows[0].get('.conversion-treatment').text()).toBe('Identique');
-    expect(rows[1].get('.conversion-treatment').classes()).toContain('copied');
-    expect(rows[3].text()).toContain('ASS · Français forcés');
-    expect(rows[3].get('.conversion-treatment').classes()).toContain('converted');
+    const rows = factory(flibustiers).findAll('.conversion-flow');
+    expect(rows.map((row) => row.get('.flow-label').text())).toEqual(['Conteneur', 'Vidéo', 'Audio', 'Sous-titres']);
+    expect(rows[0].get('.pill').text()).toBe('Inchangé');
+    expect(rows[1].get('.pill').text()).toBe('Inchangée');
+    expect(rows[1].get('.pill').classes()).toContain('copied');
+    expect(rows[3].text()).toContain('ASS → WebVTT · forcés');
+    expect(rows[3].get('.pill').classes()).toContain('converted');
   });
 
   it('signale un changement de conteneur en bleu', () => {
     const details = { ...flibustiers.transcode_details, container: { from: 'mkv', to: 'mp4' }, protocol: 'dash' };
-    const row = factory({ ...flibustiers, transcode_details: details }).findAll('.conversion-row')[0];
-    expect(row.text()).toContain('MP4 · DASH');
-    expect(row.get('.conversion-treatment').classes()).toContain('remuxed');
+    const row = factory({ ...flibustiers, transcode_details: details }).findAll('.conversion-flow')[0];
+    expect(row.text()).toContain('MKV → MP4');
+    expect(row.get('.pill').text()).toBe('Changé · diffusion en segments');
+    expect(row.get('.pill').attributes('title')).toBe('Protocole DASH');
+    expect(row.get('.pill').classes()).toContain('remuxed');
   });
 
   it('une ancienne lecture sans détail garde le chemin du flux', () => {
@@ -192,8 +196,8 @@ describe('SessionDetail - réseau, HDR, lecteur et arrêt', () => {
     expect(wrapper.get('.session-flag.hdr').text()).toBe('HDR10 → SDR');
     expect(wrapper.get('.session-flag.hdr').classes()).toContain('tonemap');
     expect(wrapper.text()).toContain('qualité réduite');
-    const range = wrapper.findAll('.conversion-row').find((row) => row.text().includes('Plage dynamique'));
-    expect(range.get('.conversion-treatment').text()).toBe('Tone mapping');
+    const range = wrapper.findAll('.conversion-flow').find((row) => row.text().includes('Plage dynamique'));
+    expect(range.get('.pill').text()).toBe('HDR converti en SDR');
   });
 
   it('ne parle de qualité réduite que si la vidéo est réencodée', () => {
@@ -206,7 +210,8 @@ describe('SessionDetail - réseau, HDR, lecteur et arrêt', () => {
   it('décrit l’application et l’appareil du lecteur', () => {
     const text = factory(live).text();
     expect(text).toContain('Plex for Android (TV) 10.2');
-    expect(text).toContain('NVIDIA SHIELD · Android 11');
+    expect(text).toContain('NVIDIA SHIELD');
+    expect(text).toContain('Android 11');
   });
 
   it('propose d’arrêter une lecture en cours, pas une lecture terminée', () => {
@@ -238,7 +243,8 @@ describe('SessionDetail - repères de temps', () => {
     expect(markers).toContain('Fin prévue');
     expect(markers).toContain('1:30:00');
     expect(markers).toContain('Commencée');
-    expect(markers).toContain('En pause');
+    // Le temps en pause est passé dans la carte « Chronologie ».
+    expect(wrapper.text()).toContain('Temps en pause');
     expect(wrapper.get('.progress-cursor').attributes('style')).toContain('left: 33.3');
     vi.useRealTimers();
   });
