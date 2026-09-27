@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.55.0 — 2026-09-27
+
+
+### ♻️ Refactoring
+
+- en-tete commun des fiches (SheetHero, SheetSummary) ([07aff82](https://github.com/remi-deher/watchdeck/commit/07aff827d09bb0477f75bba7944563d821705487))
+
+### ✨ Nouveautés
+
+- texte sous la banniere, parcours reel des medias deja dans Plex ([0991a48](https://github.com/remi-deher/watchdeck/commit/0991a48f4b4f421a6c67de016f7f11c6debb08c9))
 ## 1.54.0 — 2026-09-27
 
 
@@ -11,6 +21,10 @@
 
 - affiches des episodes nettes, identifiant copiable ([3aa0184](https://github.com/remi-deher/watchdeck/commit/3aa01849f0bb5059c703240c22096b59da9da2fd))
 - rendre le texte des bannieres lisible sur les images claires ([c73fbae](https://github.com/remi-deher/watchdeck/commit/c73fbaeb993d0753279fc1ad527ea1edb37e82ae))
+
+### 🔧 Maintenance
+
+- v1.54.0 (#505) ([dfd5e3d](https://github.com/remi-deher/watchdeck/commit/dfd5e3d1d8a7e6dc1f6d3acadadc19719ceb7fa3))
 ## 1.53.0 — 2026-09-27
 
 
