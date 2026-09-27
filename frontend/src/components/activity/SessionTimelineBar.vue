@@ -534,7 +534,7 @@ function segmentTooltip(seg: Segment): string {
   padding: 0.4rem 0.5rem;
   border-radius: var(--radius-sm, 0.35rem);
   background: var(--bg-surface-soft, rgb(var(--ink) / 0.04));
-  border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.06));
+  border: 0;
   cursor: pointer;
   transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }

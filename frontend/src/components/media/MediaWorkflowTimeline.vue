@@ -137,7 +137,7 @@ const hiddenCount = computed(() =>
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.workflow-card { margin-bottom: 18px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); overflow: hidden; }
+.workflow-card { margin-bottom: 18px; padding: 16px; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-2); overflow: hidden; }
 .workflow-heading { display: flex; justify-content: space-between; gap: var(--space-3); align-items: baseline; margin-bottom: 16px; }
 .workflow-heading h2 { margin: 0; font-size: var(--fs-base); }
 .workflow-heading span { color: var(--muted); font-size: var(--fs-sm); text-align: right; }

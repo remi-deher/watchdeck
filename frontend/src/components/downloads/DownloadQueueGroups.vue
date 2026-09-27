@@ -178,7 +178,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .download-group-head h2{margin:0;font-size:var(--fs-md)}
 .download-group-head p{margin:2px 0 0;color:var(--muted);font-size:var(--fs-xs)}
 .download-group-head>span{min-width:27px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-pill);text-align:center;font-size:var(--fs-xs);font-weight:700}
-.download-card{display:grid;gap:var(--space-3);padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);content-visibility:auto;contain-intrinsic-size:0 120px}
+.download-card{display:grid;gap:var(--space-3);padding:14px;border:1px solid var(--border);border-radius:var(--panel-radius);background:var(--surface);content-visibility:auto;contain-intrinsic-size:0 120px}
 .download-card header,.download-progress>div,.download-card footer{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3)}
 .download-card header>div{display:grid;gap:var(--space-1);min-width:0}
 .download-card header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

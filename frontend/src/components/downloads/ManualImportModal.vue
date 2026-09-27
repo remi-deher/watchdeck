@@ -351,7 +351,7 @@ onMounted(() => {
 .link-btn { padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; cursor: pointer; }
 .link-btn:hover { text-decoration: underline; }
 
-.search-panel { margin-top: var(--space-3); padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+.search-panel { margin-top: var(--space-3); padding: 14px; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-2); }
 .search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
 .muted-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 .muted-note.section { margin-top: 20px; }

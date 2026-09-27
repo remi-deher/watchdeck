@@ -146,7 +146,7 @@ withDefaults(
   padding: 10px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--panel-radius);
   overflow-x: auto;
 }
 
