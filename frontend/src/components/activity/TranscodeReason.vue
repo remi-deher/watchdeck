@@ -6,7 +6,7 @@
     <p v-if="remux" class="remux-line" title="Conteneur changé, sans réencodage"><strong>{{ remux }}</strong></p>
     <template v-if="reason">
     <p :title="compact ? tooltip : undefined">
-      <strong>{{ reason.text }}</strong>
+      <strong>{{ reason.source === 'plex' ? plexPhrase(reason.text) : reason.text }}</strong>
       <small v-if="!compact">{{ sourceLabel }}</small>
     </p>
     <template v-if="!compact && reason.source === 'plex'">
@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { plexPhrase } from '@/utils/plexDecisionText';
 
 export interface TranscodeReasonData {
   source: 'plex' | 'deduced';

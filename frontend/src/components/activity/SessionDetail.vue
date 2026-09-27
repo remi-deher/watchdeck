@@ -82,10 +82,9 @@
         <div v-else><dt><Flag/>Terminée</dt><dd>{{ formatTime(session.ended_at) }}</dd></div>
         <div v-if="session.duration_ms"><dt><Clock3/>Durée</dt><dd>{{ timecode(session.duration_ms) }}</dd></div>
         <div v-if="session.started_at"><dt><Play/>Commencée</dt><dd>{{ formatTime(session.started_at) }}</dd></div>
-        <div v-if="session.paused_ms"><dt><Pause/>En pause</dt><dd>{{ formatDuration(session.paused_ms) }}</dd></div>
       </dl>
       <p v-if="buffer" class="buffer-legend" :class="transcoder.tone">
-        <span><Timer/>Tampon <strong>{{ formatBuffer(session.transcode_buffer_ms) }}</strong></span>
+        <span><Timer/>Avance du transcodeur <strong>{{ formatBuffer(session.transcode_buffer_ms) }}</strong></span>
         <span class="transcoder-state"><Cpu/>{{ transcoder.label }}</span>
       </p>
       <SessionTimelineBar :session="session"/>
@@ -95,7 +94,7 @@
       <article><Clock3/><span>Temps restant</span><strong>{{ session.duration_ms ? formatDuration(remainingMs) : 'Inconnu' }}</strong><small>{{ session.ended_at ? 'Lecture terminée' : advancing ? `Fin vers ${etaLabel}` : 'En pause : fin suspendue' }}</small></article>
       <!-- Un tiret se lit comme un zero : quand Plex ne communique pas le debit, on le
            dit plutot que d'afficher une valeur vide qui passerait pour une mesure. -->
-      <article><Gauge/><span>Débit du flux</span><strong>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non mesuré' }}</strong><small>{{ bitrateHint }}</small></article>
+      <article><Gauge/><span>Débit envoyé</span><strong>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non mesuré' }}</strong><small>{{ bitrateHint }}</small></article>
       <article :class="['network-kpi', isRemoteConnection(session) ? 'remote' : 'local']"><Network/><span>Connexion</span><strong>{{ connectionLabel(session) }}</strong><small>{{ stream.relayed ? 'via le relais Plex, débit bridé' : connectionHint(session) }}</small></article>
     </div>
 
@@ -112,61 +111,15 @@
       </div>
     </section>
 
-    <section v-if="session.transcode_reason || session.transcode_remux || details" class="session-detail-section conversion-section">
-      <span class="eyebrow">Conversion<template v-if="session.transcode_hw"> · {{ session.transcode_hw }}</template></span>
-      <TranscodeReason :reason="session.transcode_reason" :remux="session.transcode_remux"/>
-      <!-- Source -> sortie, flux par flux. Sur mobile, chaque flux devient une ligne a
-           deux niveaux plutot qu'un tableau a faire defiler. -->
-      <div v-if="conversionRows.length" class="conversion-table" role="table" aria-label="Conversion flux par flux">
-        <div class="conversion-head" role="row"><span role="columnheader">Flux</span><span role="columnheader">Source</span><span role="columnheader">Sortie</span><span role="columnheader">Traitement</span></div>
-        <div v-for="row in conversionRows" :key="row.label" class="conversion-row" role="row">
-          <span role="cell" class="conversion-label">{{ row.label }}</span>
-          <span role="cell">{{ row.from }}</span>
-          <span role="cell"><ArrowRight class="conversion-arrow" aria-hidden="true"/>{{ row.to }}</span>
-          <span role="cell" class="conversion-treatment" :class="row.tone">{{ row.treatment }}</span>
-        </div>
-      </div>
-    </section>
+    <ConversionPanel :session="session"/>
 
-    <div class="session-detail-columns">
-    <section class="session-detail-section">
-      <span class="eyebrow">Lecture</span>
-      <dl>
-        <div><dt>État</dt><dd>{{ stateLabel(session.state) }}</dd></div>
-        <div><dt>Qualité</dt><dd>{{ session.quality || 'Automatique' }}</dd></div>
-        <template v-if="!details">
-        <div><dt>Vidéo</dt><dd>{{ decisionLabel(session.video_decision) }}<template v-if="session.video_codec"> · {{ session.video_codec.toUpperCase() }}</template></dd></div>
-        <div><dt>Audio</dt><dd>{{ decisionLabel(session.audio_decision) }}<template v-if="session.audio_codec"> · {{ session.audio_codec.toUpperCase() }}</template></dd></div>
-        </template>
-        <div><dt>Débit</dt><dd>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non communiqué par Plex' }}</dd></div>
-        <div><dt>Réseau</dt><dd>{{ networkLabel(session) }}</dd></div>
-        <div><dt>Durée totale</dt><dd>{{ formatDuration(session.duration_ms) }}</dd></div>
-        <div><dt>Temps visionné</dt><dd>{{ formatDuration(session.progress_ms || session.watched_ms) }}</dd></div>
-      </dl>
-    </section>
-
-    <section class="session-detail-section">
-      <span class="eyebrow">Contexte</span>
-      <dl>
-        <div><dt>Bibliothèque</dt><dd>{{ session.library || '—' }}</dd></div>
-        <div><dt>Plateforme</dt><dd>{{ session.platform || '—' }}</dd></div>
-        <div><dt>Appareil</dt><dd>{{ session.player || session.product || session.platform || '—' }}</dd></div>
-        <div v-if="playerApp"><dt>Application</dt><dd>{{ playerApp }}</dd></div>
-        <div v-if="playerDevice"><dt>Modèle</dt><dd>{{ playerDevice }}</dd></div>
-        <div v-if="stream.secure != null"><dt>Connexion chiffrée</dt><dd>{{ stream.secure ? 'Oui' : 'Non' }}</dd></div>
-        <div><dt>Adresse IP</dt><dd class="session-address">{{ session.address || 'Indisponible' }}</dd></div>
-        <div><dt>Début</dt><dd>{{ formatDate(session.started_at) }}</dd></div>
-        <div><dt>Dernière activité</dt><dd>{{ formatDate(session.last_seen_at || session.ended_at) }}</dd></div>
-        <div><dt>Source</dt><dd>{{ session.source === 'tautulli' ? 'Tautulli' : 'Plex' }}</dd></div>
-        <div><dt>Identifiant</dt><dd class="session-id-row"><span class="session-id" :title="session.session_id || undefined">{{ session.session_id || '—' }}</span><UiButton v-if="session.session_id" class="copy-id" variant="ghost" size="sm" icon-only title="Copier l’identifiant" aria-label="Copier l’identifiant" @click="copyIdentifier"><Copy/></UiButton></dd></div>
-      </dl>
-    </section>
-    </div>
+    <SessionFacts :session="session"/>
   </div>
 </template>
 
 <script setup lang="ts">
-import TranscodeReason from './TranscodeReason.vue';
+import ConversionPanel from './ConversionPanel.vue';
+import SessionFacts from './SessionFacts.vue';
 import TerminatePlaybackModal from './TerminatePlaybackModal.vue';
 import { episodeLabel } from '@/utils/episode';
 import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@/utils/transcodeBuffer';
@@ -317,89 +270,13 @@ const etaLabel = computed(() => {
   return end ? formatTime(end.getTime()) : advancing.value ? '—' : 'suspendue';
 });
 
-const CODECS: Record<string, string> = { hevc: 'HEVC', h264: 'H.264', av1: 'AV1', truehd: 'TrueHD', eac3: 'E-AC3', ac3: 'AC3', dca: 'DTS', aac: 'AAC', opus: 'Opus', flac: 'FLAC', ass: 'ASS', srt: 'SRT', webvtt: 'WebVTT', pgs: 'PGS', mov_text: 'MOV text' };
-const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'stéréo', 6: '5.1', 8: '7.1' };
-function kbps(value: any): string {
-  return value ? ` · ${formatBandwidth(value)}` : '';
-}
-function codec(value: any): string {
-  return value ? CODECS[String(value).toLowerCase()] || String(value).toUpperCase() : '—';
-}
-/* Couleurs des pastilles de lecture : copie en vert (rien ne bouge), conteneur change en
-   bleu (Direct Stream), conversion en orange (transcodage). */
-function treatment(decision: any): { treatment: string; tone: string } {
-  const value = String(decision || '').toLowerCase();
-  if (value === 'transcode') return { treatment: 'Converti', tone: 'converted' };
-  if (value === 'burn') return { treatment: 'Incrusté', tone: 'converted' };
-  if (value === 'copy') return { treatment: 'Copié', tone: 'copied' };
-  if (value === 'directplay') return { treatment: 'Direct', tone: 'copied' };
-  return { treatment: value || '—', tone: '' };
-}
-const conversionRows = computed(() => {
-  const d = details.value;
-  if (!d) return [];
-  const rows: Array<{ label: string; from: string; to: string; treatment: string; tone: string }> = [];
-  const container = d.container || {};
-  if (container.to) {
-    const changed = container.from && String(container.from).toLowerCase() !== String(container.to).toLowerCase();
-    const protocol = String(d.protocol || '').toLowerCase();
-    rows.push({
-      label: 'Conteneur',
-      from: container.from ? String(container.from).toUpperCase() : '—',
-      to: `${String(container.to).toUpperCase()}${['dash', 'hls'].includes(protocol) ? ` · ${protocol.toUpperCase()}` : ''}`,
-      treatment: changed ? 'Changé' : 'Identique',
-      tone: changed ? 'remuxed' : 'copied',
-    });
-  }
-  if (d.video) {
-    rows.push({
-      label: 'Vidéo',
-      from: codec(d.video.from),
-      to: `${codec(d.video.to)}${d.video.height ? ` ${d.video.height}p` : ''}${kbps(stream.value.bitrate?.video_kbps)}`,
-      ...treatment(d.video.decision),
-    });
-  }
-  const range = stream.value.dynamic_range || {};
-  if (range.source && range.source !== 'SDR') {
-    const mapped = range.output === 'SDR';
-    rows.push({
-      label: 'Plage dynamique',
-      from: range.source,
-      to: range.output || range.source,
-      treatment: mapped ? 'Tone mapping' : 'Conservée',
-      tone: mapped ? 'converted' : 'copied',
-    });
-  }
-  if (d.audio) {
-    const channels = d.audio.channels ? ` ${CHANNELS[d.audio.channels] || `${d.audio.channels} canaux`}` : '';
-    rows.push({
-      label: 'Audio',
-      from: `${codec(d.audio.from)}${d.audio.language ? ` · ${d.audio.language}` : ''}`,
-      to: `${codec(d.audio.to)}${channels}${kbps(stream.value.bitrate?.audio_kbps)}`,
-      ...treatment(d.audio.decision),
-    });
-  }
-  if (d.subtitles) {
-    rows.push({
-      label: 'Sous-titres',
-      from: `${codec(d.subtitles.from)}${d.subtitles.language ? ` · ${d.subtitles.language}` : ''}${d.subtitles.forced ? ' forcés' : ''}`,
-      to: codec(d.subtitles.to),
-      ...treatment(d.subtitles.decision),
-    });
-  }
-  return rows;
-});
 
-/* L'identifiant est tronque a l'affichage : le copier evite de le recopier a la main
-   (recherche dans les journaux de Plex, ticket). */
-async function copyIdentifier(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(String(props.session.session_id));
-    addToast({ type: 'success', message: 'Identifiant copié.' });
-  } catch {
-    addToast({ type: 'error', message: 'Copie impossible : le presse-papier est refusé par le navigateur.' });
-  }
-}
+
+
+
+
+
+
 
 function displayTitle(item: any): string {
   return item.grandparent_title ? `${item.grandparent_title} · ${item.title}` : (item.title || 'Session Plex');
@@ -422,7 +299,7 @@ function decisionLabel(value: any): string {
   return map[String(value || '').toLowerCase()] || '—';
 }
 function methodLabel(value: any): string {
-  const map: Record<string, string> = { transcode: 'Transcodage', direct_stream: 'Direct Stream', direct_play: 'Aucune conversion' };
+  const map: Record<string, string> = { transcode: 'Transcodage', direct_stream: 'Conversion légère', direct_play: 'Aucune conversion' };
   return map[value] || 'Lecture Plex';
 }
 function isPublicAddress(address: any): boolean {

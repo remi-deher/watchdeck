@@ -29,7 +29,7 @@
     <div class="psh-layout">
       <FilterSidebar v-if="currentView === 'history'" :open="filtersOpen" :active-count="historyFilterCount" @close="filtersOpen=false" @reset="resetActivityFilters">
         <FilterGroup label="Lecture">
-          <UiChipGroup label="Mode de lecture" :options="[{ value: '', label: 'Tous les modes' }, { value: 'direct_play', label: 'Lecture directe' }, { value: 'direct_stream', label: 'Direct Stream' }, { value: 'transcode', label: 'Transcodage' }]" v-model="methodFilter" />
+          <UiChipGroup label="Mode de lecture" :options="[{ value: '', label: 'Tous les modes' }, { value: 'direct_play', label: 'Lecture directe' }, { value: 'direct_stream', label: 'Conversion légère' }, { value: 'transcode', label: 'Transcodage' }]" v-model="methodFilter" />
         </FilterGroup>
         <FilterGroup label="Type de média">
           <UiChipGroup label="Type de média" :options="[{ value: '', label: 'Tous les types' }, { value: 'movie', label: 'Films' }, { value: 'episode', label: 'Séries' }, { value: 'track', label: 'Musique' }]" v-model="typeFilter" />
