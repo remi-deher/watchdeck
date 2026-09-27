@@ -2,8 +2,11 @@
   <!-- Cadre des fiches qui s'ouvrent dans la feuille (session, torrent, utilisateur...) :
        le meme en surface et en pleine page, pour qu'un lien direct montre exactement ce
        que montrait la feuille. La feuille fournit la poignee ; on la ferme en la tirant, par Echap ou a cote. -->
-  <article class="sheet-page" :class="{ 'is-standalone': !enSurface }" :aria-busy="loading || undefined">
-    <header class="sheet-page__head">
+  <article class="sheet-page" :class="{ 'is-standalone': !enSurface, 'is-headless': headless && !loading && !error }" :aria-busy="loading || undefined">
+    <!-- `headless` : la fiche porte son propre en-tete (banniere d'une session). Le titre
+         reste dans le document pour les lecteurs d'ecran, et reapparait tant que le
+         contenu charge ou echoue, faute de quoi la feuille n'aurait plus de titre. -->
+    <header class="sheet-page__head" :class="{ 'sr-only': headless && !loading && !error }">
       <div class="sheet-page__titles">
         <span v-if="eyebrow" class="sheet-page__eyebrow">{{ eyebrow }}</span>
         <h1 class="sheet-page__title">{{ title }}</h1>
@@ -30,7 +33,8 @@ withDefaults(defineProps<{
   subtitle?: string;
   loading?: boolean;
   error?: string;
-}>(), { eyebrow: '', subtitle: '', loading: false, error: '' });
+  headless?: boolean;
+}>(), { eyebrow: '', subtitle: '', loading: false, error: '', headless: false });
 
 /* Posee sur une page, la fiche est dans la feuille ; ouverte par son adresse, elle
    occupe la page et prend ses marges. */

@@ -54,12 +54,6 @@
   --grid-gutter: 12px;
   --touch-target: 44px;
   --media-placeholder: var(--surface-2);
-  /* Voile et texte poses sur une banniere d'oeuvre (fiche de session) : du texte clair
-     sur une photo, identique dans les deux themes. */
-  --banner-scrim-strong: rgb(0 0 0 / 0.78);
-  --banner-scrim-light: rgb(0 0 0 / 0.15);
-  --on-banner: #fff;
-  --on-banner-muted: rgb(255 255 255 / 0.82);
   /* Source unique des dimensions d'affiches pour les grilles et les rails. */
   --poster-grid-min: 220px;
   --poster-grid-gap: var(--space-4);
