@@ -579,8 +579,12 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   }
   .app-topbar__field,
   .app-topbar__search {
-    flex: 0 1 520px;
+    /* Base `auto` et non 520px : une base flex explicite l'emporte sur `width`, et le
+       champ gardait ses 520px sur une tablette en portrait (~800px), recouvrant le
+       titre. La reserve de 196px (98 par cote) doit rester garantie. */
+    flex: 0 1 auto;
     width: calc(100% - 196px);
+    max-width: 520px;
     margin: 0 auto;
   }
 }

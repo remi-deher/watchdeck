@@ -14,6 +14,7 @@
       :key="rowKey(item)"
       :to="queueDetailPath(item)"
       class="queue-row"
+      @click="ouvrirFicheAuClic($event, queueDetailPath(item))"
     >
       <img
         v-if="item.poster_url"
@@ -53,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { computed } from 'vue';
 import PanelCard from '@/components/ui/PanelCard.vue';
 import { Film } from '@lucide/vue';
@@ -69,6 +71,7 @@ import {
 } from '@/downloads/queueRules';
 import type { QueueRow } from '@/downloads/queueRules';
 
+const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
 const props = withDefaults(
   defineProps<{
     queue?: QueueRow[];

@@ -7,6 +7,7 @@ import { ref } from 'vue';
 vi.mock('@/composables/useMediaOverlay', () => ({
   useMediaOverlay: () => ({ routeDeFond: ref(null), actif: ref(false) }),
   ouvrirFiche: () => {},
+  useOuvrirFiche: () => ({ ouvrir: () => {}, auClic: () => {} }),
 }));
 import SessionDetail from './SessionDetail.vue';
 
@@ -274,6 +275,16 @@ describe('SessionDetail - identifiant', () => {
 
   it('pas de bouton sans identifiant', () => {
     expect(factory({ title: 'Film' }).find('.copy-id').exists()).toBe(false);
+  });
+});
+
+describe('SessionDetail - chiffrement et relais', () => {
+  it('indique une connexion chiffrée ou non dans la ligne d’identité', () => {
+    expect(factory({ title: 'Film', stream_details: { secure: true } }).get('.session-secure').text()).toBe('Chiffrée');
+    const insecure = factory({ title: 'Film', stream_details: { secure: false } }).get('.session-secure');
+    expect(insecure.text()).toBe('Non chiffrée');
+    expect(insecure.classes()).toContain('insecure');
+    expect(factory({ title: 'Film' }).find('.session-secure').exists()).toBe(false);
   });
 });
 
