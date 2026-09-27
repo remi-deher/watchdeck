@@ -1,5 +1,5 @@
 <template>
-  <span class="playback-badge" :class="normalized" :title="title || undefined">{{ label }}</span>
+  <span class="playback-badge" :class="normalized" :title="title || (normalized === 'direct_stream' ? 'Direct Stream : conteneur changé, rien n’est réencodé' : undefined)">{{ label }}</span>
 </template>
 
 <script setup lang="ts">
