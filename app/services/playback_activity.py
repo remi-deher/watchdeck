@@ -1068,6 +1068,9 @@ def _tracks(
             "language": _language(item),
             "codec": item.get("codec"),
             "channels": _int(item.get("channels")),
+            "bitrate_kbps": _int(item.get("bitrate")),
+            "sampling_rate": _int(item.get("samplingRate")),
+            "profile": item.get("profile"),
             "title": item.get("displayTitle"),
             "played": bool(played_id) and item.get("id") == played_id,
         }

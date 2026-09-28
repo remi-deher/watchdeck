@@ -1680,6 +1680,7 @@ def test_parse_sessions_describes_video_audio_and_container_for_every_mode():
         ("Français", True),
         ("English", False),
     ]
+    assert direct_tracks["audio"]["languages"][1]["bitrate_kbps"] == 1509
     assert converted_tracks["audio"]["from"]["codec"] == "truehd"
     assert converted_tracks["audio"]["to"] == {"codec": "aac", "channels": 2, "bitrate_kbps": 256}
     assert converted_tracks["video"]["decision"] == "copy"

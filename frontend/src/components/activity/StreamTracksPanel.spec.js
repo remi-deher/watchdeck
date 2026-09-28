@@ -19,8 +19,8 @@ describe('StreamTracksPanel', () => {
                 from: { codec: 'ac3', channels: 6, bitrate_kbps: 640, language: 'Français' },
                 to: { codec: 'ac3', channels: 6, bitrate_kbps: 640, language: 'Français' },
                 languages: [
-                  { language: 'Français', codec: 'ac3', channels: 6, played: true },
-                  { language: 'English', codec: 'dca', channels: 6, played: false },
+                  { language: 'Français', codec: 'ac3', channels: 6, bitrate_kbps: 640, sampling_rate: 48000, played: true },
+                  { language: 'English', codec: 'dca', profile: 'dts-hd ma', channels: 8, bitrate_kbps: 3500, played: false },
                 ],
               },
             },
@@ -31,11 +31,13 @@ describe('StreamTracksPanel', () => {
     const video = card(wrapper, 'Vidéo').text();
     expect(video).toContain('H.264 · 1080p · 8 Mb/s');
     expect(video).toContain('Direct');
-    expect(video).not.toContain('Envoyée');
+    expect(video).not.toContain('Transcode');
     const audio = card(wrapper, 'Audio');
     expect(audio.text()).toContain('Français · AC3 · 5.1 · 640 kb/s');
-    expect(audio.get('li.played').text()).toBe('Français · AC3 · 5.1');
-    expect(audio.findAll('li')).toHaveLength(2);
+    expect(audio.get('li.played').text()).toBe('FrançaisAC3 · 5.1 · 640 kb/s · 48 kHzÉcoutée');
+    const others = audio.findAll('li:not(.played)');
+    expect(others).toHaveLength(1);
+    expect(others[0].text()).toBe('EnglishDTS · DTS-HD MA · 7.1 · 3,5 Mb/s');
     expect(card(wrapper, 'Conteneur').text()).toContain('Inchangé');
   });
 
@@ -57,9 +59,9 @@ describe('StreamTracksPanel', () => {
     expect(card(wrapper, 'Vidéo').text()).toContain('Copié');
     const audio = card(wrapper, 'Audio').text();
     expect(audio).toContain('Converti');
-    expect(audio).toContain('EnvoyéAAC · stéréo · 256 kb/s');
+    expect(audio).toContain('TranscodeAAC · stéréo · 256 kb/s');
     const container = card(wrapper, 'Conteneur').text();
-    expect(container).toContain('EnvoyéMP4');
+    expect(container).toContain('TranscodeMP4');
     expect(container).toContain('segments DASH');
   });
 

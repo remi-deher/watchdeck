@@ -16,18 +16,24 @@
             <dd>{{ row.value }}</dd>
           </div>
         </dl>
-        <ul v-if="card.languages?.length" class="track-languages" aria-label="Langues audio disponibles">
-          <li v-for="(item, index) in card.languages" :key="index" :class="{ played: item.played }">
-            <UiTooltip :text="item.played ? 'Piste écoutée' : 'Disponible dans le fichier'"><span>{{ item.label }}</span></UiTooltip>
-          </li>
-        </ul>
+        <!-- Toutes les pistes audio du fichier, avec leurs caracteristiques : la piste
+             ecoutee est mise en avant, les autres restent comparables d'un coup d'oeil. -->
+        <div v-if="card.languages?.length" class="track-languages">
+          <span class="track-languages-title">Pistes audio disponibles</span>
+          <ul aria-label="Pistes audio disponibles">
+            <li v-for="(item, index) in card.languages" :key="index" :class="{ played: item.played }">
+              <strong>{{ item.language }}</strong>
+              <span>{{ item.detail || '—' }}</span>
+              <em v-if="item.played">Écoutée</em>
+            </li>
+          </ul>
+        </div>
       </article>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { computed } from 'vue';
 import { Box, Film, Volume2 } from '@lucide/vue';
 import { codecLabel } from '@/utils/conversionVerdict';
@@ -71,14 +77,14 @@ function audioLine(a: Record<string, any> | undefined): string {
 const cards = computed(() => {
   const s = props.session;
   const tracks = s.stream_details?.tracks || null;
-  const out: Array<{ label: string; icon: any; status: ReturnType<typeof status>; rows: Row[]; languages?: Array<{ label: string; played: boolean }> }> = [];
+  const out: Array<{ label: string; icon: any; status: ReturnType<typeof status>; rows: Row[]; languages?: Array<{ language: string; detail: string; played: boolean }> }> = [];
 
   // Sessions anterieures ou importees de Tautulli : seuls les champs de la session existent.
   const video = tracks?.video || (s.video_codec ? { decision: s.video_decision, from: { codec: s.video_codec } } : null);
   if (video) {
     const converted = status(video.decision)?.tone === 'converted';
     const rows: Row[] = [{ label: 'Source', value: videoLine(video.from, s.quality) || '—' }];
-    if (converted) rows.push({ label: 'Envoyée', value: videoLine(video.to) || '—' });
+    if (converted) rows.push({ label: 'Transcode', value: videoLine(video.to) || '—' });
     out.push({ label: 'Vidéo', icon: Film, status: status(video.decision), rows });
   }
 
@@ -86,9 +92,16 @@ const cards = computed(() => {
   if (audio) {
     const converted = status(audio.decision)?.tone === 'converted';
     const rows: Row[] = [{ label: 'Source', value: audioLine(audio.from) || '—' }];
-    if (converted) rows.push({ label: 'Envoyé', value: audioLine({ ...audio.to, language: undefined }) || '—' });
+    if (converted) rows.push({ label: 'Transcode', value: audioLine({ ...audio.to, language: undefined }) || '—' });
     const languages = (audio.languages || []).map((item: any) => ({
-      label: join([item.language || 'Langue inconnue', item.codec && codecLabel(item.codec), channels(item.channels)]),
+      language: item.language || 'Langue inconnue',
+      detail: join([
+        item.codec && codecLabel(item.codec),
+        item.profile && item.profile !== item.codec ? String(item.profile).toUpperCase() : '',
+        channels(item.channels),
+        bitrate(item.bitrate_kbps),
+        item.sampling_rate ? `${Math.round(item.sampling_rate / 100) / 10} kHz` : '',
+      ]),
       played: Boolean(item.played),
     }));
     out.push({ label: 'Audio', icon: Volume2, status: status(audio.decision), rows, languages });
@@ -103,7 +116,7 @@ const cards = computed(() => {
     const changed = Boolean(from && to && from !== to);
     const protocol = String(container.protocol || '').toLowerCase();
     const rows: Row[] = [{ label: 'Source', value: from || '—' }];
-    if (changed) rows.push({ label: 'Envoyé', value: to });
+    if (changed) rows.push({ label: 'Transcode', value: to });
     if (['dash', 'hls'].includes(protocol)) rows.push({ label: 'Diffusion', value: `segments ${protocol.toUpperCase()}` });
     out.push({ label: 'Conteneur', icon: Box, status: changed ? { label: 'Converti', tone: 'remuxed' } : { label: 'Inchangé', tone: 'copied' }, rows });
   }
@@ -126,7 +139,12 @@ const cards = computed(() => {
 .pill.copied { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green-text); }
 .pill.remuxed { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue-text); }
 .pill.converted { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber-text); }
-.track-languages { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.track-languages li span { display: inline-flex; padding: 3px 9px; border: 1px solid var(--border); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--fs-xs); }
-.track-languages li.played span { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); font-weight: 600; }
+.track-languages { display: grid; gap: 6px; }
+.track-languages-title { color: var(--muted); font-size: var(--fs-xs); }
+.track-languages ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.track-languages li { display: grid; grid-template-columns: minmax(70px, auto) minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--fs-xs); }
+.track-languages li span { color: var(--muted); overflow-wrap: anywhere; }
+.track-languages li em { color: var(--accent); font-style: normal; font-weight: 600; }
+.track-languages li.played { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.track-languages li.played span { color: var(--text); }
 </style>
