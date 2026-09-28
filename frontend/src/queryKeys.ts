@@ -12,4 +12,18 @@ export const queryKeys = {
     all: ['users'] as const,
     list: ['users', 'list'] as const,
   },
+  playback: {
+    live: ['playback', 'live'] as const,
+  },
+  downloads: {
+    arrQueue: ['downloads', 'arr-queue'] as const,
+    globalStats: (clientId: string | number | null | undefined) => ['downloads', 'global-stats', clientId ? String(clientId) : 'all'] as const,
+  },
+  diskSpace: ['disk-space'] as const,
+  vff: {
+    all: ['settings', 'vff'] as const,
+    scanStatus: ['settings', 'vff', 'scan-status'] as const,
+    syncStatus: ['settings', 'vff', 'sync-status'] as const,
+    counts: ['settings', 'vff', 'counts'] as const,
+  },
 };

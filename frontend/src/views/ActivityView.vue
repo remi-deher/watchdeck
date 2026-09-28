@@ -218,15 +218,18 @@ import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
 import { playbackMethodLabel } from '@/utils/labels';
 import { formatBandwidth, formatDateTimeShort, formatDuration, signedPercent } from '@/utils/format';
-import { computed,onMounted,onUnmounted,ref,watch } from 'vue';
+import { computed,onUnmounted,ref,watch } from 'vue';
 import { refDebounced, useDebounceFn, useIntervalFn } from '@vueuse/core';
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/vue-query';
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute,useRouter } from 'vue-router';
 import { Activity, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
 import { activitySections } from '@/navigation';
 import { api } from '@/api';
 import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
+import { queryKeys } from '@/queryKeys';
+import { playbackLiveQuery } from '@/sharedQueries';
+import { humanizeError } from '@/utils/apiError';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
@@ -255,7 +258,7 @@ const currentView=computed(()=>allowedViews.includes(String(route.query.view))?S
 // de contexte, page) pointent vers `/activity?view=...` sans la porter, et sans memoire
 // locale chaque changement de vue serait retombe sur 30 jours.
 const storedDays=usePreference('activity.days',30);
-const days=ref(Number(route.query.days)||storedDays.value),loading=ref(false),loaded=ref(false),error=ref('');
+const days=ref(Number(route.query.days)||storedDays.value);
 // « Tout » est demande comme un siecle (MAX_PERIOD_DAYS cote API) plutot que comme un
 // parametre absent : le service garde un seul chemin de calcul, borne. Les libelles
 // restent courts car le selecteur partage la rangee de la barre du haut.
@@ -281,8 +284,7 @@ const periodLabel = computed(() => {
   }
   return `${value} jours`;
 });
-const data=ref<Record<string, any>>({active:[],liveEnabled:true,liveConfigured:true,history:[],daily:[],users:[],summary:{}});
-const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),updatedAt=ref(Date.now()),clock=ref(Date.now());
+const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),clock=ref(Date.now());
 const filtersOpen=ref(false);
 const summary=computed(()=>data.value.summary||{});
 const analytics=computed(()=>data.value.analytics||{});
@@ -445,55 +447,59 @@ const bandwidthBreakdown=computed(()=>(analytics.value.bandwidth?.by_user||[]).m
 const STATISTICS_CACHE_MAX_AGE_MS=6*60*60*1000;
 const statisticsCacheKey=()=>`activity:statistics:${days.value}${scopedUser.value?`:${scopedUser.value}`:''}`;
 
-function applySnapshot(snapshot: any,{savedAt=Date.now()}: {savedAt?: number}={}){
-  data.value={
-    ...snapshot,
-    liveEnabled:snapshot.enabled ?? snapshot.liveEnabled ?? data.value.liveEnabled ?? true,
-    liveConfigured:snapshot.configured ?? snapshot.liveConfigured ?? data.value.liveConfigured ?? true,
-  };
-  loaded.value=true;
-  updatedAt.value=savedAt;
-  if(!scopedUser.value){
-    const names=[...(snapshot.users||[]),...(snapshot.analytics?.users||[])].map((user: any)=>String(user.name||'')).filter(Boolean);
-    if(names.length)knownUsers.value=[...new Set(names)];
-  }
-}
-function applyLive(snapshot: any): void {
-  data.value={
-    ...data.value,
-    active:snapshot.active||[],
-    liveEnabled:snapshot.enabled!==false,
-    liveConfigured:snapshot.configured!==false,
-  };
-  updatedAt.value=Date.now();
-}
-function applyStatistics(snapshot: any,options?: {savedAt?: number}): void {applySnapshot({...snapshot,active:data.value.active||[]},options)}
-function primeFromCache(): void {
-  const entry=readCacheEntry(statisticsCacheKey(),{maxAgeMs:STATISTICS_CACHE_MAX_AGE_MS});
-  if(entry)applyStatistics(entry.data,{savedAt:entry.savedAt});
-}
+/* Statistiques de la periode et lectures en cours : deux requetes. Le direct a la meme
+   cle que le tableau de bord ; les statistiques repartent du dernier resultat connu
+   (`@/cache`) pour s'afficher avant le premier aller-retour. */
+const queryClient=useQueryClient();
+const liveQuery=useQuery(playbackLiveQuery());
 function statisticsUrl(): string {
   const params=new URLSearchParams({days:String(days.value)});
   if(scopedUser.value)params.set('user',scopedUser.value);
   return `/api/playback/statistics?${params}`;
 }
-async function loadLive(silent=true): Promise<void> {try{applyLive(await api('/api/playback/live'))}catch(e: any){if(!silent)error.value=e.message}}
-async function loadStatistics(silent=true,refresh=false): Promise<void> {try{const statistics=await api(`${statisticsUrl()}${refresh?'&refresh=true':''}`);applyStatistics(statistics);writeCache(statisticsCacheKey(),statistics)}catch(e: any){if(!silent)error.value=e.message}}
-async function load(silent=false): Promise<void> {
-  if(loading.value)return;
-  if(!silent){loading.value=true;error.value=''}
-  try{
-    if(currentView.value==='live'){
-      applyLive(await api('/api/playback/live'));
-      loaded.value=true;
-    }else{
-      const [statistics,live]=await Promise.all([api(statisticsUrl()),api('/api/playback/live')]);
-      applyStatistics(statistics);writeCache(statisticsCacheKey(),statistics);applyLive(live);
-    }
-  }catch(e: any){if(!silent)error.value=e.message}
-  finally{if(!silent)loading.value=false}
+const statisticsQuery=useQuery({
+  queryKey:computed(()=>['playback','statistics',days.value,scopedUser.value]),
+  queryFn:async({signal})=>{
+    const cacheKey=statisticsCacheKey();
+    const statistics=await api<Record<string, any>>(statisticsUrl(),{signal});
+    writeCache(cacheKey,statistics);
+    return statistics;
+  },
+  initialData:()=>readCacheEntry(statisticsCacheKey(),{maxAgeMs:STATISTICS_CACHE_MAX_AGE_MS})?.data,
+  initialDataUpdatedAt:()=>readCacheEntry(statisticsCacheKey(),{maxAgeMs:STATISTICS_CACHE_MAX_AGE_MS})?.savedAt,
+  // Changer de periode ou d'utilisateur garde les chiffres affiches jusqu'aux nouveaux.
+  placeholderData:keepPreviousData,
+  // La vue « En direct » n'affiche aucune statistique.
+  enabled:computed(()=>currentView.value!=='live'),
+});
+const EMPTY_STATISTICS={history:[],daily:[],users:[],summary:{}};
+const data=computed<Record<string, any>>(()=>{
+  const statistics=statisticsQuery.data.value||EMPTY_STATISTICS;
+  const live=liveQuery.data.value;
+  return {
+    ...statistics,
+    active:live?.active||[],
+    liveEnabled:live?live.enabled!==false:(statistics.enabled??statistics.liveEnabled??true),
+    liveConfigured:live?live.configured!==false:(statistics.configured??statistics.liveConfigured??true),
+  };
+});
+const loaded=computed(()=>Boolean(statisticsQuery.data.value)||(currentView.value==='live'&&Boolean(liveQuery.data.value)));
+const loading=computed(()=>liveQuery.isFetching.value||statisticsQuery.isFetching.value);
+const error=computed(()=>{
+  const failure=(currentView.value!=='live'?statisticsQuery.error.value:null)||liveQuery.error.value;
+  return failure?humanizeError(failure):'';
+});
+const updatedAt=computed(()=>Math.max(statisticsQuery.dataUpdatedAt.value||0,liveQuery.dataUpdatedAt.value||0)||Date.now());
+watch(()=>statisticsQuery.data.value,(snapshot)=>{
+  if(!snapshot||scopedUser.value)return;
+  const names=[...(snapshot.users||[]),...(snapshot.analytics?.users||[])].map((user: any)=>String(user.name||'')).filter(Boolean);
+  if(names.length)knownUsers.value=[...new Set(names)];
+},{immediate:true});
+function load(): void {
+  void liveQuery.refetch();
+  if(currentView.value!=='live')void statisticsQuery.refetch();
 }
-function setDays(value: number): void {days.value=value;storedDays.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
+function setDays(value: number): void {days.value=value;storedDays.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}})}
 function setPeriod(value: string | number): void { if (typeof value === 'number') setDays(value); }
 function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value=''}
 const formatDate=(value: string)=>formatDateTimeShort(value,'—');
@@ -527,8 +533,11 @@ function openSession(item: any): void {
   ouvrirFiche(router,`/activity/session/${item.id}`,route.fullPath,etatDeVoisins(ids));
 }
 function userShare(sessions: number): number {return Math.round(Number(sessions||0)/Math.max(1,summary.value.sessions||0)*100)}
-watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!==days.value){days.value=next;loadStatistics(false)}});
-useRealtime(['activity.updated'],()=>currentView.value==='live'?loadLive():Promise.allSettled([loadLive(),loadStatistics()]));
+watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!==days.value)days.value=next});
+useRealtime(['activity.updated'],()=>{
+  void queryClient.invalidateQueries({queryKey:queryKeys.playback.live});
+  if(currentView.value!=='live')void queryClient.invalidateQueries({queryKey:['playback','statistics']});
+});
 // Horloge locale du libelle « actualise il y a N s » : doit tourner meme onglet masque,
 // sinon l'age affiche au retour sur l'onglet est faux.
 useIntervalFn(()=>{clock.value=Date.now()},1000);
@@ -538,19 +547,8 @@ const applyScope=useDebounceFn(()=>{
   const next=matchedUser.value||'';
   if(next===scopedUser.value)return;
   scopedUser.value=next;
-  primeFromCache();
-  loadStatistics(false);
 },350);
 watch(matchedUser,()=>applyScope());
-watch(currentView,(next,previous)=>{
-  if(next===previous)return;
-  if(next==='live'){loadLive(false);return}
-  if(!data.value.history?.length)loadStatistics(false);
-});
-onMounted(()=>{
-  primeFromCache();
-  load();
-});
 </script>
 
 <style scoped lang="scss">

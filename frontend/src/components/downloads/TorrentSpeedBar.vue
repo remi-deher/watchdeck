@@ -22,11 +22,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, watch } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Download, Eye, EyeOff, Gauge, Maximize2, Minimize2, Upload } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { api } from '@/api';
 import { formatSpeed } from '@/downloads/torrentFormat';
+import { queryKeys } from '@/queryKeys';
+import { downloadsGlobalStatsPath } from '@/sharedQueries';
 
 const props = defineProps<{
   /** Client affiche, ou vide pour tous. */
@@ -39,11 +42,22 @@ const emit = defineEmits<{ (e: 'refresh'): void; (e: 'error', message: string): 
 const compact = defineModel<boolean>('compact', { default: false });
 const incognito = defineModel<boolean>('incognito', { default: false });
 
-const downloadSpeed = ref(0);
-const uploadSpeed = ref(0);
-const altSpeed = ref(false);
-const connectedClients = ref(0);
-const totalClients = ref(0);
+const queryClient = useQueryClient();
+const statsKey = computed(() => queryKeys.downloads.globalStats(props.clientId));
+const statsQuery = useQuery({
+  queryKey: statsKey,
+  queryFn: ({ signal }) => api<any>(downloadsGlobalStatsPath(props.clientId), { signal }),
+  retry: 0,
+});
+const stats = computed(() => statsQuery.data.value || {});
+/* En echec : debits a zero et client(s) hors ligne, sans perdre le nombre de clients
+   deja connu de la vue « tous les clients ». */
+const failed = computed(() => Boolean(statsQuery.error.value));
+const downloadSpeed = computed(() => (failed.value ? 0 : Number(stats.value.download_speed || 0)));
+const uploadSpeed = computed(() => (failed.value ? 0 : Number(stats.value.upload_speed || 0)));
+const altSpeed = computed(() => !!stats.value.alt_speed_enabled);
+const connectedClients = computed(() => (failed.value ? 0 : Number(stats.value.connected || 0)));
+const totalClients = computed(() => (failed.value && props.clientId ? 1 : Number(stats.value.total || 0)));
 const connectionClass = computed(() => totalClients.value === 0 ? 'unknown' : connectedClients.value === totalClients.value ? 'connected' : connectedClients.value > 0 ? 'partial' : 'offline');
 const connectionLabel = computed(() => {
   if (totalClients.value === 0) return 'Aucun client';
@@ -56,29 +70,14 @@ let statsLoadTimer: ReturnType<typeof setTimeout> | undefined;
 // Les rafales d'evenements temps reel ne declenchent qu'une lecture.
 function scheduleStats(): void {
   clearTimeout(statsLoadTimer);
-  statsLoadTimer = setTimeout(loadStats, 250);
-}
-
-async function loadStats(): Promise<void> {
-  try {
-    const suffix = props.clientId ? `?client_id=${encodeURIComponent(props.clientId)}` : '';
-    const data = await api(`/api/downloads/global-stats${suffix}`);
-    downloadSpeed.value = Number(data.download_speed || 0);
-    uploadSpeed.value = Number(data.upload_speed || 0);
-    altSpeed.value = !!data.alt_speed_enabled;
-    connectedClients.value = Number(data.connected || 0);
-    totalClients.value = Number(data.total || 0);
-  } catch {
-    connectedClients.value = 0;
-    totalClients.value = props.clientId ? 1 : totalClients.value;
-  }
+  statsLoadTimer = setTimeout(() => void queryClient.invalidateQueries({ queryKey: statsKey.value }), 250);
 }
 
 async function toggleAltSpeed(): Promise<void> {
   try {
     const res = await api('/api/downloads/global-alt-speed', { method: 'POST' });
     if (res.ok) {
-      altSpeed.value = !altSpeed.value;
+      queryClient.setQueryData(statsKey.value, (data: any) => ({ ...(data || {}), alt_speed_enabled: !altSpeed.value }));
       emit('refresh');
     }
   } catch (e: any) {
@@ -86,10 +85,8 @@ async function toggleAltSpeed(): Promise<void> {
   }
 }
 
-onMounted(loadStats);
 onUnmounted(() => clearTimeout(statsLoadTimer));
 watch(() => props.rows, scheduleStats);
-watch(() => props.clientId, loadStats);
 </script>
 
 <style scoped lang="scss">
