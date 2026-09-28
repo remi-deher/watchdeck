@@ -284,42 +284,4 @@ const emit = defineEmits<{
 :deep(.notif-dot.pending) {
   background: var(--muted);
 }
-
-:deep(.requester-menu-wrap) {
-  position: relative;
-}
-:deep(.requester-menu) {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 200px;
-  padding: 6px;
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 16px 40px rgb(var(--shadow-color) / calc(0.45 * var(--shadow-scale)));
-}
-:deep(.requester-menu button) {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 6px 8px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--fs-sm);
-  text-align: left;
-}
-:deep(.requester-menu button:hover:not(:disabled)) {
-  background: rgb(var(--ink) / 0.06);
-}
-:deep(.requester-menu button.danger) {
-  color: var(--red-text);
-}
 </style>

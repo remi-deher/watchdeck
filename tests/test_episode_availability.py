@@ -4,19 +4,23 @@ episode (voir app/services/episode_availability.py)."""
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import ArrInstance, Base, EpisodeAvailability, LibraryItem, MediaRequest, RequestStatus
+from app.models import ArrInstance, EpisodeAvailability, LibraryItem, MediaRequest, RequestStatus
 from app.services.episode_availability import check_episode_availability, sync_episode_availability_for_show
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _make_db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    return TestSession(sessionmaker(bind=engine)())
+    """Session de test avec l'instance Sonarr a laquelle les demandes sont rattachees
+    (cle etrangere media_requests.arr_instance_id)."""
+    db = make_test_session()
+    db.add(
+        ArrInstance(
+            id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True, is_default=True
+        )
+    )
+    db.commit()
+    return db
 
 
 def _show_request(db, **kwargs):
@@ -125,11 +129,6 @@ async def test_check_episode_availability_covers_requests_and_library_items():
     req = _show_request(db, title="Requested Show")
     lib = LibraryItem(title="Library Show", media_type="show", tvdb_id="789", arr_id=99, arr_instance_id=1)
     db.add(lib)
-    db.add(
-        ArrInstance(
-            id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="x", enabled=True, is_default=True
-        )
-    )
     db.commit()
     db.refresh(lib)
     req_id, lib_id = req.id, lib.id

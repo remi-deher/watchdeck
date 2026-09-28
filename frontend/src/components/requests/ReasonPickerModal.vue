@@ -26,7 +26,8 @@
 
 <script setup lang="ts">
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { api } from '@/api';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -67,7 +68,16 @@ defineEmits<{
   (e: 'confirm', message: string): void;
 }>();
 
-const reasons = ref<Reason[]>([]);
+/* Motifs lus a l'ouverture, sous la cle des reglages : les modifier dans les reglages
+   invalide cette liste, et le prochain usage les voit sans recharger la page. Sans
+   motifs (echec de lecture), il reste la saisie libre : l'annulation n'en depend pas. */
+const reasonsQuery = useQuery({
+  queryKey: computed(() => ['settings', 'message-reasons', props.event]),
+  queryFn: ({ signal }) => api<{ items?: Reason[] }>(`/api/message-reasons?event=${encodeURIComponent(props.event)}`, { signal }),
+  enabled: computed(() => props.open),
+  retry: 0,
+});
+const reasons = computed(() => (reasonsQuery.data.value?.items || []).filter((reason) => reason.enabled));
 const message = ref('');
 const selectedId = ref<number | null>(null);
 const placeholder = 'Expliquez au demandeur ce qui a été décidé, et pourquoi.';
@@ -77,21 +87,12 @@ function choose(reason: Reason | null): void {
   if (reason) message.value = reason.message;
 }
 
-/* Les motifs sont charges a l'ouverture : les modifier dans les reglages doit se voir
-   au prochain usage, sans recharger la page. */
 watch(
   () => props.open,
-  async (open) => {
+  (open) => {
     if (!open) return;
     message.value = props.initial || '';
     selectedId.value = null;
-    try {
-      const payload = await api<{ items?: Reason[] }>(`/api/message-reasons?event=${encodeURIComponent(props.event)}`);
-      reasons.value = (payload.items || []).filter((reason) => reason.enabled);
-    } catch {
-      // Sans motifs, il reste la saisie libre : l'annulation ne doit pas en dependre.
-      reasons.value = [];
-    }
   },
   { immediate: true }
 );

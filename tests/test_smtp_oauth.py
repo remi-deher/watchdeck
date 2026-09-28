@@ -4,19 +4,10 @@ from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, EmailProvider
+from app.models import EmailProvider
 from app.services import microsoft_oauth
 from app.utils import now_utc_naive
-
-
-async def _database():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    return engine, async_sessionmaker(engine, expire_on_commit=False)
 
 
 def _provider(**kwargs) -> EmailProvider:
@@ -55,8 +46,8 @@ def test_generate_pkce_pair_challenge_is_derived_from_verifier():
 
 
 @pytest.mark.asyncio
-async def test_store_tokens_persists_and_updates_in_memory_object():
-    engine, session_factory = await _database()
+async def test_store_tokens_persists_and_updates_in_memory_object(async_database):
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         p = _provider()
         db.add(p)
@@ -77,9 +68,9 @@ async def test_store_tokens_persists_and_updates_in_memory_object():
 
 
 @pytest.mark.asyncio
-async def test_store_tokens_keeps_previous_refresh_token_when_not_rotated():
+async def test_store_tokens_keeps_previous_refresh_token_when_not_rotated(async_database):
     """Microsoft ne renvoie pas toujours un nouveau refresh_token au refresh."""
-    engine, session_factory = await _database()
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         p = _provider(oauth_refresh_token="ref-original")
         db.add(p)
@@ -113,8 +104,8 @@ async def test_get_valid_access_token_returns_cached_token_without_refresh_call(
 
 
 @pytest.mark.asyncio
-async def test_get_valid_access_token_refreshes_when_expired():
-    engine, session_factory = await _database()
+async def test_get_valid_access_token_refreshes_when_expired(async_database):
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         p = _provider(oauth_refresh_token="ref-1", oauth_access_token="stale")
         db.add(p)

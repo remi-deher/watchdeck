@@ -43,7 +43,7 @@ def _seed_account(db, username="admin", password="password123"):
 
 
 def _login(client, username="admin", password="password123"):
-    return client.post("/login", data={"username": username, "password": password, "otp_code": ""})
+    return client.post("/api/auth/login", json={"username": username, "password": password})
 
 
 def test_root_redirects_anonymous_user_to_login(client):
@@ -55,7 +55,7 @@ def test_root_redirects_anonymous_user_to_login(client):
 def test_spa_is_served_at_root_after_login(client, db):
     _seed_account(db)
     login = _login(client)
-    assert login.status_code == 302
+    assert login.status_code == 200
 
     response = client.get("/")
     assert response.status_code == 200
@@ -117,33 +117,99 @@ def test_unknown_api_route_stays_404(client, db):
     assert response.headers["content-type"].startswith("application/json")
 
 
-def test_login_page_remains_public(client, db):
+def _is_spa(response):
+    return response.status_code == 200 and '<div id="app"></div>' in response.text
+
+
+def test_login_page_is_served_by_the_spa_without_session(client, db):
     _seed_account(db)
+    assert _is_spa(client.get("/login"))
+
+
+def test_login_page_sends_a_fresh_instance_to_setup(client):
     response = client.get("/login")
-    assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
+    assert response.status_code == 302
+    assert response.headers["location"] == "/setup"
 
 
-def test_setup_page_remains_public_on_empty_database(client):
+def test_login_page_forwards_an_open_session_to_next(client, db):
+    _seed_account(db)
+    _login(client)
+    response = client.get("/login?next=/library")
+    assert response.status_code == 302
+    assert response.headers["location"] == "/library"
+
+
+def test_login_page_never_forwards_to_another_host(client, db):
+    _seed_account(db)
+    _login(client)
+    response = client.get("/login?next=//evil.example")
+    assert response.status_code == 302
+    assert response.headers["location"] == "/"
+
+
+def test_setup_page_is_served_by_the_spa_on_empty_database(client):
+    assert _is_spa(client.get("/setup"))
+
+
+def test_setup_page_is_closed_once_an_account_exists(client, db):
+    _seed_account(db)
     response = client.get("/setup")
-    assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
+    assert response.status_code == 302
+    assert response.headers["location"] == "/"
 
 
-def test_setup_page_offers_full_backup_restore(client):
-    """L'alternative "restaurer plutôt que créer un compte" doit être présente et pointer
-    vers /setup/restore (voir app/routers/auth.py::setup_restore)."""
-    response = client.get("/setup")
+def test_nested_public_paths_stay_unknown(client):
+    assert client.get("/login/whatever").status_code == 404
+
+
+def test_auth_state_reports_setup_and_session(client, db):
+    assert client.get("/api/auth/state").json() == {"setup_required": True, "authenticated": False}
+    _seed_account(db)
+    _login(client)
+    assert client.get("/api/auth/state").json() == {"setup_required": False, "authenticated": True}
+
+
+def test_setup_creates_admin_and_opens_session(client, db):
+    response = client.post(
+        "/api/auth/setup", json={"username": " admin ", "password": "password123", "password_confirm": "password123"}
+    )
     assert response.status_code == 200
-    assert 'id="restore-panel"' in response.text
-    assert "/setup/restore" in response.text
+    assert response.json()["redirect"] == "/settings?tab=connections"
+    settings = db.query(Settings).first()
+    assert settings.auth_username == "admin"
+    assert client.get("/api/auth/state").json()["authenticated"] is True
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"username": "  ", "password": "password123", "password_confirm": "password123"}, "ne peut pas être vide"),
+        ({"username": "admin", "password": "short", "password_confirm": "short"}, "au moins 8 caractères"),
+        ({"username": "admin", "password": "password123", "password_confirm": "password124"}, "ne correspondent pas"),
+    ],
+)
+def test_setup_rejects_invalid_account(client, payload, message):
+    response = client.post("/api/auth/setup", json=payload)
+    assert response.status_code == 400
+    assert message in response.json()["detail"]
+
+
+def test_setup_cannot_replace_an_existing_account(client, db):
+    _seed_account(db)
+    response = client.post(
+        "/api/auth/setup", json={"username": "intrus", "password": "password123", "password_confirm": "password123"}
+    )
+    assert response.status_code == 403
+    assert db.query(Settings).first().auth_username == "admin"
 
 
 def test_login_rejects_wrong_password(client, db):
     _seed_account(db)
     response = _login(client, password="wrong-password")
-    assert response.status_code == 200
-    assert "Identifiants incorrects" in response.text
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Identifiants incorrects."
+    assert client.get("/api/auth/state").json()["authenticated"] is False
 
 
 def test_logout_returns_to_login(client, db):
@@ -154,16 +220,21 @@ def test_logout_returns_to_login(client, db):
     assert response.headers["location"] == "/login"
 
 
-def test_privacy_page_is_public_without_gdpr_contact(client):
-    """Sans contact RGPD configure, la page reste accessible et invite a se rapprocher
-    de l'administrateur plutot que d'afficher un contact vide/casse."""
-    response = client.get("/privacy")
+def test_privacy_page_is_public(client):
+    assert _is_spa(client.get("/privacy"))
+
+
+def test_privacy_data_without_gdpr_contact(client):
+    """Sans contact RGPD configure, la page invite a se rapprocher de l'administrateur
+    plutot que d'afficher un contact vide/casse (voir PrivacyView.vue)."""
+    response = client.get("/api/privacy")
     assert response.status_code == 200
-    assert "Rapprochez-vous" in response.text
-    assert "CNIL" in response.text
+    data = response.json()
+    assert data["gdpr_contact_email"] is None
+    assert data["active_channels"] == []
 
 
-def test_privacy_page_shows_configured_gdpr_contact_and_live_settings(client, db):
+def test_privacy_data_reflects_configured_gdpr_contact_and_live_settings(client, db):
     db.add(
         Settings(
             id=1,
@@ -175,10 +246,9 @@ def test_privacy_page_shows_configured_gdpr_contact_and_live_settings(client, db
     )
     db.commit()
 
-    response = client.get("/privacy")
+    data = client.get("/api/privacy").json()
 
-    assert response.status_code == 200
-    assert "Jean Dupont" in response.text
-    assert "jean@example.fr" in response.text
-    assert "30 jour(s)" in response.text
-    assert "Email" in response.text
+    assert data["gdpr_contact_name"] == "Jean Dupont"
+    assert data["gdpr_contact_email"] == "jean@example.fr"
+    assert data["notification_retention_days"] == 30
+    assert data["active_channels"] == ["Email"]

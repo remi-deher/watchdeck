@@ -4,12 +4,10 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.models import Base, LibraryItem, MediaRequest, PlexUser, RequestSeasonStatus, RequestStatus, Settings
+from app.models import LibraryItem, MediaRequest, PlexUser, RequestSeasonStatus, RequestStatus, Settings
 from app.scheduler import check_arr_statuses, poll_watchlists, sync_users_from_feed
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 # ---------------------------------------------------------------------------
 # Fixtures DB in-memory
@@ -18,10 +16,7 @@ from tests.async_support import TestSession
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = TestSession(Session())
+    session = make_test_session()
     yield session
     session.close()
 
@@ -688,8 +683,8 @@ async def test_check_arr_statuses_skipped_when_distributed_lock_held_elsewhere(d
     """Verrou Redis déjà détenu (autre process/conteneur) → cycle ignoré, aucun traitement.
 
     Même schéma que poll_watchlists : check_arr_statuses est déclenché à la fois par
-    APScheduler (conteneur API), le cron ARQ (conteneur worker) et /api/requests/poll
-    (HTTP manuel) — le verrou asyncio local ne protège que dans un seul process.
+    le cron ARQ (conteneur worker) et /api/requests/poll (HTTP manuel, conteneur API)
+    — le verrou asyncio local ne protège que dans un seul process.
     """
     db.add(_settings())
     db.add(_sent_request())

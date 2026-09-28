@@ -3,7 +3,7 @@ Point d'entrée de l'application FastAPI.
 
 Responsabilités :
 - Initialisation de la base de données (migrations Alembic + seed)
-- Démarrage et arrêt du scheduler APScheduler
+- Arrêt propre des services partagés (les tâches de fond tournent dans le worker ARQ)
 - Montage de tous les routers (pages HTML, API REST, webhook, import/export, templates email)
 """
 
@@ -38,8 +38,6 @@ from .database import init_db
 from .dependencies import require_admin
 from .error_handlers import register_domain_exception_handlers
 from .log_buffer import install as install_log_buffer
-from .notification_queue import start_worker as start_notif_worker
-from .notification_queue import stop_worker as stop_notif_worker
 from .routers import (
     activity_api,
     api_v1,
@@ -83,7 +81,6 @@ from .routers import (
     webhook,
     webhook_admin,
 )
-from .scheduler import scheduler, start_scheduler
 from .services.auth import get_secret_key
 from .utils import safe_redirect_path
 
@@ -103,27 +100,7 @@ async def lifespan(app: FastAPI):
         await init_db()
         logging.info("DB OK. Starting API services...")
 
-        # Lire l'intervalle de polling depuis la DB avant de lancer le scheduler
-        from .database import AsyncSessionLocal
-        from .models import Settings as _Settings
-
-        async with AsyncSessionLocal() as _db:
-            _s = (await _db.execute(select(_Settings))).scalars().first()
-            # Priorité à l'intervalle en secondes (polling sous la minute) ; repli sur les minutes.
-            if _s and _s.poll_interval_seconds:
-                _seconds = _s.poll_interval_seconds
-            elif _s and _s.poll_interval_minutes:
-                _seconds = _s.poll_interval_minutes * 60
-            else:
-                _seconds = 300
-        legacy_scheduler = os.getenv("ENABLE_LEGACY_SCHEDULER", "0").lower() in {"1", "true", "yes"}
-        if legacy_scheduler:
-            await start_scheduler(poll_seconds=_seconds)
-            await start_notif_worker()
-            logging.warning("Legacy APScheduler and notification worker enabled")
-        else:
-            logging.info("Background work delegated to ARQ")
-        app.state.legacy_scheduler = legacy_scheduler
+        logging.info("Background work delegated to ARQ")
         from .services.arr_history import sync_all_enabled_instances
 
         app.state.arr_history_sync = asyncio.create_task(sync_all_enabled_instances())
@@ -132,10 +109,6 @@ async def lifespan(app: FastAPI):
         logging.exception("STARTUP FAILED")
         raise
     yield
-    if getattr(app.state, "legacy_scheduler", False):
-        logging.info("Shutting down legacy background services...")
-        await stop_notif_worker()
-        scheduler.shutdown()
     history_sync = getattr(app.state, "arr_history_sync", None)
     if history_sync and not history_sync.done():
         history_sync.cancel()
@@ -436,6 +409,8 @@ SPA_ROOTS = {
     "analytics",
     "vf-upgrades",
 }
+# Pages servies sans session : la SPA les rend avec une mise en page nue (sans navigation).
+SPA_PUBLIC_ROOTS = {"login", "setup", "privacy"}
 
 PWA_STATIC_FILES = {
     "manifest.webmanifest": ("app/static/vue/manifest.webmanifest", "application/manifest+json"),
@@ -510,14 +485,34 @@ async def redirect_legacy_wizard():
     return RedirectResponse("/settings?tab=connections", status_code=308)
 
 
+async def _public_page_redirect(request: Request, root: str, db: SqlSession) -> str | None:
+    """Aiguillage des pages publiques, fait côté serveur pour éviter un aller-retour de la SPA."""
+    if root == "privacy":
+        return None
+    from .routers.auth import setup_required
+
+    needs_setup = await setup_required(db)
+    if root == "setup":
+        return None if needs_setup else "/"
+    if needs_setup:
+        return "/setup"
+    if request.session.get("authenticated"):
+        return safe_redirect_path(request.query_params.get("next") or "/")
+    return None
+
+
 @app.get("/", include_in_schema=False)
 @app.get("/{spa_path:path}", include_in_schema=False)
-async def serve_spa(request: Request, spa_path: str = ""):
+async def serve_spa(request: Request, spa_path: str = "", db: SqlSession = Depends(get_db)):
     """Serve Vue history routes at the site root after every backend router."""
     root = spa_path.split("/", 1)[0] if spa_path else ""
-    if root and root not in SPA_ROOTS:
+    if root in SPA_PUBLIC_ROOTS and "/" not in spa_path.strip("/"):
+        destination = await _public_page_redirect(request, root, db)
+        if destination:
+            return RedirectResponse(destination, status_code=302)
+    elif root and root not in SPA_ROOTS:
         raise HTTPException(404, "Route introuvable")
-    if not request.session.get("authenticated"):
+    elif not request.session.get("authenticated"):
         if spa_path:
             next_value = quote(safe_redirect_path(f"/{spa_path}"), safe="")
             return RedirectResponse(f"/login?next={next_value}", status_code=302)

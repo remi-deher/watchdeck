@@ -38,6 +38,22 @@ const clean = (value: unknown) => {
 };
 
 
+/* Conteneur du fichier et ce qu'il devient : sans conversion, il part tel quel. Pendant
+   une conversion, `container` (Media de la session) decrit deja la sortie : la source se
+   lit dans le detail de la conversion. */
+function containerRow(s: Record<string, any>): Row | null {
+  const details = s.transcode_details || null;
+  const source = details ? details.container?.from : s.container;
+  const target = details ? details.container?.to || source : source;
+  if (!source && !target) return null;
+  const from = String(source || '').toUpperCase();
+  const to = String(target || '').toUpperCase();
+  if (from && to && from !== to) return { label: 'Conteneur', value: `${from} → ${to} · converti` };
+  const protocol = String(details?.protocol || '').toLowerCase();
+  if (['dash', 'hls'].includes(protocol)) return { label: 'Conteneur', value: `${from || to} · inchangé, diffusé en ${protocol.toUpperCase()}` };
+  return { label: 'Conteneur', value: `${from || to} · inchangé` };
+}
+
 const cards = computed(() => {
   const s = props.session;
   const stream = s.stream_details || {};
@@ -50,6 +66,8 @@ const cards = computed(() => {
   const outHeight = details.video?.height;
   const reencoded = String(details.video?.decision || s.video_decision || '').toLowerCase() === 'transcode';
   lecture.push({ label: 'Qualité', value: reencoded && outHeight && s.quality ? `${s.quality} → ${outHeight}p` : s.quality || 'Automatique' });
+  const container = containerRow(s);
+  if (container) lecture.push(container);
   lecture.push({ label: 'Visionné', value: duration ? `${formatDuration(watched)} sur ${formatDuration(duration)}` : formatDuration(watched) });
   if (s.initial_progress_ms && duration) lecture.push({ label: 'Reprise', value: `depuis ${Math.round((s.initial_progress_ms / duration) * 100)} %` });
   if ((s.group_count || 1) > 1) lecture.push({ label: 'Séances', value: `${s.group_count}e séance de ce média` });

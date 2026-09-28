@@ -1,21 +1,16 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.models import ArrInstance, Base, DownloadClient, LibraryItem, MediaRequest, RequestStatus, Settings
+from app.models import ArrInstance, DownloadClient, LibraryItem, MediaRequest, RequestStatus, Settings
 from app.scheduler import check_torrent_statuses, poll_watchlists
 from app.services.watchlist_poller import _submit_to_arr
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = TestSession(Session())
+    session = make_test_session()
     yield session
     session.close()
 

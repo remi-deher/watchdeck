@@ -7,8 +7,8 @@
 3. Generer `WATCHDECK_ENCRYPTION_KEY` avec `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
 4. Demarrer avec `docker compose up -d --build`.
 
-L'API et le worker ARQ sont deux services independants. APScheduler est desactive par defaut.
-`ENABLE_LEGACY_SCHEDULER=1` ne doit servir qu'au retour arriere temporaire, sans worker ARQ actif.
+L'API et le worker ARQ sont deux services independants : toutes les taches planifiees
+et l'envoi des notifications passent par le worker ARQ.
 
 ## Verification
 
@@ -69,12 +69,12 @@ Alternative a la procedure CLI ci-dessus, accessible sans acces shell/`docker co
   Une sauvegarde de securite de l'etat courant est prise automatiquement juste avant (dans
   `data/backups/`), mais rien de l'etat actuel n'est fusionne ou conserve au-dela. Le conteneur
   redemarre ensuite (`restart: unless-stopped`) pour repartir sur des connexions fraiches.
-- **Restauration depuis `/setup`** (`POST /setup/restore`) : meme mecanisme, utilisable a la place
+- **Restauration depuis `/setup`** (`POST /api/auth/setup/restore`) : meme mecanisme, utilisable a la place
   de la creation manuelle d'un compte sur une instance fraiche pas encore configuree — bloque des
   qu'un compte existe deja.
 
-Verrouillage partage (Redis) avec la migration SQLite legacy : les deux operations remplacent
-entierement la base et ne peuvent pas s'executer en parallele l'une de l'autre.
+Verrouillage (Redis) : deux restaurations ne peuvent pas s'executer en parallele, et le worker
+ARQ suspend ses taches tant qu'une restauration remplace la base.
 
 ## Mise a jour
 

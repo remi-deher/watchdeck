@@ -116,6 +116,7 @@
 
 <script setup>
 import { formatDate } from '@/utils/format';
+import { base64UrlToBuffer, bufferToBase64Url } from '@/utils/webauthn';
 import { computed, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Fingerprint, KeyRound, Palette, ShieldCheck, UserRound, Smartphone, Download, Trash2 } from '@lucide/vue';
@@ -252,33 +253,21 @@ async function deletePasskey(key) {
   } catch (e) { actionError.value = e.message; }
 }
 
-function decode(value) {
-  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='));
-  return Uint8Array.from(binary, char => char.charCodeAt(0)).buffer;
-}
-function encode(value) {
-  const bytes = new Uint8Array(value);
-  let binary = '';
-  bytes.forEach(byte => binary += String.fromCharCode(byte));
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
 const registerPasskeyMutation = useMutation({
   retry: 0,
   mutationFn: async () => {
     const options = await api('/api/users/webauthn/register/options', { method: 'POST', body: JSON.stringify({ user_id: identity.value.id }) });
-    options.challenge = decode(options.challenge);
-    options.user.id = decode(options.user.id);
-    options.excludeCredentials = (options.excludeCredentials || []).map(entry => ({ ...entry, id: decode(entry.id) }));
+    options.challenge = base64UrlToBuffer(options.challenge);
+    options.user.id = base64UrlToBuffer(options.user.id);
+    options.excludeCredentials = (options.excludeCredentials || []).map(entry => ({ ...entry, id: base64UrlToBuffer(entry.id) }));
     const credential = await navigator.credentials.create({ publicKey: options });
     const payload = credential.toJSON ? credential.toJSON() : {
       id: credential.id,
-      rawId: encode(credential.rawId),
+      rawId: bufferToBase64Url(credential.rawId),
       type: credential.type,
       response: {
-        clientDataJSON: encode(credential.response.clientDataJSON),
-        attestationObject: encode(credential.response.attestationObject),
+        clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
+        attestationObject: bufferToBase64Url(credential.response.attestationObject),
       },
       clientExtensionResults: credential.getClientExtensionResults(),
     };

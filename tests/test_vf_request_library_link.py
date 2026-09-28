@@ -8,13 +8,10 @@ Bibliothèque affiche VF, Demandes affiche encore VO en attente pour le même ti
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, LibraryItem, MediaRequest, PlexUser, RequestStatus, Settings
+from app.models import LibraryItem, MediaRequest, PlexUser, RequestStatus, Settings
 from app.scheduler import _link_request_to_library_item, check_vf_statuses
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _make_db():
@@ -25,9 +22,7 @@ def _make_db():
     instances que le test lit APRES le scan, qui echoue alors en DetachedInstanceError
     des que la session est refermee -- un faux positif qui n'existe pas en production.
     """
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    return TestSession(sessionmaker(bind=engine, expire_on_commit=False)())
+    return make_test_session()
 
 
 @pytest.mark.asyncio

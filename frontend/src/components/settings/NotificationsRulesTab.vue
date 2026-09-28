@@ -5,7 +5,7 @@
         <label>Journaux de notifications (jours)<RetentionDaysInput v-model="form.notification_log_retention_days" :default-days="30"/></label>
         <UiCheckboxField v-model="form.digest_enabled" label="Digest actif" />
         <small class="check-hint">Envoie un recapitulatif quotidien par email, a l'heure choisie ci-dessous, aux utilisateurs ayant active le digest dans leurs preferences — au lieu de recevoir chaque notification individuellement.</small>
-        <label>Heure du digest<TimeOfDayInput v-model:hour="form.digest_hour" v-model:minute="form.digest_minute"/></label>
+        <label>Heure du digest<UiTimeField v-model:hour="form.digest_hour" v-model:minute="form.digest_minute" aria-label="Heure du digest"/></label>
       </SettingsCard>
     </div>
 
@@ -51,7 +51,7 @@ import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import { Archive, Bell, Megaphone, MessageSquare, Send } from '@lucide/vue';
 import { form } from '@/settingsForm';
 import SettingsCard from './SettingsCard.vue';
-import TimeOfDayInput from './TimeOfDayInput.vue';
+import UiTimeField from '@/components/ui/UiTimeField.vue';
 import RetentionDaysInput from './RetentionDaysInput.vue';
 
 const channels = [

@@ -109,6 +109,7 @@ import AppSubnav from '@/components/ui/AppSubnav.vue';
 import { notificationSections } from '@/notificationSections';
 import { computed, ref, watch } from 'vue';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, ChevronLeft, ChevronRight, PauseCircle, PlayCircle, Send, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
@@ -143,7 +144,7 @@ const deliveries = computed(() => deliveriesQuery.data.value || []);
 watch(deliveriesQuery.error, (e) => { if (e) showFeedback('error', e.message); });
 // Meme cle que la page Utilisateurs : les deux ecrans partagent le cache.
 const usersQuery = useQuery({
-  queryKey: ['users', 'list'],
+  queryKey: queryKeys.users.list,
   queryFn: ({ signal }) => api('/api/users', { signal }),
   select: (data) => (Array.isArray(data) ? data : []),
   staleTime: 30_000,

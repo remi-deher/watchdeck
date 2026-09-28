@@ -3,23 +3,17 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_api_scope, require_auth, require_moderator
 from app.main import app
-from app.models import Base, LibraryItem, MediaIssue, Settings
+from app.models import LibraryItem, MediaIssue, Settings
 from app.services.totp import _totp_at, generate_secret, verify_code
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    return TestSession(Session())
+    return make_test_session()
 
 
 def _client(db):
@@ -177,13 +171,13 @@ def test_plex_sso_server_access_control(mock_has_access, mock_get_account, mock_
     try:
         # Case 1: Unauthorized user
         mock_has_access.return_value = False
-        resp = client.get("/login/plex/check/123")
+        resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 403
         assert "n'a pas accès au serveur" in resp.json()["detail"]
 
         # Case 2: Authorized user
         mock_has_access.return_value = True
-        resp = client.get("/login/plex/check/123")
+        resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 200
         assert resp.json()["authenticated"] is True
     finally:

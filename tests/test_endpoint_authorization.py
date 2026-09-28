@@ -29,23 +29,23 @@ from app.main import app
 # Surface publique assumee. Toute entree ici est une decision de securite deliberee.
 PUBLIC_ENDPOINTS: set[tuple[str, str]] = {
     # Parcours de connexion : accessible par definition avant toute session.
-    ("GET", "/login"),
-    ("POST", "/login"),
+    # (les pages /login, /setup et /privacy sont servies par la SPA, hors schema OpenAPI)
+    ("GET", "/api/auth/state"),  # booleens "compte a creer" / "session ouverte", rien d'autre
+    ("POST", "/api/auth/login"),
     ("GET", "/logout"),
-    ("POST", "/login/plex/pin"),
-    ("GET", "/login/plex/check/{pin_id}"),
+    ("POST", "/api/auth/plex/pin"),
+    ("GET", "/api/auth/plex/check/{pin_id}"),
     # Connexion par passkey : appelee avant toute session par definition. Ne renvoie
     # qu'un defi cryptographique, aucune donnee utilisateur (voir auth.py).
     ("POST", "/api/webauthn/login/options"),
     ("POST", "/api/webauthn/login/verify"),
     # Premiere installation : par construction, aucun compte n'existe encore.
-    # setup_get / setup_post / setup_restore refusent d'agir des qu'un compte existe
+    # setup_account / setup_restore refusent d'agir des qu'un compte existe
     # (verification explicite dans app/routers/auth.py).
-    ("GET", "/setup"),
-    ("POST", "/setup"),
-    ("POST", "/setup/restore"),
+    ("POST", "/api/auth/setup"),
+    ("POST", "/api/auth/setup/restore"),
     # Page legale, volontairement consultable sans compte.
-    ("GET", "/privacy"),
+    ("GET", "/api/privacy"),
     # Webhooks entrants : authentifies par jeton dans la requete, pas par session,
     # car appeles par Sonarr/Radarr/Plex qui n'ont pas de cookie.
     ("POST", "/webhook/sonarr"),

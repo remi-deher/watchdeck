@@ -9,7 +9,7 @@ limiter les régressions et de garder un point de retour fonctionnel entre les c
 État vérifié le 13 juillet 2026 :
 
 - backend FastAPI et accès SQLAlchemy migrés en asynchrone ;
-- SQLite via `aiosqlite` et PostgreSQL via `asyncpg` supportés ;
+- PostgreSQL via `asyncpg`, seul moteur pris en charge (SQLite retiré) ;
 - suite applicative verte : **612 tests réussis** dans la dernière exécution locale ;
 - Redis optionnel disponible via `app/cache.py` ;
 - PostgreSQL et Redis déclarés dans `docker-compose.yml` ;
@@ -24,7 +24,8 @@ limiter les régressions et de garder un point de retour fonctionnel entre les c
 - **Priorité 2 livrée** : l'interface authentifiée Vue est servie à la racine et couvre
   dashboard, découverte, demandes, bibliothèque, calendrier, téléchargements, utilisateurs,
   notifications, maintenance, paramètres, migration des données et sécurité du profil.
-  `/app/...` redirige vers la route racine équivalente ; Jinja reste limité au login/setup.
+  `/app/...` redirige vers la route racine équivalente ; connexion, installation et
+  confidentialité sont aussi des pages Vue (plus aucun rendu Jinja côté pages).
 - **Priorité 3 livrée** : recherche de releases Vue, tri VF/MULTI avant les résultats anglais,
   grab protégé contre les doubles clics et ouverture du suivi dans un nouvel onglet.
 

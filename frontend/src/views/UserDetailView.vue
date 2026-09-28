@@ -39,6 +39,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { api } from '@/api';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import SheetPage from '@/components/layout/SheetPage.vue';
@@ -59,7 +60,7 @@ const creating = computed(() => route.path === '/users/new');
 /* La liste sert a la fusion (choisir l'autre compte) : meme lecture, meme cache que la
    page Administration. */
 const usersQuery = useQuery({
-  queryKey: ['users', 'list'],
+  queryKey: queryKeys.users.list,
   queryFn: ({ signal }) => api('/api/users', { signal }),
   select: (data) => (Array.isArray(data) ? data : []),
   staleTime: 30_000,
@@ -82,7 +83,7 @@ function fillForm(user) { Object.assign(form, defaults, Object.fromEntries(Objec
 function notify(message) { addToast({ type: 'success', title: 'Administration', message }); }
 
 /** Relit la liste de la page de fond apres une action. */
-async function refreshList() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: ['users'] }); }
+async function refreshList() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: queryKeys.users.all }); }
 
 async function loadUser() {
   editorError.value = ''; loadError.value = '';

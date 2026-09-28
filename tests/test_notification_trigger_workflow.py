@@ -10,10 +10,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, MediaRequest, PendingNotification, PlexUser, RequestStatus, Settings
+from app.models import MediaRequest, PendingNotification, PlexUser, RequestStatus, Settings
 from app.services.acquisition_batches import classify_batch_availability
 from app.services.email_service import SERIES_AVAILABILITY_DEFAULTS, send_available_notification
 from app.services.notification_orchestrator import AvailabilityCandidate, _notify, resolve_and_notify_availability
@@ -95,23 +93,16 @@ GENERIC_TRIGGER_CASES = (
 )
 
 
-async def _make_db():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    return engine, async_sessionmaker(engine, expire_on_commit=False)()
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "media_type,scope,language,is_upgrade,season_number,episode_number",
     IMMEDIATE_TRIGGER_CASES,
 )
 async def test_immediate_trigger_is_persisted_through_notification_queue(
-    media_type, scope, language, is_upgrade, season_number, episode_number
+    async_database, media_type, scope, language, is_upgrade, season_number, episode_number
 ):
     """Chaque déclencheur immédiat conserve tout son contexte jusqu'à la file."""
-    engine, db = await _make_db()
+    engine, db = async_database.engine, async_database.session_factory()
     settings = Settings(
         id=1,
         email_on_available=True,
@@ -173,9 +164,9 @@ async def test_immediate_trigger_is_persisted_through_notification_queue(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("trigger,queued_event,expected_context", GENERIC_TRIGGER_CASES)
-async def test_generic_trigger_enters_notification_workflow(trigger, queued_event, expected_context):
+async def test_generic_trigger_enters_notification_workflow(async_database, trigger, queued_event, expected_context):
     """Demande et échec rejoignent la même file avec le bon événement métier."""
-    engine, db = await _make_db()
+    engine, db = async_database.engine, async_database.session_factory()
     settings = Settings(id=1, email_on_request=True, email_on_failure=True)
     user = PlexUser(plex_user_id="alice", enabled=True, notification_email="alice@example.com")
     req = MediaRequest(

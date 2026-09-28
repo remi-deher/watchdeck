@@ -62,6 +62,13 @@ Progression : `UiSectionHeader` et `UiToolbar` fournissent désormais la structu
 
 Terminé : `styles.scss` charge les partials Sass avec `@use`. Les fondations, la structure, les composants globaux et les vues sont rangés sous `frontend/src/styles/`. Le dossier historique `assets/css` et les points d'entrée CSS ont été supprimés. Tous les blocs de style Vue sont compilés avec `lang="scss"`.
 
+### Phase 7 — Surcouches et saisies Reka UI
+
+- `UiMenu` et `UiContextMenu` (avec `UiMenuItem`, `UiMenuSeparator`) : menus d'actions et menus contextuels, apparence commune `.ui-menu`.
+- `UiTooltip` : infobulle au survol et au focus clavier, en remplacement de l'attribut `title` pour les pastilles explicatives. `title` reste accepté pour révéler un texte tronqué ou une date complète.
+- `UiTimeField` : heure sur 24 h, à la minute ou à l'heure pile.
+- `UiAvatar` : image de profil avec repli sur les initiales.
+
 ## Validation d'une phase
 
 Chaque phase doit conserver la compilation TypeScript, les tests unitaires et la compilation de production. Les migrations visuelles importantes doivent être vérifiées sur mobile et bureau avant de supprimer les règles de compatibilité.

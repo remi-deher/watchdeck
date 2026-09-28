@@ -3,19 +3,14 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import ArrInstance, Base, LibraryItem, MediaRequest, RequestStatus
+from app.models import ArrInstance, LibraryItem, MediaRequest, RequestStatus
 from app.routers.calendar_api import unified_calendar
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _make_db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    return TestSession(sessionmaker(bind=engine)())
+    return make_test_session()
 
 
 @pytest.mark.asyncio

@@ -8,12 +8,9 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import create_engine, func, select
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import func, select
 
 from app.models import (
-    Base,
     MediaIssue,
     MediaRequest,
     NotificationLog,
@@ -24,7 +21,7 @@ from app.models import (
 )
 from app.routers.users_api import BulkDeleteUpdate, bulk_delete_users, delete_user
 from app.services.gdpr import erase_user_data, export_user_data
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _request():
@@ -35,9 +32,7 @@ def _request():
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    session = TestSession(sessionmaker(bind=engine, expire_on_commit=False)())
+    session = make_test_session()
     yield session
     session.close()
 
