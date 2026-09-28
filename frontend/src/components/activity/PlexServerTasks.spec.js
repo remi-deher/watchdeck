@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 
 /* Pas de vi.fn pour les échecs : l'espion garde une promesse dérivée de son résultat,
    non gérée, et fait échouer le test quand l'appel rejette alors que le composant l'a
@@ -16,6 +17,11 @@ vi.mock('@/events', () => ({ useRealtime: () => {} }));
 
 import PlexServerTasks from './PlexServerTasks.vue';
 
+function factory() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return mount(PlexServerTasks, { global: { plugins: [[VueQueryPlugin, { queryClient }]], stubs: { ConfirmModal: true } } });
+}
+
 describe('PlexServerTasks', () => {
   beforeEach(() => api.mockReset());
 
@@ -24,7 +30,7 @@ describe('PlexServerTasks', () => {
       { uuid: 'a1', title: 'Création des miniatures', subtitle: 'Dune', progress: 42, cancellable: true },
       { uuid: 'a2', title: 'Analyse', progress: null, cancellable: false },
     ] });
-    const wrapper = mount(PlexServerTasks, { global: { stubs: { ConfirmModal: true } } });
+    const wrapper = factory();
     await flushPromises();
     const items = wrapper.findAll('li');
     expect(items).toHaveLength(2);
@@ -36,7 +42,7 @@ describe('PlexServerTasks', () => {
 
   it('dit quand Plex est injoignable', async () => {
     api.mockImplementation(async () => { throw new Error('Plex injoignable'); });
-    const wrapper = mount(PlexServerTasks, { global: { stubs: { ConfirmModal: true } } });
+    const wrapper = factory();
     await flushPromises();
     expect(wrapper.get('.plex-tasks-error').text()).toContain('Plex injoignable');
   });

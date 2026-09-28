@@ -161,7 +161,9 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
-import { useQuery } from '@tanstack/vue-query';
+import { keepPreviousData, useQuery } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
+import { arrQueueQuery as sharedArrQueueQuery, diskSpaceQuery, downloadsGlobalStatsPath } from '@/sharedQueries';
 import { useRoute, useRouter } from 'vue-router';
 import { AlertTriangle, Clock3, Columns, Download, Plus, Server } from '@lucide/vue';
 import { api } from '@/api';
@@ -358,11 +360,9 @@ watch(clientsQuery.error, (value) => setSourceError('clients', value ? `Clients 
 // l'autre. Elles ne sont lues que hors de la section Clients.
 const queueEnabled = computed(() => section.value !== 'clients');
 const arrQueueQuery = useQuery({
-  queryKey: ['downloads', 'arr-queue'],
-  queryFn: ({ signal }) => api('/api/arr/queue', { signal }),
+  ...sharedArrQueueQuery(),
   select: (rows) => asList<any>(rows),
   enabled: queueEnabled,
-  staleTime: 5_000,
 });
 const directQueueQuery = useQuery({
   queryKey: ['downloads', 'direct'],
@@ -382,50 +382,60 @@ watch([arrQueueQuery.error, directQueueQuery.error], ([arrError, directError]) =
   setSourceError('queue', failures.join(' · '));
 }, { immediate: true });
 
-const diskSpaceVolumes = ref<any[]>([]);
-async function loadDiskSpace(): Promise<void> {
-  try {
-    diskSpaceVolumes.value = asList(await api('/api/disk-space'));
-    setSourceError('disk');
-  } catch (e: any) {
-    setSourceError('disk', `Stockage : ${e.message}`);
-  }
-}
+// Stockage, indexeurs et debits : la vue d'ensemble seule les affiche.
+const overviewEnabled = computed(() => section.value === 'overview');
+const diskSpaceQueryState = useQuery({ ...diskSpaceQuery(), select: (rows) => asList<any>(rows), enabled: overviewEnabled });
+const diskSpaceVolumes = computed<any[]>(() => diskSpaceQueryState.data.value || []);
+watch(diskSpaceQueryState.error, (value) => setSourceError('disk', value ? `Stockage : ${value.message}` : ''), { immediate: true });
 
-const prowlarrStats = ref<Record<string, any>>({});
-const clientOverviewStats = ref<Record<string, any>>({});
-async function loadOverviewInstanceStats(): Promise<void> {
-  const prowlarrInstances = configuredArr.value.filter((inst: any) => inst.arr_type === 'prowlarr' && inst.enabled);
-  const [prowlarrResults, clientResult] = await Promise.all([
-    Promise.allSettled(prowlarrInstances.map((inst: any) => api(`/api/prowlarr/${inst.id}/overview`))),
-    api('/api/downloads/global-stats').catch(() => ({ clients: [] })),
+const prowlarrInstances = computed(() => configuredArr.value.filter((inst: any) => inst.arr_type === 'prowlarr' && inst.enabled));
+const prowlarrQuery = useQuery({
+  queryKey: computed(() => ['downloads', 'prowlarr-overview', prowlarrInstances.value.map((inst: any) => inst.id)]),
+  queryFn: async ({ signal }) => {
+    const instances = prowlarrInstances.value;
+    const results = await Promise.allSettled(instances.map((inst: any) => api(`/api/prowlarr/${inst.id}/overview`, { signal })));
+    return Object.fromEntries(instances.map((inst: any, index: number) => [inst.id,
+      results[index].status === 'fulfilled' ? (results[index] as PromiseFulfilledResult<any>).value : { connected: false },
+    ]));
+  },
+  enabled: computed(() => overviewEnabled.value && prowlarrInstances.value.length > 0),
+});
+const prowlarrStats = computed<Record<string, any>>(() => prowlarrQuery.data.value || {});
+// Meme cle que la barre des debits (TorrentSpeedBar) sans client choisi.
+const globalStatsQuery = useQuery({
+  queryKey: queryKeys.downloads.globalStats(null),
+  queryFn: ({ signal }) => api<any>(downloadsGlobalStatsPath(null), { signal }),
+  enabled: overviewEnabled,
+});
+const clientOverviewStats = computed<Record<string, any>>(() => Object.fromEntries((globalStatsQuery.data.value?.clients || []).map((stats: any) => [stats.client_id, stats])));
+function loadOverviewStats(): Promise<unknown> {
+  return Promise.allSettled([
+    diskSpaceQueryState.refetch({ cancelRefetch: false }),
+    globalStatsQuery.refetch({ cancelRefetch: false }),
+    ...(prowlarrInstances.value.length ? [prowlarrQuery.refetch({ cancelRefetch: false })] : []),
   ]);
-  prowlarrStats.value = Object.fromEntries(prowlarrInstances.map((inst: any, index: number) => [inst.id,
-    (prowlarrResults[index] as any)?.status === 'fulfilled' ? (prowlarrResults[index] as any).value : { connected: false },
-  ]));
-  clientOverviewStats.value = Object.fromEntries((clientResult.clients || []).map((stats: any) => [stats.client_id, stats]));
 }
 
-const wantedItems = ref<any[]>([]);
-const loadingWanted = ref(false);
-let wantedLoadVersion = 0;
-async function loadWanted(): Promise<void> {
-  if (!readsWanted()) return;
-  const loadVersion = ++wantedLoadVersion;
-  if (!wantedItems.value.length) loadingWanted.value = true;
-  try {
-    // `arr_type` vide = les deux sources : la section couvre films et series, le filtre
-    // de type se charge de restreindre.
+// `arr_type` vide = les deux sources : la section couvre films et series, le filtre de
+// type se charge de restreindre. Changer de filtre garde la liste affichee jusqu'a la
+// nouvelle : pas de clignotement.
+const wantedQuery = useQuery({
+  queryKey: computed(() => ['arr', 'wanted', mediaType.value || '', selectedInstanceId.value]),
+  queryFn: ({ signal }) => {
     const params = new URLSearchParams();
     if (mediaType.value) params.set('arr_type', mediaType.value);
     if (selectedInstanceId.value) params.set('instance_id', selectedInstanceId.value);
-    const rows = await api(`/api/arr/wanted?${params}`);
-    if (loadVersion === wantedLoadVersion) { wantedItems.value = asList(rows); setSourceError('wanted'); }
-  } catch (e: any) {
-    if (loadVersion === wantedLoadVersion) setSourceError('wanted', `Éléments manquants : ${e.message}`);
-  } finally {
-    if (loadVersion === wantedLoadVersion) loadingWanted.value = false;
-  }
+    return api(`/api/arr/wanted?${params}`, { signal });
+  },
+  select: (rows) => asList<any>(rows),
+  enabled: computed(() => readsWanted()),
+  placeholderData: keepPreviousData,
+});
+const wantedItems = computed<any[]>(() => wantedQuery.data.value || []);
+const loadingWanted = computed(() => wantedQuery.isFetching.value && !wantedItems.value.length);
+watch(wantedQuery.error, (value) => setSourceError('wanted', value ? `Éléments manquants : ${value.message}` : ''), { immediate: true });
+function loadWanted(): Promise<unknown> {
+  return wantedQuery.refetch({ cancelRefetch: false });
 }
 
 /* Tri de l'historique, fait par le serveur : un nouveau tri relit la premiere page. */
@@ -607,15 +617,16 @@ async function loadClients(): Promise<void> {
   if (result.error) setSourceError('clients', `Clients torrent : ${result.error.message}`);
 }
 
-/* `skipQueue` au premier appel : les deux queries de la file se chargent d'elles-memes
-   au montage, les relancer ici doublerait l'aller-retour. */
-function refreshCurrentView({ skipQueue = false }: { skipQueue?: boolean } = {}) {
+/* `initial` au premier appel : la file, les manquants et la vue d'ensemble sont des
+   queries qui se chargent d'elles-memes au montage, les relancer ici doublerait
+   l'aller-retour. */
+function refreshCurrentView({ initial = false }: { initial?: boolean } = {}) {
   const jobs: Promise<any>[] = [];
-  if (section.value !== 'clients' && !skipQueue) jobs.push(loadAll());
+  if (section.value !== 'clients' && !initial) jobs.push(loadAll());
   if (readsClients()) jobs.push(loadClients());
-  if (readsWanted()) jobs.push(loadWanted());
+  if (readsWanted() && !initial) jobs.push(loadWanted());
   if (readsHistory()) jobs.push(loadHistory());
-  if (section.value === 'overview') jobs.push(loadDiskSpace(), loadOverviewInstanceStats());
+  if (section.value === 'overview' && !initial) jobs.push(loadOverviewStats());
   return Promise.allSettled(jobs);
 }
 
@@ -657,7 +668,7 @@ onMounted(async () => {
   await loadConfigurations();
   if (section.value === 'clients') loadClientFilterPreferences();
   mounted = true;
-  await refreshCurrentView({ skipQueue: true });
+  await refreshCurrentView({ initial: true });
 });
 </script>
 

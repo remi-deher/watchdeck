@@ -107,8 +107,7 @@ def test_update_settings_secret_mask_not_overwritten(async_db):
     async_db.commit()
     client = _client_with_db(async_db)
     try:
-        with patch("app.routers.settings_api.update_poll_interval"):
-            resp = client.put("/api/settings", json={"plex_token": "••••••••"})
+        resp = client.put("/api/settings", json={"plex_token": "••••••••"})
         assert resp.status_code == 200
         assert settings.plex_token == "real_token"
     finally:
@@ -122,8 +121,7 @@ def test_update_settings_updates_field(async_db):
     async_db.commit()
     client = _client_with_db(async_db)
     try:
-        with patch("app.routers.settings_api.update_poll_interval"):
-            resp = client.put("/api/settings", json={"plex_url": "http://new-plex.local"})
+        resp = client.put("/api/settings", json={"plex_url": "http://new-plex.local"})
         assert resp.status_code == 200
         assert settings.plex_url == "http://new-plex.local"
     finally:
@@ -136,8 +134,7 @@ def test_update_settings_accepts_two_letter_tmdb_region(async_db):
     async_db.commit()
     client = _client_with_db(async_db)
     try:
-        with patch("app.routers.settings_api.update_poll_interval"):
-            resp = client.put("/api/settings", json={"tmdb_region": "BE"})
+        resp = client.put("/api/settings", json={"tmdb_region": "BE"})
         assert resp.status_code == 200
         assert settings.tmdb_region == "BE"
         invalid = client.put("/api/settings", json={"tmdb_region": "France"})
@@ -155,11 +152,10 @@ def test_update_settings_retention_zero_means_unlimited(async_db):
     async_db.commit()
     client = _client_with_db(async_db)
     try:
-        with patch("app.routers.settings_api.update_poll_interval"):
-            resp = client.put(
-                "/api/settings",
-                json={"notification_log_retention_days": 0, "poll_history_retention_days": 0},
-            )
+        resp = client.put(
+            "/api/settings",
+            json={"notification_log_retention_days": 0, "poll_history_retention_days": 0},
+        )
         assert resp.status_code == 200
         assert settings.notification_log_retention_days is None
         assert settings.poll_history_retention_days is None
@@ -178,11 +174,10 @@ def test_update_settings_retention_clear_to_empty_means_unlimited(async_db):
     async_db.commit()
     client = _client_with_db(async_db)
     try:
-        with patch("app.routers.settings_api.update_poll_interval"):
-            resp = client.put(
-                "/api/settings",
-                json={"notification_log_retention_days": None, "poll_history_retention_days": None},
-            )
+        resp = client.put(
+            "/api/settings",
+            json={"notification_log_retention_days": None, "poll_history_retention_days": None},
+        )
         assert resp.status_code == 200
         assert settings.notification_log_retention_days is None
         assert settings.poll_history_retention_days is None
@@ -204,8 +199,7 @@ def test_update_settings_does_not_wipe_email_templates(async_db):
     async_db.commit()
     client = _client_with_db(async_db)
     try:
-        with patch("app.routers.settings_api.update_poll_interval"):
-            resp = client.put("/api/settings", json={"plex_url": "http://new-plex.local"})
+        resp = client.put("/api/settings", json={"plex_url": "http://new-plex.local"})
         assert resp.status_code == 200
         assert settings.plex_url == "http://new-plex.local"
         assert settings.email_request_template == "<p>Bonjour {nom_utilisateur}</p>"

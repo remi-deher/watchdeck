@@ -21,7 +21,6 @@ class PlaybackSession(Base):
             "source_session_id",
             unique=True,
             postgresql_where=text("ended_at IS NULL"),
-            sqlite_where=text("ended_at IS NULL"),
         ),
         Index("ix_playback_sessions_started_at", "started_at"),
         Index("ix_playback_sessions_active", "ended_at", "last_seen_at"),

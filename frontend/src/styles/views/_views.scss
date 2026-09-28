@@ -816,33 +816,11 @@ button:disabled {
 .markdown-menu-trigger[data-state="open"] { border-color: var(--accent); }
 .markdown-menu-trigger.variable-picker { margin-left: auto; }
 
-/* Teleportes dans <body> par Reka. */
-.markdown-menu {
-  z-index: var(--z-popover);
-  min-width: 140px;
-  max-height: min(330px, var(--reka-dropdown-menu-content-available-height));
-  overflow: auto;
-  padding: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 14px 32px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale)));
-}
-.markdown-menu.variable-menu { width: min(390px, 80vw); }
-.markdown-menu__item {
-  display: grid;
-  grid-template-columns: minmax(120px, auto) 1fr;
-  gap: var(--space-3);
-  padding: 8px;
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  outline: none;
-}
-.markdown-menu:not(.variable-menu) .markdown-menu__item { display: block; }
-.markdown-menu__item[data-highlighted] { background: var(--surface-2); }
-.markdown-menu__item span { color: var(--muted); }
+/* Panneaux UiMenu de la barre Markdown, teleportes dans <body>. */
+.ui-menu.markdown-heading-menu { min-width: 140px; }
+.ui-menu.variable-menu { width: min(390px, 80vw); max-width: none; }
+.variable-menu .ui-menu-item { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: var(--space-3); }
+.variable-menu .ui-menu-item span { color: var(--muted); }
 
 .template-settings > .collapsible-trigger {
   padding: 14px 0;

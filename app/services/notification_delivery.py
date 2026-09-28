@@ -5,8 +5,7 @@ from contextvars import ContextVar
 from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert
 
 from ..models import NotificationDelivery
 from ..utils import now_utc_naive
@@ -43,7 +42,6 @@ def identity_for(req_id, event, recipient, context):
 
 
 async def prepare(db, identity):
-    insert = pg_insert if db.bind.dialect.name == "postgresql" else sqlite_insert
     now = now_utc_naive()
     await db.execute(
         insert(NotificationDelivery)

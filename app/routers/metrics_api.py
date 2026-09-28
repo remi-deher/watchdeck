@@ -1,9 +1,10 @@
 import asyncio
 import json
 import json as _json
+import math
 import os
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, cast
 
 import sqlalchemy
@@ -20,6 +21,8 @@ from ..services import arr_orphans, email_providers, prowlarr, radarr, sonarr
 from ..services.plex_api import check_connection as plex_test
 from ..services.seer import check_connection as seer_test
 from ..utils import now_utc, now_utc_naive, wrap_image_proxy
+
+_WATCHLIST_TICK_SECONDS = 30
 
 router = APIRouter(prefix="/api", tags=["metrics"], dependencies=[Depends(require_admin)])
 
@@ -254,18 +257,28 @@ async def get_metrics(db: AsyncSession = Depends(get_db_async)):
 
 
 @router.get("/next-poll")
-def next_poll_info():
-    """Retourne le nombre de secondes avant le prochain polling (pour le countdown UI)."""
-    from ..scheduler import scheduler
+async def next_poll_info():
+    """Retourne le nombre de secondes avant le prochain polling (pour le countdown UI).
 
-    job = scheduler.get_job("watchlist_poll")
-    if not job or not job.next_run_time:
+    Le worker ARQ tente le polling watchlist à chaque tick de 30 s (`cron_watchlist`)
+    et ne l'exécute que si la clé `last-scheduled` a expiré : le prochain passage est
+    donc le premier tick qui suit cette expiration.
+    """
+    from ..job_queue import key_ttl_ms
+
+    try:
+        ttl_ms = await key_ttl_ms("watchdeck:jobs:last-scheduled:watchlist")
+    except Exception:
+        ttl_ms = None
+    if ttl_ms is None:
         return {"next_run_seconds": None, "next_run_iso": None}
     now = now_utc()
-    delta = (job.next_run_time - now).total_seconds()
+    due_at = now.timestamp() + ttl_ms / 1000
+    next_tick = math.ceil(due_at / _WATCHLIST_TICK_SECONDS) * _WATCHLIST_TICK_SECONDS
+    next_run = datetime.fromtimestamp(next_tick, tz=timezone.utc)
     return {
-        "next_run_seconds": max(0, int(delta)),
-        "next_run_iso": job.next_run_time.isoformat(),
+        "next_run_seconds": max(0, int((next_run - now).total_seconds())),
+        "next_run_iso": next_run.isoformat(),
     }
 
 

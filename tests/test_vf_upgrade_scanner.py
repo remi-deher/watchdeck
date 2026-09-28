@@ -6,13 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from app.cache import cache
 from app.models import (
     ArrInstance,
-    Base,
     LibraryItem,
     MediaRequest,
     RequestStatus,
@@ -69,7 +66,7 @@ from app.services.vf_upgrade_scanner import (
     scan_vf_upgrades,
 )
 from app.utils import now_utc, now_utc_naive
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 # ---------------------------------------------------------------------------
 # release_is_french & release_matches_target
@@ -336,10 +333,7 @@ async def test_search_task_rejects_quebec_dub_unless_explicitly_accepted():
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = TestSession(Session())
+    session = make_test_session()
     yield session
     session.close()
 

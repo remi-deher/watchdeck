@@ -75,7 +75,7 @@
             <div class="card-info">
               <div class="card-title-row">
                 <strong class="card-title">{{ event.title }}</strong>
-                <span v-if="event.rating" class="rating-badge" title="Note TMDB/Plex"><Star /> {{ event.rating }}</span>
+                <UiTooltip :focusable="false" v-if="event.rating" text="Note TMDB/Plex"><span class="rating-badge"><Star /> {{ event.rating }}</span></UiTooltip>
               </div>
 
               <div class="card-meta">
@@ -129,6 +129,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { formatLongDay as longDate, formatMonthYear, formatTime as formatClockTime } from '@/utils/format';

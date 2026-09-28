@@ -39,6 +39,15 @@ describe('SessionFacts', () => {
     expect(wrapper.findAll('.facts-card h3').map((h) => h.text())).toEqual(['Lecture', 'Lecteur', 'Chronologie']);
   });
 
+  it('affiche le conteneur et dit s’il est converti', () => {
+    const direct = card(mount(SessionFacts, { props: { session: { ...base, container: 'mkv' } } }), 'Lecture');
+    expect(direct).toContain('MKV · inchangé');
+    const remux = card(mount(SessionFacts, { props: { session: { ...base, playback_method: 'direct_stream', container: 'mp4', transcode_details: { protocol: 'dash', container: { from: 'mkv', to: 'mp4' } } } } }), 'Lecture');
+    expect(remux).toContain('MKV → MP4 · converti');
+    const segments = card(mount(SessionFacts, { props: { session: { ...base, playback_method: 'direct_stream', transcode_details: { protocol: 'hls', container: { from: 'mp4', to: 'mp4' } } } } }), 'Lecture');
+    expect(segments).toContain('MP4 · inchangé, diffusé en HLS');
+  });
+
   it('ajoute la reprise et les séances', () => {
     const wrapper = mount(SessionFacts, { props: { session: base } });
     expect(card(wrapper, 'Lecture')).toContain('depuis 18 %');

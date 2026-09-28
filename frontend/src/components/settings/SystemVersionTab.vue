@@ -68,9 +68,11 @@
 
 <script setup lang="ts">
 import { formatDateTimeSeconds, parseApiDate } from '@/utils/format';
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { Check, Copy, ExternalLink, RefreshCw } from '@lucide/vue';
 import { api } from '@/api';
+import { humanizeError } from '@/utils/apiError';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -103,9 +105,13 @@ interface VersionInfo {
   release_checked_at: string | null;
 }
 
-const info = ref<VersionInfo | null>(null);
-const loading = ref(false);
-const error = ref('');
+const versionQuery = useQuery({
+  queryKey: ['settings', 'system-version'],
+  queryFn: ({ signal }) => api<VersionInfo>('/api/system/version', { signal }),
+});
+const info = computed(() => versionQuery.data.value ?? null);
+const loading = computed(() => versionQuery.isFetching.value);
+const error = computed(() => (versionQuery.error.value ? humanizeError(versionQuery.error.value) : ''));
 const copied = ref(false);
 
 function isRealSha(sha: string): boolean {
@@ -208,19 +214,9 @@ const renderedReleaseNotes = computed(() =>
   info.value?.latest_release?.body ? renderMarkdown(info.value.latest_release.body) : '<p>Aucune note de version.</p>',
 );
 
-async function load(): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    info.value = await api<VersionInfo>('/api/system/version');
-  } catch (err: any) {
-    error.value = err.message;
-  } finally {
-    loading.value = false;
-  }
+function load(): void {
+  void versionQuery.refetch();
 }
-
-onMounted(load);
 </script>
 
 <style scoped lang="scss">

@@ -14,8 +14,6 @@ from sqlalchemy.future import select
 from ..database import get_db_async
 from ..dependencies import get_settings_or_404, require_admin
 from ..models import Settings
-from ..scheduler import _send_digest, update_poll_interval
-from ..scheduler import scheduler as _scheduler
 from ..services import email_providers, radarr, sonarr
 from ..services.notifications import send_gotify, send_ntfy
 from ..services.plex_api import check_connection as plex_test
@@ -335,31 +333,7 @@ async def update_settings(
         if data.seer_send_requests:
             s.seer_enabled = True
     await db.commit()
-    # Priorité aux secondes (polling sous la minute) ; repli sur les minutes.
-    if data.poll_interval_seconds:
-        update_poll_interval(data.poll_interval_seconds)
-    elif data.poll_interval_minutes:
-        update_poll_interval(data.poll_interval_minutes * 60)
-    # Replanifier le digest si l'heure ou l'activation change
-    if _scheduler.running and (data.digest_enabled is not None or data.digest_hour is not None):
-        hour = s.digest_hour or 8
-        if s.digest_enabled:
-            _scheduler.add_job(_send_digest, "cron", hour=hour, minute=0, id="digest", replace_existing=True)
-        else:
-            try:
-                _scheduler.remove_job("digest")
-            except Exception:
-                pass
-    # Replanifier le job VFF si l'intervalle a changé
-    if _scheduler.running and data.vff_recheck_interval_minutes:
-        from apscheduler.triggers.interval import IntervalTrigger
-
-        try:
-            _scheduler.reschedule_job(
-                "vf_status_check", trigger=IntervalTrigger(minutes=data.vff_recheck_interval_minutes)
-            )
-        except Exception:
-            pass
+    # Le worker ARQ relit ces intervalles et l'heure du digest à chaque tick : rien à replanifier ici.
     return {"status": "ok"}
 
 

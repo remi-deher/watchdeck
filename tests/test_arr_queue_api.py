@@ -1,21 +1,16 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.cache import cache
-from app.models import ArrInstance, Base, MediaRequest
+from app.models import ArrInstance, MediaRequest
 from app.routers.arr_queue_api import arr_download_queue
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 @pytest.mark.asyncio
 async def test_arr_queue_links_only_current_remote_records():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    db = TestSession(sessionmaker(bind=engine)())
+    db = make_test_session()
     instance = ArrInstance(id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="key", enabled=True)
     linked = MediaRequest(
         id=10,

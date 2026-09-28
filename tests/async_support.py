@@ -4,11 +4,22 @@ import os
 from collections.abc import Callable
 from typing import Any
 
+import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import NullPool
 
+from app.database import async_database_url
 from app.models import Base
+
+# Base jetable du profil Compose `test` (voir docker-compose.yml) ; la CI fournit la sienne.
+DEFAULT_TEST_DATABASE_URL = "postgresql+psycopg2://watchdeck:watchdeck-test@127.0.0.1:5433/watchdeck_test"
+
+
+def test_database_url() -> str:
+    return os.getenv("TEST_DATABASE_URL") or DEFAULT_TEST_DATABASE_URL
 
 
 class _AwaitableValue:
@@ -23,7 +34,7 @@ class _AwaitableValue:
 
 
 class TestSession:
-    """Expose a synchronous SQLite session through the AsyncSession protocol.
+    """Expose a synchronous session through the AsyncSession protocol.
 
     FastAPI's TestClient runs the application in another event loop while many
     historical tests prepare and inspect data synchronously. This adapter keeps
@@ -118,11 +129,9 @@ class _AsyncTransactionContext:
 
 
 # Sessions ouvertes par le test courant. De nombreux tests appellent directement
-# make_test_session() sans jamais fermer (34 fichiers) : sous SQLite en memoire la
-# fuite etait sans consequence (base distincte, liberee par le GC -- c'est l'origine
-# des ResourceWarning "unclosed database"), mais sous PostgreSQL chaque session fuitee
-# immobilise une connexion avec une transaction ouverte, qui bloque les tests suivants
-# des qu'ils touchent les memes lignes. Le fixture autouse `_close_leaked_sessions`
+# make_test_session() sans jamais fermer : chaque session fuitee immobiliserait une
+# connexion avec une transaction ouverte, qui bloquerait les tests suivants des qu'ils
+# touchent les memes lignes. Le fixture autouse `_close_leaked_sessions`
 # (voir conftest.py) vide ce registre apres chaque test.
 _open_sessions: set["TestSession"] = set()
 
@@ -151,45 +160,37 @@ def _postgres_engine(url: str):
     """Moteur PostgreSQL unique, schema cree au premier appel."""
     global _pg_engine
     if _pg_engine is None:
-        _pg_engine = create_engine(url, pool_pre_ping=True)
-        Base.metadata.create_all(_pg_engine)
+        engine = create_engine(url, pool_pre_ping=True)
+        try:
+            Base.metadata.create_all(engine)
+        except OperationalError as exc:
+            engine.dispose()
+            pytest.exit(
+                f"Base de test PostgreSQL injoignable ({url}). "
+                "Lancez `docker compose --profile test up -d postgres-test` "
+                f"ou definissez TEST_DATABASE_URL.\n{exc.orig}",
+                returncode=2,
+            )
+        _pg_engine = engine
     return _pg_engine
 
 
 def make_test_session() -> TestSession:
     """Session de test isolee.
 
-    Sur PostgreSQL (TEST_DATABASE_URL defini, cas de la CI) l'isolation se fait par
-    transaction externe annulee en fin de test : `join_transaction_mode="create_savepoint"`
-    transforme les commit() des tests en liberations de point de sauvegarde, si bien que
-    le rollback final rend la base vierge sans avoir a recreer le schema.
-
-    Sans TEST_DATABASE_URL on retombe sur SQLite en memoire : `pytest` reste utilisable
-    en local sans avoir a lancer un PostgreSQL. Attention cependant, c'est un filet de
-    confort et non l'equivalent de la CI -- SQLite ne reproduit ni les contraintes de
-    longueur, ni le typage strict, ni le modele de verrouillage de PostgreSQL, qui est
-    ce que la production utilise reellement.
+    L'isolation se fait par transaction externe annulee en fin de test :
+    `join_transaction_mode="create_savepoint"` transforme les commit() des tests en
+    liberations de point de sauvegarde, si bien que le rollback final rend la base
+    vierge sans avoir a recreer le schema.
     """
-    url = os.getenv("TEST_DATABASE_URL")
-    if not url:
-        engine = create_engine(
-            "sqlite:///:memory:",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        Base.metadata.create_all(engine)
-        session = sessionmaker(bind=engine, expire_on_commit=False)()
-        test_session = TestSession(session, engine.dispose)
-        _open_sessions.add(test_session)
-        return test_session
+    url = test_database_url()
 
     # Toutes les sessions d'un meme test partagent UNE connexion et UNE transaction.
     #
     # Indispensable : plusieurs tests appellent make_test_session() a repetition, et
     # des lignes sont des singletons (Settings.id a default=1). Avec une connexion par
     # session, la deuxieme insertion du meme id attendait indefiniment le verrou detenu
-    # par la premiere transaction -- restee ouverte puisqu'on ne valide jamais. Sous
-    # SQLite le probleme n'existait pas : chaque session avait sa propre base en memoire.
+    # par la premiere transaction -- restee ouverte puisqu'on ne valide jamais.
     global _pg_connection, _pg_transaction
     engine = _postgres_engine(url)
     if _pg_connection is None:
@@ -217,3 +218,67 @@ def reset_postgres_state() -> None:
         _pg_connection.close()
         _pg_connection = None
         _pg_transaction = None
+
+
+class _TransactionEngine:
+    """Tient lieu de moteur pour les tests async : `dispose()` n'a rien a liberer, le
+    fixture `async_database` annule la transaction du test a sa place."""
+
+    async def dispose(self) -> None:
+        return None
+
+
+class AsyncTestDatabase:
+    """Base async d'un test : sessions reelles (asyncpg) dans une transaction annulee."""
+
+    __test__ = False
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.session_factory = session_factory
+        self.engine = _TransactionEngine()
+
+
+async def open_async_test_database():
+    """Ouvre la connexion et la transaction d'un test async ; voir le fixture `async_database`."""
+    _postgres_engine(test_database_url())  # schema cree, ou arret explicite si la base manque
+    engine = create_async_engine(async_database_url(test_database_url()), poolclass=NullPool)
+    connection = await engine.connect()
+    transaction = await connection.begin()
+    factory = async_sessionmaker(
+        bind=connection,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+
+    async def close() -> None:
+        try:
+            if transaction.is_active:
+                await transaction.rollback()
+        finally:
+            await connection.close()
+            await engine.dispose()
+
+    return AsyncTestDatabase(factory), close
+
+
+async def open_committed_async_test_database():
+    """Connexions independantes et commits reels, pour les tests de concurrence.
+
+    Une transaction partagee ne peut pas servir deux sessions a la fois : ces tests
+    ecrivent donc pour de vrai, et la fermeture vide toutes les tables."""
+    _postgres_engine(test_database_url())
+    engine = create_async_engine(async_database_url(test_database_url()), poolclass=NullPool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def close() -> None:
+        tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
+        try:
+            async with engine.begin() as connection:
+                # Sans RESTART IDENTITY : des tests inserent des id explicites (id=1) puis
+                # laissent la sequence en attribuer d'autres. Des sequences toujours
+                # croissantes, comme apres un rollback, evitent ces collisions.
+                await connection.exec_driver_sql(f"TRUNCATE {tables} CASCADE")
+        finally:
+            await engine.dispose()
+
+    return AsyncTestDatabase(factory), close

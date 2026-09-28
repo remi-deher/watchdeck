@@ -78,6 +78,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { computed, markRaw, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { Ban,CircleAlert,CircleCheck,Eye,FileWarning,Film,MailCheck,Palette,RotateCcw,Save,Send,ShieldAlert,Sparkles,Tv,Undo2,UserRoundCheck } from '@lucide/vue';
 import { api } from '@/api';
 import EmailEventEditor from './email/EmailEventEditor.vue';
@@ -134,7 +135,7 @@ const shared=reactive<Record<string, any>>({email_header_brand:'Watchdeck',email
 const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
 const queryClient=useQueryClient();
 const templatesQuery=useQuery({queryKey:['settings','email-templates'],queryFn:()=>api<Record<string,any>>('/api/email-templates')});
-const usersQuery=useQuery({queryKey:['users','list'],queryFn:()=>api<any[]>('/api/users')});
+const usersQuery=useQuery({queryKey:queryKeys.users.list,queryFn:()=>api<any[]>('/api/users')});
 const templatesMutation=useMutation({
   mutationFn:({path,method='POST',body}:{path:string;method?:string;body?:any;invalidate?:boolean})=>api<any>(path,{method,...(body?{body:JSON.stringify(body)}:{})}),
   retry:0,

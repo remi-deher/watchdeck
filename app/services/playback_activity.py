@@ -161,6 +161,42 @@ def _transcode_reason(row: PlaybackSession) -> str:
     return "Non déterminée"
 
 
+def _container_route(row: PlaybackSession) -> tuple[str | None, str | None]:
+    """Conteneur du fichier source et conteneur envoyé au lecteur, en majuscules.
+
+    Sans `TranscodeSession` (lecture directe), le fichier part tel quel : la sortie est
+    la source. Pendant une conversion, `Media/@container` décrit déjà la sortie, d'où la
+    préférence pour la fiche du média lue au moment de la collecte.
+    """
+    details = _json_or_none(row.transcode_details) or {}
+    container = details.get("container") or {}
+    source = container.get("from") or (None if details else row.container)
+    target = container.get("to") or source if details else source
+    return (str(source).upper() if source else None, str(target).upper() if target else None)
+
+
+def _container_converted(row: PlaybackSession) -> bool:
+    source, target = _container_route(row)
+    return bool(source and target and source != target)
+
+
+def _direct_stream_reason(row: PlaybackSession) -> str:
+    """Ce qui fait passer une lecture par la conversion légère (Direct Stream)."""
+    if row.plex_decision_text:
+        return row.plex_decision_text
+    if str(row.subtitle_decision or "").lower() in {"burn", "transcode"}:
+        return "Sous-titres"
+    source, target = _container_route(row)
+    if source and target and source != target:
+        return f"Conteneur {source} → {target}"
+    protocol = str((_json_or_none(row.transcode_details) or {}).get("protocol") or "").lower()
+    if protocol in {"dash", "hls"}:
+        return f"Diffusion en segments {protocol.upper()}"
+    if str(row.audio_decision or "").lower() == "copy" or str(row.video_decision or "").lower() == "copy":
+        return "Flux recopiés"
+    return "Non déterminée"
+
+
 def _utc_iso(value: datetime | None) -> str | None:
     """Instant stocke en UTC naif, envoye avec son fuseau : le navigateur le lisait
     sinon comme une heure locale, et toutes les heures des sessions avaient une a deux
@@ -287,12 +323,15 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
     device_groups: dict[str, dict] = {}
     for row in rows:
         device = row.player_title or row.product or row.platform or "Inconnu"
-        item = device_groups.setdefault(device, {"device": device, "sessions": 0, "direct": 0, "transcodes": 0})
+        item = device_groups.setdefault(
+            device, {"device": device, "sessions": 0, "direct": 0, "direct_streams": 0, "transcodes": 0}
+        )
         item["sessions"] += 1
         if row.playback_method == "transcode":
             item["transcodes"] += 1
         elif row.playback_method in {"direct_play", "direct_stream"}:
             item["direct"] += 1
+            item["direct_streams"] += int(row.playback_method == "direct_stream")
     devices = sorted(device_groups.values(), key=lambda item: item["sessions"], reverse=True)[:10]
     for item in devices:
         item["compatibility_score"] = round(item["direct"] / item["sessions"] * 100) if item["sessions"] else 0
@@ -304,6 +343,18 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             bandwidth_by_user[row.user_name or "Inconnu"].append(row.bandwidth_kbps)
 
     transcode_reasons = Counter(_transcode_reason(row) for row in rows if row.playback_method == "transcode")
+    direct_stream_reasons = Counter(
+        _direct_stream_reason(row) for row in rows if row.playback_method == "direct_stream"
+    )
+    # Conteneur du fichier source, et combien de fois Plex a dû le changer pour le lecteur.
+    containers: dict[str, dict] = {}
+    for row in rows:
+        source, _ = _container_route(row)
+        if not source:
+            continue
+        item = containers.setdefault(source, {"label": source, "count": 0, "converted": 0})
+        item["count"] += 1
+        item["converted"] += int(_container_converted(row))
 
     episode_rows = sorted(
         (row for row in rows if row.media_type == "episode" and row.user_name and row.grandparent_title),
@@ -435,6 +486,10 @@ def _analytics(rows: list[PlaybackSession], previous_rows: list[PlaybackSession]
             "resolutions": [{"label": key, "count": count} for key, count in resolution_counts.most_common(8)],
             "devices": devices,
             "transcode_reasons": [{"label": key, "count": count} for key, count in transcode_reasons.most_common()],
+            "direct_stream_reasons": [
+                {"label": key, "count": count} for key, count in direct_stream_reasons.most_common()
+            ],
+            "containers": sorted(containers.values(), key=lambda item: item["count"], reverse=True)[:8],
         },
         "bandwidth": {
             "measured": len(bandwidth_values),
@@ -942,6 +997,130 @@ def _stream_details(
     }
 
 
+def _language(attrs: dict) -> str | None:
+    return attrs.get("language") or attrs.get("languageTag") or attrs.get("languageCode")
+
+
+def _tracks(
+    transcode_attrs: dict,
+    media_attrs: dict,
+    part_attrs: dict,
+    video_stream,
+    audio_stream,
+    video_decision: str | None,
+    audio_decision: str | None,
+    sheet: dict | None,
+) -> dict:
+    """Vidéo, audio et conteneur de la lecture, source -> sortie, quel que soit le mode.
+
+    Le suivi des conversions ne couvrait que les sessions converties. Ici, chaque lecture
+    dit ce qu'elle lit (codec, débit, résolution, canaux, langue), ce qui en est envoyé
+    au lecteur, et, pour l'audio, les langues disponibles dans le fichier. La source se
+    lit dans la fiche du média quand on l'a : pendant une conversion, la session décrit
+    la sortie.
+    """
+    sheet = sheet or {}
+    sources = {stream.get("id"): stream for stream in sheet.get("streams", [])}
+
+    def attrs(stream) -> dict:
+        return dict(stream.attrib) if stream is not None else {}
+
+    def converted(decision) -> bool:
+        return _decision(decision) == "transcode"
+
+    video = attrs(video_stream)
+    audio = attrs(audio_stream)
+    source_video = (
+        sources.get(video.get("id"))
+        or next((item for item in sheet.get("streams", []) if item.get("streamType") == "1"), None)
+        or video
+    )
+    source_audio = sources.get(audio.get("id")) or audio
+    video_converted = converted(video_decision)
+    audio_converted = converted(audio_decision)
+
+    source_container = sheet.get("container") or (
+        None if transcode_attrs else part_attrs.get("container") or media_attrs.get("container")
+    )
+    output_container = (
+        (transcode_attrs.get("container") or media_attrs.get("container")) if transcode_attrs else source_container
+    )
+    video_from = {
+        "codec": transcode_attrs.get("sourceVideoCodec") or source_video.get("codec"),
+        "width": _int(source_video.get("width")),
+        "height": _int(source_video.get("height")),
+        "bitrate_kbps": _int(source_video.get("bitrate")),
+        "profile": source_video.get("profile"),
+        "bit_depth": _int(source_video.get("bitDepth")),
+        "frame_rate": _float(source_video.get("frameRate")),
+        "dynamic_range": _dynamic_range(source_video),
+    }
+    audio_from = {
+        "codec": transcode_attrs.get("sourceAudioCodec") or source_audio.get("codec"),
+        "channels": _int(source_audio.get("channels")),
+        "bitrate_kbps": _int(source_audio.get("bitrate")),
+        "language": _language(source_audio) or _language(audio),
+        "title": source_audio.get("displayTitle") or audio.get("displayTitle"),
+    }
+    played_id = audio.get("id")
+    languages = [
+        {
+            "language": _language(item),
+            "codec": item.get("codec"),
+            "channels": _int(item.get("channels")),
+            "bitrate_kbps": _int(item.get("bitrate")),
+            "sampling_rate": _int(item.get("samplingRate")),
+            "profile": item.get("profile"),
+            "title": item.get("displayTitle"),
+            "played": bool(played_id) and item.get("id") == played_id,
+        }
+        for item in sheet.get("streams", [])
+        if item.get("streamType") == "2"
+    ]
+    if languages and not any(item["played"] for item in languages) and audio_from["language"]:
+        for item in languages:
+            if item["language"] == audio_from["language"] and item["codec"] == audio_from["codec"]:
+                item["played"] = True
+                break
+    return {
+        "container": {
+            "from": source_container,
+            "to": output_container,
+            "converted": bool(
+                source_container and output_container and str(source_container).lower() != str(output_container).lower()
+            ),
+            "protocol": transcode_attrs.get("protocol"),
+        },
+        "video": {
+            "decision": video_decision,
+            "from": video_from,
+            "to": {
+                "codec": transcode_attrs.get("videoCodec") or video.get("codec"),
+                "height": _int(transcode_attrs.get("height")) or _int(video.get("height")),
+                "bitrate_kbps": _int(video.get("bitrate")),
+            }
+            if video_converted
+            else video_from,
+        }
+        if video or video_from["codec"]
+        else None,
+        "audio": {
+            "decision": audio_decision,
+            "from": audio_from,
+            "to": {
+                "codec": transcode_attrs.get("audioCodec") or audio.get("codec"),
+                "channels": _int(transcode_attrs.get("audioChannels")) or _int(audio.get("channels")),
+                "bitrate_kbps": _int(audio.get("bitrate")),
+            }
+            if audio_converted
+            else audio_from,
+            "languages": languages,
+        }
+        if audio or audio_from["codec"]
+        else None,
+    }
+
+
 def _remux_label(details: dict | None) -> str | None:
     """Le changement de conteneur d'un Direct Stream, sans rien réencoder."""
     if not details:
@@ -1093,7 +1272,22 @@ def parse_plex_sessions(
                     (details["subtitles"] or {}).get("from") if details else None,
                 ),
                 "transcode_details": json.dumps(details, ensure_ascii=False) if details else None,
-                "stream_details": json.dumps(stream_details, ensure_ascii=False),
+                "stream_details": json.dumps(
+                    {
+                        **stream_details,
+                        "tracks": _tracks(
+                            transcode_attrs,
+                            media_attrs,
+                            part_attrs,
+                            video_stream,
+                            audio_stream,
+                            video_decision,
+                            audio_decision,
+                            (media_sheets or {}).get(media.get("ratingKey") or ""),
+                        ),
+                    },
+                    ensure_ascii=False,
+                ),
                 # Transcodeur en contexte « static » : un téléchargement (synchro hors
                 # ligne), pas une lecture. Gardé dans l'historique, mais signalé.
                 "is_download": str(transcode_attrs.get("context") or "").lower() == "static",
@@ -1628,9 +1822,12 @@ async def enrich_decisions_from_plex_logs(*, force: bool = False) -> dict:
                         PlaybackSession.source == "plex",
                         PlaybackSession.started_at >= now - _DECISION_LOOKBACK,
                         PlaybackSession.plex_decision_text.is_(None),
+                        # La conversion légère aussi : Plex y consigne sa décision de la
+                        # même façon, et c'est elle qui dit pourquoi le fichier n'a pas
+                        # pu partir tel quel.
                         or_(
                             PlaybackSession.transcode_reason.is_not(None),
-                            PlaybackSession.playback_method == "transcode",
+                            PlaybackSession.playback_method.in_(("transcode", "direct_stream")),
                         ),
                     )
                 )
@@ -2043,10 +2240,9 @@ async def _rebuild_daily_aggregates(db, days: set[date]) -> None:
         return
     # Toutes les voies d'ecriture PostgreSQL partagent un verrou transactionnel par
     # jour. Deux reconstructions ne peuvent plus entrelacer leur DELETE puis INSERT.
-    if db.get_bind().dialect.name == "postgresql":
-        for day in sorted(days):
-            lock_key = f"watchdeck:playback-daily:{day.isoformat()}"
-            await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
+    for day in sorted(days):
+        lock_key = f"watchdeck:playback-daily:{day.isoformat()}"
+        await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
     await db.execute(delete(PlaybackDailyAggregate).where(PlaybackDailyAggregate.day.in_(days)))
     rows = (await db.execute(_daily_aggregate_query(days))).all()
     db.add_all(
@@ -2191,6 +2387,18 @@ async def _aggregate_overview(db, cutoff: datetime, previous_cutoff: datetime, u
                 func.coalesce(func.sum(PlaybackDailyAggregate.sessions), 0),
                 func.coalesce(func.sum(PlaybackDailyAggregate.watch_ms), 0),
                 func.coalesce(func.sum(PlaybackDailyAggregate.transcodes), 0),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                PlaybackDailyAggregate.playback_method == "direct_stream",
+                                PlaybackDailyAggregate.sessions,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
             ).filter(*current_filter)
         )
     ).one()
@@ -2234,6 +2442,7 @@ async def _aggregate_overview(db, cutoff: datetime, previous_cutoff: datetime, u
     total = int(global_totals[0] or 0)
     watch_ms = int(global_totals[1] or 0)
     transcodes = int(global_totals[2] or 0)
+    direct_streams = int(global_totals[3] or 0)
     return {
         "summary": {
             "sessions": total,
@@ -2241,6 +2450,8 @@ async def _aggregate_overview(db, cutoff: datetime, previous_cutoff: datetime, u
             "users": int(user_count),
             "transcodes": transcodes,
             "transcode_rate": round(transcodes / total * 100, 1) if total else 0,
+            "direct_streams": direct_streams,
+            "direct_stream_rate": round(direct_streams / total * 100, 1) if total else 0,
         },
         "daily": [
             {"date": row[0].isoformat(), "sessions": int(row[1] or 0), "watch_ms": int(row[2] or 0)}
@@ -2318,6 +2529,8 @@ async def activity_snapshot(days: int = 30, db=None, user: str | None = None) ->
                         PlaybackSession.container,
                         PlaybackSession.subtitle_decision,
                         PlaybackSession.plex_decision_text,
+                        # Conteneur source -> sortie, pour le suivi des conversions légères.
+                        PlaybackSession.transcode_details,
                         PlaybackSession.bandwidth_kbps,
                         PlaybackSession.media_size_bytes,
                         PlaybackSession.progress_ms,

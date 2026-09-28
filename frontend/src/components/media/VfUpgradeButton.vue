@@ -63,9 +63,9 @@
                 <span v-if="releaseTechnical(release).codec" class="badge pending">
                   {{ releaseTechnical(release).codec }}
                 </span>
-                <span v-if="release.custom_format_score" class="badge pending score-badge" title="Score Custom Format">
+                <UiTooltip v-if="release.custom_format_score" text="Score Custom Format"><span class="badge pending score-badge">
                   Score: +{{ release.custom_format_score }}
-                </span>
+                </span></UiTooltip>
               </div>
               <strong class="vf-upgrade-release-title">{{ release.title }}</strong>
             </div>
@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { humanizeError } from '@/utils/apiError';
 import { computed, onMounted, ref } from 'vue';

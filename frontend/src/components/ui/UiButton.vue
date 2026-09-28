@@ -31,21 +31,14 @@
   <!-- `ignore-non-keyboard-focus` : a l'ouverture d'une modale, le focus se pose sur son
        premier bouton -- la croix -- et son infobulle « Fermer » s'affichait sans que
        personne ne l'ait demandee. L'infobulle ne suit donc que le focus clavier. -->
-  <TooltipProvider v-if="infobulle" :delay-duration="350" ignore-non-keyboard-focus>
-    <TooltipRoot>
-      <TooltipTrigger as-child><ReuseButton /></TooltipTrigger>
-      <TooltipPortal>
-        <TooltipContent class="ui-tooltip" side="top" :side-offset="6">{{ infobulle }}</TooltipContent>
-      </TooltipPortal>
-    </TooltipRoot>
-  </TooltipProvider>
+  <UiTooltip v-if="infobulle" :text="infobulle" :focusable="false"><ReuseButton /></UiTooltip>
   <ReuseButton v-else />
 </template>
 
 <script setup lang="ts">
 import { computed, resolveComponent, useAttrs } from 'vue';
 import { createReusableTemplate } from '@vueuse/core';
-import { TooltipContent, TooltipPortal, TooltipProvider, TooltipRoot, TooltipTrigger } from 'reka-ui';
+import UiTooltip from './UiTooltip.vue';
 import { LoaderCircle } from '@lucide/vue';
 import type { RouteLocationRaw } from 'vue-router';
 

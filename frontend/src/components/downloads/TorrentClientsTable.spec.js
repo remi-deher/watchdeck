@@ -1,6 +1,7 @@
 ﻿import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 
 import TorrentClientsTable from './TorrentClientsTable.vue';
 
@@ -31,6 +32,7 @@ function factory() {
   return mount(TorrentClientsTable, {
     props: { rows },
     global: {
+      plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
       stubs: {
         ModalShell: { props: ['open', 'title'], template: '<div v-if="open"><h2>{{ title }}</h2><slot/><slot name="actions"/></div>' },
         ConfirmModal: true,

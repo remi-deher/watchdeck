@@ -2,18 +2,13 @@
 
 import io
 import json
-import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.main import app
 from app.models import (
-    Base,
     EmailBranding,
     EmailProvider,
     EmailTemplate,
@@ -23,33 +18,13 @@ from app.models import (
     Settings,
 )
 from app.routers.importexport import require_admin as ie_require_auth
-from tests.async_support import TestSession
-
-# ---------------------------------------------------------------------------
-# Base de données en mémoire partagée entre les tests du module
-# StaticPool : toutes les connexions (y compris le thread du TestClient)
-# utilisent la même connexion SQLite → même DB en mémoire.
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="module")
-def db_engine():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    yield engine
-    engine.dispose()
+from tests.async_support import make_test_session
 
 
 @pytest.fixture()
-def db_session(db_engine):
-    Session = sessionmaker(bind=db_engine)
-    session = TestSession(Session())
+def db_session():
+    session = make_test_session()
     yield session
-    session.rollback()
     session.close()
 
 
@@ -126,39 +101,6 @@ def test_import_wrong_version_returns_400(client):
     r = client.post("/api/import", files={"file": ("export.json", payload, "application/json")})
     assert r.status_code == 400
     assert "version" in r.json()["detail"].lower()
-
-
-def test_inspect_legacy_sqlite_upload(client, tmp_path):
-    path = tmp_path / "legacy.db"
-    with sqlite3.connect(path) as connection:
-        connection.executescript(
-            """
-            CREATE TABLE settings (id INTEGER PRIMARY KEY);
-            CREATE TABLE plex_users (id INTEGER PRIMARY KEY);
-            CREATE TABLE media_requests (id INTEGER PRIMARY KEY);
-            INSERT INTO settings VALUES (1);
-            INSERT INTO plex_users VALUES (1);
-            INSERT INTO media_requests VALUES (1);
-            """
-        )
-
-    r = client.post(
-        "/api/migration/sqlite/inspect",
-        files={"file": ("legacy.db", path.read_bytes(), "application/octet-stream")},
-    )
-
-    assert r.status_code == 200
-    assert r.json()["integrity"] == "ok"
-    assert r.json()["total_rows"] == 3
-
-
-def test_inspect_legacy_rejects_wrong_extension(client):
-    r = client.post(
-        "/api/migration/sqlite/inspect",
-        files={"file": ("legacy.txt", b"not sqlite", "text/plain")},
-    )
-
-    assert r.status_code == 400
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +324,7 @@ def test_import_upserts_request_season_statuses(client, db_session):
                 {
                     "plex_user_id": "alice",
                     "title": "The Wire",
-                    "media_type": "tv",
+                    "media_type": "show",
                     "status": "sent_to_arr",
                     "season_statuses": [
                         {
@@ -429,7 +371,7 @@ def test_export_roundtrips_request_with_season_statuses(client, db_session):
     db_session.query(MediaRequest).delete()
     db_session.commit()
 
-    req = MediaRequest(plex_user_id="alice", title="The Wire", media_type="tv", status="sent_to_arr")
+    req = MediaRequest(plex_user_id="alice", title="The Wire", media_type="show", status="sent_to_arr")
     db_session.add(req)
     db_session.commit()
     db_session.add(RequestSeasonStatus(request_id=req.id, season_number=1, status="available"))

@@ -234,7 +234,6 @@ const allRequestsRaw = ref<any[]>([]);
 const requestSummary = ref<Record<string, any>>({ total: 0, facets: { by_type: {}, sources: [], requesters: [] } });
 const orphans = ref<any[]>([]);
 const rawMetrics = ref<Record<string, any>>({});
-const users = ref<any[]>([]);
 const libraryOffset = ref(0);
 const hasMoreLibrary = ref(false);
 const selectedIds = ref<any[]>([]);
@@ -774,14 +773,6 @@ async function loadMore(): Promise<void> {
   await libraryQuery.fetchNextPage();
 }
 
-async function loadUsers(): Promise<void> {
-  try {
-    users.value = await api('/api/users');
-  } catch (e) {
-    console.warn("Failed to load users for filter", e);
-  }
-}
-
 // Les quatre mutations ci-dessous partageaient le meme bloc busy/try/catch/finally,
 // recopie a l'identique -- voir useAsyncAction pour le detail des oublis que ce genre de
 // copie permettait. `run` restitue exactement le meme enchainement (confirmation eventuelle,
@@ -841,7 +832,6 @@ onMounted(async () => {
   isAdmin.value = isAdminSession(session);
   canModerate.value = canModerateSession(session);
   await load();
-  loadUsers();
 });
 </script>
 

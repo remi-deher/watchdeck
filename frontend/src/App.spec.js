@@ -26,7 +26,7 @@ vi.mock('@/composables/usePwaInstall', () => ({
 // Le shell monte RouterLink lui-meme (rail, dock, feuille) : le mock doit donc
 // l'exposer, sinon le composant echoue avant meme d'atteindre l'assertion.
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ path: '/dashboard', fullPath: '/dashboard', meta: {}, query: {} }),
+  useRoute: () => ({ path: '/dashboard', fullPath: '/dashboard', meta: {}, query: {}, matched: [{}] }),
   useRouter: () => ({ push: vi.fn() }),
   RouterLink: {
     props: ['to'],

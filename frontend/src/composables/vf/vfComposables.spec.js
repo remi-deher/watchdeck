@@ -1,4 +1,6 @@
-import { effectScope } from 'vue';
+import { defineComponent, h } from 'vue';
+import { flushPromises, mount } from '@vue/test-utils';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMock = vi.fn();
@@ -10,11 +12,13 @@ import { useVfScanHistory } from './useVfScanHistory';
 import { mediaFromKey, useVfSelection } from './useVfSelection';
 import { useVfUpgrades } from './useVfUpgrades';
 
-/** Execute un composable dans une portee, comme dans un composant. */
-function inScope(factory) {
-  const scope = effectScope();
-  const result = scope.run(factory);
-  return { result, stop: () => scope.stop() };
+/** Monte un composable dans un composant muni d'un cache neuf, comme dans la page. */
+function inComponent(factory) {
+  let result;
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Host = defineComponent({ setup() { result = factory(); return () => h('div'); } });
+  const wrapper = mount(Host, { global: { plugins: [[VueQueryPlugin, { queryClient }]] } });
+  return { result, queryClient, stop: () => wrapper.unmount() };
 }
 
 beforeEach(() => {
@@ -28,17 +32,20 @@ describe('useVfAudit', () => {
   it('charge l’audit et compte les médias alignables', async () => {
     const notify = vi.fn();
     apiMock.mockResolvedValueOnce({ items: [item(1), item(2, { has_vf: false, issues: [] })], counts: { total: 2, audio_secondary: 1, sub_fr_not_default: 1, forced_sub_not_default: 1, partial_vf: 0 } });
-    const audit = useVfAudit(notify);
-    await audit.load();
+    const { result: audit } = inComponent(() => useVfAudit(notify));
+    await flushPromises();
     expect(audit.items.value).toHaveLength(2);
     expect(audit.eligibleFixCount.value).toBe(1);
     expect(audit.totalCount.value).toBe(2);
   });
 
-  it('corrige un média sur place et recalcule les compteurs', () => {
-    const audit = useVfAudit(vi.fn());
-    audit.items.value = [item(1), item(2, { issues: ['partial_vf'] })];
+  it('corrige un média sans modifier la liste en cache, et recalcule les compteurs', async () => {
+    const before = [item(1), item(2, { issues: ['partial_vf'] })];
+    apiMock.mockResolvedValueOnce({ items: before });
+    const { result: audit } = inComponent(() => useVfAudit(vi.fn()));
+    await flushPromises();
     audit.applyStreamsFixInPlace(1);
+    expect(before[0].issues).toHaveLength(3);
     const fixed = audit.items.value[0];
     expect(fixed.fr_is_default).toBe(true);
     expect(fixed.sub_fr_status).toBe('ok');
@@ -49,11 +56,12 @@ describe('useVfAudit', () => {
 
   it('« Tout aligner » n’envoie que les médias alignables de la liste fournie', async () => {
     const notify = vi.fn();
-    const audit = useVfAudit(notify);
-    audit.items.value = [item(1), item(2), item(3, { has_vf: false, issues: [] })];
+    apiMock.mockResolvedValueOnce({ items: [item(1), item(2), item(3, { has_vf: false, issues: [] })] });
+    const { result: audit } = inComponent(() => useVfAudit(notify));
+    await flushPromises();
     apiMock.mockResolvedValueOnce({ processed_items: 1 });
     await audit.fixAll([audit.items.value[1], audit.items.value[2]]);
-    expect(JSON.parse(apiMock.mock.calls[0][1].body)).toEqual({ item_ids: [2] });
+    expect(JSON.parse(apiMock.mock.calls[1][1].body)).toEqual({ item_ids: [2] });
     expect(notify).toHaveBeenCalledWith('1 média(s) réaligné(s) sur Plex.');
     expect(audit.items.value[1].issues).toEqual([]);
     expect(audit.items.value[0].issues).toHaveLength(3);
@@ -62,8 +70,8 @@ describe('useVfAudit', () => {
   it('signale un échec de chargement sans lever', async () => {
     const notify = vi.fn();
     apiMock.mockRejectedValueOnce(new Error('HTTP 500'));
-    const audit = useVfAudit(notify);
-    await audit.load();
+    const { result: audit } = inComponent(() => useVfAudit(notify));
+    await flushPromises();
     expect(notify).toHaveBeenCalledWith(expect.any(String), 'error');
     expect(audit.loading.value).toBe(false);
   });
@@ -112,8 +120,8 @@ describe('useVfUpgrades', () => {
       items: [suggestion(1), suggestion(2, 'waiting_release'), suggestion(3, 'downloading'), suggestion(4, 'failed'), suggestion(5, 'verified'), suggestion(6, 'dismissed', { is_ignored: true })],
       waiting_total: 4,
     });
-    const upgrades = useVfUpgrades(vi.fn(), vi.fn());
-    await upgrades.load();
+    const { result: upgrades } = inComponent(() => useVfUpgrades(vi.fn(), vi.fn()));
+    await flushPromises();
     expect({
       pending: upgrades.pendingCount.value, waiting: upgrades.waitingReleaseCount.value, progress: upgrades.inProgressCount.value,
       failed: upgrades.failedCount.value, history: upgrades.historyCount.value, ignored: upgrades.ignoredCount.value,
@@ -123,8 +131,9 @@ describe('useVfUpgrades', () => {
 
   it('ignorer retire la suggestion et propose de l’annuler', async () => {
     const undoable = vi.fn();
-    const upgrades = useVfUpgrades(vi.fn(), undoable);
-    upgrades.items.value = [suggestion(1), suggestion(2)];
+    apiMock.mockResolvedValueOnce({ items: [suggestion(1), suggestion(2)] });
+    const { result: upgrades } = inComponent(() => useVfUpgrades(vi.fn(), undoable));
+    await flushPromises();
     apiMock.mockResolvedValueOnce({});
     await upgrades.dismiss(upgrades.items.value[0]);
     expect(apiMock).toHaveBeenCalledWith('/api/vf-upgrades/1/dismiss', { method: 'POST' });
@@ -132,10 +141,13 @@ describe('useVfUpgrades', () => {
     expect(undoable).toHaveBeenCalledWith('Suggestion ignorée.', 'Annuler', expect.any(Function));
   });
 
-  it('met à jour sur place une suggestion affichée, ignore les autres', () => {
-    const upgrades = useVfUpgrades(vi.fn(), vi.fn());
-    upgrades.items.value = [suggestion(1)];
+  it('met à jour une suggestion affichée sans modifier le cache en place, ignore les autres', async () => {
+    const before = suggestion(1);
+    apiMock.mockResolvedValueOnce({ items: [before] });
+    const { result: upgrades } = inComponent(() => useVfUpgrades(vi.fn(), vi.fn()));
+    await flushPromises();
     expect(upgrades.patchStatus(1, 'downloading', 'Radarr : envoyé')).toBe(true);
+    expect(before.status).toBe('pending');
     expect(upgrades.items.value[0]).toMatchObject({ status: 'downloading', arr_message: 'Radarr : envoyé' });
     expect(upgrades.patchStatus(99, 'failed')).toBe(false);
   });
@@ -175,7 +187,7 @@ describe('useVfScanHistory', () => {
   it('suit le cycle en cours tant que l’onglet est ouvert, et s’arrête ensuite', async () => {
     vi.useFakeTimers();
     apiMock.mockImplementation(async (path) => (path.includes('scan-status') ? { status: 'running' } : { runs: [{ id: 1, status: 'running' }] }));
-    const { result: history, stop } = inScope(() => useVfScanHistory(vi.fn()));
+    const { result: history, stop } = inComponent(() => useVfScanHistory(vi.fn()));
     history.activate();
     await vi.advanceTimersByTimeAsync(0);
     const statusCalls = () => apiMock.mock.calls.filter(([path]) => path.includes('scan-status')).length;
@@ -188,9 +200,28 @@ describe('useVfScanHistory', () => {
     stop();
   });
 
+  it('ne relit l’historique qu’à la fin du cycle en cours', async () => {
+    vi.useFakeTimers();
+    let status = 'running';
+    apiMock.mockImplementation(async (path) => (path.includes('scan-status') ? { status } : { runs: [] }));
+    const { result: history, stop } = inComponent(() => useVfScanHistory(vi.fn()));
+    history.activate();
+    await vi.advanceTimersByTimeAsync(0);
+    const runCalls = () => apiMock.mock.calls.filter(([path]) => path.includes('scan-runs')).length;
+    expect(runCalls()).toBe(1);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(runCalls()).toBe(1);
+    status = 'success';
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(runCalls()).toBe(2);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(runCalls()).toBe(2);
+    stop();
+  });
+
   it('déplie un cycle et le replie au second clic', async () => {
     apiMock.mockResolvedValue({ items: [{ id: 'a' }], run: { id: 4, status: 'success' } });
-    const { result: history, stop } = inScope(() => useVfScanHistory(vi.fn()));
+    const { result: history, stop } = inComponent(() => useVfScanHistory(vi.fn()));
     await history.toggleRun({ id: 4, status: 'success' });
     expect(history.expandedRunId.value).toBe(4);
     expect(history.runItems.value).toEqual([{ id: 'a' }]);

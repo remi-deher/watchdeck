@@ -10,19 +10,14 @@ persiste bien ce champ, pour piloter les badges "VF Ã‰pisode Partiel" /
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, LibraryItem, MediaRequest, NotificationMilestone, PlexUser, RequestStatus, Settings
+from app.models import LibraryItem, MediaRequest, NotificationMilestone, PlexUser, RequestStatus, Settings
 from app.scheduler import check_vf_statuses
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _make_db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    return TestSession(sessionmaker(bind=engine)())
+    return make_test_session()
 
 
 @pytest.mark.asyncio

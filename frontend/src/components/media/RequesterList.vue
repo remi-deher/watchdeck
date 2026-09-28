@@ -4,38 +4,45 @@
       <span class="requester-name">
         {{ row.requesters?.[index] || uid }}
         <span v-if="index === 0" class="badge tiny">Principal</span>
-        <span
-          v-if="notifiedStatus(row, uid) !== null"
-          :class="['notif-dot', notifiedStatus(row, uid) ? 'ok' : 'pending']"
-          :title="notifiedStatus(row, uid) ? 'Deja notifie' : 'Pas encore notifie'"
-        />
+        <UiTooltip v-if="notifiedStatus(row, uid) !== null" :text="notifiedStatus(row, uid) ? 'Deja notifie' : 'Pas encore notifie'">
+          <span
+            :class="['notif-dot', notifiedStatus(row, uid) ? 'ok' : 'pending']"
+            role="img"
+            :aria-label="notifiedStatus(row, uid) ? 'Deja notifie' : 'Pas encore notifie'"
+          />
+        </UiTooltip>
       </span>
-      <div v-if="admin" class="requester-menu-wrap">
-        <UiButton icon-only title="Actions" aria-label="Actions" @click.stop="toggleMenu(uid)">
-          <MoreVertical />
-        </UiButton>
-        <div v-if="openMenu === uid" class="requester-menu" @click.stop>
-          <button :disabled="busy" @click="emitAndClose('notify-user', row.id, uid, ['request'])">
-            <Mail /> Renvoyer mail demande
-          </button>
-          <button v-if="row.status === 'available'" :disabled="busy" @click="emitAndClose('notify-user', row.id, uid, ['available'])">
-            <MailCheck /> Renvoyer mail dispo
-          </button>
-          <button v-if="index !== 0" :disabled="busy" @click="emitAndClose('promote-requester', row, uid)">
-            <Crown /> Promouvoir principal
-          </button>
-          <UiButton variant="danger" :disabled="busy" @click="emitAndClose('remove-requester', row, uid)">
-            <UserMinus /> Retirer
+      <UiMenu v-if="admin" :label="row.requesters?.[index] || String(uid)">
+        <template #trigger>
+          <UiButton icon-only title="Actions" aria-label="Actions" :disabled="busy">
+            <MoreVertical />
           </UiButton>
-        </div>
-      </div>
+        </template>
+        <UiMenuItem @select="emit('notify-user', row.id, uid, ['request'])">
+          <Mail /> Renvoyer mail demande
+        </UiMenuItem>
+        <UiMenuItem v-if="row.status === 'available'" @select="emit('notify-user', row.id, uid, ['available'])">
+          <MailCheck /> Renvoyer mail dispo
+        </UiMenuItem>
+        <UiMenuItem v-if="index !== 0" @select="emit('promote-requester', row, uid)">
+          <Crown /> Promouvoir principal
+        </UiMenuItem>
+        <UiMenuSeparator />
+        <UiMenuItem variant="danger" @select="emit('remove-requester', row, uid)">
+          <UserMinus /> Retirer
+        </UiMenuItem>
+      </UiMenu>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import UiButton from '@/components/ui/UiButton.vue';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import UiMenu from '@/components/ui/UiMenu.vue';
+import UiMenuItem from '@/components/ui/UiMenuItem.vue';
+import UiMenuSeparator from '@/components/ui/UiMenuSeparator.vue';
+import { computed } from 'vue';
 import { Crown, Mail, MailCheck, MoreVertical, UserMinus } from '@lucide/vue';
 import { notifiedStatus } from './requestRules';
 
@@ -57,18 +64,4 @@ const emit = defineEmits<{
 }>();
 
 const requesterIds = computed(() => props.row.requester_ids || []);
-const openMenu = ref<any | null>(null);
-
-function toggleMenu(uid: any): void {
-  openMenu.value = openMenu.value === uid ? null : uid;
-}
-function emitAndClose(event: 'notify-user' | 'promote-requester' | 'remove-requester', ...args: any[]): void {
-  (emit as any)(event, ...args);
-  openMenu.value = null;
-}
-function handleOutsideClick(event: MouseEvent): void {
-  if (!(event.target as HTMLElement)?.closest('.requester-menu-wrap')) openMenu.value = null;
-}
-onMounted(() => document.addEventListener('click', handleOutsideClick));
-onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick));
 </script>

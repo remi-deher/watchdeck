@@ -1,8 +1,10 @@
 <template>
-  <span class="playback-badge" :class="normalized" :title="title || (normalized === 'direct_stream' ? 'Direct Stream : conteneur changé, rien n’est réencodé' : undefined)">{{ label }}</span>
+  <!-- Non tabulable : la pastille vit surtout dans des lignes et cartes deja cliquables. -->
+  <UiTooltip :focusable="false" :text="title || (normalized === 'direct_stream' ? 'Direct Stream : conteneur changé, rien n’est réencodé' : undefined)"><span class="playback-badge" :class="normalized">{{ label }}</span></UiTooltip>
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { playbackMethodLabel } from '@/utils/labels';
 import { computed } from 'vue';
 
