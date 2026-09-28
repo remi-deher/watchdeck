@@ -34,29 +34,34 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Cpu, X } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import UiButton from '@/components/ui/UiButton.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
+import { humanizeError } from '@/utils/apiError';
 
 interface PlexTask { uuid: string; type?: string; title?: string; subtitle?: string; progress: number | null; cancellable: boolean }
 
-const tasks = ref<PlexTask[]>([]);
-const error = ref('');
+const queryClient = useQueryClient();
+const tasksQuery = useQuery({
+  queryKey: ['playback', 'server-activities'],
+  queryFn: ({ signal }) => api<{ activities: PlexTask[] }>('/api/playback/server-activities', { signal }),
+  retry: 0,
+});
+const tasks = computed(() => tasksQuery.data.value?.activities || []);
+const actionError = ref('');
+const error = computed(() => actionError.value
+  || (tasksQuery.error.value ? humanizeError(tasksQuery.error.value) || 'Tâches du serveur Plex indisponibles.' : ''));
 const cancelling = ref('');
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 
-async function load(): Promise<void> {
-  try {
-    const data = await api<{ activities: PlexTask[] }>('/api/playback/server-activities');
-    tasks.value = data.activities || [];
-    error.value = '';
-  } catch (err: any) {
-    error.value = err?.message || 'Tâches du serveur Plex indisponibles.';
-  }
+function load(): Promise<void> {
+  actionError.value = '';
+  return queryClient.invalidateQueries({ queryKey: ['playback', 'server-activities'] });
 }
 
 /* Annuler une tache n'est pas anodin (une analyse devra etre relancee) : on demande. */
@@ -73,13 +78,12 @@ async function cancel(task: PlexTask): Promise<void> {
     await api(`/api/playback/server-activities/${encodeURIComponent(task.uuid)}`, { method: 'DELETE' });
     await load();
   } catch (err: any) {
-    error.value = err?.message || 'Annulation impossible.';
+    actionError.value = err?.message || 'Annulation impossible.';
   } finally {
     cancelling.value = '';
   }
 }
 
-onMounted(load);
 /* La collecte des lectures tourne en continu : on suit son rythme plutot que d'ajouter
    un minuteur a nous. */
 useRealtime(['activity.updated'], () => void load(), { debounceMs: 2000 });

@@ -64,6 +64,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirmedAction } from '@/composables/useConfirmedAction';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
 import UiButton from '@/components/ui/UiButton.vue';
 import { accountName, seerActionLabel, sourceLabel } from '@/utils/userLabels';
@@ -72,7 +73,7 @@ const route = useRoute(), router = useRouter();
 const query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref('');
 const queryClient = useQueryClient();
 const usersQuery = useQuery({
-  queryKey: ['users', 'list'],
+  queryKey: queryKeys.users.list,
   queryFn: ({ signal }) => api('/api/users', { signal }),
   select: (data) => (Array.isArray(data) ? data : []),
   staleTime: 30_000,
@@ -123,7 +124,7 @@ const filtered = computed(() => users.value.filter(user =>
 const displayName = (user) => accountName(user || {});
 
 /** Relit la liste apres une action ; `invalidateQueries` attend la nouvelle reponse. */
-async function load() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: ['users'] }); }
+async function load() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: queryKeys.users.all }); }
 /* La fiche d'un compte s'ouvre dans la feuille, avec sa propre adresse (voir
    UserDetailView) : la liste reste derriere, et retour y ramene. */
 function openUser(id) { ouvrirFiche(router, `/users/${id}`, route.fullPath); }

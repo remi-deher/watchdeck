@@ -14,15 +14,39 @@
     </section>
   </AppPage>
 </template>
-<script setup lang="ts">import { computed,onMounted,ref } from "vue";import { Download,FolderOpen } from "@lucide/vue";import { useRoute } from "vue-router";import { api } from "@/api";import UiButton from '@/components/ui/UiButton.vue';import UiEmptyState from '@/components/ui/UiEmptyState.vue';
+<script setup lang="ts">import { computed,ref } from "vue";import { Download,FolderOpen } from "@lucide/vue";import { useRoute } from "vue-router";import { useQuery } from '@tanstack/vue-query';import { api } from "@/api";import { humanizeError } from '@/utils/apiError';import UiButton from '@/components/ui/UiButton.vue';import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 interface Release { guid: string; title?: string; indexer?: string; quality?: string; protocol?: string; size?: number; seeders?: number; custom_format_score?: number; rejections?: string[]; is_french?: boolean; indexer_id?: number | string; }
 interface MediaRequest { id: number | string; title?: string; media_type: string; arr_instance_id?: number | string; }
-const route=useRoute(),request=ref<MediaRequest|null>(null),releases=ref<Release[]>([]),loading=ref(false),grabbing=ref<string|null>(null),error=ref(''),rootFolder=ref('');
+const route=useRoute(),grabbing=ref<string|null>(null),actionError=ref('');
+const requestId=computed(()=>String(route.params.requestId||''));
+const requestQuery=useQuery({
+  queryKey:computed(()=>['requests','detail',requestId.value]),
+  queryFn:({signal})=>api<MediaRequest>(`/api/requests/${requestId.value}`,{signal}),
+  enabled:computed(()=>Boolean(requestId.value)),
+});
+const request=computed(()=>requestQuery.data.value??null);
+const releaseParams=computed(()=>request.value?String(new URLSearchParams({media_type:request.value.media_type,request_id:String(request.value.id)})):'');
+/* Chaque lecture relance une recherche sur tous les indexeurs : pas de relecture au
+   retour sur l'onglet, pas de nouvel essai automatique, et un resultat garde 5 minutes. */
+const releasesQuery=useQuery({
+  queryKey:computed(()=>['arr','releases',releaseParams.value]),
+  queryFn:({signal})=>api<Release[]>(`/api/arr/releases?${releaseParams.value}`,{signal}),
+  enabled:computed(()=>Boolean(releaseParams.value)),
+  staleTime:5*60_000,refetchOnWindowFocus:false,retry:0,
+});
+const rootFolderQuery=useQuery({
+  queryKey:computed(()=>['arr','root-folder',releaseParams.value]),
+  queryFn:({signal})=>api<{root_folder_path?:string}>(`/api/arr/root-folder?${releaseParams.value}`,{signal}).catch(()=>null),
+  enabled:computed(()=>Boolean(releaseParams.value)),
+});
+const releases=computed(()=>releasesQuery.data.value??[]);
+const rootFolder=computed(()=>rootFolderQuery.data.value?.root_folder_path||'');
+const loading=computed(()=>requestQuery.isFetching.value||releasesQuery.isFetching.value);
+const error=computed(()=>actionError.value||[requestQuery.error.value,releasesQuery.error.value].filter(Boolean).map(humanizeError)[0]||'');
 const firstEnglish=computed(()=>releases.value.findIndex(r=>!r.is_french));
 function formatSize(v?: number): string {if(!v)return'-';return `${(v/1024/1024/1024).toFixed(1)} Go`}
-async function load(): Promise<void> {loading.value=true;error.value='';rootFolder.value='';try{request.value=await api(`/api/requests/${route.params.requestId}`);const p=new URLSearchParams({media_type:request.value!.media_type,request_id:String(request.value!.id)});const [rel,folder]=await Promise.all([api(`/api/arr/releases?${p}`),api(`/api/arr/root-folder?${p}`).catch(()=>null)]);releases.value=rel;rootFolder.value=folder?.root_folder_path||''}catch(e:any){error.value=e.message;releases.value=[]}finally{loading.value=false}}
-async function grab(release: Release): Promise<void> {if(grabbing.value)return;grabbing.value=release.guid;const tab=window.open('about:blank','_blank');if(tab)tab.opener=null;error.value='';try{await api('/api/arr/grab',{method:'POST',body:JSON.stringify({media_type:request.value!.media_type,guid:release.guid,indexer_id:release.indexer_id,instance_id:request.value!.arr_instance_id,request_id:request.value!.id})});if(tab)tab.location.href='/downloads'}catch(e:any){if(tab)tab.close();error.value=e.message}finally{grabbing.value=null}}
-onMounted(load);</script>
+function load(): void {actionError.value='';void (request.value?releasesQuery.refetch():requestQuery.refetch())}
+async function grab(release: Release): Promise<void> {if(grabbing.value)return;grabbing.value=release.guid;const tab=window.open('about:blank','_blank');if(tab)tab.opener=null;actionError.value='';try{await api('/api/arr/grab',{method:'POST',body:JSON.stringify({media_type:request.value!.media_type,guid:release.guid,indexer_id:release.indexer_id,instance_id:request.value!.arr_instance_id,request_id:request.value!.id})});if(tab)tab.location.href='/downloads'}catch(e:any){if(tab)tab.close();actionError.value=e.message}finally{grabbing.value=null}}</script>
 <style scoped lang="scss">
 .root-folder-info{display:flex;align-items:center;gap:6px;margin:0 0 var(--space-3);color:var(--muted);font-size:var(--fs-sm)}.root-folder-info code{color:var(--text);font-family:inherit}.release-list{padding:0;overflow:hidden}.release-row{display:grid;grid-template-columns:minmax(0,1fr) auto 40px;gap:var(--space-4);align-items:center;min-height:72px;padding:12px 14px;border-bottom:1px solid var(--border)}.release-row.french{background:color-mix(in srgb, var(--accent) 7%, transparent)}.release-row strong,.release-row span,.release-row small{display:block}.release-row small{color:var(--red-text)}.release-stats{display:grid;grid-template-columns:repeat(3,minmax(64px,auto));gap:var(--space-3);text-align:right}.release-divider{padding:10px 14px;color:var(--muted);background:var(--bg);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:var(--fs-sm)}
 </style>

@@ -34,6 +34,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 import { ArrowLeft, LoaderCircle, UserRound } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -43,6 +44,7 @@ import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaGrid from '@/components/ui/MediaGrid.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { formatDateLong } from '@/utils/format';
+import { humanizeError } from '@/utils/apiError';
 
 interface Credit {
   media_type?: string;
@@ -66,9 +68,16 @@ interface Person {
 
 const route = useRoute();
 const router = useRouter();
-const person = ref<Person | null>(null);
-const loading = ref(false);
-const error = ref('');
+const personId = computed(() => String(route.params.id || ''));
+const personQuery = useQuery({
+  queryKey: computed(() => ['discover', 'person', personId.value]),
+  queryFn: ({ signal }) => api<Person>(`/api/discover/person/${personId.value}`, { signal }),
+  enabled: computed(() => Boolean(personId.value)),
+});
+const person = computed(() => personQuery.data.value ?? null);
+const loading = computed(() => personQuery.isPending.value && personQuery.isFetching.value);
+// Une relecture en echec ne masque pas une fiche deja affichee.
+const error = computed(() => (!person.value && personQuery.error.value ? humanizeError(personQuery.error.value) : ''));
 const filter = ref('all');
 const bioExpanded = ref(false);
 const filters = [{ value: 'all', label: 'Tout' }, { value: 'movie', label: 'Films' }, { value: 'show', label: 'Séries' }];
@@ -78,13 +87,8 @@ const lifeSummary = computed(() => [person.value?.birthday && `Né(e) le ${forma
 function formatDate(value: string): string { return formatDateLong(value); }
 function detailPath(item: Credit): string { return mediaDetailPath(item, item.library_id ? 'library' : item.request_id ? 'request' : 'discover', { discover: true }); }
 function goBack(): void { if (window.history.state?.back) router.back(); else router.push('/discover'); }
-async function load(): Promise<void> {
-  loading.value = true; error.value = ''; person.value = null; filter.value = 'all'; bioExpanded.value = false;
-  try { person.value = await api(`/api/discover/person/${route.params.id}`); }
-  catch (e: any) { error.value = e.message; }
-  finally { loading.value = false; }
-}
-watch(() => route.params.id, load, { immediate: true });
+function load(): void { void personQuery.refetch(); }
+watch(personId, () => { filter.value = 'all'; bioExpanded.value = false; });
 </script>
 
 <style scoped lang="scss">

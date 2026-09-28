@@ -7,6 +7,7 @@
 import { defineComponent, h, nextTick, ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ReasonPickerModal from '@/components/requests/ReasonPickerModal.vue';
@@ -65,7 +66,8 @@ describe('withdrawRequest', () => {
       },
     });
 
-    const wrapper = mount(Harness, { attachTo: document.body });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = mount(Harness, { attachTo: document.body, global: { plugins: [[VueQueryPlugin, { queryClient }]] } });
     await findButton(wrapper, 'Ouvrir').trigger('click');
     await nextTick();
 
