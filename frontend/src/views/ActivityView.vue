@@ -77,7 +77,7 @@
               :trend="trendOf(analytics.comparison?.watch_change)"
               :icon="Clock3"
             />
-            <MetricCard card-class="activity-metric-card overview-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="`${summary.transcodes||0} sessions`" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
+            <MetricCard card-class="activity-metric-card overview-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="transcodeDetail" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
           </MetricGrid>
 
           <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" interactive @select="openSession($event)"/>
@@ -151,6 +151,10 @@
           <MetricCard card-class="activity-metric-card accent" label="Débit moyen" :value="formatBandwidth(analytics.bandwidth?.average_kbps)" :detail="bandwidthCoverageLabel" :icon="Gauge"/>
           <MetricCard card-class="activity-metric-card" label="Débit P95" :value="formatBandwidth(analytics.bandwidth?.p95_kbps)" :detail="`95 % sous ce seuil · ${bandwidthMeasured} mesurées`" :icon="Activity"/>
           <MetricCard card-class="activity-metric-card" label="Débit maximal" :value="formatBandwidth(analytics.bandwidth?.peak_kbps)" detail="pic observé" :icon="Zap"/>
+          <!-- Le suivi des conversions : le transcodage complet, et la conversion légère
+               (Direct Stream), où seul le conteneur ou les sous-titres changent. -->
+          <MetricCard card-class="activity-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="`${summary.transcodes||0} session${(summary.transcodes||0)>1?'s':''} réencodée${(summary.transcodes||0)>1?'s':''}`" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
+          <MetricCard card-class="activity-metric-card" label="Conversion légère" :value="`${summary.direct_stream_rate||0} %`" :detail="`${summary.direct_streams||0} session${(summary.direct_streams||0)>1?'s':''} sans réencodage`" :icon="ArrowLeftRight" :progress="{ value: summary.direct_stream_rate || 0, max: 100 }"/>
           <MetricCard card-class="activity-metric-card" label="Rendement stockage" :value="analytics.storage?.watch_hours_per_gb==null?'—':`${analytics.storage.watch_hours_per_gb} h/Go`" :detail="`${analytics.storage?.known_items||0} fichiers mesurés`" :icon="HardDrive"/>
         </MetricGrid>
         <!-- Plex ne renseigne ni la decision de lecture ni le debit sur toutes les
@@ -163,13 +167,15 @@
           <BreakdownPanel title="Résolutions" eyebrow="Source" :items="resolutionBreakdown"/>
           <BreakdownPanel title="Codecs vidéo" eyebrow="Source" :items="codecBreakdown"/>
           <BreakdownPanel title="Causes de transcodage" eyebrow="Diagnostic" :items="transcodeReasonBreakdown"/>
+          <BreakdownPanel title="Causes de conversion légère" eyebrow="Diagnostic" :items="directStreamReasonBreakdown"/>
+          <BreakdownPanel title="Conteneurs" eyebrow="Source" :items="containerBreakdown"/>
           <BreakdownPanel title="Bande passante par utilisateur" eyebrow="Réseau" :items="bandwidthBreakdown"/>
         </div>
         <section class="panel compatibility-panel">
           <div class="panel-head"><div><span class="eyebrow">Compatibilité</span><h2>Appareils et lecteurs</h2></div></div>
           <div class="compatibility-table">
             <article v-for="device in analytics.quality?.devices||[]" :key="device.device">
-              <MonitorPlay/><span><strong>{{ device.device }}</strong><small>{{ device.sessions }} sessions · {{ device.transcodes }} transcodages</small></span>
+              <MonitorPlay/><span><strong>{{ device.device }}</strong><small>{{ device.sessions }} sessions · {{ device.transcodes }} transcodages<template v-if="device.direct_streams"> · {{ device.direct_streams }} conversion{{ device.direct_streams>1?'s':'' }} légère{{ device.direct_streams>1?'s':'' }}</template></small></span>
               <div><i :style="{width:`${device.compatibility_score}%`}"></i></div><em>{{ device.compatibility_score }} %</em>
             </article>
             <p v-if="!analytics.quality?.devices?.length" class="empty">Aucune donnée d'appareil.</p>
@@ -222,7 +228,7 @@ import { computed,onUnmounted,ref,watch } from 'vue';
 import { refDebounced, useDebounceFn, useIntervalFn } from '@vueuse/core';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute,useRouter } from 'vue-router';
-import { Activity, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
+import { Activity, ArrowLeftRight, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
 import { activitySections } from '@/navigation';
 import { api } from '@/api';
 import { readCacheEntry, writeCache } from '@/cache';
@@ -424,6 +430,14 @@ const methodBreakdown=computed(()=>(analytics.value.quality?.methods||[]).map((i
 const resolutionBreakdown=computed(()=>(analytics.value.quality?.resolutions||[]).map((item: any)=>({label:item.label,value:item.count})));
 const codecBreakdown=computed(()=>(analytics.value.quality?.codecs||[]).map((item: any)=>({label:item.label,value:item.count})));
 const transcodeReasonBreakdown=computed(()=>(analytics.value.quality?.transcode_reasons||[]).map((item: any)=>({label:item.label,value:item.count})));
+const directStreamReasonBreakdown=computed(()=>(analytics.value.quality?.direct_stream_reasons||[]).map((item: any)=>({label:item.label,value:item.count})));
+/* Conteneur du fichier source, et combien de lectures ont dû en changer pour le lecteur. */
+const containerBreakdown=computed(()=>(analytics.value.quality?.containers||[]).map((item: any)=>({label:item.label,value:item.count,suffix:item.converted?` · ${item.converted} converti${item.converted>1?'s':''}`:' · inchangé'})));
+const transcodeDetail=computed(()=>{
+  const transcodes=summary.value.transcodes||0;
+  const light=summary.value.direct_streams||0;
+  return `${transcodes} session${transcodes>1?'s':''}${light?` · ${light} conversion${light>1?'s':''} légère${light>1?'s':''}`:''}`;
+});
 const qualityCoverage=computed(()=>analytics.value.quality?.coverage||{sessions:0,method_known:0,bandwidth_measured:0});
 const bandwidthMeasured=computed(()=>analytics.value.bandwidth?.measured??qualityCoverage.value.bandwidth_measured??0);
 const methodCoverageRate=computed(()=>{

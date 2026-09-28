@@ -183,6 +183,8 @@ const summary = computed(() => {
   if (bandwidth) parts.push(formatBandwidth(bandwidth));
   const transcodes = props.sessions.filter(session => session.playback_method === 'transcode').length;
   if (transcodes) parts.push(`${transcodes} transcodage${transcodes > 1 ? 's' : ''}`);
+  const light = props.sessions.filter(session => session.playback_method === 'direct_stream').length;
+  if (light) parts.push(`${light} conversion${light > 1 ? 's' : ''} légère${light > 1 ? 's' : ''}`);
   return parts.join(' · ');
 });
 

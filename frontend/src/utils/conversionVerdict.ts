@@ -90,7 +90,10 @@ export function conversionVerdict(s: ConversionSession): ConversionVerdict | nul
   const containerChanged = d.container?.from && d.container?.to
     && String(d.container.from).toLowerCase() !== String(d.container.to).toLowerCase();
   const reason = s.transcode_reason;
-  if (!streams.length && !containerChanged && !reason) return null;
+  // Une conversion légère passe par le transcodeur même quand rien ne change en
+  // apparence (flux recopiés, diffusion en segments) : elle a droit à son suivi aussi.
+  const lightConversion = s.playback_method === 'direct_stream' && Object.keys(d).length > 0;
+  if (!streams.length && !containerChanged && !reason && !lightConversion) return null;
 
   const why = cause(s);
   const source = reason?.source === 'plex' ? 'plex' : 'deduced';
@@ -99,6 +102,8 @@ export function conversionVerdict(s: ConversionSession): ConversionVerdict | nul
     title = `Transcodage ${joinFr(streams)}`;
   } else if (containerChanged) {
     title = 'Conversion légère : seul le conteneur change';
+  } else if (lightConversion && !reason) {
+    title = 'Conversion légère : flux recopiés sans réencodage';
   } else {
     title = 'Lecture adaptée par Plex';
   }

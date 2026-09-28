@@ -141,12 +141,14 @@ describe('LiveSessionsPanel — bande passante, réseau et transcodage', () => {
       session({ session_id: 'a', bandwidth_kbps: 8000 }),
       session({ session_id: 'b', bandwidth_kbps: 4000, playback_method: 'direct_play' }),
       session({ session_id: 'c', bandwidth_kbps: 2000, state: 'paused', playback_method: 'direct_play' }),
+      session({ session_id: 'd', bandwidth_kbps: 0, playback_method: 'direct_stream' }),
     ]).get('.live-summary').text();
 
-    expect(texte).toContain('3 lectures');
+    expect(texte).toContain('4 lectures');
     expect(texte).toContain('1 en pause');
     expect(texte).toContain('14 Mb/s');
     expect(texte).toContain('1 transcodage');
+    expect(texte).toContain('1 conversion légère');
   });
 });
 

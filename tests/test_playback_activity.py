@@ -500,6 +500,52 @@ def test_analytics_computes_completion_quality_and_user_trends():
     assert analytics["users"][0]["favorite_title"] == "Foundation"
 
 
+def test_analytics_tracks_direct_stream_and_containers():
+    """La conversion légère a son suivi, comme le transcodage : causes, conteneurs, appareils."""
+    import json
+    from datetime import datetime, timedelta
+
+    started = datetime(2026, 7, 20, 20, 0)
+
+    def row(index, method, details=None, container="mkv", subtitle_decision=None):
+        return PlaybackSession(
+            source_session_id=f"session-{index}",
+            title=f"Film {index}",
+            media_type="movie",
+            user_name="Rémi",
+            player_title="Chromecast",
+            playback_method=method,
+            subtitle_decision=subtitle_decision,
+            container=container,
+            transcode_details=json.dumps(details) if details else None,
+            duration_ms=3_600_000,
+            watched_ms=3_000_000,
+            started_at=started + timedelta(hours=index),
+            ended_at=started + timedelta(hours=index + 1),
+            last_seen_at=started + timedelta(hours=index + 1),
+        )
+
+    rows = [
+        row(0, "direct_stream", {"protocol": "dash", "container": {"from": "mkv", "to": "mp4"}}),
+        row(1, "direct_stream", {"protocol": "hls", "container": {"from": "mp4", "to": "mp4"}}),
+        row(2, "direct_stream", {"container": {"from": "mkv", "to": "mkv"}}, subtitle_decision="transcode"),
+        row(3, "direct_play", None, container="mkv"),
+    ]
+
+    quality = _analytics(rows, [])["quality"]
+
+    assert quality["direct_stream_reasons"] == [
+        {"label": "Conteneur MKV → MP4", "count": 1},
+        {"label": "Diffusion en segments HLS", "count": 1},
+        {"label": "Sous-titres", "count": 1},
+    ]
+    assert quality["containers"] == [
+        {"label": "MKV", "count": 3, "converted": 1},
+        {"label": "MP4", "count": 1, "converted": 0},
+    ]
+    assert quality["devices"][0]["direct_streams"] == 3
+
+
 def test_activity_endpoint_returns_snapshot(client):
     payload = {"active": [], "history": [], "summary": {"sessions": 0}, "daily": [], "users": []}
     with patch("app.routers.activity_api.activity_snapshot", new=AsyncMock(return_value=payload)):
@@ -535,6 +581,8 @@ def test_statistics_builds_and_uses_daily_aggregates(client, async_db):
         "users": 1,
         "transcodes": 1,
         "transcode_rate": 100.0,
+        "direct_streams": 0,
+        "direct_stream_rate": 0,
     }
     aggregate = async_db.query(PlaybackDailyAggregate).one()
     assert aggregate.media_label == "Film agrégé"

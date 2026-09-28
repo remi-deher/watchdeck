@@ -43,6 +43,14 @@ describe('conversionVerdict', () => {
     expect(conversionVerdict(remux).title).toBe('Conversion légère : seul le conteneur change');
   });
 
+  it('suit aussi une conversion légère où rien ne change en apparence', () => {
+    const copied = {
+      playback_method: 'direct_stream',
+      transcode_details: { protocol: 'hls', container: { from: 'mp4', to: 'mp4' }, video: { decision: 'copy' }, audio: { decision: 'copy' } },
+    };
+    expect(conversionVerdict(copied).title).toBe('Conversion légère : flux recopiés sans réencodage');
+  });
+
   it('ne dit rien d’une lecture directe', () => {
     expect(conversionVerdict({ playback_method: 'direct_play' })).toBeNull();
   });
