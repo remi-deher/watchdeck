@@ -10,7 +10,6 @@ const streamEventsMock = vi.fn();
 
 vi.mock('@/api', () => ({
   api: (...args) => apiMock(...args),
-  cachedResource: (_key, _ttl, loader) => ({ cached: null, refresh: loader() }),
   streamEvents: (...args) => streamEventsMock(...args),
 }));
 vi.mock('@/cache', () => ({

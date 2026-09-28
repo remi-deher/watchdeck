@@ -125,31 +125,3 @@ export async function streamEvents<T = any>(
     if (!finished) reader.cancel().catch(() => {});
   }
 }
-
-export function cachedResource<T = any>(
-  key: string,
-  ttlMs: number,
-  loader: () => Promise<T>
-): { cached: T | null; fresh: boolean; refresh: Promise<T> } {
-  const now = Date.now();
-  let cached: { savedAt: number; data: T } | null = null;
-  try {
-    // Cache HTTP technique (TTL), pas une préférence UI : il reste volontairement hors usePreference.
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-    cached = raw ? JSON.parse(raw) : null;
-  } catch {
-    cached = null;
-  }
-  const fresh = Boolean(cached && now - cached.savedAt < ttlMs);
-  const refresh = loader().then((data) => {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
-      }
-    } catch {
-      /* Quota dépassé */
-    }
-    return data;
-  });
-  return { cached: cached?.data || null, fresh, refresh };
-}

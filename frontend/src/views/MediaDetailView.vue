@@ -196,6 +196,7 @@ import { isMusicType } from '@/utils/labels';
 import { humanizeError } from '@/utils/apiError';
 import { computed, reactive, ref, watch } from "vue";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { LoaderCircle } from "@lucide/vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api";
@@ -389,7 +390,7 @@ const error = computed({
 });
 
 const usersQuery = useQuery({
-  queryKey: ['users', 'list'],
+  queryKey: queryKeys.users.list,
   queryFn: () => api<any[]>('/api/users'),
   enabled: computed(() => showCorrectionForm.value || tab.value === 'requests'),
 });
