@@ -53,7 +53,33 @@ function cause(s: ConversionSession): string | null {
   if (client.maxVideoBitrate || client.videoBitrate) return `qualité limitée par le lecteur (${client.maxVideoBitrate || client.videoBitrate} kb/s)`;
   if (range.source && range.source !== 'SDR' && range.output === 'SDR') return 'le lecteur n’affiche pas le HDR';
   if (String(s.subtitle_decision || s.transcode_details?.subtitles?.decision || '').toLowerCase() === 'burn') return 'les sous-titres doivent être incrustés dans l’image';
+  const light = lightCause(s);
+  if (light) return light;
   if (client.directPlay === '0' || /direct play is disabled/i.test(text)) return 'le lecteur a refusé la lecture directe';
+  return null;
+}
+
+/** Réencodage de la vidéo ou de l'audio : au-delà, c'est une conversion légère. */
+const reencoded = (s: ConversionSession): boolean => {
+  const d = s.transcode_details || {};
+  return converted(d.video?.decision ?? s.video_decision) || converted(d.audio?.decision ?? s.audio_decision);
+};
+
+/** Cause d'une conversion légère : ce que le lecteur ne sait pas lire tel quel. */
+function lightCause(s: ConversionSession): string | null {
+  if (reencoded(s)) return null;
+  const d = s.transcode_details || {};
+  const subtitles = d.subtitles || {};
+  if (String(subtitles.decision || s.subtitle_decision || '').toLowerCase() === 'transcode') {
+    return `le lecteur ne lit pas les sous-titres ${codecLabel(subtitles.from)}`;
+  }
+  const from = d.container?.from;
+  const to = d.container?.to;
+  if (from && to && String(from).toLowerCase() !== String(to).toLowerCase()) {
+    return `le lecteur ne lit pas le conteneur ${String(from).toUpperCase()}`;
+  }
+  const protocol = String(d.protocol || '').toLowerCase();
+  if (['dash', 'hls'].includes(protocol)) return `le lecteur demande une diffusion en segments ${protocol.toUpperCase()}`;
   return null;
 }
 
@@ -80,6 +106,18 @@ function explanation(s: ConversionSession): string {
       ? `les sous-titres ${codecLabel(d.subtitles.from)} sont incrustés`
       : `les sous-titres ${codecLabel(d.subtitles.from)} sont convertis en ${codecLabel(d.subtitles.to)}`);
   }
+  // Conversion légère : rien n'est réencodé, c'est l'emballage qui change. On dit lequel.
+  if (!reencoded(s)) {
+    const from = d.container?.from;
+    const to = d.container?.to;
+    const protocol = String(d.protocol || '').toLowerCase();
+    const segments = ['dash', 'hls'].includes(protocol) ? ` et diffusé en segments ${protocol.toUpperCase()}` : '';
+    if (from && to && String(from).toLowerCase() !== String(to).toLowerCase()) {
+      sentences.push(`le conteneur ${String(from).toUpperCase()} est remplacé par ${String(to).toUpperCase()}${segments}`);
+    } else if (segments && (to || from)) {
+      sentences.push(`le conteneur ${String(to || from).toUpperCase()} est conservé${segments}`);
+    }
+  }
   const text = sentences.join(', ');
   return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}.` : '';
 }
@@ -101,9 +139,10 @@ export function conversionVerdict(s: ConversionSession): ConversionVerdict | nul
   if (streams.length) {
     title = `Transcodage ${joinFr(streams)}`;
   } else if (containerChanged) {
-    title = 'Conversion légère : seul le conteneur change';
-  } else if (lightConversion && !reason) {
-    title = 'Conversion légère : flux recopiés sans réencodage';
+    // La cause dit déjà quoi : « le lecteur ne lit pas le conteneur MKV ».
+    title = why ? 'Conversion légère' : 'Conversion légère : seul le conteneur change';
+  } else if (lightConversion && (why || !reason)) {
+    title = why ? 'Conversion légère' : 'Conversion légère : flux recopiés sans réencodage';
   } else {
     title = 'Lecture adaptée par Plex';
   }

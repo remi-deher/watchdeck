@@ -40,7 +40,7 @@ describe('conversionVerdict', () => {
       playback_method: 'direct_stream',
       transcode_details: { container: { from: 'mkv', to: 'mp4' }, video: { decision: 'copy' }, audio: { decision: 'copy' } },
     };
-    expect(conversionVerdict(remux).title).toBe('Conversion légère : seul le conteneur change');
+    expect(conversionVerdict(remux).title).toBe('Conversion légère : le lecteur ne lit pas le conteneur MKV');
   });
 
   it('suit aussi une conversion légère où rien ne change en apparence', () => {
@@ -48,7 +48,28 @@ describe('conversionVerdict', () => {
       playback_method: 'direct_stream',
       transcode_details: { protocol: 'hls', container: { from: 'mp4', to: 'mp4' }, video: { decision: 'copy' }, audio: { decision: 'copy' } },
     };
-    expect(conversionVerdict(copied).title).toBe('Conversion légère : flux recopiés sans réencodage');
+    expect(conversionVerdict(copied).title).toBe('Conversion légère : le lecteur demande une diffusion en segments HLS');
+    expect(conversionVerdict({ ...copied, transcode_details: { ...copied.transcode_details, protocol: 'http' } }).title).toBe('Conversion légère : flux recopiés sans réencodage');
+  });
+
+  it('explique une conversion légère : cause et changements', () => {
+    const remux = {
+      playback_method: 'direct_stream',
+      transcode_details: { protocol: 'dash', container: { from: 'mkv', to: 'mp4' }, video: { decision: 'copy', from: 'hevc', to: 'hevc' }, audio: { decision: 'copy', from: 'eac3', to: 'eac3' } },
+    };
+    expect(conversionVerdict(remux)).toEqual({
+      title: 'Conversion légère : le lecteur ne lit pas le conteneur MKV',
+      explanation: 'La vidéo est inchangée, l’audio est inchangé, le conteneur MKV est remplacé par MP4 et diffusé en segments DASH.',
+      source: 'deduced',
+    });
+    const subtitles = {
+      playback_method: 'direct_stream',
+      subtitle_decision: 'transcode',
+      transcode_details: { container: { from: 'mkv', to: 'mkv' }, video: { decision: 'copy' }, audio: { decision: 'copy' }, subtitles: { decision: 'transcode', from: 'ass', to: 'srt' } },
+    };
+    const verdict = conversionVerdict(subtitles);
+    expect(verdict.title).toBe('Transcodage sous-titres : le lecteur ne lit pas les sous-titres ASS');
+    expect(verdict.explanation).toContain('les sous-titres ASS sont convertis en SRT');
   });
 
   it('ne dit rien d’une lecture directe', () => {
