@@ -76,9 +76,9 @@
               <div class="target-info">
                 <strong>Film complet</strong>
                 <span>Détecté le {{ formatDate(item.scanned_at) }}</span>
-                <span v-if="item.status === 'waiting_release' && item.backoff" class="backoff-info" :title="`${item.backoff.misses} recherche(s) restée(s) sans résultat`">
+                <UiTooltip v-if="item.status === 'waiting_release' && item.backoff" :text="`${item.backoff.misses} recherche(s) restée(s) sans résultat`"><span class="backoff-info">
                   {{ formatBackoff(item.backoff) }}
-                </span>
+                </span></UiTooltip>
               </div>
               <div class="target-badges">
                 <StatusBadge :status="item.status" :label="statusLabel(item.status)" />
@@ -140,9 +140,9 @@
                 <div class="target-info">
                   <strong>{{ targetLabel(item) }}</strong>
                   <span>Détecté le {{ formatDate(item.scanned_at) }}</span>
-                <span v-if="item.status === 'waiting_release' && item.backoff" class="backoff-info" :title="`${item.backoff.misses} recherche(s) restée(s) sans résultat`">
+                <UiTooltip v-if="item.status === 'waiting_release' && item.backoff" :text="`${item.backoff.misses} recherche(s) restée(s) sans résultat`"><span class="backoff-info">
                   {{ formatBackoff(item.backoff) }}
-                </span>
+                </span></UiTooltip>
                 </div>
                 <div class="target-badges">
                   <StatusBadge :status="item.status" :label="statusLabel(item.status)" />
@@ -194,6 +194,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiButton from '@/components/ui/UiButton.vue';

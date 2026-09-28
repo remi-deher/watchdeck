@@ -3,7 +3,7 @@
        journaux (le vrai pourquoi), en orange ce qu'on deduit du flux (le quoi). -->
   <div v-if="reason || remux" class="transcode-reason" :class="[reason?.source === 'plex' ? 'from-plex' : 'deduced', { compact }]">
     <!-- Bleu, comme la pastille Direct Stream : conteneur change, rien n'est reencode. -->
-    <p v-if="remux" class="remux-line" title="Conteneur changé, sans réencodage"><strong>{{ remux }}</strong></p>
+    <UiTooltip v-if="remux" :focusable="!compact" text="Conteneur changé, sans réencodage"><p class="remux-line"><strong>{{ remux }}</strong></p></UiTooltip>
     <template v-if="reason">
     <p :title="compact ? tooltip : undefined">
       <strong>{{ reason.source === 'plex' ? plexPhrase(reason.text) : reason.text }}</strong>
@@ -26,6 +26,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { computed } from 'vue';
 import { plexPhrase } from '@/utils/plexDecisionText';
 

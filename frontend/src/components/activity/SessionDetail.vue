@@ -45,11 +45,11 @@
       <!-- Un telechargement (synchro hors ligne) reste dans l'historique, mais ne se
            confond pas avec une lecture. -->
       <span v-if="session.is_download" class="session-flag download"><Download/>Téléchargement</span>
-      <span v-if="stream.relayed" class="session-flag relay" title="Débit limité par le relais Plex (~2 Mb/s) : souvent la cause d'une qualité réduite"><RadioTower/>Relais Plex</span>
-      <span v-if="dynamicRange" class="session-flag hdr" :class="{ tonemap: toneMapping }" :title="toneMapping ? 'HDR converti en SDR : le transcodage le plus coûteux' : undefined">{{ dynamicRange }}</span>
+      <UiTooltip v-if="stream.relayed" text="Débit limité par le relais Plex (~2 Mb/s) : souvent la cause d'une qualité réduite"><span class="session-flag relay"><RadioTower/>Relais Plex</span></UiTooltip>
+      <UiTooltip v-if="dynamicRange" :text="toneMapping ? 'HDR converti en SDR : le transcodage le plus coûteux' : undefined"><span class="session-flag hdr" :class="{ tonemap: toneMapping }">{{ dynamicRange }}</span></UiTooltip>
       <span><User/>{{ session.user_name || 'Utilisateur Plex' }}</span>
       <span><MonitorPlay/>{{ session.player || session.product || session.platform || 'Lecteur Plex' }}</span>
-      <span v-if="stream.secure != null" class="session-secure" :class="{ insecure: !stream.secure }" :title="stream.secure ? 'Connexion chiffrée (HTTPS)' : 'Connexion non chiffrée (HTTP)'"><Lock v-if="stream.secure"/><LockOpen v-else/>{{ stream.secure ? 'Chiffrée' : 'Non chiffrée' }}</span>
+      <UiTooltip v-if="stream.secure != null" :text="stream.secure ? 'Connexion chiffrée (HTTPS)' : 'Connexion non chiffrée (HTTP)'"><span class="session-secure" :class="{ insecure: !stream.secure }"><Lock v-if="stream.secure"/><LockOpen v-else/>{{ stream.secure ? 'Chiffrée' : 'Non chiffrée' }}</span></UiTooltip>
       <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
            fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
       <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
@@ -119,6 +119,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import ConversionPanel from './ConversionPanel.vue';
 import SessionFacts from './SessionFacts.vue';
 import TerminatePlaybackModal from './TerminatePlaybackModal.vue';
