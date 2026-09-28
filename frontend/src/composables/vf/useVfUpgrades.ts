@@ -1,4 +1,5 @@
-import { computed, ref } from 'vue';
+import { computed, watch } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { humanizeError } from '@/utils/apiError';
 import type { VfUpgradeGroup, VfUpgradeItem, VfUpgradeStatus } from '@/types/vfUpgrades';
@@ -19,13 +20,33 @@ interface DashboardResponse {
  * `undoable` affiche une notification munie d'un retour arriere : « Ignorer » se
  * repete une fois par ligne et se clique vite, et recuperer une suggestion ecartee par
  * erreur ne doit pas exiger une nouvelle recherche complete.
+ *
+ * La liste vit dans le cache TanStack Query (`VF_UPGRADES_KEY`) : les retraits et les
+ * evenements temps reel y deposent une NOUVELLE liste, jamais un element modifie en
+ * place (voir useRealtimeQuery).
  */
+export const VF_UPGRADES_KEY = ['vf-upgrades', 'dashboard'] as const;
+
 export function useVfUpgrades(notify: Notify, undoable: (message: string, label: string, undo: () => void | Promise<void>) => unknown) {
-  const items = ref<VfUpgradeItem[]>([]);
-  const scan = ref<Record<string, unknown>>({});
-  const loading = ref(true);
+  const queryClient = useQueryClient();
+  const dashboardQuery = useQuery({
+    queryKey: VF_UPGRADES_KEY,
+    queryFn: ({ signal }) => api<DashboardResponse>('/api/vf-upgrades/dashboard', { signal }),
+  });
+  watch(dashboardQuery.error, (e) => { if (e) notify(humanizeError(e), 'error'); });
+  const items = computed<VfUpgradeItem[]>(() => dashboardQuery.data.value?.items || []);
+  const scan = computed<Record<string, unknown>>(() => dashboardQuery.data.value?.scan || {});
+  /** Premier chargement seulement : une relecture laisse la liste affichee. */
+  const loading = computed(() => dashboardQuery.isPending.value);
   /** Medias VO sans suggestion que le serveur n'a pas renvoyes (liste bornee). */
-  const waitingTruncated = ref(0);
+  const waitingTruncated = computed(() => Math.max(
+    0,
+    (dashboardQuery.data.value?.waiting_total || 0) - items.value.filter((item) => item.status === 'waiting_release').length,
+  ));
+
+  function setItems(update: (list: VfUpgradeItem[]) => VfUpgradeItem[]): void {
+    queryClient.setQueryData<DashboardResponse>(VF_UPGRADES_KEY, (data) => (data ? { ...data, items: update(data.items || []) } : data));
+  }
 
   const countWhere = (predicate: (item: VfUpgradeItem) => boolean) => computed(() => items.value.filter(predicate).length);
   const pendingCount = countWhere((item) => item.status === 'pending');
@@ -35,21 +56,10 @@ export function useVfUpgrades(notify: Notify, undoable: (message: string, label:
   const historyCount = countWhere((item) => HISTORY_STATES.has(item.status) && !item.is_ignored);
   const ignoredCount = countWhere((item) => Boolean(item.is_ignored));
 
-  async function load({ silent = false }: { silent?: boolean } = {}): Promise<void> {
-    if (!silent && !items.value.length) loading.value = true;
-    try {
-      const data = await api<DashboardResponse>('/api/vf-upgrades/dashboard');
-      items.value = data.items || [];
-      scan.value = data.scan || {};
-      waitingTruncated.value = Math.max(
-        0,
-        (data.waiting_total || 0) - items.value.filter((item) => item.status === 'waiting_release').length,
-      );
-    } catch (e) {
-      notify(humanizeError(e), 'error');
-    } finally {
-      loading.value = false;
-    }
+  /** Relit la liste ; un echec est signale par `notify`, jamais leve. `silent` est garde
+   *  pour les appelants : la liste deja affichee reste en place pendant la relecture. */
+  async function load(_options: { silent?: boolean } = {}): Promise<void> {
+    await dashboardQuery.refetch();
   }
 
   async function restore(item: VfUpgradeItem): Promise<void> {
@@ -64,7 +74,7 @@ export function useVfUpgrades(notify: Notify, undoable: (message: string, label:
 
   async function dismiss(item: VfUpgradeItem): Promise<void> {
     await api(`/api/vf-upgrades/${item.id}/dismiss`, { method: 'POST' });
-    items.value = items.value.filter((entry) => entry.id !== item.id);
+    setItems((list) => list.filter((entry) => entry.id !== item.id));
     undoable('Suggestion ignorée.', 'Annuler', () => restore(item));
   }
 
@@ -94,12 +104,10 @@ export function useVfUpgrades(notify: Notify, undoable: (message: string, label:
     }
   }
 
-  /** Evenement temps reel sur une suggestion affichee : mise a jour sur place. */
+  /** Evenement temps reel sur une suggestion affichee : la liste du cache est remplacee. */
   function patchStatus(id: number, status: VfUpgradeStatus, arrMessage?: string): boolean {
-    const target = items.value.find((item) => item.id === id);
-    if (!target) return false;
-    target.status = status;
-    if (arrMessage) target.arr_message = arrMessage;
+    if (!items.value.some((item) => item.id === id)) return false;
+    setItems((list) => list.map((item) => (item.id === id ? { ...item, status, ...(arrMessage ? { arr_message: arrMessage } : {}) } : item)));
     return true;
   }
 
