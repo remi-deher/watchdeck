@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.58.0 — 2026-09-28
+
+
+### test
+
+- utiliser media_type 'show' accepte par la contrainte PostgreSQL ([6d49ec6](https://github.com/remi-deher/watchdeck/commit/6d49ec6a68ccb72b5a06a379625b8fd265db328d))
+- couvrir la sauvegarde PostgreSQL et les causes de conversion légère ([418f105](https://github.com/remi-deher/watchdeck/commit/418f1050094299d36b1c7f61853b84d8373535ec))
+
+### ♻️ Refactoring
+
+- retirer APScheduler et la file de notifications en memoire ([8d95f17](https://github.com/remi-deher/watchdeck/commit/8d95f17b44c57af09890494243ab47a73776ef1b))
+- passer connexion, installation et confidentialite en Vue ([7c265ae](https://github.com/remi-deher/watchdeck/commit/7c265ae9a2c13f13c0d654d6814ab956cfb934c9))
+- PostgreSQL devient le seul moteur pris en charge ([8d0a6f8](https://github.com/remi-deher/watchdeck/commit/8d0a6f8cbaa7c823893a594ba62ad520fccae71f))
+- lot 1 de la migration vers TanStack Query ([5f25d39](https://github.com/remi-deher/watchdeck/commit/5f25d3936376817089d336c4551853922f465913))
+- lot 2 de la migration vers TanStack Query ([3fa6568](https://github.com/remi-deher/watchdeck/commit/3fa65680bf901254ac0fda391d22838b1e154f92))
+- lot 3 de la migration vers TanStack Query (VF Upgrades) ([c2fa2aa](https://github.com/remi-deher/watchdeck/commit/c2fa2aa03a3393e285d986ba9938801956c75139))
+
+### ✨ Nouveautés
+
+- ajouter UiMenu, UiTooltip, UiTimeField et UiAvatar sur Reka UI ([d574d27](https://github.com/remi-deher/watchdeck/commit/d574d27aca36e9145cf6277b85ca5507f1e7e7a5))
+- suivi des conversions légères et du conteneur ([6257c79](https://github.com/remi-deher/watchdeck/commit/6257c7988d1e8417925aefee83fa7984945c189c))
+- flux vidéo, audio et conteneur pour toutes les lectures ([595576f](https://github.com/remi-deher/watchdeck/commit/595576f15e113670aa25b53283614ec587f342bc))
+- détail de chaque piste audio, libellé « Transcode » ([7cdde04](https://github.com/remi-deher/watchdeck/commit/7cdde047bc42ac9eae91e168355d5f421c46d141))
+- explication des conversions légères ([73e7ce4](https://github.com/remi-deher/watchdeck/commit/73e7ce41c540465b1fe66f630830dd232c15b0c4))
+
+### 🐛 Corrections
+
+- installer greenlet via sqlalchemy[asyncio] ([b522ab3](https://github.com/remi-deher/watchdeck/commit/b522ab3af66e7b00d47b85385ce0a90360fb6160))
+- nommer psycopg2 pour les URL postgresql:// nues ([3d3c646](https://github.com/remi-deher/watchdeck/commit/3d3c646a60229c03708d205aa70e5559e39368cb))
+- installer greenlet via sqlalchemy[asyncio] ([81dbde7](https://github.com/remi-deher/watchdeck/commit/81dbde780a7a4aecaf443b1f18f4c586cf81dd79))
+- nommer psycopg2 pour les URL postgresql:// nues ([dff760f](https://github.com/remi-deher/watchdeck/commit/dff760f6de4f476e7532a0f3367be1ce82c0420a))
+- installer greenlet avec SQLAlchemy 2.1 (sqlalchemy[asyncio]) ([16c4019](https://github.com/remi-deher/watchdeck/commit/16c40192685762a7821f121721bf2258438c4ee1))
+- nommer psycopg2 pour les URL postgresql:// (SQLAlchemy 2.1) ([e9db17b](https://github.com/remi-deher/watchdeck/commit/e9db17bb94efcc606eaf45db6d30cc7a0cfb0d39))
+- installer greenlet avec SQLAlchemy 2.1 (sqlalchemy[asyncio]) ([7075f68](https://github.com/remi-deher/watchdeck/commit/7075f6879769494700f9c4321ec57e9267588ad1))
+- nommer psycopg2 pour les URL postgresql:// (SQLAlchemy 2.1) ([7de178c](https://github.com/remi-deher/watchdeck/commit/7de178ca2e6db912ec5fcaaaa8641de4ac27303b))
+
+### 🔧 Maintenance
+
+- bump sqlalchemy from 2.0.54 to 2.1.0 (#527) ([817b838](https://github.com/remi-deher/watchdeck/commit/817b83869450219128e28530245997074a445bc4))
+- bump vite from 8.3.0 to 8.3.1 (#529) ([a879542](https://github.com/remi-deher/watchdeck/commit/a8795423fd00e73e6461b6428d130e384563b356))
+- bump vitest from 5.0.0 to 5.0.2 (#531) ([2fc88c7](https://github.com/remi-deher/watchdeck/commit/2fc88c7498558932b63684289dfeef16e62e4f2b))
+- bump sass from 1.104.0 to 1.105.0 (#533) ([3100288](https://github.com/remi-deher/watchdeck/commit/3100288167c0f6648de2d97fdabbb4f3cc4e3628))
+- bump vue from 3.5.42 to 3.5.43 (#534) ([56a2155](https://github.com/remi-deher/watchdeck/commit/56a2155c12c664f9265dd844568d8664a2b16002))
+- bump @vue/test-utils from 2.5.0 to 2.5.1 (#530) ([0ee2049](https://github.com/remi-deher/watchdeck/commit/0ee2049fdb34c4c330ef3881b7288847a0f83f90))
+- bump uvicorn from 0.53.0 to 0.54.0 (#528) ([95512c4](https://github.com/remi-deher/watchdeck/commit/95512c415bed2d91a96665e413987e07577664ab))
 ## 1.57.0 — 2026-09-27
 
 
@@ -15,6 +60,10 @@
 ### 👷 CI/CD
 
 - ne plus annuler le build de test ni le sauter a tort ([6ffb384](https://github.com/remi-deher/watchdeck/commit/6ffb3840afe327b13fd8dec1d24899bdad6650c1))
+
+### 🔧 Maintenance
+
+- v1.57.0 (#526) ([3f68c9e](https://github.com/remi-deher/watchdeck/commit/3f68c9ea2225903999b6d7f4e5e65c6cd50700dc))
 ## 1.56.0 — 2026-09-27
 
 
