@@ -997,6 +997,127 @@ def _stream_details(
     }
 
 
+def _language(attrs: dict) -> str | None:
+    return attrs.get("language") or attrs.get("languageTag") or attrs.get("languageCode")
+
+
+def _tracks(
+    transcode_attrs: dict,
+    media_attrs: dict,
+    part_attrs: dict,
+    video_stream,
+    audio_stream,
+    video_decision: str | None,
+    audio_decision: str | None,
+    sheet: dict | None,
+) -> dict:
+    """Vidéo, audio et conteneur de la lecture, source -> sortie, quel que soit le mode.
+
+    Le suivi des conversions ne couvrait que les sessions converties. Ici, chaque lecture
+    dit ce qu'elle lit (codec, débit, résolution, canaux, langue), ce qui en est envoyé
+    au lecteur, et, pour l'audio, les langues disponibles dans le fichier. La source se
+    lit dans la fiche du média quand on l'a : pendant une conversion, la session décrit
+    la sortie.
+    """
+    sheet = sheet or {}
+    sources = {stream.get("id"): stream for stream in sheet.get("streams", [])}
+
+    def attrs(stream) -> dict:
+        return dict(stream.attrib) if stream is not None else {}
+
+    def converted(decision) -> bool:
+        return _decision(decision) == "transcode"
+
+    video = attrs(video_stream)
+    audio = attrs(audio_stream)
+    source_video = (
+        sources.get(video.get("id"))
+        or next((item for item in sheet.get("streams", []) if item.get("streamType") == "1"), None)
+        or video
+    )
+    source_audio = sources.get(audio.get("id")) or audio
+    video_converted = converted(video_decision)
+    audio_converted = converted(audio_decision)
+
+    source_container = sheet.get("container") or (
+        None if transcode_attrs else part_attrs.get("container") or media_attrs.get("container")
+    )
+    output_container = (
+        (transcode_attrs.get("container") or media_attrs.get("container")) if transcode_attrs else source_container
+    )
+    video_from = {
+        "codec": transcode_attrs.get("sourceVideoCodec") or source_video.get("codec"),
+        "width": _int(source_video.get("width")),
+        "height": _int(source_video.get("height")),
+        "bitrate_kbps": _int(source_video.get("bitrate")),
+        "profile": source_video.get("profile"),
+        "bit_depth": _int(source_video.get("bitDepth")),
+        "frame_rate": _float(source_video.get("frameRate")),
+        "dynamic_range": _dynamic_range(source_video),
+    }
+    audio_from = {
+        "codec": transcode_attrs.get("sourceAudioCodec") or source_audio.get("codec"),
+        "channels": _int(source_audio.get("channels")),
+        "bitrate_kbps": _int(source_audio.get("bitrate")),
+        "language": _language(source_audio) or _language(audio),
+        "title": source_audio.get("displayTitle") or audio.get("displayTitle"),
+    }
+    played_id = audio.get("id")
+    languages = [
+        {
+            "language": _language(item),
+            "codec": item.get("codec"),
+            "channels": _int(item.get("channels")),
+            "title": item.get("displayTitle"),
+            "played": bool(played_id) and item.get("id") == played_id,
+        }
+        for item in sheet.get("streams", [])
+        if item.get("streamType") == "2"
+    ]
+    if languages and not any(item["played"] for item in languages) and audio_from["language"]:
+        for item in languages:
+            if item["language"] == audio_from["language"] and item["codec"] == audio_from["codec"]:
+                item["played"] = True
+                break
+    return {
+        "container": {
+            "from": source_container,
+            "to": output_container,
+            "converted": bool(
+                source_container and output_container and str(source_container).lower() != str(output_container).lower()
+            ),
+            "protocol": transcode_attrs.get("protocol"),
+        },
+        "video": {
+            "decision": video_decision,
+            "from": video_from,
+            "to": {
+                "codec": transcode_attrs.get("videoCodec") or video.get("codec"),
+                "height": _int(transcode_attrs.get("height")) or _int(video.get("height")),
+                "bitrate_kbps": _int(video.get("bitrate")),
+            }
+            if video_converted
+            else video_from,
+        }
+        if video or video_from["codec"]
+        else None,
+        "audio": {
+            "decision": audio_decision,
+            "from": audio_from,
+            "to": {
+                "codec": transcode_attrs.get("audioCodec") or audio.get("codec"),
+                "channels": _int(transcode_attrs.get("audioChannels")) or _int(audio.get("channels")),
+                "bitrate_kbps": _int(audio.get("bitrate")),
+            }
+            if audio_converted
+            else audio_from,
+            "languages": languages,
+        }
+        if audio or audio_from["codec"]
+        else None,
+    }
+
+
 def _remux_label(details: dict | None) -> str | None:
     """Le changement de conteneur d'un Direct Stream, sans rien réencoder."""
     if not details:
@@ -1148,7 +1269,22 @@ def parse_plex_sessions(
                     (details["subtitles"] or {}).get("from") if details else None,
                 ),
                 "transcode_details": json.dumps(details, ensure_ascii=False) if details else None,
-                "stream_details": json.dumps(stream_details, ensure_ascii=False),
+                "stream_details": json.dumps(
+                    {
+                        **stream_details,
+                        "tracks": _tracks(
+                            transcode_attrs,
+                            media_attrs,
+                            part_attrs,
+                            video_stream,
+                            audio_stream,
+                            video_decision,
+                            audio_decision,
+                            (media_sheets or {}).get(media.get("ratingKey") or ""),
+                        ),
+                    },
+                    ensure_ascii=False,
+                ),
                 # Transcodeur en contexte « static » : un téléchargement (synchro hors
                 # ligne), pas une lecture. Gardé dans l'historique, mais signalé.
                 "is_download": str(transcode_attrs.get("context") or "").lower() == "static",
