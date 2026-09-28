@@ -324,7 +324,7 @@ def test_import_upserts_request_season_statuses(client, db_session):
                 {
                     "plex_user_id": "alice",
                     "title": "The Wire",
-                    "media_type": "tv",
+                    "media_type": "show",
                     "status": "sent_to_arr",
                     "season_statuses": [
                         {
@@ -371,7 +371,7 @@ def test_export_roundtrips_request_with_season_statuses(client, db_session):
     db_session.query(MediaRequest).delete()
     db_session.commit()
 
-    req = MediaRequest(plex_user_id="alice", title="The Wire", media_type="tv", status="sent_to_arr")
+    req = MediaRequest(plex_user_id="alice", title="The Wire", media_type="show", status="sent_to_arr")
     db_session.add(req)
     db_session.commit()
     db_session.add(RequestSeasonStatus(request_id=req.id, season_number=1, status="available"))
