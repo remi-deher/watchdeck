@@ -156,15 +156,15 @@
                   >
                     {{ ep.status === 'vf' ? 'VF' : ep.status === 'vf_secondary' ? 'VF secondaire' : ep.status === 'vo' ? 'VO' : ep.status }}
                   </span>
-                  <span v-if="ep.has_forced_fr_sub && !ep.forced_fr_sub_is_default" class="badge language-tag vf-secondary" title="Sous-titre forcé FR non activé par défaut">
+                  <UiTooltip v-if="ep.has_forced_fr_sub && !ep.forced_fr_sub_is_default" text="Sous-titre forcé FR non activé par défaut"><span class="badge language-tag vf-secondary">
                     Forcé non activé
-                  </span>
-                  <span v-if="ep.has_full_fr_sub && !ep.full_fr_sub_is_default" class="badge pending" title="Sous-titre complet FR non activé par défaut">
+                  </span></UiTooltip>
+                  <UiTooltip v-if="ep.has_full_fr_sub && !ep.full_fr_sub_is_default" text="Sous-titre complet FR non activé par défaut"><span class="badge pending">
                     ST non activé
-                  </span>
-                  <span v-if="ep.has_any_sub_track === false" class="badge danger" title="Aucune piste de sous-titre détectée">
+                  </span></UiTooltip>
+                  <UiTooltip v-if="ep.has_any_sub_track === false" text="Aucune piste de sous-titre détectée"><span class="badge danger">
                     ST absent
-                  </span>
+                  </span></UiTooltip>
                 </div>
               </div>
               <div class="audit-episode-actions">
@@ -193,6 +193,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';

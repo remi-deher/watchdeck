@@ -1,6 +1,10 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import LiveSessionsPanel from './LiveSessionsPanel.vue';
+import UiTooltip from '@/components/ui/UiTooltip.vue';
+
+// Texte de l'infobulle UiTooltip qui enveloppe l'element `selector`.
+const infobulle = (wrapper, selector) => wrapper.findAllComponents(UiTooltip).find((t) => t.find(selector).exists())?.props('text');
 
 const RouterLink = { props: ['to'], template: '<a :href="to"><slot /></a>' };
 
@@ -78,7 +82,8 @@ describe('LiveSessionsPanel — état de lecture', () => {
 
   it('signale la mise en mémoire tampon', () => {
     const wrapper = render([session({ state: 'buffering' })]);
-    expect(wrapper.get('.live-state').attributes('title')).toBe('Mise en mémoire tampon');
+    expect(infobulle(wrapper, '.live-state')).toBe('Mise en mémoire tampon');
+    expect(wrapper.get('.live-state').attributes('aria-label')).toBe('Mise en mémoire tampon');
   });
 
   it('éteint la pastille « en direct » quand tout est en pause', () => {
@@ -107,7 +112,7 @@ describe('LiveSessionsPanel — bande passante, réseau et transcodage', () => {
   it('explique la raison du transcodage en infobulle', () => {
     // Le badge dit *que* ça transcode ; l'infobulle dit *pourquoi*.
     const wrapper = render([session({ video_decision: 'transcode', audio_decision: 'copy' })]);
-    expect(wrapper.get('.playback-badge').attributes('title')).toBe('Vidéo transcodée · Audio copiée');
+    expect(infobulle(wrapper, '.playback-badge')).toBe('Vidéo transcodée · Audio copiée');
   });
 
   it('affiche la raison en vert si elle vient de Plex, en orange si elle est déduite', () => {

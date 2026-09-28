@@ -35,7 +35,7 @@
         <button v-for="row in day.rows" :key="row.key" @click="$emit('select', row.item)">
         <MediaArtwork :src="row.item.thumb_url" :alt="displayTitle(row.item)" :type="row.item.media_type" size="history"/>
         <span class="history-title">
-          <strong>{{ displayTitle(row.item) }}<em v-if="row.count > 1" class="history-group">&times;{{ row.count }}</em><em v-if="row.item.is_download" class="history-download" title="Téléchargement pour une lecture hors ligne, pas une lecture">Téléchargement</em></strong>
+          <strong>{{ displayTitle(row.item) }}<em v-if="row.count > 1" class="history-group">&times;{{ row.count }}</em><UiTooltip :focusable="false" v-if="row.item.is_download" text="Téléchargement pour une lecture hors ligne, pas une lecture"><em class="history-download">Téléchargement</em></UiTooltip></strong>
           <small>{{ row.item.user_name || 'Utilisateur Plex' }}<template v-if="row.count > 1"> &middot; {{ row.count }} lectures consécutives</template></small>
         </span>
         <span class="history-client">
@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { playbackTitle } from '@/playbackToast';
 import { computed, ref, watch } from 'vue';
 import { useIntersectionObserver } from '@vueuse/core';

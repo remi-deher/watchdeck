@@ -25,14 +25,16 @@
         <div class="live-card-body">
         <div class="live-art">
           <MediaArtwork :src="session.thumb_url" :alt="displayTitle(session)" :type="session.media_type" size="medium"/>
-          <span v-if="stateIcon(session)" class="live-state" :title="stateLabel(session)">
-            <component :is="stateIcon(session)" />
-          </span>
+          <UiTooltip :focusable="false" v-if="stateIcon(session)" :text="stateLabel(session)">
+            <span class="live-state" role="img" :aria-label="stateLabel(session)">
+              <component :is="stateIcon(session)" aria-hidden="true" />
+            </span>
+          </UiTooltip>
         </div>
 
         <div class="live-main">
           <div class="live-user">
-            <span class="live-avatar">{{ initials(session.user_name) }}</span>
+            <UiAvatar class="live-avatar" :name="session.user_name" size="sm" tone="accent" />
             <span>{{ session.user_name || 'Utilisateur Plex' }}</span>
             <component :is="deviceIcon(session)" class="live-device" :aria-label="session.player || session.platform || 'Lecteur Plex'" />
           </div>
@@ -57,9 +59,9 @@
           </span>
           <PlaybackMethodBadge :method="session.playback_method" :title="decisionDetail(session)" />
           <span v-if="session.is_download" class="live-flag">Téléchargement</span>
-          <span v-if="session.stream_details?.relayed" class="live-flag relay" title="Débit limité par le relais Plex">Relais</span>
+          <UiTooltip :focusable="false" v-if="session.stream_details?.relayed" text="Débit limité par le relais Plex"><span class="live-flag relay">Relais</span></UiTooltip>
           <span v-if="session.bandwidth_kbps" class="live-bandwidth">{{ formatBandwidth(session.bandwidth_kbps) }}</span>
-          <span v-if="hasTranscodeBuffer(session)" class="live-buffer" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }" :title="transcodeSpeedLabel(session)">Tampon {{ formatBuffer(session.transcode_buffer_ms) }}</span>
+          <UiTooltip :focusable="false" v-if="hasTranscodeBuffer(session)" :text="transcodeSpeedLabel(session)"><span class="live-buffer" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }">Tampon {{ formatBuffer(session.transcode_buffer_ms) }}</span></UiTooltip>
         </footer>
         <TranscodeReason v-if="session.transcode_reason || session.transcode_remux" class="live-reason" :reason="session.transcode_reason" :remux="session.transcode_remux" compact/>
       </article>
@@ -77,6 +79,8 @@
 </template>
 
 <script setup lang="ts">
+import UiAvatar from '@/components/ui/UiAvatar.vue';
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import TranscodeReason, { type TranscodeReasonData } from './TranscodeReason.vue';
 import { episodeLabel } from '@/utils/episode';
 import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
@@ -223,10 +227,6 @@ function addressLabel(session: LiveSession): string {
   return session.address || 'IP indisponible';
 }
 
-function initials(name?: string): string {
-  return String(name || '?').split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
-}
-
 function deviceIcon(session: LiveSession): any {
   const value = [session.platform, session.player, session.product].filter(Boolean).join(' ').toLowerCase();
   if (/iphone|android|mobile/.test(value)) return Smartphone;
@@ -284,7 +284,7 @@ function formatRemaining(session: LiveSession): string {
 .live-main{display:flex;flex-direction:column;min-width:0}
 .live-user{display:flex;align-items:center;gap: var(--space-2);min-width:0;color:color-mix(in srgb,var(--text) 76%,transparent);font-size:var(--fs-sm);font-weight:600}
 .live-user>span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.live-avatar{display:grid;flex:none;place-items:center;width:24px;height:24px;border:2px solid color-mix(in srgb,var(--surface) 80%,transparent);border-radius:50%;background:color-mix(in srgb,var(--accent) 18%,var(--surface));color:var(--accent);font-size:var(--fs-xs);font-weight:850}
+.live-avatar{border:2px solid color-mix(in srgb,var(--surface) 80%,transparent)}
 .live-device{width:15px;height:15px;margin-left:auto;color:var(--muted)}
 .live-title{display:grid;min-width:0;margin:10px 0 8px}
 .live-title strong,.live-title span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

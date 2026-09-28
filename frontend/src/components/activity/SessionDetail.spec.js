@@ -10,6 +10,10 @@ vi.mock('@/composables/useMediaOverlay', () => ({
   useOuvrirFiche: () => ({ ouvrir: () => {}, auClic: () => {} }),
 }));
 import SessionDetail from './SessionDetail.vue';
+import UiTooltip from '@/components/ui/UiTooltip.vue';
+
+// Texte de l'infobulle UiTooltip qui enveloppe l'element `selector`.
+const infobulle = (wrapper, selector) => wrapper.findAllComponents(UiTooltip).find((t) => t.find(selector).exists())?.props('text');
 
 function factory(session) {
   return mount(SessionDetail, {
@@ -164,7 +168,7 @@ describe('SessionDetail - fiche de l’œuvre et conversion', () => {
     const row = factory({ ...flibustiers, transcode_details: details }).findAll('.conversion-flow')[0];
     expect(row.text()).toContain('MKV → MP4');
     expect(row.get('.pill').text()).toBe('Changé · diffusion en segments');
-    expect(row.get('.pill').attributes('title')).toBe('Protocole DASH');
+    expect(infobulle(row, '.pill')).toBe('Protocole DASH');
     expect(row.get('.pill').classes()).toContain('remuxed');
   });
 

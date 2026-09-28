@@ -47,9 +47,11 @@
           <!-- Toutes les taches a heure murale n'ont pas de minute reglable : la purge des
                journaux se declenche a l'heure pile. Sans ce repli, `form[undefined]`
                laissait le champ horaire entierement vide. -->
-          <TimeOfDayInput
+          <UiTimeField
             :hour="form[task.settings_field] ?? 0"
             :minute="task.settings_minute_field ? (form[task.settings_minute_field] ?? 0) : 0"
+            :with-minutes="!!task.settings_minute_field"
+            aria-label="Heure de déclenchement"
             @update:hour="form[task.settings_field] = $event"
             @update:minute="task.settings_minute_field && (form[task.settings_minute_field] = $event)"
           />
@@ -86,7 +88,7 @@ import { form } from '@/settingsForm';
 import { presetsFor } from '@/settingsPresets';
 import SettingsCard from './SettingsCard.vue';
 import IntervalPresetInput from './IntervalPresetInput.vue';
-import TimeOfDayInput from './TimeOfDayInput.vue';
+import UiTimeField from '@/components/ui/UiTimeField.vue';
 import RetentionDaysInput from './RetentionDaysInput.vue';
 
 // Presets par tache : chaque job periodique a ses propres frequences pertinentes

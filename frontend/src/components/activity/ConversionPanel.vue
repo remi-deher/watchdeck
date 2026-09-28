@@ -12,7 +12,7 @@
           <p v-if="reason?.note" class="verdict-note">{{ reason.note }}</p>
           <div class="verdict-badges">
             <span v-if="verdict.source === 'plex'" class="pill plex">Décision de Plex<template v-if="reason?.code"> · code {{ reason.code }}</template></span>
-            <span v-else class="pill deduced" title="Journaux de débogage de Plex indisponibles : cause déduite du flux">Déduit du flux</span>
+            <UiTooltip v-else text="Journaux de débogage de Plex indisponibles : cause déduite du flux"><span class="pill deduced">Déduit du flux</span></UiTooltip>
             <span v-if="verdict.source === 'plex' && reason?.text" class="pill quote" :title="reason.text">« {{ reason.text }} »</span>
           </div>
         </div>
@@ -22,7 +22,7 @@
         <div v-for="flow in flows" :key="flow.label" class="conversion-flow">
           <span class="flow-label">{{ flow.label }}</span>
           <strong>{{ flow.value }}</strong>
-          <span class="pill" :class="flow.tone" :title="flow.hint">{{ flow.treatment }}</span>
+          <UiTooltip :text="flow.hint"><span class="pill" :class="flow.tone">{{ flow.treatment }}</span></UiTooltip>
         </div>
       </div>
 
@@ -44,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { computed } from 'vue';
 import { ArrowLeftRight } from '@lucide/vue';
 import { codecLabel, conversionVerdict } from '@/utils/conversionVerdict';
