@@ -1684,3 +1684,48 @@ def test_parse_sessions_describes_video_audio_and_container_for_every_mode():
     assert converted_tracks["audio"]["from"]["codec"] == "truehd"
     assert converted_tracks["audio"]["to"] == {"codec": "aac", "channels": 2, "bitrate_kbps": 256}
     assert converted_tracks["video"]["decision"] == "copy"
+
+
+def test_direct_stream_reason_covers_every_cause():
+    """Chaque cause de conversion légère, de la décision de Plex au cas indéterminé."""
+    import json
+
+    from app.services.playback_activity import _direct_stream_reason
+
+    def row(**kwargs):
+        return PlaybackSession(source_session_id="s", title="t", playback_method="direct_stream", **kwargs)
+
+    assert _direct_stream_reason(row(plex_decision_text="Direct play not available")) == "Direct play not available"
+    assert _direct_stream_reason(row(subtitle_decision="transcode")) == "Sous-titres"
+    details = json.dumps({"protocol": "hls", "container": {"from": "mp4", "to": "mp4"}})
+    assert _direct_stream_reason(row(transcode_details=details)) == "Diffusion en segments HLS"
+    assert _direct_stream_reason(row(video_decision="copy")) == "Flux recopiés"
+    assert _direct_stream_reason(row()) == "Non déterminée"
+
+
+def test_parse_sessions_marks_played_audio_by_language_when_ids_differ():
+    """Sans identifiant commun, la piste écoutée se retrouve par langue et codec."""
+    sheets = {
+        "7": {
+            "container": "mkv",
+            "streams": [
+                {"id": "20", "streamType": "2", "codec": "aac", "language": "English"},
+                {"id": "21", "streamType": "2", "codec": "ac3", "language": "Français"},
+            ],
+        }
+    }
+    xml = """
+<MediaContainer size="1">
+  <Video sessionKey="1" ratingKey="7" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv">
+      <Part container="mkv" decision="directplay">
+        <Stream id="99" streamType="2" selected="1" decision="directplay" codec="ac3" language="Français" />
+      </Part>
+    </Media>
+    <Session id="s" />
+  </Video>
+</MediaContainer>
+"""
+    [session] = parse_plex_sessions(xml, media_sheets=sheets)
+    languages = json.loads(session["stream_details"])["tracks"]["audio"]["languages"]
+    assert [(item["language"], item["played"]) for item in languages] == [("English", False), ("Français", True)]
