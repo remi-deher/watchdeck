@@ -77,14 +77,14 @@ describe('DashboardView supervision', () => {
     expect(streamEventsMock.mock.calls[0][0]).toContain('counts');
     expect(streamEventsMock.mock.calls[0][0]).not.toContain('top_requested');
     expect(apiMock).not.toHaveBeenCalledWith('/api/health');
-    expect(apiMock).not.toHaveBeenCalledWith('/api/disk-space');
+    expect(apiMock).not.toHaveBeenCalledWith('/api/disk-space', expect.anything());
 
     await supervision.get('.ui-disclosure-trigger').trigger('click');
     await flushPromises();
 
     expect(localStorage.getItem('watchdeck:dashboard.supervisionOpen')).toBe('true');
     expect(apiMock).toHaveBeenCalledWith('/api/health');
-    expect(apiMock).toHaveBeenCalledWith('/api/disk-space');
+    expect(apiMock).toHaveBeenCalledWith('/api/disk-space', expect.anything());
     expect(apiMock).toHaveBeenCalledWith(
       '/api/dashboard/snapshot?sections=top_requested,by_user,notifications',
     );

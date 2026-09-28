@@ -98,7 +98,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import HealthGrid from '@/components/HealthGrid.vue';
@@ -124,6 +125,8 @@ import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { queueCounts } from '@/downloads/queueRules';
 import { usePreference } from '@/composables/usePreference';
+import { queryKeys } from '@/queryKeys';
+import { arrQueueQuery, diskSpaceQuery, playbackLiveQuery, vffCountsQuery, vffScanStatusQuery, vffSyncStatusQuery } from '@/sharedQueries';
 
 const SNAPSHOT_CACHE_KEY = 'dashboard:snapshot';
 const PRIMARY_SECTIONS = [
@@ -150,14 +153,24 @@ const nextPoll = ref<Record<string, any>>({});
 const loading = ref(false);
 const error = ref('');
 const seconds = ref<number | null>(null);
-const diskSpace = ref<any[]>([]);
 const topRequested = ref<any[]>([]);
 const recentlyAvailable = ref<any[]>([]);
 const recentRequests = ref<any[]>([]);
 const upcoming = ref<any[]>([]);
 const recentNotifs = ref<any[]>([]);
-const downloadQueue = ref<any[]>([]);
-const liveActivity = ref<Record<string, any>>({ active: [] });
+const supervisionLoaded = ref(false);
+const supervisionLoading = ref(false);
+/* File Arr, lectures en cours, espace disque et statuts VFF : memes cles que les pages
+   Telechargements, Activite et Reglages, donc un seul cache pour tous. Le snapshot, lui,
+   arrive section par section par son flux (voir `load`). */
+const queryClient = useQueryClient();
+const downloadQueueQuery = useQuery({ ...arrQueueQuery(), select: (data: any) => (Array.isArray(data) ? data : []) });
+const downloadQueue = computed<any[]>(() => downloadQueueQuery.data.value || []);
+const liveActivityQuery = useQuery(playbackLiveQuery());
+const liveActivity = computed<Record<string, any>>(() => liveActivityQuery.data.value || { active: [] });
+const diskSpaceQueryState = useQuery({ ...diskSpaceQuery(), enabled: supervisionLoaded });
+const diskSpace = computed<any[]>(() => diskSpaceQueryState.data.value || []);
+watch(diskSpaceQueryState.error, (e: any) => { if (e) error.value = e.message; });
 const route = useRoute();
 const router = useRouter();
 /* La fiche d'une lecture s'ouvre dans la feuille, avec sa propre adresse. */
@@ -166,16 +179,19 @@ function openSession(item: any): void {
   const ids = (liveActivity.value.active || []).map((row: any) => row.id).filter((id: any) => id != null);
   ouvrirFiche(router, `/activity/session/${item.id}`, route.fullPath, etatDeVoisins(ids));
 }
-const loadingQueue = ref(false);
+const loadingQueue = computed(() => downloadQueueQuery.isFetching.value);
 const updatedAt = ref<number | null>(null);
 const clock = ref(Date.now());
-const vffScan = ref<Record<string, any>>({ status: 'idle', items_scanned: 0, total_items: 0, finished_at: null });
-const plexSync = ref<Record<string, any>>({ status: 'idle', items_synced: 0, total_items: 0, finished_at: null });
+const vffScanQuery = useQuery(vffScanStatusQuery());
+const plexSyncQuery = useQuery(vffSyncStatusQuery());
+const vffCountsQueryState = useQuery(vffCountsQuery());
+/* Statut illisible (`{}`) : l'etat de repos, comme avant la premiere reponse. */
+const orIdle = (data: Record<string, any> | undefined, idle: Record<string, any>) => (data && Object.keys(data).length ? data : idle);
+const vffScan = computed(() => orIdle(vffScanQuery.data.value, { status: 'idle', items_scanned: 0, total_items: 0, finished_at: null }));
+const plexSync = computed(() => orIdle(plexSyncQuery.data.value, { status: 'idle', items_synced: 0, total_items: 0, finished_at: null }));
 const arrSync = ref<Record<string, any>>({ status: 'idle', finished_at: null });
 const watchlistSync = ref<Record<string, any>>({ status: 'idle', finished_at: null });
-const vffCounts = ref<Record<string, any>>({});
-const supervisionLoaded = ref(false);
-const supervisionLoading = ref(false);
+const vffCounts = computed<Record<string, any>>(() => vffCountsQueryState.data.value || {});
 
 const onboardingHidden = usePreference('onboarding.hidden', false, { legacyKeys: ['hide_onboarding'] });
 const showOnboarding = computed(() => !onboardingHidden.value);
@@ -196,31 +212,14 @@ const queueTotals = computed(() => queueCounts(downloadQueue.value));
 
 const countdown = computed(() => seconds.value == null ? '-' : seconds.value < 60 ? `${seconds.value}s` : `${Math.floor(seconds.value / 60)} min`);
 
-async function loadDownloadQueue(): Promise<void> {
-  loadingQueue.value = true;
-  try {
-    const data = await api('/api/arr/queue');
-    downloadQueue.value = Array.isArray(data) ? data : [];
-  } finally {
-    loadingQueue.value = false;
-  }
+/* `cancelRefetch: false` : une lecture deja en vol (celle du montage) est reprise
+   plutot qu'annulee puis relancee. */
+function refresh(queryKey: readonly unknown[]): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
 }
-
-async function loadLiveActivity(): Promise<void> {
-  const value = await api('/api/playback/live');
-  liveActivity.value = value;
-}
-
-async function loadVffStatus(): Promise<void> {
-  const [scanData, syncData, countsData] = await Promise.all([
-    api('/api/vff/scan-status').catch(() => null),
-    api('/api/vff/sync-status').catch(() => null),
-    api('/api/vff/counts').catch(() => null),
-  ]);
-  if (scanData) vffScan.value = scanData;
-  if (syncData) plexSync.value = syncData;
-  if (countsData) vffCounts.value = countsData;
-}
+const loadDownloadQueue = () => refresh(queryKeys.downloads.arrQueue);
+const loadLiveActivity = () => refresh(queryKeys.playback.live);
+const loadVffStatus = () => refresh(queryKeys.vff.all);
 
 /**
  * Progression poussee par le backend (voir app/services/vff_progress.py). Le payload
@@ -230,9 +229,9 @@ async function loadVffStatus(): Promise<void> {
 function applyVffEvent(detail: any): void {
   const payload = detail?.payload;
   if (!payload) return;
-  if (payload.scan) vffScan.value = payload.scan;
-  if (payload.sync) plexSync.value = payload.sync;
-  if (payload.counts) vffCounts.value = payload.counts;
+  if (payload.scan) queryClient.setQueryData(queryKeys.vff.scanStatus, payload.scan);
+  if (payload.sync) queryClient.setQueryData(queryKeys.vff.syncStatus, payload.sync);
+  if (payload.counts) queryClient.setQueryData(queryKeys.vff.counts, payload.counts);
 }
 
 async function triggerVffScan(): Promise<void> {
@@ -322,10 +321,8 @@ async function loadSupervision(): Promise<void> {
   supervisionLoaded.value = true;
   supervisionLoading.value = true;
   try {
-    await Promise.all([
-      loadDashboardSections(SUPERVISION_SECTIONS),
-      api('/api/disk-space').then(value => { diskSpace.value = value; }),
-    ]);
+    // L'espace disque suit `supervisionLoaded` (sa requete s'active avec lui).
+    await loadDashboardSections(SUPERVISION_SECTIONS);
   } catch (e: any) {
     error.value = e.message;
   } finally {
@@ -333,6 +330,7 @@ async function loadSupervision(): Promise<void> {
   }
 }
 
+let loadedOnce = false;
 async function load(): Promise<void> {
   if (loading.value) return;
   loading.value = true;
@@ -369,9 +367,14 @@ async function load(): Promise<void> {
     }
   }
   // Les donnees externes completent la vue au fil de l'eau et ne retardent jamais le
-  // premier affichage du snapshot local.
-  loadDownloadQueue().catch(() => {});
-  loadLiveActivity().catch(() => {});
+  // premier affichage du snapshot local. Au premier chargement, leurs requetes viennent
+  // d'etre lancees par le montage : inutile de les relire.
+  if (loadedOnce) {
+    loadDownloadQueue().catch(() => {});
+    loadLiveActivity().catch(() => {});
+    loadVffStatus().catch(() => {});
+  }
+  loadedOnce = true;
   updatedAt.value = Date.now();
   error.value = failures.length ? `Données indisponibles : ${failures.join(', ')}.` : '';
   loading.value = false;
@@ -439,6 +442,5 @@ useIntervalFn(() => {
 onMounted(async () => {
   primeFromCache();
   await load();
-  await loadVffStatus();
 });
 </script>
