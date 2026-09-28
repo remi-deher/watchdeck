@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -500,6 +501,52 @@ def test_analytics_computes_completion_quality_and_user_trends():
     assert analytics["users"][0]["favorite_title"] == "Foundation"
 
 
+def test_analytics_tracks_direct_stream_and_containers():
+    """La conversion légère a son suivi, comme le transcodage : causes, conteneurs, appareils."""
+    import json
+    from datetime import datetime, timedelta
+
+    started = datetime(2026, 7, 20, 20, 0)
+
+    def row(index, method, details=None, container="mkv", subtitle_decision=None):
+        return PlaybackSession(
+            source_session_id=f"session-{index}",
+            title=f"Film {index}",
+            media_type="movie",
+            user_name="Rémi",
+            player_title="Chromecast",
+            playback_method=method,
+            subtitle_decision=subtitle_decision,
+            container=container,
+            transcode_details=json.dumps(details) if details else None,
+            duration_ms=3_600_000,
+            watched_ms=3_000_000,
+            started_at=started + timedelta(hours=index),
+            ended_at=started + timedelta(hours=index + 1),
+            last_seen_at=started + timedelta(hours=index + 1),
+        )
+
+    rows = [
+        row(0, "direct_stream", {"protocol": "dash", "container": {"from": "mkv", "to": "mp4"}}),
+        row(1, "direct_stream", {"protocol": "hls", "container": {"from": "mp4", "to": "mp4"}}),
+        row(2, "direct_stream", {"container": {"from": "mkv", "to": "mkv"}}, subtitle_decision="transcode"),
+        row(3, "direct_play", None, container="mkv"),
+    ]
+
+    quality = _analytics(rows, [])["quality"]
+
+    assert quality["direct_stream_reasons"] == [
+        {"label": "Conteneur MKV → MP4", "count": 1},
+        {"label": "Diffusion en segments HLS", "count": 1},
+        {"label": "Sous-titres", "count": 1},
+    ]
+    assert quality["containers"] == [
+        {"label": "MKV", "count": 3, "converted": 1},
+        {"label": "MP4", "count": 1, "converted": 0},
+    ]
+    assert quality["devices"][0]["direct_streams"] == 3
+
+
 def test_activity_endpoint_returns_snapshot(client):
     payload = {"active": [], "history": [], "summary": {"sessions": 0}, "daily": [], "users": []}
     with patch("app.routers.activity_api.activity_snapshot", new=AsyncMock(return_value=payload)):
@@ -535,6 +582,8 @@ def test_statistics_builds_and_uses_daily_aggregates(client, async_db):
         "users": 1,
         "transcodes": 1,
         "transcode_rate": 100.0,
+        "direct_streams": 0,
+        "direct_stream_rate": 0,
     }
     aggregate = async_db.query(PlaybackDailyAggregate).one()
     assert aggregate.media_label == "Film agrégé"
@@ -1560,3 +1609,78 @@ def test_playback_thumb_is_resized_when_the_view_asks(client):
     sized, original = proxy.await_args_list
     assert (sized.kwargs["width"], sized.kwargs["image_format"]) == (312, "webp")
     assert (original.kwargs["width"], original.kwargs["image_format"]) == (None, "original")
+
+
+def test_parse_sessions_describes_video_audio_and_container_for_every_mode():
+    """Chaque lecture, même directe, dit ses flux : codec, débit, langues, conversion."""
+    sheets = {
+        "5001": {
+            "container": "mkv",
+            "streams": [
+                {"id": "1", "streamType": "1", "codec": "h264", "height": "1080", "width": "1920", "bitrate": "8000"},
+                {
+                    "id": "2",
+                    "streamType": "2",
+                    "codec": "ac3",
+                    "channels": "6",
+                    "bitrate": "640",
+                    "language": "Français",
+                },
+                {
+                    "id": "3",
+                    "streamType": "2",
+                    "codec": "dca",
+                    "channels": "6",
+                    "bitrate": "1509",
+                    "language": "English",
+                },
+            ],
+        },
+        "5002": {
+            "container": "mkv",
+            "streams": [
+                {"id": "4", "streamType": "1", "codec": "hevc", "height": "2160", "bitrate": "40000"},
+                {"id": "5", "streamType": "2", "codec": "truehd", "channels": "8", "language": "English"},
+            ],
+        },
+    }
+    xml = """
+<MediaContainer size="2">
+  <Video sessionKey="11" ratingKey="5001" title="Lecture directe" type="movie" viewOffset="0" duration="5400000">
+    <Media container="mkv">
+      <Part container="mkv" decision="directplay">
+        <Stream id="1" streamType="1" selected="1" decision="directplay" codec="h264" />
+        <Stream id="2" streamType="2" selected="1" decision="directplay" codec="ac3" />
+      </Part>
+    </Media>
+    <Session id="direct" />
+  </Video>
+  <Video sessionKey="12" ratingKey="5002" title="Audio converti" type="movie" viewOffset="0" duration="4800000">
+    <Media container="mkv">
+      <Part container="mkv" decision="transcode">
+        <Stream id="4" streamType="1" selected="1" decision="copy" codec="hevc" />
+        <Stream id="5" streamType="2" selected="1" decision="transcode" codec="aac" channels="2" bitrate="256" />
+      </Part>
+    </Media>
+    <Session id="converted" />
+    <TranscodeSession key="/transcode/sessions/abc" videoDecision="copy" audioDecision="transcode"
+                      sourceAudioCodec="truehd" audioCodec="aac" audioChannels="2" container="mkv" protocol="http" />
+  </Video>
+</MediaContainer>
+"""
+
+    direct, converted = parse_plex_sessions(xml, media_sheets=sheets)
+    direct_tracks = json.loads(direct["stream_details"])["tracks"]
+    converted_tracks = json.loads(converted["stream_details"])["tracks"]
+
+    assert direct_tracks["container"] == {"from": "mkv", "to": "mkv", "converted": False, "protocol": None}
+    assert direct_tracks["video"]["from"]["bitrate_kbps"] == 8000
+    assert direct_tracks["video"]["to"] == direct_tracks["video"]["from"]
+    assert [(item["language"], item["played"]) for item in direct_tracks["audio"]["languages"]] == [
+        ("Français", True),
+        ("English", False),
+    ]
+    assert direct_tracks["audio"]["languages"][1]["bitrate_kbps"] == 1509
+    assert converted_tracks["audio"]["from"]["codec"] == "truehd"
+    assert converted_tracks["audio"]["to"] == {"codec": "aac", "channels": 2, "bitrate_kbps": 256}
+    assert converted_tracks["video"]["decision"] == "copy"

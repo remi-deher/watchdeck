@@ -63,6 +63,7 @@
           <span v-if="session.bandwidth_kbps" class="live-bandwidth">{{ formatBandwidth(session.bandwidth_kbps) }}</span>
           <UiTooltip :focusable="false" v-if="hasTranscodeBuffer(session)" :text="transcodeSpeedLabel(session)"><span class="live-buffer" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }">Tampon {{ formatBuffer(session.transcode_buffer_ms) }}</span></UiTooltip>
         </footer>
+        <p v-if="streamTracksSummary(session)" class="live-tracks">{{ streamTracksSummary(session) }}</p>
         <TranscodeReason v-if="session.transcode_reason || session.transcode_remux" class="live-reason" :reason="session.transcode_reason" :remux="session.transcode_remux" compact/>
       </article>
     </div>
@@ -83,6 +84,7 @@ import UiAvatar from '@/components/ui/UiAvatar.vue';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import TranscodeReason, { type TranscodeReasonData } from './TranscodeReason.vue';
 import { episodeLabel } from '@/utils/episode';
+import { streamTracksSummary } from '@/utils/streamTracks';
 import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref, watch } from 'vue';
@@ -183,6 +185,8 @@ const summary = computed(() => {
   if (bandwidth) parts.push(formatBandwidth(bandwidth));
   const transcodes = props.sessions.filter(session => session.playback_method === 'transcode').length;
   if (transcodes) parts.push(`${transcodes} transcodage${transcodes > 1 ? 's' : ''}`);
+  const light = props.sessions.filter(session => session.playback_method === 'direct_stream').length;
+  if (light) parts.push(`${light} conversion${light > 1 ? 's' : ''} légère${light > 1 ? 's' : ''}`);
   return parts.join(' · ');
 });
 
@@ -297,6 +301,7 @@ function formatRemaining(session: LiveSession): string {
 
 .live-flag{padding:2px 7px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--muted) 14%,transparent);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
 .live-flag.relay{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
+.live-tracks{margin:0;padding:6px 14px;border-top:1px solid var(--border-subtle);background:var(--surface);color:var(--muted);font-size:var(--fs-xs);overflow-wrap:anywhere}
 .live-reason{padding:6px 14px 9px;border-top:1px solid var(--border-subtle);background:var(--surface)}
 .live-footer{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap: var(--space-2);align-items:center;padding:9px 14px;border-top:1px solid var(--border-subtle);background:var(--surface)}
 .live-location{display:flex;align-items:center;gap: var(--space-1);min-width:0;overflow:hidden;color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.live-location svg{flex:none;width:13px;height:13px;color:var(--muted)}

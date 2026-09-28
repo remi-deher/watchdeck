@@ -112,6 +112,8 @@
       </div>
     </section>
 
+    <StreamTracksPanel :session="session"/>
+
     <ConversionPanel :session="session"/>
 
     <SessionFacts :session="session"/>
@@ -121,6 +123,7 @@
 <script setup lang="ts">
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import ConversionPanel from './ConversionPanel.vue';
+import StreamTracksPanel from './StreamTracksPanel.vue';
 import SessionFacts from './SessionFacts.vue';
 import TerminatePlaybackModal from './TerminatePlaybackModal.vue';
 import { episodeLabel } from '@/utils/episode';
