@@ -31,8 +31,12 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     url = os.environ.get("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    # SQLAlchemy 2.1 associe `postgresql://` a psycopg 3, absent de l'image : le pilote
+    # synchrone installe (psycopg2) est donc nomme explicitement.
     if url.startswith("postgresql+asyncpg://"):
         url = url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
     elif url.startswith("sqlite+aiosqlite://"):
         url = url.replace("sqlite+aiosqlite://", "sqlite://", 1)
     engine = create_engine(url, poolclass=pool.NullPool)
