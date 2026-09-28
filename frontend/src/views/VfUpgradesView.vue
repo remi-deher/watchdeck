@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { RotateCcw, ScanSearch, Settings, SlidersHorizontal } from '@lucide/vue';
 import { useRealtime } from '@/events';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
@@ -351,10 +351,6 @@ useRealtime(['vf_upgrade.updated'], (_type, detail) => {
   }
 });
 
-onMounted(() => {
-  load();
-  loadAudit();
-});
 </script>
 
 <style scoped lang="scss">

@@ -1,114 +1,100 @@
-import { onScopeDispose, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { humanizeError } from '@/utils/apiError';
 import type { LiveScan, Notify, ScanRun, ScanRunItem } from './types';
 
 const POLL_MS = 3000;
+const RUNS_KEY = ['vf-upgrades', 'scan-runs'] as const;
+const LIVE_SCAN_KEY = ['vf-upgrades', 'scan-status'] as const;
+const runItemsKey = (runId: number | null) => ['vf-upgrades', 'scan-runs', runId, 'items'] as const;
+
+interface RunItemsResponse { items?: ScanRunItem[]; run?: ScanRun }
 
 /**
  * Historique des cycles de scan, et suivi en direct du cycle en cours.
  *
- * Deux sondages, actifs seulement quand ils servent : l'etat du cycle en cours tant
- * que l'onglet est affiche, et le detail d'un cycle deplie tant qu'il tourne. Tous
- * deux s'arretent au demontage.
+ * Deux sondages (`refetchInterval`), actifs seulement quand ils servent : l'etat du
+ * cycle en cours tant que l'onglet est affiche, et le detail d'un cycle deplie tant
+ * qu'il tourne. Ils s'arretent quand l'onglet est quitte, et avec le composant.
  */
 export function useVfScanHistory(notify: Notify) {
-  const runs = ref<ScanRun[]>([]);
-  const loading = ref(false);
-  const liveScan = ref<LiveScan | null>(null);
+  const queryClient = useQueryClient();
+  const active = ref(false);
   const expandedRunId = ref<number | null>(null);
-  const runItems = ref<ScanRunItem[]>([]);
-  const runItemsLoading = ref(false);
-  let livePollTimer: ReturnType<typeof setInterval> | null = null;
-  let itemsPollTimer: ReturnType<typeof setInterval> | null = null;
+
+  const runsQuery = useQuery({
+    queryKey: RUNS_KEY,
+    queryFn: ({ signal }) => api<{ runs?: ScanRun[] }>('/api/vf-upgrades/scan-runs?limit=20', { signal }),
+    enabled: active,
+  });
+  watch(runsQuery.error, (e) => { if (e) notify(humanizeError(e), 'error'); });
+  const runs = computed<ScanRun[]>(() => runsQuery.data.value?.runs || []);
+  const loading = computed(() => runsQuery.isFetching.value);
+
+  // Silencieux : un echec ponctuel ne doit pas interrompre l'affichage.
+  const liveScanQuery = useQuery({
+    queryKey: LIVE_SCAN_KEY,
+    queryFn: ({ signal }) => api<LiveScan>('/api/vf-upgrades/scan-status', { signal }),
+    enabled: active,
+    refetchInterval: POLL_MS,
+    retry: 0,
+  });
+  const liveScan = computed<LiveScan | null>(() => liveScanQuery.data.value ?? null);
+  // Le cycle vient de se terminer : rafraichit la liste pour faire apparaitre sa ligne.
+  watch(() => liveScan.value?.status, (status, previous) => {
+    if (previous === 'running' && status !== 'running') void loadRuns();
+  });
+
+  function runItemsOptions(runId: number) {
+    return {
+      queryKey: runItemsKey(runId),
+      queryFn: ({ signal }: { signal: AbortSignal }) => api<RunItemsResponse>(`/api/vf-upgrades/scan-runs/${runId}/items`, { signal }),
+      retry: 0,
+    };
+  }
+  const runItemsQuery = useQuery({
+    queryKey: computed(() => runItemsKey(expandedRunId.value)),
+    queryFn: ({ signal }) => api<RunItemsResponse>(`/api/vf-upgrades/scan-runs/${expandedRunId.value}/items`, { signal }),
+    enabled: computed(() => expandedRunId.value != null),
+    // Le detail d'un cycle en cours se relit jusqu'a sa fin.
+    refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? POLL_MS : false),
+    retry: 0,
+  });
+  const runItems = computed<ScanRunItem[]>(() => (expandedRunId.value == null ? [] : runItemsQuery.data.value?.items || []));
+  const runItemsLoading = computed(() => runItemsQuery.isPending.value && runItemsQuery.isFetching.value);
+  // Le cycle deplie vient de se terminer : sa ligne de l'historique change aussi.
+  watch(() => runItemsQuery.data.value?.run?.status, (status, previous) => {
+    if (previous === 'running' && status && status !== 'running') void loadRuns();
+  });
 
   async function loadRuns(): Promise<void> {
-    loading.value = true;
-    try {
-      const data = await api<{ runs?: ScanRun[] }>('/api/vf-upgrades/scan-runs?limit=20');
-      runs.value = data.runs || [];
-    } catch (e) {
-      notify(humanizeError(e), 'error');
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function loadRunItems(runId: number, { silent = false }: { silent?: boolean } = {}): Promise<ScanRun | null> {
-    if (!silent) runItemsLoading.value = true;
-    try {
-      const data = await api<{ items?: ScanRunItem[]; run?: ScanRun }>(`/api/vf-upgrades/scan-runs/${runId}/items`);
-      runItems.value = data.items || [];
-      return data.run || null;
-    } catch (e) {
-      if (!silent) notify(humanizeError(e), 'error');
-      return null;
-    } finally {
-      runItemsLoading.value = false;
-    }
-  }
-
-  function stopItemsPolling(): void {
-    if (itemsPollTimer) clearInterval(itemsPollTimer);
-    itemsPollTimer = null;
+    await runsQuery.refetch();
   }
 
   async function toggleRun(run: ScanRun): Promise<void> {
-    stopItemsPolling();
     if (expandedRunId.value === run.id) {
       expandedRunId.value = null;
-      runItems.value = [];
       return;
     }
     expandedRunId.value = run.id;
-    runItems.value = [];
-    await loadRunItems(run.id);
-    if (run.status === 'running') {
-      itemsPollTimer = setInterval(async () => {
-        const state = await loadRunItems(run.id, { silent: true });
-        if (state && state.status !== 'running') {
-          stopItemsPolling();
-          await loadRuns();
-        }
-      }, POLL_MS);
-    }
-  }
-
-  async function pollLiveScan(): Promise<void> {
     try {
-      liveScan.value = await api<LiveScan>('/api/vf-upgrades/scan-status');
-      // Le cycle vient de se terminer : rafraichit la liste pour faire apparaitre sa ligne.
-      if (liveScan.value?.status !== 'running') await loadRuns();
-    } catch {
-      // Silencieux : un echec ponctuel ne doit pas interrompre l'affichage.
+      await queryClient.ensureQueryData(runItemsOptions(run.id));
+    } catch (e) {
+      notify(humanizeError(e), 'error');
     }
   }
 
-  function startLivePolling(): void {
-    if (livePollTimer) return;
-    void pollLiveScan();
-    livePollTimer = setInterval(pollLiveScan, POLL_MS);
-  }
-
-  function stopLivePolling(): void {
-    if (livePollTimer) clearInterval(livePollTimer);
-    livePollTimer = null;
-  }
-
-  /** Onglet ouvert : charge l'historique une fois et suit le cycle en cours. */
+  /** Onglet ouvert : charge l'historique et suit le cycle en cours. */
   function activate(): void {
-    if (!runs.value.length) void loadRuns();
-    startLivePolling();
+    active.value = true;
   }
 
   /** Onglet quitte : plus aucun sondage, detail replie. */
   function deactivate(): void {
-    stopLivePolling();
-    stopItemsPolling();
+    active.value = false;
     expandedRunId.value = null;
   }
-
-  onScopeDispose(deactivate);
 
   return { runs, loading, liveScan, expandedRunId, runItems, runItemsLoading, loadRuns, toggleRun, activate, deactivate };
 }
