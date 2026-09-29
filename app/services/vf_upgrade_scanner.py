@@ -53,6 +53,7 @@ from .release_matching import (
     french_release_evidence,
     release_identity_mismatch,
     release_is_french,
+    release_is_subtitle_only,
     release_matches_target,
 )
 from .vf_technical_guard import annotate, current_file_profile
@@ -859,6 +860,7 @@ async def _search_task(
         "identity": 0,
         "target": 0,
         "not_fr": 0,
+        "subs": 0,
         "marker": 0,
         "vfq": 0,
         "confidence": 0,
@@ -884,6 +886,11 @@ async def _search_task(
             continue
         if not release_is_french(release):
             _rej["not_fr"] += 1
+            continue
+        # VOSTFR / MULTiSUBS : le francais n'y est qu'en sous-titres (voir
+        # release_is_subtitle_only), meme si un "MULTI" ou une langue declaree dit le contraire.
+        if release_is_subtitle_only(release):
+            _rej["subs"] += 1
             continue
         enriched = {**release, **french_release_evidence(release)}
         title = rel_title.lower()
@@ -935,7 +942,7 @@ async def _search_task(
 
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(
-            "VF search '%s' : %d/%d retenus — rejets: identite=%d cible=%d non_fr=%d marker=%d vfq=%d "
+            "VF search '%s' : %d/%d retenus — rejets: identite=%d cible=%d non_fr=%d soustitres=%d marker=%d vfq=%d "
             "conf=%d seed=%d taille=%d technique=%d",
             task.title,
             len(matched),
@@ -943,6 +950,7 @@ async def _search_task(
             _rej["identity"],
             _rej["target"],
             _rej["not_fr"],
+            _rej["subs"],
             _rej["marker"],
             _rej["vfq"],
             _rej["confidence"],
@@ -952,12 +960,13 @@ async def _search_task(
         )
     elif not matched and releases:
         logger.info(
-            "VF search '%s' : 0/%d retenus (identite=%d, non_fr=%d, marker=%d, vfq=%d, cible=%d, seed=%d, "
+            "VF search '%s' : 0/%d retenus (identite=%d, non_fr=%d, soustitres=%d, marker=%d, vfq=%d, cible=%d, seed=%d, "
             "taille=%d, technique=%d)",
             task.title,
             len(releases),
             _rej["identity"],
             _rej["not_fr"],
+            _rej["subs"],
             _rej["marker"],
             _rej["vfq"],
             _rej["target"],
