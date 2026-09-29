@@ -1,36 +1,31 @@
 <template>
-  <section class="drawer-section">
-    <div v-if="admin" class="add-requester-row">
-      <span class="add-requester-label">Co-demandeur</span>
-      <div class="inline-row compact">
-        <UiSelect :model-value="newRequesterId" :disabled="!addableUsers.length" @update:model-value="$emit('update:newRequesterId', $event)" :options="[{ value: '', label: String(addableUsers.length ? 'Sélectionnez un utilisateur' : 'Tous les utilisateurs sont déjà demandeurs') }, ...(addableUsers).map((u) => ({ value: u.plex_user_id, label: String(u.custom_name || u.display_name || u.plex_user_id) }))]" />
-        <UiButton variant="primary" size="sm" :disabled="busy || !newRequesterId" @click="$emit('add-requester')"><template #icon><PlusCircle/></template>Ajouter</UiButton>
-      </div>
+  <section class="drawer-section request-tab">
+    <!-- Plusieurs demandes (rare) : l'ajout vaut pour toutes, il reste donc au-dessus. -->
+    <div v-if="admin && rows.length > 1" class="request-block">
+      <h4 class="request-block-title">Ajouter un demandeur à toutes les demandes</h4>
+      <AddRequesterForm :users="addableUsers" :model-value="newRequesterId" :busy="busy" @update:model-value="$emit('update:newRequesterId', $event)" @add="$emit('add-requester')" />
     </div>
-    <article v-for="row in requests || []" :key="row.id" class="detail-row request-detail-row">
-      <div>
-        <div class="request-detail-top">
-          <strong v-if="requesterName(row)">{{ requesterName(row) }}</strong>
-          <span class="badge status-tag" :class="row.status">{{ requestStatusLabel(row.status) }}</span>
+
+    <article v-for="row in rows" :key="row.id" class="request-card">
+      <header class="request-card-head">
+        <div class="request-card-title">
+          <strong>{{ row.origin_label || 'Demande utilisateur' }}</strong>
+          <small v-if="row.operational_status_label">{{ row.operational_status_label }}</small>
         </div>
+        <span class="badge status-tag" :class="row.status">{{ requestStatusLabel(row.status) }}</span>
+      </header>
+      <p v-if="row.waiting_reason" class="waiting-reason">{{ row.waiting_reason }}</p>
 
-        <div class="origin-line">
-          <span class="badge tiny">{{ row.origin_label || 'Demande utilisateur' }}</span>
-          <small>{{ row.operational_status_label }}</small>
-        </div>
-        <p v-if="row.waiting_reason" class="waiting-reason">{{ row.waiting_reason }}</p>
+      <div v-if="!['failed', 'rejected'].includes(row.status)" class="request-block">
+        <h4 class="request-block-title">Progression</h4>
+        <RequestStatusStepper :row="row" />
+      </div>
 
-        <RequestStatusStepper v-if="!['failed','rejected'].includes(row.status)" :row="row" />
-
-        <CollapsibleRoot v-if="row.media_type === 'show' && row.seasons?.length" class="mail-history-details" :unmount-on-hide="false">
-          <CollapsibleTrigger class="collapsible-trigger">Detail par saison ({{ seasonsSummary(row.seasons) }})</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
-          <div v-for="season in row.seasons" :key="season.season_number" class="inline-row compact" style="justify-content: space-between; margin-bottom: 4px;">
-            <span>Saison {{ season.season_number }}</span>
-            <span class="badge" :class="season.status">{{ season.episodes_available_count }}/{{ season.episodes_total_count }}</span>
-          </div>
-        </CollapsibleContent></CollapsibleRoot>
-
-        <RequestMailHistory :row="row" />
+      <div class="request-block">
+        <h4 class="request-block-title">
+          Demandeurs
+          <span v-if="(row.requester_ids || []).length" class="request-block-count">{{ row.requester_ids.length }}</span>
+        </h4>
         <RequesterList
           :row="row"
           :admin="admin"
@@ -39,9 +34,29 @@
           @promote-requester="(...args) => $emit('promote-requester', ...args)"
           @remove-requester="(...args) => $emit('remove-requester', ...args)"
         />
+        <AddRequesterForm
+          v-if="admin && rows.length === 1"
+          :users="addableUsers"
+          :model-value="newRequesterId"
+          :busy="busy"
+          @update:model-value="$emit('update:newRequesterId', $event)"
+          @add="$emit('add-requester')"
+        />
       </div>
-      <CollapsibleRoot v-if="admin" class="request-admin-actions" :unmount-on-hide="false">
-        <CollapsibleTrigger class="collapsible-trigger">Administration</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+
+      <CollapsibleRoot v-if="row.media_type === 'show' && row.seasons?.length" class="request-collapsible" :unmount-on-hide="false">
+        <CollapsibleTrigger class="collapsible-trigger"><ChevronRight class="chevron" aria-hidden="true" />Détail par saison <small>({{ seasonsSummary(row.seasons) }})</small></CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+          <div v-for="season in row.seasons" :key="season.season_number" class="season-line">
+            <span>Saison {{ season.season_number }}</span>
+            <span class="badge" :class="season.status">{{ season.episodes_available_count }}/{{ season.episodes_total_count }}</span>
+          </div>
+        </CollapsibleContent>
+      </CollapsibleRoot>
+
+      <RequestMailHistory :row="row" />
+
+      <CollapsibleRoot v-if="admin" class="request-collapsible request-admin-actions" :unmount-on-hide="false">
+        <CollapsibleTrigger class="collapsible-trigger"><ChevronRight class="chevron" aria-hidden="true" />Administration</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
         <div class="actions">
           <UiButton icon-only v-if="row.status === 'pending_approval'" class="success" title="Approuver" aria-label="Approuver" :disabled="busy" @click="$emit('approve', row.id)"><Check /></UiButton>
           <UiButton variant="danger" icon-only v-if="row.status === 'pending_approval'" title="Refuser" aria-label="Refuser" :disabled="busy" @click="$emit('reject', row)"><Ban /></UiButton>
@@ -62,26 +77,36 @@
         </label>
       </CollapsibleContent></CollapsibleRoot>
     </article>
-    <article v-if="!requests?.length && detail?.in_library" class="detail-row plex-origin-card">
-      <div>
-        <strong>Disponible directement dans Plex</strong>
-        <p>Ce media ne possede aucune demande utilisateur liee. Son point d'entree operationnel est Plex.</p>
-        <div class="status-stepper">
-          <span class="step done">Detecte dans Plex</span>
-          <span class="step current">Disponible</span>
+
+    <article v-if="!rows.length && detail?.in_library" class="request-card plex-origin-card">
+      <header class="request-card-head">
+        <div class="request-card-title">
+          <strong>Disponible directement dans Plex</strong>
+          <small>Ce media ne possede aucune demande utilisateur liee. Son point d'entree operationnel est Plex.</small>
         </div>
+      </header>
+      <div class="status-stepper">
+        <span class="step done">Detecte dans Plex</span>
+        <span class="step current">Disponible</span>
       </div>
     </article>
-    <UiEmptyState v-else-if="!requests?.length" title="Aucune demande liée" compact />
+    <UiEmptyState v-else-if="!rows.length" title="Aucune demande liée" compact />
+
+    <!-- Sans demande, ajouter un demandeur en crée une (déjà disponible) côté serveur. -->
+    <div v-if="admin && !rows.length" class="request-block">
+      <h4 class="request-block-title">Demandeurs</h4>
+      <AddRequesterForm :users="addableUsers" :model-value="newRequesterId" :busy="busy" @update:model-value="$emit('update:newRequesterId', $event)" @add="$emit('add-requester')" />
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import { requestStatusLabel } from '@/utils/labels';
-import { requesterName } from '@/utils/userLabels';
-import { Ban, Check, CheckCheck, Mail, MailCheck, PlusCircle, RotateCcw, Search, Trash2, Users, XCircle } from '@lucide/vue';
+import { Ban, Check, CheckCheck, ChevronRight, Mail, MailCheck, RotateCcw, Search, Trash2, Users, XCircle } from '@lucide/vue';
+import AddRequesterForm from './AddRequesterForm.vue';
 import RequestMailHistory from './RequestMailHistory.vue';
 import RequestStatusStepper from './RequestStatusStepper.vue';
 import RequesterList from './RequesterList.vue';
@@ -101,9 +126,9 @@ function onAutoImportChange(row: any, choice: string): void {
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
-    requests?: any[];
+    requests?: any[] | null;
     detail?: any;
     admin?: boolean;
     busy?: boolean;
@@ -119,6 +144,8 @@ withDefaults(
     newRequesterId: '',
   }
 );
+
+const rows = computed(() => props.requests || []);
 
 const emit = defineEmits<{
   (e: 'update:newRequesterId', value: string): void;
@@ -140,51 +167,109 @@ const emit = defineEmits<{
 </script>
 
 <style scoped lang="scss">
-.add-requester-row {
-  display: flex;
-  align-items: center;
+.request-tab {
+  display: grid;
   gap: var(--space-3);
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-.add-requester-label {
-  font-size: var(--fs-sm);
-  color: var(--muted);
-  white-space: nowrap;
-}
-.add-requester-row .inline-row {
-  flex: 1;
-}
-.add-requester-row select {
-  flex: 1;
-  min-width: 0;
 }
 
-.request-detail-top {
+/* Une demande = une carte lue de haut en bas : état, progression, demandeurs,
+   puis les volets repliables (saisons, historique, administration). */
+.request-card {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.request-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.request-card-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.request-card-title strong {
+  color: var(--text);
+}
+.request-card-title small {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.request-block {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.request-block-title {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-2);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.request-block-count {
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  letter-spacing: 0;
+}
+.waiting-reason {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.season-line {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
 }
 .auto-import-choice { display: grid; gap: 4px; margin-top: var(--space-3); }
 .auto-import-choice > span { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
-.request-admin-actions {
-  align-self: start;
-  min-width: 130px;
+.request-admin-actions .actions {
+  margin-top: 8px;
 }
-.request-admin-actions .collapsible-trigger {
+
+:deep(.request-collapsible),
+:deep(.mail-history-details) {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+:deep(.request-collapsible .collapsible-trigger),
+:deep(.mail-history-details .collapsible-trigger) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
   color: var(--muted);
   font-size: var(--fs-sm);
   font-weight: 600;
-  text-align: right;
+  user-select: none;
 }
-.request-admin-actions .actions {
-  justify-content: flex-end;
-  margin-top: 8px;
+:deep(.collapsible-trigger .chevron) {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
-:deep(.request-detail-row .mail-history) {
+:deep(.collapsible-trigger[data-state='open'] .chevron) {
+  transform: rotate(90deg);
+}
+:deep(.mail-history-details .collapsible-content) {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+}
+:deep(.mail-history-details small) {
   display: block;
   color: var(--muted);
 }
@@ -194,23 +279,6 @@ const emit = defineEmits<{
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
-  margin: 6px 0;
-}
-.origin-line {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: 6px;
-  color: var(--muted);
-}
-.waiting-reason {
-  margin: 6px 0;
-  color: var(--muted);
-  font-size: var(--fs-sm);
-}
-.plex-origin-card p {
-  margin: 6px 0;
-  color: var(--muted);
 }
 :deep(.status-stepper .step) {
   font-size: var(--fs-xs);
@@ -229,59 +297,9 @@ const emit = defineEmits<{
   color: var(--accent);
   font-weight: 600;
 }
-
-:deep(.mail-history-[data-state]) {
-  margin-top: 4px;
-}
-:deep(.mail-history-[data-state] .collapsible-trigger) {
-  cursor: pointer;
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  user-select: none;
-}
-:deep(.mail-history-[data-state] small) {
-  display: block;
-}
-
-:deep(.requester-breakdown) {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border);
-}
-
-:deep(.requester-line) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  font-size: var(--fs-sm);
-}
-
-:deep(.requester-name) {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 :deep(.badge.tiny) {
   min-height: auto;
   padding: 0 6px;
   font-size: var(--fs-xs);
-}
-
-:deep(.notif-dot) {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-:deep(.notif-dot.ok) {
-  background: var(--green);
-}
-:deep(.notif-dot.pending) {
-  background: var(--muted);
 }
 </style>

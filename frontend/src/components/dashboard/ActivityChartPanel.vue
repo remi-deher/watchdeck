@@ -58,7 +58,7 @@
         <div class="insight-card">
           <span class="insight-label">Médias disponibles</span>
           <strong class="insight-value text-success">{{ availabilityTotal }}</strong>
-          <small class="insight-sub">{{ deliveryRate }} de complétion</small>
+          <small class="insight-sub">{{ deliveryRate }}</small>
         </div>
 
         <div class="insight-card">
@@ -186,7 +186,7 @@ const chartPoints = computed(() => {
 <style scoped lang="scss">
 .activity-panel-container {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
   gap: var(--space-4);
   padding: var(--space-4);
 }
@@ -306,6 +306,7 @@ const chartPoints = computed(() => {
 
 /* Colonne insights */
 .activity-insights-col {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -324,7 +325,7 @@ const chartPoints = computed(() => {
 
 .insights-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
   height: 100%;
 }
@@ -338,12 +339,15 @@ const chartPoints = computed(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   gap: 2px;
+  min-width: 0;
 }
 
+/* Le libellé passe à la ligne plutôt que d'élargir la tuile hors de la colonne. */
 .insight-label {
   font-size: var(--fs-xs);
   color: var(--muted);
-  white-space: nowrap;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .insight-value {
