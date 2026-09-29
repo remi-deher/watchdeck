@@ -1,11 +1,22 @@
 # Changelog
 
+## 1.59.1 — 2026-09-29
+
+
+### 🐛 Corrections
+
+- regrouper l'historique par épisode, plus par série (#551) ([7f744d5](https://github.com/remi-deher/watchdeck/commit/7f744d546368cdf013edb02c513963305a2ec2db))
+- retirer « Sélectionné » et afficher le nom des pistes de sous-titres (#554) ([ef1d8a1](https://github.com/remi-deher/watchdeck/commit/ef1d8a144933bc3e8cbc4f053903dbcdd4a45300))
 ## 1.59.0 — 2026-09-29
 
 
 ### ✨ Nouveautés
 
 - lectures consécutives navigables, lecture mixte et sous-titres dans Flux (#546) ([94b93d4](https://github.com/remi-deher/watchdeck/commit/94b93d4a6011b29059256f6c1813856c21eaa34b))
+
+### 🔧 Maintenance
+
+- v1.59.0 (#550) ([e062a8d](https://github.com/remi-deher/watchdeck/commit/e062a8d0797fa1e08ae10bb1b8926ae8ae2ab669))
 ## 1.58.0 — 2026-09-28
 
 
