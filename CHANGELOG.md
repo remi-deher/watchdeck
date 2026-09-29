@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.59.3 — 2026-09-29
+
+
+### 🐛 Corrections
+
+- tuiles « Dynamique » qui débordent et parcours des demandeurs plus lisible (#564) ([dbbb6f7](https://github.com/remi-deher/watchdeck/commit/dbbb6f7e7ca21cd2821b20be10db63cf5409abb0))
 ## 1.59.2 — 2026-09-29
 
 
 ### 🐛 Corrections
 
 - ajout d'un demandeur sur un média sans demande (#559) ([b9a5c8e](https://github.com/remi-deher/watchdeck/commit/b9a5c8e9c3db87ce95bfcceb4996ae217225c426))
+
+### 🔧 Maintenance
+
+- v1.59.2 (#563) ([4ae76d9](https://github.com/remi-deher/watchdeck/commit/4ae76d9893b2a61c77c49cf6293fda9f6b5228b1))
 ## 1.59.1 — 2026-09-29
 
 
