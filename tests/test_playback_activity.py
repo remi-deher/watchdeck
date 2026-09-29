@@ -1737,7 +1737,15 @@ def test_parse_sessions_lists_subtitles_and_marks_selected_one():
         "8": {
             "container": "mkv",
             "streams": [
-                {"id": "30", "streamType": "3", "codec": "srt", "language": "Français", "forced": "1"},
+                {
+                    "id": "30",
+                    "streamType": "3",
+                    "codec": "srt",
+                    "language": "Français",
+                    "forced": "1",
+                    "title": "Forced",
+                    "displayTitle": "Français (SRT Forced)",
+                },
                 {"id": "31", "streamType": "3", "codec": "pgs", "language": "English", "hearingImpaired": "1"},
                 {"id": "32", "streamType": "3", "codec": "ass", "language": "Español", "key": "/library/streams/32"},
             ],
@@ -1775,6 +1783,8 @@ def test_parse_sessions_lists_subtitles_and_marks_selected_one():
     assert subtitles["languages"][0]["forced"] is True
     assert subtitles["languages"][1]["hearing_impaired"] is True
     assert subtitles["languages"][2]["external"] is True
+    # Le nom donné à la piste, pas le displayTitle générique de Plex.
+    assert [item["title"] for item in subtitles["languages"]] == ["Forced", None, None]
 
     fallback = json.loads(orphan["stream_details"])["tracks"]["subtitles"]
     assert fallback["decision"] == "transcode"

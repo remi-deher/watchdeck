@@ -17,14 +17,13 @@
           </div>
         </dl>
         <!-- Toutes les pistes du fichier (audio ou sous-titres), avec leurs caracteristiques :
-             la piste selectionnee est mise en avant, les autres restent comparables. -->
+             la piste selectionnee est mise en avant (bordure et fond), les autres restent comparables. -->
         <div v-if="card.languages?.length" class="track-languages">
           <span class="track-languages-title">{{ card.languagesTitle }}</span>
           <ul :aria-label="card.languagesTitle">
-            <li v-for="(item, index) in card.languages" :key="index" :class="{ played: item.played }">
+            <li v-for="(item, index) in card.languages" :key="index" :class="{ played: item.played }" :aria-current="item.played ? 'true' : undefined">
               <strong>{{ item.language }}</strong>
               <span>{{ item.detail || '—' }}</span>
-              <em v-if="item.played">Sélectionné</em>
             </li>
           </ul>
         </div>
@@ -92,9 +91,10 @@ function subtitleCard(subs: Record<string, any> | undefined, fallbackDecision: u
   if (!list.length && !decision) return null;
   const shown = list.find((item) => item.selected);
   const flags = (item: any) => [item.forced && 'Forcé', item.hearing_impaired && 'SDH', item.external && 'Externe'];
+  const name = (item: any) => (item.title && item.title !== item.language ? item.title : '');
   const rows: Row[] = [{
     label: 'Affiché',
-    value: shown ? join([shown.language || 'Langue inconnue', shown.codec && String(shown.codec).toUpperCase(), ...flags(shown)]) : 'Aucun',
+    value: shown ? join([shown.language || 'Langue inconnue', name(shown), shown.codec && String(shown.codec).toUpperCase(), ...flags(shown)]) : 'Aucun',
   }];
   const decisionValue = String(decision || '').toLowerCase();
   if (decisionValue === 'transcode' && subs?.to) rows.push({ label: 'Transcode', value: String(subs.to).toUpperCase() });
@@ -106,7 +106,9 @@ function subtitleCard(subs: Record<string, any> | undefined, fallbackDecision: u
     rows,
     languages: list.map((item) => ({
       language: item.language || 'Langue inconnue',
-      detail: join([item.codec && String(item.codec).toUpperCase(), ...flags(item), item.title && item.title !== item.language ? item.title : '']),
+      // Le nom de la piste (« Forced », « SDH Netflix »...) en tete : c'est lui qui distingue
+      // deux sous-titres de meme langue.
+      detail: join([name(item), item.codec && String(item.codec).toUpperCase(), ...flags(item)]),
       played: Boolean(item.selected),
     })),
     languagesTitle: 'Sous-titres disponibles',
@@ -187,9 +189,8 @@ const cards = computed(() => {
 .track-languages { display: grid; gap: 6px; }
 .track-languages-title { color: var(--muted); font-size: var(--fs-xs); }
 .track-languages ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.track-languages li { display: grid; grid-template-columns: minmax(70px, auto) minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--fs-xs); }
+.track-languages li { display: grid; grid-template-columns: minmax(70px, auto) minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--fs-xs); }
 .track-languages li span { color: var(--muted); overflow-wrap: anywhere; }
-.track-languages li em { color: var(--accent); font-style: normal; font-weight: 600; }
 .track-languages li.played { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .track-languages li.played span { color: var(--text); }
 </style>
