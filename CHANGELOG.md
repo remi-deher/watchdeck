@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.59.2 — 2026-09-29
+
+
+### 🐛 Corrections
+
+- ajout d'un demandeur sur un média sans demande (#559) ([b9a5c8e](https://github.com/remi-deher/watchdeck/commit/b9a5c8e9c3db87ce95bfcceb4996ae217225c426))
 ## 1.59.1 — 2026-09-29
 
 
@@ -7,6 +13,10 @@
 
 - regrouper l'historique par épisode, plus par série (#551) ([7f744d5](https://github.com/remi-deher/watchdeck/commit/7f744d546368cdf013edb02c513963305a2ec2db))
 - retirer « Sélectionné » et afficher le nom des pistes de sous-titres (#554) ([ef1d8a1](https://github.com/remi-deher/watchdeck/commit/ef1d8a144933bc3e8cbc4f053903dbcdd4a45300))
+
+### 🔧 Maintenance
+
+- v1.59.1 (#558) ([726707b](https://github.com/remi-deher/watchdeck/commit/726707b483186adee030c7c98066af9065cbfbdb))
 ## 1.59.0 — 2026-09-29
 
 
