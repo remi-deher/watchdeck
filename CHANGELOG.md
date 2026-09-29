@@ -1,11 +1,30 @@
 # Changelog
 
+## 1.60.0 — 2026-09-29
+
+
+### ✨ Nouveautés
+
+- nouvel onglet Demandes (parcours, demandeurs, administration, journal) (#571) ([0cf352f](https://github.com/remi-deher/watchdeck/commit/0cf352f867ec27c35c57b2de7e97c14227f45bb7))
+
+### 🐛 Corrections
+
+- ne plus proposer les releases VOSTFR ou MULTiSUBS en amélioration VF (#566) ([8f05e04](https://github.com/remi-deher/watchdeck/commit/8f05e04074830903b6277a9ca2477c41afbf7666))
+
+### 🔧 Maintenance
+
+- sync main into dev ([4b9c9c8](https://github.com/remi-deher/watchdeck/commit/4b9c9c8fcd8f2a9bb58ae5e7580c6a47cc28c51e))
+- sync main into dev ([739da8e](https://github.com/remi-deher/watchdeck/commit/739da8e969858248b35a9e878643ee5162f4b683))
 ## 1.59.3 — 2026-09-29
 
 
 ### 🐛 Corrections
 
 - tuiles « Dynamique » qui débordent et parcours des demandeurs plus lisible (#564) ([dbbb6f7](https://github.com/remi-deher/watchdeck/commit/dbbb6f7e7ca21cd2821b20be10db63cf5409abb0))
+
+### 🔧 Maintenance
+
+- v1.59.3 (#569) ([b36023c](https://github.com/remi-deher/watchdeck/commit/b36023cc0d890bb1c2093e00536198665b84c48b))
 ## 1.59.2 — 2026-09-29
 
 
