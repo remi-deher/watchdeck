@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth, require_moderator
 from app.main import app
-from app.models import ArrInstance, FulfillmentStatus, MediaRequest, PlexUser, RequestStatus, Settings
+from app.models import ArrInstance, FulfillmentStatus, LibraryItem, MediaRequest, PlexUser, RequestStatus, Settings
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -1211,3 +1211,55 @@ def test_a_media_can_override_the_global_reconciliation_setting(client, db):
     )
     # Corps vide : retour au réglage global.
     assert client.put(f"/api/requests/{request_id}/auto-import", json={}).json()["auto_import_reconciliation"] is None
+
+
+# ---------------------------------------------------------------------------
+# POST /api/library/{id}/requesters
+# ---------------------------------------------------------------------------
+
+
+def test_add_library_requester_creates_available_request(client, db):
+    """Média ajouté directement dans *arr : aucune demande, l'ajout doit en créer une."""
+    item = LibraryItem(title="Film direct", year=2024, media_type="movie", tmdb_id="4242", has_vf=True)
+    bob = PlexUser(plex_user_id="bob", display_name="Bob")
+    db.add_all([item, bob])
+    db.commit()
+    db.refresh(item)
+
+    resp = client.post(f"/api/library/{item.id}/requesters", json={"plex_user_id": "bob"})
+
+    assert resp.status_code == 200
+    req = db.query(MediaRequest).filter(MediaRequest.id == resp.json()["request_id"]).one()
+    assert req.plex_user_id == "bob"
+    assert req.library_item_id == item.id
+    assert req.tmdb_id == "4242"
+    assert req.status == RequestStatus.available
+    assert req.source == "library"
+    assert req.available_mail_sent is True
+    assert req.vf_available_mail_sent is True
+
+    detail = client.get(f"/api/media/detail?library_id={item.id}").json()
+    assert [row["id"] for row in detail["requests"]] == [req.id]
+    assert detail["requests"][0]["requester_ids"] == ["bob"]
+
+
+def test_add_library_requester_conflicts_when_request_exists(client, db):
+    item = LibraryItem(title="Film demandé", media_type="movie", tmdb_id="555")
+    bob = PlexUser(plex_user_id="bob", display_name="Bob")
+    req = _req(plex_user_id="alice", tmdb_id="555", title="Film demandé")
+    db.add_all([item, bob, req])
+    db.commit()
+    db.refresh(item)
+
+    resp = client.post(f"/api/library/{item.id}/requesters", json={"plex_user_id": "bob"})
+    assert resp.status_code == 409
+
+
+def test_add_library_requester_unknown_user_rejected(client, db):
+    item = LibraryItem(title="Film", media_type="movie", tmdb_id="556")
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+
+    resp = client.post(f"/api/library/{item.id}/requesters", json={"plex_user_id": "ghost"})
+    assert resp.status_code == 400

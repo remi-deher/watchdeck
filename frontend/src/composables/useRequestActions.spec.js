@@ -93,3 +93,30 @@ describe('withdrawRequest', () => {
     wrapper.unmount();
   });
 });
+
+describe('addRequester', () => {
+  it('cree une demande quand le media de bibliotheque n en a aucune', async () => {
+    const { api } = await import('@/api');
+    api.mockReset();
+    api.mockImplementation(async (path) => (path === '/api/library/4514/requesters' ? { request_id: 99 } : {}));
+    const askConfirm = vi.fn(async () => true);
+    const actions = useRequestActions({
+      detail: ref({ media: { library_id: 4514 }, requests: [] }),
+      newRequesterId: ref('bob'),
+      askConfirm,
+      reload: async () => {},
+      busy: ref(false),
+      error: ref(''),
+    });
+
+    await actions.addRequester();
+
+    const appels = api.mock.calls.map(([path, options]) => [path, options?.body]);
+    expect(appels).toContainEqual(['/api/library/4514/requesters', JSON.stringify({ plex_user_id: 'bob' })]);
+    expect(appels).toContainEqual([
+      '/api/requests/99/notify-user',
+      JSON.stringify({ plex_user_id: 'bob', events: ['available'] }),
+    ]);
+    expect(askConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Prévenir ce demandeur ?' }));
+  });
+});
