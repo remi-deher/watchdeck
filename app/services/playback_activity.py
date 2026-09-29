@@ -1135,7 +1135,9 @@ def _subtitle_tracks(sheet: dict, selected: dict) -> dict | None:
         {
             "language": _language(item),
             "codec": item.get("codec"),
-            "title": item.get("displayTitle") or item.get("title"),
+            # Nom donné à la piste dans le fichier (« Forced », « SDH »...), pas le
+            # displayTitle générique de Plex (« Français (SRT) ») qui répète langue et codec.
+            "title": item.get("title"),
             "forced": item.get("forced") == "1",
             "hearing_impaired": item.get("hearingImpaired") == "1",
             "external": bool(item.get("key")),
@@ -1149,7 +1151,7 @@ def _subtitle_tracks(sheet: dict, selected: dict) -> dict | None:
             {
                 "language": _language(selected),
                 "codec": selected.get("codec"),
-                "title": selected.get("displayTitle") or selected.get("title"),
+                "title": selected.get("title"),
                 "forced": selected.get("forced") == "1",
                 "hearing_impaired": selected.get("hearingImpaired") == "1",
                 "external": bool(selected.get("key")),
