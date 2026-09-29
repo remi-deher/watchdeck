@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.61.0 — 2026-09-29
+
+
+### ✨ Nouveautés
+
+- nouvelle page d'accueil du tableau de bord (#577) ([6ff5e1e](https://github.com/remi-deher/watchdeck/commit/6ff5e1e836878c9350e4b2f6e4d854ac0f3b5a37))
+- nouveau design de l'inventaire et de la fiche fichier (#578) ([e18e713](https://github.com/remi-deher/watchdeck/commit/e18e713a644b571bd31366a4b4cc89f02abe522e))
 ## 1.60.0 — 2026-09-29
 
 
@@ -15,6 +22,7 @@
 
 - sync main into dev ([4b9c9c8](https://github.com/remi-deher/watchdeck/commit/4b9c9c8fcd8f2a9bb58ae5e7580c6a47cc28c51e))
 - sync main into dev ([739da8e](https://github.com/remi-deher/watchdeck/commit/739da8e969858248b35a9e878643ee5162f4b683))
+- v1.60.0 (#576) ([55b61c7](https://github.com/remi-deher/watchdeck/commit/55b61c71436f2eeaf122524a8a94b0e82a1d44b2))
 ## 1.59.3 — 2026-09-29
 
 
