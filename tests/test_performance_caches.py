@@ -168,7 +168,7 @@ async def test_analytics_skips_the_full_catalog_when_nothing_changed():
     aboutir au même résultat."""
     snapshot = MagicMock()
     snapshot.payload_json = json.dumps({"summary": {"items": 3}})
-    snapshot.source_fingerprint = "empreinte#lectures"
+    snapshot.source_fingerprint = f"empreinte#lectures#v{library_analytics.PAYLOAD_VERSION}"
     db = MagicMock()
     db.get = AsyncMock(return_value=snapshot)
     db.commit = AsyncMock()
@@ -183,6 +183,29 @@ async def test_analytics_skips_the_full_catalog_when_nothing_changed():
 
     assert payload == {"summary": {"items": 3}}
     fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_analytics_recomputes_when_the_payload_shape_changed():
+    """Un champ ajoute a la charge utile (vignette, session) doit apparaitre des la mise
+    a jour, sans attendre que le catalogue ou l'historique bouge."""
+    snapshot = MagicMock()
+    snapshot.payload_json = json.dumps({"summary": {"items": 3}})
+    snapshot.source_fingerprint = "empreinte#lectures"
+    db = MagicMock()
+    db.get = AsyncMock(return_value=snapshot)
+    db.commit = AsyncMock()
+    db.execute = AsyncMock(return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: [])))
+    fetch = AsyncMock(return_value={"items": [], "generated_at": "2026-09-14T00:00:00", "libraries": []})
+
+    with (
+        patch("app.services.library_analytics._catalog_fingerprint", new=AsyncMock(return_value="empreinte")),
+        patch("app.services.library_analytics._playback_fingerprint", new=AsyncMock(return_value="lectures")),
+        patch("app.services.library_analytics.fetch_plex_catalog", new=fetch),
+    ):
+        await library_analytics.refresh_library_analytics_snapshot(Settings(), db)
+
+    fetch.assert_awaited_once()
 
 
 @pytest.mark.asyncio

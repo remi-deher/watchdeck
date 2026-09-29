@@ -863,62 +863,11 @@ button:disabled {
   gap: var(--space-3);
 }
 
-/* Tableau de bord orienté actions. */
-.dashboard-section { display: grid; gap: var(--space-4); min-width: 0; }
-.dashboard-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
-.dashboard-section-head > div { display: grid; gap: var(--space-1); min-width: 0; }
-.dashboard-section-head span { color: var(--muted); font-size: var(--fs-xs); font-weight: 650; }
-.dashboard-section-head h2 { margin: 0; font-size: var(--fs-lg); }
-.dashboard-section-head p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
-/* `align-items: stretch` etirait chaque panneau sur la hauteur du plus grand : « File
-   de telechargement », reduit a la phrase « Aucun telechargement en cours », occupait
-   340px de colonne vide a cote du planificateur. Chaque panneau prend desormais la
-   hauteur de son contenu. */
-.dashboard-ops-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-4); align-items: start; }
-.dashboard-ops-grid > .panel { min-width: 0; }
-.dashboard-ops-grid > .scan-status-panel { grid-column: auto; }
-
-.dashboard-action-center { display: grid; gap: var(--space-4); padding: 18px; border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); border-radius: var(--radius-lg); background: linear-gradient(135deg,color-mix(in srgb, var(--accent) 8%, transparent),var(--surface) 46%); }
-.dashboard-action-center.clear { border-color: color-mix(in srgb, var(--green) 20%, transparent); background: linear-gradient(135deg,color-mix(in srgb, var(--green) 7%, transparent),var(--surface) 46%); }
-.dashboard-action-center.clear { gap: 0; padding-block: 12px; }
-.dashboard-action-center.clear .dashboard-section-head p { display: none; }
-.dashboard-action-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-3); }
-.action-stack { min-width: 0; padding: 12px; border: 0; border-radius: var(--inset-radius); background: var(--surface-sunken); }
-.action-stack.is-danger { background: color-mix(in srgb, var(--red) 7%, var(--surface-sunken)); }
-.action-stack-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: 2px 2px 10px; }
-.action-stack-head > div { display: grid; gap: var(--space-1); }
-.action-stack-head span,.dashboard-action-row span,.action-summary-link span { color: var(--muted); font-size: var(--fs-xs); }
-.action-stack-head a { color: var(--accent); font-size: var(--fs-xs); text-decoration: none; }
-.dashboard-action-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 54px; padding: 8px 2px; border-top: 1px solid var(--border); }
-.dashboard-action-row > div:first-child { min-width: 0; display: grid; gap: var(--space-1); }
-.dashboard-action-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
-.action-summary-link { grid-column: 1/-1; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: var(--space-3); min-height: 58px; padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--red) 22%, transparent); border-radius: var(--radius-md); color: var(--red-text); background: color-mix(in srgb, var(--red) 6%, transparent); text-decoration: none; }
-.action-summary-link > svg { width: 19px; }
-.action-summary-link > div { display: grid; gap: var(--space-1); }
-.action-summary-link strong { color: var(--text); font-size: var(--fs-sm); }
-.dashboard-supervision-groups > section { display: grid; gap: var(--space-3); }
-.dashboard-supervision-groups > section + section { padding-top: 14px; border-top: 1px solid var(--border); }
-.dashboard-supervision-groups > section > header { display: grid; gap: var(--space-1); }
-.dashboard-supervision-groups > section > header span { color: var(--muted); font-size: var(--fs-xs); font-weight: 650; }
-.dashboard-supervision-groups > section > header h3 { margin: 0; font-size: var(--fs-md); }
-
-@container page (max-width: 957px) {
-  .dashboard-ops-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .dashboard-ops-grid > :last-child:nth-child(odd) { grid-column: 1/-1; }
-}
-
+/* Tableau de bord : la mise en page vit dans DashboardView et ses composants. */
 @include bp.until(tablet) {
-  .dashboard-action-center { padding: 14px; }
-  .dashboard-section-head { align-items: flex-start; }
-  .dashboard-action-grid,
-  .dashboard-ops-grid { grid-template-columns: 1fr; }
-  .action-summary-link { grid-column: auto; }
-  .dashboard-supervision-groups,
-  .dashboard-supervision-groups .dashboard-grid { min-width: 0; max-width: 100%; }
   .scan-status-panel .panel-head { align-items: flex-start; flex-direction: column; }
   .scan-status-panel .panel-head .actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
   .scan-status-panel .panel-head .actions button { min-width: 0; }
-  .dashboard-action-center.clear { padding: 10px 12px; }
 }
 
 @include bp.from(desktop) {
