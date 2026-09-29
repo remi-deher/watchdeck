@@ -16,6 +16,7 @@ from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import current_user, require_admin, require_auth, require_moderator
 from ..models import (
     ArrInstance,
+    FulfillmentStatus,
     LibraryItem,
     MediaIssue,
     MediaRequest,
@@ -471,6 +472,74 @@ async def media_detail(
         issue_serializer=_serialize_issue,
         core_only=core,
     )
+
+
+class LibraryRequesterBody(BaseModel):
+    plex_user_id: str
+
+
+@router.post("/library/{item_id}/requesters", dependencies=[Depends(require_moderator)])
+async def add_library_requester(item_id: int, body: LibraryRequesterBody, db: AsyncSession = Depends(get_db_async)):
+    """Rattache un demandeur à un média de bibliothèque qui n'a encore aucune demande
+    (ajout direct dans Sonarr/Radarr, ou média déjà présent dans Plex).
+
+    La fiche détail ajoutait les co-demandeurs en modifiant les demandes existantes : sans
+    demande, la boucle ne faisait rien et le clic sur « Ajouter » restait sans effet. On
+    crée donc ici une demande déjà disponible, adossée au LibraryItem. Aucun mail n'est
+    envoyé : le rattrapage éventuel passe, comme pour un co-demandeur classique, par
+    `POST /requests/{id}/notify-user` après confirmation de l'administrateur. L'origine
+    technique `library` (voir notification_policy.TECHNICAL_ORIGINS) et les indicateurs
+    d'envoi posés évitent qu'un cycle automatique n'annonce après coup une disponibilité
+    ancienne."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    uid = (body.plex_user_id or "").strip()
+    user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid))).scalars().first() if uid else None
+    if not user:
+        raise HTTPException(400, "Utilisateur introuvable.")
+    if item.media_type not in ("movie", "show"):
+        raise HTTPException(400, "Seuls les films et les séries peuvent avoir un demandeur.")
+
+    existing = await _media_identity_filter(db, item)
+    if existing:
+        # Course avec une synchronisation qui vient de créer la demande : l'interface doit
+        # alors passer par PUT /requests/{id}/requesters, qui gère l'ordre des demandeurs.
+        raise HTTPException(409, "Ce média a déjà une demande, rechargez la fiche.")
+
+    now = now_utc_naive()
+    req = MediaRequest(
+        plex_user_id=uid,
+        plex_user=user.display_name or uid,
+        title=item.title,
+        year=item.year,
+        media_type=item.media_type,
+        tmdb_id=item.tmdb_id,
+        tvdb_id=item.tvdb_id,
+        imdb_id=item.imdb_id,
+        plex_guid=item.plex_guid,
+        status=RequestStatus.available,
+        fulfillment_status=FulfillmentStatus.completed,
+        source="library",
+        library_item_id=item.id,
+        arr_instance_id=item.arr_instance_id,
+        arr_id=item.arr_id,
+        arr_slug=item.arr_slug,
+        poster_url=item.poster_url,
+        overview=item.overview,
+        requested_at=now,
+        available_at=item.added_at or now,
+        available_mail_sent=True,
+        has_vf=item.has_vf,
+        vf_category=item.vf_category,
+        vf_checked_at=item.vf_checked_at,
+        vf_available_at=item.vf_available_at,
+        vf_granularity=item.vf_granularity,
+        fr_is_default=item.fr_is_default,
+        vf_available_mail_sent=item.has_vf is True,
+        vo_only_mail_sent=item.has_vf is False,
+    )
+    db.add(req)
+    await db.commit()
+    return {"ok": True, "request_id": req.id, "requester_ids": [uid]}
 
 
 @router.get("/library-metrics")
