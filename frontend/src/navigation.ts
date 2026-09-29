@@ -14,7 +14,6 @@ import {
   Activity,
   Bell,
   CalendarDays,
-  ChartNoAxesCombined,
   Clock,
   Compass,
   DatabaseZap,
@@ -27,7 +26,6 @@ import {
   Inbox,
   Languages,
   Library,
-  Lightbulb,
   Link2,
   ListOrdered,
   ListRestart,
@@ -110,7 +108,9 @@ export const DESTINATIONS: NavDestination[] = [
   // sections d'un meme : les regrouper obligeait chaque page a empiler sa propre
   // rangee d'onglets sous celle de la destination.
   { key: 'activity', label: 'Activité', icon: Activity, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/activity'), to: '/activity' },
-  { key: 'insights', label: 'Insights', icon: ChartNoAxesCombined, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/analytics'), to: '/analytics' },
+  // L'analyse du catalogue vit dans l'Inventaire (bascule Fichiers / Insights de la
+  // page) : une seule entree, sans rangee de sections.
+  { key: 'insights', label: 'Inventaire', icon: Table, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/analytics'), to: '/analytics' },
   // Les reglages formaient un troisieme niveau de navigation : le rail menait a
   // « Administration », qui menait a « Parametres », qui portait sa propre colonne de
   // dix-sept entrees en cinq groupes. Cette colonne refaisait le travail du rail et
@@ -265,7 +265,6 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
     case 'insights':
       sections = [
         { key: 'table', label: 'Inventaire', to: '/analytics', icon: Table },
-        { key: 'insights', label: 'Analyses', to: { path: '/analytics', query: { view: 'insights' } }, icon: Lightbulb },
       ];
       break;
     case 'admin-overview':
