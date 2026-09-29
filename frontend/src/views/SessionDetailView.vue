@@ -13,7 +13,9 @@
       :session="session"
       :has-previous="index > 0"
       :has-next="index >= 0 && index < voisins.length - 1"
+      :run="serie"
       @navigate="naviguer"
+      @open-run="ouvrirLecture"
       @terminated="query.refetch()"
     />
   </SheetPage>
@@ -26,7 +28,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { useEventListener } from '@vueuse/core';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
-import { etatDeSurfaceCourant, voisinsCourants } from '@/composables/useMediaOverlay';
+import { etatDeSurfaceCourant, serieCourante, voisinsCourants } from '@/composables/useMediaOverlay';
 import { playbackTitle } from '@/playbackToast';
 import SheetPage from '@/components/layout/SheetPage.vue';
 import SessionDetail from '@/components/activity/SessionDetail.vue';
@@ -59,6 +61,12 @@ function naviguer(direction: number): void {
   const suivant = voisins.value[index.value + direction];
   if (!suivant) return;
   void router.replace({ path: `/activity/session/${suivant}`, state: etatDeSurfaceCourant() as any });
+}
+/* Lectures consecutives de la ligne ouverte : meme mecanique, a l'interieur de la serie. */
+const serie = computed(() => { void route.fullPath; return serieCourante(); });
+function ouvrirLecture(cible: string): void {
+  if (!cible || cible === id.value) return;
+  void router.replace({ path: `/activity/session/${cible}`, state: etatDeSurfaceCourant() as any });
 }
 useEventListener(window, 'keydown', (event: KeyboardEvent) => {
   const target = event.target as HTMLElement | null;
