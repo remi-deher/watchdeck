@@ -234,6 +234,19 @@ def release_is_french(rel: dict) -> bool:
     return any(_VFF_VARIANT_RE.match(w) for w in words)
 
 
+# Marqueurs d'une release dont le francais n'est qu'en sous-titres : "VOSTFR" (version
+# originale sous-titree) et "MULTiSUBS" (plusieurs pistes de sous-titres, souvent sans
+# aucune piste audio francaise). "MULTi-SUBS" passait pour un "MULTI" audio et remontait
+# en amelioration VF : ces releases sont des faux positifs, jamais proposees.
+# Insensible a la casse et aux separateurs (multisubs, multi-subs, multi.subs, multi_sub).
+_SUBTITLE_ONLY_RE = re.compile(r"(?<![a-z0-9])(?:vostfr|multi[\s._-]?subs?)(?![a-z0-9])", re.IGNORECASE)
+
+
+def release_is_subtitle_only(rel: dict) -> bool:
+    """Vrai si le titre annonce un francais en sous-titres seulement (VOSTFR, MULTiSUBS)."""
+    return bool(_SUBTITLE_ONLY_RE.search(rel.get("title") or ""))
+
+
 def _release_vf_kinds(rel: dict) -> dict[str, bool]:
     """Marqueurs VF detectes sur une release, par nature (voir _VF_SCORES)."""
     title = (rel.get("title") or "").lower()
