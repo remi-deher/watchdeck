@@ -111,6 +111,8 @@ test.describe("Graphique d'activite", () => {
     test.skip(testInfo.project.name !== "desktop", "interaction souris");
     await expectChartHasCurve(page);
     const plot = page.locator(".line-chart__plot").first();
+    // Le graphique est plus bas dans la page d'accueil : le glisser se fait a l'ecran.
+    await plot.scrollIntoViewIfNeeded();
     const box = await plot.boundingBox();
 
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
