@@ -99,7 +99,7 @@ describe('StreamTracksPanel', () => {
     expect(wrapper.get('.tracks-grid').attributes('style')).toContain('--cards: 2');
     const subs = card(wrapper, 'Sous-titres');
     expect(subs.get('.pill').text()).toBe('Incrusté');
-    expect(subs.text()).toContain('English · PGS · SDH');
+    expect(subs.text()).toContain('English · « SDH » · PGS · SDH');
     expect(subs.text()).toContain('Incrustés dans la vidéo');
     expect(subs.get('.track-languages-title').text()).toBe('Sous-titres disponibles');
     expect(subs.get('li.played').text()).toBe('English« SDH » · PGS · SDH');

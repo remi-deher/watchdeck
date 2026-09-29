@@ -102,7 +102,7 @@ function subtitleCard(subs: Record<string, any> | undefined, fallbackDecision: u
   const flags = (item: any) => [item.forced && 'Forcé', item.hearing_impaired && 'SDH', item.external && 'Externe'];
   const rows: Row[] = [{
     label: 'Affiché',
-    value: shown ? join([shown.language || 'Langue inconnue', shown.codec && String(shown.codec).toUpperCase(), ...flags(shown)]) : 'Aucun',
+    value: shown ? join([shown.language || 'Langue inconnue', trackName(shown), shown.codec && String(shown.codec).toUpperCase(), ...flags(shown)]) : 'Aucun',
   }];
   const decisionValue = String(decision || '').toLowerCase();
   if (decisionValue === 'transcode' && subs?.to) rows.push({ label: 'Transcode', value: String(subs.to).toUpperCase() });
