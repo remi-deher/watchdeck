@@ -50,6 +50,14 @@ export function vffCountsQuery() {
   };
 }
 
+/* Compteurs des ameliorations VF (suggestions par etat) : reglages et accueil. */
+export function vfUpgradeMetricsQuery() {
+  return {
+    queryKey: queryKeys.vff.metrics,
+    queryFn: ({ signal }: { signal: AbortSignal }) => api<Record<string, any>>('/api/vf-upgrades/metrics', { signal }).catch(() => ({})),
+  };
+}
+
 export function downloadsGlobalStatsPath(clientId: string | number | null | undefined): string {
   return `/api/downloads/global-stats${clientId ? `?client_id=${encodeURIComponent(clientId)}` : ''}`;
 }

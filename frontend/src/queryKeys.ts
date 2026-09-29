@@ -25,5 +25,6 @@ export const queryKeys = {
     scanStatus: ['settings', 'vff', 'scan-status'] as const,
     syncStatus: ['settings', 'vff', 'sync-status'] as const,
     counts: ['settings', 'vff', 'counts'] as const,
+    metrics: ['settings', 'vff', 'metrics'] as const,
   },
 };

@@ -4,6 +4,7 @@ import csv
 import io
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from ..models import Settings
 from ..pagination import PaginationParams, pagination_params
 from ..services.library_analytics import (
     analytics_item,
+    analytics_item_technical,
     analytics_items_payload,
     analytics_payload,
     analytics_summary_payload,
@@ -212,6 +214,23 @@ async def get_library_analytics_item(
     if item is None:
         raise HTTPException(404, "Média introuvable dans l'analyse de la bibliothèque.")
     return item
+
+
+@router.get("/items/{rating_key}/technical")
+async def get_library_analytics_item_technical(
+    rating_key: str,
+    db: AsyncSession = Depends(get_db_async),
+    settings: Settings = Depends(get_settings_or_404),
+):
+    """Fiche technique complete du fichier, lue a la demande dans Plex (profils, HDR,
+    debits, detail des pistes) : l'instantane n'en garde que le resume."""
+    try:
+        technical = await analytics_item_technical(settings, db, rating_key)
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, "Plex n'a pas pu fournir la fiche technique de ce fichier.") from exc
+    if technical is None:
+        raise HTTPException(404, "Ce fichier est introuvable dans Plex.")
+    return technical
 
 
 @router.get("/export.csv")
