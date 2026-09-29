@@ -16,7 +16,7 @@ const available = {
   last_available_mail: { sent_at: '2026-09-22T00:21:00', triggered_by: 'auto', success: true },
   requester_notifications: {
     remi: { request: true, available: true },
-    fred: { request: null, available: false },
+    fred: { request: false, available: false },
   },
 };
 

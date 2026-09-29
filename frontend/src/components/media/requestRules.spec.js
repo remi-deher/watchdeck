@@ -6,6 +6,8 @@ import {
   journeyHeadline,
   journeySteps,
   journeySubtitle,
+  mailNoneReason,
+  mailState,
   pendingAvailableRequesters,
 } from './requestRules';
 
@@ -27,7 +29,7 @@ const row = {
   requester_notifications: {
     remi: { request: true, available: true },
     admin: { request: true, available: true },
-    fred: { request: null, available: false },
+    fred: { request: false, available: false },
   },
 };
 
@@ -66,6 +68,12 @@ describe('demandeurs à prévenir', () => {
     expect(pendingAvailableRequesters(row)).toEqual([{ uid: 'fred', name: 'Frédérique' }]);
     expect(availableMailProgress(row)).toEqual({ sent: 2, total: 3 });
     expect(pendingAvailableRequesters({ ...row, status: 'sent_to_arr' })).toEqual([]);
+  });
+
+  it("n'attend plus le mail de demande d'un co-demandeur ajouté après la disponibilité", () => {
+    expect(mailState(row, 'fred', 'request')).toBe('none');
+    expect(mailNoneReason(row, 'fred', 'request')).toBe("ajouté après l'envoi");
+    expect(mailState({ ...row, status: 'sent_to_arr' }, 'fred', 'request')).toBe('pending');
   });
 });
 

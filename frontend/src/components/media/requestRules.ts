@@ -46,6 +46,9 @@ export function mailState(row: any, uid: string | number, event: 'request' | 'av
   if (event === 'request' && row.origin_kind && row.origin_kind !== 'request') return 'none';
   const value = row.requester_notifications?.[uid]?.[event];
   if (value === true) return 'sent';
+  // Co-demandeur ajouté une fois le média disponible : le mail « demande » n'a plus
+  // de sens, seul celui de disponibilité reste à envoyer.
+  if (value === false && event === 'request' && isAvailable(row)) return 'none';
   if (value === false) return 'pending';
   return 'none';
 }
@@ -119,7 +122,9 @@ export function availableMailProgress(row: any): { sent: number; total: number }
 export function mailNoneReason(row: any, uid: string | number, event: 'request' | 'available'): string {
   if (event === 'request' && row.origin_kind && row.origin_kind !== 'request') return 'ajouté sans demande';
   if (event === 'available' && !isAvailable(row)) return 'pas encore disponible';
-  if (row.requester_notifications?.[uid]?.[event] == null) return 'aucune adresse mail';
+  const value = row.requester_notifications?.[uid]?.[event];
+  if (value == null) return 'aucune adresse mail';
+  if (value === false && event === 'request') return "ajouté après l'envoi";
   return '';
 }
 
