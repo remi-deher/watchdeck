@@ -22,9 +22,11 @@
       </span>
     </div>
     <div class="history-table">
-      <!-- Un marathon produisait autant de lignes identiques que d’episodes. Les lectures
-           consecutives d’un meme media par la meme personne sont donc repliees en une
-           ligne, qui porte leur nombre et leur duree cumulee.
+      <!-- Plex cree une nouvelle lecture a chaque arret puis reprise d'un meme media :
+           autant de lignes identiques. Les lectures consecutives d'un meme film ou d'un
+           meme episode, par la meme personne sur le meme appareil, sont donc repliees en
+           une ligne, qui porte leur nombre et leur duree cumulee. Deux episodes differents
+           restent deux lignes.
            Les lignes sont ensuite reunies par journee : un historique se lit par date,
            et l'en-tete collant garde la date sous les yeux pendant le defilement. -->
       <template v-for="day in days" :key="day.key">
@@ -178,9 +180,9 @@ function mixedTitle(row: HistoryRow): string {
   return `Lecture mixte : ${[...counts].map(([method, count]) => `${count} × ${playbackMethodLabel(method, { fallback: 'inconnu' }).toLowerCase()}`).join(', ')}`;
 }
 
-/* Le repliement ne porte que sur des lectures *consecutives* : c'est ce qui fait le mur
-   de lignes identiques d'un marathon. Deux visionnages separes dans le temps restent
-   deux lignes, parce que ce sont deux evenements distincts. */
+/* Le repliement ne porte que sur des lectures *consecutives* du meme media : les reprises
+   d'un episode ou d'un film. Deux visionnages separes dans le temps restent deux lignes,
+   comme deux episodes qui se suivent : ce sont des evenements distincts. */
 const rows = computed<HistoryRow[]>(() => {
   const source = props.items || [];
   if (!props.grouped) {
@@ -269,8 +271,11 @@ function rowKey(item: HistoryItem): string {
   return item.id != null ? `row:${item.id}` : `${item.source}:${item.session_id}`;
 }
 
+/* Le media lui-meme, pas la serie : la cle Plex quand on l'a, sinon serie, saison,
+   episode et titre (imports Tautulli anciens, sans cle). */
 function groupKey(item: HistoryItem): string {
-  return item.grandparent_title || item.title || '';
+  if (item.rating_key) return `media:${item.rating_key}`;
+  return [item.grandparent_title, item.season_number, item.episode_number, item.title].map((part) => part ?? '').join('|');
 }
 
 function exportCsv(): void {
