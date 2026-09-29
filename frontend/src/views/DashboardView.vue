@@ -11,34 +11,39 @@
 
     <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
 
-    <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action"/>
+    <DashboardGreeting :name="userName" :attention-count="attentionCount" :syncing="syncingAll" @sync-all="syncAll" />
 
-    <!-- Activité Plex en direct (Spotlight) -->
-    <LiveSessionsPanel
+    <!-- Activite Plex en direct, sur toute la largeur, juste sous l'en-tete. -->
+    <DashboardLiveStrip
       :sessions="liveActivity.active || []"
       :collection-enabled="liveActivity.enabled !== false"
-      interactive
       @select="openSession"
     />
 
-    <section class="dashboard-section">
-      <header class="dashboard-section-head">
-        <div>
-          <span class="eyebrow">Indicateurs</span>
-          <h2>Situation actuelle</h2>
-          <p>Le cycle de traitement des demandes et des acquisitions en temps réel.</p>
-        </div>
-      </header>
-      <AcquisitionPipelinePanel
-        :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
-        :downloading-count="queueTotals.downloading"
-        :import-pending-count="queueTotals.importPending"
-        :available-count="counts.available ?? '…'"
-        :blocked-count="queueTotals.blocked + failedCount"
-      />
+    <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action"/>
 
-      <div class="dashboard-ops-grid">
-        <DownloadQueuePanel :queue="downloadQueue" :loading="loadingQueue" />
+    <AcquisitionPipelinePanel
+      :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
+      :downloading-count="queueTotals.downloading"
+      :import-pending-count="queueTotals.importPending"
+      :available-count="counts.available ?? '…'"
+      :blocked-count="queueTotals.blocked + failedCount"
+    />
+
+    <div class="dashboard-bento">
+      <DashboardVfUpgradesPanel class="bento-wide" />
+      <DownloadQueuePanel class="bento-narrow" :queue="downloadQueue" :loading="loadingQueue" />
+    </div>
+
+    <ActivityChartPanel :timeline="timeline" />
+
+    <DashboardLibraryTabs :recently-available="recentlyAvailable" :recent-requests="recentRequests" :upcoming="upcoming" />
+
+    <!-- Sante et stockage ne sont lus qu'une fois la zone a l'ecran (ou Supervision
+         ouverte) : le bas de page ne doit pas retarder le premier affichage. -->
+    <div ref="healthZone" class="dashboard-bento">
+      <HealthGrid v-if="healthShown" class="bento-wide" />
+      <div class="bento-narrow bento-stack">
         <ScanStatusPanel
           :vff-scan="vffScan"
           :plex-sync="plexSync"
@@ -50,74 +55,49 @@
           @sync-arr="triggerArrSync"
           @sync-watchlist="triggerWatchlistSync"
         />
-        <RecentJobsPanel :polls="polls" :next-poll="nextPoll" :countdown="countdown" />
+        <DiskSpacePanel v-if="healthShown" :volumes="diskSpace" />
       </div>
-    </section>
+    </div>
 
     <UiDisclosure
-      title="Activité"
-      eyebrow="Tendance"
-      description="Demandes, disponibilités et notifications sur la période."
-      storage-key="dashboard.trendOpen"
-    >
-      <ActivityChartPanel :timeline="timeline" />
-    </UiDisclosure>
-
-    <UiDisclosure
-      title="Nouveautés et mouvements"
-      eyebrow="Bibliothèque"
-      description="Ce qui vient d'arriver, les demandes récentes et les sorties attendues."
-      storage-key="dashboard.libraryMovesOpen"
-      default-open
-    >
-      <div class="dashboard-rails-list">
-        <RecentlyAvailablePanel :items="recentlyAvailable" />
-        <MediaRail
-          title="Demandes récentes"
-          eyebrow="Demandes"
-          :items="recentRequests"
-          :more-to="{ path: '/library', query: { sort: 'requested_desc' } }"
-          empty-message="Aucune demande récente."
-        />
-        <UpcomingReleasesPanel :items="upcoming" />
-      </div>
-    </UiDisclosure>
-
-    <UiDisclosure
-      title="Vue d’ensemble"
-      eyebrow="Supervision"
+      title="Supervision"
+      eyebrow="Historique"
+      description="Exécutions du planificateur, répartition des demandes et derniers envois."
       storage-key="dashboard.supervisionOpen"
-      content-class="dashboard-supervision-groups"
+      content-class="dashboard-supervision"
       @open="loadSupervision"
     >
-      <section><header><span>Santé</span><h3>Infrastructure</h3></header><div class="dashboard-grid"><HealthGrid/><DiskSpacePanel :volumes="diskSpace"/></div></section>
-      <section><header><span>Usage</span><h3>Bibliothèque et utilisateurs</h3></header><div class="dashboard-grid"><RequestsBreakdownPanel :counts="counts"/><TopRequestedPanel :items="topRequested"/></div></section>
-      <section><header><span>Communication</span><h3>Derniers envois</h3></header><div class="dashboard-grid"><RecentNotificationsPanel :notifications="recentNotifs"/></div></section>
+      <RecentJobsPanel :polls="polls" :next-poll="nextPoll" :countdown="countdown" />
+      <RequestsBreakdownPanel :counts="counts"/>
+      <TopRequestedPanel :items="topRequested"/>
+      <RecentNotificationsPanel :notifications="recentNotifs"/>
     </UiDisclosure>
   </AppPage>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useElementVisibility } from '@vueuse/core';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import HealthGrid from '@/components/HealthGrid.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
 import DashboardActionCenter from '@/components/dashboard/DashboardActionCenter.vue';
+import DashboardGreeting from '@/components/dashboard/DashboardGreeting.vue';
+import DashboardLiveStrip from '@/components/dashboard/DashboardLiveStrip.vue';
+import DashboardVfUpgradesPanel from '@/components/dashboard/DashboardVfUpgradesPanel.vue';
+import DashboardLibraryTabs from '@/components/dashboard/DashboardLibraryTabs.vue';
+import { attentionTotal } from '@/components/dashboard/dashboardAttention';
 import AcquisitionPipelinePanel from '@/components/dashboard/AcquisitionPipelinePanel.vue';
 import RecentJobsPanel from '@/components/dashboard/RecentJobsPanel.vue';
 import RequestsBreakdownPanel from '@/components/dashboard/RequestsBreakdownPanel.vue';
 import DownloadQueuePanel from '@/components/dashboard/DownloadQueuePanel.vue';
 import ActivityChartPanel from '@/components/dashboard/ActivityChartPanel.vue';
-import UpcomingReleasesPanel from '@/components/dashboard/UpcomingReleasesPanel.vue';
-import RecentlyAvailablePanel from '@/components/dashboard/RecentlyAvailablePanel.vue';
 import DiskSpacePanel from '@/components/dashboard/DiskSpacePanel.vue';
 import TopRequestedPanel from '@/components/dashboard/TopRequestedPanel.vue';
 import RecentNotificationsPanel from '@/components/dashboard/RecentNotificationsPanel.vue';
 import ScanStatusPanel from '@/components/dashboard/ScanStatusPanel.vue';
-import MediaRail from '@/components/discover/MediaRail.vue';
-import LiveSessionsPanel from '@/components/activity/LiveSessionsPanel.vue';
 import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
 import { useRoute, useRouter } from 'vue-router';
 import { api, streamEvents } from '@/api';
@@ -125,6 +105,7 @@ import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { queueCounts } from '@/downloads/queueRules';
 import { usePreference } from '@/composables/usePreference';
+import { useSession } from '@/composables/useSession';
 import { queryKeys } from '@/queryKeys';
 import { arrQueueQuery, diskSpaceQuery, playbackLiveQuery, vffCountsQuery, vffScanStatusQuery, vffSyncStatusQuery } from '@/sharedQueries';
 
@@ -168,7 +149,14 @@ const downloadQueueQuery = useQuery({ ...arrQueueQuery(), select: (data: any) =>
 const downloadQueue = computed<any[]>(() => downloadQueueQuery.data.value || []);
 const liveActivityQuery = useQuery(playbackLiveQuery());
 const liveActivity = computed<Record<string, any>>(() => liveActivityQuery.data.value || { active: [] });
-const diskSpaceQueryState = useQuery({ ...diskSpaceQuery(), enabled: supervisionLoaded });
+/* Sante et espace disque : lus a l'arrivee de leur zone a l'ecran, ou a l'ouverture de
+   Supervision (l'observateur n'existe pas partout, et un lecteur au clavier peut
+   atteindre Supervision sans que la zone ait ete vue). Une fois montres, ils restent. */
+const healthZone = ref<HTMLElement | null>(null);
+const healthZoneVisible = useElementVisibility(healthZone);
+const healthShown = ref(false);
+watch([healthZoneVisible, supervisionLoaded], ([visible, opened]) => { if (visible || opened) healthShown.value = true; }, { immediate: true });
+const diskSpaceQueryState = useQuery({ ...diskSpaceQuery(), enabled: healthShown });
 const diskSpace = computed<any[]>(() => diskSpaceQueryState.data.value || []);
 watch(diskSpaceQueryState.error, (e: any) => { if (e) error.value = e.message; });
 const route = useRoute();
@@ -209,6 +197,10 @@ const failedCount = computed(() => Number(counts.value.failed || 0));
 // ci-dessous partitionnent la file sans double compte, et chaque chiffre correspond au
 // groupe qu'on trouve en cliquant.
 const queueTotals = computed(() => queueCounts(downloadQueue.value));
+const attentionCount = computed(() => attentionTotal(pending.value.length, downloadQueue.value, failedCount.value));
+
+const { session } = useSession();
+const userName = computed(() => String(session.value?.display_name || session.value?.username || '').trim());
 
 const countdown = computed(() => seconds.value == null ? '-' : seconds.value < 60 ? `${seconds.value}s` : `${Math.floor(seconds.value / 60)} min`);
 
@@ -261,6 +253,19 @@ async function triggerWatchlistSync(): Promise<void> {
   } catch (e: any) {
     watchlistSync.value = { status: 'failed' };
     error.value = e.message;
+  }
+}
+
+/* « Tout synchroniser » : Plex, statuts *arr et watchlists en parallele. Chaque synchro
+   garde son propre etat dans « Etat des scans » ; le bouton attend la plus lente. */
+const syncingAll = ref(false);
+async function syncAll(): Promise<void> {
+  if (syncingAll.value) return;
+  syncingAll.value = true;
+  try {
+    await Promise.all([triggerPlexSync(), triggerArrSync(), triggerWatchlistSync()]);
+  } finally {
+    syncingAll.value = false;
   }
 }
 
@@ -444,3 +449,21 @@ onMounted(async () => {
   await load();
 });
 </script>
+
+<style scoped lang="scss">
+/* Grille de l'accueil : une colonne large (7/12) et une etroite (5/12), qui passent
+   l'une sous l'autre quand le contenu se resserre. Chaque panneau prend la hauteur de
+   son contenu : un panneau presque vide ne s'etire pas sur la hauteur de son voisin. */
+.dashboard-bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); align-items: start; min-width: 0; }
+.dashboard-bento > .bento-wide { grid-column: span 7; min-width: 0; }
+.dashboard-bento > .bento-narrow { grid-column: span 5; min-width: 0; }
+.dashboard-bento > .bento-stack { display: grid; grid-column: 8 / -1; gap: var(--space-4); align-content: start; }
+:deep(.dashboard-supervision) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
+
+@container page (max-width: 957px) {
+  .dashboard-bento > .bento-wide,
+  .dashboard-bento > .bento-narrow,
+  .dashboard-bento > .bento-stack { grid-column: 1 / -1; }
+  :deep(.dashboard-supervision) { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
