@@ -1,8 +1,11 @@
 <template>
   <section class="drawer-section">
-    <div v-if="admin" class="add-requester-row">
-      <span class="add-requester-label">Co-demandeur</span>
-      <div class="inline-row compact">
+    <div v-if="admin" class="add-requester-panel">
+      <div class="add-requester-text">
+        <span class="add-requester-label">Ajouter un demandeur</span>
+        <small>{{ requests?.length ? 'Il suivra cette demande et recevra les prochains mails.' : 'Une demande sera créée pour ce média.' }} Aucun mail ne part sans confirmation.</small>
+      </div>
+      <div class="inline-row compact add-requester-controls">
         <UiSelect :model-value="newRequesterId" :disabled="!addableUsers.length" @update:model-value="$emit('update:newRequesterId', $event)" :options="[{ value: '', label: String(addableUsers.length ? 'Sélectionnez un utilisateur' : 'Tous les utilisateurs sont déjà demandeurs') }, ...(addableUsers).map((u) => ({ value: u.plex_user_id, label: String(u.custom_name || u.display_name || u.plex_user_id) }))]" />
         <UiButton variant="primary" size="sm" :disabled="busy || !newRequesterId" @click="$emit('add-requester')"><template #icon><PlusCircle/></template>Ajouter</UiButton>
       </div>
@@ -10,13 +13,11 @@
     <article v-for="row in requests || []" :key="row.id" class="detail-row request-detail-row">
       <div>
         <div class="request-detail-top">
-          <strong v-if="requesterName(row)">{{ requesterName(row) }}</strong>
+          <div class="request-origin">
+            <strong>{{ row.origin_label || 'Demande utilisateur' }}</strong>
+            <small>{{ row.operational_status_label }}</small>
+          </div>
           <span class="badge status-tag" :class="row.status">{{ requestStatusLabel(row.status) }}</span>
-        </div>
-
-        <div class="origin-line">
-          <span class="badge tiny">{{ row.origin_label || 'Demande utilisateur' }}</span>
-          <small>{{ row.operational_status_label }}</small>
         </div>
         <p v-if="row.waiting_reason" class="waiting-reason">{{ row.waiting_reason }}</p>
 
@@ -30,7 +31,6 @@
           </div>
         </CollapsibleContent></CollapsibleRoot>
 
-        <RequestMailHistory :row="row" />
         <RequesterList
           :row="row"
           :admin="admin"
@@ -39,6 +39,7 @@
           @promote-requester="(...args) => $emit('promote-requester', ...args)"
           @remove-requester="(...args) => $emit('remove-requester', ...args)"
         />
+        <RequestMailHistory :row="row" />
       </div>
       <CollapsibleRoot v-if="admin" class="request-admin-actions" :unmount-on-hide="false">
         <CollapsibleTrigger class="collapsible-trigger">Administration</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
@@ -80,7 +81,6 @@
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import { requestStatusLabel } from '@/utils/labels';
-import { requesterName } from '@/utils/userLabels';
 import { Ban, Check, CheckCheck, Mail, MailCheck, PlusCircle, RotateCcw, Search, Trash2, Users, XCircle } from '@lucide/vue';
 import RequestMailHistory from './RequestMailHistory.vue';
 import RequestStatusStepper from './RequestStatusStepper.vue';
@@ -140,32 +140,53 @@ const emit = defineEmits<{
 </script>
 
 <style scoped lang="scss">
-.add-requester-row {
+.add-requester-panel {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.add-requester-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 .add-requester-label {
   font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+.add-requester-text small {
   color: var(--muted);
-  white-space: nowrap;
+  font-size: var(--fs-xs);
 }
-.add-requester-row .inline-row {
-  flex: 1;
+.add-requester-controls {
+  flex: 1 1 280px;
+  min-width: 0;
 }
-.add-requester-row select {
+.add-requester-controls > :first-child {
   flex: 1;
   min-width: 0;
 }
 
 .request-detail-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2);
+}
+.request-origin {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.request-origin small {
+  color: var(--muted);
 }
 .auto-import-choice { display: grid; gap: 4px; margin-top: var(--space-3); }
 .auto-import-choice > span { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
@@ -195,13 +216,6 @@ const emit = defineEmits<{
   align-items: center;
   gap: var(--space-1);
   margin: 6px 0;
-}
-.origin-line {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: 6px;
-  color: var(--muted);
 }
 .waiting-reason {
   margin: 6px 0;
@@ -243,45 +257,10 @@ const emit = defineEmits<{
   display: block;
 }
 
-:deep(.requester-breakdown) {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border);
-}
-
-:deep(.requester-line) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  font-size: var(--fs-sm);
-}
-
-:deep(.requester-name) {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 :deep(.badge.tiny) {
   min-height: auto;
   padding: 0 6px;
   font-size: var(--fs-xs);
 }
 
-:deep(.notif-dot) {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-:deep(.notif-dot.ok) {
-  background: var(--green);
-}
-:deep(.notif-dot.pending) {
-  background: var(--muted);
-}
 </style>

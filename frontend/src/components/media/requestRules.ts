@@ -27,3 +27,21 @@ export function seasonsSummary(seasons: any[]): string {
   const available = seasons.filter((season) => season.status === 'available').length;
   return `${available}/${seasons.length} completes`;
 }
+
+export type MailState = 'sent' | 'pending' | 'none';
+
+/**
+ * Où en est un demandeur pour un mail donné : `sent` reçu, `pending` pas encore
+ * reçu alors que l'étape est franchie, `none` rien à recevoir (étape pas atteinte ou
+ * aucune adresse connue).
+ */
+export function mailState(row: any, uid: string | number, event: 'request' | 'available'): MailState {
+  if (event === 'available' && !['available', 'partially_available'].includes(row.status)) return 'none';
+  // Un média ajouté directement dans *ARR ou déjà présent dans Plex n'a jamais de mail
+  // « demande » : l'afficher « en attente » laisserait croire qu'il va partir.
+  if (event === 'request' && row.origin_kind && row.origin_kind !== 'request') return 'none';
+  const value = row.requester_notifications?.[uid]?.[event];
+  if (value === true) return 'sent';
+  if (value === false) return 'pending';
+  return 'none';
+}
