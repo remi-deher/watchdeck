@@ -140,7 +140,7 @@
           :page-size="HISTORY_PAGE_SIZE"
           :sort="historySort"
           :group-by-day="historySort.startsWith('date')"
-          @select="openSession($event)"
+          @select="(item: any, run: any[]) => openSession(item, run)"
           @load-more="loadHistory(true)"
           @update:sort="setHistorySort"
         />
@@ -253,7 +253,8 @@ import PlexServerTasks from '@/components/activity/PlexServerTasks.vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import PopularMediaPanel from '@/components/activity/PopularMediaPanel.vue';
-import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
+import { etatDeSerie, etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
+import { episodeLabel } from '@/utils/episode';
 import UserRankingPanel from '@/components/activity/UserRankingPanel.vue';
 import { usePreference } from '@/composables/usePreference';
 
@@ -541,10 +542,21 @@ const siblingSessions=computed((): any[]=>{
   if(currentView.value==='quality')return qualityHistory.value;
   return liveSessions.value;
 });
-function openSession(item: any): void {
+/* Une ligne repliee de l'historique (lectures consecutives) ouvre sa premiere lecture, et
+   la fiche garde la liste des autres, dans l'ordre chronologique, pour passer de l'une a
+   l'autre : chacune a son propre mode, ses flux et sa conversion. */
+function openSession(item: any, run: any[]=[]): void {
   if(item?.id==null)return;
   const ids=siblingSessions.value.map((row: any)=>row.id).filter((id: any)=>id!=null);
-  ouvrirFiche(router,`/activity/session/${item.id}`,route.fullPath,etatDeVoisins(ids));
+  const lectures=run.filter((row: any)=>row?.id!=null);
+  const serie=lectures.length>1?etatDeSerie([...lectures].sort((a: any,b: any)=>String(a.started_at||'').localeCompare(String(b.started_at||''))).map((row: any)=>({
+    id:String(row.id),
+    method:row.playback_method||'',
+    started_at:row.started_at||'',
+    watched_ms:row.watched_ms||0,
+    label:row.media_type==='episode'&&(row.season_number!=null||row.episode_number!=null)?`${episodeLabel(row)} · ${row.title||''}`:row.title||'Lecture Plex',
+  }))):{};
+  ouvrirFiche(router,`/activity/session/${item.id}`,route.fullPath,{...etatDeVoisins(ids),...serie});
 }
 function userShare(sessions: number): number {return Math.round(Number(sessions||0)/Math.max(1,summary.value.sessions||0)*100)}
 watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!==days.value)days.value=next});

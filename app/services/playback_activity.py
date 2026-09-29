@@ -1010,8 +1010,9 @@ def _tracks(
     video_decision: str | None,
     audio_decision: str | None,
     sheet: dict | None,
+    subtitle_stream=None,
 ) -> dict:
-    """Vidéo, audio et conteneur de la lecture, source -> sortie, quel que soit le mode.
+    """Vidéo, audio, sous-titres et conteneur de la lecture, source -> sortie, quel que soit le mode.
 
     Le suivi des conversions ne couvrait que les sessions converties. Ici, chaque lecture
     dit ce qu'elle lit (codec, débit, résolution, canaux, langue), ce qui en est envoyé
@@ -1118,6 +1119,49 @@ def _tracks(
         }
         if audio or audio_from["codec"]
         else None,
+        "subtitles": _subtitle_tracks(sheet, attrs(subtitle_stream)),
+    }
+
+
+def _subtitle_tracks(sheet: dict, selected: dict) -> dict | None:
+    """Sous-titres du fichier, avec celui affiché et ce que Plex en fait.
+
+    `decision` vaut `copy` (envoyé tel quel), `transcode` (converti dans un autre
+    format) ou `burn` (incrusté dans l'image, ce qui force le réencodage vidéo).
+    """
+    selected_id = selected.get("id")
+    decision = selected.get("decision") if selected else None
+    items = [
+        {
+            "language": _language(item),
+            "codec": item.get("codec"),
+            "title": item.get("displayTitle") or item.get("title"),
+            "forced": item.get("forced") == "1",
+            "hearing_impaired": item.get("hearingImpaired") == "1",
+            "external": bool(item.get("key")),
+            "selected": bool(selected_id) and item.get("id") == selected_id,
+        }
+        for item in sheet.get("streams", [])
+        if item.get("streamType") == "3"
+    ]
+    if selected and not any(item["selected"] for item in items):
+        items.append(
+            {
+                "language": _language(selected),
+                "codec": selected.get("codec"),
+                "title": selected.get("displayTitle") or selected.get("title"),
+                "forced": selected.get("forced") == "1",
+                "hearing_impaired": selected.get("hearingImpaired") == "1",
+                "external": bool(selected.get("key")),
+                "selected": True,
+            }
+        )
+    if not items:
+        return None
+    return {
+        "decision": decision,
+        "to": selected.get("format") or selected.get("codec") if decision == "transcode" else None,
+        "languages": items,
     }
 
 
@@ -1284,6 +1328,7 @@ def parse_plex_sessions(
                             video_decision,
                             audio_decision,
                             (media_sheets or {}).get(media.get("ratingKey") or ""),
+                            subtitle_stream,
                         ),
                     },
                     ensure_ascii=False,

@@ -32,7 +32,7 @@
           <span>{{ day.label }}</span>
           <small>{{ day.count }} lecture{{ day.count > 1 ? 's' : '' }} · {{ formatDuration(day.watchedMs) }}</small>
         </h3>
-        <button v-for="row in day.rows" :key="row.key" @click="$emit('select', row.item)">
+        <button v-for="row in day.rows" :key="row.key" @click="$emit('select', row.item, row.items)">
         <MediaArtwork :src="row.item.thumb_url" :alt="displayTitle(row.item)" :type="row.item.media_type" size="history"/>
         <span class="history-title">
           <strong>{{ displayTitle(row.item) }}<em v-if="row.count > 1" class="history-group">&times;{{ row.count }}</em><UiTooltip :focusable="false" v-if="row.item.is_download" text="Téléchargement pour une lecture hors ligne, pas une lecture"><em class="history-download">Téléchargement</em></UiTooltip></strong>
@@ -43,7 +43,7 @@
           <span><Network/><code>{{ addressLabel(row.item) }}</code></span>
           <span class="history-place"><MapPin/><span>{{ locationLabel(row.item) }}</span></span>
         </span>
-        <PlaybackMethodBadge :method="row.item.playback_method"/>
+        <PlaybackMethodBadge :method="row.method" :title="row.method === 'mixed' ? mixedTitle(row) : ''"/>
         <span class="history-duration">{{ formatDuration(row.watchedMs) }}</span>
         <time>{{ formatDate(row.item.started_at) }}</time>
         </button>
@@ -75,6 +75,7 @@ import { isToday, isYesterday } from 'date-fns';
 import { localIso } from '@/utils/timeBuckets';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
+import { playbackMethodLabel } from '@/utils/labels';
 
 export interface HistoryItem {
   id?: number | string;
@@ -129,7 +130,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (e: 'select', item: HistoryItem): void;
+  (e: 'select', item: HistoryItem, run: HistoryItem[]): void;
   (e: 'load-more'): void;
   (e: 'update:sort', value: string): void;
 }>();
@@ -162,7 +163,20 @@ function sortLabel(column: string): string {
   return `Trier par ${SORT_COLUMNS[column].toLowerCase()}${current}`;
 }
 
-interface HistoryRow { key: string; item: HistoryItem; count: number; watchedMs: number }
+interface HistoryRow { key: string; item: HistoryItem; items: HistoryItem[]; count: number; watchedMs: number; method: string }
+
+/* Des lectures consecutives n'ont pas forcement le meme mode : un episode transcode, le
+   suivant en lecture directe. La ligne le dit (« Lecture mixte ») au lieu de n'afficher
+   que le mode de la premiere. */
+function runMethod(items: HistoryItem[]): string {
+  const methods = new Set(items.map((item) => item.playback_method || ''));
+  return methods.size > 1 ? 'mixed' : items[0]?.playback_method || '';
+}
+function mixedTitle(row: HistoryRow): string {
+  const counts = new Map<string, number>();
+  for (const item of row.items) counts.set(item.playback_method || '', (counts.get(item.playback_method || '') || 0) + 1);
+  return `Lecture mixte : ${[...counts].map(([method, count]) => `${count} × ${playbackMethodLabel(method, { fallback: 'inconnu' }).toLowerCase()}`).join(', ')}`;
+}
 
 /* Le repliement ne porte que sur des lectures *consecutives* : c'est ce qui fait le mur
    de lignes identiques d'un marathon. Deux visionnages separes dans le temps restent
@@ -173,8 +187,10 @@ const rows = computed<HistoryRow[]>(() => {
     return source.map((item) => ({
       key: rowKey(item),
       item,
+      items: [item],
       count: 1,
       watchedMs: item.watched_ms || 0,
+      method: item.playback_method || '',
     }));
   }
   const out: HistoryRow[] = [];
@@ -186,11 +202,13 @@ const rows = computed<HistoryRow[]>(() => {
       groupKey(previous.item) === groupKey(item) &&
       deviceLabel(previous.item) === deviceLabel(item);
     if (sameRun) {
+      previous.items.push(item);
       previous.count += 1;
       previous.watchedMs += item.watched_ms || 0;
+      previous.method = runMethod(previous.items);
       continue;
     }
-    out.push({ key: rowKey(item), item, count: 1, watchedMs: item.watched_ms || 0 });
+    out.push({ key: rowKey(item), item, items: [item], count: 1, watchedMs: item.watched_ms || 0, method: item.playback_method || '' });
   }
   return out;
 });
@@ -263,7 +281,7 @@ function exportCsv(): void {
     deviceLabel(row.item),
     row.item.address || '',
     locationLabel(row.item),
-    row.item.playback_method || '',
+    row.method || '',
     String(Math.round((row.watchedMs || 0) / 1000)),
     row.item.started_at || '',
   ])];

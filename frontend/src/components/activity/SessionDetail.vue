@@ -60,6 +60,8 @@
       </div>
     </div>
 
+    <ConsecutivePlaybacks v-if="run.length > 1" :run="run" :current-id="session.id" @open="emitParent('open-run', $event)"/>
+
     <div class="session-progress">
       <div><span>Progression</span><strong>{{ Math.round(percentPlayed) }} %</strong></div>
       <!-- La position avance d'elle-meme entre deux releves de Plex (voir playbackClock).
@@ -123,6 +125,8 @@
 <script setup lang="ts">
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import ConversionPanel from './ConversionPanel.vue';
+import ConsecutivePlaybacks from './ConsecutivePlaybacks.vue';
+import type { LectureDeSerie } from '@/composables/useMediaOverlay';
 import StreamTracksPanel from './StreamTracksPanel.vue';
 import SessionFacts from './SessionFacts.vue';
 import TerminatePlaybackModal from './TerminatePlaybackModal.vue';
@@ -149,8 +153,10 @@ const props = withDefaults(
     session: Record<string, any>;
     hasPrevious?: boolean;
     hasNext?: boolean;
+    /** Lectures consecutives de la ligne d'historique ouverte, dans l'ordre chronologique. */
+    run?: LectureDeSerie[];
   }>(),
-  { hasPrevious: false, hasNext: false }
+  { hasPrevious: false, hasNext: false, run: () => [] }
 );
 
 
@@ -211,7 +217,7 @@ const details = computed<Record<string, any> | null>(() => props.session.transco
 const stream = computed<Record<string, any>>(() => props.session.stream_details || {});
 
 /* Arreter une lecture : seulement tant qu'elle est en cours, et pas un telechargement. */
-const emitParent = defineEmits<{ (e: 'navigate', direction: number): void; (e: 'terminated'): void }>();
+const emitParent = defineEmits<{ (e: 'navigate', direction: number): void; (e: 'open-run', id: string): void; (e: 'terminated'): void }>();
 const terminateOpen = ref(false);
 const canTerminate = computed(() => !props.session.ended_at && props.session.source !== 'tautulli' && Boolean(props.session.id));
 function onTerminated(): void {
