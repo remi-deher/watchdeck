@@ -109,4 +109,24 @@ describe('HistoryTable', () => {
     expect(observers).toHaveLength(0);
     vi.unstubAllGlobals();
   });
+
+  it('marque « Lecture mixte » des lectures consécutives aux modes différents et les transmet à l’ouverture', async () => {
+    const items = [
+      { id: 1, title: 'É2', grandparent_title: 'Série', user_name: 'Lisa', player: 'TV', playback_method: 'direct_play', started_at: '2026-08-03T21:00:00' },
+      { id: 2, title: 'É1', grandparent_title: 'Série', user_name: 'Lisa', player: 'TV', playback_method: 'transcode', started_at: '2026-08-03T20:00:00' },
+      { id: 3, title: 'Film', user_name: 'Lisa', player: 'TV', playback_method: 'transcode', started_at: '2026-08-03T18:00:00' },
+      { id: 4, title: 'Film', user_name: 'Lisa', player: 'TV', playback_method: 'transcode', started_at: '2026-08-03T17:00:00' },
+    ];
+    const wrapper = mount(HistoryTable, { props: { items } });
+    const rows = wrapper.findAll('.history-table > button');
+    expect(rows).toHaveLength(2);
+    expect(rows[0].get('.playback-badge').text()).toBe('Lecture mixte');
+    expect(rows[0].get('.playback-badge').classes()).toContain('mixed');
+    expect(rows[1].get('.playback-badge').text()).toBe('Transcodage');
+
+    await rows[0].trigger('click');
+    const [item, run] = wrapper.emitted('select')[0];
+    expect(item.id).toBe(1);
+    expect(run.map((row) => row.id)).toEqual([1, 2]);
+  });
 });

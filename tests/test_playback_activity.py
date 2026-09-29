@@ -1729,3 +1729,67 @@ def test_parse_sessions_marks_played_audio_by_language_when_ids_differ():
     [session] = parse_plex_sessions(xml, media_sheets=sheets)
     languages = json.loads(session["stream_details"])["tracks"]["audio"]["languages"]
     assert [(item["language"], item["played"]) for item in languages] == [("English", False), ("Français", True)]
+
+
+def test_parse_sessions_lists_subtitles_and_marks_selected_one():
+    """Les sous-titres du fichier, celui affiché, et ce que Plex en fait."""
+    sheets = {
+        "8": {
+            "container": "mkv",
+            "streams": [
+                {"id": "30", "streamType": "3", "codec": "srt", "language": "Français", "forced": "1"},
+                {"id": "31", "streamType": "3", "codec": "pgs", "language": "English", "hearingImpaired": "1"},
+                {"id": "32", "streamType": "3", "codec": "ass", "language": "Español", "key": "/library/streams/32"},
+            ],
+        }
+    }
+    xml = """
+<MediaContainer size="2">
+  <Video sessionKey="1" ratingKey="8" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv">
+      <Part container="mkv" decision="transcode">
+        <Stream id="31" streamType="3" selected="1" decision="burn" codec="pgs" language="English" />
+      </Part>
+    </Media>
+    <Session id="s" />
+  </Video>
+  <Video sessionKey="2" ratingKey="9" title="Sans fiche" type="movie" viewOffset="0" duration="1000">
+    <Media container="mp4">
+      <Part container="mp4" decision="transcode">
+        <Stream id="40" streamType="3" selected="1" decision="transcode" codec="srt" format="ass" language="Deutsch" />
+      </Part>
+    </Media>
+    <Session id="t" />
+  </Video>
+</MediaContainer>
+"""
+    burned, orphan = parse_plex_sessions(xml, media_sheets=sheets)
+    subtitles = json.loads(burned["stream_details"])["tracks"]["subtitles"]
+    assert subtitles["decision"] == "burn"
+    assert subtitles["to"] is None
+    assert [(item["language"], item["selected"]) for item in subtitles["languages"]] == [
+        ("Français", False),
+        ("English", True),
+        ("Español", False),
+    ]
+    assert subtitles["languages"][0]["forced"] is True
+    assert subtitles["languages"][1]["hearing_impaired"] is True
+    assert subtitles["languages"][2]["external"] is True
+
+    fallback = json.loads(orphan["stream_details"])["tracks"]["subtitles"]
+    assert fallback["decision"] == "transcode"
+    assert fallback["to"] == "ass"
+    assert [(item["language"], item["selected"]) for item in fallback["languages"]] == [("Deutsch", True)]
+
+
+def test_parse_sessions_without_subtitles_has_none():
+    xml = """
+<MediaContainer size="1">
+  <Video sessionKey="1" ratingKey="7" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv"><Part container="mkv" decision="directplay" /></Media>
+    <Session id="s" />
+  </Video>
+</MediaContainer>
+"""
+    [session] = parse_plex_sessions(xml)
+    assert json.loads(session["stream_details"])["tracks"]["subtitles"] is None
