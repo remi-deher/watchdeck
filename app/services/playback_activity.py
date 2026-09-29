@@ -1136,6 +1136,8 @@ def _subtitle_tracks(sheet: dict, selected: dict) -> dict | None:
             "language": _language(item),
             "codec": item.get("codec"),
             "title": item.get("displayTitle") or item.get("title"),
+            # Nom donné à la piste dans le fichier (« Forcés », « SDH », « Commentaires »...).
+            "name": item.get("title") or item.get("extendedDisplayTitle"),
             "forced": item.get("forced") == "1",
             "hearing_impaired": item.get("hearingImpaired") == "1",
             "external": bool(item.get("key")),
@@ -1150,6 +1152,7 @@ def _subtitle_tracks(sheet: dict, selected: dict) -> dict | None:
                 "language": _language(selected),
                 "codec": selected.get("codec"),
                 "title": selected.get("displayTitle") or selected.get("title"),
+                "name": selected.get("title") or selected.get("extendedDisplayTitle"),
                 "forced": selected.get("forced") == "1",
                 "hearing_impaired": selected.get("hearingImpaired") == "1",
                 "external": bool(selected.get("key")),

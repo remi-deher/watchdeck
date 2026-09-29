@@ -17,14 +17,14 @@
           </div>
         </dl>
         <!-- Toutes les pistes du fichier (audio ou sous-titres), avec leurs caracteristiques :
-             la piste selectionnee est mise en avant, les autres restent comparables. -->
+             la piste selectionnee est mise en avant par son cadre, les autres restent
+             comparables. -->
         <div v-if="card.languages?.length" class="track-languages">
           <span class="track-languages-title">{{ card.languagesTitle }}</span>
           <ul :aria-label="card.languagesTitle">
-            <li v-for="(item, index) in card.languages" :key="index" :class="{ played: item.played }">
+            <li v-for="(item, index) in card.languages" :key="index" :class="{ played: item.played }" :aria-current="item.played ? 'true' : undefined">
               <strong>{{ item.language }}</strong>
               <span>{{ item.detail || '—' }}</span>
-              <em v-if="item.played">Sélectionné</em>
             </li>
           </ul>
         </div>
@@ -76,6 +76,14 @@ function audioLine(a: Record<string, any> | undefined): string {
   return join([a.language, a.codec && codecLabel(a.codec), channels(a.channels), bitrate(a.bitrate_kbps)]);
 }
 
+/* Le nom de la piste dans le fichier, quand il dit autre chose que la langue. Les lectures
+   enregistrees avant qu'on releve `name` n'ont que le titre d'affichage de Plex. */
+function trackName(item: any): string {
+  const name = item.name || item.title || '';
+  if (!name || name === item.language) return '';
+  return `« ${name} »`;
+}
+
 function subtitleStatus(decision: unknown, shown: boolean): Card['status'] {
   const value = String(decision || '').toLowerCase();
   if (value === 'burn') return { label: 'Incrusté', tone: 'converted' };
@@ -106,7 +114,7 @@ function subtitleCard(subs: Record<string, any> | undefined, fallbackDecision: u
     rows,
     languages: list.map((item) => ({
       language: item.language || 'Langue inconnue',
-      detail: join([item.codec && String(item.codec).toUpperCase(), ...flags(item), item.title && item.title !== item.language ? item.title : '']),
+      detail: join([trackName(item), item.codec && String(item.codec).toUpperCase(), ...flags(item)]),
       played: Boolean(item.selected),
     })),
     languagesTitle: 'Sous-titres disponibles',
@@ -187,9 +195,8 @@ const cards = computed(() => {
 .track-languages { display: grid; gap: 6px; }
 .track-languages-title { color: var(--muted); font-size: var(--fs-xs); }
 .track-languages ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.track-languages li { display: grid; grid-template-columns: minmax(70px, auto) minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--fs-xs); }
+.track-languages li { display: grid; grid-template-columns: minmax(70px, auto) minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--fs-xs); }
 .track-languages li span { color: var(--muted); overflow-wrap: anywhere; }
-.track-languages li em { color: var(--accent); font-style: normal; font-weight: 600; }
 .track-languages li.played { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .track-languages li.played span { color: var(--text); }
 </style>

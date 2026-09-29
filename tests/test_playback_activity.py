@@ -1738,7 +1738,15 @@ def test_parse_sessions_lists_subtitles_and_marks_selected_one():
             "container": "mkv",
             "streams": [
                 {"id": "30", "streamType": "3", "codec": "srt", "language": "Français", "forced": "1"},
-                {"id": "31", "streamType": "3", "codec": "pgs", "language": "English", "hearingImpaired": "1"},
+                {
+                    "id": "31",
+                    "streamType": "3",
+                    "codec": "pgs",
+                    "language": "English",
+                    "hearingImpaired": "1",
+                    "title": "SDH",
+                    "displayTitle": "English (PGS SDH)",
+                },
                 {"id": "32", "streamType": "3", "codec": "ass", "language": "Español", "key": "/library/streams/32"},
             ],
         }
@@ -1756,7 +1764,7 @@ def test_parse_sessions_lists_subtitles_and_marks_selected_one():
   <Video sessionKey="2" ratingKey="9" title="Sans fiche" type="movie" viewOffset="0" duration="1000">
     <Media container="mp4">
       <Part container="mp4" decision="transcode">
-        <Stream id="40" streamType="3" selected="1" decision="transcode" codec="srt" format="ass" language="Deutsch" />
+        <Stream id="40" streamType="3" selected="1" decision="transcode" codec="srt" format="ass" language="Deutsch" title="Forcés" />
       </Part>
     </Media>
     <Session id="t" />
@@ -1774,12 +1782,16 @@ def test_parse_sessions_lists_subtitles_and_marks_selected_one():
     ]
     assert subtitles["languages"][0]["forced"] is True
     assert subtitles["languages"][1]["hearing_impaired"] is True
+    assert subtitles["languages"][1]["name"] == "SDH"
+    assert subtitles["languages"][1]["title"] == "English (PGS SDH)"
+    assert subtitles["languages"][0]["name"] is None
     assert subtitles["languages"][2]["external"] is True
 
     fallback = json.loads(orphan["stream_details"])["tracks"]["subtitles"]
     assert fallback["decision"] == "transcode"
     assert fallback["to"] == "ass"
     assert [(item["language"], item["selected"]) for item in fallback["languages"]] == [("Deutsch", True)]
+    assert fallback["languages"][0]["name"] == "Forcés"
 
 
 def test_parse_sessions_without_subtitles_has_none():

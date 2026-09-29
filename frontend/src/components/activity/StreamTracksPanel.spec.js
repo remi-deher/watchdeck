@@ -34,7 +34,9 @@ describe('StreamTracksPanel', () => {
     expect(video).not.toContain('Transcode');
     const audio = card(wrapper, 'Audio');
     expect(audio.text()).toContain('Français · AC3 · 5.1 · 640 kb/s');
-    expect(audio.get('li.played').text()).toBe('FrançaisAC3 · 5.1 · 640 kb/s · 48 kHzSélectionné');
+    expect(audio.get('li.played').text()).toBe('FrançaisAC3 · 5.1 · 640 kb/s · 48 kHz');
+    expect(audio.get('li.played').attributes('aria-current')).toBe('true');
+    expect(audio.text()).not.toContain('Sélectionné');
     const others = audio.findAll('li:not(.played)');
     expect(others).toHaveLength(1);
     expect(others[0].text()).toBe('EnglishDTS · DTS-HD MA · 7.1 · 3,5 Mb/s');
@@ -85,7 +87,7 @@ describe('StreamTracksPanel', () => {
                 to: null,
                 languages: [
                   { language: 'Français', codec: 'srt', forced: true, selected: false },
-                  { language: 'English', codec: 'pgs', hearing_impaired: true, selected: true },
+                  { language: 'English', codec: 'pgs', hearing_impaired: true, name: 'SDH', title: 'English (PGS)', selected: true },
                   { language: 'Español', codec: 'ass', external: true, title: 'Español (latino)', selected: false },
                 ],
               },
@@ -100,9 +102,9 @@ describe('StreamTracksPanel', () => {
     expect(subs.text()).toContain('English · PGS · SDH');
     expect(subs.text()).toContain('Incrustés dans la vidéo');
     expect(subs.get('.track-languages-title').text()).toBe('Sous-titres disponibles');
-    expect(subs.get('li.played').text()).toBe('EnglishPGS · SDHSélectionné');
+    expect(subs.get('li.played').text()).toBe('English« SDH » · PGS · SDH');
     const others = subs.findAll('li:not(.played)').map((li) => li.text());
-    expect(others).toEqual(['FrançaisSRT · Forcé', 'EspañolASS · Externe · Español (latino)']);
+    expect(others).toEqual(['FrançaisSRT · Forcé', 'Español« Español (latino) » · ASS · Externe']);
   });
 
   it('dit la conversion des sous-titres et leur absence', () => {
