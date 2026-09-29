@@ -66,6 +66,29 @@ export function voisinsCourants(): string[] {
   return Array.isArray(valeur) ? valeur.map(String) : [];
 }
 
+const CLE_SERIE = '__sheetRun';
+
+/** Une lecture d'une serie de lectures consecutives : de quoi l'afficher sans la charger. */
+export interface LectureDeSerie {
+  id: string;
+  method: string;
+  started_at: string;
+  watched_ms: number;
+  label: string;
+}
+
+/** Etat portant les lectures consecutives repliees dans la ligne ouverte. */
+export function etatDeSerie(lectures: LectureDeSerie[]): Record<string, unknown> {
+  return { [CLE_SERIE]: lectures.map((lecture) => ({ ...lecture, id: String(lecture.id) })) };
+}
+
+/** Lectures consecutives de la ligne d'origine, relues dans l'entree d'historique courante. */
+export function serieCourante(): LectureDeSerie[] {
+  if (typeof history === 'undefined') return [];
+  const valeur = (history.state as Record<string, unknown> | null)?.[CLE_SERIE];
+  return Array.isArray(valeur) ? (valeur as LectureDeSerie[]) : [];
+}
+
 /**
  * Decompose une adresse de fiche en ses trois parties.
  *
@@ -209,5 +232,5 @@ export function useOuvrirFiche(): {
 export function etatDeSurfaceCourant(): Record<string, unknown> {
   if (typeof history === 'undefined' || !history.state) return {};
   const etat = history.state as Record<string, unknown>;
-  return Object.fromEntries([CLE_FOND, CLE_VOISINS].filter((cle) => cle in etat).map((cle) => [cle, etat[cle]]));
+  return Object.fromEntries([CLE_FOND, CLE_VOISINS, CLE_SERIE].filter((cle) => cle in etat).map((cle) => [cle, etat[cle]]));
 }
