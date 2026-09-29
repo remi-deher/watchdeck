@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.59.0 — 2026-09-29
+
+
+### ✨ Nouveautés
+
+- lectures consécutives navigables, lecture mixte et sous-titres dans Flux (#546) ([94b93d4](https://github.com/remi-deher/watchdeck/commit/94b93d4a6011b29059256f6c1813856c21eaa34b))
 ## 1.58.0 — 2026-09-28
 
 
@@ -45,6 +51,7 @@
 - bump vue from 3.5.42 to 3.5.43 (#534) ([56a2155](https://github.com/remi-deher/watchdeck/commit/56a2155c12c664f9265dd844568d8664a2b16002))
 - bump @vue/test-utils from 2.5.0 to 2.5.1 (#530) ([0ee2049](https://github.com/remi-deher/watchdeck/commit/0ee2049fdb34c4c330ef3881b7288847a0f83f90))
 - bump uvicorn from 0.53.0 to 0.54.0 (#528) ([95512c4](https://github.com/remi-deher/watchdeck/commit/95512c415bed2d91a96665e413987e07577664ab))
+- v1.58.0 (#545) ([cf3caf2](https://github.com/remi-deher/watchdeck/commit/cf3caf2823295a700003ade77bb1fe40845e8159))
 ## 1.57.0 — 2026-09-27
 
 
