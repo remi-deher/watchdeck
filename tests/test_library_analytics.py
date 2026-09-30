@@ -61,6 +61,17 @@ def test_parse_plex_item_extracts_raw_technical_metadata():
     assert row["subtitle_languages"] == ["English", "Français"]
 
 
+def test_the_banner_of_an_episode_is_its_show_background():
+    item = {**sample_item(), "art": "/library/metadata/9/art/1", "grandparentArt": "/library/metadata/3/art/2"}
+    assert (
+        parse_plex_item(item, "Séries", "show")["art_url"]
+        == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F3%2Fart%2F2"
+    )
+    # Un chemin hors de la bibliotheque Plex n'est pas servi par le proxy de vignettes.
+    item = {**item, "grandparentArt": "http://ailleurs/art.jpg", "art": None}
+    assert parse_plex_item(item, "Séries", "show")["art_url"] is None
+
+
 def test_filters_combine_media_technical_storage_and_audience_fields():
     row = parse_plex_item(sample_item(), "Séries", "show")
     row.update(play_count=2, viewers=["Rémi"], watch_time_ms=1000)
@@ -523,6 +534,8 @@ def test_dolby_vision_wins_over_the_transfer_function():
 
 @pytest.mark.asyncio
 async def test_the_technical_sheet_links_the_library_media(monkeypatch):
+    metadata_holder = technical_metadata()
+
     class _Response:
         status_code = 200
 
@@ -530,7 +543,7 @@ async def test_the_technical_sheet_links_the_library_media(monkeypatch):
             return None
 
         def json(self):
-            return {"MediaContainer": {"Metadata": [technical_metadata()]}}
+            return {"MediaContainer": {"Metadata": [metadata_holder]}}
 
     class _Client:
         async def __aenter__(self):
@@ -545,13 +558,23 @@ async def test_the_technical_sheet_links_the_library_media(monkeypatch):
 
     monkeypatch.setattr("app.services.library_analytics.httpx.AsyncClient", lambda **kwargs: _Client())
     settings = SimpleNamespace(plex_url="http://plex:32400", plex_token="jeton", plex_verify_ssl=False)
-    db = SimpleNamespace(execute=AsyncMock(return_value=SimpleNamespace(scalar=lambda: 12)))
+    db = SimpleNamespace(
+        execute=AsyncMock(
+            return_value=SimpleNamespace(first=lambda: (12, "https://image.tmdb.org/t/p/original/dune.jpg"))
+        )
+    )
 
     sheet = await analytics_item_technical(settings, db, "42")
 
     assert sheet["library_item_id"] == 12
     assert sheet["poster_url"] == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F1"
+    assert sheet["art_url"] == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F42%2Fart%2F1"
     assert sheet["file"]["container"] == "mkv"
+
+    # Sans fond Plex, le bandeau reprend celui de la bibliotheque.
+    del metadata_holder["art"]
+    sheet = await analytics_item_technical(settings, db, "42")
+    assert sheet["art_url"].startswith("/api/image-proxy?url=https%3A%2F%2Fimage.tmdb.org")
 
 
 def test_the_technical_endpoint_separates_an_unknown_file_from_an_unreachable_plex(monkeypatch):

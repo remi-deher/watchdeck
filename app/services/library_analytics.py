@@ -17,7 +17,7 @@ from sqlalchemy.future import select
 from ..database import AsyncSessionLocal
 from ..models import LibraryAnalyticsSnapshot, LibraryItem, PlaybackSession, Settings
 from ..pagination import paginated_response
-from ..utils import now_utc_naive
+from ..utils import now_utc_naive, wrap_image_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # ou l'historique bouge : un champ ajoute (vignette, identifiant de session) resterait
 # absent jusqu'au prochain ajout dans Plex. La version entre dans l'empreinte pour forcer
 # un recalcul au premier passage apres une mise a jour.
-PAYLOAD_VERSION = 2
+PAYLOAD_VERSION = 3
 
 
 def _int(value, default=0) -> int:
@@ -52,6 +52,18 @@ def _poster_path(item: dict, media_type: str) -> str | None:
         path = item.get("parentThumb") or item.get("thumb") or item.get("grandparentThumb")
     else:
         path = item.get("thumb")
+    return path if isinstance(path, str) and path.startswith("/library/metadata/") else None
+
+
+def _art_path(item: dict, media_type: str) -> str | None:
+    """Image de fond Plex d'une ligne, pour le bandeau de sa fiche : celle de la serie pour
+    un episode, de l'album ou de l'artiste pour une piste."""
+    if media_type == "episode":
+        path = item.get("grandparentArt") or item.get("art")
+    elif media_type == "track":
+        path = item.get("parentArt") or item.get("grandparentArt") or item.get("art")
+    else:
+        path = item.get("art")
     return path if isinstance(path, str) and path.startswith("/library/metadata/") else None
 
 
@@ -108,6 +120,7 @@ def parse_plex_item(
         "subtitle_count": len(subtitles),
         "audio_track_count": len(audio),
         "thumb_url": plex_thumb_url(_poster_path(item, media_type)),
+        "art_url": plex_thumb_url(_art_path(item, media_type)),
     }
 
 
@@ -639,15 +652,18 @@ async def analytics_item_technical(settings: Settings, db: AsyncSession, rating_
     media_type = metadata.get("type") or ""
     guid = metadata.get("grandparentGuid") if media_type == "episode" else metadata.get("guid")
     library_item_id = None
+    library_art = None
     if guid:
-        library_item_id = (
-            await db.execute(select(LibraryItem.id).filter(LibraryItem.plex_guid == guid).limit(1))
-        ).scalar()
-    art = metadata.get("grandparentArt") if media_type == "episode" else metadata.get("art")
+        row = (
+            await db.execute(select(LibraryItem.id, LibraryItem.art_url).filter(LibraryItem.plex_guid == guid).limit(1))
+        ).first()
+        if row:
+            library_item_id, library_art = row
     return {
         **parse_plex_technical(metadata),
         "poster_url": plex_thumb_url(_poster_path(metadata, media_type)),
-        "art_url": plex_thumb_url(art if isinstance(art, str) and art.startswith("/library/metadata/") else None),
+        # Le fond de la bibliotheque (scan Plex ou TMDB) quand Plex n'en a pas pour ce fichier.
+        "art_url": plex_thumb_url(_art_path(metadata, media_type)) or wrap_image_proxy(library_art),
         "summary": metadata.get("summary"),
         "library_item_id": library_item_id,
     }

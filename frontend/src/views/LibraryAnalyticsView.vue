@@ -12,6 +12,7 @@
       @toggle-filters="filtersOpen = !filtersOpen" page-class="analytics-page">
 
       <template #tools>
+        <UiSegmentedControl :model-value="activeTab" :options="TAB_OPTIONS" ariaLabel="Vue de l’inventaire" @update:model-value="setTab(String($event))" />
         <UiButton variant="primary" :href="exportUrl"><template #icon><FileDown /></template>Exporter CSV</UiButton>
         <UiButton v-if="activeTab === 'table'" icon-only title="Personnaliser les colonnes" aria-label="Personnaliser les colonnes" @click="mediaTable?.openColumnPicker()"><Columns /></UiButton>
       </template>
@@ -19,15 +20,14 @@
     <UiFeedback v-if="loading && !data.summary" type="loading" message="Analyse du catalogue Plex…" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load()" />
 
-    <!-- En-tete de la page : l'etat de l'analyse, et la bascule Fichiers / Insights qui
-         remplace l'entree « Analyses » de la navigation. -->
+    <!-- En-tete de la page : l'etat de l'analyse. La bascule Fichiers / Insights, qui
+         remplace l'entree « Analyses » de la navigation, est dans les actions de la page. -->
     <header class="inventory-head">
       <div class="inventory-head__titles">
         <span class="inventory-head__eyebrow"><span class="status-dot" aria-hidden="true"></span>{{ data.generated_at ? `Catalogue Plex analysé ${formatRelativeDate(data.generated_at)}` : 'Catalogue Plex' }}</span>
         <h2>{{ activeTab === 'table' ? 'Inventaire' : 'Insights' }}</h2>
         <p>{{ activeTab === 'table' ? 'Chaque fichier de la médiathèque, avec sa qualité, ses pistes et son audience.' : 'Cliquez sur une carte ou une catégorie pour filtrer la page.' }}</p>
       </div>
-      <UiSegmentedControl :model-value="activeTab" :options="TAB_OPTIONS" ariaLabel="Vue de l’inventaire" @update:model-value="setTab(String($event))" />
     </header>
 
     <div class="psh-layout">

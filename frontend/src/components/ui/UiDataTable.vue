@@ -132,6 +132,8 @@ export interface UiColumn<R = any> {
   card?: 'title' | 'actions' | 'hidden' | 'field';
   className?: string;
   headerClass?: string;
+  /** Description courte, montree dans le choix des colonnes. */
+  hint?: string;
 }
 
 export interface UiSort { key: string; direction: 'asc' | 'desc' }
