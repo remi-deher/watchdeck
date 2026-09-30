@@ -26,7 +26,7 @@
         </div>
       </section>
 
-      <!-- 2. Demandeurs sur toute la largeur ; administration et journal côte à côte dessous. -->
+      <!-- 2. Demandeurs, administration et journal, chacun sur toute la largeur. -->
       <div class="request-grid">
         <RequesterList
           :row="row"
@@ -56,33 +56,35 @@
           <section v-if="admin" class="admin-card request-admin-actions" :aria-labelledby="`admin-title-${row.id}`">
             <h3 :id="`admin-title-${row.id}`">Administration</h3>
 
-            <div class="admin-group" role="group" :aria-labelledby="`admin-mails-${row.id}`">
-              <span :id="`admin-mails-${row.id}`" class="admin-group-title">Mails à tous les demandeurs</span>
-              <UiButton :disabled="busy" @click="$emit('resend-mail', row.id, 'request')"><template #icon><Mail /></template>Renvoyer le mail de demande</UiButton>
-              <UiButton v-if="row.status === 'available'" :disabled="busy" @click="$emit('resend-mail', row.id, 'available')"><template #icon><MailCheck /></template>Renvoyer le mail de disponibilité</UiButton>
-              <UiButton v-if="hasUnnotified(row)" :disabled="busy" @click="$emit('catch-up-all', row)"><template #icon><Users /></template>Prévenir ceux qui ne l'ont pas reçu</UiButton>
-            </div>
+            <div class="admin-groups">
+              <div class="admin-group" role="group" :aria-labelledby="`admin-mails-${row.id}`">
+                <span :id="`admin-mails-${row.id}`" class="admin-group-title">Mails à tous les demandeurs</span>
+                <UiButton :disabled="busy" @click="$emit('resend-mail', row.id, 'request')"><template #icon><Mail /></template>Renvoyer le mail de demande</UiButton>
+                <UiButton v-if="row.status === 'available'" :disabled="busy" @click="$emit('resend-mail', row.id, 'available')"><template #icon><MailCheck /></template>Renvoyer le mail de disponibilité</UiButton>
+                <UiButton v-if="hasUnnotified(row)" :disabled="busy" @click="$emit('catch-up-all', row)"><template #icon><Users /></template>Prévenir ceux qui ne l'ont pas reçu</UiButton>
+              </div>
 
-            <div v-if="hasFollowActions(row)" class="admin-group" role="group" :aria-labelledby="`admin-follow-${row.id}`">
-              <span :id="`admin-follow-${row.id}`" class="admin-group-title">Suivi</span>
-              <UiButton v-if="row.status === 'pending_approval'" :disabled="busy" @click="$emit('approve', row.id)"><template #icon><Check /></template>Approuver la demande</UiButton>
-              <UiButton v-if="row.status === 'pending_approval'" :disabled="busy" @click="$emit('reject', row)"><template #icon><Ban /></template>Refuser la demande</UiButton>
-              <UiButton v-if="row.arr_id" @click="$emit('open-release', row.id)"><template #icon><Search /></template>Rechercher une release</UiButton>
-              <UiButton v-if="row.status === 'failed'" @click="$emit('retry', row.id)"><template #icon><RotateCcw /></template>Relancer</UiButton>
-              <UiButton v-if="canClose(row)" :disabled="busy" @click="$emit('close-request', row)"><template #icon><CheckCheck /></template>Clôturer la demande</UiButton>
-            </div>
+              <div v-if="hasFollowActions(row)" class="admin-group" role="group" :aria-labelledby="`admin-follow-${row.id}`">
+                <span :id="`admin-follow-${row.id}`" class="admin-group-title">Suivi</span>
+                <UiButton v-if="row.status === 'pending_approval'" :disabled="busy" @click="$emit('approve', row.id)"><template #icon><Check /></template>Approuver la demande</UiButton>
+                <UiButton v-if="row.status === 'pending_approval'" :disabled="busy" @click="$emit('reject', row)"><template #icon><Ban /></template>Refuser la demande</UiButton>
+                <UiButton v-if="row.arr_id" @click="$emit('open-release', row.id)"><template #icon><Search /></template>Rechercher une release</UiButton>
+                <UiButton v-if="row.status === 'failed'" @click="$emit('retry', row.id)"><template #icon><RotateCcw /></template>Relancer</UiButton>
+                <UiButton v-if="canClose(row)" :disabled="busy" @click="$emit('close-request', row)"><template #icon><CheckCheck /></template>Clôturer la demande</UiButton>
+              </div>
 
-            <!-- Un média dont les releases se rattachent mal peut rester en manuel sans
-                 qu'on désactive le réglage pour tous les autres, et inversement. -->
-            <div class="admin-group auto-import-choice">
-              <label :for="`auto-import-${row.id}`" class="admin-group-title">Rapprochement des imports bloqués</label>
-              <UiSelect
-                :id="`auto-import-${row.id}`"
-                :model-value="autoImportValue(row)"
-                :disabled="busy"
-                :options="AUTO_IMPORT_OPTIONS"
-                @update:model-value="onAutoImportChange(row, $event)"
-              />
+              <!-- Un média dont les releases se rattachent mal peut rester en manuel sans
+                   qu'on désactive le réglage pour tous les autres, et inversement. -->
+              <div class="admin-group auto-import-choice">
+                <label :for="`auto-import-${row.id}`" class="admin-group-title">Rapprochement des imports bloqués</label>
+                <UiSelect
+                  :id="`auto-import-${row.id}`"
+                  :model-value="autoImportValue(row)"
+                  :disabled="busy"
+                  :options="AUTO_IMPORT_OPTIONS"
+                  @update:model-value="onAutoImportChange(row, $event)"
+                />
+              </div>
             </div>
 
             <div class="admin-danger">
@@ -359,7 +361,7 @@ const directSubtitle = computed(() => {
   color: var(--amber-text);
 }
 
-/* ----- Demandeurs pleine largeur, puis administration et journal ----- */
+/* ----- Demandeurs, administration et journal en pleine largeur ----- */
 .request-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -371,12 +373,6 @@ const directSubtitle = computed(() => {
   gap: 20px;
   align-items: start;
   min-width: 0;
-}
-/* Sans la carte Administration (non-admin), le journal garde toute la largeur. */
-@container demandes (min-width: 760px) {
-  .request-side:has(> .admin-card) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 /* ----- Ajout d'une personne ----- */
@@ -423,6 +419,8 @@ const directSubtitle = computed(() => {
 }
 
 /* ----- Carte « Administration » ----- */
+/* Les groupes d'actions en colonnes plutôt qu'empilés : la carte reste basse et le
+   journal, souvent court, ne laisse plus de grand vide à côté d'elle. */
 .admin-card {
   display: flex;
   flex-direction: column;
@@ -437,6 +435,12 @@ const directSubtitle = computed(() => {
   font-family: var(--font-display);
   font-size: var(--fs-lg);
   font-weight: 600;
+}
+.admin-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  align-items: start;
+  gap: 14px var(--space-5);
 }
 .admin-group {
   display: flex;
@@ -470,12 +474,13 @@ const directSubtitle = computed(() => {
 .admin-danger {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
 }
 .admin-danger :deep(.ui-button) {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   padding-inline: 12px;
   background: transparent;
 }
@@ -556,6 +561,9 @@ const directSubtitle = computed(() => {
   }
   .admin-card {
     padding: 16px 18px;
+  }
+  .admin-danger :deep(.ui-button) {
+    flex: 1 1 auto;
   }
   .admin-group :deep(.ui-button),
   .admin-danger :deep(.ui-button) {

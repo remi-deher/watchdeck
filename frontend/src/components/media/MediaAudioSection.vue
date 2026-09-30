@@ -462,14 +462,27 @@ function formatAirDate(airDate: string): string {
   font-weight: 500;
   cursor: pointer;
 }
+/* Pistes en pastilles sur plusieurs colonnes (2 sur mobile) : dix sous-titres tiennent
+   en quelques lignes au lieu d'une longue colonne. */
 .track-group-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 6px;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
   padding-left: 0.5rem;
   border-left: 2px solid var(--border);
 }
+/* Reste en ligne sur mobile (la regle globale des .detail-row les empile) : langue a
+   gauche, pastille a droite, pour garder des cartes basses. */
 .track-row {
-  margin-bottom: 6px;
+  flex-direction: row;
+  align-items: center;
+  text-align: left;
+  min-height: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 .track-default-tag {
   opacity: 0.8;

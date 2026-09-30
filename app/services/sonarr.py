@@ -56,6 +56,12 @@ get_queue_series_ids = partial(
     product=PRODUCT,
     log_name="get_queue_series_ids",
 )
+get_queue_episode_ids = partial(
+    arr_common.get_queue_media_ids,
+    id_key="episodeId",
+    product=PRODUCT,
+    log_name="get_queue_episode_ids",
+)
 delete_series = partial(
     arr_common.delete_media,
     resource="series",

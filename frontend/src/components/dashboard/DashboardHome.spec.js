@@ -161,3 +161,50 @@ describe('ServiceHealthPanel', () => {
     expect(wrapper.text()).toContain('Vérifié à l’instant');
   });
 });
+
+describe('ServiceHealthPanel details', () => {
+  beforeEach(() => { apiMock.mockReset(); localStorage.clear(); });
+
+  it('affiche version, instances, lectures, derniere activite et deplie les alertes', async () => {
+    const started = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+    apiMock.mockResolvedValue({
+      status: 'healthy',
+      checked_at: new Date().toISOString(),
+      services: {
+        plex: { ok: true, state: 'ok', response_ms: 80, version: '1.41.0', instance_name: 'Maison', sessions: 2 },
+        sonarr: {
+          ok: true, state: 'ok', response_ms: 40, version: '4.0.9.2244', instance_name: 'Sonarr', instances: 2, started_at: started,
+          issues: [{ level: 'error', message: 'Dossier racine manquant' }, { level: 'warning', message: 'Indexer lent' }], issue_count: 3,
+        },
+        radarr: { ok: true, state: 'ok', response_ms: 30 },
+        seer: { ok: true, state: 'ok', response_ms: 50, version: '2.1.0', update_available: true },
+        smtp: { ok: true, state: 'ok', providers: ['Brevo'], last_activity_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString() },
+        rss: { ok: true, state: 'ok', items: 12, last_activity_at: new Date().toISOString() },
+      },
+    });
+    const wrapper = mount(ServiceHealthPanel, {
+      global: { ...global, plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]] },
+    });
+    await flushPromises();
+
+    const byName = Object.fromEntries(wrapper.findAll('.service-row').map((row) => [row.find('strong').text(), row]));
+    expect(wrapper.findAll('.service-row')[0].find('strong').text()).toBe('Sonarr');
+    expect(byName.Sonarr.find('.service-row-facts').text()).toBe('v4.0.9 · 2 instances · actif depuis 3 j');
+    expect(byName.Sonarr.find('small').exists()).toBe(false);
+    expect(byName.Plex.text()).toContain('Maison');
+    expect(byName.Plex.find('.service-row-facts').text()).toBe('v1.41.0 · 2 lectures en cours');
+    expect(byName.Seer.text()).toContain('Mise à jour disponible');
+    expect(byName['E-mail'].find('.service-row-facts').text()).toBe('Brevo · dernier envoi il y a 2 h');
+    expect(byName['Watchlist Plex'].find('.service-row-facts').text()).toBe('relevée à l\'instant · 12 éléments');
+    expect(byName.Radarr.find('.service-row-facts').text()).toBe('Opérationnel');
+    expect(wrapper.find('.service-health-verdict').text()).toBe('1 service à surveiller');
+
+    const toggle = byName.Sonarr.find('.service-row-issues-toggle');
+    expect(toggle.text()).toBe('3 alertes');
+    expect(byName.Sonarr.find('.service-row-issues').exists()).toBe(false);
+    await toggle.trigger('click');
+    const issues = wrapper.findAll('.service-row-issues li').map((li) => li.text());
+    expect(issues).toEqual(['Dossier racine manquant', 'Indexer lent', 'et 1 autre dans Sonarr']);
+    expect(toggle.attributes('aria-expanded')).toBe('true');
+  });
+});
