@@ -67,7 +67,9 @@
 
     <section class="item-section" aria-labelledby="item-tracks-title">
       <header><h3 id="item-tracks-title">Pistes</h3></header>
-      <div class="item-tracks">
+      <!-- Au-dela de quelques pistes d'un cote, les deux listes passent en pleine largeur et
+           leurs pistes en grille : sinon la plus courte laisse un grand vide a cote de l'autre. -->
+      <div class="item-tracks" :class="{ 'is-stacked': tracksStacked }">
         <div class="track-group">
           <header class="track-kind"><Volume2 aria-hidden="true" />Audio<small v-if="technical?.audio?.length">{{ technical.audio.length }}</small></header>
           <ul v-if="technical?.audio?.length">
@@ -190,6 +192,10 @@ const resolution = computed(() => resolutionLabel(props.item.video_resolution));
 /* Bandeau : le fond Plex du media (serie pour un episode), connu des l'instantane, sinon
    celui de la fiche Plex ou de la bibliotheque. Sans fond du tout, l'affiche floutee
    plutot qu'un bandeau vide. Les vignettes Plex sont demandees a la largeur du bandeau. */
+/* Au-dela de ce nombre de pistes (audio ou sous-titres), la section passe en pleine largeur. */
+const LONG_TRACK_LIST = 3;
+const tracksStacked = computed(() => Math.max(props.technical?.audio?.length || 0, props.technical?.subtitles?.length || 0) > LONG_TRACK_LIST);
+
 const bannerSource = computed(() => props.technical?.art_url || props.item.art_url || '');
 const bannerIsPoster = computed(() => !bannerSource.value && Boolean(props.technical?.poster_url || props.item.thumb_url));
 const bannerUrl = computed<string | null>(() => {
@@ -315,6 +321,12 @@ button.item-poster:focus-visible { outline: 2px solid var(--accent); outline-off
 .track-group li span { font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .track-group li small, .track-group p.is-empty { color: var(--muted); font-size: var(--fs-xs); }
 .track-group p { margin: 0; font-size: var(--fs-sm); }
+/* Longues listes : chaque groupe sur sa ligne, ses pistes en pastilles sur plusieurs colonnes. */
+.item-tracks.is-stacked { grid-template-columns: minmax(0, 1fr); }
+.item-tracks.is-stacked .track-group ul { grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); gap: 6px; }
+.item-tracks.is-stacked .track-group li { align-content: start; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.item-tracks.is-stacked .track-group li strong { flex-wrap: wrap; row-gap: 2px; }
+.item-tracks.is-stacked .track-group li strong em { white-space: nowrap; }
 
 /* Repli du bandeau sur l'affiche : agrandie et floutee, elle ne donne que l'ambiance. */
 .item-banner :deep(.is-poster-fallback .ui-hero-backdrop__image) { filter: blur(28px) saturate(1.3); transform: scale(1.25); }

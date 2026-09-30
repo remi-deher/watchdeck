@@ -127,4 +127,27 @@ describe('StreamTracksPanel', () => {
     expect(card(legacy, 'Sous-titres').get('.pill').text()).toBe('Direct');
     expect(mount(StreamTracksPanel, { props: { session: {} } }).find('.track-card').exists()).toBe(false);
   });
+
+  it('met une carte à longue liste de pistes sur sa propre ligne', () => {
+    const langs = ['norsk', 'English', 'Dansk', 'Deutsch', 'Français'].map((language, index) => ({ language, codec: 'srt', selected: index === 4 }));
+    const wrapper = mount(StreamTracksPanel, {
+      props: {
+        session: {
+          stream_details: {
+            tracks: {
+              video: { decision: 'copy', from: { codec: 'hevc', height: 720 } },
+              audio: { decision: 'copy', from: { codec: 'aac' }, languages: [{ language: 'norsk', codec: 'aac', played: true }] },
+              container: { from: 'mkv', to: 'mp4' },
+              subtitles: { decision: 'transcode', to: 'ass', languages: langs },
+            },
+          },
+        },
+      },
+    });
+    // Vidéo, audio et conteneur partagent la premiere ligne ; les sous-titres prennent la suivante.
+    expect(wrapper.get('.tracks-grid').attributes('style')).toContain('--cards: 3');
+    expect(card(wrapper, 'Sous-titres').classes()).toContain('wide');
+    expect(card(wrapper, 'Audio').classes()).not.toContain('wide');
+    expect(card(wrapper, 'Sous-titres').findAll('li')).toHaveLength(5);
+  });
 });

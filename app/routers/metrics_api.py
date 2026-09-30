@@ -18,6 +18,7 @@ from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, MediaRequest, NotificationLog, PlexUser, PollHistory, RequestStatus, Settings
 from ..services import arr_orphans, email_providers, prowlarr, radarr, sonarr
+from ..services import service_health_details as health_details
 from ..services.plex_api import check_connection as plex_test
 from ..services.seer import check_connection as seer_test
 from ..utils import now_utc, now_utc_naive, wrap_image_proxy
@@ -138,7 +139,35 @@ async def health_check(db: AsyncSession = Depends(get_db_async)):
     if s and s.plex_url and s.plex_token:
         checks["plex"] = ("failed", _timed_check(plex_test(s.plex_url, s.plex_token, verify_ssl=s.plex_verify_ssl)))
 
-    results = dict(zip(checks.keys(), await asyncio.gather(*(coro for _, coro in checks.values()))))
+    # Les details (version, alertes, lectures en cours...) partent en meme temps que les
+    # controles : ils sont bornes dans le temps et n'allongent pas la verification.
+    detail_jobs: dict[str, Any] = {}
+    if sonarr_inst:
+        detail_jobs["sonarr"] = health_details.arr_details(sonarr_inst.url, sonarr_inst.api_key)
+    if radarr_inst:
+        detail_jobs["radarr"] = health_details.arr_details(radarr_inst.url, radarr_inst.api_key)
+    if prowlarr_inst:
+        detail_jobs["prowlarr"] = health_details.arr_details(prowlarr_inst.url, prowlarr_inst.api_key, api_version="v1")
+    if "seer" in checks and s:
+        detail_jobs["seer"] = health_details.seer_details(s.seer_url, s.seer_api_key)
+    if "plex" in checks and s:
+        detail_jobs["plex"] = health_details.plex_details(s.plex_url, s.plex_token, verify_ssl=s.plex_verify_ssl)
+
+    check_results, detail_results = await asyncio.gather(
+        asyncio.gather(*(coro for _, coro in checks.values())),
+        asyncio.gather(*detail_jobs.values()),
+    )
+    results = dict(zip(checks.keys(), check_results))
+    details = dict(zip(detail_jobs.keys(), detail_results))
+    instance_counts = dict(
+        (
+            await db.execute(
+                select(ArrInstance.arr_type, sqlalchemy.func.count())
+                .filter(ArrInstance.enabled)
+                .group_by(ArrInstance.arr_type)
+            )
+        ).all()
+    )
 
     services: dict[str, dict] = {}
     failed = 0
@@ -164,13 +193,18 @@ async def health_check(db: AsyncSession = Depends(get_db_async)):
             "action_url": "/settings#tab-connexions",
             "action_label": "Corriger",
         }
+        if ok:
+            services[name].update(details.get(name) or {})
+        if name in ("sonarr", "radarr", "prowlarr") and instance_counts.get(name, 0) > 1:
+            services[name]["instances"] = instance_counts[name]
         if not ok:
             if severity == "degraded":
                 degraded += 1
             else:
                 failed += 1
 
-    has_email_provider = await email_providers.has_enabled_provider(db)
+    enabled_email_providers = await email_providers.get_enabled_providers(db)
+    has_email_provider = bool(enabled_email_providers)
     services["smtp"] = {
         "ok": has_email_provider,
         "state": "ok" if has_email_provider else "non_configured",
@@ -179,6 +213,10 @@ async def health_check(db: AsyncSession = Depends(get_db_async)):
         "action_url": "/settings#tab-notifications",
         "action_label": "Configurer",
     }
+    if has_email_provider:
+        services["smtp"].update(
+            await health_details.email_details(db, [provider.name for provider in enabled_email_providers])
+        )
     services["rss"] = {
         "ok": bool(s and s.plex_rss_url),
         "state": "ok" if s and s.plex_rss_url else "non_configured",
@@ -187,6 +225,8 @@ async def health_check(db: AsyncSession = Depends(get_db_async)):
         "action_url": "/settings#tab-connexions",
         "action_label": "Configurer",
     }
+    if services["rss"]["ok"]:
+        services["rss"].update(await health_details.watchlist_details(db))
 
     if failed > 0:
         overall = "down"
