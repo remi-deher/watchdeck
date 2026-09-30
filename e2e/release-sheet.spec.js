@@ -46,7 +46,7 @@ test("« Recherche interactive » ouvre la feuille des releases au-dessus des de
   await expect(feuille.getByRole("heading", { name: "Film introuvable" })).toBeVisible();
   await expect(feuille.locator(".release-row")).toHaveCount(2);
   // La liste des demandes reste derriere la feuille.
-  await expect(page.locator(".rt-list")).toHaveCount(1);
+  await expect(page.locator(".rt-grid")).toHaveCount(1);
   await page.waitForTimeout(700); // fin de l'ouverture
   await page.screenshot({ path: info.outputPath("feuille.png") });
 
