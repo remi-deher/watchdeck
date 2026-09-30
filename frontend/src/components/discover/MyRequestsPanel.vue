@@ -364,9 +364,9 @@ function act(row: any, action: string): void {
     pendingReject.value = row;
     return;
   }
-  // Recherche interactive des releases (la VF y est mise en avant).
+  // Recherche interactive des releases (la VF y est mise en avant), dans la feuille.
   if (action === 'interactive') {
-    void router.push(`/releases/${row.id}`);
+    void ouvrirFiche(router, `/releases/${row.id}`, route.fullPath);
     return;
   }
   void runAction(row, action);

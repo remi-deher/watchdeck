@@ -49,7 +49,7 @@
             :addable-users="addableUsers"
             v-model:new-requester-id="newRequesterId"
             @add-requester="addRequester"
-            @open-release="(id: number) => router.push(`/releases/${id}`)"
+            @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
             @retry="(id: number) => requestAction(id, 'retry')"
             @catch-up-all="catchUpAll"
             @resend-mail="resendMail"
@@ -202,7 +202,7 @@ import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api";
 import { mediaDetailPath, openPlexLink } from "@/mediaUrl";
 import MediaDetailHero from "@/components/media/MediaDetailHero.vue";
-import { useMediaOverlay } from '@/composables/useMediaOverlay';
+import { useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { apercuRecent } from "@/composables/useFicheApercu";
 import MediaSummaryTab from "@/components/media/MediaSummaryTab.vue";
 import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
@@ -228,6 +228,8 @@ import { patchedAll } from '@/composables/useRealtimeQuery';
 const route = useRoute();
 const router = useRouter();
 const { actif: enSurface } = useMediaOverlay();
+// La recherche interactive s'ouvre dans la feuille, par-dessus la meme page de fond.
+const { ouvrir: ouvrirReleases } = useOuvrirFiche();
 const queryClient = useQueryClient();
 const kind = computed(() => String(route.params.kind || ''));
 const mediaId = computed(() => String(route.params.id || ''));
