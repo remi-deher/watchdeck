@@ -3,8 +3,10 @@
     <!-- Pour toutes les lectures, pas seulement les conversions : ce qui est lu (source),
          ce qui part vers le lecteur (sortie), et si Plex a dû le convertir. -->
     <span id="tracks-title" class="eyebrow">Flux</span>
-    <div class="tracks-grid" :style="{ '--cards': cards.length }">
-      <article v-for="card in cards" :key="card.label" class="track-card">
+    <!-- Une carte avec une longue liste de pistes prend sa propre ligne, pistes en grille :
+         les cartes courtes restent cote a cote au lieu de s'etirer sur sa hauteur. -->
+    <div class="tracks-grid" :style="{ '--cards': shortCount }">
+      <article v-for="card in cards" :key="card.label" class="track-card" :class="{ wide: card.wide }">
         <header>
           <component :is="card.icon" aria-hidden="true" />
           <strong>{{ card.label }}</strong>
@@ -43,7 +45,10 @@ const props = defineProps<{ session: Record<string, any> }>();
 interface Row { label: string; value: string }
 type Tone = 'copied' | 'remuxed' | 'converted' | 'muted';
 interface Track { language: string; detail: string; played: boolean }
-interface Card { label: string; icon: any; status: { label: string; tone: Tone } | null; rows: Row[]; languages?: Track[]; languagesTitle?: string }
+interface Card { label: string; icon: any; status: { label: string; tone: Tone } | null; rows: Row[]; languages?: Track[]; languagesTitle?: string; wide?: boolean }
+
+/* Au-dela de ce nombre de pistes, la carte passe en pleine largeur. */
+const LONG_LIST = 3;
 
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'stéréo', 6: '5.1', 8: '7.1' };
 const channels = (value: unknown) => (value ? CHANNELS[Number(value)] || `${value} canaux` : '');
@@ -164,8 +169,10 @@ const cards = computed(() => {
 
   const subtitles = subtitleCard(tracks?.subtitles, s.subtitle_decision);
   if (subtitles) out.push(subtitles);
-  return out;
+  return out.map((card) => ({ ...card, wide: (card.languages?.length || 0) > LONG_LIST }));
 });
+
+const shortCount = computed(() => Math.max(1, cards.value.filter((card) => !card.wide).length));
 </script>
 
 <style scoped>
@@ -193,4 +200,11 @@ const cards = computed(() => {
 .track-languages li span { color: var(--muted); overflow-wrap: anywhere; }
 .track-languages li.played { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .track-languages li.played span { color: var(--text); }
+/* Carte pleine largeur : ses lignes Source/Transcode cote a cote, ses pistes en pastilles
+   (2 colonnes sur mobile, 3 a 5 selon la largeur ensuite). */
+.track-card.wide { grid-column: 1 / -1; }
+.track-card.wide dl { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 6px var(--space-4); }
+.track-card.wide .track-languages ul { grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr)); gap: 6px; }
+.track-card.wide .track-languages li { display: flex; flex-wrap: wrap; column-gap: 8px; row-gap: 0; }
+@container tracks (min-width: 560px) { .track-card.wide .track-languages ul { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
 </style>
