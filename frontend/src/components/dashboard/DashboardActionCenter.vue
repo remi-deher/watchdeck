@@ -122,8 +122,8 @@ function reason(row: ActionRow): string {
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
-.dashboard-todo { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-4); align-items: start; }
-.todo-card { display: grid; gap: var(--space-3); min-width: 0; }
+.dashboard-todo { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-4); align-items: stretch; }
+.todo-card { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
 .todo-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .todo-title { display: flex; align-items: center; gap: var(--space-2); }
 .todo-title h2 { margin: 0; font-size: var(--fs-lg); }

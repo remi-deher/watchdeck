@@ -3,56 +3,68 @@
        une carte compacte par lecture, qui defilent horizontalement quand elles ne tiennent
        pas. La version detaillee (reseau, pistes, raisons du transcodage) reste sur la page
        Activite, ou la meme lecture s'ouvre au clic. -->
-  <section class="panel live-strip" aria-labelledby="live-strip-title">
-    <div class="live-strip-summary">
-      <span class="live-strip-badge" :class="{ idle: !sessions.length }"><i aria-hidden="true"></i>En direct sur Plex</span>
-      <h2 id="live-strip-title">{{ headline }}</h2>
-      <dl v-if="sessions.length" class="live-strip-stats">
-        <div><dt>Bande passante</dt><dd>{{ bandwidth }}</dd></div>
-        <div><dt>Lectures directes</dt><dd>{{ directCount }}</dd></div>
-        <div><dt>Transcodages</dt><dd :class="{ warn: transcodeCount }">{{ transcodeCount }}</dd></div>
-      </dl>
-      <RouterLink :to="{ path: '/activity', query: { view: 'live' } }" class="panel-link">Voir l’activité</RouterLink>
-    </div>
+  <section class="panel live-strip" :class="{ 'is-idle': !sessions.length }" aria-labelledby="live-strip-title">
+    <template v-if="sessions.length">
+      <div class="live-strip-summary">
+        <span class="live-strip-badge"><i aria-hidden="true"></i>En direct sur Plex</span>
+        <h2 id="live-strip-title">{{ headline }}</h2>
+        <dl class="live-strip-stats">
+          <div><dt>Bande passante</dt><dd>{{ bandwidth }}</dd></div>
+          <div><dt>Lectures directes</dt><dd>{{ directCount }}</dd></div>
+          <div><dt>Transcodages</dt><dd :class="{ warn: transcodeCount }">{{ transcodeCount }}</dd></div>
+        </dl>
+        <RouterLink :to="{ path: '/activity', query: { view: 'live' } }" class="panel-link">Voir l’activité</RouterLink>
+      </div>
 
-    <div v-if="sessions.length" class="live-strip-list">
-      <button
-        v-for="session in sessions"
-        :key="session.session_id"
-        type="button"
-        class="live-card"
-        :class="{ paused: isPaused(session) }"
-        :aria-label="`${displayTitle(session)}, ${session.user_name || 'Utilisateur Plex'}`"
-        @click="$emit('select', session)"
-      >
-        <span class="live-card-art">
-          <MediaArtwork :src="session.thumb_url" :alt="''" :type="session.media_type" size="medium" />
-        </span>
-        <span class="live-card-main">
-          <span class="live-card-badges">
-            <PlaybackMethodBadge :method="session.playback_method" compact />
-            <span v-if="session.quality" class="live-card-quality">{{ session.quality }}</span>
+      <div class="live-strip-list">
+        <button
+          v-for="session in sessions"
+          :key="session.session_id"
+          type="button"
+          class="live-card"
+          :class="{ paused: isPaused(session) }"
+          :aria-label="`${displayTitle(session)}, ${session.user_name || 'Utilisateur Plex'}`"
+          @click="$emit('select', session)"
+        >
+          <span class="live-card-art">
+            <MediaArtwork :src="session.thumb_url" :alt="''" :type="session.media_type" size="medium" />
           </span>
-          <strong>{{ displayTitle(session) }}</strong>
-          <span class="live-card-meta">{{ [session.user_name || 'Utilisateur Plex', deviceLabel(session)].join(' · ') }}</span>
-          <span class="live-card-track"><i :class="{ paused: isPaused(session) }" :style="{ width: `${percent(session)}%` }"></i></span>
-          <span class="live-card-meta">{{ remaining(session) }}</span>
-        </span>
-      </button>
+          <span class="live-card-main">
+            <span class="live-card-badges">
+              <PlaybackMethodBadge :method="session.playback_method" compact />
+              <span v-if="session.quality" class="live-card-quality">{{ session.quality }}</span>
+            </span>
+            <strong>{{ displayTitle(session) }}</strong>
+            <span class="live-card-meta">{{ [session.user_name || 'Utilisateur Plex', deviceLabel(session)].join(' · ') }}</span>
+            <span class="live-card-track"><i :class="{ paused: isPaused(session) }" :style="{ width: `${percent(session)}%` }"></i></span>
+            <span class="live-card-meta">{{ remaining(session) }}</span>
+          </span>
+        </button>
+      </div>
+    </template>
+
+    <!-- Au repos, le bandeau tient sur une ligne : un grand cadre vide au sommet de la
+         page prenait la place la plus visible pour dire qu'il ne se passait rien. -->
+    <div v-else class="live-strip-idle">
+      <span class="live-strip-idle-icon" :class="{ off: !collectionEnabled }">
+        <PowerOff v-if="!collectionEnabled" aria-hidden="true" />
+        <MonitorPlay v-else aria-hidden="true" />
+      </span>
+      <div class="live-strip-idle-text">
+        <h2 id="live-strip-title">{{ collectionEnabled ? 'Aucune lecture en cours' : 'Lectures en direct non suivies' }}</h2>
+        <p v-if="collectionEnabled">Les lectures Plex s’afficheront ici dès qu’elles démarrent.</p>
+        <p v-else>La collecte des lectures en direct est désactivée.</p>
+      </div>
+      <UiButton v-if="!collectionEnabled" :to="{ path: '/settings', query: { tab: 'services' } }">Activer la collecte</UiButton>
+      <RouterLink v-else :to="{ path: '/activity', query: { view: 'live' } }" class="panel-link">Voir l’activité</RouterLink>
     </div>
-    <div v-else-if="!collectionEnabled" class="live-strip-empty">
-      <PowerOff aria-hidden="true" />
-      <span>La collecte des lectures en direct est désactivée.</span>
-      <UiButton :to="{ path: '/settings', query: { tab: 'services' } }">Activer la collecte</UiButton>
-    </div>
-    <p v-else class="live-strip-empty">Aucune lecture en cours.</p>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
-import { PowerOff } from '@lucide/vue';
+import { MonitorPlay, PowerOff } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
@@ -124,8 +136,6 @@ const directCount = computed(() => props.sessions.length - transcodeCount.value)
 .live-strip-summary .panel-link { margin-top: auto; }
 .live-strip-badge { display: inline-flex; align-items: center; gap: var(--space-2); align-self: flex-start; padding: 3px 10px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green-text); font-size: var(--fs-xs); font-weight: 700; }
 .live-strip-badge i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
-.live-strip-badge.idle { background: color-mix(in srgb, var(--slate) 12%, transparent); color: var(--muted); }
-.live-strip-badge.idle i { background: var(--muted); }
 .live-strip-stats { display: grid; gap: 6px; margin: var(--space-1) 0 var(--space-2); }
 .live-strip-stats div { display: flex; justify-content: space-between; gap: var(--space-3); color: var(--muted); font-size: var(--fs-sm); }
 .live-strip-stats dt { margin: 0; }
@@ -146,8 +156,14 @@ const directCount = computed(() => props.sessions.length - transcodeCount.value)
 .live-card-track i { display: block; height: 100%; background: var(--accent); transition: width 1s linear; }
 .live-card-track i.paused { background: var(--muted); transition: none; }
 
-.live-strip-empty { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin: 0; padding: var(--space-3); border-radius: var(--inset-radius); background: var(--surface-2); color: var(--muted); font-size: var(--fs-sm); }
-.live-strip-empty > svg { width: 18px; height: 18px; color: var(--accent); }
+.live-strip.is-idle { display: block; }
+.live-strip-idle { display: flex; align-items: center; gap: var(--space-3) var(--space-4); flex-wrap: wrap; min-width: 0; }
+.live-strip-idle-icon { display: grid; flex: none; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--surface-2); color: var(--muted); }
+.live-strip-idle-icon svg { width: 20px; height: 20px; }
+.live-strip-idle-icon.off { color: var(--amber-text); background: color-mix(in srgb, var(--amber) 12%, transparent); }
+.live-strip-idle-text { display: grid; gap: 2px; flex: 1; min-width: min(240px, 100%); }
+.live-strip-idle-text h2 { margin: 0; font-size: var(--fs-md); }
+.live-strip-idle-text p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 
 @container page (max-width: 700px) {
   .live-strip { grid-template-columns: minmax(0, 1fr); }

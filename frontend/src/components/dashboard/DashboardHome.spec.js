@@ -7,6 +7,7 @@ import DashboardActionCenter from './DashboardActionCenter.vue';
 import DashboardGreeting from './DashboardGreeting.vue';
 import DashboardLiveStrip from './DashboardLiveStrip.vue';
 import DashboardVfUpgradesPanel from './DashboardVfUpgradesPanel.vue';
+import ServiceHealthPanel from './ServiceHealthPanel.vue';
 import { attentionTotal, blockedQueueRows } from './dashboardAttention';
 
 const apiMock = vi.fn();
@@ -81,6 +82,13 @@ describe('DashboardLiveStrip', () => {
     expect(wrapper.emitted('select')[0][0]).toStrictEqual(sessions[1]);
   });
 
+  it('tient sur une ligne quand rien ne joue', () => {
+    const wrapper = mount(DashboardLiveStrip, { global });
+    expect(wrapper.find('.live-strip').classes()).toContain('is-idle');
+    expect(wrapper.find('.live-strip-list').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Aucune lecture en cours');
+  });
+
   it('signale une collecte desactivee', () => {
     const wrapper = mount(DashboardLiveStrip, { props: { collectionEnabled: false }, global });
     expect(wrapper.text()).toContain('La collecte des lectures en direct est désactivée.');
@@ -114,8 +122,42 @@ describe('DashboardVfUpgradesPanel', () => {
     expect(wrapper.text()).toContain('3 releases trouvées');
     expect(wrapper.text()).toContain('Fallout · Saison 1');
     expect(wrapper.text()).not.toContain('Ignoré');
-    expect(wrapper.text()).toContain('23 à traiter');
-    expect(wrapper.text()).toContain('2 en cours');
-    expect(wrapper.text()).toContain('148 passés en VF');
+    const stats = Object.fromEntries(wrapper.findAll('.vf-stats div').map((tile) => [tile.find('dt').text(), tile.find('dd').text()]));
+    expect(stats).toEqual({ 'à traiter': '23', 'en cours': '2', 'passés en VF': '148', 'en échec': '0' });
+  });
+});
+
+describe('ServiceHealthPanel', () => {
+  beforeEach(() => { apiMock.mockReset(); localStorage.clear(); });
+
+  it('met les pannes en tete avec un lien de correction, et resume l etat', async () => {
+    apiMock.mockResolvedValue({
+      status: 'degraded',
+      checked_at: new Date().toISOString(),
+      services: {
+        sonarr: { ok: true, state: 'ok', message: 'OK', response_ms: 42.3 },
+        radarr: { ok: true, state: 'ok', message: 'OK', response_ms: 1520 },
+        prowlarr: { ok: false, state: 'error', message: 'Connexion impossible', action_url: '/settings#tab-connexions' },
+        seer: { ok: null, state: 'disabled', message: 'Demandes via Seer desactivees', action_url: '/settings#tab-connexions', action_label: 'Activer' },
+        plex: { ok: true, state: 'ok', message: 'OK', response_ms: 120 },
+        smtp: { ok: true, state: 'ok', message: 'Configure' },
+        rss: { ok: null, state: 'non_configured', message: 'Non configure', action_url: '/settings#tab-connexions', action_label: 'Configurer' },
+      },
+    });
+    const wrapper = mount(ServiceHealthPanel, {
+      global: { ...global, plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]] },
+    });
+    await flushPromises();
+
+    const rows = wrapper.findAll('.service-row');
+    expect(rows.map((row) => row.find('strong').text())).toEqual(['Prowlarr', 'Plex', 'Sonarr', 'Radarr', 'E-mail', 'Seer', 'Watchlist Plex']);
+    expect(rows[0].text()).toContain('Connexion impossible');
+    expect(rows[0].text()).toContain('Corriger');
+    expect(rows[3].find('.service-row-latency').classes()).toContain('is-slow');
+    expect(rows[3].text()).toContain('1,5 s');
+    expect(rows[5].text()).toContain('Désactivé');
+    expect(rows[6].text()).toContain('Configurer');
+    expect(wrapper.find('.service-health-verdict').text()).toBe('1 service en panne');
+    expect(wrapper.text()).toContain('Vérifié à l’instant');
   });
 });
