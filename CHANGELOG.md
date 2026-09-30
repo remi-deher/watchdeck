@@ -1,11 +1,29 @@
 # Changelog
 
+## 1.63.0 — 2026-09-30
+
+
+### test
+
+- cibler la grille des demandes (.rt-grid) dans le test de la feuille des releases (#596) ([92f7d1a](https://github.com/remi-deher/watchdeck/commit/92f7d1aadf4dd8f5ab5477a98eec1ad94450bf50))
+
+### ✨ Nouveautés
+
+- cartes à longues listes en pleine largeur, pistes en pastilles (#590) ([69ee124](https://github.com/remi-deher/watchdeck/commit/69ee12486566c4a42056d0a53a4e00493126832c))
+- détails par service dans la carte Santé des services (#591) ([529dd33](https://github.com/remi-deher/watchdeck/commit/529dd3318658e08f2cf82797c15b23e00522f279))
+- ouvrir la recherche interactive dans la feuille (#592) ([b6b7636](https://github.com/remi-deher/watchdeck/commit/b6b763607e0080a770284a30e262c8ef9fecd7ac))
+- cartes de suivi en affiches, dans la grille des disponibles (#593) ([e3f541a](https://github.com/remi-deher/watchdeck/commit/e3f541a1cbdc85f8780ed0c1e6ab4134d9718471))
+- période visible, états des sorties, vue Semaine, balayage et filtres (#594) ([47ffaa1](https://github.com/remi-deher/watchdeck/commit/47ffaa1586c1636d1807a6afe5845abf13d291f8))
 ## 1.62.0 — 2026-09-30
 
 
 ### ✨ Nouveautés
 
 - demandeurs sur toute la largeur, administration et journal côte à côte (#585) ([c9a4b98](https://github.com/remi-deher/watchdeck/commit/c9a4b98eae512ee0a1a93d972ebb06130139d823))
+
+### 🔧 Maintenance
+
+- v1.62.0 (#589) ([c75f2b4](https://github.com/remi-deher/watchdeck/commit/c75f2b422bcff7f68bde1f4cd332219202eb22d2))
 ## 1.61.0 — 2026-09-29
 
 
