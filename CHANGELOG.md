@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.62.0 — 2026-09-30
+
+
+### ✨ Nouveautés
+
+- demandeurs sur toute la largeur, administration et journal côte à côte (#585) ([c9a4b98](https://github.com/remi-deher/watchdeck/commit/c9a4b98eae512ee0a1a93d972ebb06130139d823))
 ## 1.61.0 — 2026-09-29
 
 
@@ -7,6 +13,10 @@
 
 - nouvelle page d'accueil du tableau de bord (#577) ([6ff5e1e](https://github.com/remi-deher/watchdeck/commit/6ff5e1e836878c9350e4b2f6e4d854ac0f3b5a37))
 - nouveau design de l'inventaire et de la fiche fichier (#578) ([e18e713](https://github.com/remi-deher/watchdeck/commit/e18e713a644b571bd31366a4b4cc89f02abe522e))
+
+### 🔧 Maintenance
+
+- v1.61.0 (#582) ([21bb21d](https://github.com/remi-deher/watchdeck/commit/21bb21d3d7522fefd44c65ba8d9084ba57fa81d1))
 ## 1.60.0 — 2026-09-29
 
 
