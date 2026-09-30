@@ -24,12 +24,14 @@
       <ChevronRight class="vf-chevron" aria-hidden="true" />
     </RouterLink>
 
-    <div v-if="hasMetrics" class="vf-stats">
-      <span><strong>{{ pendingCount }}</strong> à traiter</span>
-      <span><strong>{{ inProgressCount }}</strong> en cours</span>
-      <span><strong>{{ verifiedCount }}</strong> passés en VF</span>
-      <span v-if="failedCount" class="vf-failed"><strong>{{ failedCount }}</strong> en échec</span>
-    </div>
+    <!-- Les compteurs en tuiles, calees en bas du panneau : ils donnent au panneau son
+         assise quand peu de suggestions sont en attente. -->
+    <dl v-if="hasMetrics" class="vf-stats">
+      <div><dt>à traiter</dt><dd>{{ pendingCount }}</dd></div>
+      <div><dt>en cours</dt><dd>{{ inProgressCount }}</dd></div>
+      <div><dt>passés en VF</dt><dd>{{ verifiedCount }}</dd></div>
+      <div :class="{ 'vf-failed': failedCount }"><dt>en échec</dt><dd>{{ failedCount }}</dd></div>
+    </dl>
   </PanelCard>
 </template>
 
@@ -44,7 +46,7 @@ import { queryKeys } from '@/queryKeys';
 import { vfUpgradeMetricsQuery } from '@/sharedQueries';
 import type { VfUpgradeItem } from '@/types/vfUpgrades';
 
-const VISIBLE = 3;
+const VISIBLE = 4;
 /* Sous la cle de la page Ameliorations VF : une invalidation de celle-ci (grab, rejet,
    evenement temps reel) rafraichit aussi l'accueil. `waiting_limit=0` ecarte la longue
    liste des medias VO sans suggestion, dont l'accueil n'a pas l'usage. */
@@ -104,7 +106,10 @@ useRealtime(['vf_upgrade.updated'], () => {
 .vf-chip.vf { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green-text); }
 .vf-arrow { width: 14px; height: 14px; }
 .vf-chevron { flex: none; width: 16px; height: 16px; color: var(--muted); }
-.vf-stats { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin-top: var(--space-3); color: var(--muted); font-size: var(--fs-sm); }
-.vf-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
-.vf-stats .vf-failed strong { color: var(--red-text); }
+.vf-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin: auto 0 0; padding-top: var(--space-3); }
+.vf-stats div { display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 2px; min-width: 0; padding: var(--space-2) var(--space-3); border-radius: var(--inset-radius); background: var(--surface-2); }
+.vf-stats dd { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: 700; font-variant-numeric: tabular-nums; }
+.vf-stats dt { overflow: hidden; color: var(--muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
+.vf-stats .vf-failed dd { color: var(--red-text); }
+@container card (max-width: 420px) { .vf-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
