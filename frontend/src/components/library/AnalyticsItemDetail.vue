@@ -5,9 +5,10 @@
   <div class="analytics-item">
     <SheetHero
       class="item-banner"
-      :image-url="technical?.art_url || null"
+      :banner-class="{ 'is-poster-fallback': bannerIsPoster }"
+      :image-url="bannerUrl"
       :variant="enSurface ? 'sheet' : 'card'"
-      min-height="clamp(120px, 20vw, 200px)"
+      min-height="clamp(160px, 26vw, 250px)"
       bleed
     >
       <!-- L'affiche mene a la fiche du media, dans la feuille : pas de bouton en plus. -->
@@ -68,24 +69,24 @@
       <header><h3 id="item-tracks-title">Pistes</h3></header>
       <div class="item-tracks">
         <div class="track-group">
-          <span class="track-kind"><Volume2 aria-hidden="true" />Audio</span>
+          <header class="track-kind"><Volume2 aria-hidden="true" />Audio<small v-if="technical?.audio?.length">{{ technical.audio.length }}</small></header>
           <ul v-if="technical?.audio?.length">
             <li v-for="(track, index) in technical.audio" :key="`a${index}`">
-              <strong>{{ track.language || 'Langue inconnue' }}</strong>
+              <strong>{{ track.language || 'Langue inconnue' }}<em v-if="track.default">par défaut</em></strong>
               <span>{{ audioTrackDetail(track) || '—' }}</span>
-              <small v-if="track.title || track.default">{{ [track.title, track.default ? 'par défaut' : ''].filter(Boolean).join(' · ') }}</small>
+              <small v-if="track.title">{{ track.title }}</small>
             </li>
           </ul>
           <p v-else-if="(item.audio_languages || []).length">{{ item.audio_languages.join(', ') }}</p>
           <p v-else class="is-empty">Aucune piste audio.</p>
         </div>
         <div class="track-group">
-          <span class="track-kind"><Captions aria-hidden="true" />Sous-titres</span>
+          <header class="track-kind"><Captions aria-hidden="true" />Sous-titres<small v-if="technical?.subtitles?.length">{{ technical.subtitles.length }}</small></header>
           <ul v-if="technical?.subtitles?.length">
             <li v-for="(track, index) in technical.subtitles" :key="`s${index}`">
-              <strong>{{ track.language || 'Langue inconnue' }}</strong>
+              <strong>{{ track.language || 'Langue inconnue' }}<em v-if="track.default">par défaut</em></strong>
               <span>{{ subtitleTrackDetail(track) }}</span>
-              <small v-if="track.title || track.default">{{ [track.title, track.default ? 'par défaut' : ''].filter(Boolean).join(' · ') }}</small>
+              <small v-if="track.title">{{ track.title }}</small>
             </li>
           </ul>
           <p v-else-if="!technical && (item.subtitle_types || []).length">{{ item.subtitle_types.join(', ') }}</p>
@@ -139,6 +140,7 @@ import UiButton from '@/components/ui/UiButton.vue';
 import { useToast } from '@/composables/useToast';
 import { etatDeVoisins, ouvrirFiche, useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
+import { proxyUrl } from '@/utils/mediaImage';
 import { codecLabel } from '@/utils/conversionVerdict';
 import { mediaTypeLabel } from '@/utils/labels';
 import {
@@ -184,6 +186,18 @@ const eyebrow = computed(() => [
   known(props.item.studio) ? props.item.studio : '',
 ].filter(Boolean).join(' · '));
 const resolution = computed(() => resolutionLabel(props.item.video_resolution));
+
+/* Bandeau : le fond Plex du media (serie pour un episode), connu des l'instantane, sinon
+   celui de la fiche Plex ou de la bibliotheque. Sans fond du tout, l'affiche floutee
+   plutot qu'un bandeau vide. Les vignettes Plex sont demandees a la largeur du bandeau. */
+const bannerSource = computed(() => props.technical?.art_url || props.item.art_url || '');
+const bannerIsPoster = computed(() => !bannerSource.value && Boolean(props.technical?.poster_url || props.item.thumb_url));
+const bannerUrl = computed<string | null>(() => {
+  const raw = bannerSource.value || props.technical?.poster_url || props.item.thumb_url || '';
+  if (!raw) return null;
+  if (raw.startsWith('/api/playback/thumb')) return `${raw}&width=${bannerIsPoster.value ? 400 : 1600}`;
+  return proxyUrl(raw, { width: 1600 });
+});
 
 /* Debit moyen : celui de Plex quand on l'a, sinon deduit du poids et de la duree. */
 const averageBitrate = computed(() => {
@@ -287,17 +301,23 @@ button.item-poster:focus-visible { outline: 2px solid var(--accent); outline-off
 .item-path > svg { flex: none; width: 16px; }
 .item-path code { flex: 1; min-width: 0; overflow: hidden; font-family: var(--font-mono); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
 
-.item-tracks { display: grid; gap: var(--space-3); padding: var(--space-3) 14px; border-radius: var(--radius-md); background: var(--surface-2); }
-.track-group { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3); align-items: start; }
-.track-group + .track-group { padding-top: var(--space-3); border-top: 1px solid var(--border); }
-.track-kind { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--fs-sm); }
+/* Audio et sous-titres cote a cote : deux listes courtes qu'on compare d'un regard
+   (« VF 5.1 et des sous-titres francais ? »). Empilees sur une feuille etroite. */
+.item-tracks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); align-items: start; }
+.track-group { display: grid; gap: 10px; align-content: start; min-width: 0; height: 100%; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); }
+.track-kind { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: var(--fs-sm); font-weight: 650; }
 .track-kind svg { width: 16px; }
-.track-group ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.track-group li { display: grid; gap: 1px; }
-.track-group li strong { font-size: var(--fs-sm); }
-.track-group li span { font-size: var(--fs-sm); }
+.track-kind small { margin-left: auto; min-width: 20px; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--surface-3); color: var(--text); font-size: var(--fs-xs); text-align: center; font-variant-numeric: tabular-nums; }
+.track-group ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.track-group li { display: grid; gap: 1px; min-width: 0; }
+.track-group li strong { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); }
+.track-group li strong em { padding: 0 6px; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: var(--fs-xs); font-style: normal; font-weight: 650; }
+.track-group li span { font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .track-group li small, .track-group p.is-empty { color: var(--muted); font-size: var(--fs-xs); }
 .track-group p { margin: 0; font-size: var(--fs-sm); }
+
+/* Repli du bandeau sur l'affiche : agrandie et floutee, elle ne donne que l'ambiance. */
+.item-banner :deep(.is-poster-fallback .ui-hero-backdrop__image) { filter: blur(28px) saturate(1.3); transform: scale(1.25); }
 
 .view-log { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .view-row { display: flex; align-items: center; gap: var(--space-3); padding: 10px 8px; border-radius: var(--radius-md); color: var(--text); text-decoration: none; }
@@ -323,7 +343,7 @@ a.view-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px
   .item-facts { grid-template-columns: 1fr; }
   .item-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .item-kpis article { padding: 10px; }
-  .track-group { grid-template-columns: 1fr; gap: 6px; }
+  .item-tracks { grid-template-columns: 1fr; }
 }
 @include bp.until(tablet) {
   .item-poster { width: 84px; }

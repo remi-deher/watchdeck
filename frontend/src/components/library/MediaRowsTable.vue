@@ -40,20 +40,11 @@
     <template #cell-last_viewed="{ row }">{{ row.last_viewed_at ? formatDate(row.last_viewed_at) : '—' }}</template>
   </UiDataTable>
 
-  <ModalShell :open="showColumnPicker" title="Personnaliser les colonnes" subtitle="Choisissez et réordonnez les colonnes affichées." @close="showColumnPicker = false">
-    <div class="column-picker-grid">
-      <label v-for="column in orderedColumns" :key="column.key" class="column-picker-item">
-        <UiCheckbox :model-value="column.required || visibleKeys.has(column.key)" :disabled="column.required" @update:model-value="toggleColumn(column.key)" />
-        <span>{{ column.label }}</span>
-      </label>
-    </div>
-    <template #actions><UiButton variant="primary" @click="showColumnPicker = false">Valider</UiButton></template>
-  </ModalShell>
+  <ColumnPickerModal :open="showColumnPicker" :prefs="columnPrefs" :defaults="columns" @close="showColumnPicker = false" />
 
 </template>
 
 <script setup lang="ts">
-import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
@@ -61,8 +52,7 @@ import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import { codecLabel } from '@/utils/conversionVerdict';
 import { resolutionLabel } from '@/utils/mediaTechnical';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
-import ModalShell from '@/components/ui/ModalShell.vue';
-import UiButton from '@/components/ui/UiButton.vue';
+import ColumnPickerModal from '@/components/ui/ColumnPickerModal.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
 import { mediaTypeLabel } from '@/utils/labels';
 import {
@@ -91,16 +81,16 @@ const emit = defineEmits<{
 
 const columns: UiColumn[] = [
   { key: 'title', label: 'Titre', required: true, sortable: true, card: 'title' },
-  { key: 'library', label: 'Bibliothèque', sortable: true, className: 'col-narrow' },
-  { key: 'studio', label: 'Studio', sortable: true, className: 'col-narrow' },
-  { key: 'video', label: 'Qualité', sortable: true },
-  { key: 'audio', label: 'Audio', sortable: true },
-  { key: 'container', label: 'Conteneur', sortable: true, className: 'col-narrow' },
-  { key: 'subtitles', label: 'Sous-titres', sortable: true },
-  { key: 'size_bytes', label: 'Poids', sortable: true },
-  { key: 'plays', label: 'Lectures', sortable: true },
-  { key: 'viewer', label: 'Spectateurs', sortable: true },
-  { key: 'last_viewed', label: 'Dernier visionnage', sortable: true },
+  { key: 'library', label: 'Bibliothèque', hint: 'Section Plex du fichier', sortable: true, className: 'col-narrow' },
+  { key: 'studio', label: 'Studio', hint: 'Studio ou label', sortable: true, className: 'col-narrow' },
+  { key: 'video', label: 'Qualité', hint: 'Résolution, codec vidéo, conteneur', sortable: true },
+  { key: 'audio', label: 'Audio', hint: 'Codec, langues, nombre de pistes', sortable: true },
+  { key: 'container', label: 'Conteneur', hint: 'Format du fichier', sortable: true, className: 'col-narrow' },
+  { key: 'subtitles', label: 'Sous-titres', hint: 'Nombre et langues', sortable: true },
+  { key: 'size_bytes', label: 'Poids', hint: 'Taille sur le disque', sortable: true },
+  { key: 'plays', label: 'Lectures', hint: 'Nombre de lectures', sortable: true },
+  { key: 'viewer', label: 'Spectateurs', hint: 'Qui l’a regardé', sortable: true },
+  { key: 'last_viewed', label: 'Dernier visionnage', hint: 'Date de la dernière lecture', sortable: true },
 ];
 
 /* La fiche technique d'un fichier s'ouvre dans la feuille, avec sa propre adresse
@@ -122,10 +112,11 @@ const openKey = computed(() => {
 });
 const rowClass = (row: any): string => (openKey.value && row.rating_key === openKey.value ? 'is-open' : '');
 const showColumnPicker = ref(false);
-const { orderedColumns, visibleColumns, visibleKeys, toggleColumn } = useTableColumns(
+const columnPrefs = useTableColumns(
   () => columns,
   { storageKey: 'watchdeck:data-table-columns:library-inventory' },
 );
+const { visibleColumns } = columnPrefs;
 defineExpose({ openColumnPicker: () => { showColumnPicker.value = true; } });
 
 const title = (row: any): string => (row.grandparent_title ? `${row.grandparent_title} · ${row.title}` : row.title);
