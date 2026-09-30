@@ -144,7 +144,9 @@ withDefaults(
 
 .pipeline-flow {
   display: flex;
-  align-items: center;
+  /* Toutes les etapes a la hauteur de la plus haute : une legende sur deux lignes ne
+     decale plus une seule tuile. */
+  align-items: stretch;
   gap: var(--space-2);
   padding: 10px 14px;
   background: var(--surface);
@@ -235,6 +237,9 @@ withDefaults(
 .step-label {
   font-size: var(--fs-xs);
   color: var(--muted);
+  /* Coupe « En télécharge-ment » a la syllabe, pas au caractere pres. */
+  overflow-wrap: normal;
+  hyphens: auto;
 }
 
 .step-value {
@@ -259,6 +264,7 @@ withDefaults(
 }
 
 .pipeline-arrow {
+  align-self: center;
   display: flex;
   align-items: center;
   justify-content: center;

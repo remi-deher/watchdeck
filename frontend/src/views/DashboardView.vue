@@ -42,7 +42,7 @@
     <!-- Sante et stockage ne sont lus qu'une fois la zone a l'ecran (ou Supervision
          ouverte) : le bas de page ne doit pas retarder le premier affichage. -->
     <div ref="healthZone" class="dashboard-bento">
-      <HealthGrid v-if="healthShown" class="bento-wide" />
+      <ServiceHealthPanel v-if="healthShown" class="bento-wide" />
       <div class="bento-narrow bento-stack">
         <ScanStatusPanel
           :vff-scan="vffScan"
@@ -81,7 +81,6 @@ import { useElementVisibility } from '@vueuse/core';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
-import HealthGrid from '@/components/HealthGrid.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
 import DashboardActionCenter from '@/components/dashboard/DashboardActionCenter.vue';
 import DashboardGreeting from '@/components/dashboard/DashboardGreeting.vue';
@@ -98,6 +97,7 @@ import DiskSpacePanel from '@/components/dashboard/DiskSpacePanel.vue';
 import TopRequestedPanel from '@/components/dashboard/TopRequestedPanel.vue';
 import RecentNotificationsPanel from '@/components/dashboard/RecentNotificationsPanel.vue';
 import ScanStatusPanel from '@/components/dashboard/ScanStatusPanel.vue';
+import ServiceHealthPanel from '@/components/dashboard/ServiceHealthPanel.vue';
 import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
 import { useRoute, useRouter } from 'vue-router';
 import { api, streamEvents } from '@/api';
@@ -452,12 +452,17 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 /* Grille de l'accueil : une colonne large (7/12) et une etroite (5/12), qui passent
-   l'une sous l'autre quand le contenu se resserre. Chaque panneau prend la hauteur de
-   son contenu : un panneau presque vide ne s'etire pas sur la hauteur de son voisin. */
-.dashboard-bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); align-items: start; min-width: 0; }
+   l'une sous l'autre quand le contenu se resserre. Les deux colonnes d'une rangee
+   prennent la meme hauteur : un panneau peu rempli s'etire jusqu'au bas de son voisin
+   plutot que de laisser un trou sous lui, et son message « vide » se centre dans la
+   place disponible. Dans la pile de droite, le dernier panneau absorbe l'ecart. */
+.dashboard-bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); align-items: stretch; min-width: 0; }
 .dashboard-bento > .bento-wide { grid-column: span 7; min-width: 0; }
 .dashboard-bento > .bento-narrow { grid-column: span 5; min-width: 0; }
-.dashboard-bento > .bento-stack { display: grid; grid-column: 8 / -1; gap: var(--space-4); align-content: start; }
+.dashboard-bento > .bento-stack { display: flex; flex-direction: column; grid-column: 8 / -1; gap: var(--space-4); }
+.dashboard-bento > .bento-stack > :last-child { flex: 1; }
+.dashboard-bento :deep(.panel-card) { display: flex; flex-direction: column; }
+.dashboard-bento :deep(.panel-card > .ui-empty-state) { flex: 1; align-content: center; }
 :deep(.dashboard-supervision) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
 
 @container page (max-width: 957px) {
