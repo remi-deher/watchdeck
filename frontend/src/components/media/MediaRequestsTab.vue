@@ -26,7 +26,7 @@
         </div>
       </section>
 
-      <!-- 2. Demandeurs à gauche ; administration et journal à droite. -->
+      <!-- 2. Demandeurs sur toute la largeur ; administration et journal côte à côte dessous. -->
       <div class="request-grid">
         <RequesterList
           :row="row"
@@ -359,28 +359,24 @@ const directSubtitle = computed(() => {
   color: var(--amber-text);
 }
 
-/* ----- Grille demandeurs / colonne de droite ----- */
+/* ----- Demandeurs pleine largeur, puis administration et journal ----- */
 .request-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 20px;
-  align-items: start;
-}
-@container demandes (min-width: 760px) {
-  .request-grid {
-    grid-template-columns: minmax(0, 1fr) 320px;
-  }
-}
-@container demandes (min-width: 1000px) {
-  .request-grid {
-    grid-template-columns: minmax(0, 1fr) 360px;
-  }
 }
 .request-side {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
+  align-items: start;
   min-width: 0;
+}
+/* Sans la carte Administration (non-admin), le journal garde toute la largeur. */
+@container demandes (min-width: 760px) {
+  .request-side:has(> .admin-card) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ----- Ajout d'une personne ----- */
