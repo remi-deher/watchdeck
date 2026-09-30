@@ -133,7 +133,7 @@ const episodes = computed(() => {
 });
 
 /* Actions reservees aux moderateurs, selon le motif. La recherche interactive passe par
-   la page de releases (`/releases/:id`), qui met la VF en avant. */
+   la fiche de releases (`/releases/:id`, ouverte dans la feuille), qui met la VF en avant. */
 const actions = computed(() => {
   if (!props.canModerate) return [];
   switch (kind.value) {
