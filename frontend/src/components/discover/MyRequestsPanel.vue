@@ -43,9 +43,9 @@
         <template v-else>{{ sorted.length }} demande{{ sorted.length > 1 ? 's' : '' }} affichée{{ sorted.length > 1 ? 's' : '' }}</template>
       </p>
 
-      <!-- Suivi (en cours, a approuver, VF manquante, echecs) : des cartes qui disent
-           pourquoi une demande attend. Les disponibles gardent la grille d'affiches. -->
-      <section v-if="sorted.length && activeTab !== 'disponibles'" v-list-motion class="rt-list" :aria-busy="loading">
+      <!-- Suivi (en cours, a approuver, VF manquante, echecs) : des affiches qui disent
+           pourquoi une demande attend, dans la meme grille que les disponibles. -->
+      <section v-if="sorted.length && activeTab !== 'disponibles'" v-list-motion class="media-grid library-grid rt-grid" :aria-busy="loading">
         <RequestTrackingCard
           v-for="item in visible"
           :key="item.id"
@@ -431,9 +431,8 @@ onMounted(async () => {
   gap: var(--space-4);
   align-content: start;
 }
-.rt-list {
-  display: grid;
-  gap: var(--space-2);
+.rt-grid {
+  row-gap: var(--space-5);
 }
 .my-requests-count {
   margin: 0;
