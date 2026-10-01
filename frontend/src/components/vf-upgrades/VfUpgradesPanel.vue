@@ -250,6 +250,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
 
 <style scoped lang="scss">
 @use './vfShared' as *;
+@use '@/styles/foundations/breakpoints' as bp;
 
 .upgrade-list {
   display: grid;
@@ -485,5 +486,14 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
     min-height: var(--touch-target);
     padding-inline: 14px;
   }
+}
+
+/* Telephone : affiche reduite et en-tete qui passe a la ligne, pour laisser au titre et
+   aux saisons la largeur de la carte. */
+@include bp.until(phablet) {
+  .upgrade-card { gap: var(--space-3); padding: 14px; }
+  .poster-col, .upgrade-poster { width: 56px; }
+  .media-header { flex-wrap: wrap; }
+  .media-meta-count { flex-direction: row; align-items: center; }
 }
 </style>
