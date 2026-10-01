@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.64.2 — 2026-10-01
+
+
+### test
+
+- couvrir les chemins secondaires des correctifs de l'audit ([1372404](https://github.com/remi-deher/watchdeck/commit/1372404bc15cc23203e75a200735fd6a9e974e65))
+
+### 🐛 Corrections
+
+- corriger les 20 points de l'audit du 30/09 ([c8170d7](https://github.com/remi-deher/watchdeck/commit/c8170d74ab56126e68116838616004e842d1975f))
+- extraire les scripts en ligne du shell SPA avec HTMLParser ([5259b1c](https://github.com/remi-deher/watchdeck/commit/5259b1c0febb3b58b16c367ca88f6cbeea97a255))
+- retirer le code d'installation, proxies de confiance dans les parametres ([6b025d0](https://github.com/remi-deher/watchdeck/commit/6b025d064a1f6b94d9e9ce5ab9631bc91b9376b2))
 ## 1.64.1 — 2026-10-01
 
 
@@ -7,6 +19,10 @@
 
 - charger server_id dans les agregats des statistiques (#611) ([701a2b1](https://github.com/remi-deher/watchdeck/commit/701a2b18ea581a57e5b6eef9a38a07a647a8f11c))
 - file d'attente des notifications en tête, sans recherche ni motifs vagues (#610) ([62e84e5](https://github.com/remi-deher/watchdeck/commit/62e84e5286ca5b969003801b72d29d2bce6e7570))
+
+### 🔧 Maintenance
+
+- v1.64.1 (#615) ([c4883ce](https://github.com/remi-deher/watchdeck/commit/c4883cedd1c1ef7dd543f71ca930ba0f914481b7))
 ## 1.64.0 — 2026-10-01
 
 
