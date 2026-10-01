@@ -40,6 +40,9 @@
         <FilterGroup label="Appareil">
           <UiCombobox label="Appareil" placeholder="Tous les appareils" :options="historyDevices.map((device: string) => ({ value: device, label: device }))" v-model="deviceFilter" />
         </FilterGroup>
+        <FilterGroup v-if="historyServers.length > 1" label="Serveur">
+          <UiChipGroup label="Serveur Plex" :options="[{ value: '', label: 'Tous les serveurs' }, ...historyServers.map((server: any) => ({ value: String(server.id), label: server.name }))]" v-model="serverFilter" />
+        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
     <template v-if="loaded">
@@ -291,7 +294,7 @@ const periodLabel = computed(() => {
   }
   return `${value} jours`;
 });
-const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),clock=ref(Date.now());
+const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),serverFilter=ref(''),clock=ref(Date.now());
 const filtersOpen=ref(false);
 const summary=computed(()=>data.value.summary||{});
 const analytics=computed(()=>data.value.analytics||{});
@@ -374,13 +377,13 @@ const relativeUpdate=computed(()=>{const seconds=Math.max(0,Math.floor((clock.va
    fenetre-la donnait « les lectures d'Untel parmi les cent dernieres » au lieu de ses
    cent dernieres, sans que le compteur affiche ne le trahisse. */
 const HISTORY_PAGE_SIZE=100;
-interface HistoryPage {items?: any[]; total?: number; has_more?: boolean; facets?: {users?: string[]; devices?: string[]}}
+interface HistoryPage {items?: any[]; total?: number; has_more?: boolean; facets?: {users?: string[]; devices?: string[]; servers?: Array<{id: number; name: string}>}}
 const historySort=ref('date_desc');
 // La recherche part en base apres une pause de saisie ; les listes deroulantes, la periode
 // et le tri immediatement. Tous font partie de la cle : en changer annule la lecture en
 // cours et repart de la premiere page, ce que faisait `useLatestRequest` a la main.
 const historyNeedle=refDebounced(computed(()=>historySearch.value.trim()),250);
-const historyKey=computed(()=>({days:days.value,sort:historySort.value,query:historyNeedle.value,method:methodFilter.value,mediaType:typeFilter.value,user:userFilter.value,device:deviceFilter.value}));
+const historyKey=computed(()=>({days:days.value,sort:historySort.value,query:historyNeedle.value,method:methodFilter.value,mediaType:typeFilter.value,user:userFilter.value,device:deviceFilter.value,server:serverFilter.value}));
 function historyParams(offset: number): URLSearchParams {
   const key=historyKey.value;
   const params=new URLSearchParams({days:String(key.days),limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});
@@ -389,6 +392,7 @@ function historyParams(offset: number): URLSearchParams {
   if(key.mediaType)params.set('media_type',key.mediaType);
   if(key.user)params.set('user',key.user);
   if(key.device)params.set('device',key.device);
+  if(key.server)params.set('server',key.server);
   params.set('sort',key.sort);
   return params;
 }
@@ -408,7 +412,7 @@ const history=computed(()=>{
     items:pages.flatMap(page=>page.items||[]),
     total:first?.total||0,
     hasMore:Boolean(historyQuery.hasNextPage.value),
-    facets:{users:first?.facets?.users||[],devices:first?.facets?.devices||[]},
+    facets:{users:first?.facets?.users||[],devices:first?.facets?.devices||[],servers:first?.facets?.servers||[]},
   };
 });
 const historyError=computed(()=>{const e: any=historyQuery.error.value;return e?(e.message||String(e)):''});
@@ -426,7 +430,9 @@ function setHistorySort(value: string): void {
 }
 const historyUsers=computed(()=>history.value.facets.users);
 const historyDevices=computed(()=>history.value.facets.devices);
-const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value,userFilter.value,deviceFilter.value].filter(Boolean).length);
+/* Serveurs Plex ayant des lectures sur la periode : le filtre n'apparait qu'a partir de deux. */
+const historyServers=computed<any[]>(()=>(Array.isArray(history.value.facets?.servers)?history.value.facets.servers:[]));
+const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value,userFilter.value,deviceFilter.value,serverFilter.value].filter(Boolean).length);
 const methodBreakdown=computed(()=>(analytics.value.quality?.methods||[]).map((item: any)=>({label:playbackMethodLabel(item.key,{fallback:item.key==='unknown'?'Inconnu':item.key}),value:item.count,suffix:` · ${item.rate} %`})));
 const resolutionBreakdown=computed(()=>(analytics.value.quality?.resolutions||[]).map((item: any)=>({label:item.label,value:item.count})));
 const codecBreakdown=computed(()=>(analytics.value.quality?.codecs||[]).map((item: any)=>({label:item.label,value:item.count})));
@@ -516,7 +522,7 @@ function load(): void {
 }
 function setDays(value: number): void {days.value=value;storedDays.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}})}
 function setPeriod(value: string | number): void { if (typeof value === 'number') setDays(value); }
-function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value=''}
+function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value='';serverFilter.value=''}
 const formatDate=(value: string)=>formatDateTimeShort(value,'—');
 function comparisonLabel(value: number): string {return `${signedPercent(value)} vs période précédente`}
 // Les cartes de tete portent la tendance : sans comparaison disponible, aucun chevron

@@ -102,7 +102,7 @@ import { api } from '@/api';
 import { mediaDetailPath } from '@/mediaUrl';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
-import { destinationsFor, EXPLORER_TABS, LIBRARY_TYPE_TABS, sectionsFor } from '@/navigation';
+import { adminAreasFor, destinationsFor, EXPLORER_TABS, LIBRARY_TYPE_TABS, sectionsFor } from '@/navigation';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 import { settingsSections } from '@/settingsSections';
 import { rankCommands } from '@/utils/commandScore';
@@ -190,17 +190,20 @@ const commands = computed<Command[]>(() => {
     downloadClients: downloadClients.value,
   };
 
-  const items: Command[] = destinationsFor(props.isAdmin, props.canModerate).map((destination) => ({
+  // Les groupes de l'Administration ne sont plus dans le rail, mais restent des
+  // destinations : la palette les propose comme les autres.
+  const destinations = [...destinationsFor(props.isAdmin, props.canModerate), ...adminAreasFor(props.isAdmin)];
+  const items: Command[] = destinations.map((destination) => ({
     id: `nav-${destination.key}`,
     label: destination.label,
-    group: destination.group,
+    group: destination.space === 'admin' ? 'Administration' : destination.group,
     to: destination.to,
     icon: destination.icon,
   }));
 
   // Toute section est atteignable par son nom, y compris les instances *arr et les
   // clients torrent : c'est ce qui permet a la navigation visible de rester sobre.
-  for (const destination of destinationsFor(props.isAdmin, props.canModerate)) {
+  for (const destination of destinations) {
     for (const section of sectionsFor(destination.key, context)) {
       items.push({
         id: `section-${destination.key}-${section.key}`,

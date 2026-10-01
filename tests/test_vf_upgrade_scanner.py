@@ -621,6 +621,7 @@ async def test_download_completion_triggers_one_plex_refresh(db):
         arr_url=inst.url,
         arr_api_key=inst.api_key,
         cache_key=f"radarr:{inst.id}",
+        plex_server_id=None,
     )
 
 

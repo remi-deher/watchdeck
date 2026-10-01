@@ -95,9 +95,11 @@ async def get_plex_server_activities(db: AsyncSession = Depends(get_db_async)):
 
 
 @router.delete("/server-activities/{uuid}")
-async def cancel_plex_server_activity(uuid: str, db: AsyncSession = Depends(get_db_async)):
+async def cancel_plex_server_activity(
+    uuid: str, server: Optional[int] = None, db: AsyncSession = Depends(get_db_async)
+):
     try:
-        await cancel_plex_activity(uuid, db)
+        await cancel_plex_activity(uuid, db, server)
     except PlaybackActionError as exc:
         raise HTTPException(409, str(exc)) from exc
     except httpx.HTTPError as exc:
@@ -123,6 +125,7 @@ async def get_activity_history(
     media_type: str | None = Query(None, max_length=50),
     device: str | None = Query(None, max_length=200),
     query: str | None = Query(None, max_length=200),
+    server: int | None = Query(None, description="Serveur Plex (identifiant de /api/plex-servers)."),
     sort: str = Query(
         "recent",
         pattern="^(recent|oldest|longest|(title|user|device|method|date|duration)_(asc|desc))$",
@@ -143,6 +146,7 @@ async def get_activity_history(
         offset=pagination.offset,
         limit=pagination.limit,
         sort=sort,
+        server=server,
     )
 
 
@@ -151,6 +155,7 @@ async def playback_thumb(
     request: Request,
     path: str,
     width: Optional[int] = Query(None, ge=32, le=1600),
+    server: Optional[int] = Query(None, description="Serveur Plex supplémentaire de la lecture."),
     settings: Settings = Depends(get_settings_or_404),
 ):
     """Sert une vignette Plex sans exposer le token Plex dans l'URL du navigateur.
@@ -160,7 +165,7 @@ async def playback_thumb(
     la lecture, ou bande-annonce dont Plex n'a jamais genere la vignette."""
     if not path.startswith("/library/metadata/") or "://" in path or ".." in path:
         raise HTTPException(400, "Chemin de vignette Plex invalide.")
-    if not settings.plex_url or not settings.plex_token:
+    if server is None and (not settings.plex_url or not settings.plex_token):
         raise HTTPException(404, "Plex n'est pas configuré.")
     return await image_proxy(
         # Redimensionnee cote serveur quand la vue donne sa taille : une capture de 1800 px
@@ -172,6 +177,7 @@ async def playback_thumb(
         height=None,
         quality=90 if width else 82,
         image_format="webp" if width else "original",
+        plex_server=server,
     )
 
 

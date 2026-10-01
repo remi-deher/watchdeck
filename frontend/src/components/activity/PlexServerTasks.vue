@@ -8,10 +8,10 @@
     </header>
     <p v-if="error" class="plex-tasks-error" role="status">{{ error }}</p>
     <ul v-else-if="tasks.length">
-      <li v-for="task in tasks" :key="task.uuid">
+      <li v-for="task in tasks" :key="taskKey(task)">
         <div class="task-text">
           <strong>{{ task.title || task.type }}</strong>
-          <small v-if="task.subtitle">{{ task.subtitle }}</small>
+          <small v-if="task.subtitle || task.server_name">{{ [task.server_name, task.subtitle].filter(Boolean).join(' · ') }}</small>
         </div>
         <span class="task-progress" :aria-label="task.progress != null ? `${Math.round(task.progress)} %` : 'Progression inconnue'">
           <span class="bar" :class="{ indeterminate: task.progress == null }"><i :style="task.progress != null ? { width: `${task.progress}%` } : undefined"></i></span>
@@ -24,7 +24,7 @@
           icon-only
           :title="`Annuler « ${task.title || task.type} »`"
           :aria-label="`Annuler ${task.title || task.type}`"
-          :loading="cancelling === task.uuid"
+          :loading="cancelling === taskKey(task)"
           @click="cancel(task)"
         ><X/></UiButton>
       </li>
@@ -44,7 +44,12 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { humanizeError } from '@/utils/apiError';
 
-interface PlexTask { uuid: string; type?: string; title?: string; subtitle?: string; progress: number | null; cancellable: boolean }
+interface PlexTask { uuid: string; type?: string; title?: string; subtitle?: string; progress: number | null; cancellable: boolean; server_id?: number | null; server_name?: string }
+
+/* Deux serveurs Plex peuvent porter une tache de meme uuid : la cle les distingue. */
+function taskKey(task: PlexTask): string {
+  return `${task.server_id ?? ''}:${task.uuid}`;
+}
 
 const queryClient = useQueryClient();
 const tasksQuery = useQuery({
@@ -73,9 +78,10 @@ async function cancel(task: PlexTask): Promise<void> {
     danger: true,
   });
   if (!ok) return;
-  cancelling.value = task.uuid;
+  cancelling.value = taskKey(task);
   try {
-    await api(`/api/playback/server-activities/${encodeURIComponent(task.uuid)}`, { method: 'DELETE' });
+    const server = task.server_id != null ? `?server=${task.server_id}` : '';
+    await api(`/api/playback/server-activities/${encodeURIComponent(task.uuid)}${server}`, { method: 'DELETE' });
     await load();
   } catch (err: any) {
     actionError.value = err?.message || 'Annulation impossible.';

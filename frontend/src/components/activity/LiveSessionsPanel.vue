@@ -45,6 +45,7 @@
           <div class="live-client">
             <span><component :is="deviceIcon(session)"/>{{ deviceLabel(session) }}</span>
             <span><Network/>{{ addressLabel(session) }}</span>
+            <span v-if="session.server_name" class="live-server"><Server/>{{ session.server_name }}</span>
           </div>
           <div class="progress-track"><i :class="{ paused: isPaused(session) }" :style="{width:`${percent(session)}%`}"></i></div>
           <!-- Comme un lecteur (et Tracearr) : position ecoulee a gauche, temps restant a droite. -->
@@ -88,7 +89,7 @@ import { streamTracksSummary } from '@/utils/streamTracks';
 import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref, watch } from 'vue';
-import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Smartphone, Tablet, Tv } from '@lucide/vue';
+import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Server, Smartphone, Tablet, Tv } from '@lucide/vue';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 import { useIntervalFn } from '@vueuse/core';
@@ -106,6 +107,8 @@ export interface LiveSession {
   episode_number?: number | null;
   year?: number | string;
   user_name?: string;
+  /** Serveur Plex de la lecture, renseigne quand plusieurs serveurs sont suivis. */
+  server_name?: string | null;
   player?: string;
   platform?: string;
   product?: string;

@@ -167,7 +167,9 @@ function openSession(item: any): void {
   const ids = (liveActivity.value.active || []).map((row: any) => row.id).filter((id: any) => id != null);
   ouvrirFiche(router, `/activity/session/${item.id}`, route.fullPath, etatDeVoisins(ids));
 }
-const loadingQueue = computed(() => downloadQueueQuery.isFetching.value);
+/* Chargement seulement au premier affichage : les rafraichissements suivants gardent la
+   liste a l'ecran et la mettent a jour sans la remplacer par « Chargement… ». */
+const loadingQueue = computed(() => downloadQueueQuery.isPending.value);
 const updatedAt = ref<number | null>(null);
 const clock = ref(Date.now());
 const vffScanQuery = useQuery(vffScanStatusQuery());

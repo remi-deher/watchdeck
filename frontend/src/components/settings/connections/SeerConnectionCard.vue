@@ -16,9 +16,9 @@
       </p>
       <template v-if="form.seer_mode === 'actor'">
         <UiCheckboxField v-model="form.seer_fallback_arr" label="Repli direct Sonarr/Radarr" />
-        <small class="check-hint">Si l'envoi vers Seer echoue, la demande est quand meme transmise directement a Sonarr/Radarr/Prowlarr plutot que d'echouer.</small>
+        <small class="check-hint">Si l'envoi vers Seer échoue, la demande est quand même transmise directement à Sonarr/Radarr/Prowlarr plutôt que d'echouer.</small>
         <UiCheckboxField v-model="form.seer_suppress_notifications" label="Laisser Plex-RSS gerer les emails de demande pour les utilisateurs Seer" />
-        <small class="check-hint">Actif par defaut : les utilisateurs actifs sur Seer sont ignores par Watchdeck (Seer gere leurs demandes et notifications). Desactive : Watchdeck traite et notifie aussi ces utilisateurs en parallele de Seer.</small>
+        <small class="check-hint">Actif par défaut : les utilisateurs actifs sur Seer sont ignorés par Watchdeck (Seer gère leurs demandes et notifications). Desactive : Watchdeck traite et notifie aussi ces utilisateurs en parallele de Seer.</small>
       </template>
     </template>
   </SettingsCard>
