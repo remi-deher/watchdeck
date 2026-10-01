@@ -16,6 +16,7 @@ import re
 import time
 from base64 import b64decode, b64encode
 from contextlib import asynccontextmanager
+from html.parser import HTMLParser
 from urllib.parse import quote
 
 import itsdangerous
@@ -147,7 +148,35 @@ async def lifespan(app: FastAPI):
     logging.info("Shutdown complete.")
 
 
-_INLINE_SCRIPT_RE = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.DOTALL | re.IGNORECASE)
+class _InlineScriptCollector(HTMLParser):
+    """Releve le contenu des scripts en ligne (sans attribut src) du shell SPA."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.scripts: list[str] = []
+        self._current: list[str] | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script" and not any(name == "src" for name, _ in attrs):
+            self._current = []
+
+    def handle_data(self, data):
+        if self._current is not None:
+            self._current.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script" and self._current is not None:
+            self.scripts.append("".join(self._current))
+            self._current = None
+
+
+def _inline_scripts(html: str) -> list[str]:
+    collector = _InlineScriptCollector()
+    collector.feed(html)
+    collector.close()
+    return collector.scripts
+
+
 _csp_cache: tuple[float, str] = (-1.0, "")
 
 
@@ -168,7 +197,7 @@ def _content_security_policy() -> str:
         try:
             with open(index_path, encoding="utf-8") as f:
                 html = f.read()
-            for body in _INLINE_SCRIPT_RE.findall(html):
+            for body in _inline_scripts(html):
                 digest = b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode("ascii")
                 script_hashes.append(f"'sha256-{digest}'")
         except OSError:
