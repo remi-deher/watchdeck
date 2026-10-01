@@ -123,7 +123,7 @@ export const DESTINATIONS: NavDestination[] = [
   { key: 'admin-overview', label: 'Vue d’ensemble', icon: Gauge, group: '', space: 'admin', access: 'admin', match: (p) => p === '/settings' || p.startsWith('/maintenance'), to: '/settings' },
   { key: 'admin-connections', label: 'Connexions', icon: Plug, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/services'), to: '/settings/services' },
   { key: 'admin-automation', label: 'Automatisation', icon: Zap, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/automation'), to: '/settings/automation' },
-  { key: 'admin-notifications', label: 'Notifications', icon: Bell, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/notifications') || p.startsWith('/settings/notifications'), to: '/settings/notifications/channels' },
+  { key: 'admin-notifications', label: 'Notifications', icon: Bell, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/notifications') || p.startsWith('/settings/notifications'), to: '/notifications' },
   { key: 'admin-users', label: 'Utilisateurs', icon: Users, group: 'Gérer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/users'), to: '/users' },
   // Les journaux rejoignent le Systeme : « Exploitation » ne disait rien de ce qu'elle
   // contenait, et son autre moitie (acquisitions et conflits) est un outil du quotidien,
@@ -312,14 +312,27 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       ];
       break;
     case 'admin-notifications':
-      // Les reglages d'abord, l'historique des envois ensuite : on vient ici pour
-      // configurer, et l'historique sert a verifier que la configuration marche.
+      // Le suivi des envois d'abord : la file d'attente (envoi suspendu, envois manuels)
+      // et le journal sont le quotidien de cette zone ; les reglages viennent ensuite.
       sections = [
+        {
+          key: 'pending',
+          label: 'File d’attente',
+          to: { path: '/notifications', query: { tab: 'pending' } },
+          icon: Inbox,
+          active: (route) => route.path === '/notifications' && route.query.tab === 'pending',
+        },
+        {
+          key: 'history',
+          label: 'Journal des envois',
+          to: '/notifications',
+          icon: History,
+          active: (route) => route.path === '/notifications' && route.query.tab !== 'pending',
+        },
         { key: 'channels', label: 'Canaux', to: '/settings/notifications/channels', icon: Plug },
         { key: 'rules', label: 'Règles', to: '/settings/notifications/rules', icon: Settings },
         { key: 'templates', label: 'Modèles d’emails', to: '/settings/notifications/templates', icon: Link2 },
         { key: 'reasons', label: 'Motifs de message', to: '/settings/notifications/reasons', icon: MessageSquareText },
-        { key: 'history', label: 'Historique des envois', to: '/notifications', icon: History },
       ];
       break;
     case 'admin-users':
