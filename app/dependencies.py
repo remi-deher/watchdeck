@@ -53,7 +53,7 @@ def current_user(request: Request, db: AsyncSession = Depends(get_db_async)) -> 
         return {
             "id": request.session.get("user_id"),
             "is_owner": bool(request.session.get("is_owner")),
-            "role": request.session.get("role") or "admin",
+            "role": request.session.get("role") or "user",
             "plex_user_id": request.session.get("plex_user_id"),
             "username": request.session.get("username"),
         }
@@ -71,10 +71,22 @@ def _is_moderator(user: dict | None) -> bool:
     return bool(user and (user.get("is_owner") or user.get("role") in ("admin", "moderator")))
 
 
+# Scope donnant au token API l'acces aux routes internes de l'interface (`require_auth`).
+# Un token restreint a des scopes `/api/v1` precis (ex. `system:read`) ne doit pas ouvrir
+# pour autant toutes les routes de l'application.
+APP_ACCESS_SCOPE = "app:access"
+
+
 async def require_auth(request: Request, db: AsyncSession = Depends(get_db_async)):
-    """Dépendance : n'importe quel utilisateur authentifié (session ou token API)."""
-    if request.session.get("authenticated") or await _valid_api_key(request, db):
+    """Dépendance : n'importe quel utilisateur authentifié (session, ou token API dont les
+    scopes couvrent l'interface : `*` ou `app:access`)."""
+    if request.session.get("authenticated"):
         return
+    if request.headers.get("X-Api-Key"):
+        if await _api_key_has_scope(request, db, APP_ACCESS_SCOPE):
+            return
+        if await _valid_api_key(request, db):
+            raise HTTPException(status_code=403, detail=f"Scope API requis: {APP_ACCESS_SCOPE}")
     raise HTTPException(status_code=401, detail="Non authentifié")
 
 
@@ -85,9 +97,16 @@ def require_api_scope(scope: str) -> Callable:
     supplémentaire au niveau du routeur pour rester sûre si réutilisée ailleurs.
     """
 
+    # Par session, les scopes `requests:*` relevent de la moderation, tous les autres
+    # (utilisateurs, systeme) de l'administration : un simple utilisateur connecte ne
+    # doit pas pouvoir supprimer les demandes des autres ni lister leurs emails.
+    session_check = _is_moderator if scope.startswith("requests:") else _is_admin
+
     async def _dependency(request: Request, db: AsyncSession = Depends(get_db_async)):
         if request.session.get("authenticated"):
-            return
+            if session_check(current_user(request, db)):
+                return
+            raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
         if not request.headers.get("X-Api-Key"):
             raise HTTPException(status_code=401, detail="Non authentifié")
         if await _api_key_has_scope(request, db, scope):

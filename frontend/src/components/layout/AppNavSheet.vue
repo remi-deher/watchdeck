@@ -115,7 +115,9 @@ const queryClient = useQueryClient();
    page : un effacement lance au moment ou la page se decharge n'a pas le temps d'aboutir. */
 async function seDeconnecter(): Promise<void> {
   await Promise.race([effacerStockage(queryClient), new Promise((r) => setTimeout(r, 1500))]);
-  window.location.href = '/logout';
+  // POST : la deconnexion ne se declenche plus par un simple lien (ou une image) externe.
+  await fetch('/logout', { method: 'POST', credentials: 'same-origin', redirect: 'manual' }).catch(() => undefined);
+  window.location.href = '/login';
 }
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
 import { useBackButtonClose } from '@/composables/useBackButtonClose';

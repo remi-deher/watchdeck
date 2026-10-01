@@ -19,10 +19,11 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      # Les montees majeures sont desormais auto-mergees comme le reste : la CI
-      # (tests, lint, smoke Docker...) est le vrai filet, pas le numero de
-      # version. Si une majeure casse dev une fois fusionnee, dev-guard-rollback.yml
-      # revert automatiquement et laisse un message explicite sur la PR.
+      # Les montees majeures ne sont PAS auto-mergees : la CI verifie que rien ne
+      # casse, pas qu'une nouvelle majeure (nouveau mainteneur, nouvelles
+      # dependances, scripts d'installation) est digne de confiance. Elles attendent
+      # une relecture humaine. Les mineures et correctifs restent automatiques, apres
+      # le delai de quarantaine (cooldown) de dependabot.yml.
       #
       # Ecosystem "docker" reste exclu : les tags des images de base (ex.
       # python "3.12-alpine" -> "3.14-alpine") n'ont pas 3 composants, donc
@@ -43,7 +44,7 @@ jobs:
       # activer "Automatically delete head branches" au niveau du depot, ça les
       # supprimerait aussi apres chaque promotion).
       - name: Enable auto-merge for Dependabot PRs
-        if: steps.metadata.outputs.package-ecosystem != 'docker'
+        if: steps.metadata.outputs.package-ecosystem != 'docker' && steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr merge --auto --squash --delete-branch "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

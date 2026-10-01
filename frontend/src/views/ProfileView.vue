@@ -18,6 +18,12 @@
             </div>
           </div>
           <template v-if="canManageSecurity">
+            <UiField v-if="identity?.has_local_password" label="Mot de passe actuel" hint="Requis pour confirmer qu'il s'agit bien de vous." v-slot="field">
+              <input :id="field.id" v-model="currentPassword" type="password" autocomplete="current-password" :aria-describedby="field.describedBy">
+            </UiField>
+            <UiField v-else-if="totpEnabled" label="Code à 6 chiffres" hint="Code de votre application d'authentification, pour confirmer qu'il s'agit bien de vous." v-slot="field">
+              <input :id="field.id" v-model="passwordOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456" :aria-describedby="field.describedBy">
+            </UiField>
             <UiField label="Nouveau mot de passe" hint="Laissez ce champ vide si vous ne souhaitez pas changer votre mot de passe actuel." v-slot="field">
               <input :id="field.id" v-model="password" type="password" minlength="8" autocomplete="new-password" placeholder="Au moins 8 caractères" :aria-describedby="field.describedBy">
             </UiField>
@@ -32,8 +38,11 @@
           <SettingsCard title="Double authentification" subtitle="Exige un code temporaire (TOTP) en plus du mot de passe à la connexion." :icon="ShieldCheck" :status="totpEnabled ? 'active' : 'inactive'" :collapsible="false">
             <template v-if="totpEnabled">
               <p class="hint">La double authentification est active sur ce compte. La désactiver supprime cette protection supplémentaire.</p>
+              <UiField label="Code à 6 chiffres" hint="Saisissez un code actuel pour confirmer la désactivation." v-slot="field">
+                <input :id="field.id" v-model="totpDisableCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456" :aria-describedby="field.describedBy">
+              </UiField>
               <div class="actions">
-                <UiButton variant="danger" :loading="busy" @click="disableTotp"><template #icon><ShieldCheck/></template>Désactiver le TOTP</UiButton>
+                <UiButton variant="danger" :loading="busy" :disabled="totpDisableCode.length !== 6" @click="disableTotp"><template #icon><ShieldCheck/></template>Désactiver le TOTP</UiButton>
               </div>
             </template>
             <template v-else-if="totpSecret">
@@ -156,6 +165,9 @@ const passkeysQuery = useQuery({
 });
 const identity = computed(() => identityQuery.data.value || session.value);
 const password = ref('');
+const currentPassword = ref('');
+const passwordOtp = ref('');
+const totpDisableCode = ref('');
 const totpEnabled = ref(false);
 const totpSecret = ref('');
 const totpCode = ref('');
@@ -181,7 +193,10 @@ const invalidateIdentity = () => queryClient.invalidateQueries({ queryKey: ['use
 const invalidatePasskeys = () => queryClient.invalidateQueries({ queryKey: ['users', 'passkeys', userId.value] });
 
 const passwordMutation = useMutation({
-  mutationFn: () => api(`/api/users/${userId.value}/password`, { method: 'POST', body: JSON.stringify({ password: password.value }) }),
+  mutationFn: () => api(`/api/users/${userId.value}/password`, {
+    method: 'POST',
+    body: JSON.stringify({ password: password.value, current_password: currentPassword.value, otp_code: passwordOtp.value }),
+  }),
   retry: 0,
 });
 const setupTotpMutation = useMutation({
@@ -195,7 +210,7 @@ const enableTotpMutation = useMutation({
   onSuccess: invalidateIdentity,
 });
 const disableTotpMutation = useMutation({
-  mutationFn: () => api(`/api/users/${userId.value}/totp`, { method: 'DELETE' }),
+  mutationFn: () => api(`/api/users/${userId.value}/totp`, { method: 'DELETE', body: JSON.stringify({ code: totpDisableCode.value }) }),
   retry: 0,
   onSuccess: invalidateIdentity,
 });
@@ -211,6 +226,8 @@ async function changePassword() {
   try {
     await passwordMutation.mutateAsync();
     password.value = '';
+    currentPassword.value = '';
+    passwordOtp.value = '';
     notify('Mot de passe modifié.');
   } catch (e) { actionError.value = e.message; }
 }
@@ -242,6 +259,7 @@ async function enableTotp() {
 async function disableTotp() {
   try {
     await disableTotpMutation.mutateAsync();
+    totpDisableCode.value = '';
     totpEnabled.value = false;
     notify('Double authentification désactivée.');
   } catch (e) { actionError.value = e.message; }

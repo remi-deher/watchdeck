@@ -175,7 +175,9 @@ const statusBadge = computed<{ label: string; tone: BadgeTone } | null>(() => {
 // balise, donc aucun HTML/JS du corps de la release ne peut jamais s'executer,
 // meme si `body` contenait un jour du contenu non fiable.
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Guillemets compris : un lien Markdown finit dans un attribut href="...", qu'un `"`
+  // non echappe permettrait de refermer pour y ajouter un attribut (onmouseover...).
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function renderInline(escaped: string): string {
   return escaped

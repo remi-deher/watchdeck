@@ -8,12 +8,15 @@ Responsabilités :
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import re
 import time
 from base64 import b64decode, b64encode
 from contextlib import asynccontextmanager
+from html.parser import HTMLParser
 from urllib.parse import quote
 
 import itsdangerous
@@ -83,6 +86,7 @@ from .routers import (
     webhook_admin,
 )
 from .services.auth import get_secret_key
+from .services.session_security import cached_session_state
 from .utils import safe_redirect_path
 
 logging.basicConfig(
@@ -90,6 +94,23 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 install_log_buffer()
+
+
+async def _warn_if_database_superuser(db) -> None:
+    """Le role PostgreSQL de l'application n'a pas besoin d'etre superutilisateur ; s'il
+    l'est, une injection SQL ou une restauration piegee pourrait executer des commandes
+    sur le serveur de base de donnees (COPY ... PROGRAM). Voir docs/OPERATIONS.md."""
+    try:
+        is_super = (
+            await db.execute(sqlalchemy.text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user"))
+        ).scalar()
+    except Exception:
+        return
+    if is_super:
+        logging.warning(
+            "Le role PostgreSQL de Watchdeck est superutilisateur : creez un role dedie sans ce privilege "
+            "(voir docs/OPERATIONS.md, section Securite)."
+        )
 
 
 @asynccontextmanager
@@ -100,6 +121,10 @@ async def lifespan(app: FastAPI):
         logging.info("Running DB migrations...")
         await init_db()
         logging.info("DB OK. Starting API services...")
+        from .database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            await _warn_if_database_superuser(db)
 
         logging.info("Background work delegated to ARQ")
         from .services.arr_history import sync_all_enabled_instances
@@ -120,6 +145,81 @@ async def lifespan(app: FastAPI):
     logging.info("Shutdown complete.")
 
 
+class _InlineScriptCollector(HTMLParser):
+    """Releve le contenu des scripts en ligne (sans attribut src) du shell SPA."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.scripts: list[str] = []
+        self._current: list[str] | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script" and not any(name == "src" for name, _ in attrs):
+            self._current = []
+
+    def handle_data(self, data):
+        if self._current is not None:
+            self._current.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script" and self._current is not None:
+            self.scripts.append("".join(self._current))
+            self._current = None
+
+
+def _inline_scripts(html: str) -> list[str]:
+    collector = _InlineScriptCollector()
+    collector.feed(html)
+    collector.close()
+    return collector.scripts
+
+
+_csp_cache: tuple[float, str] = (-1.0, "")
+
+
+def _content_security_policy() -> str:
+    """CSP de l'application. Le seul script en ligne autorise est celui du shell SPA
+    (pose du theme avant le premier rendu), par son empreinte : elle est recalculee
+    quand index.html change, a chaque build."""
+    global _csp_cache
+    index_path = os.path.join("app", "static", "vue", "index.html")
+    try:
+        mtime = os.path.getmtime(index_path)
+    except OSError:
+        mtime = 0.0
+    if _csp_cache[0] == mtime:
+        return _csp_cache[1]
+    script_hashes = []
+    if mtime:
+        try:
+            with open(index_path, encoding="utf-8") as f:
+                html = f.read()
+            for body in _inline_scripts(html):
+                digest = b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode("ascii")
+                script_hashes.append(f"'sha256-{digest}'")
+        except OSError:
+            pass
+    policy = "; ".join(
+        [
+            "default-src 'self'",
+            "script-src 'self' " + " ".join(script_hashes) if script_hashes else "script-src 'self'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' data: https://fonts.gstatic.com",
+            "img-src 'self' data: blob: https:",
+            "connect-src 'self'",
+            "frame-src 'self' https://www.openstreetmap.org",
+            "worker-src 'self'",
+            "manifest-src 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+        ]
+    )
+    _csp_cache = (mtime, policy)
+    return policy
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         started_at = time.perf_counter()
@@ -129,10 +229,45 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Response-Time-Ms"] = f"{duration_ms:.1f}"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers.setdefault("Content-Security-Policy", _content_security_policy())
+        if _request_is_https(request.scope):
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
+
+
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+class CrossSiteRequestGuard:
+    """Refuse les requetes d'ecriture envoyees par un autre site avec le cookie de session.
+
+    `SameSite=Lax` ecarte deja les sites tiers, mais pas un sous-domaine frere (meme
+    « site » au sens du navigateur, ex. une autre application auto-hebergee sur
+    *.mondomaine). `Sec-Fetch-Site` est calcule par le navigateur lui-meme, sans
+    dependre des en-tetes Host reecrits par un reverse-proxy : seules les requetes
+    `same-origin` (ou saisies directement, `none`) peuvent modifier quelque chose. Les
+    clients sans cet en-tete (webhooks Sonarr/Radarr/Plex, scripts avec token API)
+    ne sont pas concernes.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope.get("method", "GET") not in _SAFE_METHODS:
+            headers = dict(scope.get("headers") or [])
+            fetch_site = headers.get(b"sec-fetch-site", b"").decode("latin-1").lower()
+            if fetch_site in ("cross-site", "same-site"):
+                response = Response(
+                    content='{"detail":"Requête intersite refusée"}',
+                    status_code=403,
+                    media_type="application/json",
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 class CacheControlledStaticFiles(StaticFiles):
@@ -149,70 +284,32 @@ class CacheControlledStaticFiles(StaticFiles):
         return response
 
 
-async def _sync_session_role(plex_user_id: str | None, username: str | None) -> dict | None:
-    """Corps synchrone de la résolution de rôle (exécuté hors event loop via to_thread)."""
-    from .database import AsyncSessionLocal
-    from .models import PlexUser, Settings
-
-    db = AsyncSessionLocal()
-    try:
-        if plex_user_id:
-            u = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == plex_user_id))).scalars().first()
-            if u:
-                return {"role": u.role or "user", "is_owner": u.role == "admin", "user_id": u.id}
-        else:
-            u = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == username))).scalars().first()
-            if u:
-                return {"role": u.role or "user", "is_owner": u.role == "admin", "user_id": u.id}
-            s = (await db.execute(select(Settings))).scalars().first()
-            if s and s.auth_username and username == s.auth_username:
-                return {"role": "admin", "is_owner": True}
-        return None
-    finally:
-        await db.close()
-
-
-_role_cache: dict[str, tuple[float, dict | None]] = {}
-_role_locks: dict[str, asyncio.Lock] = {}
-
-
-async def _cached_session_role(plex_user_id: str | None, username: str | None, ttl: int) -> dict | None:
-    """Dedoublonne aussi les rafales du premier affichage d'une page."""
-    key = plex_user_id or username or ""
-    cached = _role_cache.get(key)
-    now = time.monotonic()
-    if cached and now - cached[0] < ttl:
-        return cached[1]
-    lock = _role_locks.setdefault(key, asyncio.Lock())
-    async with lock:
-        cached = _role_cache.get(key)
-        now = time.monotonic()
-        if cached and now - cached[0] < ttl:
-            return cached[1]
-        value = await _sync_session_role(plex_user_id, username)
-        _role_cache[key] = (now, value)
-        return value
-
-
 class SessionSyncMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         # Les droits sont resynchronises periodiquement, pas sur chaque ressource/API.
         # Une page comme le dashboard emet plusieurs appels concurrents : auparavant,
         # chacun ajoutait inutilement une lecture PostgreSQL. Le delai reste court afin
-        # qu'une revocation de droits prenne effet rapidement.
+        # qu'une revocation de droits prenne effet rapidement : un compte supprime,
+        # desactive ou dont les sessions ont ete revoquees perd la sienne ici.
         now = int(time.time())
         ttl = max(5, int(os.getenv("SESSION_ROLE_SYNC_TTL_SECONDS", "60")))
         last_sync = int(request.session.get("role_synced_at") or 0)
         if request.session.get("authenticated") and now - last_sync >= ttl:
             try:
-                result = await _cached_session_role(
-                    request.session.get("plex_user_id"), request.session.get("username"), ttl
+                result = await cached_session_state(
+                    request.session.get("plex_user_id"),
+                    request.session.get("username"),
+                    request.session.get("user_id"),
+                    int(request.session.get("sv") or 0),
+                    ttl,
                 )
-                if result:
+                if result.get("_revoked"):
+                    request.session.clear()
+                else:
                     request.session.update(result)
                     request.session["role_synced_at"] = now
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Resynchronisation de session impossible", exc_info=True)
         return await call_next(request)
 
 
@@ -339,6 +436,9 @@ app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 app.add_middleware(SessionSyncMiddleware)
 # Middleware de session (doit être ajouté avant les routers)
 app.add_middleware(DynamicSecureSessionMiddleware, secret_key=get_secret_key())
+# Ajoute en dernier, donc execute en premier : une requete intersite est refusee avant
+# meme la lecture de la session.
+app.add_middleware(CrossSiteRequestGuard)
 
 # `app/static/vue` est la sortie de `npm run build`, qui n'est plus suivie par git : le
 # Dockerfile la reconstruit, et un clone neuf ne l'a pas encore. `check_dir=False` laisse

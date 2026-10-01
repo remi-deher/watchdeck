@@ -144,10 +144,13 @@ def test_retry_issue_media_search_endpoint(mock_search_series):
         db.close()
 
 
+@patch("app.routers.auth.get_plex_owner_uuid", new_callable=AsyncMock, return_value="owner-uuid")
+@patch("app.routers.auth.get_auth_pin", new_callable=AsyncMock)
 @patch("app.services.plex_api.check_auth_pin", new_callable=AsyncMock)
 @patch("app.routers.auth.get_plex_account", new_callable=AsyncMock)
 @patch("app.routers.auth.has_server_access", new_callable=AsyncMock)
-def test_plex_sso_server_access_control(mock_has_access, mock_get_account, mock_check_pin):
+def test_plex_sso_server_access_control(mock_has_access, mock_get_account, mock_check_pin, mock_get_pin, _owner):
+    mock_get_pin.return_value = {"id": 123, "code": "abcd", "auth_url": "https://app.plex.tv/auth"}
     mock_check_pin.return_value = "token123"
     mock_get_account.return_value = {
         "uuid": "uuid123",
@@ -171,12 +174,14 @@ def test_plex_sso_server_access_control(mock_has_access, mock_get_account, mock_
     try:
         # Case 1: Unauthorized user
         mock_has_access.return_value = False
+        assert client.post("/api/auth/plex/pin").status_code == 200
         resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 403
         assert "n'a pas accès au serveur" in resp.json()["detail"]
 
         # Case 2: Authorized user
         mock_has_access.return_value = True
+        assert client.post("/api/auth/plex/pin").status_code == 200
         resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 200
         assert resp.json()["authenticated"] is True
