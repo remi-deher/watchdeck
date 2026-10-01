@@ -259,6 +259,23 @@ async def test_items_sort_on_quality_audio_and_subtitles():
     assert await titles("subtitles", "desc") == ["SD", "HD", "UHD"]
 
 
+@pytest.mark.asyncio
+async def test_subtitles_insight_lists_only_media_known_without_subtitles():
+    """Un média sans flux analysés (sous-titres inconnus) ne compte pas comme « sans sous-titres »."""
+
+    def row(title, subtitles):
+        item = parse_plex_item(sample_item(), "Films", "movie")
+        item.update(title=title, subtitle_count=subtitles)
+        return item
+
+    rows = [row("Sans", 0), row("Avec", 2), row("Inconnu", None)]
+    db = SimpleNamespace(get=AsyncMock(return_value=LibraryAnalyticsSnapshot(payload_json=json.dumps({"items": rows}))))
+
+    page = await analytics_items_payload(SimpleNamespace(), db, {}, insight_kind="subtitles")
+
+    assert [item["title"] for item in page["items"]] == ["Sans"]
+
+
 def test_an_episode_inherits_the_studio_of_its_show():
     """Plex n'expose le studio que sur la série ; l'épisode n'en porte aucun.
 
