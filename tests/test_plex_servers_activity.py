@@ -150,3 +150,68 @@ async def test_history_filters_by_server(async_db):
     assert [facet["name"] for facet in only_main["facets"]["servers"]] == ["Serveur principal", "Plex 4K"]
     rows = (await async_db.execute(select(PlaybackSession))).scalars().all()
     assert len(rows) == 2
+
+
+@pytest.mark.asyncio
+async def test_statistics_with_real_async_session(async_database):
+    """Les agregats chargent des colonnes choisies (load_only) : une colonne oubliee
+    declenchait un chargement paresseux, interdit en async (MissingGreenlet -> 500)."""
+    from datetime import timedelta
+
+    from app.services.playback_activity import activity_snapshot
+    from app.utils import now_utc_naive
+
+    now = now_utc_naive() - timedelta(days=1)
+    async with async_database.session_factory() as db:
+        second = PlexServer(name="Plex 4K", url="http://uhd:32400", token="tok2")
+        db.add(second)
+        await db.flush()
+        db.add_all(
+            [
+                PlaybackSession(
+                    source="plex",
+                    source_session_id="a",
+                    title="Principal",
+                    rating_key="10",
+                    watched_ms=3_600_000,
+                    user_name="Rémi",
+                    started_at=now,
+                    last_seen_at=now,
+                    ended_at=now,
+                ),
+                PlaybackSession(
+                    source="plex",
+                    source_session_id=f"{second.id}:b",
+                    title="4K",
+                    rating_key="20",
+                    watched_ms=3_600_000,
+                    user_name="Rémi",
+                    started_at=now,
+                    last_seen_at=now,
+                    ended_at=now,
+                    server_id=second.id,
+                ),
+            ]
+        )
+        # Plus de lectures recentes que l'historique n'en charge en entier (100) : les
+        # deux lectures ci-dessus n'existent alors que sous forme partielle (load_only).
+        db.add_all(
+            PlaybackSession(
+                source="plex",
+                source_session_id=f"recent-{index}",
+                title=f"Recent {index}",
+                user_name="Rémi",
+                started_at=now + timedelta(minutes=index + 1),
+                last_seen_at=now,
+                ended_at=now,
+            )
+            for index in range(100)
+        )
+        await db.commit()
+
+    async with async_database.session_factory() as db:
+        snapshot = await activity_snapshot(30, db=db)
+
+    thumbs = {item["title"]: item["thumb_url"] for item in snapshot["analytics"]["popular"]}
+    assert thumbs["Principal"] == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F10%2Fthumb"
+    assert thumbs["4K"].endswith(f"&server={second.id}")
