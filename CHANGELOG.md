@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.64.1 — 2026-10-01
+
+
+### 🐛 Corrections
+
+- charger server_id dans les agregats des statistiques (#611) ([701a2b1](https://github.com/remi-deher/watchdeck/commit/701a2b18ea581a57e5b6eef9a38a07a647a8f11c))
+- file d'attente des notifications en tête, sans recherche ni motifs vagues (#610) ([62e84e5](https://github.com/remi-deher/watchdeck/commit/62e84e5286ca5b969003801b72d29d2bce6e7570))
 ## 1.64.0 — 2026-10-01
 
 
@@ -10,6 +17,10 @@
 ### 🐛 Corrections
 
 - correctifs du check-up prod (chiffres, mobile, menu, accents) (#602) ([03b497f](https://github.com/remi-deher/watchdeck/commit/03b497f8fba144a7bbdbdc165fa55f6c2fa8568c))
+
+### 🔧 Maintenance
+
+- v1.64.0 (#609) ([5263934](https://github.com/remi-deher/watchdeck/commit/52639347292de817fce95b360ebcf8805d04932c))
 ## 1.63.0 — 2026-09-30
 
 
