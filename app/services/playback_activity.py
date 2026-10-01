@@ -1903,6 +1903,9 @@ async def enrich_decisions_from_plex_logs(*, force: bool = False) -> dict:
                 await db.execute(
                     select(PlaybackSession).filter(
                         PlaybackSession.source == "plex",
+                        # Journaux du serveur principal seulement : une cle de lecture d'un
+                        # autre serveur y designerait un autre media.
+                        PlaybackSession.server_id.is_(None),
                         PlaybackSession.started_at >= now - _DECISION_LOOKBACK,
                         PlaybackSession.plex_decision_text.is_(None),
                         # La conversion légère aussi : Plex y consigne sa décision de la
@@ -2895,10 +2898,11 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
     if not row.rating_key:
         return None
     settings = (await db.execute(select(Settings))).scalars().first()
-    if not settings or not settings.plex_url or not settings.plex_token:
+    conn = await plex_servers.connection_for(db, row.server_id, settings)
+    if conn is None or settings is None:
         return None
     try:
-        sheet = await media_sheet(settings.plex_url, settings.plex_token, settings.plex_verify_ssl, row.rating_key)
+        sheet = await media_sheet(conn.url, conn.token, settings.plex_verify_ssl, row.rating_key)
     except Exception as exc:
         logger.debug("Fiche média Plex illisible : %s", exc)
         return None
@@ -2941,9 +2945,7 @@ async def live_activity_snapshot(db=None) -> dict:
     connections = await plex_servers.active_connections(db, settings)
     configured = bool(connections)
     # Le nom du serveur n'est utile qu'a partir de deux : il distingue alors les lectures.
-    server_names = (
-        {stored_server_id(conn): conn.name for conn in connections} if len(connections) > 1 else {}
-    )
+    server_names = {stored_server_id(conn): conn.name for conn in connections} if len(connections) > 1 else {}
     items = []
     for row in active:
         item = _serialize(row)
@@ -3028,21 +3030,33 @@ async def terminate_playback(session_id: int, reason: str, db) -> None:
 
 
 async def plex_server_activities(db) -> list[dict]:
-    """Tâches en cours sur le serveur Plex : miniatures, analyse, scan de bibliothèque…"""
+    """Tâches en cours sur les serveurs Plex : miniatures, analyse, scan de bibliothèque…
+
+    Avec plusieurs serveurs, chaque tâche porte le nom du sien ; un serveur injoignable
+    est passé tant qu'un autre répond (seul, il remonte son erreur comme avant).
+    """
     settings = (await db.execute(select(Settings))).scalars().first()
-    if not settings or not settings.plex_url or not settings.plex_token:
+    connections = await plex_servers.active_connections(db, settings)
+    if not settings or not connections:
         return []
-    async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
-        response = await client.get(
-            f"{settings.plex_url.rstrip('/')}/activities",
-            headers={"X-Plex-Token": settings.plex_token, "Accept": "application/json"},
-        )
-        response.raise_for_status()
+    several = len(connections) > 1
     activities = []
-    for activity in response.json().get("MediaContainer", {}).get("Activity", []) or []:
-        progress = _float(activity.get("progress"))
-        activities.append(
-            {
+    failures: list[Exception] = []
+    for conn in connections:
+        try:
+            async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
+                response = await client.get(
+                    f"{conn.url.rstrip('/')}/activities",
+                    headers={"X-Plex-Token": conn.token, "Accept": "application/json"},
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            failures.append(exc)
+            logger.debug("Tâches Plex illisibles sur « %s » : %s", conn.name, exc)
+            continue
+        for activity in response.json().get("MediaContainer", {}).get("Activity", []) or []:
+            progress = _float(activity.get("progress"))
+            entry = {
                 "uuid": activity.get("uuid"),
                 "type": activity.get("type"),
                 "title": activity.get("title"),
@@ -3050,19 +3064,25 @@ async def plex_server_activities(db) -> list[dict]:
                 # -1 : progression indéterminée (Plex ne sait pas combien il reste).
                 "progress": progress if progress is not None and progress >= 0 else None,
                 "cancellable": bool(activity.get("cancellable")),
+                "server_id": stored_server_id(conn),
             }
-        )
+            if several:
+                entry["server_name"] = conn.name
+            activities.append(entry)
+    if failures and len(failures) == len(connections):
+        raise failures[0]
     return activities
 
 
-async def cancel_plex_activity(uuid: str, db) -> None:
+async def cancel_plex_activity(uuid: str, db, server_id: int | None = None) -> None:
     settings = (await db.execute(select(Settings))).scalars().first()
-    if not settings or not settings.plex_url or not settings.plex_token:
+    conn = await plex_servers.connection_for(db, server_id, settings)
+    if settings is None or conn is None:
         raise PlaybackActionError("Plex n'est pas configuré.")
     async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
         response = await client.delete(
-            f"{settings.plex_url.rstrip('/')}/activities/{quote(uuid, safe='')}",
-            headers={"X-Plex-Token": settings.plex_token},
+            f"{conn.url.rstrip('/')}/activities/{quote(uuid, safe='')}",
+            headers={"X-Plex-Token": conn.token},
         )
     if response.status_code == 404:
         raise PlaybackActionError("Cette tâche est déjà terminée.")

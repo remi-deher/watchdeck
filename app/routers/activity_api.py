@@ -95,9 +95,11 @@ async def get_plex_server_activities(db: AsyncSession = Depends(get_db_async)):
 
 
 @router.delete("/server-activities/{uuid}")
-async def cancel_plex_server_activity(uuid: str, db: AsyncSession = Depends(get_db_async)):
+async def cancel_plex_server_activity(
+    uuid: str, server: Optional[int] = None, db: AsyncSession = Depends(get_db_async)
+):
     try:
-        await cancel_plex_activity(uuid, db)
+        await cancel_plex_activity(uuid, db, server)
     except PlaybackActionError as exc:
         raise HTTPException(409, str(exc)) from exc
     except httpx.HTTPError as exc:

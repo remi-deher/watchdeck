@@ -704,6 +704,7 @@ async def test_server_activities_are_listed_and_cancellable(async_db):
         "subtitle": "Dune",
         "progress": 42.0,
         "cancellable": True,
+        "server_id": None,
     }
     assert activities[1]["progress"] is None  # -1 : progression indéterminée
     assert calls == [("GET", "/activities"), ("DELETE", "/activities/a1")]

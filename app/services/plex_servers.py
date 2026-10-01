@@ -1,10 +1,10 @@
 """Serveurs Plex suivis : resolution de la connexion de chacun.
 
 Le serveur principal garde sa configuration historique dans `Settings` (plex_url,
-plex_token, vff_libraries) : toutes les fonctions qui ne parlent qu'a un serveur
-(scan VF, activite en direct, SSO, outils de pistes...) continuent de la lire. Sa
-ligne `plex_servers` ne sert qu'a rattacher les emplacements de bibliotheque. Les
-serveurs supplementaires portent leur propre URL, jeton et bibliotheques.
+plex_token, vff_libraries) ; sa ligne `plex_servers` n'a ni URL ni jeton. Les serveurs
+supplementaires portent leur propre URL, jeton et bibliotheques. Les traitements qui
+parlent a Plex resolvent ici la connexion du serveur concerne (`active_connections`,
+`connection_for`, `connection_for_item`).
 """
 
 import json
@@ -151,3 +151,50 @@ async def connection_for(
 def stored_server_id(conn: PlexServerConnection) -> Optional[int]:
     """Valeur a enregistrer dans une colonne server_id : NULL pour le principal."""
     return None if conn.is_primary else conn.id
+
+
+async def servers_by_item(db: AsyncSession, item_ids: list[int]) -> dict[int, set[int]]:
+    """{library_item_id: {server_id ou il est vu}} pour un lot de medias."""
+    from ..models import LibraryItemLocation
+
+    if not item_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(LibraryItemLocation.library_item_id, LibraryItemLocation.server_id).filter(
+                LibraryItemLocation.library_item_id.in_(item_ids)
+            )
+        )
+    ).all()
+    out: dict[int, set[int]] = {}
+    for item_id, server_id in rows:
+        out.setdefault(item_id, set()).add(server_id)
+    return out
+
+
+def pick_item_connection(
+    server_ids: Optional[set[int]], connections: list[PlexServerConnection]
+) -> Optional[PlexServerConnection]:
+    """Serveur a interroger pour un media : le principal s'il le porte (ou si rien n'est
+    connu de son emplacement, cas des medias anterieurs au multi-serveurs), sinon le
+    premier serveur supplementaire actif qui le porte."""
+    primary = next((conn for conn in connections if conn.is_primary), None)
+    if not server_ids or (primary is not None and primary.id in server_ids):
+        return primary
+    for conn in connections:
+        if conn.id in server_ids:
+            return conn
+    # Seuls des serveurs desactives ou incomplets le portent : le principal reste le
+    # meilleur essai (un media peut y etre arrive depuis la derniere synchronisation).
+    return primary
+
+
+async def connection_for_item(
+    db: AsyncSession, library_item_id: Optional[int], settings: Optional[Settings] = None
+) -> Optional[PlexServerConnection]:
+    """Connexion du serveur qui porte un media de la bibliotheque (principal par defaut)."""
+    connections = await active_connections(db, settings)
+    if library_item_id is None:
+        return next((conn for conn in connections if conn.is_primary), None)
+    located = await servers_by_item(db, [library_item_id])
+    return pick_item_connection(located.get(library_item_id), connections)
