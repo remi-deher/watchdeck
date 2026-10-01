@@ -207,6 +207,10 @@ class Settings(Base):
     # jobs planifies qui envoient les emails n'ont pas de "page courante" dont deriver
     # une URL) -- typiquement le lien vers /privacy dans le pied de page des emails.
     public_base_url: Mapped[Optional[str]] = mapped_column(default=None)
+    # Reverse-proxies de confiance (IP ou reseaux CIDR separes par des virgules) : seules
+    # leurs connexions peuvent annoncer l'IP du client dans X-Forwarded-For. Voir
+    # app/services/client_ip.py.
+    trusted_proxies: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
     # --- RGPD / confidentialite (page /privacy) ---
     # Identite du responsable de traitement -- sans ca, les sections "droits" et "base

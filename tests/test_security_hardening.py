@@ -16,7 +16,7 @@ from app.database import get_db_async
 from app.dependencies import require_admin
 from app.main import _warn_if_database_superuser, app
 from app.models import PlexUser, Settings
-from app.services import plex_api, session_security, setup_code
+from app.services import plex_api, session_security
 from app.services.auth import hash_password
 from app.services.session_security import REVOKED
 
@@ -120,29 +120,6 @@ async def test_webauthn_challenge_is_single_use():
     request.session = copied_cookie
     assert await session_security.consume_challenge(request, "auth") is None
     assert await session_security.consume_challenge(request, "auth") is None
-
-
-# --- Code d'installation ---------------------------------------------------------------------
-
-
-def test_setup_code_is_generated_once_then_discarded(tmp_path, monkeypatch, caplog):
-    monkeypatch.delenv("WATCHDECK_SETUP_CODE", raising=False)
-    monkeypatch.setattr(setup_code, "_SETUP_CODE_FILE", str(tmp_path / "data" / ".setup_code"))
-
-    code = setup_code.setup_code()
-    assert len(code) == 14
-    assert setup_code.setup_code() == code
-    assert setup_code.verify_setup_code(f"  {code.lower()} ")
-    assert not setup_code.verify_setup_code("0000-0000-0000")
-    assert not setup_code.verify_setup_code(None)
-
-    with caplog.at_level(logging.WARNING, logger="app.services.setup_code"):
-        setup_code.announce_setup_code()
-    assert code in caplog.text
-
-    setup_code.discard_setup_code()
-    setup_code.discard_setup_code()
-    assert setup_code.setup_code() != code
 
 
 # --- plex.tv ----------------------------------------------------------------------------------
@@ -318,3 +295,112 @@ def test_onboarding_plex_pin_is_bound_to_the_admin_browser(async_db):
         assert browser.get("/api/plex/sso/check/5").status_code == 403
     finally:
         app.dependency_overrides.pop(require_admin, None)
+
+
+# --- IP des clients derriere un reverse-proxy ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("peer", "forwarded_for", "trusted", "expected"),
+    [
+        # Sans proxy declare, l'en-tete est ignore : un client ne peut pas s'inventer une IP.
+        ("203.0.113.5", "198.51.100.1", None, "203.0.113.5"),
+        ("203.0.113.5", "198.51.100.1", "", "203.0.113.5"),
+        # Connexion directe d'un client alors qu'un proxy est declare : idem.
+        ("203.0.113.5", "198.51.100.1", "172.16.0.0/12", "203.0.113.5"),
+        # Derriere le proxy : l'IP qu'il a ajoutee en dernier.
+        ("172.18.0.4", "198.51.100.7", "172.16.0.0/12", "198.51.100.7"),
+        # Une valeur ecrite par le client a gauche est ignoree.
+        ("172.18.0.4", "1.2.3.4, 198.51.100.7", "172.16.0.0/12", "198.51.100.7"),
+        # Chaine de proxies de confiance.
+        ("10.0.0.2", "198.51.100.7, 172.18.0.4", "10.0.0.2, 172.16.0.0/12", "198.51.100.7"),
+        # En-tete absent ou illisible : IP de la connexion.
+        ("172.18.0.4", None, "172.16.0.0/12", "172.18.0.4"),
+        ("172.18.0.4", "n'importe quoi", "172.16.0.0/12", "172.18.0.4"),
+        ("::1", "2001:db8::5", "::1", "2001:db8::5"),
+    ],
+)
+def test_client_ip_trusts_forwarded_for_only_from_declared_proxies(peer, forwarded_for, trusted, expected):
+    from app.services.client_ip import resolve_client_ip
+
+    assert resolve_client_ip(peer, forwarded_for, trusted) == expected
+
+
+def test_trusted_proxies_are_validated_and_normalized(client, async_db):
+    from app.services.client_ip import InvalidTrustedProxies, validate_trusted_proxies
+
+    assert validate_trusted_proxies(" 172.18.0.4 ;10.0.0.0/8\n::1") == "172.18.0.4/32, 10.0.0.0/8, ::1/128"
+    with pytest.raises(InvalidTrustedProxies):
+        validate_trusted_proxies("proxy.lan")
+
+    async_db.add(Settings(id=1))
+    async_db.commit()
+    app.dependency_overrides[require_admin] = lambda: None
+    try:
+        assert client.put("/api/settings", json={"trusted_proxies": "proxy.lan"}).status_code == 400
+        assert client.put("/api/settings", json={"trusted_proxies": "testclient, 10.0.0.0/8"}).status_code == 400
+        assert client.put("/api/settings", json={"trusted_proxies": "10.0.0.0/8"}).status_code == 200
+        assert client.get("/api/settings").json()["trusted_proxies"] == "10.0.0.0/8"
+        seen = client.get("/api/settings/client-ip", headers={"X-Forwarded-For": "198.51.100.7"}).json()
+        assert seen["forwarded_for"] == "198.51.100.7"
+        assert seen["client_ip"] == seen["connection_ip"]
+    finally:
+        app.dependency_overrides.pop(require_admin, None)
+
+
+@pytest.mark.asyncio
+async def test_login_attempts_are_recorded_with_the_forwarded_client_ip(monkeypatch):
+    from app.routers.auth import _client_ip
+
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=_Result("172.16.0.0/12"))
+    request = MagicMock()
+    request.client.host = "172.18.0.4"
+    request.headers = {"x-forwarded-for": "198.51.100.7"}
+    assert await _client_ip(request, db) == "198.51.100.7"
+
+
+# --- Changement d'adresse des services -----------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("url_field", "target"),
+    [
+        ("tautulli_url", "app.services.playback_activity.test_tautulli"),
+        ("tracearr_url", "app.services.tracearr.test_tracearr"),
+        ("sonarr_url", "app.routers.settings_api.sonarr.check_connection"),
+        ("radarr_url", "app.routers.settings_api.radarr.check_connection"),
+        ("seer_url", "app.routers.settings_api.seer_test"),
+    ],
+)
+async def test_each_service_url_change_runs_its_own_link_test(url_field, target):
+    from app.routers.settings_api import _check_changed_service_links
+
+    settings = Settings(id=1)
+    with patch(target, new_callable=AsyncMock, return_value=(False, "refus")) as check:
+        with pytest.raises(Exception) as raised:
+            await _check_changed_service_links(
+                {url_field: "http://nouveau.lan", url_field[:-4] + "_api_key": "k"}, settings
+            )
+    assert raised.value.status_code == 400
+    check.assert_awaited_once_with("http://nouveau.lan", "k")
+
+
+@pytest.mark.asyncio
+async def test_notification_url_change_sends_a_test_message():
+    from fastapi import HTTPException
+
+    from app.routers.settings_api import _check_changed_service_links
+
+    settings = Settings(id=1, gotify_url="http://old.lan", gotify_token="stored")
+    with patch("app.routers.settings_api.send_gotify", new_callable=AsyncMock) as send:
+        await _check_changed_service_links({"gotify_url": "http://gotify.lan", "gotify_token": "••••••••"}, settings)
+    assert send.await_args.args[:2] == ("http://gotify.lan", "stored")
+
+    with patch("app.routers.settings_api.send_ntfy", new_callable=AsyncMock, side_effect=RuntimeError("403")):
+        with pytest.raises(HTTPException):
+            await _check_changed_service_links({"ntfy_url": "https://ntfy.sh/watchdeck"}, settings)
+
+    # Vider une adresse (desactiver le service) ne demande aucun test.
+    await _check_changed_service_links({"gotify_url": ""}, settings)

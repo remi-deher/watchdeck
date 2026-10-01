@@ -121,7 +121,9 @@ def test_update_settings_updates_field(async_db):
     async_db.commit()
     client = _client_with_db(async_db)
     try:
-        resp = client.put("/api/settings", json={"plex_url": "http://new-plex.local", "plex_token": "new_token"})
+        # Nouvelle adresse : la liaison est verifiee avant enregistrement.
+        with patch("app.routers.settings_api.plex_test", new_callable=AsyncMock, return_value=(True, "OK")):
+            resp = client.put("/api/settings", json={"plex_url": "http://new-plex.local", "plex_token": "new_token"})
         assert resp.status_code == 200
         assert settings.plex_url == "http://new-plex.local"
     finally:
@@ -199,7 +201,9 @@ def test_update_settings_does_not_wipe_email_templates(async_db):
     async_db.commit()
     client = _client_with_db(async_db)
     try:
-        resp = client.put("/api/settings", json={"plex_url": "http://new-plex.local", "plex_token": "new_token"})
+        # Nouvelle adresse : la liaison est verifiee avant enregistrement.
+        with patch("app.routers.settings_api.plex_test", new_callable=AsyncMock, return_value=(True, "OK")):
+            resp = client.put("/api/settings", json={"plex_url": "http://new-plex.local", "plex_token": "new_token"})
         assert resp.status_code == 200
         assert settings.plex_url == "http://new-plex.local"
         assert settings.email_request_template == "<p>Bonjour {nom_utilisateur}</p>"

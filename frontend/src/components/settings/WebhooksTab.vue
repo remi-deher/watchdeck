@@ -46,6 +46,23 @@
         </div>
       </SettingsCard>
 
+      <SettingsCard
+        title="Reverse-proxy"
+        subtitle="Adresse IP réelle des visiteurs derrière Nginx Proxy Manager, Traefik ou Caddy."
+        :icon="Network"
+        :status="form.trusted_proxies ? 'active' : 'inactive'"
+        :collapsible="false"
+      >
+        <label>Proxies de confiance<input v-model="form.trusted_proxies" placeholder="172.16.0.0/12, 192.168.1.10" autocomplete="off" spellcheck="false"><small>IP ou réseaux (CIDR) séparés par des virgules. Seules les connexions venant de ces adresses peuvent indiquer l'IP du visiteur (en-tête X-Forwarded-For) ; sans proxy déclaré, l'anti-bruteforce de la connexion voit toutes les tentatives venir du proxy. N'indiquez que l'adresse de votre proxy.</small></label>
+        <p v-if="clientIp" class="hint">
+          Connexion actuelle depuis <code>{{ clientIp.connection_ip || '?' }}</code>, IP retenue pour ce navigateur : <code>{{ clientIp.client_ip }}</code>.
+          <template v-if="clientIp.forwarded_for && clientIp.client_ip === clientIp.connection_ip"> Votre proxy transmet <code>{{ clientIp.forwarded_for }}</code> : ajoutez <code>{{ clientIp.connection_ip }}</code> aux proxies de confiance puis enregistrez.</template>
+        </p>
+        <div class="actions">
+          <UiButton @click="clientIpQuery.refetch()" :disabled="clientIpQuery.isFetching.value"><RefreshCw/>Vérifier l'IP détectée</UiButton>
+        </div>
+      </SettingsCard>
+
       <SettingsCard title="Token API" subtitle="Jeton pour les appels programmatiques a l'API Watchdeck" :icon="KeyRound" status="neutral" :collapsible="false">
         <code class="secret-box">{{ apiToken || (tokenActive ? 'Actif (valeur masquee)' : 'Aucun token genere') }}</code>
         <p class="hint">Ce token donne un acces complet a l'API Watchdeck (creation de demandes, lecture des utilisateurs, etc.) — a passer en en-tete <code>Authorization: Bearer …</code>. Il n'est affiche qu'une seule fois a la generation ; regenerez-le si vous le perdez.</p>
@@ -62,7 +79,7 @@
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, reactive, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Check, Copy, KeyRound, Link, RefreshCw, Trash2 } from '@lucide/vue';
+import { Check, Copy, KeyRound, Link, Network, RefreshCw, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
 import { form, success, fail } from '@/settingsForm';
 import SettingsCard from './SettingsCard.vue';
@@ -76,6 +93,12 @@ const testingWebhook = ref<string | null>(null);
 const configuringWebhook = ref<string | null>(null);
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const queryClient = useQueryClient();
+
+const clientIpQuery = useQuery({
+  queryKey: ['settings', 'client-ip'],
+  queryFn: () => api<{ connection_ip: string | null; client_ip: string; forwarded_for: string | null }>('/api/settings/client-ip').catch(() => null),
+});
+const clientIp = computed(() => clientIpQuery.data.value);
 
 const apiToken = ref('');
 const tokenQuery = useQuery({ queryKey: ['settings', 'api-token'], queryFn: () => api<any>('/api/settings/token').catch(() => ({})) });

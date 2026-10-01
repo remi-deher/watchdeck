@@ -116,20 +116,19 @@ a URL constante : ils supportent `Cache-Control: public, max-age=31536000, immut
 
 ## Securite
 
-### Premiere installation : code d'installation
-
-Tant qu'aucun compte n'existe, la page `/setup` exige un code ecrit dans les journaux du
-conteneur au demarrage (`docker logs watchdeck-api`, ligne « code d'installation ») et dans
-`data/.setup_code`. Il protege l'instance si elle est joignable avant que son proprietaire
-n'ait cree le compte administrateur. `WATCHDECK_SETUP_CODE` permet de le fixer a l'avance.
-Le fichier est supprime une fois l'installation (ou la restauration) faite.
-
 ### IP des clients derriere un reverse-proxy
 
 L'anti-bruteforce de la connexion compte les echecs par IP et par compte. Derriere un
-reverse-proxy, definir `FORWARDED_ALLOW_IPS` avec l'IP (ou le reseau) du proxy pour
-qu'uvicorn lise l'IP reelle dans `X-Forwarded-For` ; sinon toutes les tentatives semblent
-venir du proxy. Ne jamais utiliser `*` si le port 8000 est aussi joignable directement.
+reverse-proxy (Nginx Proxy Manager, Traefik, Caddy), declarer l'IP ou le reseau du proxy
+dans Parametres > Webhooks et API > Reverse-proxy : Watchdeck lit alors l'IP reelle dans
+`X-Forwarded-For`, et seulement pour les connexions venant de ces adresses. La carte
+affiche l'IP retenue pour le navigateur courant, pour verifier le reglage.
+
+### Changement d'adresse d'un service
+
+Une nouvelle URL (Plex, Tautulli, Tracearr, Sonarr, Radarr, Seer, ntfy, Gotify) n'est
+enregistree qu'apres un test de connexion reussi, avec la cle saisie ou, a defaut, celle
+deja stockee. Pour ntfy et Gotify, le test envoie une notification.
 
 ### Role PostgreSQL de l'application
 

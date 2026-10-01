@@ -121,12 +121,8 @@ async def lifespan(app: FastAPI):
         await init_db()
         logging.info("DB OK. Starting API services...")
         from .database import AsyncSessionLocal
-        from .routers.auth import setup_required
-        from .services.setup_code import announce_setup_code
 
         async with AsyncSessionLocal() as db:
-            if await setup_required(db):
-                announce_setup_code()
             await _warn_if_database_superuser(db)
 
         logging.info("Background work delegated to ARQ")

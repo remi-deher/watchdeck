@@ -23,7 +23,7 @@ import time
 from base64 import b64decode
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -40,9 +40,9 @@ from ..database import DATABASE_URL, get_db_async
 from ..dependencies import current_user, require_auth
 from ..models import LoginAttempt, PasskeyCredential, PlexUser, Settings
 from ..services.auth import hash_password, verify_password
+from ..services.client_ip import client_ip
 from ..services.plex_api import get_auth_pin, get_plex_account, get_plex_owner_uuid, has_server_access
 from ..services.session_security import consume_challenge, open_user_session, store_challenge
-from ..services.setup_code import discard_setup_code, verify_setup_code
 from ..services.totp import verify_code
 from ..utils import now_utc_naive, safe_redirect_path
 
@@ -96,8 +96,11 @@ async def _is_rate_limited(db: AsyncSession, ip: str, username: str | None = Non
     return False
 
 
-def _client_ip(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
+async def _client_ip(request: Request, db: AsyncSession) -> str:
+    """IP du client, lue dans X-Forwarded-For seulement derriere un proxy declare
+    dans les parametres (voir app/services/client_ip.py)."""
+    trusted = (await db.execute(select(Settings.trusted_proxies))).scalars().first()
+    return client_ip(request, trusted)
 
 
 async def _record_login_attempt(
@@ -111,7 +114,6 @@ class SetupBody(BaseModel):
     username: str
     password: str
     password_confirm: str
-    setup_code: str = ""
 
 
 class LoginBody(BaseModel):
@@ -142,8 +144,6 @@ async def setup_account(request: Request, body: SetupBody, db: AsyncSession = De
     # Ne pas permettre de redéfinir les identifiants via cet assistant
     if s and s.auth_username:
         raise HTTPException(403, "Un compte existe déjà sur cette instance")
-    if not verify_setup_code(body.setup_code):
-        raise HTTPException(403, "Code d'installation incorrect (affiché dans les journaux du conteneur).")
 
     username = body.username.strip()
     if not username:
@@ -160,7 +160,6 @@ async def setup_account(request: Request, body: SetupBody, db: AsyncSession = De
     s.auth_username = username
     s.auth_password_hash = hash_password(body.password)
     await db.commit()
-    discard_setup_code()
 
     # Connecter l'utilisateur immédiatement après la création du compte
     request.session["authenticated"] = True
@@ -177,7 +176,6 @@ async def setup_account(request: Request, body: SetupBody, db: AsyncSession = De
 async def setup_restore(
     request: Request,
     file: UploadFile = File(...),
-    setup_code: str = Form(""),
     db: AsyncSession = Depends(get_db_async),
 ):
     """Restaure une archive de sauvegarde complète à la place de la création manuelle d'un
@@ -186,8 +184,6 @@ async def setup_restore(
     s = (await db.execute(select(Settings))).scalars().first()
     if s and s.auth_username:
         raise HTTPException(403, "Un compte existe déjà sur cette instance")
-    if not verify_setup_code(setup_code):
-        raise HTTPException(403, "Code d'installation incorrect (affiché dans les journaux du conteneur).")
 
     content = await file.read()
     # La session ouverte ci-dessus (SELECT Settings, avec sa relation email_templates) reste
@@ -203,7 +199,6 @@ async def setup_restore(
     # Re-verification post-restauration : par construction improbable ici (personne d'autre
     # ne peut avoir cree de compte pendant l'operation, protegee par le verrou Redis), gardee
     # par coherence avec le meme principe applique cote /api/backup/full/restore.
-    discard_setup_code()
     logger.warning("Restauration complète effectuée depuis /setup ; redémarrage programmé.")
     asyncio.get_event_loop().call_later(2.0, os._exit, 0)
     return {"status": "ok", "restarting": True, **report}
@@ -243,7 +238,7 @@ async def privacy_policy(db: AsyncSession = Depends(get_db_async)):
 @router.post("/api/auth/login")
 async def login(request: Request, body: LoginBody, db: AsyncSession = Depends(get_db_async)):
     """Vérifie les identifiants et ouvre une session."""
-    ip = _client_ip(request)
+    ip = await _client_ip(request, db)
     username, password, otp_code = body.username, body.password, body.otp_code
     if await _is_rate_limited(db, ip, username):
         raise HTTPException(status_code=429, detail="Trop de tentatives. Réessayez dans 10 minutes.")
@@ -347,7 +342,7 @@ async def login_plex_check(pin_id: int, request: Request, db: AsyncSession = Dep
     if pending.get("id") != pin_id:
         raise HTTPException(status_code=403, detail="Ce code de connexion Plex n'a pas été demandé par ce navigateur.")
 
-    ip = _client_ip(request)
+    ip = await _client_ip(request, db)
     if await _is_rate_limited(db, ip):
         raise HTTPException(status_code=429, detail="Trop de tentatives. Réessayez dans 10 minutes.")
 
@@ -488,7 +483,7 @@ async def webauthn_login_verify(
     credential: dict,
     db: AsyncSession = Depends(get_db_async),
 ):
-    ip = _client_ip(request)
+    ip = await _client_ip(request, db)
     if await _is_rate_limited(db, ip):
         raise HTTPException(status_code=429, detail="Trop de tentatives. Réessayez dans 10 minutes.")
     challenge = await consume_challenge(request, "auth")

@@ -170,20 +170,10 @@ def test_auth_state_reports_setup_and_session(client, db):
     assert client.get("/api/auth/state").json() == {"setup_required": False, "authenticated": True}
 
 
-@pytest.fixture(autouse=True)
-def _setup_code(monkeypatch):
-    monkeypatch.setenv("WATCHDECK_SETUP_CODE", "TEST-CODE")
-
-
 def test_setup_creates_admin_and_opens_session(client, db):
     response = client.post(
         "/api/auth/setup",
-        json={
-            "username": " admin ",
-            "password": "password123",
-            "password_confirm": "password123",
-            "setup_code": "TEST-CODE",
-        },
+        json={"username": " admin ", "password": "password123", "password_confirm": "password123"},
     )
     assert response.status_code == 200
     assert response.json()["redirect"] == "/settings?tab=connections"
@@ -201,7 +191,7 @@ def test_setup_creates_admin_and_opens_session(client, db):
     ],
 )
 def test_setup_rejects_invalid_account(client, payload, message):
-    response = client.post("/api/auth/setup", json={**payload, "setup_code": "TEST-CODE"})
+    response = client.post("/api/auth/setup", json=payload)
     assert response.status_code == 400
     assert message in response.json()["detail"]
 

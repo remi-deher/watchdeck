@@ -112,13 +112,8 @@ def test_setup_restore_commits_session_before_touching_the_database(anon_client,
     db_session.commit()
 
     observed = _restore_probe(monkeypatch, auth_router, db_session)
-    monkeypatch.setenv("WATCHDECK_SETUP_CODE", "TEST-CODE")
 
-    r = anon_client.post(
-        "/api/auth/setup/restore",
-        files={"file": ("backup.zip", b"fake", "application/zip")},
-        data={"setup_code": "TEST-CODE"},
-    )
+    r = anon_client.post("/api/auth/setup/restore", files={"file": ("backup.zip", b"fake", "application/zip")})
 
     assert r.status_code == 200
     assert observed["committed_before_restore"], (

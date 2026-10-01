@@ -391,7 +391,7 @@ def test_security_headers():
 # --- 14. Secrets lies aux URL ---------------------------------------------------------------
 
 
-def test_changing_a_service_url_requires_its_secret_again(async_db):
+def test_a_new_service_url_is_saved_only_once_the_link_works(async_db):
     from app.dependencies import require_admin
 
     async_db.add(Settings(id=1, plex_url="http://plex.lan:32400", plex_token="secret-token"))
@@ -400,29 +400,33 @@ def test_changing_a_service_url_requires_its_secret_again(async_db):
     app.dependency_overrides[require_admin] = lambda: None
     try:
         client = TestClient(app, raise_server_exceptions=False)
-        moved = client.put("/api/settings", json={"plex_url": "https://evil.example", "plex_token": "••••••••"})
+        with patch(
+            "app.routers.settings_api.plex_test", new_callable=AsyncMock, return_value=(False, "injoignable")
+        ) as check:
+            moved = client.put("/api/settings", json={"plex_url": "http://plex2.lan:32400", "plex_token": "••••••••"})
         assert moved.status_code == 400
-        same = client.put("/api/settings", json={"plex_url": "http://plex.lan:32400/", "plex_token": "••••••••"})
+        assert "injoignable" in moved.json()["detail"]
+        # Sans nouvelle cle saisie, la liaison est testee avec la cle deja stockee.
+        assert check.await_args.args == ("http://plex2.lan:32400", "secret-token")
+        async_db.refresh(async_db.query(Settings).first())
+        assert async_db.query(Settings).first().plex_url == "http://plex.lan:32400"
+
+        with patch("app.routers.settings_api.plex_test", new_callable=AsyncMock, return_value=(True, "OK")):
+            moved = client.put("/api/settings", json={"plex_url": "http://plex2.lan:32400", "plex_token": "••••••••"})
+        assert moved.status_code == 200
+        assert async_db.query(Settings).first().plex_url == "http://plex2.lan:32400"
+
+        with patch("app.routers.settings_api.plex_test", new_callable=AsyncMock) as check:
+            same = client.put("/api/settings", json={"plex_url": "http://plex2.lan:32400/", "plex_token": "••••••••"})
         assert same.status_code == 200
+        check.assert_not_called()
         assert "auth_password_hash" not in client.get("/api/settings").json()
     finally:
         app.dependency_overrides.pop(get_db_async, None)
         app.dependency_overrides.pop(require_admin, None)
 
 
-# --- 16. et 17. Installation et restauration ------------------------------------------------
-
-
-def test_setup_requires_the_installation_code(async_db, monkeypatch):
-    monkeypatch.setenv("WATCHDECK_SETUP_CODE", "AAAA-BBBB")
-    app.dependency_overrides[get_db_async] = lambda: async_db
-    try:
-        client = TestClient(app, raise_server_exceptions=False)
-        body = {"username": "admin", "password": "password123", "password_confirm": "password123"}
-        assert client.post("/api/auth/setup", json=body).status_code == 403
-        assert client.post("/api/auth/setup", json={**body, "setup_code": "aaaa-bbbb"}).status_code == 200
-    finally:
-        app.dependency_overrides.pop(get_db_async, None)
+# --- 17. Restauration ------------------------------------------------------------------------
 
 
 def test_dumps_with_executable_objects_are_refused():

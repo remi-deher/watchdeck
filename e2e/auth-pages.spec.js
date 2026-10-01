@@ -82,7 +82,6 @@ test("l'installation n'active la creation du compte qu'une fois le formulaire va
 
   const submit = page.getByRole("button", { name: "Créer le compte" });
   await expect(submit).toBeDisabled();
-  await page.getByLabel("Code d'installation").fill("1A2B-3C4D-5E6F");
   await page.getByLabel("Nom d'utilisateur").fill("admin");
   await page.getByLabel("Mot de passe", { exact: true }).fill("Password123!");
   await expect(page.getByText("Mot de passe fort")).toBeVisible();
@@ -94,12 +93,7 @@ test("l'installation n'active la creation du compte qu'une fois le formulaire va
 
   await expect(page).toHaveURL(/\/settings\?tab=connections$/);
   const setup = calls.find((call) => call.pathname === "/api/auth/setup");
-  expect(setup.body).toEqual({
-    username: "admin",
-    password: "Password123!",
-    password_confirm: "Password123!",
-    setup_code: "1A2B-3C4D-5E6F",
-  });
+  expect(setup.body).toEqual({ username: "admin", password: "Password123!", password_confirm: "Password123!" });
 });
 
 test("la confidentialite affiche les reglages reels de l'instance", async ({ page }) => {

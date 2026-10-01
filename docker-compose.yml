@@ -21,11 +21,6 @@ services:
       # dans data/.encryption_key (voir app/crypto.py). La définir explicitement n'est
       # utile que pour fixer la clé à l'avance ou la partager avec une autre instance.
       WATCHDECK_ENCRYPTION_KEY: ${WATCHDECK_ENCRYPTION_KEY:-}
-      # Derriere un reverse-proxy (Nginx Proxy Manager, Traefik, Caddy...), IP du proxy :
-      # uvicorn lit alors l'IP reelle du client dans X-Forwarded-For. Sans cela, toutes
-      # les connexions semblent venir du proxy et l'anti-bruteforce bloque tout le monde
-      # au bout de 5 echecs. Ne jamais mettre "*" si le port 8000 est joignable sans proxy.
-      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
     depends_on:
       db:
         condition: service_healthy
