@@ -113,3 +113,49 @@ La reponse doit etre `2`. Si elle vaut `1.1`, activer HTTP/2 sur le proxy.
 Les assets sous `/vue/assets/` portent un hash de contenu dans leur nom et ne changent jamais
 a URL constante : ils supportent `Cache-Control: public, max-age=31536000, immutable`. Un
 `max-age` court y fait revalider tout le bundle a chaque expiration sans aucun benefice.
+
+## Securite
+
+### Premiere installation : code d'installation
+
+Tant qu'aucun compte n'existe, la page `/setup` exige un code ecrit dans les journaux du
+conteneur au demarrage (`docker logs watchdeck-api`, ligne « code d'installation ») et dans
+`data/.setup_code`. Il protege l'instance si elle est joignable avant que son proprietaire
+n'ait cree le compte administrateur. `WATCHDECK_SETUP_CODE` permet de le fixer a l'avance.
+Le fichier est supprime une fois l'installation (ou la restauration) faite.
+
+### IP des clients derriere un reverse-proxy
+
+L'anti-bruteforce de la connexion compte les echecs par IP et par compte. Derriere un
+reverse-proxy, definir `FORWARDED_ALLOW_IPS` avec l'IP (ou le reseau) du proxy pour
+qu'uvicorn lise l'IP reelle dans `X-Forwarded-For` ; sinon toutes les tentatives semblent
+venir du proxy. Ne jamais utiliser `*` si le port 8000 est aussi joignable directement.
+
+### Role PostgreSQL de l'application
+
+L'image `postgres` cree `POSTGRES_USER` en superutilisateur. Watchdeck n'a besoin que d'etre
+proprietaire de sa base ; au demarrage, un avertissement est journalise si son role est
+superutilisateur. Pour une installation existante :
+
+```sql
+-- connecte en superutilisateur (ex. docker exec -it watchdeck-db psql -U watchdeck)
+CREATE ROLE postgres_admin LOGIN SUPERUSER PASSWORD '<mot de passe d administration>';
+-- puis, reconnecte avec postgres_admin :
+ALTER ROLE watchdeck NOSUPERUSER NOCREATEROLE NOCREATEDB;
+```
+
+Les sauvegardes restaurees depuis l'interface sont de toute facon inspectees : un dump
+contenant des fonctions, declencheurs, extensions ou regles est refuse.
+
+### Secret des webhooks
+
+Plex n'accepte pas d'en-tete personnalise : son webhook passe le secret en `?secret=`. Les
+journaux de Watchdeck (acces uvicorn, httpx, page Journaux) masquent ces parametres, mais un
+reverse-proxy peut les journaliser lui-meme : desactiver ou filtrer son journal d'acces pour
+`/webhook/`. Sonarr et Radarr peuvent envoyer l'en-tete `X-Webhook-Secret` a la place.
+
+### Sessions
+
+Une session dure 14 jours. Desactiver un compte, lui retirer le droit de connexion, le
+supprimer, changer son mot de passe ou desactiver sa double authentification ferme ses
+sessions ouvertes dans la minute (resynchronisation des droits).

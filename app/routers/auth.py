@@ -19,10 +19,11 @@ import hmac
 import json
 import logging
 import os
-from base64 import b64decode, b64encode
+import time
+from base64 import b64decode
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -39,7 +40,9 @@ from ..database import DATABASE_URL, get_db_async
 from ..dependencies import current_user, require_auth
 from ..models import LoginAttempt, PasskeyCredential, PlexUser, Settings
 from ..services.auth import hash_password, verify_password
-from ..services.plex_api import get_auth_pin, get_plex_account, has_server_access
+from ..services.plex_api import get_auth_pin, get_plex_account, get_plex_owner_uuid, has_server_access
+from ..services.session_security import consume_challenge, open_user_session, store_challenge
+from ..services.setup_code import discard_setup_code, verify_setup_code
 from ..services.totp import verify_code
 from ..utils import now_utc_naive, safe_redirect_path
 
@@ -48,26 +51,53 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["auth"])
 
 _MAX_ATTEMPTS = 5
+_MAX_ATTEMPTS_PER_ACCOUNT = 10
 _WINDOW_SECONDS = 600
+_MIN_PASSWORD_LENGTH = 8
 
 
 @router.get("/api/session", dependencies=[Depends(require_auth)])
 async def session_info(request: Request, db: AsyncSession = Depends(get_db_async)):
-    """Return the authenticated identity used by the SPA shell."""
-    return current_user(request, db)
+    """Return the authenticated identity used by the SPA shell.
+
+    Inclut l'etat des moyens de connexion du compte : la page Profil d'un simple
+    utilisateur (qui n'a pas acces a /api/users/{id}) en a besoin pour demander le mot
+    de passe actuel ou un code 2FA avant un changement."""
+    identity = current_user(request, db)
+    if identity and identity.get("id"):
+        user = (await db.execute(select(PlexUser).filter(PlexUser.id == identity["id"]))).scalars().first()
+        if user:
+            identity["has_local_password"] = bool(user.password_hash)
+            identity["totp_enabled"] = bool(user.totp_enabled)
+    return identity
 
 
-async def _is_rate_limited(db: AsyncSession, ip: str) -> bool:
+async def _is_rate_limited(db: AsyncSession, ip: str, username: str | None = None) -> bool:
+    """Trop d'echecs recents depuis cette IP, ou visant ce compte (toutes IP confondues).
+
+    La limite par compte freine une attaque repartie sur plusieurs adresses ; elle est
+    plus large que celle par IP pour qu'un tiers ne bloque pas trop facilement un compte.
+    Derriere un reverse-proxy, l'IP n'est celle du client que si FORWARDED_ALLOW_IPS
+    designe le proxy (voir docker-compose.yml).
+    """
     cutoff = now_utc_naive() - timedelta(seconds=_WINDOW_SECONDS)
-    res = await db.execute(
-        select(func.count(LoginAttempt.id)).filter(
-            LoginAttempt.ip_address == ip,
-            LoginAttempt.success == False,  # noqa: E712
-            LoginAttempt.attempted_at >= cutoff,
-        )
-    )
-    count = res.scalar()
-    return count >= _MAX_ATTEMPTS
+    failed = (LoginAttempt.success == False, LoginAttempt.attempted_at >= cutoff)  # noqa: E712
+    by_ip = (
+        await db.execute(select(func.count(LoginAttempt.id)).filter(LoginAttempt.ip_address == ip, *failed))
+    ).scalar()
+    if (by_ip or 0) >= _MAX_ATTEMPTS:
+        return True
+    if username:
+        by_user = (
+            await db.execute(select(func.count(LoginAttempt.id)).filter(LoginAttempt.username == username, *failed))
+        ).scalar()
+        if (by_user or 0) >= _MAX_ATTEMPTS_PER_ACCOUNT:
+            return True
+    return False
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
 
 
 async def _record_login_attempt(
@@ -81,6 +111,7 @@ class SetupBody(BaseModel):
     username: str
     password: str
     password_confirm: str
+    setup_code: str = ""
 
 
 class LoginBody(BaseModel):
@@ -111,11 +142,13 @@ async def setup_account(request: Request, body: SetupBody, db: AsyncSession = De
     # Ne pas permettre de redéfinir les identifiants via cet assistant
     if s and s.auth_username:
         raise HTTPException(403, "Un compte existe déjà sur cette instance")
+    if not verify_setup_code(body.setup_code):
+        raise HTTPException(403, "Code d'installation incorrect (affiché dans les journaux du conteneur).")
 
     username = body.username.strip()
     if not username:
         raise HTTPException(400, "Le nom d'utilisateur ne peut pas être vide.")
-    if len(body.password) < 8:
+    if len(body.password) < _MIN_PASSWORD_LENGTH:
         raise HTTPException(400, "Le mot de passe doit contenir au moins 8 caractères.")
     if body.password != body.password_confirm:
         raise HTTPException(400, "Les mots de passe ne correspondent pas.")
@@ -127,12 +160,15 @@ async def setup_account(request: Request, body: SetupBody, db: AsyncSession = De
     s.auth_username = username
     s.auth_password_hash = hash_password(body.password)
     await db.commit()
+    discard_setup_code()
 
     # Connecter l'utilisateur immédiatement après la création du compte
     request.session["authenticated"] = True
     request.session["username"] = username
     request.session["is_owner"] = True
     request.session["role"] = "admin"
+    request.session["auth_at"] = int(time.time())
+    request.session["role_synced_at"] = int(time.time())
     # Enchaîner sur la configuration des services (Plex, *arr, notifications…)
     return {"authenticated": True, "redirect": "/settings?tab=connections"}
 
@@ -141,6 +177,7 @@ async def setup_account(request: Request, body: SetupBody, db: AsyncSession = De
 async def setup_restore(
     request: Request,
     file: UploadFile = File(...),
+    setup_code: str = Form(""),
     db: AsyncSession = Depends(get_db_async),
 ):
     """Restaure une archive de sauvegarde complète à la place de la création manuelle d'un
@@ -149,6 +186,8 @@ async def setup_restore(
     s = (await db.execute(select(Settings))).scalars().first()
     if s and s.auth_username:
         raise HTTPException(403, "Un compte existe déjà sur cette instance")
+    if not verify_setup_code(setup_code):
+        raise HTTPException(403, "Code d'installation incorrect (affiché dans les journaux du conteneur).")
 
     content = await file.read()
     # La session ouverte ci-dessus (SELECT Settings, avec sa relation email_templates) reste
@@ -164,6 +203,7 @@ async def setup_restore(
     # Re-verification post-restauration : par construction improbable ici (personne d'autre
     # ne peut avoir cree de compte pendant l'operation, protegee par le verrou Redis), gardee
     # par coherence avec le meme principe applique cote /api/backup/full/restore.
+    discard_setup_code()
     logger.warning("Restauration complète effectuée depuis /setup ; redémarrage programmé.")
     asyncio.get_event_loop().call_later(2.0, os._exit, 0)
     return {"status": "ok", "restarting": True, **report}
@@ -203,11 +243,11 @@ async def privacy_policy(db: AsyncSession = Depends(get_db_async)):
 @router.post("/api/auth/login")
 async def login(request: Request, body: LoginBody, db: AsyncSession = Depends(get_db_async)):
     """Vérifie les identifiants et ouvre une session."""
-    ip = request.client.host if request.client else "unknown"
-    if await _is_rate_limited(db, ip):
+    ip = _client_ip(request)
+    username, password, otp_code = body.username, body.password, body.otp_code
+    if await _is_rate_limited(db, ip, username):
         raise HTTPException(status_code=429, detail="Trop de tentatives. Réessayez dans 10 minutes.")
 
-    username, password, otp_code = body.username, body.password, body.otp_code
     s = (await db.execute(select(Settings))).scalars().first()
     if not s or not s.auth_username or not s.auth_password_hash:
         raise HTTPException(409, "Aucun compte n'est encore configuré sur cette instance.")
@@ -215,23 +255,21 @@ async def login(request: Request, body: LoginBody, db: AsyncSession = Depends(ge
     # 1. Vérifier dans la table PlexUser si l'utilisateur existe localement
     user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == username))).scalars().first()
     if user and user.password_hash:
-        if not user.enabled or not user.can_login:
-            raise HTTPException(403, "Ce compte n'est pas autorisé à se connecter.")
-
+        # Mot de passe verifie AVANT l'etat du compte : sinon la reponse revelerait
+        # qu'un compte desactive existe sous ce nom, sans meme compter la tentative.
         if not verify_password(password, user.password_hash):
             await _record_login_attempt(db, ip, username, False, "bad_credentials")
             raise HTTPException(401, "Identifiants incorrects.")
+
+        if not user.enabled or not user.can_login:
+            await _record_login_attempt(db, ip, username, False, "account_disabled")
+            raise HTTPException(403, "Ce compte n'est pas autorisé à se connecter.")
 
         if user.totp_enabled and not verify_code(user.totp_secret, otp_code):
             await _record_login_attempt(db, ip, username, False, "bad_totp")
             raise HTTPException(401, "Code 2FA incorrect.")
 
-        request.session["authenticated"] = True
-        request.session["username"] = user.plex_user_id
-        request.session["is_owner"] = user.role == "admin"
-        request.session["role"] = user.role or "user"
-        request.session["plex_user_id"] = user.plex_user_id if user.source == "plex_sso" else None
-        request.session["user_id"] = user.id
+        open_user_session(request, user)
         await _record_login_attempt(db, ip, username, True)
         return {"authenticated": True}
 
@@ -245,15 +283,24 @@ async def login(request: Request, body: LoginBody, db: AsyncSession = Depends(ge
         raise HTTPException(401, "Code 2FA incorrect.")
 
     admin_user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == username))).scalars().first()
-    user_id = admin_user.id if admin_user else None
-
-    request.session["authenticated"] = True
-    request.session["username"] = username
-    request.session["is_owner"] = True
-    request.session["role"] = "admin"
-    request.session["user_id"] = user_id
+    if admin_user:
+        open_user_session(request, admin_user)
+        request.session["is_owner"] = True
+        request.session["role"] = "admin"
+    else:
+        request.session.clear()
+        request.session["authenticated"] = True
+        request.session["username"] = username
+        request.session["is_owner"] = True
+        request.session["role"] = "admin"
+        request.session["user_id"] = None
+        request.session["auth_at"] = int(time.time())
+        request.session["role_synced_at"] = int(time.time())
     await _record_login_attempt(db, ip, username, True)
     return {"authenticated": True}
+
+
+_PLEX_PIN_SESSION_KEY = "plex_login_pin"
 
 
 @router.post("/api/auth/plex/pin")
@@ -261,14 +308,28 @@ async def login_plex_pin(request: Request):
     """Initie une connexion Plex SSO : crée un PIN et retourne l'URL d'auth Plex.
 
     Le front ouvre `auth_url` dans une popup, puis interroge /api/auth/plex/check/{id}.
+    Le PIN (id et code) est memorise dans la session du navigateur qui l'a demande :
+    seul ce navigateur pourra ensuite l'echanger contre une session Watchdeck.
     """
-    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get("x-forwarded-host", request.url.netloc)
-    forward_url = f"{scheme}://{host}/login"
     try:
-        return await get_auth_pin(forward_url=forward_url)
+        pin = await get_auth_pin()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erreur d'initialisation SSO Plex : {e}")
+    request.session[_PLEX_PIN_SESSION_KEY] = {"id": pin.get("id"), "code": pin.get("code")}
+    return pin
+
+
+def _can_link_by_username(user: PlexUser, settings: Settings | None) -> bool:
+    """Un compte existant ne peut etre rattache par simple nom d'utilisateur Plex que s'il
+    n'a encore aucune identite propre : ni UUID Plex (sinon l'UUID fait foi), ni mot de
+    passe local, ni role de compte administrateur local. Un nom Plex peut changer de
+    proprietaire, et rien n'empeche un ami du serveur de porter le meme nom qu'un compte
+    local."""
+    if user.plex_account_uuid or user.password_hash or user.source == "local":
+        return False
+    if settings and settings.auth_username and user.plex_user_id == settings.auth_username:
+        return False
+    return True
 
 
 @router.get("/api/auth/plex/check/{pin_id}")
@@ -277,80 +338,90 @@ async def login_plex_check(pin_id: int, request: Request, db: AsyncSession = Dep
 
     Le token Plex ne sert qu'à identifier le compte (plex.tv /api/v2/user) — il n'est
     jamais persisté. Un compte inconnu est créé avec le rôle 'user' ; il doit être
-    autorisé (can_login) et actif (enabled) pour se connecter.
+    autorisé (can_login) et actif (enabled) pour se connecter. Seul le proprietaire du
+    serveur Plex configure (titulaire du token serveur) recoit le role admin.
     """
     from ..services.plex_api import check_auth_pin
 
-    logger.info("SSO Login check: pin_id=%s", pin_id)
+    pending = request.session.get(_PLEX_PIN_SESSION_KEY) or {}
+    if pending.get("id") != pin_id:
+        raise HTTPException(status_code=403, detail="Ce code de connexion Plex n'a pas été demandé par ce navigateur.")
+
+    ip = _client_ip(request)
+    if await _is_rate_limited(db, ip):
+        raise HTTPException(status_code=429, detail="Trop de tentatives. Réessayez dans 10 minutes.")
+
+    s = (await db.execute(select(Settings))).scalars().first()
+    if not s or not s.plex_token:
+        # Sans token serveur, impossible de verifier que le compte a acces au serveur :
+        # n'importe quel compte Plex pourrait se creer un acces.
+        raise HTTPException(
+            status_code=403, detail="La connexion Plex n'est disponible qu'une fois le serveur Plex configuré."
+        )
+
     try:
-        token = await check_auth_pin(pin_id)
+        token = await check_auth_pin(pin_id, pending.get("code"))
     except Exception as e:
         logger.error("SSO Login check error calling check_auth_pin: %s", e)
         raise HTTPException(status_code=502, detail=str(e))
 
     if not token:
-        logger.info("SSO Login check: token not ready yet for pin_id=%s", pin_id)
         return {"authenticated": False}
 
-    logger.info("SSO Login check: token obtained successfully! Resolving Plex account...")
+    request.session.pop(_PLEX_PIN_SESSION_KEY, None)
     account = await get_plex_account(token)
     if not account:
         logger.error("SSO Login check: failed to resolve Plex account from token.")
         raise HTTPException(status_code=502, detail="Impossible de résoudre le compte Plex.")
 
-    logger.info("SSO Login check: resolved Plex account: %s", account)
+    logger.info("SSO Login check: resolved Plex account %s", account.get("username"))
 
-    # Rattachement : uuid stable en priorité, sinon username (users legacy RSS/API).
+    has_access = await has_server_access(
+        admin_token=s.plex_token,
+        user_username=account["username"],
+        user_email=account.get("email"),
+        user_uuid=account["uuid"],
+    )
+    if not has_access:
+        logger.warning("SSO Login check: access denied. User %s has no access to Plex server.", account["username"])
+        await _record_login_attempt(db, ip, account["username"], False, "plex_no_server_access")
+        raise HTTPException(status_code=403, detail="Ce compte Plex n'a pas accès au serveur Plex de l'application.")
+
+    owner_uuid = await get_plex_owner_uuid(s.plex_token)
+    is_server_owner = bool(account["uuid"] and owner_uuid and account["uuid"] == owner_uuid)
+
+    # Rattachement : l'UUID Plex (stable) fait foi ; le nom d'utilisateur ne sert que pour
+    # les comptes sans identite propre (voir _can_link_by_username).
     user = None
     if account["uuid"]:
         user = (
             (await db.execute(select(PlexUser).filter(PlexUser.plex_account_uuid == account["uuid"]))).scalars().first()
         )
-        if user:
-            logger.info(
-                "SSO Login check: matched existing user by UUID: id=%s, plex_user_id=%s", user.id, user.plex_user_id
-            )
     if not user:
-        user = (
+        same_name = (
             (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == account["username"]))).scalars().first()
         )
-        if user:
-            logger.info(
-                "SSO Login check: matched existing user by username: id=%s, plex_user_id=%s", user.id, user.plex_user_id
+        if same_name and not _can_link_by_username(same_name, s):
+            logger.warning(
+                "SSO Login check: refus de rattacher le compte Plex %s au compte existant id=%s (identite differente)",
+                account["username"],
+                same_name.id,
             )
-
-    s = (await db.execute(select(Settings))).scalars().first()
-    is_admin_username = bool(s and s.auth_username and account["username"] == s.auth_username)
-    logger.info(
-        "SSO Login check: is_admin_username check: %s (auth_username: %s)",
-        is_admin_username,
-        s.auth_username if s else "None",
-    )
-
-    if s and s.plex_token:
-        logger.info("SSO Login check: checking server access via admin token...")
-        has_access = await has_server_access(
-            admin_token=s.plex_token,
-            user_username=account["username"],
-            user_email=account.get("email"),
-            user_uuid=account["uuid"],
-        )
-        logger.info("SSO Login check: server access result: %s", has_access)
-        if not has_access:
-            logger.warning("SSO Login check: access denied. User %s has no access to Plex server.", account["username"])
+            await _record_login_attempt(db, ip, account["username"], False, "plex_identity_conflict")
             raise HTTPException(
-                status_code=403, detail="Ce compte Plex n'a pas accès au serveur Plex de l'application."
+                status_code=403,
+                detail="Un autre compte Watchdeck porte déjà ce nom. Contactez l'administrateur pour le rattacher.",
             )
+        user = same_name
 
     if not user:
-        logger.info("SSO Login check: user does not exist in DB, creating new PlexUser for %s", account["username"])
         user = PlexUser(
             plex_user_id=account["username"],
             display_name=account["username"],
             plex_email=account.get("email"),
             plex_account_uuid=account["uuid"] or None,
             avatar_url=account.get("thumb"),
-            role="admin" if is_admin_username else "user",
+            role="admin" if is_server_owner else "user",
             can_login=True,
             enabled=True,
             source="plex_sso",
@@ -360,23 +431,18 @@ async def login_plex_check(pin_id: int, request: Request, db: AsyncSession = Dep
         logger.info("SSO Login check: new user created with id=%s, role=%s", user.id, user.role)
     else:
         # Enrichit / met à jour l'enregistrement existant sans écraser les choix admin.
-        logger.info("SSO Login check: enriching existing user id=%s", user.id)
         if account["uuid"] and not user.plex_account_uuid:
             user.plex_account_uuid = account["uuid"]
         if account.get("thumb"):
             user.avatar_url = account["thumb"]
         if account.get("email") and not user.plex_email:
             user.plex_email = account["email"]
-        if is_admin_username:
+        if is_server_owner:
             user.role = "admin"
 
     if not user.enabled or not user.can_login:
-        logger.warning(
-            "SSO Login check: user found but is disabled/cannot login (enabled=%s, can_login=%s)",
-            user.enabled,
-            user.can_login,
-        )
         await db.commit()
+        await _record_login_attempt(db, ip, account["username"], False, "account_disabled")
         raise HTTPException(
             status_code=403, detail="Ce compte n'est pas autorisé à se connecter. Contactez l'administrateur."
         )
@@ -384,20 +450,19 @@ async def login_plex_check(pin_id: int, request: Request, db: AsyncSession = Dep
     user.last_login_at = now_utc_naive()
     await db.commit()
 
-    request.session["authenticated"] = True
-    request.session["is_owner"] = user.role == "admin"
-    request.session["role"] = user.role or "user"
-    request.session["plex_user_id"] = user.plex_user_id
-    request.session["username"] = user.custom_name or user.display_name or user.plex_user_id
-    request.session["user_id"] = user.id
+    open_user_session(request, user, username=user.custom_name or user.display_name or user.plex_user_id)
+    await _record_login_attempt(db, ip, account["username"], True)
     return {"authenticated": True, "role": user.role or "user"}
 
 
-@router.get("/logout")
+@router.post("/logout")
 def logout(request: Request):
-    """Détruit la session et redirige vers /login."""
+    """Détruit la session et redirige vers /login.
+
+    En POST seulement : un lien ou une image pointant vers /logout depuis un autre site
+    ne peut plus deconnecter l'utilisateur a son insu."""
     request.session.clear()
-    return RedirectResponse("/login", status_code=302)
+    return RedirectResponse("/login", status_code=303)
 
 
 @router.post("/api/webauthn/login/options")
@@ -413,7 +478,7 @@ async def webauthn_login_options(
         rp_id=rp_id,
     )
 
-    request.session["auth_challenge"] = b64encode(options.challenge).decode("utf-8")
+    await store_challenge(request, "auth", options.challenge)
     return json.loads(options_to_json(options))
 
 
@@ -423,7 +488,10 @@ async def webauthn_login_verify(
     credential: dict,
     db: AsyncSession = Depends(get_db_async),
 ):
-    challenge = request.session.pop("auth_challenge", None)
+    ip = _client_ip(request)
+    if await _is_rate_limited(db, ip):
+        raise HTTPException(status_code=429, detail="Trop de tentatives. Réessayez dans 10 minutes.")
+    challenge = await consume_challenge(request, "auth")
     if not challenge:
         raise HTTPException(status_code=400, detail="Défi d'authentification expiré ou invalide.")
 
@@ -441,16 +509,15 @@ async def webauthn_login_verify(
         .first()
     )
     if not db_cred:
+        await _record_login_attempt(db, ip, None, False, "unknown_passkey")
         raise HTTPException(status_code=401, detail="Passkey non reconnue.")
 
     user = (await db.execute(select(PlexUser).filter(PlexUser.id == db_cred.user_id))).scalars().first()
-    if not user or not user.enabled or not user.can_login:
-        raise HTTPException(status_code=403, detail="Ce compte n'est pas autorisé à se connecter.")
 
     try:
         verification = verify_authentication_response(
             credential=credential,
-            expected_challenge=b64decode(challenge),
+            expected_challenge=challenge,
             expected_origin=expected_origin,
             expected_rp_id=rp_id,
             credential_public_key=b64decode(db_cred.public_key),
@@ -459,16 +526,15 @@ async def webauthn_login_verify(
         )
     except Exception as e:
         logger.error(f"WebAuthn assertion failed: {e}")
+        await _record_login_attempt(db, ip, user.plex_user_id if user else None, False, "bad_passkey")
         raise HTTPException(status_code=400, detail=f"Échec de la validation de la Passkey: {e}")
+
+    if not user or not user.enabled or not user.can_login:
+        raise HTTPException(status_code=403, detail="Ce compte n'est pas autorisé à se connecter.")
 
     db_cred.sign_count = verification.new_sign_count
     await db.commit()
 
-    request.session["authenticated"] = True
-    request.session["username"] = user.plex_user_id
-    request.session["is_owner"] = user.role == "admin"
-    request.session["role"] = user.role or "user"
-    request.session["plex_user_id"] = user.plex_user_id if user.source == "plex_sso" else None
-    request.session["user_id"] = user.id
-
+    open_user_session(request, user)
+    await _record_login_attempt(db, ip, user.plex_user_id, True)
     return {"success": True}

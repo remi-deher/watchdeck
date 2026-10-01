@@ -255,10 +255,43 @@ _MASKED_SECRET_FIELDS = (
 )
 
 
+# Secret envoye a chaque URL de service : changer l'URL sans ressaisir le secret enverrait
+# le secret existant (masque dans l'interface) vers la nouvelle adresse, quelle qu'elle soit.
+_URL_BOUND_SECRETS = {
+    "plex_url": "plex_token",
+    "tautulli_url": "tautulli_api_key",
+    "tracearr_url": "tracearr_api_key",
+    "sonarr_url": "sonarr_api_key",
+    "radarr_url": "radarr_api_key",
+    "seer_url": "seer_api_key",
+    "ntfy_url": "ntfy_token",
+    "gotify_url": "gotify_token",
+}
+
+
+def _normalized_url(value: str | None) -> str:
+    return (value or "").strip().rstrip("/").lower()
+
+
+def _check_url_bound_secrets(payload: dict, s: Settings) -> None:
+    for url_field, secret_field in _URL_BOUND_SECRETS.items():
+        new_url = payload.get(url_field)
+        if new_url is None or _normalized_url(new_url) == _normalized_url(getattr(s, url_field)):
+            continue
+        new_secret = payload.get(secret_field)
+        if getattr(s, secret_field) and new_secret in (None, "", "••••••••"):
+            raise HTTPException(
+                400,
+                f"L'adresse de {url_field.removesuffix('_url')} a changé : ressaisissez sa clé ou son token "
+                "pour confirmer qu'il doit être envoyé à cette nouvelle adresse.",
+            )
+
+
 @router.get("/settings")
 def get_settings(s: Settings = Depends(get_settings_or_404)):
     """Retourne la configuration complète. Les secrets/tokens sont masqués."""
     d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
+    d.pop("auth_password_hash", None)
     for field in _MASKED_SECRET_FIELDS:
         if d.get(field):
             d[field] = "••••••••"
@@ -300,6 +333,7 @@ async def update_settings(
     }
     payload = data.model_dump()
     _validate_notify_settings(payload)
+    _check_url_bound_secrets(payload, s)
     for key, val in payload.items():
         if val is None and key not in _nullable_fields:
             continue

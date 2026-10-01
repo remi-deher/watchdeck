@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -99,11 +100,67 @@ def extract_data_files(tar_bytes: bytes, data_dir: Path = DATA_DIR) -> list[str]
     return extracted
 
 
+# Objets qu'un dump de Watchdeck ne contient jamais (le schema n'est fait que de tables,
+# sequences, index et contraintes) et qui permettraient a une archive forgee d'executer
+# du code dans PostgreSQL -- ou, avec un role superutilisateur, sur le conteneur lui-meme
+# (fonctions en langage non sur, declencheurs, extensions, COPY ... PROGRAM via regles...).
+_FORBIDDEN_DUMP_ENTRIES = (
+    "FUNCTION",
+    "PROCEDURE",
+    "AGGREGATE",
+    "TRIGGER",
+    "EVENT TRIGGER",
+    "EXTENSION",
+    "PROCEDURAL LANGUAGE",
+    "RULE",
+    "CAST",
+    "OPERATOR",
+    "CONVERSION",
+    "FOREIGN DATA WRAPPER",
+    "FOREIGN SERVER",
+    "FOREIGN TABLE",
+    "SERVER",
+    "USER MAPPING",
+    "PUBLICATION",
+    "SUBSCRIPTION",
+    "DATABASE",
+)
+_TOC_ENTRY_RE = re.compile(r"^\s*\d+;\s*\d+\s+\d+\s+(.+)$")
+
+
+def forbidden_dump_entries(toc: str) -> list[str]:
+    """Entrees de la table des matieres d'un dump (`pg_restore --list`) refusees."""
+    rejected = []
+    for line in toc.splitlines():
+        match = _TOC_ENTRY_RE.match(line)
+        if not match:
+            continue
+        description = match.group(1)
+        if any(description == kind or description.startswith(kind + " ") for kind in _FORBIDDEN_DUMP_ENTRIES):
+            rejected.append(description)
+    return rejected
+
+
 def restore_postgres_dump(dump_path: str | Path, target_url: str) -> None:
-    """Remplace entierement le contenu de la base cible par ce dump (pg_restore --clean)."""
+    """Remplace entierement le contenu de la base cible par ce dump (pg_restore --clean).
+
+    Le contenu du dump est inspecte avant toute ecriture : une archive contenant autre
+    chose que des donnees et un schema de tables est refusee (voir _FORBIDDEN_DUMP_ENTRIES).
+    """
     pg_restore = shutil.which("pg_restore")
     if not pg_restore:
         raise BackupRestoreError("pg_restore indisponible dans le conteneur")
+    try:
+        toc = subprocess.run([pg_restore, "--list", str(dump_path)], check=True, capture_output=True, text=True).stdout
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise BackupRestoreError(f"Dump PostgreSQL illisible : {detail}") from exc
+    rejected = forbidden_dump_entries(toc)
+    if rejected:
+        raise BackupRestoreError(
+            "Archive refusee : le dump contient des objets qu'une sauvegarde Watchdeck ne contient jamais "
+            f"({', '.join(rejected[:5])})"
+        )
     try:
         subprocess.run(
             [

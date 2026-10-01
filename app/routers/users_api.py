@@ -24,6 +24,7 @@ from ..services.gdpr import erase_user_data, export_user_data
 from ..services.plex_api import get_server_users as plex_get_server_users
 from ..services.seer import get_user_requests as seer_get_user_requests
 from ..services.seer import get_users as seer_get_users
+from ..services.session_security import invalidate_session_cache
 from ..services.user_merge import merge_user_records as _merge_users
 from ..services.user_merge import merge_users
 from ..utils import async_get_or_404, now_utc_naive, wrap_image_proxy
@@ -31,7 +32,21 @@ from ..utils import async_get_or_404, now_utc_naive, wrap_image_proxy
 # Réutilise la validation du mode de notification définie dans settings_api
 from .settings_api import _validate_notify_settings
 
-router = APIRouter(prefix="/api", tags=["users"], dependencies=[Depends(require_admin)])
+
+async def _refresh_sessions_after_change(request: Request):
+    """Toute modification de comptes (role, desactivation, suppression...) doit
+    s'appliquer aux sessions ouvertes des la prochaine resynchronisation, sans attendre
+    l'expiration du cache local des droits."""
+    yield
+    if request.method != "GET":
+        invalidate_session_cache()
+
+
+router = APIRouter(
+    prefix="/api",
+    tags=["users"],
+    dependencies=[Depends(require_admin), Depends(_refresh_sessions_after_change)],
+)
 
 
 class UserCreate(BaseModel):
@@ -445,7 +460,7 @@ async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db_async)
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    return user
+    return serialize_plex_user(user, {})
 
 
 @router.put("/users/{user_id}")
@@ -465,7 +480,8 @@ async def update_user(user_id: int, data: UserCreate, request: Request, db: Asyn
         .values({"plex_user": resolved})
     )
     await db.commit()
-    return user
+    await db.refresh(user)
+    return serialize_plex_user(user, {})
 
 
 @router.put("/users/{user_id}/enabled")

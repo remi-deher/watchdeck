@@ -15,6 +15,7 @@ from arq.connections import RedisSettings
 from sqlalchemy.future import select
 
 from .database import AsyncSessionLocal, init_db
+from .log_buffer import install_redaction as install_log_redaction
 from .models import JobRunLog, PendingNotification, Settings
 from .realtime import publish
 from .utils import local_hour, local_minute, now_utc, now_utc_naive
@@ -27,6 +28,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+install_log_redaction()
 
 logger = logging.getLogger(__name__)
 LOCK_TTL = 60 * 60

@@ -963,14 +963,28 @@ async def media_add(body: MediaAddRequest, request: Request, db: AsyncSession = 
     en file d'attente (pending_approval) sans être envoyée à *arr.
     """
     s = (await db.execute(select(Settings))).scalars().first()
-    item = body.model_dump()
 
     caller = current_user(request, db)
     caller_is_admin = bool(caller and (caller.get("is_owner") or caller.get("role") == "admin"))
-    if not caller_is_admin and caller and caller.get("plex_user_id"):
-        # Un 'user' demande forcément pour lui-même : on ignore body.plex_user_id.
+    caller_is_moderator = bool(caller_is_admin or (caller and caller.get("role") == "moderator"))
+    if not caller_is_admin and caller:
+        # Un 'user' demande forcément pour lui-même : on ignore body.plex_user_id. Sans
+        # identite en session, on refuse plutot que de laisser choisir le demandeur (et
+        # donc contourner la validation en se faisant passer pour un compte auto-approuve).
+        if not caller.get("plex_user_id"):
+            raise HTTPException(403, "Impossible d'identifier le compte demandeur.")
         body.plex_user_id = caller["plex_user_id"]
-        item["plex_user_id"] = caller["plex_user_id"]
+    if caller and not caller_is_moderator:
+        # Les reglages d'acquisition (instance, profil, dossier, tags, contournement de
+        # Seer) relevent de la moderation : un simple utilisateur suit le routage
+        # configure par l'administrateur.
+        body.quality_profile_id = None
+        body.root_folder = None
+        body.tag_ids = []
+        body.instance_id = None
+        body.use_seer = False
+        body.bypass_seer = False
+    item = body.model_dump()
 
     pending = await _needs_approval(db, s, caller, body.plex_user_id, body)
     if pending:

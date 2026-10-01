@@ -3,6 +3,12 @@ updates:
   - package-ecosystem: npm
     directory: "/"
     target-branch: dev
+    # Delai avant de proposer une version tout juste publiee : la plupart des paquets
+    # compromis (npm/PyPI) sont reperes et retires dans les jours qui suivent. Sans ce
+    # delai, une version piegee publiee un lundi etait fusionnee sur dev le jour meme.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     schedule:
       interval: weekly
       day: monday
@@ -15,6 +21,12 @@ updates:
   - package-ecosystem: pip
     directory: "/"
     target-branch: dev
+    # Delai avant de proposer une version tout juste publiee : la plupart des paquets
+    # compromis (npm/PyPI) sont reperes et retires dans les jours qui suivent. Sans ce
+    # delai, une version piegee publiee un lundi etait fusionnee sur dev le jour meme.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     schedule:
       interval: weekly
       day: monday
@@ -31,6 +43,8 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     target-branch: dev
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
       day: monday
@@ -56,6 +70,8 @@ updates:
   - package-ecosystem: docker
     directory: "/"
     target-branch: dev
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
       day: monday

@@ -41,10 +41,18 @@ router = APIRouter(prefix="/api", tags=["requests"], dependencies=[Depends(requi
 
 
 def _caller_plex_user_id(request, db: AsyncSession) -> str | None:
+    """Identifiant servant a cloisonner les demandes d'un simple utilisateur.
+
+    None signifie « aucun filtre » : reserve aux admins et aux appels par token API.
+    Un utilisateur dont la session ne porte pas d'identite est refuse plutot que de
+    voir les demandes de tout le monde."""
     caller = current_user(request, db)
     if not caller or caller.get("is_owner") or caller.get("role") == "admin":
         return None
-    return caller.get("plex_user_id")
+    uid = caller.get("plex_user_id")
+    if not uid:
+        raise HTTPException(status_code=403, detail="Impossible d'identifier le compte demandeur.")
+    return uid
 
 
 async def _ensure_request_visible(req: MediaRequest, request, db: AsyncSession) -> None:

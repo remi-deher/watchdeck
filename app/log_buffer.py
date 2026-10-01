@@ -6,6 +6,7 @@ en mémoire. Utilisé par l'endpoint /api/logs pour afficher les logs dans l'UI.
 """
 
 import logging
+import re
 from collections import deque
 from datetime import datetime, timezone
 
@@ -42,7 +43,42 @@ def get_logs() -> list[dict]:
     return list(reversed(_buffer))
 
 
+# Secrets transmis en parametre d'URL (secret du webhook Plex, token Plex, cles d'API) :
+# ils apparaissaient en clair dans les journaux d'acces d'uvicorn et ceux de httpx.
+_SECRET_QUERY_RE = re.compile(r"(?i)([?&](?:secret|token|x-plex-token|api_?key|apikey|access_token)=)[^&\s\"']+")
+
+
+def redact_secrets(text: str) -> str:
+    return _SECRET_QUERY_RE.sub(r"\1***", text)
+
+
+class RedactSecretsFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            message = record.getMessage()
+        except Exception:
+            return True
+        redacted = redact_secrets(message)
+        if redacted != message:
+            record.msg = redacted
+            record.args = ()
+        return True
+
+
+_redact_filter = RedactSecretsFilter()
+
+
+def install_redaction() -> None:
+    """Masque les secrets d'URL dans tous les journaux (API comme worker)."""
+    for existing in logging.getLogger().handlers:
+        existing.addFilter(_redact_filter)
+    # Les journaux d'acces d'uvicorn ne remontent pas au logger racine.
+    for name in ("uvicorn.access", "uvicorn.error", "httpx"):
+        logging.getLogger(name).addFilter(_redact_filter)
+
+
 def install():
     handler = MemoryLogHandler()
     handler.setLevel(logging.INFO)
     logging.getLogger().addHandler(handler)
+    install_redaction()

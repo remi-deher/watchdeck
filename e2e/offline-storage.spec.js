@@ -47,7 +47,8 @@ test("la deconnexion efface le stockage local", async ({ page }, info) => {
     if (p === "/api/events") return route.fulfill({ contentType: "text/event-stream", body: "" });
     return route.fulfill({ json: {} });
   });
-  await page.route("**/logout", (r) => r.fulfill({ contentType: "text/html", body: "<p>deconnecte</p>" }));
+  await page.route("**/logout", (r) => r.fulfill({ status: 204, body: "" }));
+  await page.route("**/login", (r) => r.fulfill({ contentType: "text/html", body: "<p>deconnecte</p>" }));
   await page.goto("/dashboard");
   await expect(page.locator(".app-dock button").filter({ hasText: "Plus" })).toBeVisible({ timeout: 20_000 });
   await page.evaluate(() => new Promise((ok) => {

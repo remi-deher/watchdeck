@@ -170,9 +170,20 @@ def test_auth_state_reports_setup_and_session(client, db):
     assert client.get("/api/auth/state").json() == {"setup_required": False, "authenticated": True}
 
 
+@pytest.fixture(autouse=True)
+def _setup_code(monkeypatch):
+    monkeypatch.setenv("WATCHDECK_SETUP_CODE", "TEST-CODE")
+
+
 def test_setup_creates_admin_and_opens_session(client, db):
     response = client.post(
-        "/api/auth/setup", json={"username": " admin ", "password": "password123", "password_confirm": "password123"}
+        "/api/auth/setup",
+        json={
+            "username": " admin ",
+            "password": "password123",
+            "password_confirm": "password123",
+            "setup_code": "TEST-CODE",
+        },
     )
     assert response.status_code == 200
     assert response.json()["redirect"] == "/settings?tab=connections"
@@ -190,7 +201,7 @@ def test_setup_creates_admin_and_opens_session(client, db):
     ],
 )
 def test_setup_rejects_invalid_account(client, payload, message):
-    response = client.post("/api/auth/setup", json=payload)
+    response = client.post("/api/auth/setup", json={**payload, "setup_code": "TEST-CODE"})
     assert response.status_code == 400
     assert message in response.json()["detail"]
 
@@ -215,9 +226,18 @@ def test_login_rejects_wrong_password(client, db):
 def test_logout_returns_to_login(client, db):
     _seed_account(db)
     _login(client)
-    response = client.get("/logout")
-    assert response.status_code == 302
+    response = client.post("/logout", follow_redirects=False)
+    assert response.status_code == 303
     assert response.headers["location"] == "/login"
+    assert client.get("/api/auth/state").json()["authenticated"] is False
+
+
+def test_logout_refuses_get(client, db):
+    """Un lien ou une image externe vers /logout ne doit plus deconnecter."""
+    _seed_account(db)
+    _login(client)
+    client.get("/logout", follow_redirects=False)
+    assert client.get("/api/auth/state").json()["authenticated"] is True
 
 
 def test_privacy_page_is_public(client):
