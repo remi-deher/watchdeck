@@ -203,7 +203,7 @@ const areaGroups = computed(() => {
 function areaSummary(key: string): string {
   if (key === 'admin-connections') return 'Plex, Sonarr, Radarr, clients, TMDB, webhooks';
   if (key === 'admin-automation') return 'Téléchargements, améliorations VF, tâches planifiées';
-  if (key === 'admin-notifications') return 'Canaux, règles, modèles d’emails, historique';
+  if (key === 'admin-notifications') return 'File d’attente, journal des envois, canaux, règles, modèles';
   if (key === 'admin-users') return 'Comptes, rôles, synchronisation';
   if (key === 'admin-system') return 'Données, journaux, version';
   return '';

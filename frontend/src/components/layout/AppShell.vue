@@ -15,7 +15,6 @@
       :collapsed="collapsed"
       :space="space"
       :back-to="lastAppPath"
-      @open-palette="openPalette"
       @toggle-rail="collapsed = !collapsed"
     />
 

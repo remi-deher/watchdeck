@@ -2644,6 +2644,8 @@ async def activity_snapshot(days: int = 30, db=None, user: str | None = None) ->
                         PlaybackSession.grandparent_title,
                         PlaybackSession.rating_key,
                         PlaybackSession.thumb_url,
+                        # Lu par _thumb_url : sans lui, chargement paresseux interdit en async.
+                        PlaybackSession.server_id,
                         PlaybackSession.player_title,
                         PlaybackSession.platform,
                         PlaybackSession.product,

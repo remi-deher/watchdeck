@@ -19,18 +19,10 @@ router = APIRouter(prefix="/api/message-reasons", tags=["message-reasons"], depe
 REASON_EVENTS = ("cancelled", "correction")
 
 #: Motifs livrés à la première ouverture. Ils ne sont pas figés : ce sont des points de
-#: départ, modifiables et supprimables comme les autres.
+#: départ, modifiables et supprimables comme les autres. « Absent du catalogue de
+#: téléchargement » et « Hors périmètre du serveur » en ont été retirés : trop vagues
+#: pour le demandeur (migration 0032 pour les installations existantes).
 DEFAULT_REASONS: list[dict] = [
-    {
-        "event": "cancelled",
-        "label": "Absent du catalogue de téléchargement",
-        "message": (
-            "Ce média n'existe pas dans le catalogue sur lequel s'appuie le serveur : il ne peut donc pas être "
-            "téléchargé. La fiche que vous voyez dans Plex vient de son catalogue à lui, plus large que le nôtre — "
-            "certaines entrées n'ont pas d'équivalent récupérable. "
-            "Pensez à retirer ce média de votre liste d'envies Plex : sans cela, il continuera d'y apparaître."
-        ),
-    },
     {
         "event": "cancelled",
         "label": "Déjà demandé",
@@ -45,14 +37,6 @@ DEFAULT_REASONS: list[dict] = [
         "message": (
             "Ce média est déjà présent sur le serveur. Si vous ne le trouvez pas, il est peut-être rangé dans une "
             "autre bibliothèque, ou sous un autre titre — dites-le nous et nous vous aiderons à le retrouver."
-        ),
-    },
-    {
-        "event": "cancelled",
-        "label": "Hors périmètre du serveur",
-        "message": (
-            "Ce média ne fait pas partie de ce que ce serveur héberge. La demande a donc été annulée, sans préjuger "
-            "de son intérêt : c'est un choix de périmètre, pas un jugement sur le contenu."
         ),
     },
     {
