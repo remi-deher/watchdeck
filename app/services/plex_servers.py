@@ -198,3 +198,24 @@ async def connection_for_item(
         return next((conn for conn in connections if conn.is_primary), None)
     located = await servers_by_item(db, [library_item_id])
     return pick_item_connection(located.get(library_item_id), connections)
+
+
+async def account_tokens(db: AsyncSession, settings: Optional[Settings] = None) -> list[str]:
+    """Jetons Plex des comptes qui partagent un serveur suivi, principal en tete, sans doublon.
+
+    Un serveur supplementaire peut appartenir a un autre compte Plex, avec ses propres
+    amis et son propre Plex Home : l'acces SSO et l'import des utilisateurs les
+    interrogent tous. Seul le jeton compte ici (plex.tv), pas l'URL du serveur.
+    """
+    if settings is None:
+        settings = (await db.execute(select(Settings))).scalars().first()
+    tokens: list[str] = []
+    if settings and settings.plex_token:
+        tokens.append(settings.plex_token)
+    rows = (
+        await db.execute(select(PlexServer).filter(PlexServer.is_primary.is_(False), PlexServer.enabled.is_(True)))
+    ).scalars()
+    for server in sorted(rows, key=lambda row: row.id):
+        if server.token and server.token not in tokens:
+            tokens.append(server.token)
+    return tokens

@@ -81,13 +81,39 @@ async def get_server_users(plex_token: str) -> tuple[list[dict], list[str]]:
             except (httpx.HTTPError, ValueError) as exc:
                 warnings.append(f"{relationship}: {safe_error_message(exc)}")
 
+    return _deduplicate_users(users), warnings
+
+
+def _deduplicate_users(users: list[dict]) -> list[dict]:
+    """Un compte Plex une seule fois ; la relation « owner » l'emporte."""
     deduplicated: dict[str, dict] = {}
     for user in users:
         key = user.get("plex_account_uuid") or user["plex_user_id"].casefold()
         current = deduplicated.get(key)
         if not current or current.get("relationship") != "owner":
             deduplicated[key] = user
-    return list(deduplicated.values()), warnings
+    return list(deduplicated.values())
+
+
+async def get_users_for_tokens(tokens: list[str]) -> tuple[list[dict], list[str]]:
+    """Union des utilisateurs vus par plusieurs comptes Plex (un par serveur suivi).
+
+    Le premier jeton est celui du serveur principal : son proprietaire garde la
+    relation « owner », ceux des serveurs supplementaires deviennent de simples
+    utilisateurs (« friend ») s'ils n'y ont pas d'autre relation.
+    """
+    users: list[dict] = []
+    warnings: list[str] = []
+    for index, token in enumerate(tokens):
+        found, token_warnings = await get_server_users(token)
+        if index:
+            found = [
+                {**user, "relationship": "friend"} if user.get("relationship") == "owner" else user for user in found
+            ]
+            token_warnings = [f"serveur {index + 1} : {warning}" for warning in token_warnings]
+        users.extend(found)
+        warnings.extend(token_warnings)
+    return _deduplicate_users(users), warnings
 
 
 async def _legacy_get_friends_watchlist(plex_url: str, plex_token: str) -> list[dict]:
