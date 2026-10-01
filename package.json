@@ -16,7 +16,7 @@
     "@tanstack/query-persist-client-core": "^5.103.2",
     "@tanstack/vue-query": "^5.103.2",
     "@tanstack/vue-table": "^9.2.4",
-    "@vitejs/plugin-vue": "^6.0.8",
+    "@vitejs/plugin-vue": "^6.0.9",
     "@vueuse/core": "^15.0.0",
     "chart.js": "^4.5.1",
     "date-fns": "^4.4.0",
