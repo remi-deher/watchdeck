@@ -3,6 +3,7 @@
     <div class="settings-grid">
       <div class="settings-cards span-two">
         <PlexConnectionCard/>
+        <PlexServersCard/>
         <PlexActivityCard/>
       </div>
     </div>
@@ -12,6 +13,7 @@
 </template>
 <script setup lang="ts">
 import PlexConnectionCard from './connections/PlexConnectionCard.vue';
+import PlexServersCard from './connections/PlexServersCard.vue';
 import PlexActivityCard from './connections/PlexActivityCard.vue';
 import LibraryTab from './LibraryTab.vue';
 </script>

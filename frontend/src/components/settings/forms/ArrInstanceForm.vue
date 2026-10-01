@@ -19,6 +19,10 @@
       <UiSelect v-model="form.root_folder" :options="[{ value: '', label: 'Par défaut' }, ...folders.map((folder: any) => ({ value: folder.path || folder, label: String(folder.path || folder) }))]" />
     </label>
     <small class="check-hint">Renseigne URL et Clé API puis clique « Charger profils et dossiers » pour remplir les deux listes ci-dessus depuis cette instance.</small>
+    <label v-if="plexServerOptions.length > 1 && form.arr_type !== 'prowlarr'">Serveur Plex
+      <UiSelect v-model="form.plex_server_id" :options="plexServerOptions" />
+      <small>Serveur dont les bibliothèques sont rafraîchies après un import de cette instance.</small>
+    </label>
     <UiCheckboxField v-model="form.is_default" label="Instance par défaut" />
     <small class="check-hint">Instance utilisée par défaut pour ce type (Sonarr/Radarr) quand plusieurs sont configurées et qu'aucune n'est explicitement choisie pour une demande.</small>
 
@@ -33,7 +37,7 @@
 
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from 'vue';
-import { useMutation } from '@tanstack/vue-query';
+import { useMutation, useQuery } from '@tanstack/vue-query';
 import { ListRestart, Save } from '@lucide/vue';
 import { api } from '@/api';
 import { useCrudResource } from '@/composables/useCrudResource';
@@ -48,7 +52,7 @@ import ConnectionTestAction from '../connections/ConnectionTestAction.vue';
 const props = defineProps<{ id: string }>();
 const emit = defineEmits<{ (e: 'done', message: string): void; (e: 'cancel'): void }>();
 
-const defaults = { name: '', arr_type: 'sonarr', url: '', api_key: '', quality_profile_id: null, root_folder: '', minimum_availability: 'released', is_default: false, enabled: true, indexer_ids: null };
+const defaults = { name: '', arr_type: 'sonarr', url: '', api_key: '', quality_profile_id: null, root_folder: '', minimum_availability: 'released', is_default: false, enabled: true, indexer_ids: null, plex_server_id: null };
 const crud = useCrudResource<any>('/api/arr-instances', defaults);
 const form = crud.form;
 const { creating, item, notFound, error, saving, submit } = useResourceForm(crud, toRef(props, 'id'));
@@ -57,6 +61,15 @@ const { addToast } = useToast();
 async function enregistrer(): Promise<void> {
   if (await submit()) emit('done', creating.value ? 'Instance ajoutée.' : 'Instance mise à jour.');
 }
+
+/* Le principal vaut null cote API (comme pour les lectures) : c'est la valeur par defaut. */
+const plexServersQuery = useQuery({
+  queryKey: ['settings', 'crud', '/api/plex-servers'],
+  queryFn: () => api<Array<{ id: number; name: string; is_primary: boolean; enabled: boolean }>>('/api/plex-servers'),
+});
+const plexServerOptions = computed(() => (Array.isArray(plexServersQuery.data.value) ? plexServersQuery.data.value : [])
+  .filter((server) => server.is_primary || server.enabled || server.id === form.plex_server_id)
+  .map((server) => ({ value: server.is_primary ? null : server.id, label: server.name })));
 
 const profiles = ref<any[]>([]), folders = ref<any[]>([]);
 async function loadOptions(): Promise<void> {

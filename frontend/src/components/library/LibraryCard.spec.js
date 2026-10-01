@@ -95,3 +95,15 @@ describe('LibraryCard - vue liste', () => {
     expect(wrapper.emitted('open')).toHaveLength(1);
   });
 });
+
+describe('LibraryCard - plusieurs serveurs Plex', () => {
+  it('affiche les serveurs supplementaires qui portent le media', async () => {
+    const wrapper = await mountCard({ serverNames: ['Plex 4K', 'Plex famille'] });
+    expect(wrapper.get('.server-tag').text()).toBe('Plex 4K + Plex famille');
+  });
+
+  it("n'affiche rien avec un seul serveur", async () => {
+    const wrapper = await mountCard();
+    expect(wrapper.find('.server-tag').exists()).toBe(false);
+  });
+});

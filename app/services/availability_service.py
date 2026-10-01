@@ -91,7 +91,7 @@ async def has_plex_proof(db: AsyncSession, req: MediaRequest) -> bool:
     # Plex ciblee, pas un scan complet) : appele uniquement au moment precis ou une
     # demande vient d'etre detectee disponible cote *arr, jamais en boucle sur tout
     # le catalogue.
-    return await _live_plex_proof(settings, req)
+    return await _live_plex_proof(settings, req, db)
 
 
 async def availability_confirmed(
@@ -138,23 +138,22 @@ async def should_confirm_available(
     return confirmed
 
 
-async def _live_plex_proof(settings: Settings, req: MediaRequest) -> bool:
-    from .vff_scanner import _parse_vff_libraries
+async def _live_plex_proof(settings: Settings, req: MediaRequest, db: AsyncSession) -> bool:
+    """Recherche ciblee du media sur chaque serveur Plex actif, principal en tete."""
+    from . import plex_servers
 
-    libs = _parse_vff_libraries(settings)
-    if not libs:
-        return False
+    connections = await plex_servers.active_connections(db, settings)
     kinds = ("movie",) if req.media_type == "movie" else ("series",)
-    library_names = [lib["name"] for lib in libs if lib["kind"] in kinds]
-    if not library_names:
-        return False
-    try:
-        return await asyncio.to_thread(
-            _find_item_live_blocking, settings.plex_url, settings.plex_token, library_names, req
-        )
-    except Exception as e:
-        logger.warning("Verification Plex live echouee pour '%s': %s", req.title, e)
-        return False
+    for conn in connections:
+        library_names = [lib["name"] for lib in conn.libraries if lib["kind"] in kinds]
+        if not library_names:
+            continue
+        try:
+            if await asyncio.to_thread(_find_item_live_blocking, conn.url, conn.token, library_names, req):
+                return True
+        except Exception as e:
+            logger.warning("Verification Plex live echouee pour '%s' (%s): %s", req.title, conn.name, e)
+    return False
 
 
 def _find_item_live_blocking(plex_url: str, plex_token: str, library_names: list[str], req: MediaRequest) -> bool:

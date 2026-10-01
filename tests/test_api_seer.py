@@ -249,7 +249,7 @@ def test_plex_sync_users_updates_existing_and_creates_missing(client, db):
     db.add(Settings(plex_token="token"))
     alice = _user(db, plex_user_id="alice", display_name=None, source="rss")
 
-    with patch("app.routers.users_api.plex_get_server_users", new=AsyncMock(return_value=PLEX_USERS_RESPONSE)):
+    with patch("app.routers.users_api.plex_get_users_for_tokens", new=AsyncMock(return_value=PLEX_USERS_RESPONSE)):
         response = client.post("/api/plex/sync/users")
 
     assert response.status_code == 200
@@ -282,7 +282,7 @@ def test_plex_sync_users_refuses_ambiguous_email_match(client, db):
         [],
     )
 
-    with patch("app.routers.users_api.plex_get_server_users", new=AsyncMock(return_value=payload)):
+    with patch("app.routers.users_api.plex_get_users_for_tokens", new=AsyncMock(return_value=payload)):
         response = client.post("/api/plex/sync/users")
 
     assert response.status_code == 200

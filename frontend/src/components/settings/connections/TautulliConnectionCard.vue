@@ -11,6 +11,7 @@
       <strong>Importer</strong> récupère les sessions passées depuis Tautulli (jusqu'à la limite choisie).
       <strong>Normaliser l'historique</strong> recalcule la décision de lecture, la progression et le temps regardé des sessions déjà importées.
       Aucun import automatique n’est effectué : Tautulli reste une source historique manuelle et facultative.
+      Ce Tautulli suit le serveur Plex principal ; celui d’un serveur supplémentaire se règle dans sa fiche, et l’import les parcourt tous.
     </p>
     <div class="card-actions">
       <UiButton :disabled="busy" @click="testConnection"><PlugZap/>Tester</UiButton>

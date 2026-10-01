@@ -588,6 +588,7 @@ def _plex_item_to_dict(m, lib: dict, plex_url: str, plex_token: str) -> dict:
         "year": getattr(m, "year", None),
         "media_type": media_type,
         "plex_guid": getattr(m, "guid", None),
+        "rating_key": str(rating_key) if (rating_key := getattr(m, "ratingKey", None)) is not None else None,
         "tmdb_id": tmdb_id,
         "tvdb_id": tvdb_id,
         "imdb_id": imdb_id,
