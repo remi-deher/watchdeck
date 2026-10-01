@@ -172,7 +172,8 @@ def test_auth_state_reports_setup_and_session(client, db):
 
 def test_setup_creates_admin_and_opens_session(client, db):
     response = client.post(
-        "/api/auth/setup", json={"username": " admin ", "password": "password123", "password_confirm": "password123"}
+        "/api/auth/setup",
+        json={"username": " admin ", "password": "password123", "password_confirm": "password123"},
     )
     assert response.status_code == 200
     assert response.json()["redirect"] == "/settings?tab=connections"
@@ -215,9 +216,18 @@ def test_login_rejects_wrong_password(client, db):
 def test_logout_returns_to_login(client, db):
     _seed_account(db)
     _login(client)
-    response = client.get("/logout")
-    assert response.status_code == 302
+    response = client.post("/logout", follow_redirects=False)
+    assert response.status_code == 303
     assert response.headers["location"] == "/login"
+    assert client.get("/api/auth/state").json()["authenticated"] is False
+
+
+def test_logout_refuses_get(client, db):
+    """Un lien ou une image externe vers /logout ne doit plus deconnecter."""
+    _seed_account(db)
+    _login(client)
+    client.get("/logout", follow_redirects=False)
+    assert client.get("/api/auth/state").json()["authenticated"] is True
 
 
 def test_privacy_page_is_public(client):

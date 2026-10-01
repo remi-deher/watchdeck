@@ -50,10 +50,18 @@ async def test_users_of_every_account_are_merged():
     assert warnings == ["serveur 2 : home: 403"]
 
 
+def _request_pin(client):
+    """Le PIN doit avoir ete demande par ce navigateur (voir login_plex_check)."""
+    with patch("app.routers.auth.get_auth_pin", new_callable=AsyncMock) as get_pin:
+        get_pin.return_value = {"id": 123, "code": "abcd", "auth_url": "https://app.plex.tv/auth"}
+        assert client.post("/api/auth/plex/pin").status_code == 200
+
+
+@patch("app.routers.auth.get_plex_owner_uuid", new_callable=AsyncMock, return_value="uuid-owner")
 @patch("app.services.plex_api.check_auth_pin", new_callable=AsyncMock)
 @patch("app.routers.auth.get_plex_account", new_callable=AsyncMock)
 @patch("app.routers.auth.has_server_access", new_callable=AsyncMock)
-def test_sso_accepts_a_guest_of_a_secondary_server_only(mock_has_access, mock_get_account, mock_check_pin):
+def test_sso_accepts_a_guest_of_a_secondary_server_only(mock_has_access, mock_get_account, mock_check_pin, _owner):
     mock_check_pin.return_value = "token123"
     mock_get_account.return_value = {"uuid": "uuid-guest", "username": "guest", "email": None, "thumb": None}
     mock_has_access.side_effect = lambda admin_token, **kwargs: admin_token == "uhd-token"
@@ -63,6 +71,7 @@ def test_sso_accepts_a_guest_of_a_secondary_server_only(mock_has_access, mock_ge
     app.dependency_overrides[get_db] = lambda: db
     client = TestClient(app, raise_server_exceptions=False)
     try:
+        _request_pin(client)
         resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 200
         assert resp.json()["authenticated"] is True
@@ -70,6 +79,7 @@ def test_sso_accepts_a_guest_of_a_secondary_server_only(mock_has_access, mock_ge
 
         mock_has_access.side_effect = None
         mock_has_access.return_value = False
+        _request_pin(client)
         assert client.get("/api/auth/plex/check/123").status_code == 403
     finally:
         app.dependency_overrides.pop(get_db, None)

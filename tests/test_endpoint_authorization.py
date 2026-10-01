@@ -32,7 +32,7 @@ PUBLIC_ENDPOINTS: set[tuple[str, str]] = {
     # (les pages /login, /setup et /privacy sont servies par la SPA, hors schema OpenAPI)
     ("GET", "/api/auth/state"),  # booleens "compte a creer" / "session ouverte", rien d'autre
     ("POST", "/api/auth/login"),
-    ("GET", "/logout"),
+    ("POST", "/logout"),
     ("POST", "/api/auth/plex/pin"),
     ("GET", "/api/auth/plex/check/{pin_id}"),
     # Connexion par passkey : appelee avant toute session par definition. Ne renvoie

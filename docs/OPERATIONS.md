@@ -113,3 +113,48 @@ La reponse doit etre `2`. Si elle vaut `1.1`, activer HTTP/2 sur le proxy.
 Les assets sous `/vue/assets/` portent un hash de contenu dans leur nom et ne changent jamais
 a URL constante : ils supportent `Cache-Control: public, max-age=31536000, immutable`. Un
 `max-age` court y fait revalider tout le bundle a chaque expiration sans aucun benefice.
+
+## Securite
+
+### IP des clients derriere un reverse-proxy
+
+L'anti-bruteforce de la connexion compte les echecs par IP et par compte. Derriere un
+reverse-proxy (Nginx Proxy Manager, Traefik, Caddy), declarer l'IP ou le reseau du proxy
+dans Parametres > Webhooks et API > Reverse-proxy : Watchdeck lit alors l'IP reelle dans
+`X-Forwarded-For`, et seulement pour les connexions venant de ces adresses. La carte
+affiche l'IP retenue pour le navigateur courant, pour verifier le reglage.
+
+### Changement d'adresse d'un service
+
+Une nouvelle URL (Plex, Tautulli, Tracearr, Sonarr, Radarr, Seer, ntfy, Gotify) n'est
+enregistree qu'apres un test de connexion reussi, avec la cle saisie ou, a defaut, celle
+deja stockee. Pour ntfy et Gotify, le test envoie une notification.
+
+### Role PostgreSQL de l'application
+
+L'image `postgres` cree `POSTGRES_USER` en superutilisateur. Watchdeck n'a besoin que d'etre
+proprietaire de sa base ; au demarrage, un avertissement est journalise si son role est
+superutilisateur. Pour une installation existante :
+
+```sql
+-- connecte en superutilisateur (ex. docker exec -it watchdeck-db psql -U watchdeck)
+CREATE ROLE postgres_admin LOGIN SUPERUSER PASSWORD '<mot de passe d administration>';
+-- puis, reconnecte avec postgres_admin :
+ALTER ROLE watchdeck NOSUPERUSER NOCREATEROLE NOCREATEDB;
+```
+
+Les sauvegardes restaurees depuis l'interface sont de toute facon inspectees : un dump
+contenant des fonctions, declencheurs, extensions ou regles est refuse.
+
+### Secret des webhooks
+
+Plex n'accepte pas d'en-tete personnalise : son webhook passe le secret en `?secret=`. Les
+journaux de Watchdeck (acces uvicorn, httpx, page Journaux) masquent ces parametres, mais un
+reverse-proxy peut les journaliser lui-meme : desactiver ou filtrer son journal d'acces pour
+`/webhook/`. Sonarr et Radarr peuvent envoyer l'en-tete `X-Webhook-Secret` a la place.
+
+### Sessions
+
+Une session dure 14 jours. Desactiver un compte, lui retirer le droit de connexion, le
+supprimer, changer son mot de passe ou desactiver sa double authentification ferme ses
+sessions ouvertes dans la minute (resynchronisation des droits).

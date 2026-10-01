@@ -50,22 +50,27 @@ def test_password_and_totp_security():
 
     try:
         # Case 1: Unauthorized password change (no session)
-        resp = client.post(f"/api/users/{user1.id}/password", json={"password": "newpass"})
+        resp = client.post(f"/api/users/{user1.id}/password", json={"password": "newpassword"})
         assert resp.status_code == 401
 
         # Case 2: Unauthorized password change (different user)
         app.dependency_overrides[current_user] = lambda: {"id": user2.id, "role": "user"}
-        resp = client.post(f"/api/users/{user1.id}/password", json={"password": "newpass"})
+        resp = client.post(f"/api/users/{user1.id}/password", json={"password": "newpassword"})
         assert resp.status_code == 403
 
         # Case 3: Authorized password change (self)
         app.dependency_overrides[current_user] = lambda: {"id": user1.id, "role": "user"}
-        resp = client.post(f"/api/users/{user1.id}/password", json={"password": "newpass"})
+        # (le mot de passe actuel est exige pour changer le sien)
+        resp = client.post(f"/api/users/{user1.id}/password", json={"password": "newpassword"})
+        assert resp.status_code == 403
+        resp = client.post(
+            f"/api/users/{user1.id}/password", json={"password": "newpassword", "current_password": "oldpass"}
+        )
         assert resp.status_code == 200
 
         # Verify password changed
         db.refresh(user1)
-        assert verify_password("newpass", user1.password_hash)
+        assert verify_password("newpassword", user1.password_hash)
 
         # Case 4: TOTP Setup (self)
         resp = client.post(f"/api/users/{user1.id}/totp/setup")
@@ -89,8 +94,11 @@ def test_password_and_totp_security():
             db.refresh(user1)
             assert user1.totp_enabled is True
 
-        # Case 7: TOTP Disable
-        resp = client.delete(f"/api/users/{user1.id}/totp")
+        # Case 7: TOTP Disable (un code valide est exige pour son propre compte)
+        resp = client.request("DELETE", f"/api/users/{user1.id}/totp", json={"code": "000000"})
+        assert resp.status_code == 403
+        with patch("app.routers.security_api.verify_code", return_value=True):
+            resp = client.request("DELETE", f"/api/users/{user1.id}/totp", json={"code": "123456"})
         assert resp.status_code == 200
         db.refresh(user1)
         assert user1.totp_secret is None
@@ -123,9 +131,12 @@ def test_webauthn_registration_options(mock_gen):
         mock_opts.challenge = b"challenge_bytes"
         mock_gen.return_value = mock_opts
 
-        with patch(
-            "app.routers.security_api.options_to_json",
-            return_value='{"challenge": "challenge_str", "rp": {}, "user": {}}',
+        with (
+            patch(
+                "app.routers.security_api.options_to_json",
+                return_value='{"challenge": "challenge_str", "rp": {}, "user": {}}',
+            ),
+            patch("app.routers.security_api._require_recent_auth"),
         ):
             resp = client.post("/api/users/webauthn/register/options", json={"user_id": user1.id})
             assert resp.status_code == 200

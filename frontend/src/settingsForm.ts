@@ -43,6 +43,7 @@ const initialForm = (): Record<string, any> => ({
   tmdb_region: 'FR',
   webhook_secret: '',
   public_base_url: '',
+  trusted_proxies: '',
   gdpr_contact_name: '',
   gdpr_contact_email: '',
   email_enabled: false,

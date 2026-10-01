@@ -93,6 +93,22 @@ async def _allowed_image_hosts() -> set[str]:
         return set(hosts)
 
 
+async def _tls_verify(host: str | None) -> bool:
+    """Le certificat est verifie pour tous les hotes publics (TMDB, Plex.tv...). Seuls
+    les serveurs du reseau local configures par l'admin (Plex, *arr), souvent en
+    certificat auto-signe, en sont dispenses -- et Plex seulement si l'admin a desactive
+    la verification dans ses reglages."""
+    host = (host or "").lower()
+    if not host or host in _STATIC_ALLOWED_IMAGE_HOSTS:
+        return True
+    async with AsyncSessionLocal() as db:
+        settings = (await db.execute(select(Settings))).scalars().first()
+    plex_host = (urlparse(settings.plex_url).hostname or "").lower() if settings and settings.plex_url else ""
+    if host == plex_host:
+        return bool(settings.plex_verify_ssl)
+    return False
+
+
 _IMAGE_CACHE_DIR = _os.path.join("data", "image_cache")
 
 _IMAGE_CACHE_TTL = 86400  # aligné sur le Cache-Control déjà envoyé au navigateur
@@ -330,7 +346,9 @@ async def image_proxy(
         source = await asyncio.to_thread(_read_image_cache, safe_url)
         if not source or time.time() - source[2] >= _IMAGE_CACHE_TTL:
             try:
-                async with httpx.AsyncClient(timeout=15, follow_redirects=False, verify=False) as client:
+                async with httpx.AsyncClient(
+                    timeout=15, follow_redirects=False, verify=await _tls_verify(parsed.hostname)
+                ) as client:
                     upstream = await client.get(safe_url, headers=upstream_headers)
                     if upstream.is_redirect:
                         # Plex redirige vers sa propre CDN (images.plex.tv, elle-meme
@@ -343,7 +361,10 @@ async def image_proxy(
                         redirect_target = upstream.headers.get("location", "")
                         redirect_host = (urlparse(redirect_target).hostname or "").lower()
                         if redirect_target and redirect_host in allowed_hosts:
-                            upstream = await client.get(redirect_target)
+                            async with httpx.AsyncClient(
+                                timeout=15, follow_redirects=False, verify=await _tls_verify(redirect_host)
+                            ) as redirect_client:
+                                upstream = await redirect_client.get(redirect_target)
                         else:
                             logger.warning(
                                 "Image proxy: redirection vers un hote non autorise refusee (%s -> %s)",
