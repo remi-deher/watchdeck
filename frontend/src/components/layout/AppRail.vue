@@ -22,9 +22,21 @@
       <!-- Les groupes structurent le rail déployé. En mode compact ils deviennent de
            simples séparateurs : leur libellé ne tiendrait pas sur 72px, mais la
            coupure visuelle, elle, reste lisible. -->
-      <div v-for="group in groups" :key="group.label" class="app-rail__group">
-        <p v-if="density === 'expanded'" class="app-rail__group-label">{{ group.label }}</p>
-        <ul>
+      <div v-for="group in groups" :key="group.label" class="app-rail__group" :data-group="group.label">
+        <!-- L'administration (sept entrées) se replie sous son titre quand on n'y est
+             pas : déployée en permanence, elle passait sous le bas d'un écran de 900px. -->
+        <button
+          v-if="density === 'expanded' && isFoldable(group)"
+          type="button"
+          class="app-rail__group-label app-rail__group-toggle"
+          :aria-expanded="isOpen(group)"
+          @click="toggleGroup(group.label)"
+        >
+          <span>{{ group.label }}</span>
+          <ChevronDown class="app-rail__group-chevron" aria-hidden="true" />
+        </button>
+        <p v-else-if="density === 'expanded'" class="app-rail__group-label">{{ group.label }}</p>
+        <ul v-if="density !== 'expanded' || isOpen(group)">
           <li v-for="destination in group.items" :key="destination.key">
             <RouterLink
               class="app-nav-link app-rail__link"
@@ -77,7 +89,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Sun, UserRound } from '@lucide/vue';
+import { ChevronDown, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Sun, UserRound } from '@lucide/vue';
 import { useTheme } from '@/composables/useTheme';
 import { destinationsFor, type NavDestination } from '@/navigation';
 
@@ -112,6 +124,38 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   }
   return result;
 });
+
+/* Groupes repliables du rail deploye. Le groupe de la page courante reste toujours
+   ouvert (son titre n'est alors plus un bouton) ; ailleurs, le choix de l'utilisateur est
+   retenu dans ce navigateur. */
+const FOLDABLE_GROUPS = new Set(['Administration']);
+const FOLD_STORAGE_KEY = 'watchdeck-rail-open-groups';
+
+function readOpenGroups(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FOLD_STORAGE_KEY) || '[]');
+    return Array.isArray(raw) ? raw.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+const openGroups = ref<string[]>(readOpenGroups());
+const containsActive = (group: { items: NavDestination[] }) => group.items.some((item) => item.key === props.activeKey);
+const isFoldable = (group: { label: string; items: NavDestination[] }) => FOLDABLE_GROUPS.has(group.label) && !containsActive(group);
+const isOpen = (group: { label: string; items: NavDestination[] }) => !isFoldable(group) || openGroups.value.includes(group.label);
+
+function toggleGroup(label: string): void {
+  const opening = !openGroups.value.includes(label);
+  openGroups.value = opening ? [...openGroups.value, label] : openGroups.value.filter((entry) => entry !== label);
+  // Le groupe s'ouvre en bas du rail : on fait defiler ses entrees dans le champ.
+  if (opening) void nextTick(() => scroller.value?.querySelector(`[data-group="${label}"]`)?.scrollIntoView({ block: 'nearest' }));
+  try {
+    localStorage.setItem(FOLD_STORAGE_KEY, JSON.stringify(openGroups.value));
+  } catch {
+    /* Stockage indisponible : le choix vaut pour la session en cours. */
+  }
+}
 
 /* Indice de defilement du rail.
    La barre native est masquee a dessein (elle rognait la colonne) ; sans elle, rien ne
@@ -167,7 +211,15 @@ onBeforeUnmount(() => {
 
 /* Les sections de page s'ajoutent et se retirent sous la destination active : le
    contenu du rail change sans que sa boite bouge. */
-watch([() => groups.value.length, () => sections.value.length], () => void nextTick(measureOverflow));
+watch([() => groups.value.length, () => sections.value.length, () => openGroups.value.length, () => props.activeKey], () => void nextTick(measureOverflow));
+
+/* Sur une page d'administration, le lien courant tombait sous le fondu du bas du rail :
+   on l'amene dans le champ a chaque changement de destination. */
+function revealActive(): void {
+  scroller.value?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'center' });
+}
+watch(() => props.activeKey, () => void nextTick(revealActive));
+onMounted(() => void nextTick(revealActive));
 </script>
 
 <style scoped lang="scss">
@@ -267,6 +319,24 @@ watch([() => groups.value.length, () => sections.value.length], () => void nextT
   letter-spacing: .08em;
   text-transform: uppercase;
 }
+
+.app-rail__group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: var(--touch-target, 32px);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.app-rail__group-toggle:hover { color: var(--text); }
+.app-rail__group-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app-rail__group-chevron { width: 14px; height: 14px; transition: transform var(--motion-duration-fast) var(--motion-ease-standard); }
+.app-rail__group-toggle[aria-expanded="true"] .app-rail__group-chevron { transform: rotate(180deg); }
+.app-rail__group-toggle[aria-expanded="false"] { margin-bottom: 0; }
 
 .app-rail__link {
   display: flex;
