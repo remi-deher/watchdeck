@@ -1,8 +1,7 @@
 /* Où vit chaque réglage.
  *
- * Les groupes de réglages sont devenus sept destinations du rail : gain de place, mais
- * plus personne ne sait dans laquelle chercher « le jeton Plex » ou « l'intervalle de
- * scan VF ». La barre de recherche des réglages retranche les cartes de la page
+ * Les réglages sont rangés en cinq groupes de l'espace Administration : on ne sait pas
+ * toujours dans lequel chercher « le jeton Plex » ou « l'intervalle de scan VF ». La barre de recherche des réglages retranche les cartes de la page
  * affichée ; cet index répond à l'autre moitié de la question — ce qui correspond
  * ailleurs.
  *
@@ -15,7 +14,7 @@
 export interface SettingsSearchEntry {
   /** Libellé du panneau, tel que la sous-navigation l'affiche. */
   label: string;
-  /** Destination du rail à laquelle il appartient, pour situer le résultat. */
+  /** Groupe de l'Administration auquel il appartient, pour situer le résultat. */
   group: string;
   path: string;
   /** Ce qu'on tape sans que ce soit écrit dans le titre. */
@@ -24,26 +23,26 @@ export interface SettingsSearchEntry {
 
 export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   {
-    label: 'Configuration',
+    label: 'Vue d’ensemble',
     group: 'Administration',
     path: '/settings',
-    keywords: ['vue ensemble', 'etat', 'diagnostic', 'ce qui manque'],
+    keywords: ['configuration', 'etat', 'sante', 'diagnostic', 'ce qui manque', 'a traiter', 'alertes'],
   },
   {
     label: 'Plex & Bibliothèque',
-    group: 'Services',
+    group: 'Connexions',
     path: '/settings/services',
     keywords: ['plex', 'jeton', 'token', 'url plex', 'bibliotheque', 'scan', 'analyse vf', 'sections'],
   },
   {
     label: 'Intégrations',
-    group: 'Services',
+    group: 'Connexions',
     path: '/settings/services/integrations',
     keywords: ['sonarr', 'radarr', 'prowlarr', 'seer', 'overseerr', 'jellyseerr', 'tautulli', 'tracearr', 'tmdb', 'cle api'],
   },
   {
     label: 'Webhooks & API',
-    group: 'Services',
+    group: 'Connexions',
     path: '/settings/services/webhooks',
     keywords: ['webhook', 'api', 'cle', 'jeton', 'integration externe'],
   },
@@ -67,8 +66,8 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   },
   {
     label: 'Acquisitions & conflits',
-    group: 'Exploitation',
-    path: '/settings/operations',
+    group: 'Acquisition',
+    path: '/downloads/acquisitions',
     keywords: ['conflit', 'doublon', 'acquisition', 'maintenance', 'reparer', 'affiches'],
   },
   {
@@ -97,14 +96,26 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   },
   {
     label: 'Utilisateurs',
-    group: 'Administration',
+    group: 'Utilisateurs',
     path: '/users',
     keywords: ['compte', 'role', 'moderateur', 'admin', 'fusion', 'mot de passe', 'plex user'],
   },
   {
-    label: 'Version & système',
+    label: 'Données & RGPD',
     group: 'Système',
     path: '/settings/system',
-    keywords: ['version', 'mise a jour', 'sauvegarde', 'backup', 'restauration', 'journaux', 'securite', 'donnees'],
+    keywords: ['sauvegarde', 'backup', 'restauration', 'securite', 'donnees', 'rgpd', 'purge', 'export'],
+  },
+  {
+    label: 'Journaux',
+    group: 'Système',
+    path: '/logs',
+    keywords: ['logs', 'erreurs', 'diagnostic', 'traces', 'historique des taches'],
+  },
+  {
+    label: 'Version & mises à jour',
+    group: 'Système',
+    path: '/settings/system/version',
+    keywords: ['version', 'mise a jour', 'release', 'commit', 'docker', 'image'],
   },
 ];
