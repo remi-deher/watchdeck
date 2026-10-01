@@ -787,7 +787,7 @@ function deleteOrphan(row: any) {
   // d'irreversibilite ci-dessous : deux choix independants, pas un enchainement a fusionner.
   return run(() => {
     const deleteFiles = confirm(
-      `Supprimer aussi les fichiers deja telecharges pour "${row.title}" ?\n\n` +
+      `Supprimer aussi les fichiers déjà téléchargés pour "${row.title}" ?\n\n` +
       `Sans cela, ${source} arrete le suivi mais laisse les fichiers en place (toujours visibles dans Plex).`
     );
     return api(`/api/requests/orphans/${row.orphan_source}/${row.arr_instance_id}/${row.arr_id}?delete_files=${deleteFiles}`, { method: 'DELETE' });

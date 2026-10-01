@@ -122,8 +122,9 @@ describe('DashboardVfUpgradesPanel', () => {
     expect(wrapper.text()).toContain('3 releases trouvées');
     expect(wrapper.text()).toContain('Fallout · Saison 1');
     expect(wrapper.text()).not.toContain('Ignoré');
+    // « à traiter » suit la liste filtree (comme la page), pas metrics.states.pending.
     const stats = Object.fromEntries(wrapper.findAll('.vf-stats div').map((tile) => [tile.find('dt').text(), tile.find('dd').text()]));
-    expect(stats).toEqual({ 'à traiter': '23', 'en cours': '2', 'passés en VF': '148', 'en échec': '0' });
+    expect(stats).toEqual({ 'à traiter': '2', 'en cours': '2', 'passés en VF': '148', 'en échec': '0' });
   });
 });
 

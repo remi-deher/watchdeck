@@ -25,6 +25,15 @@
         card-class="download-metric"
       />
       <MetricCard
+        v-if="fullVolumes.length"
+        label="Stockage"
+        :value="fullVolumes.length"
+        :detail="fullVolumes.length > 1 ? 'Disques presque pleins' : 'Disque presque plein'"
+        :icon="HardDrive"
+        card-class="download-metric alert"
+      />
+      <MetricCard
+        v-else
         label="Stockage utilisé"
         :value="storagePercent"
         detail="Capacité globale"
@@ -238,10 +247,28 @@ const recentImports = computed(() =>
     .filter((row) => ["radarr", "sonarr"].includes(row.source))
     .slice(0, 10),
 );
-const recentTorrents = computed(() =>
-  [...props.clientQueue]
+/* Un meme client qBittorrent declare deux fois (deux noms, une adresse) renvoie deux fois
+   chaque torrent : on garde une ligne par hash. */
+const recentTorrents = computed(() => {
+  const seen = new Set<string>();
+  return [...props.clientQueue]
     .sort((a, b) => (b.added_on || 0) - (a.added_on || 0))
-    .slice(0, 10),
+    .filter((row) => {
+      const key = String(row.hash || `${row.client_name}:${row.title}`);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 10);
+});
+/* Meme seuil que DiskSpacePanel : au-dela de 90 % un import peut echouer. Un pourcentage
+   global vert masquait trois disques presque pleins. */
+const fullVolumes = computed(() =>
+  props.diskSpaceVolumes.filter(
+    (volume) =>
+      volume.total_bytes &&
+      (volume.total_bytes - (volume.free_bytes || 0)) / volume.total_bytes >= 0.9,
+  ),
 );
 const storagePercent = computed(() => {
   const free = props.diskSpaceVolumes.reduce(

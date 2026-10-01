@@ -131,7 +131,7 @@
           </template>
         </SeasonEpisodeList>
         <p v-if="!displayedSeasons.length" class="empty">{{ missingOnly ? 'Aucun épisode manquant.' : 'Aucun détail de saison disponible.' }}</p>
-        <p v-if="availabilityError" class="notice error-text">Disponibilite (Sonarr) indisponible pour l'instant.</p>
+        <p v-if="availabilityError" class="notice error-text">Disponibilité (Sonarr) indisponible pour l'instant.</p>
         <p v-if="vfStatusError" class="notice error-text">Statut VF/VO indisponible pour l'instant.</p>
       </div>
       <div v-else>

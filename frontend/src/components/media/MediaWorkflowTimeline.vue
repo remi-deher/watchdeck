@@ -1,7 +1,7 @@
 <template>
   <section v-if="steps?.length" class="workflow-card">
     <div class="workflow-heading">
-      <h2>Parcours du media</h2>
+      <h2>Parcours du média</h2>
       <span>{{ progressLabel }}</span>
     </div>
     <ol class="workflow-timeline">
@@ -14,8 +14,8 @@
         <div>
           <strong>{{ step.label }}</strong>
           <small v-if="step.occurred_at" :title="formatDate(step.occurred_at)">{{ formatRelativeDate(step.occurred_at) }}</small>
-          <small v-else-if="step.state === 'current'">Etape actuelle</small>
-          <small v-else-if="step.state === 'upcoming'">A venir</small>
+          <small v-else-if="step.state === 'current'">Étape actuelle</small>
+          <small v-else-if="step.state === 'upcoming'">À venir</small>
         </div>
       </li>
     </ol>
@@ -36,7 +36,7 @@
           </div>
         </li>
       </ul>
-      <p v-if="!mergedHistory.length" class="workflow-history-empty">Aucun evenement pour ce filtre.</p>
+      <p v-if="!mergedHistory.length" class="workflow-history-empty">Aucun événement pour ce filtre.</p>
       <button v-if="hiddenCount > 0" type="button" class="workflow-history-toggle" @click="historyExpanded = true">
         Voir {{ hiddenCount }} evenement{{ hiddenCount > 1 ? 's' : '' }} de plus
         <ChevronDown />

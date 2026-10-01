@@ -40,8 +40,9 @@
 
       <!-- Une seule action visible (la principale) ; les autres passent dans le menu. -->
       <div v-if="actions.length" class="rt-actions" @click.stop>
-        <UiButton size="sm" variant="primary" class="rt-main-action" :title="actions[0].label" :disabled="busy" @click="$emit('act', item, actions[0].key)">
-          {{ actions[0].label }}
+        <UiButton size="sm" variant="primary" class="rt-main-action" :title="actions[0].label" :aria-label="actions[0].short ? actions[0].label : undefined" :disabled="busy" @click="$emit('act', item, actions[0].key)">
+          <template v-if="actions[0].short"><span class="rt-label-long">{{ actions[0].label }}</span><span class="rt-label-short" aria-hidden="true">{{ actions[0].short }}</span></template>
+          <template v-else>{{ actions[0].label }}</template>
         </UiButton>
         <UiMenu v-if="actions.length > 1" :label="item.title" align="end" :disabled="busy">
           <template #trigger>
@@ -167,7 +168,10 @@ const episodes = computed(() => {
 
 /* Actions reservees aux moderateurs, selon le motif. La recherche interactive passe par
    la fiche de releases (`/releases/:id`, ouverte dans la feuille), qui met la VF en avant. */
-const actions = computed(() => {
+/** `short` : libelle de repli quand le bouton principal est trop etroit. */
+interface CardAction { key: string; label: string; short?: string; primary?: boolean }
+
+const actions = computed<CardAction[]>(() => {
   if (!props.canModerate) return [];
   switch (kind.value) {
     case 'approval':
@@ -175,7 +179,7 @@ const actions = computed(() => {
     case 'not_found':
     case 'missing_episodes':
       return [
-        { key: 'interactive', label: 'Recherche interactive', primary: true },
+        { key: 'interactive', label: 'Recherche interactive', short: 'Rechercher', primary: true },
         { key: 'retry', label: 'Relancer la recherche' },
         { key: 'withdraw', label: 'Annuler…' },
       ];
@@ -303,7 +307,15 @@ const actions = computed(() => {
 .rt-life li { height: 3px; border-radius: 2px; background: var(--surface-3); }
 .rt-life li.done { background: var(--accent); }
 
-.rt-actions { display: flex; gap: 6px; }
+.rt-actions { display: flex; gap: 6px; container: rt-actions / inline-size; }
+.rt-label-short { display: none; }
+/* Deux cartes par rangee sur telephone : « Recherche interactive » se lisait
+   « Recherche i… ». Sous 240 px, le bouton prend son libelle court ; le libelle complet
+   reste annonce par `aria-label` et l'info-bulle. */
+@container rt-actions (max-width: 240px) {
+  .rt-label-long { display: none; }
+  .rt-label-short { display: inline; }
+}
 /* Sur une colonne etroite (deux affiches par rangee), le libelle se tronque au lieu de
    pousser la carte hors de sa colonne. `:deep` : la racine de UiButton ne porte pas
    l'attribut de portee de la carte. */

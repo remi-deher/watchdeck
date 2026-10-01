@@ -117,7 +117,10 @@ def parse_plex_item(
         "audio_languages": sorted({_stream_language(stream) for stream in audio}),
         "subtitle_languages": sorted({_stream_language(stream) for stream in subtitles}),
         "subtitle_types": sorted({_subtitle_type(stream) for stream in subtitles}),
-        "subtitle_count": len(subtitles),
+        # Le catalogue (`/sections/<cle>/all`) ne liste pas les pistes : sans `Stream`, le
+        # nombre de sous-titres est inconnu, pas nul. Le compter 0 affichait « Sans
+        # sous-titres » sur 100 % des fichiers en production.
+        "subtitle_count": len(subtitles) if streams else None,
         "audio_track_count": len(audio),
         "thumb_url": plex_thumb_url(_poster_path(item, media_type)),
         "art_url": plex_thumb_url(_art_path(item, media_type)),
@@ -202,7 +205,7 @@ def apply_filters(rows: list[dict], filters: dict[str, Any]) -> list[dict]:
             subtitle = filters.get("subtitle")
             if subtitle == "with" and not row["subtitle_count"]:
                 continue
-            if subtitle == "without" and row["subtitle_count"]:
+            if subtitle == "without" and row["subtitle_count"] != 0:
                 continue
             if filters.get("subtitle_type") and filters["subtitle_type"] not in row.get("subtitle_types", []):
                 continue
@@ -258,7 +261,11 @@ def _build_payload(rows: list[dict], generated_at: str, filters: dict[str, Any])
             {
                 "kind": "subtitles",
                 "title": "Sans sous-titres",
-                "value": sum(not row["subtitle_count"] for row in filtered),
+                # None quand aucune ligne ne porte ses pistes : l'interface masque alors
+                # le raccourci plutot que d'annoncer tout le catalogue sans sous-titres.
+                "value": sum(row.get("subtitle_count") == 0 for row in filtered)
+                if any(row.get("subtitle_count") is not None for row in filtered)
+                else None,
                 "unit": "items",
             },
         ],
@@ -511,7 +518,7 @@ async def analytics_items_payload(
     if insight_kind == "unwatched":
         rows = [row for row in rows if not row.get("play_count")]
     elif insight_kind == "subtitles":
-        rows = [row for row in rows if not row.get("subtitle_count")]
+        rows = [row for row in rows if row.get("subtitle_count") == 0]
     elif insight_kind == "distribution" and insight_field and insight_value is not None:
         allowed = {"media_type", "studio", "video_codec", "audio_codec", "video_resolution", "container"}
         if insight_field in allowed:

@@ -34,7 +34,7 @@
             <strong>{{ task.fixed_schedule }}</strong>
           </div>
           <div v-if="task.state?.finished_at" class="scheduled-task-row">
-            <span>Derniere execution</span>
+            <span>Dernière exécution</span>
             <strong>{{ formatDate(task.state.finished_at) }} ({{ formatDuration(task.state.duration_ms) }})</strong>
           </div>
           <div v-if="task.state?.status === 'failed' && task.state?.last_error" class="scheduled-task-error">
@@ -65,7 +65,7 @@
           <p v-if="historyLoading" class="notice">Chargement...</p>
           <ul v-else-if="history.length">
             <li v-for="row in history" :key="row.id" :class="row.status">
-              <span class="history-status">{{ row.status === 'complete' ? 'OK' : 'Echec' }}</span>
+              <span class="history-status">{{ row.status === 'complete' ? 'OK' : 'Échec' }}</span>
               <span>{{ formatDate(row.started_at) }}</span>
               <span>{{ formatDuration(row.duration_ms) }}</span>
               <span v-if="row.error" class="scheduled-task-error">{{ row.error }}</span>
@@ -115,7 +115,7 @@ function cardStatus(task: any): string {
 
 function cardStatusText(task: any): string {
   const status = task.state?.status;
-  if (status === 'failed') return 'Echec';
+  if (status === 'failed') return 'Échec';
   if (status === 'complete') return 'OK';
   if (status === 'running') return 'En cours';
   return 'Jamais execute';
