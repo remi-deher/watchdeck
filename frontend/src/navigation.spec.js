@@ -167,6 +167,15 @@ describe('navigation — sections', () => {
 });
 
 describe('navigation — section active', () => {
+  it('ouvre les Notifications sur le suivi des envois, file d’attente en tête', () => {
+    const notifications = adminAreasFor(true).find((d) => d.key === 'admin-notifications');
+    expect(notifications?.to).toBe('/notifications');
+    const sections = sectionsFor('admin-notifications', ctx());
+    expect(keys(sections).slice(0, 2)).toEqual(['pending', 'history']);
+    expect(activeSectionKey(sections, { path: '/notifications', query: { tab: 'pending' } })).toBe('pending');
+    expect(activeSectionKey(sections, { path: '/notifications', query: {} })).toBe('history');
+    expect(activeSectionKey(sections, { path: '/settings/notifications/rules', query: {} })).toBe('rules');
+  });
   it('conserve Catalogue actif quand ?type= change', () => {
     const sections = sectionsFor('library', ctx());
     expect(activeSectionKey(sections, route('/library'))).toBe('catalog');
