@@ -1,7 +1,7 @@
 <template>
   <div class="settings-grid">
     <div class="settings-cards span-two">
-      <SettingsCard title="Acquisitions de series" :subtitle="acquisitionSubtitle" :icon="ListRestart" :status="acquisitions.counts.blocked_imports ? 'error' : acquisitions.counts.active_batches ? 'neutral' : 'active'" :collapsible="false">
+      <SettingsCard title="Acquisitions de séries" :subtitle="acquisitionSubtitle" :icon="ListRestart" :status="acquisitions.counts.blocked_imports ? 'error' : acquisitions.counts.active_batches ? 'neutral' : 'active'" :collapsible="false">
         <div class="acquisition-counters">
           <span class="badge">{{ acquisitions.counts.active_batches }} lot(s)</span>
           <span class="badge">{{ acquisitions.counts.active_queue }} element(s) actif(s)</span>
@@ -31,7 +31,7 @@
             <span v-if="row.state === 'import_blocked'" class="badge danger">Intervention Sonarr</span>
           </div>
         </article>
-        <p v-if="!acquisitions.items.length" class="empty">Aucune acquisition de serie en cours.</p>
+        <p v-if="!acquisitions.items.length" class="empty">Aucune acquisition de série en cours.</p>
       </SettingsCard>
     </div>
   </div>
@@ -55,10 +55,10 @@ const acquisitionsQuery = useQuery({
 const acquisitions = computed(() => acquisitionsQuery.data.value ?? EMPTY);
 const acquisitionSubtitle = computed(() => acquisitions.value.counts.blocked_imports ? 'Intervention requise dans Sonarr' : acquisitions.value.counts.active_batches ? 'Telechargements et stabilisation en cours' : 'Aucun lot actif');
 
-function batchStatus(status: string): string {return status==='stabilizing'?'Stabilisation Plex':'Activite Sonarr'}
+function batchStatus(status: string): string {return status==='stabilizing'?'Stabilisation Plex':'Activité Sonarr'}
 function sourceLabel(source: string): string {return ({api:'API',rss:'Watchlist Plex',watchlist:'Watchlist Plex'} as Record<string, string>)[source]||source||'Source inconnue'}
 function scopeLabel(batch: any): string {return batch.expected_scope==='all_seasons'?`${batch.expected_seasons.length} saison(s) attendue(s)`:`${batch.expected_seasons.length} saison(s) surveillee(s)`}
-function queueStateLabel(state: string): string {return ({queued:'En attente',downloading:'Telechargement',importing:'Import',awaiting_import:'Import en attente',import_blocked:'Import bloque'} as Record<string, string>)[state]||state}
+function queueStateLabel(state: string): string {return ({queued:'En attente',downloading:'Téléchargement',importing:'Import',awaiting_import:'Import en attente',import_blocked:'Import bloqué'} as Record<string, string>)[state]||state}
 function episodeLabel(row: any): string {const season=row.season_number!=null?`S${String(row.season_number).padStart(2,'0')}`:'';const episode=row.episode_number!=null?`E${String(row.episode_number).padStart(2,'0')}`:'';return [season+episode,row.title].filter(Boolean).join(' · ')||'Element Sonarr'}
 
 useRealtime(['request.updated', 'download.updated'], () => queryClient.invalidateQueries({ queryKey: ['settings', 'acquisitions'] }));

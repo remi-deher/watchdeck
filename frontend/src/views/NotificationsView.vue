@@ -31,7 +31,7 @@
 
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
   <CollapsibleRoot class="panel" @update:open="deliveriesOpen = $event" :unmount-on-hide="false">
-    <CollapsibleTrigger class="collapsible-trigger">Suivi des envois — clés uniques et confirmations</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+    <CollapsibleTrigger class="collapsible-trigger">Suivi des envois</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
     <p>Les envois sans confirmation restent bloqués pour vérification. Un Message-ID SMTP ne garantit pas à lui seul l'absence de doublon.</p>
     <UiDataTable label="Suivi des envois" :rows="deliveries" :columns="DELIVERY_COLUMNS" :row-key="(d) => d.send_key">
       <template #empty>Aucun envoi enregistré dans le nouveau suivi.</template>
@@ -85,7 +85,7 @@
   />
 
   <div v-if="total>limit" class="pagination">
-    <UiButton :disabled="offset===0" @click="page(-1)"><ChevronLeft/>Precedent</UiButton>
+    <UiButton :disabled="offset===0" @click="page(-1)"><ChevronLeft/>Précédent</UiButton>
     <span>{{ offset+1 }}-{{ Math.min(offset+limit,total) }} sur {{ total }}</span>
     <UiButton :disabled="offset+limit>=total" @click="page(1)">Suivant<ChevronRight/></UiButton>
   </div>
@@ -163,7 +163,7 @@ const typeOptions = [
   { value: 'available', label: 'Disponibilites' },
   { value: 'upgrade', label: 'Améliorations (VF)' },
   { value: 'correction', label: 'Corrections' },
-  { value: 'failed', label: 'Erreurs systeme' }
+  { value: 'failed', label: 'Erreurs système' }
 ];
 
 const STATE_OPTIONS = [

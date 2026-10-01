@@ -283,7 +283,7 @@ const newRequesterId = ref('');
 
 const inDiscoverShell = computed(() => route.path.startsWith('/discover/'));
 
-const statusLabel = computed(() => detail.value?.operational_status_label || (detail.value?.available || detail.value?.in_library ? 'Disponible' : detail.value?.requested ? 'Deja demande' : detail.value?.request_status || ''));
+const statusLabel = computed(() => detail.value?.operational_status_label || (detail.value?.available || detail.value?.in_library ? 'Disponible' : detail.value?.requested ? 'Déjà demandé' : detail.value?.request_status || ''));
 const statusClass = computed(() => detail.value?.available || detail.value?.in_library ? 'available' : 'pending');
 const isInPlex = computed(() => Boolean(detail.value?.library_id || detail.value?.in_library));
 const seasonNumbers = computed(() => Array.from({ length: Number(detail.value?.number_of_seasons || 0) + 1 }, (_, i) => i));
@@ -355,7 +355,7 @@ const correctionMutation = useMutation({
 
 function tabLabel(value: string): string {
   const audioLabel = detail.value?.media_type === 'show' ? 'Saisons & épisodes' : 'Pistes & langues';
-  return ({ summary: 'Resume', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier' } as Record<string, string>)[value];
+  return ({ summary: 'Résumé', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier' } as Record<string, string>)[value];
 }
 
 function mediaPath(core = false): string {
