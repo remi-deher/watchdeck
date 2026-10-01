@@ -431,7 +431,7 @@ function setHistorySort(value: string): void {
 const historyUsers=computed(()=>history.value.facets.users);
 const historyDevices=computed(()=>history.value.facets.devices);
 /* Serveurs Plex ayant des lectures sur la periode : le filtre n'apparait qu'a partir de deux. */
-const historyServers=computed(()=>history.value.facets.servers);
+const historyServers=computed<any[]>(()=>(Array.isArray(history.value.facets?.servers)?history.value.facets.servers:[]));
 const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value,userFilter.value,deviceFilter.value,serverFilter.value].filter(Boolean).length);
 const methodBreakdown=computed(()=>(analytics.value.quality?.methods||[]).map((item: any)=>({label:playbackMethodLabel(item.key,{fallback:item.key==='unknown'?'Inconnu':item.key}),value:item.count,suffix:` · ${item.rate} %`})));
 const resolutionBreakdown=computed(()=>(analytics.value.quality?.resolutions||[]).map((item: any)=>({label:item.label,value:item.count})));

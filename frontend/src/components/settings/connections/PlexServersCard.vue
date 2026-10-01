@@ -6,7 +6,7 @@
     title="Serveurs Plex"
     :subtitle="subtitle"
     :icon="Server"
-    :items="servers"
+    :items="serverList"
     :columns="columns"
     empty-label="Aucun serveur configuré."
     add-label="Ajouter un serveur"
@@ -53,8 +53,10 @@ const { items: servers, toggle, remove } = useCrudResource('/api/plex-servers', 
   confirmTitle: 'Supprimer ce serveur ?',
   confirmMessage: (name: string) => `${name} ne sera plus synchronisé. Les médias présents uniquement sur ce serveur disparaîtront de la Bibliothèque au prochain scan complet.`,
 });
+// Liste absente ou reponse inattendue (backend injoignable) : la carte s'affiche quand meme.
+const serverList = computed<any[]>(() => (Array.isArray(servers.value) ? servers.value : []));
 const subtitle = computed(() => {
-  const extra = servers.value.filter((s: any) => !s.is_primary).length;
+  const extra = serverList.value.filter((s: any) => !s.is_primary).length;
   return extra ? `Principal + ${extra} serveur(s) supplémentaire(s)` : 'Ajoutez un serveur 4K ou familial : ses médias rejoignent la Bibliothèque.';
 });
 

@@ -67,7 +67,7 @@ const plexServersQuery = useQuery({
   queryKey: ['settings', 'crud', '/api/plex-servers'],
   queryFn: () => api<Array<{ id: number; name: string; is_primary: boolean; enabled: boolean }>>('/api/plex-servers'),
 });
-const plexServerOptions = computed(() => (plexServersQuery.data.value || [])
+const plexServerOptions = computed(() => (Array.isArray(plexServersQuery.data.value) ? plexServersQuery.data.value : [])
   .filter((server) => server.is_primary || server.enabled || server.id === form.plex_server_id)
   .map((server) => ({ value: server.is_primary ? null : server.id, label: server.name })));
 

@@ -449,7 +449,7 @@ const serversQuery = useQuery({
   queryFn: ({ signal }) => api<any[]>('/api/library-servers', { signal }),
   staleTime: 5 * 60 * 1000,
 });
-const libraryServers = computed<any[]>(() => serversQuery.data.value || []);
+const libraryServers = computed<any[]>(() => (Array.isArray(serversQuery.data.value) ? serversQuery.data.value : []));
 /** Serveurs supplementaires d'un media (4K, famille...) : le principal va de soi. */
 function serverNamesFor(item: any): string[] {
   const ids: number[] = item?.server_ids || [];
