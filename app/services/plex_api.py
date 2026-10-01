@@ -352,6 +352,23 @@ async def check_connection(plex_url: str, plex_token: str, verify_ssl: bool = Tr
         return False, f"Connexion au serveur Plex impossible : {safe_error_message(e)}"
 
 
+async def fetch_identity(plex_url: str, plex_token: str, verify_ssl: bool = True) -> Optional[str]:
+    """machineIdentifier du serveur Plex local, ou None s'il est injoignable."""
+    if not plex_url:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10, verify=verify_ssl) as client:
+            resp = await client.get(
+                f"{plex_url.rstrip('/')}/identity",
+                headers={"X-Plex-Token": plex_token, "Accept": "application/json"},
+            )
+            resp.raise_for_status()
+            return (resp.json().get("MediaContainer") or {}).get("machineIdentifier")
+    except Exception as e:
+        logger.debug(f"Plex fetch_identity échec ({plex_url}): {e}")
+        return None
+
+
 async def get_auth_pin(forward_url: str = "") -> dict:
     """Demande un code PIN d'authentification à Plex pour initier le SSO.
 

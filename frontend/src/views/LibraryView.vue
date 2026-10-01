@@ -57,6 +57,9 @@
             <UiChipGroup label="Époque" :options="[{ value: '', label: 'Toutes' }, ...([['2020s','2020+'],['2010s','Années 2010'],['2000s','Années 2000'],['90s','Années 90'],['80s','Années 80'],['70s','Années 70 et avant']]).map((d: any) => ({ value: d[0], label: d[1] }))]" v-model="decade" />
           </FilterGroup>
         </template>
+        <FilterGroup v-if="libraryServers.length > 1" label="Serveur">
+          <UiChipGroup label="Serveur" :options="[{ value: '', label: 'Tous' }, ...libraryServers.map((s: any) => ({ value: String(s.id), label: s.name }))]" v-model="plexServer" />
+        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
 
@@ -126,6 +129,7 @@
           :can-moderate="canModerate"
           :busy="busy"
           :selected="selectedIds.includes(item.id)"
+          :server-names="serverNamesFor(item)"
           @open="openDetail"
           @toggle-select="toggleSelect"
           @act="act"
@@ -251,6 +255,8 @@ const items = computed(() => {
   const libraryItems = partialLibraryIds.size
     ? libraryItemsRaw.value.filter((x: any) => !partialLibraryIds.has(x.id))
     : libraryItemsRaw.value;
+  // Filtre par serveur : une demande pas encore dans Plex n'est sur aucun serveur.
+  if (plexServer.value) return libraryItems;
   return [...libraryItems, ...pendingRequests.value, ...orphans.value];
 });
 
@@ -279,6 +285,8 @@ const genre = ref(String(route.query.genre || (!hubRequested && savedFilters.gen
 const audioFormat = ref(String(route.query.audio_format || (!hubRequested && savedFilters.audioFormat) || ''));
 const releaseType = ref(String(route.query.release_type || (!hubRequested && savedFilters.releaseType) || ''));
 const hiRes = ref(String(route.query.hi_res || (!hubRequested && savedFilters.hiRes) || ''));
+// Serveur Plex (Bibliotheque multi-serveurs) : ne montre que les medias vus sur lui.
+const plexServer = ref(String(route.query.server || (!hubRequested && savedFilters.plexServer) || ''));
 // La sidebar Bibliotheque (spaces.js) derive son onglet actif uniquement de
 // route.query.type -- si on arrive sur /library sans query et que typeFilters a ete
 // restaure depuis sessionStorage, la query ne le reflete pas encore : l'onglet actif
@@ -298,7 +306,7 @@ const isMusicShape = computed(() =>
 const isMusicHub = computed(() => {
   if (!isMusicShape.value) return false;
   return !query.value.trim() && !decade.value && !genre.value && !audioFormat.value
-    && !releaseType.value && !hiRes.value && !sort.value;
+    && !releaseType.value && !hiRes.value && !sort.value && !plexServer.value;
 });
 // Cible d'un clic sur l'en-tete d'une rangee du hub -- meme mecanisme que
 // la sidebar Bibliotheque (spaces.js, libraryTarget) : clone la query active pour ne pas ecraser d'autres
@@ -324,7 +332,7 @@ const isMovieShowHub = computed(() => {
   return !query.value.trim()
     && statusFilters.value.length === 1 && statusFilters.value[0] === 'library'
     && !vf.value && !sourceFilters.value.length && !requesterFilters.value.length
-    && !sort.value && !decade.value && !genre.value;
+    && !sort.value && !decade.value && !genre.value && !plexServer.value;
 });
 
 // Hub "Tout" : meme principe pour la vue d'atterrissage sans type selectionne --
@@ -335,7 +343,7 @@ const isAllHub = computed(() => {
   return !query.value.trim()
     && statusFilters.value.length === 1 && statusFilters.value[0] === 'library'
     && !vf.value && !sourceFilters.value.length && !requesterFilters.value.length
-    && !sort.value && !decade.value && !genre.value;
+    && !sort.value && !decade.value && !genre.value && !plexServer.value;
 });
 
 function allRequestsTarget() {
@@ -396,6 +404,7 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
     audioFormat,
     releaseType,
     hiRes,
+    plexServer,
     query,
   },
   {
@@ -410,6 +419,7 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
     audioFormat: '',
     releaseType: '',
     hiRes: '',
+    plexServer: '',
     query: '',
   }
 );
@@ -432,6 +442,22 @@ const { recent: typeHubRecent, requests: typeHubRequests, genreRows: typeHubGenr
    l'eau -- aucune n'attend la plus lente, et changer de filtre annule celles en cours. */
 interface GridRequest { library: string; requests: string; metricsType: string; wantsLibrary: boolean }
 const queryClient = useQueryClient();
+
+// Serveurs Plex qui portent des medias : filtre et badge n'apparaissent qu'a partir de deux.
+const serversQuery = useQuery({
+  queryKey: ['library', 'servers'],
+  queryFn: ({ signal }) => api<any[]>('/api/library-servers', { signal }),
+  staleTime: 5 * 60 * 1000,
+});
+const libraryServers = computed<any[]>(() => serversQuery.data.value || []);
+/** Serveurs supplementaires d'un media (4K, famille...) : le principal va de soi. */
+function serverNamesFor(item: any): string[] {
+  const ids: number[] = item?.server_ids || [];
+  if (libraryServers.value.length < 2 || !ids.length) return [];
+  return libraryServers.value
+    .filter((server: any) => !server.is_primary && ids.includes(server.id))
+    .map((server: any) => server.name);
+}
 const gridRequest = ref<GridRequest | null>(null);
 function gridSnapshot(): GridRequest {
   const library = _libraryParams(0);
@@ -618,6 +644,8 @@ watch(
     audioFormat.value = value.audio_format || '';
     releaseType.value = value.release_type || '';
     hiRes.value = value.hi_res || '';
+    // Comme les sous-titres : le serveur choisi survit aux changements d'onglet de type.
+    if (value.server) plexServer.value = String(value.server);
     if (returningToHub) {
       sourceFilters.value = [];
       requesterFilters.value = [];
@@ -629,7 +657,7 @@ watch(
 // servait qu'au filtrage client, le changer suffisait a recalculer `filtered` sans
 // rechargement -- ce n'est plus le cas.
 watch(
-  [statusFilters, typeFilters, sourceFilters, requesterFilters, vf, subtitle, decade, sort, genre, audioFormat, releaseType, hiRes],
+  [statusFilters, typeFilters, sourceFilters, requesterFilters, vf, subtitle, decade, sort, genre, audioFormat, releaseType, hiRes, plexServer],
   () => {
     sessionStorage.setItem('library.active_filters', JSON.stringify({
       query: query.value,
@@ -645,6 +673,7 @@ watch(
       audioFormat: audioFormat.value,
       releaseType: releaseType.value,
       hiRes: hiRes.value,
+      plexServer: plexServer.value,
     }));
     load();
   },
@@ -672,6 +701,7 @@ function _libraryParams(offset: number): URLSearchParams {
   if (audioFormat.value) p.set('audio_format', audioFormat.value);
   if (releaseType.value) p.set('release_type', releaseType.value);
   if (hiRes.value) p.set('hi_res', hiRes.value);
+  if (plexServer.value) p.set('server_id', plexServer.value);
   p.set('limit', String(PAGE_SIZE));
   p.set('offset', String(offset));
   return p;

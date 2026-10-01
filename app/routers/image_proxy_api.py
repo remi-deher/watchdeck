@@ -18,7 +18,7 @@ from sqlalchemy.future import select
 
 from ..database import AsyncSessionLocal
 from ..dependencies import require_auth
-from ..models import ArrInstance, LibraryItem, MediaRequest, Settings
+from ..models import ArrInstance, LibraryItem, MediaRequest, PlexServer, Settings
 from ..utils import image_proxy_source, safe_error_message
 
 router = APIRouter(prefix="/api", tags=["misc"])
@@ -41,6 +41,9 @@ _STATIC_ALLOWED_IMAGE_HOSTS = {
     "images.plex.tv",
 }
 _allowed_hosts_cache: tuple[float, set[str]] = (0.0, set())
+# hote:port -> jeton des serveurs Plex supplementaires (voir models.PlexServer), rafraichi avec
+# l'allowlist : leurs affiches sont memorisees en URL complete, sans jeton.
+_secondary_plex_tokens: dict[str, str] = {}
 _allowed_hosts_lock = asyncio.Lock()
 
 
@@ -68,6 +71,18 @@ async def _allowed_image_hosts() -> set[str]:
                 host = urlparse(settings.plex_url).hostname
                 if host:
                     hosts.add(host.lower())
+            secondary_tokens: dict[str, str] = {}
+            servers = (await db.execute(select(PlexServer).filter(PlexServer.is_primary.is_(False)))).scalars().all()
+            for server in servers:
+                parsed_server = urlparse(server.url) if server.url else None
+                if parsed_server and parsed_server.hostname:
+                    hosts.add(parsed_server.hostname.lower())
+                    # Cle hote:port : deux serveurs sur la meme machine (ports differents)
+                    # ne doivent jamais recevoir le jeton l'un de l'autre.
+                    if server.token:
+                        secondary_tokens.setdefault(parsed_server.netloc.lower(), server.token)
+            _secondary_plex_tokens.clear()
+            _secondary_plex_tokens.update(secondary_tokens)
             instances = (await db.execute(select(ArrInstance))).scalars().all()
             for inst in instances:
                 if inst.url:
@@ -246,13 +261,20 @@ async def image_proxy(
     embedded_token = next((value for key, value in query if key.lower() == "x-plex-token"), None)
     safe_query = urlencode([(key, value) for key, value in query if key.lower() != "x-plex-token"])
     safe_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, safe_query, ""))
+    secondary_token = _secondary_plex_tokens.get(parsed.netloc.lower())
     if embedded_token and not upstream_headers:
         async with AsyncSessionLocal() as db:
             settings = (await db.execute(select(Settings))).scalars().first()
         configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
-        if not settings or not settings.plex_token or parsed.hostname != configured_host:
+        if secondary_token:
+            upstream_headers = {"X-Plex-Token": secondary_token}
+        elif settings and settings.plex_token and parsed.hostname == configured_host:
+            upstream_headers = {"X-Plex-Token": settings.plex_token}
+        else:
             raise HTTPException(400, "URL Plex invalide")
-        upstream_headers = {"X-Plex-Token": settings.plex_token}
+    elif secondary_token and not upstream_headers:
+        # Affiche d'un serveur Plex supplementaire : jeton de ce serveur, envoye a lui seul.
+        upstream_headers = {"X-Plex-Token": secondary_token}
     variant_key = _variant_key(safe_url, width, height, quality, image_format)
 
     async def _serve_if_cached() -> Response | None:
