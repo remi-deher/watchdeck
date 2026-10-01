@@ -34,16 +34,6 @@
       <p v-if="density === 'expanded'" class="app-rail__space-title">
         <Settings aria-hidden="true" />Administration
       </p>
-      <button
-        type="button"
-        class="app-rail__search"
-        :title="density === 'medium' ? 'Chercher un réglage' : undefined"
-        @click="$emit('open-palette')"
-      >
-        <Search aria-hidden="true" />
-        <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">Chercher</span>
-        <kbd v-if="density === 'expanded'">{{ shortcutLabel }}</kbd>
-      </button>
     </template>
 
     <div ref="scroller" class="app-rail__scroll" data-overflow="" @scroll.passive="scheduleMeasure">
@@ -135,10 +125,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { ArrowLeft, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, Sun, UserRound } from '@lucide/vue';
+import { ArrowLeft, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, UserRound } from '@lucide/vue';
 import { useTheme } from '@/composables/useTheme';
 import { ADMIN_ENTRY, adminAreasFor, destinationsFor, type NavDestination } from '@/navigation';
-import { shortcutLabel } from '@/shortcut';
 import { useAdminAttention } from '@/composables/useAdminAttention';
 import type { AttentionSeverity } from '@/adminAttention';
 
@@ -164,7 +153,7 @@ const props = withDefaults(
   { activeKey: '', pageTitle: 'Watchdeck', isAdmin: false, canModerate: false, collapsible: false, collapsed: false, space: 'app', backTo: '/' }
 );
 
-defineEmits<{ (e: 'open-palette'): void; (e: 'toggle-rail'): void }>();
+defineEmits<{ (e: 'toggle-rail'): void }>();
 const { sections, activeKey: activeSectionKey } = usePageSections();
 const attention = useAdminAttention({ enabled: () => props.isAdmin });
 
@@ -427,31 +416,6 @@ watch([() => groups.value.length, () => sections.value.length], () => void nextT
   color: var(--text);
 }
 .app-rail__space-title svg { width: 20px; height: 20px; color: var(--accent); }
-.app-rail__search {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 40px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--fs-sm);
-  text-align: left;
-  cursor: pointer;
-}
-.app-rail__search svg { flex: none; width: 17px; height: 17px; }
-.app-rail__search:hover { border-color: var(--border-strong); color: var(--text); }
-.app-rail__search kbd {
-  margin-left: auto;
-  white-space: nowrap;
-  padding: 1px 5px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  font-size: var(--fs-xs);
-}
 .app-rail__count {
   margin-left: auto;
   min-width: 20px;
@@ -486,7 +450,6 @@ watch([() => groups.value.length, () => sections.value.length], () => void nextT
 .app-rail[data-density='medium'] {
   .app-rail__header { flex-direction: column; }
   .app-rail__back { flex: none; justify-content: center; width: var(--touch-target); padding: 0; }
-  .app-rail__search { justify-content: center; width: var(--touch-target); min-height: var(--touch-target); padding: 0; align-self: center; }
   /* Sur 72px, le compteur et la pastille se posent sur l'icône plutôt qu'à côté. */
   .app-rail__link { position: relative; }
   .app-rail__count { position: absolute; top: 4px; right: 4px; min-width: 16px; padding: 0 4px; font-size: 10px; }
