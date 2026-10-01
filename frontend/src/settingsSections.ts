@@ -24,16 +24,16 @@ export interface SettingsSectionConfig {
 export const settingsSections: SettingsSectionConfig[] = [
   { key: 'overview', label: 'Vue d’ensemble', mobileLabel: 'Aperçu', group: '', icon: ServerCog },
 
-  { key: 'plex', label: 'Plex & Bibliothèque', mobileLabel: 'Plex', group: 'Services', icon: Tv },
-  { key: 'services', label: 'Intégrations', mobileLabel: 'Intégrations', group: 'Services', icon: Plug },
-  { key: 'webhooks', label: 'Webhooks & API', mobileLabel: 'Webhooks', group: 'Services', icon: Link },
+  { key: 'plex', label: 'Plex & Bibliothèque', mobileLabel: 'Plex', group: 'Connexions', icon: Tv },
+  { key: 'services', label: 'Intégrations', mobileLabel: 'Intégrations', group: 'Connexions', icon: Plug },
+  { key: 'webhooks', label: 'Webhooks & API', mobileLabel: 'Webhooks', group: 'Connexions', icon: Link },
 
-  { key: 'downloads', label: 'Téléchargements', mobileLabel: 'Downloads', group: 'Bibliothèque & acquisition', icon: Download },
-  { key: 'vf-upgrades', label: 'Améliorations VF', mobileLabel: 'Upgrades VF', group: 'Bibliothèque & acquisition', icon: Languages },
-  { key: 'scheduled-tasks', label: 'Planification & Maintenance', mobileLabel: 'Planning', group: 'Bibliothèque & acquisition', icon: Clock },
+  { key: 'downloads', label: 'Téléchargements', mobileLabel: 'Downloads', group: 'Automatisation', icon: Download },
+  { key: 'vf-upgrades', label: 'Améliorations VF', mobileLabel: 'Upgrades VF', group: 'Automatisation', icon: Languages },
+  { key: 'scheduled-tasks', label: 'Planification & Maintenance', mobileLabel: 'Planning', group: 'Automatisation', icon: Clock },
 
-  { key: 'acquisitions', label: 'Acquisitions & Conflits', mobileLabel: 'Acquisitions', group: 'Exploitation', icon: ListRestart },
-  { key: 'logs', label: 'Journaux', mobileLabel: 'Journaux', group: 'Exploitation', icon: ScrollText, to: '/logs' },
+  { key: 'acquisitions', label: 'Acquisitions & conflits', mobileLabel: 'Acquisitions', group: 'Acquisition', icon: ListRestart, to: '/downloads/acquisitions' },
+  { key: 'logs', label: 'Journaux', mobileLabel: 'Journaux', group: 'Système', icon: ScrollText, to: '/logs' },
 
   { key: 'data', label: 'Données & RGPD', mobileLabel: 'Données', group: 'Système', icon: DatabaseZap },
   { key: 'system-version', label: 'Version & mises à jour', mobileLabel: 'Version', group: 'Système', icon: GitBranch },
