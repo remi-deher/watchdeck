@@ -3,7 +3,7 @@
     <div class="settings-cards span-two">
       <SettingsCard
         title="Configuration des Webhooks"
-        subtitle="Les webhooks permettent aux applications tierces de notifier Plex-RSS en temps reel."
+        subtitle="Les webhooks permettent aux applications tierces de notifier Plex-RSS en temps réel."
         :icon="Link"
         :status="form.webhook_secret ? 'active' : 'inactive'"
         :collapsible="false"
@@ -65,7 +65,7 @@
 
       <SettingsCard title="Token API" subtitle="Jeton pour les appels programmatiques a l'API Watchdeck" :icon="KeyRound" status="neutral" :collapsible="false">
         <code class="secret-box">{{ apiToken || (tokenActive ? 'Actif (valeur masquee)' : 'Aucun token genere') }}</code>
-        <p class="hint">Ce token donne un acces complet a l'API Watchdeck (creation de demandes, lecture des utilisateurs, etc.) — a passer en en-tete <code>Authorization: Bearer …</code>. Il n'est affiche qu'une seule fois a la generation ; regenerez-le si vous le perdez.</p>
+        <p class="hint">Ce token donne un accès complet à l'API Watchdeck (création de demandes, lecture des utilisateurs, etc.) — a passer en en-tete <code>Authorization: Bearer …</code>. Il n'est affiche qu'une seule fois a la generation ; regenerez-le si vous le perdez.</p>
         <div class="actions">
           <UiButton @click="generateToken"><KeyRound/>Generer</UiButton>
           <UiButton variant="danger" @click="deleteToken"><Trash2/>Revoquer</UiButton>
@@ -161,7 +161,7 @@ async function testWebhook(svc: string): Promise<void> {
   try {
     const res = await webhookMutation.mutateAsync({ path: `/webhook/check-live/${svc}` });
     const result = res.results && res.results[0];
-    webhookStatus[svc] = result ? { success: result.success, message: result.message } : { success: true, message: 'Test effectue (pas de resultat precis)' };
+    webhookStatus[svc] = result ? { success: result.success, message: result.message } : { success: true, message: 'Test effectué (pas de résultat précis)' };
   } catch (e: any) {
     webhookStatus[svc] = { success: false, message: e.message };
   } finally {

@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.64.1 — 2026-10-01
+
+
+### 🐛 Corrections
+
+- charger server_id dans les agregats des statistiques (#611) ([701a2b1](https://github.com/remi-deher/watchdeck/commit/701a2b18ea581a57e5b6eef9a38a07a647a8f11c))
+- file d'attente des notifications en tête, sans recherche ni motifs vagues (#610) ([62e84e5](https://github.com/remi-deher/watchdeck/commit/62e84e5286ca5b969003801b72d29d2bce6e7570))
+## 1.64.0 — 2026-10-01
+
+
+### ✨ Nouveautés
+
+- l'Administration devient un espace à part avec sa propre barre (#605) ([9cb98ee](https://github.com/remi-deher/watchdeck/commit/9cb98eeefaef2d771f005c9bc09723255a30b079))
+
+### 🐛 Corrections
+
+- correctifs du check-up prod (chiffres, mobile, menu, accents) (#602) ([03b497f](https://github.com/remi-deher/watchdeck/commit/03b497f8fba144a7bbdbdc165fa55f6c2fa8568c))
+
+### 🔧 Maintenance
+
+- v1.64.0 (#609) ([5263934](https://github.com/remi-deher/watchdeck/commit/52639347292de817fce95b360ebcf8805d04932c))
 ## 1.63.0 — 2026-09-30
 
 
@@ -14,6 +35,10 @@
 - ouvrir la recherche interactive dans la feuille (#592) ([b6b7636](https://github.com/remi-deher/watchdeck/commit/b6b763607e0080a770284a30e262c8ef9fecd7ac))
 - cartes de suivi en affiches, dans la grille des disponibles (#593) ([e3f541a](https://github.com/remi-deher/watchdeck/commit/e3f541a1cbdc85f8780ed0c1e6ab4134d9718471))
 - période visible, états des sorties, vue Semaine, balayage et filtres (#594) ([47ffaa1](https://github.com/remi-deher/watchdeck/commit/47ffaa1586c1636d1807a6afe5845abf13d291f8))
+
+### 🔧 Maintenance
+
+- v1.63.0 (#599) ([0d542d2](https://github.com/remi-deher/watchdeck/commit/0d542d2569552f27a262b23dc030263bb6591c6d))
 ## 1.62.0 — 2026-09-30
 
 

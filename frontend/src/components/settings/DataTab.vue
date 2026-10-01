@@ -9,39 +9,39 @@
           <UiButton href="/api/backup/db"><HardDriveDownload/>Backup complet</UiButton>
         </div>
         <p class="warning-text">Ces fichiers peuvent contenir des secrets.</p>
-        <p class="hint">"Exporter en JSON" produit un fichier lisible et portable (utilisateurs, parametres, demandes, instances *arr, clients de telechargement, fournisseurs et modeles d'email) reutilisable avec "Importer un export JSON" ci-dessous. Les journaux et donnees regenerables (bibliotheque, historiques, cache) sont inclus pour reference mais jamais reimportes. "Backup complet" produit un dump PostgreSQL brut, destine a une restauration via <code>docker compose --profile operations run --rm restore</code> (voir le README).</p>
+        <p class="hint">"Exporter en JSON" produit un fichier lisible et portable (utilisateurs, paramètres, demandes, instances *arr, clients de téléchargement, fournisseurs et modèles d'email) réutilisable avec "Importer un export JSON" ci-dessous. Les journaux et données regenerables (bibliotheque, historiques, cache) sont inclus pour reference mais jamais reimportes. "Backup complet" produit un dump PostgreSQL brut, destine a une restauration via <code>docker compose --profile operations run --rm restore</code> (voir le README).</p>
       </SettingsCard>
 
-      <SettingsCard title="Importer un export JSON" subtitle="Fusionne un export JSON precedent dans cette instance, sans rien supprimer." :icon="Upload" status="neutral" :collapsible="false">
+      <SettingsCard title="Importer un export JSON" subtitle="Fusionne un export JSON précédent dans cette instance, sans rien supprimer." :icon="Upload" status="neutral" :collapsible="false">
         <input ref="jsonInput" type="file" accept=".json">
         <div class="actions">
-          <UiButton :disabled="busy" @click="importJson"><Upload/>Fusionner les donnees</UiButton>
+          <UiButton :disabled="busy" @click="importJson"><Upload/>Fusionner les données</UiButton>
         </div>
-        <p class="hint">Les utilisateurs et donnees du fichier sont ajoutes ou mis a jour (upsert) par-dessus l'existant — rien n'est efface. Utile pour restaurer un export JSON ou fusionner deux instances.</p>
+        <p class="hint">Les utilisateurs et données du fichier sont ajoutés ou mis à jour (upsert) par-dessus l'existant — rien n'est effacé. Utile pour restaurer un export JSON ou fusionner deux instances.</p>
       </SettingsCard>
 
-      <SettingsCard title="Reprise apres sinistre" subtitle="Sauvegarde complete (base + cles + configuration) et restauration a l'identique." :icon="ShieldAlert" status="neutral" :collapsible="false">
+      <SettingsCard title="Reprise après sinistre" subtitle="Sauvegarde complète (base + clés + configuration) et restauration à l'identique." :icon="ShieldAlert" status="neutral" :collapsible="false">
         <div class="actions">
           <UiButton href="/api/backup/full"><ShieldAlert/>Telecharger la sauvegarde complete</UiButton>
         </div>
-        <p class="hint">Archive unique contenant le dump PostgreSQL complet, la cle de chiffrement et les autres fichiers hors base, plus un export JSON de repli. C'est la seule methode qui restaure absolument tout a l'identique (y compris le compte admin et les historiques) — l'export JSON ci-dessus en est volontairement une version partielle.</p>
+        <p class="hint">Archive unique contenant le dump PostgreSQL complet, la clé de chiffrement et les autres fichiers hors base, plus un export JSON de repli. C'est la seule méthode qui restaure absolument tout à l'identique (y compris le compte admin et les historiques) — l'export JSON ci-dessus en est volontairement une version partielle.</p>
 
         <input ref="fullBackupInput" type="file" accept=".zip" @change="onFullBackupFileChange">
         <template v-if="fullBackupSelected">
-          <p class="warning-text">Cette action remplace ENTIEREMENT la base de donnees et la configuration actuelles par celles de l'archive. Rien n'est fusionne : tout ce qui existe aujourd'hui sur cette instance (reglages, utilisateurs, demandes, historiques) sera perdu, hormis une sauvegarde de securite automatique prise juste avant. L'application redemarre ensuite.</p>
+          <p class="warning-text">Cette action remplace ENTIÈREMENT la base de données et la configuration actuelles par celles de l'archive. Rien n'est fusionné : tout ce qui existe aujourd'hui sur cette instance (réglages, utilisateurs, demandes, historiques) sera perdu, hormis une sauvegarde de sécurité automatique prise juste avant. L'application redémarre ensuite.</p>
           <label>Confirmation<input v-model="fullRestoreConfirmation" class="mono" placeholder="REMPLACER"></label>
           <UiButton variant="primary" class="danger-button" :disabled="busy||fullRestoreConfirmation!=='REMPLACER'" @click="restoreFullBackup"><ShieldAlert/>Tout remplacer</UiButton>
         </template>
-        <p v-if="restoreRestarting" class="hint">Restauration terminee, l'application redemarre. Cette page va se recharger automatiquement.</p>
+        <p v-if="restoreRestarting" class="hint">Restauration terminée, l'application redémarre. Cette page va se recharger automatiquement.</p>
       </SettingsCard>
 
-      <SettingsCard title="Medias supprimes" :icon="Trash2" status="neutral" :collapsible="false">
+      <SettingsCard title="Médias supprimés" :icon="Trash2" status="neutral" :collapsible="false">
         <p>
           Ces medias ont ete deliberement supprimes par un admin. Toute nouvelle demande
           pour l'un d'eux (watchlist, requete manuelle) sera forcee en attente
-          d'approbation, meme si l'auto-approbation est activee.
+          d'approbation, même si l'auto-approbation est activée.
         </p>
-        <p v-if="!deletedLog.length">Aucun media dans ce journal.</p>
+        <p v-if="!deletedLog.length">Aucun média dans ce journal.</p>
         <div v-for="entry in deletedLog" :key="entry.id" class="detail-row">
           <div>
             <strong>{{ entry.title }}</strong><br>
@@ -104,7 +104,7 @@ async function importJson(): Promise<void> {
   if (!file) return;
   try {
     const data = await uploadMutation.mutateAsync({ path: '/api/import', file });
-    success(`Import termine : ${data.stats.users_upserted} utilisateurs.`);
+    success(`Import terminé : ${data.stats.users_upserted} utilisateurs.`);
     await load();
   } catch (e) { fail(e); }
 }

@@ -1,7 +1,7 @@
 <template>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
 
-  <div class="app-shell" :data-mode="mode" :data-rail="railState">
+  <div class="app-shell" :data-mode="mode" :data-rail="railState" :data-space="space">
     <!-- Une seule navigation primaire est montée à la fois. En rendre deux et en
          masquer une dupliquerait l'état, les repères ARIA et l'ordre de tabulation. -->
     <AppRail
@@ -13,7 +13,8 @@
       :can-moderate="canModerate"
       :collapsible="mode === 'expanded'"
       :collapsed="collapsed"
-      @open-palette="openPalette"
+      :space="space"
+      :back-to="lastAppPath"
       @toggle-rail="collapsed = !collapsed"
     />
 
@@ -60,6 +61,8 @@
       :destination-label="destinationLabel"
       :is-admin="isAdmin"
       :can-moderate="canModerate"
+      :space="space"
+      :back-to="lastAppPath"
       @close="sheetOpen = false"
       @open-palette="openPaletteFromSheet"
     />
@@ -85,7 +88,8 @@ import { usePageSections } from '@/composables/usePageSections';
 import { usePageTitle } from '@/composables/usePageTitle';
 import OfflineBanner from './OfflineBanner.vue';
 import { useShellMode } from '@/composables/useShellMode';
-import { destinationForPath, dockDestinationsFor } from '@/navigation';
+import { destinationForPath, dockDestinationsFor, isAdminSpace } from '@/navigation';
+import { lastAppPath } from '@/composables/lastAppPath';
 
 const props = withDefaults(defineProps<{ isAdmin?: boolean; canModerate?: boolean }>(), {
   isAdmin: false,
@@ -111,6 +115,11 @@ const railDensity = computed<'medium' | 'expanded'>(() =>
 
 const destination = computed(() => destinationForPath(route.path, props.isAdmin, props.canModerate));
 const activeDestinationKey = computed(() => destination.value?.key || '');
+/* L'Administration est un espace a part : tant qu'on y est, sa barre prend la place du
+   rail de l'application, et « Retour a Watchdeck » ramene a la derniere page visitee
+   hors de cet espace (suivie par le routeur, voir `lastAppPath`). */
+const space = computed<'app' | 'admin'>(() => (isAdminSpace(destination.value) ? 'admin' : 'app'));
+
 const destinationLabel = computed(() => destination.value?.label || '');
 /* Meme derivation que la page : en compact la rangee de sections disparait et c'est le
    dock qui les porte, mais la source reste `navigation.ts` et non une copie locale. */

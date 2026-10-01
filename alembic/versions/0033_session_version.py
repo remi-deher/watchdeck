@@ -1,7 +1,7 @@
 """Version de session par compte, pour revoquer les sessions ouvertes
 
-Revision ID: 0030_session_version
-Revises: 0029_playback_audio_channels
+Revision ID: 0033_session_version
+Revises: 0032_message_reasons_cleanup
 Create Date: 2026-10-01
 """
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0030_session_version"
-down_revision = "0029_playback_audio_channels"
+revision = "0033_session_version"
+down_revision = "0032_message_reasons_cleanup"
 branch_labels = None
 depends_on = None
 

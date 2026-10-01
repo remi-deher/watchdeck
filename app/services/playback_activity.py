@@ -10,6 +10,7 @@ import math
 import re
 import time
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as datetime_time
 from urllib.parse import parse_qs, quote, unquote, urlparse
@@ -30,13 +31,15 @@ from ..models import (
     PlaybackIpLocation,
     PlaybackSession,
     PlaybackSessionSegment,
+    PlexServer,
     Settings,
 )
 from ..realtime import publish
 from ..utils import APP_TIMEZONE, now_utc_naive, wrap_image_proxy
-from . import plex_decision_logs
+from . import plex_decision_logs, plex_servers
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
 from .ip_geolocation import lookup_ip_location, lookup_ip_locations
+from .plex_servers import stored_server_id
 
 logger = logging.getLogger(__name__)
 
@@ -625,6 +628,7 @@ def _serialize(row: PlaybackSession) -> dict:
     return {
         "id": row.id,
         "source": row.source,
+        "server_id": row.server_id,
         "session_id": row.source_session_id,
         "user_name": row.user_name,
         "media_type": row.media_type,
@@ -756,7 +760,8 @@ def _tautulli_session_values(item: dict, settings: Settings, location: dict) -> 
 def _thumb_url(row: PlaybackSession) -> str | None:
     plex_thumb_path = _plex_thumb_path(row)
     if plex_thumb_path:
-        return f"/api/playback/thumb?path={quote(plex_thumb_path, safe='')}"
+        server = f"&server={row.server_id}" if getattr(row, "server_id", None) else ""
+        return f"/api/playback/thumb?path={quote(plex_thumb_path, safe='')}{server}"
     return wrap_image_proxy(row.thumb_url)
 
 
@@ -1556,10 +1561,13 @@ async def _resume_group(db, snapshot: dict, now: datetime) -> tuple[int | None, 
     rating_key = str(snapshot.get("rating_key") or "").strip()
     if not rating_key:
         return None, 1, 0
+    server_id = snapshot.get("server_id")
     filters = [
         PlaybackSession.source == "plex",
         PlaybackSession.ended_at.is_not(None),
         PlaybackSession.rating_key == rating_key,
+        # Une clé Plex n'a de sens que sur son serveur.
+        PlaybackSession.server_id.is_(None) if server_id is None else PlaybackSession.server_id == server_id,
     ]
     plex_user_id = str(snapshot.get("plex_user_id") or "").strip()
     if plex_user_id:
@@ -1592,35 +1600,62 @@ async def _resume_group(db, snapshot: dict, now: datetime) -> tuple[int | None, 
     )
 
 
+async def _server_snapshots(conn, settings: Settings) -> tuple[str, list[dict]]:
+    """Sessions en cours d'un serveur Plex, avec la fiche des médias en cours de lecture."""
+    headers = {"X-Plex-Token": conn.token, "Accept": "application/xml"}
+    async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
+        response = await client.get(f"{conn.url.rstrip('/')}/status/sessions", headers=headers)
+        response.raise_for_status()
+    snapshots = parse_plex_sessions(response.text, anonymize_ips=settings.activity_anonymize_ips)
+    # Une conversion (même un simple changement de conteneur) ne se lit qu'en sortie dans
+    # /status/sessions : la fiche du média donne la source (conteneur, sous-titres,
+    # HDR, débit). En cache par média : une lecture Plex par œuvre, pas par collecte.
+    converted = {s["rating_key"] for s in snapshots if s.get("rating_key")}
+    if converted:
+        try:
+            sheets = {
+                rating_key: await media_sheet(conn.url, conn.token, settings.plex_verify_ssl, rating_key)
+                for rating_key in converted
+            }
+            snapshots = parse_plex_sessions(
+                response.text, anonymize_ips=settings.activity_anonymize_ips, media_sheets=sheets
+            )
+        except Exception as exc:  # la déduction reste valable, seulement moins précise
+            logger.debug("Fiche média Plex illisible : %s", exc)
+    server_id = stored_server_id(conn)
+    for snapshot in snapshots:
+        snapshot["server_id"] = server_id
+        if server_id is not None:
+            # Les identifiants de session ne sont uniques qu'au sein d'un serveur.
+            snapshot["source_session_id"] = f"{server_id}:{snapshot['source_session_id']}"
+    return response.text, snapshots
+
+
 async def _collect_plex_activity_unlocked() -> dict:
     async with AsyncSessionLocal() as db:
         settings = (await db.execute(select(Settings))).scalars().first()
-        if not settings or not settings.live_activity_enabled or not settings.plex_url or not settings.plex_token:
+        if not settings or not settings.live_activity_enabled:
+            return {"status": "disabled", "active": 0}
+        connections = await plex_servers.active_connections(db, settings)
+        if not connections:
             return {"status": "disabled", "active": 0}
         now = now_utc_naive()
         await _sweep_stale_sessions(db, now)
-        headers = {"X-Plex-Token": settings.plex_token, "Accept": "application/xml"}
-        async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
-            response = await client.get(f"{settings.plex_url.rstrip('/')}/status/sessions", headers=headers)
-            response.raise_for_status()
-        snapshots = parse_plex_sessions(response.text, anonymize_ips=settings.activity_anonymize_ips)
-        # Une conversion (même un simple changement de conteneur) ne se lit qu'en sortie dans
-        # /status/sessions : la fiche du média donne la source (conteneur, sous-titres,
-        # HDR, débit). En cache par média : une lecture Plex par œuvre, pas par collecte.
-        converted = {s["rating_key"] for s in snapshots if s.get("rating_key")}
-        if converted:
+        snapshots: list[dict] = []
+        # Serveurs qui ont répondu : seules leurs lectures absentes peuvent être closes.
+        answered: set[int | None] = set()
+        for conn in connections:
             try:
-                sheets = {
-                    rating_key: await media_sheet(
-                        settings.plex_url, settings.plex_token, settings.plex_verify_ssl, rating_key
-                    )
-                    for rating_key in converted
-                }
-                snapshots = parse_plex_sessions(
-                    response.text, anonymize_ips=settings.activity_anonymize_ips, media_sheets=sheets
-                )
-            except Exception as exc:  # la déduction reste valable, seulement moins précise
-                logger.debug("Fiche média Plex illisible : %s", exc)
+                _raw, server_snapshots = await _server_snapshots(conn, settings)
+            except Exception as exc:
+                if len(connections) == 1:
+                    raise
+                logger.warning("Sessions Plex illisibles sur %s : %s", conn.name, exc)
+                continue
+            answered.add(stored_server_id(conn))
+            snapshots.extend(server_snapshots)
+        if not answered:
+            raise RuntimeError("Aucun serveur Plex n'a répondu")
         # Plex peut exposer deux nœuds pour une même lecture (notamment pendant une
         # transition de lecteur/transcodage). Sans déduplication, la boucle ajoutait
         # deux objets ORM portant la même clé unique avant le premier flush.
@@ -1656,7 +1691,7 @@ async def _collect_plex_activity_unlocked() -> dict:
         # de façon plus stable et permettent d'"adopter" la ligne existante au lieu de
         # la fragmenter en plusieurs sessions.
         existing_by_key = {
-            (row.session_key, row.rating_key): row
+            (row.server_id, row.session_key, row.rating_key): row
             for row in rows
             if row.session_key is not None and row.rating_key is not None
         }
@@ -1665,7 +1700,7 @@ async def _collect_plex_activity_unlocked() -> dict:
         for snapshot in snapshots:
             row = existing.get(snapshot["source_session_id"])
             if row is None and snapshot.get("session_key") is not None and snapshot.get("rating_key"):
-                row = existing_by_key.get((snapshot["session_key"], snapshot["rating_key"]))
+                row = existing_by_key.get((snapshot.get("server_id"), snapshot["session_key"], snapshot["rating_key"]))
             if row is None:
                 reference_id, group_count, initial_progress_ms = await _resume_group(db, snapshot, now)
                 row = PlaybackSession(
@@ -1702,6 +1737,9 @@ async def _collect_plex_activity_unlocked() -> dict:
             )
             row.watched_status = 1 if (row.progress_percent or 0) >= 85 else 0
         for row in previously_active:
+            if row.server_id not in answered:
+                # Serveur injoignable ce cycle : on ne sait rien de ses lectures.
+                continue
             if row.last_seen_at == now:
                 # Mise à jour ce cycle (correspondance directe ou adoptée via
                 # session_key+rating_key) : plus manquante, on oublie ses ratés passés.
@@ -1867,6 +1905,9 @@ async def enrich_decisions_from_plex_logs(*, force: bool = False) -> dict:
                 await db.execute(
                     select(PlaybackSession).filter(
                         PlaybackSession.source == "plex",
+                        # Journaux du serveur principal seulement : une cle de lecture d'un
+                        # autre serveur y designerait un autre media.
+                        PlaybackSession.server_id.is_(None),
                         PlaybackSession.started_at >= now - _DECISION_LOOKBACK,
                         PlaybackSession.plex_decision_text.is_(None),
                         # La conversion légère aussi : Plex y consigne sa décision de la
@@ -1928,8 +1969,12 @@ async def handle_websocket_state(
     rating_key: str | None,
     state: str,
     view_offset_ms: int | None = None,
+    server_id: int | None = None,
 ) -> dict:
     """Traite un évènement d'état poussé par le websocket Plex (plex_activity_ws.py).
+
+    `server_id` : serveur supplémentaire émetteur (None = principal) ; les clés de
+    session et de média ne sont uniques qu'au sein d'un serveur.
 
     Signal faisant autorité : un "stopped" ferme la session immédiatement, sans
     attendre qu'elle disparaisse du polling. Une session inconnue (jamais vue par le
@@ -1938,6 +1983,7 @@ async def handle_websocket_state(
     du message websocket.
     """
     now = now_utc_naive()
+    server_filter = PlaybackSession.server_id.is_(None) if server_id is None else PlaybackSession.server_id == server_id
     async with AsyncSessionLocal() as db:
         await _sweep_stale_sessions(db, now)
         row = (
@@ -1949,6 +1995,7 @@ async def handle_websocket_state(
                         PlaybackSession.source == "plex",
                         PlaybackSession.ended_at.is_(None),
                         PlaybackSession.session_key == session_key,
+                        server_filter,
                     )
                 )
             )
@@ -1965,6 +2012,7 @@ async def handle_websocket_state(
                             PlaybackSession.source == "plex",
                             PlaybackSession.ended_at.is_(None),
                             PlaybackSession.rating_key == rating_key,
+                            server_filter,
                         )
                     )
                 )
@@ -2027,28 +2075,72 @@ async def _tautulli_locations(rows: list[dict], *, db, anonymized: bool) -> dict
     return await lookup_ip_locations(addresses, db=db, anonymized=anonymized)
 
 
+@dataclass(frozen=True)
+class _TautulliSource:
+    """Un Tautulli par serveur Plex : celui des Réglages suit le principal."""
+
+    server_id: int | None
+    url: str
+    api_key: str
+
+    def reference(self, item: dict) -> str:
+        # Deux Tautulli numérotent leurs lignes chacun de leur côté : la référence d'un
+        # serveur supplémentaire porte son id, comme ses sessions en direct.
+        row_id = _tautulli_row_id(item)
+        if not row_id or self.server_id is None:
+            return row_id
+        return f"{self.server_id}:{row_id}"
+
+
+async def _tautulli_sources(db, settings: Settings | None) -> list[_TautulliSource]:
+    sources = []
+    if settings and settings.tautulli_url and settings.tautulli_api_key:
+        sources.append(_TautulliSource(None, settings.tautulli_url, settings.tautulli_api_key))
+    servers = (
+        await db.execute(
+            select(PlexServer).filter(
+                PlexServer.is_primary.is_(False),
+                PlexServer.enabled.is_(True),
+                PlexServer.tautulli_url.is_not(None),
+            )
+        )
+    ).scalars()
+    for server in sorted(servers, key=lambda row: row.id):
+        if server.tautulli_url and server.tautulli_api_key:
+            sources.append(_TautulliSource(server.id, server.tautulli_url, server.tautulli_api_key))
+    if not sources:
+        raise ValueError("Tautulli n'est pas configuré.")
+    return sources
+
+
+async def _fetch_tautulli_history(source: _TautulliSource, length: int, refused: str) -> list[dict]:
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.get(
+            f"{source.url.rstrip('/')}/api/v2",
+            params={
+                "apikey": source.api_key,
+                "cmd": "get_history",
+                "length": min(max(length, 1), 10000),
+                "order_column": "date",
+                "order_dir": "desc",
+                "grouping": 0,
+            },
+        )
+        response.raise_for_status()
+        payload = response.json().get("response", {})
+    if payload.get("result") != "success":
+        raise ValueError(payload.get("message") or refused)
+    return payload.get("data", {}).get("data") or []
+
+
 async def import_tautulli_history(*, length: int = 1000) -> dict:
     async with AsyncSessionLocal() as db:
         settings = (await db.execute(select(Settings))).scalars().first()
-        if not settings or not settings.tautulli_url or not settings.tautulli_api_key:
-            raise ValueError("Tautulli n'est pas configuré.")
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(
-                f"{settings.tautulli_url.rstrip('/')}/api/v2",
-                params={
-                    "apikey": settings.tautulli_api_key,
-                    "cmd": "get_history",
-                    "length": min(max(length, 1), 10000),
-                    "order_column": "date",
-                    "order_dir": "desc",
-                    "grouping": 0,
-                },
-            )
-            response.raise_for_status()
-            payload = response.json().get("response", {})
-        if payload.get("result") != "success":
-            raise ValueError(payload.get("message") or "Import Tautulli refusé.")
-        rows = payload.get("data", {}).get("data") or []
+        sources = await _tautulli_sources(db, settings)
+        batches = [
+            (source, await _fetch_tautulli_history(source, length, "Import Tautulli refusé.")) for source in sources
+        ]
+        rows = [item for _source, items in batches for item in items]
         locations = await _tautulli_locations(
             rows,
             db=db,
@@ -2061,8 +2153,8 @@ async def import_tautulli_history(*, length: int = 1000) -> dict:
             (await db.execute(select(PlaybackSession).filter(PlaybackSession.source == "tautulli"))).scalars().all()
         )
         existing_by_reference = {row.source_session_id: row for row in existing_rows}
-        for item in rows:
-            reference = _tautulli_row_id(item)
+        for source, item in ((source, item) for source, items in batches for item in items):
+            reference = source.reference(item)
             if not reference:
                 continue
             raw_address = str(item.get("ip_address") or "").strip()
@@ -2071,6 +2163,7 @@ async def import_tautulli_history(*, length: int = 1000) -> dict:
                 anonymized=settings.activity_anonymize_ips,
             )
             session_values = _tautulli_session_values(item, settings, location)
+            session_values["server_id"] = source.server_id
             session = existing_by_reference.get(reference)
             if session is not None:
                 _protect_resolved_location(session, session_values)
@@ -2114,32 +2207,18 @@ async def normalize_tautulli_history(*, length: int = 10000) -> dict:
     """Récupère à nouveau l'historique Tautulli et répare les lignes déjà importées."""
     async with AsyncSessionLocal() as db:
         settings = (await db.execute(select(Settings))).scalars().first()
-        if not settings or not settings.tautulli_url or not settings.tautulli_api_key:
-            raise ValueError("Tautulli n'est pas configuré.")
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(
-                f"{settings.tautulli_url.rstrip('/')}/api/v2",
-                params={
-                    "apikey": settings.tautulli_api_key,
-                    "cmd": "get_history",
-                    "length": min(max(length, 1), 10000),
-                    "order_column": "date",
-                    "order_dir": "desc",
-                    "grouping": 0,
-                },
-            )
-            response.raise_for_status()
-            payload = response.json().get("response", {})
-        if payload.get("result") != "success":
-            raise ValueError(payload.get("message") or "Normalisation Tautulli refusée.")
-
-        rows = payload.get("data", {}).get("data") or []
+        sources = await _tautulli_sources(db, settings)
+        references: dict[str, dict] = {}
+        rows: list[dict] = []
+        for source in sources:
+            items = await _fetch_tautulli_history(source, length, "Normalisation Tautulli refusée.")
+            rows.extend(items)
+            references.update({source.reference(item): item for item in items})
         locations = await _tautulli_locations(
             rows,
             db=db,
             anonymized=settings.activity_anonymize_ips,
         )
-        references = {_tautulli_row_id(item): item for item in rows}
         references.pop("", None)
         existing = (
             (
@@ -2565,6 +2644,8 @@ async def activity_snapshot(days: int = 30, db=None, user: str | None = None) ->
                         PlaybackSession.grandparent_title,
                         PlaybackSession.rating_key,
                         PlaybackSession.thumb_url,
+                        # Lu par _thumb_url : sans lui, chargement paresseux interdit en async.
+                        PlaybackSession.server_id,
                         PlaybackSession.player_title,
                         PlaybackSession.platform,
                         PlaybackSession.product,
@@ -2692,6 +2773,7 @@ async def activity_history(
     offset: int = 0,
     limit: int = 100,
     sort: str = "recent",
+    server: int | None = None,
 ) -> dict:
     """Historique filtré, trié et paginé, avec les valeurs disponibles pour chaque filtre.
 
@@ -2713,6 +2795,7 @@ async def activity_history(
                 offset=offset,
                 limit=limit,
                 sort=sort,
+                server=server,
             )
     days = min(max(days, 1), MAX_PERIOD_DAYS)
     cutoff = datetime.combine((now_utc_naive() - timedelta(days=days)).date(), datetime_time.min)
@@ -2731,6 +2814,12 @@ async def activity_history(
         filters.append(PlaybackSession.media_type == media_type)
     if device:
         filters.append(device_expression == device)
+    servers = await plex_servers.list_servers(db)
+    primary_id = next((srv.id for srv in servers if srv.is_primary), None)
+    if server is not None:
+        filters.append(
+            PlaybackSession.server_id.is_(None) if server == primary_id else PlaybackSession.server_id == server
+        )
     if query and query.strip():
         needle = f"%{query.strip()}%"
         filters.append(
@@ -2790,13 +2879,30 @@ async def activity_history(
         .scalars()
         .all()
     )
+    # Serveurs : seulement ceux qui ont des lectures sur la periode, NULL = principal.
+    server_ids = (await db.execute(select(PlaybackSession.server_id).filter(*period_filter).distinct())).scalars().all()
+    names = {srv.id: srv.name for srv in servers}
+    server_facets = [
+        {"id": primary_id if value is None else value, "name": names.get(primary_id if value is None else value)}
+        for value in server_ids
+    ]
+    server_facets = sorted(
+        (facet for facet in server_facets if facet["id"] is not None),
+        key=lambda facet: (facet["id"] != primary_id, (facet["name"] or "").lower()),
+    )
+    for facet in server_facets:
+        facet["name"] = facet["name"] or "Serveur supprimé"
     return {
         "items": [_serialize(row) for row in rows],
         "total": int(total),
         "offset": max(offset, 0),
         "limit": limit,
         "has_more": max(offset, 0) + len(rows) < int(total),
-        "facets": {"users": [value for value in users if value], "devices": [value for value in devices if value]},
+        "facets": {
+            "users": [value for value in users if value],
+            "devices": [value for value in devices if value],
+            "servers": server_facets,
+        },
     }
 
 
@@ -2827,10 +2933,11 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
     if not row.rating_key:
         return None
     settings = (await db.execute(select(Settings))).scalars().first()
-    if not settings or not settings.plex_url or not settings.plex_token:
+    conn = await plex_servers.connection_for(db, row.server_id, settings)
+    if conn is None or settings is None:
         return None
     try:
-        sheet = await media_sheet(settings.plex_url, settings.plex_token, settings.plex_verify_ssl, row.rating_key)
+        sheet = await media_sheet(conn.url, conn.token, settings.plex_verify_ssl, row.rating_key)
     except Exception as exc:
         logger.debug("Fiche média Plex illisible : %s", exc)
         return None
@@ -2870,9 +2977,17 @@ async def live_activity_snapshot(db=None) -> dict:
         .scalars()
         .all()
     )
-    configured = bool(settings and settings.plex_url and settings.plex_token)
+    connections = await plex_servers.active_connections(db, settings)
+    configured = bool(connections)
+    # Le nom du serveur n'est utile qu'a partir de deux : il distingue alors les lectures.
+    server_names = {stored_server_id(conn): conn.name for conn in connections} if len(connections) > 1 else {}
+    items = []
+    for row in active:
+        item = _serialize(row)
+        item["server_name"] = server_names.get(row.server_id)
+        items.append(item)
     return {
-        "active": [_serialize(row) for row in active],
+        "active": items,
         "enabled": bool(settings and settings.live_activity_enabled and configured),
         "configured": configured,
     }
@@ -2930,14 +3045,17 @@ async def terminate_playback(session_id: int, reason: str, db) -> None:
     if row.ended_at is not None:
         raise PlaybackActionError("Cette lecture est déjà terminée.")
     settings = (await db.execute(select(Settings))).scalars().first()
-    if not settings or not settings.plex_url or not settings.plex_token:
+    conn = await plex_servers.connection_for(db, row.server_id, settings)
+    if not settings or conn is None:
         raise PlaybackActionError("Plex n'est pas configuré.")
     plex_session_id = (_json_or_none(row.stream_details) or {}).get("plex_session_id") or row.source_session_id
+    if row.server_id is not None and plex_session_id.startswith(f"{row.server_id}:"):
+        plex_session_id = plex_session_id.split(":", 1)[1]
     async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
         response = await client.post(
-            f"{settings.plex_url.rstrip('/')}/status/sessions/terminate",
+            f"{conn.url.rstrip('/')}/status/sessions/terminate",
             params={"sessionId": plex_session_id, "reason": reason.strip() or "Lecture arrêtée par l'administrateur."},
-            headers={"X-Plex-Token": settings.plex_token},
+            headers={"X-Plex-Token": conn.token},
         )
     if response.status_code in {401, 403}:
         raise PlaybackActionError("Plex refuse l'arrêt : il faut un compte administrateur avec Plex Pass.")
@@ -2947,21 +3065,33 @@ async def terminate_playback(session_id: int, reason: str, db) -> None:
 
 
 async def plex_server_activities(db) -> list[dict]:
-    """Tâches en cours sur le serveur Plex : miniatures, analyse, scan de bibliothèque…"""
+    """Tâches en cours sur les serveurs Plex : miniatures, analyse, scan de bibliothèque…
+
+    Avec plusieurs serveurs, chaque tâche porte le nom du sien ; un serveur injoignable
+    est passé tant qu'un autre répond (seul, il remonte son erreur comme avant).
+    """
     settings = (await db.execute(select(Settings))).scalars().first()
-    if not settings or not settings.plex_url or not settings.plex_token:
+    connections = await plex_servers.active_connections(db, settings)
+    if not settings or not connections:
         return []
-    async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
-        response = await client.get(
-            f"{settings.plex_url.rstrip('/')}/activities",
-            headers={"X-Plex-Token": settings.plex_token, "Accept": "application/json"},
-        )
-        response.raise_for_status()
+    several = len(connections) > 1
     activities = []
-    for activity in response.json().get("MediaContainer", {}).get("Activity", []) or []:
-        progress = _float(activity.get("progress"))
-        activities.append(
-            {
+    failures: list[Exception] = []
+    for conn in connections:
+        try:
+            async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
+                response = await client.get(
+                    f"{conn.url.rstrip('/')}/activities",
+                    headers={"X-Plex-Token": conn.token, "Accept": "application/json"},
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            failures.append(exc)
+            logger.debug("Tâches Plex illisibles sur « %s » : %s", conn.name, exc)
+            continue
+        for activity in response.json().get("MediaContainer", {}).get("Activity", []) or []:
+            progress = _float(activity.get("progress"))
+            entry = {
                 "uuid": activity.get("uuid"),
                 "type": activity.get("type"),
                 "title": activity.get("title"),
@@ -2969,19 +3099,25 @@ async def plex_server_activities(db) -> list[dict]:
                 # -1 : progression indéterminée (Plex ne sait pas combien il reste).
                 "progress": progress if progress is not None and progress >= 0 else None,
                 "cancellable": bool(activity.get("cancellable")),
+                "server_id": stored_server_id(conn),
             }
-        )
+            if several:
+                entry["server_name"] = conn.name
+            activities.append(entry)
+    if failures and len(failures) == len(connections):
+        raise failures[0]
     return activities
 
 
-async def cancel_plex_activity(uuid: str, db) -> None:
+async def cancel_plex_activity(uuid: str, db, server_id: int | None = None) -> None:
     settings = (await db.execute(select(Settings))).scalars().first()
-    if not settings or not settings.plex_url or not settings.plex_token:
+    conn = await plex_servers.connection_for(db, server_id, settings)
+    if settings is None or conn is None:
         raise PlaybackActionError("Plex n'est pas configuré.")
     async with httpx.AsyncClient(timeout=10, verify=settings.plex_verify_ssl) as client:
         response = await client.delete(
-            f"{settings.plex_url.rstrip('/')}/activities/{quote(uuid, safe='')}",
-            headers={"X-Plex-Token": settings.plex_token},
+            f"{conn.url.rstrip('/')}/activities/{quote(uuid, safe='')}",
+            headers={"X-Plex-Token": conn.token},
         )
     if response.status_code == 404:
         raise PlaybackActionError("Cette tâche est déjà terminée.")

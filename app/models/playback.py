@@ -111,6 +111,10 @@ class PlaybackSession(Base):
     last_seen_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
     ended_at: Mapped[Optional[datetime]]
     media_request_id: Mapped[Optional[int]] = mapped_column(index=True)
+    # Serveur Plex de la lecture (models.PlexServer) ; NULL = serveur principal, ce qui
+    # garde justes les lignes anterieures au multi-serveurs. Sans cle etrangere : une
+    # lecture survit a la suppression de son serveur.
+    server_id: Mapped[Optional[int]] = mapped_column(index=True)
 
     segments: Mapped[list["PlaybackSessionSegment"]] = relationship(
         back_populates="session",

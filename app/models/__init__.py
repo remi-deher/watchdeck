@@ -21,6 +21,8 @@ from .connections import (
     ArrInstance,
     DownloadClient,
     EmailProvider,
+    LibraryItemLocation,
+    PlexServer,
 )
 from .downloads import (
     DownloadHistory,
@@ -75,6 +77,8 @@ from .users import (
 __all__ = [
     "AdminActionLog",
     "ArrInstance",
+    "LibraryItemLocation",
+    "PlexServer",
     "Base",
     "DeletedMediaLog",
     "DiagnosticEvent",

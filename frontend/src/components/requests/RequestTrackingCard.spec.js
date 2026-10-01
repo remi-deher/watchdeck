@@ -52,7 +52,10 @@ describe('RequestTrackingCard', () => {
 
     const wrapper = carte(bloquee, { canModerate: true });
     // Une action principale visible, les autres dans le menu « Autres actions ».
-    expect(wrapper.find('.rt-main-action').text()).toBe('Recherche interactive');
+    expect(wrapper.find('.rt-main-action .rt-label-long').text()).toBe('Recherche interactive');
+    // Libelle court pour les cartes etroites, nom complet garde pour les lecteurs d'ecran.
+    expect(wrapper.find('.rt-main-action .rt-label-short').text()).toBe('Rechercher');
+    expect(wrapper.find('.rt-main-action').attributes('aria-label')).toBe('Recherche interactive');
     expect(wrapper.findAll('.menu-item').map((b) => b.text())).toEqual(['Relancer la recherche', 'Annuler…']);
     await wrapper.find('.rt-main-action').trigger('click');
     expect(wrapper.emitted('act')[0][1]).toBe('interactive');

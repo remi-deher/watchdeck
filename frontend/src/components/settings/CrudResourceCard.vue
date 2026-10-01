@@ -30,8 +30,10 @@
       <template #cell-actions="{ row: item }">
         <UiButton icon-only v-if="hasTest" title="Tester" aria-label="Tester" @click="$emit('test', item)"><PlugZap /></UiButton>
         <UiButton icon-only title="Modifier" aria-label="Modifier" @click="$emit('open-modal', item)"><Pencil /></UiButton>
-        <UiButton icon-only :title="item.enabled ? 'Désactiver' : 'Activer'" :aria-label="item.enabled ? 'Désactiver' : 'Activer'" @click="$emit('toggle', item)"><Power /></UiButton>
-        <UiButton variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="$emit('remove', item)"><Trash2 /></UiButton>
+        <template v-if="!(lockedKey && item[lockedKey])">
+          <UiButton icon-only :title="item.enabled ? 'Désactiver' : 'Activer'" :aria-label="item.enabled ? 'Désactiver' : 'Activer'" @click="$emit('toggle', item)"><Power /></UiButton>
+          <UiButton variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="$emit('remove', item)"><Trash2 /></UiButton>
+        </template>
       </template>
     </UiDataTable>
   </SettingsCard>
@@ -55,6 +57,8 @@ const props = withDefaults(
     emptyLabel?: string;
     addLabel?: string;
     hasTest?: boolean;
+    /** Champ qui, vrai sur une ligne, masque Activer et Supprimer (ex. serveur Plex principal). */
+    lockedKey?: string;
   }>(),
   {
     subtitle: '',

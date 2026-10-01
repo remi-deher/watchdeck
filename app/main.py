@@ -72,6 +72,7 @@ from .routers import (
     metrics_api,
     notifications_api,
     onboarding_api,
+    plex_servers_api,
     prowlarr_api,
     requests_api,
     scheduled_tasks_api,
@@ -451,6 +452,7 @@ app.include_router(activity_api.router)
 app.include_router(settings_api.router)
 app.include_router(system_api.router)
 app.include_router(arr_instances_api.router)
+app.include_router(plex_servers_api.router)
 app.include_router(download_clients_api.router)
 app.include_router(prowlarr_api.router)
 app.include_router(arr_releases_api.router)

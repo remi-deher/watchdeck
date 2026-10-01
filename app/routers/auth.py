@@ -39,6 +39,7 @@ from ..backup_restore import BackupRestoreError, perform_full_restore
 from ..database import DATABASE_URL, get_db_async
 from ..dependencies import current_user, require_auth
 from ..models import LoginAttempt, PasskeyCredential, PlexUser, Settings
+from ..services import plex_servers
 from ..services.auth import hash_password, verify_password
 from ..services.client_ip import client_ip
 from ..services.plex_api import get_auth_pin, get_plex_account, get_plex_owner_uuid, has_server_access
@@ -371,12 +372,18 @@ async def login_plex_check(pin_id: int, request: Request, db: AsyncSession = Dep
 
     logger.info("SSO Login check: resolved Plex account %s", account.get("username"))
 
-    has_access = await has_server_access(
-        admin_token=s.plex_token,
-        user_username=account["username"],
-        user_email=account.get("email"),
-        user_uuid=account["uuid"],
-    )
+    # Un compte invite sur un seul des serveurs suivis (ex. le Plex 4K d'un autre
+    # proprietaire) a le droit d'entrer : chaque compte proprietaire est interroge.
+    has_access = False
+    for admin_token in await plex_servers.account_tokens(db, s):
+        has_access = await has_server_access(
+            admin_token=admin_token,
+            user_username=account["username"],
+            user_email=account.get("email"),
+            user_uuid=account["uuid"],
+        )
+        if has_access:
+            break
     if not has_access:
         logger.warning("SSO Login check: access denied. User %s has no access to Plex server.", account["username"])
         await _record_login_attempt(db, ip, account["username"], False, "plex_no_server_access")

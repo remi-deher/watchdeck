@@ -49,7 +49,7 @@ export function useVfUpgrades(notify: Notify, undoable: (message: string, label:
   }
 
   const countWhere = (predicate: (item: VfUpgradeItem) => boolean) => computed(() => items.value.filter(predicate).length);
-  const pendingCount = countWhere((item) => item.status === 'pending');
+  const pendingCount = countWhere((item) => item.status === 'pending' && !item.is_ignored);
   const waitingReleaseCount = countWhere((item) => item.status === 'waiting_release');
   const inProgressCount = countWhere((item) => ACTIVE_STATES.has(item.status));
   const failedCount = countWhere((item) => item.status === 'failed');

@@ -18,8 +18,10 @@ from ..models import (
     ArrInstance,
     FulfillmentStatus,
     LibraryItem,
+    LibraryItemLocation,
     MediaIssue,
     MediaRequest,
+    PlexServer,
     PlexUser,
     RequestStatus,
     Settings,
@@ -273,12 +275,20 @@ async def list_library(
     audio_format: Optional[str] = None,
     release_type: Optional[str] = None,
     hi_res: Optional[str] = None,
+    server_id: Optional[int] = None,
     limit: int = 200,
     offset: int = 0,
     db: AsyncSession = Depends(get_db_async),
 ):
     """Return Plex library items for the SPA library browser (paginee via limit/offset)."""
     stmt = select(LibraryItem)
+    if server_id is not None:
+        stmt = stmt.filter(
+            sqlalchemy.exists().where(
+                LibraryItemLocation.library_item_id == LibraryItem.id,
+                LibraryItemLocation.server_id == server_id,
+            )
+        )
     if query:
         stmt = stmt.filter(LibraryItem.title.ilike(f"%{query.strip()}%"))
     selected_types = [
@@ -400,6 +410,7 @@ async def list_library(
             )
         ).all()
         requester_by_library = {row[0]: (row[1], row[2], row[3]) for row in requester_rows}
+    servers_by_library = await _servers_by_library(db, item_ids)
     return [
         {
             "id": item.id,
@@ -421,9 +432,47 @@ async def list_library(
             "custom_name": requester_by_library.get(item.id, (None, None, None))[0],
             "plex_user": requester_by_library.get(item.id, (None, None, None))[1],
             "plex_user_id": requester_by_library.get(item.id, (None, None, None))[2],
+            "server_ids": servers_by_library.get(item.id, []),
         }
         for item in items
     ]
+
+
+async def _servers_by_library(db: AsyncSession, item_ids: list[int]) -> dict[int, list[int]]:
+    """Serveurs Plex ou chaque media a ete vu (voir LibraryItemLocation)."""
+    if not item_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(LibraryItemLocation.library_item_id, LibraryItemLocation.server_id)
+            .filter(LibraryItemLocation.library_item_id.in_(item_ids))
+            .distinct()
+        )
+    ).all()
+    out: dict[int, list[int]] = {}
+    for library_item_id, server_id in rows:
+        out.setdefault(library_item_id, []).append(server_id)
+    for ids in out.values():
+        ids.sort()
+    return out
+
+
+@router.get("/library-servers")
+async def library_servers(db: AsyncSession = Depends(get_db_async)):
+    """Serveurs Plex actifs qui portent au moins un media, pour le filtre de la Bibliotheque."""
+    rows = (
+        await db.execute(
+            select(PlexServer.id, PlexServer.name, PlexServer.is_primary, sqlalchemy.func.count(LibraryItemLocation.id))
+            .join(LibraryItemLocation, LibraryItemLocation.server_id == PlexServer.id)
+            .filter(PlexServer.enabled)
+            .group_by(PlexServer.id, PlexServer.name, PlexServer.is_primary)
+        )
+    ).all()
+    servers = [
+        {"id": server_id, "name": name, "is_primary": is_primary, "item_count": count}
+        for server_id, name, is_primary, count in rows
+    ]
+    return sorted(servers, key=lambda s: (not s["is_primary"], s["name"].lower(), s["id"]))
 
 
 @router.get("/library-genres")

@@ -53,7 +53,7 @@
       <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
            fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
       <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
-        <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session precedente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="emitParent('navigate', -1)"><ChevronLeft /></UiButton>
+        <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session précédente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="emitParent('navigate', -1)"><ChevronLeft /></UiButton>
         <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session suivante (j)" aria-label="Session suivante" :disabled="!hasNext" @click="emitParent('navigate', 1)"><ChevronRight /></UiButton>
         <UiButton variant="ghost" icon-only title="Copier le diagnostic" aria-label="Copier le diagnostic" @click="copyDiagnostic"><ClipboardCopy /></UiButton>
         <UiButton v-if="canTerminate" class="terminate-button" variant="danger" size="sm" @click="terminateOpen = true"><CircleStop />Arrêter</UiButton>
@@ -190,11 +190,11 @@ async function copyDiagnostic(): Promise<void> {
     `Utilisateur : ${session.user_name || 'inconnu'}`,
     `Appareil : ${session.player || session.product || session.platform || 'inconnu'}`,
     `Lecture : ${methodLabel(session.playback_method)} (video ${decisionLabel(session.video_decision)}, audio ${decisionLabel(session.audio_decision)})`,
-    `Qualite : ${session.quality || 'auto'}${session.video_codec ? ` / ${session.video_codec.toUpperCase()}` : ''}${session.audio_codec ? ` / ${session.audio_codec.toUpperCase()}` : ''}`,
+    `Qualité : ${session.quality || 'auto'}${session.video_codec ? ` / ${session.video_codec.toUpperCase()}` : ''}${session.audio_codec ? ` / ${session.audio_codec.toUpperCase()}` : ''}`,
     `Debit : ${session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'non communique'}`,
     `Connexion : ${connectionLabel(session)} - ${networkLabel(session)}`,
     `Progression : ${Math.round(session.progress || 0)} % (${formatDuration(session.progress_ms || session.watched_ms)} / ${formatDuration(session.duration_ms)})`,
-    `Debut : ${formatDate(session.started_at)}`,
+    `Début : ${formatDate(session.started_at)}`,
   ];
   try {
     await navigator.clipboard.writeText(lines.join('\n'));
