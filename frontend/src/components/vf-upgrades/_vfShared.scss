@@ -107,6 +107,7 @@
 .season-summary {
   cursor: pointer;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -128,6 +129,13 @@
 .season-group[data-state="open"] > .season-summary::before {
   transform: rotate(90deg);
   color: var(--accent);
+}
+
+/* Sur telephone, la colonne etroite coupait « Saison 13 » et « 24 éléments » au milieu
+   des mots : ils restent entiers et c'est la pastille d'etat qui passe a la ligne. */
+.season-title,
+.season-badge-count {
+  white-space: nowrap;
 }
 
 .season-title {

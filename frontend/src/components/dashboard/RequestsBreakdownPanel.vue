@@ -13,7 +13,7 @@
       <div
         class="ratio-segment show-seg"
         :style="{ width: `${((counts.by_type?.show?.total ?? 0) / counts.total) * 100}%` }"
-        :title="`Series : ${counts.by_type?.show?.total ?? 0}`"
+        :title="`Séries : ${counts.by_type?.show?.total ?? 0}`"
       ></div>
     </div>
   </PanelCard>

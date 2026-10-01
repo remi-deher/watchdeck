@@ -1,17 +1,17 @@
 <template>
   <div class="settings-grid">
     <div class="settings-cards span-two">
-      <SettingsCard title="Retention et digest" subtitle="Duree de conservation des journaux de notifications, et recapitulatif quotidien par email." :icon="Archive" status="active" :collapsible="false">
+      <SettingsCard title="Rétention et digest" subtitle="Durée de conservation des journaux de notifications, et récapitulatif quotidien par email." :icon="Archive" status="active" :collapsible="false">
         <label>Journaux de notifications (jours)<RetentionDaysInput v-model="form.notification_log_retention_days" :default-days="30"/></label>
         <UiCheckboxField v-model="form.digest_enabled" label="Digest actif" />
-        <small class="check-hint">Envoie un recapitulatif quotidien par email, a l'heure choisie ci-dessous, aux utilisateurs ayant active le digest dans leurs preferences — au lieu de recevoir chaque notification individuellement.</small>
+        <small class="check-hint">Envoie un récapitulatif quotidien par email, à l'heure choisie ci-dessous, aux utilisateurs ayant activé le digest dans leurs préférences — au lieu de recevoir chaque notification individuellement.</small>
         <label>Heure du digest<UiTimeField v-model:hour="form.digest_hour" v-model:minute="form.digest_minute" aria-label="Heure du digest"/></label>
       </SettingsCard>
     </div>
 
     <section class="panel form-section span-two">
-      <h2>Evenements et canaux</h2>
-      <p class="hint">Choisis, pour chaque type d'evenement, quels canaux doivent envoyer une notification. Un canal doit d'abord etre active dans l'onglet Canaux pour que sa case ici ait un effet.</p>
+      <h2>Événements et canaux</h2>
+      <p class="hint">Choisis, pour chaque type d'événement, quels canaux doivent envoyer une notification. Un canal doit d'abord être activé dans l'onglet Canaux pour que sa case ici ait un effet.</p>
       <dl class="event-legend">
         <div v-for="event in notificationEvents" :key="event.key">
           <dt>{{ event.label }}</dt>
@@ -30,15 +30,15 @@
         </template>
       </div>
       <UiCheckboxField v-model="form.email_on_vf_available" label="Email lors d'une amelioration VO vers VF" />
-      <small class="check-hint">Notifie separement quand un media deja disponible en VO recoit sa VF, en plus de la notification de disponibilite initiale.</small>
+      <small class="check-hint">Notifie séparément quand un média déjà disponible en VO reçoit sa VF, en plus de la notification de disponibilité initiale.</small>
       <div class="settings-grid two">
         <UiCheckboxField v-model="form.movie_notify_language" label="Distinguer VO/VF pour les films" />
-        <small class="check-hint">Actif : un film disponible d'abord en VO puis mis a jour en VF declenche deux notifications separees. Desactive : une seule notification generique "disponible", sans distinction de langue.</small>
+        <small class="check-hint">Actif : un film disponible d'abord en VO puis mis à jour en VF déclenche deux notifications séparées. Désactivé : une seule notification générique "disponible", sans distinction de langue.</small>
         <UiCheckboxField v-model="form.series_notify_language" label="Distinguer VO/VF pour les series" />
-        <small class="check-hint">Actif : les jalons VO/VF d'une serie suivent la granularite choisie ci-dessous. Desactive : suivi de disponibilite classique, sans notification liee a la langue.</small>
+        <small class="check-hint">Actif : les jalons VO/VF d'une série suivent la granularité choisie ci-dessous. Désactivé : suivi de disponibilité classique, sans notification liée à la langue.</small>
         <label>Granularite series
-          <UiSelect v-model="form.series_notify_granularity" :options="[{ value: 'minimal', label: 'Serie complete' }, { value: 'jalons', label: 'Debut et fin de saison' }, { value: 'tout', label: 'Chaque episode' }]" />
-          <small>A quel rythme une serie en cours declenche une notification : une seule fois a la fin, a chaque debut/fin de saison, ou a chaque episode disponible.</small>
+          <UiSelect v-model="form.series_notify_granularity" :options="[{ value: 'minimal', label: 'Série complète' }, { value: 'jalons', label: 'Début et fin de saison' }, { value: 'tout', label: 'Chaque épisode' }]" />
+          <small>À quel rythme une série en cours déclenche une notification : une seule fois à la fin, à chaque début/fin de saison, ou à chaque épisode disponible.</small>
         </label>
       </div>
     </section>
@@ -64,9 +64,9 @@ const channels = [
 // utilisee aussi par l'editeur de modeles d'email) pour ne pas raconter une autre
 // histoire que celle des emails reellement envoyes.
 const notificationEvents = [
-  { key: 'request', label: 'Nouvelle demande', description: 'Confirmation envoyee quand une demande est enregistree.' },
-  { key: 'available', label: 'Disponibilite', description: "Un media (ou un episode/une saison suivie) est disponible sur Plex — VO, VF, amelioration VO→VF, ou jalon de serie, selon le contexte." },
-  { key: 'failure', label: 'Echec', description: "La demande n'a pas pu etre transmise a Sonarr ou Radarr." },
+  { key: 'request', label: 'Nouvelle demande', description: 'Confirmation envoyée quand une demande est enregistrée.' },
+  { key: 'available', label: 'Disponibilité', description: "Un média (ou un épisode/une saison suivie) est disponible sur Plex — VO, VF, amélioration VO→VF, ou jalon de série, selon le contexte." },
+  { key: 'failure', label: 'Échec', description: "La demande n'a pas pu être transmise à Sonarr ou Radarr." },
 ];
 </script>
 <style scoped lang="scss">

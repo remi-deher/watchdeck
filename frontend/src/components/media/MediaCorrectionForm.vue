@@ -84,6 +84,6 @@ function handleCorrectionChange(opt: string, checked: boolean): void {
 const scopeLabel = computed(() => {
   if (localForm.scope === 'season') return `(Saison ${localForm.season_number})`;
   if (localForm.scope === 'episode') return `(Saison ${localForm.season_number} Ep ${localForm.episode_number})`;
-  return '(Media complet)';
+  return '(Média complet)';
 });
 </script>
