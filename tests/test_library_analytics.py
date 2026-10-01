@@ -7,6 +7,7 @@ import pytest
 
 from app.models import LibraryAnalyticsSnapshot
 from app.services.library_analytics import (
+    _build_payload,
     analytics_item,
     analytics_item_technical,
     analytics_items_payload,
@@ -59,6 +60,19 @@ def test_parse_plex_item_extracts_raw_technical_metadata():
     assert row["audio_track_count"] == 1
     assert row["subtitle_count"] == 2
     assert row["subtitle_languages"] == ["English", "Français"]
+
+
+def test_a_catalog_entry_without_streams_has_unknown_subtitles():
+    item = sample_item()
+    item["Media"][0]["Part"][0].pop("Stream")
+    row = parse_plex_item(item, "Séries", "show")
+    assert row["subtitle_count"] is None
+
+    # `play_count` et `viewers` sont ajoutes au rafraichissement, apres la lecture du catalogue.
+    payload = _build_payload([{**row, "play_count": 0, "viewers": []}], "2026-10-01T00:00:00", {})
+    subtitles = next(entry for entry in payload["insights"] if entry["kind"] == "subtitles")
+    assert subtitles["value"] is None
+    assert apply_filters([row], {"subtitle": "without"}) == []
 
 
 def test_the_banner_of_an_episode_is_its_show_background():
