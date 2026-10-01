@@ -9,7 +9,9 @@ mais elle nécessite un token Plex valide.
 
 import hashlib
 import logging
+import os
 import urllib.parse
+import uuid
 from typing import Optional
 
 import httpx
@@ -21,7 +23,35 @@ logger = logging.getLogger(__name__)
 
 PLEX_TV_BASE = "https://plex.tv"
 DISCOVER_BASE = "https://discover.provider.plex.tv"
-CLIENT_IDENTIFIER = "1c8e19c3-8824-4f2b-8a8b-3e5f2ea129a6"
+# Identifiant client Plex propre a chaque instance. L'ancienne constante, commune a toutes
+# les installations et publique dans le depot, permettait d'interroger sur plex.tv les PIN
+# de connexion d'une autre instance (et d'y lire le token Plex une fois le PIN valide).
+_CLIENT_ID_FILE = os.path.join("data", ".plex_client_id")
+_client_identifier: str | None = None
+
+
+def client_identifier() -> str:
+    """Lit ou genere l'identifiant client Plex de l'instance (persiste dans data/)."""
+    global _client_identifier
+    if _client_identifier:
+        return _client_identifier
+    value = (os.getenv("WATCHDECK_PLEX_CLIENT_ID") or "").strip()
+    if not value:
+        try:
+            with open(_CLIENT_ID_FILE) as f:
+                value = f.read().strip()
+        except OSError:
+            value = ""
+    if not value:
+        value = str(uuid.uuid4())
+        try:
+            os.makedirs(os.path.dirname(_CLIENT_ID_FILE), exist_ok=True)
+            with open(_CLIENT_ID_FILE, "w") as f:
+                f.write(value)
+        except OSError:
+            logger.warning("Identifiant client Plex non persiste : il changera au prochain demarrage")
+    _client_identifier = value
+    return value
 
 
 def _as_user_list(payload) -> list[dict]:
@@ -60,7 +90,7 @@ async def get_server_users(plex_token: str) -> tuple[list[dict], list[str]]:
     headers = {
         "X-Plex-Token": plex_token,
         "Accept": "application/json",
-        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER,
+        "X-Plex-Client-Identifier": client_identifier(),
     }
     endpoints = (
         ("owner", "/api/v2/user"),
@@ -129,7 +159,7 @@ async def _legacy_get_friends_watchlist(plex_url: str, plex_token: str) -> list[
     headers = {
         "X-Plex-Token": plex_token,
         "Accept": "application/json",
-        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER,
+        "X-Plex-Client-Identifier": client_identifier(),
     }
     items = []
 
@@ -164,7 +194,7 @@ async def get_admin_watchlist(plex_url: str, plex_token: str) -> list[dict]:
     headers = {
         "X-Plex-Token": plex_token,
         "Accept": "application/json",
-        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER,
+        "X-Plex-Client-Identifier": client_identifier(),
     }
     async with httpx.AsyncClient(timeout=30) as client:
         username = await _get_account_username(client, headers)
@@ -226,7 +256,7 @@ async def get_plex_account(token: str) -> Optional[dict]:
     headers = {
         "X-Plex-Token": token,
         "Accept": "application/json",
-        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER,
+        "X-Plex-Client-Identifier": client_identifier(),
     }
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -250,17 +280,21 @@ async def get_plex_account(token: str) -> Optional[dict]:
     }
 
 
-async def check_auth_pin(pin_id: int) -> Optional[str]:
+async def check_auth_pin(pin_id: int, code: str | None = None) -> Optional[str]:
     """Vérifie si le code PIN a été validé par l'utilisateur sur Plex.
+
+    `code` (renvoye a la creation du PIN) est transmis a plex.tv, qui refuse alors
+    un PIN dont le code ne correspond pas.
 
     Returns:
         Le Plex Token s'il est disponible, None sinon.
     """
     logger.info("SSO: checking PIN status for pin_id: %s", pin_id)
-    headers = {"Accept": "application/json", "X-Plex-Client-Identifier": CLIENT_IDENTIFIER}
+    headers = {"Accept": "application/json", "X-Plex-Client-Identifier": client_identifier()}
     async with httpx.AsyncClient(timeout=10) as client:
         # Utilisation de l'API v2 officielle de Plex pour vérifier les PINs
-        resp = await client.get(f"{PLEX_TV_BASE}/api/v2/pins/{pin_id}", headers=headers)
+        params = {"code": code} if code else None
+        resp = await client.get(f"{PLEX_TV_BASE}/api/v2/pins/{pin_id}", headers=headers, params=params)
         logger.info("SSO: Plex pins API status: %s", resp.status_code)
         resp.raise_for_status()
         data = resp.json()
@@ -290,7 +324,7 @@ async def _get_user_watchlist(
     headers = {
         "X-Plex-Token": token,
         "Accept": "application/json",
-        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER,
+        "X-Plex-Client-Identifier": client_identifier(),
     }
     items = []
     try:
@@ -404,7 +438,7 @@ async def get_auth_pin(forward_url: str = "") -> dict:
     headers = {
         "Accept": "application/json",
         "X-Plex-Product": "Watchdeck",
-        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER,
+        "X-Plex-Client-Identifier": client_identifier(),
     }
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(f"{PLEX_TV_BASE}/api/v2/pins?strong=true", headers=headers)
@@ -416,12 +450,48 @@ async def get_auth_pin(forward_url: str = "") -> dict:
         forward = "https://app.plex.tv"
         encoded_forward = urllib.parse.quote(forward, safe="")
         auth_url = (
-            f"https://app.plex.tv/auth#?clientID={CLIENT_IDENTIFIER}"
+            f"https://app.plex.tv/auth#?clientID={client_identifier()}"
             f"&code={code}"
             f"&context%5Bdevice%5D%5Bproduct%5D=Watchdeck"
             f"&forwardUrl={encoded_forward}"
         )
         return {"id": pin_id, "code": code, "auth_url": auth_url}
+
+
+def _same_plex_account(entry: dict, user_username: str, user_email: str | None, user_uuid: str | None) -> bool:
+    """Compare un compte de la liste plex.tv au compte qui se connecte.
+
+    L'UUID fait foi des que les deux cotes en ont un : le nom affiche (`title`) d'un
+    membre geree est libre, et un nom d'utilisateur Plex peut changer de proprietaire.
+    Le nom ou l'email ne servent qu'a defaut d'UUID.
+    """
+    entry_uuid = entry.get("uuid") or str(entry.get("id") or "")
+    if user_uuid and entry_uuid:
+        return entry_uuid == user_uuid
+    entry_username = entry.get("username")
+    entry_email = entry.get("email")
+    return bool(
+        (user_username and entry_username and entry_username.lower() == user_username.lower())
+        or (user_email and entry_email and entry_email.lower() == user_email.lower())
+    )
+
+
+async def get_plex_owner_uuid(admin_token: str) -> str | None:
+    """UUID du compte proprietaire du token serveur (celui de l'administrateur Plex)."""
+    headers = {
+        "X-Plex-Token": admin_token,
+        "Accept": "application/json",
+        "X-Plex-Client-Identifier": client_identifier(),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{PLEX_TV_BASE}/api/v2/user", headers=headers)
+        if resp.status_code == 200:
+            owner = resp.json()
+            return owner.get("uuid") or str(owner.get("id") or "") or None
+    except Exception as e:
+        logger.warning(f"Error reading Plex owner account: {e}")
+    return None
 
 
 async def has_server_access(
@@ -431,60 +501,26 @@ async def has_server_access(
     headers = {
         "X-Plex-Token": admin_token,
         "Accept": "application/json",
-        "X-Plex-Client-Identifier": CLIENT_IDENTIFIER,
+        "X-Plex-Client-Identifier": client_identifier(),
     }
     async with httpx.AsyncClient(timeout=10) as client:
-        # 1. Vérifier si c'est le propriétaire
-        try:
-            resp = await client.get(f"{PLEX_TV_BASE}/api/v2/user", headers=headers)
-            if resp.status_code == 200:
-                owner = resp.json()
-                owner_uuid = owner.get("uuid") or str(owner.get("id") or "")
-                owner_username = owner.get("username") or owner.get("title")
-                owner_email = owner.get("email")
-                if (
-                    (user_uuid and owner_uuid == user_uuid)
-                    or (user_username and owner_username.lower() == user_username.lower())
-                    or (user_email and owner_email and owner_email.lower() == user_email.lower())
+        for path, label in (
+            ("/api/v2/user", "owner account"),
+            ("/api/v2/friends", "friends"),
+            ("/api/v2/home/users", "Plex Home users"),
+        ):
+            try:
+                resp = await client.get(f"{PLEX_TV_BASE}{path}", headers=headers)
+                if resp.status_code != 200:
+                    continue
+                payload = resp.json()
+                entries = [payload] if isinstance(payload, dict) else payload
+                if any(
+                    isinstance(entry, dict) and _same_plex_account(entry, user_username, user_email, user_uuid)
+                    for entry in entries
                 ):
                     return True
-        except Exception as e:
-            logger.warning(f"Error checking Plex owner account: {e}")
-
-        # 2. Vérifier les amis (friends)
-        try:
-            resp = await client.get(f"{PLEX_TV_BASE}/api/v2/friends", headers=headers)
-            if resp.status_code == 200:
-                friends = resp.json()
-                for friend in friends:
-                    friend_uuid = friend.get("uuid") or str(friend.get("id") or "")
-                    friend_username = friend.get("username") or friend.get("title")
-                    friend_email = friend.get("email")
-                    if (
-                        (user_uuid and friend_uuid == user_uuid)
-                        or (user_username and friend_username and friend_username.lower() == user_username.lower())
-                        or (user_email and friend_email and friend_email.lower() == user_email.lower())
-                    ):
-                        return True
-        except Exception as e:
-            logger.warning(f"Error checking Plex friends: {e}")
-
-        # 3. Vérifier les membres du Plex Home (home/users)
-        try:
-            resp = await client.get(f"{PLEX_TV_BASE}/api/v2/home/users", headers=headers)
-            if resp.status_code == 200:
-                home_users = resp.json()
-                for member in home_users:
-                    member_uuid = member.get("uuid") or str(member.get("id") or "")
-                    member_username = member.get("username") or member.get("title")
-                    member_email = member.get("email")
-                    if (
-                        (user_uuid and member_uuid == user_uuid)
-                        or (user_username and member_username and member_username.lower() == user_username.lower())
-                        or (user_email and member_email and member_email.lower() == user_email.lower())
-                    ):
-                        return True
-        except Exception as e:
-            logger.warning(f"Error checking Plex Home users: {e}")
+            except Exception as e:
+                logger.warning(f"Error checking Plex {label}: {e}")
 
     return False

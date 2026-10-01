@@ -1,5 +1,6 @@
 import html as _html
 import logging
+import secrets
 
 import markdown
 from jinja2 import TemplateError
@@ -505,11 +506,39 @@ def _resolve_str_setting(settings, field):
     return val if isinstance(val, str) else None
 
 
+# Balises dont la valeur est deja du HTML construit et echappe par l'application.
+_HTML_TAGS = frozenset({"{message_admin}"})
+# Balises dont la valeur est du Markdown genere par l'application (listes) : substituees
+# avant la conversion Markdown, mais echappees (HTML et accolades Jinja).
+_MARKDOWN_TAGS = frozenset({"{corrections}"})
+
+
+def _neutralize(value: str) -> str:
+    """Texte -> fragment sur : HTML echappe, accolades rendues inertes pour Jinja."""
+    return _html.escape(value, quote=True).replace("{", "&#123;").replace("}", "&#125;")
+
+
 def render_template(template_str: str, tags: dict, jinja_ctx: dict) -> str:
-    # 1. Remplacement des tags intelligents
+    """Rend un template d'email (Markdown + coquille Jinja).
+
+    Les valeurs des balises (titre, resume, nom d'utilisateur...) viennent en partie des
+    utilisateurs et des sources de metadonnees : elles ne doivent jamais etre
+    interpretees, ni comme HTML/Markdown, ni comme code Jinja. Elles sont donc posees
+    sous forme de jetons inertes, et remplacees par leur valeur echappee une fois le
+    Markdown converti et le Jinja rendu.
+    """
+    placeholders: dict[str, str] = {}
     rendered_md = template_str
-    for tag, value in tags.items():
-        rendered_md = rendered_md.replace(tag, str(value))
+    for index, (tag, value) in enumerate(tags.items()):
+        if tag not in rendered_md:
+            continue
+        text = "" if value is None else str(value)
+        if tag in _MARKDOWN_TAGS:
+            rendered_md = rendered_md.replace(tag, _neutralize(text))
+            continue
+        token = f"wdtag{index}x{secrets.token_hex(4)}"
+        placeholders[token] = text if tag in _HTML_TAGS else _neutralize(text)
+        rendered_md = rendered_md.replace(tag, token)
 
     # Nettoyage des espaces inutiles
     rendered_md = rendered_md.replace("  ", " ")
@@ -520,17 +549,24 @@ def render_template(template_str: str, tags: dict, jinja_ctx: dict) -> str:
     # 3. Injection dans la coquille Jinja2 globale
     try:
         html = _EMAIL_SHELL.replace("__CONTENT__", html_content)
-        return _jinja_env.from_string(html).render(**jinja_ctx)
+        html = _jinja_env.from_string(html).render(**jinja_ctx)
     except TemplateError:
         logger.exception("Template render error")
         return "<p>Erreur de rendu du template — voir les journaux serveur pour le détail.</p>"
+
+    # 4. Valeurs des balises, apres tout rendu
+    for token, value in placeholders.items():
+        html = html.replace(token, value)
+    return html
 
 
 def render_subject(template_str: str, tags: dict, fallback: str) -> str:
     rendered = template_str
     for tag, value in tags.items():
         rendered = rendered.replace(tag, str(value))
-    rendered = rendered.replace("  ", " ")
+    # Un objet d'email tient sur une ligne : un saut de ligne venu d'une valeur (titre
+    # saisi par un utilisateur) ne doit pas pouvoir ajouter d'en-tete au message.
+    rendered = " ".join(rendered.split())
     return rendered.strip() or fallback
 
 
