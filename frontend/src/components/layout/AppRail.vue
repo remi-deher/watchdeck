@@ -1,7 +1,19 @@
 <template>
-  <nav class="app-rail" :data-density="density" aria-label="Navigation principale">
+  <nav class="app-rail" :data-density="density" :data-space="space" :aria-label="space === 'admin' ? 'Navigation de l’administration' : 'Navigation principale'">
     <div class="app-rail__header">
-      <RouterLink class="app-rail__brand" to="/" :aria-label="`Watchdeck — accueil`">
+      <!-- Dans l'Administration, la marque cède la place au retour : cette barre remplace
+           le rail de l'application, et c'est par là qu'on y revient. -->
+      <RouterLink
+        v-if="space === 'admin'"
+        class="app-rail__back"
+        :to="backTo"
+        aria-label="Retour à Watchdeck"
+        title="Retour à Watchdeck"
+      >
+        <ArrowLeft aria-hidden="true" />
+        <span :class="{ 'sr-only': density === 'medium' }" aria-hidden="true">Watchdeck</span>
+      </RouterLink>
+      <RouterLink v-else class="app-rail__brand" to="/" :aria-label="`Watchdeck — accueil`">
         <Clapperboard aria-hidden="true" />
         <span class="app-rail__brand-name" :class="{ 'sr-only': density === 'medium' }" :title="pageTitle || 'Watchdeck'">{{ pageTitle || 'Watchdeck' }}</span>
       </RouterLink>
@@ -18,25 +30,29 @@
       </button>
     </div>
 
+    <template v-if="space === 'admin'">
+      <p v-if="density === 'expanded'" class="app-rail__space-title">
+        <Settings aria-hidden="true" />Administration
+      </p>
+      <button
+        type="button"
+        class="app-rail__search"
+        :title="density === 'medium' ? 'Chercher un réglage' : undefined"
+        @click="$emit('open-palette')"
+      >
+        <Search aria-hidden="true" />
+        <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">Chercher</span>
+        <kbd v-if="density === 'expanded'">{{ shortcutLabel }}</kbd>
+      </button>
+    </template>
+
     <div ref="scroller" class="app-rail__scroll" data-overflow="" @scroll.passive="scheduleMeasure">
       <!-- Les groupes structurent le rail déployé. En mode compact ils deviennent de
            simples séparateurs : leur libellé ne tiendrait pas sur 72px, mais la
            coupure visuelle, elle, reste lisible. -->
-      <div v-for="group in groups" :key="group.label" class="app-rail__group" :data-group="group.label">
-        <!-- L'administration (sept entrées) se replie sous son titre quand on n'y est
-             pas : déployée en permanence, elle passait sous le bas d'un écran de 900px. -->
-        <button
-          v-if="density === 'expanded' && isFoldable(group)"
-          type="button"
-          class="app-rail__group-label app-rail__group-toggle"
-          :aria-expanded="isOpen(group)"
-          @click="toggleGroup(group.label)"
-        >
-          <span>{{ group.label }}</span>
-          <ChevronDown class="app-rail__group-chevron" aria-hidden="true" />
-        </button>
-        <p v-else-if="density === 'expanded'" class="app-rail__group-label">{{ group.label }}</p>
-        <ul v-if="density !== 'expanded' || isOpen(group)">
+      <div v-for="group in groups" :key="group.label" class="app-rail__group">
+        <p v-if="density === 'expanded' && group.label" class="app-rail__group-label">{{ group.label }}</p>
+        <ul>
           <li v-for="destination in group.items" :key="destination.key">
             <RouterLink
               class="app-nav-link app-rail__link"
@@ -49,6 +65,20 @@
                    il continue de nommer le lien pour les technologies d'assistance,
                    sans dépendre d'un aria-label à maintenir en double. -->
               <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">{{ destination.label }}</span>
+              <template v-if="space === 'admin'">
+                <span
+                  v-if="destination.key === 'admin-overview' && attention.urgent.value"
+                  class="app-rail__count"
+                  :aria-label="`${attention.urgent.value} point${attention.urgent.value > 1 ? 's' : ''} à traiter`"
+                >{{ attention.urgent.value }}</span>
+                <span
+                  v-else-if="attention.severityOf(destination.key)"
+                  class="app-rail__dot"
+                  :class="`is-${attention.severityOf(destination.key)}`"
+                  role="img"
+                  :aria-label="severityLabel(attention.severityOf(destination.key))"
+                ></span>
+              </template>
             </RouterLink>
             <ul
               v-if="density === 'expanded' && destination.key === activeKey && sections.length > 1"
@@ -72,6 +102,22 @@
     </div>
 
     <div class="app-rail__footer">
+      <!-- La porte unique de l'Administration : ses groupes ne prennent plus de place
+           dans le rail, mais ce qui y est cassé se voit d'ici. -->
+      <RouterLink
+        v-if="space === 'app' && isAdmin"
+        class="app-nav-link app-rail__link"
+        :to="ADMIN_ENTRY.to"
+        :title="density === 'medium' ? ADMIN_ENTRY.label : undefined"
+      >
+        <component :is="ADMIN_ENTRY.icon" aria-hidden="true" />
+        <span :class="density === 'medium' ? 'sr-only' : 'app-rail__label'">{{ ADMIN_ENTRY.label }}</span>
+        <span
+          v-if="attention.urgent.value"
+          class="app-rail__count"
+          :aria-label="`${attention.urgent.value} point${attention.urgent.value > 1 ? 's' : ''} à traiter`"
+        >{{ attention.urgent.value }}</span>
+      </RouterLink>
       <!-- Bascule sombre/clair en un clic ; le mode « Systeme » se choisit dans le
            profil ou par la palette (Ctrl+K « theme »). -->
       <button type="button" class="app-nav-link app-rail__link" :aria-label="themeLabel" :title="themeLabel" @click="toggleTheme">
@@ -89,9 +135,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { ChevronDown, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Sun, UserRound } from '@lucide/vue';
+import { ArrowLeft, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings, Sun, UserRound } from '@lucide/vue';
 import { useTheme } from '@/composables/useTheme';
-import { destinationsFor, type NavDestination } from '@/navigation';
+import { ADMIN_ENTRY, adminAreasFor, destinationsFor, type NavDestination } from '@/navigation';
+import { shortcutLabel } from '@/shortcut';
+import { useAdminAttention } from '@/composables/useAdminAttention';
+import type { AttentionSeverity } from '@/adminAttention';
 
 const { resolved: resolvedTheme, toggle: toggleTheme } = useTheme();
 const themeLabel = computed(() => (resolvedTheme.value === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'));
@@ -107,55 +156,35 @@ const props = withDefaults(
     canModerate?: boolean;
     collapsible?: boolean;
     collapsed?: boolean;
+    /** `admin` : barre de l'espace Administration, qui prend la place du rail. */
+    space?: 'app' | 'admin';
+    /** Où mène « Retour à Watchdeck » : la dernière page de l'application visitée. */
+    backTo?: string;
   }>(),
-  { activeKey: '', pageTitle: 'Watchdeck', isAdmin: false, canModerate: false, collapsible: false, collapsed: false }
+  { activeKey: '', pageTitle: 'Watchdeck', isAdmin: false, canModerate: false, collapsible: false, collapsed: false, space: 'app', backTo: '/' }
 );
 
 defineEmits<{ (e: 'open-palette'): void; (e: 'toggle-rail'): void }>();
 const { sections, activeKey: activeSectionKey } = usePageSections();
+const attention = useAdminAttention({ enabled: () => props.isAdmin });
+
+function severityLabel(severity: AttentionSeverity | null): string {
+  if (severity === 'error') return 'En erreur';
+  if (severity === 'warn') return 'À surveiller';
+  return 'Information';
+}
 
 /** Un seul niveau, groupé par métier : le rail montre toujours tout ce qui est permis. */
 const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() => {
   const result: Array<{ label: string; items: NavDestination[] }> = [];
-  for (const destination of destinationsFor(props.isAdmin, props.canModerate)) {
+  const items = props.space === 'admin' ? adminAreasFor(props.isAdmin) : destinationsFor(props.isAdmin, props.canModerate);
+  for (const destination of items) {
     const existing = result.find((group) => group.label === destination.group);
     if (existing) existing.items.push(destination);
     else result.push({ label: destination.group, items: [destination] });
   }
   return result;
 });
-
-/* Groupes repliables du rail deploye. Le groupe de la page courante reste toujours
-   ouvert (son titre n'est alors plus un bouton) ; ailleurs, le choix de l'utilisateur est
-   retenu dans ce navigateur. */
-const FOLDABLE_GROUPS = new Set(['Administration']);
-const FOLD_STORAGE_KEY = 'watchdeck-rail-open-groups';
-
-function readOpenGroups(): string[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(FOLD_STORAGE_KEY) || '[]');
-    return Array.isArray(raw) ? raw.map(String) : [];
-  } catch {
-    return [];
-  }
-}
-
-const openGroups = ref<string[]>(readOpenGroups());
-const containsActive = (group: { items: NavDestination[] }) => group.items.some((item) => item.key === props.activeKey);
-const isFoldable = (group: { label: string; items: NavDestination[] }) => FOLDABLE_GROUPS.has(group.label) && !containsActive(group);
-const isOpen = (group: { label: string; items: NavDestination[] }) => !isFoldable(group) || openGroups.value.includes(group.label);
-
-function toggleGroup(label: string): void {
-  const opening = !openGroups.value.includes(label);
-  openGroups.value = opening ? [...openGroups.value, label] : openGroups.value.filter((entry) => entry !== label);
-  // Le groupe s'ouvre en bas du rail : on fait defiler ses entrees dans le champ.
-  if (opening) void nextTick(() => scroller.value?.querySelector(`[data-group="${label}"]`)?.scrollIntoView({ block: 'nearest' }));
-  try {
-    localStorage.setItem(FOLD_STORAGE_KEY, JSON.stringify(openGroups.value));
-  } catch {
-    /* Stockage indisponible : le choix vaut pour la session en cours. */
-  }
-}
 
 /* Indice de defilement du rail.
    La barre native est masquee a dessein (elle rognait la colonne) ; sans elle, rien ne
@@ -211,15 +240,7 @@ onBeforeUnmount(() => {
 
 /* Les sections de page s'ajoutent et se retirent sous la destination active : le
    contenu du rail change sans que sa boite bouge. */
-watch([() => groups.value.length, () => sections.value.length, () => openGroups.value.length, () => props.activeKey], () => void nextTick(measureOverflow));
-
-/* Sur une page d'administration, le lien courant tombait sous le fondu du bas du rail :
-   on l'amene dans le champ a chaque changement de destination. */
-function revealActive(): void {
-  scroller.value?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'center' });
-}
-watch(() => props.activeKey, () => void nextTick(revealActive));
-onMounted(() => void nextTick(revealActive));
+watch([() => groups.value.length, () => sections.value.length], () => void nextTick(measureOverflow));
 </script>
 
 <style scoped lang="scss">
@@ -320,24 +341,6 @@ onMounted(() => void nextTick(revealActive));
   text-transform: uppercase;
 }
 
-.app-rail__group-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: var(--touch-target, 32px);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  font-family: inherit;
-  cursor: pointer;
-}
-.app-rail__group-toggle:hover { color: var(--text); }
-.app-rail__group-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.app-rail__group-chevron { width: 14px; height: 14px; transition: transform var(--motion-duration-fast) var(--motion-ease-standard); }
-.app-rail__group-toggle[aria-expanded="true"] .app-rail__group-chevron { transform: rotate(180deg); }
-.app-rail__group-toggle[aria-expanded="false"] { margin-bottom: 0; }
-
 .app-rail__link {
   display: flex;
   align-items: center;
@@ -394,6 +397,84 @@ onMounted(() => void nextTick(revealActive));
 .app-rail__sublink:hover { color: var(--text); background: var(--surface); }
 .app-rail__sublink[aria-current='page'] { color: var(--accent); font-weight: 700; }
 
+.app-rail__back {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.app-rail__back span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.app-rail__back svg { flex: none; width: 18px; height: 18px; }
+.app-rail__back:hover { color: var(--text); background: var(--surface); }
+.app-rail__space-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text);
+}
+.app-rail__space-title svg { width: 20px; height: 20px; color: var(--accent); }
+.app-rail__search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.app-rail__search svg { flex: none; width: 17px; height: 17px; }
+.app-rail__search:hover { border-color: var(--border-strong); color: var(--text); }
+.app-rail__search kbd {
+  margin-left: auto;
+  white-space: nowrap;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-xs);
+}
+.app-rail__count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--red) 16%, transparent);
+  color: var(--red-text);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.app-rail__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.app-rail__dot.is-error { background: var(--red); }
+.app-rail__dot.is-warn { background: var(--amber); }
+
 .app-rail__footer {
   display: grid;
   gap: 2px;
@@ -404,6 +485,12 @@ onMounted(() => void nextTick(revealActive));
 /* Icônes seules : la cible reste carrée et centrée, jamais plus étroite que 44px. */
 .app-rail[data-density='medium'] {
   .app-rail__header { flex-direction: column; }
+  .app-rail__back { flex: none; justify-content: center; width: var(--touch-target); padding: 0; }
+  .app-rail__search { justify-content: center; width: var(--touch-target); min-height: var(--touch-target); padding: 0; align-self: center; }
+  /* Sur 72px, le compteur et la pastille se posent sur l'icône plutôt qu'à côté. */
+  .app-rail__link { position: relative; }
+  .app-rail__count { position: absolute; top: 4px; right: 4px; min-width: 16px; padding: 0 4px; font-size: 10px; }
+  .app-rail__dot { position: absolute; top: 9px; right: 9px; }
   .app-rail__brand { flex: none; justify-content: center; width: var(--touch-target); padding: 0; }
   .app-rail__group + .app-rail__group { padding-top: var(--space-3); }
   .app-rail__link { justify-content: center; gap: 0; padding: 0; }
