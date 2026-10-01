@@ -3,8 +3,8 @@
     <div class="panel-head studio-head">
       <div><h2>Modeles d'emails</h2><p>Declencheurs, contenu et simulation des destinataires.</p></div>
       <div class="actions">
-        <UiButton v-if="hasPrevious" :disabled="busy" @click="restorePrevious"><Undo2/>Version precedente</UiButton>
-        <UiButton :disabled="busy" @click="reset"><RotateCcw/>Valeurs par defaut</UiButton>
+        <UiButton v-if="hasPrevious" :disabled="busy" @click="restorePrevious"><Undo2/>Version précédente</UiButton>
+        <UiButton :disabled="busy" @click="reset"><RotateCcw/>Valeurs par défaut</UiButton>
         <UiButton variant="primary" :disabled="busy||!isDirty" @click="save"><Save/>Enregistrer</UiButton>
       </div>
     </div>
@@ -90,29 +90,29 @@ import { useConfirm } from '@/composables/useConfirm';
 const seriesEventTypes=['episode_available','season_started','season_partial','season_complete','series_partial','series_complete'];
 const eventGroups=[
   {label:'Demandes',items:[
-    {key:'request',label:'Demande enregistree',description:'Confirmation de la demande',icon:markRaw(MailCheck)},
-    {key:'failure',label:'Echec de transmission',description:'Envoi vers Sonarr ou Radarr impossible',icon:markRaw(FileWarning)},
+    {key:'request',label:'Demande enregistrée',description:'Confirmation de la demande',icon:markRaw(MailCheck)},
+    {key:'failure',label:'Échec de transmission',description:'Envoi vers Sonarr ou Radarr impossible',icon:markRaw(FileWarning)},
   ]},
-  {label:'Disponibilite',items:[
-    {key:'available',label:'Film disponible',description:'Premiere disponibilite du film',icon:markRaw(Film)},
-    {key:'episode_available',label:'Episode disponible',description:'Un episode isole',icon:markRaw(Tv)},
-    {key:'season_started',label:'Saison demarree',description:'Premier episode de la saison',icon:markRaw(Tv)},
+  {label:'Disponibilité',items:[
+    {key:'available',label:'Film disponible',description:'Première disponibilité du film',icon:markRaw(Film)},
+    {key:'episode_available',label:'Épisode disponible',description:'Un épisode isolé',icon:markRaw(Tv)},
+    {key:'season_started',label:'Saison démarrée',description:'Premier épisode de la saison',icon:markRaw(Tv)},
     {key:'season_partial',label:'Saison partielle',description:'Plusieurs episodes, saison incomplete',icon:markRaw(Tv)},
     {key:'season_complete',label:'Saison complete',description:'Une saison entierement disponible',icon:markRaw(Tv)},
     {key:'series_partial',label:'Plusieurs saisons',description:'Certaines saisons seulement',icon:markRaw(Tv)},
-    {key:'series_complete',label:'Serie complete',description:'Toutes les saisons attendues',icon:markRaw(Tv)},
+    {key:'series_complete',label:'Série complète',description:'Toutes les saisons attendues',icon:markRaw(Tv)},
   ]},
   {label:'Suivi et administration',items:[
     {key:'upgrade',label:'Amelioration VF',description:'Passage connu de VO vers VF',icon:markRaw(Sparkles)},
     {key:'correction',label:'Correction',description:'Message manuel de correction',icon:markRaw(ShieldAlert)},
-    {key:'cancelled',label:'Demande annulee',description:'Demande annulee et bloquee par un administrateur',icon:markRaw(Ban)},
+    {key:'cancelled',label:'Demande annulée',description:'Demande annulée et bloquée par un administrateur',icon:markRaw(Ban)},
   ]},
 ];
 const eventTypes=eventGroups.flatMap(group=>group.items);
 const scenarioMap={
   available:[{value:'movie_generic',label:'Film sans langue'},{value:'movie_vo',label:'Film en VO'},{value:'movie_vf',label:'Film en VF'}],
   episode_available:[{value:'default',label:'Episode generique'},{value:'episode_vo',label:'Episode en VO'},{value:'episode_vf',label:'Episode en VF'}],
-  season_started:[{value:'default',label:'Premier episode'},{value:'season_start_vf',label:'Premier episode en VF'}],
+  season_started:[{value:'default',label:'Premier épisode'},{value:'season_start_vf',label:'Premier épisode en VF'}],
   season_partial:[{value:'default',label:'6 episodes sur 10'}],
   season_complete:[{value:'default',label:'Une saison sur plusieurs'},{value:'season_complete_vf',label:'Saison complete en VF'}],
   series_partial:[{value:'default',label:'3 saisons completes sur 5'}],
@@ -121,10 +121,10 @@ const scenarioMap={
   request:[{value:'default',label:'Nouvelle demande'}],failure:[{value:'default',label:'Sonarr indisponible'}],correction:[{value:'default',label:'Correction manuelle'}],
 };
 const variables=[
-  {tag:'{titre}',description:"Titre de l'oeuvre"},{tag:'{type}',description:'Le film ou La serie'},{tag:'{media_type_et_titre}',description:'Type et titre combines'},{tag:'{annee}',description:'Annee de sortie'},{tag:'{affiche}',description:"URL de l'affiche"},{tag:'{details_saison_episode}',description:'Saison et episode'},{tag:'{numero_saison}',description:'Numero seul de la saison, par exemple 1'},{tag:'{saison}',description:'Libelle complet, par exemple Saison 1'},{tag:'{saisons_concernees}',description:'Saisons du mail, par exemple Saison 1, 2 et 4'},{tag:'{langue}',description:'Version VF ou VO'},{tag:'{nom_utilisateur}',description:'Nom du demandeur'},{tag:'{synopsis}',description:'Resume du media'},{tag:'{raison}',description:"Raison de l'echec"},{tag:'{corrections}',description:'Corrections appliquees'},{tag:'{note_correction}',description:'Note de correction'},{tag:'{message_admin}',description:'Votre texte libre, dans un encadre attribue (rien si vide)'},{tag:'{resume_disponibilite}',description:'Resume complet de la disponibilite'},{tag:'{saisons_disponibles}',description:'Numeros des saisons disponibles'},{tag:'{saisons_completes}',description:'Numeros des saisons completes'},{tag:'{saisons_partielles}',description:'Numeros des saisons partielles'},{tag:'{saisons_manquantes}',description:'Numeros des saisons encore absentes'},{tag:'{nombre_saisons_disponibles}',description:'Nombre de saisons disponibles'},{tag:'{nombre_saisons_completes}',description:'Nombre de saisons completes'},{tag:'{nombre_saisons_attendues}',description:'Nombre total de saisons attendues'},{tag:'{nombre_episodes_disponibles}',description:'Nombre d episodes disponibles dans le lot'},
+  {tag:'{titre}',description:"Titre de l'œuvre"},{tag:'{type}',description:'Le film ou la série'},{tag:'{media_type_et_titre}',description:'Type et titre combinés'},{tag:'{annee}',description:'Année de sortie'},{tag:'{affiche}',description:"URL de l'affiche"},{tag:'{details_saison_episode}',description:'Saison et épisode'},{tag:'{numero_saison}',description:'Numéro seul de la saison, par exemple 1'},{tag:'{saison}',description:'Libelle complet, par exemple Saison 1'},{tag:'{saisons_concernees}',description:'Saisons du mail, par exemple Saison 1, 2 et 4'},{tag:'{langue}',description:'Version VF ou VO'},{tag:'{nom_utilisateur}',description:'Nom du demandeur'},{tag:'{synopsis}',description:'Résumé du média'},{tag:'{raison}',description:"Raison de l'echec"},{tag:'{corrections}',description:'Corrections appliquees'},{tag:'{note_correction}',description:'Note de correction'},{tag:'{message_admin}',description:'Votre texte libre, dans un encadre attribue (rien si vide)'},{tag:'{resume_disponibilite}',description:'Resume complet de la disponibilite'},{tag:'{saisons_disponibles}',description:'Numeros des saisons disponibles'},{tag:'{saisons_completes}',description:'Numeros des saisons completes'},{tag:'{saisons_partielles}',description:'Numeros des saisons partielles'},{tag:'{saisons_manquantes}',description:'Numeros des saisons encore absentes'},{tag:'{nombre_saisons_disponibles}',description:'Nombre de saisons disponibles'},{tag:'{nombre_saisons_completes}',description:'Nombre de saisons completes'},{tag:'{nombre_saisons_attendues}',description:'Nombre total de saisons attendues'},{tag:'{nombre_episodes_disponibles}',description:'Nombre d episodes disponibles dans le lot'},
 ];
 const variableTags={request:['{titre}','{type}','{annee}','{nom_utilisateur}','{synopsis}'],failure:['{titre}','{raison}','{nom_utilisateur}'],correction:['{titre}','{details_saison_episode}','{numero_saison}','{saison}','{saisons_concernees}','{corrections}','{message_admin}','{note_correction}','{nom_utilisateur}'],cancelled:['{titre}','{media_type_et_titre}','{message_admin}','{motif}','{nom_utilisateur}']};
-const viewModes=[{key:'edit',label:'Edition'},{key:'split',label:'Partagee'},{key:'preview',label:'Apercu'}];
+const viewModes=[{key:'edit',label:'Édition'},{key:'split',label:'Partagée'},{key:'preview',label:'Aperçu'}];
 const viewModeOptions=viewModes.map(mode=>({value:mode.key,label:mode.label}));
 const eventType=ref('request'),showAppearance=ref(false),viewMode=ref('split'),deviceMode=ref('desktop'),users=ref<any[]>([]),previewHtml=ref(''),previewVariant=ref('default'),previewUser=ref('');
 const error=ref(''),message=ref(''),previewing=ref(false),hasPrevious=ref(false),simulationSettings=ref<Record<string, any>>({});
@@ -154,26 +154,26 @@ const eligibility=computed(()=>simulateEligibility(selectedUser.value));
 function userName(user: any): string {return user.custom_name||user.display_name||user.plex_user_id}
 function inherited(user: any, key: string, fallback: any): any {return user?.[key]??fallback}
 function simulateEligibility(user: any): { ok: boolean; title: string; detail: string } {
-  if(!user)return{ok:true,title:'Apercu avec un utilisateur exemple',detail:'Selectionnez un utilisateur pour simuler ses preferences reelles.'};
+  if(!user)return{ok:true,title:'Aperçu avec un utilisateur exemple',detail:'Sélectionnez un utilisateur pour simuler ses préférences réelles.'};
   const s=simulationSettings.value;
-  if(!s.email_enabled)return{ok:false,title:'Email non envoye',detail:'Le canal email est desactive globalement.'};
+  if(!s.email_enabled)return{ok:false,title:'Email non envoyé',detail:'Le canal email est désactivé globalement.'};
   if(s.notification_hold_enabled)return{ok:false,title:'Email conserve dans la file',detail:'La bascule de blocage des notifications est active.'};
-  if(user.enabled===false)return{ok:false,title:'Email non envoye',detail:'Cet utilisateur est desactive.'};
+  if(user.enabled===false)return{ok:false,title:'Email non envoyé',detail:'Cet utilisateur est désactivé.'};
   const requestEvent=eventType.value==='request',failureEvent=eventType.value==='failure';
-  if(requestEvent&&(!s.email_on_request||user.notify_on_request===false))return{ok:false,title:'Email non envoye',detail:'Les confirmations de demande sont desactivees pour cet utilisateur.'};
-  if(failureEvent&&!s.email_on_failure)return{ok:false,title:'Email non envoye',detail:'Les notifications d echec sont desactivees globalement.'};
-  if(!requestEvent&&!failureEvent&&eventType.value!=='upgrade'&&(!s.email_on_available||user.notify_on_available===false))return{ok:false,title:'Email non envoye',detail:'Les notifications de disponibilite sont desactivees pour cet utilisateur.'};
-  if(eventType.value==='upgrade'&&!s.email_on_vf_available)return{ok:false,title:'Email non envoye',detail:'Les notifications d amelioration VF sont desactivees globalement.'};
+  if(requestEvent&&(!s.email_on_request||user.notify_on_request===false))return{ok:false,title:'Email non envoyé',detail:'Les confirmations de demande sont désactivées pour cet utilisateur.'};
+  if(failureEvent&&!s.email_on_failure)return{ok:false,title:'Email non envoyé',detail:'Les notifications d’échec sont désactivées globalement.'};
+  if(!requestEvent&&!failureEvent&&eventType.value!=='upgrade'&&(!s.email_on_available||user.notify_on_available===false))return{ok:false,title:'Email non envoyé',detail:'Les notifications de disponibilité sont désactivées pour cet utilisateur.'};
+  if(eventType.value==='upgrade'&&!s.email_on_vf_available)return{ok:false,title:'Email non envoyé',detail:'Les notifications d’amélioration VF sont désactivées globalement.'};
   const languageScenario=previewVariant.value.includes('_vf')||eventType.value==='upgrade';
   const movieScenario=eventType.value==='available'||(eventType.value==='upgrade'&&previewVariant.value==='movie_vf');
   const vfPreference=movieScenario?user.notify_vf_movie:user.notify_vf_series;
-  if(languageScenario&&vfPreference===false)return{ok:false,title:'Email non envoye',detail:`Le suivi VF des ${movieScenario?'films':'series'} est desactive pour cet utilisateur.`};
+  if(languageScenario&&vfPreference===false)return{ok:false,title:'Email non envoyé',detail:`Le suivi VF des ${movieScenario?'films':'series'} est désactivé pour cet utilisateur.`};
   const granularity=inherited(user,'series_notify_granularity',s.series_notify_granularity||'jalons');
-  if(eventType.value==='episode_available'&&granularity!=='tout')return{ok:false,title:'Email non envoye',detail:`Granularite ${granularity} : les episodes individuels ne sont pas annonces.`};
-  if(['season_started','season_partial','season_complete'].includes(eventType.value)&&granularity==='minimal')return{ok:false,title:'Email non envoye',detail:'Granularite minimale : seule la serie complete est annoncee.'};
+  if(eventType.value==='episode_available'&&granularity!=='tout')return{ok:false,title:'Email non envoyé',detail:`Granularité ${granularity} : les épisodes individuels ne sont pas annoncés.`};
+  if(['season_started','season_partial','season_complete'].includes(eventType.value)&&granularity==='minimal')return{ok:false,title:'Email non envoyé',detail:'Granularité minimale : seule la série complète est annoncée.'};
   const address=user.notification_email||user.plex_email;
-  if(!address&&!s.has_fallback_recipient)return{ok:false,title:'Email non envoye',detail:'Aucune adresse utilisateur ni adresse de repli.'};
-  return{ok:true,title:'Email envoye a cet utilisateur',detail:`Destinataire : ${address||'adresse SMTP de repli'}${user.notify_admin&&s.has_admin_recipient?' · administrateur en copie':''}.`};
+  if(!address&&!s.has_fallback_recipient)return{ok:false,title:'Email non envoyé',detail:'Aucune adresse utilisateur ni adresse de repli.'};
+  return{ok:true,title:'Email envoyé à cet utilisateur',detail:`Destinataire : ${address||'adresse SMTP de repli'}${user.notify_admin&&s.has_admin_recipient?' · administrateur en copie':''}.`};
 }
 function selectEvent(key: string): void {eventType.value=key;showAppearance.value=false;previewVariant.value=((scenarioMap as Record<string, any>)[key]||scenarioMap.request)[0].value}
 function selectMobile(key: string): void {if(key==='appearance')showAppearance.value=true;else selectEvent(key)}
@@ -182,11 +182,11 @@ function previewPayload(extra: Record<string, any> ={}): Record<string, any> {re
 function fill(data: Record<string, any>): void {for(const entry of eventTypes){const model=models[entry.key];model.template=data[`email_${entry.key}_template`]||'';model.subject=data[`email_${entry.key}_subject`]||'';model.initialTemplate=model.template;model.initialSubject=model.subject;model.accent_color=data[`email_${entry.key}_accent_color`]||data.email_available_accent_color||'#e5a00d';model.badge_text=data[`email_${entry.key}_badge_text`]||data.email_available_badge_text||'';model.headline_text=data[`email_${entry.key}_headline_text`]||data.email_available_headline_text||'';model.show_synopsis=data[`email_${entry.key}_show_synopsis`]!==false}for(const key of Object.keys(shared))if(data[key]!=null)shared[key]=data[key];hasPrevious.value=Boolean(data.has_previous_version);simulationSettings.value=data.simulation_settings||{};savedSnapshot.value=JSON.stringify(payload())}
 async function load(): Promise<void> {error.value='';try{await Promise.all([templatesQuery.refetch(),usersQuery.refetch()])}catch(e: any){error.value=e.message}}
 async function save(): Promise<void> {error.value='';try{await templatesMutation.mutateAsync({path:'/api/email-templates',method:'PUT',body:payload()});savedSnapshot.value=JSON.stringify(payload());message.value='Modèles enregistrés.';hasPrevious.value=true;for(const model of Object.values(models)){model.initialTemplate=model.template;model.initialSubject=model.subject}await preview()}catch(e: any){error.value=e.message}}
-async function reset(): Promise<void> {if(!await askConfirm({title:'Retablir tous les modeles ?',message:'Tous les contenus et reglages visuels seront remplaces par leurs valeurs par defaut.',confirmLabel:'Retablir',danger:true}))return;try{await templatesMutation.mutateAsync({path:'/api/email-templates/reset'});message.value='Modeles retablis.'}catch(e: any){error.value=e.message}}
-async function restorePrevious(): Promise<void> {try{await templatesMutation.mutateAsync({path:'/api/email-templates/restore-previous'});message.value='Version precedente restauree.'}catch(e: any){error.value=e.message}}
+async function reset(): Promise<void> {if(!await askConfirm({title:'Rétablir tous les modèles ?',message:'Tous les contenus et réglages visuels seront remplacés par leurs valeurs par défaut.',confirmLabel:'Rétablir',danger:true}))return;try{await templatesMutation.mutateAsync({path:'/api/email-templates/reset'});message.value='Modeles retablis.'}catch(e: any){error.value=e.message}}
+async function restorePrevious(): Promise<void> {try{await templatesMutation.mutateAsync({path:'/api/email-templates/restore-previous'});message.value='Version précédente restaurée.'}catch(e: any){error.value=e.message}}
 async function preview(): Promise<void> {clearTimeout(timer);previewing.value=true;try{const response=await fetch('/api/email-preview',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(previewPayload())});if(!response.ok)throw new Error((await response.json()).detail);previewHtml.value=await response.text()}catch(e: any){error.value=e.message}finally{previewing.value=false}}
 function schedulePreview(): void {clearTimeout(timer);timer=setTimeout(preview,500)}
-async function testSend(mode: string): Promise<void> {if(mode==='user'&&!await askConfirm({title:'Envoyer le test a cet utilisateur ?',message:`Un email reel sera envoye a ${userName(selectedUser.value)}.`,confirmLabel:'Envoyer'}))return;try{const data=await templatesMutation.mutateAsync({path:'/api/email-templates/test-send',body:previewPayload({recipient_mode:mode}),invalidate:false});message.value=data.message}catch(e: any){error.value=e.message}}
+async function testSend(mode: string): Promise<void> {if(mode==='user'&&!await askConfirm({title:'Envoyer le test à cet utilisateur ?',message:`Un email réel sera envoyé à ${userName(selectedUser.value)}.`,confirmLabel:'Envoyer'}))return;try{const data=await templatesMutation.mutateAsync({path:'/api/email-templates/test-send',body:previewPayload({recipient_mode:mode}),invalidate:false});message.value=data.message}catch(e: any){error.value=e.message}}
 function warnUnsaved(event: BeforeUnloadEvent): void {if(!isDirty.value)return;event.preventDefault();event.returnValue=''}
 watch(()=>templatesQuery.data.value,(data)=>{if(data){fill(data);void preview()}},{immediate:true});watch(()=>usersQuery.data.value,(rows)=>{if(rows)users.value=rows},{immediate:true});watch([eventType,previewVariant,previewUser],schedulePreview);watch(shared,schedulePreview,{deep:true});watch(models,schedulePreview,{deep:true});onMounted(()=>{window.addEventListener('beforeunload',warnUnsaved)});onBeforeUnmount(()=>{clearTimeout(timer);window.removeEventListener('beforeunload',warnUnsaved)});
 </script>

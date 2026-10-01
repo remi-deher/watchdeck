@@ -37,6 +37,25 @@
              Les liens ne la referment pas eux-mêmes : c'est le shell qui s'en charge
              une fois la route changée : la feuille reste visible jusqu'à ce que la page
              d'arrivée soit là, au lieu de disparaître sur un écran encore inchangé. -->
+        <!-- Dans l'Administration, ses groupes passent avant l'application, avec le
+             retour en tête : c'est l'espace où l'on se trouve. -->
+        <section v-if="isAdmin && space === 'admin'" class="app-sheet__group">
+          <p class="app-sheet__group-label">Administration</p>
+          <RouterLink class="app-nav-link app-sheet__link" :to="backTo">
+            <ArrowLeft aria-hidden="true" /><span>Retour à Watchdeck</span>
+          </RouterLink>
+          <RouterLink
+            v-for="area in adminAreas"
+            :key="area.key"
+            class="app-nav-link app-sheet__link"
+            :to="area.to"
+            :aria-current="area.key === activeKey ? 'page' : undefined"
+          >
+            <component :is="area.icon" aria-hidden="true" />
+            <span>{{ area.label }}</span>
+          </RouterLink>
+        </section>
+
         <section v-for="group in groups" :key="group.label" class="app-sheet__group">
           <p class="app-sheet__group-label">{{ group.label }}</p>
           <RouterLink
@@ -48,6 +67,15 @@
           >
             <component :is="destination.icon" aria-hidden="true" />
             <span>{{ destination.label }}</span>
+          </RouterLink>
+        </section>
+
+        <!-- Hors de l'Administration, une seule entrée : ses groupes ne s'affichent
+             qu'une fois dedans. -->
+        <section v-if="isAdmin && space !== 'admin'" class="app-sheet__group">
+          <p class="app-sheet__group-label">Administration</p>
+          <RouterLink class="app-nav-link app-sheet__link" :to="ADMIN_ENTRY.to">
+            <component :is="ADMIN_ENTRY.icon" aria-hidden="true" /><span>{{ ADMIN_ENTRY.label }}</span>
           </RouterLink>
         </section>
 
@@ -76,7 +104,7 @@
 import { laisserAuDock } from './sheetDock';
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
-import { LogOut, Palette, Search, ShieldCheck, UserRound, X } from '@lucide/vue';
+import { ArrowLeft, LogOut, Palette, Search, ShieldCheck, UserRound, X } from '@lucide/vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { THEME_OPTIONS, useTheme, type ThemeChoice } from '@/composables/useTheme';
 import { useQueryClient } from '@tanstack/vue-query';
@@ -91,7 +119,7 @@ async function seDeconnecter(): Promise<void> {
 }
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
 import { useBackButtonClose } from '@/composables/useBackButtonClose';
-import { destinationsFor, type NavDestination } from '@/navigation';
+import { ADMIN_ENTRY, adminAreasFor, destinationsFor, type NavDestination } from '@/navigation';
 import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 import { shortcutLabel } from '@/shortcut';
 
@@ -106,12 +134,15 @@ const props = withDefaults(
     sections?: SubnavItem[];
     activeSectionKey?: string;
     destinationLabel?: string;
+    space?: 'app' | 'admin';
+    backTo?: string;
   }>(),
   {
     activeKey: '', isAdmin: false, canModerate: false,
-    sections: () => [], activeSectionKey: '', destinationLabel: '',
+    sections: () => [], activeSectionKey: '', destinationLabel: '', space: 'app', backTo: '/',
   }
 );
+const adminAreas = computed(() => adminAreasFor(props.isAdmin));
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'open-palette'): void }>();
 

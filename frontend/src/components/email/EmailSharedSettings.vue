@@ -11,7 +11,7 @@
     </CollapsibleContent></CollapsibleRoot>
 
     <CollapsibleRoot class="template-settings" :unmount-on-hide="false">
-      <CollapsibleTrigger class="collapsible-trigger">Bloc media et apparence</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+      <CollapsibleTrigger class="collapsible-trigger">Bloc média et apparence</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
       <div class="settings-grid two form-section">
         <label>Disposition<UiSelect v-model="shared.email_media_layout" :options="[{ value: 'left', label: 'Affiche a gauche' }, { value: 'right', label: 'Affiche a droite' }, { value: 'stacked', label: 'Affiche au-dessus' }]" /></label>
         <label>Police<UiSelect v-model="shared.email_font_family" :options="[{ value: 'arial', label: 'Arial' }, { value: 'georgia', label: 'Georgia' }, { value: 'verdana', label: 'Verdana' }, { value: 'trebuchet', label: 'Trebuchet MS' }]" /></label>

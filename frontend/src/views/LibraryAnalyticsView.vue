@@ -275,12 +275,15 @@ const quickMenus = computed<QuickMenu[]>(() => [
    filtre correspondant, un second le retire. */
 const insightValue = (kind: string): string => {
   const insight = (data.value.insights || []).find((entry: any) => entry.kind === kind);
-  return insight ? number(insight.value) : '—';
+  return insight && insight.value != null ? number(insight.value) : '—';
 };
+/* Le serveur renvoie `value: null` quand Plex n'a pas fourni les pistes : on masque alors
+   le raccourci « Sans sous-titres » au lieu d'annoncer tout le catalogue. */
+const subtitlesKnown = computed(() => (data.value.insights || []).some((entry: any) => entry.kind === 'subtitles' && entry.value != null));
 const leads = computed(() => [
   { key: 'unwatched', label: 'Jamais visionnés', icon: EyeOff, tone: 'accent', value: insightValue('unwatched'), active: filters.watched === 'no', toggle: () => { filters.watched = filters.watched === 'no' ? '' : 'no'; } },
   { key: 'subtitles', label: 'Sans sous-titres', icon: Captions, tone: 'blue', value: insightValue('subtitles'), active: filters.subtitle === 'without', toggle: () => { filters.subtitle = filters.subtitle === 'without' ? '' : 'without'; } },
-]);
+].filter((lead) => lead.key !== 'subtitles' || subtitlesKnown.value));
 
 /* Les filtres actifs, en jetons retirables : sous la barre de la table et en tete du
    panneau de filtres. La recherche reste dans son champ. */
@@ -465,7 +468,7 @@ useRealtime(['library.analytics.updated'], () => load());
 .inventory-kpis span{color:var(--muted);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .inventory-kpis strong{font-family:var(--font-display);font-size:var(--fs-2xl);font-variant-numeric:tabular-nums;white-space:nowrap}
 .inventory-kpis small{color:var(--muted);font-size:var(--fs-xs)}
-.inventory-leads{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}
+.inventory-leads{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:var(--space-3)}
 .inventory-lead{--lead:var(--accent);display:flex;align-items:center;gap:var(--space-3);width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:border-color var(--motion-duration-fast),background-color var(--motion-duration-fast)}
 .inventory-lead.is-blue{--lead:var(--blue)}
 .inventory-lead:hover,.inventory-lead.active{border-color:color-mix(in srgb,var(--lead) 55%,transparent);background:color-mix(in srgb,var(--lead) 8%,var(--surface-2))}

@@ -40,6 +40,19 @@ describe('PlexServerTasks', () => {
     expect(wrapper.text()).toContain('2 en cours');
   });
 
+  it('nomme le serveur de chaque tâche quand il y en a plusieurs', async () => {
+    api.mockResolvedValue({ activities: [
+      { uuid: 'same', title: 'Analyse', subtitle: 'Dune', progress: 10, cancellable: true, server_id: null, server_name: 'Serveur principal' },
+      { uuid: 'same', title: 'Analyse', progress: 20, cancellable: true, server_id: 3, server_name: 'Plex 4K' },
+    ] });
+    const wrapper = factory();
+    await flushPromises();
+    const items = wrapper.findAll('li');
+    expect(items).toHaveLength(2);
+    expect(items[0].text()).toContain('Serveur principal · Dune');
+    expect(items[1].text()).toContain('Plex 4K');
+  });
+
   it('dit quand Plex est injoignable', async () => {
     api.mockImplementation(async () => { throw new Error('Plex injoignable'); });
     const wrapper = factory();

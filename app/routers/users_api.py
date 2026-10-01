@@ -19,9 +19,10 @@ from ..models import (
     Settings,
 )
 from ..serializers import format_datetime, request_status_value, serialize_plex_user
+from ..services import plex_servers
 from ..services.email_service import _send as smtp_send
 from ..services.gdpr import erase_user_data, export_user_data
-from ..services.plex_api import get_server_users as plex_get_server_users
+from ..services.plex_api import get_users_for_tokens as plex_get_users_for_tokens
 from ..services.seer import get_user_requests as seer_get_user_requests
 from ..services.seer import get_users as seer_get_users
 from ..services.user_merge import merge_user_records as _merge_users
@@ -755,7 +756,7 @@ async def sync_plex_users(db: AsyncSession = Depends(get_db_async)):
     if not settings or not settings.plex_token:
         raise HTTPException(400, "Token Plex non configuré")
 
-    plex_users, warnings = await plex_get_server_users(settings.plex_token)
+    plex_users, warnings = await plex_get_users_for_tokens(await plex_servers.account_tokens(db, settings))
     existing = (await db.execute(select(PlexUser))).scalars().all()
     created = 0
     updated = 0

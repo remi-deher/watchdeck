@@ -88,12 +88,15 @@ const props = withDefaults(
     canModerate?: boolean;
     busy?: boolean;
     selected?: boolean;
+    /** Serveurs Plex portant ce media, quand la Bibliotheque en suit plusieurs. */
+    serverNames?: string[];
   }>(),
   {
     view: 'grid',
     canModerate: false,
     busy: false,
     selected: false,
+    serverNames: () => [],
   }
 );
 const emit = defineEmits<{
@@ -164,6 +167,7 @@ const badges = computed(() => {
   }
   const requester = requesterLabel(item);
   if (requester) list.push({ key: 'demandeur', cls: 'requester-tag', label: `👤 ${requester}` });
+  if (props.serverNames.length) list.push({ key: 'serveur', cls: 'requester-tag server-tag', label: props.serverNames.join(' + ') });
   return list;
 });
 </script>
@@ -223,6 +227,11 @@ const badges = computed(() => {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.server-tag {
+  border: 1px solid rgba(255, 255, 255, .28);
+  background: rgba(17, 24, 39, .9);
 }
 
 .card-failure { color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }

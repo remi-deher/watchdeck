@@ -4,14 +4,14 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from ..database import get_db_async
 from ..dependencies import require_admin
-from ..models import ArrInstance, DownloadClient
+from ..models import ArrInstance, DownloadClient, PlexServer
 from ..services import integration_configuration as configuration
 from ..services import prowlarr, radarr, sonarr
 from .arr_shared import (
@@ -36,6 +36,8 @@ class ArrInstanceCreate(BaseModel):
     enabled: Optional[bool] = True
     is_default: Optional[bool] = False
     indexer_ids: Optional[str] = None
+    # Serveur Plex vers lequel cette instance importe ; vide = serveur principal.
+    plex_server_id: Optional[int] = None
 
 
 class TestArrInstanceBody(BaseModel):
@@ -78,9 +80,23 @@ async def arr_capabilities(db: AsyncSession = Depends(get_db_async)):
     }
 
 
+async def _instance_values(db: AsyncSession, data: ArrInstanceCreate) -> dict:
+    """Valeurs a enregistrer ; le serveur principal se note NULL, comme ailleurs."""
+    values = data.model_dump()
+    if values.get("plex_server_id") is not None:
+        server = (
+            (await db.execute(select(PlexServer).filter(PlexServer.id == values["plex_server_id"]))).scalars().first()
+        )
+        if server is None:
+            raise HTTPException(422, "Serveur Plex introuvable")
+        if server.is_primary:
+            values["plex_server_id"] = None
+    return values
+
+
 @router.post("/arr-instances")
 async def create_arr_instance(data: ArrInstanceCreate, db: AsyncSession = Depends(get_db_async)):
-    inst = await configuration.create_arr_instance(db, data.model_dump())
+    inst = await configuration.create_arr_instance(db, await _instance_values(db, data))
     if inst.arr_type in {"sonarr", "radarr"}:
         await invalidate_arr_queue_cache()
         await invalidate_arr_wanted_cache(inst.arr_type)
@@ -93,7 +109,7 @@ async def create_arr_instance(data: ArrInstanceCreate, db: AsyncSession = Depend
 
 @router.put("/arr-instances/{instance_id}")
 async def update_arr_instance(instance_id: int, data: ArrInstanceCreate, db: AsyncSession = Depends(get_db_async)):
-    inst, affected_types = await configuration.update_arr_instance(db, instance_id, data.model_dump())
+    inst, affected_types = await configuration.update_arr_instance(db, instance_id, await _instance_values(db, data))
     if affected_types:
         await invalidate_arr_queue_cache()
         for arr_type in affected_types:
