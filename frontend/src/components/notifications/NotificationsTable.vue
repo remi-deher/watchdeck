@@ -22,7 +22,7 @@
     <template #cell-recipients="{ row }">{{ row.recipient||(row.recipients||[]).join(', ')||'-' }}</template>
     <template #cell-state="{ row }">
       <UiBadge :tone="row.success===false||row.valid===false?'danger':tab==='pending'?'neutral':'success'">
-        {{ row.success===false?'Erreur':row.valid===false?'Invalide':tab==='pending'?'En attente':'Envoyee' }}
+        {{ row.success===false?'Erreur':row.valid===false?'Invalide':tab==='pending'?'En attente':'Envoyée' }}
       </UiBadge>
       <small v-if="row.error_msg" class="table-detail error-text">{{ row.error_msg }}</small>
     </template>
@@ -90,10 +90,10 @@ const columns = computed<UiColumn<NotificationRow>[]>(() => {
   const sortable = props.tab === 'history';
   return [
     { key: 'date', label: 'Date', sortable },
-    { key: 'event', label: 'Evenement', card: 'title', sortable },
-    { key: 'media', label: 'Media', sortable },
+    { key: 'event', label: 'Événement', card: 'title', sortable },
+    { key: 'media', label: 'Média', sortable },
     { key: 'recipients', label: 'Destinataires', sortable },
-    { key: 'state', label: 'Etat', sortable },
+    { key: 'state', label: 'État', sortable },
     { key: 'actions', label: 'Actions', card: 'actions' },
   ];
 });
@@ -112,18 +112,23 @@ const SCOPE_LABELS: Record<string, string> = {
   season_complete: 'Saison complète',
   series_complete: 'Série complète',
   movie: 'Film',
+  series_batch: 'Plusieurs épisodes',
 };
 
 function context(row: NotificationRow): string {
   const scope = row.scope, season = row.season_number, episode = row.episode_number;
   const parts: string[] = [];
   if (scope === 'episode' && season && episode) parts.push(`S${season}E${episode}`);
-  else if (scope && (season || scope !== 'movie')) parts.push(season ? `${SCOPE_LABELS[scope] || scope} ${season}` : (SCOPE_LABELS[scope] || scope));
+  else if (scope && (season || scope !== 'movie')) {
+    // Une portee sans libelle connu reste interne : on ne montre pas sa cle brute.
+    const label = SCOPE_LABELS[scope];
+    if (label) parts.push(season ? `${label} ${season}` : label);
+  }
   if (row.language) parts.push(row.language.toUpperCase());
   if (row.is_upgrade) parts.push('amélioration');
   if (parts.length) return parts.join(' · ');
   const c = row.context || {};
-  return [c.scope, c.language, c.is_upgrade ? 'amelioration' : ''].filter(Boolean).join(' - ') || row.event_description || '';
+  return [c.scope, c.language, c.is_upgrade ? 'amélioration' : ''].filter(Boolean).join(' - ') || row.event_description || '';
 }
 // NotificationsView lit la selection pour ses envois/suppressions groupes.
 defineExpose({ selectedIds, clearSelection: clear });

@@ -43,7 +43,7 @@ export function useRequestActions({
     run(() => post(`/api/requests/${id}/${action}`));
 
   async function rejectRequest(row: any): Promise<void> {
-    const reason = prompt('Motif du refus', 'Demande refusee par un administrateur');
+    const reason = prompt('Motif du refus', 'Demande refusée par un administrateur');
     if (reason === null) return;
     await run(() => post(`/api/requests/${row.id}/reject`, { reason }));
   }

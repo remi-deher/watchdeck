@@ -77,7 +77,7 @@
               type="button"
               class="badge mdh-link"
               :disabled="busy || !available"
-              :title="available ? '' : 'Pas encore disponible dans Plex — reessayer une fois le media indexe'"
+              :title="available ? '' : 'Pas encore disponible dans Plex — réessayer une fois le média indexé'"
               @click="$emit('scan')"
             ><RefreshCw :size="14" /> Analyser</button>
             <VfUpgradeButton

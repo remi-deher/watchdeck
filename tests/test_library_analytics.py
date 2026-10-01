@@ -7,6 +7,7 @@ import pytest
 
 from app.models import LibraryAnalyticsSnapshot
 from app.services.library_analytics import (
+    _build_payload,
     analytics_item,
     analytics_item_technical,
     analytics_items_payload,
@@ -59,6 +60,19 @@ def test_parse_plex_item_extracts_raw_technical_metadata():
     assert row["audio_track_count"] == 1
     assert row["subtitle_count"] == 2
     assert row["subtitle_languages"] == ["English", "Français"]
+
+
+def test_a_catalog_entry_without_streams_has_unknown_subtitles():
+    item = sample_item()
+    item["Media"][0]["Part"][0].pop("Stream")
+    row = parse_plex_item(item, "Séries", "show")
+    assert row["subtitle_count"] is None
+
+    # `play_count` et `viewers` sont ajoutes au rafraichissement, apres la lecture du catalogue.
+    payload = _build_payload([{**row, "play_count": 0, "viewers": []}], "2026-10-01T00:00:00", {})
+    subtitles = next(entry for entry in payload["insights"] if entry["kind"] == "subtitles")
+    assert subtitles["value"] is None
+    assert apply_filters([row], {"subtitle": "without"}) == []
 
 
 def test_the_banner_of_an_episode_is_its_show_background():
@@ -243,6 +257,23 @@ async def test_items_sort_on_quality_audio_and_subtitles():
     assert await titles("video", "asc") == ["SD", "HD", "UHD"]
     assert await titles("audio", "asc") == ["SD", "HD", "UHD"]
     assert await titles("subtitles", "desc") == ["SD", "HD", "UHD"]
+
+
+@pytest.mark.asyncio
+async def test_subtitles_insight_lists_only_media_known_without_subtitles():
+    """Un média sans flux analysés (sous-titres inconnus) ne compte pas comme « sans sous-titres »."""
+
+    def row(title, subtitles):
+        item = parse_plex_item(sample_item(), "Films", "movie")
+        item.update(title=title, subtitle_count=subtitles)
+        return item
+
+    rows = [row("Sans", 0), row("Avec", 2), row("Inconnu", None)]
+    db = SimpleNamespace(get=AsyncMock(return_value=LibraryAnalyticsSnapshot(payload_json=json.dumps({"items": rows}))))
+
+    page = await analytics_items_payload(SimpleNamespace(), db, {}, insight_kind="subtitles")
+
+    assert [item["title"] for item in page["items"]] == ["Sans"]
 
 
 def test_an_episode_inherits_the_studio_of_its_show():

@@ -66,7 +66,10 @@ const loading = computed(() => pendingQuery.isPending.value);
 
 const metrics = computed<Record<string, any>>(() => metricsQuery.data.value || {});
 const hasMetrics = computed(() => Object.keys(metrics.value).length > 0);
-const pendingCount = computed(() => Number(metrics.value.states?.pending ?? items.value.length));
+/* La liste vient du meme endpoint que la page Ameliorations VF, deja filtree comme elle
+   (suggestions ignorees ou deja en VF retirees) : `metrics.states.pending` comptait aussi
+   ces lignes et l'Accueil annoncait 60 a traiter quand la page en montrait 54. */
+const pendingCount = computed(() => items.value.length);
 const verifiedCount = computed(() => Number(metrics.value.verified || 0));
 const inProgressCount = computed(() => Math.max(0, Number(metrics.value.accepted || 0) - verifiedCount.value));
 const failedCount = computed(() => Number(metrics.value.failed || 0));
