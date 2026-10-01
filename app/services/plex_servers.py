@@ -127,3 +127,27 @@ async def configured_hosts(db: AsyncSession) -> dict[str, Optional[str]]:
         if host and host.lower() not in hosts:
             hosts[host.lower()] = server.token
     return hosts
+
+
+async def connection_for(
+    db: AsyncSession, server_id: Optional[int], settings: Optional[Settings] = None
+) -> Optional[PlexServerConnection]:
+    """Connexion d'un serveur par son id ; None designe le principal (lignes historiques).
+
+    Les tables qui notent un serveur (sessions de lecture...) laissent server_id a NULL
+    pour le principal : leurs lignes anterieures au multi-serveurs restent ainsi justes.
+    """
+    if settings is None:
+        settings = (await db.execute(select(Settings))).scalars().first()
+    if server_id is None:
+        server = await ensure_primary_server(db)
+    else:
+        server = (await db.execute(select(PlexServer).filter(PlexServer.id == server_id))).scalars().first()
+        if server is None:
+            return None
+    return resolve_connection(server, settings)
+
+
+def stored_server_id(conn: PlexServerConnection) -> Optional[int]:
+    """Valeur a enregistrer dans une colonne server_id : NULL pour le principal."""
+    return None if conn.is_primary else conn.id

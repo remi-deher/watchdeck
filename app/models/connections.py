@@ -35,6 +35,10 @@ class PlexServer(Base):
     libraries: Mapped[Optional[str]] = mapped_column(Text)
     machine_identifier: Mapped[Optional[str]]
     enabled: Mapped[bool] = mapped_column(default=True)
+    # Tautulli propre a ce serveur (un Tautulli ne suit qu'un serveur). Le principal
+    # garde le sien dans Settings.
+    tautulli_url: Mapped[Optional[str]]
+    tautulli_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive)
 
 
@@ -72,6 +76,9 @@ class ArrInstance(Base):
     enabled: Mapped[bool] = mapped_column(default=True)
     is_default: Mapped[bool] = mapped_column(default=False)
     indexer_ids: Mapped[Optional[str]]  # JSON list d'int, indexeurs à utiliser (null = tous)
+    # Serveur Plex qui recoit les imports de cette instance (ex: Radarr 4K -> Plex 4K) :
+    # c'est lui qu'on previent d'un import. NULL = serveur principal.
+    plex_server_id: Mapped[Optional[int]] = mapped_column(ForeignKey("plex_servers.id", ondelete="SET NULL"))
 
 
 class DownloadClient(Base):

@@ -216,8 +216,13 @@ async def image_proxy(
     height: int | None = Query(None, ge=32, le=1600),
     quality: int = Query(82, ge=40, le=95),
     image_format: str = Query("original", alias="format", pattern="^(original|webp|avif)$"),
+    plex_server: int | None = Query(None, alias="server"),
 ):
-    """Proxy, redimensionne et met en cache les affiches de l'interface."""
+    """Proxy, redimensionne et met en cache les affiches de l'interface.
+
+    `server` designe un serveur Plex supplementaire pour un `plex_path` ; sans lui, le
+    chemin est lu sur le serveur principal.
+    """
     if bool(url) == bool(plex_path):
         raise HTTPException(400, "Une source d'image unique est requise")
 
@@ -237,7 +242,21 @@ async def image_proxy(
             raise HTTPException(400, "Chemin Plex invalide")
         async with AsyncSessionLocal() as db:
             settings = (await db.execute(select(Settings))).scalars().first()
-        if not settings or not settings.plex_url or not settings.plex_token:
+            secondary = None
+            if plex_server is not None:
+                secondary = (
+                    (
+                        await db.execute(
+                            select(PlexServer).filter(PlexServer.id == plex_server, PlexServer.is_primary.is_(False))
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+        if secondary is not None:
+            if not secondary.url or not secondary.token:
+                raise HTTPException(404, "Serveur Plex non configuré")
+        elif not settings or not settings.plex_url or not settings.plex_token:
             raise HTTPException(404, "Plex non configuré")
         safe_query = urlencode(
             [
@@ -247,9 +266,12 @@ async def image_proxy(
             ]
         )
         safe_path = urlunparse(("", "", parsed_path.path, "", safe_query, ""))
-        plex_base = settings.plex_url.rstrip("/")
+        base_url, base_token = (
+            (secondary.url, secondary.token) if secondary is not None else (settings.plex_url, settings.plex_token)
+        )
+        plex_base = base_url.rstrip("/")
         url = f"{plex_base}{safe_path}"
-        upstream_headers = {"X-Plex-Token": settings.plex_token}
+        upstream_headers = {"X-Plex-Token": base_token}
 
     parsed = urlparse(url or "")
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -424,6 +446,7 @@ async def _proxy_stored_poster(
         height=height,
         quality=quality,
         image_format=image_format,
+        plex_server=None,
     )
 
 

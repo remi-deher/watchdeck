@@ -23,7 +23,7 @@ import websockets
 from sqlalchemy.future import select
 
 from ..database import AsyncSessionLocal
-from ..models import Settings
+from ..models import PlexServer, Settings
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock, renew_distributed_lock
 from .playback_activity import collect_plex_activity, handle_websocket_state
 
@@ -50,7 +50,7 @@ async def _load_settings() -> Settings | None:
         return (await db.execute(select(Settings))).scalars().first()
 
 
-async def _handle_message(raw: str | bytes) -> None:
+async def _handle_message(raw: str | bytes, server_id: int | None = None) -> None:
     try:
         payload = json.loads(raw)
     except (ValueError, TypeError):
@@ -74,7 +74,9 @@ async def _handle_message(raw: str | bytes) -> None:
             except (TypeError, ValueError):
                 pass
         try:
-            result = await handle_websocket_state(session_key, rating_key, state, view_offset_ms=view_offset)
+            result = await handle_websocket_state(
+                session_key, rating_key, state, view_offset_ms=view_offset, server_id=server_id
+            )
             if state != "stopped" and result.get("status") == "unknown":
                 # Session jamais vue par le polling : on déclenche une collecte complète
                 # plutôt que de dupliquer le parsing/l'enrichissement XML avec les seuls
@@ -101,9 +103,14 @@ async def _record(action: str, status: str, message: str, details: dict | None =
     await record_worker_event(action, status, message, details)
 
 
-async def _listen_once(settings: Settings, on_connected) -> None:
-    """Une connexion websocket, jusqu'à déconnexion ou erreur."""
-    url = _websocket_url(settings.plex_url, settings.plex_token)
+async def _listen_once(settings: Settings, on_connected, conn=None) -> None:
+    """Une connexion websocket, jusqu'à déconnexion ou erreur.
+
+    `conn` : serveur supplémentaire (services.plex_servers) ; sans lui, le principal.
+    """
+    base_url, token = (conn.url, conn.token) if conn is not None else (settings.plex_url, settings.plex_token)
+    server_id = conn.id if conn is not None else None
+    url = _websocket_url(base_url, token)
     ssl_context = None
     if url.startswith("wss://"):
         ssl_context = ssl.create_default_context()
@@ -113,13 +120,98 @@ async def _listen_once(settings: Settings, on_connected) -> None:
 
     connected_at = asyncio.get_running_loop().time()
     async with websockets.connect(url, ssl=ssl_context, open_timeout=15, ping_interval=20, ping_timeout=20) as ws:
-        logger.info("Websocket Plex connecté (%s)", settings.plex_url)
+        logger.info("Websocket Plex connecté (%s)", base_url)
         await on_connected()
         async for message in ws:
-            await _handle_message(message)
+            await _handle_message(message, server_id=server_id)
     elapsed = asyncio.get_running_loop().time() - connected_at
     if elapsed < _HEALTHY_CONNECTION_SECONDS:
         raise ConnectionError("Connexion websocket Plex trop courte, probable rejet/instabilité")
+
+
+async def _secondary_connection(server_id: int):
+    """Connexion d'un serveur supplémentaire, ou None s'il est désactivé ou supprimé."""
+    from . import plex_servers
+
+    async with AsyncSessionLocal() as db:
+        settings = (await db.execute(select(Settings))).scalars().first()
+        if not settings or not settings.live_activity_enabled:
+            return settings, None
+        return settings, await plex_servers.connection_for(db, server_id, settings)
+
+
+async def _run_secondary_listener(server_id: int) -> None:
+    """Écoute le websocket d'un serveur supplémentaire, avec reconnexion et verrou propre."""
+    lock_key = f"{_LOCK_KEY}:{server_id}"
+    backoff = _BACKOFF_MIN
+    token: str | None = None
+
+    async def _on_connected() -> None:
+        return None
+
+    try:
+        while True:
+            settings, conn = await _secondary_connection(server_id)
+            if settings is None or conn is None:
+                return
+            if token is None:
+                token = await acquire_distributed_lock(lock_key, ttl=_LOCK_TTL)
+                if token is None:
+                    await asyncio.sleep(_LOCK_TTL / 2)
+                    continue
+            renew_task = asyncio.create_task(_renew_loop_for(lock_key, token))
+            try:
+                await _listen_once(settings, _on_connected, conn)
+                backoff = _BACKOFF_MIN
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("Websocket Plex (%s) deconnecte : %s, reconnexion dans %ss", conn.name, exc, backoff)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, _BACKOFF_MAX)
+            finally:
+                renew_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await renew_task
+    finally:
+        if token:
+            await release_distributed_lock(lock_key, token)
+
+
+async def _renew_loop_for(lock_key: str, token: str) -> None:
+    while True:
+        await asyncio.sleep(_RENEW_INTERVAL)
+        await renew_distributed_lock(lock_key, token, ttl=_LOCK_TTL)
+
+
+async def _supervise_secondary_listeners() -> None:
+    """Un écouteur par serveur supplémentaire actif, ajusté quand la liste change."""
+    tasks: dict[int, asyncio.Task] = {}
+    try:
+        while True:
+            try:
+                async with AsyncSessionLocal() as db:
+                    wanted = set(
+                        (
+                            await db.execute(
+                                select(PlexServer.id).filter(PlexServer.is_primary.is_(False), PlexServer.enabled)
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
+            except Exception as exc:
+                logger.warning("Liste des serveurs Plex illisible : %s", exc)
+                wanted = set(tasks)
+            for server_id in list(tasks):
+                if server_id not in wanted or tasks[server_id].done():
+                    tasks.pop(server_id).cancel()
+            for server_id in wanted - set(tasks):
+                tasks[server_id] = asyncio.create_task(_run_secondary_listener(server_id))
+            await asyncio.sleep(_SETTINGS_RECHECK_INTERVAL)
+    finally:
+        for task in tasks.values():
+            task.cancel()
 
 
 async def run_alert_listener() -> None:
@@ -147,6 +239,8 @@ async def run_alert_listener() -> None:
             reported = "connected"
         failures = 0
 
+    # Les serveurs supplémentaires ont chacun leur écouteur, sous ce superviseur.
+    secondary_task = asyncio.create_task(_supervise_secondary_listeners())
     try:
         while True:
             settings = await _load_settings()
@@ -202,5 +296,8 @@ async def run_alert_listener() -> None:
                 with contextlib.suppress(asyncio.CancelledError):
                     await renew_task
     finally:
+        secondary_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await secondary_task
         if token:
             await release_distributed_lock(_LOCK_KEY, token)
