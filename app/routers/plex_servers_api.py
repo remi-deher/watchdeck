@@ -32,6 +32,8 @@ class PlexServerBody(BaseModel):
     token: Optional[str] = None
     libraries: Optional[str] = None
     enabled: Optional[bool] = True
+    tautulli_url: Optional[str] = None
+    tautulli_api_key: Optional[str] = None
 
 
 class PlexServerTestBody(BaseModel):
@@ -66,7 +68,22 @@ def _serialize(server: PlexServer, settings: Optional[Settings], locations: int)
         "machine_identifier": server.machine_identifier,
         "enabled": server.enabled,
         "location_count": locations,
+        # Le Tautulli du principal reste dans Réglages > Services.
+        "tautulli_url": server.tautulli_url or "",
+        "tautulli_api_key": _MASK if server.tautulli_api_key else "",
+        "tautulli_api_key_configured": bool(server.tautulli_api_key),
     }
+
+
+def _apply_tautulli(server: PlexServer, body: PlexServerBody) -> None:
+    """Tautulli propre au serveur ; une URL vide le retire, la clé masquée est conservée."""
+    url = (body.tautulli_url or "").strip().rstrip("/")
+    server.tautulli_url = url or None
+    key = (body.tautulli_api_key or "").strip()
+    if not url:
+        server.tautulli_api_key = None
+    elif key and key != _MASK:
+        server.tautulli_api_key = key
 
 
 async def _location_counts(db: AsyncSession) -> dict[int, int]:
@@ -121,6 +138,7 @@ async def create_plex_server(body: PlexServerBody, db: AsyncSession = Depends(ge
         enabled=body.enabled if body.enabled is not None else True,
         machine_identifier=await fetch_identity(url, token),
     )
+    _apply_tautulli(server, body)
     db.add(server)
     await db.commit()
     await db.refresh(server)
@@ -144,6 +162,7 @@ async def update_plex_server(server_id: int, body: PlexServerBody, db: AsyncSess
         if token and token != _MASK:
             server.token = token
         server.libraries = _clean_libraries(body.libraries)
+        _apply_tautulli(server, body)
         if body.enabled is not None:
             server.enabled = body.enabled
         if connection_changed or not server.machine_identifier:

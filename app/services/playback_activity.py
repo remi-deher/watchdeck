@@ -10,6 +10,7 @@ import math
 import re
 import time
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as datetime_time
 from urllib.parse import parse_qs, quote, unquote, urlparse
@@ -30,6 +31,7 @@ from ..models import (
     PlaybackIpLocation,
     PlaybackSession,
     PlaybackSessionSegment,
+    PlexServer,
     Settings,
 )
 from ..realtime import publish
@@ -2073,28 +2075,72 @@ async def _tautulli_locations(rows: list[dict], *, db, anonymized: bool) -> dict
     return await lookup_ip_locations(addresses, db=db, anonymized=anonymized)
 
 
+@dataclass(frozen=True)
+class _TautulliSource:
+    """Un Tautulli par serveur Plex : celui des Réglages suit le principal."""
+
+    server_id: int | None
+    url: str
+    api_key: str
+
+    def reference(self, item: dict) -> str:
+        # Deux Tautulli numérotent leurs lignes chacun de leur côté : la référence d'un
+        # serveur supplémentaire porte son id, comme ses sessions en direct.
+        row_id = _tautulli_row_id(item)
+        if not row_id or self.server_id is None:
+            return row_id
+        return f"{self.server_id}:{row_id}"
+
+
+async def _tautulli_sources(db, settings: Settings | None) -> list[_TautulliSource]:
+    sources = []
+    if settings and settings.tautulli_url and settings.tautulli_api_key:
+        sources.append(_TautulliSource(None, settings.tautulli_url, settings.tautulli_api_key))
+    servers = (
+        await db.execute(
+            select(PlexServer).filter(
+                PlexServer.is_primary.is_(False),
+                PlexServer.enabled.is_(True),
+                PlexServer.tautulli_url.is_not(None),
+            )
+        )
+    ).scalars()
+    for server in sorted(servers, key=lambda row: row.id):
+        if server.tautulli_url and server.tautulli_api_key:
+            sources.append(_TautulliSource(server.id, server.tautulli_url, server.tautulli_api_key))
+    if not sources:
+        raise ValueError("Tautulli n'est pas configuré.")
+    return sources
+
+
+async def _fetch_tautulli_history(source: _TautulliSource, length: int, refused: str) -> list[dict]:
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.get(
+            f"{source.url.rstrip('/')}/api/v2",
+            params={
+                "apikey": source.api_key,
+                "cmd": "get_history",
+                "length": min(max(length, 1), 10000),
+                "order_column": "date",
+                "order_dir": "desc",
+                "grouping": 0,
+            },
+        )
+        response.raise_for_status()
+        payload = response.json().get("response", {})
+    if payload.get("result") != "success":
+        raise ValueError(payload.get("message") or refused)
+    return payload.get("data", {}).get("data") or []
+
+
 async def import_tautulli_history(*, length: int = 1000) -> dict:
     async with AsyncSessionLocal() as db:
         settings = (await db.execute(select(Settings))).scalars().first()
-        if not settings or not settings.tautulli_url or not settings.tautulli_api_key:
-            raise ValueError("Tautulli n'est pas configuré.")
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(
-                f"{settings.tautulli_url.rstrip('/')}/api/v2",
-                params={
-                    "apikey": settings.tautulli_api_key,
-                    "cmd": "get_history",
-                    "length": min(max(length, 1), 10000),
-                    "order_column": "date",
-                    "order_dir": "desc",
-                    "grouping": 0,
-                },
-            )
-            response.raise_for_status()
-            payload = response.json().get("response", {})
-        if payload.get("result") != "success":
-            raise ValueError(payload.get("message") or "Import Tautulli refusé.")
-        rows = payload.get("data", {}).get("data") or []
+        sources = await _tautulli_sources(db, settings)
+        batches = [
+            (source, await _fetch_tautulli_history(source, length, "Import Tautulli refusé.")) for source in sources
+        ]
+        rows = [item for _source, items in batches for item in items]
         locations = await _tautulli_locations(
             rows,
             db=db,
@@ -2107,8 +2153,8 @@ async def import_tautulli_history(*, length: int = 1000) -> dict:
             (await db.execute(select(PlaybackSession).filter(PlaybackSession.source == "tautulli"))).scalars().all()
         )
         existing_by_reference = {row.source_session_id: row for row in existing_rows}
-        for item in rows:
-            reference = _tautulli_row_id(item)
+        for source, item in ((source, item) for source, items in batches for item in items):
+            reference = source.reference(item)
             if not reference:
                 continue
             raw_address = str(item.get("ip_address") or "").strip()
@@ -2117,6 +2163,7 @@ async def import_tautulli_history(*, length: int = 1000) -> dict:
                 anonymized=settings.activity_anonymize_ips,
             )
             session_values = _tautulli_session_values(item, settings, location)
+            session_values["server_id"] = source.server_id
             session = existing_by_reference.get(reference)
             if session is not None:
                 _protect_resolved_location(session, session_values)
@@ -2160,32 +2207,18 @@ async def normalize_tautulli_history(*, length: int = 10000) -> dict:
     """Récupère à nouveau l'historique Tautulli et répare les lignes déjà importées."""
     async with AsyncSessionLocal() as db:
         settings = (await db.execute(select(Settings))).scalars().first()
-        if not settings or not settings.tautulli_url or not settings.tautulli_api_key:
-            raise ValueError("Tautulli n'est pas configuré.")
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(
-                f"{settings.tautulli_url.rstrip('/')}/api/v2",
-                params={
-                    "apikey": settings.tautulli_api_key,
-                    "cmd": "get_history",
-                    "length": min(max(length, 1), 10000),
-                    "order_column": "date",
-                    "order_dir": "desc",
-                    "grouping": 0,
-                },
-            )
-            response.raise_for_status()
-            payload = response.json().get("response", {})
-        if payload.get("result") != "success":
-            raise ValueError(payload.get("message") or "Normalisation Tautulli refusée.")
-
-        rows = payload.get("data", {}).get("data") or []
+        sources = await _tautulli_sources(db, settings)
+        references: dict[str, dict] = {}
+        rows: list[dict] = []
+        for source in sources:
+            items = await _fetch_tautulli_history(source, length, "Normalisation Tautulli refusée.")
+            rows.extend(items)
+            references.update({source.reference(item): item for item in items})
         locations = await _tautulli_locations(
             rows,
             db=db,
             anonymized=settings.activity_anonymize_ips,
         )
-        references = {_tautulli_row_id(item): item for item in rows}
         references.pop("", None)
         existing = (
             (

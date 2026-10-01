@@ -842,8 +842,12 @@ async def trigger_plex_library_refresh(
     arr_url: str | None = None,
     arr_api_key: str | None = None,
     cache_key: str | None = None,
+    plex_server_id: int | None = None,
 ) -> None:
     """Déclenche un scan Plex immédiat de la bibliothèque concernée par un import *arr.
+
+    `plex_server_id` : serveur Plex vers lequel cet *arr importe (réglage de l'instance) ;
+    absent, c'est le serveur principal qui est rafraîchi.
 
     Appelé depuis le webhook Sonarr/Radarr (Download/Import), au lieu d'attendre le
     calendrier de scan de Plex — réduit la latence avant que `has_vf` soit détectable par
@@ -865,7 +869,17 @@ async def trigger_plex_library_refresh(
 
     if not settings.vff_enabled or not settings.plex_url or not settings.plex_token:
         return
+    plex_url, plex_token = settings.plex_url, settings.plex_token
     libs = _parse_vff_libraries(settings)
+    if plex_server_id is not None:
+        from . import plex_servers
+
+        async with AsyncSessionLocal() as db:
+            conn = await plex_servers.connection_for(db, plex_server_id, settings)
+        if conn is None:
+            logger.info("Plex : serveur %s désactivé ou incomplet, scan non déclenché", plex_server_id)
+            return
+        plex_url, plex_token, libs = conn.url, conn.token, conn.libraries
     kinds = ("movie",) if media_type == "movie" else ("series",)
     names = [lib["name"] for lib in libs if lib["kind"] in kinds]
     if not names:
@@ -873,14 +887,16 @@ async def trigger_plex_library_refresh(
 
     now = now_utc()
     epoch = datetime.min.replace(tzinfo=timezone.utc)
-    due = [n for n in names if now - _last_section_refresh.get(n, epoch) > _SECTION_REFRESH_COOLDOWN]
+    # Anti-rebond par serveur : deux serveurs peuvent nommer pareil leur section Films.
+    prefix = f"{plex_server_id}:" if plex_server_id is not None else ""
+    due = [n for n in names if now - _last_section_refresh.get(prefix + n, epoch) > _SECTION_REFRESH_COOLDOWN]
     if not due:
         return
     for n in due:
-        _last_section_refresh[n] = now
+        _last_section_refresh[prefix + n] = now
 
     try:
-        await asyncio.to_thread(plex_finder.refresh_sections_blocking, settings.plex_url, settings.plex_token, due)
+        await asyncio.to_thread(plex_finder.refresh_sections_blocking, plex_url, plex_token, due)
         logger.info(f"Plex : scan déclenché pour {due}")
     except Exception as e:
         logger.warning(f"Déclenchement du scan Plex échoué : {e}")

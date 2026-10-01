@@ -29,6 +29,17 @@
         </div>
         <UiButton @click="libraries.push({ name: '', kind: 'movie' })"><Plus />Ajouter une bibliothèque</UiButton>
       </fieldset>
+
+      <fieldset class="tautulli">
+        <legend>Tautulli de ce serveur (facultatif)</legend>
+        <label>URL Tautulli
+          <input v-model.trim="form.tautulli_url" type="url" placeholder="http://tautulli-4k:8181">
+          <small>L’import de l’historique Tautulli parcourt aussi celui-ci.</small>
+        </label>
+        <label>Clé API
+          <input v-model="form.tautulli_api_key" type="password" autocomplete="off" :disabled="!form.tautulli_url" :placeholder="form.tautulli_api_key_configured ? 'Clé enregistrée' : 'Clé API Tautulli'">
+        </label>
+      </fieldset>
     </template>
 
     <div class="form-actions">
@@ -62,7 +73,7 @@ const kindOptions = [
   { value: 'series', label: 'Séries' },
   { value: 'music', label: 'Musique' },
 ];
-const defaults = { name: '', url: '', token: '', libraries: '', enabled: true, is_primary: false, token_configured: false };
+const defaults = { name: '', url: '', token: '', libraries: '', enabled: true, is_primary: false, token_configured: false, tautulli_url: '', tautulli_api_key: '', tautulli_api_key_configured: false };
 const crud = useCrudResource<any>('/api/plex-servers', defaults);
 const form = crud.form;
 const { creating, item, notFound, error, saving, submit } = useResourceForm(crud, toRef(props, 'id'));
@@ -109,9 +120,10 @@ async function test(): Promise<void> {
 </script>
 
 <style scoped>
-.full-row,.libraries,.form-actions{grid-column:1/-1}
-.libraries{display:grid;gap:var(--space-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3);margin:0}
-.libraries legend{padding:0 var(--space-1);font-weight:600}
+.full-row,.libraries,.tautulli,.form-actions{grid-column:1/-1}
+.libraries,.tautulli{display:grid;gap:var(--space-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3);margin:0}
+.libraries legend,.tautulli legend{padding:0 var(--space-1);font-weight:600}
+.tautulli{grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))}
 .library-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(7rem,10rem) auto;gap:var(--space-2);align-items:center}
 .form-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:var(--space-2)}
 </style>
