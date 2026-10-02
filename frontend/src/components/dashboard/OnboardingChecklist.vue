@@ -3,7 +3,7 @@
     <div class="panel-head">
       <div>
         <h2>Configuration initiale</h2>
-        <p>{{ doneSteps }}/{{ onboarding.steps.length }} etapes terminees</p>
+        <p>{{ doneSteps }}/{{ onboarding.steps.length }} étapes terminées</p>
       </div>
       <div class="actions">
         <UiButton to="/settings">Continuer</UiButton>

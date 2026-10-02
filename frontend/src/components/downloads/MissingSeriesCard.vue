@@ -11,8 +11,9 @@
 </template>
 
 <script setup lang="ts">
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { mediaDetailPath } from '@/mediaUrl';
 import { api } from '@/api';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 
@@ -25,11 +26,11 @@ interface MissingSeries {
   episodes: any[];
 }
 
+const { ouvrir } = useOuvrirFiche();
 const props = defineProps<{ series: MissingSeries }>();
 const emit = defineEmits<{
   (e: 'error', msg: string): void;
 }>();
-const router = useRouter();
 const opening = ref(false);
 
 async function openDetail(): Promise<void> {
@@ -37,7 +38,7 @@ async function openDetail(): Promise<void> {
   opening.value = true;
   try {
     const data = await api(`/api/requests/orphans/sonarr/${props.series.instance_id}/${props.series.arr_id}/open`, { method: 'POST' });
-    router.push({ path: `/media/library/${data.library_item_id}`, query: { tab: 'missing' } });
+    ouvrir({ path: mediaDetailPath({ library_id: data.library_item_id }, 'library'), query: { tab: 'missing' } });
   } catch (e: any) {
     emit('error', e.message || "Impossible d'ouvrir la fiche détaillée");
   } finally {

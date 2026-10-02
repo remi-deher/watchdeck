@@ -3,6 +3,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 import sqlalchemy
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,7 @@ from ..models import (
     NotificationMilestone,
     PlexUser,
     PollHistory,
+    RequesterNotificationReceipt,
     Settings,
 )
 from ..notification_queue import enqueue
@@ -300,6 +302,58 @@ def _get_vf_recipients(user_obj, settings: Settings, vf_category: str | None) ->
     return recipients
 
 
+def notification_receipt_key(event: str, context: dict | None = None) -> str:
+    """Stable per-user key for a delivered business notification."""
+    context = context or {}
+    if event != "available":
+        return event
+    parts = [
+        "available",
+        str(context.get("scope") or "generic"),
+        str(context.get("language") or "simple"),
+        str(context.get("season_number") or ""),
+        str(context.get("episode_number") or ""),
+        "upgrade" if context.get("is_upgrade") else "initial",
+    ]
+    return ":".join(parts)
+
+
+def _recipient_user_map(
+    users: list[PlexUser], settings: Settings, event: str, *, vf_category: str | None = None
+) -> dict[str, list[str]]:
+    """Map each eligible email address to the requester identities it represents."""
+    mapping: dict[str, list[str]] = {}
+    for user in users:
+        recipients = (
+            _get_vf_recipients([user], settings, vf_category)
+            if vf_category is not None
+            else _get_recipients([user], settings, event)
+        )
+        admin_addresses = set(parse_email_list(settings.admin_notification_email or ""))
+        for recipient in recipients:
+            if recipient in admin_addresses:
+                continue
+            mapping.setdefault(recipient, [])
+            if user.plex_user_id not in mapping[recipient]:
+                mapping[recipient].append(user.plex_user_id)
+    return mapping
+
+
+async def requester_has_receipt(
+    db: AsyncSession, req_id: int, plex_user_id: str, event: str, context: dict | None = None
+) -> bool:
+    event_key = notification_receipt_key(event, context)
+    return (
+        await db.execute(
+            select(RequesterNotificationReceipt.id).filter(
+                RequesterNotificationReceipt.req_id == req_id,
+                RequesterNotificationReceipt.plex_user_id == plex_user_id,
+                RequesterNotificationReceipt.event_key.in_((event_key, "cancelled:" + event_key)),
+            )
+        )
+    ).first() is not None
+
+
 # ---------------------------------------------------------------------------
 # Réglages de disponibilité — 2 axes (voir migration 0055_simplify_notify_settings) :
 # notify_language (VO/VF distingués ou non) × notify_granularity (séries uniquement :
@@ -548,6 +602,12 @@ async def resolve_and_notify_availability(
         "season_number": winner.season_number,
         "episode_number": winner.episode_number,
     }
+    notification_context["requester_ids_by_recipient"] = _recipient_user_map(
+        requester_users,
+        settings,
+        "available",
+        vf_category=req.vf_category if winner.language is not None else None,
+    )
     if allow_during_resync:
         notification_context["allow_during_resync"] = True
     # Avec `db`, enqueue persiste le jalon déjà ajouté et PendingNotification dans le
@@ -664,11 +724,12 @@ async def _notify(
     )
     requester_users = await _resolve_requester_users(req, db) if email_flag else []
     recipients = _get_recipients(requester_users, settings, event) if email_flag else []
+    requester_context = {"requester_ids_by_recipient": _recipient_user_map(requester_users, settings, event)}
     if event in ("failed", "failure"):
-        await enqueue("failed", req.id, recipients, {"reason": reason}, triggered_by=triggered_by)
+        await enqueue("failed", req.id, recipients, {"reason": reason, **requester_context}, triggered_by=triggered_by)
         return
     if event == "request":
-        await enqueue("request", req.id, recipients, None, triggered_by=triggered_by)
+        await enqueue("request", req.id, recipients, requester_context, triggered_by=triggered_by)
         return
     language = "vf" if req.has_vf is True else ("vo" if req.has_vf is False else None)
     scope = "movie" if req.media_type == "movie" else "series_complete"
@@ -695,13 +756,20 @@ async def _notify(
 
 
 async def notify_single_user(
-    event: str, settings: Settings, req: MediaRequest, db: AsyncSession, plex_user_id: str
+    event: str,
+    settings: Settings,
+    req: MediaRequest,
+    db: AsyncSession,
+    plex_user_id: str,
+    *,
+    triggered_by: str = "manual",
+    pending_batch: list | None = None,
 ) -> bool:
     """Envoie le mail "demande" ou "disponibilité" à UN SEUL utilisateur, indépendamment
     du reste du groupe — utilisé quand un co-demandeur est ajouté après coup à une
     demande déjà en cours et que l'admin choisit explicitement de lui renvoyer
-    rétroactivement le(s) mail(s) déjà partis (voir PUT /requests/{id}/requesters puis
-    POST /requests/{id}/notify-user, jamais déclenché automatiquement).
+    rétroactivement le(s) mail(s) déjà partis. Le poller utilise aussi ce parcours
+    lors de l'ajout initial d'un nouveau co-demandeur.
 
     Ignore volontairement `request_mail_sent`/`available_mail_sent` : ces flags suivent
     l'état du GROUPE (posé une fois pour la demande), pas d'un individu — un co-demandeur
@@ -717,18 +785,65 @@ async def notify_single_user(
     if not recipients:
         return False
     if event == "request":
-        await enqueue("request", req.id, recipients, None, triggered_by="manual")
+        context: dict = {"requester_ids_by_recipient": {recipient: [plex_user_id] for recipient in recipients}}
+        if await requester_has_receipt(db, req.id, plex_user_id, event, context):
+            return False
     else:
         language = "vf" if req.has_vf is True else ("vo" if req.has_vf is False else None)
         scope = "movie" if req.media_type == "movie" else "series_complete"
-        await enqueue(
-            "available",
+        context = {
+            "scope": scope,
+            "language": language,
+            "is_upgrade": False,
+            "requester_ids_by_recipient": {recipient: [plex_user_id] for recipient in recipients},
+        }
+        if await requester_has_receipt(db, req.id, plex_user_id, event, context):
+            return False
+    if pending_batch is not None:
+        from ..notification_queue import persist_pending_notification
+
+        pending_id, normalized_event, normalized_context = await persist_pending_notification(
+            db,
+            event,
             req.id,
             recipients,
-            {"scope": scope, "language": language, "is_upgrade": False},
-            triggered_by="manual",
+            context,
+            triggered_by=triggered_by,
         )
+        if pending_id is None:
+            return False
+        pending_batch.append((pending_id, normalized_event, req.id, recipients, normalized_context))
+    else:
+        await enqueue(event, req.id, recipients, context, triggered_by=triggered_by)
     return True
+
+
+async def catch_up_requester_notifications(
+    settings: Settings, req: MediaRequest, db: AsyncSession, plex_user_id: str, *, atomic: bool = False
+) -> list[str]:
+    """Queue only group notifications a newly discovered requester has missed."""
+    queued: list[str] = []
+    batch: list[tuple[int, str, int, list[str], dict[str, Any]]] | None = [] if atomic else None
+    status = req.status.value if hasattr(req.status, "value") else str(req.status)
+    request_reached_arr = status in {"sent_to_arr", "partially_available", "available"}
+    if (req.request_mail_sent or request_reached_arr) and await notify_single_user(
+        "request", settings, req, db, plex_user_id, triggered_by="auto", pending_batch=batch
+    ):
+        queued.append("request")
+    if status == "available" and await notify_single_user(
+        "available", settings, req, db, plex_user_id, triggered_by="auto", pending_batch=batch
+    ):
+        queued.append("available")
+    if atomic:
+        from ..notification_queue import schedule_pending_notification
+
+        await db.commit()  # requester membership and both pending events become durable together
+        for entry in batch:
+            try:
+                await schedule_pending_notification(*entry)
+            except Exception:
+                logger.exception("Rattrapage persisté ; planification à reprendre au redémarrage")
+    return queued
 
 
 async def _handle_show_progress_notification(settings: Settings, req: MediaRequest, db: AsyncSession) -> None:

@@ -15,6 +15,7 @@ from arq.connections import RedisSettings
 from sqlalchemy.future import select
 
 from .database import AsyncSessionLocal, init_db
+from .log_buffer import install_redaction as install_log_redaction
 from .models import JobRunLog, PendingNotification, Settings
 from .realtime import publish
 from .utils import local_hour, local_minute, now_utc, now_utc_naive
@@ -27,6 +28,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+install_log_redaction()
 
 logger = logging.getLogger(__name__)
 LOCK_TTL = 60 * 60
@@ -264,12 +266,14 @@ async def job_arr_statuses(ctx: dict, force: bool = False, run_id: str | None = 
 async def job_torrent_statuses(ctx: dict, force: bool = False):
     from .services.arr_tracker import check_torrent_statuses
 
+    settings = await _settings()
+    interval = (settings.torrent_status_interval_seconds if settings else None) or 120
     return await _run(
         ctx,
         "torrent-statuses",
         check_torrent_statuses,
         force=force,
-        interval_seconds=120,
+        interval_seconds=interval,
         event_type="download.updated",
     )
 
@@ -287,12 +291,14 @@ async def job_radarr_queue_monitor(ctx: dict, force: bool = False):
 
 
 async def _run_arr_queue_monitor(ctx: dict, arr_type: str, monitor, force: bool):
+    settings = await _settings()
+    interval = (settings.arr_queue_interval_seconds if settings else None) or 60
     return await _run(
         ctx,
         f"{arr_type}-queue-monitor",
         monitor,
         force=force,
-        interval_seconds=60,
+        interval_seconds=interval,
         event_type="download.updated",
     )
 
@@ -355,19 +361,49 @@ async def job_vf_upgrade_scan(ctx: dict, force: bool = False):
     )
 
 
+async def job_vf_upgrade_lifecycle(ctx: dict, force: bool = False):
+    """Fait avancer les ameliorations VF deja acceptees (voir vf_upgrade_lifecycle).
+
+    Distinct de `job_vf_upgrade_scan`, qui cherche des releases chez les indexeurs :
+    ce passage-ci ne fait que lire la file de telechargement *arr et l'etat VF Plex,
+    c'est-a-dire des appels rapides et sans cout indexeur -- d'ou un rythme bien plus
+    serre. Sans lui, le cycle de vie n'avancait que lorsqu'un humain ouvrait la page
+    des ameliorations VF.
+    """
+    from .database import AsyncSessionLocal
+    from .services.vf_upgrade_lifecycle import reconcile_all
+
+    async def _reconcile():
+        async with AsyncSessionLocal() as db:
+            return await reconcile_all(db)
+
+    return await _run(
+        ctx,
+        "vf-upgrade-lifecycle",
+        _reconcile,
+        force=force,
+        interval_seconds=300,
+        event_type="vf_upgrade.updated",
+    )
+
+
 async def job_new_vff(ctx: dict, force: bool = False):
     from .services.vff_scanner import check_new_vf_availability
 
+    settings = await _settings()
+    interval = (settings.new_vff_interval_seconds if settings else None) or 60
     return await _run(
-        ctx, "new-vff", check_new_vf_availability, force=force, interval_seconds=60, event_type="request.updated"
+        ctx, "new-vff", check_new_vf_availability, force=force, interval_seconds=interval, event_type="request.updated"
     )
 
 
 async def job_seer_sync(ctx: dict, force: bool = False):
     from .services.seer_sync import _seer_full_sync
 
+    settings = await _settings()
+    interval = ((settings.seer_sync_interval_minutes if settings else None) or 60) * 60
     return await _run(
-        ctx, "seer-sync", _seer_full_sync, force=force, interval_seconds=3600, event_type="request.updated"
+        ctx, "seer-sync", _seer_full_sync, force=force, interval_seconds=interval, event_type="request.updated"
     )
 
 
@@ -427,17 +463,19 @@ async def job_playback_activity(ctx: dict, force: bool = False):
 async def job_library_analytics(ctx: dict, force: bool = False):
     from .services.library_analytics import refresh_library_analytics
 
+    settings = await _settings()
+    interval = ((settings.library_analytics_interval_minutes if settings else None) or 10) * 60
     return await _run(
         ctx,
         "library-analytics",
         refresh_library_analytics,
         force=force,
-        interval_seconds=600,
+        interval_seconds=interval,
         event_type="library.analytics.updated",
     )
 
 
-PURGE_LOCAL_HOUR = 3  # heure murale visee, hors heures d'utilisation habituelles
+PURGE_LOCAL_HOUR = 3  # repli quand aucun reglage n'est encore charge
 
 
 async def job_notification_purge(ctx: dict, force: bool = False):
@@ -447,7 +485,9 @@ async def job_notification_purge(ctx: dict, force: bool = False):
     # une heure UTC, pas locale — decale de 1h/2h selon CET/CEST. Le cron tourne donc
     # desormais toutes les heures (voir cron_notification_purge) et c'est ce garde-fou,
     # comme pour job_digest, qui decide si c'est vraiment l'heure locale visee.
-    if not force and local_hour() != PURGE_LOCAL_HOUR:
+    settings = await _settings()
+    target_hour = PURGE_LOCAL_HOUR if settings is None else settings.notification_purge_hour
+    if not force and local_hour() != target_hour:
         return {"status": "not_due"}
     return await _run(ctx, "notification-purge", _purge_notification_logs, force=force, interval_seconds=86400)
 
@@ -664,6 +704,10 @@ async def cron_vf_upgrade_scan(ctx: dict):
     return await job_vf_upgrade_scan(ctx)
 
 
+async def cron_vf_upgrade_lifecycle(ctx: dict):
+    return await job_vf_upgrade_lifecycle(ctx)
+
+
 async def cron_seer_sync(ctx: dict):
     return await job_seer_sync(ctx)
 
@@ -704,6 +748,7 @@ class WorkerSettings:
         job_episode_availability,
         job_new_vff,
         job_vf_upgrade_scan,
+        job_vf_upgrade_lifecycle,
         job_seer_sync,
         job_plex_sync,
         job_plex_sync_recent,
@@ -727,6 +772,9 @@ class WorkerSettings:
         # Recherche interactive : declenchee chaque minute mais court-circuitee la
         # plupart du temps par l'intervalle de 6h de job_vf_upgrade_scan (voir _run/_due).
         cron(cron_vf_upgrade_scan, minute=None, second=40, unique=True),
+        # Lecture de file *arr + etat VF Plex uniquement (aucun appel indexeur) :
+        # declenche chaque minute, court-circuite par l'intervalle de 5 min du job.
+        cron(cron_vf_upgrade_lifecycle, minute=None, second=50, unique=True),
         cron(cron_seer_sync, minute=5, unique=True),
         # Tourne toutes les 15 min (comme cron_arr_statuses) ; job_plex_sync decide via
         # _run/_due si l'intervalle configure (plex_sync_interval_hours) est vraiment

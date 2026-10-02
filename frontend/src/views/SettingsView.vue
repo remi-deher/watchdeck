@@ -1,41 +1,78 @@
 <template>
-  <PageShell title="Paramètres" description="Connexions, notifications, automatisation et exploitation." :eyebrow="currentTabLabel">
+  <AppPage
+    :title="pageTitle"
+    v-model:query="query"
+    search-scope="Réglages"
+    placeholder="Filtrer les réglages…"
+    search-kind="filter"
+    :match-count="settingsSearch.matched.value"
+    :total-count="settingsSearch.total.value"
+  >
     <template #actions>
       <UiButton v-if="['plex','services','webhooks','notifications-channels','notifications-rules','downloads','vf-upgrades','scheduled-tasks','data'].includes(tab)" variant="primary" :loading="saving" @click="save"><template #icon><Save/></template>{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</UiButton>
     </template>
-    <NotificationsSubnav v-if="isNotificationsTab" :active="tab"/>
-    <div class="settings-search"><Search/><input v-model="sectionSearch" type="search" placeholder="Rechercher dans tous les paramètres" aria-label="Rechercher une section"><div v-if="sectionSearch" class="settings-search-results"><button v-for="item in filteredTabs" :key="item.key" @click="selectItem(item);sectionSearch=''">{{ item.label }}<span>{{ item.group }}</span></button><p v-if="!filteredTabs.length">Aucune section trouvée.</p></div></div>
-    <UiFeedback v-if="error" type="error" title="Enregistrement impossible" :message="error" />
-    <UiFeedback v-if="message" type="success" :message="message" />
+    <!-- La colonne de navigation a disparu : ses groupes sont devenus des destinations
+         du rail et ses entrees leurs sections. Un seul panneau reste ici, sur toute la
+         largeur -- c'est ce qui rend enfin possibles les grilles a deux ou trois
+         colonnes des taches planifiees et de la maintenance. -->
+    <div class="settings-layout">
+      <div class="settings-panel">
+        <UiFeedback v-if="error" type="error" title="Enregistrement impossible" :message="error" />
+        <SettingsValidationSummary />
+        <UiFeedback v-if="message" type="success" :message="message" />
 
-    <SettingsOverview v-if="tab==='overview'" @select="selectTab"/>
-    <ConnectionsTab v-else-if="tab==='plex'"/>
-    <ServicesTab v-else-if="tab==='services'"/>
-    <WebhooksTab v-else-if="tab==='webhooks'"/>
-    <NotificationsChannelsTab v-else-if="tab==='notifications-channels'"/>
-    <NotificationsRulesTab v-else-if="tab==='notifications-rules'"/>
-    <DownloadsTab v-else-if="tab==='downloads'"/>
-    <VfUpgradesSettingsTab v-else-if="tab==='vf-upgrades'"/>
-    <PlanningMaintenanceTab v-else-if="tab==='scheduled-tasks'"/>
-    <AcquisitionsConflictsTab v-else-if="tab==='acquisitions'"/>
-    <EmailTemplatesPanel v-else-if="tab==='templates'"/>
-    <SystemVersionTab v-else-if="tab==='system-version'"/>
-    <DataPrivacyTab v-else/>
+        <!-- La question n'est plus « comment regler ceci » mais « ou vit ce reglage » :
+             le champ retranche les cartes de cette page, et cette liste dit ce qui
+             correspond ailleurs. -->
+        <section v-if="elsewhere.length" class="settings-elsewhere">
+          <h2>Ailleurs dans les réglages</h2>
+          <ul>
+            <li v-for="entry in elsewhere" :key="entry.path">
+              <RouterLink :to="entry.path">
+                <strong>{{ entry.label }}</strong>
+                <small>{{ entry.group }}</small>
+              </RouterLink>
+            </li>
+          </ul>
+        </section>
+        <p v-if="query.trim() && !settingsSearch.matched.value" class="settings-no-match">
+          Aucun réglage de cette page ne correspond à « {{ query.trim() }} ».
+        </p>
+
+        <SettingsOverview v-if="tab==='overview'"/>
+        <ConnectionsTab v-else-if="tab==='plex'"/>
+        <ServicesTab v-else-if="tab==='services'"/>
+        <WebhooksTab v-else-if="tab==='webhooks'"/>
+        <NotificationsChannelsTab v-else-if="tab==='notifications-channels'"/>
+        <NotificationsRulesTab v-else-if="tab==='notifications-rules'"/>
+        <DownloadsTab v-else-if="tab==='downloads'"/>
+        <VfUpgradesSettingsTab v-else-if="tab==='vf-upgrades'"/>
+        <PlanningMaintenanceTab v-else-if="tab==='scheduled-tasks'"/>
+        <EmailTemplatesPanel v-else-if="tab==='templates'"/>
+        <MessageReasonsPanel v-else-if="tab==='reasons'"/>
+        <SystemVersionTab v-else-if="tab==='system-version'"/>
+        <DataPrivacyTab v-else/>
+      </div>
+    </div>
+
     <FormSaveBar v-if="!standaloneTabs.has(tab)" :dirty="isDirty" :saving="saving" @save="save"/>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
-  </PageShell>
+  </AppPage>
 </template><script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
-import { Save, Search } from '@lucide/vue';
+import { Save } from '@lucide/vue';
 import SettingsOverview from '@/components/settings/SettingsOverview.vue';
-import NotificationsSubnav from '@/components/settings/NotificationsSubnav.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { load, save, saving, error, message, isDirty } from '@/settingsForm';
 import { settingsSections } from '@/settingsSections';
 import { notificationSections } from '@/notificationSections';
 import UiButton from '@/components/ui/UiButton.vue';
+import { PANEL_PATHS, panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
+import { SETTINGS_SEARCH_INDEX } from '@/settingsSearchIndex';
+import { matchesQuery, normalizeSearchText, provideSettingsSearch } from '@/composables/useSettingsSearch';
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const ConnectionsTab = defineAsyncComponent(() => import('@/components/settings/ConnectionsTab.vue'));
@@ -46,17 +83,34 @@ const NotificationsRulesTab = defineAsyncComponent(() => import('@/components/se
 const DownloadsTab = defineAsyncComponent(() => import('@/components/settings/DownloadsTab.vue'));
 const VfUpgradesSettingsTab = defineAsyncComponent(() => import('@/components/settings/VfUpgradesSettingsTab.vue'));
 const PlanningMaintenanceTab = defineAsyncComponent(() => import('@/components/settings/PlanningMaintenanceTab.vue'));
-const AcquisitionsConflictsTab = defineAsyncComponent(() => import('@/components/settings/AcquisitionsConflictsTab.vue'));
 const EmailTemplatesPanel = defineAsyncComponent(() => import('@/components/EmailTemplatesPanel.vue'));
+const MessageReasonsPanel = defineAsyncComponent(() => import('@/components/settings/MessageReasonsPanel.vue'));
 const DataPrivacyTab = defineAsyncComponent(() => import('@/components/settings/DataPrivacyTab.vue'));
 const SystemVersionTab = defineAsyncComponent(() => import('@/components/settings/SystemVersionTab.vue'));
 
 const notificationTabDefs = notificationSections.filter((item) => typeof item.to === 'object' && 'path' in item.to && item.to.path === '/settings');
 const tabs = [...settingsSections.filter((item) => !item.to), ...notificationTabDefs];
 const route = useRoute(), router = useRouter();
-const tab = computed(() => tabs.some((item) => item.key === route.query.tab) ? route.query.tab as string : 'overview');
-const isNotificationsTab = computed(() => notificationTabDefs.some((item) => item.key === tab.value));
-const standaloneTabs = new Set(['acquisitions', 'templates', 'overview', 'system-version']);
+// Le panneau se lit desormais dans le chemin. `?tab=` reste accepte le temps d'une
+// redirection : ces liens circulent dans les favoris et les echanges, les laisser tomber
+// sur la page d'accueil des reglages aurait ete une regression silencieuse.
+const tab = computed(() => panelForPath(route.path));
+
+/* Deux moities de la meme question : le champ retranche les cartes de la page affichee
+   (les cartes se declarent elles-memes, voir `useSettingsSearch`), et l'index dit ou
+   trouver ce qui correspond ailleurs. */
+const query = ref('');
+const settingsSearch = provideSettingsSearch(query);
+const elsewhere = computed(() => {
+  const needle = query.value.trim();
+  if (normalizeSearchText(needle).length < 2) return [];
+  return SETTINGS_SEARCH_INDEX.filter(
+    (entry) => entry.path !== route.path && matchesQuery(`${entry.label} ${entry.group} ${entry.keywords.join(' ')}`, needle)
+  ).slice(0, 6);
+});
+// L'accueil n'enregistre rien, mais il lit les reglages (canaux actifs, adresse
+// publique) pour sa liste « A traiter » : il les charge comme les autres panneaux.
+const standaloneTabs = new Set(['acquisitions', 'templates', 'system-version']);
 let settingsLoadPromise: Promise<void> | undefined;
 function ensureSettingsLoaded(value = tab.value): Promise<void> {
   if (standaloneTabs.has(value)) return Promise.resolve();
@@ -66,19 +120,10 @@ function ensureSettingsLoaded(value = tab.value): Promise<void> {
   });
   return settingsLoadPromise;
 }
+const pageTitle = computed(() => (tab.value === 'overview' ? 'Administration' : String(route.meta?.title || 'Administration')));
 const currentTabLabel = computed(() => tabs.find((item) => item.key === tab.value)?.label || "Vue d'ensemble");
-const sectionSearch = ref('');
-const searchableSections = [...settingsSections, ...notificationSections];
-const filteredTabs = computed(() => {
-  const query = sectionSearch.value.trim().toLowerCase();
-  return query ? searchableSections.filter((item) => `${item.label} ${item.group}`.toLowerCase().includes(query)) : [];
-});
 function selectTab(value: string): void {
-  router.replace({ path: '/settings', query: { tab: value } });
-}
-function selectItem(item: any): void {
-  if (item.to) router.push(item.to);
-  else selectTab(item.key);
+  router.push(PANEL_PATHS[value as SettingsPanel] || '/settings');
 }
 function warnUnsaved(event: BeforeUnloadEvent): void { if (!isDirty.value) return; event.preventDefault(); event.returnValue = ''; }
 onBeforeRouteLeave(() => !isDirty.value || askConfirm({ title: 'Quitter sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Quitter cette page ?', confirmLabel: 'Quitter', danger: true }));
@@ -88,8 +133,42 @@ onUnmounted(() => window.removeEventListener('beforeunload', warnUnsaved));
 
 watch(tab, (value) => ensureSettingsLoaded(value).catch(() => {}));
 onMounted(() => ensureSettingsLoaded().catch(() => {}));
+
+// Redirection des anciens liens `/settings?tab=...` vers leur chemin canonique.
+function redirectLegacyTab(): void {
+  const legacy = pathForLegacyTab(route.query.tab as string | undefined);
+  if (legacy && legacy !== route.path) router.replace(legacy);
+}
+watch(() => route.query.tab, redirectLegacyTab);
+onMounted(redirectLegacyTab);
 </script>
 <style scoped lang="scss">
-.settings-search{position:relative;display:flex;align-items:center;gap: var(--space-3);width:min(100%,620px);min-height:48px;margin-bottom:16px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}.settings-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}.settings-search>svg{flex:none;width:18px;color:var(--muted)}.settings-search>input{width:100%;border:0;background:transparent;outline:0;color:var(--text);font-size:var(--fs-md)}.settings-search-results{position:absolute;z-index:30;top:calc(100% + 7px);left:0;right:0;display:grid;padding:7px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);box-shadow:0 12px 28px rgba(0,0,0,.3)}.settings-search-results button{display:flex;justify-content:space-between;min-height:44px;padding:10px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--text);font-size:var(--fs-sm);text-align:left}.settings-search-results button:hover{background:var(--surface-2)}.settings-search-results span,.settings-search-results p{color:var(--muted);font-size:var(--fs-xs)}
-@media(max-width:767.98px){.settings-search{width:100%;margin-bottom:var(--space-3)}.settings-search-results{position:fixed;top:auto;right:16px;bottom:calc(var(--mobile-bottom-nav-height,72px) + 12px);left:16px;max-height:min(55dvh,420px);overflow-y:auto}}
+/* Une seule colonne, pleine largeur. La reserve de 232px pour la navigation interne n'a
+   plus lieu d'etre : c'est elle qui etranglait les grilles de cartes. */
+.settings-layout { display: grid; gap: var(--space-4); min-width: 0; }
+.settings-panel { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+
+/* Les resultats d'ailleurs passent avant les cartes : quand on cherche « ou vit ce
+   reglage », la reponse est cette liste, pas ce qui reste de la page courante. */
+.settings-elsewhere {
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+.settings-elsewhere h2 { margin: 0 0 var(--space-3); font-size: var(--fs-sm); color: var(--muted); }
+.settings-elsewhere ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.settings-elsewhere a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+.settings-elsewhere a:hover { background: var(--surface-2); }
+.settings-elsewhere small { color: var(--muted); font-size: var(--fs-xs); }
+.settings-no-match { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 </style>

@@ -12,7 +12,6 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
     "allowJs": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./frontend/src/*"]
     }

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, Index, Text, UniqueConstraint, desc, text
+from sqlalchemy import Boolean, ForeignKey, Index, Text, UniqueConstraint, desc, text
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from ..utils import now_utc_naive
@@ -21,7 +21,6 @@ class MediaRequest(Base):
             "ix_media_requests_next_release_at",
             "next_release_at",
             postgresql_where=text("next_release_at IS NOT NULL"),
-            sqlite_where=text("next_release_at IS NOT NULL"),
         ),
     )
 
@@ -62,6 +61,10 @@ class MediaRequest(Base):
     # échoue à nouveau doit pouvoir renotifier. Voir requests_api.py (retry*) et
     # watchlist_poller.py (reset au succès).
     failure_mail_sent: Mapped[bool] = mapped_column(default=False)
+    # Surcharge du rapprochement automatique pour ce media seul. `None` suit le reglage
+    # global : un media capricieux peut ainsi rester manuel sans desactiver le reste,
+    # et inversement.
+    auto_import_reconciliation: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
     # True si `requested_at` (date réelle d'ajout à la watchlist Plex, via <pubDate> RSS ou
     # l'API) dépassait déjà 24h au moment où l'app a détecté cet item — cas d'un vieil item
@@ -88,7 +91,9 @@ class MediaRequest(Base):
     rejected_reason: Mapped[Optional[str]] = mapped_column(default=None)
 
     # Instance tracking
-    arr_instance_id: Mapped[Optional[int]] = mapped_column(index=True)
+    arr_instance_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("arr_instances.id", ondelete="SET NULL"), index=True
+    )
     download_client_id: Mapped[Optional[int]]
     torrent_hash: Mapped[Optional[str]] = mapped_column(index=True)
     torrent_name: Mapped[Optional[str]] = mapped_column(default=None)
@@ -123,11 +128,12 @@ class MediaRequest(Base):
     # audio_analyzer.get_french_audio_state / show_has_full_french_audio.
     fr_is_default: Mapped[Optional[bool]] = mapped_column(default=None)
 
-    # Lien vers le LibraryItem correspondant, une fois synchronisé depuis Plex (pas de
-    # contrainte FK, convention du reste du modèle). Une fois lié, has_vf n'est plus
+    # Lien vers le LibraryItem correspondant, une fois synchronisé depuis Plex. Une fois lié, has_vf n'est plus
     # scanné indépendamment : il est propagé depuis le LibraryItem (source de vérité
     # unique), pour éviter deux scans Plex divergents du même média.
-    library_item_id: Mapped[Optional[int]] = mapped_column(index=True)
+    library_item_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("library_items.id", ondelete="SET NULL"), index=True
+    )
 
     # --- Disponibilité partielle (séries en cours de diffusion, Sonarr uniquement) ---
     # episodes_available_count : épisodes avec un fichier sur disque (episodeFileCount)
@@ -225,7 +231,9 @@ class LibraryItem(Base):
     duration_ms: Mapped[Optional[int]] = mapped_column(default=None)
 
     # Rapprochement Sonarr / Radarr (badges de suivi)
-    arr_instance_id: Mapped[Optional[int]] = mapped_column(index=True)
+    arr_instance_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("arr_instances.id", ondelete="SET NULL"), index=True
+    )
     arr_id: Mapped[Optional[int]]
     arr_slug: Mapped[Optional[str]]
 
@@ -418,6 +426,10 @@ class VfUpgradeSuggestion(Base):
     # *arr a accepte le grab, meme si son element n'est pas encore visible dans la queue.
     status: Mapped[str] = mapped_column(default="pending", index=True)
     grabbed_release_guid: Mapped[Optional[str]]
+    # Guids deja tentes pour cette cible (JSON), pour que la relance automatique apres
+    # echec (voir vf_upgrade_lifecycle.auto_retry_next_candidate) enchaine sur le
+    # candidat suivant au lieu de reproposer la release qui a deja deçu.
+    attempted_guids_json: Mapped[Optional[str]] = mapped_column(Text)
     arr_message: Mapped[Optional[str]] = mapped_column(Text)
     accepted_at: Mapped[Optional[datetime]]
     queue_confirmed_at: Mapped[Optional[datetime]]
@@ -441,11 +453,16 @@ class VfUpgradeScanRun(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     started_at: Mapped[datetime] = mapped_column(default=now_utc_naive, index=True)
     finished_at: Mapped[Optional[datetime]]
-    # "running" -> "success" | "failed"
+    # "running" -> "success" | "degraded" | "failed" -- "degraded" = cycle termine dont
+    # toutes les recherches ont echoue techniquement (indexeurs injoignables), a ne pas
+    # confondre avec un cycle qui n'a simplement rien trouve.
     status: Mapped[str] = mapped_column(default="running")
     trigger: Mapped[str] = mapped_column(default="auto")  # "auto" | "manual"
     tasks_total: Mapped[int] = mapped_column(default=0)
     tasks_scanned: Mapped[int] = mapped_column(default=0)
+    # Recherches ayant echoue pour une raison technique (voir VfUpgradeScanRunItem.status
+    # "error") : comptees a part des "no_result", qui sont un resultat legitime.
+    tasks_errored: Mapped[int] = mapped_column(default=0)
     suggestions_found: Mapped[int] = mapped_column(default=0)
     error: Mapped[Optional[str]] = mapped_column(Text)
 

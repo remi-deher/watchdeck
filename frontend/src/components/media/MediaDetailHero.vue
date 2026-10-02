@@ -1,16 +1,29 @@
 <template>
-  <div class="mdh-backdrop" :style="detail.backdrop_url ? { backgroundImage: `url(${detail.backdrop_url})` } : {}">
-    <div class="mdh-scrim"></div>
-    <div class="mdh-content">
+  <!-- En-tete commun des fiches (SheetHero) : l'image seule dans la banniere, l'affiche
+       qui en chevauche le bas, le texte dessous. Les classes `mdh-*` restent posees sur
+       les memes elements : la feuille (MediaOverlay) et les tests s'y appuient. -->
+  <SheetHero
+    class="mdh"
+    banner-class="mdh-hero"
+    content-class="mdh-content"
+    :row-class="['mdh-row', { 'is-music': isMusic }]"
+    :image-url="backdropUrl"
+    :position="variant === 'sheet' ? 'center 18%' : undefined"
+    :variant="variant"
+    stack-on-mobile
+  >
+    <template #overlay>
       <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
-      <div class="mdh-row" :class="{ 'is-music': isMusic }">
+    </template>
+    <template #poster>
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
-          <img v-if="detail.poster_url" :src="detail.poster_url" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
+          <img v-if="detail.poster_url && !posterFailed" class="mdh-poster-img" @error="posterFailed = true" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
             <Music2 v-if="isMusic" />
             <Film v-else />
           </div>
         </div>
+    </template>
         <div class="mdh-info">
           <span class="eyebrow">{{ typeLabel }}</span>
           <h1>{{ detail.title }}</h1>
@@ -19,7 +32,9 @@
             <span v-if="detail.year" class="badge">{{ detail.year }}</span>
             <span v-if="detail.vote" class="badge"><Star :size="14" />{{ detail.vote }}</span>
             <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
-            <span v-if="detail.origin_label && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
+            <!-- « Deja present dans Plex » redit « Disponible dans Plex » : l'origine ne
+                 s'affiche que lorsqu'elle apprend quelque chose (demande Seerr, ajout *ARR). -->
+            <span v-if="detail.origin_label && detail.origin_kind !== 'plex' && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
           </div>
           <p v-if="detail.waiting_reason && !isMusic" class="mdh-waiting">{{ detail.waiting_reason }}</p>
           <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
@@ -28,23 +43,19 @@
               <dd>{{ entry.value }}</dd>
             </div>
           </dl>
-          <div class="mdh-overview-wrapper">
-            <p class="mdh-overview" :class="{ clamped: !showFullOverview && isOverviewLong }">
-              {{ overviewText }}
-            </p>
-            <button
-              v-if="isOverviewLong"
-              type="button"
-              class="overview-toggle-btn"
-              @click="showFullOverview = !showFullOverview"
-            >
-              {{ showFullOverview ? 'Voir moins' : 'Plus...' }}
-            </button>
+          <div v-if="preview && !detail.overview" class="mdh-overview-wrapper" aria-hidden="true">
+            <span class="skeleton-line" /><span class="skeleton-line" /><span class="skeleton-line is-short" />
+          </div>
+          <div v-else class="mdh-overview-wrapper">
+            <SheetSummary class="mdh-overview" :text="overviewText" :lines="4" />
           </div>
           <div v-if="detail.genres?.length" class="tag-row">
             <span v-for="genre in detail.genres" :key="genre" class="badge">{{ genre }}</span>
           </div>
-          <div class="mdh-links">
+          <div v-if="preview" class="mdh-links" aria-hidden="true">
+            <span class="skeleton-pill" /><span class="skeleton-pill" /><span class="skeleton-pill" />
+          </div>
+          <div v-else class="mdh-links">
             <button
               v-if="canRequest && !isMusic"
               type="button"
@@ -66,7 +77,7 @@
               type="button"
               class="badge mdh-link"
               :disabled="busy || !available"
-              :title="available ? '' : 'Pas encore disponible dans Plex — reessayer une fois le media indexe'"
+              :title="available ? '' : 'Pas encore disponible dans Plex — réessayer une fois le média indexé'"
               @click="$emit('scan')"
             ><RefreshCw :size="14" /> Analyser</button>
             <VfUpgradeButton
@@ -87,7 +98,7 @@
           <!-- Zone langue commune aux films et aux series, au meme emplacement : une seule
                entree pour un film (pas de saisons a detailler), la repartition par saison
                pour une serie. -->
-          <div v-if="showLanguageSummary" class="mdh-language-summary">
+          <div v-if="showLanguageSummary && !preview" class="mdh-language-summary">
             <template v-if="isShow">
               <span v-if="seasonSummary.vf.length" class="badge available">VF : {{ formatSeasonLabel(seasonSummary.vf) }}</span>
               <span v-if="seasonSummary.vfSecondary.length" class="badge language-tag vf-secondary">VF secondaire : {{ formatSeasonLabel(seasonSummary.vfSecondary) }}</span>
@@ -97,17 +108,19 @@
             <span v-else class="badge language-tag" :class="languageState.variant">{{ languageState.label }}</span>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
+  </SheetHero>
 </template>
 
 <script setup lang="ts">
-import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
-import { computed, ref } from 'vue';
+import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
+import { mediaTypeLabel, vfLanguageState, isMusicType } from '@/utils/labels';
+import { computed, ref, watch } from 'vue';
 import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
+import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
+import SheetHero from '@/components/ui/SheetHero.vue';
+import SheetSummary from '@/components/ui/SheetSummary.vue';
 
 export interface SeasonSummaryGroup {
   vf: number[];
@@ -125,6 +138,9 @@ const props = withDefaults(
     seasonSummary?: SeasonSummaryGroup;
     busy?: boolean;
     available?: boolean;
+    /** Donnees partielles de la carte touchee, en attendant la fiche : pas d'actions. */
+    preview?: boolean;
+    variant?: 'card' | 'sheet';
   }>(),
   {
     statusLabel: '',
@@ -133,10 +149,23 @@ const props = withDefaults(
     seasonSummary: () => ({ vf: [], vfSecondary: [], vo: [], partial: [] }),
     busy: false,
     available: true,
+    preview: false,
+    variant: 'card',
   }
 );
 
-const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.detail?.media_type));
+/* Fond du hero : l'URL du serveur est une vignette de 600 px, floue une fois etiree sur
+   toute la largeur. On demande une variante assez large pour l'ecran. */
+const backdropUrl = computed(() => (props.detail?.backdrop_url ? proxyUrl(props.detail.backdrop_url, { width: 1600 }) : null));
+
+/* Affiche introuvable (Plex a change son chemin, source disparue) : le repli plutot
+   qu'une image cassee. */
+const posterFailed = ref(false);
+watch(() => props.detail?.poster_url, () => { posterFailed.value = false; });
+
+
+
+const isMusic = computed(() => isMusicType(props.detail?.media_type));
 const isShow = computed(() => props.detail?.media_type === 'show');
 const canRequest = computed(() => !props.detail?.available && !props.detail?.in_library && !props.detail?.requested && !props.detail?.request_id);
 
@@ -203,17 +232,12 @@ function formatSeasonLabel(seasonNumbers: number[]): string {
   return `${label} ${ranges.join(', ')}`;
 }
 
-const showFullOverview = ref(false);
 const overviewText = computed(() => props.detail.overview || (isMusic.value ? 'Aucune biographie disponible pour cet artiste.' : 'Aucun résumé disponible.'));
-const isOverviewLong = computed(() => overviewText.value.length > 260);
 
 const typeLabel = computed(() => mediaTypeLabel(props.detail.media_type));
 
 function formatDate(value: any): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  return formatDateLong(value, '');
 }
 
 const releaseDates = computed(() => {
@@ -239,37 +263,25 @@ const releaseDates = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.mdh-backdrop {
-  position: relative;
-  background-size: cover;
-  background-position: center top;
-  background-color: var(--surface-2);
-  margin: -28px calc(-1 * var(--main-pad-x, 28px)) 24px calc(-1 * var(--main-pad-x, 28px));
-  padding-top: 24px;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+@use '@/styles/foundations/breakpoints' as bp;
+.mdh {
+  margin-bottom: var(--space-6);
 }
-.mdh-scrim {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(10,10,10,.55) 0%, rgba(10,10,10,.85) 70%, var(--bg, #0d0d0d) 100%);
+.mdh.is-sheet {
+  margin-bottom: var(--space-5);
 }
-.mdh-content {
-  position: relative;
-  padding: 12px 28px 28px;
+.mdh :deep(.mdh-content) {
+  padding: 0 var(--space-5) var(--space-2);
   max-width: 1280px;
   margin: 0 auto;
 }
+/* Le contenu est ancre en bas : le retour doit rester en haut a gauche, hors du flux,
+   sinon il descend avec le titre au fond de la banniere. */
 .mdh-back {
-  margin-bottom: 16px;
-}
-.mdh-row {
-  display: flex;
-  gap: var(--space-5);
-  align-items: flex-end;
-}
-.mdh-row.is-music {
-  align-items: flex-start;
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 3;
 }
 .mdh-poster {
   flex: 0 0 180px;
@@ -307,10 +319,20 @@ const releaseDates = computed(() => {
   min-width: 0;
   padding-bottom: 4px;
 }
+.mdh-info > .eyebrow {
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .mdh-info h1 {
   margin: 4px 0 10px;
-  font-size: var(--fs-3xl);
-  line-height: 1.2;
+  color: var(--text);
+  font-size: clamp(1.5rem, 3.5vw, 2.3rem);
+  font-weight: 800;
+  line-height: 1.15;
+  text-wrap: balance;
 }
 .mdh-badges {
   display: flex;
@@ -321,54 +343,26 @@ const releaseDates = computed(() => {
 .mdh-badges > .badge {
   min-height: 28px;
   padding: 3px 10px;
-  border-color: rgba(255, 255, 255, .22);
-  background: #27272a;
-  color: #fff;
+  border-color: color-mix(in srgb, var(--text) 22%, transparent);
+  background: var(--surface-2);
+  color: var(--text);
   font-size: var(--fs-sm);
   font-weight: 800;
   line-height: 1.25;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
 }
-.music-badge {
-  border-color: #a855f7 !important;
-  background: #7e22ce !important;
-  color: #fff !important;
+.mdh-badges > .music-badge {
+  border-color: var(--violet-text);
+  background: var(--violet);
+  color: var(--text);
 }
 .mdh-badges > .badge.available {
-  border-color: #22c55e;
-  background: #166534;
-  color: #fff;
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--text);
 }
 .mdh-overview-wrapper {
   max-width: 800px;
   margin-bottom: 12px;
-}
-.mdh-overview {
-  color: var(--text);
-  opacity: .92;
-  font-size: var(--fs-md);
-  line-height: 1.6;
-  margin: 0;
-}
-.mdh-overview.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.overview-toggle-btn {
-  background: transparent;
-  border: 0;
-  color: var(--accent);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  cursor: pointer;
-  padding: 4px 0 0 0;
-  display: inline-flex;
-  align-items: center;
-}
-.overview-toggle-btn:hover {
-  text-decoration: underline;
 }
 .mdh-dates {
   display: flex;
@@ -399,12 +393,12 @@ const releaseDates = computed(() => {
   padding: 8px 10px;
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, .28);
-  color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text);
   font-size: var(--fs-sm);
 }
 .origin-badge {
-  border-color: rgba(255, 255, 255, .24);
+  border-color: color-mix(in srgb, var(--text) 24%, transparent);
 }
 .mdh-links {
   display: flex;
@@ -440,29 +434,28 @@ const releaseDates = computed(() => {
   padding: 8px 18px;
   border-radius: var(--radius-md);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 700;
   font-size: var(--fs-sm);
   border: 0;
   cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
-.mdh-listen-btn:hover {
-  transform: translateY(-1px);
-  background: var(--accent-hover, #e05206);
+/* Au doigt, pas de survol : le soulevement restait accroche apres un appui. */
+@media (hover: hover) and (pointer: fine) {
+  .mdh-listen-btn:hover {
+    transform: translateY(-1px);
+    background: var(--accent-hover);
+  }
 }
 
-@media (max-width: 767.98px) {
-  .mdh-backdrop {
-    margin: -16px calc(-1 * var(--main-pad-x, 18px)) 16px calc(-1 * var(--main-pad-x, 18px));
+@include bp.until(tablet) {
+  .mdh :deep(.mdh-content) {
+    padding: 0 var(--space-4) 20px;
   }
-  .mdh-content {
-    padding: 8px 16px 20px;
-  }
-  .mdh-row {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
+  .mdh-back {
+    top: var(--space-2);
+    left: var(--space-2);
   }
   .mdh-info { display: flex; flex-direction: column; width: 100%; }
   .mdh-poster {
@@ -482,7 +475,6 @@ const releaseDates = computed(() => {
     justify-content: center;
   }
   .mdh-overview {
-    font-size: var(--fs-base);
     text-align: left;
   }
   .mdh-links { order: 1; width: 100%; }
@@ -492,4 +484,5 @@ const releaseDates = computed(() => {
   .mdh-links > .mdh-request-btn,
   .mdh-links > .mdh-listen-btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
 }
+
 </style>

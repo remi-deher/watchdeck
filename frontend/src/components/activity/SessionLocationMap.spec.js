@@ -38,4 +38,14 @@ describe('SessionLocationMap', () => {
     expect(wrapper.get('.location-head strong').text()).toBe('local');
     expect(wrapper.find('iframe').exists()).toBe(false);
   });
+
+  it('ajoute le relais Plex juste après l’ASN', () => {
+    const session = { geo_status: 'resolved', geo_lat: 47.3, geo_lon: 4.9, geo_city: 'Dijon', geo_asn: 'AS12322', stream_details: { relayed: true } };
+    const labels = mount(SessionLocationMap, { props: { session } }).findAll('dt').map((dt) => dt.text());
+    const asn = labels.indexOf('ASN');
+    expect(labels[asn + 1]).toBe('Relais Plex (limité à ~2 Mb/s)');
+    const none = mount(SessionLocationMap, { props: { session: { ...session, stream_details: {} } } });
+    expect(none.text()).not.toContain('Relais Plex');
+  });
 });
+

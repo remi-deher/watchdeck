@@ -33,12 +33,12 @@
       </div>
 
       <div class="activity-chart-wrapper">
-        <BarChart
+        <LineChart
           :points="chartPoints"
           :unit="activeOption.unit"
           :height="170"
-          :bar-color="activeColor"
-          show-peak
+          :color="activeColor"
+          :aria-label="`${activeOption.label} par jour`"
         />
       </div>
     <!-- Panneau latéral d'insights -->
@@ -58,7 +58,7 @@
         <div class="insight-card">
           <span class="insight-label">Médias disponibles</span>
           <strong class="insight-value text-success">{{ availabilityTotal }}</strong>
-          <small class="insight-sub">{{ deliveryRate }} de complétion</small>
+          <small class="insight-sub">{{ deliveryRate }}</small>
         </div>
 
         <div class="insight-card">
@@ -79,8 +79,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { formatLongDay as formatLongDate, formatNumber } from '@/utils/format';
-import BarChart from '@/components/ui/charts/BarChart.vue';
+import { formatDayMonth, formatLongDay as formatLongDate, formatNumber } from '@/utils/format';
+import LineChart from '@/components/ui/charts/LineChart.vue';
 import PanelCard from '@/components/ui/PanelCard.vue';
 
 export interface TimelineData {
@@ -108,7 +108,9 @@ const seriesOptions = [
 ];
 
 const activeOption = computed(() => seriesOptions.find((item) => item.key === activeSeries.value) || seriesOptions[0]);
-const activeColor = computed(() => activeOption.value.color);
+// Le trait prend la couleur pleine de la pastille : un `linear-gradient` ne peut pas
+// servir de `stroke`.
+const activeColor = computed(() => activeOption.value.indicatorColor);
 
 function getSeriesValues(key: string): number[] {
   return props.timeline.series?.[key] || (key === 'requests' ? props.timeline.values : []) || [];
@@ -129,10 +131,10 @@ const availabilityTotal = computed(() => seriesTotals.value.availability || 0);
 const deliveryRate = computed(() => {
   const req = requestsTotal.value;
   const avail = availabilityTotal.value;
-  if (!req && !avail) return 'Flux calme';
-  if (!req) return `${avail} livrés`;
+  if (!req && !avail) return 'Aucune livraison';
+  if (!req) return 'Sans demande sur la période';
   const pct = Math.min(100, Math.round((avail / req) * 100));
-  return `${pct}% livrés`;
+  return `${pct} % des demandes`;
 });
 
 const allValues = computed(() => getSeriesValues(activeSeries.value));
@@ -165,9 +167,7 @@ const trend = computed(() => {
 });
 
 function formatChartDate(v?: string): string {
-  if (!v) return '';
-  const d = new Date(v);
-  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+  return formatDayMonth(v);
 }
 
 const chartPoints = computed(() => {
@@ -212,24 +212,24 @@ const chartPoints = computed(() => {
 
 .activity-period button {
   padding: 3px 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border-radius: var(--radius-xs);
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .activity-period button.active {
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgb(var(--shadow-color) / calc(0.2 * var(--shadow-scale)));
 }
 
 .activity-trend {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   padding: 3px 8px;
   border-radius: var(--radius-xs);
@@ -239,15 +239,15 @@ const chartPoints = computed(() => {
 }
 
 .activity-trend.up {
-  color: var(--success);
-  border-color: rgba(34, 197, 94, 0.3);
-  background: rgba(34, 197, 94, 0.08);
+  color: var(--green-text);
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+  background: color-mix(in srgb, var(--green) 8%, transparent);
 }
 
 .activity-trend.down {
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.3);
-  background: rgba(239, 68, 68, 0.08);
+  color: var(--red-text);
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
 }
 
 .activity-series {
@@ -262,14 +262,14 @@ const chartPoints = computed(() => {
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--muted);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .activity-series button:hover {
@@ -291,7 +291,7 @@ const chartPoints = computed(() => {
 }
 
 .series-badge {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   background: var(--surface);
@@ -313,6 +313,7 @@ const chartPoints = computed(() => {
   border-left: 1px solid var(--border);
   grid-column: 2;
   grid-row: 1 / span 3;
+  min-width: 0;
 }
 
 .insights-head h3 {
@@ -324,7 +325,9 @@ const chartPoints = computed(() => {
 
 .insights-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr) : avec 1fr seul, la largeur minimale des libelles fixait celle des
+     colonnes et les tuiles debordaient de la colonne de 280px. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
   height: 100%;
 }
@@ -338,12 +341,13 @@ const chartPoints = computed(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   gap: 2px;
+  min-width: 0;
 }
 
 .insight-label {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--muted);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .insight-value {
@@ -354,22 +358,20 @@ const chartPoints = computed(() => {
 }
 
 .insight-sub {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .text-accent {
-  color: #fbbf24;
+  color: var(--amber-text);
 }
 
 .text-success {
-  color: var(--success);
+  color: var(--green-text);
 }
 
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .activity-panel-container {
     grid-template-columns: 1fr;
   }

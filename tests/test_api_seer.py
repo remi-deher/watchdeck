@@ -14,14 +14,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth
 from app.main import app
-from app.models import Base, MediaRequest, PlexUser, RequestStatus, Settings
+from app.models import MediaRequest, PlexUser, RequestStatus, Settings
 from app.routers import email_templates as email_templates_router
 
 # ---------------------------------------------------------------------------
@@ -218,6 +215,85 @@ def test_automatch_not_found(client, db):
     _settings(db)
     r = client.post("/api/users/9999/seer-automatch")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /api/plex/sync/users
+# ---------------------------------------------------------------------------
+
+
+PLEX_USERS_RESPONSE = (
+    [
+        {
+            "plex_user_id": "alice",
+            "plex_account_uuid": "uuid-alice",
+            "display_name": "Alice Plex",
+            "email": "alice@example.com",
+            "avatar_url": "https://plex.tv/alice.png",
+            "relationship": "owner",
+        },
+        {
+            "plex_user_id": "bob",
+            "plex_account_uuid": "uuid-bob",
+            "display_name": "Bob",
+            "email": "bob@example.com",
+            "avatar_url": None,
+            "relationship": "friend",
+        },
+    ],
+    [],
+)
+
+
+def test_plex_sync_users_updates_existing_and_creates_missing(client, db):
+    db.add(Settings(plex_token="token"))
+    alice = _user(db, plex_user_id="alice", display_name=None, source="rss")
+
+    with patch("app.routers.users_api.plex_get_users_for_tokens", new=AsyncMock(return_value=PLEX_USERS_RESPONSE)):
+        response = client.post("/api/plex/sync/users")
+
+    assert response.status_code == 200
+    assert response.json()["created"] == 1
+    assert response.json()["updated"] == 1
+    db.refresh(alice)
+    assert alice.plex_account_uuid == "uuid-alice"
+    assert alice.plex_email == "alice@example.com"
+    assert alice.notification_email == "alice@example.com"
+    assert alice.source == "api"
+    bob = db.query(PlexUser).filter_by(plex_user_id="bob").one()
+    assert bob.plex_account_uuid == "uuid-bob"
+
+
+def test_plex_sync_users_refuses_ambiguous_email_match(client, db):
+    db.add(Settings(plex_token="token"))
+    _user(db, plex_user_id="legacy-a", plex_email="shared@example.com")
+    _user(db, plex_user_id="legacy-b", notification_email="shared@example.com")
+    payload = (
+        [
+            {
+                "plex_user_id": "shared",
+                "plex_account_uuid": None,
+                "display_name": "Shared",
+                "email": "shared@example.com",
+                "avatar_url": None,
+                "relationship": "friend",
+            }
+        ],
+        [],
+    )
+
+    with patch("app.routers.users_api.plex_get_users_for_tokens", new=AsyncMock(return_value=payload)):
+        response = client.post("/api/plex/sync/users")
+
+    assert response.status_code == 200
+    assert response.json()["created"] == 0
+    assert len(response.json()["ambiguous"]) == 1
+    assert db.query(PlexUser).filter_by(plex_user_id="shared").first() is None
+
+
+def test_plex_sync_users_requires_token(client):
+    response = client.post("/api/plex/sync/users")
+    assert response.status_code == 400
 
 
 # ---------------------------------------------------------------------------

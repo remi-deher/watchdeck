@@ -79,7 +79,10 @@ describe('streamEvents', () => {
 
   it('lève sur une réponse en erreur, pour laisser l’appelant se replier', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => streamedResponse([], { ok: false, status: 503 })));
-    await expect(streamEvents('/x', () => {})).rejects.toThrow('HTTP 503');
+    // Le message porte le sens pour l'utilisateur, le code reste lisible par le code.
+    await expect(streamEvents('/x', () => {})).rejects.toThrow(/momentanément indisponible/);
+    vi.stubGlobal('fetch', vi.fn(async () => streamedResponse([], { ok: false, status: 503 })));
+    await expect(streamEvents('/x', () => {})).rejects.toMatchObject({ status: 503 });
   });
 
   it('lève quand le navigateur n’expose pas de corps lisible', async () => {

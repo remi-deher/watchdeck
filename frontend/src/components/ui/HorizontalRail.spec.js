@@ -121,7 +121,7 @@ describe('HorizontalRail', () => {
     await track.trigger('keydown', { key: 'ArrowRight' });
 
     expect(track.attributes('aria-describedby')).toBeTruthy();
-    expect(wrapper.get('.rail-a11y-hint').text()).toContain('gauche et droite');
+    expect(wrapper.get('.sr-only').text()).toContain('gauche et droite');
     expect(scrollBy).toHaveBeenCalledOnce();
   });
 });

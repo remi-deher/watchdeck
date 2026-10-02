@@ -62,3 +62,38 @@ async def test_arr_history_is_read_from_database_without_live_instance(async_db)
 
     assert [row["title"] for row in response["items"]] == ["Film archivé"]
     assert response["items"][0]["processing_mode"] == "automatic"
+
+
+@pytest.mark.asyncio
+async def test_download_history_sorts_on_every_column(async_db):
+    """Chaque colonne de l'historique des telechargements se trie, avant la pagination."""
+    now = now_utc_naive()
+    rows = [
+        ("Zodiac", "movie", "automatic", "radarr_local", "Radarr", 3),
+        ("Arcane", "show", "manual", "sonarr_local", "Sonarr", 1),
+        ("Memento", "movie", None, "plex", None, 2),
+    ]
+    for title, media_type, mode, source, instance, age in rows:
+        async_db.add(
+            DownloadHistory(
+                title=title,
+                year=2026,
+                media_type=media_type,
+                processing_mode=mode,
+                source=source,
+                instance_name=instance,
+                completed_at=now - timedelta(minutes=age),
+            )
+        )
+    async_db.commit()
+
+    async def titles(sort, direction="asc"):
+        page = await downloads_history(limit=10, offset=0, sort=sort, direction=direction, db=async_db)
+        return [row["title"] for row in page["items"]]
+
+    assert await titles("completed", "desc") == ["Arcane", "Memento", "Zodiac"]
+    assert await titles("title") == ["Arcane", "Memento", "Zodiac"]
+    assert await titles("title", "desc") == ["Zodiac", "Memento", "Arcane"]
+    assert (await titles("type"))[0] == "Memento"  # « movie » avant « show », puis la date
+    assert await titles("instance") == ["Zodiac", "Arcane", "Memento"]  # sans instance en dernier
+    assert await titles("source") == ["Memento", "Zodiac", "Arcane"]

@@ -1,24 +1,22 @@
 <template>
-  <div class="session-timeline-container" v-if="hasTimelineData">
+  <CollapsibleRoot v-if="hasTimelineData" v-model:open="isExpanded" class="session-timeline-container">
     <!-- En-tête avec titre, ratios et bouton de dépliage -->
     <div class="timeline-header">
       <div class="header-left">
-        <span class="timeline-title">Timeline de lecture</span>
+        <span class="timeline-title">Déroulé de la lecture</span>
         <span class="timeline-ratio-badge" v-if="activePlayRatio !== null && (hasPause || segments.length > 1)">
-          {{ activePlayRatio }}% actif
+          {{ activePlayRatio }} % en lecture
         </span>
       </div>
 
-      <button
-        type="button"
+      <!-- Reka relie le bouton au journal (aria-controls) et tient aria-expanded. -->
+      <CollapsibleTrigger
         class="timeline-toggle-btn"
-        :aria-expanded="isExpanded"
         :aria-label="isExpanded ? 'Masquer le détail des segments' : 'Afficher le détail des segments'"
-        @click="toggleExpanded"
       >
-        <span>{{ segments.length > 1 ? `${segments.length} segments` : 'Détails' }}</span>
+        <span>{{ segments.length > 1 ? `${segments.length} passages` : 'Détails' }}</span>
         <ChevronDown :class="['toggle-chevron', { 'is-open': isExpanded }]" :size="14" />
-      </button>
+      </CollapsibleTrigger>
     </div>
 
     <!-- Barre visuelle segmentée -->
@@ -78,7 +76,7 @@
 
     <!-- Journal détaillé des segments (Dépliable) -->
     <transition name="expand">
-      <div class="segments-log-drawer" v-if="isExpanded">
+      <CollapsibleContent v-if="isExpanded" class="segments-log-drawer">
         <div class="log-header">
           <span class="log-eyebrow">Journal des événements</span>
           <span class="log-stats" v-if="pauseCount > 0">
@@ -124,12 +122,13 @@
             </div>
           </li>
         </ul>
-      </div>
+      </CollapsibleContent>
     </transition>
-  </div>
+  </CollapsibleRoot>
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { computed, ref } from 'vue';
 import { ChevronDown, Clock, FastForward, Pause, Play, RotateCw, Zap } from '@lucide/vue';
 import { formatDurationExact as formatDuration, formatTime } from '@/utils/format';
@@ -152,9 +151,7 @@ const props = defineProps<{
 const isExpanded = ref(false);
 const highlightedIndex = ref<number | null>(null);
 
-function toggleExpanded() {
-  isExpanded.value = !isExpanded.value;
-}
+
 
 function selectSegment(idx: number) {
   isExpanded.value = true;
@@ -294,65 +291,79 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.6rem;
   margin-top: 0.35rem;
   padding: 0.75rem;
-  background: var(--bg-surface-elevated, rgba(15, 23, 42, 0.4));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  border-radius: var(--radius-md, 0.5rem);
+  /* Bloc dans la carte « Progression » : un fond un cran plus clair suffit a le
+     distinguer, un second cadre empilait les bordures. */
+  background: rgb(var(--ink) / 0.04);
+  border: 0;
+  border-radius: var(--radius-sm);
 }
 
 .timeline-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
 }
 
+/* Sur mobile, le titre et le badge passent a la ligne plutot que d'ecraser le bouton
+   (« 10 segment / s » sur deux lignes). */
 .header-left {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.timeline-title,
+.timeline-ratio-badge {
+  white-space: nowrap;
 }
 
 .timeline-title {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted);
 }
 
 .timeline-ratio-badge {
-  font-size: 0.68rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   padding: 0.1rem 0.4rem;
-  border-radius: 9999px;
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--green) 15%, transparent);
+  color: var(--green);
+  border: 1px solid color-mix(in srgb, var(--green) 25%, transparent);
 }
 
 .timeline-toggle-btn {
   display: flex;
+  flex: none;
+  white-space: nowrap;
   align-items: center;
   gap: 0.3rem;
   background: transparent;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
-  color: var(--text-secondary, #cbd5e1);
-  font-size: 0.7rem;
+  border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.12));
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
   font-weight: 500;
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm, 0.25rem);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .timeline-toggle-btn:hover {
-  background: var(--bg-surface-hover, rgba(255, 255, 255, 0.08));
-  color: var(--text-primary, #ffffff);
-  border-color: var(--border-strong, rgba(255, 255, 255, 0.2));
+  background: var(--bg-surface-hover, rgb(var(--ink) / 0.08));
+  color: var(--text-primary);
+  border-color: var(--border-strong, rgb(var(--ink) / 0.2));
 }
 
 .toggle-chevron {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .toggle-chevron.is-open {
@@ -368,19 +379,19 @@ function segmentTooltip(seg: Segment): string {
 .timeline-track {
   display: flex;
   height: 0.8rem;
-  background: var(--bg-surface-soft, rgba(255, 255, 255, 0.06));
-  border-radius: 9999px;
+  background: var(--bg-surface-soft, rgb(var(--ink) / 0.06));
+  border-radius: var(--radius-pill);
   overflow: hidden;
   gap: 2px;
   padding: 1px;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 2px rgb(var(--shadow-color) / calc(0.3 * var(--shadow-scale)));
 }
 
 .timeline-segment {
   position: relative;
   height: 100%;
-  border-radius: 3px;
-  transition: opacity 0.15s ease, transform 0.15s ease, filter 0.15s ease;
+  border-radius: var(--radius-xs);
+  transition: opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard), filter var(--motion-duration-instant) var(--motion-ease-standard);
   cursor: pointer;
 }
 
@@ -389,28 +400,28 @@ function segmentTooltip(seg: Segment): string {
   opacity: 0.9;
   filter: brightness(1.25);
   transform: scaleY(1.15);
-  outline: 1px solid var(--accent, #6366f1);
+  outline: 1px solid var(--accent);
 }
 
 .timeline-segment.is-selected {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--text);
   filter: brightness(1.3);
 }
 
 .seg-playing {
-  background: #10b981; /* Emerald 500 */
+  background: var(--green); /* Emerald 500 */
 }
 
 .seg-playing.method-transcode {
-  background: #f59e0b; /* Amber 500 */
+  background: var(--amber); /* Amber 500 */
 }
 
 .seg-paused {
-  background: #64748b; /* Slate 500 */
+  background: var(--slate); /* Slate 500 */
 }
 
 .seg-buffering {
-  background: #a855f7; /* Purple 500 */
+  background: var(--violet); /* Purple 500 */
 }
 
 .live-pulse {
@@ -419,8 +430,8 @@ function segmentTooltip(seg: Segment): string {
   right: 0;
   bottom: 0;
   width: 4px;
-  background: #ffffff;
-  border-radius: 9999px;
+  background: var(--text);
+  border-radius: var(--radius-pill);
   animation: pulse-glow 1.5s infinite ease-in-out;
 }
 
@@ -430,16 +441,16 @@ function segmentTooltip(seg: Segment): string {
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 6px #ffffff;
+    box-shadow: 0 0 6px var(--text);
   }
 }
 
 .timeline-ticks {
   display: flex;
   justify-content: space-between;
-  font-size: 0.65rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted);
   padding: 0 0.15rem;
 }
 
@@ -447,8 +458,8 @@ function segmentTooltip(seg: Segment): string {
   display: flex;
   flex-wrap: wrap;
   gap: 0.85rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary, #cbd5e1);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
   margin-top: 0.1rem;
 }
 
@@ -465,15 +476,15 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .dot-direct {
-  background: #10b981;
+  background: var(--green);
 }
 
 .dot-transcode {
-  background: #f59e0b;
+  background: var(--amber);
 }
 
 .dot-pause {
-  background: #64748b;
+  background: var(--slate);
 }
 
 /* Journal détaillé des segments */
@@ -483,15 +494,15 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.4rem;
   margin-top: 0.4rem;
   padding-top: 0.6rem;
-  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--border-subtle, rgb(var(--ink) / 0.08));
 }
 
 .log-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.68rem;
-  color: var(--text-muted, #94a3b8);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 
 .log-eyebrow {
@@ -501,7 +512,7 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .log-stats {
-  color: var(--text-secondary, #cbd5e1);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -522,21 +533,21 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.6rem;
   padding: 0.4rem 0.5rem;
   border-radius: var(--radius-sm, 0.35rem);
-  background: var(--bg-surface-soft, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  background: var(--bg-surface-soft, rgb(var(--ink) / 0.04));
+  border: 0;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .segment-row:hover,
 .segment-row:focus-visible {
-  background: var(--bg-surface-hover, rgba(255, 255, 255, 0.08));
-  border-color: var(--border-strong, rgba(255, 255, 255, 0.15));
+  background: var(--bg-surface-hover, rgb(var(--ink) / 0.08));
+  border-color: var(--border-strong, rgb(var(--ink) / 0.15));
 }
 
 .segment-row.row-highlighted {
-  border-color: var(--accent, #6366f1);
-  background: rgba(99, 102, 241, 0.12);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
 }
 
 .segment-icon-wrapper {
@@ -550,22 +561,22 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .row-playing .segment-icon-wrapper {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  background: color-mix(in srgb, var(--green) 15%, transparent);
+  color: var(--green);
 }
 
 .row-playing .icon-transcode {
-  color: #f59e0b;
+  color: var(--amber-text);
 }
 
 .row-paused .segment-icon-wrapper {
-  background: rgba(100, 116, 139, 0.15);
-  color: #94a3b8;
+  background: color-mix(in srgb, var(--slate) 15%, transparent);
+  color: var(--muted);
 }
 
 .row-buffering .segment-icon-wrapper {
-  background: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
+  background: color-mix(in srgb, var(--violet) 15%, transparent);
+  color: var(--violet-text);
 }
 
 .segment-main-info {
@@ -584,23 +595,23 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .segment-name {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 .segment-duration-tag {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--text-secondary, #cbd5e1);
+  color: var(--text-secondary);
 }
 
 .segment-sub-info {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  font-size: 0.68rem;
-  color: var(--text-muted, #94a3b8);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 
 .info-pill {
@@ -612,7 +623,7 @@ function segmentTooltip(seg: Segment): string {
 /* Animations de transition */
 .expand-enter-active,
 .expand-leave-active {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   overflow: hidden;
 }
 
@@ -630,15 +641,4 @@ function segmentTooltip(seg: Segment): string {
   transform: translateY(0);
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
 </style>

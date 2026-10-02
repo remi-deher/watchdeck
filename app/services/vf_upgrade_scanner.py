@@ -49,7 +49,14 @@ from ..models import (
 )
 from ..utils import now_utc, now_utc_naive
 from . import radarr, sonarr
-from .release_matching import french_release_evidence, release_is_french, release_matches_target
+from .release_matching import (
+    french_release_evidence,
+    release_identity_mismatch,
+    release_is_french,
+    release_is_subtitle_only,
+    release_matches_target,
+)
+from .vf_technical_guard import annotate, current_file_profile
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +65,7 @@ vf_upgrade_scan_state: dict[str, Any] = {
     "started_at": None,
     "finished_at": None,
     "items_scanned": 0,
+    "items_errored": 0,
     "total_items": 0,
     "suggestions_found": 0,
     "error": None,
@@ -127,8 +135,14 @@ def _file_release_title(item: dict) -> str | None:
     return re.sub(r"\.[a-z0-9]{2,5}$", "", filename, flags=re.IGNORECASE)
 
 
-async def _current_release_titles(task: _SearchTask) -> list[str]:
-    """Noms des fichiers en place dans la portee, recuperes depuis *arr."""
+async def _current_files_in_scope(task: _SearchTask) -> list[dict]:
+    """Enregistrements *arr des fichiers en place dans la portee de la tache.
+
+    Une seule lecture par media (cache + deduplication des appels concurrents) alimente
+    a la fois les titres affiches et le comparatif technique (voir vf_technical_guard) :
+    le profil du fichier en place se lit dans ces memes enregistrements, il n'y a donc
+    aucun appel supplementaire a faire pour l'obtenir.
+    """
     try:
         cache_key = (task.arr_type, task.inst.id, task.arr_id)
         cached = _current_files_cache.get(cache_key)
@@ -155,10 +169,14 @@ async def _current_release_titles(task: _SearchTask) -> list[str]:
                 files = [item for item in files if task.episode_id in (item.get("episodeIds") or [])]
             elif task.scope == "season":
                 files = [item for item in files if item.get("seasonNumber") == task.season_number]
-        return list(dict.fromkeys(title for item in files if (title := _file_release_title(item))))
+        return list(files)
     except Exception as exc:
-        logger.warning("VF upgrade : titre de la release actuelle indisponible pour '%s': %s", task.title, exc)
+        logger.warning("VF upgrade : fichiers actuels indisponibles pour '%s': %s", task.title, exc)
         return []
+
+
+def _current_release_titles_from(files: list[dict]) -> list[str]:
+    return list(dict.fromkeys(title for item in files if (title := _file_release_title(item))))
 
 
 async def _resolve_instance_for(db: AsyncSession, obj, arr_type: str) -> Optional[ArrInstance]:
@@ -796,7 +814,17 @@ async def _build_show_tasks(
     return tasks
 
 
-async def _search_task(task: _SearchTask, settings: Settings | None = None) -> list[dict]:
+async def _search_task(
+    task: _SearchTask, settings: Settings | None = None, *, filter_technical: bool = True
+) -> list[dict]:
+    """Recherche interactive pour une cible, filtrée et notée.
+
+    `filter_technical` : un scan de fond n'a aucune raison de retenir une release qui
+    degraderait la qualite -- ce ne serait pas une amelioration. Une recherche manuelle
+    sur une fiche media, elle, doit toujours montrer ce que les indexeurs ont (voir
+    `scan_single_target`) : la release y reste visible, marquee `vf_technical_blocked`,
+    et c'est le grab qui refuse de la prendre sans confirmation explicite.
+    """
     if task.arr_type == "radarr":
         release_call = radarr.get_releases(task.inst.url, task.inst.api_key, task.arr_id)
     elif task.scope == "episode":
@@ -805,8 +833,12 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
         release_call = sonarr.get_releases(
             task.inst.url, task.inst.api_key, series_id=task.arr_id, season_number=task.season_number
         )
-    releases, current_titles = await asyncio.gather(release_call, _current_release_titles(task))
-    task.current_release_titles = current_titles
+    releases, current_files = await asyncio.gather(release_call, _current_files_in_scope(task))
+    task.current_release_titles = _current_release_titles_from(current_files)
+    # Profil du fichier en place, pour refuser un gain de langue paye par une
+    # regression technique (voir vf_technical_guard et les quatre reglages
+    # vf_upgrade_protect_* / vf_upgrade_allow_technical_downgrade).
+    current_profile = current_file_profile(current_files)
     matched = []
     markers = [
         value.strip().lower()
@@ -824,10 +856,28 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
     )
 
     # Fix #3 : compteurs de rejet pour le logging debug
-    _rej: dict[str, int] = {"target": 0, "not_fr": 0, "marker": 0, "confidence": 0, "seed": 0, "size": 0}
+    _rej: dict[str, int] = {
+        "identity": 0,
+        "target": 0,
+        "not_fr": 0,
+        "subs": 0,
+        "marker": 0,
+        "vfq": 0,
+        "confidence": 0,
+        "seed": 0,
+        "size": 0,
+        "technical": 0,
+    }
+    accept_vfq = _setting(settings, "vf_upgrade_accept_vfq", False)
 
     for release in releases:
         rel_title = release.get("title") or ""
+        if release_identity_mismatch(release):
+            # *arr a lui-meme identifie une mauvaise serie/film (voir
+            # release_identity_mismatch) -- l'indexeur a mal matche la requete de
+            # recherche, la release ne correspond pas du tout au media cible.
+            _rej["identity"] += 1
+            continue
         matches_target, _mismatch_reason = release_matches_target(
             rel_title, task.scope, task.season_number, task.episode_number
         )
@@ -837,11 +887,23 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
         if not release_is_french(release):
             _rej["not_fr"] += 1
             continue
+        # VOSTFR / MULTiSUBS : le francais n'y est qu'en sous-titres (voir
+        # release_is_subtitle_only), meme si un "MULTI" ou une langue declaree dit le contraire.
+        if release_is_subtitle_only(release):
+            _rej["subs"] += 1
+            continue
         enriched = {**release, **french_release_evidence(release)}
         title = rel_title.lower()
         # Fix #2 : correspondance exacte de mot (pas de sous-chaîne)
         if _marker_re and not _marker_re.search(title) and not release.get("languages"):
             _rej["marker"] += 1
+            continue
+        # Doublage quebecois : un vrai doublage francais, mais rarement celui qu'attend
+        # une bibliotheque francaise -- refuse par defaut plutot que confondu avec une VFF
+        # (voir french_release_evidence). Un marqueur VFF/TRUEFRENCH sur la meme release
+        # la fait sortir de cette categorie en amont.
+        if enriched["vf_kind"] == "vfq" and not accept_vfq:
+            _rej["vfq"] += 1
             continue
         if enriched["vf_confidence"] < _setting(settings, "vf_upgrade_min_confidence", 0):
             _rej["confidence"] += 1
@@ -861,6 +923,18 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
         if max_size is not None and size_gb > max_size:
             _rej["size"] += 1
             continue
+        # Comparatif technique toujours attache (l'interface l'affiche meme quand rien
+        # ne bloque) ; seul l'ecartement depend des reglages de protection.
+        annotate(enriched, current_profile, settings)
+        if enriched["vf_technical_blocked"] and filter_technical:
+            _rej["technical"] += 1
+            logger.info(
+                "VF search '%s' : '%s' ecartee -- %s",
+                task.title,
+                rel_title,
+                " ; ".join(enriched["vf_technical_reasons"]),
+            )
+            continue
         enriched["vf_preference_rank"] = next(
             (index for index, marker in enumerate(preferences) if marker in title), len(preferences)
         )
@@ -868,31 +942,47 @@ async def _search_task(task: _SearchTask, settings: Settings | None = None) -> l
 
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(
-            "VF search '%s' : %d/%d retenus — rejets: cible=%d non_fr=%d marker=%d conf=%d seed=%d taille=%d",
+            "VF search '%s' : %d/%d retenus — rejets: identite=%d cible=%d non_fr=%d soustitres=%d marker=%d vfq=%d "
+            "conf=%d seed=%d taille=%d technique=%d",
             task.title,
             len(matched),
             len(releases),
+            _rej["identity"],
             _rej["target"],
             _rej["not_fr"],
+            _rej["subs"],
             _rej["marker"],
+            _rej["vfq"],
             _rej["confidence"],
             _rej["seed"],
             _rej["size"],
+            _rej["technical"],
         )
     elif not matched and releases:
         logger.info(
-            "VF search '%s' : 0/%d retenus (non_fr=%d, marker=%d, cible=%d, seed=%d, taille=%d)",
+            "VF search '%s' : 0/%d retenus (identite=%d, non_fr=%d, soustitres=%d, marker=%d, vfq=%d, cible=%d, seed=%d, "
+            "taille=%d, technique=%d)",
             task.title,
             len(releases),
+            _rej["identity"],
             _rej["not_fr"],
+            _rej["subs"],
             _rej["marker"],
+            _rej["vfq"],
             _rej["target"],
             _rej["seed"],
             _rej["size"],
+            _rej["technical"],
         )
 
+    # Une release que le profil *arr refuse deja (`rejected`, renvoye par la recherche
+    # interactive) reste proposee -- l'utilisateur peut forcer le grab -- mais passe
+    # derriere toutes les autres : sans ce rang, le meilleur marqueur VF remontait en
+    # tete de liste pour finir sur un 409 au moment du grab.
     matched.sort(
         key=lambda release: (
+            1 if release.get("vf_technical_blocked") else 0,
+            1 if (release.get("rejected") or release.get("rejections")) else 0,
             release.get("vf_preference_rank", 99),
             -release.get("vf_confidence", 0),
             -release.get("custom_format_score", 0),
@@ -1067,6 +1157,24 @@ async def _persist_result(
                 updated_at=now,
             )
         )
+        # Seule une suggestion reellement nouvelle est annoncee : une opportunite deja
+        # connue serait sinon renotifiee a chaque cycle tant qu'elle n'est pas traitee.
+        from .vf_upgrade_notifications import notify_vf_upgrade
+
+        try:
+            await notify_vf_upgrade(
+                db,
+                settings,
+                "found",
+                media_title=task.title,
+                media_type="movie" if task.scope == "movie" else "show",
+                scope=task.scope,
+                season_number=task.season_number,
+                episode_number=task.episode_number,
+                detail=f"{len(releases)} release(s) VF candidate(s) — meilleure : {releases[0].get('title')}",
+            )
+        except Exception as exc:
+            logger.warning("Notification VF 'trouvee' non expediee pour '%s' : %s", task.title, exc)
     return True
 
 
@@ -1087,6 +1195,7 @@ async def scan_vf_upgrades(force: bool = False, only: set[tuple[str, int]] | Non
         started_at=now_utc().isoformat(),
         finished_at=None,
         items_scanned=0,
+        items_errored=0,
         total_items=0,
         suggestions_found=0,
         error=None,
@@ -1187,17 +1296,36 @@ async def scan_vf_upgrades(force: bool = False, only: set[tuple[str, int]] | Non
         # le semaphore ci-dessus, la section critique ne fait que persister le resultat.
         db_lock = asyncio.Lock()
         found_count = 0
+        error_count = 0
 
         async def _run_task(task: _SearchTask, item: VfUpgradeScanRunItem) -> tuple[_SearchTask, list[dict]]:
-            nonlocal found_count
+            nonlocal found_count, error_count
+            releases: list[dict] = []
+            # Un indexeur injoignable (timeout, 429 Prowlarr, service HS) n'est PAS une
+            # absence de VF : le confondre avec un resultat vide penalisait deux fois la
+            # cible -- le backoff progressif doublait son cooldown (jusqu'a 48h) et
+            # `_persist_result` supprimait la suggestion "pending" encore valide. Une
+            # panne d'indexeur d'une nuit mettait ainsi en quarantaine des cibles
+            # parfaitement legitimes. On isole donc l'echec technique : statut "error",
+            # ni backoff, ni ecriture sur la suggestion existante.
+            failed = False
             async with semaphore:
                 try:
                     releases = await _search_task(task, settings)
                 except Exception as e:
                     logger.warning(f"VF upgrade : recherche echouee pour '{task.title}': {e}")
-                    releases = []
+                    failed = True
             async with db_lock:
                 item_now = now_utc_naive()
+                if failed:
+                    error_count += 1
+                    item.status = "error"
+                    item.release_count = 0
+                    item.finished_at = item_now
+                    await db.commit()
+                    vf_upgrade_scan_state["items_scanned"] += 1
+                    vf_upgrade_scan_state["items_errored"] = error_count
+                    return task, []
                 if not force:
                     await _record_search_outcome(task, bool(releases), settings)
                 if await _persist_result(db, task, releases, item_now, settings, origin="auto"):
@@ -1222,21 +1350,30 @@ async def scan_vf_upgrades(force: bool = False, only: set[tuple[str, int]] | Non
 
         now = now_utc_naive()
         run.tasks_scanned = len(tasks)
+        run.tasks_errored = error_count
         run.suggestions_found = found
-        run.status = "success"
+        # Un cycle dont chaque recherche a echoue n'est pas un succes : le distinguer
+        # evite de faire croire a l'onglet historique qu'il n'y avait simplement rien a
+        # trouver alors que les indexeurs etaient injoignables.
+        run.status = "degraded" if error_count and error_count == len(tasks) else "success"
         run.finished_at = now
         await db.commit()
 
         vf_upgrade_scan_state["status"] = "idle"
         vf_upgrade_scan_state["finished_at"] = now_utc().isoformat()
         vf_upgrade_scan_state["suggestions_found"] = found
-        logger.info(f"VF upgrade : {len(tasks)} recherche(s), {found} suggestion(s) VF trouvee(s)")
+        vf_upgrade_scan_state["items_errored"] = error_count
+        logger.info(
+            f"VF upgrade : {len(tasks)} recherche(s), {found} suggestion(s) VF trouvee(s), {error_count} erreur(s)"
+        )
         from ..realtime import publish
 
         await publish(
-            "vf_upgrade.updated", {"action": "scan_completed", "scanned": len(tasks), "found": found}, admin_only=True
+            "vf_upgrade.updated",
+            {"action": "scan_completed", "scanned": len(tasks), "found": found, "errors": error_count},
+            admin_only=True,
         )
-        return {"status": "idle", "scanned": len(tasks), "found": found}
+        return {"status": "idle", "scanned": len(tasks), "found": found, "errors": error_count}
     except Exception as e:
         vf_upgrade_scan_state["status"] = "failed"
         vf_upgrade_scan_state["error"] = str(e)
@@ -1324,7 +1461,7 @@ async def scan_single_target(
     settings = (await db.execute(select(Settings))).scalars().first()
     if settings and not _setting(settings, "vf_upgrade_enabled", True):
         raise ValueError("Ameliorations VF desactivees")
-    releases = await _search_task(task, settings)
+    releases = await _search_task(task, settings, filter_technical=False)
 
     # Invalidation du cache des releases interactives pour garantir la synchronisation
     await cache.delete_prefix("watchdeck:releases:")

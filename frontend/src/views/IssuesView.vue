@@ -1,111 +1,195 @@
 <template>
-  <PageShell
-    title="Problèmes signalés"
-    description="Gestion des signalements utilisateur et problèmes remontés."
-    eyebrow="Administration"
+  <!-- La page reprend la coquille commune : recherche de page, tiroir de filtres et
+       disposition `psh-layout`. Elle etait la seule liste sans recherche, et la seule a
+       porter `FilterBar` -- un composant qui n'existait que pour elle et qui posait sa
+       propre rangee de filtres au-dessus du tableau, sans lien avec le bouton Filtres
+       de la barre du haut. -->
+  <AppPage
+    title="Problèmes"
+    v-model:query="query"
+    search-scope="Problèmes"
+    placeholder="Filtrer par média, message ou personne…"
+    search-kind="filter"
+    :match-count="visibleIssues.length"
+    :total-count="issues.length"
+    has-filters
+    :active-count="activeFilterCount"
+    :filters-open="filtersOpen"
     :error="error"
     retry
     @retry="load"
+    @toggle-filters="filtersOpen = !filtersOpen"
   >
+    <div class="psh-layout">
+      <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="filtersOpen = false" @reset="resetFilters">
+        <FilterGroup label="Statut">
+          <UiChipGroup label="Statut" :options="STATUS_OPTIONS" :model-value="statusFilter" @update:model-value="setStatus" />
+        </FilterGroup>
 
-    <FilterBar :active-count="statusFilter ? 1 : 0" :result-count="issues.length" @reset="resetFilters">
-      <template #filters><select v-model="statusFilter" @change="load">
-        <option value="">Tous les statuts</option>
-        <option value="open">Ouverts</option>
-        <option value="investigating">En cours</option>
-        <option value="closed">Clos</option>
-      </select></template>
-    </FilterBar>
+        <FilterGroup v-if="types.length > 1" label="Type de problème">
+          <UiChipGroup
+            label="Type de problème"
+            :options="[{ value: '', label: 'Tous les types' }, ...types.map((value: string) => ({ value, label: typeLabel(value) }))]"
+            :model-value="typeFilter || ''"
+            @update:model-value="setType"
+          />
+        </FilterGroup>
+      </FilterSidebar>
 
-    <section class="panel table-wrap table-cards rich">
-      <table>
-        <thead>
-          <tr>
-            <th>Média / Type</th>
-            <th>Message</th>
-            <th>Statut</th>
-            <th>Date</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="issue in issues" :key="issue.id">
-            <td class="card-title">
-              <strong>{{ issue.media_title || issue.issue_type }}</strong>
-            </td>
-            <td data-label="Message">{{ issue.message || 'Sans commentaire' }}</td>
-            <td data-label="Statut">
-              <StatusBadge :status="issue.status" />
-            </td>
-            <td data-label="Date">{{ formatDate(issue.created_at) }}</td>
-            <td class="actions card-actions">
-              <UiButton variant="ghost" icon-only title="Prendre en charge" aria-label="Prendre en charge" v-if="issue.status !== 'investigating' && issue.status !== 'closed'" @click="updateIssue(issue, 'investigating')"><ScanSearch /></UiButton>
-              <UiButton variant="ghost" icon-only title="Relancer" aria-label="Relancer" v-if="issue.status !== 'closed'" @click="retryIssue(issue)"><RotateCcw /></UiButton>
-              <UiButton variant="ghost" icon-only class="success" title="Clore" aria-label="Clore" v-if="issue.status !== 'closed'" @click="updateIssue(issue, 'closed')"><Check /></UiButton>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <UiEmptyState v-if="!loading && !issues.length" message="Aucun signalement." />
-    </section>
-  </PageShell>
+      <div class="psh-main">
+        <UiFeedback v-if="loading && !issues.length" type="loading" message="Chargement des signalements…" />
+        <p v-else class="issues-count" aria-live="polite">
+          {{ visibleIssues.length }} signalement{{ visibleIssues.length > 1 ? 's' : '' }}
+        </p>
+
+        <div v-if="visibleIssues.length" v-list-motion class="issues-list">
+          <IssueCard
+            v-for="issue in visibleIssues"
+            :key="issue.id"
+            :issue="issue"
+            :busy="busy"
+            @update="updateIssue(issue, $event)"
+            @retry="retryIssue(issue)"
+            @note="saveNote(issue, $event)"
+          />
+        </div>
+
+        <UiEmptyState
+          v-else-if="!loading"
+          title="Aucun signalement"
+          :message="activeFilterCount || query.trim() ? 'Aucun signalement ne correspond à ces filtres.' : 'Personne n’a signalé de problème.'"
+        >
+          <template v-if="activeFilterCount || query.trim()" #action>
+            <UiButton @click="resetFilters">Réinitialiser les filtres</UiButton>
+          </template>
+        </UiEmptyState>
+      </div>
+    </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">
-import { formatDateTime as formatDate } from '@/utils/format';
-import { onMounted, ref } from 'vue';
-import { Check, RotateCcw, ScanSearch } from '@lucide/vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import { humanizeError } from '@/utils/apiError';
+import { computed, ref } from 'vue';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
-import { useRealtime } from '@/events';
+import AppPage from '@/components/ui/AppPage.vue';
+import FilterGroup from '@/components/ui/FilterGroup.vue';
+import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
+import UiFeedback from '@/components/ui/UiFeedback.vue';
+import IssueCard, { type Issue } from '@/components/issues/IssueCard.vue';
 
-interface Issue {
-  id: number | string;
-  media_title?: string;
-  issue_type?: string;
-  message?: string;
-  status?: string;
-  created_at?: string;
-}
+/* Trois statuts, plus quatre : « resolved » faisait doublon avec « closed », l'interface
+   ne l'ecrivait jamais et ne le proposait pas (migration 0017). */
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'Ouverts' },
+  { value: 'investigating', label: 'En cours' },
+  { value: 'closed', label: 'Clos' },
+  // `all` explicite : omettre le parametre renverrait le defaut de l'API, qui est
+  // « ouverts » -- « Tous » n'aurait alors montre que les ouverts.
+  { value: 'all', label: 'Tous' },
+];
 
-const issues = ref<Issue[]>([]);
-const loading = ref(false);
-const error = ref('');
+const ISSUE_TYPES: Record<string, string> = {
+  other: 'Autre',
+  audio: 'Problème audio',
+  video: 'Problème vidéo',
+  subtitle: 'Sous-titres',
+  missing: 'Média absent',
+  wrong: 'Mauvais média',
+};
+const typeLabel = (value: string) => ISSUE_TYPES[value] || value;
+
+const query = ref('');
 const statusFilter = ref('open');
-function resetFilters(): void { statusFilter.value = ''; load(); }
+const typeFilter = ref('');
+const filtersOpen = ref(false);
+const actionError = ref('');
+const queryClient = useQueryClient();
+
+const params = computed(() => {
+  const value = new URLSearchParams();
+  if (statusFilter.value) value.set('status', statusFilter.value);
+  if (typeFilter.value) value.set('issue_type', typeFilter.value);
+  return value.toString();
+});
+const issuesQuery = useQuery({
+  queryKey: computed(() => ['issues', params.value]),
+  queryFn: () => api<{ items?: Issue[]; types?: string[] }>(`/api/media/issues?${params.value}`),
+  placeholderData: keepPreviousData,
+});
+const issues = computed(() => issuesQuery.data.value?.items || []);
+const types = computed(() => issuesQuery.data.value?.types || []);
+const loading = computed(() => issuesQuery.isFetching.value);
+const busy = computed(() => patchMutation.isPending.value || retryMutation.isPending.value);
+const error = computed(() => actionError.value || (issuesQuery.error.value ? humanizeError(issuesQuery.error.value) : ''));
+
+const activeFilterCount = computed(() => (statusFilter.value === 'open' ? 0 : 1) + (typeFilter.value ? 1 : 0));
+
+/* La recherche filtre localement : la liste est bornee a deux cents lignes cote serveur,
+   et parcourir un texte deja charge evite un aller-retour a chaque frappe. */
+const visibleIssues = computed(() => {
+  const needle = query.value.trim().toLowerCase();
+  if (!needle) return issues.value;
+  return issues.value.filter((issue) =>
+    [issue.title, issue.message, issue.reporter_name, issue.issue_type, issue.admin_note]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(needle)
+  );
+});
+
+function setStatus(value: string): void {
+  statusFilter.value = value;
+}
+function setType(value: string): void {
+  typeFilter.value = typeFilter.value === value ? '' : value;
+}
+function resetFilters(): void {
+  statusFilter.value = 'open';
+  typeFilter.value = '';
+  query.value = '';
+}
 
 async function load(): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    const url = `/api/media/issues${statusFilter.value ? '?status=' + statusFilter.value : ''}`;
-    issues.value = await api(url);
-  } catch (e: any) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
+  actionError.value = '';
+  await issuesQuery.refetch();
 }
 
-async function updateIssue(issue: Issue, status: string): Promise<void> {
-  try {
-    await api(`/api/media/issues/${issue.id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-    await load();
-  } catch (e: any) {
-    error.value = e.message;
-  }
+const patchMutation = useMutation({
+  mutationFn: ({ issue, body }: { issue: Issue; body: Record<string, unknown> }) =>
+    api<Issue>(`/api/media/issues/${issue.id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['issues'] }),
+  onError: (value) => { actionError.value = humanizeError(value); },
+});
+const retryMutation = useMutation({
+  mutationFn: (issue: Issue) => api(`/api/media/issues/${issue.id}/retry`, { method: 'POST' }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['issues'] }),
+  onError: (value) => { actionError.value = humanizeError(value); },
+});
+
+async function patchIssue(issue: Issue, body: Record<string, unknown>): Promise<void> {
+  actionError.value = '';
+  await patchMutation.mutateAsync({ issue, body }).catch(() => {});
 }
+
+const updateIssue = (issue: Issue, status: string) => patchIssue(issue, { status });
+const saveNote = (issue: Issue, admin_note: string) => patchIssue(issue, { admin_note });
 
 async function retryIssue(issue: Issue): Promise<void> {
-  try {
-    await api(`/api/media/issues/${issue.id}/retry`, { method: 'POST' });
-    await load();
-  } catch (e: any) {
-    error.value = e.message;
-  }
+  actionError.value = '';
+  await retryMutation.mutateAsync(issue).catch(() => {});
 }
-
-onMounted(load);
-useRealtime(['request.updated'], () => load());
 </script>
+
+<style scoped lang="scss">
+.psh-main { display: grid; gap: var(--space-3); align-content: start; }
+.issues-count { margin: 0; color: var(--muted); font-size: var(--fs-sm); text-align: right; }
+.issues-list { display: grid; gap: var(--space-3); }
+</style>

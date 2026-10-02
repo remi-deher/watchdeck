@@ -11,8 +11,9 @@ from sqlalchemy.future import select
 
 from ..database import get_db_async
 from ..dependencies import require_moderator
-from ..models import MediaRequest, PlexUser
+from ..models import LibraryItem, MediaRequest, PlexUser
 from ..serializers import format_datetime
+from ..services.media_matching import identities_compatible
 from ..services.vf_cache import delete_request_episode_cache
 from ..utils import now_utc_naive, wrap_image_proxy
 
@@ -81,6 +82,7 @@ async def list_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Dep
     """Retourne tous les conflits détectés, filtrés des ignorés."""
     ignored = _load_ignored()
     all_reqs = (await db.execute(select(MediaRequest))).scalars().all()
+    library_by_id = {item.id: item for item in (await db.execute(select(LibraryItem))).scalars().all()}
     known_user_ids = {u.plex_user_id for u in (await db.execute(select(PlexUser))).scalars().all()}
     now = now_utc_naive()
 
@@ -132,10 +134,39 @@ async def list_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Dep
             continue
         long_pending.append({"key": key, "age_days": age, **_req_dict(r)})
 
+    library_link_conflicts = []
+    for r in all_reqs:
+        if not r.library_item_id:
+            continue
+        item = library_by_id.get(r.library_item_id)
+        if item is not None and identities_compatible(r, item):
+            continue
+        key = f"library-link:{r.id}"
+        if key in ignored:
+            continue
+        library_link_conflicts.append(
+            {
+                "key": key,
+                "request": _req_dict(r),
+                "library_item": None
+                if item is None
+                else {
+                    "id": item.id,
+                    "title": item.title,
+                    "media_type": item.media_type,
+                    "tmdb_id": item.tmdb_id,
+                    "tvdb_id": item.tvdb_id,
+                    "imdb_id": item.imdb_id,
+                    "plex_guid": item.plex_guid,
+                },
+            }
+        )
+
     return {
         "tmdb_conflicts": tmdb_conflicts,
         "orphaned": orphaned,
         "long_pending": long_pending,
+        "library_link_conflicts": library_link_conflicts,
     }
 
 

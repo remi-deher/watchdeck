@@ -4,7 +4,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.plex_api import _get_user_watchlist, _parse_api_item, check_connection, get_friends_watchlist
+from app.services.plex_api import (
+    _get_user_watchlist,
+    _parse_api_item,
+    check_connection,
+    get_friends_watchlist,
+    get_server_users,
+)
 
 URL = "http://plex.local"
 TOKEN = "testplextoken"
@@ -106,6 +112,51 @@ def test_parse_api_item_thumb_prefixed_with_tmdb_cdn():
     item = _parse_api_item(raw, "User", "User")
 
     assert item["poster_url"].startswith("https://image.tmdb.org/t/p/w300")
+
+
+@pytest.mark.asyncio
+async def test_get_server_users_combines_and_deduplicates_account_sources():
+    owner = _resp(200, {"username": "admin", "uuid": "owner-uuid", "email": "admin@example.com"})
+    friends = _resp(
+        200,
+        [
+            {"username": "alice", "uuid": "alice-uuid", "email": "alice@example.com"},
+            {"username": "admin", "uuid": "owner-uuid"},
+        ],
+    )
+    home = _resp(200, {"users": [{"title": "Kid", "uuid": "kid-uuid"}]})
+    client = AsyncMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    client.get = AsyncMock(side_effect=[owner, friends, home])
+
+    with patch("app.services.plex_api.httpx.AsyncClient", return_value=client):
+        users, warnings = await get_server_users(TOKEN)
+
+    assert warnings == []
+    assert {user["plex_user_id"] for user in users} == {"admin", "alice", "Kid"}
+    assert next(user for user in users if user["plex_user_id"] == "admin")["relationship"] == "owner"
+
+
+@pytest.mark.asyncio
+async def test_get_server_users_keeps_results_when_one_source_fails():
+    owner = _resp(200, {"username": "admin", "uuid": "owner-uuid"})
+    failed = _resp(403)
+    failed.raise_for_status.side_effect = __import__("httpx").HTTPStatusError(
+        "forbidden", request=MagicMock(), response=failed
+    )
+    home = _resp(200, {"users": []})
+    client = AsyncMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    client.get = AsyncMock(side_effect=[owner, failed, home])
+
+    with patch("app.services.plex_api.httpx.AsyncClient", return_value=client):
+        users, warnings = await get_server_users(TOKEN)
+
+    assert [user["plex_user_id"] for user in users] == ["admin"]
+    assert len(warnings) == 1
+    assert warnings[0].startswith("friend:")
 
 
 # ---------------------------------------------------------------------------

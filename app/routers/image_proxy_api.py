@@ -4,9 +4,10 @@ import asyncio
 import hashlib
 import logging
 import os as _os
+import re
 import time
 from io import BytesIO
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from weakref import WeakValueDictionary
 
 import httpx
@@ -17,8 +18,8 @@ from sqlalchemy.future import select
 
 from ..database import AsyncSessionLocal
 from ..dependencies import require_auth
-from ..models import ArrInstance, LibraryItem, MediaRequest, Settings
-from ..utils import safe_error_message
+from ..models import ArrInstance, LibraryItem, MediaRequest, PlexServer, Settings
+from ..utils import image_proxy_source, safe_error_message
 
 router = APIRouter(prefix="/api", tags=["misc"])
 logger = logging.getLogger(__name__)
@@ -30,12 +31,19 @@ _STATIC_ALLOWED_IMAGE_HOSTS = {
     "banner.thetvdb.com",
     "media.themoviedb.org",
     "plex.tv",
+    # CDN d'affiches renvoyé par les métadonnées Plex (distinct de images.plex.tv).
+    "metadata-static.plex.tv",
+    # Certaines métadonnées IMDb/Plex conservent directement l'affiche Amazon.
+    "m.media-amazon.com",
     # Relais officiel de Plex pour les affiches qu'il n'a pas en cache local (l'agent
     # metadonnees n'a pas telecharge de copie) : Plex redirige alors vers sa propre CDN,
     # qui proxifie a son tour TMDB -- voir la gestion de redirection unique plus bas.
     "images.plex.tv",
 }
 _allowed_hosts_cache: tuple[float, set[str]] = (0.0, set())
+# hote:port -> jeton des serveurs Plex supplementaires (voir models.PlexServer), rafraichi avec
+# l'allowlist : leurs affiches sont memorisees en URL complete, sans jeton.
+_secondary_plex_tokens: dict[str, str] = {}
 _allowed_hosts_lock = asyncio.Lock()
 
 
@@ -63,6 +71,18 @@ async def _allowed_image_hosts() -> set[str]:
                 host = urlparse(settings.plex_url).hostname
                 if host:
                     hosts.add(host.lower())
+            secondary_tokens: dict[str, str] = {}
+            servers = (await db.execute(select(PlexServer).filter(PlexServer.is_primary.is_(False)))).scalars().all()
+            for server in servers:
+                parsed_server = urlparse(server.url) if server.url else None
+                if parsed_server and parsed_server.hostname:
+                    hosts.add(parsed_server.hostname.lower())
+                    # Cle hote:port : deux serveurs sur la meme machine (ports differents)
+                    # ne doivent jamais recevoir le jeton l'un de l'autre.
+                    if server.token:
+                        secondary_tokens.setdefault(parsed_server.netloc.lower(), server.token)
+            _secondary_plex_tokens.clear()
+            _secondary_plex_tokens.update(secondary_tokens)
             instances = (await db.execute(select(ArrInstance))).scalars().all()
             for inst in instances:
                 if inst.url:
@@ -71,6 +91,22 @@ async def _allowed_image_hosts() -> set[str]:
                         hosts.add(host.lower())
         _allowed_hosts_cache = (time.monotonic(), hosts)
         return set(hosts)
+
+
+async def _tls_verify(host: str | None) -> bool:
+    """Le certificat est verifie pour tous les hotes publics (TMDB, Plex.tv...). Seuls
+    les serveurs du reseau local configures par l'admin (Plex, *arr), souvent en
+    certificat auto-signe, en sont dispenses -- et Plex seulement si l'admin a desactive
+    la verification dans ses reglages."""
+    host = (host or "").lower()
+    if not host or host in _STATIC_ALLOWED_IMAGE_HOSTS:
+        return True
+    async with AsyncSessionLocal() as db:
+        settings = (await db.execute(select(Settings))).scalars().first()
+    plex_host = (urlparse(settings.plex_url).hostname or "").lower() if settings and settings.plex_url else ""
+    if host == plex_host:
+        return bool(settings.plex_verify_ssl)
+    return False
 
 
 _IMAGE_CACHE_DIR = _os.path.join("data", "image_cache")
@@ -155,6 +191,21 @@ def _transform_image(
 
 _CACHE_HEADERS = {"Cache-Control": "private, max-age=86400, stale-while-revalidate=604800"}
 
+# Images absentes a la source (media supprime de Plex, bande-annonce sans vignette) : retenues
+# une heure, pour ne pas interroger Plex a chaque affichage d'un historique qui les cite.
+_MISSING_TTL = 3600
+_missing: dict[str, float] = {}
+
+
+def _is_missing(url: str) -> bool:
+    expiry = _missing.get(url)
+    if expiry is None:
+        return False
+    if expiry < time.monotonic():
+        _missing.pop(url, None)
+        return False
+    return True
+
 
 def _variant_etag(variant_key: str, cached_at: float) -> str:
     """ETag derive de l'identite de la variante et de sa date de mise en cache.
@@ -175,20 +226,93 @@ def _image_response(content: bytes, content_type: str, etag: str) -> Response:
 @router.get("/image-proxy", dependencies=[Depends(require_auth)])
 async def image_proxy(
     request: Request,
-    url: str,
+    url: str | None = None,
+    plex_path: str | None = None,
     width: int | None = Query(None, ge=32, le=1600),
     height: int | None = Query(None, ge=32, le=1600),
     quality: int = Query(82, ge=40, le=95),
     image_format: str = Query("original", alias="format", pattern="^(original|webp|avif)$"),
+    plex_server: int | None = Query(None, alias="server"),
 ):
-    """Proxy, redimensionne et met en cache les affiches de l'interface."""
+    """Proxy, redimensionne et met en cache les affiches de l'interface.
+
+    `server` designe un serveur Plex supplementaire pour un `plex_path` ; sans lui, le
+    chemin est lu sur le serveur principal.
+    """
+    if bool(url) == bool(plex_path):
+        raise HTTPException(400, "Une source d'image unique est requise")
+
+    upstream_headers: dict[str, str] = {}
+    plex_base: str | None = None
+    if plex_path:
+        parsed_path = urlparse(plex_path)
+        if (
+            not plex_path.startswith("/")
+            or plex_path.startswith("//")
+            or not parsed_path.path.startswith("/library/metadata/")
+            or parsed_path.scheme
+            or parsed_path.netloc
+            or ".." in parsed_path.path.split("/")
+            or "%2e" in parsed_path.path.lower()
+        ):
+            raise HTTPException(400, "Chemin Plex invalide")
+        async with AsyncSessionLocal() as db:
+            settings = (await db.execute(select(Settings))).scalars().first()
+            secondary = None
+            if plex_server is not None:
+                secondary = (
+                    (
+                        await db.execute(
+                            select(PlexServer).filter(PlexServer.id == plex_server, PlexServer.is_primary.is_(False))
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+        if secondary is not None:
+            if not secondary.url or not secondary.token:
+                raise HTTPException(404, "Serveur Plex non configuré")
+        elif not settings or not settings.plex_url or not settings.plex_token:
+            raise HTTPException(404, "Plex non configuré")
+        safe_query = urlencode(
+            [
+                (key, value)
+                for key, value in parse_qsl(parsed_path.query, keep_blank_values=True)
+                if key.lower() != "x-plex-token"
+            ]
+        )
+        safe_path = urlunparse(("", "", parsed_path.path, "", safe_query, ""))
+        base_url, base_token = (
+            (secondary.url, secondary.token) if secondary is not None else (settings.plex_url, settings.plex_token)
+        )
+        plex_base = base_url.rstrip("/")
+        url = f"{plex_base}{safe_path}"
+        upstream_headers = {"X-Plex-Token": base_token}
+
     parsed = urlparse(url or "")
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise HTTPException(400, "URL image invalide")
     allowed_hosts = await _allowed_image_hosts()
     if not parsed.hostname or parsed.hostname.lower() not in allowed_hosts:
         raise HTTPException(400, "Hôte d'image non autorisé")
-    safe_url = urlunparse(parsed)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    embedded_token = next((value for key, value in query if key.lower() == "x-plex-token"), None)
+    safe_query = urlencode([(key, value) for key, value in query if key.lower() != "x-plex-token"])
+    safe_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, safe_query, ""))
+    secondary_token = _secondary_plex_tokens.get(parsed.netloc.lower())
+    if embedded_token and not upstream_headers:
+        async with AsyncSessionLocal() as db:
+            settings = (await db.execute(select(Settings))).scalars().first()
+        configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
+        if secondary_token:
+            upstream_headers = {"X-Plex-Token": secondary_token}
+        elif settings and settings.plex_token and parsed.hostname == configured_host:
+            upstream_headers = {"X-Plex-Token": settings.plex_token}
+        else:
+            raise HTTPException(400, "URL Plex invalide")
+    elif secondary_token and not upstream_headers:
+        # Affiche d'un serveur Plex supplementaire : jeton de ce serveur, envoye a lui seul.
+        upstream_headers = {"X-Plex-Token": secondary_token}
     variant_key = _variant_key(safe_url, width, height, quality, image_format)
 
     async def _serve_if_cached() -> Response | None:
@@ -208,6 +332,8 @@ async def image_proxy(
     response = await _serve_if_cached()
     if response is not None:
         return response
+    if _is_missing(safe_url):
+        raise HTTPException(404, "Image introuvable a la source")
 
     # Une seule récupération/transformation à la fois par variante, même lors du rendu
     # simultané de plusieurs cartes qui utilisent la même affiche.
@@ -220,8 +346,10 @@ async def image_proxy(
         source = await asyncio.to_thread(_read_image_cache, safe_url)
         if not source or time.time() - source[2] >= _IMAGE_CACHE_TTL:
             try:
-                async with httpx.AsyncClient(timeout=15, follow_redirects=False, verify=False) as client:
-                    upstream = await client.get(safe_url)
+                async with httpx.AsyncClient(
+                    timeout=15, follow_redirects=False, verify=await _tls_verify(parsed.hostname)
+                ) as client:
+                    upstream = await client.get(safe_url, headers=upstream_headers)
                     if upstream.is_redirect:
                         # Plex redirige vers sa propre CDN (images.plex.tv, elle-meme
                         # relais de TMDB) pour une affiche qu'il n'a pas en cache local --
@@ -233,13 +361,28 @@ async def image_proxy(
                         redirect_target = upstream.headers.get("location", "")
                         redirect_host = (urlparse(redirect_target).hostname or "").lower()
                         if redirect_target and redirect_host in allowed_hosts:
-                            upstream = await client.get(redirect_target)
+                            async with httpx.AsyncClient(
+                                timeout=15, follow_redirects=False, verify=await _tls_verify(redirect_host)
+                            ) as redirect_client:
+                                upstream = await redirect_client.get(redirect_target)
                         else:
                             logger.warning(
                                 "Image proxy: redirection vers un hote non autorise refusee (%s -> %s)",
                                 safe_url,
                                 redirect_target,
                             )
+                    if upstream.status_code == 404 and plex_base:
+                        # Plex change l'horodatage du chemin (`/thumb/<ts>`) a chaque
+                        # rafraichissement des metadonnees : l'ancien chemin memorise
+                        # repond 404. On relit le chemin courant de l'element.
+                        fresh = await _current_plex_image_path(client, plex_base, parsed.path, upstream_headers)
+                        if fresh:
+                            upstream = await client.get(f"{plex_base}{fresh}", headers=upstream_headers)
+                    if upstream.status_code == 404 and not source:
+                        # Absente a la source, et jamais vue : ce n'est pas une panne (502)
+                        # mais une image qui n'existe pas. Le client affiche son repli.
+                        _missing[safe_url] = time.monotonic() + _MISSING_TTL
+                        raise HTTPException(404, "Image introuvable a la source")
                     upstream.raise_for_status()
                 content_type = (
                     upstream.headers.get("content-type", "application/octet-stream").split(";")[0].strip().lower()
@@ -273,6 +416,61 @@ async def image_proxy(
         return _image_response(content, content_type, _variant_etag(variant_key, variant_cached_at))
 
 
+_PLEX_IMAGE_PATH = re.compile(r"^/library/metadata/(\d+)/(thumb|art|banner|clearLogo)(?:/\d+)?$")
+
+
+async def _current_plex_image_path(
+    client: httpx.AsyncClient, plex_base: str, path: str, headers: dict[str, str]
+) -> str | None:
+    """Chemin actuel d'une image Plex dont l'horodatage memorise a expire."""
+    match = _PLEX_IMAGE_PATH.match(path)
+    if not match:
+        return None
+    rating_key, kind = match.groups()
+    try:
+        response = await client.get(
+            f"{plex_base}/library/metadata/{rating_key}", headers={**headers, "Accept": "application/json"}
+        )
+        response.raise_for_status()
+        items = response.json().get("MediaContainer", {}).get("Metadata") or []
+    except Exception as exc:
+        logger.warning("Image proxy: metadonnees Plex illisibles pour %s: %s", rating_key, exc)
+        return None
+    fresh = items[0].get(kind) if items else None
+    if not isinstance(fresh, str) or not _PLEX_IMAGE_PATH.match(fresh) or fresh == path:
+        return None
+    return fresh
+
+
+async def _proxy_stored_poster(
+    request: Request,
+    poster_url: str,
+    settings: Settings | None,
+    width: int | None,
+    height: int | None,
+    quality: int,
+    image_format: str,
+) -> Response:
+    """Sert une affiche memorisee en base : URL Plex signee, URL externe, ou URL du proxy
+    lui-meme stockee par erreur."""
+    url, plex_path = image_proxy_source(poster_url)
+    if url:
+        parsed = urlparse(url)
+        configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
+        if configured_host and parsed.hostname == configured_host:
+            url, plex_path = None, urlunparse(("", "", parsed.path, parsed.params, parsed.query, ""))
+    return await image_proxy(
+        request=request,
+        url=url,
+        plex_path=plex_path,
+        width=width,
+        height=height,
+        quality=quality,
+        image_format=image_format,
+        plex_server=None,
+    )
+
+
 @router.get("/image-proxy/library/{library_item_id}", dependencies=[Depends(require_auth)])
 async def library_image_proxy(
     request: Request,
@@ -285,16 +483,10 @@ async def library_image_proxy(
     """Sert une affiche Plex sans révéler son URL signée au navigateur."""
     async with AsyncSessionLocal() as db:
         item = (await db.execute(select(LibraryItem).filter(LibraryItem.id == library_item_id))).scalars().first()
+        settings = (await db.execute(select(Settings))).scalars().first()
     if not item or not item.poster_url:
         raise HTTPException(404, "Affiche introuvable")
-    return await image_proxy(
-        request=request,
-        url=item.poster_url,
-        width=width,
-        height=height,
-        quality=quality,
-        image_format=image_format,
-    )
+    return await _proxy_stored_poster(request, item.poster_url, settings, width, height, quality, image_format)
 
 
 @router.get("/image-proxy/request/{request_id}", dependencies=[Depends(require_auth)])
@@ -309,13 +501,7 @@ async def request_image_proxy(
     """Sert l'affiche d'une demande sans révéler son éventuelle URL Plex signée."""
     async with AsyncSessionLocal() as db:
         media_request = (await db.execute(select(MediaRequest).filter(MediaRequest.id == request_id))).scalars().first()
+        settings = (await db.execute(select(Settings))).scalars().first()
     if not media_request or not media_request.poster_url:
         raise HTTPException(404, "Affiche introuvable")
-    return await image_proxy(
-        request=request,
-        url=media_request.poster_url,
-        width=width,
-        height=height,
-        quality=quality,
-        image_format=image_format,
-    )
+    return await _proxy_stored_poster(request, media_request.poster_url, settings, width, height, quality, image_format)

@@ -1,4 +1,6 @@
+import html as _html
 import logging
+import secrets
 
 import markdown
 from jinja2 import TemplateError
@@ -6,7 +8,7 @@ from jinja2.sandbox import SandboxedEnvironment
 
 from ..database import AsyncSessionLocal
 from ..models import LibraryItem, MediaRequest, Settings
-from ..utils import mask_email
+from ..utils import mask_email, public_image_url
 from . import audio_analyzer, email_providers
 from .diagnostics import request_context
 from .plex_links import resolve_plex_web_url
@@ -143,6 +145,8 @@ DEFAULT_FAILURE_TEMPLATE = """Une erreur est survenue lors de la transmission à
 
 DEFAULT_CANCELLED_TEMPLATE = """Votre demande pour **{media_type_et_titre}** a été annulée par un administrateur et supprimée de Sonarr/Radarr.
 
+{message_admin}
+
 Comme cette demande provenait de votre liste d'envies Plex, elle a aussi été bloquée pour empêcher qu'elle ne soit resoumise automatiquement.
 
 **Pensez à retirer ce média de votre liste d'envies Plex** : sans cela, il continuera d'y apparaître, mais ne sera plus traité par Watchdeck."""
@@ -154,7 +158,7 @@ Une correction a été effectuée sur **{media_type_et_titre}** {details_saison_
 Corrections appliquées :
 {corrections}
 
-{note_correction}
+{message_admin}
 
 Vous pouvez relancer la lecture depuis Plex."""
 
@@ -327,6 +331,44 @@ def _format_corrections(corrections: list[str] | tuple[str, ...] | None) -> str:
     return "\n".join(f"- {c}" for c in cleaned)
 
 
+ADMIN_MESSAGE_LABEL = "Message de l'administrateur"
+
+
+def _admin_message_block(text: str) -> str:
+    """Rend le texte libre ecrit par un administrateur dans un encadre qui lui est propre.
+
+    Depose tel quel au milieu des paragraphes automatiques, ce texte ne se distinguait
+    en rien de ce que l'application redige elle-meme : le destinataire ne pouvait pas
+    savoir qu'une personne lui avait ecrit. L'encadre porte donc un fond plus clair, un
+    filet neutre -- surtout pas la couleur d'accent, deja prise par la carte du corps, ou
+    le second filet annulerait la distinction au lieu de la creer -- et une etiquette.
+
+    Rendu sur une seule ligne : `render_template` reduit les espaces doubles avant la
+    conversion Markdown, et un bloc HTML indente y perdrait sa mise en forme.
+
+    Renvoie une chaine vide sans texte : un encadre vide, ou pire son etiquette seule,
+    dirait qu'on a ecrit quelque chose alors que non.
+    """
+    contenu = (text or "").strip()
+    if not contenu:
+        return ""
+    # Le texte vient d'un champ libre : il est echappe, jamais interprete. Sans cela une
+    # etoile ou une balise suffisait a deformer la mise en page du mail.
+    paragraphes = [_html.escape(bloc.strip()) for bloc in contenu.split("\n\n") if bloc.strip()]
+    corps = "".join(
+        f'<div style="color:#eaeaf0;font-size:13.5px;line-height:1.6;margin-top:{6 if i else 0}px">'
+        f"{p.replace(chr(10), '<br>')}</div>"
+        for i, p in enumerate(paragraphes)
+    )
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px">'
+        '<tr><td style="background:#262630;border-left:3px solid #6f6f80;border-radius:0 6px 6px 0;padding:11px 13px">'
+        '<div style="color:#9b9bac;font-size:10px;font-weight:bold;letter-spacing:.09em;'
+        f'text-transform:uppercase;margin-bottom:5px">{_html.escape(ADMIN_MESSAGE_LABEL)}</div>'
+        f"{corps}</td></tr></table>"
+    )
+
+
 def _build_tags(
     request: MediaRequest | LibraryItem,
     display_name: str | None = None,
@@ -336,6 +378,7 @@ def _build_tags(
     season_number: int | None = None,
     episode_number: int | None = None,
     reason: str = "",
+    admin_message: str = "",
     corrections: list[str] | tuple[str, ...] | None = None,
     correction_note: str = "",
     batch_summary: str = "",
@@ -392,7 +435,7 @@ def _build_tags(
         "{titre}": request.title or "",
         "{type}": type_media,
         "{annee}": str(request.year) if request.year else "",
-        "{affiche}": request.poster_url or "",
+        "{affiche}": public_image_url(request.poster_url) or "",
         "{details_saison_episode}": details_se,
         "{numero_saison}": str(season_number) if season_number is not None else "",
         "{saison}": f"Saison {season_number}" if season_number is not None else "",
@@ -404,8 +447,14 @@ def _build_tags(
         or "",
         "{synopsis}": request.overview or "",
         "{raison}": reason or "Erreur inconnue",
+        # Distinct de `{raison}` : vide quand l'administrateur n'a rien ecrit, pour que
+        # le gabarit puisse omettre le paragraphe au lieu d'afficher un motif invente.
+        "{motif}": reason or "",
         "{corrections}": _format_corrections(corrections) or "- Correction effectuée",
         "{note_correction}": correction_note.strip() if correction_note else "",
+        # Le meme texte, mais presente comme venant de quelqu'un. `{motif}` et
+        # `{note_correction}` restent bruts pour qui compose son propre encadre.
+        "{message_admin}": _admin_message_block(admin_message),
         "{media_type_et_titre}": f"{type_media} {request.title or ''}".strip(),
         "{resume_disponibilite}": batch_summary or details_se,
         "{statut_disponibilite}": details.get("availability_variant", scope),
@@ -432,7 +481,7 @@ def _build_jinja_ctx(request: MediaRequest | LibraryItem, display_name: str | No
     return {
         "_title": request.title or "",
         "_year": request.year,
-        "_poster_url": request.poster_url or "",
+        "_poster_url": public_image_url(request.poster_url) or "",
         "_plex_user": display_name
         or getattr(request, "plex_user", None)
         or getattr(request, "plex_user_id", None)
@@ -457,11 +506,39 @@ def _resolve_str_setting(settings, field):
     return val if isinstance(val, str) else None
 
 
+# Balises dont la valeur est deja du HTML construit et echappe par l'application.
+_HTML_TAGS = frozenset({"{message_admin}"})
+# Balises dont la valeur est du Markdown genere par l'application (listes) : substituees
+# avant la conversion Markdown, mais echappees (HTML et accolades Jinja).
+_MARKDOWN_TAGS = frozenset({"{corrections}"})
+
+
+def _neutralize(value: str) -> str:
+    """Texte -> fragment sur : HTML echappe, accolades rendues inertes pour Jinja."""
+    return _html.escape(value, quote=True).replace("{", "&#123;").replace("}", "&#125;")
+
+
 def render_template(template_str: str, tags: dict, jinja_ctx: dict) -> str:
-    # 1. Remplacement des tags intelligents
+    """Rend un template d'email (Markdown + coquille Jinja).
+
+    Les valeurs des balises (titre, resume, nom d'utilisateur...) viennent en partie des
+    utilisateurs et des sources de metadonnees : elles ne doivent jamais etre
+    interpretees, ni comme HTML/Markdown, ni comme code Jinja. Elles sont donc posees
+    sous forme de jetons inertes, et remplacees par leur valeur echappee une fois le
+    Markdown converti et le Jinja rendu.
+    """
+    placeholders: dict[str, str] = {}
     rendered_md = template_str
-    for tag, value in tags.items():
-        rendered_md = rendered_md.replace(tag, str(value))
+    for index, (tag, value) in enumerate(tags.items()):
+        if tag not in rendered_md:
+            continue
+        text = "" if value is None else str(value)
+        if tag in _MARKDOWN_TAGS:
+            rendered_md = rendered_md.replace(tag, _neutralize(text))
+            continue
+        token = f"wdtag{index}x{secrets.token_hex(4)}"
+        placeholders[token] = text if tag in _HTML_TAGS else _neutralize(text)
+        rendered_md = rendered_md.replace(tag, token)
 
     # Nettoyage des espaces inutiles
     rendered_md = rendered_md.replace("  ", " ")
@@ -472,17 +549,24 @@ def render_template(template_str: str, tags: dict, jinja_ctx: dict) -> str:
     # 3. Injection dans la coquille Jinja2 globale
     try:
         html = _EMAIL_SHELL.replace("__CONTENT__", html_content)
-        return _jinja_env.from_string(html).render(**jinja_ctx)
+        html = _jinja_env.from_string(html).render(**jinja_ctx)
     except TemplateError:
         logger.exception("Template render error")
         return "<p>Erreur de rendu du template — voir les journaux serveur pour le détail.</p>"
+
+    # 4. Valeurs des balises, apres tout rendu
+    for token, value in placeholders.items():
+        html = html.replace(token, value)
+    return html
 
 
 def render_subject(template_str: str, tags: dict, fallback: str) -> str:
     rendered = template_str
     for tag, value in tags.items():
         rendered = rendered.replace(tag, str(value))
-    rendered = rendered.replace("  ", " ")
+    # Un objet d'email tient sur une ligne : un saut de ligne venu d'une valeur (titre
+    # saisi par un utilisateur) ne doit pas pouvoir ajouter d'en-tete au message.
+    rendered = " ".join(rendered.split())
     return rendered.strip() or fallback
 
 
@@ -708,12 +792,19 @@ async def send_cancelled_notification(
     recipient: str,
     display_name: str | None = None,
     *,
+    reason: str = "",
     dry_run: bool = False,
 ) -> tuple[str, str]:
     """Demande annulée par un admin (voir requests_api.withdraw_request) — envoyée
     uniquement quand la demande provenait de la watchlist Plex, pour prévenir
-    l'utilisateur qu'elle a aussi été bloquée côté Watchdeck."""
-    tags = _build_tags(request, display_name)
+    l'utilisateur qu'elle a aussi été bloquée côté Watchdeck.
+
+    `reason` porte l'explication ecrite par l'administrateur : « ce media n'existe pas
+    dans le catalogue TMDB » ne se devine pas depuis un gabarit generique."""
+    # Ce texte-la vient d'une personne : il passe aussi par `{message_admin}`, qui le
+    # presente comme tel. Les evenements « echec » et « intervention *arr » gardent leur
+    # `{raison}` brute -- c'est un message de machine, l'attribuer serait mentir.
+    tags = _build_tags(request, display_name, reason=reason, admin_message=reason)
     extra_ctx = get_shared_email_parts(settings)
     extra_ctx.update(get_event_visuals(settings, "cancelled"))
     extra_ctx["_tmdb_url"] = build_tmdb_url(request)
@@ -753,6 +844,7 @@ def build_correction_email(
         episode_number=episode_number,
         corrections=corrections,
         correction_note=correction_note,
+        admin_message=correction_note,
     )
     extra_ctx = get_shared_email_parts(settings)
     extra_ctx.update(get_event_visuals(settings, "correction"))

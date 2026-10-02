@@ -1,9 +1,12 @@
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
+import { createPinia, defineStore, setActivePinia, storeToRefs } from 'pinia';
+import { humanizeError } from '@/utils/apiError';
 import { api } from '@/api';
 
 export const secretFields = [
   'plex_token',
   'tautulli_api_key',
+  'tracearr_api_key',
   'seer_api_key',
   'tmdb_api_key',
   'discord_webhook_url',
@@ -14,7 +17,7 @@ export const secretFields = [
 
 export type SecretField = (typeof secretFields)[number];
 
-export const form = reactive<Record<string, any>>({
+const initialForm = (): Record<string, any> => ({
   plex_url: '',
   plex_token: '',
   plex_verify_ssl: true,
@@ -25,6 +28,9 @@ export const form = reactive<Record<string, any>>({
   tautulli_enabled: false,
   tautulli_url: '',
   tautulli_api_key: '',
+  tracearr_enabled: false,
+  tracearr_url: '',
+  tracearr_api_key: '',
   seer_enabled: false,
   seer_url: '',
   seer_api_key: '',
@@ -37,6 +43,7 @@ export const form = reactive<Record<string, any>>({
   tmdb_region: 'FR',
   webhook_secret: '',
   public_base_url: '',
+  trusted_proxies: '',
   gdpr_contact_name: '',
   gdpr_contact_email: '',
   email_enabled: false,
@@ -94,10 +101,11 @@ export const form = reactive<Record<string, any>>({
   vf_upgrade_priority: 'mixed,vo,vf',
   vf_upgrade_prioritize_continuing: false,
   vf_upgrade_markers: 'truefrench,vff,multi,vfi,vfq',
-  vf_upgrade_preference: 'truefrench,vff,multi,vfi,vfq',
+  vf_upgrade_preference: 'truefrench,vff,vfi,multi,vfq',
   vf_upgrade_accept_secondary: true,
   vf_upgrade_require_default: false,
   vf_upgrade_min_confidence: 65,
+  vf_upgrade_accept_vfq: false,
   vf_upgrade_block_arr_rejected: true,
   vf_upgrade_protect_resolution: true,
   vf_upgrade_preserve_hdr: true,
@@ -126,6 +134,12 @@ export const form = reactive<Record<string, any>>({
   notification_log_retention_days: 30,
   poll_history_retention_days: 30,
   arr_poll_interval_seconds: 900,
+  arr_queue_interval_seconds: 60,
+  torrent_status_interval_seconds: 120,
+  new_vff_interval_seconds: 60,
+  seer_sync_interval_minutes: 60,
+  library_analytics_interval_minutes: 10,
+  notification_purge_hour: 3,
   digest_enabled: false,
   digest_hour: 8,
   digest_minute: 0,
@@ -140,32 +154,77 @@ export const form = reactive<Record<string, any>>({
   torrent_ratio_limit: null,
   torrent_seed_time_limit_hours: null,
   torrent_auto_delete_files: false,
+  auto_import_reconciliation: false,
   availability_confirmation_mode: 'hybrid',
   availability_confirmation_timeout_minutes: 30,
 });
 
-export const saving = ref(false);
-export const error = ref('');
-export const message = ref('');
-const savedSnapshot = ref('');
-const snapshot = () => JSON.stringify(form);
-export const isDirty = computed(() => Boolean(savedSnapshot.value) && snapshot() !== savedSnapshot.value);
+export const settingsPinia = createPinia();
+setActivePinia(settingsPinia);
 
-export const secretsPresent = reactive<Record<string, boolean>>(
+export const useSettingsStore = defineStore('settings', () => {
+const form = reactive<Record<string, any>>(initialForm());
+const saving = ref(false);
+const error = ref('');
+const message = ref('');
+const validationErrors = reactive<Record<string, string>>({});
+// Une erreur de validation ne vaut que pour la valeur refusée : dès que le champ est
+// corrigé, son message disparaît au lieu de rester affiché jusqu'au prochain envoi.
+watch(
+  () => Object.fromEntries(Object.keys(validationErrors).map(key => [key, form[key]])),
+  (values, previous) => {
+    for (const key of Object.keys(values)) {
+      if (key in previous && !Object.is(values[key], previous[key])) delete validationErrors[key];
+    }
+  },
+);
+
+/* Etat du formulaire tel qu'il a ete charge, champ par champ.
+ *
+ * Conserve comme objet et non comme chaine JSON : c'est ce qui permet de savoir *quels*
+ * champs ont change, et donc de n'envoyer que ceux-la. Les reglages sont desormais
+ * repartis sur plusieurs pages ; envoyer les cent trente-six champs a chaque
+ * enregistrement, comme avant, avait deux consequences facheuses. D'abord une page
+ * reecrivait des reglages qu'elle n'affiche meme pas. Ensuite, deux administrateurs
+ * modifiant deux sections differentes se marchaient dessus : le second enregistrement
+ * ecrasait le premier avec sa propre copie, vieille du chargement de page.
+ *
+ * N'envoyer que le change resout les deux : la charge tombe a un ou deux champs, et
+ * deux modifications portant sur des sections distinctes ne peuvent plus se detruire.
+ */
+const savedSnapshot = ref<Record<string, any> | null>(null);
+
+/** Champs dont la valeur differe de celle chargee. */
+function changedFields(): string[] {
+  const base = savedSnapshot.value;
+  if (!base) return [];
+  return Object.keys(form).filter((key) => !Object.is(form[key], base[key]));
+}
+
+const isDirty = computed(() => {
+  // La lecture de `form` doit rester tracee par Vue : passer par `changedFields()` seul
+  // ne creerait aucune dependance reactive sur les champs inchangés.
+  const base = savedSnapshot.value;
+  if (!base) return false;
+  return Object.keys(form).some((key) => !Object.is(form[key], base[key]));
+});
+
+const secretsPresent = reactive<Record<string, boolean>>(
   Object.fromEntries(secretFields.map((k) => [k, false]))
 );
 
-export function success(text: string): void {
+function success(text: string): void {
   message.value = text;
   error.value = '';
 }
 
-export function fail(err: any): void {
-  error.value = err?.message || String(err);
+function fail(err: any): void {
+  error.value = humanizeError(err);
 }
 
-export async function load(): Promise<void> {
+async function load(): Promise<void> {
   try {
+    Object.keys(validationErrors).forEach(key => delete validationErrors[key]);
     const data = await api<Record<string, any>>('/api/settings');
     for (const key of Object.keys(form)) {
       if (data[key] != null) form[key] = data[key];
@@ -174,22 +233,76 @@ export async function load(): Promise<void> {
       secretsPresent[key] = Boolean(form[key]);
       form[key] = '';
     }
-    savedSnapshot.value = snapshot();
+    // Reference prise apres l'effacement des secrets : un secret non saisi vaut donc la
+    // chaine vide des deux cotes et ne compte pas comme une modification.
+    savedSnapshot.value = { ...form };
   } catch (e) {
     fail(e);
   }
 }
 
-export async function save(): Promise<void> {
-  saving.value = true;
-  const payload = { ...form };
-  for (const key of secretFields) {
-    if (!payload[key]) delete payload[key];
+/* Annule les modifications non enregistrees, en revenant a l'etat charge.
+ *
+ * Necessaire des lors que les reglages sont modifiables depuis une modale : fermer sans
+ * enregistrer doit rendre le formulaire a son etat serveur, sinon les valeurs saisies
+ * survivent dans le store partage et reapparaissent sur la page Reglages, ou pire,
+ * partent au prochain enregistrement d'une autre section. */
+function discardChanges(): void {
+  const base = savedSnapshot.value;
+  if (!base) return;
+  for (const key of Object.keys(form)) {
+    if (!Object.is(form[key], base[key])) form[key] = base[key];
   }
+  error.value = '';
+  message.value = '';
+  Object.keys(validationErrors).forEach(key => delete validationErrors[key]);
+}
+
+async function save(): Promise<void> {
+  const changed = changedFields();
+  if (!changed.length) {
+    success('Aucune modification à enregistrer.');
+    return;
+  }
+
+  const payload: Record<string, any> = {};
+  for (const key of changed) {
+    // Un secret laisse vide signifie « conserver l'existant », pas « effacer ».
+    if (secretFields.includes(key as SecretField) && !form[key]) continue;
+    payload[key] = form[key];
+  }
+
+  Object.keys(validationErrors).forEach(key => delete validationErrors[key]);
+  // Zod n'est requis qu'au moment d'enregistrer : son chargement différé évite de
+  // pénaliser toutes les routes avec le poids du validateur de configuration.
+  const { settingsPatchSchema } = await import('@/settingsSchema');
+  const validation = settingsPatchSchema.safeParse(payload);
+  if (!validation.success) {
+    for (const issue of validation.error.issues) {
+      const key = String(issue.path[0] || '_form');
+      validationErrors[key] ||= issue.message;
+    }
+    error.value = validation.error.issues[0]?.message || 'Certains réglages sont invalides.';
+    return;
+  }
+
+  saving.value = true;
+
   try {
     await api('/api/settings', { method: 'PUT', body: JSON.stringify(payload) });
-    savedSnapshot.value = snapshot();
-    success('Configuration enregistree.');
+    for (const key of Object.keys(payload)) {
+      if (savedSnapshot.value) savedSnapshot.value[key] = form[key];
+    }
+    // Un secret vient d'etre enregistre : le champ se vide et l'interface indique
+    // desormais qu'une valeur est configuree.
+    for (const key of secretFields) {
+      if (payload[key]) {
+        secretsPresent[key] = true;
+        form[key] = '';
+        if (savedSnapshot.value) savedSnapshot.value[key] = '';
+      }
+    }
+    success('Configuration enregistrée.');
   } catch (e) {
     fail(e);
   } finally {
@@ -197,7 +310,7 @@ export async function save(): Promise<void> {
   }
 }
 
-export async function testSaved(path: string): Promise<any> {
+async function testSaved(path: string): Promise<any> {
   await save();
   try {
     const data = await api<any>(path, { method: 'POST' });
@@ -208,3 +321,22 @@ export async function testSaved(path: string): Promise<any> {
     return null;
   }
 }
+
+return { form, saving, error, message, isDirty, secretsPresent, validationErrors, changedFields, success, fail, load, discardChanges, save, testSaved };
+});
+
+// Façade compatible avec les composants existants. Tous ces exports pointent vers
+// l'unique store Pinia de l'application, sans dupliquer son état.
+const settingsStore = useSettingsStore(settingsPinia);
+const settingsRefs = storeToRefs(settingsStore);
+export const form = settingsStore.form;
+export const secretsPresent = settingsStore.secretsPresent;
+export const validationErrors = settingsStore.validationErrors;
+export const { saving, error, message, isDirty } = settingsRefs;
+export const changedFields = settingsStore.changedFields;
+export const success = settingsStore.success;
+export const fail = settingsStore.fail;
+export const load = settingsStore.load;
+export const discardChanges = settingsStore.discardChanges;
+export const save = settingsStore.save;
+export const testSaved = settingsStore.testSaved;

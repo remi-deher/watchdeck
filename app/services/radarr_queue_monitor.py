@@ -16,7 +16,7 @@ from ..database import AsyncSessionLocal
 from ..models import ArrInstance, MediaRequest, RadarrQueueObservation, Settings
 from ..notification_queue import enqueue
 from ..utils import now_utc_naive, parse_email_list
-from . import radarr
+from . import import_reconciliation, radarr
 from .arr_queue_monitor import (
     classify_observation,
     fetch_queue_safely,
@@ -78,6 +78,19 @@ async def monitor_radarr_queue() -> dict[str, int]:
 
                 if state == "import_blocked":
                     counters["blocked"] += 1
+                    # Le rapprochement automatique passe avant l'alerte : inutile de
+                    # reveiller un administrateur pour un choix que l'on sait faire.
+                    if await import_reconciliation.try_reconcile(
+                        product="radarr",
+                        instance=instance,
+                        observation=observation,
+                        record=record,
+                        request=req,
+                        settings=settings,
+                    ):
+                        counters["auto_reconciled"] = counters.get("auto_reconciled", 0) + 1
+                        counters["observed"] += 1
+                        continue
                     if alerts_enabled and not observation.admin_alert_queued_at and req:
                         reason = observation.error_message or "Import Radarr bloque : verification manuelle requise."
                         await enqueue(

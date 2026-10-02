@@ -54,6 +54,19 @@ async def test_available_transition_is_idempotent(async_db):
 
 
 @pytest.mark.asyncio
+async def test_late_arr_event_cannot_regress_completed_request(async_db):
+    req = _request(status=RequestStatus.available)
+    async_db.add(req)
+    async_db.commit()
+
+    changed = await transition_request(async_db, req, "download_finished", source="sonarr")
+
+    assert changed is False
+    assert req.status == RequestStatus.available
+    assert req.fulfillment_status == FulfillmentStatus.completed
+
+
+@pytest.mark.asyncio
 async def test_failure_and_retry_preserve_structured_error(async_db):
     req = _request(status=RequestStatus.sent_to_arr)
     async_db.add(req)

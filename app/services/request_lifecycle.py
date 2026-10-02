@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import FulfillmentStatus, MediaRequest, RequestStatus
-from ..utils import now_utc_naive
+from ..utils import now_utc_naive, unwrap_image_proxy
 from .diagnostics import record_event, update_request_context
 from .download_history import record_completed
 from .notification_policy import register_transition_notification_intent
@@ -43,6 +43,19 @@ async def transition_request(
         if hasattr(req.fulfillment_status, "value")
         else str(req.fulfillment_status or FulfillmentStatus.not_submitted)
     )
+
+    # Late/repeated *arr events must not regress a request already proven available
+    # in Plex.  This used to create rows that were simultaneously business=available
+    # and fulfillment=awaiting_plex.
+    if old_business == RequestStatus.available.value and event in {
+        "queued",
+        "download_started",
+        "import_started",
+        "download_finished",
+        "arr_imported",
+        "plex_pending",
+    }:
+        return False
 
     mapping = {
         "created": (RequestStatus.pending, FulfillmentStatus.awaiting_submission),
@@ -123,7 +136,7 @@ async def transition_request(
             media_type=req.media_type,
             source=source,
             instance_name=instance_name,
-            poster_url=req.poster_url,
+            poster_url=unwrap_image_proxy(req.poster_url),
             request_id=req.id,
         )
     try:

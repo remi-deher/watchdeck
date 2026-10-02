@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .models import LibraryItem, MediaRequest, PlexUser
+from .utils import wrap_image_proxy
 
 
 def format_datetime(dt: Optional[datetime]) -> Optional[str]:
@@ -39,6 +40,12 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
                 requester_ids.append(uid)
     except Exception:
         extras = []
+    from .services.notification_policy import is_pseudo_requester
+
+    # Import manuel / synchro *arr : aucun libelle de demandeur plutot qu'un faux nom.
+    pseudo = is_pseudo_requester(req.plex_user_id)
+    if pseudo:
+        requester_ids = requester_ids[1:]
     requesters = [users.get(uid, uid) for uid in requester_ids]
     return {
         "id": req.id,
@@ -51,7 +58,7 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
         "fulfillment_error": req.fulfillment_error,
         "source": req.source,
         "plex_user_id": req.plex_user_id,
-        "plex_user": users.get(req.plex_user_id, req.plex_user or req.plex_user_id),
+        "plex_user": None if pseudo else users.get(req.plex_user_id, req.plex_user or req.plex_user_id),
         "requester_ids": requester_ids,
         "requesters": requesters,
         "requested_by": ", ".join(requesters),
@@ -107,6 +114,7 @@ def serialize_plex_user(user: PlexUser, stats: dict) -> dict:
     data = {c.name: getattr(user, c.name) for c in user.__table__.columns}
     data.pop("password_hash", None)
     data.pop("totp_secret", None)
+    data.pop("session_version", None)
     data["has_local_password"] = bool(user.password_hash)
     data["last_requested_at"] = format_datetime(stats.pop("last_requested_at", None))
     data["stats"] = stats
@@ -183,7 +191,7 @@ def serialize_media_summary(
             "title": item.get("title"),
             "year": item.get("year"),
             "overview": item.get("overview") or "",
-            "poster_url": item.get("poster_url"),
+            "poster_url": wrap_image_proxy(item.get("poster_url")),
             "library_id": item.get("library_id") if library_id is None else library_id,
             "request_id": item.get("request_id") if request_id is None else request_id,
             "in_library": item.get("in_library", False) if in_library is None else in_library,

@@ -1,41 +1,50 @@
 """
 Database access layer for SQLAlchemy.
 
-SQLite is used by default. On Windows/Docker bind mounts, multiple concurrent
-SQLite WAL shared-memory files can trigger "unable to open database file" on
-some Windows/Docker bind mounts, so WAL is deliberately disabled while keeping
-a longer busy timeout for normal SQLite lock contention.
+PostgreSQL is the only supported engine: DATABASE_URL must point to it (any of the
+postgresql://, postgres://, postgresql+psycopg2:// or postgresql+asyncpg:// forms).
 """
 
 import asyncio
 import os
 
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.future import select
 from sqlalchemy.orm import declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/plex_rss.db")
-# Ajustement pour aiosqlite / asyncpg
-is_sqlite = DATABASE_URL.startswith("sqlite")
-if is_sqlite:
-    ASYNC_DATABASE_URL = (
-        DATABASE_URL
-        if DATABASE_URL.startswith("sqlite+aiosqlite://")
-        else DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://", 1)
-    )
-    connect_args = {"check_same_thread": False, "timeout": 30}
-    engine_kwargs = {"pool_pre_ping": True}
-else:
-    # Accept PostgreSQL URLs with or without an explicit synchronous driver.
-    ASYNC_DATABASE_URL = DATABASE_URL
-    if not DATABASE_URL.startswith("postgresql+asyncpg://"):
-        ASYNC_DATABASE_URL = DATABASE_URL.split("://", 1)[-1]
-        ASYNC_DATABASE_URL = f"postgresql+asyncpg://{ASYNC_DATABASE_URL}"
-    connect_args = {}
-    engine_kwargs = {"pool_pre_ping": True}
+POSTGRES_URL_PREFIXES = ("postgresql+asyncpg://", "postgresql+psycopg2://", "postgresql://", "postgres://")
 
-async_engine = create_async_engine(ASYNC_DATABASE_URL, connect_args=connect_args, **engine_kwargs)
+
+def async_database_url(url: str) -> str:
+    """Normalise une URL PostgreSQL vers le pilote asyncpg ; refuse tout autre moteur."""
+    for prefix in POSTGRES_URL_PREFIXES:
+        if url.startswith(prefix):
+            return "postgresql+asyncpg://" + url[len(prefix) :]
+    raise RuntimeError(
+        "DATABASE_URL doit pointer vers PostgreSQL (postgresql://utilisateur:motdepasse@hote:5432/base). "
+        "SQLite n'est plus pris en charge."
+    )
+
+
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+ASYNC_DATABASE_URL = async_database_url(DATABASE_URL)
+
+
+def postgres_engine_kwargs() -> dict[str, object]:
+    """Return the bounded, environment-configurable PostgreSQL pool settings."""
+    return {
+        "pool_pre_ping": True,
+        "pool_size": int(os.getenv("DB_POOL_SIZE", "15")),
+        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "15")),
+        "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "30")),
+        "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "1800")),
+    }
+
+
+# Keep enough headroom for bursts caused by slow external integrations without consuming
+# PostgreSQL's whole connection budget. Values remain configurable for installations with
+# a different database capacity.
+async_engine = create_async_engine(ASYNC_DATABASE_URL, **postgres_engine_kwargs())
 AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
 
 Base = declarative_base()
@@ -44,17 +53,6 @@ Base = declarative_base()
 async def get_db_async():
     async with AsyncSessionLocal() as db:
         yield db
-
-
-if DATABASE_URL.startswith("sqlite"):
-
-    @event.listens_for(async_engine.sync_engine, "connect")
-    def _sqlite_pragmas(dbapi_conn, _record):
-        """Use SQLite settings that behave well on Windows/Docker bind mounts."""
-        cur = dbapi_conn.cursor()
-        cur.execute("PRAGMA busy_timeout=30000")
-        cur.execute("PRAGMA journal_mode=DELETE")
-        cur.close()
 
 
 def run_migrations():
@@ -127,9 +125,6 @@ async def seed_defaults():
 
 
 async def init_db():
-    """Initialize the DB: schema, optional legacy import, then defaults."""
-    from .legacy_migration import auto_migrate_legacy_sqlite
-
+    """Initialize the DB: schema migrations, then defaults."""
     await asyncio.to_thread(run_migrations)
-    await asyncio.to_thread(auto_migrate_legacy_sqlite, DATABASE_URL)
     await seed_defaults()

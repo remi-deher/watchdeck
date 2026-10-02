@@ -12,18 +12,15 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, MediaRequest, PlexUser, RequestStatus, Settings
+from app.models import MediaRequest, PlexUser, RequestStatus, Settings
 from app.scheduler import (
     _clean_title,
     _find_global_request,
     poll_watchlists,
     sync_seer_requests,
 )
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -32,14 +29,7 @@ from tests.async_support import TestSession
 
 @pytest.fixture()
 def db():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = TestSession(Session())
+    session = make_test_session()
     yield session
     session.close()
 

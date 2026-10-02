@@ -13,6 +13,9 @@ export function registerServiceWorker(): void {
               installingWorker.addEventListener('statechange', () => {
                 if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   console.info('[PWA] Nouvelle version prête.');
+                  // App.vue affiche un toast "Recharger" a partir de cet evenement : sans lui,
+                  // l'utilisateur restait indefiniment sur les assets perimes sans le savoir.
+                  window.dispatchEvent(new CustomEvent('watchdeck:sw-update-available'));
                 }
               });
             }

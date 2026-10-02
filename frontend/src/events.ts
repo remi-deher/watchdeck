@@ -9,7 +9,6 @@ export const REALTIME_EVENT_TYPES = [
   'activity.updated',
   'library.analytics.updated',
   'vff.updated',
-  'migration.completed',
   'vf_upgrade.updated',
 ] as const;
 

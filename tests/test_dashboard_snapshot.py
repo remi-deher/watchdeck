@@ -29,3 +29,13 @@ async def test_partial_dashboard_snapshot_only_runs_requested_sections(monkeypat
 
     assert payload == {"errors": [], "counts": {"total": 4}}
     assert called == ["counts"]
+
+
+@pytest.mark.asyncio
+async def test_notifications_section_calls_the_real_route(async_db):
+    # Les sections appellent les fonctions de route directement, sans FastAPI : un
+    # parametre ajoute en `Query(...)` y arrive comme objet Query et fait tomber la
+    # section. Vecu avec le tri de l'historique des envois (« Query(date) »).
+    result = await dashboard_api._snapshot_calls()["notifications"](async_db)
+
+    assert "items" in result

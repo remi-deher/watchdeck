@@ -1,36 +1,51 @@
 <template>
-  <component
-    :is="rootComponent"
-    class="ui-button"
-    :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'is-loading': loading, 'is-icon-only': iconOnly }]"
-    :type="isButton ? type : undefined"
-    :disabled="isButton ? unavailable : undefined"
-    :to="to || undefined"
-    :href="href || undefined"
-    :target="target || undefined"
-    :rel="rel || undefined"
-    :aria-busy="loading || undefined"
-    :aria-disabled="!isButton && unavailable ? 'true' : undefined"
-    :tabindex="!isButton && unavailable ? -1 : undefined"
-    v-bind="$attrs"
-    @click="handleClick"
-  >
-    <LoaderCircle v-if="loading" class="ui-button-spinner" aria-hidden="true" />
-    <template v-else-if="iconOnly"><slot /></template>
-    <template v-else>
-      <slot name="icon" />
-    </template>
-    <span v-if="!iconOnly" class="ui-button-label"><slot /></span>
-    <slot v-if="!loading" name="trailing" />
-  </component>
+  <DefineButton>
+    <component
+      :is="rootComponent"
+      class="ui-button"
+      :class="[`ui-button--${variant}`, `ui-button--${size}`, { 'is-loading': loading, 'is-icon-only': iconOnly }]"
+      :type="isButton ? type : undefined"
+      :disabled="isButton ? unavailable : undefined"
+      :to="to || undefined"
+      :href="href || undefined"
+      :target="target || undefined"
+      :rel="rel || undefined"
+      :aria-busy="loading || undefined"
+      :aria-disabled="!isButton && unavailable ? 'true' : undefined"
+      :tabindex="!isButton && unavailable ? -1 : undefined"
+      v-bind="attributs"
+      @click="handleClick"
+    >
+      <LoaderCircle v-if="loading" class="ui-button-spinner" aria-hidden="true" />
+      <template v-else-if="iconOnly"><slot /></template>
+      <template v-else>
+        <slot name="icon" />
+      </template>
+      <span v-if="!iconOnly" class="ui-button-label"><slot /></span>
+      <slot v-if="!loading" name="trailing" />
+    </component>
+  </DefineButton>
+  <!-- Bouton-icone : son nom s'affiche dans une infobulle Reka UI, au survol comme au
+       focus clavier -- l'attribut `title` natif n'apparaissait qu'a la souris, apres un long
+       delai, et jamais au clavier. Le nom accessible reste porte par `aria-label`. -->
+  <!-- `ignore-non-keyboard-focus` : a l'ouverture d'une modale, le focus se pose sur son
+       premier bouton -- la croix -- et son infobulle « Fermer » s'affichait sans que
+       personne ne l'ait demandee. L'infobulle ne suit donc que le focus clavier. -->
+  <UiTooltip v-if="infobulle" :text="infobulle" :focusable="false"><ReuseButton /></UiTooltip>
+  <ReuseButton v-else />
 </template>
 
 <script setup lang="ts">
-import { computed, resolveComponent } from 'vue';
+import { computed, resolveComponent, useAttrs } from 'vue';
+import { createReusableTemplate } from '@vueuse/core';
+import UiTooltip from './UiTooltip.vue';
 import { LoaderCircle } from '@lucide/vue';
 import type { RouteLocationRaw } from 'vue-router';
 
 defineOptions({ inheritAttrs: false });
+
+const [DefineButton, ReuseButton] = createReusableTemplate();
+const attrs = useAttrs();
 
 const props = withDefaults(
   defineProps<{
@@ -64,18 +79,28 @@ function handleClick(event: MouseEvent) {
   }
   emit('click', event);
 }
+
+/* L'infobulle ne concerne que les boutons-icones, dont le nom ne se lit pas a l'ecran. */
+const infobulle = computed(() => (props.iconOnly ? String(attrs.title || attrs['aria-label'] || '') : ''));
+// Sans `title` natif quand l'infobulle le remplace : deux bulles se superposeraient.
+const attributs = computed(() => {
+  if (!infobulle.value) return attrs;
+  const { title, ...reste } = attrs as Record<string, unknown>;
+  // Le titre servait parfois de seul nom accessible : il passe alors dans aria-label.
+  return { ...reste, 'aria-label': reste['aria-label'] ?? title };
+});
 </script>
 
 <style scoped lang="scss">
-.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--btn-radius); font: inherit; font-size: var(--fs-sm); font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease; }
+.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--btn-radius); font: inherit; font-size: var(--fs-sm); font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard); }
 .ui-button--sm { min-height: 36px; padding-inline: 11px; }
-.ui-button--primary { border-color: var(--accent); background: var(--accent); color: #151515; }
+.ui-button--primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .ui-button--secondary { border-color: var(--border); background: var(--surface-2); color: var(--text); }
 .ui-button--ghost { border-color: transparent; background: transparent; color: var(--muted); }
-.ui-button--danger { border-color: rgba(239,68,68,.38); background: rgba(239,68,68,.1); color: var(--red-text); }
-.ui-button--primary:hover:not(:disabled):not([aria-disabled="true"]) { background: color-mix(in srgb, var(--accent) 88%, white); }
+.ui-button--danger { border-color: color-mix(in srgb, var(--red) 38%, transparent); background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red-text); }
+.ui-button--primary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--accent-hover); }
 .ui-button--secondary:hover:not(:disabled):not([aria-disabled="true"]),.ui-button--ghost:hover:not(:disabled):not([aria-disabled="true"]) { border-color: color-mix(in srgb, var(--border) 65%, white); background: var(--surface-3); color: var(--text); }
-.ui-button--danger:hover:not(:disabled):not([aria-disabled="true"]) { border-color: rgba(239,68,68,.58); background: rgba(239,68,68,.17); }
+.ui-button--danger:hover:not(:disabled):not([aria-disabled="true"]) { border-color: color-mix(in srgb, var(--red) 58%, transparent); background: color-mix(in srgb, var(--red) 17%, transparent); }
 .ui-button-label { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); color: inherit; }
 .ui-button:active:not(:disabled) { transform: translateY(1px); }
 .ui-button:disabled,.ui-button[aria-disabled="true"] { cursor: not-allowed; opacity: .55; }

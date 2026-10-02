@@ -1,3 +1,4 @@
+import { chooseOption, selectedValue, uiSelects } from '@/testing/uiSelect';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import RecentJobsPanel from './RecentJobsPanel.vue';
@@ -63,8 +64,7 @@ describe('RecentJobsPanel', () => {
       },
     });
 
-    const select = wrapper.get('select');
-    await select.setValue('errors');
+    await chooseOption(uiSelects(wrapper)[0], 'errors');
 
     expect(wrapper.find('.jobs-list').text()).not.toContain('Watchlist Plex');
     expect(wrapper.find('.jobs-list').text()).toContain('Sync Sonarr/Radarr');

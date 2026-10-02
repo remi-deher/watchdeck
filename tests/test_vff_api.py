@@ -4,14 +4,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth, require_moderator
 from app.main import app
-from app.models import Base, LibraryItem, Settings
+from app.models import ArrInstance, LibraryItem, Settings
 from app.routers.vff_api import _arr_image_url
 from app.services.vff_scanner import vff_scan_state
 
@@ -144,6 +141,26 @@ def test_vff_scan_single_request_404_when_missing(client):
     assert resp.status_code == 404
 
 
+def test_vff_scan_single_request_409_when_not_yet_in_plex(db, client):
+    from app.models import MediaRequest, RequestStatus
+
+    req = MediaRequest(
+        plex_user_id="alice",
+        plex_user="Alice",
+        title="Incoming movie",
+        media_type="movie",
+        status=RequestStatus.sent_to_arr,
+        plex_guid="plex://movie/metadata-only",
+    )
+    db.add(req)
+    db.commit()
+
+    resp = client.post(f"/api/requests/{req.id}/vff-scan")
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Media not yet available in Plex"
+
+
 def test_vff_scan_single_request_400_without_settings(db, client):
     from app.models import MediaRequest, RequestStatus
 
@@ -184,6 +201,15 @@ def test_vff_scan_single_request_400_when_vff_disabled(db, client):
 def _show_request(db, **kwargs):
     from app.models import MediaRequest, RequestStatus
 
+    instance = ArrInstance(
+        name="Sonarr test",
+        arr_type="sonarr",
+        url="http://sonarr",
+        api_key="key",
+        enabled=True,
+    )
+    db.add(instance)
+    db.flush()
     defaults = dict(
         plex_user_id="alice",
         plex_user="Alice",
@@ -193,7 +219,7 @@ def _show_request(db, **kwargs):
         tmdb_id="123",
         tvdb_id="456",
         arr_id=42,
-        arr_instance_id=1,
+        arr_instance_id=instance.id,
     )
     defaults.update(kwargs)
     req = MediaRequest(**defaults)

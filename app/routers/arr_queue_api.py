@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 @router.get("/arr/queue")
 async def arr_download_queue(db: AsyncSession = Depends(get_db_async)):
     """File d'attente de téléchargement unifiée : agrège les queues de toutes les instances Sonarr/Radarr actives."""
+    return await cached_download_queue(db)
+
+
+async def cached_download_queue(db: AsyncSession) -> list[dict]:
+    """La file unifiee, servie depuis le cache commun (aussi lue par la page Demandes)."""
 
     async def _background():
         async with AsyncSessionLocal() as fresh_db:

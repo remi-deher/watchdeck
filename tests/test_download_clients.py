@@ -108,6 +108,8 @@ async def test_transmission_list_normalizes_torrents():
                     "rateDownload": 42,
                     "rateUpload": 2,
                     "uploadRatio": 0.5,
+                    "downloadedEver": 512,
+                    "uploadedEver": 256,
                     "eta": 60,
                     "labels": ["watchdeck", "films"],
                 }
@@ -126,6 +128,8 @@ async def test_transmission_list_normalizes_torrents():
         "dlspeed": 42,
         "upspeed": 2,
         "ratio": 0.5,
+        "downloaded": 512,
+        "uploaded": 256,
         "eta": 60,
         "category": "",
         "tags": "watchdeck, films",

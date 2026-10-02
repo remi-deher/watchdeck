@@ -18,6 +18,7 @@ travaux differents en cours, et l'ecriture de l'un ne doit pas ecraser l'etat de
 import json
 import logging
 import os
+import uuid
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -31,10 +32,66 @@ _RUNNING_TTL_SECONDS = 120
 # Une fois termine, plus personne ne rafraichit : on conserve plus longtemps pour que le
 # tableau de bord puisse afficher « termine il y a X ».
 _FINISHED_TTL_SECONDS = 3600
+_LOCK_TTL_SECONDS = 3600
+_LOCAL_LOCKS: set[str] = set()
 
 
 def _key(section: str) -> str:
     return f"{_KEY_PREFIX}:{section}"
+
+
+def _lock_key(section: str) -> str:
+    return f"{_KEY_PREFIX}:lock:{section}"
+
+
+async def acquire_lock(section: str) -> str | None:
+    """Atomically acquire a cross-process scan lease in Redis."""
+    client = await _client()
+    if client is None:
+        # No await between the membership test and add: atomic within one event loop.
+        if section in _LOCAL_LOCKS:
+            return None
+        _LOCAL_LOCKS.add(section)
+        return f"local:{section}:{uuid.uuid4().hex}"
+    token = uuid.uuid4().hex
+    try:
+        acquired = await client.set(_lock_key(section), token, ex=_LOCK_TTL_SECONDS, nx=True)
+        return token if acquired else None
+    except Exception as exc:
+        logger.warning("Verrou de scan '%s' indisponible (%s)", section, exc)
+        return None
+    finally:
+        try:
+            await client.aclose()
+        except Exception:
+            pass
+
+
+async def release_lock(section: str, token: str | None) -> None:
+    """Release a lease only when it is still owned by ``token``."""
+    if not token:
+        return
+    if token.startswith("local:"):
+        _LOCAL_LOCKS.discard(section)
+        return
+    client = await _client()
+    if client is None:
+        return
+    script = """
+    if redis.call('get', KEYS[1]) == ARGV[1] then
+      return redis.call('del', KEYS[1])
+    end
+    return 0
+    """
+    try:
+        await client.eval(script, 1, _lock_key(section), token)
+    except Exception as exc:
+        logger.warning("Liberation du verrou de scan '%s' impossible (%s)", section, exc)
+    finally:
+        try:
+            await client.aclose()
+        except Exception:
+            pass
 
 
 async def _client():

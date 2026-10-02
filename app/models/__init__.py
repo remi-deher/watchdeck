@@ -21,6 +21,8 @@ from .connections import (
     ArrInstance,
     DownloadClient,
     EmailProvider,
+    LibraryItemLocation,
+    PlexServer,
 )
 from .downloads import (
     DownloadHistory,
@@ -28,7 +30,7 @@ from .downloads import (
     SeriesAcquisitionBatch,
     SonarrQueueObservation,
 )
-from .email_config import EmailBranding, EmailTemplate
+from .email_config import EmailBranding, EmailTemplate, MessageReason
 from .logs import (
     AdminActionLog,
     DeletedMediaLog,
@@ -50,9 +52,11 @@ from .media import (
     VfUpgradeSuggestion,
 )
 from .notifications import (
+    NotificationDelivery,
     NotificationLog,
     NotificationMilestone,
     PendingNotification,
+    RequesterNotificationReceipt,
 )
 from .playback import (
     LibraryAnalyticsSnapshot,
@@ -73,6 +77,8 @@ from .users import (
 __all__ = [
     "AdminActionLog",
     "ArrInstance",
+    "LibraryItemLocation",
+    "PlexServer",
     "Base",
     "DeletedMediaLog",
     "DiagnosticEvent",
@@ -80,6 +86,7 @@ __all__ = [
     "DownloadHistory",
     "EmailBranding",
     "EmailTemplate",
+    "MessageReason",
     "EmailProvider",
     "EpisodeAvailability",
     "EpisodeMetadata",
@@ -91,7 +98,9 @@ __all__ = [
     "MediaIssue",
     "MediaRequest",
     "NotificationLog",
+    "NotificationDelivery",
     "NotificationMilestone",
+    "RequesterNotificationReceipt",
     "PasskeyCredential",
     "PendingNotification",
     "PlaybackDailyAggregate",

@@ -15,34 +15,36 @@
 
   <section v-else-if="detail.media_type === 'album'" class="music-catalog-section">
     <h2 class="section-title">Pistes de l'album {{ detail.title ? `« ${detail.title} »` : '' }}</h2>
-    <div v-if="albumTracks.length" class="tracks-table-wrapper">
-      <table class="tracks-table">
-        <thead><tr><th class="col-num">#</th><th class="col-title">Titre de la piste</th><th class="col-artist">Artiste</th><th class="col-duration">Durée</th><th class="col-tech">Format & Qualité audio</th><th class="col-action">Écoute</th></tr></thead>
-        <tbody>
-          <tr v-for="track in albumTracks" :key="track.id">
-            <td class="col-num">{{ track.track_number || '-' }}</td>
-            <td class="col-title"><strong>{{ track.title }}</strong></td>
-            <td class="col-artist">{{ track.artist || detail.title }}</td>
-            <td class="col-duration">{{ track.duration_str || '--:--' }}</td>
-            <td class="col-tech">
-              <span v-if="track.codec" class="tech-badge codec-badge">{{ track.codec }}</span>
-              <span v-if="track.bitrate" class="tech-badge">{{ track.bitrate }}</span>
-              <span v-if="track.sample_rate" class="tech-badge hires-tag">{{ track.sample_rate }}</span>
-            </td>
-            <td class="col-action">
-              <button v-if="track.plex_guid" type="button" class="track-listen-btn" title="Écouter la piste sur Plex" @click="emit('listen', track.plex_guid)">
-                <Play :size="13" /> Écouter
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <p v-else class="empty-copy">Aucune piste répertoriée pour cet album dans Plex.</p>
+    <UiDataTable class="tracks-table-wrapper" :label="`Pistes de l'album ${detail.title || ''}`" :rows="albumTracks" :columns="TRACK_COLUMNS" :row-key="(t: any) => t.id">
+      <template #empty><p class="empty-copy">Aucune piste répertoriée pour cet album dans Plex.</p></template>
+      <template #cell-num="{ row: track }">{{ track.track_number || '-' }}</template>
+      <template #cell-title="{ row: track }"><strong>{{ track.title }}</strong></template>
+      <template #cell-artist="{ row: track }">{{ track.artist || detail.title }}</template>
+      <template #cell-duration="{ row: track }">{{ track.duration_str || '--:--' }}</template>
+      <template #cell-tech="{ row: track }">
+        <span v-if="track.codec" class="tech-badge codec-badge">{{ track.codec }}</span>
+        <span v-if="track.bitrate" class="tech-badge">{{ track.bitrate }}</span>
+        <span v-if="track.sample_rate" class="tech-badge hires-tag">{{ track.sample_rate }}</span>
+      </template>
+      <template #cell-action="{ row: track }">
+        <button v-if="track.plex_guid" type="button" class="track-listen-btn" title="Écouter la piste sur Plex" @click="emit('listen', track.plex_guid)">
+          <Play :size="13" /> Écouter
+        </button>
+      </template>
+    </UiDataTable>
   </section>
 </template>
 
 <script setup lang="ts">
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+const TRACK_COLUMNS: UiColumn[] = [
+  { key: 'num', label: '#', className: 'col-num', sortable: true, sortValue: (t: any) => Number(t.track_number) || 0 },
+  { key: 'title', label: 'Titre de la piste', className: 'col-title', card: 'title', sortable: true },
+  { key: 'artist', label: 'Artiste', className: 'col-artist' },
+  { key: 'duration', label: 'Durée', className: 'col-duration' },
+  { key: 'tech', label: 'Format & Qualité audio', className: 'col-tech' },
+  { key: 'action', label: 'Écoute', className: 'col-action', card: 'actions' },
+];
 import { Play } from '@lucide/vue';
 import LibraryCard from '@/components/library/LibraryCard.vue';
 
@@ -64,16 +66,16 @@ const emit = defineEmits<{
 .empty-copy { color: var(--muted); font-size: var(--fs-sm); }
 .tracks-table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md, 8px); background: var(--surface-2); }
 .tracks-table { width: 100%; border-collapse: collapse; text-align: left; font-size: var(--fs-sm); }
-.tracks-table th { padding: 12px 16px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.04); color: var(--muted); font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; }
-.tracks-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.05); color: var(--text); vertical-align: middle; }
+.tracks-table th { padding: 12px 16px; border-bottom: 1px solid var(--border); background: rgb(var(--ink) / .04); color: var(--muted); font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; }
+.tracks-table td { padding: 12px 16px; border-bottom: 1px solid rgb(var(--ink) / .05); color: var(--text); vertical-align: middle; }
 .tracks-table tr:last-child td { border-bottom: 0; }
-.tracks-table tr:hover td { background: rgba(255,255,255,.03); }
+.tracks-table tr:hover td { background: rgb(var(--ink) / .03); }
 .col-num { width: 48px; color: var(--muted); font-weight: 700; }
 .col-duration { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .col-action { white-space: nowrap; }
-.tech-badge { display: inline-block; padding: 2px 7px; margin-right: 4px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: #27272a; color: #a1a1aa; font-size: var(--fs-xs); font-weight: 700; }
-.codec-badge { border: 0; background: #3b82f6; color: #fff; }
-.hires-tag { border: 0; background: #7e22ce; color: #fff; }
-.track-listen-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 0; border-radius: var(--radius-sm, 6px); background: var(--accent); color: #fff; cursor: pointer; font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; transition: background-color .15s ease, transform .15s ease; }
-.track-listen-btn:hover { background: var(--accent-hover, #e05206); transform: translateY(-1px); }
+.tech-badge { display: inline-block; padding: 2px 7px; margin-right: 4px; border: 1px solid rgb(var(--ink) / .1); border-radius: var(--radius-xs); background: var(--surface-3); color: var(--muted); font-size: var(--fs-xs); font-weight: 700; }
+.codec-badge { border: 0; background: var(--blue); color: #fff; }
+.hires-tag { border: 0; background: var(--violet); color: #fff; }
+.track-listen-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 0; border-radius: var(--radius-sm, 6px); background: var(--accent); color: #fff; cursor: pointer; font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard); }
+.track-listen-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
 </style>

@@ -44,10 +44,32 @@ export function collectClientCapabilities(): ClientCapabilities {
 
 const REPORT_KEY = 'watchdeck:client-capabilities:v1';
 
+/**
+ * Un onglet masque (ouvert en arriere-plan, prerendu, ou PWA demarree ecran eteint)
+ * rapporte `innerWidth`/`innerHeight` a 0 tant qu'il n'a pas ete affiche. Le schema
+ * serveur exige des dimensions >= 1 : envoyer ce releve-la produit un 422 et perd le
+ * diagnostic de layout. On attend donc une mesure reelle plutot que de relacher la
+ * validation, qui accepterait alors des profils faux.
+ */
+export function hasMeasurableViewport(capabilities: ClientCapabilities): boolean {
+  const { width, height, visualWidth, visualHeight } = capabilities.viewport;
+  return width >= 1 && height >= 1 && visualWidth >= 1 && visualHeight >= 1;
+}
+
 export async function reportClientCapabilities(): Promise<void> {
   try {
     if (sessionStorage.getItem(REPORT_KEY)) return;
     const capabilities = collectClientCapabilities();
+    if (!hasMeasurableViewport(capabilities)) {
+      // Reessai unique au premier affichage : `visibilitychange` est le seul moment ou
+      // l'onglet est garanti mesure.
+      document.addEventListener('visibilitychange', function retry() {
+        if (document.visibilityState !== 'visible') return;
+        document.removeEventListener('visibilitychange', retry);
+        void reportClientCapabilities();
+      });
+      return;
+    }
     await api('/api/client-capabilities', { method: 'POST', body: JSON.stringify(capabilities) });
     sessionStorage.setItem(REPORT_KEY, '1');
   } catch {

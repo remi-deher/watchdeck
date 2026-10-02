@@ -19,10 +19,13 @@ from ..models import (
     Settings,
 )
 from ..serializers import format_datetime, request_status_value, serialize_plex_user
+from ..services import plex_servers
 from ..services.email_service import _send as smtp_send
 from ..services.gdpr import erase_user_data, export_user_data
+from ..services.plex_api import get_users_for_tokens as plex_get_users_for_tokens
 from ..services.seer import get_user_requests as seer_get_user_requests
 from ..services.seer import get_users as seer_get_users
+from ..services.session_security import invalidate_session_cache
 from ..services.user_merge import merge_user_records as _merge_users
 from ..services.user_merge import merge_users
 from ..utils import async_get_or_404, now_utc_naive, wrap_image_proxy
@@ -30,7 +33,21 @@ from ..utils import async_get_or_404, now_utc_naive, wrap_image_proxy
 # Réutilise la validation du mode de notification définie dans settings_api
 from .settings_api import _validate_notify_settings
 
-router = APIRouter(prefix="/api", tags=["users"], dependencies=[Depends(require_admin)])
+
+async def _refresh_sessions_after_change(request: Request):
+    """Toute modification de comptes (role, desactivation, suppression...) doit
+    s'appliquer aux sessions ouvertes des la prochaine resynchronisation, sans attendre
+    l'expiration du cache local des droits."""
+    yield
+    if request.method != "GET":
+        invalidate_session_cache()
+
+
+router = APIRouter(
+    prefix="/api",
+    tags=["users"],
+    dependencies=[Depends(require_admin), Depends(_refresh_sessions_after_change)],
+)
 
 
 class UserCreate(BaseModel):
@@ -253,6 +270,38 @@ def _activity_row(req: MediaRequest, role: str) -> dict:
     }
 
 
+async def _request_stats(user: PlexUser, db: AsyncSession) -> dict:
+    """Compteurs de demandes d'un utilisateur, par statut (fiche admin et page Profil)."""
+    rows = (
+        await db.execute(
+            select(MediaRequest.status, MediaRequest.requested_at).filter(
+                MediaRequest.plex_user_id == user.plex_user_id
+            )
+        )
+    ).all()
+    stats = {
+        "total": 0,
+        "available": 0,
+        "partially_available": 0,
+        "failed": 0,
+        "rejected": 0,
+        "sent": 0,
+        "pending": 0,
+        "pending_approval": 0,
+        "last_requested_at": None,
+    }
+    for status, req_at in rows:
+        stats["total"] += 1
+        s = status.value if hasattr(status, "value") else str(status)
+        if s == "sent_to_arr":
+            stats["sent"] += 1
+        elif s in stats:
+            stats[s] += 1
+        if req_at and (stats["last_requested_at"] is None or req_at > stats["last_requested_at"]):
+            stats["last_requested_at"] = req_at
+    return stats
+
+
 async def _build_user_activity(user: PlexUser, db: AsyncSession, limit: int = 12) -> dict:
     rows: dict[int, dict] = {}
     primary = (
@@ -370,23 +419,7 @@ async def list_users(db: AsyncSession = Depends(get_db_async)):
 async def get_user(user_id: int, db: AsyncSession = Depends(get_db_async)):
     """Détail complet d'un utilisateur + ses stats de demandes (pour la modale hub)."""
     user = await async_get_or_404(db, PlexUser, user_id, "User not found")
-    rows = (
-        await db.execute(
-            select(MediaRequest.status, MediaRequest.requested_at).filter(
-                MediaRequest.plex_user_id == user.plex_user_id
-            )
-        )
-    ).all()
-    stats = {"total": 0, "available": 0, "failed": 0, "sent": 0, "pending": 0, "last_requested_at": None}
-    for status, req_at in rows:
-        stats["total"] += 1
-        s = status.value if hasattr(status, "value") else str(status)
-        if s == "sent_to_arr":
-            stats["sent"] += 1
-        elif s in stats:
-            stats[s] += 1
-        if req_at and (stats["last_requested_at"] is None or req_at > stats["last_requested_at"]):
-            stats["last_requested_at"] = req_at
+    stats = await _request_stats(user, db)
 
     # Utilise le sérialiseur centralisé
     diagnostic = await _build_user_diagnostic(user, stats.copy(), db)
@@ -444,7 +477,7 @@ async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db_async)
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    return user
+    return serialize_plex_user(user, {})
 
 
 @router.put("/users/{user_id}")
@@ -464,7 +497,8 @@ async def update_user(user_id: int, data: UserCreate, request: Request, db: Asyn
         .values({"plex_user": resolved})
     )
     await db.commit()
-    return user
+    await db.refresh(user)
+    return serialize_plex_user(user, {})
 
 
 @router.put("/users/{user_id}/enabled")
@@ -744,6 +778,85 @@ async def discover_users(db: AsyncSession = Depends(get_db_async)):
         "users": [
             {"plex_user_id": u.plex_user_id, "display_name": u.display_name, "enabled": u.enabled} for u in all_users
         ],
+    }
+
+
+@router.post("/plex/sync/users")
+async def sync_plex_users(db: AsyncSession = Depends(get_db_async)):
+    """Importe et complète les comptes Plex sans fusionner de correspondance ambiguë."""
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings or not settings.plex_token:
+        raise HTTPException(400, "Token Plex non configuré")
+
+    plex_users, warnings = await plex_get_users_for_tokens(await plex_servers.account_tokens(db, settings))
+    existing = (await db.execute(select(PlexUser))).scalars().all()
+    created = 0
+    updated = 0
+    ambiguous: list[dict] = []
+
+    def _unique(candidates: list[PlexUser]) -> PlexUser | None:
+        unique = {candidate.id: candidate for candidate in candidates}
+        return next(iter(unique.values())) if len(unique) == 1 else None
+
+    for info in plex_users:
+        uuid = info.get("plex_account_uuid")
+        email = (info.get("email") or "").strip().casefold()
+        username = (info.get("plex_user_id") or "").strip()
+        candidates: list[PlexUser] = []
+        if uuid:
+            candidates = [user for user in existing if user.plex_account_uuid == uuid]
+        if not candidates and email:
+            candidates = [
+                user
+                for user in existing
+                if email
+                in {(user.plex_email or "").strip().casefold(), (user.notification_email or "").strip().casefold()}
+            ]
+        if not candidates and username:
+            folded = username.casefold()
+            candidates = [
+                user
+                for user in existing
+                if folded in {(user.plex_user_id or "").casefold(), (user.display_name or "").casefold()}
+            ]
+
+        user = _unique(candidates)
+        if len({candidate.id for candidate in candidates}) > 1:
+            ambiguous.append({"plex_user_id": username, "matches": [candidate.id for candidate in candidates]})
+            continue
+        if user is None:
+            user = PlexUser(plex_user_id=username or uuid, enabled=True, source="api")
+            db.add(user)
+            existing.append(user)
+            created += 1
+        changed = user.id is None
+
+        if uuid and not user.plex_account_uuid:
+            user.plex_account_uuid = uuid
+            changed = True
+        if info.get("display_name") and not user.display_name:
+            user.display_name = info["display_name"]
+            changed = True
+        if info.get("email"):
+            changed = changed or not user.plex_email or not user.notification_email
+            user.plex_email = user.plex_email or info["email"]
+            user.notification_email = user.notification_email or info["email"]
+        if info.get("avatar_url") and not user.avatar_url:
+            user.avatar_url = info["avatar_url"]
+            changed = True
+        if user.source in (None, "rss"):
+            user.source = "api"
+            changed = True
+        if changed and user.id is not None:
+            updated += 1
+
+    await db.commit()
+    return {
+        "found": len(plex_users),
+        "created": created,
+        "updated": updated,
+        "ambiguous": ambiguous,
+        "warnings": warnings,
     }
 
 

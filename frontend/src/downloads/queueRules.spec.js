@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canAct,
+  interventionInfo,
   isImportPending,
   isUnmatched,
   needsEpisodeImport,
@@ -120,5 +121,34 @@ describe('rowKey et queueDetailPath', () => {
     expect(queueDetailPath({ request_id: 7 })).toBe('/library/media/request/7');
     expect(queueDetailPath({ linked_request_id: 8 })).toBe('/library/media/request/8');
     expect(queueDetailPath({})).toBeNull();
+  });
+});
+
+describe('interventionInfo', () => {
+  it('explique un import Sonarr bloque par un titre TBA', () => {
+    const info = interventionInfo(row({
+      status: 'completed', progress: 100, tracked_state: 'importPending',
+      status_messages: [{ title: 'Show S01E13.mkv', messages: ['Episode has a TBA title and recently aired'] }],
+    }));
+    expect(info.badge).toBe('Import bloqué');
+    expect(info.headline).toContain("en attente d'import");
+    expect(info.reasons).toEqual(['Episode has a TBA title and recently aired']);
+    expect(info.hint).toContain('titre');
+    expect(info.file).toBe('Show S01E13.mkv');
+  });
+
+  it('dedoublonne erreur et messages, et retombe sur la release', () => {
+    const info = interventionInfo(row({
+      status: 'warning', error: 'Boom', release_title: 'Release.1080p',
+      status_messages: [{ messages: ['Boom', 'Autre'] }],
+    }));
+    expect(info.reasons).toEqual(['Boom', 'Autre']);
+    expect(info.file).toBe('Release.1080p');
+  });
+
+  it('invite a associer un telechargement orphelin', () => {
+    const info = interventionInfo(row({ request_id: null, library_id: null }));
+    expect(info.badge).toBe('À associer');
+    expect(info.hint).toContain('Associez');
   });
 });

@@ -3,18 +3,9 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, EmailProvider
+from app.models import EmailProvider
 from app.services import brevo_email, email_providers, microsoft_oauth
-
-
-async def _database():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    return async_sessionmaker(engine, expire_on_commit=False)
 
 
 def _smtp_provider(**kwargs) -> EmailProvider:
@@ -159,8 +150,8 @@ async def test_send_via_provider_brevo_raises_when_api_key_missing():
 
 
 @pytest.mark.asyncio
-async def test_get_enabled_providers_orders_by_priority_and_excludes_disabled():
-    session_factory = await _database()
+async def test_get_enabled_providers_orders_by_priority_and_excludes_disabled(async_database):
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         db.add_all(
             [
@@ -176,8 +167,8 @@ async def test_get_enabled_providers_orders_by_priority_and_excludes_disabled():
 
 
 @pytest.mark.asyncio
-async def test_has_enabled_provider_false_when_none_or_all_disabled():
-    session_factory = await _database()
+async def test_has_enabled_provider_false_when_none_or_all_disabled(async_database):
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         assert await email_providers.has_enabled_provider(db) is False
 
@@ -192,16 +183,16 @@ async def test_has_enabled_provider_false_when_none_or_all_disabled():
 
 
 @pytest.mark.asyncio
-async def test_send_with_fallback_raises_without_any_provider():
-    session_factory = await _database()
+async def test_send_with_fallback_raises_without_any_provider(async_database):
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         with pytest.raises(RuntimeError, match="Aucun fournisseur"):
             await email_providers.send_with_fallback(db, "from@example.com", "dest@example.com", "Sujet", "<p>x</p>")
 
 
 @pytest.mark.asyncio
-async def test_send_with_fallback_uses_first_provider_when_it_succeeds():
-    session_factory = await _database()
+async def test_send_with_fallback_uses_first_provider_when_it_succeeds(async_database):
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         db.add_all([_smtp_provider(name="A", priority=0), _brevo_provider(name="B", priority=1)])
         await db.commit()
@@ -215,8 +206,8 @@ async def test_send_with_fallback_uses_first_provider_when_it_succeeds():
 
 
 @pytest.mark.asyncio
-async def test_send_with_fallback_tries_next_provider_after_failure():
-    session_factory = await _database()
+async def test_send_with_fallback_tries_next_provider_after_failure(async_database):
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         db.add_all([_smtp_provider(name="A", priority=0), _brevo_provider(name="B", priority=1)])
         await db.commit()
@@ -235,8 +226,8 @@ async def test_send_with_fallback_tries_next_provider_after_failure():
 
 
 @pytest.mark.asyncio
-async def test_send_with_fallback_raises_aggregated_error_when_all_fail():
-    session_factory = await _database()
+async def test_send_with_fallback_raises_aggregated_error_when_all_fail(async_database):
+    session_factory = async_database.session_factory
     async with session_factory() as db:
         db.add_all([_smtp_provider(name="A", priority=0), _brevo_provider(name="B", priority=1)])
         await db.commit()

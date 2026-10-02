@@ -9,7 +9,7 @@
       <RouterLink v-if="showLink" :to="{path:'/activity',query:{view:'live'}}" class="panel-link">Voir l’activité</RouterLink>
     </div>
 
-    <div v-if="sessions.length" class="live-list">
+    <div v-if="sessions.length" v-list-motion class="live-list">
       <article
         v-for="session in sessions"
         :key="session.session_id"
@@ -25,14 +25,16 @@
         <div class="live-card-body">
         <div class="live-art">
           <MediaArtwork :src="session.thumb_url" :alt="displayTitle(session)" :type="session.media_type" size="medium"/>
-          <span v-if="stateIcon(session)" class="live-state" :title="stateLabel(session)">
-            <component :is="stateIcon(session)" />
-          </span>
+          <UiTooltip :focusable="false" v-if="stateIcon(session)" :text="stateLabel(session)">
+            <span class="live-state" role="img" :aria-label="stateLabel(session)">
+              <component :is="stateIcon(session)" aria-hidden="true" />
+            </span>
+          </UiTooltip>
         </div>
 
         <div class="live-main">
           <div class="live-user">
-            <span class="live-avatar">{{ initials(session.user_name) }}</span>
+            <UiAvatar class="live-avatar" :name="session.user_name" size="sm" tone="accent" />
             <span>{{ session.user_name || 'Utilisateur Plex' }}</span>
             <component :is="deviceIcon(session)" class="live-device" :aria-label="session.player || session.platform || 'Lecteur Plex'" />
           </div>
@@ -43,9 +45,11 @@
           <div class="live-client">
             <span><component :is="deviceIcon(session)"/>{{ deviceLabel(session) }}</span>
             <span><Network/>{{ addressLabel(session) }}</span>
+            <span v-if="session.server_name" class="live-server"><Server/>{{ session.server_name }}</span>
           </div>
           <div class="progress-track"><i :class="{ paused: isPaused(session) }" :style="{width:`${percent(session)}%`}"></i></div>
-          <div class="live-progress-label"><small>{{ percent(session) }} %</small><small>{{ formatRemaining(session) }}</small></div>
+          <!-- Comme un lecteur (et Tracearr) : position ecoulee a gauche, temps restant a droite. -->
+          <div class="live-progress-label"><small><time>{{ timecode(elapsedMs(session)) }}</time> · {{ percent(session) }} %</small><small>{{ formatRemaining(session) }}</small></div>
         </div>
         </div>
 
@@ -55,8 +59,13 @@
             {{ session.quality || 'Auto' }}<template v-if="locationLabel(session)"> · {{ locationLabel(session) }}</template>
           </span>
           <PlaybackMethodBadge :method="session.playback_method" :title="decisionDetail(session)" />
+          <span v-if="session.is_download" class="live-flag">Téléchargement</span>
+          <UiTooltip :focusable="false" v-if="session.stream_details?.relayed" text="Débit limité par le relais Plex"><span class="live-flag relay">Relais</span></UiTooltip>
           <span v-if="session.bandwidth_kbps" class="live-bandwidth">{{ formatBandwidth(session.bandwidth_kbps) }}</span>
+          <UiTooltip :focusable="false" v-if="hasTranscodeBuffer(session)" :text="transcodeSpeedLabel(session)"><span class="live-buffer" :class="{ low: bufferIsLow(session.transcode_buffer_ms) }">Tampon {{ formatBuffer(session.transcode_buffer_ms) }}</span></UiTooltip>
         </footer>
+        <p v-if="streamTracksSummary(session)" class="live-tracks">{{ streamTracksSummary(session) }}</p>
+        <TranscodeReason v-if="session.transcode_reason || session.transcode_remux" class="live-reason" :reason="session.transcode_reason" :remux="session.transcode_remux" compact/>
       </article>
     </div>
     <div v-else-if="!collectionEnabled" class="live-disabled" role="status">
@@ -65,18 +74,26 @@
         <strong>Collecte en direct désactivée</strong>
         <span>Aucune lecture Plex ne peut apparaître tant que ce réglage est désactivé.</span>
       </div>
-      <RouterLink :to="{path:'/settings',query:{tab:'services'}}" class="secondary">Activer la collecte</RouterLink>
+      <UiButton :to="{path:'/settings',query:{tab:'services'}}">Activer la collecte</UiButton>
     </div>
     <p v-else class="empty">Aucune lecture en cours.</p>
   </section>
 </template>
 
 <script setup lang="ts">
+import UiAvatar from '@/components/ui/UiAvatar.vue';
+import UiTooltip from '@/components/ui/UiTooltip.vue';
+import TranscodeReason, { type TranscodeReasonData } from './TranscodeReason.vue';
+import { episodeLabel } from '@/utils/episode';
+import { streamTracksSummary } from '@/utils/streamTracks';
+import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref, watch } from 'vue';
-import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Smartphone, Tablet, Tv } from '@lucide/vue';
+import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Server, Smartphone, Tablet, Tv } from '@lucide/vue';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
-import { usePolling } from '@/composables/usePolling';
+import { useIntervalFn } from '@vueuse/core';
+import { timecode } from '@/utils/playbackClock';
 import { formatBandwidth } from '@/utils/format';
 
 export interface LiveSession {
@@ -86,8 +103,12 @@ export interface LiveSession {
   title?: string;
   grandparent_title?: string;
   parent_title?: string;
+  season_number?: number | null;
+  episode_number?: number | null;
   year?: number | string;
   user_name?: string;
+  /** Serveur Plex de la lecture, renseigne quand plusieurs serveurs sont suivis. */
+  server_name?: string | null;
   player?: string;
   platform?: string;
   product?: string;
@@ -102,6 +123,10 @@ export interface LiveSession {
   video_decision?: string;
   audio_decision?: string;
   subtitle_decision?: string;
+  transcode_reason?: TranscodeReasonData | null;
+  transcode_remux?: string | null;
+  is_download?: boolean;
+  stream_details?: { relayed?: boolean | null } | null;
   geo_status?: string;
   geo_city?: string;
   geo_region?: string;
@@ -132,7 +157,9 @@ const emit = defineEmits<{
 const receivedAt = ref(Date.now());
 const now = ref(Date.now());
 watch(() => props.sessions, () => { receivedAt.value = Date.now(); now.value = Date.now(); });
-usePolling(() => { now.value = Date.now(); }, 1000);
+// Simple horloge d'affichage (progression des lectures), pas une requete : suspendue
+// quand l'onglet est masque.
+useIntervalFn(() => { if (!document.hidden) now.value = Date.now(); }, 1000);
 
 function isPaused(session: LiveSession): boolean {
   return ['paused', 'buffering'].includes(String(session.state || '').toLowerCase());
@@ -161,6 +188,8 @@ const summary = computed(() => {
   if (bandwidth) parts.push(formatBandwidth(bandwidth));
   const transcodes = props.sessions.filter(session => session.playback_method === 'transcode').length;
   if (transcodes) parts.push(`${transcodes} transcodage${transcodes > 1 ? 's' : ''}`);
+  const light = props.sessions.filter(session => session.playback_method === 'direct_stream').length;
+  if (light) parts.push(`${light} conversion${light > 1 ? 's' : ''} légère${light > 1 ? 's' : ''}`);
   return parts.join(' · ');
 });
 
@@ -194,7 +223,7 @@ function decisionDetail(session: LiveSession): string {
 }
 
 function mediaSubtitle(session: LiveSession): string {
-  return [session.parent_title, session.year].filter(Boolean).join(' · ') || 'Lecture Plex';
+  return [episodeLabel(session), session.year].filter(Boolean).join(' · ') || 'Lecture Plex';
 }
 
 function deviceLabel(session: LiveSession): string {
@@ -203,10 +232,6 @@ function deviceLabel(session: LiveSession): string {
 
 function addressLabel(session: LiveSession): string {
   return session.address || 'IP indisponible';
-}
-
-function initials(name?: string): string {
-  return String(name || '?').split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
 }
 
 function deviceIcon(session: LiveSession): any {
@@ -237,53 +262,56 @@ function formatRemaining(session: LiveSession): string {
   if (isPaused(session)) return stateLabel(session);
   if (!session.duration_ms) return 'Durée inconnue';
   const remaining = Math.max(0, session.duration_ms - elapsedMs(session));
-  const minutes = Math.ceil(remaining / 60000);
-  if (minutes < 1) return 'bientôt terminé';
-  return minutes < 60
-    ? `${minutes} min restantes`
-    : `${Math.floor(minutes / 60)} h ${minutes % 60} min restantes`;
+  if (remaining < 1000) return 'bientôt terminé';
+  return `-${timecode(remaining)}`;
 }
 </script>
 
 <style scoped lang="scss">
+.live-buffer{color:var(--muted);font-size:var(--fs-xs);font-variant-numeric:tabular-nums;white-space:nowrap}
+.live-buffer.low{color: var(--amber-text);font-weight:700}
 .live-panel{grid-column:1/-1}
 .live-disabled{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap: var(--space-4);align-items:center;margin-top:14px;padding:16px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--accent) 7%,var(--surface-2))}.live-disabled>svg{width:22px;height:22px;color:var(--accent)}.live-disabled>div{display:grid;gap: var(--space-1)}.live-disabled strong{font-size:var(--fs-md)}.live-disabled span{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm);line-height:1.45}.live-disabled .secondary{white-space:nowrap}
 .eyebrow{display:flex;align-items:center;gap: var(--space-2)}
-.eyebrow i{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12)}
-.eyebrow i.idle{background:var(--muted);box-shadow:0 0 0 4px rgba(148,163,184,.1)}
+.eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px color-mix(in srgb, var(--green) 12%, transparent)}
+.eyebrow i.idle{background:var(--muted);box-shadow:0 0 0 4px color-mix(in srgb,var(--slate) 10%,transparent)}
 .live-summary{margin:4px 0 0;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-sm);line-height:1.45}
 .live-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap: var(--space-4);margin-top:14px}
-.live-session{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);box-shadow:0 10px 30px rgba(0,0,0,.15)}
+.live-session{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-2);box-shadow:0 10px 30px rgb(var(--shadow-color) / calc(.15 * var(--shadow-scale)))}
 .live-session.paused .live-card-body{opacity:.76}
-.live-session.interactive{cursor:pointer;transition:border-color .15s,transform .15s}
+.live-session.interactive{cursor:pointer;transition:border-color var(--motion-duration-instant), transform var(--motion-duration-instant)}
 .live-session.interactive:hover,.live-session.interactive:focus-visible{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));transform:translateY(-2px);outline:none}
 .live-backdrop{position:absolute;inset:-20px;background-position:center;background-size:cover;opacity:.11;filter:blur(24px);transform:scale(1.15);pointer-events:none}
 .live-card-body{position:relative;display:grid;grid-template-columns:54px minmax(0,1fr);gap: var(--space-4);padding:14px}
 
 .live-art{position:relative;display:flex}
-.live-state{position:absolute;right:-5px;bottom:-5px;display:grid;place-items:center;width:21px;height:21px;border-radius:50%;background:rgba(10,10,10,.94);color:#fff;box-shadow:0 1px 6px rgba(0,0,0,.6)}
+.live-state{position:absolute;right:-5px;bottom:-5px;display:grid;place-items:center;width:21px;height:21px;border-radius:50%;background:rgba(10,10,10,.94);color:#fff;box-shadow:0 1px 6px rgb(var(--shadow-color) / calc(.6 * var(--shadow-scale)))}
 .live-state svg{width:10px;height:10px}
 
 .live-main{display:flex;flex-direction:column;min-width:0}
 .live-user{display:flex;align-items:center;gap: var(--space-2);min-width:0;color:color-mix(in srgb,var(--text) 76%,transparent);font-size:var(--fs-sm);font-weight:600}
 .live-user>span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.live-avatar{display:grid;flex:none;place-items:center;width:24px;height:24px;border:2px solid color-mix(in srgb,var(--surface) 80%,transparent);border-radius:50%;background:color-mix(in srgb,var(--accent) 18%,var(--surface));color:var(--accent);font-size:var(--fs-xs);font-weight:850}
+.live-avatar{border:2px solid color-mix(in srgb,var(--surface) 80%,transparent)}
 .live-device{width:15px;height:15px;margin-left:auto;color:var(--muted)}
 .live-title{display:grid;min-width:0;margin:10px 0 8px}
 .live-title strong,.live-title span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .live-title strong{font-size:var(--fs-md);line-height:1.35}.live-title span{margin-top:3px;color:color-mix(in srgb,var(--text) 68%,transparent);font-size:var(--fs-xs)}
 .live-client{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin-bottom:11px}.live-client span{display:flex;align-items:center;gap: var(--space-2);min-width:0;color:color-mix(in srgb,var(--text) 76%,transparent);font-size:var(--fs-xs);line-height:1.3}.live-client svg{flex:none;width:14px;height:14px;color:var(--muted)}
-.progress-track{height:5px;overflow:hidden;border-radius:var(--radius-pill);background:rgba(255,255,255,.1)}
+.progress-track{height:5px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .1)}
 .progress-track i{display:block;height:100%;background:var(--accent);transition:width 1s linear}
 .progress-track i.paused{background:var(--muted);transition:none}
-.live-progress-label{display:flex;justify-content:space-between;margin-top:6px;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}
+.live-progress-label{display:flex;justify-content:space-between;margin-top:6px;font-variant-numeric:tabular-nums;color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}
 
-.live-footer{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap: var(--space-2);align-items:center;padding:9px 14px;border-top:1px solid var(--border);background:var(--surface)}
+.live-flag{padding:2px 7px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--muted) 14%,transparent);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
+.live-flag.relay{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
+.live-tracks{margin:0;padding:6px 14px;border-top:1px solid var(--border-subtle);background:var(--surface);color:var(--muted);font-size:var(--fs-xs);overflow-wrap:anywhere}
+.live-reason{padding:6px 14px 9px;border-top:1px solid var(--border-subtle);background:var(--surface)}
+.live-footer{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap: var(--space-2);align-items:center;padding:9px 14px;border-top:1px solid var(--border-subtle);background:var(--surface)}
 .live-location{display:flex;align-items:center;gap: var(--space-1);min-width:0;overflow:hidden;color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.live-location svg{flex:none;width:13px;height:13px;color:var(--muted)}
 .live-quality,.live-bandwidth{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs);white-space:nowrap}
 .live-bandwidth{font-variant-numeric:tabular-nums}
 
-@media(max-width:560px){
+@container page (max-width: 524px) {
   .live-disabled{grid-template-columns:auto minmax(0,1fr);align-items:start}.live-disabled .secondary{grid-column:1/-1;width:100%;min-height:44px}
   .live-list{grid-template-columns:1fr}
   .live-footer{grid-template-columns:minmax(0,1fr) auto auto}.live-quality{display:none}

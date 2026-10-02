@@ -11,10 +11,10 @@
           <span class="scan-subtitle">{{ subtitle }}</span>
         </div>
       </div>
-      <button class="secondary btn-scan-action" :disabled="running" type="button" @click="$emit('action')">
+      <UiButton class="btn-scan-action" :disabled="running" @click="$emit('action')">
         <RefreshCw :class="{ spinning: running }" />
         <span>{{ actionLabel }}</span>
-      </button>
+      </UiButton>
     </div>
     <div v-if="running && progress != null" class="progress-bar-wrap">
       <div class="progress-bar animated" :style="{ width: `${progress}%` }" />
@@ -23,6 +23,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed } from 'vue';
 import { RefreshCw } from '@lucide/vue';
 
@@ -37,7 +38,11 @@ const props = withDefaults(defineProps<{
 defineEmits<{ (e: 'action'): void }>();
 
 const running = computed(() => props.status === 'running');
-const statusClass = computed(() => running.value ? 'pending' : props.status === 'failed' ? 'failed' : 'available');
+/* « Inactif » portait la pastille verte de `available` : le vert dit « tout va bien,
+   ca tourne », alors que la tache est justement a l'arret. Un etat neutre n'est ni bon
+   ni mauvais et prend donc la couleur neutre ; seuls « En cours » et « Erreur » gardent
+   une couleur porteuse de sens. */
+const statusClass = computed(() => running.value ? 'running' : props.status === 'failed' ? 'failed' : 'pending');
 const statusLabel = computed(() => running.value ? 'En cours' : props.status === 'failed' ? 'Erreur' : 'Inactif');
 </script>
 
@@ -48,14 +53,17 @@ const statusLabel = computed(() => running.value ? 'En cours' : props.status ===
 .scan-icon-wrap { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-xs); background: var(--surface); border: 1px solid var(--border); color: var(--muted); flex-shrink: 0; }
 .scan-icon-wrap :deep(svg) { width: 15px; height: 15px; }
 .scan-titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.scan-title-row { display: flex; align-items: center; gap: var(--space-2); }
-.scan-title-row strong { font-size: var(--fs-xs); color: var(--text); font-weight: 600; white-space: nowrap; }
-.scan-subtitle { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.btn-scan-action { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 11px; flex-shrink: 0; }
+/* Le titre cede la place avant la pastille : « Synchronisation Plex » suffisait a
+   pousser l'etat sous le bouton d'action, faute de `min-width: 0` sur la rangee. */
+.scan-title-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.scan-title-row strong { font-size: var(--fs-xs); color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scan-title-row .badge { flex: none; }
+.scan-subtitle { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn-scan-action { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: var(--fs-xs); flex-shrink: 0; }
 .btn-scan-action svg { width: 12px; height: 12px; }
 .spinning { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .progress-bar-wrap { width: 100%; height: 3px; background: var(--surface); border-radius: var(--radius-xs); overflow: hidden; }
-.progress-bar { height: 100%; border-radius: var(--radius-xs); transition: width .3s ease; }
-.progress-bar.animated { background: linear-gradient(90deg, var(--accent) 0%, #38bdf8 100%); }
+.progress-bar { height: 100%; border-radius: var(--radius-xs); transition: width var(--motion-duration-base) var(--motion-ease-standard); }
+.progress-bar.animated { background: linear-gradient(90deg, var(--accent) 0%, var(--blue) 100%); }
 </style>

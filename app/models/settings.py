@@ -28,6 +28,13 @@ class Settings(Base):
     tautulli_enabled: Mapped[bool] = mapped_column(default=False)
     tautulli_url: Mapped[Optional[str]]
     tautulli_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
+    # Tracearr : meme role que Tautulli -- observer les sessions en direct et en garder
+    # la decision de lecture -- mais son API publique v2 expose aussi le debit, les codecs
+    # source et flux, et les identifiants IMDb/TMDb/TVDb. C'est la source d'enrichissement
+    # preferee quand les deux sont configurees (voir SOURCE_PRECEDENCE).
+    tracearr_enabled: Mapped[bool] = mapped_column(default=False)
+    tracearr_url: Mapped[Optional[str]]
+    tracearr_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
     watchlist_source_priority: Mapped[str] = mapped_column(default="api")
     watchlist_fallback_enabled: Mapped[bool] = mapped_column(default=True)
     poll_interval_minutes: Mapped[int] = mapped_column(default=5)
@@ -40,6 +47,14 @@ class Settings(Base):
     # derrière (setattr silencieusement perdu au commit) — jamais branché sur le job, qui
     # tournait toujours toutes les 15 min en dur (voir app/jobs.py:job_arr_statuses).
     arr_poll_interval_seconds: Mapped[int] = mapped_column(default=900)
+    # Cadences autrefois figees dans app/jobs.py. Chaque defaut reprend la constante
+    # qu'il remplace : rendre un reglage modifiable ne doit rien changer par defaut.
+    arr_queue_interval_seconds: Mapped[int] = mapped_column(default=60)
+    torrent_status_interval_seconds: Mapped[int] = mapped_column(default=120)
+    new_vff_interval_seconds: Mapped[int] = mapped_column(default=60)
+    seer_sync_interval_minutes: Mapped[int] = mapped_column(default=60)
+    library_analytics_interval_minutes: Mapped[int] = mapped_column(default=10)
+    notification_purge_hour: Mapped[int] = mapped_column(default=3)
 
     # --- Sonarr ---
     sonarr_url: Mapped[Optional[str]]
@@ -72,6 +87,11 @@ class Settings(Base):
     # (fichier telecharge mais non importable). Frequent avec les episodes "TBA" -- bascule
     # dediee pour pouvoir la couper sans desactiver les vraies alertes d'echec de transmission.
     notify_import_blocked: Mapped[bool] = mapped_column(default=True)
+    # Rapprochement automatique des imports bloques : quand *arr n'associe pas seul un
+    # telechargement termine a son media, l'application tente l'import a sa place --
+    # mais seulement quand le choix est sans ambiguite (voir import_reconciliation).
+    # Reglage par defaut : chaque media peut le surcharger.
+    auto_import_reconciliation: Mapped[bool] = mapped_column(default=False)
     email_branding: Mapped[Optional["EmailBranding"]] = relationship(
         cascade="all, delete-orphan", lazy="selectin", uselist=False
     )
@@ -98,6 +118,17 @@ class Settings(Base):
     # worker (sinon on perdrait la trace et on re-scannerait tout, ou pire, on sauterait
     # une fenetre de temps).
     plex_recent_sync_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+
+    # Filigrane du dernier scan VF reussi (voir vff_scanner._delta_since) : ne sont
+    # re-analyses que les medias dont Plex signale une modification depuis. Le scan VF
+    # relisait jusqu'ici toute la bibliotheque a chaque passage, alors qu'un fichier qui
+    # n'a pas bouge dans Plex ne peut pas avoir change de piste audio.
+    vf_scan_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+
+    # Filigrane de la derniere resynchronisation reussie de la disponibilite episode
+    # (voir episode_availability) : seules les series signalees par l'historique Sonarr
+    # depuis cette date sont rechargees, au lieu des ~770 series a chaque passage.
+    episode_availability_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
 
     # --- TMDB (catalogue de découverte) ---
     tmdb_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
@@ -176,6 +207,10 @@ class Settings(Base):
     # jobs planifies qui envoient les emails n'ont pas de "page courante" dont deriver
     # une URL) -- typiquement le lien vers /privacy dans le pied de page des emails.
     public_base_url: Mapped[Optional[str]] = mapped_column(default=None)
+    # Reverse-proxies de confiance (IP ou reseaux CIDR separes par des virgules) : seules
+    # leurs connexions peuvent annoncer l'IP du client dans X-Forwarded-For. Voir
+    # app/services/client_ip.py.
+    trusted_proxies: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
     # --- RGPD / confidentialite (page /privacy) ---
     # Identite du responsable de traitement -- sans ca, les sections "droits" et "base
@@ -240,7 +275,11 @@ class Settings(Base):
     # recents d'une serie en cours de diffusion passent devant (VF la plus attendue).
     vf_upgrade_prioritize_continuing: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_markers: Mapped[str] = mapped_column(default="truefrench,vff,multi,vfi,vfq")
-    vf_upgrade_preference: Mapped[str] = mapped_column(default="truefrench,vff,multi,vfi,vfq")
+    vf_upgrade_preference: Mapped[str] = mapped_column(default="truefrench,vff,vfi,multi,vfq")
+    # Doublage quebecois : un vrai doublage francais, mais pas celui qu'attend la plupart
+    # des bibliotheques francaises -- refuse par defaut (voir french_release_evidence,
+    # qui classe ces releases avec vf_kind="vfq" plutot que de les confondre avec une VFF).
+    vf_upgrade_accept_vfq: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_accept_secondary: Mapped[bool] = mapped_column(default=True)
     vf_upgrade_require_default: Mapped[bool] = mapped_column(default=False)
     vf_upgrade_min_confidence: Mapped[int] = mapped_column(default=65)

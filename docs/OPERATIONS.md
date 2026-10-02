@@ -7,8 +7,8 @@
 3. Generer `WATCHDECK_ENCRYPTION_KEY` avec `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
 4. Demarrer avec `docker compose up -d --build`.
 
-L'API et le worker ARQ sont deux services independants. APScheduler est desactive par defaut.
-`ENABLE_LEGACY_SCHEDULER=1` ne doit servir qu'au retour arriere temporaire, sans worker ARQ actif.
+L'API et le worker ARQ sont deux services independants : toutes les taches planifiees
+et l'envoi des notifications passent par le worker ARQ.
 
 ## Verification
 
@@ -69,12 +69,12 @@ Alternative a la procedure CLI ci-dessus, accessible sans acces shell/`docker co
   Une sauvegarde de securite de l'etat courant est prise automatiquement juste avant (dans
   `data/backups/`), mais rien de l'etat actuel n'est fusionne ou conserve au-dela. Le conteneur
   redemarre ensuite (`restart: unless-stopped`) pour repartir sur des connexions fraiches.
-- **Restauration depuis `/setup`** (`POST /setup/restore`) : meme mecanisme, utilisable a la place
+- **Restauration depuis `/setup`** (`POST /api/auth/setup/restore`) : meme mecanisme, utilisable a la place
   de la creation manuelle d'un compte sur une instance fraiche pas encore configuree — bloque des
   qu'un compte existe deja.
 
-Verrouillage partage (Redis) avec la migration SQLite legacy : les deux operations remplacent
-entierement la base et ne peuvent pas s'executer en parallele l'une de l'autre.
+Verrouillage (Redis) : deux restaurations ne peuvent pas s'executer en parallele, et le worker
+ARQ suspend ses taches tant qu'une restauration remplace la base.
 
 ## Mise a jour
 
@@ -90,3 +90,71 @@ entierement la base et ne peuvent pas s'executer en parallele l'une de l'autre.
 `/api/events` est un flux SSE authentifie par cookie de session. Redis Streams conserve les 1 000
 derniers signaux et permet la reprise via `Last-Event-ID`. Les evenements ne contiennent pas de liste
 metier : le navigateur recharge l'endpoint REST soumis aux permissions de l'utilisateur.
+
+## Reverse-proxy : HTTP/2 et cache des assets
+
+Watchdeck sert une SPA : une navigation demande l'entree, les chunks de route et les feuilles
+de style, soit plusieurs dizaines de fichiers. En HTTP/1.1 le navigateur plafonne a six
+connexions par origine et la cascade s'allonge d'autant. Verifier le protocole reellement
+negocie :
+
+```bash
+curl -s -o /dev/null -w '%{http_version}\n' https://<domaine>/dashboard
+```
+
+La reponse doit etre `2`. Si elle vaut `1.1`, activer HTTP/2 sur le proxy.
+
+- **Nginx Proxy Manager** (`Server: openresty` et en-tete `X-Served-By` dans la reponse) :
+  *Hosts > Proxy Hosts > editer l'hote > onglet SSL > cocher `HTTP/2 Support` > Save*.
+  L'option n'apparait qu'une fois un certificat SSL attache.
+- **Nginx nu** : `listen 443 ssl; http2 on;` dans le `server` block.
+- **Caddy / Traefik** : actif par defaut, rien a faire.
+
+Les assets sous `/vue/assets/` portent un hash de contenu dans leur nom et ne changent jamais
+a URL constante : ils supportent `Cache-Control: public, max-age=31536000, immutable`. Un
+`max-age` court y fait revalider tout le bundle a chaque expiration sans aucun benefice.
+
+## Securite
+
+### IP des clients derriere un reverse-proxy
+
+L'anti-bruteforce de la connexion compte les echecs par IP et par compte. Derriere un
+reverse-proxy (Nginx Proxy Manager, Traefik, Caddy), declarer l'IP ou le reseau du proxy
+dans Parametres > Webhooks et API > Reverse-proxy : Watchdeck lit alors l'IP reelle dans
+`X-Forwarded-For`, et seulement pour les connexions venant de ces adresses. La carte
+affiche l'IP retenue pour le navigateur courant, pour verifier le reglage.
+
+### Changement d'adresse d'un service
+
+Une nouvelle URL (Plex, Tautulli, Tracearr, Sonarr, Radarr, Seer, ntfy, Gotify) n'est
+enregistree qu'apres un test de connexion reussi, avec la cle saisie ou, a defaut, celle
+deja stockee. Pour ntfy et Gotify, le test envoie une notification.
+
+### Role PostgreSQL de l'application
+
+L'image `postgres` cree `POSTGRES_USER` en superutilisateur. Watchdeck n'a besoin que d'etre
+proprietaire de sa base ; au demarrage, un avertissement est journalise si son role est
+superutilisateur. Pour une installation existante :
+
+```sql
+-- connecte en superutilisateur (ex. docker exec -it watchdeck-db psql -U watchdeck)
+CREATE ROLE postgres_admin LOGIN SUPERUSER PASSWORD '<mot de passe d administration>';
+-- puis, reconnecte avec postgres_admin :
+ALTER ROLE watchdeck NOSUPERUSER NOCREATEROLE NOCREATEDB;
+```
+
+Les sauvegardes restaurees depuis l'interface sont de toute facon inspectees : un dump
+contenant des fonctions, declencheurs, extensions ou regles est refuse.
+
+### Secret des webhooks
+
+Plex n'accepte pas d'en-tete personnalise : son webhook passe le secret en `?secret=`. Les
+journaux de Watchdeck (acces uvicorn, httpx, page Journaux) masquent ces parametres, mais un
+reverse-proxy peut les journaliser lui-meme : desactiver ou filtrer son journal d'acces pour
+`/webhook/`. Sonarr et Radarr peuvent envoyer l'en-tete `X-Webhook-Secret` a la place.
+
+### Sessions
+
+Une session dure 14 jours. Desactiver un compte, lui retirer le droit de connexion, le
+supprimer, changer son mot de passe ou desactiver sa double authentification ferme ses
+sessions ouvertes dans la minute (resynchronisation des droits).

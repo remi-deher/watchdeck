@@ -61,12 +61,18 @@ async function mockApi(page, { snapshot = null } = {}) {
   });
 }
 
-/** Echoue si le graphique n'a pas recu de donnees : sans barres, les mesures
- *  geometriques de ce fichier passeraient sans rien verifier. */
-async function expectChartHasBars(page, minimum = TIMELINE_DAYS) {
-  const bars = page.locator(".bar-chart-area .bar-item");
-  await expect(bars.first()).toBeVisible({ timeout: 15_000 });
-  expect(await bars.count(), "le graphique doit etre alimente").toBeGreaterThanOrEqual(minimum);
+/** Echoue si la courbe n'a pas recu de donnees : sans trace, les mesures geometriques
+ *  de ce fichier passeraient sans rien verifier. */
+async function expectChartHasCurve(page, minimum = TIMELINE_DAYS) {
+  // Chart.js dessine dans un canvas : le nombre de points affiches est expose par
+  // l'attribut `data-points`, seul temoin observable de la serie depuis le DOM.
+  const canvas = page.locator(".line-chart canvas").first();
+  await expect(canvas).toBeVisible({ timeout: 15_000 });
+  expect(await plottedPoints(page), "la courbe doit etre alimentee").toBeGreaterThanOrEqual(minimum);
+}
+
+function plottedPoints(page) {
+  return page.locator(".line-chart canvas").first().evaluate((node) => Number(node.dataset.points || 0));
 }
 
 /** Vrai si la page entiere deborde horizontalement (barre de defilement globale). */
@@ -77,58 +83,45 @@ function pageOverflows(page) {
 test.describe("Graphique d'activite", () => {
   test.beforeEach(async ({ page }) => {
     await mockApi(page, { snapshot: { timeline: timeline() } });
+    // Le graphique d'activite est affiche d'emblee dans la grille de l'accueil.
     await page.goto("/dashboard");
   });
 
-  test("le graphique se defile horizontalement au lieu d'etre tronque", async ({ page }) => {
-    await expectChartHasBars(page);
-    const area = page.locator(".bar-chart-area").first();
+  test("le graphique ne pousse jamais la page a deborder", async ({ page }) => {
+    // Les barres imposaient une largeur minimale chacune : sur une periode longue, le
+    // panneau reclamait plusieurs milliers de pixels et etirait la grille entiere. Une
+    // courbe se redimensionne, mais encore faut-il que le SVG ne compte pas sa taille
+    // intrinseque (viewBox de 1000 unites) dans le calcul de la mise en page.
+    await expectChartHasCurve(page);
 
-    // La zone doit pouvoir defiler par elle-meme. Sans cela, les barres qui
-    // depassent restaient simplement inaccessibles : overflow-x:clip sur <html>
-    // avale le debordement sans jamais afficher de barre de defilement.
-    const canScrollIndependently = await area.evaluate((node) => {
-      const style = window.getComputedStyle(node);
-      return ["auto", "scroll"].includes(style.overflowX);
+    expect(await pageOverflows(page)).toBe(false);
+    const overflows = await page.locator(".line-chart").first().evaluate((node) => {
+      const parent = node.parentElement.getBoundingClientRect();
+      return node.getBoundingClientRect().width > parent.width + 1;
     });
-    expect(canScrollIndependently).toBe(true);
+    expect(overflows, "la courbe deborde de son panneau").toBe(false);
   });
 
-  test("le debordement des barres reste contenu dans le graphique", async ({ page }) => {
-    await expectChartHasBars(page);
-    const area = page.locator(".bar-chart-area").first();
+  // Le chevauchement des dates de l'axe n'est plus teste ici : Chart.js les dessine dans
+  // le canvas avec son saut automatique (voir LineChart.spec.js pour la configuration).
 
-    const { scrollWidth, clientWidth } = await area.evaluate((node) => ({
-      scrollWidth: node.scrollWidth,
-      clientWidth: node.clientWidth,
-    }));
+  test("glisser sur la courbe zoome sur la plage choisie", async ({ page }, testInfo) => {
+    // Le zoom se pilote a la souris ; sur un appareil tactile, un glisser horizontal
+    // appartient au defilement de la page (`touch-action: pan-y`).
+    test.skip(testInfo.project.name !== "desktop", "interaction souris");
+    await expectChartHasCurve(page);
+    const plot = page.locator(".line-chart__plot").first();
+    // Le graphique est plus bas dans la page d'accueil : le glisser se fait a l'ecran.
+    await plot.scrollIntoViewIfNeeded();
+    const box = await plot.boundingBox();
 
-    if (scrollWidth > clientWidth) {
-      // Le graphique deborde : c'est attendu sur petit ecran avec 30 barres, mais
-      // ce debordement ne doit surtout pas se propager a la page entiere.
-      expect(await pageOverflows(page)).toBe(false);
-    }
-  });
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.6, box.y + box.height / 2, { steps: 5 });
+    await page.mouse.up();
 
-  test("les dates de l'axe ne se chevauchent pas", async ({ page }) => {
-    await expectChartHasBars(page);
-
-    const boxes = await page.locator(".bar-chart-area .bar-label").evaluateAll((nodes) =>
-      nodes
-        .map((node) => node.getBoundingClientRect())
-        .filter((box) => box.width > 0)
-        .map((box) => ({ left: box.left, right: box.right }))
-        .sort((a, b) => a.left - b.left),
-    );
-
-    // Le defaut d'origine venait du dernier label, force en plus de l'intervalle
-    // regulier : il se superposait a son voisin ("18/0" par-dessus "9/08").
-    for (let index = 1; index < boxes.length; index += 1) {
-      expect(
-        boxes[index].left,
-        `le label ${index} chevauche le precedent`,
-      ).toBeGreaterThanOrEqual(boxes[index - 1].right - 1);
-    }
+    await expect(page.locator(".line-chart__reset").first()).toBeVisible();
+    expect(await plottedPoints(page), "la fenetre doit etre reduite").toBeLessThan(TIMELINE_DAYS);
   });
 });
 

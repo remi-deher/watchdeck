@@ -1,4 +1,4 @@
-"""Protection contre la force brute sur /login.
+"""Protection contre la force brute sur /api/auth/login.
 
 Le mecanisme existait (compteur de tentatives echouees par IP sur une fenetre
 glissante, voir app/routers/auth.py) mais n'etait couvert par aucun test : une
@@ -100,7 +100,7 @@ def test_login_endpoint_returns_429_once_the_limit_is_reached(async_db):
     app.dependency_overrides[get_db_async] = lambda: async_db
     try:
         client = TestClient(app, raise_server_exceptions=False)
-        response = client.post("/login", data={"username": "admin", "password": "peu importe"})
+        response = client.post("/api/auth/login", json={"username": "admin", "password": "peu importe"})
         assert response.status_code == 429
         assert "Trop de tentatives" in response.json()["detail"]
     finally:

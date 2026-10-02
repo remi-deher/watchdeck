@@ -1,149 +1,122 @@
 <template>
-  <div class="shell" :class="{'sidebar-collapsed':collapsed,'discover-shell':Boolean(activeSpace)&&activeSpace?.slug!=='library'}">
-    <!-- Espace à arbre dynamique (Téléchargements, Paramètres) : sa propre sidebar. -->
-    <component
-      :is="activeSpace.component"
-      v-if="activeSpace?.component"
-      :collapsed="collapsed"
-      @toggle="toggleSidebar"
-    />
-    <!-- Espace déclaratif : SpaceSidebar rend les trois surfaces depuis spaces.js. -->
-    <SpaceSidebar
-      v-else-if="activeSpace"
-      :slug="activeSpace.slug"
-      :ariaLabel="activeSpace.ariaLabel || 'Navigation'"
-      :brand-icon="activeSpace.brandIcon"
-      :nav="activeSpace.nav"
-      :app-link-to="activeSpace.appLinkTo"
-      :show-app-link="!activeSpace.adminOnlyAppLink || isAdmin"
-      :mobile-menu-title="activeSpace.mobileMenuTitle || 'Menu'"
-      :is-admin="activeSpace.slug === 'library' ? canModerate : isAdmin"
-      :collapsed="collapsed"
-      @toggle="toggleSidebar"
-    />
-    <template v-else>
-    <!-- Desktop Sidebar -->
-    <aside class="sidebar desktop-only" :class="{collapsed}" aria-label="Navigation principale" :aria-expanded="!collapsed">
-      <div class="brand">
-        <span class="brand-name">Watchdeck</span>
-        <button class="sidebar-toggle" type="button" :aria-label="collapsed ? 'Afficher le menu' : 'Réduire le menu'" :title="collapsed ? 'Afficher le menu' : 'Réduire le menu'" @click="toggleSidebar">
-          <PanelLeftOpen v-if="collapsed"/><PanelLeftClose v-else/>
-        </button>
-      </div>
-      
-      <div class="menu-section">
-        <span class="menu-label">Principal</span>
-        <RouterLink v-if="isAdmin" to="/dashboard" title="Dashboard"><Gauge />Dashboard</RouterLink>
-        <RouterLink to="/discover" title="Decouvrir"><Compass />Decouvrir</RouterLink>
-        <RouterLink v-if="canModerate" :to="libraryHomeTarget" title="Bibliotheque"><Library />Bibliotheque</RouterLink>
-        <RouterLink to="/calendar" title="Calendrier"><CalendarDays />Calendrier</RouterLink>
-        <RouterLink v-if="isAdmin" to="/downloads" title="Telechargements"><Download />Telechargements</RouterLink>
-        <RouterLink v-if="isAdmin" to="/activity" title="Activité &amp; Insights"><Activity />Activité &amp; Insights</RouterLink>
-        <RouterLink v-if="isAdmin" to="/users" title="Administration"><Wrench />Administration</RouterLink>
-        <RouterLink v-if="canModerate && !isAdmin" to="/issues" title="Problèmes signalés"><MessageSquareWarning />Problèmes signalés</RouterLink>
-      </div>
-
-      <div class="menu-section mt-auto">
-        <span class="menu-label">Compte</span>
-        <RouterLink to="/profile" title="Profil"><UserRound />Profil</RouterLink>
-        <a href="/privacy" title="Confidentialite"><ShieldCheck />Confidentialite</a>
-        <a href="/logout" title="Deconnexion" @click="clearCache"><LogOut />Deconnexion</a>
-      </div>
-    </aside>
-
-    <!-- Mobile Navigation Bar -->
-    <nav class="mobile-nav-bar mobile-only" aria-label="Navigation principale">
-      <RouterLink v-if="isAdmin" to="/dashboard" @click="closeMoreMenu"><Gauge /><span>Dashboard</span></RouterLink>
-      <RouterLink to="/discover" @click="closeMoreMenu"><Compass /><span>Decouvrir</span></RouterLink>
-      <RouterLink v-if="canModerate" :to="libraryHomeTarget" @click="closeMoreMenu"><Library /><span>Bibliotheque</span></RouterLink>
-      <RouterLink to="/calendar" @click="closeMoreMenu"><CalendarDays /><span>Calendrier</span></RouterLink>
-      <button type="button" class="more-nav-btn" :class="{ active: isMoreOpen }" aria-label="Ouvrir le menu principal" aria-controls="mobile-more-menu" :aria-expanded="isMoreOpen" @click="toggleMoreMenu">
-        <Menu />
-        <span>Plus</span>
-      </button>
-    </nav>
-
-    <!-- Mobile More Menu Overlay -->
-    <MobileMoreSheet :open="isMoreOpen" sheet-id="mobile-more-menu" title="Menu" @close="closeMoreMenu">
-            <div class="menu-section">
-              <span class="menu-label">Principal</span>
-              <RouterLink v-if="isAdmin" to="/downloads" @click="closeMoreMenu"><Download />Telechargements</RouterLink>
-              <RouterLink v-if="isAdmin" to="/activity" @click="closeMoreMenu"><Activity />Activité &amp; Insights</RouterLink>
-              <RouterLink v-if="isAdmin" to="/users" @click="closeMoreMenu"><Wrench />Administration</RouterLink>
-              <RouterLink v-if="canModerate && !isAdmin" to="/issues" @click="closeMoreMenu"><MessageSquareWarning />Problèmes signalés</RouterLink>
-            </div>
-
-            <div class="menu-section">
-              <span class="menu-label">Compte</span>
-              <RouterLink to="/profile" @click="closeMoreMenu"><UserRound />Profil</RouterLink>
-              <a href="/privacy"><ShieldCheck />Confidentialite</a>
-              <a href="/logout" @click="clearCache"><LogOut />Deconnexion</a>
-            </div>
-    </MobileMoreSheet>
-    </template>
-
-    <main id="main-content" class="main" tabindex="-1">
-      <RouterView v-slot="{ Component, route: viewRoute }">
-        <component :is="Component" :key="viewRoute.path" />
+  <!-- Connexion, installation, confidentialite : ni shell, ni session, ni temps reel. -->
+  <RouterView v-if="pagePublique" />
+  <template v-else>
+  <AppShell :is-admin="isAdmin" :can-moderate="canModerate">
+    <RouteErrorBoundary>
+      <!-- Quand la fiche d'un media s'ouvre depuis une grille, c'est la page de depart
+           qui reste rendue ici : la grille ne disparait pas, elle passe dessous. La
+           fiche, elle, est posee par-dessus (voir `MediaOverlay`). Sans adresse de
+           depart -- lien colle, favori, actualisation -- `routeDeFond` vaut `null` et
+           la fiche s'affiche en pleine page, comme n'importe quelle autre. -->
+      <RouterView v-slot="{ Component }" :route="routeDeFond ?? undefined">
+        <!-- Vue Router reutilise naturellement une vue quand plusieurs chemins pointent
+             vers le meme composant. Ne pas la clef-er par chemin permet notamment a
+             /discover de devenir /discover/explore sans detruire le champ de recherche
+             apres la premiere lettre.
+             Pas de `<Transition>` ici, malgre le `page-shift` qui dort dans
+             `_motion.scss` : plusieurs vues -- la fiche media, entre autres -- ont une
+             racine multiple, et Vue ne sait pas animer un fragment. Il avertit, puis
+             laisse la vue sortante dans le document, qui se superpose a la nouvelle.
+             L'arrivee du contenu passe donc par la composition echelonnee de
+             `page-motion`, et l'ouverture d'une fiche par la surface ci-dessous. -->
+        <!-- Page de fond restauree apres un rechargement : ses vues paresseuses ne sont
+             pas encore chargees (voir `vuesDeRoutePretes`), on attend qu'elles le soient. -->
+        <RouteScope v-if="fondPret" :route="routeDeFond">
+          <component :is="Component" />
+        </RouteScope>
       </RouterView>
-    </main>
-    <ToastStack :toasts="toasts" @dismiss="dismissToast"/>
-  </div>
-</template>
+    </RouteErrorBoundary>
+  </AppShell>
 
+  <MediaOverlay :open="surfaceOuverte" :aria-label="libelleSurface" @close="fermerSurface" @after-leave="ficheAffichee = null">
+    <!-- La fiche reste rendue, figee sur SA route, pendant que la surface s'en va : sans
+         cela son contenu disparaissait a l'instant ou l'on fermait, et c'etait une
+         surface vide qui glissait -- demontee, de surcroit, dans l'image meme ou
+         l'animation devait commencer.
+         La surface rend la vue de la route, quelle qu'elle soit : fiche media, session de
+         lecture, torrent, utilisateur... Toute route ouverte avec une page de depart
+         (voir `ouvrirFiche`) s'y pose ; ouverte directement, elle s'affiche en pleine page. -->
+    <RouteScope v-if="ficheAffichee" :route="ficheAffichee.route">
+      <RouterView v-slot="{ Component }" :route="ficheAffichee.route">
+        <component :is="Component" :key="ficheAffichee.cle" />
+      </RouterView>
+    </RouteScope>
+  </MediaOverlay>
+  </template>
+  <AppToast />
+</template>
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute } from 'vue-router';
-import { Activity, CalendarDays, Compass, Download, Gauge, Library, LogOut, MessageSquareWarning, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, Wrench, Menu } from "@lucide/vue";
-import { api } from "@/api";
-import { clearCache, syncCacheOwner } from "@/cache";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { useRoute, type RouteLocationNormalizedLoaded } from "vue-router";
+import { syncCacheOwner } from "@/cache";
+import { useQueryClient } from "@tanstack/vue-query";
+import { synchroniserProprietaire } from "@/offline/stockage";
 import { connectRealtime } from "@/events";
-import ToastStack from "@/components/ui/ToastStack.vue";
-import SpaceSidebar from "@/components/layout/SpaceSidebar.vue";
-import MobileMoreSheet from "@/components/layout/MobileMoreSheet.vue";
+import AppShell from "@/components/layout/AppShell.vue";
+import MediaOverlay from "@/components/media/MediaOverlay.vue";
+import AppToast from '@/components/ui/AppToast.vue';
+import { useMediaOverlay, vuesDeRoutePretes } from "@/composables/useMediaOverlay";
+import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
+import RouteScope from "@/components/layout/RouteScope.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
-import { useSpaceSidebar } from "@/composables/useSpaceSidebar";
 import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";
 import { canModerateSession, isAdminSession, loadSession } from "@/composables/useSession";
+import { useToast } from "@/composables/useToast";
+/* La fiche media se pose au-dessus de la page d'ou l'on vient plutot que de la
+   remplacer -- voir `useMediaOverlay` pour le pourquoi. */
+const { actif: surfaceOuverte, routeDeFond, fermer: fermerSurface } = useMediaOverlay();
+const fondPret = computed(() => vuesDeRoutePretes(routeDeFond.value));
+const routeCourante = useRoute();
+/* Nom de la surface pour les lecteurs d'ecran : le titre de la route (« Média »,
+   « Session de lecture »...). */
+const libelleSurface = computed(() => String(ficheAffichee.value?.route.meta?.title || 'Détail'));
+const ficheAffichee = shallowRef<{ route: RouteLocationNormalizedLoaded; cle: string } | null>(null);
+watch(
+  () => [surfaceOuverte.value, routeCourante.fullPath] as const,
+  ([ouverte, cle]) => {
+    // Tant que la surface est ouverte, elle suit la route (passage d'une fiche a l'autre) ;
+    // a la fermeture, on garde la derniere fiche jusqu'a la fin de la sortie.
+    if (ouverte) ficheAffichee.value = { route: { ...routeCourante } as RouteLocationNormalizedLoaded, cle };
+  },
+  { immediate: true },
+);
+
+/* Avant la premiere navigation, la route n'est pas encore resolue : on se fie a l'adresse
+   de chargement. Les pages publiques sont toujours ouvertes par un chargement complet
+   (le serveur les aiguille), et les quitter recharge la page. */
+const PUBLIC_PATHS = new Set(['/login', '/setup', '/privacy']);
+const chargementPublic = PUBLIC_PATHS.has(window.location.pathname.replace(/\/+$/, '') || '/');
+const pagePublique = computed(() => (routeCourante.matched.length ? routeCourante.meta.public === true : chargementPublic));
+
+const queryClient = useQueryClient();
 const session=ref<any>(null);
 useVisualViewport();
-const route=useRoute();
 const isAdmin=computed(()=>isAdminSession(session.value));
 const canModerate=computed(()=>canModerateSession(session.value));
-// L'espace courant, son etat replie et sa bascule viennent tous de spaces.js : la sidebar
-// a monter, la cle localStorage et la classe du shell en decoulent (voir useSpaceSidebar).
-const {activeSpace,collapsed,toggle:toggleSidebar}=useSpaceSidebar(route);
-// Le lien global est affiche lorsque l'utilisateur se trouve hors de l'espace
-// Bibliotheque. Il constitue donc une nouvelle entree et doit toujours viser le hub
-// Accueil. Les retours navigateur depuis une fiche restent, eux, intacts et conservent
-// la grille ainsi que sa position de defilement.
-const libraryHomeTarget={path:'/library',query:{hub:'1'}};
-const isMoreOpen=ref(false);
-const toasts=ref<any[]>([]);
 const seenPlaybackEvents=new Set<string>();
-const toastTimers=new Map<string, ReturnType<typeof setTimeout>>();
-function toggleMoreMenu(): void {isMoreOpen.value=!isMoreOpen.value}
-function closeMoreMenu(): void {isMoreOpen.value=false}
-function dismissToast(id: string | number): void {toasts.value=toasts.value.filter(toast=>toast.id!==id);clearTimeout(toastTimers.get(String(id)));toastTimers.delete(String(id))}
+const { addToast } = useToast();
+let swUpdateToastShown=false;
 function showPlaybackToasts(event: any): void {
   const started=playbackStartsFromEvent(event);
   for(const session of started){
     const fingerprint=`${event.detail.id||''}:${session.session_id||session.id||playbackTitle(session)}`;
     if(seenPlaybackEvents.has(fingerprint))continue;
     seenPlaybackEvents.add(fingerprint);
-    const id=`playback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    toasts.value=[...toasts.value.slice(-3),{id,type:'playback',title:`${session.user_name||'Un utilisateur'} lance une lecture`,message:playbackTitle(session),image:session.thumb_url||''}];
-    toastTimers.set(id,setTimeout(()=>dismissToast(id),7000));
+    addToast({type:'info',title:`${session.user_name||'Un utilisateur'} lance une lecture`,message:playbackTitle(session),image:session.thumb_url||'',duration:7000});
   }
 }
-// Un import complet a remplace toute la base : tout ce que cet onglet affiche, et tout ce
-// qu'il a mis en cache, reference des lignes qui n'existent plus. On purge et on recharge
-// plutot que de laisser l'utilisateur agir sur des donnees fantomes.
-function onMigrationCompleted(): void {clearCache();window.location.reload()}
-watch(()=>route.fullPath,closeMoreMenu);
+// Sans ce toast, un nouveau service worker installe restait silencieux : l'utilisateur
+// continuait a utiliser une version perimee de l'app sans jamais etre invite a recharger.
+function onSwUpdateAvailable(): void {
+  if(swUpdateToastShown)return;
+  swUpdateToastShown=true;
+  addToast({type:'info',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.',duration:0,action:{label:'Recharger',run:()=>window.location.reload()}});
+}
 onMounted(async()=>{
-  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);session.value=await loadSession();syncCacheOwner(session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
-onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);toastTimers.forEach(clearTimeout)});
+  if(chargementPublic)return;
+  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);void synchroniserProprietaire(queryClient,session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
+onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable)});
 </script>
 

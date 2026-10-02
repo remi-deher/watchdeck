@@ -4,14 +4,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth, require_moderator
 from app.main import app
-from app.models import ArrInstance, Base, FulfillmentStatus, MediaRequest, PlexUser, RequestStatus, Settings
+from app.models import ArrInstance, FulfillmentStatus, LibraryItem, MediaRequest, PlexUser, RequestStatus, Settings
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -1022,3 +1019,247 @@ def test_bulk_delete_records_tombstones(client, db):
 
     tmdb_ids = {row.tmdb_id for row in db.query(DeletedMediaLog).all()}
     assert tmdb_ids == {"111", "222"}
+
+
+def test_withdrawing_a_watchlist_request_carries_the_admin_message(client, db):
+    """Une annulation sans explication se solde par une nouvelle demande la semaine suivante.
+
+    Le média peut être définitivement hors de portée — absent du catalogue TMDB sur
+    lequel s'appuie Radarr — et le gabarit générique ne sait pas le dire. Le mot de
+    l'administrateur part donc avec le mail d'annulation.
+    """
+    settings = Settings(id=1)
+    user = PlexUser(plex_user_id="alice", enabled=True)
+    req = _req(status=RequestStatus.failed, source="rss", arr_id=None, title="South Park Playthrough")
+    db.add_all([settings, user, req])
+    db.commit()
+    request_id = req.id
+
+    with (
+        patch("app.routers.requests_api._delete_media_from_arr", new=AsyncMock(return_value=(True, ""))),
+        patch("app.routers.requests_api._get_recipients", return_value=["alice@example.com"]),
+        patch("app.services.email_service.send_cancelled_notification", new=AsyncMock()) as mail,
+    ):
+        response = client.post(
+            f"/api/requests/{request_id}/withdraw",
+            json={"reason": "Ce média n'existe pas dans le catalogue TMDB."},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["plex_source"] is True
+    assert mail.await_args.kwargs["reason"] == "Ce média n'existe pas dans le catalogue TMDB."
+
+
+def test_withdrawing_without_a_message_still_works(client, db):
+    """Le motif est facultatif : l'annulation ne doit pas en dépendre."""
+    settings = Settings(id=1)
+    req = _req(status=RequestStatus.failed, source="manual", arr_id=None)
+    db.add_all([settings, req])
+    db.commit()
+    request_id = req.id
+
+    with patch("app.routers.requests_api._delete_media_from_arr", new=AsyncMock(return_value=(True, ""))):
+        response = client.post(f"/api/requests/{request_id}/withdraw")
+
+    assert response.status_code == 200
+    # Source non-Plex : rien à bloquer, donc pas de mail non plus.
+    assert response.json()["plex_source"] is False
+
+
+def test_the_cancellation_email_is_written_to_the_notification_journal(client, db):
+    """Le mail d'annulation partait sans laisser de trace.
+
+    Le journal ne montrait que « request » et « available » : rien ne permettait de
+    vérifier qu'un demandeur avait bien été prévenu, ni de retrouver ce qui lui avait
+    été dit.
+    """
+    from app.models import NotificationLog
+
+    settings = Settings(id=1)
+    req = _req(status=RequestStatus.failed, source="rss", arr_id=None, title="Playthrough")
+    db.add_all([settings, req])
+    db.commit()
+    request_id = req.id
+
+    with (
+        patch("app.routers.requests_api._delete_media_from_arr", new=AsyncMock(return_value=(True, ""))),
+        patch("app.routers.requests_api._get_recipients", return_value=["alice@example.com"]),
+        patch("app.services.email_service.send_cancelled_notification", new=AsyncMock()),
+    ):
+        assert (
+            client.post(f"/api/requests/{request_id}/withdraw", json={"reason": "Absent du catalogue."}).status_code
+            == 200
+        )
+
+    logs = db.query(NotificationLog).filter_by(event="cancelled").all()
+    assert [log.recipient for log in logs] == ["alice@example.com"]
+    assert logs[0].success is True
+    assert logs[0].media_title == "Playthrough"
+    # Le motif part avec le message : sans le retenir, l'apercu du journal rejouait le
+    # rendu ampute du seul paragraphe qui explique la decision.
+    assert logs[0].reason == "Absent du catalogue."
+
+
+def test_a_failed_cancellation_email_is_journalled_as_such(client, db):
+    """Un envoi échoué doit se voir : c'est justement là qu'il faut relancer à la main."""
+    from app.models import NotificationLog
+
+    settings = Settings(id=1)
+    req = _req(status=RequestStatus.failed, source="rss", arr_id=None)
+    db.add_all([settings, req])
+    db.commit()
+    request_id = req.id
+
+    with (
+        patch("app.routers.requests_api._delete_media_from_arr", new=AsyncMock(return_value=(True, ""))),
+        patch("app.routers.requests_api._get_recipients", return_value=["alice@example.com"]),
+        patch(
+            "app.services.email_service.send_cancelled_notification",
+            new=AsyncMock(side_effect=RuntimeError("SMTP indisponible")),
+        ),
+    ):
+        assert client.post(f"/api/requests/{request_id}/withdraw").status_code == 200
+
+    log = db.query(NotificationLog).filter_by(event="cancelled").one()
+    assert log.success is False
+    assert "SMTP indisponible" in log.error_msg
+
+
+def test_a_self_cancellation_warns_the_administrator_when_the_requester_agreed(client, db):
+    """Une demande retiree par son auteur ne laissait aucune trace.
+
+    La creation est annoncee a l'administrateur ; le retrait, lui, ne l'etait pas. Une
+    demande disparaissait donc de la liste sans mail, sans entree au journal, sans rien
+    -- impossible de savoir qu'un media avait cesse d'etre attendu.
+    """
+    from app.models import NotificationLog
+
+    settings = Settings(id=1, email_enabled=True, admin_notification_email="admin@example.com")
+    user = PlexUser(plex_user_id="alice", display_name="Alice", enabled=True, notify_admin=True)
+    req = _req(source="rss", title="Playthrough")
+    db.add_all([settings, user, req])
+    db.commit()
+    request_id = req.id
+
+    envoi = AsyncMock()
+    with (
+        patch("app.routers.requests_api.current_user", return_value={"plex_user_id": "alice"}),
+        patch("app.services.email_service.send_cancelled_notification", new=envoi),
+    ):
+        assert client.post(f"/api/requests/{request_id}/cancel").json()["removed"] is True
+
+    assert envoi.await_count == 1
+    assert envoi.await_args.args[2] == "admin@example.com"
+    log = db.query(NotificationLog).filter_by(event="cancelled").one()
+    assert log.recipient == "admin@example.com"
+    assert log.is_admin is True
+    assert log.success is True
+    assert log.media_title == "Playthrough"
+
+
+def test_a_self_cancellation_leaves_only_a_trace_when_the_requester_declined(client, db):
+    """Sans accord du demandeur, pas de mail -- mais la trace, elle, reste due.
+
+    Le canal « none » dit qu'il n'y avait rien a envoyer : une ligne reussie sur le canal
+    e-mail ferait croire a un envoi, et la file de reprise irait la retenter.
+    """
+    from app.models import NotificationLog
+
+    settings = Settings(id=1, email_enabled=True, admin_notification_email="admin@example.com")
+    user = PlexUser(plex_user_id="alice", display_name="Alice", enabled=True, notify_admin=False)
+    req = _req(source="rss", title="Playthrough")
+    db.add_all([settings, user, req])
+    db.commit()
+    request_id = req.id
+
+    envoi = AsyncMock()
+    with (
+        patch("app.routers.requests_api.current_user", return_value={"plex_user_id": "alice"}),
+        patch("app.services.email_service.send_cancelled_notification", new=envoi),
+    ):
+        assert client.post(f"/api/requests/{request_id}/cancel").json()["removed"] is True
+
+    envoi.assert_not_awaited()
+    log = db.query(NotificationLog).filter_by(event="cancelled").one()
+    assert log.channel == "none"
+    assert log.recipient == ""
+    assert log.media_title == "Playthrough"
+
+
+def test_a_media_can_override_the_global_reconciliation_setting(client, db):
+    """`None` remet le média sous le réglage global : c'est un état à part entière.
+
+    Un média dont les releases se rattachent mal doit pouvoir rester en manuel sans
+    qu'on désactive le rapprochement automatique pour tous les autres.
+    """
+    req = _req()
+    db.add_all([Settings(id=1), req])
+    db.commit()
+    request_id = req.id
+
+    assert (
+        client.put(f"/api/requests/{request_id}/auto-import", json={"auto_import_reconciliation": False}).json()[
+            "auto_import_reconciliation"
+        ]
+        is False
+    )
+    assert (
+        client.put(f"/api/requests/{request_id}/auto-import", json={"auto_import_reconciliation": True}).json()[
+            "auto_import_reconciliation"
+        ]
+        is True
+    )
+    # Corps vide : retour au réglage global.
+    assert client.put(f"/api/requests/{request_id}/auto-import", json={}).json()["auto_import_reconciliation"] is None
+
+
+# ---------------------------------------------------------------------------
+# POST /api/library/{id}/requesters
+# ---------------------------------------------------------------------------
+
+
+def test_add_library_requester_creates_available_request(client, db):
+    """Média ajouté directement dans *arr : aucune demande, l'ajout doit en créer une."""
+    item = LibraryItem(title="Film direct", year=2024, media_type="movie", tmdb_id="4242", has_vf=True)
+    bob = PlexUser(plex_user_id="bob", display_name="Bob")
+    db.add_all([item, bob])
+    db.commit()
+    db.refresh(item)
+
+    resp = client.post(f"/api/library/{item.id}/requesters", json={"plex_user_id": "bob"})
+
+    assert resp.status_code == 200
+    req = db.query(MediaRequest).filter(MediaRequest.id == resp.json()["request_id"]).one()
+    assert req.plex_user_id == "bob"
+    assert req.library_item_id == item.id
+    assert req.tmdb_id == "4242"
+    assert req.status == RequestStatus.available
+    assert req.source == "library"
+    assert req.available_mail_sent is True
+    assert req.vf_available_mail_sent is True
+
+    detail = client.get(f"/api/media/detail?library_id={item.id}").json()
+    assert [row["id"] for row in detail["requests"]] == [req.id]
+    assert detail["requests"][0]["requester_ids"] == ["bob"]
+
+
+def test_add_library_requester_conflicts_when_request_exists(client, db):
+    item = LibraryItem(title="Film demandé", media_type="movie", tmdb_id="555")
+    bob = PlexUser(plex_user_id="bob", display_name="Bob")
+    req = _req(plex_user_id="alice", tmdb_id="555", title="Film demandé")
+    db.add_all([item, bob, req])
+    db.commit()
+    db.refresh(item)
+
+    resp = client.post(f"/api/library/{item.id}/requesters", json={"plex_user_id": "bob"})
+    assert resp.status_code == 409
+
+
+def test_add_library_requester_unknown_user_rejected(client, db):
+    item = LibraryItem(title="Film", media_type="movie", tmdb_id="556")
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+
+    resp = client.post(f"/api/library/{item.id}/requesters", json={"plex_user_id": "ghost"})
+    assert resp.status_code == 400

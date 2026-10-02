@@ -3,12 +3,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
 from app.models import (
     ArrInstance,
-    Base,
     MediaRequest,
     PlexUser,
     SeriesAcquisitionBatch,
@@ -22,13 +19,6 @@ from app.services.acquisition_batches import (
 )
 from app.services.sonarr_queue_monitor import classify_queue_record, monitor_sonarr_queue
 from app.utils import now_utc_naive
-
-
-async def _database():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    return engine, async_sessionmaker(engine, expire_on_commit=False)
 
 
 def _record(**changes):
@@ -73,8 +63,8 @@ def test_queue_classification_marks_completed_import_pending_as_candidate():
 
 
 @pytest.mark.asyncio
-async def test_monitor_confirms_block_on_second_minute_and_resolves_when_missing():
-    engine, session_factory = await _database()
+async def test_monitor_confirms_block_on_second_minute_and_resolves_when_missing(async_database):
+    engine, session_factory = async_database.engine, async_database.session_factory
     async with session_factory() as db:
         instance = ArrInstance(
             name="Sonarr",
@@ -131,8 +121,8 @@ async def test_monitor_confirms_block_on_second_minute_and_resolves_when_missing
 
 
 @pytest.mark.asyncio
-async def test_monitor_does_not_resolve_observations_when_sonarr_is_unreachable():
-    engine, session_factory = await _database()
+async def test_monitor_does_not_resolve_observations_when_sonarr_is_unreachable(async_database):
+    engine, session_factory = async_database.engine, async_database.session_factory
     async with session_factory() as db:
         instance = ArrInstance(name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="secret", enabled=True)
         db.add(instance)
@@ -211,8 +201,8 @@ def test_batch_availability_classification(events, expected, variant):
 
 
 @pytest.mark.asyncio
-async def test_stable_batch_queues_one_summary_and_one_deduplicated_admin_alert():
-    engine, session_factory = await _database()
+async def test_stable_batch_queues_one_summary_and_one_deduplicated_admin_alert(async_database):
+    engine, session_factory = async_database.engine, async_database.session_factory
     now = now_utc_naive()
     async with session_factory() as db:
         settings = Settings(

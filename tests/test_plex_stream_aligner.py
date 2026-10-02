@@ -3,11 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, LibraryItem, Settings
+from app.models import LibraryItem, Settings
 from app.routers.vf_upgrades_api import (
     FixStreamsRequest,
     vf_upgrade_audit_fix_streams,
@@ -23,7 +20,6 @@ from app.services.plex_stream_aligner import (
     is_forced_subtitle,
     is_sdh_subtitle,
 )
-from tests.async_support import TestSession
 
 
 class MockStream:

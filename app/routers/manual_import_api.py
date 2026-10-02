@@ -13,7 +13,7 @@ from ..dependencies import require_admin
 from ..models import ArrInstance, MediaRequest, RequestStatus
 from ..services import radarr, sonarr
 from ..services.release_matching import parse_release_season_episode
-from ..utils import async_get_or_404
+from ..utils import async_get_or_404, unwrap_image_proxy
 from .arr_shared import invalidate_arr_queue_cache
 
 router = APIRouter(prefix="/api", tags=["arr"], dependencies=[Depends(require_admin)])
@@ -70,7 +70,7 @@ async def manual_import_download(body: ManualImportRequest, db: AsyncSession = D
         if not existing.arr_id:
             existing.arr_id = body.arr_id
         if body.poster_url and not existing.poster_url:
-            existing.poster_url = body.poster_url
+            existing.poster_url = unwrap_image_proxy(body.poster_url)
         await db.commit()
         return {"status": "linked", "request_id": existing.id}
 
@@ -86,7 +86,7 @@ async def manual_import_download(body: ManualImportRequest, db: AsyncSession = D
         source="manual_import",
         arr_id=body.arr_id,
         arr_instance_id=inst.id,
-        poster_url=body.poster_url,
+        poster_url=unwrap_image_proxy(body.poster_url),
     )
     db.add(req)
     await db.commit()

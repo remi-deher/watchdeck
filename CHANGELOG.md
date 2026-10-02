@@ -1,11 +1,1445 @@
 # Changelog
 
+## 1.65.0 — 2026-10-02
+
+
+### test
+
+- suivre la liste d'objets des réglages au lieu de la carte ([ffff7c3](https://github.com/remi-deher/watchdeck/commit/ffff7c395777a3071912d3f4d242694f47c3cd08))
+
+### ✨ Nouveautés
+
+- accès « mon compte » pour tous les rôles (/api/me) ([d1005f8](https://github.com/remi-deher/watchdeck/commit/d1005f8d89255670a18b9b8c0278216588f89243))
+- espace personnel avec onglets (Aperçu, Sécurité, Notifications, Compte) ([58dbb34](https://github.com/remi-deher/watchdeck/commit/58dbb34d7def64be1b98e23cf645b5fe5132a658))
+- remplacer les cartes par des lignes et des listes d'objets ([c7dc8ee](https://github.com/remi-deher/watchdeck/commit/c7dc8eee1fc3a7ac909b89011757a4c18252456d))
+
+### 🐛 Corrections
+
+- onglet par défaut une fois la session chargée, finitions mobile ([4709c6e](https://github.com/remi-deher/watchdeck/commit/4709c6e22f3151dd525a01d2ce39610483722239))
+- retirer un media supprime de Plex des qu'on le reverifie ([99e1cc7](https://github.com/remi-deher/watchdeck/commit/99e1cc74fb8d73859253851aa8e7544711e5208a))
+
+### 🔧 Maintenance
+
+- bump @vitejs/plugin-vue from 6.0.8 to 6.0.9 (#620) ([f0c81cd](https://github.com/remi-deher/watchdeck/commit/f0c81cd6380d7d4f8224f71d8a9ac5784c0b0cf8))
+- bump vue-router from 5.3.0 to 5.3.1 (#621) ([9b13966](https://github.com/remi-deher/watchdeck/commit/9b1396604fece828539e9366644c903ea8a6b5cb))
+- bump jsdom from 30.0.1 to 30.1.1 (#623) ([3cc79d7](https://github.com/remi-deher/watchdeck/commit/3cc79d794483fe3f81ac41b92ddc56aa289b9bfb))
+- sync main into dev ([fb7bcf0](https://github.com/remi-deher/watchdeck/commit/fb7bcf06d8ef50eef60ec5b8f1b5a7cd1e7183f6))
+- bump @types/node from 26.6.1 to 26.6.2 (#622) ([c140c0c](https://github.com/remi-deher/watchdeck/commit/c140c0cdb51234f4031597c35b7511b6afd453e6))
+## 1.64.2 — 2026-10-01
+
+
+### test
+
+- couvrir les chemins secondaires des correctifs de l'audit ([1372404](https://github.com/remi-deher/watchdeck/commit/1372404bc15cc23203e75a200735fd6a9e974e65))
+
+### 🐛 Corrections
+
+- corriger les 20 points de l'audit du 30/09 ([c8170d7](https://github.com/remi-deher/watchdeck/commit/c8170d74ab56126e68116838616004e842d1975f))
+- extraire les scripts en ligne du shell SPA avec HTMLParser ([5259b1c](https://github.com/remi-deher/watchdeck/commit/5259b1c0febb3b58b16c367ca88f6cbeea97a255))
+- retirer le code d'installation, proxies de confiance dans les parametres ([6b025d0](https://github.com/remi-deher/watchdeck/commit/6b025d064a1f6b94d9e9ce5ab9631bc91b9376b2))
+
+### 🔧 Maintenance
+
+- v1.64.2 (#619) ([32fef04](https://github.com/remi-deher/watchdeck/commit/32fef0424fb5c9ebdbde69b31b9d06a975fa1a8d))
+## 1.64.1 — 2026-10-01
+
+
+### 🐛 Corrections
+
+- charger server_id dans les agregats des statistiques (#611) ([701a2b1](https://github.com/remi-deher/watchdeck/commit/701a2b18ea581a57e5b6eef9a38a07a647a8f11c))
+- file d'attente des notifications en tête, sans recherche ni motifs vagues (#610) ([62e84e5](https://github.com/remi-deher/watchdeck/commit/62e84e5286ca5b969003801b72d29d2bce6e7570))
+
+### 🔧 Maintenance
+
+- v1.64.1 (#615) ([c4883ce](https://github.com/remi-deher/watchdeck/commit/c4883cedd1c1ef7dd543f71ca930ba0f914481b7))
+## 1.64.0 — 2026-10-01
+
+
+### ✨ Nouveautés
+
+- l'Administration devient un espace à part avec sa propre barre (#605) ([9cb98ee](https://github.com/remi-deher/watchdeck/commit/9cb98eeefaef2d771f005c9bc09723255a30b079))
+
+### 🐛 Corrections
+
+- correctifs du check-up prod (chiffres, mobile, menu, accents) (#602) ([03b497f](https://github.com/remi-deher/watchdeck/commit/03b497f8fba144a7bbdbdc165fa55f6c2fa8568c))
+
+### 🔧 Maintenance
+
+- v1.64.0 (#609) ([5263934](https://github.com/remi-deher/watchdeck/commit/52639347292de817fce95b360ebcf8805d04932c))
+## 1.63.0 — 2026-09-30
+
+
+### test
+
+- cibler la grille des demandes (.rt-grid) dans le test de la feuille des releases (#596) ([92f7d1a](https://github.com/remi-deher/watchdeck/commit/92f7d1aadf4dd8f5ab5477a98eec1ad94450bf50))
+
+### ✨ Nouveautés
+
+- cartes à longues listes en pleine largeur, pistes en pastilles (#590) ([69ee124](https://github.com/remi-deher/watchdeck/commit/69ee12486566c4a42056d0a53a4e00493126832c))
+- détails par service dans la carte Santé des services (#591) ([529dd33](https://github.com/remi-deher/watchdeck/commit/529dd3318658e08f2cf82797c15b23e00522f279))
+- ouvrir la recherche interactive dans la feuille (#592) ([b6b7636](https://github.com/remi-deher/watchdeck/commit/b6b763607e0080a770284a30e262c8ef9fecd7ac))
+- cartes de suivi en affiches, dans la grille des disponibles (#593) ([e3f541a](https://github.com/remi-deher/watchdeck/commit/e3f541a1cbdc85f8780ed0c1e6ab4134d9718471))
+- période visible, états des sorties, vue Semaine, balayage et filtres (#594) ([47ffaa1](https://github.com/remi-deher/watchdeck/commit/47ffaa1586c1636d1807a6afe5845abf13d291f8))
+
+### 🔧 Maintenance
+
+- v1.63.0 (#599) ([0d542d2](https://github.com/remi-deher/watchdeck/commit/0d542d2569552f27a262b23dc030263bb6591c6d))
+## 1.62.0 — 2026-09-30
+
+
+### ✨ Nouveautés
+
+- demandeurs sur toute la largeur, administration et journal côte à côte (#585) ([c9a4b98](https://github.com/remi-deher/watchdeck/commit/c9a4b98eae512ee0a1a93d972ebb06130139d823))
+
+### 🔧 Maintenance
+
+- v1.62.0 (#589) ([c75f2b4](https://github.com/remi-deher/watchdeck/commit/c75f2b422bcff7f68bde1f4cd332219202eb22d2))
+## 1.61.0 — 2026-09-29
+
+
+### ✨ Nouveautés
+
+- nouvelle page d'accueil du tableau de bord (#577) ([6ff5e1e](https://github.com/remi-deher/watchdeck/commit/6ff5e1e836878c9350e4b2f6e4d854ac0f3b5a37))
+- nouveau design de l'inventaire et de la fiche fichier (#578) ([e18e713](https://github.com/remi-deher/watchdeck/commit/e18e713a644b571bd31366a4b4cc89f02abe522e))
+
+### 🔧 Maintenance
+
+- v1.61.0 (#582) ([21bb21d](https://github.com/remi-deher/watchdeck/commit/21bb21d3d7522fefd44c65ba8d9084ba57fa81d1))
+## 1.60.0 — 2026-09-29
+
+
+### ✨ Nouveautés
+
+- nouvel onglet Demandes (parcours, demandeurs, administration, journal) (#571) ([0cf352f](https://github.com/remi-deher/watchdeck/commit/0cf352f867ec27c35c57b2de7e97c14227f45bb7))
+
+### 🐛 Corrections
+
+- ne plus proposer les releases VOSTFR ou MULTiSUBS en amélioration VF (#566) ([8f05e04](https://github.com/remi-deher/watchdeck/commit/8f05e04074830903b6277a9ca2477c41afbf7666))
+
+### 🔧 Maintenance
+
+- sync main into dev ([4b9c9c8](https://github.com/remi-deher/watchdeck/commit/4b9c9c8fcd8f2a9bb58ae5e7580c6a47cc28c51e))
+- sync main into dev ([739da8e](https://github.com/remi-deher/watchdeck/commit/739da8e969858248b35a9e878643ee5162f4b683))
+- v1.60.0 (#576) ([55b61c7](https://github.com/remi-deher/watchdeck/commit/55b61c71436f2eeaf122524a8a94b0e82a1d44b2))
+## 1.59.3 — 2026-09-29
+
+
+### 🐛 Corrections
+
+- tuiles « Dynamique » qui débordent et parcours des demandeurs plus lisible (#564) ([dbbb6f7](https://github.com/remi-deher/watchdeck/commit/dbbb6f7e7ca21cd2821b20be10db63cf5409abb0))
+
+### 🔧 Maintenance
+
+- v1.59.3 (#569) ([b36023c](https://github.com/remi-deher/watchdeck/commit/b36023cc0d890bb1c2093e00536198665b84c48b))
+## 1.59.2 — 2026-09-29
+
+
+### 🐛 Corrections
+
+- ajout d'un demandeur sur un média sans demande (#559) ([b9a5c8e](https://github.com/remi-deher/watchdeck/commit/b9a5c8e9c3db87ce95bfcceb4996ae217225c426))
+
+### 🔧 Maintenance
+
+- v1.59.2 (#563) ([4ae76d9](https://github.com/remi-deher/watchdeck/commit/4ae76d9893b2a61c77c49cf6293fda9f6b5228b1))
+## 1.59.1 — 2026-09-29
+
+
+### 🐛 Corrections
+
+- regrouper l'historique par épisode, plus par série (#551) ([7f744d5](https://github.com/remi-deher/watchdeck/commit/7f744d546368cdf013edb02c513963305a2ec2db))
+- retirer « Sélectionné » et afficher le nom des pistes de sous-titres (#554) ([ef1d8a1](https://github.com/remi-deher/watchdeck/commit/ef1d8a144933bc3e8cbc4f053903dbcdd4a45300))
+
+### 🔧 Maintenance
+
+- v1.59.1 (#558) ([726707b](https://github.com/remi-deher/watchdeck/commit/726707b483186adee030c7c98066af9065cbfbdb))
+## 1.59.0 — 2026-09-29
+
+
+### ✨ Nouveautés
+
+- lectures consécutives navigables, lecture mixte et sous-titres dans Flux (#546) ([94b93d4](https://github.com/remi-deher/watchdeck/commit/94b93d4a6011b29059256f6c1813856c21eaa34b))
+
+### 🔧 Maintenance
+
+- v1.59.0 (#550) ([e062a8d](https://github.com/remi-deher/watchdeck/commit/e062a8d0797fa1e08ae10bb1b8926ae8ae2ab669))
+## 1.58.0 — 2026-09-28
+
+
+### test
+
+- utiliser media_type 'show' accepte par la contrainte PostgreSQL ([6d49ec6](https://github.com/remi-deher/watchdeck/commit/6d49ec6a68ccb72b5a06a379625b8fd265db328d))
+- couvrir la sauvegarde PostgreSQL et les causes de conversion légère ([418f105](https://github.com/remi-deher/watchdeck/commit/418f1050094299d36b1c7f61853b84d8373535ec))
+
+### ♻️ Refactoring
+
+- retirer APScheduler et la file de notifications en memoire ([8d95f17](https://github.com/remi-deher/watchdeck/commit/8d95f17b44c57af09890494243ab47a73776ef1b))
+- passer connexion, installation et confidentialite en Vue ([7c265ae](https://github.com/remi-deher/watchdeck/commit/7c265ae9a2c13f13c0d654d6814ab956cfb934c9))
+- PostgreSQL devient le seul moteur pris en charge ([8d0a6f8](https://github.com/remi-deher/watchdeck/commit/8d0a6f8cbaa7c823893a594ba62ad520fccae71f))
+- lot 1 de la migration vers TanStack Query ([5f25d39](https://github.com/remi-deher/watchdeck/commit/5f25d3936376817089d336c4551853922f465913))
+- lot 2 de la migration vers TanStack Query ([3fa6568](https://github.com/remi-deher/watchdeck/commit/3fa65680bf901254ac0fda391d22838b1e154f92))
+- lot 3 de la migration vers TanStack Query (VF Upgrades) ([c2fa2aa](https://github.com/remi-deher/watchdeck/commit/c2fa2aa03a3393e285d986ba9938801956c75139))
+
+### ✨ Nouveautés
+
+- ajouter UiMenu, UiTooltip, UiTimeField et UiAvatar sur Reka UI ([d574d27](https://github.com/remi-deher/watchdeck/commit/d574d27aca36e9145cf6277b85ca5507f1e7e7a5))
+- suivi des conversions légères et du conteneur ([6257c79](https://github.com/remi-deher/watchdeck/commit/6257c7988d1e8417925aefee83fa7984945c189c))
+- flux vidéo, audio et conteneur pour toutes les lectures ([595576f](https://github.com/remi-deher/watchdeck/commit/595576f15e113670aa25b53283614ec587f342bc))
+- détail de chaque piste audio, libellé « Transcode » ([7cdde04](https://github.com/remi-deher/watchdeck/commit/7cdde047bc42ac9eae91e168355d5f421c46d141))
+- explication des conversions légères ([73e7ce4](https://github.com/remi-deher/watchdeck/commit/73e7ce41c540465b1fe66f630830dd232c15b0c4))
+
+### 🐛 Corrections
+
+- installer greenlet via sqlalchemy[asyncio] ([b522ab3](https://github.com/remi-deher/watchdeck/commit/b522ab3af66e7b00d47b85385ce0a90360fb6160))
+- nommer psycopg2 pour les URL postgresql:// nues ([3d3c646](https://github.com/remi-deher/watchdeck/commit/3d3c646a60229c03708d205aa70e5559e39368cb))
+- installer greenlet via sqlalchemy[asyncio] ([81dbde7](https://github.com/remi-deher/watchdeck/commit/81dbde780a7a4aecaf443b1f18f4c586cf81dd79))
+- nommer psycopg2 pour les URL postgresql:// nues ([dff760f](https://github.com/remi-deher/watchdeck/commit/dff760f6de4f476e7532a0f3367be1ce82c0420a))
+- installer greenlet avec SQLAlchemy 2.1 (sqlalchemy[asyncio]) ([16c4019](https://github.com/remi-deher/watchdeck/commit/16c40192685762a7821f121721bf2258438c4ee1))
+- nommer psycopg2 pour les URL postgresql:// (SQLAlchemy 2.1) ([e9db17b](https://github.com/remi-deher/watchdeck/commit/e9db17bb94efcc606eaf45db6d30cc7a0cfb0d39))
+- installer greenlet avec SQLAlchemy 2.1 (sqlalchemy[asyncio]) ([7075f68](https://github.com/remi-deher/watchdeck/commit/7075f6879769494700f9c4321ec57e9267588ad1))
+- nommer psycopg2 pour les URL postgresql:// (SQLAlchemy 2.1) ([7de178c](https://github.com/remi-deher/watchdeck/commit/7de178ca2e6db912ec5fcaaaa8641de4ac27303b))
+
+### 🔧 Maintenance
+
+- bump sqlalchemy from 2.0.54 to 2.1.0 (#527) ([817b838](https://github.com/remi-deher/watchdeck/commit/817b83869450219128e28530245997074a445bc4))
+- bump vite from 8.3.0 to 8.3.1 (#529) ([a879542](https://github.com/remi-deher/watchdeck/commit/a8795423fd00e73e6461b6428d130e384563b356))
+- bump vitest from 5.0.0 to 5.0.2 (#531) ([2fc88c7](https://github.com/remi-deher/watchdeck/commit/2fc88c7498558932b63684289dfeef16e62e4f2b))
+- bump sass from 1.104.0 to 1.105.0 (#533) ([3100288](https://github.com/remi-deher/watchdeck/commit/3100288167c0f6648de2d97fdabbb4f3cc4e3628))
+- bump vue from 3.5.42 to 3.5.43 (#534) ([56a2155](https://github.com/remi-deher/watchdeck/commit/56a2155c12c664f9265dd844568d8664a2b16002))
+- bump @vue/test-utils from 2.5.0 to 2.5.1 (#530) ([0ee2049](https://github.com/remi-deher/watchdeck/commit/0ee2049fdb34c4c330ef3881b7288847a0f83f90))
+- bump uvicorn from 0.53.0 to 0.54.0 (#528) ([95512c4](https://github.com/remi-deher/watchdeck/commit/95512c415bed2d91a96665e413987e07577664ab))
+- v1.58.0 (#545) ([cf3caf2](https://github.com/remi-deher/watchdeck/commit/cf3caf2823295a700003ade77bb1fe40845e8159))
+## 1.57.0 — 2026-09-27
+
+
+### ✨ Nouveautés
+
+- reseau sous la carte, chiffrement dans la ligne d'identite ([f4fb696](https://github.com/remi-deher/watchdeck/commit/f4fb6965e100b4c55f665405d826fb262557ccb7))
+- carte d'intervention lisible et fiches ouvertes en panneau ([ce6dfe4](https://github.com/remi-deher/watchdeck/commit/ce6dfe4da1e54722ebd23e9d3542c844815e1227))
+
+### 🐛 Corrections
+
+- adapter la mise en page a la place disponible sur tablette ([a233a45](https://github.com/remi-deher/watchdeck/commit/a233a4541933e0a23a5995626c97947da5c9158b))
+
+### 👷 CI/CD
+
+- ne plus annuler le build de test ni le sauter a tort ([6ffb384](https://github.com/remi-deher/watchdeck/commit/6ffb3840afe327b13fd8dec1d24899bdad6650c1))
+
+### 🔧 Maintenance
+
+- v1.57.0 (#526) ([3f68c9e](https://github.com/remi-deher/watchdeck/commit/3f68c9ea2225903999b6d7f4e5e65c6cd50700dc))
+## 1.56.0 — 2026-09-27
+
+
+### ✨ Nouveautés
+
+- section Conversion en clair et details de session en quatre cartes ([e176aba](https://github.com/remi-deher/watchdeck/commit/e176aba610484e794f61b72a979059ec58289064))
+
+### 🔧 Maintenance
+
+- v1.56.0 (#521) ([329dc4d](https://github.com/remi-deher/watchdeck/commit/329dc4d05e811f1e8a948d3e3d98637282661437))
+## 1.55.2 — 2026-09-27
+
+
+### 👷 CI/CD
+
+- la release attend l'image testee au lieu d'echouer ; E2E a 20 min ([92dd6a7](https://github.com/remi-deher/watchdeck/commit/92dd6a7e15711995d9fda7efcb86caa35d770087))
+
+### 🔧 Maintenance
+
+- bump the github-actions group across 1 directory with 6 updates (#515) ([37bd4cb](https://github.com/remi-deher/watchdeck/commit/37bd4cbf47f732f24f5358ed7ab020cd327b9f8b))
+- v1.55.2 (#518) ([55e732e](https://github.com/remi-deher/watchdeck/commit/55e732e8ccce606baf23ba86bef87ea272d3294c))
+## 1.55.1 — 2026-09-27
+
+
+### 🎨 Style
+
+- texte principal pour le contenu, blanc sur les images, gris aux libelles ([44bfd9b](https://github.com/remi-deher/watchdeck/commit/44bfd9ba5c75fc6e1817b4fa6ee717bba84a52ab))
+
+### 🔧 Maintenance
+
+- v1.55.1 (#513) ([9cf71ff](https://github.com/remi-deher/watchdeck/commit/9cf71ffbc10b292378c3faf13e66df08e6d193d1))
+## 1.55.0 — 2026-09-27
+
+
+### ♻️ Refactoring
+
+- en-tete commun des fiches (SheetHero, SheetSummary) ([07aff82](https://github.com/remi-deher/watchdeck/commit/07aff827d09bb0477f75bba7944563d821705487))
+
+### ✨ Nouveautés
+
+- texte sous la banniere, parcours reel des medias deja dans Plex ([0991a48](https://github.com/remi-deher/watchdeck/commit/0991a48f4b4f421a6c67de016f7f11c6debb08c9))
+
+### 🔧 Maintenance
+
+- v1.55.0 (#509) ([7de6834](https://github.com/remi-deher/watchdeck/commit/7de6834a730f28f5d8eb8819016d016b4d69d622))
+## 1.54.0 — 2026-09-27
+
+
+### ✨ Nouveautés
+
+- reperes de temps sur la progression d'une lecture ([9fb5d08](https://github.com/remi-deher/watchdeck/commit/9fb5d08337c0b4e48426e806cc511dcc08b59d3d))
+
+### 🐛 Corrections
+
+- affiches des episodes nettes, identifiant copiable ([3aa0184](https://github.com/remi-deher/watchdeck/commit/3aa01849f0bb5059c703240c22096b59da9da2fd))
+- rendre le texte des bannieres lisible sur les images claires ([c73fbae](https://github.com/remi-deher/watchdeck/commit/c73fbaeb993d0753279fc1ad527ea1edb37e82ae))
+
+### 🔧 Maintenance
+
+- v1.54.0 (#505) ([dfd5e3d](https://github.com/remi-deher/watchdeck/commit/dfd5e3d1d8a7e6dc1f6d3acadadc19719ceb7fa3))
+## 1.53.0 — 2026-09-27
+
+
+### test
+
+- le hero d'une fiche n'a plus de bordure autour de l'image ([cc3a40c](https://github.com/remi-deher/watchdeck/commit/cc3a40ca32bf7afee56cb364a3e217275d48924e))
+- stabiliser deux tests qui echouaient sous charge ([4346e18](https://github.com/remi-deher/watchdeck/commit/4346e18e5588bf74f9b4d10eac1cda16648e5732))
+
+### ✨ Nouveautés
+
+- en-tete de session comme la fiche d'un media ([774e1ab](https://github.com/remi-deher/watchdeck/commit/774e1abab017e95d5746aaa7370e5aa02605df4c))
+- voile de banniere egal sur les quatre bords, sans bordure ([b741020](https://github.com/remi-deher/watchdeck/commit/b7410202c9c17218a387e93da2fb7f084a445ad4))
+
+### 🎨 Style
+
+- une bordure par surface dans la fiche de session et Activite ([4b24e81](https://github.com/remi-deher/watchdeck/commit/4b24e81b6f4032dbd33356c3d8c19967fb5e3aeb))
+- une bordure par surface dans toute l'application ([9e65d92](https://github.com/remi-deher/watchdeck/commit/9e65d92011c9516b4757485e3036a7c2c8c43917))
+
+### 🐛 Corrections
+
+- ne plus afficher « [object Promise] » sous une fiche rechargee ([ac618a9](https://github.com/remi-deher/watchdeck/commit/ac618a93c55c0715fbebf6e9de0beddc4d85d811))
+
+### 🔧 Maintenance
+
+- v1.53.0 (#500) ([6eb2402](https://github.com/remi-deher/watchdeck/commit/6eb2402e363c7ebb8aed87655075e9f546ec59c4))
+## 1.52.0 — 2026-09-27
+
+
+### ✨ Nouveautés
+
+- situer la raison de Plex et nommer le format d'origine des sous-titres ([e0f4c10](https://github.com/remi-deher/watchdeck/commit/e0f4c107fde43db575993054b9a02998e261414e))
+- montrer le reemballage d'un Direct Stream et detailler la conversion ([ec373da](https://github.com/remi-deher/watchdeck/commit/ec373dae7775e3619cfd8e5b84a4544e6483dc36))
+- refonte de la fiche de session ([af20a34](https://github.com/remi-deher/watchdeck/commit/af20a348819ae592520863c230e85d132f90c161))
+- relais, HDR, debits, lecteur, telechargements, arret de lecture et taches Plex ([327febe](https://github.com/remi-deher/watchdeck/commit/327febe3e96230bf52b66012a7df6e5a254254e6))
+
+### 🔧 Maintenance
+
+- v1.52.0 (#497) ([0e5d043](https://github.com/remi-deher/watchdeck/commit/0e5d043a515b0547ad9988de25ec7c16f799517e))
+## 1.51.0 — 2026-09-26
+
+
+### test
+
+- couvrir la lecture des journaux Plex et ses replis ([e9dcdca](https://github.com/remi-deher/watchdeck/commit/e9dcdca06937e8fe517d545e97cd9bbf4929c2f7))
+- attendre la grille definitive avant le double appui ([969490c](https://github.com/remi-deher/watchdeck/commit/969490cbb1e4e562a5da4112c3c0417c141c2436))
+
+### ✨ Nouveautés
+
+- raison du transcodage, deduite du flux ou relue dans les journaux Plex ([2662293](https://github.com/remi-deher/watchdeck/commit/26622938932121bfece129da3c7911d461ed9794))
+
+### 🐛 Corrections
+
+- ne plus deplacer la barre a l'ouverture et a la fermeture d'une fiche ([fbd63f4](https://github.com/remi-deher/watchdeck/commit/fbd63f46e79c9aaa76904af5392b60146b521273))
+- rendre le double appui tactile independant de Safari ([f89a263](https://github.com/remi-deher/watchdeck/commit/f89a26309d3e56b02838a8c3abf494e949d7c6e9))
+- typer les identifiants de session du rapprochement des decisions Plex ([35bc271](https://github.com/remi-deher/watchdeck/commit/35bc271697ccfbb6f56d8e3dc11226b3e046ca26))
+- ouvrir au second appui meme si le premier clic a ete supprime ([88ef679](https://github.com/remi-deher/watchdeck/commit/88ef6799992edc371839dfac1051da1c098f06d0))
+- ignorer le mouseleave simule qui suit un appui ([77f49b6](https://github.com/remi-deher/watchdeck/commit/77f49b60f5ba11c58f44b409511acec2b4aa3b8a))
+
+### 🔧 Maintenance
+
+- v1.51.0 (#493) ([e1700ef](https://github.com/remi-deher/watchdeck/commit/e1700ef67ecf57d9fbe30f4c8f3208e4604830ac))
+## 1.50.0 — 2026-09-26
+
+
+### ✨ Nouveautés
+
+- quantites telechargees et partagees dans la fiche ([8deb488](https://github.com/remi-deher/watchdeck/commit/8deb488256c093f89f3317780e7d72ae85e57918))
+
+### 🐛 Corrections
+
+- passer tri et sens a l'historique des envois ([acb1fd7](https://github.com/remi-deher/watchdeck/commit/acb1fd74dd1ebe1e15faf75c525a7fa4eba11c76))
+- ne plus recharger la grille a l'ouverture et a la fermeture d'une fiche ([8c99557](https://github.com/remi-deher/watchdeck/commit/8c99557d22c55b4419224c35cc62e90aa02db0c0))
+
+### 🔧 Maintenance
+
+- v1.50.0 (#489) ([63f6870](https://github.com/remi-deher/watchdeck/commit/63f68706db8c2d273aedd96281dc1c96c5421ee9))
+## 1.49.0 — 2026-09-26
+
+
+### test
+
+- verrouiller le budget de couleurs hero ([be6b574](https://github.com/remi-deher/watchdeck/commit/be6b574353b25cea926d4167bdea886d9d995426))
+- cliquet sur les seuils de media queries en pixels ([6f8eb0c](https://github.com/remi-deher/watchdeck/commit/6f8eb0cc027f5edfa5929e0a3bdd624ff6885e40))
+- couvrir le regroupement de la file *arr par media ([d41ad19](https://github.com/remi-deher/watchdeck/commit/d41ad1964193652d915f60064a2c56cd53dc6470))
+
+### ♻️ Refactoring
+
+- centraliser les en-tetes de panneau ([d4bfcd4](https://github.com/remi-deher/watchdeck/commit/d4bfcd49ca162dc1d0cc649bb350c0e6c60475a1))
+- etendre les filtres en pastilles ([898329c](https://github.com/remi-deher/watchdeck/commit/898329c2a12522c8a2d562edca8294e3292e121c))
+- harmoniser onglets bascules et filtres ([975cb69](https://github.com/remi-deher/watchdeck/commit/975cb69f1e774c7a493c70000f1e99dfe4ec8a59))
+- normaliser typographie et cascade ([dc094ec](https://github.com/remi-deher/watchdeck/commit/dc094ec6773d869e07cb6ddca6c0fb3e0874419c))
+- migrer historique des scans vers UiDataTable ([5911749](https://github.com/remi-deher/watchdeck/commit/59117494672bdb1ea2cd1f5d6e0f337e6debe517))
+- reutiliser cartes et panneaux telechargements ([f3d9ce9](https://github.com/remi-deher/watchdeck/commit/f3d9ce9a740d0fd899bc1a69716cd46ddd14559d))
+- ajouter le fond hero partage ([5314c35](https://github.com/remi-deher/watchdeck/commit/5314c353140d430c0e7629ce12328aa34f359922))
+- migrer le hero media vers le fond partage ([318ed8a](https://github.com/remi-deher/watchdeck/commit/318ed8ab83719bbec351b4d51dde5dd394770347))
+- migrer la banniere media vers le fond partage ([7834ed9](https://github.com/remi-deher/watchdeck/commit/7834ed9eeba5eb288c263ef5b951b2c5ba7e3398))
+- convertir les media queries equivalentes en mixins bp.* ([9dfee13](https://github.com/remi-deher/watchdeck/commit/9dfee13e0df4a907914c5ede5f885fa0323fd9ad))
+- aligner les seuils a un pixel pres sur les mixins bp.* ([a34592a](https://github.com/remi-deher/watchdeck/commit/a34592aa29a807efb6664be913642f51fbcb44ed))
+- ramener les seuils 760/761, 641, 420 et 768-1024 sur les mixins bp.* ([bede541](https://github.com/remi-deher/watchdeck/commit/bede5412425b2e839b3f7c1c677cf71d4cb1209f))
+- ramener les seuils 600/620, 700/720 et 800 sur phablet et tablet ([5d1907c](https://github.com/remi-deher/watchdeck/commit/5d1907c6b93b49a2273f68b1ce459ce040177732))
+- passer les derniers seuils locaux en container queries etalonnees ([eda363c](https://github.com/remi-deher/watchdeck/commit/eda363cdc9531b1319a113b623fe9e68ecbf05ef))
+
+### ✨ Nouveautés
+
+- Bibliotheque avant Explorer et Calendrier dans le rail et le dock ([39dc961](https://github.com/remi-deher/watchdeck/commit/39dc961c481ef6b515f2c19d141cc9d42137ac1c))
+
+### 🎨 Style
+
+- formater les services arr selon ruff ([363d51c](https://github.com/remi-deher/watchdeck/commit/363d51c8b9c7fab4a09d980cb7ef1a177b339cf7))
+
+### 🐛 Corrections
+
+- classify completed Radarr imports correctly ([d13236a](https://github.com/remi-deher/watchdeck/commit/d13236ab28ef5fb3af5ca89df6b33e4f5a6bddf2))
+- corriger le typage vue-tsc des controles segmentes et du clic de ligne ([fff8091](https://github.com/remi-deher/watchdeck/commit/fff80914577f473de208cdcae630050a64ac4524))
+- regressions E2E du lot d'harmonisation ([314d929](https://github.com/remi-deher/watchdeck/commit/314d92939f9045715b7a93b5bdef57e2b29504c1))
+
+### 🔧 Maintenance
+
+- v1.49.0 (#485) ([1382f3a](https://github.com/remi-deher/watchdeck/commit/1382f3ad4355fbb8e045e7184f87ccc43de03ce9))
+## 1.48.0 — 2026-09-26
+
+
+### ✨ Nouveautés
+
+- onglets centres par defaut, Ameliorations VF en rangee collante et filtres compacts ([c72b96c](https://github.com/remi-deher/watchdeck/commit/c72b96c28a2a60dca0a4919e77b2c238c55e28c9))
+
+### 🔧 Maintenance
+
+- v1.48.0 (#481) ([ec0f857](https://github.com/remi-deher/watchdeck/commit/ec0f8575ce351debe8d46f75e632e899d44a414c))
+## 1.47.1 — 2026-09-26
+
+
+### 🐛 Corrections
+
+- rangee collante qui remplace la recherche sur PC, hero toujours sombre, fondus d'onglets par masque ([f5f377e](https://github.com/remi-deher/watchdeck/commit/f5f377ea173268e25bfa355513e9877bc987d986))
+
+### 🔧 Maintenance
+
+- v1.47.1 (#477) ([ceeaf0c](https://github.com/remi-deher/watchdeck/commit/ceeaf0c948e8cac1ff5ad9a7e74d6f89ee2ae2ea))
+## 1.47.0 — 2026-09-26
+
+
+### ♻️ Refactoring
+
+- onglets de page via le slot #tabs d'AppPage, un seul mecanisme collant ([bf880d6](https://github.com/remi-deher/watchdeck/commit/bf880d6164d945cc3a8b367b79ba998dc9b87e6e))
+
+### ✨ Nouveautés
+
+- onglets en capsule centree et collante, barre de recherche sans enveloppe ([781214c](https://github.com/remi-deher/watchdeck/commit/781214c8f14025e915a78a6197c4ca6e4a823107))
+- outils de page en capsule centree sous la recherche ([8632ff0](https://github.com/remi-deher/watchdeck/commit/8632ff0af1410e5124f5951777eaa9485ba79e80))
+
+### 🔧 Maintenance
+
+- v1.47.0 (#473) ([ccde40c](https://github.com/remi-deher/watchdeck/commit/ccde40c8336ab66b7a656a09d8f8bfca0eeb61b6))
+## 1.46.1 — 2026-09-26
+
+
+### 🐛 Corrections
+
+- onglets de sous-navigation, cartes VF manquante, fichiers PWA et vignettes absentes ([a2eb96f](https://github.com/remi-deher/watchdeck/commit/a2eb96f46fa6f873ff6a0d755a84f2276268d166))
+
+### 🔧 Maintenance
+
+- v1.46.1 (#469) ([5d3b678](https://github.com/remi-deher/watchdeck/commit/5d3b67826f03ea2c80e6e1a0d3807f94ca36facc))
+## 1.46.0 — 2026-09-26
+
+
+### ✨ Nouveautés
+
+- navigation au retour, memoire des filtres et refonte de la page Demandes ([c5edaea](https://github.com/remi-deher/watchdeck/commit/c5edaea73ae4c31f0d602c03c92c61158d08379d))
+
+### 🔧 Maintenance
+
+- v1.46.0 (#465) ([cf984dd](https://github.com/remi-deher/watchdeck/commit/cf984dd3683e112427d3968fc58818bbde6b707e))
+## 1.45.2 — 2026-09-25
+
+
+### test
+
+- lien Plex cherche dans les bibliotheques musicales ([fa4078c](https://github.com/remi-deher/watchdeck/commit/fa4078c98435384ba78abcc2c9b93939529d9fbd))
+
+### 🐛 Corrections
+
+- albums ouverts comme des films depuis la fiche artiste ([178e55d](https://github.com/remi-deher/watchdeck/commit/178e55d454193630c868701c38891baac7f7c82d))
+
+### 🔧 Maintenance
+
+- v1.45.2 (#461) ([83d1ae9](https://github.com/remi-deher/watchdeck/commit/83d1ae965650bb5bdbade7760d89ff8330f0d6ca))
+## 1.45.1 — 2026-09-25
+
+
+### test
+
+- media_type valide (show) pour PostgreSQL ([7c958d5](https://github.com/remi-deher/watchdeck/commit/7c958d54378a03cd5f93c715868ad7f6504bf48e))
+
+### 🐛 Corrections
+
+- affiches stockees sous forme d'URL du proxy ([e316ee0](https://github.com/remi-deher/watchdeck/commit/e316ee0c9f130468388d47cfc0b37b9a6e4d4d56))
+
+### 🔧 Maintenance
+
+- v1.45.1 (#456) ([7c16881](https://github.com/remi-deher/watchdeck/commit/7c16881d0b0f3c2c54ed8c6efd3d8db0b7f43ef0))
+## 1.45.0 — 2026-09-25
+
+
+### ✨ Nouveautés
+
+- theme clair/sombre et couleurs centralisees dans les tokens ([d1de468](https://github.com/remi-deher/watchdeck/commit/d1de468b354bc9ce673316700553ab00a7a312b2))
+- suite du theme -- couleurs, pastilles de langue, typo et arrondis ([6431026](https://github.com/remi-deher/watchdeck/commit/6431026e58251ac0414b452ce781c0d8f6b8d6b5))
+
+### 🐛 Corrections
+
+- lisibilite des cases a cocher et des controles Reka ([1de5ae0](https://github.com/remi-deher/watchdeck/commit/1de5ae070f37dc4db62a34d5b0de93019983a456))
+
+### 🔧 Maintenance
+
+- v1.45.0 (#452) ([0aba051](https://github.com/remi-deher/watchdeck/commit/0aba051673d75f08c27f552556fe63d3853c0543))
+## 1.44.1 — 2026-09-25
+
+
+### 🐛 Corrections
+
+- plus de libelle de demandeur pour les imports manuels et la synchro *arr ([fddbb53](https://github.com/remi-deher/watchdeck/commit/fddbb53e96c93005fda05b747b5e868b33c15643))
+
+### 🔧 Maintenance
+
+- v1.44.1 (#448) ([40170bf](https://github.com/remi-deher/watchdeck/commit/40170bf3b55ef021d2e5ddc0d416b528c27d5f2b))
+## 1.44.0 — 2026-09-25
+
+
+### ✨ Nouveautés
+
+- tire vers le bas, le panneau rentre dans la barre au doigt ([3f83943](https://github.com/remi-deher/watchdeck/commit/3f83943bfae38f1f7ddbcc9a03c50c30fcd5a97f))
+
+### 🔧 Maintenance
+
+- v1.44.0 (#444) ([ea14647](https://github.com/remi-deher/watchdeck/commit/ea14647a2caac6f149a951b1e5e65f39bda2e507))
+## 1.43.0 — 2026-09-25
+
+
+### ✨ Nouveautés
+
+- le panneau sort de la barre de recherche, et y rentre ([4b93d29](https://github.com/remi-deher/watchdeck/commit/4b93d292ccd26e31bae620ddaa604020699aab01))
+
+### 🔧 Maintenance
+
+- v1.43.0 (#440) ([a57bd31](https://github.com/remi-deher/watchdeck/commit/a57bd31cace603ab91f2ba0b3266ffa3c55f727a))
+## 1.42.0 — 2026-09-24
+
+
+### ✨ Nouveautés
+
+- affiches des medias et fiche en feuille depuis Ctrl+K ([7707179](https://github.com/remi-deher/watchdeck/commit/7707179a8050e29754664b957ac4e59518794765))
+- fleches gauche/droite sur les affiches, en-tete masque, sans doublons ([11e6f49](https://github.com/remi-deher/watchdeck/commit/11e6f49cae57c65be502cc48800a69f02254edf6))
+- un seul panneau, qui sort de la barre de recherche ([d385cf6](https://github.com/remi-deher/watchdeck/commit/d385cf66d18d953389c258f8cdb3693a25d60dc3))
+- puces des filtres actifs en tete du panneau ([382ce5d](https://github.com/remi-deher/watchdeck/commit/382ce5d078c51b689638207b0c6645778d82c102))
+
+### 🐛 Corrections
+
+- affiches Plex rafraichies, fond du hero net, statut « Transmise » ([a7e1107](https://github.com/remi-deher/watchdeck/commit/a7e1107c71c72cf77328a23c30137d683d2c9609))
+- barre de recherche de l'Accueil a la meme taille qu'ailleurs ([a2915ea](https://github.com/remi-deher/watchdeck/commit/a2915eaf9cae00647fd97f0f137fec2aed146aed))
+- boucle de rendu des puces, et tests e2e de la palette ([5ee47ef](https://github.com/remi-deher/watchdeck/commit/5ee47efeb33d912e37cff8ef41845216b9bbc109))
+
+### 🔧 Maintenance
+
+- v1.42.0 (#436) ([af5d2b5](https://github.com/remi-deher/watchdeck/commit/af5d2b585f6916c78fdd0ee694fd55abd3855906))
+## 1.41.0 — 2026-09-24
+
+
+### ✨ Nouveautés
+
+- tri par colonne de l'historique des lectures et des colonnes qualité, audio, sous-titres de l'inventaire ([7751596](https://github.com/remi-deher/watchdeck/commit/7751596959987465f16cb7490272bc91adedced5))
+- tri par colonne des utilisateurs, de l'historique des envois, de l'historique d'acquisition et des journaux ([7e0302a](https://github.com/remi-deher/watchdeck/commit/7e0302a48c8b9a3a7c0f996712b4b68d29d4ab5a))
+
+### 🐛 Corrections
+
+- heures des sessions Plex en heure locale ; tampon et vitesse du transcodage en direct ([8155d0e](https://github.com/remi-deher/watchdeck/commit/8155d0ea37d9017bfa9da7e6149e8ab38c9c77be))
+- formatage ruff et typage mypy ([cc27d0e](https://github.com/remi-deher/watchdeck/commit/cc27d0e0a90cf9fa2b63a98130abb20ae1bea93d))
+
+### 🔧 Maintenance
+
+- v1.41.0 (#432) ([c400e70](https://github.com/remi-deher/watchdeck/commit/c400e708120822f2e46b0ef82840a6f2d0944937))
+## 1.40.1 — 2026-09-24
+
+
+### 🐛 Corrections
+
+- l'affiche des fiches garde son format 2:3 sur telephone ([8376296](https://github.com/remi-deher/watchdeck/commit/83762967968ce9f4d81ef247f2fee63170110072))
+- grilles équilibrées, plus de bloc seul sur la dernière rangée ([8346233](https://github.com/remi-deher/watchdeck/commit/8346233420920ad46a91d87fc6464d23b9e42737))
+
+### 🔧 Maintenance
+
+- v1.40.1 (#428) ([4ab86e2](https://github.com/remi-deher/watchdeck/commit/4ab86e2273057f9ddce2d0a650c207ddf341211b))
+## 1.40.0 — 2026-09-24
+
+
+### ✨ Nouveautés
+
+- réglages (instances, clients, fournisseurs email, réglages VF) dans la feuille ; plus de croix ni d'infobulle Fermer à l'ouverture ([8e701f3](https://github.com/remi-deher/watchdeck/commit/8e701f3981771115f06a1bd9f10fb79b83bf1f0e))
+
+### 🔧 Maintenance
+
+- v1.40.0 (#423) ([9de1842](https://github.com/remi-deher/watchdeck/commit/9de1842a8ccde5579060307c94a5d9efbd02a77a))
+## 1.39.0 — 2026-09-24
+
+
+### test
+
+- couverture des fiches session et fichier analyse ; tri des imports ([0d2d1e9](https://github.com/remi-deher/watchdeck/commit/0d2d1e9d4e94eb29cd02f8235534bd403e9256fe))
+
+### ✨ Nouveautés
+
+- sessions de lecture et torrents s'ouvrent dans la feuille, avec leur adresse ([c6f5ebe](https://github.com/remi-deher/watchdeck/commit/c6f5ebef3e2538d476bc99cb633309e392de09ab))
+- utilisateurs et fichiers analyses dans la feuille ; suppression de DrawerShell ([28a472b](https://github.com/remi-deher/watchdeck/commit/28a472b7840a8afab8e251cd92d071df4f92a581))
+
+### 🔧 Maintenance
+
+- v1.39.0 (#420) ([4095207](https://github.com/remi-deher/watchdeck/commit/4095207edcf5505890cba873c4ba18f5fd8f98bd))
+## 1.38.2 — 2026-09-24
+
+
+### test
+
+- scrollIntoView absent de jsdom, requis par les listes Reka ([c094150](https://github.com/remi-deher/watchdeck/commit/c0941504c031be204aace7e80248cb019d8aa416))
+
+### ♻️ Refactoring
+
+- boutons harmonises sur UiButton et nettoyage du CSS global inutilise ([a5dd0e2](https://github.com/remi-deher/watchdeck/commit/a5dd0e2396d33674844a69c11fc0fd4628d568c9))
+- decoupe de TorrentClientsTable et DownloadsView en sous-composants et modules ([92dbba0](https://github.com/remi-deher/watchdeck/commit/92dbba0d59ecdc14194c0b2e7b5bf8fe4344d5df))
+- un seul systeme de filtres (groupes Reka, pastilles a exclusion, liste avec recherche) et echelle d'empilement des modales ([c579952](https://github.com/remi-deher/watchdeck/commit/c579952fdc1a82f8d09e454babfb9cf4a2ed4c6f))
+- cases, boutons radio, listes et menus du Markdown sur Reka UI ; suppression du code mort ([067cb28](https://github.com/remi-deher/watchdeck/commit/067cb28202d74317868fbec9886ff0ebb6a29edb))
+- blocs repliables sur Reka Collapsible, feuille de filtres qui garde la barre de recherche ([4509708](https://github.com/remi-deher/watchdeck/commit/45097080233483ec5203e7af7d13ed4e89cf3a6a))
+- palette de commandes sur Reka Listbox ([9460f1f](https://github.com/remi-deher/watchdeck/commit/9460f1f0859013f8d4f8f136fa72bf0c2b90cfe5))
+
+### 🐛 Corrections
+
+- Terminés affiche l'historique et les cartes de la file forment une grille ([93fca12](https://github.com/remi-deher/watchdeck/commit/93fca1293429659948233b3b27564a8b95b7ed90))
+
+### 🔧 Maintenance
+
+- v1.38.2 (#416) ([fe2887c](https://github.com/remi-deher/watchdeck/commit/fe2887c0e012b3d5a2732d80aba4c584cfabffcb))
+## 1.38.1 — 2026-09-24
+
+
+### ♻️ Refactoring
+
+- pastilles de filtre, menus et repliables sur Reka UI ([8eeff89](https://github.com/remi-deher/watchdeck/commit/8eeff89822184ef862aaa4bfcc40603d8ec2ff05))
+- champs numeriques, infobulles, progression, curseurs et avatar sur Reka UI ([e40de5a](https://github.com/remi-deher/watchdeck/commit/e40de5ae54c206260ee07d486b9a5985e98ef074))
+
+### 🔧 Maintenance
+
+- v1.38.1 (#412) ([70525e2](https://github.com/remi-deher/watchdeck/commit/70525e2c0c2b77f02b30e3fc3a50741ad9c4f52a))
+## 1.38.0 — 2026-09-24
+
+
+### ♻️ Refactoring
+
+- modales, tiroirs et feuilles sur Reka UI (lots 1-2) ([07b0f58](https://github.com/remi-deher/watchdeck/commit/07b0f58acb4177438b055a77598c03ee8163386e))
+- formulaires, notifications, confirmations et menus sur Reka UI (lots 3-4) ([db02bc8](https://github.com/remi-deher/watchdeck/commit/db02bc8bf860ef16a1ceb3f7f603142ee77ae98e))
+- tous les tableaux sur un UiDataTable commun (TanStack Table, lot 5) ([18f283f](https://github.com/remi-deher/watchdeck/commit/18f283f3dd3c1c06adf9a0f42566fffe24df4533))
+- onglets de page sur Reka Tabs (lot 6) ([209ea32](https://github.com/remi-deher/watchdeck/commit/209ea32cf9c438697f21d98586cb29f62321556a))
+
+### ✨ Nouveautés
+
+- animations simplifiees en CSS, stockage local et mode hors ligne ([6ff1329](https://github.com/remi-deher/watchdeck/commit/6ff13290d98b7a935c50ae15f122037d30043302))
+
+### 🔧 Maintenance
+
+- retirer PrimeVue (lot 7) ([5d51eec](https://github.com/remi-deher/watchdeck/commit/5d51eecd53f4372ddaaa29d48219b18ab817c241))
+- bump vite from 8.2.2 to 8.3.0 (#303) ([6bb9b0d](https://github.com/remi-deher/watchdeck/commit/6bb9b0d93f62150d9a508fc88d8469b69590e28e))
+- v1.38.0 (#408) ([dbabe5b](https://github.com/remi-deher/watchdeck/commit/dbabe5b19069136226cf1ecaebcd2ddc9e84c8e8))
+## 1.37.1 — 2026-09-23
+
+
+### 🐛 Corrections
+
+- fermeture de fiche animee et sans latence, bandeau Explorer en surface ([2cf71f6](https://github.com/remi-deher/watchdeck/commit/2cf71f653b6818acef80e9418972d58678fbc937))
+
+### 🔧 Maintenance
+
+- v1.37.1 (#403) ([cde214e](https://github.com/remi-deher/watchdeck/commit/cde214ec1964e69de69d5fb3b13ec6c4206b7595))
+## 1.37.0 — 2026-09-23
+
+
+### ⚡ Performance
+
+- ne plus reconstruire la page de fond a l'ouverture d'une fiche ([b07570b](https://github.com/remi-deher/watchdeck/commit/b07570b7edf19d99785625afadf3a71b20ccff9f))
+
+### ✨ Nouveautés
+
+- transitions et animations plus fluides, geste de fermeture des feuilles ([df2d84b](https://github.com/remi-deher/watchdeck/commit/df2d84b93ddd39ae3a43beb326dec01c5c98ae8d))
+
+### 🐛 Corrections
+
+- retablir la taille des icones (::size -> :size) ([8854806](https://github.com/remi-deher/watchdeck/commit/885480634393a4e2b1b07a2c8f69aefff3891a93))
+
+### 🔧 Maintenance
+
+- v1.37.0 (#400) ([8004272](https://github.com/remi-deher/watchdeck/commit/8004272c4fc4337ec1cea65e984dbaaab88c1922))
+## 1.36.0 — 2026-09-23
+
+
+### build
+
+- ne plus suivre la sortie de build du frontend (app/static/vue) ([1d54834](https://github.com/remi-deher/watchdeck/commit/1d54834f84318c9dda879f14caf6ee13980dd04b))
+
+### test
+
+- stabiliser VfSettingsModal face au chargement differe de Zod ([1fe8672](https://github.com/remi-deher/watchdeck/commit/1fe8672f38503cd9f4581b6f220d9f34c4b1c58e))
+- parcours e2e de la page Ameliorations VF avant decoupage ([e3360ce](https://github.com/remi-deher/watchdeck/commit/e3360ceb2615ab4d70858523c3392759328bde30))
+- retour de fiche au-dela de la premiere page de la mediatheque ([0964950](https://github.com/remi-deher/watchdeck/commit/09649506ee8c19f88b2325ac67551725446fb94d))
+- fournir QueryClient a la modale VF ([f14f727](https://github.com/remi-deher/watchdeck/commit/f14f72742bf1d3e0e1e4c3451d9d20ad76305b6f))
+- fournir QueryClient a la carte Tautulli ([59272f1](https://github.com/remi-deher/watchdeck/commit/59272f1a63d9470af6f0d5ec2278fcffb8033d1e))
+
+### ♻️ Refactoring
+
+- adopter VueUse pour les utilitaires generiques ([0311388](https://github.com/remi-deher/watchdeck/commit/03113887e42c3053ac4a47ab2c771255ec84f2d3))
+- nettoyer les styles et decouper les cycles VF ([f7c88d4](https://github.com/remi-deher/watchdeck/commit/f7c88d453ebe8333167ad6202ea71900b53729aa))
+- purger le SCSS mort et confier les observateurs a VueUse ([c17d9c6](https://github.com/remi-deher/watchdeck/commit/c17d9c64452482a1d3f3c3be35081a45fea0d472))
+- centraliser les dates avec date-fns ([b5202b4](https://github.com/remi-deher/watchdeck/commit/b5202b4ef4dbf177857ccb857fdf80077d4d4815))
+- lire journaux, utilisateurs et analytique via TanStack Query ([f9be9f6](https://github.com/remi-deher/watchdeck/commit/f9be9f67acf9e3f5a08a0b39f57d8e752992f2f7))
+- notifications sur TanStack Query ([bab2836](https://github.com/remi-deher/watchdeck/commit/bab2836905026f6322c4d12cb2c40de77c345b30))
+- remplacer usePolling par useIntervalFn ([3ef706e](https://github.com/remi-deher/watchdeck/commit/3ef706e36a25ed4b8f4bf71af18089dc3ed3b539))
+- historique d'activite en useInfiniteQuery ([07b5943](https://github.com/remi-deher/watchdeck/commit/07b59432a1be53ae1bce7f336aa86942d1e9fb63))
+- file de telechargements sur TanStack Query ([80b8af1](https://github.com/remi-deher/watchdeck/commit/80b8af114cd967cb5358d65e26568f64f47b743f))
+- supprimer useFetchState, sans consommateur ([2d04225](https://github.com/remi-deher/watchdeck/commit/2d04225f5f46b8916fdf03ccaa218ddb040e2839))
+- extraire la grille mensuelle du calendrier ([0da8814](https://github.com/remi-deher/watchdeck/commit/0da88149564cb6d15dcc34cce8ac11a447f2871a))
+- classement et recherche catalogue de la palette ([9a7f06c](https://github.com/remi-deher/watchdeck/commit/9a7f06ce4758934580f07f923a2a8b17cec61a9d))
+- extraire libelles et types de la page Ameliorations VF ([7db0e4c](https://github.com/remi-deher/watchdeck/commit/7db0e4cad3b3e52960a0b2efe97c9aed8f6b15c4))
+- logique de la page Ameliorations VF en composables types ([fba7d7f](https://github.com/remi-deher/watchdeck/commit/fba7d7f609ed4d3a6e85f20c5cda4f026d13beb8))
+- extraire les panneaux Audit et Releases de la page VF ([74c6103](https://github.com/remi-deher/watchdeck/commit/74c6103b9b75ad3d6d1bdc5d3b5be475ef711079))
+- extraire les tiroirs de filtres de la page VF ([32a00ae](https://github.com/remi-deher/watchdeck/commit/32a00ae83bc56624c6347418e76edeaa3475a718))
+- VfUpgradesView en TypeScript ([878a58c](https://github.com/remi-deher/watchdeck/commit/878a58c0bffe8d97b069b521cdd23dda26c9b52c))
+- demandes du panneau Mes demandes dans le cache TanStack ([96de956](https://github.com/remi-deher/watchdeck/commit/96de956c19ec1b494d9ce470db52c8ac73879fb2))
+- catalogue d'Explorer en useInfiniteQuery ([181594f](https://github.com/remi-deher/watchdeck/commit/181594f4deb51e925497c67bed398b369d3b07b8))
+- mediatheque sur TanStack Query, fin de useLatestRequest ([5499ceb](https://github.com/remi-deher/watchdeck/commit/5499ceb629c77de0c049f16f54f6b238e04dc55d))
+- un seul mecanisme temps reel, fin de useRealtimeList ([57d2c3f](https://github.com/remi-deher/watchdeck/commit/57d2c3f2d3caf7532defd34c90902e5a584030cf))
+- mettre les fiches media en cache ([c48264b](https://github.com/remi-deher/watchdeck/commit/c48264b640285d6646df80d3be890698d2169390))
+- securiser les requetes du profil ([591d126](https://github.com/remi-deher/watchdeck/commit/591d126dceb29572f8e3118a54e5b42edb117aa4))
+- migrer les signalements vers TanStack Query ([7361efd](https://github.com/remi-deher/watchdeck/commit/7361efd0fb304d4c51b0dc040324d2dfceaf39b3))
+- migrer la table analytique vers PrimeVue ([9b4fe59](https://github.com/remi-deher/watchdeck/commit/9b4fe59113e8f60e98054731f24938452c004ff8))
+- mettre la sante des services en cache ([6b3aa60](https://github.com/remi-deher/watchdeck/commit/6b3aa601cdd899c1539b82ca7a300173753fcc71))
+- migrer les ressources CRUD vers TanStack Query ([28d03e0](https://github.com/remi-deher/watchdeck/commit/28d03e02e86905301c919b0c6de5763d301b47de))
+- migrer les webhooks vers TanStack Query ([56cfdbd](https://github.com/remi-deher/watchdeck/commit/56cfdbd540a34cf83cc7c3a6b03a3bdffa43390c))
+- migrer les conflits vers TanStack Query ([21d357a](https://github.com/remi-deher/watchdeck/commit/21d357a17e5c23144414476a06841f98ab84c11f))
+- migrer les motifs de message vers TanStack Query ([a93a9ba](https://github.com/remi-deher/watchdeck/commit/a93a9ba67361f78b12f9974b59ddd56e2e54e2f8))
+- migrer la maintenance vers TanStack Query ([75917d9](https://github.com/remi-deher/watchdeck/commit/75917d9dcce23077ce366f23414ef3396fc3a276))
+- migrer les taches planifiees vers TanStack Query ([587cdad](https://github.com/remi-deher/watchdeck/commit/587cdada92df955eb08b75b54fade384dd59f4f9))
+- migrer les outils de donnees vers TanStack Query ([aa3ce6f](https://github.com/remi-deher/watchdeck/commit/aa3ce6f1eeca2307dba408ff3d09ed935fabf7cc))
+- migrer les actions Tautulli vers TanStack Query ([e8a3306](https://github.com/remi-deher/watchdeck/commit/e8a33061c756d5d221dbdf443a0d83da219a322d))
+- migrer la bibliotheque vers TanStack Query ([777a973](https://github.com/remi-deher/watchdeck/commit/777a973224e96bd2bccf3ee977b01914dd784641))
+- migrer les upgrades VF vers TanStack Query ([684f4d2](https://github.com/remi-deher/watchdeck/commit/684f4d2c57ab8d394b47aaa2f99725c06050f475))
+- migrer les modeles email vers TanStack Query ([93d8a56](https://github.com/remi-deher/watchdeck/commit/93d8a56a0631ae54563e9b18c5f7cbeffa1c8bff))
+- migrer les actions des cartes CRUD ([024f5a6](https://github.com/remi-deher/watchdeck/commit/024f5a6c6721c2a8e08fb2fbd5480d1e52afc8f2))
+
+### ⚡ Performance
+
+- jouer l'apparition des affiches une seule fois ([d043fa6](https://github.com/remi-deher/watchdeck/commit/d043fa67dac8abe934f2eb55a07ec1c061f5f2d2))
+- virtualiser la grille de la mediatheque au-dela de 300 medias ([6f9b5e1](https://github.com/remi-deher/watchdeck/commit/6f9b5e1e2d7b5f410ba220e5ab84a3571ce12952))
+
+### ✨ Nouveautés
+
+- introduire PrimeVue sur les torrents ([efaed99](https://github.com/remi-deher/watchdeck/commit/efaed9914f06a759156b4c83f1b8fbc24817152b))
+- moderniser les requetes et graphiques ([cd0aebc](https://github.com/remi-deher/watchdeck/commit/cd0aebca80f3e0562805e10f9fd8b13a2ffe3a51))
+- structurer les reglages avec Pinia et Zod ([a951f2e](https://github.com/remi-deher/watchdeck/commit/a951f2e61eaf25c78b280ecc558c367b3af4e000))
+- migrate notifications to PrimeVue toast ([b2eb268](https://github.com/remi-deher/watchdeck/commit/b2eb26811281b3230546ddf4c2a068905c83c86e))
+- moderniser préférences contrôles et modales ([9c9cf02](https://github.com/remi-deher/watchdeck/commit/9c9cf02363e58ca6bdbbae74730fadfdacf1412a))
+
+### 🐛 Corrections
+
+- afficher les erreurs de validation et alleger Acquisition ([9f59d23](https://github.com/remi-deher/watchdeck/commit/9f59d233f5ea8909ee51e91c55727bb3fd2e8349))
+- masquer le jeton Plex des images ([608bc29](https://github.com/remi-deher/watchdeck/commit/608bc2984627e88e2349eb498e15a2964e1ae875))
+- stabiliser les tests instables et corriger leurs vraies causes ([df0313c](https://github.com/remi-deher/watchdeck/commit/df0313ca9117015edcd25a771321a3d71d0fca10))
+- typer les tailles d'icones, formater et couvrir le proxy d'images ([19d995f](https://github.com/remi-deher/watchdeck/commit/19d995fd2f5f2b027b13cae7843d6f6483d621ab))
+- typer les deux dernieres tailles d'icones Lucide ([5a3ae8e](https://github.com/remi-deher/watchdeck/commit/5a3ae8e75c4cebf07c896e7c7556642c34f1b52e))
+
+### 🔧 Maintenance
+
+- bump @lucide/vue from 1.43.0 to 1.47.0 (#353) ([255dba2](https://github.com/remi-deher/watchdeck/commit/255dba2a03697109f425a491089e6f5c013ea8ae))
+- bump vue-router from 5.3.0 to 5.3.1 (#215) ([a2780c6](https://github.com/remi-deher/watchdeck/commit/a2780c6d67509d224250e092b9acd83cfbd281a4))
+- v1.36.0 (#395) ([3b084a6](https://github.com/remi-deher/watchdeck/commit/3b084a642be6960bae660407f9b1036358f3371c))
+## 1.35.2 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- poser une poignee sur les feuilles, et cesser de faire clignoter Safari ([87482e7](https://github.com/remi-deher/watchdeck/commit/87482e72d16515beeb6e7a77a2ef956da7b7b2c6))
+
+### 🔧 Maintenance
+
+- v1.35.2 (#390) ([24b3b9e](https://github.com/remi-deher/watchdeck/commit/24b3b9e38f5b92bffecc53cd4a7c43ae67da6f74))
+## 1.35.1 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- ne plus perdre la chaine de requete, et animer la sortie de page ([55815bb](https://github.com/remi-deher/watchdeck/commit/55815bb3f07a51e55da0ac52f7b133a4eee673af))
+
+### 🔧 Maintenance
+
+- v1.35.1 (#387) ([e507638](https://github.com/remi-deher/watchdeck/commit/e5076389fbba9220592747c45a56e22aefbe32aa))
+## 1.35.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- ouvrir le media par-dessus la page, et non a sa place ([2489712](https://github.com/remi-deher/watchdeck/commit/24897127c6b389257d0731d623158bb040f0a534))
+- transporter l'affiche pour de vrai, et refermer la surface au doigt ([7dbad0a](https://github.com/remi-deher/watchdeck/commit/7dbad0ae3d44e73102c1179c0e2bc6a30ef8f32a))
+
+### 🔧 Maintenance
+
+- bump @types/node from 26.5.0 to 26.6.1 (#350) ([792f2b2](https://github.com/remi-deher/watchdeck/commit/792f2b23110b9cf621cfb42135941d14fd8b893e))
+- v1.35.0 (#382) ([fe5c41d](https://github.com/remi-deher/watchdeck/commit/fe5c41d3d9c7dc73ec88989452ab025620cc7de0))
+## 1.34.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- transporter l'affiche, composer les pages et rendre les feuilles tirables ([275fce3](https://github.com/remi-deher/watchdeck/commit/275fce3b22be10c189da2654a6edabd37666bfe7))
+
+### 🐛 Corrections
+
+- sortir la charpente de la cascade, et attendre le contenu de la feuille ([4b6716e](https://github.com/remi-deher/watchdeck/commit/4b6716ec49c6e4b949e7220d93c5904def1ac61a))
+
+### 🔧 Maintenance
+
+- v1.34.0 (#378) ([808ee43](https://github.com/remi-deher/watchdeck/commit/808ee4333db7c3e35cb7492de9a1154d6e11639c))
+## 1.33.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- distinguer le texte ecrit par un administrateur du texte automatique ([eb8d617](https://github.com/remi-deher/watchdeck/commit/eb8d617c9f88463ae8a22de97ba29f8a71bb3289))
+
+### 🐛 Corrections
+
+- rejouer le motif d'annulation dans l'apercu du journal ([62d0b82](https://github.com/remi-deher/watchdeck/commit/62d0b828c5464ab7822c92027b348a4ea5ac01d4))
+
+### 🔧 Maintenance
+
+- v1.33.0 (#374) ([b717cd8](https://github.com/remi-deher/watchdeck/commit/b717cd8745bb822bdcba3699323ec6a5a0dcb88f))
+## 1.32.1 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- ne plus emporter la surface qui vient de prendre la releve ([2320b8f](https://github.com/remi-deher/watchdeck/commit/2320b8f74903cd3255509e0687d548413821663a))
+
+### 🔧 Maintenance
+
+- v1.32.1 (#371) ([df6b1eb](https://github.com/remi-deher/watchdeck/commit/df6b1ebdae4be28425f14655090599fa01fa8a62))
+## 1.32.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- prevenir l'administrateur quand un demandeur retire sa demande ([e2beddc](https://github.com/remi-deher/watchdeck/commit/e2beddc5d3d8f016945fbfe144a83d81bd5c9691))
+
+### 🎨 Style
+
+- appliquer le formatage ruff ([eca0d9e](https://github.com/remi-deher/watchdeck/commit/eca0d9ee16b8304bf284f00d85f2667470d9ac4b))
+
+### 🔧 Maintenance
+
+- v1.32.0 (#366) ([50642f7](https://github.com/remi-deher/watchdeck/commit/50642f7f1faeafc2478910e4648864140bfe224b))
+## 1.31.3 — 2026-09-21
+
+
+### test
+
+- laisser la feuille de navigation s'ouvrir sur un serveur froid ([f1a1b42](https://github.com/remi-deher/watchdeck/commit/f1a1b42a12d5a133729b2a535870a88becbf5605))
+
+### 🐛 Corrections
+
+- ne plus annuler le filtre qu'on vient d'appliquer ([e0af5a9](https://github.com/remi-deher/watchdeck/commit/e0af5a926adda1247f2e0eefa232366208a4410f))
+- ne plus abandonner une action quand deux surfaces s'enchainent ([991c06b](https://github.com/remi-deher/watchdeck/commit/991c06bb05fb8feadd34ce4b0221fca17a958bbf))
+
+### 🔧 Maintenance
+
+- v1.31.3 (#362) ([bc2f4d2](https://github.com/remi-deher/watchdeck/commit/bc2f4d2c2656a1ab7aa86007ec19fef90aa53114))
+## 1.31.2 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- tenir la page derriere la feuille et replier les groupes a zero ([39db492](https://github.com/remi-deher/watchdeck/commit/39db492e95af3fcaf7ea8e3f218a78126e47fcc4))
+
+### 🔧 Maintenance
+
+- bump tzdata from 2026.3 to 2026.4 (#347) ([e684752](https://github.com/remi-deher/watchdeck/commit/e684752c415f671086dac82e840812ad11a77b62))
+- bump sqlalchemy from 2.0.52 to 2.0.54 (#349) ([7338ad8](https://github.com/remi-deher/watchdeck/commit/7338ad8651d5d6aaca409983f822de1db67bca8d))
+- bump alembic from 1.19.2 to 1.20.0 (#352) ([2e0f55a](https://github.com/remi-deher/watchdeck/commit/2e0f55a8b67f1dfc824ee8a999a1b48a4d5d12b5))
+- bump uvicorn from 0.52.4 to 0.53.0 (#351) ([2513b78](https://github.com/remi-deher/watchdeck/commit/2513b7809a5b2699fd002768af7854725fccfa21))
+- v1.31.2 (#358) ([220f55b](https://github.com/remi-deher/watchdeck/commit/220f55b30d22c95fe99e964ae2efb766133c645e))
+## 1.31.1 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- garder le defilement au chargement et servir les visuels en pleine definition ([10b15c4](https://github.com/remi-deher/watchdeck/commit/10b15c45eb1d0d18db45664e185ae7901cc0ac79))
+
+### 🔧 Maintenance
+
+- v1.31.1 (#345) ([1fcfcb4](https://github.com/remi-deher/watchdeck/commit/1fcfcb42201b1f911dcb3210db1aa97d10fb96b6))
+## 1.31.0 — 2026-09-21
+
+
+### ✨ Nouveautés
+
+- rendre le panneau de filtres lisible au doigt ([a9d7147](https://github.com/remi-deher/watchdeck/commit/a9d714755a9eb3a39b9e719709c831019d756e0e))
+- cercler la pile d'un même liseré et animer le dépli ([61f4820](https://github.com/remi-deher/watchdeck/commit/61f48203ea4f343a4c953b5fbf33d0941b46d607))
+
+### 🐛 Corrections
+
+- donner un bord droit au haut de la barre sous le panneau ([f99bc68](https://github.com/remi-deher/watchdeck/commit/f99bc687eb28ca20f23aab4c3938a5035abed1e9))
+
+### 🔧 Maintenance
+
+- v1.31.0 (#341) ([9df6d43](https://github.com/remi-deher/watchdeck/commit/9df6d43e4ff30548d8c991695c62ffbaa21ff791))
+## 1.30.1 — 2026-09-21
+
+
+### 🐛 Corrections
+
+- souder le bouton « Filtres » à la barre et laisser le dock au clavier ([ec95e3f](https://github.com/remi-deher/watchdeck/commit/ec95e3ff420904cd6ee81a236a0d285861f7bd87))
+
+### 🔧 Maintenance
+
+- v1.30.1 (#336) ([f5ada95](https://github.com/remi-deher/watchdeck/commit/f5ada9588d943ebe1b88e359d8c47243fbb1536b))
+## 1.30.0 — 2026-09-20
+
+
+### test
+
+- décrire la barre de recherche là où elle vit désormais ([6d742ab](https://github.com/remi-deher/watchdeck/commit/6d742ab194477d65ecfd9a559a34c86ec8cb411c))
+
+### ✨ Nouveautés
+
+- descendre la barre de recherche au pouce sur téléphone ([fc4ceb6](https://github.com/remi-deher/watchdeck/commit/fc4ceb6c7ef05aef52f77b2c0096a2039c0c64fe))
+
+### 🔧 Maintenance
+
+- v1.30.0 (#332) ([82c8614](https://github.com/remi-deher/watchdeck/commit/82c8614bd4a4fbec1d9b88f5e217f7b1ca99cba6))
+## 1.29.2 — 2026-09-20
+
+
+### test
+
+- aligner les parcours mobiles sur la navigation revue ([35bf9c4](https://github.com/remi-deher/watchdeck/commit/35bf9c4c3bbe934ffcf7899480d8ce18c0bc503c))
+
+### ♻️ Refactoring
+
+- refondre la modale « Associer / Importer » ([e07fd9c](https://github.com/remi-deher/watchdeck/commit/e07fd9c291b4996c8419484908041c39815f3529))
+- confier les sections au dock sur téléphone ([27795f8](https://github.com/remi-deher/watchdeck/commit/27795f880abc8837a6b712a7bd56a5a3e5437e29))
+
+### 🐛 Corrections
+
+- ne découvrir le bouton « Demander » qu'au premier appui ([7b700a9](https://github.com/remi-deher/watchdeck/commit/7b700a9a3301d1b108c68a32472636dee86f1ec1))
+
+### 🔧 Maintenance
+
+- v1.29.2 (#327) ([a25d3d6](https://github.com/remi-deher/watchdeck/commit/a25d3d61ebe7ceb84592fe4d7174b5a978d817ab))
+## 1.29.1 — 2026-09-14
+
+
+### 🐛 Corrections
+
+- séparer l'identité du compte de ses interrupteurs d'état ([1166e0c](https://github.com/remi-deher/watchdeck/commit/1166e0c5981c7cbdee4d848f250dcb7bc8a23a28))
+- rendre l'onglet « Comptes liés » lisible et hiérarchisé ([5555cc5](https://github.com/remi-deher/watchdeck/commit/5555cc51f68e3e6ed1cfcfd77649fba85d909a57))
+- nommer l'origine « api » pour ce qu'elle est ([4b21770](https://github.com/remi-deher/watchdeck/commit/4b21770375b60dbee1d8e5990f0809de0c671064))
+
+### 🔧 Maintenance
+
+- v1.29.1 (#323) ([37bd23d](https://github.com/remi-deher/watchdeck/commit/37bd23d15d2add93b7938298858b25390ae98609))
+## 1.29.0 — 2026-09-14
+
+
+### test
+
+- suivre le nouveau parcours de fusion des comptes ([376a5f0](https://github.com/remi-deher/watchdeck/commit/376a5f013121dc01d0fea780a7e0e5cec261f4f9))
+
+### ✨ Nouveautés
+
+- identité lisible, état actionnable et onglet « Comptes liés » ([0b8b1be](https://github.com/remi-deher/watchdeck/commit/0b8b1be71826c470c3354526845a68141700df81))
+
+### 🔧 Maintenance
+
+- sync main into dev ([6bccf2a](https://github.com/remi-deher/watchdeck/commit/6bccf2a7aefe47b328b070c11e71a7c4d0c503dd))
+- sync main into dev ([7a37b84](https://github.com/remi-deher/watchdeck/commit/7a37b8454d475e73c9fb15eff3993773cba3693e))
+- v1.29.0 (#317) ([3a32a62](https://github.com/remi-deher/watchdeck/commit/3a32a6278183f055931f464b2dbd3f1c15908081))
+## 1.28.2 — 2026-09-14
+
+
+### ⚡ Performance
+
+- une seule indexation Plex par scan au lieu d'une par groupe ([9941b64](https://github.com/remi-deher/watchdeck/commit/9941b64f898f379e10b24024b20d51798358c2ae))
+- ne plus recalculer en boucle ce qui ne change pas ([8263ca9](https://github.com/remi-deher/watchdeck/commit/8263ca9984515aa0fac421110eb7539b72b88bbd))
+
+### 🔧 Maintenance
+
+- v1.28.2 (#313) ([09b7b0b](https://github.com/remi-deher/watchdeck/commit/09b7b0b9a8e8fca3569bf22bb6e6ec66c75fd8ad))
+## 1.28.1 — 2026-09-14
+
+
+### ⚡ Performance
+
+- scan incrémental Plex et index bulk des bibliothèques ([89693f6](https://github.com/remi-deher/watchdeck/commit/89693f6b3602758320ee984f066c734d89e08254))
+
+### 🐛 Corrections
+
+- la barre du haut épouse son contenu au lieu d'une largeur fixe ([2de8fa7](https://github.com/remi-deher/watchdeck/commit/2de8fa74415b0f7f737f2c41713cd1c0bbf9d362))
+
+### 🔧 Maintenance
+
+- sync main into dev ([10d86d4](https://github.com/remi-deher/watchdeck/commit/10d86d4363102e1bc788d1e34bbe1d2b89c7ca50))
+- sync main into dev ([114abca](https://github.com/remi-deher/watchdeck/commit/114abca23dedb0316df9a35e4016bf69f2c46682))
+- bump @playwright/test from 1.62.1 to 1.63.0 (#300) ([dcdccaf](https://github.com/remi-deher/watchdeck/commit/dcdccafd1e32e557b0ad70c6faab5badfe09ab80))
+- bump psycopg2-binary from 2.9.12 to 2.9.13 (#301) ([e19dd30](https://github.com/remi-deher/watchdeck/commit/e19dd30960cea3bdc498d6f108b40ee06696e47d))
+- bump alembic from 1.19.1 to 1.19.2 (#302) ([4777544](https://github.com/remi-deher/watchdeck/commit/477754437b5779d15a1ba202c4686f448990a5f0))
+- bump cryptography from 50.0.0 to 50.0.1 (#202) ([4d23761](https://github.com/remi-deher/watchdeck/commit/4d2376185c78bc1d1038cae3fa1ba39046559af1))
+- v1.28.1 (#309) ([06f5400](https://github.com/remi-deher/watchdeck/commit/06f54005920595addac2431fe41ecf36301668e0))
+## 1.28.0 — 2026-09-14
+
+
+### ✨ Nouveautés
+
+- garde-fous techniques, cycle de vie autonome et barème VF gradué ([8cef58b](https://github.com/remi-deher/watchdeck/commit/8cef58be97b08486716c8fe39e4068606144a98a))
+
+### 🐛 Corrections
+
+- annotations mypy et formatage ruff du dossier alembic ([6b58394](https://github.com/remi-deher/watchdeck/commit/6b583940f3c717a4ce8989613640b11a33015502))
+
+### 🔧 Maintenance
+
+- v1.28.0 (#297) ([36d5fa8](https://github.com/remi-deher/watchdeck/commit/36d5fa8e2a9e7ba54c1dce99a0b7aed312af9db3))
+## 1.27.2 — 2026-09-13
+
+
+### 🐛 Corrections
+
+- supprimer le flou des barres fixes et le zoom à la saisie ([c4d4e89](https://github.com/remi-deher/watchdeck/commit/c4d4e8982990f484c2de75093b611d24c84f034f))
+
+### 🔧 Maintenance
+
+- v1.27.2 (#294) ([ddba476](https://github.com/remi-deher/watchdeck/commit/ddba476069cbc11e7e51f07e0f5e26e226c57d52))
+## 1.27.1 — 2026-09-13
+
+
+### 🐛 Corrections
+
+- effacer la rangée de sections avec la barre du haut ([0f0be6b](https://github.com/remi-deher/watchdeck/commit/0f0be6be1c9ff1b4fdee93d833d0840f295f2494))
+
+### 🔧 Maintenance
+
+- v1.27.1 (#289) ([492b6b3](https://github.com/remi-deher/watchdeck/commit/492b6b39ef19fb0efd3fdd5c4eb4c49b69c993ff))
+## 1.27.0 — 2026-09-13
+
+
+### test
+
+- couvrir le retour arrière VF et l'exclusion de la télémétrie des journaux ([1cd866c](https://github.com/remi-deher/watchdeck/commit/1cd866ce9269b334a697c1af0a1e3e36673c09e1))
+
+### ✨ Nouveautés
+
+- corriger les frictions relevées par l'audit UI/UX ([9e79ad1](https://github.com/remi-deher/watchdeck/commit/9e79ad155cfd56fd002e8f7736a89b489e59f052))
+
+### 🔧 Maintenance
+
+- v1.27.0 (#285) ([a3442ce](https://github.com/remi-deher/watchdeck/commit/a3442ce43a404fd79a010a75cf97dd09ecd88010))
+## 1.26.0 — 2026-09-10
+
+
+### ✨ Nouveautés
+
+- rendre la barre de recherche contextuelle à sa page ([6ce6a7b](https://github.com/remi-deher/watchdeck/commit/6ce6a7b254f025568f8d0f186f77f746f0456493))
+- nommer l'échappée vers la recherche globale ([0a62ca3](https://github.com/remi-deher/watchdeck/commit/0a62ca3dc1e83d425ec182c4bf148758637df3cd))
+
+### 🔧 Maintenance
+
+- v1.26.0 (#282) ([1a538b7](https://github.com/remi-deher/watchdeck/commit/1a538b742291eb815c5c54913b8e62fbe726006c))
+## 1.25.1 — 2026-09-10
+
+
+### test
+
+- verrouiller les deux causes de la perte de focus ([b9d6255](https://github.com/remi-deher/watchdeck/commit/b9d62552d08ea2db7a66ad1c4a75afb59b86069f))
+
+### 🔧 Maintenance
+
+- v1.25.1 (#278) ([723f9a1](https://github.com/remi-deher/watchdeck/commit/723f9a1d88aa1ee6bfa2056f44ea6e54fe8756b9))
+## 1.25.0 — 2026-09-09
+
+
+### ✨ Nouveautés
+
+- journaliser les annulations et réutiliser leurs motifs ([5a5859e](https://github.com/remi-deher/watchdeck/commit/5a5859e110fb9afbf5b5593c2c1937c9ddbff47e))
+- rapprocher automatiquement les imports bloqués, sous conditions strictes ([25c7d82](https://github.com/remi-deher/watchdeck/commit/25c7d82c5a19ed4e1706061c432ccabf79774052))
+
+### 🐛 Corrections
+
+- rendre la barre du haut à la recherche sur mobile ([549efa2](https://github.com/remi-deher/watchdeck/commit/549efa218a47430b02d80a83108a36a81d9d1e27))
+
+### 🔧 Maintenance
+
+- v1.25.0 (#272) ([f10dc36](https://github.com/remi-deher/watchdeck/commit/f10dc36863869e39fc31310f1794fcd8120f0e46))
+## 1.24.1 — 2026-09-09
+
+
+### test
+
+- couvrir l'action de maintenance et les replis de la réparation d'affiches ([939a2cf](https://github.com/remi-deher/watchdeck/commit/939a2cf883db37d44c58d1407e3b7ab5b54f19cc))
+
+### 🐛 Corrections
+
+- affiches expirées, et confirmations inatteignables derrière un tiroir ([19bcfd4](https://github.com/remi-deher/watchdeck/commit/19bcfd427199fcb727785ae314b7c60d1fa15851))
+
+### 🔧 Maintenance
+
+- v1.24.1 (#268) ([64c816a](https://github.com/remi-deher/watchdeck/commit/64c816a07a2a578c1f29dd23acd2618ac738d15b))
+## 1.24.0 — 2026-09-09
+
+
+### test
+
+- couvrir les filtres résolution et artiste ([4ba1ee7](https://github.com/remi-deher/watchdeck/commit/4ba1ee7c24ccf1b586321992211bfb4015449a8c))
+
+### ✨ Nouveautés
+
+- camemberts seuls, filtrage au clic, colonnes de tableau mutualisées ([66cfe0f](https://github.com/remi-deher/watchdeck/commit/66cfe0fb74d4ad9a9e4941c9155e326651adafb1))
+
+### 🐛 Corrections
+
+- résoudre les films que TMDB ignore, et dire au demandeur ce qui se passe ([7894103](https://github.com/remi-deher/watchdeck/commit/78941038f5c667e75a8b2f3b4e1b25f9b7dffc2e))
+
+### 🔧 Maintenance
+
+- v1.24.0 (#264) ([23e59f4](https://github.com/remi-deher/watchdeck/commit/23e59f475a62911cd27c84d64eaa14feea243f82))
+## 1.23.0 — 2026-09-09
+
+
+### ✨ Nouveautés
+
+- studios des séries, camembert, inventaire par spectateur, historique au défilement ([653d0fe](https://github.com/remi-deher/watchdeck/commit/653d0fead2095e9f752593ed8fd828c45a9854e7))
+
+### 🔧 Maintenance
+
+- v1.23.0 (#258) ([44504cc](https://github.com/remi-deher/watchdeck/commit/44504cc434e185b954aada5bb2631d465c58db02))
+## 1.22.1 — 2026-09-09
+
+
+### 🐛 Corrections
+
+- trier l'historique en base et le séparer du direct ([b060285](https://github.com/remi-deher/watchdeck/commit/b060285988e95d4feee67703358e740af3611bf1))
+
+### 🔧 Maintenance
+
+- v1.22.1 (#253) ([1806219](https://github.com/remi-deher/watchdeck/commit/180621979ad478d89607b504ad34dcf94d1968aa))
+## 1.22.0 — 2026-09-09
+
+
+### ✨ Nouveautés
+
+- éclater les paramètres, refondre Problèmes et étendre l'historique ([1eb0392](https://github.com/remi-deher/watchdeck/commit/1eb03924318a706a982bfdbafcd270ef2ef42175))
+
+### 🔧 Maintenance
+
+- v1.22.0 (#250) ([15c99a8](https://github.com/remi-deher/watchdeck/commit/15c99a8b348a26e6df5e3facaae65e3c2484d800))
+## 1.21.0 — 2026-09-09
+
+
+### test
+
+- follow the activity period and subnav relocation ([041b9bf](https://github.com/remi-deher/watchdeck/commit/041b9bf304120204f6bf608734b9febfbe0b7c08))
+
+### ✨ Nouveautés
+
+- enrich playback history from Tracearr and fix activity stats ([f8df2e3](https://github.com/remi-deher/watchdeck/commit/f8df2e3d5f72a5a2355f75d0f4b2cdcecabc98b6))
+
+### 🎨 Style
+
+- apply ruff format to the new playback modules ([e751470](https://github.com/remi-deher/watchdeck/commit/e751470c6c550bd365d13fd864e1024864a65120))
+
+### 🔧 Maintenance
+
+- v1.21.0 (#245) ([d7791fb](https://github.com/remi-deher/watchdeck/commit/d7791fba45def98cd58c6426f277e3cde9fe0a73))
+## 1.20.0 — 2026-09-09
+
+
+### test
+
+- follow dynamic shell offset ([ab4630f](https://github.com/remi-deher/watchdeck/commit/ab4630f9734df4fafdf043471cdf82d63fd27257))
+
+### ✨ Nouveautés
+
+- refine contextual navigation filters ([68a1004](https://github.com/remi-deher/watchdeck/commit/68a10047f75fad9e4880ab240c334e64c307386e))
+
+### 🐛 Corrections
+
+- preserve shell spacing and touch targets ([402059a](https://github.com/remi-deher/watchdeck/commit/402059ac2c754f779fc7fc9782436a3005876098))
+- unify request search and filters ([6207a4f](https://github.com/remi-deher/watchdeck/commit/6207a4f5554fe7998cf5d3db8e473d6e99b933ee))
+
+### 🔧 Maintenance
+
+- v1.20.0 (#239) ([6cd0734](https://github.com/remi-deher/watchdeck/commit/6cd073484f9000c18c0ea54d933ba0ecce88142d))
+## 1.19.0 — 2026-09-08
+
+
+### ✨ Nouveautés
+
+- add contextual floating search ([a06a042](https://github.com/remi-deher/watchdeck/commit/a06a042bec2e8461ffe5b7fe04dc88808e66eae3))
+
+### 🔧 Maintenance
+
+- v1.19.0 (#234) ([352099a](https://github.com/remi-deher/watchdeck/commit/352099aac2c0f6ef664bf334798a5109406a0809))
+## 1.18.0 — 2026-09-08
+
+
+### test
+
+- align coverage with navigation shell ([22cacf7](https://github.com/remi-deher/watchdeck/commit/22cacf7b970868e2f6323d4f3035a8657e754d09))
+
+### ✨ Nouveautés
+
+- simplify navigation shell and harden database pool ([ce95f5d](https://github.com/remi-deher/watchdeck/commit/ce95f5d7824686d14f6b671413712624ac4915b8))
+
+### 🐛 Corrections
+
+- type database engine options ([3f8cf06](https://github.com/remi-deher/watchdeck/commit/3f8cf066fb46678034fe7528663bbf2c758608d8))
+
+### 🔧 Maintenance
+
+- v1.18.0 (#230) ([d3a43de](https://github.com/remi-deher/watchdeck/commit/d3a43defbf4ef3129100cc66d275b5262ec71388))
+## 1.17.1 — 2026-09-08
+
+
+### test
+
+- cover notification delivery review endpoints ([e125405](https://github.com/remi-deher/watchdeck/commit/e1254056060d027b145dc8e750f4a8e4c2ac3be2))
+- exercise invalid pending recipient payload ([41f3fb8](https://github.com/remi-deher/watchdeck/commit/41f3fb8db8bf3d4b6734b474ad5fc78ec7ca351b))
+- cover Brevo idempotency responses ([85c5a4f](https://github.com/remi-deher/watchdeck/commit/85c5a4f9b3c455ef6c256189638b69c588386843))
+- cover durable delivery failure paths ([1aafe12](https://github.com/remi-deher/watchdeck/commit/1aafe12dbd6aa9168c3ccb096175e651701b752c))
+
+### 🐛 Corrections
+
+- harden notification delivery and vf reconciliation ([d1ec7cd](https://github.com/remi-deher/watchdeck/commit/d1ec7cd110ce55a6248cb59588f4f81d1d9946ce))
+- satisfy notification quality checks ([fff2634](https://github.com/remi-deher/watchdeck/commit/fff2634370970a50839b9ecfd09e445cf377860a))
+
+### 👷 CI/CD
+
+- retry transient Cosign signatures ([265fbcc](https://github.com/remi-deher/watchdeck/commit/265fbcc0a78a68dc93bce1b6a53c4968d1d3c8fe))
+
+### 🔧 Maintenance
+
+- v1.17.1 (#226) ([9249f6e](https://github.com/remi-deher/watchdeck/commit/9249f6e4025d8eafd8644fc9723509a48734c09f))
+## 1.17.0 — 2026-09-08
+
+
+### ✨ Nouveautés
+
+- unify the application shell around one navigation and search model ([0fba5f7](https://github.com/remi-deher/watchdeck/commit/0fba5f7d990a8b97dcc65e8922a64f06f4bcaaef))
+
+### 🔧 Maintenance
+
+- bump sass from 1.103.1 to 1.104.0 (#213) ([48a03e6](https://github.com/remi-deher/watchdeck/commit/48a03e62355ddc49fd5f73037aab0a1a3c1b48bb))
+- bump @lucide/vue from 1.33.0 to 1.41.0 (#214) ([50f5837](https://github.com/remi-deher/watchdeck/commit/50f5837186b34c8dfab09387eec239ae4286ed75))
+- bump @types/node from 26.4.0 to 26.4.1 (#216) ([00a5a38](https://github.com/remi-deher/watchdeck/commit/00a5a3837f6cfedf6d4460e00ae8462a4431a9d5))
+- bump vitest from 4.1.11 to 5.0.0 (#217) ([7e5b9cb](https://github.com/remi-deher/watchdeck/commit/7e5b9cbcc07aa5520d52e1c5dce10dd04dcbb059))
+- bump the github-actions group with 3 updates (#218) ([d86edf5](https://github.com/remi-deher/watchdeck/commit/d86edf5391c69d258dff7f771b67fd5b146c9b48))
+- v1.17.0 (#221) ([47b50c4](https://github.com/remi-deher/watchdeck/commit/47b50c4370b8ec8eab7eca49b495004fa3c05a8c))
+## 1.16.0 — 2026-09-07
+
+
+### test
+
+- align responsive checks with adaptive navigation ([c7037c0](https://github.com/remi-deher/watchdeck/commit/c7037c0806adf517915f335ca1be888bd225cb05))
+
+### ⚡ Performance
+
+- regroupe les chunks et corrige le releve de capacites en onglet masque ([c50baa1](https://github.com/remi-deher/watchdeck/commit/c50baa1d07dc7702a6db00bdc3aadc2787e0597e))
+
+### ✨ Nouveautés
+
+- redesign adaptive application navigation ([23f63e5](https://github.com/remi-deher/watchdeck/commit/23f63e562bc13a2e205e573683592d875980e96c))
+
+### 🔧 Maintenance
+
+- sync main into dev ([518be17](https://github.com/remi-deher/watchdeck/commit/518be1746b0f3f5b09d99fe96d10ebeabb206de0))
+- sync main into dev ([a5c36e1](https://github.com/remi-deher/watchdeck/commit/a5c36e13d0053f583070aab3f73d74908c8360e2))
+- sync main into dev ([0a2c155](https://github.com/remi-deher/watchdeck/commit/0a2c15535c679f2e20b0d2683669c5438148947a))
+- sync main into dev ([2d7b73a](https://github.com/remi-deher/watchdeck/commit/2d7b73a9a53edb67877109e45f7e2d03d26ec43c))
+- bump websockets from 17.0.1 to 17.1 (#200) ([df34d8e](https://github.com/remi-deher/watchdeck/commit/df34d8e1e424b609e0a1b35424760f845043e24a))
+- bump @types/node from 26.2.0 to 26.4.0 (#203) ([5e7b295](https://github.com/remi-deher/watchdeck/commit/5e7b295bf2502ee0b2314773800bbc1bb2695a07))
+- bump vue from 3.5.41 to 3.5.42 (#205) ([6fe130f](https://github.com/remi-deher/watchdeck/commit/6fe130f6d40f0dd656da2231c7fd46f57a955ff3))
+- bump @vue/test-utils from 2.4.11 to 2.5.0 (#201) ([a657bec](https://github.com/remi-deher/watchdeck/commit/a657bec10768e913c7d682089298bc3fbe3cbb0b))
+- bump vue-router from 5.2.0 to 5.3.0 (#206) ([0836d1d](https://github.com/remi-deher/watchdeck/commit/0836d1dba96951cd5446f330d206c52bec97642f))
+- bump the github-actions group with 3 updates (#207) ([4ab4c5c](https://github.com/remi-deher/watchdeck/commit/4ab4c5cf636d4a35107dc892eb8c3314cce41a35))
+- v1.16.0 (#210) ([7c8b2bf](https://github.com/remi-deher/watchdeck/commit/7c8b2bfdd5d8186bcdede308c3068d529d40c164))
+## 1.15.1 — 2026-08-30
+
+
+### test
+
+- align navigation tests with the new shell ([ad4cad5](https://github.com/remi-deher/watchdeck/commit/ad4cad5713729baa64b9625c91ff1837ca4aa557))
+
+### ♻️ Refactoring
+
+- make /calendar the single canonical calendar route ([a1d333e](https://github.com/remi-deher/watchdeck/commit/a1d333ebf08c712ede75715e4372603831e9b9e3))
+- extract UiDisclosure, defer two more dashboard sections ([5ed9bd0](https://github.com/remi-deher/watchdeck/commit/5ed9bd0e1b63cdf7fa3ce2ec461b04566bbf0680))
+- single navigation model of destinations and sections ([74a8eb3](https://github.com/remi-deher/watchdeck/commit/74a8eb3a32dc8512b44f27b60a4113b48a97c6aa))
+
+### ⚡ Performance
+
+- collapse generic genre rails, surface personalised content first ([16e1f9d](https://github.com/remi-deher/watchdeck/commit/16e1f9d321ada57a9ee10fe7cbd6a965a5ef9640))
+- regroupe les chunks et corrige le releve de capacites en onglet masque ([ccbf076](https://github.com/remi-deher/watchdeck/commit/ccbf07668b4f7f4d6a26e7571781628275fe022e))
+
+### ✨ Nouveautés
+
+- persistent global rail alongside the contextual space panel ([1770528](https://github.com/remi-deher/watchdeck/commit/17705283e04a853e75d69310bf0f52267ab7d42b))
+- stable mobile tab bar, space context moves to a subnav ([d077a4a](https://github.com/remi-deher/watchdeck/commit/d077a4aac41022921dcf7d34ce66fe67781a94ed))
+- command palette on Ctrl/Cmd+K ([0dac3c7](https://github.com/remi-deher/watchdeck/commit/0dac3c75ee4fa3764a201d6f828046468ba68828))
+- discoverable search button in the global rail ([6fb7f17](https://github.com/remi-deher/watchdeck/commit/6fb7f1742ec9fce2bb2eeaff6a3bdbf7742e9201))
+- AppNav puts the current area's sections in the bar, spaces behind the burger ([5557538](https://github.com/remi-deher/watchdeck/commit/55575383b4b93a586ac203f1301f435467ee287e))
+- replace the shell with one navigation, two orientations ([52708f7](https://github.com/remi-deher/watchdeck/commit/52708f73393040b156aaf1773caaa02be127eae0))
+
+### 🐛 Corrections
+
+- allow pinch-to-zoom by removing user-scalable=no ([2434b00](https://github.com/remi-deher/watchdeck/commit/2434b00c5ba86a3c6881c24186dfcdef2f410615))
+- define .sr-only globally to fix leaked visible text ([4988093](https://github.com/remi-deher/watchdeck/commit/498809329d202a9073f37a988d0f1662b47bb1e8))
+- add skip link to main content ([46a2638](https://github.com/remi-deher/watchdeck/commit/46a26385ba6597924862e0415ccb4a44a7b2d522))
+- restore scroll position on back/forward navigation ([acbb454](https://github.com/remi-deher/watchdeck/commit/acbb4544ea8890378c8a3232660878f0344bd574))
+- announce route changes to title, focus, and screen readers ([b8bf7ff](https://github.com/remi-deher/watchdeck/commit/b8bf7ffac2f17cf417e7976ecec8654f90d0c127))
+- close modals/sheets on back button instead of leaving the page ([25b01df](https://github.com/remi-deher/watchdeck/commit/25b01dfd79ac0c507834ce38e0cc176b597e2bcd))
+- make background content inert while a dialog is open ([07851f1](https://github.com/remi-deher/watchdeck/commit/07851f1fcff03c9ea179c30545ee598fa5291149))
+- keyboard/touch equivalents for column drag-and-drop, fix aria-sort ([253c092](https://github.com/remi-deher/watchdeck/commit/253c0922ff75b801d7d7463010786d66bb7e4e8e))
+- make horizontally-scrolling data tables keyboard-reachable ([f761782](https://github.com/remi-deher/watchdeck/commit/f7617822e63ccfb7c31b7d5cb90e806003d0170d))
+- surface update-available toast, fix manifest start_url ([e3f87d7](https://github.com/remi-deher/watchdeck/commit/e3f87d73ea0db7c21c1c1c6a4692a477f1701669))
+- collapse inactive branches in the downloads tree ([7647040](https://github.com/remi-deher/watchdeck/commit/7647040c3b9394270bc0fb9ab22466efe472d1bb))
+- clear orphan references before adding the media identity foreign keys ([e35de51](https://github.com/remi-deher/watchdeck/commit/e35de5106fab61b2007a0ab7051b8b8fa885d2f0))
+- drop the page title on mobile, make the search header opaque ([9bc91ed](https://github.com/remi-deher/watchdeck/commit/9bc91ed4762b04b955181de1b6caa95f16897662))
+- let poster rails scroll freely instead of snapping to each poster ([461ec69](https://github.com/remi-deher/watchdeck/commit/461ec6969666846c17043f829f10accdfe5e89d8))
+
+### 🔧 Maintenance
+
+- v1.15.1 (#197) ([f659176](https://github.com/remi-deher/watchdeck/commit/f6591769e340b99e3ca9437f9b4c09c8b8eab66c))
+## 1.15.0 — 2026-08-30
+
+
+### test
+
+- align navigation tests with the new shell ([379f344](https://github.com/remi-deher/watchdeck/commit/379f3444f0217a799ad52841b449093ff6a3dbfa))
+
+### ♻️ Refactoring
+
+- make /calendar the single canonical calendar route ([792a43e](https://github.com/remi-deher/watchdeck/commit/792a43e84a1607c98f2d4a7f62c56bd56321fba6))
+- extract UiDisclosure, defer two more dashboard sections ([a9d7dd0](https://github.com/remi-deher/watchdeck/commit/a9d7dd04b0c703f4e58b20e07a8b0e32695d6245))
+- single navigation model of destinations and sections ([0b78880](https://github.com/remi-deher/watchdeck/commit/0b78880b5430fa7befc4d725bd9e77a75ea5cbfd))
+
+### ⚡ Performance
+
+- collapse generic genre rails, surface personalised content first ([44c32d6](https://github.com/remi-deher/watchdeck/commit/44c32d6691dc127587309974524d815f9b6a25c3))
+
+### ✨ Nouveautés
+
+- persistent global rail alongside the contextual space panel ([9045113](https://github.com/remi-deher/watchdeck/commit/9045113e53221a7aeb0bbfe22d709edac3379bd3))
+- stable mobile tab bar, space context moves to a subnav ([45fbee1](https://github.com/remi-deher/watchdeck/commit/45fbee10a4ef4749d1f4d0349a9c19b94ff2dc25))
+- command palette on Ctrl/Cmd+K ([64a934b](https://github.com/remi-deher/watchdeck/commit/64a934b2ff4450919949e44b22063827fbfe8bb2))
+- discoverable search button in the global rail ([e99e1a6](https://github.com/remi-deher/watchdeck/commit/e99e1a6b29bcd128b5864876ed3529e7e3fd70b6))
+- AppNav puts the current area's sections in the bar, spaces behind the burger ([cc5ad3d](https://github.com/remi-deher/watchdeck/commit/cc5ad3d5b546e73b107f5c9c12ada7f1cc96262f))
+- replace the shell with one navigation, two orientations ([f895b27](https://github.com/remi-deher/watchdeck/commit/f895b27a5dbda18f8f71825a673b36c91458801a))
+
+### 🐛 Corrections
+
+- allow pinch-to-zoom by removing user-scalable=no ([874c680](https://github.com/remi-deher/watchdeck/commit/874c680211d12c8e7c1391dbf60b996df8f221c6))
+- define .sr-only globally to fix leaked visible text ([6d02b1b](https://github.com/remi-deher/watchdeck/commit/6d02b1b81f4bae3ea7a0dae72ec2388a0bb138de))
+- add skip link to main content ([e0cc33a](https://github.com/remi-deher/watchdeck/commit/e0cc33a5f3039e000d1c407c76c10c38dcb1ac50))
+- restore scroll position on back/forward navigation ([5507e83](https://github.com/remi-deher/watchdeck/commit/5507e83a618edc3fd6ca0f1d6eedd67d9b72f7e5))
+- announce route changes to title, focus, and screen readers ([18a33ab](https://github.com/remi-deher/watchdeck/commit/18a33ab6ef441c1294027518e2d985a36d06dcf1))
+- close modals/sheets on back button instead of leaving the page ([d00f4cb](https://github.com/remi-deher/watchdeck/commit/d00f4cb74cd43794e9559abb8e0782c9175ec1ba))
+- make background content inert while a dialog is open ([e33d576](https://github.com/remi-deher/watchdeck/commit/e33d5763a31a6085bd4a6a8752a32d4235ce1203))
+- keyboard/touch equivalents for column drag-and-drop, fix aria-sort ([ce2f369](https://github.com/remi-deher/watchdeck/commit/ce2f36955bd792b5eaf373554e80b7b05121af09))
+- make horizontally-scrolling data tables keyboard-reachable ([2adc1bc](https://github.com/remi-deher/watchdeck/commit/2adc1bc1979f6fef879b21b60c7f033816b5b927))
+- surface update-available toast, fix manifest start_url ([3dadd2a](https://github.com/remi-deher/watchdeck/commit/3dadd2ab555dfb391912927736c2bf40a55566e5))
+- collapse inactive branches in the downloads tree ([f755ce2](https://github.com/remi-deher/watchdeck/commit/f755ce2dfa53a72630453464b3cb97b63230e230))
+- clear orphan references before adding the media identity foreign keys ([fc2efd8](https://github.com/remi-deher/watchdeck/commit/fc2efd8fd8030044f0e98247f9049a5392112954))
+- drop the page title on mobile, make the search header opaque ([431a3af](https://github.com/remi-deher/watchdeck/commit/431a3affbd41649ff12a0c189d6083f77ce99ea3))
+- let poster rails scroll freely instead of snapping to each poster ([f9a1435](https://github.com/remi-deher/watchdeck/commit/f9a14353d6f316f049b87abc94cd84f5a2245e37))
+
+### 🔧 Maintenance
+
+- v1.15.0 (#192) ([a7f7243](https://github.com/remi-deher/watchdeck/commit/a7f72437bb6d775eb7b9fb475501bd6c3c7beab5))
+## 1.14.2 — 2026-08-27
+
+
+### test
+
+- cover VF upgrade identity-mismatch rejection (Wrong series) ([3f2e115](https://github.com/remi-deher/watchdeck/commit/3f2e11543318d9d2833db097e27cd18b5e816bbb))
+
+### 🐛 Corrections
+
+- reject VF upgrade suggestions Sonarr/Radarr flagged as wrong series/movie ([9b5a579](https://github.com/remi-deher/watchdeck/commit/9b5a57930d23cd9089516e2bcf664e93e2729eff))
+
+### 🔧 Maintenance
+
+- v1.14.2 (#188) ([248dddd](https://github.com/remi-deher/watchdeck/commit/248dddd8484ef2e98ea25b99fc4dbc2adc349a0f))
+## 1.14.1 — 2026-08-27
+
+
+### 🐛 Corrections
+
+- proxy metadata posters and gate VF scans ([4eba5f9](https://github.com/remi-deher/watchdeck/commit/4eba5f96f4668abe4857e845ddc30fe154523304))
+
+### 🔧 Maintenance
+
+- v1.14.1 (#183) ([cb0b62b](https://github.com/remi-deher/watchdeck/commit/cb0b62bed1e2692755f3cc84e58f15ba758426b6))
+## 1.14.0 — 2026-08-27
+
+
+### ✨ Nouveautés
+
+- import Plex users directly ([a2ffaa8](https://github.com/remi-deher/watchdeck/commit/a2ffaa8ea824877d35df3f48ed2bc1f1fee69a0a))
+
+### 🎨 Style
+
+- apply ruff formatting ([97212d8](https://github.com/remi-deher/watchdeck/commit/97212d815f26f2bf622d3fb977db94fba2a69357))
+
+### 🐛 Corrections
+
+- harden media identity consistency ([7c83052](https://github.com/remi-deher/watchdeck/commit/7c83052ee4be28acfa7613fbec9df103124ae471))
+- preserve requests during arr file moves ([f515ac6](https://github.com/remi-deher/watchdeck/commit/f515ac6f30e11024ee97208a9a8a4f24f0f3515e))
+- notify every media requester ([0e61a54](https://github.com/remi-deher/watchdeck/commit/0e61a54727e51aae4ef0a9554b6a21e20c30ffc0))
+- make CI checks database-safe ([1825e2f](https://github.com/remi-deher/watchdeck/commit/1825e2f2b1f70dda8ab35ae72b0a73507ee4dc78))
+- upgrade Alpine security packages ([2b57bfc](https://github.com/remi-deher/watchdeck/commit/2b57bfceccd45ca15d1662e54fa601bedb4102a9))
+
+### 🔧 Maintenance
+
+- bump uvicorn from 0.52.3 to 0.52.4 (#168) ([e1aafc3](https://github.com/remi-deher/watchdeck/commit/e1aafc3b3fdcb3240fc4e8a8ae26cad6111dbb94))
+- bump vitest from 4.1.10 to 4.1.11 (#170) ([558bf3b](https://github.com/remi-deher/watchdeck/commit/558bf3b06a03fa8a5f08b1c66309ff7cf68cb04a))
+- bump vite from 8.2.1 to 8.2.2 (#171) ([fe45138](https://github.com/remi-deher/watchdeck/commit/fe45138007d6a0ab8de770a83b4071aecb0dd71a))
+- bump @lucide/vue from 1.31.0 to 1.33.0 (#173) ([d24ed85](https://github.com/remi-deher/watchdeck/commit/d24ed8553a9c309e477a555ca2b4348e3f3c4c18))
+- bump vue-tsc from 3.3.9 to 3.3.11 (#172) ([4fdf75a](https://github.com/remi-deher/watchdeck/commit/4fdf75a641863ddd9ced840553317e8b6828e913))
+- bump sass from 1.102.0 to 1.103.1 (#174) ([8ab55cb](https://github.com/remi-deher/watchdeck/commit/8ab55cb5761fc6b0e86e51f6e28e7f03e9c16197))
+- bump the github-actions group with 4 updates (#175) ([274e36c](https://github.com/remi-deher/watchdeck/commit/274e36cffd617c951270e3de3f1394cae1866571))
+- v1.14.0 (#179) ([f777ac6](https://github.com/remi-deher/watchdeck/commit/f777ac642d1e90bdfb8acc289618784b85f8f7ef))
 ## 1.13.0 — 2026-08-21
 
 
 ### ✨ Nouveautés
 
 - ignorer une serie/film et onglet dedie ([6091f80](https://github.com/remi-deher/watchdeck/commit/6091f80a8fb863841688387d3265da8592d01be3))
+
+### 🔧 Maintenance
+
+- v1.13.0 (#166) ([99ff493](https://github.com/remi-deher/watchdeck/commit/99ff493a8032f332d0364e3802ebe49bbafd926c))
 ## 1.12.0 — 2026-08-21
 
 
@@ -181,6 +1615,7 @@
 
 ### ✨ Nouveautés
 
+- add interactive expandable playback timeline with segment log, ticks and ratios (#78) ([e9d7ca0](https://github.com/remi-deher/watchdeck/commit/e9d7ca05830fcfcbb731e76eaa9af5a68ec56451))
 - add interactive expandable playback timeline with segment log, ticks and ratios ([70fcee3](https://github.com/remi-deher/watchdeck/commit/70fcee313d524e9f4a1cc45422703860bd29ffe8))
 - synchronize release search and grab bidirectionally with vf upgrades ([81200ee](https://github.com/remi-deher/watchdeck/commit/81200eedb808bd57e29b4976cc95122917bc9e08))
 - alignement personnalisable des flux Plex par média, saison et épisode pour un ou plusieurs utilisateurs ([436d6da](https://github.com/remi-deher/watchdeck/commit/436d6da5b09aee8f9402f9da0ca32254da952380))
@@ -198,6 +1633,10 @@
 - graphique d'activité défilable horizontalement sur mobile ([e5dd4e5](https://github.com/remi-deher/watchdeck/commit/e5dd4e51b946276f4a95a7fe2cac7f2b54de88fc))
 - commit la session avant pg_restore pour éviter un auto-deadlock ([a9f1c7e](https://github.com/remi-deher/watchdeck/commit/a9f1c7e71ee4a19b31d58c1e8539ebbe07285306))
 - force un miroir apt fiable avant l'installation Playwright ([5a82f65](https://github.com/remi-deher/watchdeck/commit/5a82f65bb34c0dcba496648170407cbdac588301))
+
+### 👷 CI/CD
+
+- rend les promotions dev->test et test->main manuelles (workflow_dispatch) ([8501574](https://github.com/remi-deher/watchdeck/commit/85015748d77c9917ab460866c32bfc293be79a8c))
 
 ### 🔧 Maintenance
 
@@ -239,14 +1678,6 @@
 - v1.3.2 (#85) ([6e51310](https://github.com/remi-deher/watchdeck/commit/6e513108853446aeb6431dd3bf2c39f7fe2e6fd6))
 ## 1.3.1 — 2026-08-18
 
-
-### ✨ Nouveautés
-
-- add interactive expandable playback timeline with segment log, ticks and ratios (#78) ([e9d7ca0](https://github.com/remi-deher/watchdeck/commit/e9d7ca05830fcfcbb731e76eaa9af5a68ec56451))
-
-### 👷 CI/CD
-
-- rend les promotions dev->test et test->main manuelles (workflow_dispatch) ([8501574](https://github.com/remi-deher/watchdeck/commit/85015748d77c9917ab460866c32bfc293be79a8c))
 
 ### 🔧 Maintenance
 

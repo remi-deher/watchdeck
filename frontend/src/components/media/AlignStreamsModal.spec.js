@@ -1,3 +1,4 @@
+import { chooseOption, selectedValue, uiSelects } from '@/testing/uiSelect';
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AlignStreamsModal from './AlignStreamsModal.vue';
@@ -75,9 +76,9 @@ describe('AlignStreamsModal', () => {
     await flushPromises();
 
     // Switch to custom profiles
-    const customRadio = wrapper.find('.users-selection-section').findAll('input[type="radio"]').find(r => r.element.value === 'custom');
+    const customRadio = wrapper.find('.users-selection-section').findAll('[role="radio"]').find(r => r.text().includes('Profils spécifiques'));
     expect(customRadio).toBeDefined();
-    await customRadio.setValue(true);
+    await customRadio.trigger('click');
     await flushPromises();
 
     expect(wrapper.findAll('.user-check-item')).toHaveLength(2);
@@ -121,21 +122,20 @@ describe('AlignStreamsModal', () => {
     await flushPromises();
 
     // Passer en mode personnalisé
-    const modeRadios = wrapper.findAll('.align-mode-section input[type="radio"]');
-    const customModeRadio = modeRadios.find(r => r.element.value === 'custom');
+    const modeRadios = wrapper.findAll('.align-mode-section [role="radio"]');
+    const customModeRadio = modeRadios.find(r => r.text().includes('Personnalisé'));
     expect(customModeRadio).toBeDefined();
-    await customModeRadio.setValue(true);
+    await customModeRadio.trigger('click');
     await flushPromises();
 
     // Sélectionner la piste audio Japonaise (id: 3)
-    const audioSelect = wrapper.find('#custom-audio-select');
-    expect(audioSelect.exists()).toBe(true);
-    await audioSelect.setValue('3');
+    const [audioSelect, subSelect] = uiSelects(wrapper, '.align-mode-section');
+    expect(audioSelect.props('id')).toBe('custom-audio-select');
+    await chooseOption(audioSelect, '3');
 
     // Sélectionner le sous-titre Français complet (id: 11)
-    const subSelect = wrapper.find('#custom-sub-select');
-    expect(subSelect.exists()).toBe(true);
-    await subSelect.setValue('11');
+    expect(subSelect.props('id')).toBe('custom-sub-select');
+    await chooseOption(subSelect, '11');
 
     apiMock.mockResolvedValueOnce({ success: true, parts_processed: 1 });
     const applyBtn = wrapper.findAll('button.ui-button--primary').find(b => b.text().includes('Appliquer'));
