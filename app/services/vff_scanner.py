@@ -32,6 +32,7 @@ from .notification_orchestrator import (
     _resolve_movie_notify_language,
     _resolve_series_notify_language,
 )
+from .plex_servers import PlexServerConnection
 from .radarr import search_movie
 from .sonarr import get_episodes, get_season_aired_episode_counts, lookup_series, search_series
 
@@ -841,8 +842,12 @@ async def trigger_plex_library_refresh(
     arr_url: str | None = None,
     arr_api_key: str | None = None,
     cache_key: str | None = None,
+    plex_server_id: int | None = None,
 ) -> None:
     """Déclenche un scan Plex immédiat de la bibliothèque concernée par un import *arr.
+
+    `plex_server_id` : serveur Plex vers lequel cet *arr importe (réglage de l'instance) ;
+    absent, c'est le serveur principal qui est rafraîchi.
 
     Appelé depuis le webhook Sonarr/Radarr (Download/Import), au lieu d'attendre le
     calendrier de scan de Plex — réduit la latence avant que `has_vf` soit détectable par
@@ -864,7 +869,17 @@ async def trigger_plex_library_refresh(
 
     if not settings.vff_enabled or not settings.plex_url or not settings.plex_token:
         return
+    plex_url, plex_token = settings.plex_url, settings.plex_token
     libs = _parse_vff_libraries(settings)
+    if plex_server_id is not None:
+        from . import plex_servers
+
+        async with AsyncSessionLocal() as db:
+            conn = await plex_servers.connection_for(db, plex_server_id, settings)
+        if conn is None:
+            logger.info("Plex : serveur %s désactivé ou incomplet, scan non déclenché", plex_server_id)
+            return
+        plex_url, plex_token, libs = conn.url, conn.token, conn.libraries
     kinds = ("movie",) if media_type == "movie" else ("series",)
     names = [lib["name"] for lib in libs if lib["kind"] in kinds]
     if not names:
@@ -872,14 +887,16 @@ async def trigger_plex_library_refresh(
 
     now = now_utc()
     epoch = datetime.min.replace(tzinfo=timezone.utc)
-    due = [n for n in names if now - _last_section_refresh.get(n, epoch) > _SECTION_REFRESH_COOLDOWN]
+    # Anti-rebond par serveur : deux serveurs peuvent nommer pareil leur section Films.
+    prefix = f"{plex_server_id}:" if plex_server_id is not None else ""
+    due = [n for n in names if now - _last_section_refresh.get(prefix + n, epoch) > _SECTION_REFRESH_COOLDOWN]
     if not due:
         return
     for n in due:
-        _last_section_refresh[n] = now
+        _last_section_refresh[prefix + n] = now
 
     try:
-        await asyncio.to_thread(plex_finder.refresh_sections_blocking, settings.plex_url, settings.plex_token, due)
+        await asyncio.to_thread(plex_finder.refresh_sections_blocking, plex_url, plex_token, due)
         logger.info(f"Plex : scan déclenché pour {due}")
     except Exception as e:
         logger.warning(f"Déclenchement du scan Plex échoué : {e}")
@@ -1353,8 +1370,11 @@ async def _scan_candidate_group(
     known_episodes_by_id: dict[int, dict[int, set[int]]] | None = None,
     since=None,
     context: "_PlexScanContext | None" = None,
+    conn: "PlexServerConnection | None" = None,
 ) -> dict[int, dict[str, Any]]:
     """Scan Plex bloquant + persistance du détail épisode pour un groupe homogène.
+
+    `conn` : serveur Plex a interroger ; le principal (Settings) par defaut.
 
     `since` : filigrane transmis au scan incrémental (voir `_scan_vf_blocking`). Les
     médias que Plex ne signale pas comme modifiés sont écartés du résultat, de sorte que
@@ -1364,10 +1384,11 @@ async def _scan_candidate_group(
     if not candidates:
         return {}
     known = await _load_known_vf_episodes(db, source_type, [candidate["id"] for candidate in candidates])
+    plex_url, plex_token = (conn.url, conn.token) if conn is not None else (settings.plex_url, settings.plex_token)
     results = await asyncio.to_thread(
         _scan_vf_blocking,
-        settings.plex_url,
-        settings.plex_token,
+        plex_url,
+        plex_token,
         candidates,
         libs,
         known,
@@ -1401,6 +1422,74 @@ async def _scan_candidate_group(
     if any(result.get("episode_status") for result in results):
         await db.commit()
     return {result["id"]: result for result in results}
+
+
+async def _scan_library_by_server(
+    db: AsyncSession,
+    settings: Settings,
+    rows: list[LibraryItem],
+    libs: list[dict[str, Any]],
+    state: dict[str, Any],
+    now,
+    since,
+    scan_context: "_PlexScanContext | None",
+) -> dict[int, dict[str, Any]]:
+    """Analyse les medias de bibliotheque, chacun sur le serveur Plex qui le porte.
+
+    Le principal passe en premier, avec l'index et le filigrane du scan. Un media vu
+    seulement sur un serveur supplementaire est analyse sur celui-ci, sans filigrane :
+    le delta `updatedAt` est propre a chaque serveur et seul celui du principal est suivi.
+    """
+    from . import plex_servers
+
+    connections = await plex_servers.active_connections(db, settings)
+    by_id = {conn.id: conn for conn in connections}
+    located = await plex_servers.servers_by_item(db, [row.id for row in rows])
+    groups: dict[Optional[int], list[LibraryItem]] = {}
+    for row in rows:
+        conn = plex_servers.pick_item_connection(located.get(row.id), connections)
+        groups.setdefault(None if conn is None or conn.is_primary else conn.id, []).append(row)
+
+    results: dict[int, dict[str, Any]] = {}
+    for server_id in sorted(groups, key=lambda key: (key is not None, key or 0)):
+        group = groups[server_id]
+        payloads = [_vf_candidate_payload(row) for row in group]
+        known_episodes = await _known_episodes_for_show_rows(db, group)
+        if server_id is None:
+            results.update(
+                await _scan_candidate_group(
+                    db, settings, "library_item", payloads, libs, state, now, known_episodes, since, scan_context
+                )
+            )
+            continue
+        conn = by_id[server_id]
+        context = await asyncio.to_thread(
+            _build_scan_context_blocking,
+            conn.url,
+            conn.token,
+            conn.libraries,
+            None,
+            len(payloads) >= _INDEX_MIN_CANDIDATES,
+        )
+        if context is None:
+            logger.info("VFF : serveur Plex « %s » injoignable, %d média(s) reporté(s)", conn.name, len(payloads))
+            continue
+        results.update(
+            await _scan_candidate_group(
+                db,
+                settings,
+                "library_item",
+                payloads,
+                conn.libraries,
+                state,
+                now,
+                known_episodes,
+                None,
+                context,
+                conn=conn,
+            )
+        )
+    return results
 
 
 async def _run_vf_scan(
@@ -1645,19 +1734,7 @@ async def _run_vf_scan(
         # --- Médias de bibliothèque : état VF pour affichage (pas de notification) ---
         lib_updated = 0
         if lib_candidates:
-            known_episodes_by_lib_id = await _known_episodes_for_show_rows(db, lib_q)
-            lib_by_id = await _scan_candidate_group(
-                db,
-                settings,
-                "library_item",
-                lib_candidates,
-                libs,
-                state,
-                now,
-                known_episodes_by_lib_id,
-                since,
-                scan_context,
-            )
+            lib_by_id = await _scan_library_by_server(db, settings, lib_q, libs, state, now, since, scan_context)
             for li in lib_q:
                 res = lib_by_id.get(li.id)
                 if not res or not res.get("found"):

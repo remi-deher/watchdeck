@@ -508,3 +508,13 @@ async def test_get_releases_series_only_without_episodes_returns_empty_list():
 
     assert result == []
     assert not called, "Aucune requete ne doit partir vers l'indexeur sans saison a chercher"
+
+
+def test_queue_record_keeps_release_title():
+    """Le nom de la release sert a extraire la qualite et a nommer le fichier bloque."""
+    from app.services.sonarr import _normalize_queue_record
+
+    record = _normalize_queue_record({"id": 1, "title": "Show.S01E13.1080p-GRP"}, "Show — S01E13")
+
+    assert record["release_title"] == "Show.S01E13.1080p-GRP"
+    assert record["title"] == "Show — S01E13"

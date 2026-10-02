@@ -3,17 +3,20 @@ Point d'entrée de l'application FastAPI.
 
 Responsabilités :
 - Initialisation de la base de données (migrations Alembic + seed)
-- Démarrage et arrêt du scheduler APScheduler
+- Arrêt propre des services partagés (les tâches de fond tournent dans le worker ARQ)
 - Montage de tous les routers (pages HTML, API REST, webhook, import/export, templates email)
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import re
 import time
 from base64 import b64decode, b64encode
 from contextlib import asynccontextmanager
+from html.parser import HTMLParser
 from urllib.parse import quote
 
 import itsdangerous
@@ -38,8 +41,6 @@ from .database import init_db
 from .dependencies import require_admin
 from .error_handlers import register_domain_exception_handlers
 from .log_buffer import install as install_log_buffer
-from .notification_queue import start_worker as start_notif_worker
-from .notification_queue import stop_worker as stop_notif_worker
 from .routers import (
     activity_api,
     api_v1,
@@ -67,10 +68,12 @@ from .routers import (
     library_api,
     maintenance,
     manual_import_api,
+    me_api,
     message_reasons_api,
     metrics_api,
     notifications_api,
     onboarding_api,
+    plex_servers_api,
     prowlarr_api,
     requests_api,
     scheduled_tasks_api,
@@ -83,8 +86,8 @@ from .routers import (
     webhook,
     webhook_admin,
 )
-from .scheduler import scheduler, start_scheduler
 from .services.auth import get_secret_key
+from .services.session_security import cached_session_state
 from .utils import safe_redirect_path
 
 logging.basicConfig(
@@ -92,6 +95,23 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 install_log_buffer()
+
+
+async def _warn_if_database_superuser(db) -> None:
+    """Le role PostgreSQL de l'application n'a pas besoin d'etre superutilisateur ; s'il
+    l'est, une injection SQL ou une restauration piegee pourrait executer des commandes
+    sur le serveur de base de donnees (COPY ... PROGRAM). Voir docs/OPERATIONS.md."""
+    try:
+        is_super = (
+            await db.execute(sqlalchemy.text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user"))
+        ).scalar()
+    except Exception:
+        return
+    if is_super:
+        logging.warning(
+            "Le role PostgreSQL de Watchdeck est superutilisateur : creez un role dedie sans ce privilege "
+            "(voir docs/OPERATIONS.md, section Securite)."
+        )
 
 
 @asynccontextmanager
@@ -102,28 +122,12 @@ async def lifespan(app: FastAPI):
         logging.info("Running DB migrations...")
         await init_db()
         logging.info("DB OK. Starting API services...")
-
-        # Lire l'intervalle de polling depuis la DB avant de lancer le scheduler
         from .database import AsyncSessionLocal
-        from .models import Settings as _Settings
 
-        async with AsyncSessionLocal() as _db:
-            _s = (await _db.execute(select(_Settings))).scalars().first()
-            # Priorité à l'intervalle en secondes (polling sous la minute) ; repli sur les minutes.
-            if _s and _s.poll_interval_seconds:
-                _seconds = _s.poll_interval_seconds
-            elif _s and _s.poll_interval_minutes:
-                _seconds = _s.poll_interval_minutes * 60
-            else:
-                _seconds = 300
-        legacy_scheduler = os.getenv("ENABLE_LEGACY_SCHEDULER", "0").lower() in {"1", "true", "yes"}
-        if legacy_scheduler:
-            await start_scheduler(poll_seconds=_seconds)
-            await start_notif_worker()
-            logging.warning("Legacy APScheduler and notification worker enabled")
-        else:
-            logging.info("Background work delegated to ARQ")
-        app.state.legacy_scheduler = legacy_scheduler
+        async with AsyncSessionLocal() as db:
+            await _warn_if_database_superuser(db)
+
+        logging.info("Background work delegated to ARQ")
         from .services.arr_history import sync_all_enabled_instances
 
         app.state.arr_history_sync = asyncio.create_task(sync_all_enabled_instances())
@@ -132,10 +136,6 @@ async def lifespan(app: FastAPI):
         logging.exception("STARTUP FAILED")
         raise
     yield
-    if getattr(app.state, "legacy_scheduler", False):
-        logging.info("Shutting down legacy background services...")
-        await stop_notif_worker()
-        scheduler.shutdown()
     history_sync = getattr(app.state, "arr_history_sync", None)
     if history_sync and not history_sync.done():
         history_sync.cancel()
@@ -144,6 +144,81 @@ async def lifespan(app: FastAPI):
     await close_arr_clients()
     await cache.close()
     logging.info("Shutdown complete.")
+
+
+class _InlineScriptCollector(HTMLParser):
+    """Releve le contenu des scripts en ligne (sans attribut src) du shell SPA."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.scripts: list[str] = []
+        self._current: list[str] | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script" and not any(name == "src" for name, _ in attrs):
+            self._current = []
+
+    def handle_data(self, data):
+        if self._current is not None:
+            self._current.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script" and self._current is not None:
+            self.scripts.append("".join(self._current))
+            self._current = None
+
+
+def _inline_scripts(html: str) -> list[str]:
+    collector = _InlineScriptCollector()
+    collector.feed(html)
+    collector.close()
+    return collector.scripts
+
+
+_csp_cache: tuple[float, str] = (-1.0, "")
+
+
+def _content_security_policy() -> str:
+    """CSP de l'application. Le seul script en ligne autorise est celui du shell SPA
+    (pose du theme avant le premier rendu), par son empreinte : elle est recalculee
+    quand index.html change, a chaque build."""
+    global _csp_cache
+    index_path = os.path.join("app", "static", "vue", "index.html")
+    try:
+        mtime = os.path.getmtime(index_path)
+    except OSError:
+        mtime = 0.0
+    if _csp_cache[0] == mtime:
+        return _csp_cache[1]
+    script_hashes = []
+    if mtime:
+        try:
+            with open(index_path, encoding="utf-8") as f:
+                html = f.read()
+            for body in _inline_scripts(html):
+                digest = b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode("ascii")
+                script_hashes.append(f"'sha256-{digest}'")
+        except OSError:
+            pass
+    policy = "; ".join(
+        [
+            "default-src 'self'",
+            "script-src 'self' " + " ".join(script_hashes) if script_hashes else "script-src 'self'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' data: https://fonts.gstatic.com",
+            "img-src 'self' data: blob: https:",
+            "connect-src 'self'",
+            "frame-src 'self' https://www.openstreetmap.org",
+            "worker-src 'self'",
+            "manifest-src 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+        ]
+    )
+    _csp_cache = (mtime, policy)
+    return policy
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -155,10 +230,45 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Response-Time-Ms"] = f"{duration_ms:.1f}"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers.setdefault("Content-Security-Policy", _content_security_policy())
+        if _request_is_https(request.scope):
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
+
+
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+class CrossSiteRequestGuard:
+    """Refuse les requetes d'ecriture envoyees par un autre site avec le cookie de session.
+
+    `SameSite=Lax` ecarte deja les sites tiers, mais pas un sous-domaine frere (meme
+    « site » au sens du navigateur, ex. une autre application auto-hebergee sur
+    *.mondomaine). `Sec-Fetch-Site` est calcule par le navigateur lui-meme, sans
+    dependre des en-tetes Host reecrits par un reverse-proxy : seules les requetes
+    `same-origin` (ou saisies directement, `none`) peuvent modifier quelque chose. Les
+    clients sans cet en-tete (webhooks Sonarr/Radarr/Plex, scripts avec token API)
+    ne sont pas concernes.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope.get("method", "GET") not in _SAFE_METHODS:
+            headers = dict(scope.get("headers") or [])
+            fetch_site = headers.get(b"sec-fetch-site", b"").decode("latin-1").lower()
+            if fetch_site in ("cross-site", "same-site"):
+                response = Response(
+                    content='{"detail":"Requête intersite refusée"}',
+                    status_code=403,
+                    media_type="application/json",
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 class CacheControlledStaticFiles(StaticFiles):
@@ -175,70 +285,32 @@ class CacheControlledStaticFiles(StaticFiles):
         return response
 
 
-async def _sync_session_role(plex_user_id: str | None, username: str | None) -> dict | None:
-    """Corps synchrone de la résolution de rôle (exécuté hors event loop via to_thread)."""
-    from .database import AsyncSessionLocal
-    from .models import PlexUser, Settings
-
-    db = AsyncSessionLocal()
-    try:
-        if plex_user_id:
-            u = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == plex_user_id))).scalars().first()
-            if u:
-                return {"role": u.role or "user", "is_owner": u.role == "admin", "user_id": u.id}
-        else:
-            u = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == username))).scalars().first()
-            if u:
-                return {"role": u.role or "user", "is_owner": u.role == "admin", "user_id": u.id}
-            s = (await db.execute(select(Settings))).scalars().first()
-            if s and s.auth_username and username == s.auth_username:
-                return {"role": "admin", "is_owner": True}
-        return None
-    finally:
-        await db.close()
-
-
-_role_cache: dict[str, tuple[float, dict | None]] = {}
-_role_locks: dict[str, asyncio.Lock] = {}
-
-
-async def _cached_session_role(plex_user_id: str | None, username: str | None, ttl: int) -> dict | None:
-    """Dedoublonne aussi les rafales du premier affichage d'une page."""
-    key = plex_user_id or username or ""
-    cached = _role_cache.get(key)
-    now = time.monotonic()
-    if cached and now - cached[0] < ttl:
-        return cached[1]
-    lock = _role_locks.setdefault(key, asyncio.Lock())
-    async with lock:
-        cached = _role_cache.get(key)
-        now = time.monotonic()
-        if cached and now - cached[0] < ttl:
-            return cached[1]
-        value = await _sync_session_role(plex_user_id, username)
-        _role_cache[key] = (now, value)
-        return value
-
-
 class SessionSyncMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         # Les droits sont resynchronises periodiquement, pas sur chaque ressource/API.
         # Une page comme le dashboard emet plusieurs appels concurrents : auparavant,
         # chacun ajoutait inutilement une lecture PostgreSQL. Le delai reste court afin
-        # qu'une revocation de droits prenne effet rapidement.
+        # qu'une revocation de droits prenne effet rapidement : un compte supprime,
+        # desactive ou dont les sessions ont ete revoquees perd la sienne ici.
         now = int(time.time())
         ttl = max(5, int(os.getenv("SESSION_ROLE_SYNC_TTL_SECONDS", "60")))
         last_sync = int(request.session.get("role_synced_at") or 0)
         if request.session.get("authenticated") and now - last_sync >= ttl:
             try:
-                result = await _cached_session_role(
-                    request.session.get("plex_user_id"), request.session.get("username"), ttl
+                result = await cached_session_state(
+                    request.session.get("plex_user_id"),
+                    request.session.get("username"),
+                    request.session.get("user_id"),
+                    int(request.session.get("sv") or 0),
+                    ttl,
                 )
-                if result:
+                if result.get("_revoked"):
+                    request.session.clear()
+                else:
                     request.session.update(result)
                     request.session["role_synced_at"] = now
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Resynchronisation de session impossible", exc_info=True)
         return await call_next(request)
 
 
@@ -365,6 +437,9 @@ app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 app.add_middleware(SessionSyncMiddleware)
 # Middleware de session (doit être ajouté avant les routers)
 app.add_middleware(DynamicSecureSessionMiddleware, secret_key=get_secret_key())
+# Ajoute en dernier, donc execute en premier : une requete intersite est refusee avant
+# meme la lecture de la session.
+app.add_middleware(CrossSiteRequestGuard)
 
 # `app/static/vue` est la sortie de `npm run build`, qui n'est plus suivie par git : le
 # Dockerfile la reconstruit, et un clone neuf ne l'a pas encore. `check_dir=False` laisse
@@ -378,6 +453,7 @@ app.include_router(activity_api.router)
 app.include_router(settings_api.router)
 app.include_router(system_api.router)
 app.include_router(arr_instances_api.router)
+app.include_router(plex_servers_api.router)
 app.include_router(download_clients_api.router)
 app.include_router(prowlarr_api.router)
 app.include_router(arr_releases_api.router)
@@ -386,6 +462,7 @@ app.include_router(manual_import_api.router)
 app.include_router(downloads_api.router)
 app.include_router(users_api.router)
 app.include_router(security_api.router)
+app.include_router(me_api.router)
 app.include_router(requests_api.router)
 app.include_router(calendar_api.router)
 app.include_router(client_capabilities_api.router)
@@ -436,6 +513,8 @@ SPA_ROOTS = {
     "analytics",
     "vf-upgrades",
 }
+# Pages servies sans session : la SPA les rend avec une mise en page nue (sans navigation).
+SPA_PUBLIC_ROOTS = {"login", "setup", "privacy"}
 
 PWA_STATIC_FILES = {
     "manifest.webmanifest": ("app/static/vue/manifest.webmanifest", "application/manifest+json"),
@@ -510,14 +589,34 @@ async def redirect_legacy_wizard():
     return RedirectResponse("/settings?tab=connections", status_code=308)
 
 
+async def _public_page_redirect(request: Request, root: str, db: SqlSession) -> str | None:
+    """Aiguillage des pages publiques, fait côté serveur pour éviter un aller-retour de la SPA."""
+    if root == "privacy":
+        return None
+    from .routers.auth import setup_required
+
+    needs_setup = await setup_required(db)
+    if root == "setup":
+        return None if needs_setup else "/"
+    if needs_setup:
+        return "/setup"
+    if request.session.get("authenticated"):
+        return safe_redirect_path(request.query_params.get("next") or "/")
+    return None
+
+
 @app.get("/", include_in_schema=False)
 @app.get("/{spa_path:path}", include_in_schema=False)
-async def serve_spa(request: Request, spa_path: str = ""):
+async def serve_spa(request: Request, spa_path: str = "", db: SqlSession = Depends(get_db)):
     """Serve Vue history routes at the site root after every backend router."""
     root = spa_path.split("/", 1)[0] if spa_path else ""
-    if root and root not in SPA_ROOTS:
+    if root in SPA_PUBLIC_ROOTS and "/" not in spa_path.strip("/"):
+        destination = await _public_page_redirect(request, root, db)
+        if destination:
+            return RedirectResponse(destination, status_code=302)
+    elif root and root not in SPA_ROOTS:
         raise HTTPException(404, "Route introuvable")
-    if not request.session.get("authenticated"):
+    elif not request.session.get("authenticated"):
         if spa_path:
             next_value = quote(safe_redirect_path(f"/{spa_path}"), safe="")
             return RedirectResponse(f"/login?next={next_value}", status_code=302)

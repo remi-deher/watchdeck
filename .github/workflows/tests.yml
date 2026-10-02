@@ -91,12 +91,9 @@ jobs:
       - name: Run tests with coverage
         env:
           REDIS_URL: "redis://127.0.0.1:6379/0"
-          # Fait tourner la suite sur PostgreSQL, comme la production, au lieu de
-          # SQLite en memoire. SQLite n'applique pas les cles etrangeres, ignore les
-          # contraintes de longueur et n'a pas le modele de verrouillage de PostgreSQL :
-          # des defauts reels passaient inapercus (une ligne download_history orpheline
-          # etait acceptee, par exemple). Sans cette variable, la suite retombe sur
-          # SQLite pour rester lancable en local sans PostgreSQL.
+          # La suite tourne sur PostgreSQL, comme la production (seul moteur pris en
+          # charge). En local, la meme base jetable s'obtient avec
+          # `docker compose --profile test up -d postgres-test` (voir tests/async_support.py).
           TEST_DATABASE_URL: postgresql+psycopg2://watchdeck:ci-password@127.0.0.1:5432/watchdeck_test
         # Seuil global remonte de 60 a 65 : c'est la couverture reellement atteinte,
         # l'ecart precedent laissait de la marge pour regresser sans que rien n'alerte.
@@ -206,7 +203,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.changes.outputs.relevant == 'true'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Configure test secrets
         if: steps.changes.outputs.relevant == 'true'
@@ -221,7 +218,7 @@ jobs:
       # quasi instantane au lieu de tout recompiler.
       - name: Build image (cached)
         if: steps.changes.outputs.relevant == 'true'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           load: true
@@ -241,7 +238,7 @@ jobs:
 
       - name: Rebuild image (cached)
         if: steps.changes.outputs.relevant == 'true'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           load: true

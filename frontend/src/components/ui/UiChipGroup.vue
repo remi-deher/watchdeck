@@ -5,6 +5,10 @@
        celle de `.filter-badge` (voir `_layout.scss`). -->
   <ToggleGroupRoot
     class="ui-chip-group"
+    :class="{
+      'ui-chip-group--center': align === 'center',
+      'ui-chip-group--scroll': scroll,
+    }"
     :type="multiple || exclusion ? 'multiple' : 'single'"
     :model-value="cleCourante"
     :aria-label="label"
@@ -16,8 +20,14 @@
       :key="cle(index)"
       :value="cle(index)"
       :disabled="option.disabled"
-      :class="[itemClass, option.class, { active: estActive(option.value), excluded: estExclue(option.value) }]"
+      :class="[
+        itemClass,
+        option.class,
+        optionTone(option),
+        { active: estActive(option.value), excluded: estExclue(option.value) },
+      ]"
       :aria-label="estExclue(option.value) ? `${option.label}, exclu` : undefined"
+      :title="option.title"
     >
       <slot name="option" :option="option" :active="estActive(option.value)" :excluded="estExclue(option.value)">
         <component :is="option.icon" v-if="option.icon" aria-hidden="true" />
@@ -40,6 +50,8 @@ export interface UiChipOption<Value = string> {
   icon?: unknown;
   disabled?: boolean;
   class?: string | Record<string, boolean>;
+  tone?: 'accent' | 'danger' | 'warning' | 'info' | 'ok';
+  title?: string;
 }
 
 const props = withDefaults(defineProps<{
@@ -58,7 +70,20 @@ const props = withDefaults(defineProps<{
   /** Valeur « neutre » du filtre, quand ce n'est pas la premiere option (« Tous »).
    *  Sert a savoir si le filtre est actif, et a le retirer depuis sa puce. */
   defaultValue?: V;
-}>(), { multiple: false, exclusion: false, itemClass: 'filter-badge' });
+  /** Remonte aussi un nouvel appui sur la valeur active, pour laisser le parent
+   *  implementer un filtre desactivable sans doubler les evenements de clic. */
+  reselectable?: boolean;
+  align?: 'start' | 'center';
+  /** Garde une seule rangee defilable sur les petits ecrans. */
+  scroll?: boolean;
+}>(), {
+  multiple: false,
+  exclusion: false,
+  itemClass: 'filter-badge',
+  reselectable: false,
+  align: 'start',
+  scroll: false,
+});
 
 const emit = defineEmits<{ (e: 'update:modelValue', value: any): void }>();
 
@@ -106,6 +131,10 @@ const plusieurs = computed(() => props.multiple || props.exclusion);
 const valeurs = computed(() => (plusieurs.value ? (props.modelValue as V[]) || [] : []) as unknown[]);
 const exclue = (value: V) => `!${String(value)}`;
 
+function optionTone(option: UiChipOption<V>): string | undefined {
+  return option.tone && Number(option.count) > 0 ? `ui-chip--${option.tone}` : undefined;
+}
+
 function estActive(value: V): boolean {
   return plusieurs.value ? valeurs.value.includes(value) : props.modelValue === value;
 }
@@ -144,14 +173,50 @@ function choisir(next: unknown): void {
     emit('update:modelValue', ((next as unknown[]) || []).map(valeurDe));
     return;
   }
-  // En choix unique, retoucher la pastille active ne la « decoche » pas : un filtre a
-  // toujours une valeur, fut-ce « Tous ».
-  if (next === undefined || next === null || next === '') return;
+  // Reka renvoie une valeur vide au nouvel appui. Par defaut un filtre garde toujours
+  // sa valeur ; les rares filtres desactivables peuvent deleguer le choix au parent.
+  if (next === undefined || next === null || next === '') {
+    if (props.reselectable) emit('update:modelValue', props.modelValue);
+    return;
+  }
   emit('update:modelValue', valeurDe(next));
 }
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+
 .ui-chip-group { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.ui-chip-group--center { justify-content: center; }
 .ui-chip-group > :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ui-chip-group :deep(.count) {
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.ui-chip--accent :deep(svg) { color: var(--accent); }
+.ui-chip--accent :deep(.count) { background: var(--accent); color: var(--on-accent); }
+.ui-chip--danger :deep(svg) { color: var(--red-text); }
+.ui-chip--danger :deep(.count) { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red-text); }
+.ui-chip--warning :deep(svg) { color: var(--amber-text); }
+.ui-chip--info :deep(svg) { color: var(--blue-text); }
+.ui-chip--ok :deep(svg) { color: var(--green-text); }
+
+@include bp.until(tablet) {
+  .ui-chip-group > :deep(*) { min-height: var(--touch-target); }
+  .ui-chip-group--scroll {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .ui-chip-group--scroll::-webkit-scrollbar { display: none; }
+  .ui-chip-group--scroll > :deep(*) { flex: none; }
+}
 </style>

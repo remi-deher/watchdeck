@@ -137,6 +137,7 @@ function taskStateLabel(state?: string | null): string {
 
 import { computed } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { vfUpgradeMetricsQuery, vffScanStatusQuery, vffSyncStatusQuery } from '@/sharedQueries';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { RefreshCw, ScanSearch } from '@lucide/vue';
 import { api } from '@/api';
@@ -168,9 +169,9 @@ function toggleLibrary(name: string, plexType: string, checked: boolean): void {
 }
 function setLibraryKind(name: string, kind: string): void { const list = [...vffLibraryList.value]; const entry = list.find((x: any) => x.name === name); if (entry) entry.kind = kind; vffLibraryList.value = list; }
 
-const scanQuery = useQuery({ queryKey: ['settings', 'vff', 'scan-status'], queryFn: () => api<Record<string, any>>('/api/vff/scan-status').catch(() => ({})) });
-const syncQuery = useQuery({ queryKey: ['settings', 'vff', 'sync-status'], queryFn: () => api<Record<string, any>>('/api/vff/sync-status').catch(() => ({})) });
-const metricsQuery = useQuery({ queryKey: ['settings', 'vff', 'metrics'], queryFn: () => api<Record<string, any>>('/api/vf-upgrades/metrics').catch(() => ({})) });
+const scanQuery = useQuery(vffScanStatusQuery());
+const syncQuery = useQuery(vffSyncStatusQuery());
+const metricsQuery = useQuery(vfUpgradeMetricsQuery());
 const scanStatus = computed<Record<string, any>>(() => scanQuery.data.value || {});
 const syncStatus = computed<Record<string, any>>(() => syncQuery.data.value || {});
 const upgradeMetrics = computed<Record<string, any>>(() => metricsQuery.data.value || {});

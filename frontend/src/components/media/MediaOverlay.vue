@@ -50,6 +50,7 @@
 import { onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { DialogContent, DialogRoot, FocusScope } from 'reka-ui';
 import { useSheetGesture } from '@/composables/useSheetGesture';
+import { resumeAutoHide, suspendAutoHide } from '@/composables/useChromeAutoHide';
 import { retourNatif } from '@/composables/useRetourNatif';
 
 const props = withDefaults(
@@ -77,6 +78,7 @@ let positionFigee: number | null = null;
 function verrouiller(actif: boolean): void {
   const body = document.body;
   if (actif && positionFigee === null) {
+    suspendAutoHide();
     positionFigee = window.scrollY;
     document.documentElement.style.overflow = 'hidden';
     Object.assign(body.style, { position: 'fixed', top: `-${positionFigee}px`, left: '0', right: '0', width: '100%' });
@@ -86,6 +88,9 @@ function verrouiller(actif: boolean): void {
     document.documentElement.style.overflow = '';
     Object.assign(body.style, { position: '', top: '', left: '', right: '', width: '' });
     window.scrollTo(0, position);
+    // `scrollTo` met a jour la position sur-le-champ : le suivi repart de la, et
+    // l'evenement de defilement qui arrive ensuite ne voit aucun mouvement.
+    resumeAutoHide();
   }
 }
 watch(() => props.open, verrouiller, { immediate: true });
@@ -118,6 +123,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-overlay {
   position: fixed;
   inset: 0;
@@ -199,7 +205,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 /* En bas d'ecran, la feuille a d'emblee sa hauteur definitive, comme celles d'iOS : pendant
    le chargement elle montait courte, puis grandissait d'un coup a l'arrivee du contenu,
    en pleine animation. Au-dela, la carte centree garde une hauteur ajustee au contenu. */
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .media-overlay__panel { height: 94dvh; }
 }
 
@@ -212,7 +218,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 .media-overlay__scroll::-webkit-scrollbar { width: 0; height: 0; }
 
 
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   .media-overlay { align-items: center; }
   /* Carte centree : elle ne vient pas du bord, elle se pose. */
   .media-overlay-enter-from .media-overlay__frame,
@@ -231,31 +237,6 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
    l'un evoque une navigation qui n'a pas lieu. */
 .media-overlay :deep(.mdh-back) { display: none; }
 
-/* ─────────────────── L'en-tete prend toute la surface ───────────────────
- *
- * En pleine page, la banniere est une carte posee dans une colonne : elle garde ses
- * marges, son contour et ses coins arrondis. Ici elle EST le haut de la surface, du bord
- * gauche au bord droit, et c'est ce qui donne au transport quelque chose a franchir --
- * une vignette de 172 px qui devient une image pleine largeur. Sans cet ecart, l'affiche
- * se contentait de glisser de quelques centimetres sans changer de taille, et l'on ne
- * voyait rien.
- */
-.media-overlay :deep(.mdh-backdrop) {
-  min-height: min(46dvh, 420px);
-  margin-bottom: var(--space-5);
-  border: 0;
-  border-radius: 0;
-  background-position: center 18%;
-}
-
-/* Le degrade descend plus bas et plus fort : le titre et l'affiche se posent dessus, et
-   une image claire les rendait illisibles. */
-.media-overlay :deep(.mdh-scrim) {
-  background:
-    linear-gradient(to top, var(--bg) 2%, rgba(9, 9, 11, 0.92) 26%, rgba(9, 9, 11, 0.45) 62%, rgba(9, 9, 11, 0.1) 100%),
-    linear-gradient(to right, rgba(9, 9, 11, 0.7) 0%, rgba(9, 9, 11, 0.25) 55%, transparent 85%);
-}
-
 /* L'affiche grandit avec la surface : c'est elle qu'on a touchee, elle doit arriver
    quelque part de visiblement plus grand que la vignette dont elle vient.
    La taille passe par la largeur seule (`flex-basis: auto`) : sur telephone l'en-tete
@@ -266,8 +247,7 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
   width: 156px;
 }
 
-@media (min-width: 768px) {
-  .media-overlay :deep(.mdh-backdrop) { min-height: min(52dvh, 480px); }
+@include bp.from(tablet) {
   .media-overlay :deep(.mdh-poster:not(.is-music)) {
     width: 232px;
   }

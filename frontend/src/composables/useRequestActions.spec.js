@@ -7,6 +7,7 @@
 import { defineComponent, h, nextTick, ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ReasonPickerModal from '@/components/requests/ReasonPickerModal.vue';
@@ -65,7 +66,8 @@ describe('withdrawRequest', () => {
       },
     });
 
-    const wrapper = mount(Harness, { attachTo: document.body });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = mount(Harness, { attachTo: document.body, global: { plugins: [[VueQueryPlugin, { queryClient }]] } });
     await findButton(wrapper, 'Ouvrir').trigger('click');
     await nextTick();
 
@@ -89,5 +91,32 @@ describe('withdrawRequest', () => {
     const appels = api.mock.calls.map(([path]) => path);
     expect(appels).toContain('/api/requests/7/withdraw');
     wrapper.unmount();
+  });
+});
+
+describe('addRequester', () => {
+  it('cree une demande quand le media de bibliotheque n en a aucune', async () => {
+    const { api } = await import('@/api');
+    api.mockReset();
+    api.mockImplementation(async (path) => (path === '/api/library/4514/requesters' ? { request_id: 99 } : {}));
+    const askConfirm = vi.fn(async () => true);
+    const actions = useRequestActions({
+      detail: ref({ media: { library_id: 4514 }, requests: [] }),
+      newRequesterId: ref('bob'),
+      askConfirm,
+      reload: async () => {},
+      busy: ref(false),
+      error: ref(''),
+    });
+
+    await actions.addRequester();
+
+    const appels = api.mock.calls.map(([path, options]) => [path, options?.body]);
+    expect(appels).toContainEqual(['/api/library/4514/requesters', JSON.stringify({ plex_user_id: 'bob' })]);
+    expect(appels).toContainEqual([
+      '/api/requests/99/notify-user',
+      JSON.stringify({ plex_user_id: 'bob', events: ['available'] }),
+    ]);
+    expect(askConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Prévenir ce demandeur ?' }));
   });
 });

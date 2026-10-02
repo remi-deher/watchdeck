@@ -10,12 +10,13 @@
     <!-- Tout, Films, Series, Musique : des onglets dans la page, a toutes les largeurs.
          Les types etaient jusque-la caches dans le panneau de filtres ou dans les titres
          des rangees de l'accueil. -->
-    <AppSubnav
-      class="page-type-tabs"
-      :items="LIBRARY_TYPE_TABS"
-      :active="libraryTypeTabFor(route)"
-      aria-label="Types de médias"
-    />
+    <template #tabs>
+      <AppSubnav
+        :items="LIBRARY_TYPE_TABS"
+        :active="libraryTypeTabFor(route)"
+        aria-label="Types de médias"
+      />
+    </template>
 
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
@@ -56,6 +57,9 @@
             <UiChipGroup label="Époque" :options="[{ value: '', label: 'Toutes' }, ...([['2020s','2020+'],['2010s','Années 2010'],['2000s','Années 2000'],['90s','Années 90'],['80s','Années 80'],['70s','Années 70 et avant']]).map((d: any) => ({ value: d[0], label: d[1] }))]" v-model="decade" />
           </FilterGroup>
         </template>
+        <FilterGroup v-if="libraryServers.length > 1" label="Serveur">
+          <UiChipGroup label="Serveur" :options="[{ value: '', label: 'Tous' }, ...libraryServers.map((s: any) => ({ value: String(s.id), label: s.name }))]" v-model="plexServer" />
+        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
 
@@ -125,6 +129,7 @@
           :can-moderate="canModerate"
           :busy="busy"
           :selected="selectedIds.includes(item.id)"
+          :server-names="serverNamesFor(item)"
           @open="openDetail"
           @toggle-select="toggleSelect"
           @act="act"
@@ -233,7 +238,6 @@ const allRequestsRaw = ref<any[]>([]);
 const requestSummary = ref<Record<string, any>>({ total: 0, facets: { by_type: {}, sources: [], requesters: [] } });
 const orphans = ref<any[]>([]);
 const rawMetrics = ref<Record<string, any>>({});
-const users = ref<any[]>([]);
 const libraryOffset = ref(0);
 const hasMoreLibrary = ref(false);
 const selectedIds = ref<any[]>([]);
@@ -251,6 +255,8 @@ const items = computed(() => {
   const libraryItems = partialLibraryIds.size
     ? libraryItemsRaw.value.filter((x: any) => !partialLibraryIds.has(x.id))
     : libraryItemsRaw.value;
+  // Filtre par serveur : une demande pas encore dans Plex n'est sur aucun serveur.
+  if (plexServer.value) return libraryItems;
   return [...libraryItems, ...pendingRequests.value, ...orphans.value];
 });
 
@@ -279,6 +285,8 @@ const genre = ref(String(route.query.genre || (!hubRequested && savedFilters.gen
 const audioFormat = ref(String(route.query.audio_format || (!hubRequested && savedFilters.audioFormat) || ''));
 const releaseType = ref(String(route.query.release_type || (!hubRequested && savedFilters.releaseType) || ''));
 const hiRes = ref(String(route.query.hi_res || (!hubRequested && savedFilters.hiRes) || ''));
+// Serveur Plex (Bibliotheque multi-serveurs) : ne montre que les medias vus sur lui.
+const plexServer = ref(String(route.query.server || (!hubRequested && savedFilters.plexServer) || ''));
 // La sidebar Bibliotheque (spaces.js) derive son onglet actif uniquement de
 // route.query.type -- si on arrive sur /library sans query et que typeFilters a ete
 // restaure depuis sessionStorage, la query ne le reflete pas encore : l'onglet actif
@@ -298,7 +306,7 @@ const isMusicShape = computed(() =>
 const isMusicHub = computed(() => {
   if (!isMusicShape.value) return false;
   return !query.value.trim() && !decade.value && !genre.value && !audioFormat.value
-    && !releaseType.value && !hiRes.value && !sort.value;
+    && !releaseType.value && !hiRes.value && !sort.value && !plexServer.value;
 });
 // Cible d'un clic sur l'en-tete d'une rangee du hub -- meme mecanisme que
 // la sidebar Bibliotheque (spaces.js, libraryTarget) : clone la query active pour ne pas ecraser d'autres
@@ -324,7 +332,7 @@ const isMovieShowHub = computed(() => {
   return !query.value.trim()
     && statusFilters.value.length === 1 && statusFilters.value[0] === 'library'
     && !vf.value && !sourceFilters.value.length && !requesterFilters.value.length
-    && !sort.value && !decade.value && !genre.value;
+    && !sort.value && !decade.value && !genre.value && !plexServer.value;
 });
 
 // Hub "Tout" : meme principe pour la vue d'atterrissage sans type selectionne --
@@ -335,7 +343,7 @@ const isAllHub = computed(() => {
   return !query.value.trim()
     && statusFilters.value.length === 1 && statusFilters.value[0] === 'library'
     && !vf.value && !sourceFilters.value.length && !requesterFilters.value.length
-    && !sort.value && !decade.value && !genre.value;
+    && !sort.value && !decade.value && !genre.value && !plexServer.value;
 });
 
 function allRequestsTarget() {
@@ -396,6 +404,7 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
     audioFormat,
     releaseType,
     hiRes,
+    plexServer,
     query,
   },
   {
@@ -410,6 +419,7 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
     audioFormat: '',
     releaseType: '',
     hiRes: '',
+    plexServer: '',
     query: '',
   }
 );
@@ -432,6 +442,22 @@ const { recent: typeHubRecent, requests: typeHubRequests, genreRows: typeHubGenr
    l'eau -- aucune n'attend la plus lente, et changer de filtre annule celles en cours. */
 interface GridRequest { library: string; requests: string; metricsType: string; wantsLibrary: boolean }
 const queryClient = useQueryClient();
+
+// Serveurs Plex qui portent des medias : filtre et badge n'apparaissent qu'a partir de deux.
+const serversQuery = useQuery({
+  queryKey: ['library', 'servers'],
+  queryFn: ({ signal }) => api<any[]>('/api/library-servers', { signal }),
+  staleTime: 5 * 60 * 1000,
+});
+const libraryServers = computed<any[]>(() => (Array.isArray(serversQuery.data.value) ? serversQuery.data.value : []));
+/** Serveurs supplementaires d'un media (4K, famille...) : le principal va de soi. */
+function serverNamesFor(item: any): string[] {
+  const ids: number[] = item?.server_ids || [];
+  if (libraryServers.value.length < 2 || !ids.length) return [];
+  return libraryServers.value
+    .filter((server: any) => !server.is_primary && ids.includes(server.id))
+    .map((server: any) => server.name);
+}
 const gridRequest = ref<GridRequest | null>(null);
 function gridSnapshot(): GridRequest {
   const library = _libraryParams(0);
@@ -593,9 +619,15 @@ function toggleSelect(id: any): void {
   selectedIds.value = selectedIds.value.includes(id) ? selectedIds.value.filter(x => x !== id) : [...selectedIds.value, id];
 }
 
+/* Surveille l'adresse, pas l'objet `route.query`. Posee derriere une fiche, la page lit
+   la route de fond (RouteScope), puis la route courante a la fermeture : deux objets
+   differents pour la meme adresse. Chacun relancait ce watcher, qui reassignait les
+   filtres et rechargeait la grille -- la page se rafraichissait et remontait en haut a
+   chaque ouverture et fermeture de fiche. */
 watch(
-  () => route.query,
-  (value: any) => {
+  () => route.fullPath,
+  () => {
+    const value: any = route.query;
     const returningToHub = value.hub === '1';
     query.value = value.query || '';
     statusFilters.value = value.status
@@ -612,19 +644,20 @@ watch(
     audioFormat.value = value.audio_format || '';
     releaseType.value = value.release_type || '';
     hiRes.value = value.hi_res || '';
+    // Comme les sous-titres : le serveur choisi survit aux changements d'onglet de type.
+    if (value.server) plexServer.value = String(value.server);
     if (returningToHub) {
       sourceFilters.value = [];
       requesterFilters.value = [];
     }
     load();
   },
-  { deep: true },
 );
 // `vf` fait partie de la liste depuis que le filtre est applique en SQL : tant qu'il ne
 // servait qu'au filtrage client, le changer suffisait a recalculer `filtered` sans
 // rechargement -- ce n'est plus le cas.
 watch(
-  [statusFilters, typeFilters, sourceFilters, requesterFilters, vf, subtitle, decade, sort, genre, audioFormat, releaseType, hiRes],
+  [statusFilters, typeFilters, sourceFilters, requesterFilters, vf, subtitle, decade, sort, genre, audioFormat, releaseType, hiRes, plexServer],
   () => {
     sessionStorage.setItem('library.active_filters', JSON.stringify({
       query: query.value,
@@ -640,6 +673,7 @@ watch(
       audioFormat: audioFormat.value,
       releaseType: releaseType.value,
       hiRes: hiRes.value,
+      plexServer: plexServer.value,
     }));
     load();
   },
@@ -667,6 +701,7 @@ function _libraryParams(offset: number): URLSearchParams {
   if (audioFormat.value) p.set('audio_format', audioFormat.value);
   if (releaseType.value) p.set('release_type', releaseType.value);
   if (hiRes.value) p.set('hi_res', hiRes.value);
+  if (plexServer.value) p.set('server_id', plexServer.value);
   p.set('limit', String(PAGE_SIZE));
   p.set('offset', String(offset));
   return p;
@@ -768,14 +803,6 @@ async function loadMore(): Promise<void> {
   await libraryQuery.fetchNextPage();
 }
 
-async function loadUsers(): Promise<void> {
-  try {
-    users.value = await api('/api/users');
-  } catch (e) {
-    console.warn("Failed to load users for filter", e);
-  }
-}
-
 // Les quatre mutations ci-dessous partageaient le meme bloc busy/try/catch/finally,
 // recopie a l'identique -- voir useAsyncAction pour le detail des oublis que ce genre de
 // copie permettait. `run` restitue exactement le meme enchainement (confirmation eventuelle,
@@ -790,7 +817,7 @@ function deleteOrphan(row: any) {
   // d'irreversibilite ci-dessous : deux choix independants, pas un enchainement a fusionner.
   return run(() => {
     const deleteFiles = confirm(
-      `Supprimer aussi les fichiers deja telecharges pour "${row.title}" ?\n\n` +
+      `Supprimer aussi les fichiers déjà téléchargés pour "${row.title}" ?\n\n` +
       `Sans cela, ${source} arrete le suivi mais laisse les fichiers en place (toujours visibles dans Plex).`
     );
     return api(`/api/requests/orphans/${row.orphan_source}/${row.arr_instance_id}/${row.arr_id}?delete_files=${deleteFiles}`, { method: 'DELETE' });
@@ -835,11 +862,11 @@ onMounted(async () => {
   isAdmin.value = isAdminSession(session);
   canModerate.value = canModerateSession(session);
   await load();
-  loadUsers();
 });
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 /* Les styles filter-group / group-label / filter-badge viennent de FilterSidebar.vue */
 
 .music-hub {
@@ -869,7 +896,7 @@ onMounted(async () => {
   text-align: right;
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .music-hub { gap: var(--space-5); }
   .library-result-count { text-align: left; }
 }

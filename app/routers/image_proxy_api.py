@@ -18,7 +18,7 @@ from sqlalchemy.future import select
 
 from ..database import AsyncSessionLocal
 from ..dependencies import require_auth
-from ..models import ArrInstance, LibraryItem, MediaRequest, Settings
+from ..models import ArrInstance, LibraryItem, MediaRequest, PlexServer, Settings
 from ..utils import image_proxy_source, safe_error_message
 
 router = APIRouter(prefix="/api", tags=["misc"])
@@ -41,6 +41,9 @@ _STATIC_ALLOWED_IMAGE_HOSTS = {
     "images.plex.tv",
 }
 _allowed_hosts_cache: tuple[float, set[str]] = (0.0, set())
+# hote:port -> jeton des serveurs Plex supplementaires (voir models.PlexServer), rafraichi avec
+# l'allowlist : leurs affiches sont memorisees en URL complete, sans jeton.
+_secondary_plex_tokens: dict[str, str] = {}
 _allowed_hosts_lock = asyncio.Lock()
 
 
@@ -68,6 +71,18 @@ async def _allowed_image_hosts() -> set[str]:
                 host = urlparse(settings.plex_url).hostname
                 if host:
                     hosts.add(host.lower())
+            secondary_tokens: dict[str, str] = {}
+            servers = (await db.execute(select(PlexServer).filter(PlexServer.is_primary.is_(False)))).scalars().all()
+            for server in servers:
+                parsed_server = urlparse(server.url) if server.url else None
+                if parsed_server and parsed_server.hostname:
+                    hosts.add(parsed_server.hostname.lower())
+                    # Cle hote:port : deux serveurs sur la meme machine (ports differents)
+                    # ne doivent jamais recevoir le jeton l'un de l'autre.
+                    if server.token:
+                        secondary_tokens.setdefault(parsed_server.netloc.lower(), server.token)
+            _secondary_plex_tokens.clear()
+            _secondary_plex_tokens.update(secondary_tokens)
             instances = (await db.execute(select(ArrInstance))).scalars().all()
             for inst in instances:
                 if inst.url:
@@ -76,6 +91,22 @@ async def _allowed_image_hosts() -> set[str]:
                         hosts.add(host.lower())
         _allowed_hosts_cache = (time.monotonic(), hosts)
         return set(hosts)
+
+
+async def _tls_verify(host: str | None) -> bool:
+    """Le certificat est verifie pour tous les hotes publics (TMDB, Plex.tv...). Seuls
+    les serveurs du reseau local configures par l'admin (Plex, *arr), souvent en
+    certificat auto-signe, en sont dispenses -- et Plex seulement si l'admin a desactive
+    la verification dans ses reglages."""
+    host = (host or "").lower()
+    if not host or host in _STATIC_ALLOWED_IMAGE_HOSTS:
+        return True
+    async with AsyncSessionLocal() as db:
+        settings = (await db.execute(select(Settings))).scalars().first()
+    plex_host = (urlparse(settings.plex_url).hostname or "").lower() if settings and settings.plex_url else ""
+    if host == plex_host:
+        return bool(settings.plex_verify_ssl)
+    return False
 
 
 _IMAGE_CACHE_DIR = _os.path.join("data", "image_cache")
@@ -201,8 +232,13 @@ async def image_proxy(
     height: int | None = Query(None, ge=32, le=1600),
     quality: int = Query(82, ge=40, le=95),
     image_format: str = Query("original", alias="format", pattern="^(original|webp|avif)$"),
+    plex_server: int | None = Query(None, alias="server"),
 ):
-    """Proxy, redimensionne et met en cache les affiches de l'interface."""
+    """Proxy, redimensionne et met en cache les affiches de l'interface.
+
+    `server` designe un serveur Plex supplementaire pour un `plex_path` ; sans lui, le
+    chemin est lu sur le serveur principal.
+    """
     if bool(url) == bool(plex_path):
         raise HTTPException(400, "Une source d'image unique est requise")
 
@@ -222,7 +258,21 @@ async def image_proxy(
             raise HTTPException(400, "Chemin Plex invalide")
         async with AsyncSessionLocal() as db:
             settings = (await db.execute(select(Settings))).scalars().first()
-        if not settings or not settings.plex_url or not settings.plex_token:
+            secondary = None
+            if plex_server is not None:
+                secondary = (
+                    (
+                        await db.execute(
+                            select(PlexServer).filter(PlexServer.id == plex_server, PlexServer.is_primary.is_(False))
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+        if secondary is not None:
+            if not secondary.url or not secondary.token:
+                raise HTTPException(404, "Serveur Plex non configuré")
+        elif not settings or not settings.plex_url or not settings.plex_token:
             raise HTTPException(404, "Plex non configuré")
         safe_query = urlencode(
             [
@@ -232,9 +282,12 @@ async def image_proxy(
             ]
         )
         safe_path = urlunparse(("", "", parsed_path.path, "", safe_query, ""))
-        plex_base = settings.plex_url.rstrip("/")
+        base_url, base_token = (
+            (secondary.url, secondary.token) if secondary is not None else (settings.plex_url, settings.plex_token)
+        )
+        plex_base = base_url.rstrip("/")
         url = f"{plex_base}{safe_path}"
-        upstream_headers = {"X-Plex-Token": settings.plex_token}
+        upstream_headers = {"X-Plex-Token": base_token}
 
     parsed = urlparse(url or "")
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -246,13 +299,20 @@ async def image_proxy(
     embedded_token = next((value for key, value in query if key.lower() == "x-plex-token"), None)
     safe_query = urlencode([(key, value) for key, value in query if key.lower() != "x-plex-token"])
     safe_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, safe_query, ""))
+    secondary_token = _secondary_plex_tokens.get(parsed.netloc.lower())
     if embedded_token and not upstream_headers:
         async with AsyncSessionLocal() as db:
             settings = (await db.execute(select(Settings))).scalars().first()
         configured_host = urlparse(settings.plex_url).hostname if settings and settings.plex_url else None
-        if not settings or not settings.plex_token or parsed.hostname != configured_host:
+        if secondary_token:
+            upstream_headers = {"X-Plex-Token": secondary_token}
+        elif settings and settings.plex_token and parsed.hostname == configured_host:
+            upstream_headers = {"X-Plex-Token": settings.plex_token}
+        else:
             raise HTTPException(400, "URL Plex invalide")
-        upstream_headers = {"X-Plex-Token": settings.plex_token}
+    elif secondary_token and not upstream_headers:
+        # Affiche d'un serveur Plex supplementaire : jeton de ce serveur, envoye a lui seul.
+        upstream_headers = {"X-Plex-Token": secondary_token}
     variant_key = _variant_key(safe_url, width, height, quality, image_format)
 
     async def _serve_if_cached() -> Response | None:
@@ -286,7 +346,9 @@ async def image_proxy(
         source = await asyncio.to_thread(_read_image_cache, safe_url)
         if not source or time.time() - source[2] >= _IMAGE_CACHE_TTL:
             try:
-                async with httpx.AsyncClient(timeout=15, follow_redirects=False, verify=False) as client:
+                async with httpx.AsyncClient(
+                    timeout=15, follow_redirects=False, verify=await _tls_verify(parsed.hostname)
+                ) as client:
                     upstream = await client.get(safe_url, headers=upstream_headers)
                     if upstream.is_redirect:
                         # Plex redirige vers sa propre CDN (images.plex.tv, elle-meme
@@ -299,7 +361,10 @@ async def image_proxy(
                         redirect_target = upstream.headers.get("location", "")
                         redirect_host = (urlparse(redirect_target).hostname or "").lower()
                         if redirect_target and redirect_host in allowed_hosts:
-                            upstream = await client.get(redirect_target)
+                            async with httpx.AsyncClient(
+                                timeout=15, follow_redirects=False, verify=await _tls_verify(redirect_host)
+                            ) as redirect_client:
+                                upstream = await redirect_client.get(redirect_target)
                         else:
                             logger.warning(
                                 "Image proxy: redirection vers un hote non autorise refusee (%s -> %s)",
@@ -402,6 +467,7 @@ async def _proxy_stored_poster(
         height=height,
         quality=quality,
         image_format=image_format,
+        plex_server=None,
     )
 
 

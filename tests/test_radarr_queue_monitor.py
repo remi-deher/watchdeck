@@ -2,18 +2,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
-from app.models import ArrInstance, Base, MediaRequest, RadarrQueueObservation, Settings
+from app.models import ArrInstance, MediaRequest, RadarrQueueObservation, Settings
 from app.services.radarr_queue_monitor import monitor_radarr_queue
-
-
-async def _database():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    return engine, async_sessionmaker(engine, expire_on_commit=False)
 
 
 def _record(**changes):
@@ -34,8 +25,8 @@ def _record(**changes):
 
 
 @pytest.mark.asyncio
-async def test_monitor_confirms_block_on_second_minute_and_sends_admin_alert():
-    engine, session_factory = await _database()
+async def test_monitor_confirms_block_on_second_minute_and_sends_admin_alert(async_database):
+    engine, session_factory = async_database.engine, async_database.session_factory
     async with session_factory() as db:
         instance = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="secret", enabled=True)
         db.add(instance)
@@ -105,8 +96,8 @@ async def test_monitor_confirms_block_on_second_minute_and_sends_admin_alert():
 
 
 @pytest.mark.asyncio
-async def test_monitor_skips_alert_when_toggle_disabled():
-    engine, session_factory = await _database()
+async def test_monitor_skips_alert_when_toggle_disabled(async_database):
+    engine, session_factory = async_database.engine, async_database.session_factory
     async with session_factory() as db:
         instance = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="secret", enabled=True)
         db.add(instance)
@@ -140,8 +131,8 @@ async def test_monitor_skips_alert_when_toggle_disabled():
 
 
 @pytest.mark.asyncio
-async def test_monitor_does_not_resolve_observations_when_radarr_is_unreachable():
-    engine, session_factory = await _database()
+async def test_monitor_does_not_resolve_observations_when_radarr_is_unreachable(async_database):
+    engine, session_factory = async_database.engine, async_database.session_factory
     async with session_factory() as db:
         instance = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr", api_key="secret", enabled=True)
         db.add(instance)

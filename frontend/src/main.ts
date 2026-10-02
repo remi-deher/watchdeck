@@ -7,6 +7,7 @@ import { brancherStockage } from '@/offline/stockage';
 import { installerSortieDePage } from '@/composables/usePageExit';
 import { createQueryClient } from '@/queryClient';
 import { settingsPinia } from '@/settingsForm';
+import { suivreDernierePageApp } from '@/composables/lastAppPath';
 import App from './App.vue';
 // Import statique volontaire : App.vue monte deja la fiche par-dessus la page, elle
 // est donc dans le bundle initial et un import() ici ne decouperait rien.
@@ -58,6 +59,10 @@ if (import.meta.env.PROD) {
 }
 
 const routes: RouteRecordRaw[] = [
+  // Pages publiques : servies sans session et affichees hors du shell (voir App.vue).
+  { path: '/login', component: () => import('./views/auth/LoginView.vue'), meta: { title: 'Connexion', public: true } },
+  { path: '/setup', component: () => import('./views/auth/SetupView.vue'), meta: { title: 'Installation', public: true } },
+  { path: '/privacy', component: () => import('./views/auth/PrivacyView.vue'), meta: { title: 'Confidentialité', public: true } },
   { path: '/', redirect: '/discover' },
   { path: '/dashboard', component: DashboardView, meta: { title: 'Accueil' } },
   { path: '/discover/source/:kind/:id', component: DiscoverView, meta: { title: 'Explorer' } },
@@ -70,6 +75,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/discover/person/:id', component: PersonDetailView, meta: { title: 'Personne' } },
   { path: '/discover', component: DiscoverView, meta: { title: 'Explorer' } },
   { path: '/downloads', component: DownloadsView, meta: { title: 'Acquisition' } },
+  { path: '/downloads/acquisitions', component: () => import('@/views/AcquisitionsView.vue'), meta: { title: 'Acquisitions & conflits' } },
   { path: '/downloads/torrent/:clientId/:hash', component: () => import('@/views/TorrentDetailView.vue'), meta: { title: 'Torrent' } },
   { path: '/activity', component: ActivityView, meta: { title: 'Activité & Insights' } },
   { path: '/activity/session/:sessionId', component: () => import('@/views/SessionDetailView.vue'), meta: { title: 'Session de lecture' } },
@@ -81,18 +87,20 @@ const routes: RouteRecordRaw[] = [
   { path: '/vf-upgrades/settings', component: () => import('@/views/VfSettingsView.vue'), meta: { title: 'Réglages VF' } },
   { path: '/issues', component: IssuesView, meta: { title: 'Problèmes signalés' } },
   { path: '/calendar', component: CalendarView, meta: { title: 'Calendrier' } },
-  { path: '/users', component: UsersView, meta: { title: 'Administration' } },
+  { path: '/users', component: UsersView, meta: { title: 'Utilisateurs' } },
   { path: '/users/new', component: () => import('@/views/UserDetailView.vue'), meta: { title: 'Nouvel utilisateur' } },
   { path: '/users/:userId', component: () => import('@/views/UserDetailView.vue'), meta: { title: 'Utilisateur' } },
   { path: '/notifications', component: NotificationsView, meta: { title: 'Notifications' } },
   { path: '/logs', component: LogsView, meta: { title: 'Journaux' } },
   // Un chemin par section : partageable, marquable en favori, et coherent avec le reste
   // de l'application. Le parametre `?tab=` reste accepte et redirige (voir SettingsView).
-  { path: '/settings', component: SettingsView, meta: { title: 'Configuration' } },
+  { path: '/settings', component: SettingsView, meta: { title: 'Administration' } },
   { path: '/settings/resource/:kind/:id', component: () => import('@/views/SettingsResourceView.vue'), meta: { title: 'Réglage' } },
-  { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Services' } },
+  { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Connexions' } },
   { path: '/settings/automation/:section?', component: SettingsView, meta: { title: 'Automatisation' } },
-  { path: '/settings/operations/:section?', component: SettingsView, meta: { title: 'Exploitation' } },
+  // « Exploitation » a ete dissoute : les journaux sont dans le Systeme, les acquisitions
+  // et conflits dans l'Acquisition. L'ancien chemin circule encore dans les favoris.
+  { path: '/settings/operations/:section?', redirect: '/downloads/acquisitions' },
   { path: '/settings/notifications/:section?', component: SettingsView, meta: { title: 'Notifications' } },
   { path: '/settings/system/:section?', component: SettingsView, meta: { title: 'Système' } },
   { path: '/maintenance', redirect: '/settings/automation/scheduled-tasks' },
@@ -126,6 +134,7 @@ const router = createRouter({
 installerRetourDesSurfaces(router);
 installerRetourNatif(router);
 installerMemoireDesAdresses(router);
+suivreDernierePageApp(router);
 
 if (import.meta.env.PROD) {
   router.onError((error) => { void recoverFromStaleAssets(error); });
@@ -143,6 +152,7 @@ router.afterEach((to) => {
 
 const PLAIN_USER_ALLOWED_PREFIXES = ['/discover', '/calendar', '/profile', '/media', '/releases'];
 router.beforeEach(async (to) => {
+  if (to.meta.public) return true;
   const session = await loadSession();
   const originalPath = to.redirectedFrom?.path ?? to.path;
   if (originalPath === '/') {

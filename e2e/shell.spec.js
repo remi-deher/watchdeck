@@ -89,9 +89,12 @@ test("chaque page expose un h1 unique, et son titre reste visible dans le shell"
     // En compact le titre a quitte la barre : il ne servait qu'a rogner la largeur du
     // champ de recherche, et le dock du bas indique deja la destination courante. Au-dela,
     // le shell continue de l'afficher.
+    // Dans l'Administration, la barre laterale remplace le rail et porte le nom de
+    // l'espace a la place du titre de la page.
     if (page.viewportSize().width >= 768) {
+      const adminSpace = (await page.locator('.app-rail[data-space="admin"]').count()) > 0;
       const visibleTitle = page.viewportSize().width >= 1200
-        ? page.locator('.app-rail__brand-name')
+        ? page.locator(adminSpace ? '.app-rail__space-title' : '.app-rail__brand-name')
         : page.locator('.app-topbar__context');
       await expect(visibleTitle, `le shell doit afficher "${title}" sur ${path}`).toHaveText(title);
     }
@@ -649,8 +652,9 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
      largeur, mais un objet different de tout le reste de l'application. Il reprend le
      cadre de la banniere d'Explorer -- carte bordee dans la colonne -- et son image
      reste fixe : sur une page de consultation, une animation au survol distrait de la
-     lecture. La comparaison ligne a ligne avec la banniere est verifiee separement,
-     sur les sources (MediaDetailHero.spec). */
+     lecture. Pas de trait autour de l'image : le voile en dessine le bord, egal sur les
+     quatre cotes. La comparaison ligne a ligne avec la banniere est verifiee
+     separement, sur les sources (MediaDetailHero.spec). */
   await page.route("**/api/media/detail**", (route) =>
     route.fulfill({
       json: {
@@ -667,14 +671,15 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
     }),
   );
   await page.goto("/library/media/request/1");
-  const hero = page.locator(".mdh-backdrop");
+  // Le hero passe par le fond partage UiHeroBackdrop ; `.mdh-hero` reste propre a la fiche.
+  const hero = page.locator(".mdh-hero");
   await expect(hero).toBeVisible({ timeout: 15000 });
 
   const cadre = await hero.evaluate((node) => {
     const cs = getComputedStyle(node);
     return { bordure: cs.borderTopWidth, rayon: cs.borderTopLeftRadius, transform: cs.transform };
   });
-  expect(cadre.bordure).toBe("1px");
+  expect(cadre.bordure).toBe("0px");
   expect(cadre.rayon).not.toBe("0px");
   // Ni echelle permanente, ni reaction au survol.
   expect(cadre.transform).toBe("none");
@@ -700,13 +705,32 @@ test("les demandes n'exposent qu'un seul bouton de filtres", async ({ page }) =>
 
 test("la vue d'ensemble des parametres ouvre bien une section", async ({ page }) => {
   await page.goto("/settings");
-  const card = page.locator("main a, main button").filter({ hasText: /Configurer/i }).first();
+  // Sur grand ecran, la tuile « Connexions » ; sur telephone, l'entree du sommaire.
+  const card = page.locator("main a:visible").filter({ hasText: /Connexions/i }).first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
   await page.waitForTimeout(500);
-  // Chaque section des reglages a desormais son chemin propre : les groupes sont
-  // devenus des destinations du rail, et `?tab=` n'est plus qu'une redirection.
+  // Chaque section des reglages a son chemin propre, et `?tab=` n'est plus qu'une
+  // redirection.
   expect(new URL(page.url()).pathname).toMatch(/^\/settings\/.+/);
+});
+
+test("l'administration a sa propre barre, et une seule porte dans le rail", async ({ page }) => {
+  test.skip(page.viewportSize().width < 768, "en compact, l'administration passe par la feuille de navigation");
+  await page.goto("/discover");
+  const rail = page.locator(".app-rail");
+  await expect(rail).toHaveAttribute("data-space", "app");
+  // La navigation initiale doit avoir abouti : cliquer pendant qu'elle attend la session
+  // l'annulerait, et /discover ne serait jamais devenue la derniere page visitee.
+  await expect(rail.locator('a[href="/discover"][aria-current="page"]')).toHaveCount(1);
+  await expect(rail.locator('a[href="/settings/services"]')).toHaveCount(0);
+  await rail.locator('a[href="/settings"]').click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(rail).toHaveAttribute("data-space", "admin");
+  await expect(rail.locator('a[href="/settings/services"]')).toHaveCount(1);
+  await rail.getByRole("link", { name: "Retour à Watchdeck" }).click();
+  await expect(page).toHaveURL(/\/discover$/);
+  await expect(rail).toHaveAttribute("data-space", "app");
 });
 
 test("le niveau 2 s'efface et revient avec la barre du haut", async ({ page }) => {

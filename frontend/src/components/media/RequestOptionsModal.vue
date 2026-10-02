@@ -115,18 +115,19 @@ function toggleSeason(season: number, checked: boolean): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 :deep(.request-options-modal) { width: min(480px, calc(100% - 24px)); }
 .request-options-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .request-options-intro { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.5; }
 .request-options-grid label { display: grid; gap: var(--space-2); font-size: var(--fs-sm); font-weight: 600; }
-.season-options { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.season-options { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--panel-radius); }
 .season-options legend { padding: 0 var(--space-2); font-size: var(--fs-sm); font-weight: 700; }
 .season-toggle-all, .season-options-grid label { display: flex; align-items: center; gap: var(--space-2); }
 .season-options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); }
 .season-options small { color: var(--muted); line-height: 1.4; }
 .season-options input { accent-color: var(--accent); }
 .form-actions { justify-content: flex-end; margin-top: 1.5rem; }
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .request-options-grid { grid-template-columns: 1fr; }
 }
 </style>

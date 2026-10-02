@@ -122,27 +122,36 @@ async def onboarding_context(db: AsyncSession = Depends(get_db_async), _: None =
     }
 
 
+_PLEX_PIN_SESSION_KEY = "plex_onboarding_pin"
+
+
 @router.post("/plex/sso/pin")
 async def plex_sso_pin(request: Request, _: None = Depends(require_admin)):
-    """Crée une demande de PIN Plex SSO et retourne l'URL d'authentification."""
+    """Crée une demande de PIN Plex SSO et retourne l'URL d'authentification.
+
+    Le PIN est memorise dans la session : seul ce navigateur pourra en lire le token."""
     from ..services.plex_api import get_auth_pin
 
     try:
-        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-        host = request.headers.get("x-forwarded-host", request.url.netloc)
-        forward_url = f"{scheme}://{host}/settings"
-        return await get_auth_pin(forward_url=forward_url)
+        pin = await get_auth_pin()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur d'initialisation SSO Plex : {str(e)}")
+    request.session[_PLEX_PIN_SESSION_KEY] = {"id": pin.get("id"), "code": pin.get("code")}
+    return pin
 
 
 @router.get("/plex/sso/check/{pin_id}")
-async def plex_sso_check(pin_id: int, _: None = Depends(require_admin)):
+async def plex_sso_check(pin_id: int, request: Request, _: None = Depends(require_admin)):
     """Vérifie si le PIN Plex a été validé et retourne le token."""
     from ..services.plex_api import check_auth_pin
 
+    pending = request.session.get(_PLEX_PIN_SESSION_KEY) or {}
+    if pending.get("id") != pin_id:
+        raise HTTPException(status_code=403, detail="Ce code de connexion Plex n'a pas été demandé par ce navigateur.")
     try:
-        token = await check_auth_pin(pin_id)
-        return {"authenticated": bool(token), "token": token}
+        token = await check_auth_pin(pin_id, pending.get("code"))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    if token:
+        request.session.pop(_PLEX_PIN_SESSION_KEY, None)
+    return {"authenticated": bool(token), "token": token}

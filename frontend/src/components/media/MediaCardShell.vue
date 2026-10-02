@@ -8,9 +8,10 @@
     <div
       class="poster-wrap"
       :class="{ revealed, 'has-action': hasAction }"
+      @pointerdown.capture="notePointer"
       @click.capture="interceptFirstTap"
-      @mouseenter="reveal"
-      @mouseleave="conceal"
+      @mouseenter="revealOnHover"
+      @mouseleave="concealOnHover"
       @focusin="reveal"
       @focusout="conceal"
     >
@@ -69,11 +70,49 @@ function onRevealEnd(event: AnimationEvent): void {
  * l'utilisateur vers la fiche avant que l'action ait pu se montrer. Depuis le parent,
  * la capture precede toujours le lien.
  */
+/* Au doigt, les navigateurs simulent un survol et un focus avant le clic, et ceux-ci
+   revelent deja la carte : un test « revelee ? » au moment du clic ouvrait donc la fiche
+   au premier appui (Safari). A l'inverse, quand ce survol change la page, Safari comme
+   Chromium peuvent *supprimer* le clic du premier appui : un drapeau pose par ce clic
+   manquait alors, et le second appui n'etait qu'un nouveau premier appui (la fiche ne
+   s'ouvrait jamais). La seule chose fiable est l'etat de la carte au `pointerdown`,
+   qui precede tous ces evenements simules : deja revelee avant l'appui, la carte
+   s'ouvre ; sinon l'appui ne fait que la reveler. */
+const lastPointer = ref<string>('');
+const revealedBeforePress = ref<boolean | null>(null);
+
+function notePointer(e: PointerEvent): void {
+  lastPointer.value = e.pointerType || '';
+  revealedBeforePress.value = revealed.value;
+}
+
+function revealOnHover(): void {
+  if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
+  reveal();
+}
+
+/* Le survol simule d'un appui se termine aussi : Chromium (Linux, Android) envoie un
+   `mouseleave` juste apres le clic, qui refermait aussitot la carte que l'appui venait
+   de reveler. Au doigt, c'est la perte du focus (appui ailleurs) ou la revelation
+   d'une autre carte qui la referme. */
+function concealOnHover(): void {
+  if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
+  conceal();
+}
+
 function interceptFirstTap(e: MouseEvent): void {
-  if (revealed.value) return;
-  // Avec une souris, le survol a deja revele la carte : n'intercepter que la ou il
-  // n'existe pas, pour ne rien changer au clic au bureau.
-  if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+  const wasRevealed = revealedBeforePress.value;
+  revealedBeforePress.value = null;
+  // Le type du pointeur qui a appuye fait foi : une souris ouvre au premier clic, meme
+  // sur un appareil tactile. Faute de pointerdown (clic clavier, appel programme), on
+  // retombe sur la nature de l'ecran.
+  const tactile = lastPointer.value
+    ? lastPointer.value === 'touch' || lastPointer.value === 'pen'
+    : Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+  // A la souris, le survol a deja revele la carte : le clic ouvre, comme avant.
+  if (!tactile) return;
+  // Sans pointerdown (clavier), le focus a revele la carte : Entree l'ouvre.
+  if (wasRevealed ?? revealed.value) return;
   e.preventDefault();
   e.stopPropagation();
   reveal();
@@ -81,6 +120,7 @@ function interceptFirstTap(e: MouseEvent): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 @keyframes card-reveal {
   from {
     opacity: 0;
@@ -132,6 +172,14 @@ function interceptFirstTap(e: MouseEvent): void {
   z-index: 5;
 }
 
+/* `.media-card div:last-child` (_views.scss) donne 10px de marge a toute derniere div
+   d'une carte, affiche comprise : elle debordait alors de 20px autour de l'image. Le
+   `!important` qui l'en protegeait est remplace par un selecteur plus specifique
+   (0,3,0 contre 0,2,1). */
+.poster-card .poster-wrap {
+  padding: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .poster-card.animated {
     animation: none;
@@ -141,7 +189,6 @@ function interceptFirstTap(e: MouseEvent): void {
   position: relative;
   width: 100%;
   height: 100%;
-  padding: 0 !important;
   border-radius: inherit;
   overflow: hidden;
 }
@@ -199,7 +246,7 @@ function interceptFirstTap(e: MouseEvent): void {
 .poster-wrap:hover :deep(.poster-overlay),
 .poster-wrap:focus-within :deep(.poster-overlay),
 .poster-wrap.revealed :deep(.poster-overlay) { opacity: 1; pointer-events: auto; }
-.poster-wrap :deep(.poster-copy) { display: grid; gap: var(--space-1); width: 100%; min-width: 0; padding: 0 !important; }
+.poster-wrap :deep(.poster-copy) { display: grid; gap: var(--space-1); width: 100%; min-width: 0; padding: 0; }
 .poster-wrap :deep(.poster-copy > strong) {
   display: -webkit-box;
   overflow: hidden;
@@ -212,9 +259,9 @@ function interceptFirstTap(e: MouseEvent): void {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.poster-wrap :deep(.poster-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding: 0 !important; }
+.poster-wrap :deep(.poster-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding: 0; }
 .poster-wrap :deep(.poster-meta > span) { color: rgba(255, 255, 255, .82); font-size: var(--fs-xs); font-weight: 650; }
-.poster-wrap :deep(.poster-rating) { display: inline-flex !important; align-items: center; gap: var(--space-1); }
+.poster-wrap :deep(.poster-rating) { display: inline-flex; align-items: center; gap: var(--space-1); }
 .poster-wrap :deep(.poster-rating svg) { width: 12px; height: 12px; color: var(--amber-text); fill: currentColor; }
 .poster-wrap :deep(.poster-action) {
   position: absolute;
@@ -246,9 +293,9 @@ function interceptFirstTap(e: MouseEvent): void {
 .poster-wrap :deep(.poster-action.nav-action) {
   border: 1px solid color-mix(in srgb, var(--text) 60%, transparent);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
-  color: var(--text) !important;
+  color: var(--text);
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .poster-card:hover,
   .poster-card:focus-within { transform: translateY(-2px); }
   .poster-wrap :deep(.poster-overlay) { padding-inline: 10px; }

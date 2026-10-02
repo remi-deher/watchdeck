@@ -112,13 +112,17 @@ export function accountHandle(user: AccountLike): string {
   return handle === accountName(user) ? '' : handle;
 }
 
-/** Initiales pour la pastille quand aucun avatar n'est disponible. */
-export function accountInitials(user: AccountLike): string {
-  const name = accountName(user);
-  const parts = name.split(/[\s._-]+/).filter(Boolean);
+/** Initiales d'un nom, pour la pastille (UiAvatar) quand aucune image n'est disponible. */
+export function nameInitials(name?: string | null): string {
+  const parts = String(name || '').split(/[\s._-]+/).filter(Boolean);
   if (!parts.length) return '?';
   const initials = parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2);
   return initials.toUpperCase();
+}
+
+/** Initiales pour la pastille quand aucun avatar n'est disponible. */
+export function accountInitials(user: AccountLike): string {
+  return nameInitials(accountName(user));
 }
 
 export type SeerMode = 'observer' | 'actor' | null | undefined;

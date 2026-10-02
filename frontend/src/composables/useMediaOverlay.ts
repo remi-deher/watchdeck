@@ -1,4 +1,4 @@
-import { computed, type ComputedRef } from 'vue';
+import { computed, ref, type ComputedRef } from 'vue';
 import { useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
 
 /**
@@ -66,6 +66,29 @@ export function voisinsCourants(): string[] {
   return Array.isArray(valeur) ? valeur.map(String) : [];
 }
 
+const CLE_SERIE = '__sheetRun';
+
+/** Une lecture d'une serie de lectures consecutives : de quoi l'afficher sans la charger. */
+export interface LectureDeSerie {
+  id: string;
+  method: string;
+  started_at: string;
+  watched_ms: number;
+  label: string;
+}
+
+/** Etat portant les lectures consecutives repliees dans la ligne ouverte. */
+export function etatDeSerie(lectures: LectureDeSerie[]): Record<string, unknown> {
+  return { [CLE_SERIE]: lectures.map((lecture) => ({ ...lecture, id: String(lecture.id) })) };
+}
+
+/** Lectures consecutives de la ligne d'origine, relues dans l'entree d'historique courante. */
+export function serieCourante(): LectureDeSerie[] {
+  if (typeof history === 'undefined') return [];
+  const valeur = (history.state as Record<string, unknown> | null)?.[CLE_SERIE];
+  return Array.isArray(valeur) ? (valeur as LectureDeSerie[]) : [];
+}
+
 /**
  * Decompose une adresse de fiche en ses trois parties.
  *
@@ -82,6 +105,53 @@ export function destinationDeFiche(
 ): { path: string; query: unknown; hash: string } {
   const resolue = router.resolve(cible as any);
   return { path: resolue.path, query: resolue.query, hash: resolue.hash };
+}
+
+/* `router.resolve` ne charge pas les vues paresseuses (`() => import(...)`) : seule la
+   navigation le fait. Apres un rechargement sur une fiche ouverte depuis une page, la
+   page de fond est restauree par `resolve` seul ; `RouterView` recevait alors la
+   fonction de chargement en guise de composant et affichait la promesse en texte
+   (« [object Promise] »). On charge donc ces vues comme le fait le routeur, et le fond
+   n'est rendu qu'une fois pret. */
+const vuesChargees = ref(0);
+const chargementsEnCours = new Set<string>();
+
+function estVueParesseuse(composant: unknown): composant is () => Promise<any> {
+  return (
+    typeof composant === 'function' &&
+    !('displayName' in composant) &&
+    !('props' in composant) &&
+    !('__vccOpts' in composant)
+  );
+}
+
+/** Vrai si toutes les vues de la route sont chargees ; sinon lance leur chargement. */
+export function vuesDeRoutePretes(route: RouteLocationNormalizedLoaded | null): boolean {
+  if (!route) return true;
+  void vuesChargees.value;
+  const enAttente = route.matched.flatMap((record) =>
+    Object.entries(record.components || {})
+      .filter(([, composant]) => estVueParesseuse(composant))
+      .map(([nom, composant]) => ({ record, nom, charger: composant as () => Promise<any> })),
+  );
+  if (!enAttente.length) return true;
+  const cle = route.fullPath;
+  if (!chargementsEnCours.has(cle)) {
+    chargementsEnCours.add(cle);
+    void Promise.all(
+      enAttente.map(async ({ record, nom, charger }) => {
+        const module = await charger();
+        // Meme remplacement que le routeur apres une navigation.
+        (record.components as Record<string, unknown>)[nom] = module?.default ?? module;
+      }),
+    )
+      .catch(() => {})
+      .finally(() => {
+        chargementsEnCours.delete(cle);
+        vuesChargees.value += 1;
+      });
+  }
+  return false;
 }
 
 export function useMediaOverlay(): MediaOverlayState {
@@ -128,10 +198,39 @@ export function useMediaOverlay(): MediaOverlayState {
   return { actif, routeDeFond, fermer };
 }
 
+/**
+ * Ouverture de fiche pour un lien ou un bouton quelconque.
+ *
+ * `ouvrir` pose la fiche en surface ; depuis une surface deja ouverte (session, autre
+ * fiche), elle la remplace sur la meme page de fond, pour que « retour » y ramene.
+ * `auClic` s'accroche au `@click` d'un lien qui garde son `:to` : le clic simple ouvre
+ * la surface, les clics enrichis (milieu, Ctrl, nouvel onglet) restent au navigateur.
+ */
+export function useOuvrirFiche(): {
+  ouvrir: (cible: string | Record<string, unknown>) => void;
+  auClic: (event: MouseEvent, cible: string | Record<string, unknown> | null | undefined) => void;
+} {
+  const route = useRoute();
+  const router = useRouter();
+  const { routeDeFond } = useMediaOverlay();
+
+  function ouvrir(cible: string | Record<string, unknown>): void {
+    void ouvrirFiche(router, cible, routeDeFond.value?.fullPath ?? route.fullPath);
+  }
+
+  function auClic(event: MouseEvent, cible: string | Record<string, unknown> | null | undefined): void {
+    if (!cible || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) return;
+    event.preventDefault();
+    ouvrir(cible);
+  }
+
+  return { ouvrir, auClic };
+}
+
 /** Etat de surface de l'entree courante (page de fond, voisins), a reporter sur une
  *  navigation qui remplace la fiche par une autre. Sans les cles internes du routeur. */
 export function etatDeSurfaceCourant(): Record<string, unknown> {
   if (typeof history === 'undefined' || !history.state) return {};
   const etat = history.state as Record<string, unknown>;
-  return Object.fromEntries([CLE_FOND, CLE_VOISINS].filter((cle) => cle in etat).map((cle) => [cle, etat[cle]]));
+  return Object.fromEntries([CLE_FOND, CLE_VOISINS, CLE_SERIE].filter((cle) => cle in etat).map((cle) => [cle, etat[cle]]));
 }

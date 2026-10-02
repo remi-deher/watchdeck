@@ -58,7 +58,7 @@
         <div class="insight-card">
           <span class="insight-label">Médias disponibles</span>
           <strong class="insight-value text-success">{{ availabilityTotal }}</strong>
-          <small class="insight-sub">{{ deliveryRate }} de complétion</small>
+          <small class="insight-sub">{{ deliveryRate }}</small>
         </div>
 
         <div class="insight-card">
@@ -131,10 +131,10 @@ const availabilityTotal = computed(() => seriesTotals.value.availability || 0);
 const deliveryRate = computed(() => {
   const req = requestsTotal.value;
   const avail = availabilityTotal.value;
-  if (!req && !avail) return 'Flux calme';
-  if (!req) return `${avail} livrés`;
+  if (!req && !avail) return 'Aucune livraison';
+  if (!req) return 'Sans demande sur la période';
   const pct = Math.min(100, Math.round((avail / req) * 100));
-  return `${pct}% livrés`;
+  return `${pct} % des demandes`;
 });
 
 const allValues = computed(() => getSeriesValues(activeSeries.value));
@@ -262,7 +262,7 @@ const chartPoints = computed(() => {
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -313,6 +313,7 @@ const chartPoints = computed(() => {
   border-left: 1px solid var(--border);
   grid-column: 2;
   grid-row: 1 / span 3;
+  min-width: 0;
 }
 
 .insights-head h3 {
@@ -324,7 +325,9 @@ const chartPoints = computed(() => {
 
 .insights-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr) : avec 1fr seul, la largeur minimale des libelles fixait celle des
+     colonnes et les tuiles debordaient de la colonne de 280px. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
   height: 100%;
 }
@@ -338,12 +341,13 @@ const chartPoints = computed(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   gap: 2px;
+  min-width: 0;
 }
 
 .insight-label {
   font-size: var(--fs-xs);
   color: var(--muted);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .insight-value {
@@ -356,9 +360,7 @@ const chartPoints = computed(() => {
 .insight-sub {
   font-size: var(--fs-xs);
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .text-accent {
@@ -369,7 +371,7 @@ const chartPoints = computed(() => {
   color: var(--green-text);
 }
 
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .activity-panel-container {
     grid-template-columns: 1fr;
   }

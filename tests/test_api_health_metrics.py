@@ -4,14 +4,21 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth
 from app.main import app
-from app.models import ArrInstance, Base, LibraryItem, MediaRequest, RequestStatus, Settings
+from app.models import (
+    ArrInstance,
+    EmailProvider,
+    LibraryItem,
+    MediaRequest,
+    NotificationLog,
+    PollHistory,
+    RequestStatus,
+    Settings,
+)
+from app.utils import now_utc_naive
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -21,6 +28,17 @@ from app.models import ArrInstance, Base, LibraryItem, MediaRequest, RequestStat
 @pytest.fixture()
 def db(async_db):
     return async_db
+
+
+@pytest.fixture(autouse=True)
+def no_health_details():
+    """Les details de sante interrogent les services en direct : neutres par defaut."""
+    with (
+        patch("app.routers.metrics_api.health_details.arr_details", new=AsyncMock(return_value={})) as arr,
+        patch("app.routers.metrics_api.health_details.plex_details", new=AsyncMock(return_value={})) as plex,
+        patch("app.routers.metrics_api.health_details.seer_details", new=AsyncMock(return_value={})) as seer,
+    ):
+        yield {"arr": arr, "plex": plex, "seer": seer}
 
 
 @pytest.fixture()
@@ -188,6 +206,77 @@ def test_health_no_settings_returns_healthy_unconfigured(client, db):
     resp = client.get("/api/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "healthy"
+
+
+def test_health_merges_service_details_when_up(client, db, no_health_details):
+    """Un service joignable porte sa version, son nom, ses alertes et le nombre d'instances."""
+    db.add(_settings())
+    db.add_all(_arr_instances())
+    db.add(ArrInstance(name="Sonarr 4K", arr_type="sonarr", url="http://s4k.local", api_key="k", enabled=True))
+    db.commit()
+    no_health_details["arr"].return_value = {
+        "version": "4.0.9",
+        "instance_name": "Sonarr",
+        "issues": [{"level": "warning", "message": "Indexer indisponible"}],
+        "issue_count": 1,
+    }
+    no_health_details["plex"].return_value = {"version": "1.41.0", "instance_name": "Maison", "sessions": 2}
+
+    with (
+        patch("app.routers.metrics_api.sonarr.check_connection", new=AsyncMock(return_value=(True, "OK"))),
+        patch("app.routers.metrics_api.radarr.check_connection", new=AsyncMock(return_value=(True, "OK"))),
+        patch("app.routers.metrics_api.plex_test", new=AsyncMock(return_value=(True, "OK"))),
+    ):
+        services = client.get("/api/health").json()["services"]
+
+    assert services["sonarr"]["version"] == "4.0.9"
+    assert services["sonarr"]["instances"] == 2
+    assert services["sonarr"]["issue_count"] == 1
+    assert "instances" not in services["radarr"]
+    assert services["plex"]["sessions"] == 2
+    assert services["plex"]["instance_name"] == "Maison"
+
+
+def test_health_skips_details_of_a_service_down(client, db, no_health_details):
+    """Un service en panne garde son message d'erreur, sans details perimes."""
+    db.add(_settings())
+    db.add_all(_arr_instances())
+    db.commit()
+    no_health_details["arr"].return_value = {"version": "4.0.9"}
+
+    with (
+        patch("app.routers.metrics_api.sonarr.check_connection", new=AsyncMock(return_value=(False, "refused"))),
+        patch("app.routers.metrics_api.radarr.check_connection", new=AsyncMock(return_value=(True, "OK"))),
+        patch("app.routers.metrics_api.plex_test", new=AsyncMock(return_value=(True, "OK"))),
+    ):
+        services = client.get("/api/health").json()["services"]
+
+    assert "version" not in services["sonarr"]
+    assert services["sonarr"]["message"] == "refused"
+    assert services["radarr"]["version"] == "4.0.9"
+
+
+def test_health_email_and_watchlist_details(client, db):
+    """E-mail : fournisseurs, dernier envoi et echecs recents ; watchlist : derniere releve."""
+    now = now_utc_naive()
+    db.add(_settings())
+    db.add(EmailProvider(name="Brevo", provider_type="brevo", enabled=True))
+    db.add(NotificationLog(sent_at=now, event="available", channel="email", recipient="a@b.c", success=True))
+    db.add(NotificationLog(sent_at=now, event="available", channel="email", recipient="a@b.c", success=False))
+    db.add(PollHistory(job="watchlist", started_at=now, items_processed=12, errors=0))
+    db.commit()
+
+    with (
+        patch("app.routers.metrics_api.plex_test", new=AsyncMock(return_value=(True, "OK"))),
+    ):
+        services = client.get("/api/health").json()["services"]
+
+    assert services["smtp"]["providers"] == ["Brevo"]
+    assert services["smtp"]["last_activity_at"]
+    assert services["smtp"]["issue_count"] == 1
+    assert services["rss"]["items"] == 12
+    assert services["rss"]["last_activity_at"]
+    assert "issues" not in services["rss"]
 
 
 # ---------------------------------------------------------------------------
@@ -522,3 +611,29 @@ def test_disk_space_is_cached_between_calls(client, db):
     assert first.json() == second.json()
     assert len(first.json()) == 1
     mock_disk.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_next_poll_info_is_first_arq_tick_after_last_scheduled_expiry():
+    """Le polling ARQ tourne aux ticks de 30 s dès que `last-scheduled` a expiré."""
+    from datetime import datetime, timezone
+
+    from app.routers import metrics_api
+
+    now = datetime(2026, 9, 27, 12, 0, 10, tzinfo=timezone.utc)
+    with (
+        patch("app.job_queue.key_ttl_ms", new=AsyncMock(return_value=95_000)),
+        patch.object(metrics_api, "now_utc", return_value=now),
+    ):
+        info = await metrics_api.next_poll_info()
+
+    # Expiration à 12:01:45 → premier tick ARQ à 12:02:00.
+    assert info == {"next_run_seconds": 110, "next_run_iso": "2026-09-27T12:02:00+00:00"}
+
+
+@pytest.mark.asyncio
+async def test_next_poll_info_is_empty_without_redis():
+    from app.routers import metrics_api
+
+    with patch("app.job_queue.key_ttl_ms", new=AsyncMock(return_value=None)):
+        assert await metrics_api.next_poll_info() == {"next_run_seconds": None, "next_run_iso": None}

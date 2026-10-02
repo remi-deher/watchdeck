@@ -1,9 +1,21 @@
 <template>
-  <div class="mdh-backdrop" :style="backdropUrl ? { backgroundImage: `url(${backdropUrl})` } : {}">
-    <div class="mdh-scrim"></div>
-    <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
-    <div class="mdh-content">
-      <div class="mdh-row" :class="{ 'is-music': isMusic }">
+  <!-- En-tete commun des fiches (SheetHero) : l'image seule dans la banniere, l'affiche
+       qui en chevauche le bas, le texte dessous. Les classes `mdh-*` restent posees sur
+       les memes elements : la feuille (MediaOverlay) et les tests s'y appuient. -->
+  <SheetHero
+    class="mdh"
+    banner-class="mdh-hero"
+    content-class="mdh-content"
+    :row-class="['mdh-row', { 'is-music': isMusic }]"
+    :image-url="backdropUrl"
+    :position="variant === 'sheet' ? 'center 18%' : undefined"
+    :variant="variant"
+    stack-on-mobile
+  >
+    <template #overlay>
+      <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
+    </template>
+    <template #poster>
         <div class="mdh-poster" :class="{ 'is-music': isMusic }">
           <img v-if="detail.poster_url && !posterFailed" class="mdh-poster-img" @error="posterFailed = true" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
           <div v-else class="mdh-poster-fallback">
@@ -11,6 +23,7 @@
             <Film v-else />
           </div>
         </div>
+    </template>
         <div class="mdh-info">
           <span class="eyebrow">{{ typeLabel }}</span>
           <h1>{{ detail.title }}</h1>
@@ -19,7 +32,9 @@
             <span v-if="detail.year" class="badge">{{ detail.year }}</span>
             <span v-if="detail.vote" class="badge"><Star :size="14" />{{ detail.vote }}</span>
             <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
-            <span v-if="detail.origin_label && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
+            <!-- « Deja present dans Plex » redit « Disponible dans Plex » : l'origine ne
+                 s'affiche que lorsqu'elle apprend quelque chose (demande Seerr, ajout *ARR). -->
+            <span v-if="detail.origin_label && detail.origin_kind !== 'plex' && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
           </div>
           <p v-if="detail.waiting_reason && !isMusic" class="mdh-waiting">{{ detail.waiting_reason }}</p>
           <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
@@ -32,17 +47,7 @@
             <span class="skeleton-line" /><span class="skeleton-line" /><span class="skeleton-line is-short" />
           </div>
           <div v-else class="mdh-overview-wrapper">
-            <p class="mdh-overview" :class="{ clamped: !showFullOverview && isOverviewLong }">
-              {{ overviewText }}
-            </p>
-            <button
-              v-if="isOverviewLong"
-              type="button"
-              class="overview-toggle-btn"
-              @click="showFullOverview = !showFullOverview"
-            >
-              {{ showFullOverview ? 'Voir moins' : 'Plus...' }}
-            </button>
+            <SheetSummary class="mdh-overview" :text="overviewText" :lines="4" />
           </div>
           <div v-if="detail.genres?.length" class="tag-row">
             <span v-for="genre in detail.genres" :key="genre" class="badge">{{ genre }}</span>
@@ -72,7 +77,7 @@
               type="button"
               class="badge mdh-link"
               :disabled="busy || !available"
-              :title="available ? '' : 'Pas encore disponible dans Plex — reessayer une fois le media indexe'"
+              :title="available ? '' : 'Pas encore disponible dans Plex — réessayer une fois le média indexé'"
               @click="$emit('scan')"
             ><RefreshCw :size="14" /> Analyser</button>
             <VfUpgradeButton
@@ -103,9 +108,7 @@
             <span v-else class="badge language-tag" :class="languageState.variant">{{ languageState.label }}</span>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
+  </SheetHero>
 </template>
 
 <script setup lang="ts">
@@ -116,6 +119,8 @@ import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, Re
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
+import SheetHero from '@/components/ui/SheetHero.vue';
+import SheetSummary from '@/components/ui/SheetSummary.vue';
 
 export interface SeasonSummaryGroup {
   vf: number[];
@@ -135,6 +140,7 @@ const props = withDefaults(
     available?: boolean;
     /** Donnees partielles de la carte touchee, en attendant la fiche : pas d'actions. */
     preview?: boolean;
+    variant?: 'card' | 'sheet';
   }>(),
   {
     statusLabel: '',
@@ -144,6 +150,7 @@ const props = withDefaults(
     busy: false,
     available: true,
     preview: false,
+    variant: 'card',
   }
 );
 
@@ -225,9 +232,7 @@ function formatSeasonLabel(seasonNumbers: number[]): string {
   return `${label} ${ranges.join(', ')}`;
 }
 
-const showFullOverview = ref(false);
 const overviewText = computed(() => props.detail.overview || (isMusic.value ? 'Aucune biographie disponible pour cet artiste.' : 'Aucun résumé disponible.'));
-const isOverviewLong = computed(() => overviewText.value.length > 260);
 
 const typeLabel = computed(() => mediaTypeLabel(props.detail.media_type));
 
@@ -258,42 +263,15 @@ const releaseDates = computed(() => {
 </script>
 
 <style scoped lang="scss">
-/* Meme grammaire que la banniere d'Explorer : une hauteur qui laisse respirer le
-   backdrop, un contenu ancre en bas, et surtout un double degrade -- vertical pour
-   detacher le texte du bas de l'image, horizontal pour le detacher de la gauche. Le
-   voile unique precedent assombrissait l'affiche entiere sans jamais garantir le
-   contraste la ou le texte se pose. */
-/* Meme cadre que la banniere d'Explorer : une carte bordee, posee dans la colonne de
-   contenu. Le hero debordait jusqu'ici sur les gouttieres, par marges negatives -- une
-   ouverture pleine largeur, mais un objet different de tout le reste de l'application.
-   L'image reste fixe : sur une page de consultation, une animation declenchee au
-   passage de souris distrait de la lecture. */
-.mdh-backdrop {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  min-height: clamp(300px, 42vw, 460px);
+@use '@/styles/foundations/breakpoints' as bp;
+.mdh {
   margin-bottom: var(--space-6);
-  background-size: cover;
-  background-position: center 20%;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
 }
-.mdh-scrim {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to top, rgba(9, 9, 11, 0.98) 0%, rgba(9, 9, 11, 0.65) 45%, rgba(9, 9, 11, 0.15) 100%),
-    linear-gradient(to right, rgba(9, 9, 11, 0.88) 0%, rgba(9, 9, 11, 0.4) 50%, transparent 80%);
-  pointer-events: none;
+.mdh.is-sheet {
+  margin-bottom: var(--space-5);
 }
-.mdh-content {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  padding: var(--space-6) var(--space-5) var(--space-5);
+.mdh :deep(.mdh-content) {
+  padding: 0 var(--space-5) var(--space-2);
   max-width: 1280px;
   margin: 0 auto;
 }
@@ -304,14 +282,6 @@ const releaseDates = computed(() => {
   top: var(--space-4);
   left: var(--space-4);
   z-index: 3;
-}
-.mdh-row {
-  display: flex;
-  gap: var(--space-5);
-  align-items: flex-end;
-}
-.mdh-row.is-music {
-  align-items: flex-start;
 }
 .mdh-poster {
   flex: 0 0 180px;
@@ -358,12 +328,11 @@ const releaseDates = computed(() => {
 }
 .mdh-info h1 {
   margin: 4px 0 10px;
-  color: #fff;
+  color: var(--text);
   font-size: clamp(1.5rem, 3.5vw, 2.3rem);
   font-weight: 800;
   line-height: 1.15;
   text-wrap: balance;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 .mdh-badges {
   display: flex;
@@ -374,54 +343,26 @@ const releaseDates = computed(() => {
 .mdh-badges > .badge {
   min-height: 28px;
   padding: 3px 10px;
-  border-color: rgba(255, 255, 255, .22);
-  background: #27272a;
-  color: #fff;
+  border-color: color-mix(in srgb, var(--text) 22%, transparent);
+  background: var(--surface-2);
+  color: var(--text);
   font-size: var(--fs-sm);
   font-weight: 800;
   line-height: 1.25;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
 }
-.music-badge {
-  border-color: #a855f7 !important;
-  background: #7e22ce !important;
-  color: #fff !important;
+.mdh-badges > .music-badge {
+  border-color: var(--violet-text);
+  background: var(--violet);
+  color: var(--text);
 }
 .mdh-badges > .badge.available {
   border-color: var(--green);
-  background: #166534;
-  color: #fff;
+  background: var(--green);
+  color: var(--text);
 }
 .mdh-overview-wrapper {
   max-width: 800px;
   margin-bottom: 12px;
-}
-.mdh-overview {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.88);
-  font-size: var(--fs-md);
-  line-height: 1.6;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-}
-.mdh-overview.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.overview-toggle-btn {
-  background: transparent;
-  border: 0;
-  color: var(--accent);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  cursor: pointer;
-  padding: 4px 0 0 0;
-  display: inline-flex;
-  align-items: center;
-}
-.overview-toggle-btn:hover {
-  text-decoration: underline;
 }
 .mdh-dates {
   display: flex;
@@ -452,12 +393,12 @@ const releaseDates = computed(() => {
   padding: 8px 10px;
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, .28);
-  color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text);
   font-size: var(--fs-sm);
 }
 .origin-badge {
-  border-color: rgba(255, 255, 255, .24);
+  border-color: color-mix(in srgb, var(--text) 24%, transparent);
 }
 .mdh-links {
   display: flex;
@@ -493,7 +434,7 @@ const releaseDates = computed(() => {
   padding: 8px 18px;
   border-radius: var(--radius-md);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 700;
   font-size: var(--fs-sm);
   border: 0;
@@ -508,23 +449,13 @@ const releaseDates = computed(() => {
   }
 }
 
-@media (max-width: 767.98px) {
-  .mdh-backdrop {
-    /* Sur telephone, le portrait et le texte empiles ont besoin de la hauteur d'ecran. */
-    min-height: clamp(320px, 58vh, 420px);
-    margin-bottom: var(--space-4);
-  }
-  .mdh-content {
-    padding: var(--space-5) var(--space-4) 20px;
+@include bp.until(tablet) {
+  .mdh :deep(.mdh-content) {
+    padding: 0 var(--space-4) 20px;
   }
   .mdh-back {
     top: var(--space-2);
     left: var(--space-2);
-  }
-  .mdh-row {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
   }
   .mdh-info { display: flex; flex-direction: column; width: 100%; }
   .mdh-poster {
@@ -544,7 +475,6 @@ const releaseDates = computed(() => {
     justify-content: center;
   }
   .mdh-overview {
-    font-size: var(--fs-base);
     text-align: left;
   }
   .mdh-links { order: 1; width: 100%; }
@@ -554,4 +484,5 @@ const releaseDates = computed(() => {
   .mdh-links > .mdh-request-btn,
   .mdh-links > .mdh-listen-btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
 }
+
 </style>

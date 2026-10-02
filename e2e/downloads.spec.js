@@ -54,7 +54,13 @@ test("la file d'attente regroupe les interventions et confirme avant de retirer"
   await expect(groups.filter({ hasText: "En téléchargement" })).toContainText("Film en cours 1080p");
   await expect(page.locator(".quality-badge").first()).toHaveText("1080P");
 
-  await groups.filter({ hasText: "En téléchargement" }).getByRole("button", { name: "Retirer" }).click();
+  // Sur un runner lent, les panneaux Radarr / Sonarr arrivent apres la file et la
+  // decalent : le clic tombait a l'ancienne position du bouton, sur un autre bloc. On
+  // attend que la page ait fini de charger, puis que le bouton ne bouge plus.
+  await page.waitForLoadState("networkidle");
+  const retirer = groups.filter({ hasText: "En téléchargement" }).getByRole("button", { name: "Retirer" });
+  await retirer.scrollIntoViewIfNeeded();
+  await retirer.click();
   await expect(page.getByRole("alertdialog")).toContainText("Retirer ce téléchargement ?");
   await page.getByRole("alertdialog").getByRole("button", { name: "Annuler" }).click();
   expect(calls.some((call) => call.startsWith("DELETE"))).toBe(false);

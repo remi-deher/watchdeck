@@ -127,7 +127,7 @@
 .ui-feedback-close:hover { background: rgb(var(--ink) / .06); }
 .ui-feedback-close svg { width: 17px; }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .ui-feedback { grid-template-columns: auto minmax(0,1fr) auto; }
   .ui-feedback > .ui-button { grid-column: 2 / -1; justify-self: start; }
 }
@@ -143,22 +143,22 @@
 .save-bar-enter-from,.save-bar-leave-to { opacity: 0; transform: translateY(12px); }
 
 /* Lisibilité homogène des formulaires et de leur aide contextuelle. */
-.form-section > label:not(.check),.settings-card label:not(.check),.detail-drawer label:not(.check) { display: grid; gap: var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
-.form-section label small,.settings-card label small,.detail-drawer label small { color: var(--muted); font-size: var(--fs-xs); font-weight: 400; line-height: 1.45; }
+.form-section > label:not(.check),.settings-drawer-body label:not(.check),.detail-drawer label:not(.check) { display: grid; gap: var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+.form-section label small,.settings-drawer-body label small,.detail-drawer label small { color: var(--muted); font-size: var(--fs-xs); font-weight: 400; line-height: 1.45; }
 textarea:focus-visible,input:focus-visible,select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),select:invalid { border-color: var(--red); }
 
-@media (min-width: 768px) and (max-width: 1024px) {
+@include bp.between(tablet, desktop) {
   .form-save-bar { right: max(18px,var(--safe-right)); bottom: max(18px,var(--safe-bottom)); }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .form-save-bar { left: max(10px,var(--safe-left)); right: max(10px,var(--safe-right)); bottom: calc(var(--app-shell-offset-bottom) + 10px); width: auto; gap: var(--space-3); }
   .form-save-bar small { display: none; }
   .form-save-bar .ui-button--primary { min-height: 46px; }
 }
 
-@media (max-width: 420px) {
+@include bp.until(mobile-wide) {
   .form-save-bar strong { font-size: var(--fs-xs); }
   .form-save-bar .ui-button--primary { padding: 0 12px; }
 }
@@ -261,7 +261,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   gap: var(--space-4);
 }
 
-@media (min-width: 768px) {
+@include bp.from(tablet) {
   .settings-grid.two.form-section { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settings-grid.two.form-section > .span-two { grid-column: 1 / -1; }
 }
@@ -309,6 +309,9 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 
 .detail-drawer,
 .modal-panel {
+  /* Conteneur de requetes : le contenu d'une fenetre s'adapte a la largeur de la
+     fenetre elle-meme (680px sur ordinateur, tout l'ecran sur telephone). */
+  container: panel / inline-size;
   --drawer-pad: 24px;
   position: fixed;
   z-index: var(--z-modal-panel);
@@ -359,6 +362,74 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     border-bottom: 0;
   }
+}
+
+/* Volet d'un objet de réglage (SettingsItem). Sur ordinateur il glisse depuis la
+   droite et occupe la hauteur de l'écran : la liste reste visible à côté, on garde le
+   contexte de ce qu'on configure. Sur téléphone, c'est la feuille ancrée en bas commune
+   à toutes les fenêtres (bloc ci-dessus). */
+@include bp.from(tablet) {
+  .modal-panel.settings-drawer {
+    inset: calc(var(--safe-top) + 12px) calc(var(--safe-right) + 12px) 12px auto;
+    width: min(480px, calc(100% - 24px));
+    max-height: none;
+    transform: none;
+  }
+  .modal-panel.settings-drawer[data-state="open"] { animation: surface-tiroir-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+  .modal-panel.settings-drawer[data-state="closed"] { animation: surface-tiroir-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
+}
+
+.settings-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.settings-drawer-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-panel.settings-drawer > .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.settings-drawer-body input:not([type="checkbox"]),
+.settings-drawer-body select,
+.settings-drawer-body textarea {
+  min-height: 44px;
+}
+
+/* Les options binaires restent de vraies lignes de choix : le libellé entier est la
+   zone cliquable, pas une petite case qu'il faut viser. */
+.settings-drawer-body .check {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  line-height: 1.4;
+}
+
+.settings-drawer-body .check:has(input:checked),
+.settings-drawer-body .check:has([data-state="checked"]) {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-2));
+}
+
+.settings-drawer-body > .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 /* La feuille de filtres s'arrête SUR la barre de recherche, jamais dessus.
@@ -602,7 +673,7 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 .detail-drawer[data-state] { z-index: var(--z-modal-panel); }
 .modal-panel { z-index: var(--z-modal-panel); }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .modal-panel > .actions,
   .detail-drawer > .drawer-actions {
     position: sticky;
@@ -797,7 +868,7 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 .collapsible-trigger { display: flex; align-items: center; gap: var(--space-2); width: 100%; margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .collapsible-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs); }
 
-/* Infobulle des boutons-icones (UiButton, Reka Tooltip). */
+/* Infobulles UiTooltip (Reka Tooltip), dont celles des boutons-icones de UiButton. */
 .ui-tooltip {
   z-index: var(--z-tooltip);
   max-width: 260px;
@@ -816,3 +887,58 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 .ui-tooltip[data-state="instant-open"] { animation: ui-tooltip-in var(--motion-duration-instant) var(--motion-ease-emphasized); }
 @keyframes ui-tooltip-in { from { opacity: 0; transform: translateY(2px); } }
 @media (prefers-reduced-motion: reduce) { .ui-tooltip { animation: none !important; } }
+
+/* Menus UiMenu et UiContextMenu (Reka DropdownMenu / ContextMenu), teleportes dans <body>. */
+.ui-menu {
+  z-index: var(--z-popover);
+  min-width: 200px;
+  max-width: min(360px, calc(100vw - 16px));
+  max-height: min(380px, var(--reka-dropdown-menu-content-available-height, var(--reka-context-menu-content-available-height, 380px)));
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  outline: none;
+}
+.ui-menu[data-state="open"] { animation: ui-menu-in var(--motion-duration-fast) var(--motion-ease-emphasized); }
+@keyframes ui-menu-in { from { opacity: 0; transform: scale(0.97); } }
+.ui-menu-label {
+  overflow: hidden;
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-menu-separator { height: 1px; margin: 4px -4px; background: var(--border); }
+.ui-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+.ui-menu-item[data-highlighted] { background: var(--surface-2); color: var(--accent); }
+.ui-menu-item--danger { color: var(--red-text); }
+.ui-menu-item--danger[data-highlighted] { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--red-text); }
+.ui-menu-item[data-disabled] { cursor: not-allowed; opacity: .5; }
+.ui-menu-item svg { flex: none; width: 15px; height: 15px; }
+@media (pointer: coarse) { .ui-menu-item { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .ui-menu { animation: none !important; } }
+/* En-tete commun des panneaux : les variantes restent contextualisees dans leur vue
+   quand leur contenu impose un empilement ou une presentation particuliere. */
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}

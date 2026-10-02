@@ -72,7 +72,7 @@ def test_sections_arrive_as_they_complete(async_db):
         assert response.headers["content-type"].startswith("text/event-stream")
 
         payloads = _frames(response.text)
-        # next_poll ne fait aucune I/O : il part avant toutes les autres.
+        # next_poll ne lit qu'un TTL Redis : il part avant toutes les autres.
         assert "next_poll" in payloads[0]
         assert [next(iter(p)) for p in payloads[1:]] == ["rapide", "moyenne", "lente"]
     finally:

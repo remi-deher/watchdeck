@@ -1,6 +1,10 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import LiveSessionsPanel from './LiveSessionsPanel.vue';
+import UiTooltip from '@/components/ui/UiTooltip.vue';
+
+// Texte de l'infobulle UiTooltip qui enveloppe l'element `selector`.
+const infobulle = (wrapper, selector) => wrapper.findAllComponents(UiTooltip).find((t) => t.find(selector).exists())?.props('text');
 
 const RouterLink = { props: ['to'], template: '<a :href="to"><slot /></a>' };
 
@@ -78,7 +82,8 @@ describe('LiveSessionsPanel — état de lecture', () => {
 
   it('signale la mise en mémoire tampon', () => {
     const wrapper = render([session({ state: 'buffering' })]);
-    expect(wrapper.get('.live-state').attributes('title')).toBe('Mise en mémoire tampon');
+    expect(infobulle(wrapper, '.live-state')).toBe('Mise en mémoire tampon');
+    expect(wrapper.get('.live-state').attributes('aria-label')).toBe('Mise en mémoire tampon');
   });
 
   it('éteint la pastille « en direct » quand tout est en pause', () => {
@@ -107,7 +112,28 @@ describe('LiveSessionsPanel — bande passante, réseau et transcodage', () => {
   it('explique la raison du transcodage en infobulle', () => {
     // Le badge dit *que* ça transcode ; l'infobulle dit *pourquoi*.
     const wrapper = render([session({ video_decision: 'transcode', audio_decision: 'copy' })]);
-    expect(wrapper.get('.playback-badge').attributes('title')).toBe('Vidéo transcodée · Audio copiée');
+    expect(infobulle(wrapper, '.playback-badge')).toBe('Vidéo transcodée · Audio copiée');
+  });
+
+  it('affiche la raison en vert si elle vient de Plex, en orange si elle est déduite', () => {
+    const plex = render([session({ transcode_reason: { source: 'plex', text: 'Direct play is disabled.', code: 3000 } })]);
+    expect(plex.get('.live-reason').classes()).toContain('from-plex');
+    expect(plex.get('.live-reason').text()).toContain('Direct play is disabled.');
+
+    const deduced = render([session({ transcode_reason: { source: 'deduced', text: 'Audio TrueHD → AAC' } })]);
+    expect(deduced.get('.live-reason').classes()).toContain('deduced');
+    expect(render([session({ transcode_reason: null })]).find('.live-reason').exists()).toBe(false);
+  });
+
+  it('affiche le réemballage d’un Direct Stream en bleu, même sans autre conversion', () => {
+    const wrapper = render([session({ playback_method: 'direct_stream', transcode_reason: null, transcode_remux: 'Conteneur MKV → MP4' })]);
+    expect(wrapper.get('.live-reason .remux-line').text()).toBe('Conteneur MKV → MP4');
+  });
+
+  it('met la précision sur les pistes non écoutées dans l’infobulle', () => {
+    const note = 'Porte sur des pistes non écoutées : English (AAC 5.1).';
+    const wrapper = render([session({ transcode_reason: { source: 'plex', text: '6 > 2.', code: 3000, note } })]);
+    expect(wrapper.get('.live-reason p').attributes('title')).toContain(note);
   });
 
   it('résume la charge du serveur en en-tête', () => {
@@ -115,12 +141,14 @@ describe('LiveSessionsPanel — bande passante, réseau et transcodage', () => {
       session({ session_id: 'a', bandwidth_kbps: 8000 }),
       session({ session_id: 'b', bandwidth_kbps: 4000, playback_method: 'direct_play' }),
       session({ session_id: 'c', bandwidth_kbps: 2000, state: 'paused', playback_method: 'direct_play' }),
+      session({ session_id: 'd', bandwidth_kbps: 0, playback_method: 'direct_stream' }),
     ]).get('.live-summary').text();
 
-    expect(texte).toContain('3 lectures');
+    expect(texte).toContain('4 lectures');
     expect(texte).toContain('1 en pause');
     expect(texte).toContain('14 Mb/s');
     expect(texte).toContain('1 transcodage');
+    expect(texte).toContain('1 conversion légère');
   });
 });
 

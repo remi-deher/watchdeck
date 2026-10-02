@@ -63,9 +63,9 @@
                 <span v-if="releaseTechnical(release).codec" class="badge pending">
                   {{ releaseTechnical(release).codec }}
                 </span>
-                <span v-if="release.custom_format_score" class="badge pending score-badge" title="Score Custom Format">
+                <UiTooltip v-if="release.custom_format_score" text="Score Custom Format"><span class="badge pending score-badge">
                   Score: +{{ release.custom_format_score }}
-                </span>
+                </span></UiTooltip>
               </div>
               <strong class="vf-upgrade-release-title">{{ release.title }}</strong>
             </div>
@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { humanizeError } from '@/utils/apiError';
 import { computed, onMounted, ref } from 'vue';
@@ -420,17 +421,12 @@ onMounted(load);
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .vf-upgrade-wrap { display: inline-flex; }
 .vf-upgrade-trigger.active { color: var(--accent); border-color: var(--accent); }
 .vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 700; }
 .vf-upgrade-badge { min-width: 20px; height: 20px; font-size: var(--fs-xs); }
 :deep(.vf-upgrade-modal) { width: min(880px, 96vw); max-height: 92vh; }
-.release-search-tabs { display: flex; gap: 4px; max-width: 100%; margin-bottom: 12px; padding: 4px; overflow-x: auto; border-radius: var(--radius-md); background: var(--surface-hover); scrollbar-width: none; overscroll-behavior-x: contain; }
-.release-search-tabs::-webkit-scrollbar { display: none; }
-.release-search-tabs button { display: inline-flex; flex: 1 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 14px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--muted); white-space: nowrap; cursor: pointer; transition: background var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard); }
-.release-search-tabs button span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: var(--radius-pill); background: rgb(var(--ink) / .07); font-size: var(--fs-xs); }
-.release-search-tabs button.active { background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: 0 1px 5px rgb(var(--shadow-color) / calc(.22 * var(--shadow-scale))); }
-.release-search-tabs button.active span { background: rgba(0,0,0,.18); font-weight: 700; }
 .vf-upgrade-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 9px 0 12px; border-bottom: 1px solid var(--border); }
 .compact-search-button, .compact-check, .release-head, .vf-upgrade-release-actions, .arr-status { display: flex; align-items: center; gap: 7px; }
 .compact-search-button { min-height: 38px; }
@@ -441,7 +437,7 @@ onMounted(load);
 
 /* Squelettes animés */
 .release-skeletons { display: grid; gap: 10px; max-height: 61vh; overflow-y: auto; padding: 2px; }
-.release-skeleton-card { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-hover); }
+.release-skeleton-card { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-hover); }
 .skeleton-badges { display: flex; gap: 6px; }
 .skeleton-box { display: block; border-radius: var(--radius-xs); background: linear-gradient(100deg, var(--surface-2) 20%, color-mix(in srgb, var(--surface-2) 55%, var(--border)) 40%, var(--surface-2) 60%); background-size: 220% 100%; animation: vf-shimmer 1.4s ease-in-out infinite; }
 .skeleton-pill { height: 22px; border-radius: var(--radius-pill); }
@@ -450,7 +446,7 @@ onMounted(load);
 @keyframes vf-shimmer { to { background-position-x: -220%; } }
 
 .vf-upgrade-list { display: grid; gap: 10px; max-height: 61vh; margin: 0; padding: 0 2px; overflow-y: auto; list-style: none; }
-.vf-upgrade-release { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px 14px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-hover); transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard); }
+.vf-upgrade-release { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px 14px; padding: 13px; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-hover); transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard); }
 .vf-upgrade-release.recommended { border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); background: color-mix(in srgb, var(--accent) 4%, var(--surface-hover)); }
 .vf-upgrade-release.rejected { opacity: .88; border-left: 3px solid var(--danger); }
 .release-head { grid-column: 1 / -1; align-items: flex-start; justify-content: space-between; }
@@ -493,7 +489,7 @@ onMounted(load);
 .grab-confirm-[data-state] li { display: flex; gap: 6px; }
 .spin { animation: vf-upgrade-spin 1s linear infinite; }
 @keyframes vf-upgrade-spin { to { transform: rotate(360deg); } }
-@media (max-width: 760px) {
+@include bp.until(tablet) {
   :deep(.vf-upgrade-modal) { width: 96vw; }
   .vf-upgrade-toolbar { flex-wrap: wrap; }
   .compact-check { margin-left: 0; }
@@ -503,8 +499,7 @@ onMounted(load);
   .vf-upgrade-release-actions { justify-content: stretch; }
   .vf-upgrade-release-actions > * { flex: 1; justify-content: center; min-height: 42px; }
 }
-@media (max-width: 480px) {
-  .release-search-tabs button { min-height: 44px; padding-inline: 11px; }
+@container panel (max-width: 429px) {
   .compact-search-button { width: 100%; justify-content: center; }
   .release-secondary-meta { grid-template-columns: 1fr 1fr; }
   .release-comparison { grid-template-columns: 1fr; }

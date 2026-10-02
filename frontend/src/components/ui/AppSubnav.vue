@@ -1,5 +1,5 @@
 <template>
-  <div ref="racine" class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing }">
+  <div ref="racine" class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing, 'app-subnav--more': more }">
     <!-- Deux variantes, un seul composant, parce que le besoin est le même et que la
          différence est purement sémantique :
          · `links`  → chaque entrée change d'URL. C'est une navigation : `<nav>` +
@@ -100,6 +100,9 @@ const scrolled = ref(false);
    tenaient a l'ecran -- exactement le cas des quatre sections d'Explorer sur un
    telephone de 390px. */
 const overflowing = ref(false);
+/* Il reste des sections a droite : faux une fois arrive au bout, pour que la derniere
+   entree ne reste pas estompee. */
+const more = ref(false);
 
 function separe(index: number): boolean {
   const item = props.items[index];
@@ -120,13 +123,20 @@ function scrollerEl(): HTMLElement | null {
   return racine.value?.querySelector<HTMLElement>('.app-subnav__scroller') ?? null;
 }
 
+function measureEdges(): void {
+  const el = scrollerEl();
+  scrolled.value = (el?.scrollLeft ?? 0) > 2;
+  more.value = el ? el.scrollLeft + el.clientWidth < el.scrollWidth - 2 : false;
+}
+
 function onScroll(): void {
-  scrolled.value = (scrollerEl()?.scrollLeft ?? 0) > 2;
+  measureEdges();
 }
 
 function measureOverflow(): void {
   const el = scrollerEl();
   overflowing.value = el ? el.scrollWidth > el.clientWidth + 1 : false;
+  measureEdges();
 }
 
 let resizeObserver: ResizeObserver | null = null;
@@ -163,24 +173,29 @@ watch(
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .app-subnav {
+  /* La capsule est portee par la racine, pas par la rangee qui defile : la rangee peut
+     ainsi estomper ses bords par un masque sans estomper le contour avec. Les anciens
+     degrades etaient des calques poses PAR-DESSUS les onglets, dans la couleur de fond :
+     ils recouvraient la pastille active d'un voile opaque des qu'elle touchait un bord. */
+  --subnav-fade-left: 0px;
+  --subnav-fade-right: 0px;
   position: relative;
+  /* Centree partout, a la largeur de ses onglets : meme axe que la recherche, qu'elle
+     soit dans la rangee collante, dans une fiche ou dans une fenetre. `margin-inline:
+     auto` centre aussi bien dans un bloc que dans une colonne flex. */
+  width: fit-content;
   min-width: 0;
-  /* Le dégradé signale qu'il reste des sections à droite. Il est purement décoratif :
-     le contenu masqué reste atteignable au clavier comme au doigt. */
-  &::after {
-    content: '';
-    opacity: 0;
-    transition: opacity var(--motion-duration-instant) var(--motion-ease-standard);
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 24px;
-    background: linear-gradient(to right, transparent, var(--bg));
-    pointer-events: none;
-  }
-  &.app-subnav--overflowing::after { opacity: 1; }
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+  &.app-subnav--scrolled { --subnav-fade-left: 28px; }
+  &.app-subnav--more { --subnav-fade-right: 28px; }
 }
 
 /* Le cadre se fait le plus discret possible : il n'a qu'a rassembler les sections, pas
@@ -205,16 +220,19 @@ watch(
   display: flex;
   flex: none;
 }
+/* Meme famille que le champ de recherche : une capsule posee, bord fin, fond de
+   surface. Elle flotte au-dessus du contenu quand la rangee colle en haut. */
 :deep(.app-subnav__scroller) {
   display: flex;
   gap: 2px;
   min-width: 0;
   max-width: 100%;
-  padding: 2px;
+  padding: 0;
   overflow-x: auto;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 0;
+  /* Le contenu s'estompe lui-meme vers le bord ou il reste des sections. */
+  -webkit-mask-image: linear-gradient(to right, transparent, var(--text) var(--subnav-fade-left), var(--text) calc(100% - var(--subnav-fade-right)), transparent);
+  mask-image: linear-gradient(to right, transparent, var(--text) var(--subnav-fade-left), var(--text) calc(100% - var(--subnav-fade-right)), transparent);
   scrollbar-width: none;
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
@@ -222,16 +240,16 @@ watch(
 :deep(.app-subnav__scroller)::-webkit-scrollbar { display: none; }
 
 .app-subnav__item {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--touch-target);
-  padding: 0 10px;
+  padding: 0 14px;
   border: 0;
-  /* Un cran sous le rayon du cadre : a rayon egal, la pastille active semblait deborder
-     dans les coins. */
-  border-radius: var(--radius-sm);
+  /* Rayon de la capsule moins son coussin : a rayon egal, la pastille semblait deborder. */
+  border-radius: calc(var(--radius-lg) - 4px);
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -240,13 +258,29 @@ watch(
   text-decoration: none;
   cursor: pointer;
   scroll-snap-align: start;
+  transition: color var(--motion-duration-instant) var(--motion-ease-standard),
+    background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
-.app-subnav__item:hover { color: var(--text); background: rgb(var(--ink) / .04); }
+.app-subnav__item:hover { color: var(--text); background: rgb(var(--ink) / .05); }
+.app-subnav__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* L'onglet actif : une pastille teintee d'accent dans la capsule, le meme langage que
+   le bouton « Filtres » de la recherche. */
 .app-subnav__item[aria-current='page'],
 .app-subnav__item[aria-selected='true'] {
   color: var(--text);
-  background: var(--surface-2);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  font-weight: 700;
+}
+@include bp.from(tablet) {
+  /* A la hauteur du champ de recherche (46px) : 36 + 2x4 de coussin + 2x1 de bord. */
+  .app-subnav__item { min-height: 36px; font-size: var(--fs-md); }
+  .app-subnav .app-subnav__item svg { width: 16px; height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-subnav__item { transition: none; }
 }
 .app-subnav__item svg { flex: none; width: 15px; height: 15px; }
 .app-subnav__item[aria-current='page'] svg,

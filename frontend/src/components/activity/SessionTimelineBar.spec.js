@@ -45,9 +45,9 @@ describe('SessionTimelineBar', () => {
       props: { session: sampleSession },
     });
 
-    expect(wrapper.text()).toContain('Timeline de lecture');
-    expect(wrapper.text()).toContain('3 segments');
-    expect(wrapper.text()).toContain('77% actif'); // 50 min play / 65 min total = 76.9% -> 77%
+    expect(wrapper.text()).toContain('Déroulé de la lecture');
+    expect(wrapper.text()).toContain('3 passages');
+    expect(wrapper.text()).toContain('77 % en lecture'); // 50 min play / 65 min total = 76.9% -> 77%
     expect(wrapper.findAll('.timeline-segment')).toHaveLength(3);
 
     // Vérifie les classes des segments
@@ -126,7 +126,7 @@ describe('SessionTimelineBar', () => {
       props: { session },
     });
 
-    expect(wrapper.text()).toContain('Timeline de lecture');
+    expect(wrapper.text()).toContain('Déroulé de la lecture');
     expect(wrapper.findAll('.timeline-segment')).toHaveLength(1);
     expect(wrapper.text()).toContain('Lecture directe (30 min)');
   });

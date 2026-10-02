@@ -16,16 +16,20 @@ from ..pagination import PaginationParams, pagination_params
 from ..realtime import publish
 from ..services.playback_activity import (
     MAX_PERIOD_DAYS,
+    PlaybackActionError,
     _rebuild_daily_aggregates,
     activity_history,
     activity_snapshot,
     activity_statistics,
+    cancel_plex_activity,
     collect_plex_activity,
     import_tautulli_history,
     live_activity_snapshot,
     normalize_tautulli_history,
     playback_session_detail,
+    plex_server_activities,
     recalculate_playback_locations,
+    terminate_playback,
     test_tautulli,
 )
 from ..services.tracearr import TracearrError, import_tracearr_history, test_tracearr
@@ -62,6 +66,47 @@ async def get_playback_session(session_id: int, db: AsyncSession = Depends(get_d
     return session
 
 
+class TerminateRequest(BaseModel):
+    reason: str = ""
+
+
+@router.post("/sessions/{session_id}/terminate")
+async def terminate_playback_session(
+    session_id: int, payload: TerminateRequest, db: AsyncSession = Depends(get_db_async)
+):
+    """Arrête une lecture en cours ; le message s'affiche sur le lecteur de l'utilisateur."""
+    try:
+        await terminate_playback(session_id, payload.reason[:300], db)
+    except PlaybackActionError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Plex injoignable : {exc}") from exc
+    await publish("activity.updated", {"terminated": session_id}, admin_only=True)
+    return {"status": "terminated"}
+
+
+@router.get("/server-activities")
+async def get_plex_server_activities(db: AsyncSession = Depends(get_db_async)):
+    """Tâches en cours sur le serveur Plex (miniatures, analyses, scans)."""
+    try:
+        return {"activities": await plex_server_activities(db)}
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Plex injoignable : {exc}") from exc
+
+
+@router.delete("/server-activities/{uuid}")
+async def cancel_plex_server_activity(
+    uuid: str, server: Optional[int] = None, db: AsyncSession = Depends(get_db_async)
+):
+    try:
+        await cancel_plex_activity(uuid, db, server)
+    except PlaybackActionError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Plex injoignable : {exc}") from exc
+    return {"status": "cancelled"}
+
+
 @router.get("/statistics")
 async def get_activity_statistics(
     days: int = Query(30, ge=1, le=MAX_PERIOD_DAYS),
@@ -80,6 +125,7 @@ async def get_activity_history(
     media_type: str | None = Query(None, max_length=50),
     device: str | None = Query(None, max_length=200),
     query: str | None = Query(None, max_length=200),
+    server: int | None = Query(None, description="Serveur Plex (identifiant de /api/plex-servers)."),
     sort: str = Query(
         "recent",
         pattern="^(recent|oldest|longest|(title|user|device|method|date|duration)_(asc|desc))$",
@@ -100,11 +146,18 @@ async def get_activity_history(
         offset=pagination.offset,
         limit=pagination.limit,
         sort=sort,
+        server=server,
     )
 
 
 @router.get("/thumb")
-async def playback_thumb(request: Request, path: str, settings: Settings = Depends(get_settings_or_404)):
+async def playback_thumb(
+    request: Request,
+    path: str,
+    width: Optional[int] = Query(None, ge=32, le=1600),
+    server: Optional[int] = Query(None, description="Serveur Plex supplémentaire de la lecture."),
+    settings: Settings = Depends(get_settings_or_404),
+):
     """Sert une vignette Plex sans exposer le token Plex dans l'URL du navigateur.
 
     Passe par le proxy d'images commun : cache disque, chemin `/thumb/<ts>` perime
@@ -112,10 +165,19 @@ async def playback_thumb(request: Request, path: str, settings: Settings = Depen
     la lecture, ou bande-annonce dont Plex n'a jamais genere la vignette."""
     if not path.startswith("/library/metadata/") or "://" in path or ".." in path:
         raise HTTPException(400, "Chemin de vignette Plex invalide.")
-    if not settings.plex_url or not settings.plex_token:
+    if server is None and (not settings.plex_url or not settings.plex_token):
         raise HTTPException(404, "Plex n'est pas configuré.")
     return await image_proxy(
-        request=request, url=None, plex_path=path, width=None, height=None, quality=82, image_format="original"
+        # Redimensionnee cote serveur quand la vue donne sa taille : une capture de 1800 px
+        # reduite 7 fois par le navigateur sortait crenelee dans une vignette.
+        request=request,
+        url=None,
+        plex_path=path,
+        width=width,
+        height=None,
+        quality=90 if width else 82,
+        image_format="webp" if width else "original",
+        plex_server=server,
     )
 
 

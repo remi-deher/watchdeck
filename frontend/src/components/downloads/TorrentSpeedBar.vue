@@ -22,11 +22,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, watch } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Download, Eye, EyeOff, Gauge, Maximize2, Minimize2, Upload } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { api } from '@/api';
 import { formatSpeed } from '@/downloads/torrentFormat';
+import { queryKeys } from '@/queryKeys';
+import { downloadsGlobalStatsPath } from '@/sharedQueries';
 
 const props = defineProps<{
   /** Client affiche, ou vide pour tous. */
@@ -39,11 +42,22 @@ const emit = defineEmits<{ (e: 'refresh'): void; (e: 'error', message: string): 
 const compact = defineModel<boolean>('compact', { default: false });
 const incognito = defineModel<boolean>('incognito', { default: false });
 
-const downloadSpeed = ref(0);
-const uploadSpeed = ref(0);
-const altSpeed = ref(false);
-const connectedClients = ref(0);
-const totalClients = ref(0);
+const queryClient = useQueryClient();
+const statsKey = computed(() => queryKeys.downloads.globalStats(props.clientId));
+const statsQuery = useQuery({
+  queryKey: statsKey,
+  queryFn: ({ signal }) => api<any>(downloadsGlobalStatsPath(props.clientId), { signal }),
+  retry: 0,
+});
+const stats = computed(() => statsQuery.data.value || {});
+/* En echec : debits a zero et client(s) hors ligne, sans perdre le nombre de clients
+   deja connu de la vue « tous les clients ». */
+const failed = computed(() => Boolean(statsQuery.error.value));
+const downloadSpeed = computed(() => (failed.value ? 0 : Number(stats.value.download_speed || 0)));
+const uploadSpeed = computed(() => (failed.value ? 0 : Number(stats.value.upload_speed || 0)));
+const altSpeed = computed(() => !!stats.value.alt_speed_enabled);
+const connectedClients = computed(() => (failed.value ? 0 : Number(stats.value.connected || 0)));
+const totalClients = computed(() => (failed.value && props.clientId ? 1 : Number(stats.value.total || 0)));
 const connectionClass = computed(() => totalClients.value === 0 ? 'unknown' : connectedClients.value === totalClients.value ? 'connected' : connectedClients.value > 0 ? 'partial' : 'offline');
 const connectionLabel = computed(() => {
   if (totalClients.value === 0) return 'Aucun client';
@@ -56,29 +70,14 @@ let statsLoadTimer: ReturnType<typeof setTimeout> | undefined;
 // Les rafales d'evenements temps reel ne declenchent qu'une lecture.
 function scheduleStats(): void {
   clearTimeout(statsLoadTimer);
-  statsLoadTimer = setTimeout(loadStats, 250);
-}
-
-async function loadStats(): Promise<void> {
-  try {
-    const suffix = props.clientId ? `?client_id=${encodeURIComponent(props.clientId)}` : '';
-    const data = await api(`/api/downloads/global-stats${suffix}`);
-    downloadSpeed.value = Number(data.download_speed || 0);
-    uploadSpeed.value = Number(data.upload_speed || 0);
-    altSpeed.value = !!data.alt_speed_enabled;
-    connectedClients.value = Number(data.connected || 0);
-    totalClients.value = Number(data.total || 0);
-  } catch {
-    connectedClients.value = 0;
-    totalClients.value = props.clientId ? 1 : totalClients.value;
-  }
+  statsLoadTimer = setTimeout(() => void queryClient.invalidateQueries({ queryKey: statsKey.value }), 250);
 }
 
 async function toggleAltSpeed(): Promise<void> {
   try {
     const res = await api('/api/downloads/global-alt-speed', { method: 'POST' });
     if (res.ok) {
-      altSpeed.value = !altSpeed.value;
+      queryClient.setQueryData(statsKey.value, (data: any) => ({ ...(data || {}), alt_speed_enabled: !altSpeed.value }));
       emit('refresh');
     }
   } catch (e: any) {
@@ -86,22 +85,21 @@ async function toggleAltSpeed(): Promise<void> {
   }
 }
 
-onMounted(loadStats);
 onUnmounted(() => clearTimeout(statsLoadTimer));
 watch(() => props.rows, scheduleStats);
-watch(() => props.clientId, loadStats);
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .global-speed-bar{position:fixed;left:0;right:0;bottom:0;z-index:35;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:4px max(10px,var(--safe-right)) 4px max(10px,var(--safe-left));border:0;border-top:1px solid var(--border);border-radius:0;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 -6px 22px rgb(var(--shadow-color) / calc(0.18 * var(--shadow-scale)));backdrop-filter:blur(12px);flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain}
 :global(.shell.sidebar-collapsed) .global-speed-bar{left:72px}
 .speed-counters{display:flex;align-items:center;gap:18px;min-width:max-content}
 .speed-item{display:inline-flex;align-items:center;gap:8px;color:var(--text)}
 .speed-item>span{display:grid;gap:1px}
 .speed-item small{color:var(--accent);font-size:var(--fs-xs);font-weight:700}
-.speed-item strong{font-size:13px}
+.speed-item strong{font-size:var(--fs-sm)}
 .speed-item svg{width:15px;height:15px;color:var(--muted)}
-.connection-status{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}
+.connection-status{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
 .connection-status i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 14%,transparent)}
 .connection-status.connected{color: var(--green-text)}
 .connection-status.partial{color: var(--amber-text)}
@@ -110,13 +108,13 @@ watch(() => props.clientId, loadStats);
 .speed-bar-actions button{min-height:32px;padding:4px 9px;white-space:nowrap}
 .tool-toggle-btn.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);border-color:var(--accent)}
 .alt-speed-btn.active{background:color-mix(in srgb,var(--warning) 16%,transparent);color: var(--amber-text);border-color:var(--warning)}
-@media(min-width:761px){.global-speed-bar button{font-size:13px}}
-@media(max-width:760px){
+@include bp.from(tablet) {.global-speed-bar button{font-size:var(--fs-sm)}}
+@include bp.until(tablet) {
   .global-speed-bar{left:0;bottom:var(--app-shell-offset-bottom);min-width:0;min-height:42px;padding:3px 8px}
   .speed-counters{gap:12px}
-  .speed-item{gap:5px}.speed-item small{display:none}.speed-item strong{font-size:12px}
+  .speed-item{gap:5px}.speed-item small{display:none}.speed-item strong{font-size:var(--fs-xs)}
   .speed-bar-actions{gap:4px}
   .speed-bar-actions button{justify-content:center;min-width:0;padding:3px 7px;font-size:var(--fs-xs)}
 }
-@media(max-width:380px){.connection-status{font-size:0}.connection-status i{width:8px;height:8px}}
+@container page (max-width: 352px) {.connection-status{font-size:0}.connection-status i{width:8px;height:8px}}
 </style>

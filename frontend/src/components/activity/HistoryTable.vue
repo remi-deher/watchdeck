@@ -22,9 +22,11 @@
       </span>
     </div>
     <div class="history-table">
-      <!-- Un marathon produisait autant de lignes identiques que d’episodes. Les lectures
-           consecutives d’un meme media par la meme personne sont donc repliees en une
-           ligne, qui porte leur nombre et leur duree cumulee.
+      <!-- Plex cree une nouvelle lecture a chaque arret puis reprise d'un meme media :
+           autant de lignes identiques. Les lectures consecutives d'un meme film ou d'un
+           meme episode, par la meme personne sur le meme appareil, sont donc repliees en
+           une ligne, qui porte leur nombre et leur duree cumulee. Deux episodes differents
+           restent deux lignes.
            Les lignes sont ensuite reunies par journee : un historique se lit par date,
            et l'en-tete collant garde la date sous les yeux pendant le defilement. -->
       <template v-for="day in days" :key="day.key">
@@ -32,10 +34,10 @@
           <span>{{ day.label }}</span>
           <small>{{ day.count }} lecture{{ day.count > 1 ? 's' : '' }} · {{ formatDuration(day.watchedMs) }}</small>
         </h3>
-        <button v-for="row in day.rows" :key="row.key" @click="$emit('select', row.item)">
+        <button v-for="row in day.rows" :key="row.key" @click="$emit('select', row.item, row.items)">
         <MediaArtwork :src="row.item.thumb_url" :alt="displayTitle(row.item)" :type="row.item.media_type" size="history"/>
         <span class="history-title">
-          <strong>{{ displayTitle(row.item) }}<em v-if="row.count > 1" class="history-group">&times;{{ row.count }}</em></strong>
+          <strong>{{ displayTitle(row.item) }}<em v-if="row.count > 1" class="history-group">&times;{{ row.count }}</em><UiTooltip :focusable="false" v-if="row.item.is_download" text="Téléchargement pour une lecture hors ligne, pas une lecture"><em class="history-download">Téléchargement</em></UiTooltip></strong>
           <small>{{ row.item.user_name || 'Utilisateur Plex' }}<template v-if="row.count > 1"> &middot; {{ row.count }} lectures consécutives</template></small>
         </span>
         <span class="history-client">
@@ -43,7 +45,7 @@
           <span><Network/><code>{{ addressLabel(row.item) }}</code></span>
           <span class="history-place"><MapPin/><span>{{ locationLabel(row.item) }}</span></span>
         </span>
-        <PlaybackMethodBadge :method="row.item.playback_method"/>
+        <PlaybackMethodBadge :method="row.method" :title="row.method === 'mixed' ? mixedTitle(row) : ''"/>
         <span class="history-duration">{{ formatDuration(row.watchedMs) }}</span>
         <time>{{ formatDate(row.item.started_at) }}</time>
         </button>
@@ -62,6 +64,8 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
+import { playbackTitle } from '@/playbackToast';
 import { computed, ref, watch } from 'vue';
 import { useIntersectionObserver } from '@vueuse/core';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
@@ -73,6 +77,7 @@ import { isToday, isYesterday } from 'date-fns';
 import { localIso } from '@/utils/timeBuckets';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
+import { playbackMethodLabel } from '@/utils/labels';
 
 export interface HistoryItem {
   id?: number | string;
@@ -82,6 +87,9 @@ export interface HistoryItem {
   media_type?: string;
   title?: string;
   grandparent_title?: string;
+  season_number?: number | null;
+  episode_number?: number | null;
+  is_download?: boolean;
   user_name?: string;
   player?: string;
   product?: string;
@@ -124,7 +132,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (e: 'select', item: HistoryItem): void;
+  (e: 'select', item: HistoryItem, run: HistoryItem[]): void;
   (e: 'load-more'): void;
   (e: 'update:sort', value: string): void;
 }>();
@@ -157,19 +165,34 @@ function sortLabel(column: string): string {
   return `Trier par ${SORT_COLUMNS[column].toLowerCase()}${current}`;
 }
 
-interface HistoryRow { key: string; item: HistoryItem; count: number; watchedMs: number }
+interface HistoryRow { key: string; item: HistoryItem; items: HistoryItem[]; count: number; watchedMs: number; method: string }
 
-/* Le repliement ne porte que sur des lectures *consecutives* : c'est ce qui fait le mur
-   de lignes identiques d'un marathon. Deux visionnages separes dans le temps restent
-   deux lignes, parce que ce sont deux evenements distincts. */
+/* Des lectures consecutives n'ont pas forcement le meme mode : un episode transcode, le
+   suivant en lecture directe. La ligne le dit (« Lecture mixte ») au lieu de n'afficher
+   que le mode de la premiere. */
+function runMethod(items: HistoryItem[]): string {
+  const methods = new Set(items.map((item) => item.playback_method || ''));
+  return methods.size > 1 ? 'mixed' : items[0]?.playback_method || '';
+}
+function mixedTitle(row: HistoryRow): string {
+  const counts = new Map<string, number>();
+  for (const item of row.items) counts.set(item.playback_method || '', (counts.get(item.playback_method || '') || 0) + 1);
+  return `Lecture mixte : ${[...counts].map(([method, count]) => `${count} × ${playbackMethodLabel(method, { fallback: 'inconnu' }).toLowerCase()}`).join(', ')}`;
+}
+
+/* Le repliement ne porte que sur des lectures *consecutives* du meme media : les reprises
+   d'un episode ou d'un film. Deux visionnages separes dans le temps restent deux lignes,
+   comme deux episodes qui se suivent : ce sont des evenements distincts. */
 const rows = computed<HistoryRow[]>(() => {
   const source = props.items || [];
   if (!props.grouped) {
     return source.map((item) => ({
       key: rowKey(item),
       item,
+      items: [item],
       count: 1,
       watchedMs: item.watched_ms || 0,
+      method: item.playback_method || '',
     }));
   }
   const out: HistoryRow[] = [];
@@ -181,11 +204,13 @@ const rows = computed<HistoryRow[]>(() => {
       groupKey(previous.item) === groupKey(item) &&
       deviceLabel(previous.item) === deviceLabel(item);
     if (sameRun) {
+      previous.items.push(item);
       previous.count += 1;
       previous.watchedMs += item.watched_ms || 0;
+      previous.method = runMethod(previous.items);
       continue;
     }
-    out.push({ key: rowKey(item), item, count: 1, watchedMs: item.watched_ms || 0 });
+    out.push({ key: rowKey(item), item, items: [item], count: 1, watchedMs: item.watched_ms || 0, method: item.playback_method || '' });
   }
   return out;
 });
@@ -246,8 +271,11 @@ function rowKey(item: HistoryItem): string {
   return item.id != null ? `row:${item.id}` : `${item.source}:${item.session_id}`;
 }
 
+/* Le media lui-meme, pas la serie : la cle Plex quand on l'a, sinon serie, saison,
+   episode et titre (imports Tautulli anciens, sans cle). */
 function groupKey(item: HistoryItem): string {
-  return item.grandparent_title || item.title || '';
+  if (item.rating_key) return `media:${item.rating_key}`;
+  return [item.grandparent_title, item.season_number, item.episode_number, item.title].map((part) => part ?? '').join('|');
 }
 
 function exportCsv(): void {
@@ -258,7 +286,7 @@ function exportCsv(): void {
     deviceLabel(row.item),
     row.item.address || '',
     locationLabel(row.item),
-    row.item.playback_method || '',
+    row.method || '',
     String(Math.round((row.watchedMs || 0) / 1000)),
     row.item.started_at || '',
   ])];
@@ -272,7 +300,7 @@ function exportCsv(): void {
 }
 
 function displayTitle(item: HistoryItem): string {
-  return item.grandparent_title ? `${item.grandparent_title} · ${item.title}` : item.title || '';
+  return item.grandparent_title || item.title ? playbackTitle(item) : '';
 }
 function deviceLabel(item: HistoryItem): string {
   return item.player || item.product || item.platform || 'Appareil inconnu';
@@ -297,8 +325,9 @@ const formatDate = (value: any) => formatDateTimeShort(value, '—');
 .history-sort__button.active{color:var(--accent)}
 .history-sort__button svg{width:13px;height:13px}
 .history-sort__button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-@media(max-width:1150px){.history-sort{grid-template-columns:64px minmax(190px,1fr) minmax(180px,230px) 112px 80px}.history-sort__cell:last-child{grid-column:2/4;grid-row:2}}
+@container page (max-width: 1007px) {.history-sort{grid-template-columns:64px minmax(190px,1fr) minmax(180px,230px) 112px 80px}.history-sort__cell:last-child{grid-column:2/4;grid-row:2}}
 /* Sur telephone les lignes ne sont plus alignees en colonnes : les tris forment une
    rangee de boutons. */
-@media(max-width:800px){.history-sort{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding:6px 6px}.history-sort__spacer{display:none}.history-sort__cell{display:contents}.history-sort__button{margin-left:0;min-height:36px}}@media(max-width:1150px){.history-table button{grid-template-columns:64px minmax(190px,1fr) minmax(180px,230px) 112px 80px}.history-table time{grid-column:2/4;font-size:var(--fs-xs)}.history-duration{grid-column:5;grid-row:1/3}}@media(max-width:800px){.history-table button{grid-template-columns:64px minmax(0,1fr) auto;gap:var(--space-3) var(--space-4);align-items:start}.history-client{grid-column:2}.history-duration{grid-column:2;grid-row:auto;font-size:var(--fs-sm)}.history-table time{grid-column:3;grid-row:2;font-size:var(--fs-xs)}.history-table :deep(.playback-badge){grid-column:3;grid-row:1}}@media(max-width:480px){.history-table button{grid-template-columns:58px minmax(0,1fr) auto;padding-inline:6px}.history-table time{display:none}.history-title strong{font-size:var(--fs-md)}.history-title small,.history-client>span,.history-client code{font-size:var(--fs-xs)}}
+@container page (max-width: 759px) {.history-sort{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding:6px 6px}.history-sort__spacer{display:none}.history-sort__cell{display:contents}.history-sort__button{margin-left:0;min-height:36px}}@container page (max-width: 1007px) {.history-table button{grid-template-columns:64px minmax(190px,1fr) minmax(180px,230px) 112px 80px}.history-table time{grid-column:2/4;font-size:var(--fs-xs)}.history-duration{grid-column:5;grid-row:1/3}}@container page (max-width: 759px) {.history-table button{grid-template-columns:64px minmax(0,1fr) auto;gap:var(--space-3) var(--space-4);align-items:start}.history-client{grid-column:2}.history-duration{grid-column:2;grid-row:auto;font-size:var(--fs-sm)}.history-table time{grid-column:3;grid-row:2;font-size:var(--fs-xs)}.history-table :deep(.playback-badge){grid-column:3;grid-row:1}}@container page (max-width: 444px) {.history-table button{grid-template-columns:58px minmax(0,1fr) auto;padding-inline:6px}.history-table time{display:none}.history-title strong{font-size:var(--fs-md)}.history-title small,.history-client>span,.history-client code{font-size:var(--fs-xs)}}
+.history-download{margin-left:8px;padding:1px 7px;border-radius:var(--radius-pill);background:color-mix(in srgb,var(--muted) 14%,transparent);font-size:var(--fs-xs);font-style:normal;font-weight:700}
 </style>

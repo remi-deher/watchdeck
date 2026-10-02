@@ -65,6 +65,22 @@ async def get_json(key: str) -> dict[str, Any] | None:
         await redis.aclose()
 
 
+async def key_ttl_ms(key: str) -> int | None:
+    """TTL restant d'une clé Redis en millisecondes (None si Redis est absent ou la clé sans expiration)."""
+    if not os.getenv("REDIS_URL"):
+        return None
+    from redis.asyncio import Redis
+
+    redis = Redis.from_url(os.environ["REDIS_URL"], encoding="utf-8", decode_responses=True)
+    try:
+        ttl = await redis.pttl(key)
+    finally:
+        await redis.aclose()
+    if ttl == -2:
+        return 0
+    return ttl if ttl >= 0 else None
+
+
 async def set_notification_hold(enabled: bool, db=None) -> None:
     """Active/désactive la conservation manuelle de toutes les notifications."""
     global _local_notification_hold

@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 
 import VfUpgradesView from './VfUpgradesView.vue';
 
@@ -26,6 +27,7 @@ function suggestion(id, season, episode = null, overrides = {}) {
 function mountView() {
   return mount(VfUpgradesView, {
     global: {
+      plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
       stubs: {
         AppPage: {
           props: ['query', 'modelValue', 'title'],

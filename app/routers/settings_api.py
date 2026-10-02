@@ -5,7 +5,7 @@ from typing import Optional
 
 import httpx
 import sqlalchemy
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,9 +14,8 @@ from sqlalchemy.future import select
 from ..database import get_db_async
 from ..dependencies import get_settings_or_404, require_admin
 from ..models import Settings
-from ..scheduler import _send_digest, update_poll_interval
-from ..scheduler import scheduler as _scheduler
 from ..services import email_providers, radarr, sonarr
+from ..services.client_ip import InvalidTrustedProxies, client_ip, validate_trusted_proxies
 from ..services.notifications import send_gotify, send_ntfy
 from ..services.plex_api import check_connection as plex_test
 from ..services.plex_rss import test_rss
@@ -69,6 +68,7 @@ class SettingsUpdate(BaseModel):
     smtp_from: Optional[str] = None
     admin_notification_email: Optional[str] = None
     public_base_url: Optional[str] = None
+    trusted_proxies: Optional[str] = None
     gdpr_contact_name: Optional[str] = None
     gdpr_contact_email: Optional[str] = None
     email_on_request: Optional[bool] = None
@@ -257,10 +257,91 @@ _MASKED_SECRET_FIELDS = (
 )
 
 
+# Un changement d'adresse de service n'est enregistre qu'une fois la liaison verifiee avec
+# le secret qui lui sera envoye (celui saisi, ou a defaut celui deja stocke) : une adresse
+# erronee ne remplace pas une configuration qui fonctionne.
+_URL_LINKED_SECRETS = {
+    "plex_url": ("plex_token", "Plex"),
+    "tautulli_url": ("tautulli_api_key", "Tautulli"),
+    "tracearr_url": ("tracearr_api_key", "Tracearr"),
+    "sonarr_url": ("sonarr_api_key", "Sonarr"),
+    "radarr_url": ("radarr_api_key", "Radarr"),
+    "seer_url": ("seer_api_key", "Seer"),
+    "ntfy_url": ("ntfy_token", "ntfy"),
+    "gotify_url": ("gotify_token", "Gotify"),
+}
+
+
+def _normalized_url(value: str | None) -> str:
+    return (value or "").strip().rstrip("/").lower()
+
+
+async def _notification_link(sender, url: str, secret: str) -> tuple[bool, str]:
+    try:
+        await sender(url, secret, "Test Watchdeck", "Nouvelle adresse de notification validée.")
+    except Exception as exc:
+        return False, safe_error_message(exc)
+    return True, "OK"
+
+
+async def _test_service_link(url_field: str, url: str, secret: str, payload: dict, s: Settings) -> tuple[bool, str]:
+    from ..services.playback_activity import test_tautulli
+    from ..services.tracearr import test_tracearr
+
+    if url_field == "plex_url":
+        check_tls = payload.get("plex_verify_ssl")
+        if check_tls is None:
+            check_tls = s.plex_verify_ssl
+        return await plex_test(url, secret, verify_ssl=check_tls)
+    if url_field == "tautulli_url":
+        return await test_tautulli(url, secret)
+    if url_field == "tracearr_url":
+        return await test_tracearr(url, secret)
+    if url_field == "sonarr_url":
+        return await sonarr.check_connection(url, secret)
+    if url_field == "radarr_url":
+        return await radarr.check_connection(url, secret)
+    if url_field == "seer_url":
+        return await seer_test(url, secret)
+    if url_field == "ntfy_url":
+        return await _notification_link(send_ntfy, url, secret)
+    return await _notification_link(send_gotify, url, secret)
+
+
+async def _check_changed_service_links(payload: dict, s: Settings) -> None:
+    for url_field, (secret_field, label) in _URL_LINKED_SECRETS.items():
+        new_url = (payload.get(url_field) or "").strip()
+        if not new_url or _normalized_url(new_url) == _normalized_url(getattr(s, url_field)):
+            continue
+        secret = payload.get(secret_field)
+        if secret in (None, "", "••••••••"):
+            secret = getattr(s, secret_field)
+        try:
+            ok, message = await _test_service_link(url_field, new_url, secret or "", payload, s)
+        except Exception as exc:
+            ok, message = False, safe_error_message(exc)
+        if not ok:
+            raise HTTPException(
+                400,
+                f"Nouvelle adresse de {label} non enregistrée : la connexion a échoué ({message}). "
+                "Vérifiez l'adresse et la clé.",
+            )
+
+
+def _normalize_trusted_proxies(payload: dict) -> None:
+    if payload.get("trusted_proxies") is None:
+        return
+    try:
+        payload["trusted_proxies"] = validate_trusted_proxies(payload["trusted_proxies"])
+    except InvalidTrustedProxies as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @router.get("/settings")
 def get_settings(s: Settings = Depends(get_settings_or_404)):
     """Retourne la configuration complète. Les secrets/tokens sont masqués."""
     d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
+    d.pop("auth_password_hash", None)
     for field in _MASKED_SECRET_FIELDS:
         if d.get(field):
             d[field] = "••••••••"
@@ -302,6 +383,8 @@ async def update_settings(
     }
     payload = data.model_dump()
     _validate_notify_settings(payload)
+    _normalize_trusted_proxies(payload)
+    await _check_changed_service_links(payload, s)
     for key, val in payload.items():
         if val is None and key not in _nullable_fields:
             continue
@@ -335,32 +418,19 @@ async def update_settings(
         if data.seer_send_requests:
             s.seer_enabled = True
     await db.commit()
-    # Priorité aux secondes (polling sous la minute) ; repli sur les minutes.
-    if data.poll_interval_seconds:
-        update_poll_interval(data.poll_interval_seconds)
-    elif data.poll_interval_minutes:
-        update_poll_interval(data.poll_interval_minutes * 60)
-    # Replanifier le digest si l'heure ou l'activation change
-    if _scheduler.running and (data.digest_enabled is not None or data.digest_hour is not None):
-        hour = s.digest_hour or 8
-        if s.digest_enabled:
-            _scheduler.add_job(_send_digest, "cron", hour=hour, minute=0, id="digest", replace_existing=True)
-        else:
-            try:
-                _scheduler.remove_job("digest")
-            except Exception:
-                pass
-    # Replanifier le job VFF si l'intervalle a changé
-    if _scheduler.running and data.vff_recheck_interval_minutes:
-        from apscheduler.triggers.interval import IntervalTrigger
-
-        try:
-            _scheduler.reschedule_job(
-                "vf_status_check", trigger=IntervalTrigger(minutes=data.vff_recheck_interval_minutes)
-            )
-        except Exception:
-            pass
+    # Le worker ARQ relit ces intervalles et l'heure du digest à chaque tick : rien à replanifier ici.
     return {"status": "ok"}
+
+
+@router.get("/settings/client-ip")
+async def current_client_ip(request: Request, s: Settings = Depends(get_settings_or_404)):
+    """IP de connexion et IP retenue pour ce navigateur : permet de verifier le reglage
+    des proxies de confiance."""
+    return {
+        "connection_ip": request.client.host if request.client else None,
+        "client_ip": client_ip(request, s.trusted_proxies),
+        "forwarded_for": request.headers.get("x-forwarded-for"),
+    }
 
 
 @router.post("/settings/token")

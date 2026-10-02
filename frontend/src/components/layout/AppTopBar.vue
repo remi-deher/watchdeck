@@ -359,7 +359,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
 /* Ce sont les sections qui cedent la place, pas le titre : elles defilent dans leur
    propre cadre, alors qu'un titre tronque ne se recupere nulle part ailleurs. */
 .app-topbar__sections { flex: 1 1 0; min-width: 0; }
-.app-topbar__sections :deep(.app-subnav__scroller) { border: 0; background: transparent; padding: 0; }
+.app-topbar__sections :deep(.app-subnav) { width: auto; margin-inline: 0; border: 0; background: transparent; padding: 0; }
 .app-topbar__crumbs:has(~ .app-topbar__sections) { flex: 0 0 auto; max-width: 260px; }
 
 /* ── Recherche de page ──────────────────────────────────────────────────────── */
@@ -525,6 +525,14 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
      laissait a gauche d'une bande deux fois plus large -- 480px cales dans 972, soit
      246px hors du centre, alors que le conteneur, lui, etait bien centre. */
   .app-topbar__field :deep(.ui-search-field) { width: 100%; max-width: none; }
+  /* Meme effacement qu'en compact : sans lui, la barre dessinait une capsule grise
+     bordee autour du champ, un second contenant qui ne groupait rien. */
+  .app-topbar:has(.app-topbar__field) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
 }
 
 @include bp.from(shell-expanded) {
@@ -571,8 +579,12 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   }
   .app-topbar__field,
   .app-topbar__search {
-    flex: 0 1 520px;
+    /* Base `auto` et non 520px : une base flex explicite l'emporte sur `width`, et le
+       champ gardait ses 520px sur une tablette en portrait (~800px), recouvrant le
+       titre. La reserve de 196px (98 par cote) doit rester garantie. */
+    flex: 0 1 auto;
     width: calc(100% - 196px);
+    max-width: 520px;
     margin: 0 auto;
   }
 }

@@ -83,10 +83,8 @@ function pageOverflows(page) {
 test.describe("Graphique d'activite", () => {
   test.beforeEach(async ({ page }) => {
     await mockApi(page, { snapshot: { timeline: timeline() } });
+    // Le graphique d'activite est affiche d'emblee dans la grille de l'accueil.
     await page.goto("/dashboard");
-    // La section Activite est repliee par defaut (UiDisclosure) : son contenu n'est
-    // monte qu'a la premiere ouverture, donc le graphique n'existe pas avant ce clic.
-    await page.locator(".ui-disclosure-trigger").filter({ hasText: "Activité" }).first().click();
   });
 
   test("le graphique ne pousse jamais la page a deborder", async ({ page }) => {
@@ -113,6 +111,8 @@ test.describe("Graphique d'activite", () => {
     test.skip(testInfo.project.name !== "desktop", "interaction souris");
     await expectChartHasCurve(page);
     const plot = page.locator(".line-chart__plot").first();
+    // Le graphique est plus bas dans la page d'accueil : le glisser se fait a l'ecran.
+    await plot.scrollIntoViewIfNeeded();
     const box = await plot.boundingBox();
 
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);

@@ -228,7 +228,6 @@ services:
       DATABASE_URL: postgresql://watchdeck:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-watchdeck}
       REDIS_URL: redis://redis:6379/0
       ENABLE_ARQ: "1"
-      ENABLE_LEGACY_SCHEDULER: "0"
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -578,7 +577,6 @@ services:
       DATABASE_URL: postgresql://watchdeck:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-watchdeck}
       REDIS_URL: redis://redis:6379/0
       ENABLE_ARQ: "1"
-      ENABLE_LEGACY_SCHEDULER: "0"
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

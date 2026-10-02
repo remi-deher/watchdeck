@@ -3,23 +3,17 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_api_scope, require_auth, require_moderator
 from app.main import app
-from app.models import Base, LibraryItem, MediaIssue, Settings
+from app.models import LibraryItem, MediaIssue, Settings
 from app.services.totp import _totp_at, generate_secret, verify_code
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    return TestSession(Session())
+    return make_test_session()
 
 
 def _client(db):
@@ -150,10 +144,13 @@ def test_retry_issue_media_search_endpoint(mock_search_series):
         db.close()
 
 
+@patch("app.routers.auth.get_plex_owner_uuid", new_callable=AsyncMock, return_value="owner-uuid")
+@patch("app.routers.auth.get_auth_pin", new_callable=AsyncMock)
 @patch("app.services.plex_api.check_auth_pin", new_callable=AsyncMock)
 @patch("app.routers.auth.get_plex_account", new_callable=AsyncMock)
 @patch("app.routers.auth.has_server_access", new_callable=AsyncMock)
-def test_plex_sso_server_access_control(mock_has_access, mock_get_account, mock_check_pin):
+def test_plex_sso_server_access_control(mock_has_access, mock_get_account, mock_check_pin, mock_get_pin, _owner):
+    mock_get_pin.return_value = {"id": 123, "code": "abcd", "auth_url": "https://app.plex.tv/auth"}
     mock_check_pin.return_value = "token123"
     mock_get_account.return_value = {
         "uuid": "uuid123",
@@ -177,13 +174,15 @@ def test_plex_sso_server_access_control(mock_has_access, mock_get_account, mock_
     try:
         # Case 1: Unauthorized user
         mock_has_access.return_value = False
-        resp = client.get("/login/plex/check/123")
+        assert client.post("/api/auth/plex/pin").status_code == 200
+        resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 403
         assert "n'a pas accès au serveur" in resp.json()["detail"]
 
         # Case 2: Authorized user
         mock_has_access.return_value = True
-        resp = client.get("/login/plex/check/123")
+        assert client.post("/api/auth/plex/pin").status_code == 200
+        resp = client.get("/api/auth/plex/check/123")
         assert resp.status_code == 200
         assert resp.json()["authenticated"] is True
     finally:

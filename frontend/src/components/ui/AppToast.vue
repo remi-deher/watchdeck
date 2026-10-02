@@ -42,6 +42,7 @@ function runAction(toast: AppToastMessage): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .app-toast-viewport {
   position: fixed; z-index: var(--z-toast); right: max(18px, var(--safe-right)); bottom: max(18px, var(--safe-bottom));
   display: grid; gap: var(--space-2); width: min(380px, calc(100vw - 28px)); margin: 0; padding: 0; list-style: none; outline: none;
@@ -71,7 +72,7 @@ function runAction(toast: AppToastMessage): void {
 .app-toast-close { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
 .app-toast-close svg { width: 15px; }
 .app-toast-close:hover { color: var(--text); }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .app-toast-viewport { right: max(14px, var(--safe-right)); bottom: calc(var(--app-shell-offset-bottom) + 14px); }
   :root:has(.app-topbar) .app-toast-viewport { bottom: calc(var(--app-shell-offset-bottom) + var(--app-topbar-h) + 22px); }
   .app-toast { padding: 10px; }

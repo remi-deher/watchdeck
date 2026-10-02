@@ -2,16 +2,18 @@
   <!-- Inspection d'un torrent : general, puis fichiers, trackers et paires lus a la
        demande aupres du client. Les actions remontent a la fiche, qui les execute. -->
   <div class="torrent-inspector">
-    <div class="drawer-nav-tabs">
-      <button class="drawer-tab" :class="{ active: tab==='general' }" @click="tab='general'"><Info /> Général</button>
-      <button class="drawer-tab" :class="{ active: tab==='files' }" @click="selectTab('files')"><FileText /> Fichiers ({{ files.length }})</button>
-      <button class="drawer-tab" :class="{ active: tab==='trackers' }" @click="selectTab('trackers')"><Radio /> Trackers ({{ trackers.length }})</button>
-      <button class="drawer-tab" :class="{ active: tab==='peers' }" @click="selectTab('peers')"><Users /> Peers ({{ peers.length }})</button>
-    </div>
+    <AppSubnav :items="tabs" :active="tab" variant="tabs" aria-label="Sections du torrent" @update:active="changeTab" />
 
     <template v-if="tab==='general'">
+      <!-- En tete : l'etat, puis ce qui a ete recu, rendu et le rapport des deux. Le ratio
+           seul ne disait pas si l'on avait partage 10 Mo ou 10 Go. -->
       <section class="torrent-detail-summary">
         <TorrentStateBadge :torrent="torrent" />
+        <dl class="torrent-summary-stats">
+          <div><dt>Téléchargé</dt><dd>{{ torrent.downloaded != null ? formatBytes(torrent.downloaded) : '—' }}</dd></div>
+          <div><dt>Partagé</dt><dd>{{ torrent.uploaded != null ? formatBytes(torrent.uploaded) : '—' }}</dd></div>
+          <div><dt>Ratio</dt><dd>{{ Number(torrent.ratio||0).toFixed(2) }}</dd></div>
+        </dl>
       </section>
       <section class="drawer-section">
         <h3>Transfert</h3>
@@ -20,7 +22,6 @@
           <div><dt>Taille</dt><dd>{{ formatBytes(torrent.size) }}</dd></div>
           <div><dt>Réception</dt><dd>{{ formatSpeed(torrent.download_speed) }}</dd></div>
           <div><dt>Envoi</dt><dd>{{ formatSpeed(torrent.upload_speed) }}</dd></div>
-          <div><dt>Ratio</dt><dd>{{ Number(torrent.ratio||0).toFixed(2) }}</dd></div>
           <div><dt>Temps restant</dt><dd>{{ formatEta(torrent.eta) }}</dd></div>
         </dl>
       </section>
@@ -85,11 +86,12 @@
 
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { FileText, Info, Pause, Play, Radio, RotateCcw, Tag, Trash2, Users } from '@lucide/vue';
 import { api } from '@/api';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import TorrentStateBadge from './TorrentStateBadge.vue';
 import { formatBytes, formatEta, formatSpeed, formatTimestamp, isPaused } from '@/downloads/torrentFormat';
 
@@ -126,6 +128,21 @@ const files = ref<any[]>([]);
 const trackers = ref<any[]>([]);
 const peers = ref<any[]>([]);
 const loading = ref(false);
+/* Les listes sont lues a la demande : avant, leurs onglets affichaient « 0 » alors que
+   rien n'avait encore ete demande au client. Le compte n'apparait qu'une fois connu. */
+const loaded = ref(new Set<string>());
+const countOf = (name: string, list: any[]) => (loaded.value.has(name) ? list.length : null);
+const tabs = computed(() => [
+  { key: 'general', label: 'Général', icon: Info },
+  { key: 'files', label: 'Fichiers', icon: FileText, count: countOf('files', files.value) },
+  { key: 'trackers', label: 'Trackers', icon: Radio, count: countOf('trackers', trackers.value) },
+  { key: 'peers', label: 'Peers', icon: Users, count: countOf('peers', peers.value) },
+]);
+
+function changeTab(name: string): void {
+  if (name === 'general') tab.value = name;
+  else void selectTab(name);
+}
 
 // Un autre torrent : on repart de l'onglet general, sans les listes du precedent.
 watch(() => `${props.torrent.client_id}:${props.torrent.hash}`, () => {
@@ -133,6 +150,7 @@ watch(() => `${props.torrent.client_id}:${props.torrent.hash}`, () => {
   files.value = [];
   trackers.value = [];
   peers.value = [];
+  loaded.value = new Set();
 });
 
 async function selectTab(name: string): Promise<void> {
@@ -143,6 +161,7 @@ async function selectTab(name: string): Promise<void> {
     if (name === 'files') files.value = await api(`${base}/files`);
     else if (name === 'trackers') trackers.value = await api(`${base}/trackers`);
     else if (name === 'peers') peers.value = await api(`${base}/peers`);
+    loaded.value = new Set([...loaded.value, name]);
   } catch (e: any) {
     emit('error', e.message);
   } finally {
@@ -163,14 +182,14 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .torrent-inspector{display:grid;gap:var(--space-4)}
-.drawer-nav-tabs{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:12px;overflow-x:auto}
-.drawer-tab{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);font:inherit;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap}
-.drawer-tab:hover{color:var(--text);background:var(--surface-2)}
-.drawer-tab.active{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);font-weight:700}
-.drawer-tab svg{width:13px;height:13px}
-.torrent-detail-summary{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}
+.torrent-detail-summary{display:grid;justify-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-3);border:1px solid var(--border);border-radius:var(--panel-radius);background:var(--surface-2);text-align:center}
+.torrent-summary-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2);width:100%;max-width:420px;margin:0}
+.torrent-summary-stats>div{display:grid;gap:2px;min-width:0}
+.torrent-summary-stats dt{color:var(--muted);font-size:var(--fs-xs)}
+.torrent-summary-stats dd{margin:0;overflow:hidden;color:var(--text);font-size:var(--fs-lg);font-weight:700;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}
 .drawer-section h3{margin:0 0 12px}
 .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2);margin:0}
 .detail-list{display:grid;gap:var(--space-2);margin:0}
@@ -185,6 +204,6 @@ async function changeFilePriority(fileId: number, priority: string): Promise<voi
 .drawer-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);margin-top:auto;padding-top:var(--space-3);border-top:1px solid var(--border)}
 .drawer-actions button{display:inline-flex;align-items:center;gap:6px}
 .drawer-actions svg{width:14px;height:14px}
-@media(min-width:761px){.detail-grid dt,.detail-list dt{color:var(--accent);font-size:12px}}
-@media(max-width:380px){.detail-grid{grid-template-columns:1fr}}
+@include bp.from(tablet) {.detail-grid dt,.detail-list dt{color:var(--accent);font-size:var(--fs-xs)}}
+@container sheet (max-width: 342px) {.detail-grid{grid-template-columns:1fr}}
 </style>

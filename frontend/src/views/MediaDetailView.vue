@@ -15,6 +15,7 @@
       :season-summary="seasonSummary"
       :busy="busy"
       :available="isInPlex"
+      :variant="enSurface ? 'sheet' : 'card'"
       @back="goBack"
       @report-issue="showIssueForm = !showIssueForm"
       @scan="scanVff"
@@ -48,7 +49,7 @@
             :addable-users="addableUsers"
             v-model:new-requester-id="newRequesterId"
             @add-requester="addRequester"
-            @open-release="(id: number) => router.push(`/releases/${id}`)"
+            @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
             @retry="(id: number) => requestAction(id, 'retry')"
             @catch-up-all="catchUpAll"
             @resend-mail="resendMail"
@@ -195,11 +196,14 @@ import { isMusicType } from '@/utils/labels';
 import { humanizeError } from '@/utils/apiError';
 import { computed, reactive, ref, watch } from "vue";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { LoaderCircle } from "@lucide/vue";
 import { useRoute, useRouter } from "vue-router";
-import { api } from "@/api";
+import { api, ApiError } from "@/api";
+import { useToast } from "@/composables/useToast";
 import { mediaDetailPath, openPlexLink } from "@/mediaUrl";
 import MediaDetailHero from "@/components/media/MediaDetailHero.vue";
+import { useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { apercuRecent } from "@/composables/useFicheApercu";
 import MediaSummaryTab from "@/components/media/MediaSummaryTab.vue";
 import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
@@ -224,7 +228,11 @@ import { patchedAll } from '@/composables/useRealtimeQuery';
 
 const route = useRoute();
 const router = useRouter();
+const { actif: enSurface } = useMediaOverlay();
+// La recherche interactive s'ouvre dans la feuille, par-dessus la meme page de fond.
+const { ouvrir: ouvrirReleases } = useOuvrirFiche();
 const queryClient = useQueryClient();
+const { addToast } = useToast();
 const kind = computed(() => String(route.params.kind || ''));
 const mediaId = computed(() => String(route.params.id || ''));
 const mediaQueryKey = computed(() => ['media', kind.value, mediaId.value] as const);
@@ -277,7 +285,7 @@ const newRequesterId = ref('');
 
 const inDiscoverShell = computed(() => route.path.startsWith('/discover/'));
 
-const statusLabel = computed(() => detail.value?.operational_status_label || (detail.value?.available || detail.value?.in_library ? 'Disponible' : detail.value?.requested ? 'Deja demande' : detail.value?.request_status || ''));
+const statusLabel = computed(() => detail.value?.operational_status_label || (detail.value?.available || detail.value?.in_library ? 'Disponible' : detail.value?.requested ? 'Déjà demandé' : detail.value?.request_status || ''));
 const statusClass = computed(() => detail.value?.available || detail.value?.in_library ? 'available' : 'pending');
 const isInPlex = computed(() => Boolean(detail.value?.library_id || detail.value?.in_library));
 const seasonNumbers = computed(() => Array.from({ length: Number(detail.value?.number_of_seasons || 0) + 1 }, (_, i) => i));
@@ -349,7 +357,7 @@ const correctionMutation = useMutation({
 
 function tabLabel(value: string): string {
   const audioLabel = detail.value?.media_type === 'show' ? 'Saisons & épisodes' : 'Pistes & langues';
-  return ({ summary: 'Resume', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier' } as Record<string, string>)[value];
+  return ({ summary: 'Résumé', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier' } as Record<string, string>)[value];
 }
 
 function mediaPath(core = false): string {
@@ -386,7 +394,7 @@ const error = computed({
 });
 
 const usersQuery = useQuery({
-  queryKey: ['users', 'list'],
+  queryKey: queryKeys.users.list,
   queryFn: () => api<any[]>('/api/users'),
   enabled: computed(() => showCorrectionForm.value || tab.value === 'requests'),
 });
@@ -431,7 +439,9 @@ function triggerBackgroundVfRescan(initialLoad: Promise<any>): void {
       if (!isInPlex.value) return;
       return seasons.rescan();
     })
-    .catch(() => {});
+    .catch((e: any) => {
+      if (e instanceof ApiError && e.status === 410) leaveRemovedMedia(e.message);
+    });
 }
 
 const {
@@ -548,17 +558,30 @@ async function joinRequest(): Promise<void> {
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
 }
 
+/** Le média n'est plus dans Plex et le serveur vient de le retirer : la fiche n'existe plus. */
+function leaveRemovedMedia(message: string): void {
+  addToast({ type: 'info', title: 'Média retiré', message, duration: 8000 });
+  queryClient.invalidateQueries({ queryKey: ['library'] });
+  router.push(inDiscoverShell.value ? '/discover' : '/library');
+}
+
 async function scanVff(): Promise<void> {
   busy.value = true;
   try { await seasons.rescan(); }
-  catch (e: any) { error.value = e.message; } finally { busy.value = false; }
+  catch (e: any) {
+    if (e instanceof ApiError && e.status === 410) leaveRemovedMedia(e.message);
+    else error.value = e.message;
+  } finally { busy.value = false; }
 }
 
 async function recheckPlex(): Promise<void> {
-  busy.value = true;
+  busy.value = true; error.value = '';
   try {
     const media = detail.value.media || {};
-    await recheckMutation.mutateAsync(`/api/media/recheck-plex?${media.library_id ? `library_id=${media.library_id}` : `request_id=${media.request_id}`}`);
+    const data = await recheckMutation.mutateAsync(`/api/media/recheck-plex?${media.library_id ? `library_id=${media.library_id}` : `request_id=${media.request_id}`}`);
+    if (data?.removed) leaveRemovedMedia(`« ${data.title} » n’est plus dans Plex : il a été retiré de Watchdeck.`);
+    else if (data?.found) successMessage.value = 'Présent dans Plex.';
+    else error.value = 'Toujours introuvable dans Plex.';
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
 }
 
@@ -616,6 +639,7 @@ watch([requesters, sessionUserId], ([rows, userId]) => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-detail-page {
   min-height: 100%;
   overflow-x: hidden;
@@ -636,14 +660,14 @@ watch([requesters, sessionUserId], ([rows, userId]) => {
   padding: 80px 0;
   color: var(--muted);
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .media-detail-body {
     padding-right: 16px;
     padding-bottom: calc(var(--app-shell-offset-bottom) + 76px);
     padding-left: 16px;
   }
 }
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .media-detail-body { font-size: var(--fs-md); gap: var(--space-5); }
   .media-detail-body :deep(.drawer-section > h2),
   .media-detail-body :deep(.drawer-section > h3) { font-size: var(--fs-lg); }

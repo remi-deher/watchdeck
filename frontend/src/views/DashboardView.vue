@@ -11,34 +11,39 @@
 
     <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
 
-    <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action"/>
+    <DashboardGreeting :name="userName" :attention-count="attentionCount" :syncing="syncingAll" @sync-all="syncAll" />
 
-    <!-- Activité Plex en direct (Spotlight) -->
-    <LiveSessionsPanel
+    <!-- Activite Plex en direct, sur toute la largeur, juste sous l'en-tete. -->
+    <DashboardLiveStrip
       :sessions="liveActivity.active || []"
       :collection-enabled="liveActivity.enabled !== false"
-      interactive
       @select="openSession"
     />
 
-    <section class="dashboard-section">
-      <header class="dashboard-section-head">
-        <div>
-          <span class="eyebrow">Indicateurs</span>
-          <h2>Situation actuelle</h2>
-          <p>Le cycle de traitement des demandes et des acquisitions en temps réel.</p>
-        </div>
-      </header>
-      <AcquisitionPipelinePanel
-        :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
-        :downloading-count="queueTotals.downloading"
-        :import-pending-count="queueTotals.importPending"
-        :available-count="counts.available ?? '…'"
-        :blocked-count="queueTotals.blocked + failedCount"
-      />
+    <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action"/>
 
-      <div class="dashboard-ops-grid">
-        <DownloadQueuePanel :queue="downloadQueue" :loading="loadingQueue" />
+    <AcquisitionPipelinePanel
+      :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
+      :downloading-count="queueTotals.downloading"
+      :import-pending-count="queueTotals.importPending"
+      :available-count="counts.available ?? '…'"
+      :blocked-count="queueTotals.blocked + failedCount"
+    />
+
+    <div class="dashboard-bento">
+      <DashboardVfUpgradesPanel class="bento-wide" />
+      <DownloadQueuePanel class="bento-narrow" :queue="downloadQueue" :loading="loadingQueue" />
+    </div>
+
+    <ActivityChartPanel :timeline="timeline" />
+
+    <DashboardLibraryTabs :recently-available="recentlyAvailable" :recent-requests="recentRequests" :upcoming="upcoming" />
+
+    <!-- Sante et stockage ne sont lus qu'une fois la zone a l'ecran (ou Supervision
+         ouverte) : le bas de page ne doit pas retarder le premier affichage. -->
+    <div ref="healthZone" class="dashboard-bento">
+      <ServiceHealthPanel v-if="healthShown" class="bento-wide" />
+      <div class="bento-narrow bento-stack">
         <ScanStatusPanel
           :vff-scan="vffScan"
           :plex-sync="plexSync"
@@ -50,73 +55,49 @@
           @sync-arr="triggerArrSync"
           @sync-watchlist="triggerWatchlistSync"
         />
-        <RecentJobsPanel :polls="polls" :next-poll="nextPoll" :countdown="countdown" />
+        <DiskSpacePanel v-if="healthShown" :volumes="diskSpace" />
       </div>
-    </section>
+    </div>
 
     <UiDisclosure
-      title="Activité"
-      eyebrow="Tendance"
-      description="Demandes, disponibilités et notifications sur la période."
-      storage-key="dashboard.trendOpen"
-    >
-      <ActivityChartPanel :timeline="timeline" />
-    </UiDisclosure>
-
-    <UiDisclosure
-      title="Nouveautés et mouvements"
-      eyebrow="Bibliothèque"
-      description="Ce qui vient d'arriver, les demandes récentes et les sorties attendues."
-      storage-key="dashboard.libraryMovesOpen"
-      default-open
-    >
-      <div class="dashboard-rails-list">
-        <RecentlyAvailablePanel :items="recentlyAvailable" />
-        <MediaRail
-          title="Demandes récentes"
-          eyebrow="Demandes"
-          :items="recentRequests"
-          :more-to="{ path: '/library', query: { sort: 'requested_desc' } }"
-          empty-message="Aucune demande récente."
-        />
-        <UpcomingReleasesPanel :items="upcoming" />
-      </div>
-    </UiDisclosure>
-
-    <UiDisclosure
-      title="Vue d’ensemble"
-      eyebrow="Supervision"
+      title="Supervision"
+      eyebrow="Historique"
+      description="Exécutions du planificateur, répartition des demandes et derniers envois."
       storage-key="dashboard.supervisionOpen"
-      content-class="dashboard-supervision-groups"
+      content-class="dashboard-supervision"
       @open="loadSupervision"
     >
-      <section><header><span>Santé</span><h3>Infrastructure</h3></header><div class="dashboard-grid"><HealthGrid/><DiskSpacePanel :volumes="diskSpace"/></div></section>
-      <section><header><span>Usage</span><h3>Bibliothèque et utilisateurs</h3></header><div class="dashboard-grid"><RequestsBreakdownPanel :counts="counts"/><TopRequestedPanel :items="topRequested"/></div></section>
-      <section><header><span>Communication</span><h3>Derniers envois</h3></header><div class="dashboard-grid"><RecentNotificationsPanel :notifications="recentNotifs"/></div></section>
+      <RecentJobsPanel :polls="polls" :next-poll="nextPoll" :countdown="countdown" />
+      <RequestsBreakdownPanel :counts="counts"/>
+      <TopRequestedPanel :items="topRequested"/>
+      <RecentNotificationsPanel :notifications="recentNotifs"/>
     </UiDisclosure>
   </AppPage>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useElementVisibility } from '@vueuse/core';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
-import HealthGrid from '@/components/HealthGrid.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
 import DashboardActionCenter from '@/components/dashboard/DashboardActionCenter.vue';
+import DashboardGreeting from '@/components/dashboard/DashboardGreeting.vue';
+import DashboardLiveStrip from '@/components/dashboard/DashboardLiveStrip.vue';
+import DashboardVfUpgradesPanel from '@/components/dashboard/DashboardVfUpgradesPanel.vue';
+import DashboardLibraryTabs from '@/components/dashboard/DashboardLibraryTabs.vue';
+import { attentionTotal } from '@/components/dashboard/dashboardAttention';
 import AcquisitionPipelinePanel from '@/components/dashboard/AcquisitionPipelinePanel.vue';
 import RecentJobsPanel from '@/components/dashboard/RecentJobsPanel.vue';
 import RequestsBreakdownPanel from '@/components/dashboard/RequestsBreakdownPanel.vue';
 import DownloadQueuePanel from '@/components/dashboard/DownloadQueuePanel.vue';
 import ActivityChartPanel from '@/components/dashboard/ActivityChartPanel.vue';
-import UpcomingReleasesPanel from '@/components/dashboard/UpcomingReleasesPanel.vue';
-import RecentlyAvailablePanel from '@/components/dashboard/RecentlyAvailablePanel.vue';
 import DiskSpacePanel from '@/components/dashboard/DiskSpacePanel.vue';
 import TopRequestedPanel from '@/components/dashboard/TopRequestedPanel.vue';
 import RecentNotificationsPanel from '@/components/dashboard/RecentNotificationsPanel.vue';
 import ScanStatusPanel from '@/components/dashboard/ScanStatusPanel.vue';
-import MediaRail from '@/components/discover/MediaRail.vue';
-import LiveSessionsPanel from '@/components/activity/LiveSessionsPanel.vue';
+import ServiceHealthPanel from '@/components/dashboard/ServiceHealthPanel.vue';
 import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
 import { useRoute, useRouter } from 'vue-router';
 import { api, streamEvents } from '@/api';
@@ -124,6 +105,9 @@ import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { queueCounts } from '@/downloads/queueRules';
 import { usePreference } from '@/composables/usePreference';
+import { useSession } from '@/composables/useSession';
+import { queryKeys } from '@/queryKeys';
+import { arrQueueQuery, diskSpaceQuery, playbackLiveQuery, vffCountsQuery, vffScanStatusQuery, vffSyncStatusQuery } from '@/sharedQueries';
 
 const SNAPSHOT_CACHE_KEY = 'dashboard:snapshot';
 const PRIMARY_SECTIONS = [
@@ -150,14 +134,31 @@ const nextPoll = ref<Record<string, any>>({});
 const loading = ref(false);
 const error = ref('');
 const seconds = ref<number | null>(null);
-const diskSpace = ref<any[]>([]);
 const topRequested = ref<any[]>([]);
 const recentlyAvailable = ref<any[]>([]);
 const recentRequests = ref<any[]>([]);
 const upcoming = ref<any[]>([]);
 const recentNotifs = ref<any[]>([]);
-const downloadQueue = ref<any[]>([]);
-const liveActivity = ref<Record<string, any>>({ active: [] });
+const supervisionLoaded = ref(false);
+const supervisionLoading = ref(false);
+/* File Arr, lectures en cours, espace disque et statuts VFF : memes cles que les pages
+   Telechargements, Activite et Reglages, donc un seul cache pour tous. Le snapshot, lui,
+   arrive section par section par son flux (voir `load`). */
+const queryClient = useQueryClient();
+const downloadQueueQuery = useQuery({ ...arrQueueQuery(), select: (data: any) => (Array.isArray(data) ? data : []) });
+const downloadQueue = computed<any[]>(() => downloadQueueQuery.data.value || []);
+const liveActivityQuery = useQuery(playbackLiveQuery());
+const liveActivity = computed<Record<string, any>>(() => liveActivityQuery.data.value || { active: [] });
+/* Sante et espace disque : lus a l'arrivee de leur zone a l'ecran, ou a l'ouverture de
+   Supervision (l'observateur n'existe pas partout, et un lecteur au clavier peut
+   atteindre Supervision sans que la zone ait ete vue). Une fois montres, ils restent. */
+const healthZone = ref<HTMLElement | null>(null);
+const healthZoneVisible = useElementVisibility(healthZone);
+const healthShown = ref(false);
+watch([healthZoneVisible, supervisionLoaded], ([visible, opened]) => { if (visible || opened) healthShown.value = true; }, { immediate: true });
+const diskSpaceQueryState = useQuery({ ...diskSpaceQuery(), enabled: healthShown });
+const diskSpace = computed<any[]>(() => diskSpaceQueryState.data.value || []);
+watch(diskSpaceQueryState.error, (e: any) => { if (e) error.value = e.message; });
 const route = useRoute();
 const router = useRouter();
 /* La fiche d'une lecture s'ouvre dans la feuille, avec sa propre adresse. */
@@ -166,16 +167,21 @@ function openSession(item: any): void {
   const ids = (liveActivity.value.active || []).map((row: any) => row.id).filter((id: any) => id != null);
   ouvrirFiche(router, `/activity/session/${item.id}`, route.fullPath, etatDeVoisins(ids));
 }
-const loadingQueue = ref(false);
+/* Chargement seulement au premier affichage : les rafraichissements suivants gardent la
+   liste a l'ecran et la mettent a jour sans la remplacer par « Chargement… ». */
+const loadingQueue = computed(() => downloadQueueQuery.isPending.value);
 const updatedAt = ref<number | null>(null);
 const clock = ref(Date.now());
-const vffScan = ref<Record<string, any>>({ status: 'idle', items_scanned: 0, total_items: 0, finished_at: null });
-const plexSync = ref<Record<string, any>>({ status: 'idle', items_synced: 0, total_items: 0, finished_at: null });
+const vffScanQuery = useQuery(vffScanStatusQuery());
+const plexSyncQuery = useQuery(vffSyncStatusQuery());
+const vffCountsQueryState = useQuery(vffCountsQuery());
+/* Statut illisible (`{}`) : l'etat de repos, comme avant la premiere reponse. */
+const orIdle = (data: Record<string, any> | undefined, idle: Record<string, any>) => (data && Object.keys(data).length ? data : idle);
+const vffScan = computed(() => orIdle(vffScanQuery.data.value, { status: 'idle', items_scanned: 0, total_items: 0, finished_at: null }));
+const plexSync = computed(() => orIdle(plexSyncQuery.data.value, { status: 'idle', items_synced: 0, total_items: 0, finished_at: null }));
 const arrSync = ref<Record<string, any>>({ status: 'idle', finished_at: null });
 const watchlistSync = ref<Record<string, any>>({ status: 'idle', finished_at: null });
-const vffCounts = ref<Record<string, any>>({});
-const supervisionLoaded = ref(false);
-const supervisionLoading = ref(false);
+const vffCounts = computed<Record<string, any>>(() => vffCountsQueryState.data.value || {});
 
 const onboardingHidden = usePreference('onboarding.hidden', false, { legacyKeys: ['hide_onboarding'] });
 const showOnboarding = computed(() => !onboardingHidden.value);
@@ -193,34 +199,21 @@ const failedCount = computed(() => Number(counts.value.failed || 0));
 // ci-dessous partitionnent la file sans double compte, et chaque chiffre correspond au
 // groupe qu'on trouve en cliquant.
 const queueTotals = computed(() => queueCounts(downloadQueue.value));
+const attentionCount = computed(() => attentionTotal(pending.value.length, downloadQueue.value, failedCount.value));
+
+const { session } = useSession();
+const userName = computed(() => String(session.value?.display_name || session.value?.username || '').trim());
 
 const countdown = computed(() => seconds.value == null ? '-' : seconds.value < 60 ? `${seconds.value}s` : `${Math.floor(seconds.value / 60)} min`);
 
-async function loadDownloadQueue(): Promise<void> {
-  loadingQueue.value = true;
-  try {
-    const data = await api('/api/arr/queue');
-    downloadQueue.value = Array.isArray(data) ? data : [];
-  } finally {
-    loadingQueue.value = false;
-  }
+/* `cancelRefetch: false` : une lecture deja en vol (celle du montage) est reprise
+   plutot qu'annulee puis relancee. */
+function refresh(queryKey: readonly unknown[]): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
 }
-
-async function loadLiveActivity(): Promise<void> {
-  const value = await api('/api/playback/live');
-  liveActivity.value = value;
-}
-
-async function loadVffStatus(): Promise<void> {
-  const [scanData, syncData, countsData] = await Promise.all([
-    api('/api/vff/scan-status').catch(() => null),
-    api('/api/vff/sync-status').catch(() => null),
-    api('/api/vff/counts').catch(() => null),
-  ]);
-  if (scanData) vffScan.value = scanData;
-  if (syncData) plexSync.value = syncData;
-  if (countsData) vffCounts.value = countsData;
-}
+const loadDownloadQueue = () => refresh(queryKeys.downloads.arrQueue);
+const loadLiveActivity = () => refresh(queryKeys.playback.live);
+const loadVffStatus = () => refresh(queryKeys.vff.all);
 
 /**
  * Progression poussee par le backend (voir app/services/vff_progress.py). Le payload
@@ -230,9 +223,9 @@ async function loadVffStatus(): Promise<void> {
 function applyVffEvent(detail: any): void {
   const payload = detail?.payload;
   if (!payload) return;
-  if (payload.scan) vffScan.value = payload.scan;
-  if (payload.sync) plexSync.value = payload.sync;
-  if (payload.counts) vffCounts.value = payload.counts;
+  if (payload.scan) queryClient.setQueryData(queryKeys.vff.scanStatus, payload.scan);
+  if (payload.sync) queryClient.setQueryData(queryKeys.vff.syncStatus, payload.sync);
+  if (payload.counts) queryClient.setQueryData(queryKeys.vff.counts, payload.counts);
 }
 
 async function triggerVffScan(): Promise<void> {
@@ -262,6 +255,19 @@ async function triggerWatchlistSync(): Promise<void> {
   } catch (e: any) {
     watchlistSync.value = { status: 'failed' };
     error.value = e.message;
+  }
+}
+
+/* « Tout synchroniser » : Plex, statuts *arr et watchlists en parallele. Chaque synchro
+   garde son propre etat dans « Etat des scans » ; le bouton attend la plus lente. */
+const syncingAll = ref(false);
+async function syncAll(): Promise<void> {
+  if (syncingAll.value) return;
+  syncingAll.value = true;
+  try {
+    await Promise.all([triggerPlexSync(), triggerArrSync(), triggerWatchlistSync()]);
+  } finally {
+    syncingAll.value = false;
   }
 }
 
@@ -322,10 +328,8 @@ async function loadSupervision(): Promise<void> {
   supervisionLoaded.value = true;
   supervisionLoading.value = true;
   try {
-    await Promise.all([
-      loadDashboardSections(SUPERVISION_SECTIONS),
-      api('/api/disk-space').then(value => { diskSpace.value = value; }),
-    ]);
+    // L'espace disque suit `supervisionLoaded` (sa requete s'active avec lui).
+    await loadDashboardSections(SUPERVISION_SECTIONS);
   } catch (e: any) {
     error.value = e.message;
   } finally {
@@ -333,6 +337,7 @@ async function loadSupervision(): Promise<void> {
   }
 }
 
+let loadedOnce = false;
 async function load(): Promise<void> {
   if (loading.value) return;
   loading.value = true;
@@ -369,9 +374,14 @@ async function load(): Promise<void> {
     }
   }
   // Les donnees externes completent la vue au fil de l'eau et ne retardent jamais le
-  // premier affichage du snapshot local.
-  loadDownloadQueue().catch(() => {});
-  loadLiveActivity().catch(() => {});
+  // premier affichage du snapshot local. Au premier chargement, leurs requetes viennent
+  // d'etre lancees par le montage : inutile de les relire.
+  if (loadedOnce) {
+    loadDownloadQueue().catch(() => {});
+    loadLiveActivity().catch(() => {});
+    loadVffStatus().catch(() => {});
+  }
+  loadedOnce = true;
   updatedAt.value = Date.now();
   error.value = failures.length ? `Données indisponibles : ${failures.join(', ')}.` : '';
   loading.value = false;
@@ -439,6 +449,28 @@ useIntervalFn(() => {
 onMounted(async () => {
   primeFromCache();
   await load();
-  await loadVffStatus();
 });
 </script>
+
+<style scoped lang="scss">
+/* Grille de l'accueil : une colonne large (7/12) et une etroite (5/12), qui passent
+   l'une sous l'autre quand le contenu se resserre. Les deux colonnes d'une rangee
+   prennent la meme hauteur : un panneau peu rempli s'etire jusqu'au bas de son voisin
+   plutot que de laisser un trou sous lui, et son message « vide » se centre dans la
+   place disponible. Dans la pile de droite, le dernier panneau absorbe l'ecart. */
+.dashboard-bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); align-items: stretch; min-width: 0; }
+.dashboard-bento > .bento-wide { grid-column: span 7; min-width: 0; }
+.dashboard-bento > .bento-narrow { grid-column: span 5; min-width: 0; }
+.dashboard-bento > .bento-stack { display: flex; flex-direction: column; grid-column: 8 / -1; gap: var(--space-4); }
+.dashboard-bento > .bento-stack > :last-child { flex: 1; }
+.dashboard-bento :deep(.panel-card) { display: flex; flex-direction: column; }
+.dashboard-bento :deep(.panel-card > .ui-empty-state) { flex: 1; align-content: center; }
+:deep(.dashboard-supervision) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
+
+@container page (max-width: 957px) {
+  .dashboard-bento > .bento-wide,
+  .dashboard-bento > .bento-narrow,
+  .dashboard-bento > .bento-stack { grid-column: 1 / -1; }
+  :deep(.dashboard-supervision) { grid-template-columns: minmax(0, 1fr); }
+}
+</style>

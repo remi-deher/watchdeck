@@ -43,7 +43,7 @@
               </span>
               <span v-if="item.year" class="badge badge-year">{{ item.year }}</span>
             </div>
-            <RouterLink class="media-title" :to="`/library/media/library/${item.id}`">
+            <RouterLink class="media-title" :to="`/library/media/library/${item.id}`" @click="ouvrirFicheAuClic($event, `/library/media/library/${item.id}`)">
               {{ item.title || 'Média sans titre' }}
             </RouterLink>
           </div>
@@ -97,7 +97,7 @@
             @updated="emit('refresh')"
           />
 
-          <UiButton size="sm" :to="`/library/media/library/${item.id}`">Fiche</UiButton>
+          <UiButton size="sm" :to="`/library/media/library/${item.id}`" @click="ouvrirFicheAuClic($event, `/library/media/library/${item.id}`)">Fiche</UiButton>
         </div>
       </div>
 
@@ -156,15 +156,15 @@
                   >
                     {{ ep.status === 'vf' ? 'VF' : ep.status === 'vf_secondary' ? 'VF secondaire' : ep.status === 'vo' ? 'VO' : ep.status }}
                   </span>
-                  <span v-if="ep.has_forced_fr_sub && !ep.forced_fr_sub_is_default" class="badge language-tag vf-secondary" title="Sous-titre forcé FR non activé par défaut">
+                  <UiTooltip v-if="ep.has_forced_fr_sub && !ep.forced_fr_sub_is_default" text="Sous-titre forcé FR non activé par défaut"><span class="badge language-tag vf-secondary">
                     Forcé non activé
-                  </span>
-                  <span v-if="ep.has_full_fr_sub && !ep.full_fr_sub_is_default" class="badge pending" title="Sous-titre complet FR non activé par défaut">
+                  </span></UiTooltip>
+                  <UiTooltip v-if="ep.has_full_fr_sub && !ep.full_fr_sub_is_default" text="Sous-titre complet FR non activé par défaut"><span class="badge pending">
                     ST non activé
-                  </span>
-                  <span v-if="ep.has_any_sub_track === false" class="badge danger" title="Aucune piste de sous-titre détectée">
+                  </span></UiTooltip>
+                  <UiTooltip v-if="ep.has_any_sub_track === false" text="Aucune piste de sous-titre détectée"><span class="badge danger">
                     ST absent
-                  </span>
+                  </span></UiTooltip>
                 </div>
               </div>
               <div class="audit-episode-actions">
@@ -193,6 +193,8 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
 import { ChevronDown, ChevronUp, Film, MessageSquare, MessageSquareOff, RotateCcw, SlidersHorizontal, Tv, Volume2, VolumeX } from '@lucide/vue';
@@ -216,6 +218,7 @@ defineProps<{
   /** « Tout aligner » en cours : les alignements unitaires attendent. */
   fixingAll: boolean;
 }>();
+const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
 const emit = defineEmits<{
   /** Ouvrir la previsualisation d'alignement de ce media. */
   align: [item: AuditItem];
@@ -232,6 +235,7 @@ const failedPosters = ref(new Set<string>());
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 @use './vfShared' as *;
 
 .audit-list {
@@ -252,7 +256,7 @@ const failedPosters = ref(new Set<string>());
   gap: var(--space-3);
   padding: 14px 18px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--panel-radius);
   background: var(--surface);
   box-shadow: 0 2px 8px rgb(var(--shadow-color) / calc(0.12 * var(--shadow-scale)));
   transition: border-color var(--motion-duration-instant) var(--motion-ease-standard);
@@ -452,7 +456,7 @@ const failedPosters = ref(new Set<string>());
   }
 }
 
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .audit-card {
     grid-template-columns: 1fr;
     gap: var(--space-3);
@@ -462,7 +466,7 @@ const failedPosters = ref(new Set<string>());
   }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .audit-card { padding: 12px; }
   .audit-card-top { gap: var(--space-3); }
   .audit-episode-row { align-items: stretch; flex-direction: column; }

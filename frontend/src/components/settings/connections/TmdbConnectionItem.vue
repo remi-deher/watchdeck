@@ -1,0 +1,35 @@
+<template>
+  <SettingsItem
+    title="TMDB"
+    :subtitle="`Fiches, affiches et suggestions de Découvrir${form.tmdb_region ? ` · région ${form.tmdb_region}` : ''}`"
+    :icon="Clapperboard"
+    :status="form.tmdb_enabled ? 'active' : 'inactive'"
+    :status-text="form.tmdb_enabled ? 'Activé' : 'Désactivé'"
+    keywords="clé api région themoviedb"
+    saveable
+  >
+    <template #actions>
+      <ConnectionTestAction :loading="testing" :disabled="!form.tmdb_enabled" @test="testTmdb" />
+    </template>
+    <UiCheckboxField v-model="form.tmdb_enabled" label="Activer TMDB" />
+    <SecretField v-model="form.tmdb_api_key" label="Clé TMDB" hint="Clé API (v3) gratuite, à générer sur themoviedb.org dans Paramètres → API." :configured="Boolean(secretsPresent.tmdb_api_key)" />
+    <UiField :error="validationErrors.tmdb_region" label="Région de découverte" hint="Code pays ISO 3166-1 (ex. FR) utilisé pour les dates de sortie, les plateformes et les tendances." v-slot="field"><input :id="field.id" v-model="form.tmdb_region" maxlength="2" placeholder="FR" :aria-describedby="field.describedBy" @input="form.tmdb_region = form.tmdb_region.toUpperCase()"></UiField>
+  </SettingsItem>
+</template>
+
+<script setup lang="ts">
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
+import { Clapperboard } from '@lucide/vue';
+import { api } from '@/api';
+import { form, secretsPresent, success, fail, validationErrors } from '@/settingsForm';
+import SecretField from '@/components/ui/SecretField.vue';
+import SettingsItem from '../SettingsItem.vue';
+import UiField from '@/components/ui/UiField.vue';
+import ConnectionTestAction from './ConnectionTestAction.vue';
+import { useConnectionTest } from '@/composables/useConnectionTest';
+
+const { testing, run: testTmdb } = useConnectionTest(
+  () => api('/api/test/tmdb', { method: 'POST', body: JSON.stringify({ tmdb_api_key: form.tmdb_api_key }) }),
+  { onSuccess: data => success(data.message || 'Connexion valide.'), onError: fail }
+);
+</script>

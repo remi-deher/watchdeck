@@ -324,7 +324,7 @@ const trackerRows = computed(() => {
 .tracker-panel tbody tr:last-child td {
   border: 0;
 }
-@media (max-width: 520px) {
+@container page (max-width: 484px) {
   .client-grid {
     grid-template-columns: 1fr;
   }

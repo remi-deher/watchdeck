@@ -20,6 +20,7 @@ from app.main import app
 from app.models import ArrInstance, MediaRequest
 from app.services.notifications import _build_discord_embed
 from app.utils import arr_image_url, public_image_url, unwrap_image_proxy, wrap_image_proxy
+from tests.async_support import make_test_session
 
 TVDB = "https://artworks.thetvdb.com/banners/v4/series/465973/posters/69ed2d3756d09.jpg"
 WRAPPED = f"/api/image-proxy?url={quote_plus(TVDB)}&width=600&quality=82&format=webp"
@@ -94,19 +95,21 @@ def _load_migration():
 
 
 def test_migration_rewrites_stored_proxy_urls():
-    engine = sa.create_engine("sqlite://")
     plex_path = "/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F9%2Fthumb"
-    with engine.begin() as conn:
-        for table in ("media_requests", "download_history", "library_items"):
-            conn.execute(sa.text(f"CREATE TABLE {table} (id INTEGER PRIMARY KEY, poster_url TEXT)"))
-        conn.execute(
-            sa.text("INSERT INTO media_requests VALUES (1, :a), (2, :b), (3, :c)"),
-            {"a": WRAPPED, "b": TVDB, "c": plex_path},
-        )
-        conn.execute(sa.text("INSERT INTO download_history VALUES (1, :a)"), {"a": WRAPPED})
-        migration = _load_migration()
-        with Operations.context(MigrationContext.configure(conn)):
-            migration.upgrade()
-        rows = dict(conn.execute(sa.text("SELECT id, poster_url FROM media_requests")).fetchall())
-        assert rows == {1: TVDB, 2: TVDB, 3: plex_path}
-        assert conn.execute(sa.text("SELECT poster_url FROM download_history")).scalar() == TVDB
+    db = make_test_session()
+    conn = db.sync_session.connection()
+    # Tables temporaires reduites a l'essentiel : dans PostgreSQL elles masquent les
+    # vraies tables du meme nom pour cette connexion, et disparaissent au rollback.
+    for table in ("media_requests", "download_history", "library_items"):
+        conn.execute(sa.text(f"CREATE TEMP TABLE {table} (id INTEGER PRIMARY KEY, poster_url TEXT)"))
+    conn.execute(
+        sa.text("INSERT INTO media_requests VALUES (1, :a), (2, :b), (3, :c)"),
+        {"a": WRAPPED, "b": TVDB, "c": plex_path},
+    )
+    conn.execute(sa.text("INSERT INTO download_history VALUES (1, :a)"), {"a": WRAPPED})
+    migration = _load_migration()
+    with Operations.context(MigrationContext.configure(conn)):
+        migration.upgrade()
+    rows = dict(conn.execute(sa.text("SELECT id, poster_url FROM media_requests")).fetchall())
+    assert rows == {1: TVDB, 2: TVDB, 3: plex_path}
+    assert conn.execute(sa.text("SELECT poster_url FROM download_history")).scalar() == TVDB

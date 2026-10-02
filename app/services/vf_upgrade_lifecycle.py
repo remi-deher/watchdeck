@@ -329,6 +329,7 @@ async def refresh_lifecycle(
                 arr_url=inst.url,
                 arr_api_key=inst.api_key,
                 cache_key=f"{arr_type}:{inst.id}",
+                plex_server_id=inst.plex_server_id,
             )
     elif (
         settings

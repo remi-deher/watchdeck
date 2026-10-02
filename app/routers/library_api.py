@@ -16,9 +16,12 @@ from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import current_user, require_admin, require_auth, require_moderator
 from ..models import (
     ArrInstance,
+    FulfillmentStatus,
     LibraryItem,
+    LibraryItemLocation,
     MediaIssue,
     MediaRequest,
+    PlexServer,
     PlexUser,
     RequestStatus,
     Settings,
@@ -272,12 +275,20 @@ async def list_library(
     audio_format: Optional[str] = None,
     release_type: Optional[str] = None,
     hi_res: Optional[str] = None,
+    server_id: Optional[int] = None,
     limit: int = 200,
     offset: int = 0,
     db: AsyncSession = Depends(get_db_async),
 ):
     """Return Plex library items for the SPA library browser (paginee via limit/offset)."""
     stmt = select(LibraryItem)
+    if server_id is not None:
+        stmt = stmt.filter(
+            sqlalchemy.exists().where(
+                LibraryItemLocation.library_item_id == LibraryItem.id,
+                LibraryItemLocation.server_id == server_id,
+            )
+        )
     if query:
         stmt = stmt.filter(LibraryItem.title.ilike(f"%{query.strip()}%"))
     selected_types = [
@@ -399,6 +410,7 @@ async def list_library(
             )
         ).all()
         requester_by_library = {row[0]: (row[1], row[2], row[3]) for row in requester_rows}
+    servers_by_library = await _servers_by_library(db, item_ids)
     return [
         {
             "id": item.id,
@@ -420,9 +432,47 @@ async def list_library(
             "custom_name": requester_by_library.get(item.id, (None, None, None))[0],
             "plex_user": requester_by_library.get(item.id, (None, None, None))[1],
             "plex_user_id": requester_by_library.get(item.id, (None, None, None))[2],
+            "server_ids": servers_by_library.get(item.id, []),
         }
         for item in items
     ]
+
+
+async def _servers_by_library(db: AsyncSession, item_ids: list[int]) -> dict[int, list[int]]:
+    """Serveurs Plex ou chaque media a ete vu (voir LibraryItemLocation)."""
+    if not item_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(LibraryItemLocation.library_item_id, LibraryItemLocation.server_id)
+            .filter(LibraryItemLocation.library_item_id.in_(item_ids))
+            .distinct()
+        )
+    ).all()
+    out: dict[int, list[int]] = {}
+    for library_item_id, server_id in rows:
+        out.setdefault(library_item_id, []).append(server_id)
+    for ids in out.values():
+        ids.sort()
+    return out
+
+
+@router.get("/library-servers")
+async def library_servers(db: AsyncSession = Depends(get_db_async)):
+    """Serveurs Plex actifs qui portent au moins un media, pour le filtre de la Bibliotheque."""
+    rows = (
+        await db.execute(
+            select(PlexServer.id, PlexServer.name, PlexServer.is_primary, sqlalchemy.func.count(LibraryItemLocation.id))
+            .join(LibraryItemLocation, LibraryItemLocation.server_id == PlexServer.id)
+            .filter(PlexServer.enabled)
+            .group_by(PlexServer.id, PlexServer.name, PlexServer.is_primary)
+        )
+    ).all()
+    servers = [
+        {"id": server_id, "name": name, "is_primary": is_primary, "item_count": count}
+        for server_id, name, is_primary, count in rows
+    ]
+    return sorted(servers, key=lambda s: (not s["is_primary"], s["name"].lower(), s["id"]))
 
 
 @router.get("/library-genres")
@@ -471,6 +521,74 @@ async def media_detail(
         issue_serializer=_serialize_issue,
         core_only=core,
     )
+
+
+class LibraryRequesterBody(BaseModel):
+    plex_user_id: str
+
+
+@router.post("/library/{item_id}/requesters", dependencies=[Depends(require_moderator)])
+async def add_library_requester(item_id: int, body: LibraryRequesterBody, db: AsyncSession = Depends(get_db_async)):
+    """Rattache un demandeur à un média de bibliothèque qui n'a encore aucune demande
+    (ajout direct dans Sonarr/Radarr, ou média déjà présent dans Plex).
+
+    La fiche détail ajoutait les co-demandeurs en modifiant les demandes existantes : sans
+    demande, la boucle ne faisait rien et le clic sur « Ajouter » restait sans effet. On
+    crée donc ici une demande déjà disponible, adossée au LibraryItem. Aucun mail n'est
+    envoyé : le rattrapage éventuel passe, comme pour un co-demandeur classique, par
+    `POST /requests/{id}/notify-user` après confirmation de l'administrateur. L'origine
+    technique `library` (voir notification_policy.TECHNICAL_ORIGINS) et les indicateurs
+    d'envoi posés évitent qu'un cycle automatique n'annonce après coup une disponibilité
+    ancienne."""
+    item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
+    uid = (body.plex_user_id or "").strip()
+    user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid))).scalars().first() if uid else None
+    if not user:
+        raise HTTPException(400, "Utilisateur introuvable.")
+    if item.media_type not in ("movie", "show"):
+        raise HTTPException(400, "Seuls les films et les séries peuvent avoir un demandeur.")
+
+    existing = await _media_identity_filter(db, item)
+    if existing:
+        # Course avec une synchronisation qui vient de créer la demande : l'interface doit
+        # alors passer par PUT /requests/{id}/requesters, qui gère l'ordre des demandeurs.
+        raise HTTPException(409, "Ce média a déjà une demande, rechargez la fiche.")
+
+    now = now_utc_naive()
+    req = MediaRequest(
+        plex_user_id=uid,
+        plex_user=user.display_name or uid,
+        title=item.title,
+        year=item.year,
+        media_type=item.media_type,
+        tmdb_id=item.tmdb_id,
+        tvdb_id=item.tvdb_id,
+        imdb_id=item.imdb_id,
+        plex_guid=item.plex_guid,
+        status=RequestStatus.available,
+        fulfillment_status=FulfillmentStatus.completed,
+        source="library",
+        library_item_id=item.id,
+        arr_instance_id=item.arr_instance_id,
+        arr_id=item.arr_id,
+        arr_slug=item.arr_slug,
+        poster_url=item.poster_url,
+        overview=item.overview,
+        requested_at=now,
+        available_at=item.added_at or now,
+        available_mail_sent=True,
+        has_vf=item.has_vf,
+        vf_category=item.vf_category,
+        vf_checked_at=item.vf_checked_at,
+        vf_available_at=item.vf_available_at,
+        vf_granularity=item.vf_granularity,
+        fr_is_default=item.fr_is_default,
+        vf_available_mail_sent=item.has_vf is True,
+        vo_only_mail_sent=item.has_vf is False,
+    )
+    db.add(req)
+    await db.commit()
+    return {"ok": True, "request_id": req.id, "requester_ids": [uid]}
 
 
 @router.get("/library-metrics")
@@ -583,6 +701,27 @@ async def library_metrics(media_type: Optional[str] = None, db: AsyncSession = D
     }
 
 
+async def _recheck_library_item(db: AsyncSession, item: LibraryItem) -> dict:
+    """Revérifie un média de la bibliothèque sur chaque serveur Plex suivi.
+
+    Absent de tous (chaque serveur ayant répondu) : il est retiré tout de suite, sans
+    attendre le prochain scan complet, seul autre moment où une suppression dans Plex
+    est remarquée. En cas de doute, rien n'est retiré.
+    """
+    from ..services.plex_sync import check_library_item_in_plex, remove_library_items
+
+    present = await check_library_item_in_plex(db, item)
+    if present is None:
+        raise HTTPException(502, "Impossible de vérifier ce média sur tous les serveurs Plex. Réessayez plus tard.")
+    if present:
+        return {"found": True, "already_in_library": True, "library_id": item.id}
+    title = item.title
+    await remove_library_items(db, [item], source="plex_recheck")
+    await db.commit()
+    logger.info("Recheck Plex : '%s' n'est plus dans Plex, retiré de la bibliothèque", title)
+    return {"found": False, "removed": True, "title": title}
+
+
 @router.post("/media/recheck-plex")
 async def recheck_plex(
     request_id: Optional[int] = None,
@@ -609,8 +748,8 @@ async def recheck_plex(
         raise HTTPException(400, "request_id or library_id is required")
 
     if library_id:
-        await async_get_or_404(db, LibraryItem, library_id, "Library item not found")
-        return {"found": True, "already_in_library": True, "library_id": library_id}
+        item = await async_get_or_404(db, LibraryItem, library_id, "Library item not found")
+        return await _recheck_library_item(db, item)
     media = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
 
     settings = (await db.execute(select(Settings))).scalars().first()
@@ -894,14 +1033,28 @@ async def media_add(body: MediaAddRequest, request: Request, db: AsyncSession = 
     en file d'attente (pending_approval) sans être envoyée à *arr.
     """
     s = (await db.execute(select(Settings))).scalars().first()
-    item = body.model_dump()
 
     caller = current_user(request, db)
     caller_is_admin = bool(caller and (caller.get("is_owner") or caller.get("role") == "admin"))
-    if not caller_is_admin and caller and caller.get("plex_user_id"):
-        # Un 'user' demande forcément pour lui-même : on ignore body.plex_user_id.
+    caller_is_moderator = bool(caller_is_admin or (caller and caller.get("role") == "moderator"))
+    if not caller_is_admin and caller:
+        # Un 'user' demande forcément pour lui-même : on ignore body.plex_user_id. Sans
+        # identite en session, on refuse plutot que de laisser choisir le demandeur (et
+        # donc contourner la validation en se faisant passer pour un compte auto-approuve).
+        if not caller.get("plex_user_id"):
+            raise HTTPException(403, "Impossible d'identifier le compte demandeur.")
         body.plex_user_id = caller["plex_user_id"]
-        item["plex_user_id"] = caller["plex_user_id"]
+    if caller and not caller_is_moderator:
+        # Les reglages d'acquisition (instance, profil, dossier, tags, contournement de
+        # Seer) relevent de la moderation : un simple utilisateur suit le routage
+        # configure par l'administrateur.
+        body.quality_profile_id = None
+        body.root_folder = None
+        body.tag_ids = []
+        body.instance_id = None
+        body.use_seer = False
+        body.bypass_seer = False
+    item = body.model_dump()
 
     pending = await _needs_approval(db, s, caller, body.plex_user_id, body)
     if pending:

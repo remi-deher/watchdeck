@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import MediaHeroBanner from './MediaHeroBanner.vue';
+import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 
 describe('MediaHeroBanner', () => {
   it('affiche les détails du premier élément', () => {
@@ -25,6 +26,11 @@ describe('MediaHeroBanner', () => {
     expect(wrapper.text()).toContain('Inception');
     expect(wrapper.text()).toContain('Un voleur qui s’infiltre dans les rêves.');
     expect(wrapper.text()).toContain('2010');
+    expect(wrapper.getComponent(UiHeroBackdrop).props()).toMatchObject({
+      imageUrl: 'https://image.tmdb.org/t/p/w1280/inception.jpg',
+      variant: 'card',
+      zoomOnHover: true,
+    });
   });
 
   it('affiche le squelette en état de chargement sans éléments', () => {
@@ -66,12 +72,12 @@ describe('MediaHeroBanner', () => {
     expect(wrapper.text()).toContain('Film 1');
 
     await dots[1].trigger('click');
-    expect(dots[1].classes()).toContain('active');
+    expect(wrapper.findAll('.hero-dot')[1].classes()).toContain('active');
     expect(wrapper.text()).toContain('Film 2');
 
     // Navigation au clavier
     await wrapper.find('.media-hero-banner').trigger('keydown', { key: 'ArrowLeft' });
-    expect(dots[0].classes()).toContain('active');
+    expect(wrapper.findAll('.hero-dot')[0].classes()).toContain('active');
     expect(wrapper.text()).toContain('Film 1');
   });
 

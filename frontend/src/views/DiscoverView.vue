@@ -14,13 +14,13 @@
     <!-- Accueil, Films et Series : trois vues de la meme page, en onglets a toutes les
          largeurs (elles etaient des sous-entrees du rail). Absents des Demandes, qui
          partagent cette vue, et d'une page de diffuseur ou de studio. -->
-    <AppSubnav
-      v-if="mode !== 'requests' && !isSourceMode"
-      class="page-type-tabs"
-      :items="EXPLORER_TABS"
-      :active="explorerTabFor(route.path)"
-      aria-label="Vues d’Explorer"
-    />
+    <template v-if="mode !== 'requests' && !isSourceMode" #tabs>
+      <AppSubnav
+        :items="EXPLORER_TABS"
+        :active="explorerTabFor(route.path)"
+        aria-label="Vues d’Explorer"
+      />
+    </template>
 
     <div class="psh-layout">
       <FilterSidebar v-if="mode !== 'requests'" :open="filtersOpen" :active-count="activeFilterCount" :match-count="filteredCount" @close="closeFilters" @reset="resetFilters">
@@ -1107,6 +1107,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .discover-home-rails :deep(.ui-disclosure-content) { gap: var(--space-5); }
 .discover-body { display: grid; gap: var(--space-5); }
 .discover-home-view,
@@ -1225,7 +1226,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
   }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .discover-heading {
     flex-direction: column;
     align-items: flex-start;

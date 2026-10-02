@@ -21,13 +21,17 @@
         </div>
       </template>
 
+      <template #tabs>
+        <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
+      </template>
+
   <Transition name="notification-feedback">
     <UiFeedback v-if="feedbackMessage" :type="feedbackType" :message="feedbackMessage" />
   </Transition>
 
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
   <CollapsibleRoot class="panel" @update:open="deliveriesOpen = $event" :unmount-on-hide="false">
-    <CollapsibleTrigger class="collapsible-trigger">Suivi des envois — clés uniques et confirmations</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+    <CollapsibleTrigger class="collapsible-trigger">Suivi des envois</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
     <p>Les envois sans confirmation restent bloqués pour vérification. Un Message-ID SMTP ne garantit pas à lui seul l'absence de doublon.</p>
     <UiDataTable label="Suivi des envois" :rows="deliveries" :columns="DELIVERY_COLUMNS" :row-key="(d) => d.send_key">
       <template #empty>Aucun envoi enregistré dans le nouveau suivi.</template>
@@ -56,7 +60,6 @@
       </template>
     </FilterSidebar>
     <div class="psh-main">
-  <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
   <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
   <BulkActionBar
     v-if="tab === 'pending'"
@@ -82,7 +85,7 @@
   />
 
   <div v-if="total>limit" class="pagination">
-    <UiButton :disabled="offset===0" @click="page(-1)"><ChevronLeft/>Precedent</UiButton>
+    <UiButton :disabled="offset===0" @click="page(-1)"><ChevronLeft/>Précédent</UiButton>
     <span>{{ offset+1 }}-{{ Math.min(offset+limit,total) }} sur {{ total }}</span>
     <UiButton :disabled="offset+limit>=total" @click="page(1)">Suivant<ChevronRight/></UiButton>
   </div>
@@ -106,6 +109,7 @@ import AppSubnav from '@/components/ui/AppSubnav.vue';
 import { notificationSections } from '@/notificationSections';
 import { computed, ref, watch } from 'vue';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, ChevronLeft, ChevronRight, PauseCircle, PlayCircle, Send, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
@@ -140,7 +144,7 @@ const deliveries = computed(() => deliveriesQuery.data.value || []);
 watch(deliveriesQuery.error, (e) => { if (e) showFeedback('error', e.message); });
 // Meme cle que la page Utilisateurs : les deux ecrans partagent le cache.
 const usersQuery = useQuery({
-  queryKey: ['users', 'list'],
+  queryKey: queryKeys.users.list,
   queryFn: ({ signal }) => api('/api/users', { signal }),
   select: (data) => (Array.isArray(data) ? data : []),
   staleTime: 30_000,
@@ -159,7 +163,7 @@ const typeOptions = [
   { value: 'available', label: 'Disponibilites' },
   { value: 'upgrade', label: 'Améliorations (VF)' },
   { value: 'correction', label: 'Corrections' },
-  { value: 'failed', label: 'Erreurs systeme' }
+  { value: 'failed', label: 'Erreurs système' }
 ];
 
 const STATE_OPTIONS = [
@@ -394,23 +398,23 @@ const notificationSubnavItems = computed(() =>
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .notification-control {
   display: flex;
   align-items: center;
   gap: .6rem;
   min-width: min(520px, 52vw);
-  height: 40px;
-  padding: 0 .65rem;
-  border: 1px solid var(--border);
-  border-radius: var(--panel-radius);
-  background: var(--surface);
-  box-shadow: 0 8px 24px rgb(var(--shadow-color) / calc(.14 * var(--shadow-scale)));
+  height: 36px;
+  /* La capsule d'outils de la page porte deja bord, fond et ombre : le bandeau n'en
+     redessine pas une seconde a l'interieur. */
+  padding: 0 .4rem;
+  border: 0;
+  background: transparent;
   order: 3;
   width: 100%;
   min-width: 0;
   overflow: hidden;
 }
-.notification-control.paused { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .notification-control-icon { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border-radius: var(--radius-sm); color: var(--green-text); background: color-mix(in srgb, var(--green) 12%, transparent); }
 .notification-control-icon :deep(svg) { width: 17px; height: 17px; }
 .notification-control.paused .notification-control-icon { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
@@ -425,11 +429,11 @@ const notificationSubnavItems = computed(() =>
 .notification-feedback.error { color: var(--red-text); background: color-mix(in srgb, var(--red) 10%, transparent); }
 .notification-feedback-enter-active, .notification-feedback-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard); }
 .notification-feedback-enter-from, .notification-feedback-leave-to { opacity: 0; transform: translateY(-4px); }
-@media (max-width: 900px) {
+@container page (max-width: 757px) {
   .notification-control { min-width: 0; max-width: calc(100vw - 3rem); }
   .notification-control-action { flex-wrap: wrap; justify-content: flex-end; }
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .notification-control { align-items: flex-start; flex-direction: column; height: auto; padding: .65rem; }
   .notification-control-action { width: 100%; padding: .65rem 0 0; border-top: 1px solid var(--border); border-left: 0; }
   .notification-control-action button { flex: 1 1 auto; min-height: 44px; }

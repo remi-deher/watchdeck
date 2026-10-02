@@ -7,7 +7,62 @@
         <div><component :is="group.icon"/><div><h2>{{ group.title }}</h2><p>{{ group.description }}</p></div></div>
         <span>{{ group.items.length }}</span>
       </header>
-      <div class="download-card-grid">
+      <div v-if="group.key==='intervention'" class="download-card-grid issue-grid">
+        <!-- Carte d'intervention : le diagnostic *arr passe avant la progression (100 %, inutile ici). -->
+        <article v-for="row in group.items" :key="rowKey(row)" class="download-card issue-card">
+          <div class="issue-top">
+            <div class="issue-cover">
+              <img
+                v-if="row.poster_url && !hasPosterError(row)"
+                :src="proxyUrl(row.poster_url, { width: 200 }) ?? undefined"
+                :alt="row.title"
+                loading="lazy"
+                @error="onPosterError(row)"
+              />
+              <Film v-else-if="row.arr_type==='radarr'" />
+              <Tv v-else-if="row.arr_type==='sonarr'" />
+              <Download v-else />
+            </div>
+            <div class="issue-identity">
+              <span class="badge failed">{{ interventionInfo(row).badge }}</span>
+              <h3>{{ row.series_title || row.title }}</h3>
+              <div class="issue-tags">
+                <span v-if="episodeLabel(row)" class="issue-tag strong">{{ episodeLabel(row) }}</span>
+                <span class="issue-tag">{{ row.instance||row.download_client||'Téléchargement direct' }}</span>
+                <span v-if="extractQuality(row)" class="issue-tag">{{ extractQuality(row) }}</span>
+                <span v-if="row.size" class="issue-tag">{{ formatBytes(row.size) }}</span>
+              </div>
+              <small v-if="row.origin_label" class="issue-origin">{{ row.origin_label }}</small>
+            </div>
+          </div>
+
+          <div class="issue-diagnosis" role="note">
+            <p class="issue-headline"><AlertTriangle/>{{ interventionInfo(row).headline }}</p>
+            <ul v-if="interventionInfo(row).reasons.length" class="issue-reasons">
+              <li v-for="reason in interventionInfo(row).reasons" :key="reason"><q>{{ reason }}</q></li>
+            </ul>
+            <p v-if="interventionInfo(row).hint" class="issue-hint">{{ interventionInfo(row).hint }}</p>
+            <p v-if="interventionInfo(row).file" class="issue-file" :title="interventionInfo(row).file ?? undefined"><FileVideo/><span>{{ interventionInfo(row).file }}</span></p>
+          </div>
+
+          <div v-if="(row.progress||0) < 100" class="download-progress">
+            <div><span>Progression</span><strong>{{ Math.round(row.progress||0) }}%</strong></div>
+            <UiProgress :value="row.progress||0" :label="`Progression de ${row.title}`" />
+          </div>
+
+          <footer class="issue-actions">
+            <div>
+              <UiButton v-if="requiresIntervention(row)" variant="primary" size="sm" @click="emit('manual', row)"><template #icon><Link/></template>{{ isUnmatched(row) ? 'Associer' : 'Importer manuellement' }}</UiButton>
+              <UiButton v-if="queueDetailPath(row)" variant="ghost" size="sm" @click="openSheet(row)">Voir la fiche</UiButton>
+            </div>
+            <div v-if="canAct(row)">
+              <UiButton size="sm" title="Retire ce téléchargement, bloque la release et en cherche une autre" :disabled="actingKeys.has(rowKey(row))" @click="emit('action', row, true, true)"><template #icon><RotateCcw/></template>Autre release</UiButton>
+              <UiButton variant="danger" size="sm" title="Retire ce téléchargement de la file" :disabled="actingKeys.has(rowKey(row))" @click="emit('action', row, false, false)"><template #icon><X/></template>Retirer</UiButton>
+            </div>
+          </footer>
+        </article>
+      </div>
+      <div v-else class="download-card-grid">
         <article v-for="row in group.items" :key="rowKey(row)" class="download-card rich-card">
           <div class="card-cover-col">
             <div class="card-cover-wrapper">
@@ -48,7 +103,7 @@
             <div v-if="row.waiting_reason||row.error" class="download-callout" :class="{error:row.error}">{{ row.error||row.waiting_reason }}</div>
             <div v-if="row.origin_label||row.operational_status_label" class="download-meta">{{ row.origin_label }}<template v-if="row.operational_status_label"> · {{ row.operational_status_label }}</template></div>
             <footer>
-              <UiButton v-if="queueDetailPath(row)" size="sm" :to="queueDetailPath(row) ?? '/'">Voir la fiche</UiButton>
+              <UiButton v-if="queueDetailPath(row)" size="sm" @click="openSheet(row)">Voir la fiche</UiButton>
               <UiButton v-if="requiresIntervention(row)" size="sm" @click="emit('manual', row)"><template #icon><Link/></template>Associer / importer</UiButton>
               <UiButton v-if="canAct(row)" size="sm" :disabled="actingKeys.has(rowKey(row))" @click="emit('action', row, true, true)"><template #icon><RotateCcw/></template>Relancer</UiButton>
               <UiButton v-if="canAct(row)" variant="danger" size="sm" :disabled="actingKeys.has(rowKey(row))" @click="emit('action', row, false, false)"><template #icon><X/></template>Retirer</UiButton>
@@ -113,7 +168,7 @@
           </template>
 
           <template v-if="queueDetailPath(row)" #action>
-            <RouterLink :to="queueDetailPath(row) ?? '/'" class="poster-action nav-action" @click.stop>Voir la fiche</RouterLink>
+            <RouterLink :to="queueDetailPath(row) ?? '/'" class="poster-action nav-action" @click.stop.prevent="openSheet(row)">Voir la fiche</RouterLink>
           </template>
         </MediaCardShell>
       </HorizontalRail>
@@ -124,17 +179,18 @@
 </template>
 
 <script setup lang="ts">
-import { CheckCircle2, Download, Film, Link, RotateCcw, Tv, X } from '@lucide/vue';
+import { AlertTriangle, CheckCircle2, Download, FileVideo, Film, Link, RotateCcw, Tv, X } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import HorizontalRail from '@/components/ui/HorizontalRail.vue';
 import MediaCardShell from '@/components/media/MediaCardShell.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import { usePosterErrors } from '@/composables/usePosterErrors';
-import { canAct, queueDetailPath, requiresIntervention, rowKey, statusLabel } from '@/downloads/queueRules';
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
+import { canAct, interventionInfo, isUnmatched, queueDetailPath, requiresIntervention, rowKey, statusLabel } from '@/downloads/queueRules';
 import { extractQuality, historyModeClass, historyModeLabel } from '@/downloads/historyFormat';
 import { mediaTypeLabel } from '@/utils/labels';
-import { formatDateTime as formatDate } from '@/utils/format';
+import { formatBytes, formatDateTime as formatDate } from '@/utils/format';
 import { proxyUrl } from '@/utils/mediaImage';
 
 export interface QueueGroup { key: string; title: string; description: string; icon: unknown; items: any[] }
@@ -156,17 +212,32 @@ const emit = defineEmits<{
 }>();
 
 const { hasPosterError, onPosterError } = usePosterErrors();
+const { ouvrir } = useOuvrirFiche();
+
+/** La fiche s'ouvre en surface par-dessus la file, pas en pleine page. */
+function openSheet(row: any): void {
+  const path = queueDetailPath(row);
+  if (path) ouvrir(path);
+}
+
+/** « S01E13 » pour un episode Sonarr, sinon rien (le titre de la serie est affiche a part). */
+function episodeLabel(row: any): string {
+  const s = row.season_number, e = row.episode_number;
+  if (s == null || e == null) return '';
+  return `S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`;
+}
 
 // Au toucher, un premier appui devoile le bouton d'action au lieu de naviguer.
 function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () => void): void {
-  if (queueDetailPath(row) && !revealed) {
-    e.preventDefault();
-    reveal();
-  }
+  if (!queueDetailPath(row)) return;
+  e.preventDefault();
+  if (!revealed) reveal();
+  else openSheet(row);
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .download-groups{display:grid;gap:var(--space-4)}
 .download-group{display:grid;gap:var(--space-3)}
 .download-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:var(--space-3)}
@@ -177,7 +248,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .download-group-head h2{margin:0;font-size:var(--fs-md)}
 .download-group-head p{margin:2px 0 0;color:var(--muted);font-size:var(--fs-xs)}
 .download-group-head>span{min-width:27px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-pill);text-align:center;font-size:var(--fs-xs);font-weight:700}
-.download-card{display:grid;gap:var(--space-3);padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);content-visibility:auto;contain-intrinsic-size:0 120px}
+.download-card{display:grid;gap:var(--space-3);padding:14px;border:1px solid var(--border);border-radius:var(--panel-radius);background:var(--surface);content-visibility:auto;contain-intrinsic-size:0 120px}
 .download-card header,.download-progress>div,.download-card footer{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3)}
 .download-card header>div{display:grid;gap:var(--space-1);min-width:0}
 .download-card header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -200,6 +271,32 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .quality-badge{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);font-size:var(--fs-xs);padding:2px 6px}
 .progress-details{display:flex;justify-content:space-between;align-items:center;gap:6px}
 
+/* Carte d'intervention : plus aeree, diagnostic *arr au centre. */
+.issue-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:var(--space-4)}
+.issue-card{display:flex;flex-direction:column;gap:var(--space-4);padding:var(--space-4);border-color:color-mix(in srgb,var(--red) 30%,var(--border))}
+.issue-top{display:flex;gap:var(--space-4);align-items:flex-start}
+.issue-cover{width:88px;flex-shrink:0;aspect-ratio:2/3;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.issue-cover img{width:100%;height:100%;object-fit:cover}
+.issue-cover svg{width:24px;height:24px}
+.issue-identity{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2)}
+.issue-identity h3{margin:0;font-size:var(--fs-lg);line-height:1.25;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.issue-tags{display:flex;flex-wrap:wrap;gap:6px}
+.issue-tag{padding:2px 8px;border:1px solid var(--border);border-radius:var(--radius-pill);color:var(--muted);font-size:var(--fs-xs)}
+.issue-tag.strong{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+.issue-origin{color:var(--muted);font-size:var(--fs-xs)}
+.issue-diagnosis{display:grid;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-left:3px solid var(--red);border-radius:var(--radius-sm);background:color-mix(in srgb,var(--red) 8%,transparent)}
+.issue-diagnosis p{margin:0}
+.issue-headline{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--red-text)}
+.issue-headline svg{width:16px;height:16px;flex-shrink:0}
+.issue-reasons{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.issue-reasons li{font-size:var(--fs-sm);color:var(--text)}
+.issue-reasons q{quotes:"« " " »"}
+.issue-hint{font-size:var(--fs-sm);color:var(--muted);line-height:1.5}
+.issue-file{display:flex;align-items:flex-start;gap:6px;padding-top:var(--space-2);border-top:1px solid color-mix(in srgb,var(--red) 15%,transparent);color:var(--muted);font-family:var(--font-mono,ui-monospace,monospace);font-size:var(--fs-xs);word-break:break-all}
+.issue-file svg{width:14px;height:14px;flex-shrink:0;margin-top:1px}
+.download-card.issue-card .issue-actions{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2);margin-top:auto}
+.download-card.issue-card .issue-actions>div{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+
 .recent-completed-section{display:grid;gap:var(--space-3);margin-top:var(--space-3)}
 .section-subtitle{display:flex;align-items:center;gap:8px;color: var(--green-text)}
 .section-subtitle svg{width:18px;height:18px}
@@ -210,7 +307,7 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
 .completed-card-overlay .meta-date{color:rgba(255,255,255,0.75);font-size:var(--fs-xs)}
 .completed-title{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
 
-@media(max-width:520px){
+@container page (max-width: 484px) {
   .download-group-head p{display:none}
   .download-card{padding:12px}
   .rich-card{flex-direction:column}
@@ -218,8 +315,13 @@ function onCompletedCardClick(e: Event, row: any, revealed: boolean, reveal: () 
   .card-cover-wrapper{aspect-ratio:16/9}
   .download-card footer{display:grid;grid-template-columns:1fr 1fr}
   .download-card footer :deep(.ui-button){justify-content:center}
+  .issue-card{padding:var(--space-3)}
+  .issue-cover{width:64px}
+  .download-card.issue-card .issue-actions{display:grid;grid-template-columns:1fr}
+  .download-card.issue-card .issue-actions>div{display:grid;grid-template-columns:1fr 1fr}
+  .issue-actions>div>:only-child{grid-column:1/-1}
 }
-@media(max-width:767.98px){
+@include bp.until(tablet) {
   .download-card footer{grid-template-columns:1fr}
   .download-card footer :deep(.ui-button){min-height:44px}
 }

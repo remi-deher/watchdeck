@@ -21,7 +21,6 @@ class MediaRequest(Base):
             "ix_media_requests_next_release_at",
             "next_release_at",
             postgresql_where=text("next_release_at IS NOT NULL"),
-            sqlite_where=text("next_release_at IS NOT NULL"),
         ),
     )
 

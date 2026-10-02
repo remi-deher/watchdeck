@@ -32,7 +32,7 @@ from ..scheduler import (
     vff_scan_state,
 )
 from ..serializers import format_datetime
-from ..services import audio_analyzer, tmdb
+from ..services import audio_analyzer, plex_servers, tmdb
 from ..services import plex_finder as vff_svc
 from ..services.episode_availability import sync_episode_availability_for_show
 from ..services.notification_orchestrator import _notify, _queue_milestone
@@ -64,6 +64,11 @@ def _arr_image_url(images: list[dict] | None, *cover_types: str) -> str | None:
     return None
 
 
+def _library_item_id(req) -> Optional[int]:
+    """Media de bibliotheque d'une demande ou d'un element : il dit quel serveur l'heberge."""
+    return req.id if isinstance(req, LibraryItem) else req.library_item_id
+
+
 async def _vf_detail_payload(db: AsyncSession, req):
     """Détail VF (modale) : pistes audio (film) ou statut par saison/épisode (série)."""
     settings = (await db.execute(select(Settings))).scalars().first()
@@ -73,6 +78,9 @@ async def _vf_detail_payload(db: AsyncSession, req):
     source_type = "request" if isinstance(req, MediaRequest) else "library_item"
     libs = _parse_vff_libraries(settings)
     vf_detected = bool(settings.vff_enabled and settings.plex_url and settings.plex_token and libs)
+    conn = await plex_servers.connection_for_item(db, _library_item_id(req), settings) if vf_detected else None
+    if conn is not None:
+        libs = conn.libraries
     movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
 
     if req.media_type == "movie":
@@ -93,8 +101,8 @@ async def _vf_detail_payload(db: AsyncSession, req):
             return {"enabled": True, "media_type": "movie", "vf_available": False, "release_date": release_date}
         res = await asyncio.to_thread(
             vff_svc.get_movie_audio_detail_blocking,
-            settings.plex_url,
-            settings.plex_token,
+            conn.url if conn else settings.plex_url,
+            conn.token if conn else settings.plex_token,
             movie_libs,
             req.title,
             req.year,
@@ -617,9 +625,11 @@ async def vff_scan_single_request(
         await _invalidate_vf_cache(db, "request", req.id, season_number=season, episode_number=episode)
         await db.commit()
 
-    libs = _parse_vff_libraries(settings)
+    conn = await plex_servers.connection_for_item(db, req.library_item_id, settings)
+    libs = conn.libraries if conn else _parse_vff_libraries(settings)
     if not libs:
         raise HTTPException(400, "No Plex libraries configured for VFF")
+    plex_url, plex_token = (conn.url, conn.token) if conn else (settings.plex_url, settings.plex_token)
 
     movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
     show_libs = [(lib["name"], lib["kind"]) for lib in libs if lib["kind"] == "series"]
@@ -628,7 +638,7 @@ async def vff_scan_single_request(
 
     def _scan_single_blocking():
         try:
-            plex = vff_svc.connect(settings.plex_url, settings.plex_token)
+            plex = vff_svc.connect(plex_url, plex_token)
         except Exception as exc:
             return {"found": False, "error": f"Plex connection error: {exc}"}
 
@@ -820,9 +830,11 @@ async def library_vff_scan(
         await _invalidate_vf_cache(db, "library_item", item.id, season_number=season, episode_number=episode)
         await db.commit()
 
-    libs = _parse_vff_libraries(settings)
+    conn = await plex_servers.connection_for_item(db, item.id, settings)
+    libs = conn.libraries if conn else _parse_vff_libraries(settings)
     if not libs:
         raise HTTPException(400, "No Plex libraries configured for VFF")
+    plex_url, plex_token = (conn.url, conn.token) if conn else (settings.plex_url, settings.plex_token)
     movie_libs = [lib["name"] for lib in libs if lib["kind"] == "movie"]
     show_libs = [(lib["name"], lib["kind"]) for lib in libs if lib["kind"] == "series"]
     known_vf = (await _load_known_vf_episodes(db, "library_item", [item.id])).get(item.id, {})
@@ -830,7 +842,7 @@ async def library_vff_scan(
 
     def _blocking():
         try:
-            plex = vff_svc.connect(settings.plex_url, settings.plex_token)
+            plex = vff_svc.connect(plex_url, plex_token)
         except Exception as exc:
             return {"found": False, "error": f"Plex connection error: {exc}"}
         try:
@@ -853,6 +865,16 @@ async def library_vff_scan(
 
     res = await asyncio.to_thread(_blocking)
     if not res.get("found"):
+        if not res.get("error"):
+            # Introuvable sans erreur : le média a sans doute été retiré de Plex. On le
+            # confirme sur chaque serveur avant de le retirer de la bibliothèque.
+            from ..services.plex_sync import check_library_item_in_plex, remove_library_items
+
+            if await check_library_item_in_plex(db, item, settings) is False:
+                title = item.title
+                await remove_library_items(db, [item], source="plex_recheck")
+                await db.commit()
+                raise HTTPException(410, f"« {title} » n'est plus dans Plex : il a été retiré de Watchdeck.")
         raise HTTPException(404, res.get("error", "Media not found in Plex libraries"))
 
     now = now_utc_naive()

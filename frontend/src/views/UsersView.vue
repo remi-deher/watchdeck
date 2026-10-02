@@ -64,6 +64,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirmedAction } from '@/composables/useConfirmedAction';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
 import UiButton from '@/components/ui/UiButton.vue';
 import { accountName, seerActionLabel, sourceLabel } from '@/utils/userLabels';
@@ -72,7 +73,7 @@ const route = useRoute(), router = useRouter();
 const query = ref(''), status = ref(''), role = ref(''), attention = ref(''), source = ref('');
 const queryClient = useQueryClient();
 const usersQuery = useQuery({
-  queryKey: ['users', 'list'],
+  queryKey: queryKeys.users.list,
   queryFn: ({ signal }) => api('/api/users', { signal }),
   select: (data) => (Array.isArray(data) ? data : []),
   staleTime: 30_000,
@@ -123,7 +124,7 @@ const filtered = computed(() => users.value.filter(user =>
 const displayName = (user) => accountName(user || {});
 
 /** Relit la liste apres une action ; `invalidateQueries` attend la nouvelle reponse. */
-async function load() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: ['users'] }); }
+async function load() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: queryKeys.users.all }); }
 /* La fiche d'un compte s'ouvre dans la feuille, avec sa propre adresse (voir
    UserDetailView) : la liste reste derriere, et retour y ramene. */
 function openUser(id) { ouvrirFiche(router, `/users/${id}`, route.fullPath); }
@@ -157,5 +158,6 @@ async function loadSeerState() {
 onMounted(loadSeerState);
 </script>
 <style scoped lang="scss">
-.user-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap: var(--space-2)}.user-metrics button{display:flex;align-items:flex-start;gap: var(--space-2);min-height:44px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);text-align:left}.user-metrics button:hover,.user-metrics button.active{border-color:var(--accent);background:var(--surface-2)}.user-metrics svg{width:18px;color:var(--muted)}.user-metrics div{display:grid;gap: var(--space-1)}.user-metrics span{color:var(--muted);font-size:var(--fs-xs);}.user-metrics strong{font-size:var(--fs-lg)}.user-metrics small{color:var(--muted);font-size:var(--fs-xs)}@media(max-width:767.98px){.user-metrics{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}.user-metrics button{min-width:150px;scroll-snap-align:start}}
+@use '@/styles/foundations/breakpoints' as bp;
+.user-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap: var(--space-2)}.user-metrics button{display:flex;align-items:flex-start;gap: var(--space-2);min-height:44px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);text-align:left}.user-metrics button:hover,.user-metrics button.active{border-color:var(--accent);background:var(--surface-2)}.user-metrics svg{width:18px;color:var(--muted)}.user-metrics div{display:grid;gap: var(--space-1)}.user-metrics span{color:var(--muted);font-size:var(--fs-xs);}.user-metrics strong{font-size:var(--fs-lg)}.user-metrics small{color:var(--muted);font-size:var(--fs-xs)}@include bp.until(tablet) {.user-metrics{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}.user-metrics button{min-width:150px;scroll-snap-align:start}}
 </style>

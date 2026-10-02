@@ -7,13 +7,16 @@ import pytest
 
 from app.models import LibraryAnalyticsSnapshot
 from app.services.library_analytics import (
+    _build_payload,
     analytics_item,
+    analytics_item_technical,
     analytics_items_payload,
     analytics_payload,
     analytics_summary_payload,
     apply_filters,
     fetch_plex_catalog,
     parse_plex_item,
+    parse_plex_technical,
     refresh_library_analytics_snapshot,
 )
 
@@ -57,6 +60,30 @@ def test_parse_plex_item_extracts_raw_technical_metadata():
     assert row["audio_track_count"] == 1
     assert row["subtitle_count"] == 2
     assert row["subtitle_languages"] == ["English", "Français"]
+
+
+def test_a_catalog_entry_without_streams_has_unknown_subtitles():
+    item = sample_item()
+    item["Media"][0]["Part"][0].pop("Stream")
+    row = parse_plex_item(item, "Séries", "show")
+    assert row["subtitle_count"] is None
+
+    # `play_count` et `viewers` sont ajoutes au rafraichissement, apres la lecture du catalogue.
+    payload = _build_payload([{**row, "play_count": 0, "viewers": []}], "2026-10-01T00:00:00", {})
+    subtitles = next(entry for entry in payload["insights"] if entry["kind"] == "subtitles")
+    assert subtitles["value"] is None
+    assert apply_filters([row], {"subtitle": "without"}) == []
+
+
+def test_the_banner_of_an_episode_is_its_show_background():
+    item = {**sample_item(), "art": "/library/metadata/9/art/1", "grandparentArt": "/library/metadata/3/art/2"}
+    assert (
+        parse_plex_item(item, "Séries", "show")["art_url"]
+        == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F3%2Fart%2F2"
+    )
+    # Un chemin hors de la bibliotheque Plex n'est pas servi par le proxy de vignettes.
+    item = {**item, "grandparentArt": "http://ailleurs/art.jpg", "art": None}
+    assert parse_plex_item(item, "Séries", "show")["art_url"] is None
 
 
 def test_filters_combine_media_technical_storage_and_audience_fields():
@@ -232,6 +259,23 @@ async def test_items_sort_on_quality_audio_and_subtitles():
     assert await titles("subtitles", "desc") == ["SD", "HD", "UHD"]
 
 
+@pytest.mark.asyncio
+async def test_subtitles_insight_lists_only_media_known_without_subtitles():
+    """Un média sans flux analysés (sous-titres inconnus) ne compte pas comme « sans sous-titres »."""
+
+    def row(title, subtitles):
+        item = parse_plex_item(sample_item(), "Films", "movie")
+        item.update(title=title, subtitle_count=subtitles)
+        return item
+
+    rows = [row("Sans", 0), row("Avec", 2), row("Inconnu", None)]
+    db = SimpleNamespace(get=AsyncMock(return_value=LibraryAnalyticsSnapshot(payload_json=json.dumps({"items": rows}))))
+
+    page = await analytics_items_payload(SimpleNamespace(), db, {}, insight_kind="subtitles")
+
+    assert [item["title"] for item in page["items"]] == ["Sans"]
+
+
 def test_an_episode_inherits_the_studio_of_its_show():
     """Plex n'expose le studio que sur la série ; l'épisode n'en porte aucun.
 
@@ -312,6 +356,10 @@ async def test_the_catalog_reads_the_shows_to_learn_their_studios(monkeypatch):
 def _session(**overrides):
     """Une lecture minimale, telle que la corrélation la lit."""
     base = {
+        "id": 7,
+        "player_title": "Salon",
+        "product": "Plex for Apple TV",
+        "platform": "tvOS",
         "rating_key": None,
         "title": None,
         "grandparent_title": None,
@@ -377,6 +425,9 @@ async def test_each_item_carries_its_viewing_dates(monkeypatch):
 
     # Les plus récentes d'abord : c'est ce que la fiche montre en premier.
     assert [view["user"] for view in row["views"]] == ["Rémi", "Lisa"]
+    # Chaque visionnage mene a la fiche de sa session.
+    assert all(view["session_id"] == 7 for view in row["views"])
+    assert row["views"][0]["player"] == "Salon" and row["views"][0]["platform"] == "tvOS"
     assert row["last_viewed_at"] == "2026-06-02T21:00:00"
 
 
@@ -402,3 +453,183 @@ def test_the_inventory_can_be_filtered_by_viewer():
 
     assert apply_filters([row], {"viewer": "Lisa"}) == [row]
     assert apply_filters([row], {"viewer": "Inconnu"}) == []
+
+
+def test_each_row_carries_a_portrait_poster_through_the_proxy():
+    """Un episode prend l'affiche de sa saison : sa propre vignette est une capture 16/9."""
+    episode = parse_plex_item(
+        {**sample_item(), "thumb": "/library/metadata/42/thumb/1", "parentThumb": "/library/metadata/40/thumb/2"},
+        "Séries",
+        "show",
+    )
+    film = parse_plex_item(
+        {**sample_item(), "type": "movie", "thumb": "/library/metadata/42/thumb/1"}, "Films", "movie"
+    )
+    sans = parse_plex_item({**sample_item(), "type": "movie"}, "Films", "movie")
+
+    assert episode["thumb_url"] == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F40%2Fthumb%2F2"
+    assert film["thumb_url"].startswith("/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F1")
+    assert sans["thumb_url"] is None
+
+
+def technical_metadata():
+    return {
+        "type": "movie",
+        "guid": "plex://movie/abc",
+        "thumb": "/library/metadata/42/thumb/1",
+        "art": "/library/metadata/42/art/1",
+        "Media": [
+            {
+                "bitrate": 50120,
+                "videoResolution": "4k",
+                "aspectRatio": "2.39",
+                "optimizedForStreaming": 0,
+                "Part": [
+                    {
+                        "file": "/media/Films 4K/Dune (2024)/Dune.2160p.mkv",
+                        "size": 62_400_000_000,
+                        "container": "mkv",
+                        "duration": 9_960_000,
+                        "Stream": [
+                            {
+                                "streamType": 1,
+                                "codec": "hevc",
+                                "profile": "main 10",
+                                "width": 3840,
+                                "height": 1606,
+                                "frameRate": 23.976,
+                                "bitDepth": 10,
+                                "colorTrc": "smpte2084",
+                                "chromaSubsampling": "4:2:0",
+                                "bitrate": 45000,
+                            },
+                            {
+                                "streamType": 2,
+                                "codec": "eac3",
+                                "language": "Français",
+                                "channels": 6,
+                                "audioChannelLayout": "5.1(side)",
+                                "bitrate": 640,
+                                "default": True,
+                            },
+                            {
+                                "streamType": 2,
+                                "codec": "truehd",
+                                "language": "English",
+                                "channels": 8,
+                                "title": "Atmos",
+                            },
+                            {
+                                "streamType": 3,
+                                "codec": "srt",
+                                "language": "Français",
+                                "forced": "1",
+                                "key": "/library/streams/9",
+                            },
+                            {"streamType": 3, "codec": "pgs", "language": "English", "hearingImpaired": True},
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def test_the_technical_sheet_details_the_file_and_every_track():
+    sheet = parse_plex_technical(technical_metadata())
+
+    assert sheet["file"]["path"] == "/media/Films 4K/Dune (2024)/Dune.2160p.mkv"
+    assert sheet["file"]["bitrate_kbps"] == 50120
+    assert sheet["video"]["dynamic_range"] == "HDR10"
+    assert (sheet["video"]["width"], sheet["video"]["height"], sheet["video"]["bit_depth"]) == (3840, 1606, 10)
+    assert [track["language"] for track in sheet["audio"]] == ["Français", "English"]
+    assert sheet["audio"][0]["default"] is True and sheet["audio"][1]["title"] == "Atmos"
+    assert sheet["subtitles"][0] == {
+        "language": "Français",
+        "codec": "srt",
+        "title": None,
+        "forced": True,
+        "hearing_impaired": False,
+        "external": True,
+        "default": False,
+    }
+    assert sheet["subtitles"][1]["hearing_impaired"] is True
+
+
+def test_dolby_vision_wins_over_the_transfer_function():
+    metadata = technical_metadata()
+    video = metadata["Media"][0]["Part"][0]["Stream"][0]
+    video.update({"DOVIPresent": True, "DOVIProfile": 8})
+    assert parse_plex_technical(metadata)["video"]["dynamic_range"] == "Dolby Vision 8"
+
+
+@pytest.mark.asyncio
+async def test_the_technical_sheet_links_the_library_media(monkeypatch):
+    metadata_holder = technical_metadata()
+
+    class _Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"MediaContainer": {"Metadata": [metadata_holder]}}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url, headers=None):
+            assert url == "http://plex:32400/library/metadata/42"
+            return _Response()
+
+    monkeypatch.setattr("app.services.library_analytics.httpx.AsyncClient", lambda **kwargs: _Client())
+    settings = SimpleNamespace(plex_url="http://plex:32400", plex_token="jeton", plex_verify_ssl=False)
+    db = SimpleNamespace(
+        execute=AsyncMock(
+            return_value=SimpleNamespace(first=lambda: (12, "https://image.tmdb.org/t/p/original/dune.jpg"))
+        )
+    )
+
+    sheet = await analytics_item_technical(settings, db, "42")
+
+    assert sheet["library_item_id"] == 12
+    assert sheet["poster_url"] == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F1"
+    assert sheet["art_url"] == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F42%2Fart%2F1"
+    assert sheet["file"]["container"] == "mkv"
+
+    # Sans fond Plex, le bandeau reprend celui de la bibliotheque.
+    del metadata_holder["art"]
+    sheet = await analytics_item_technical(settings, db, "42")
+    assert sheet["art_url"].startswith("/api/image-proxy?url=https%3A%2F%2Fimage.tmdb.org")
+
+
+def test_the_technical_endpoint_separates_an_unknown_file_from_an_unreachable_plex(monkeypatch):
+    import httpx
+    from fastapi.testclient import TestClient
+
+    from app.database import get_db_async
+    from app.dependencies import get_settings_or_404, require_admin
+    from app.main import app
+
+    async def fake_technical(settings, db, rating_key):
+        if rating_key == "panne":
+            raise httpx.ConnectError("Plex injoignable")
+        return {"file": {"container": "mkv"}} if rating_key == "k1" else None
+
+    monkeypatch.setattr("app.routers.library_analytics_api.analytics_item_technical", fake_technical)
+    app.dependency_overrides[require_admin] = lambda: None
+    app.dependency_overrides[get_settings_or_404] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_db_async] = lambda: None
+    try:
+        client = TestClient(app, raise_server_exceptions=False)
+        assert client.get("/api/library-analytics/items/k1/technical").json()["file"]["container"] == "mkv"
+        assert client.get("/api/library-analytics/items/absent/technical").status_code == 404
+        assert client.get("/api/library-analytics/items/panne/technical").status_code == 502
+    finally:
+        for dependency in (require_admin, get_settings_or_404, get_db_async):
+            app.dependency_overrides.pop(dependency, None)

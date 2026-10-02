@@ -21,7 +21,6 @@ class PlaybackSession(Base):
             "source_session_id",
             unique=True,
             postgresql_where=text("ended_at IS NULL"),
-            sqlite_where=text("ended_at IS NULL"),
         ),
         Index("ix_playback_sessions_started_at", "started_at"),
         Index("ix_playback_sessions_active", "ended_at", "last_seen_at"),
@@ -37,6 +36,9 @@ class PlaybackSession(Base):
     title: Mapped[str]
     grandparent_title: Mapped[Optional[str]]
     parent_title: Mapped[Optional[str]]
+    # Numeros de saison et d'episode : « S1 · E11 » dit plus que « Saison 1 ».
+    season_number: Mapped[Optional[int]]
+    episode_number: Mapped[Optional[int]]
     year: Mapped[Optional[int]]
     rating_key: Mapped[Optional[str]]
     library_section_title: Mapped[Optional[str]]
@@ -72,6 +74,22 @@ class PlaybackSession(Base):
     transcode_buffer_ms: Mapped[Optional[int]]
     transcode_speed: Mapped[Optional[float]]
     transcode_throttled: Mapped[Optional[bool]]
+    # Pourquoi ca transcode. Deux sources de fiabilite differente, gardees separees :
+    # la deduction de /status/sessions (ce qui est converti), toujours disponible, et la
+    # decision de Plex relue dans ses journaux de debogage (le vrai pourquoi), si actives.
+    transcode_session: Mapped[Optional[str]]
+    transcode_reason: Mapped[Optional[str]] = mapped_column(Text)
+    transcode_hw: Mapped[Optional[str]]
+    audio_channels: Mapped[Optional[int]]
+    # Source -> sortie flux par flux (conteneur, vidéo, audio, sous-titres), en JSON.
+    transcode_details: Mapped[Optional[str]] = mapped_column(Text)
+    # Réseau (relais Plex), lecteur, HDR et débits de la lecture, en JSON.
+    stream_details: Mapped[Optional[str]] = mapped_column(Text)
+    # Téléchargement (synchro hors ligne) plutôt que lecture : gardé, mais signalé.
+    is_download: Mapped[Optional[bool]] = mapped_column(default=False)
+    plex_decision_code: Mapped[Optional[int]]
+    plex_decision_text: Mapped[Optional[str]] = mapped_column(Text)
+    plex_decision_details: Mapped[Optional[str]] = mapped_column(Text)
     progress_ms: Mapped[Optional[int]] = mapped_column(BigInteger)
     initial_progress_ms: Mapped[int] = mapped_column(BigInteger, default=0)
     duration_ms: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -93,6 +111,10 @@ class PlaybackSession(Base):
     last_seen_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
     ended_at: Mapped[Optional[datetime]]
     media_request_id: Mapped[Optional[int]] = mapped_column(index=True)
+    # Serveur Plex de la lecture (models.PlexServer) ; NULL = serveur principal, ce qui
+    # garde justes les lignes anterieures au multi-serveurs. Sans cle etrangere : une
+    # lecture survit a la suppression de son serveur.
+    server_id: Mapped[Optional[int]] = mapped_column(index=True)
 
     segments: Mapped[list["PlaybackSessionSegment"]] = relationship(
         back_populates="session",

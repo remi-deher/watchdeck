@@ -68,9 +68,11 @@
 
 <script setup lang="ts">
 import { formatDateTimeSeconds, parseApiDate } from '@/utils/format';
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { Check, Copy, ExternalLink, RefreshCw } from '@lucide/vue';
 import { api } from '@/api';
+import { humanizeError } from '@/utils/apiError';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -103,9 +105,13 @@ interface VersionInfo {
   release_checked_at: string | null;
 }
 
-const info = ref<VersionInfo | null>(null);
-const loading = ref(false);
-const error = ref('');
+const versionQuery = useQuery({
+  queryKey: ['settings', 'system-version'],
+  queryFn: ({ signal }) => api<VersionInfo>('/api/system/version', { signal }),
+});
+const info = computed(() => versionQuery.data.value ?? null);
+const loading = computed(() => versionQuery.isFetching.value);
+const error = computed(() => (versionQuery.error.value ? humanizeError(versionQuery.error.value) : ''));
 const copied = ref(false);
 
 function isRealSha(sha: string): boolean {
@@ -169,7 +175,9 @@ const statusBadge = computed<{ label: string; tone: BadgeTone } | null>(() => {
 // balise, donc aucun HTML/JS du corps de la release ne peut jamais s'executer,
 // meme si `body` contenait un jour du contenu non fiable.
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Guillemets compris : un lien Markdown finit dans un attribut href="...", qu'un `"`
+  // non echappe permettrait de refermer pour y ajouter un attribut (onmouseover...).
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function renderInline(escaped: string): string {
   return escaped
@@ -208,19 +216,9 @@ const renderedReleaseNotes = computed(() =>
   info.value?.latest_release?.body ? renderMarkdown(info.value.latest_release.body) : '<p>Aucune note de version.</p>',
 );
 
-async function load(): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    info.value = await api<VersionInfo>('/api/system/version');
-  } catch (err: any) {
-    error.value = err.message;
-  } finally {
-    loading.value = false;
-  }
+function load(): void {
+  void versionQuery.refetch();
 }
-
-onMounted(load);
 </script>
 
 <style scoped lang="scss">
@@ -241,7 +239,7 @@ onMounted(load);
 .status-badge.status-info { color: var(--muted); background: var(--surface-2); }
 .ui-feedback { margin-top: var(--space-3); }
 .checked-at { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-xs); }
-.release-body { max-height: 420px; margin: var(--space-3) 0 0; padding: var(--space-3); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); font-size: var(--fs-sm); line-height: 1.5; }
+.release-body { max-height: 420px; margin: var(--space-3) 0 0; padding: var(--space-3); overflow: auto; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-2); font-size: var(--fs-sm); line-height: 1.5; }
 .release-body :deep(h3), .release-body :deep(h4) { margin: var(--space-3) 0 var(--space-2); font-size: var(--fs-md); }
 .release-body :deep(h3:first-child), .release-body :deep(h4:first-child) { margin-top: 0; }
 .release-body :deep(ul) { margin: 0 0 var(--space-2); padding-left: 1.3em; }

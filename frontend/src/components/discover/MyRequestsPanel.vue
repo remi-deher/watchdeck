@@ -43,9 +43,9 @@
         <template v-else>{{ sorted.length }} demande{{ sorted.length > 1 ? 's' : '' }} affichée{{ sorted.length > 1 ? 's' : '' }}</template>
       </p>
 
-      <!-- Suivi (en cours, a approuver, VF manquante, echecs) : des cartes qui disent
-           pourquoi une demande attend. Les disponibles gardent la grille d'affiches. -->
-      <section v-if="sorted.length && activeTab !== 'disponibles'" v-list-motion class="rt-list" :aria-busy="loading">
+      <!-- Suivi (en cours, a approuver, VF manquante, echecs) : des affiches qui disent
+           pourquoi une demande attend, dans la meme grille que les disponibles. -->
+      <section v-if="sorted.length && activeTab !== 'disponibles'" v-list-motion class="media-grid library-grid rt-grid" :aria-busy="loading">
         <RequestTrackingCard
           v-for="item in visible"
           :key="item.id"
@@ -364,9 +364,9 @@ function act(row: any, action: string): void {
     pendingReject.value = row;
     return;
   }
-  // Recherche interactive des releases (la VF y est mise en avant).
+  // Recherche interactive des releases (la VF y est mise en avant), dans la feuille.
   if (action === 'interactive') {
-    void router.push(`/releases/${row.id}`);
+    void ouvrirFiche(router, `/releases/${row.id}`, route.fullPath);
     return;
   }
   void runAction(row, action);
@@ -425,14 +425,14 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .my-requests-panel .psh-main {
   display: grid;
   gap: var(--space-4);
   align-content: start;
 }
-.rt-list {
-  display: grid;
-  gap: var(--space-2);
+.rt-grid {
+  row-gap: var(--space-5);
 }
 .my-requests-count {
   margin: 0;
@@ -443,7 +443,7 @@ onMounted(async () => {
 :deep(.select-tag) {
   display: none;
 }
-@media (min-width: 1201px) {
+@include bp.from(wide) {
   .library-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

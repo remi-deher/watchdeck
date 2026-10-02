@@ -76,6 +76,63 @@ export function requiresIntervention(row: QueueRow = {}): boolean {
   return isUnmatched(row) || needsEpisodeImport(row) || isImportPending(row) || statusKey(row) === 'error';
 }
 
+export interface InterventionInfo {
+  /** Libellé court du badge (remplace « Terminé » / « Erreur »). */
+  badge: string;
+  /** Ce qui se passe, en une ligne. */
+  headline: string;
+  /** Messages bruts de Sonarr/Radarr, dédoublonnés. */
+  reasons: string[];
+  /** Explication en clair et piste d'action, si le cas est connu. */
+  hint: string | null;
+  /** Fichier ou release concerné. */
+  file: string | null;
+}
+
+// Messages *arr fréquents -> explication. L'ordre compte : le premier qui correspond gagne.
+const REASON_HINTS: [RegExp, (arr: string) => string][] = [
+  [/TBA title/i, arr => `${arr} n'importe pas un épisode dont le titre n'est pas encore publié. Il réessaiera seul quand le titre sera connu (souvent sous 24 h), ou vous pouvez l'importer manuellement dès maintenant.`],
+  [/not an upgrade/i, () => 'Le fichier déjà présent est de qualité égale ou supérieure. Retirez ce téléchargement, ou importez-le manuellement pour forcer le remplacement.'],
+  [/sample/i, () => 'Le fichier a été pris pour un extrait (sample), probablement à cause de sa taille ou de sa durée.'],
+  [/no files found are eligible|no video files/i, () => 'Aucun fichier vidéo importable n\'a été trouvé dans le dossier téléchargé.'],
+  [/matched to (series|movie) by id|unable to parse|unknown (series|movie)|was unexpected considering/i, () => 'La release ne correspond pas clairement au média attendu : associez-la manuellement.'],
+  [/access to the path|does not exist|permission|denied/i, arr => `${arr} n'accède pas au fichier téléchargé (chemin distant ou droits).`],
+  [/already imported/i, () => 'Ce fichier a déjà été importé : le téléchargement peut être retiré.'],
+];
+
+/** Diagnostic lisible d'un téléchargement qui demande une intervention. */
+export function interventionInfo(row: QueueRow = {}): InterventionInfo {
+  const arr = row.arr_type === 'radarr' ? 'Radarr' : row.arr_type === 'sonarr' ? 'Sonarr' : '*arr';
+  const messages: { title?: string; messages?: string[] }[] = Array.isArray(row.status_messages) ? row.status_messages : [];
+  const reasons = [...new Set([
+    ...(typeof row.error === 'string' && row.error ? [row.error] : []),
+    ...messages.flatMap(m => m.messages || []),
+  ].map(r => String(r).trim()).filter(Boolean))];
+  const file = messages.find(m => m.title)?.title || row.release_title || null;
+
+  let badge = 'Erreur';
+  let headline = 'Téléchargement en erreur';
+  if (isUnmatched(row)) {
+    badge = 'À associer';
+    headline = 'Aucun média de la bibliothèque ne réclame ce téléchargement';
+  } else if (isImportPending(row)) {
+    badge = 'Import bloqué';
+    headline = 'Téléchargé — en attente d\'import';
+  } else if (needsEpisodeImport(row) || (row.progress || 0) >= 100) {
+    badge = 'Import en échec';
+    headline = `Téléchargé, mais ${arr} n'a pas pu l'importer`;
+  }
+
+  const match = REASON_HINTS.find(([re]) => reasons.some(r => re.test(r)));
+  let hint = match ? match[1](arr) : null;
+  if (!hint && !reasons.length) {
+    hint = isUnmatched(row)
+      ? 'Associez-le à un film ou une série pour qu\'il soit importé.'
+      : `${arr} n'a pas donné de raison. Lancez un import manuel pour voir le détail.`;
+  }
+  return { badge, headline, reasons, hint, file };
+}
+
 /** Fiche média correspondante, ou null si le téléchargement n'est rattaché à rien. */
 export function queueDetailPath(row: QueueRow = {}): string | null {
   if (row.library_id) return mediaDetailPath({ library_id: row.library_id }, 'library');

@@ -29,7 +29,7 @@
     <div class="psh-layout">
       <FilterSidebar v-if="currentView === 'history'" :open="filtersOpen" :active-count="historyFilterCount" @close="filtersOpen=false" @reset="resetActivityFilters">
         <FilterGroup label="Lecture">
-          <UiChipGroup label="Mode de lecture" :options="[{ value: '', label: 'Tous les modes' }, { value: 'direct_play', label: 'Lecture directe' }, { value: 'direct_stream', label: 'Direct Stream' }, { value: 'transcode', label: 'Transcodage' }]" v-model="methodFilter" />
+          <UiChipGroup label="Mode de lecture" :options="[{ value: '', label: 'Tous les modes' }, { value: 'direct_play', label: 'Lecture directe' }, { value: 'direct_stream', label: 'Conversion légère' }, { value: 'transcode', label: 'Transcodage' }]" v-model="methodFilter" />
         </FilterGroup>
         <FilterGroup label="Type de média">
           <UiChipGroup label="Type de média" :options="[{ value: '', label: 'Tous les types' }, { value: 'movie', label: 'Films' }, { value: 'episode', label: 'Séries' }, { value: 'track', label: 'Musique' }]" v-model="typeFilter" />
@@ -39,6 +39,9 @@
         </FilterGroup>
         <FilterGroup label="Appareil">
           <UiCombobox label="Appareil" placeholder="Tous les appareils" :options="historyDevices.map((device: string) => ({ value: device, label: device }))" v-model="deviceFilter" />
+        </FilterGroup>
+        <FilterGroup v-if="historyServers.length > 1" label="Serveur">
+          <UiChipGroup label="Serveur Plex" :options="[{ value: '', label: 'Tous les serveurs' }, ...historyServers.map((server: any) => ({ value: String(server.id), label: server.name }))]" v-model="serverFilter" />
         </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
@@ -77,7 +80,7 @@
               :trend="trendOf(analytics.comparison?.watch_change)"
               :icon="Clock3"
             />
-            <MetricCard card-class="activity-metric-card overview-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="`${summary.transcodes||0} sessions`" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
+            <MetricCard card-class="activity-metric-card overview-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="transcodeDetail" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
           </MetricGrid>
 
           <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" interactive @select="openSession($event)"/>
@@ -127,6 +130,7 @@
           <span class="live-updated">Actualisé {{ relativeUpdate }}</span>
         </section>
         <LiveSessionsPanel :sessions="liveSessions" :collection-enabled="data.liveEnabled" :show-link="false" interactive @select="openSession($event)"/>
+        <PlexServerTasks v-if="data.liveEnabled"/>
       </template>
 
       <template v-else-if="currentView==='history'">
@@ -139,7 +143,7 @@
           :page-size="HISTORY_PAGE_SIZE"
           :sort="historySort"
           :group-by-day="historySort.startsWith('date')"
-          @select="openSession($event)"
+          @select="(item: any, run: any[]) => openSession(item, run)"
           @load-more="loadHistory(true)"
           @update:sort="setHistorySort"
         />
@@ -150,6 +154,10 @@
           <MetricCard card-class="activity-metric-card accent" label="Débit moyen" :value="formatBandwidth(analytics.bandwidth?.average_kbps)" :detail="bandwidthCoverageLabel" :icon="Gauge"/>
           <MetricCard card-class="activity-metric-card" label="Débit P95" :value="formatBandwidth(analytics.bandwidth?.p95_kbps)" :detail="`95 % sous ce seuil · ${bandwidthMeasured} mesurées`" :icon="Activity"/>
           <MetricCard card-class="activity-metric-card" label="Débit maximal" :value="formatBandwidth(analytics.bandwidth?.peak_kbps)" detail="pic observé" :icon="Zap"/>
+          <!-- Le suivi des conversions : le transcodage complet, et la conversion légère
+               (Direct Stream), où seul le conteneur ou les sous-titres changent. -->
+          <MetricCard card-class="activity-metric-card" label="Transcodage" :value="`${summary.transcode_rate||0} %`" :detail="`${summary.transcodes||0} session${(summary.transcodes||0)>1?'s':''} réencodée${(summary.transcodes||0)>1?'s':''}`" :icon="Cpu" :progress="{ value: summary.transcode_rate || 0, max: 100 }"/>
+          <MetricCard card-class="activity-metric-card" label="Conversion légère" :value="`${summary.direct_stream_rate||0} %`" :detail="`${summary.direct_streams||0} session${(summary.direct_streams||0)>1?'s':''} sans réencodage`" :icon="ArrowLeftRight" :progress="{ value: summary.direct_stream_rate || 0, max: 100 }"/>
           <MetricCard card-class="activity-metric-card" label="Rendement stockage" :value="analytics.storage?.watch_hours_per_gb==null?'—':`${analytics.storage.watch_hours_per_gb} h/Go`" :detail="`${analytics.storage?.known_items||0} fichiers mesurés`" :icon="HardDrive"/>
         </MetricGrid>
         <!-- Plex ne renseigne ni la decision de lecture ni le debit sur toutes les
@@ -162,13 +170,15 @@
           <BreakdownPanel title="Résolutions" eyebrow="Source" :items="resolutionBreakdown"/>
           <BreakdownPanel title="Codecs vidéo" eyebrow="Source" :items="codecBreakdown"/>
           <BreakdownPanel title="Causes de transcodage" eyebrow="Diagnostic" :items="transcodeReasonBreakdown"/>
+          <BreakdownPanel title="Causes de conversion légère" eyebrow="Diagnostic" :items="directStreamReasonBreakdown"/>
+          <BreakdownPanel title="Conteneurs" eyebrow="Source" :items="containerBreakdown"/>
           <BreakdownPanel title="Bande passante par utilisateur" eyebrow="Réseau" :items="bandwidthBreakdown"/>
         </div>
         <section class="panel compatibility-panel">
           <div class="panel-head"><div><span class="eyebrow">Compatibilité</span><h2>Appareils et lecteurs</h2></div></div>
           <div class="compatibility-table">
             <article v-for="device in analytics.quality?.devices||[]" :key="device.device">
-              <MonitorPlay/><span><strong>{{ device.device }}</strong><small>{{ device.sessions }} sessions · {{ device.transcodes }} transcodages</small></span>
+              <MonitorPlay/><span><strong>{{ device.device }}</strong><small>{{ device.sessions }} sessions · {{ device.transcodes }} transcodages<template v-if="device.direct_streams"> · {{ device.direct_streams }} conversion{{ device.direct_streams>1?'s':'' }} légère{{ device.direct_streams>1?'s':'' }}</template></small></span>
               <div><i :style="{width:`${device.compatibility_score}%`}"></i></div><em>{{ device.compatibility_score }} %</em>
             </article>
             <p v-if="!analytics.quality?.devices?.length" class="empty">Aucune donnée d'appareil.</p>
@@ -193,7 +203,7 @@
         <div v-balanced-grid="{ min: 340 }" class="user-cards">
           <article v-for="(user,index) in filteredAnalyticsUsers" :key="user.name" class="panel user-card">
             <button type="button" class="user-card-open" :aria-label="`Voir l’activité de ${user.name}`" @click="openUserScope(user.name)"></button>
-            <div class="user-avatar">{{ initials(user.name) }}</div>
+            <UiAvatar class="user-avatar" :name="user.name" size="lg" tone="accent" />
             <div><h3>{{ user.name }}</h3><p>{{ user.sessions }} session{{ user.sessions>1?'s':'' }} sur {{ periodLabel }}</p></div>
             <strong>{{ formatDuration(user.watch_ms) }}</strong>
             <div class="user-share"><i :style="{width:`${userShare(user.sessions)}%`}"></i></div>
@@ -212,19 +222,23 @@
 </template>
 
 <script setup lang="ts">
+import UiAvatar from '@/components/ui/UiAvatar.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
 import { playbackMethodLabel } from '@/utils/labels';
 import { formatBandwidth, formatDateTimeShort, formatDuration, signedPercent } from '@/utils/format';
-import { computed,onMounted,onUnmounted,ref,watch } from 'vue';
+import { computed,onUnmounted,ref,watch } from 'vue';
 import { refDebounced, useDebounceFn, useIntervalFn } from '@vueuse/core';
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/vue-query';
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute,useRouter } from 'vue-router';
-import { Activity, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
+import { Activity, ArrowLeftRight, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
 import { activitySections } from '@/navigation';
 import { api } from '@/api';
 import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
+import { queryKeys } from '@/queryKeys';
+import { playbackLiveQuery } from '@/sharedQueries';
+import { humanizeError } from '@/utils/apiError';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
@@ -238,10 +252,12 @@ import ConcurrencyPanel from '@/components/activity/ConcurrencyPanel.vue';
 import DailyActivityChart from '@/components/activity/DailyActivityChart.vue';
 import HistoryTable from '@/components/activity/HistoryTable.vue';
 import LiveSessionsPanel from '@/components/activity/LiveSessionsPanel.vue';
+import PlexServerTasks from '@/components/activity/PlexServerTasks.vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import PopularMediaPanel from '@/components/activity/PopularMediaPanel.vue';
-import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
+import { etatDeSerie, etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
+import { episodeLabel } from '@/utils/episode';
 import UserRankingPanel from '@/components/activity/UserRankingPanel.vue';
 import { usePreference } from '@/composables/usePreference';
 
@@ -252,7 +268,7 @@ const currentView=computed(()=>allowedViews.includes(String(route.query.view))?S
 // de contexte, page) pointent vers `/activity?view=...` sans la porter, et sans memoire
 // locale chaque changement de vue serait retombe sur 30 jours.
 const storedDays=usePreference('activity.days',30);
-const days=ref(Number(route.query.days)||storedDays.value),loading=ref(false),loaded=ref(false),error=ref('');
+const days=ref(Number(route.query.days)||storedDays.value);
 // « Tout » est demande comme un siecle (MAX_PERIOD_DAYS cote API) plutot que comme un
 // parametre absent : le service garde un seul chemin de calcul, borne. Les libelles
 // restent courts car le selecteur partage la rangee de la barre du haut.
@@ -278,8 +294,7 @@ const periodLabel = computed(() => {
   }
   return `${value} jours`;
 });
-const data=ref<Record<string, any>>({active:[],liveEnabled:true,liveConfigured:true,history:[],daily:[],users:[],summary:{}});
-const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),updatedAt=ref(Date.now()),clock=ref(Date.now());
+const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),serverFilter=ref(''),clock=ref(Date.now());
 const filtersOpen=ref(false);
 const summary=computed(()=>data.value.summary||{});
 const analytics=computed(()=>data.value.analytics||{});
@@ -362,13 +377,13 @@ const relativeUpdate=computed(()=>{const seconds=Math.max(0,Math.floor((clock.va
    fenetre-la donnait « les lectures d'Untel parmi les cent dernieres » au lieu de ses
    cent dernieres, sans que le compteur affiche ne le trahisse. */
 const HISTORY_PAGE_SIZE=100;
-interface HistoryPage {items?: any[]; total?: number; has_more?: boolean; facets?: {users?: string[]; devices?: string[]}}
+interface HistoryPage {items?: any[]; total?: number; has_more?: boolean; facets?: {users?: string[]; devices?: string[]; servers?: Array<{id: number; name: string}>}}
 const historySort=ref('date_desc');
 // La recherche part en base apres une pause de saisie ; les listes deroulantes, la periode
 // et le tri immediatement. Tous font partie de la cle : en changer annule la lecture en
 // cours et repart de la premiere page, ce que faisait `useLatestRequest` a la main.
 const historyNeedle=refDebounced(computed(()=>historySearch.value.trim()),250);
-const historyKey=computed(()=>({days:days.value,sort:historySort.value,query:historyNeedle.value,method:methodFilter.value,mediaType:typeFilter.value,user:userFilter.value,device:deviceFilter.value}));
+const historyKey=computed(()=>({days:days.value,sort:historySort.value,query:historyNeedle.value,method:methodFilter.value,mediaType:typeFilter.value,user:userFilter.value,device:deviceFilter.value,server:serverFilter.value}));
 function historyParams(offset: number): URLSearchParams {
   const key=historyKey.value;
   const params=new URLSearchParams({days:String(key.days),limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});
@@ -377,6 +392,7 @@ function historyParams(offset: number): URLSearchParams {
   if(key.mediaType)params.set('media_type',key.mediaType);
   if(key.user)params.set('user',key.user);
   if(key.device)params.set('device',key.device);
+  if(key.server)params.set('server',key.server);
   params.set('sort',key.sort);
   return params;
 }
@@ -396,7 +412,7 @@ const history=computed(()=>{
     items:pages.flatMap(page=>page.items||[]),
     total:first?.total||0,
     hasMore:Boolean(historyQuery.hasNextPage.value),
-    facets:{users:first?.facets?.users||[],devices:first?.facets?.devices||[]},
+    facets:{users:first?.facets?.users||[],devices:first?.facets?.devices||[],servers:first?.facets?.servers||[]},
   };
 });
 const historyError=computed(()=>{const e: any=historyQuery.error.value;return e?(e.message||String(e)):''});
@@ -414,11 +430,21 @@ function setHistorySort(value: string): void {
 }
 const historyUsers=computed(()=>history.value.facets.users);
 const historyDevices=computed(()=>history.value.facets.devices);
-const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value,userFilter.value,deviceFilter.value].filter(Boolean).length);
+/* Serveurs Plex ayant des lectures sur la periode : le filtre n'apparait qu'a partir de deux. */
+const historyServers=computed<any[]>(()=>(Array.isArray(history.value.facets?.servers)?history.value.facets.servers:[]));
+const historyFilterCount=computed(()=>[historySearch.value,methodFilter.value,typeFilter.value,userFilter.value,deviceFilter.value,serverFilter.value].filter(Boolean).length);
 const methodBreakdown=computed(()=>(analytics.value.quality?.methods||[]).map((item: any)=>({label:playbackMethodLabel(item.key,{fallback:item.key==='unknown'?'Inconnu':item.key}),value:item.count,suffix:` · ${item.rate} %`})));
 const resolutionBreakdown=computed(()=>(analytics.value.quality?.resolutions||[]).map((item: any)=>({label:item.label,value:item.count})));
 const codecBreakdown=computed(()=>(analytics.value.quality?.codecs||[]).map((item: any)=>({label:item.label,value:item.count})));
 const transcodeReasonBreakdown=computed(()=>(analytics.value.quality?.transcode_reasons||[]).map((item: any)=>({label:item.label,value:item.count})));
+const directStreamReasonBreakdown=computed(()=>(analytics.value.quality?.direct_stream_reasons||[]).map((item: any)=>({label:item.label,value:item.count})));
+/* Conteneur du fichier source, et combien de lectures ont dû en changer pour le lecteur. */
+const containerBreakdown=computed(()=>(analytics.value.quality?.containers||[]).map((item: any)=>({label:item.label,value:item.count,suffix:item.converted?` · ${item.converted} converti${item.converted>1?'s':''}`:' · inchangé'})));
+const transcodeDetail=computed(()=>{
+  const transcodes=summary.value.transcodes||0;
+  const light=summary.value.direct_streams||0;
+  return `${transcodes} session${transcodes>1?'s':''}${light?` · ${light} conversion${light>1?'s':''} légère${light>1?'s':''}`:''}`;
+});
 const qualityCoverage=computed(()=>analytics.value.quality?.coverage||{sessions:0,method_known:0,bandwidth_measured:0});
 const bandwidthMeasured=computed(()=>analytics.value.bandwidth?.measured??qualityCoverage.value.bandwidth_measured??0);
 const methodCoverageRate=computed(()=>{
@@ -442,57 +468,61 @@ const bandwidthBreakdown=computed(()=>(analytics.value.bandwidth?.by_user||[]).m
 const STATISTICS_CACHE_MAX_AGE_MS=6*60*60*1000;
 const statisticsCacheKey=()=>`activity:statistics:${days.value}${scopedUser.value?`:${scopedUser.value}`:''}`;
 
-function applySnapshot(snapshot: any,{savedAt=Date.now()}: {savedAt?: number}={}){
-  data.value={
-    ...snapshot,
-    liveEnabled:snapshot.enabled ?? snapshot.liveEnabled ?? data.value.liveEnabled ?? true,
-    liveConfigured:snapshot.configured ?? snapshot.liveConfigured ?? data.value.liveConfigured ?? true,
-  };
-  loaded.value=true;
-  updatedAt.value=savedAt;
-  if(!scopedUser.value){
-    const names=[...(snapshot.users||[]),...(snapshot.analytics?.users||[])].map((user: any)=>String(user.name||'')).filter(Boolean);
-    if(names.length)knownUsers.value=[...new Set(names)];
-  }
-}
-function applyLive(snapshot: any): void {
-  data.value={
-    ...data.value,
-    active:snapshot.active||[],
-    liveEnabled:snapshot.enabled!==false,
-    liveConfigured:snapshot.configured!==false,
-  };
-  updatedAt.value=Date.now();
-}
-function applyStatistics(snapshot: any,options?: {savedAt?: number}): void {applySnapshot({...snapshot,active:data.value.active||[]},options)}
-function primeFromCache(): void {
-  const entry=readCacheEntry(statisticsCacheKey(),{maxAgeMs:STATISTICS_CACHE_MAX_AGE_MS});
-  if(entry)applyStatistics(entry.data,{savedAt:entry.savedAt});
-}
+/* Statistiques de la periode et lectures en cours : deux requetes. Le direct a la meme
+   cle que le tableau de bord ; les statistiques repartent du dernier resultat connu
+   (`@/cache`) pour s'afficher avant le premier aller-retour. */
+const queryClient=useQueryClient();
+const liveQuery=useQuery(playbackLiveQuery());
 function statisticsUrl(): string {
   const params=new URLSearchParams({days:String(days.value)});
   if(scopedUser.value)params.set('user',scopedUser.value);
   return `/api/playback/statistics?${params}`;
 }
-async function loadLive(silent=true): Promise<void> {try{applyLive(await api('/api/playback/live'))}catch(e: any){if(!silent)error.value=e.message}}
-async function loadStatistics(silent=true,refresh=false): Promise<void> {try{const statistics=await api(`${statisticsUrl()}${refresh?'&refresh=true':''}`);applyStatistics(statistics);writeCache(statisticsCacheKey(),statistics)}catch(e: any){if(!silent)error.value=e.message}}
-async function load(silent=false): Promise<void> {
-  if(loading.value)return;
-  if(!silent){loading.value=true;error.value=''}
-  try{
-    if(currentView.value==='live'){
-      applyLive(await api('/api/playback/live'));
-      loaded.value=true;
-    }else{
-      const [statistics,live]=await Promise.all([api(statisticsUrl()),api('/api/playback/live')]);
-      applyStatistics(statistics);writeCache(statisticsCacheKey(),statistics);applyLive(live);
-    }
-  }catch(e: any){if(!silent)error.value=e.message}
-  finally{if(!silent)loading.value=false}
+const statisticsQuery=useQuery({
+  queryKey:computed(()=>['playback','statistics',days.value,scopedUser.value]),
+  queryFn:async({signal})=>{
+    const cacheKey=statisticsCacheKey();
+    const statistics=await api<Record<string, any>>(statisticsUrl(),{signal});
+    writeCache(cacheKey,statistics);
+    return statistics;
+  },
+  initialData:()=>readCacheEntry(statisticsCacheKey(),{maxAgeMs:STATISTICS_CACHE_MAX_AGE_MS})?.data,
+  initialDataUpdatedAt:()=>readCacheEntry(statisticsCacheKey(),{maxAgeMs:STATISTICS_CACHE_MAX_AGE_MS})?.savedAt,
+  // Changer de periode ou d'utilisateur garde les chiffres affiches jusqu'aux nouveaux.
+  placeholderData:keepPreviousData,
+  // La vue « En direct » n'affiche aucune statistique.
+  enabled:computed(()=>currentView.value!=='live'),
+});
+const EMPTY_STATISTICS={history:[],daily:[],users:[],summary:{}};
+const data=computed<Record<string, any>>(()=>{
+  const statistics=statisticsQuery.data.value||EMPTY_STATISTICS;
+  const live=liveQuery.data.value;
+  return {
+    ...statistics,
+    active:live?.active||[],
+    liveEnabled:live?live.enabled!==false:(statistics.enabled??statistics.liveEnabled??true),
+    liveConfigured:live?live.configured!==false:(statistics.configured??statistics.liveConfigured??true),
+  };
+});
+const loaded=computed(()=>Boolean(statisticsQuery.data.value)||(currentView.value==='live'&&Boolean(liveQuery.data.value)));
+const loading=computed(()=>liveQuery.isFetching.value||statisticsQuery.isFetching.value);
+const error=computed(()=>{
+  const failure=(currentView.value!=='live'?statisticsQuery.error.value:null)||liveQuery.error.value;
+  return failure?humanizeError(failure):'';
+});
+const updatedAt=computed(()=>Math.max(statisticsQuery.dataUpdatedAt.value||0,liveQuery.dataUpdatedAt.value||0)||Date.now());
+watch(()=>statisticsQuery.data.value,(snapshot)=>{
+  if(!snapshot||scopedUser.value)return;
+  const names=[...(snapshot.users||[]),...(snapshot.analytics?.users||[])].map((user: any)=>String(user.name||'')).filter(Boolean);
+  if(names.length)knownUsers.value=[...new Set(names)];
+},{immediate:true});
+function load(): void {
+  void liveQuery.refetch();
+  if(currentView.value!=='live')void statisticsQuery.refetch();
 }
-function setDays(value: number): void {days.value=value;storedDays.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}});loadStatistics(false)}
+function setDays(value: number): void {days.value=value;storedDays.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}})}
 function setPeriod(value: string | number): void { if (typeof value === 'number') setDays(value); }
-function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value=''}
+function resetActivityFilters(): void {historySearch.value='';methodFilter.value='';typeFilter.value='';userFilter.value='';deviceFilter.value='';serverFilter.value=''}
 const formatDate=(value: string)=>formatDateTimeShort(value,'—');
 function comparisonLabel(value: number): string {return `${signedPercent(value)} vs période précédente`}
 // Les cartes de tete portent la tendance : sans comparaison disponible, aucun chevron
@@ -518,15 +548,28 @@ const siblingSessions=computed((): any[]=>{
   if(currentView.value==='quality')return qualityHistory.value;
   return liveSessions.value;
 });
-function openSession(item: any): void {
+/* Une ligne repliee de l'historique (lectures consecutives) ouvre sa premiere lecture, et
+   la fiche garde la liste des autres, dans l'ordre chronologique, pour passer de l'une a
+   l'autre : chacune a son propre mode, ses flux et sa conversion. */
+function openSession(item: any, run: any[]=[]): void {
   if(item?.id==null)return;
   const ids=siblingSessions.value.map((row: any)=>row.id).filter((id: any)=>id!=null);
-  ouvrirFiche(router,`/activity/session/${item.id}`,route.fullPath,etatDeVoisins(ids));
+  const lectures=run.filter((row: any)=>row?.id!=null);
+  const serie=lectures.length>1?etatDeSerie([...lectures].sort((a: any,b: any)=>String(a.started_at||'').localeCompare(String(b.started_at||''))).map((row: any)=>({
+    id:String(row.id),
+    method:row.playback_method||'',
+    started_at:row.started_at||'',
+    watched_ms:row.watched_ms||0,
+    label:row.media_type==='episode'&&(row.season_number!=null||row.episode_number!=null)?`${episodeLabel(row)} · ${row.title||''}`:row.title||'Lecture Plex',
+  }))):{};
+  ouvrirFiche(router,`/activity/session/${item.id}`,route.fullPath,{...etatDeVoisins(ids),...serie});
 }
-function initials(name: string): string {return String(name||'?').split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase()}
 function userShare(sessions: number): number {return Math.round(Number(sessions||0)/Math.max(1,summary.value.sessions||0)*100)}
-watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!==days.value){days.value=next;loadStatistics(false)}});
-useRealtime(['activity.updated'],()=>currentView.value==='live'?loadLive():Promise.allSettled([loadLive(),loadStatistics()]));
+watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!==days.value)days.value=next});
+useRealtime(['activity.updated'],()=>{
+  void queryClient.invalidateQueries({queryKey:queryKeys.playback.live});
+  if(currentView.value!=='live')void queryClient.invalidateQueries({queryKey:['playback','statistics']});
+});
 // Horloge locale du libelle « actualise il y a N s » : doit tourner meme onglet masque,
 // sinon l'age affiche au retour sur l'onglet est faux.
 useIntervalFn(()=>{clock.value=Date.now()},1000);
@@ -536,26 +579,16 @@ const applyScope=useDebounceFn(()=>{
   const next=matchedUser.value||'';
   if(next===scopedUser.value)return;
   scopedUser.value=next;
-  primeFromCache();
-  loadStatistics(false);
 },350);
 watch(matchedUser,()=>applyScope());
-watch(currentView,(next,previous)=>{
-  if(next===previous)return;
-  if(next==='live'){loadLive(false);return}
-  if(!data.value.history?.length)loadStatistics(false);
-});
-onMounted(()=>{
-  primeFromCache();
-  load();
-});
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .activity-title-tabs{margin:0}.coverage-note{display:flex;align-items:center;gap:var(--space-2);margin:0 0 14px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--muted);font-size:var(--fs-xs)}.coverage-note svg{flex:none;width:15px}.coverage-note strong{color:var(--text)}.user-card{position:relative}.user-card-open{position:absolute;inset:0;z-index:1;border:0;border-radius:inherit;background:transparent;cursor:pointer}.user-card-open:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.user-card>*:not(.user-card-open){position:relative;z-index:2;pointer-events:none}.user-card-cue{display:inline-flex;align-items:center;gap:6px;grid-column:1/-1;margin-top:2px;color:var(--muted);font-size:var(--fs-xs);font-weight:600}.user-card-cue svg{width:14px}.user-card:hover .user-card-cue{color:var(--accent)}.scope-note{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;margin:0 0 4px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--muted);font-size:var(--fs-xs)}.scope-note span{display:inline-flex;align-items:center;gap:var(--space-2)}.scope-note svg{width:15px}.scope-note strong{color:var(--text)}
 .period-picker{display:flex;padding:2px;border:1px solid var(--border);border-radius:var(--radius-pill)}.period-picker button{border:0;border-radius:var(--radius-pill);background:transparent;color:var(--muted);padding:6px 9px}.period-picker button.active{background:var(--accent);color:var(--on-accent)}.activity-metrics{margin:0 0 14px}.overview-metrics{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap: var(--space-2)}.overview-metric-card{padding:12px!important;gap: var(--space-2)!important}.overview-metric-card :deep(svg){width:17px!important}.overview-metric-card :deep(strong){font-size:var(--fs-lg)!important;white-space:nowrap}.overview-metric-card :deep(span),.overview-metric-card :deep(small){font-size: var(--fs-xs)!important}.activity-grid{display:grid;grid-template-columns:2fr 1fr;gap: var(--space-4);margin:14px 0}
 /* Un panneau seul sur sa rangee -- unique de sa grille, ou laisse seul par un voisin
    pleine largeur -- prend toute la ligne au lieu d'une colonne, le reste vide. */
-.activity-grid>:only-child,.activity-grid>.span-two+:last-child{grid-column:1/-1}.analytics-secondary{grid-template-columns:1fr 1fr}.activity-page :deep(.heatmap-panel),.activity-page :deep(.popular-panel){margin-top:14px}.live-heading{display:flex;align-items:flex-end;justify-content:space-between;gap: var(--space-4);margin:8px 2px 16px}.live-heading h2{margin:6px 0 3px}.live-heading p,.live-updated{margin:0;color:var(--muted);font-size:var(--fs-xs)}.live-indicator{display:flex;align-items:center;gap: var(--space-2);color:var(--green-text);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase}.live-indicator i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px color-mix(in srgb, var(--green) 12%, transparent)}.search-field{display:flex;align-items:center;gap: var(--space-2);min-width:min(360px,100%);padding:0 11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)}.search-field svg{width:15px;color:var(--muted)}.search-field input{width:100%;border:0;background:transparent}.quality-grid{display:grid;grid-template-columns:repeat(2,1fr);gap: var(--space-4);margin-bottom:14px}.compatibility-panel{margin-bottom:14px}.compatibility-table{display:grid;margin-top:10px}.compatibility-table article{display:grid;grid-template-columns:28px minmax(150px,1fr) minmax(100px,1fr) 50px;gap: var(--space-3);align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)}.compatibility-table article>svg{width:18px;color:var(--muted)}.compatibility-table article>span{display:grid;min-width:0}.compatibility-table article small{color:var(--muted);font-size:var(--fs-xs)}.compatibility-table article>div{height:6px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .07)}.compatibility-table article>div i{display:block;height:100%;background:var(--green-text)}.compatibility-table em{color:var(--green-text);font-size:var(--fs-xs);font-style:normal;text-align:right}.quality-list{display:grid;margin-top:10px}.quality-list button{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap: var(--space-3);align-items:center;width:100%;padding:9px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);text-align:left}.quality-list button:hover{background:rgb(var(--ink) / .025)}.quality-list button>span{display:grid;min-width:0}.quality-list strong,.quality-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.quality-list small{color:var(--muted);font-size:var(--fs-xs)}.binge-panel{margin-top:14px}.binge-panel .panel-head>small{color:var(--muted);font-size:var(--fs-xs)}.binge-list{display:grid;margin-top:10px}.binge-list article{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap: var(--space-3);align-items:center;padding:10px 2px;border-bottom:1px solid var(--border)}.binge-list article>svg{width:19px;color:var(--muted)}.binge-list article>span,.binge-list article>em{display:grid}.binge-list small,.binge-list em{color:var(--muted);font-size:var(--fs-xs);font-style:normal}.binge-list em{justify-items:end}.binge-list em>strong{color:var(--text)}.user-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap: var(--space-3)}.user-card{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap: var(--space-3);align-items:center}.user-avatar{display:grid;grid-row:1/3;place-items:center;width:46px;height:46px;border-radius:50%;background:color-mix(in srgb, var(--accent) 13%, transparent);color:var(--accent);font-weight:800}.user-card h3,.user-card p{margin:0}.user-card p,.user-card small{color:var(--muted);font-size:var(--fs-xs)}.user-card>strong{color:var(--text)}.user-share{grid-column:2/4;height:5px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .08)}.user-share i{display:block;height:100%;border-radius:inherit;background:var(--accent)}.user-card>small{grid-column:2/4}.user-card>small b{color:var(--green-text)}.user-card>small b.down{color:var(--red-text)}.user-card dl{display:grid;grid-column:1/-1;grid-template-columns:repeat(3,1fr);gap: var(--space-2);margin:5px 0 0}.user-card dl>div{display:grid;gap: var(--space-1);padding:8px;border-radius:var(--radius-sm);background:var(--surface-2)}.user-card dt{color:var(--muted);font-size:var(--fs-xs);}.user-card dd{overflow:hidden;margin:0;font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}@media(max-width:1100px){.user-cards{grid-template-columns:1fr}}@media(max-width:900px){.activity-grid,.analytics-secondary{grid-template-columns:1fr}}@media(max-width:700px){.quality-grid{grid-template-columns:1fr}.compatibility-table article{grid-template-columns:28px minmax(0,1fr) 44px}.compatibility-table article>div{grid-column:2}.compatibility-table em{grid-column:3;grid-row:2}}@media(max-width:540px){.period-picker{order:3}.live-heading{align-items:flex-start;flex-direction:column}.live-updated{display:none}.quality-list button{grid-template-columns:42px minmax(0,1fr)}.quality-list :deep(.playback-badge){grid-column:2}.user-card dl{grid-template-columns:1fr}}@media(max-width:480px){.overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-@media(max-width:767.98px){.quality-grid{grid-template-columns:1fr}.period-picker{order:3;max-width:100%;overflow-x:auto}.period-picker button,.quality-list button{min-height:44px}.live-heading{align-items:flex-start;flex-direction:column}.live-updated{display:none}.user-cards{grid-template-columns:1fr}}
+.activity-grid>:only-child,.activity-grid>.span-two+:last-child{grid-column:1/-1}.analytics-secondary{grid-template-columns:1fr 1fr}.activity-page :deep(.heatmap-panel),.activity-page :deep(.popular-panel){margin-top:14px}.live-heading{display:flex;align-items:flex-end;justify-content:space-between;gap: var(--space-4);margin:8px 2px 16px}.live-heading h2{margin:6px 0 3px}.live-heading p,.live-updated{margin:0;color:var(--muted);font-size:var(--fs-xs)}.live-indicator{display:flex;align-items:center;gap: var(--space-2);color:var(--green-text);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase}.live-indicator i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px color-mix(in srgb, var(--green) 12%, transparent)}.search-field{display:flex;align-items:center;gap: var(--space-2);min-width:min(360px,100%);padding:0 11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)}.search-field svg{width:15px;color:var(--muted)}.search-field input{width:100%;border:0;background:transparent}.quality-grid{display:grid;grid-template-columns:repeat(2,1fr);gap: var(--space-4);margin-bottom:14px}.compatibility-panel{margin-bottom:14px}.compatibility-table{display:grid;margin-top:10px}.compatibility-table article{display:grid;grid-template-columns:28px minmax(150px,1fr) minmax(100px,1fr) 50px;gap: var(--space-3);align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)}.compatibility-table article>svg{width:18px;color:var(--muted)}.compatibility-table article>span{display:grid;min-width:0}.compatibility-table article small{color:var(--muted);font-size:var(--fs-xs)}.compatibility-table article>div{height:6px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .07)}.compatibility-table article>div i{display:block;height:100%;background:var(--green-text)}.compatibility-table em{color:var(--green-text);font-size:var(--fs-xs);font-style:normal;text-align:right}.quality-list{display:grid;margin-top:10px}.quality-list button{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap: var(--space-3);align-items:center;width:100%;padding:9px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);text-align:left}.quality-list button:hover{background:rgb(var(--ink) / .025)}.quality-list button>span{display:grid;min-width:0}.quality-list strong,.quality-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.quality-list small{color:var(--muted);font-size:var(--fs-xs)}.binge-panel{margin-top:14px}.binge-panel .panel-head>small{color:var(--muted);font-size:var(--fs-xs)}.binge-list{display:grid;margin-top:10px}.binge-list article{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap: var(--space-3);align-items:center;padding:10px 2px;border-bottom:1px solid var(--border)}.binge-list article>svg{width:19px;color:var(--muted)}.binge-list article>span,.binge-list article>em{display:grid}.binge-list small,.binge-list em{color:var(--muted);font-size:var(--fs-xs);font-style:normal}.binge-list em{justify-items:end}.binge-list em>strong{color:var(--text)}.user-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap: var(--space-3)}.user-card{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap: var(--space-3);align-items:center}.user-avatar{grid-row:1/3}.user-card h3,.user-card p{margin:0}.user-card p,.user-card small{color:var(--muted);font-size:var(--fs-xs)}.user-card>strong{color:var(--text)}.user-share{grid-column:2/4;height:5px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .08)}.user-share i{display:block;height:100%;border-radius:inherit;background:var(--accent)}.user-card>small{grid-column:2/4}.user-card>small b{color:var(--green-text)}.user-card>small b.down{color:var(--red-text)}.user-card dl{display:grid;grid-column:1/-1;grid-template-columns:repeat(3,1fr);gap: var(--space-2);margin:5px 0 0}.user-card dl>div{display:grid;gap: var(--space-1);padding:8px;border-radius:var(--radius-sm);background:var(--surface-2)}.user-card dt{color:var(--muted);font-size:var(--fs-xs);}.user-card dd{overflow:hidden;margin:0;font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}@container page (max-width: 957px) {.user-cards{grid-template-columns:1fr}}@container page (max-width: 757px) {.activity-grid,.analytics-secondary{grid-template-columns:1fr}}@include bp.until(tablet) {.quality-grid{grid-template-columns:1fr}.compatibility-table article{grid-template-columns:28px minmax(0,1fr) 44px}.compatibility-table article>div{grid-column:2}.compatibility-table em{grid-column:3;grid-row:2}}@container page (max-width: 504px) {.period-picker{order:3}.live-heading{align-items:flex-start;flex-direction:column}.live-updated{display:none}.quality-list button{grid-template-columns:42px minmax(0,1fr)}.quality-list :deep(.playback-badge){grid-column:2}.user-card dl{grid-template-columns:1fr}}@container page (max-width: 444px) {.overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@include bp.until(tablet) {.quality-grid{grid-template-columns:1fr}.period-picker{order:3;max-width:100%;overflow-x:auto}.period-picker button,.quality-list button{min-height:44px}.live-heading{align-items:flex-start;flex-direction:column}.live-updated{display:none}.user-cards{grid-template-columns:1fr}}
 </style>

@@ -4,12 +4,10 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.models import Base, LibraryItem, MediaRequest, PlexUser, RequestSeasonStatus, RequestStatus, Settings
+from app.models import LibraryItem, MediaRequest, PlexUser, RequestSeasonStatus, RequestStatus, Settings
 from app.scheduler import check_arr_statuses, poll_watchlists, sync_users_from_feed
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 # ---------------------------------------------------------------------------
 # Fixtures DB in-memory
@@ -18,10 +16,7 @@ from tests.async_support import TestSession
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = TestSession(Session())
+    session = make_test_session()
     yield session
     session.close()
 
@@ -139,7 +134,7 @@ def _patch_session_arr(db):
         patch("app.services.arr_tracker.AsyncSessionLocal", return_value=db),
         patch("app.services.arr_tracker.get_all_movies", new=AsyncMock(return_value=[])),
         patch("app.services.arr_tracker.get_all_series", new=AsyncMock(return_value=[])),
-        patch("app.services.arr_tracker.fetch_queue_entity_ids", new=AsyncMock(return_value=set())),
+        patch("app.services.arr_tracker.fetch_queue_by_entity", new=AsyncMock(return_value={})),
         patch("app.services.arr_tracker.movie_exists", new=AsyncMock(return_value=True)),
         patch("app.services.arr_tracker.series_exists", new=AsyncMock(return_value=True)),
         patch("app.services.arr_tracker._refresh_next_release", new=AsyncMock()),
@@ -654,12 +649,42 @@ async def test_check_arr_movie_not_yet_available(db):
 
 
 @pytest.mark.asyncio
+async def test_check_arr_completed_radarr_download_waiting_for_manual_import_is_not_downloading(db):
+    """Une ligne Radarr importPending a 100 % est un import bloque, pas un download actif."""
+    db.add(_settings())
+    db.add(_sent_request(is_downloading=True, fulfillment_status="downloading"))
+    db.commit()
+
+    completed = {
+        "arr_media_id": 42,
+        "status": "completed",
+        "tracked_state": "importPending",
+        "tracked_status": "warning",
+        "progress": 100.0,
+        "size": 1000,
+        "sizeleft": 0,
+        "error": "Found matching movie via grab history, but release was matched to movie by ID. Manual Import required",
+    }
+    with (
+        _patch_session_arr(db),
+        patch("app.services.arr_tracker.fetch_queue_by_entity", new=AsyncMock(return_value={42: [completed]})),
+        patch("app.services.arr_tracker.is_movie_available", new=AsyncMock(return_value=(False, 42, None))),
+        _patch_enqueue(),
+    ):
+        await check_arr_statuses()
+
+    req = db.query(MediaRequest).first()
+    assert getattr(req.fulfillment_status, "value", req.fulfillment_status) == "importing"
+    assert req.is_downloading is False
+
+
+@pytest.mark.asyncio
 async def test_check_arr_statuses_skipped_when_distributed_lock_held_elsewhere(db):
     """Verrou Redis déjà détenu (autre process/conteneur) → cycle ignoré, aucun traitement.
 
     Même schéma que poll_watchlists : check_arr_statuses est déclenché à la fois par
-    APScheduler (conteneur API), le cron ARQ (conteneur worker) et /api/requests/poll
-    (HTTP manuel) — le verrou asyncio local ne protège que dans un seul process.
+    le cron ARQ (conteneur worker) et /api/requests/poll (HTTP manuel, conteneur API)
+    — le verrou asyncio local ne protège que dans un seul process.
     """
     db.add(_settings())
     db.add(_sent_request())

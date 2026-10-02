@@ -43,7 +43,7 @@ export function useRequestActions({
     run(() => post(`/api/requests/${id}/${action}`));
 
   async function rejectRequest(row: any): Promise<void> {
-    const reason = prompt('Motif du refus', 'Demande refusee par un administrateur');
+    const reason = prompt('Motif du refus', 'Demande refusée par un administrateur');
     if (reason === null) return;
     await run(() => post(`/api/requests/${row.id}/reject`, { reason }));
   }
@@ -79,9 +79,18 @@ export function useRequestActions({
   async function addRequester(): Promise<void> {
     const newUserId = newRequesterId.value;
     const rows: any[] = detail.value?.requests || [];
+    const libraryId = detail.value?.media?.library_id;
+    // Média ajouté directement dans *arr ou déjà présent dans Plex : aucune demande à
+    // compléter, le serveur en crée une (déjà disponible) avec ce demandeur.
+    const created: any[] = [];
     const alreadyInProgress = rows.filter((row) => row.request_mail_sent || row.status === 'available');
 
     const { ok } = await run(async () => {
+      if (!rows.length && libraryId) {
+        const res = await post(`/api/library/${libraryId}/requesters`, { plex_user_id: newUserId });
+        created.push({ id: res.request_id, status: 'available', request_mail_sent: false });
+        return;
+      }
       for (const row of rows) {
         const ids = [...(row.requester_ids || [row.plex_user_id])];
         if (!ids.includes(newUserId)) ids.push(newUserId);
@@ -89,14 +98,23 @@ export function useRequestActions({
       }
     });
     if (!ok) return;
+    alreadyInProgress.push(...created);
     newRequesterId.value = '';
 
     if (!alreadyInProgress.length) return;
-    const catchUp = await askConfirm({
-      title: 'Renvoyer les notifications précédentes ?',
-      message: 'Le nouveau co-demandeur recevra également les emails déjà envoyés pour cette demande.',
-      confirmLabel: 'Renvoyer les notifications',
-    });
+    const catchUp = await askConfirm(
+      created.length
+        ? {
+            title: 'Prévenir ce demandeur ?',
+            message: 'Le média est déjà disponible : un email de disponibilité lui sera envoyé.',
+            confirmLabel: 'Envoyer l’email',
+          }
+        : {
+            title: 'Renvoyer les notifications précédentes ?',
+            message: 'Le nouveau co-demandeur recevra également les emails déjà envoyés pour cette demande.',
+            confirmLabel: 'Renvoyer les notifications',
+          }
+    );
     if (!catchUp) return;
     for (const row of alreadyInProgress) {
       const events: string[] = [];

@@ -3,9 +3,9 @@
     <!-- En-tête avec titre, ratios et bouton de dépliage -->
     <div class="timeline-header">
       <div class="header-left">
-        <span class="timeline-title">Timeline de lecture</span>
+        <span class="timeline-title">Déroulé de la lecture</span>
         <span class="timeline-ratio-badge" v-if="activePlayRatio !== null && (hasPause || segments.length > 1)">
-          {{ activePlayRatio }}% actif
+          {{ activePlayRatio }} % en lecture
         </span>
       </div>
 
@@ -14,7 +14,7 @@
         class="timeline-toggle-btn"
         :aria-label="isExpanded ? 'Masquer le détail des segments' : 'Afficher le détail des segments'"
       >
-        <span>{{ segments.length > 1 ? `${segments.length} segments` : 'Détails' }}</span>
+        <span>{{ segments.length > 1 ? `${segments.length} passages` : 'Détails' }}</span>
         <ChevronDown :class="['toggle-chevron', { 'is-open': isExpanded }]" :size="14" />
       </CollapsibleTrigger>
     </div>
@@ -291,26 +291,38 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.6rem;
   margin-top: 0.35rem;
   padding: 0.75rem;
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.08));
-  border-radius: var(--radius-md, 0.5rem);
+  /* Bloc dans la carte « Progression » : un fond un cran plus clair suffit a le
+     distinguer, un second cadre empilait les bordures. */
+  background: rgb(var(--ink) / 0.04);
+  border: 0;
+  border-radius: var(--radius-sm);
 }
 
 .timeline-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
 }
 
+/* Sur mobile, le titre et le badge passent a la ligne plutot que d'ecraser le bouton
+   (« 10 segment / s » sur deux lignes). */
 .header-left {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.timeline-title,
+.timeline-ratio-badge {
+  white-space: nowrap;
 }
 
 .timeline-title {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -329,6 +341,8 @@ function segmentTooltip(seg: Segment): string {
 
 .timeline-toggle-btn {
   display: flex;
+  flex: none;
+  white-space: nowrap;
   align-items: center;
   gap: 0.3rem;
   background: transparent;
@@ -444,7 +458,7 @@ function segmentTooltip(seg: Segment): string {
   display: flex;
   flex-wrap: wrap;
   gap: 0.85rem;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-secondary);
   margin-top: 0.1rem;
 }
@@ -520,7 +534,7 @@ function segmentTooltip(seg: Segment): string {
   padding: 0.4rem 0.5rem;
   border-radius: var(--radius-sm, 0.35rem);
   background: var(--bg-surface-soft, rgb(var(--ink) / 0.04));
-  border: 1px solid var(--border-subtle, rgb(var(--ink) / 0.06));
+  border: 0;
   cursor: pointer;
   transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
@@ -581,13 +595,13 @@ function segmentTooltip(seg: Segment): string {
 }
 
 .segment-name {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .segment-duration-tag {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-secondary);
 }

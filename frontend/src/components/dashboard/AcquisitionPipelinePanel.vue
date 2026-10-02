@@ -132,6 +132,10 @@ withDefaults(
 
 <style scoped lang="scss">
 .pipeline-wrapper {
+  /* Les bascules suivent la place reellement disponible, pas l'ecran : sur tablette
+     le rail lateral retire 72 a 232px, et une media query de viewport laissait les
+     quatre etapes (678px minimum) deborder de leur bande. */
+  container: pipeline / inline-size;
   display: grid;
   grid-template-columns: 1fr 220px;
   gap: var(--space-3);
@@ -140,12 +144,14 @@ withDefaults(
 
 .pipeline-flow {
   display: flex;
-  align-items: center;
+  /* Toutes les etapes a la hauteur de la plus haute : une legende sur deux lignes ne
+     decale plus une seule tuile. */
+  align-items: stretch;
   gap: var(--space-2);
   padding: 10px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--panel-radius);
   overflow-x: auto;
 }
 
@@ -156,7 +162,7 @@ withDefaults(
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 8px 20px 8px 12px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -231,7 +237,9 @@ withDefaults(
 .step-label {
   font-size: var(--fs-xs);
   color: var(--muted);
-  white-space: nowrap;
+  /* Coupe « En télécharge-ment » a la syllabe, pas au caractere pres. */
+  overflow-wrap: normal;
+  hyphens: auto;
 }
 
 .step-value {
@@ -256,6 +264,7 @@ withDefaults(
 }
 
 .pipeline-arrow {
+  align-self: center;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -349,18 +358,35 @@ withDefaults(
   color: var(--muted);
 }
 
-@media (max-width: 1024px) {
+/* Sur le conteneur `page` : une container query ne peut pas styler son propre
+   conteneur, or c'est la grille de `.pipeline-wrapper` qui doit basculer. */
+@container page (max-width: 959px) {
   .pipeline-wrapper {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 640px) {
+@container pipeline (max-width: 689px) {
   .pipeline-flow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pipeline-step {
+    min-width: 0;
+  }
+  .pipeline-arrow {
+    display: none;
+  }
+}
+
+@container pipeline (max-width: 459px) {
+  .pipeline-flow {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
   }
   .pipeline-arrow {
+    display: flex;
     transform: rotate(90deg);
     padding: 2px 0;
   }

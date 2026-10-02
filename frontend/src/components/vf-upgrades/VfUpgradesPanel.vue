@@ -11,10 +11,6 @@
   </div>
 
   <section v-else class="upgrade-list">
-    <p v-if="waitingTruncated > 0" class="waiting-truncated">
-      {{ waitingTruncated }} autre(s) média(s) VO ne sont pas affichés ici : la liste est bornée
-      pour rester rapide. Ils restent pris en charge par les cycles de recherche automatiques.
-    </p>
     <article v-for="group in groups" :key="group.key" class="upgrade-card" :class="{ 'is-selected': selectedKeys.has(group.key) }">
       <div class="poster-col">
         <label class="upgrade-select" :title="selectedKeys.has(group.key) ? 'Retirer de la sélection' : 'Sélectionner pour un scan groupé'">
@@ -52,7 +48,7 @@
                 {{ group.items.length }} opportunité{{ group.items.length > 1 ? 's' : '' }}
               </span>
             </div>
-            <RouterLink class="media-title" :to="mediaLink(group)">
+            <RouterLink class="media-title" :to="mediaLink(group)" @click="ouvrirFicheAuClic($event, mediaLink(group))">
               {{ group.media?.title || 'Média sans titre' }}
             </RouterLink>
           </div>
@@ -80,9 +76,9 @@
               <div class="target-info">
                 <strong>Film complet</strong>
                 <span>Détecté le {{ formatDate(item.scanned_at) }}</span>
-                <span v-if="item.status === 'waiting_release' && item.backoff" class="backoff-info" :title="`${item.backoff.misses} recherche(s) restée(s) sans résultat`">
+                <UiTooltip v-if="item.status === 'waiting_release' && item.backoff" :text="`${item.backoff.misses} recherche(s) restée(s) sans résultat`"><span class="backoff-info">
                   {{ formatBackoff(item.backoff) }}
-                </span>
+                </span></UiTooltip>
               </div>
               <div class="target-badges">
                 <StatusBadge :status="item.status" :label="statusLabel(item.status)" />
@@ -144,9 +140,9 @@
                 <div class="target-info">
                   <strong>{{ targetLabel(item) }}</strong>
                   <span>Détecté le {{ formatDate(item.scanned_at) }}</span>
-                <span v-if="item.status === 'waiting_release' && item.backoff" class="backoff-info" :title="`${item.backoff.misses} recherche(s) restée(s) sans résultat`">
+                <UiTooltip v-if="item.status === 'waiting_release' && item.backoff" :text="`${item.backoff.misses} recherche(s) restée(s) sans résultat`"><span class="backoff-info">
                   {{ formatBackoff(item.backoff) }}
-                </span>
+                </span></UiTooltip>
                 </div>
                 <div class="target-badges">
                   <StatusBadge :status="item.status" :label="statusLabel(item.status)" />
@@ -185,10 +181,21 @@
     <p v-if="!loading && !groups.length" class="empty">
       Aucune amélioration VF ne correspond à vos critères de recherche.
     </p>
+    <!-- En fin de liste : c'est une precision sur ce qu'on vient de parcourir. En tete,
+         ce paragraphe pleine largeur se lisait comme un texte egare avant le contenu. -->
+    <p
+      v-if="waitingTruncated > 0"
+      class="waiting-truncated"
+      title="La liste est bornée pour rester rapide. Ces médias restent pris en charge par les cycles de recherche automatiques."
+    >
+      + {{ waitingTruncated }} média{{ waitingTruncated > 1 ? 's' : '' }} VO suivi{{ waitingTruncated > 1 ? 's' : '' }} automatiquement, non affiché{{ waitingTruncated > 1 ? 's' : '' }}
+    </p>
   </section>
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
@@ -212,6 +219,7 @@ defineProps<{
   waitingTruncated: number;
   selectedKeys: ReadonlySet<string>;
 }>();
+const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
 const emit = defineEmits<{
   'toggle-select': [group: VfUpgradeGroup];
   ignore: [group: VfUpgradeGroup, ignored: boolean];
@@ -242,6 +250,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
 
 <style scoped lang="scss">
 @use './vfShared' as *;
+@use '@/styles/foundations/breakpoints' as bp;
 
 .upgrade-list {
   display: grid;
@@ -255,7 +264,7 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
   gap: var(--space-5);
   padding: 20px 22px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--panel-radius);
   background: var(--surface);
   box-shadow: 0 2px 8px rgb(var(--shadow-color) / calc(0.12 * var(--shadow-scale)));
   transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), background-color var(--motion-duration-instant) var(--motion-ease-standard);
@@ -463,9 +472,10 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
 }
 
 .waiting-truncated {
-  margin: 0 0 var(--space-3);
-  font-size: 0.85rem;
+  margin: var(--space-2) 0 0;
   color: var(--text-muted);
+  font-size: var(--fs-xs);
+  text-align: center;
 }
 
 /* Les variantes compactes descendent a 30-32px : acceptable a la souris, sous le
@@ -476,5 +486,14 @@ function seasonStatusSummary(season: { items: VfUpgradeItem[] }): Array<{ status
     min-height: var(--touch-target);
     padding-inline: 14px;
   }
+}
+
+/* Telephone : affiche reduite et en-tete qui passe a la ligne, pour laisser au titre et
+   aux saisons la largeur de la carte. */
+@include bp.until(phablet) {
+  .upgrade-card { gap: var(--space-3); padding: 14px; }
+  .poster-col, .upgrade-poster { width: 56px; }
+  .media-header { flex-wrap: wrap; }
+  .media-meta-count { flex-direction: row; align-items: center; }
 }
 </style>

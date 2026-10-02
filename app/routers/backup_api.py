@@ -14,10 +14,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..backup_restore import build_full_backup_zip, perform_full_restore
+from ..backup_restore import BackupRestoreError, build_full_backup_zip, create_postgres_backup, perform_full_restore
 from ..database import DATABASE_URL, get_db_async
 from ..dependencies import require_admin
-from ..legacy_migration import LegacyMigrationError, create_postgres_backup
 from ..utils import now_utc
 from .importexport import build_export_payload
 
@@ -26,15 +25,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/backup", tags=["backup"], dependencies=[Depends(require_admin)])
 
 
-def _require_postgres() -> None:
-    if not DATABASE_URL.startswith("postgresql"):
-        raise HTTPException(409, "La sauvegarde/restauration complète nécessite PostgreSQL")
-
-
 @router.get("/full")
 async def download_full_backup(db: AsyncSession = Depends(get_db_async)):
     """Dump PostgreSQL + fichiers hors base + export JSON (repli), dans une seule archive."""
-    _require_postgres()
     try:
         with tempfile.TemporaryDirectory(prefix="watchdeck-backup-") as tmp_dir:
             dump_path = await asyncio.to_thread(create_postgres_backup, DATABASE_URL, tmp_dir)
@@ -45,7 +38,7 @@ async def download_full_backup(db: AsyncSession = Depends(get_db_async)):
                 "archive_version": 1,
             }
             content = await asyncio.to_thread(build_full_backup_zip, dump_path, export_payload, manifest)
-    except LegacyMigrationError as exc:
+    except BackupRestoreError as exc:
         raise HTTPException(500, str(exc)) from exc
 
     filename = f"watchdeck-full-backup-{now_utc().strftime('%Y%m%d-%H%M%S')}.zip"
@@ -67,7 +60,6 @@ async def restore_full_backup(
     la sauvegarde de sécurité automatique prise juste avant. Le conteneur redémarre ensuite
     (voir docker-compose.yml : `restart: unless-stopped`) pour repartir sur des connexions
     fraîches et rejouer la vérification de migration habituelle au démarrage."""
-    _require_postgres()
     if confirm != "REMPLACER":
         raise HTTPException(400, "Saisissez REMPLACER pour confirmer le remplacement complet")
 
@@ -79,7 +71,7 @@ async def restore_full_backup(
     await db.commit()
     try:
         report = await perform_full_restore(content, DATABASE_URL)
-    except LegacyMigrationError as exc:
+    except BackupRestoreError as exc:
         raise HTTPException(400, str(exc)) from exc
 
     logger.warning("Restauration complète effectuée par un administrateur ; redémarrage programmé.")

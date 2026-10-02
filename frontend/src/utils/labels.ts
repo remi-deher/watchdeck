@@ -105,16 +105,22 @@ export function vfLanguageState(item: {
   return { label: '?', variant: 'unknown' };
 }
 
+/* « Direct Stream » est le terme de Plex : le flux est reemballe (conteneur change)
+   sans etre reencode. « Conversion legere » le dit en francais ; le terme de Plex reste
+   en info-bulle de la pastille. */
 export const PLAYBACK_METHOD_LABELS: Record<string, string> = {
   direct_play: 'Lecture directe',
-  direct_stream: 'Direct Stream',
+  direct_stream: 'Conversion légère',
   transcode: 'Transcodage',
+  // Plusieurs lectures consécutives repliées en une ligne, qui n'ont pas toutes le même mode.
+  mixed: 'Lecture mixte',
 };
 
 const PLAYBACK_METHOD_LABELS_COMPACT: Record<string, string> = {
   direct_play: 'Direct Play',
   direct_stream: 'Direct Stream',
   transcode: 'Transcode',
+  mixed: 'Mixte',
 };
 
 export interface PlaybackMethodOptions {
