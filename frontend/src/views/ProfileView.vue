@@ -27,7 +27,7 @@
 
       <div class="profile-section-head">
         <h3>Mes dernières demandes</h3>
-        <RouterLink to="/discover/requests">Voir toutes mes demandes</RouterLink>
+        <RouterLink to="/discover/requests">Tout voir</RouterLink>
       </div>
       <UiEmptyState v-if="account && !recent.length" title="Aucune demande pour l’instant" description="Les titres que vous demandez depuis Explorer apparaîtront ici." compact />
       <ul v-else class="profile-requests">
@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { api } from '@/api';
 import AppPage from '@/components/ui/AppPage.vue';
@@ -109,8 +109,13 @@ const meQuery = useQuery({
 const account = computed(() => meQuery.data.value || null);
 const loading = computed(() => meQuery.isPending.value && hasAccount.value);
 
-const tab = ref<Tab>(hasAccount.value ? 'overview' : 'account');
-watch(hasAccount, (value) => { if (!value) tab.value = 'account'; });
+// La session arrive apres le premier rendu : l'onglet par defaut suit son chargement,
+// tant que la personne n'en a pas choisi un elle-meme.
+const chosenTab = ref<Tab | null>(null);
+const tab = computed<Tab>({
+  get: () => chosenTab.value || (hasAccount.value ? 'overview' : 'account'),
+  set: (value) => { chosenTab.value = value; },
+});
 
 const actionError = ref('');
 const message = ref('');
@@ -123,7 +128,7 @@ const heroLine = computed(() => {
   const parts = [roleLabel(account.value?.role || session.value?.role)];
   if (account.value?.created_at) parts.push(`membre depuis ${formatDateLong(account.value.created_at).replace(/^\d+\s/, '')}`);
   if (account.value) parts.push(account.value.source === 'local' ? 'compte local' : 'connecté avec Plex');
-  if (account.value?.last_login_at) parts.push(`dernière connexion ${formatRelativeDate(account.value.last_login_at)}`);
+  if (account.value?.last_login_at) parts.push(`dernière connexion ${formatRelativeDate(account.value.last_login_at).toLowerCase()}`);
   return parts.join(' · ');
 });
 
@@ -137,7 +142,7 @@ const stats = computed(() => {
 });
 const inProgress = computed(() => stats.value.pending + stats.value.pending_approval + stats.value.sent);
 const lastRequestDetail = computed(() => (account.value?.stats.last_requested_at
-  ? `dernière ${formatRelativeDate(account.value.stats.last_requested_at)}`
+  ? `dernière ${formatRelativeDate(account.value.stats.last_requested_at).toLowerCase()}`
   : 'aucune pour l’instant'));
 const availableDetail = computed(() => (stats.value.total
   ? `${Math.round(((stats.value.available + stats.value.partially_available) / stats.value.total) * 100)} %`
@@ -215,7 +220,7 @@ const tabItems = computed(() => {
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
   font-size: var(--fs-sm);
 }
-.profile-todo p { margin: 0; flex: 1; line-height: 1.45; }
+.profile-todo p { margin: 0; flex: 1; color: var(--text); line-height: 1.45; }
 .profile-todo__mark {
   display: grid;
   flex: none;
@@ -237,7 +242,7 @@ const tabItems = computed(() => {
   border-bottom: 1px solid var(--border);
 }
 .profile-section-head h3 { margin: 0; font-size: var(--fs-md); }
-.profile-section-head a { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.profile-section-head a { flex: none; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
 .profile-section-head a:hover { color: var(--text); }
 
 .profile-requests {

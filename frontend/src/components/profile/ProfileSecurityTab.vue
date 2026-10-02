@@ -356,7 +356,7 @@ async function askRevokeOthers() {
 .profile-passkeys small { color: var(--muted); font-size: var(--fs-xs); }
 .profile-subtitle { margin: var(--space-5) 0 0; padding-bottom: var(--space-2); border-bottom: 1px solid var(--border); color: var(--muted); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .profile-form { display: grid; gap: var(--space-3); }
-.profile-steps { margin: 0 0 var(--space-3); padding-left: 1.2em; display: grid; gap: 6px; font-size: var(--fs-sm); line-height: 1.45; }
+.profile-steps { margin: var(--space-3) 0; padding-left: 1.2em; display: grid; gap: 6px; font-size: var(--fs-sm); line-height: 1.45; }
 .profile-qr { display: block; width: 180px; height: 180px; margin: 0 0 var(--space-3); border-radius: var(--radius-sm); background: #fff; }
 .profile-secret { word-break: break-all; }
 
