@@ -475,6 +475,17 @@ async def job_library_analytics(ctx: dict, force: bool = False):
     )
 
 
+async def job_subtitle_search(ctx: dict, force: bool = False):
+    """Lot de recherche des sous-titres FR manquants (Plex a la demande ou Bazarr)."""
+    from .services.subtitle_search import search_missing_batch
+
+    settings = await _settings()
+    if not force and not (settings and settings.subtitle_search_enabled):
+        return {"status": "disabled"}
+    interval = ((settings.subtitle_search_interval_hours if settings else None) or 6) * 3600
+    return await _run(ctx, "subtitle-search", search_missing_batch, force=force, interval_seconds=interval)
+
+
 PURGE_LOCAL_HOUR = 3  # repli quand aucun reglage n'est encore charge
 
 
@@ -736,6 +747,10 @@ async def cron_digest(ctx: dict):
     return await job_digest(ctx)
 
 
+async def cron_subtitle_search(ctx: dict):
+    return await job_subtitle_search(ctx)
+
+
 class WorkerSettings:
     functions = [
         job_watchlist,
@@ -756,6 +771,7 @@ class WorkerSettings:
         job_library_analytics,
         job_notification_purge,
         job_digest,
+        job_subtitle_search,
         job_send_notification,
         job_maintenance,
     ]
@@ -797,6 +813,8 @@ class WorkerSettings:
         ),
         cron(cron_notification_purge, minute=0, unique=True),
         cron(cron_digest, minute=None, unique=True),
+        # Toutes les heures ; job_subtitle_search decide via l'intervalle configure.
+        cron(cron_subtitle_search, minute=20, second=45, unique=True),
     ]
     on_startup = startup
     on_shutdown = shutdown

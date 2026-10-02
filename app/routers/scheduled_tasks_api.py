@@ -160,6 +160,15 @@ JOB_CATALOG = [
         "default_seconds": 3600,
         "fixed_schedule": None,
     },
+    {
+        "job": "subtitle-search",
+        "label": "Sous-titres FR manquants",
+        "description": "Cherche, par lots, les sous-titres francais des medias en VO qui n'en ont pas (Plex ou Bazarr), si active.",
+        "settings_field": "subtitle_search_interval_hours",
+        "settings_unit": "heures",
+        "default_seconds": 21600,
+        "fixed_schedule": None,
+    },
 ]
 
 

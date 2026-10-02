@@ -56,7 +56,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Améliorations VF',
     group: 'Automatisation',
     path: '/settings/automation/vf-upgrades',
-    keywords: ['vf', 'vo', 'langue', 'francais', 'doublage', 'piste audio', 'surveillance'],
+    keywords: ['vf', 'vo', 'langue', 'francais', 'doublage', 'piste audio', 'surveillance', 'sous-titres', 'bazarr', 'srt'],
   },
   {
     label: 'Planification',

@@ -217,6 +217,10 @@ class SettingsUpdate(BaseModel):
     quota_movie_limit: Optional[int] = Field(default=None, ge=0)
     quota_show_limit: Optional[int] = Field(default=None, ge=0)
     quota_period_days: Optional[int] = Field(default=None, ge=1, le=365)
+    subtitle_search_enabled: Optional[bool] = None
+    subtitle_search_provider: Optional[str] = Field(default=None, pattern="^(auto|plex|bazarr)$")
+    subtitle_search_interval_hours: Optional[int] = Field(default=None, ge=1, le=168)
+    subtitle_search_batch_size: Optional[int] = Field(default=None, ge=1, le=200)
     default_locale: Optional[str] = None
 
 

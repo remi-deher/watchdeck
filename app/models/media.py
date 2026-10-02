@@ -253,6 +253,10 @@ class LibraryItem(Base):
     sub_fr_status: Mapped[Optional[str]] = mapped_column(default=None)
     # Pour les items francophones : "not_default" | "ok" | None (pas scanné ou pas de forcé FR)
     forced_fr_status: Mapped[Optional[str]] = mapped_column(default=None)
+    # Dernière recherche de sous-titres FR (services/subtitle_search.py) et son issue :
+    # "requested" | "not_found" | "nothing_to_do" | "error". Espace les nouvelles tentatives.
+    subtitle_searched_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    subtitle_search_result: Mapped[Optional[str]] = mapped_column(default=None)
 
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_utc_naive)

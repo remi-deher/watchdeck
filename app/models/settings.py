@@ -230,6 +230,14 @@ class Settings(Base):
     quota_show_limit: Mapped[Optional[int]] = mapped_column(default=None)
     quota_period_days: Mapped[int] = mapped_column(default=7, server_default="7")
 
+    # --- Sous-titres français (voir services/subtitle_search.py) ---
+    # Recherche automatique, par lots, des sous-titres FR des médias en VO qui n'en ont
+    # pas. Fournisseur : "auto" (Bazarr s'il connaît le média, sinon Plex), "plex", "bazarr".
+    subtitle_search_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
+    subtitle_search_provider: Mapped[str] = mapped_column(default="auto", server_default="auto")
+    subtitle_search_interval_hours: Mapped[int] = mapped_column(default=6, server_default="6")
+    subtitle_search_batch_size: Mapped[int] = mapped_column(default=20, server_default="20")
+
     # --- Sécurité réseau ---
     plex_verify_ssl: Mapped[bool] = mapped_column(default=True)
 
