@@ -31,19 +31,13 @@
                 <span class="badge pending_approval" v-if="season.counts?.tba">TBA: {{ season.counts.tba }}</span>
                 <span class="badge" v-if="season.episode_count">{{ season.episode_count }} ep.</span>
                 <!-- Badges sous-titre saison -->
-                <span v-if="season.counts?.sub_fr_no_track" class="badge" style="background:var(--color-text-muted,#888);color:#fff" title="Épisodes sans aucune piste de sous-titre : les sous-titres sont probablement incrustés dans l’image.">Sous-titres incrustés : {{ season.counts.sub_fr_no_track }}</span>
-                <span v-if="season.counts?.sub_fr_absent" class="badge danger" title="Épisodes non-francophones sans sous-titre FR complet">Sub FR absent: {{ season.counts.sub_fr_absent }}</span>
-                <span v-if="season.counts?.sub_fr_not_default" class="badge pending" title="Épisodes avec sous-titre FR complet non activé par défaut">Sub FR non activé: {{ season.counts.sub_fr_not_default }}</span>
-                <span v-if="season.counts?.forced_fr_not_default" class="badge language-tag vf-secondary" title="Épisodes francophones avec sous-titre forcé FR (sign/trad) non activé par défaut">Forcé FR non activé: {{ season.counts.forced_fr_not_default }}</span>
-                <button
-                  v-if="admin && sourceId"
-                  class="icon-button"
-                  @click.prevent.stop="openAlignModal('season', season.season_number)"
-                  title="Aligner les pistes de cette saison sur Plex"
-                  aria-label="Aligner la saison"
-                >
+                <UiTooltip :focusable="false" v-if="season.counts?.sub_fr_no_track" text="Épisodes sans aucune piste de sous-titre : les sous-titres sont probablement incrustés dans l’image."><span class="badge" style="background:var(--muted);color:var(--bg)">Sous-titres incrustés : {{ season.counts.sub_fr_no_track }}</span></UiTooltip>
+                <UiTooltip :focusable="false" v-if="season.counts?.sub_fr_absent" text="Épisodes non-francophones sans sous-titre FR complet"><span class="badge danger">Sub FR absent: {{ season.counts.sub_fr_absent }}</span></UiTooltip>
+                <UiTooltip :focusable="false" v-if="season.counts?.sub_fr_not_default" text="Épisodes avec sous-titre FR complet non activé par défaut"><span class="badge pending">Sub FR non activé: {{ season.counts.sub_fr_not_default }}</span></UiTooltip>
+                <UiTooltip :focusable="false" v-if="season.counts?.forced_fr_not_default" text="Épisodes francophones avec sous-titre forcé FR (sign/trad) non activé par défaut"><span class="badge language-tag vf-secondary">Forcé FR non activé: {{ season.counts.forced_fr_not_default }}</span></UiTooltip>
+                <UiButton icon-only v-if="admin && sourceId" @click.prevent.stop="openAlignModal('season', season.season_number)" title="Aligner les pistes de cette saison sur Plex" aria-label="Aligner la saison">
                   <SlidersHorizontal :size="15" />
-                </button>
+                </UiButton>
                 <VfUpgradeButton
                   v-if="admin && sourceType && sourceId"
                   :source-type="sourceType"
@@ -53,7 +47,7 @@
                   :media-title="mediaTitle"
                   label="Rechercher"
                 />
-                <button class="icon-button" @click.prevent="$emit('correction', 'season', season.season_number, null)" title="Corriger Saison" aria-label="Corriger Saison"><MessageSquareWarning :size="16" /></button>
+                <UiButton icon-only @click.prevent="$emit('correction', 'season', season.season_number, null)" title="Corriger Saison" aria-label="Corriger Saison"><MessageSquareWarning :size="16" /></UiButton>
               </div>
             </div>
           </template>
@@ -72,16 +66,10 @@
                   <div class="episode-title-row">
                     <strong class="episode-title">{{ ep.episode }}. {{ ep.title || `Episode ${ep.episode}` }}</strong>
                     <span class="episode-actions">
-                      <span v-if="ep.isKnownEpisode === false" class="badge pending" title="Non reconnu par Sonarr/TheTVDB : compté hors statut VF/VO/Mixte de la série">Hors TVDB</span>
-                      <button
-                        v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
-                        class="icon-button"
-                        @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)"
-                        title="Aligner les pistes de cet épisode sur Plex"
-                        aria-label="Aligner l'épisode"
-                      >
+                      <UiTooltip v-if="ep.isKnownEpisode === false" text="Non reconnu par Sonarr/TheTVDB : compté hors statut VF/VO/Mixte de la série"><span class="badge pending">Hors TVDB</span></UiTooltip>
+                      <UiButton icon-only v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'" @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)" title="Aligner les pistes de cet épisode sur Plex" aria-label="Aligner l'épisode">
                         <SlidersHorizontal :size="14" />
-                      </button>
+                      </UiButton>
                       <VfUpgradeButton
                         v-if="admin && sourceType && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
                         :source-type="sourceType"
@@ -132,10 +120,10 @@
                     <template v-if="!subtitleAlerts(ep.tracks, ep.subtitles).subFrNoTrack && !subtitleAlerts(ep.tracks, ep.subtitles).subFrAbsent && !subtitleAlerts(ep.tracks, ep.subtitles).subFrNotDefault && !subtitleAlerts(ep.tracks, ep.subtitles).forcedFrNotDefault">
                       <span class="badge available">Sous-titres OK</span>
                     </template>
-                    <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNoTrack" class="badge" style="background:var(--color-text-muted,#888);color:#fff" title="Aucune piste de sous-titre détectée : les sous-titres sont probablement incrustés dans l’image.">Sous-titres incrustés</span>
-                    <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrAbsent" class="badge danger" title="Pas de sous-titre français complet pour cet épisode non-francophone">Sous-titre FR absent</span>
-                    <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNotDefault" class="badge pending" title="Sous-titre FR complet présent mais non activé par défaut">Sous-titre FR non activé</span>
-                    <span v-if="subtitleAlerts(ep.tracks, ep.subtitles).forcedFrNotDefault" class="badge language-tag vf-secondary" title="Sous-titre FR sign/traduction présent mais non activé par défaut">Forcé FR non activé</span>
+                    <UiTooltip v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNoTrack" text="Aucune piste de sous-titre détectée : les sous-titres sont probablement incrustés dans l’image."><span class="badge" style="background:var(--muted);color:var(--bg)">Sous-titres incrustés</span></UiTooltip>
+                    <UiTooltip v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrAbsent" text="Pas de sous-titre français complet pour cet épisode non-francophone"><span class="badge danger">Sous-titre FR absent</span></UiTooltip>
+                    <UiTooltip v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNotDefault" text="Sous-titre FR complet présent mais non activé par défaut"><span class="badge pending">Sous-titre FR non activé</span></UiTooltip>
+                    <UiTooltip v-if="subtitleAlerts(ep.tracks, ep.subtitles).forcedFrNotDefault" text="Sous-titre FR sign/traduction présent mais non activé par défaut"><span class="badge language-tag vf-secondary">Forcé FR non activé</span></UiTooltip>
                   </span>
                 </div>
               </div>
@@ -143,7 +131,7 @@
           </template>
         </SeasonEpisodeList>
         <p v-if="!displayedSeasons.length" class="empty">{{ missingOnly ? 'Aucun épisode manquant.' : 'Aucun détail de saison disponible.' }}</p>
-        <p v-if="availabilityError" class="notice error-text">Disponibilite (Sonarr) indisponible pour l'instant.</p>
+        <p v-if="availabilityError" class="notice error-text">Disponibilité (Sonarr) indisponible pour l'instant.</p>
         <p v-if="vfStatusError" class="notice error-text">Statut VF/VO indisponible pour l'instant.</p>
       </div>
       <div v-else>
@@ -172,16 +160,16 @@
         </div>
         <!-- Badges sous-titre film -->
         <div v-if="movieSubtitleAlerts" class="subtitle-alerts">
-          <span v-if="movieSubtitleAlerts.subFrNoTrack" class="badge subtitle-alert-badge" style="background:var(--color-text-muted,#888);color:#fff" title="Aucune piste de sous-titre détectée : les sous-titres sont probablement incrustés dans l’image.">Sous-titres incrustés</span>
-          <span v-if="movieSubtitleAlerts.subFrAbsent" class="badge danger subtitle-alert-badge" title="Ce film non-francophone n'a pas de sous-titre français complet">Sous-titre FR absent</span>
-          <span v-if="movieSubtitleAlerts.subFrNotDefault" class="badge pending subtitle-alert-badge" title="Un sous-titre français complet est présent mais non activé par défaut">Sous-titre FR non activé</span>
-          <span v-if="movieSubtitleAlerts.forcedFrNotDefault" class="badge language-tag vf-secondary subtitle-alert-badge" title="Un sous-titre FR sign/traduction est présent mais non activé par défaut">Sous-titre forcé FR non activé</span>
+          <UiTooltip v-if="movieSubtitleAlerts.subFrNoTrack" text="Aucune piste de sous-titre détectée : les sous-titres sont probablement incrustés dans l’image."><span class="badge subtitle-alert-badge" style="background:var(--muted);color:var(--bg)">Sous-titres incrustés</span></UiTooltip>
+          <UiTooltip v-if="movieSubtitleAlerts.subFrAbsent" text="Ce film non-francophone n'a pas de sous-titre français complet"><span class="badge danger subtitle-alert-badge">Sous-titre FR absent</span></UiTooltip>
+          <UiTooltip v-if="movieSubtitleAlerts.subFrNotDefault" text="Un sous-titre français complet est présent mais non activé par défaut"><span class="badge pending subtitle-alert-badge">Sous-titre FR non activé</span></UiTooltip>
+          <UiTooltip v-if="movieSubtitleAlerts.forcedFrNotDefault" text="Un sous-titre FR sign/traduction est présent mais non activé par défaut"><span class="badge language-tag vf-secondary subtitle-alert-badge">Sous-titre forcé FR non activé</span></UiTooltip>
         </div>
-        <details class="season-details track-group" v-if="vfDetail.tracks?.length">
-          <summary class="track-group-summary">
+        <CollapsibleRoot class="season-details track-group" v-if="vfDetail.tracks?.length" :unmount-on-hide="false">
+          <CollapsibleTrigger class="track-group-summary collapsible-trigger">
             <span>Audio ({{ vfDetail.tracks.length }})</span>
             <ChevronDown :size="16" />
-          </summary>
+          </CollapsibleTrigger><CollapsibleContent class="collapsible-content">
           <div class="track-group-body">
             <article v-for="(track, index) in vfDetail.tracks" :key="'audio-'+index" class="detail-row track-row">
               <div>
@@ -191,14 +179,14 @@
               <span class="badge" :class="track.is_fr ? 'available' : ''">{{ track.lang ? track.lang.toUpperCase() : '??' }}</span>
             </article>
           </div>
-        </details>
+        </CollapsibleContent></CollapsibleRoot>
         <p v-if="!vfDetail.tracks?.length" class="empty track-empty">Aucune piste audio detectee.</p>
 
-        <details class="season-details" v-if="vfDetail.subtitles?.length">
-          <summary class="track-group-summary">
+        <CollapsibleRoot class="season-details" v-if="vfDetail.subtitles?.length" :unmount-on-hide="false">
+          <CollapsibleTrigger class="track-group-summary collapsible-trigger">
             <span>Sous-titres ({{ vfDetail.subtitles.length }})</span>
             <ChevronDown :size="16" />
-          </summary>
+          </CollapsibleTrigger><CollapsibleContent class="collapsible-content">
           <div class="track-group-body">
             <article v-for="(sub, index) in vfDetail.subtitles" :key="'sub-'+index" class="detail-row track-row">
               <div>
@@ -208,7 +196,7 @@
               <span class="badge">{{ sub.lang ? sub.lang.toUpperCase() : '??' }}</span>
             </article>
           </div>
-        </details>
+        </CollapsibleContent></CollapsibleRoot>
       </div>
     </div>
     <p v-else-if="envelopeError" class="notice error-text">Échec du chargement de l'analyse VF.</p>
@@ -228,11 +216,15 @@
 </template>
 
 <script setup lang="ts">
+import UiTooltip from '@/components/ui/UiTooltip.vue';
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from "vue";
 import { MessageSquareWarning, ChevronDown, SlidersHorizontal } from "@lucide/vue";
 import VfUpgradeButton from "@/components/media/VfUpgradeButton.vue";
 import SeasonEpisodeList from "@/components/media/SeasonEpisodeList.vue";
 import AlignStreamsModal from "@/components/media/AlignStreamsModal.vue";
+import { formatAirDate as formatSharedAirDate } from '@/utils/format';
 
 export interface SubtitleAlertsResult {
   subFrNoTrack: boolean;
@@ -362,14 +354,7 @@ function isEpisodeExpanded(seasonNumber: number, episodeNumber: number): boolean
 }
 
 function formatAirDate(airDate: string): string {
-  if (!airDate) return '';
-  const hasTime = airDate.includes('T');
-  const d = new Date(airDate);
-  if (Number.isNaN(d.getTime())) return '';
-  const datePart = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-  if (!hasTime) return datePart;
-  const timePart = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  return `${datePart} a ${timePart}`;
+  return formatSharedAirDate(airDate);
 }
 </script>
 
@@ -467,7 +452,7 @@ function formatAirDate(airDate: string): string {
 .track-group {
   margin-bottom: 0.5rem;
 }
-.track-group-summary {
+.track-group-.collapsible-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -477,14 +462,27 @@ function formatAirDate(airDate: string): string {
   font-weight: 500;
   cursor: pointer;
 }
+/* Pistes en pastilles sur plusieurs colonnes (2 sur mobile) : dix sous-titres tiennent
+   en quelques lignes au lieu d'une longue colonne. */
 .track-group-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 6px;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
   padding-left: 0.5rem;
   border-left: 2px solid var(--border);
 }
+/* Reste en ligne sur mobile (la regle globale des .detail-row les empile) : langue a
+   gauche, pastille a droite, pour garder des cartes basses. */
 .track-row {
-  margin-bottom: 6px;
+  flex-direction: row;
+  align-items: center;
+  text-align: left;
+  min-height: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 .track-default-tag {
   opacity: 0.8;
@@ -578,7 +576,7 @@ function formatAirDate(airDate: string): string {
   border: 1px solid var(--border);
   color: var(--text);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 
   &:hover {
     background: var(--surface-hover);

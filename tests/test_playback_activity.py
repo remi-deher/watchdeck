@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -500,6 +501,52 @@ def test_analytics_computes_completion_quality_and_user_trends():
     assert analytics["users"][0]["favorite_title"] == "Foundation"
 
 
+def test_analytics_tracks_direct_stream_and_containers():
+    """La conversion légère a son suivi, comme le transcodage : causes, conteneurs, appareils."""
+    import json
+    from datetime import datetime, timedelta
+
+    started = datetime(2026, 7, 20, 20, 0)
+
+    def row(index, method, details=None, container="mkv", subtitle_decision=None):
+        return PlaybackSession(
+            source_session_id=f"session-{index}",
+            title=f"Film {index}",
+            media_type="movie",
+            user_name="Rémi",
+            player_title="Chromecast",
+            playback_method=method,
+            subtitle_decision=subtitle_decision,
+            container=container,
+            transcode_details=json.dumps(details) if details else None,
+            duration_ms=3_600_000,
+            watched_ms=3_000_000,
+            started_at=started + timedelta(hours=index),
+            ended_at=started + timedelta(hours=index + 1),
+            last_seen_at=started + timedelta(hours=index + 1),
+        )
+
+    rows = [
+        row(0, "direct_stream", {"protocol": "dash", "container": {"from": "mkv", "to": "mp4"}}),
+        row(1, "direct_stream", {"protocol": "hls", "container": {"from": "mp4", "to": "mp4"}}),
+        row(2, "direct_stream", {"container": {"from": "mkv", "to": "mkv"}}, subtitle_decision="transcode"),
+        row(3, "direct_play", None, container="mkv"),
+    ]
+
+    quality = _analytics(rows, [])["quality"]
+
+    assert quality["direct_stream_reasons"] == [
+        {"label": "Conteneur MKV → MP4", "count": 1},
+        {"label": "Diffusion en segments HLS", "count": 1},
+        {"label": "Sous-titres", "count": 1},
+    ]
+    assert quality["containers"] == [
+        {"label": "MKV", "count": 3, "converted": 1},
+        {"label": "MP4", "count": 1, "converted": 0},
+    ]
+    assert quality["devices"][0]["direct_streams"] == 3
+
+
 def test_activity_endpoint_returns_snapshot(client):
     payload = {"active": [], "history": [], "summary": {"sessions": 0}, "daily": [], "users": []}
     with patch("app.routers.activity_api.activity_snapshot", new=AsyncMock(return_value=payload)):
@@ -535,6 +582,8 @@ def test_statistics_builds_and_uses_daily_aggregates(client, async_db):
         "users": 1,
         "transcodes": 1,
         "transcode_rate": 100.0,
+        "direct_streams": 0,
+        "direct_stream_rate": 0,
     }
     aggregate = async_db.query(PlaybackDailyAggregate).one()
     assert aggregate.media_label == "Film agrégé"
@@ -1352,6 +1401,54 @@ def test_history_sorting_covers_the_period_not_the_loaded_page(client, async_db)
     assert client.get("/api/playback/history?days=7&sort=nimporte").status_code == 422
 
 
+def test_history_sorts_on_every_column_in_both_directions(client, async_db):
+    """Chaque colonne de l'historique se trie, en base, dans les deux sens."""
+    base = now_utc_naive()
+    rows = [
+        # titre, serie, utilisateur, appareil, methode, duree, anciennete (minutes)
+        ("Zorro", None, "bob", "Salon", "transcode", 3_000, 10),
+        ("Episode 1", "Andor", "alice", "Chambre", "direct_play", 1_000, 5),
+        ("Mulan", None, "carole", "Bureau", "direct_stream", 2_000, 1),
+    ]
+    for index, (title, series, user, device, method, watched, age) in enumerate(rows):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"col-{index}",
+                title=title,
+                grandparent_title=series,
+                user_name=user,
+                player_title=device,
+                playback_method=method,
+                media_type="episode" if series else "movie",
+                watched_ms=watched,
+                started_at=base - timedelta(minutes=age),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    async_db.commit()
+
+    def first(sort):
+        response = client.get(f"/api/playback/history?days=7&sort={sort}")
+        assert response.status_code == 200, sort
+        return response.json()["items"][0]["title"]
+
+    # Un episode se range sous le nom de sa serie.
+    assert first("title_asc") == "Episode 1"
+    assert first("title_desc") == "Zorro"
+    assert first("user_asc") == "Episode 1"
+    assert first("user_desc") == "Mulan"
+    assert first("device_asc") == "Mulan"
+    assert first("device_desc") == "Zorro"
+    assert first("method_asc") == "Episode 1"
+    assert first("method_desc") == "Zorro"
+    assert first("duration_asc") == "Episode 1"
+    assert first("duration_desc") == "Zorro"
+    assert first("date_asc") == "Zorro"
+    assert first("date_desc") == "Mulan"
+    assert client.get("/api/playback/history?days=7&sort=title_sideways").status_code == 422
+
+
 def test_history_leaves_the_running_playback_to_the_live_view(client, async_db):
     """Une lecture en cours n'est pas encore une trace d'historique.
 
@@ -1393,3 +1490,316 @@ def test_history_leaves_the_running_playback_to_the_live_view(client, async_db):
     assert history["facets"]["users"] == ["Lisa"]
     # La lecture en cours reste visible là où elle a un sens.
     assert [row["title"] for row in client.get("/api/playback/live").json()["active"]] == ["Lecture en cours"]
+
+
+def test_playback_session_detail_endpoint_returns_one_session(client, async_db):
+    row = PlaybackSession(source_session_id="detail-1", title="Dune", user_name="Rémi", media_type="movie")
+    async_db.add(row)
+    async_db.commit()
+
+    response = client.get(f"/api/playback/sessions/{row.id}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == row.id
+    assert body["title"] == "Dune"
+    assert body["user_name"] == "Rémi"
+    assert body["segments"] == []
+
+    assert client.get("/api/playback/sessions/999999").status_code == 404
+
+
+def test_session_times_are_sent_as_utc_and_peak_hours_read_in_local_time():
+    """Les instants partent avec leur fuseau ; les heures de pointe sont en heure locale.
+
+    Stockes en UTC naif et envoyes sans fuseau, ils etaient lus par le navigateur comme
+    des heures locales : toutes les heures des sessions avaient deux heures de retard
+    l'ete. La carte des heures de pointe, elle, comptait en UTC.
+    """
+    from app.services.playback_activity import _analytics, _serialize
+
+    # 18:10 UTC le 24 septembre = 20:10 a Paris (heure d'ete).
+    row = PlaybackSession(
+        source_session_id="tz",
+        title="Film",
+        started_at=datetime(2026, 9, 24, 18, 10),
+        ended_at=datetime(2026, 9, 24, 19, 0),
+        watched_ms=1,
+    )
+    row.segments = []
+    serialized = _serialize(row)
+    assert serialized["started_at"] == "2026-09-24T18:10:00+00:00"
+    assert serialized["ended_at"] == "2026-09-24T19:00:00+00:00"
+
+    heatmap = {(cell["weekday"], cell["hour"]): cell["sessions"] for cell in _analytics([row], [])["heatmap"]}
+    assert heatmap[(3, 20)] == 1  # jeudi, 20 h a Paris
+    assert heatmap[(3, 18)] == 0
+
+
+def test_parse_plex_sessions_reads_the_transcode_buffer():
+    """Le tampon d'un transcodage : l'avance du transcodeur sur la tete de lecture."""
+    xml = PLEX_SESSIONS_XML.replace(
+        '<TranscodeSession audioDecision="copy"',
+        '<TranscodeSession maxOffsetAvailable="960.5" speed="2.4" throttled="1" audioDecision="copy"',
+    )
+    session = parse_plex_sessions(xml)[0]
+    # viewOffset 900 000 ms, transcode jusqu'a 960,5 s : 60,5 s d'avance.
+    assert session["transcode_buffer_ms"] == 60_500
+    assert session["transcode_speed"] == 2.4
+    assert session["transcode_throttled"] is True
+
+
+def test_direct_play_has_no_transcode_buffer():
+    import re
+
+    xml = re.sub(r"<TranscodeSession[^>]*/>", "", PLEX_SESSIONS_XML)
+    session = parse_plex_sessions(xml)[0]
+    assert session["transcode_buffer_ms"] is None
+    assert session["transcode_speed"] is None
+
+
+def test_playback_action_routes(client):
+    import httpx
+
+    target = "app.routers.activity_api"
+    with (
+        patch(f"{target}.terminate_playback", new=AsyncMock()) as terminate,
+        patch(f"{target}.publish", new=AsyncMock()),
+    ):
+        response = client.post("/api/playback/sessions/7/terminate", json={"reason": "Maintenance"})
+    assert response.status_code == 200
+    assert terminate.await_args.args[:2] == (7, "Maintenance")
+
+    with patch(
+        f"{target}.terminate_playback",
+        new=AsyncMock(side_effect=playback_activity.PlaybackActionError("déjà terminée")),
+    ):
+        response = client.post("/api/playback/sessions/7/terminate", json={"reason": ""})
+    assert response.status_code == 409
+    assert "déjà terminée" in response.json()["detail"]
+
+    with patch(f"{target}.terminate_playback", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.post("/api/playback/sessions/7/terminate", json={}).status_code == 502
+
+    with patch(f"{target}.plex_server_activities", new=AsyncMock(return_value=[{"uuid": "a1"}])):
+        assert client.get("/api/playback/server-activities").json() == {"activities": [{"uuid": "a1"}]}
+    with patch(f"{target}.plex_server_activities", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.get("/api/playback/server-activities").status_code == 502
+
+    with patch(f"{target}.cancel_plex_activity", new=AsyncMock()):
+        assert client.delete("/api/playback/server-activities/a1").json() == {"status": "cancelled"}
+    with patch(
+        f"{target}.cancel_plex_activity", new=AsyncMock(side_effect=playback_activity.PlaybackActionError("finie"))
+    ):
+        assert client.delete("/api/playback/server-activities/a1").status_code == 409
+    with patch(f"{target}.cancel_plex_activity", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.delete("/api/playback/server-activities/a1").status_code == 502
+
+
+def test_playback_thumb_is_resized_when_the_view_asks(client):
+    from app.dependencies import get_settings_or_404
+
+    proxy = AsyncMock(return_value=None)
+    client.app.dependency_overrides[get_settings_or_404] = lambda: Settings(plex_url="http://plex", plex_token="t")
+    try:
+        with patch("app.routers.activity_api.image_proxy", new=proxy):
+            client.get("/api/playback/thumb", params={"path": "/library/metadata/5190/thumb/2", "width": 312})
+            client.get("/api/playback/thumb", params={"path": "/library/metadata/5190/thumb/2"})
+    finally:
+        client.app.dependency_overrides.pop(get_settings_or_404, None)
+    sized, original = proxy.await_args_list
+    assert (sized.kwargs["width"], sized.kwargs["image_format"]) == (312, "webp")
+    assert (original.kwargs["width"], original.kwargs["image_format"]) == (None, "original")
+
+
+def test_parse_sessions_describes_video_audio_and_container_for_every_mode():
+    """Chaque lecture, même directe, dit ses flux : codec, débit, langues, conversion."""
+    sheets = {
+        "5001": {
+            "container": "mkv",
+            "streams": [
+                {"id": "1", "streamType": "1", "codec": "h264", "height": "1080", "width": "1920", "bitrate": "8000"},
+                {
+                    "id": "2",
+                    "streamType": "2",
+                    "codec": "ac3",
+                    "channels": "6",
+                    "bitrate": "640",
+                    "language": "Français",
+                },
+                {
+                    "id": "3",
+                    "streamType": "2",
+                    "codec": "dca",
+                    "channels": "6",
+                    "bitrate": "1509",
+                    "language": "English",
+                },
+            ],
+        },
+        "5002": {
+            "container": "mkv",
+            "streams": [
+                {"id": "4", "streamType": "1", "codec": "hevc", "height": "2160", "bitrate": "40000"},
+                {"id": "5", "streamType": "2", "codec": "truehd", "channels": "8", "language": "English"},
+            ],
+        },
+    }
+    xml = """
+<MediaContainer size="2">
+  <Video sessionKey="11" ratingKey="5001" title="Lecture directe" type="movie" viewOffset="0" duration="5400000">
+    <Media container="mkv">
+      <Part container="mkv" decision="directplay">
+        <Stream id="1" streamType="1" selected="1" decision="directplay" codec="h264" />
+        <Stream id="2" streamType="2" selected="1" decision="directplay" codec="ac3" />
+      </Part>
+    </Media>
+    <Session id="direct" />
+  </Video>
+  <Video sessionKey="12" ratingKey="5002" title="Audio converti" type="movie" viewOffset="0" duration="4800000">
+    <Media container="mkv">
+      <Part container="mkv" decision="transcode">
+        <Stream id="4" streamType="1" selected="1" decision="copy" codec="hevc" />
+        <Stream id="5" streamType="2" selected="1" decision="transcode" codec="aac" channels="2" bitrate="256" />
+      </Part>
+    </Media>
+    <Session id="converted" />
+    <TranscodeSession key="/transcode/sessions/abc" videoDecision="copy" audioDecision="transcode"
+                      sourceAudioCodec="truehd" audioCodec="aac" audioChannels="2" container="mkv" protocol="http" />
+  </Video>
+</MediaContainer>
+"""
+
+    direct, converted = parse_plex_sessions(xml, media_sheets=sheets)
+    direct_tracks = json.loads(direct["stream_details"])["tracks"]
+    converted_tracks = json.loads(converted["stream_details"])["tracks"]
+
+    assert direct_tracks["container"] == {"from": "mkv", "to": "mkv", "converted": False, "protocol": None}
+    assert direct_tracks["video"]["from"]["bitrate_kbps"] == 8000
+    assert direct_tracks["video"]["to"] == direct_tracks["video"]["from"]
+    assert [(item["language"], item["played"]) for item in direct_tracks["audio"]["languages"]] == [
+        ("Français", True),
+        ("English", False),
+    ]
+    assert direct_tracks["audio"]["languages"][1]["bitrate_kbps"] == 1509
+    assert converted_tracks["audio"]["from"]["codec"] == "truehd"
+    assert converted_tracks["audio"]["to"] == {"codec": "aac", "channels": 2, "bitrate_kbps": 256}
+    assert converted_tracks["video"]["decision"] == "copy"
+
+
+def test_direct_stream_reason_covers_every_cause():
+    """Chaque cause de conversion légère, de la décision de Plex au cas indéterminé."""
+    import json
+
+    from app.services.playback_activity import _direct_stream_reason
+
+    def row(**kwargs):
+        return PlaybackSession(source_session_id="s", title="t", playback_method="direct_stream", **kwargs)
+
+    assert _direct_stream_reason(row(plex_decision_text="Direct play not available")) == "Direct play not available"
+    assert _direct_stream_reason(row(subtitle_decision="transcode")) == "Sous-titres"
+    details = json.dumps({"protocol": "hls", "container": {"from": "mp4", "to": "mp4"}})
+    assert _direct_stream_reason(row(transcode_details=details)) == "Diffusion en segments HLS"
+    assert _direct_stream_reason(row(video_decision="copy")) == "Flux recopiés"
+    assert _direct_stream_reason(row()) == "Non déterminée"
+
+
+def test_parse_sessions_marks_played_audio_by_language_when_ids_differ():
+    """Sans identifiant commun, la piste écoutée se retrouve par langue et codec."""
+    sheets = {
+        "7": {
+            "container": "mkv",
+            "streams": [
+                {"id": "20", "streamType": "2", "codec": "aac", "language": "English"},
+                {"id": "21", "streamType": "2", "codec": "ac3", "language": "Français"},
+            ],
+        }
+    }
+    xml = """
+<MediaContainer size="1">
+  <Video sessionKey="1" ratingKey="7" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv">
+      <Part container="mkv" decision="directplay">
+        <Stream id="99" streamType="2" selected="1" decision="directplay" codec="ac3" language="Français" />
+      </Part>
+    </Media>
+    <Session id="s" />
+  </Video>
+</MediaContainer>
+"""
+    [session] = parse_plex_sessions(xml, media_sheets=sheets)
+    languages = json.loads(session["stream_details"])["tracks"]["audio"]["languages"]
+    assert [(item["language"], item["played"]) for item in languages] == [("English", False), ("Français", True)]
+
+
+def test_parse_sessions_lists_subtitles_and_marks_selected_one():
+    """Les sous-titres du fichier, celui affiché, et ce que Plex en fait."""
+    sheets = {
+        "8": {
+            "container": "mkv",
+            "streams": [
+                {
+                    "id": "30",
+                    "streamType": "3",
+                    "codec": "srt",
+                    "language": "Français",
+                    "forced": "1",
+                    "title": "Forced",
+                    "displayTitle": "Français (SRT Forced)",
+                },
+                {"id": "31", "streamType": "3", "codec": "pgs", "language": "English", "hearingImpaired": "1"},
+                {"id": "32", "streamType": "3", "codec": "ass", "language": "Español", "key": "/library/streams/32"},
+            ],
+        }
+    }
+    xml = """
+<MediaContainer size="2">
+  <Video sessionKey="1" ratingKey="8" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv">
+      <Part container="mkv" decision="transcode">
+        <Stream id="31" streamType="3" selected="1" decision="burn" codec="pgs" language="English" />
+      </Part>
+    </Media>
+    <Session id="s" />
+  </Video>
+  <Video sessionKey="2" ratingKey="9" title="Sans fiche" type="movie" viewOffset="0" duration="1000">
+    <Media container="mp4">
+      <Part container="mp4" decision="transcode">
+        <Stream id="40" streamType="3" selected="1" decision="transcode" codec="srt" format="ass" language="Deutsch" />
+      </Part>
+    </Media>
+    <Session id="t" />
+  </Video>
+</MediaContainer>
+"""
+    burned, orphan = parse_plex_sessions(xml, media_sheets=sheets)
+    subtitles = json.loads(burned["stream_details"])["tracks"]["subtitles"]
+    assert subtitles["decision"] == "burn"
+    assert subtitles["to"] is None
+    assert [(item["language"], item["selected"]) for item in subtitles["languages"]] == [
+        ("Français", False),
+        ("English", True),
+        ("Español", False),
+    ]
+    assert subtitles["languages"][0]["forced"] is True
+    assert subtitles["languages"][1]["hearing_impaired"] is True
+    assert subtitles["languages"][2]["external"] is True
+    # Le nom donné à la piste, pas le displayTitle générique de Plex.
+    assert [item["title"] for item in subtitles["languages"]] == ["Forced", None, None]
+
+    fallback = json.loads(orphan["stream_details"])["tracks"]["subtitles"]
+    assert fallback["decision"] == "transcode"
+    assert fallback["to"] == "ass"
+    assert [(item["language"], item["selected"]) for item in fallback["languages"]] == [("Deutsch", True)]
+
+
+def test_parse_sessions_without_subtitles_has_none():
+    xml = """
+<MediaContainer size="1">
+  <Video sessionKey="1" ratingKey="7" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv"><Part container="mkv" decision="directplay" /></Media>
+    <Session id="s" />
+  </Video>
+</MediaContainer>
+"""
+    [session] = parse_plex_sessions(xml)
+    assert json.loads(session["stream_details"])["tracks"]["subtitles"] is None

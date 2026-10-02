@@ -1,5 +1,5 @@
 <template>
-  <section class="settings-section">
+  <CollapsibleRoot ref="root" v-show="visible" v-model:open="open" as="section" class="settings-section">
     <header class="settings-section-head">
       <div class="settings-section-heading">
         <h3>
@@ -10,39 +10,41 @@
       </div>
       <div class="settings-section-actions">
         <slot name="actions" />
-        <button
-          v-if="collapsible"
-          type="button"
-          class="settings-section-toggle"
-          :aria-expanded="open"
-          @click="open = !open"
-        >
+        <CollapsibleTrigger v-if="collapsible" class="settings-section-toggle">
           <span>{{ open ? 'Replier' : 'Déplier' }}</span>
           <ChevronDown :class="{ open }" />
-        </button>
+        </CollapsibleTrigger>
       </div>
     </header>
-    <div v-show="!collapsible || open" class="settings-section-body">
+    <!-- Reka relie le bouton au contenu (aria-controls, aria-expanded) ; `force-mount` garde
+         les champs montes une fois replies, comme le `v-show` d'avant. -->
+    <CollapsibleContent v-if="collapsible" force-mount class="settings-section-body" v-show="open">
       <slot />
-    </div>
-  </section>
+    </CollapsibleContent>
+    <div v-else class="settings-section-body"><slot /></div>
+  </CollapsibleRoot>
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 /**
  * Un groupe de reglages : titre en TEXTE, pas en boite.
  *
- * Pendant de SettingsRow. La ou SettingsCard enferme chaque groupe dans un cadre
+ * Pendant de SettingsRow. La ou l'ancienne carte enfermait chaque groupe dans un cadre
  * avec icone, bordure, ombre et badge, on se contente ici d'un titre et d'un filet :
  * la hierarchie reste lisible, sans les ~105 px de decor par bloc.
  *
- * `collapsible` est volontairement a false par defaut, a l'inverse de SettingsCard
- * (defaultOpen: false) : une page dense que l'on deroule vaut mieux qu'une page
+ * La section se filtre avec la recherche des reglages : elle reste affichee si son titre
+ * ou l'une de ses lignes correspond, et ses lignes suivent (voir `useSearchableBlock`).
+ *
+ * `collapsible` est volontairement a false par defaut, a l'inverse de l'ancienne
+ * carte (repliee par defaut) : une page dense que l'on deroule vaut mieux qu'une page
  * courte qu'il faut fouiller en ouvrant les boites une a une. Le repli ne sert donc
  * qu'aux options avancees, rarement touchees.
  */
-import { ref } from 'vue';
+import { computed, provide, ref } from 'vue';
 import { ChevronDown } from '@lucide/vue';
+import { matchesQuery, SETTINGS_GROUP_KEY, useSearchableBlock } from '@/composables/useSettingsSearch';
 
 const props = withDefaults(
   defineProps<{
@@ -58,10 +60,16 @@ const props = withDefaults(
 );
 
 const open = ref(props.defaultOpen);
+
+const root = ref<{ $el?: HTMLElement } | null>(null);
+const { visible, query } = useSearchableBlock(() => root.value?.$el, () => `${props.title} ${props.subtitle}`);
+const titleMatches = computed(() => Boolean(query.value.trim()) && matchesQuery(`${props.title} ${props.subtitle}`, query.value));
+provide(SETTINGS_GROUP_KEY, { titleMatches });
 const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : props.status === 'inactive' ? 'Inactif' : '');
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .settings-section + .settings-section {
   margin-top: var(--space-5, 28px);
 }
@@ -99,8 +107,12 @@ const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : p
   color: var(--muted);
 }
 
+.settings-section-status.error {
+  color: var(--red-text);
+}
+
 .settings-section-status.active {
-  color: var(--green-text, #4ade80);
+  color: var(--green-text);
 }
 
 .settings-section-actions {
@@ -130,14 +142,14 @@ const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : p
 .settings-section-toggle svg {
   width: 14px;
   height: 14px;
-  transition: transform 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .settings-section-toggle svg.open {
   transform: rotate(180deg);
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .settings-section-head {
     flex-wrap: wrap;
   }

@@ -1,25 +1,8 @@
-import { ref, watch } from 'vue';
+import { usePreference } from './usePreference';
 
 const STORAGE_KEY = 'watchdeck.rail.collapsed';
 
-function readStored(): boolean {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === '1';
-  } catch {
-    // Navigation privée ou stockage refusé : le rail s'ouvre, ce qui reste utilisable.
-    return false;
-  }
-}
-
-const collapsed = ref(typeof window === 'undefined' ? false : readStored());
-
-watch(collapsed, (value) => {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, value ? '1' : '0');
-  } catch {
-    /* Le repli reste alors valable pour la session en cours seulement. */
-  }
-});
+const collapsed = usePreference('rail.collapsed', false, { legacyKeys: [STORAGE_KEY] });
 
 /**
  * Repli du rail, partagé et persistant.

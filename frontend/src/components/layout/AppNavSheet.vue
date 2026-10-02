@@ -1,24 +1,61 @@
 <template>
-  <Teleport to="body">
-    <div class="app-sheet__scrim" @click="$emit('close')" />
-    <div
-      ref="panel"
-      class="app-sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="app-sheet-title"
-      tabindex="-1"
-    >
+  <!-- Reka UI tient le focus, Echap, le clic sur le voile et le defilement verrouille. -->
+  <DialogRoot :open="true" @update:open="(open) => { if (!open) $emit('close'); }">
+    <DialogPortal>
+    <DialogOverlay class="app-sheet__scrim" />
+    <DialogContent class="app-sheet" :aria-describedby="undefined" @interact-outside="laisserAuDock">
       <header class="app-sheet__head">
-        <h2 id="app-sheet-title">Navigation</h2>
+        <DialogTitle as="h2">Navigation</DialogTitle>
         <button type="button" class="app-sheet__close" aria-label="Fermer la navigation" @click="$emit('close')">
           <X aria-hidden="true" />
         </button>
       </header>
 
       <div class="app-sheet__body">
+        <!-- Les sections d'une destination que le dock ne porte pas : son entree active
+             n'existe pas la-bas, donc rien ne pourrait les y decouvrir. Elles passent
+             en tete, avant les destinations, parce qu'on vient d'abord voir ou l'on
+             peut aller dans la page ou l'on est. -->
+        <section v-if="sections.length > 1" class="app-sheet__group">
+          <p class="app-sheet__group-label">{{ destinationLabel }}</p>
+          <RouterLink
+            v-for="section in sections"
+            :key="section.key"
+            class="app-nav-link app-sheet__link"
+            :to="section.to!"
+            :aria-current="section.key === activeSectionKey ? 'page' : undefined"
+          >
+            <component :is="section.icon" v-if="section.icon" aria-hidden="true" />
+            <span>{{ section.label }}</span>
+            <small v-if="section.count != null" class="app-sheet__count">{{ section.count }}</small>
+          </RouterLink>
+        </section>
+
         <!-- La feuille montre la totalité des destinations permises, groupées comme
-             dans le rail : c'est le même modèle, jamais un sous-ensemble arbitraire. -->
+             dans le rail : c'est le même modèle, jamais un sous-ensemble arbitraire.
+
+             Les liens ne la referment pas eux-mêmes : c'est le shell qui s'en charge
+             une fois la route changée : la feuille reste visible jusqu'à ce que la page
+             d'arrivée soit là, au lieu de disparaître sur un écran encore inchangé. -->
+        <!-- Dans l'Administration, ses groupes passent avant l'application, avec le
+             retour en tête : c'est l'espace où l'on se trouve. -->
+        <section v-if="isAdmin && space === 'admin'" class="app-sheet__group">
+          <p class="app-sheet__group-label">Administration</p>
+          <RouterLink class="app-nav-link app-sheet__link" :to="backTo">
+            <ArrowLeft aria-hidden="true" /><span>Retour à Watchdeck</span>
+          </RouterLink>
+          <RouterLink
+            v-for="area in adminAreas"
+            :key="area.key"
+            class="app-nav-link app-sheet__link"
+            :to="area.to"
+            :aria-current="area.key === activeKey ? 'page' : undefined"
+          >
+            <component :is="area.icon" aria-hidden="true" />
+            <span>{{ area.label }}</span>
+          </RouterLink>
+        </section>
+
         <section v-for="group in groups" :key="group.label" class="app-sheet__group">
           <p class="app-sheet__group-label">{{ group.label }}</p>
           <RouterLink
@@ -27,10 +64,18 @@
             class="app-nav-link app-sheet__link"
             :to="destination.to"
             :aria-current="destination.key === activeKey ? 'page' : undefined"
-            @click="$emit('close')"
           >
             <component :is="destination.icon" aria-hidden="true" />
             <span>{{ destination.label }}</span>
+          </RouterLink>
+        </section>
+
+        <!-- Hors de l'Administration, une seule entrée : ses groupes ne s'affichent
+             qu'une fois dedans. -->
+        <section v-if="isAdmin && space !== 'admin'" class="app-sheet__group">
+          <p class="app-sheet__group-label">Administration</p>
+          <RouterLink class="app-nav-link app-sheet__link" :to="ADMIN_ENTRY.to">
+            <component :is="ADMIN_ENTRY.icon" aria-hidden="true" /><span>{{ ADMIN_ENTRY.label }}</span>
           </RouterLink>
         </section>
 
@@ -42,33 +87,67 @@
           <RouterLink class="app-nav-link app-sheet__link" to="/profile" @click="$emit('close')">
             <UserRound aria-hidden="true" /><span>Profil</span>
           </RouterLink>
+          <div class="app-sheet__theme">
+            <span><Palette aria-hidden="true" />Thème</span>
+            <UiSegmentedControl :model-value="themeChoice" :options="THEME_OPTIONS" ariaLabel="Thème" @update:model-value="(v) => setTheme(v as ThemeChoice)" />
+          </div>
           <a class="app-nav-link app-sheet__link" href="/privacy"><ShieldCheck aria-hidden="true" /><span>Confidentialité</span></a>
-          <a class="app-nav-link app-sheet__link" href="/logout" @click="clearCache"><LogOut aria-hidden="true" /><span>Déconnexion</span></a>
+          <a class="app-nav-link app-sheet__link" href="/logout" @click.prevent="seDeconnecter"><LogOut aria-hidden="true" /><span>Déconnexion</span></a>
         </section>
       </div>
-    </div>
-  </Teleport>
+    </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { laisserAuDock } from './sheetDock';
+import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
-import { LogOut, Search, ShieldCheck, UserRound, X } from '@lucide/vue';
-import { clearCache } from '@/cache';
-import { useBodyScrollLock } from '@/composables/useBodyScrollLock';
-import { useModalA11y } from '@/composables/useModalA11y';
-import { destinationsFor, type NavDestination } from '@/navigation';
+import { ArrowLeft, LogOut, Palette, Search, ShieldCheck, UserRound, X } from '@lucide/vue';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import { THEME_OPTIONS, useTheme, type ThemeChoice } from '@/composables/useTheme';
+import { useQueryClient } from '@tanstack/vue-query';
+import { effacerStockage } from '@/offline/stockage';
+
+const queryClient = useQueryClient();
+/* Tout ce que l'application a conserve sur l'appareil est efface AVANT de quitter la
+   page : un effacement lance au moment ou la page se decharge n'a pas le temps d'aboutir. */
+async function seDeconnecter(): Promise<void> {
+  await Promise.race([effacerStockage(queryClient), new Promise((r) => setTimeout(r, 1500))]);
+  // POST : la deconnexion ne se declenche plus par un simple lien (ou une image) externe.
+  await fetch('/logout', { method: 'POST', credentials: 'same-origin', redirect: 'manual' }).catch(() => undefined);
+  window.location.href = '/login';
+}
+import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
+import { useBackButtonClose } from '@/composables/useBackButtonClose';
+import { ADMIN_ENTRY, adminAreasFor, destinationsFor, type NavDestination } from '@/navigation';
+import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 import { shortcutLabel } from '@/shortcut';
 
+const { choice: themeChoice, setTheme } = useTheme();
+
 const props = withDefaults(
-  defineProps<{ activeKey?: string; isAdmin?: boolean; canModerate?: boolean }>(),
-  { activeKey: '', isAdmin: false, canModerate: false }
+  defineProps<{
+    activeKey?: string;
+    isAdmin?: boolean;
+    canModerate?: boolean;
+    /** Sections a proposer ici ; vides des que le dock sait deja les montrer. */
+    sections?: SubnavItem[];
+    activeSectionKey?: string;
+    destinationLabel?: string;
+    space?: 'app' | 'admin';
+    backTo?: string;
+  }>(),
+  {
+    activeKey: '', isAdmin: false, canModerate: false,
+    sections: () => [], activeSectionKey: '', destinationLabel: '', space: 'app', backTo: '/',
+  }
 );
+const adminAreas = computed(() => adminAreasFor(props.isAdmin));
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'open-palette'): void }>();
 
-const panel = ref<HTMLElement | null>(null);
-const alwaysOpen = ref(true);
 
 const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() => {
   const result: Array<{ label: string; items: NavDestination[] }> = [];
@@ -80,17 +159,15 @@ const groups = computed<Array<{ label: string; items: NavDestination[] }>>(() =>
   return result;
 });
 
-// Le composant n'est monté que pendant l'ouverture : le piège à focus, le verrou de
-// défilement et la gestion du bouton « retour » s'activent donc dès le montage.
-useBodyScrollLock(alwaysOpen);
-useModalA11y(panel, null, () => emit('close'));
+// Le composant n'est monte que pendant l'ouverture : « retour » le referme des le montage.
+useBackButtonClose(null, () => emit('close'));
 </script>
 
 <style scoped lang="scss">
 .app-sheet__scrim {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-sheet);
   background: rgba(9, 9, 11, .62);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -101,14 +178,14 @@ useModalA11y(panel, null, () => emit('close'));
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 61;
+  z-index: calc(var(--z-sheet) + 1);
   display: flex;
   flex-direction: column;
   max-height: min(84dvh, calc(var(--visual-viewport-height) - var(--safe-top)));
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   border-top: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: 0 -18px 50px rgba(0, 0, 0, .55);
+  box-shadow: 0 -18px 50px rgb(var(--shadow-color) / calc(.55 * var(--shadow-scale)));
 }
 
 .app-sheet__head {
@@ -155,6 +232,16 @@ useModalA11y(panel, null, () => emit('close'));
   text-transform: uppercase;
 }
 
+.app-sheet__theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+}
+.app-sheet__theme > span { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); font-size: var(--fs-md); }
+.app-sheet__theme svg { flex: none; width: 18px; height: 18px; }
 .app-sheet__link {
   display: flex;
   align-items: center;
@@ -180,6 +267,19 @@ useModalA11y(panel, null, () => emit('close'));
   font-size: var(--fs-xs);
 }
 .app-sheet__link:hover { color: var(--text); background: var(--surface-2); }
+.app-sheet__count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+}
+
 .app-sheet__link[aria-current='page'] {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);

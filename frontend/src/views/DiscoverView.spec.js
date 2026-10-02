@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import DiscoverView from './DiscoverView.vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 
@@ -27,10 +28,12 @@ async function mountView({ home = false, url = '', attachTo } = {}) {
   });
   await router.push(target);
   await router.isReady();
+  // Un cache neuf par montage : le catalogue d'un test ne doit pas servir au suivant.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return mount(DiscoverView, {
     attachTo,
     global: {
-      plugins: [router],
+      plugins: [router, [VueQueryPlugin, { queryClient }]],
       stubs: {
         AppPage: {
           props: ['query', 'modelValue', 'title'],
@@ -39,6 +42,9 @@ async function mountView({ home = false, url = '', attachTo } = {}) {
           template: `<div class="app-page-stub"><input type="search" :value="query || modelValue" @input="$emit('update:query', $event.target.value); $emit('update:modelValue', $event.target.value); $emit('search', $event.target.value)" /><slot name="tools" /><slot /></div>`,
         },
         UiFeedback: true,
+        // Le panneau ne rend ses filtres qu'ouvert, dans un portail : ici on teste les
+        // filtres eux-memes, rendus en place.
+        FilterSidebar: { template: '<div class="filter-sidebar-stub"><slot /></div>' },
         RouterLink: {
           props: ['to'],
           template: '<a :href="to"><slot /></a>',
@@ -51,7 +57,7 @@ async function mountView({ home = false, url = '', attachTo } = {}) {
 describe('DiscoverView', () => {
   beforeEach(() => {
     apiMock.mockReset();
-    window.matchMedia = vi.fn(() => ({ matches: false }));
+    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     window.history.replaceState({}, '', '/discover/explore');
     localStorage.clear();
   });
@@ -191,7 +197,7 @@ describe('DiscoverView', () => {
     expect(body).not.toHaveProperty('quality_profile_id');
     expect(body).not.toHaveProperty('root_folder');
     expect(body).not.toHaveProperty('seasons');
-    expect(wrapper.text()).toContain('Demandé');
+    expect(wrapper.text()).toContain('Transmise');
   });
 
   it('restaure les filtres Explorer depuis une URL partageable', async () => {

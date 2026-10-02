@@ -1,5 +1,5 @@
 <template>
-  <div class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing }">
+  <div ref="racine" class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing, 'app-subnav--more': more }">
     <!-- Deux variantes, un seul composant, parce que le besoin est le même et que la
          différence est purement sémantique :
          · `links`  → chaque entrée change d'URL. C'est une navigation : `<nav>` +
@@ -7,56 +7,61 @@
            onglet APG ne navigue pas, il révèle un panneau déjà présent.
          · `tabs`   → chaque entrée révèle un panneau de la même page. C'est le pattern
            Tabs APG : `role="tablist"`, tabindex mobile et flèches directionnelles. -->
-    <component
-      :is="variant === 'links' ? 'nav' : 'div'"
-      ref="scroller"
-      class="app-subnav__scroller"
-      :role="variant === 'tabs' ? 'tablist' : undefined"
+    <!-- Liens : `NavigationMenu` de Reka UI. Il porte le `<nav>` nomme, `aria-current` sur
+         la section courante et le deplacement aux fleches d'un lien a l'autre, que la
+         version maison n'offrait pas (seule la tabulation, lien par lien). -->
+    <NavigationMenuRoot
+      v-if="variant === 'links'"
+      class="app-subnav__root"
       :aria-label="ariaLabel"
-      @keydown="onKeydown"
-      @scroll="onScroll"
+      orientation="horizontal"
     >
-      <template v-for="(item, index) in items" :key="item.key">
-        <span
-          v-if="index > 0 && item.group && item.group !== items[index - 1].group"
-          class="app-subnav__separator"
-          aria-hidden="true"
-        />
-
-        <RouterLink
-          v-if="variant === 'links'"
-          :ref="(el) => setItemRef(el, index)"
-          class="app-subnav__item"
-          :to="item.to!"
-          :aria-current="item.key === active ? 'page' : undefined"
-        >
-          <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-          <small v-if="item.count != null">{{ item.count }}</small>
-        </RouterLink>
-
-        <button
-          v-else
-          :ref="(el) => setItemRef(el, index)"
-          type="button"
-          role="tab"
-          class="app-subnav__item"
-          :aria-selected="item.key === active"
-          :tabindex="item.key === active ? 0 : -1"
-          @click="$emit('update:active', item.key)"
-        >
-          <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-          <small v-if="item.count != null">{{ item.count }}</small>
-        </button>
-      </template>
-    </component>
+      <NavigationMenuList class="app-subnav__scroller" @scroll="onScroll">
+        <template v-for="(item, index) in items" :key="item.key">
+          <li v-if="separe(index)" class="app-subnav__separator" role="none" aria-hidden="true" />
+          <NavigationMenuItem :value="item.key" class="app-subnav__entry">
+            <!-- `RouterLink` en mode `custom` ne fournit que l'adresse et la navigation ;
+                 c'est le lien de Reka qui rend l'element et porte seul `aria-current`.
+                 Imbriques autrement, RouterLink effacait l'attribut des qu'on n'etait
+                 pas exactement a son adresse (Accueil actif sur /discover/explore). -->
+            <RouterLink v-slot="{ href, navigate }" :to="item.to!" custom>
+              <NavigationMenuLink
+                :ref="(el) => setItemRef(el, index)"
+                class="app-subnav__item"
+                :href="href"
+                :active="item.key === active"
+                @click="navigate"
+              >
+                <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
+                <span>{{ item.label }}</span>
+                <small v-if="item.count != null">{{ item.count }}</small>
+              </NavigationMenuLink>
+            </RouterLink>
+          </NavigationMenuItem>
+        </template>
+      </NavigationMenuList>
+    </NavigationMenuRoot>
+    <!-- Onglets : Reka UI porte `role="tablist"`/`tab`, le tabindex mobile et les fleches,
+         Origine et Fin du pattern Tabs -- une centaine de lignes de moins ici. -->
+    <TabsRoot v-else :model-value="active" @update:model-value="choisir">
+      <TabsList ref="scroller" class="app-subnav__scroller" :aria-label="ariaLabel" @scroll="onScroll">
+        <template v-for="(item, index) in items" :key="item.key">
+          <span v-if="separe(index)" class="app-subnav__separator" aria-hidden="true" />
+          <TabsTrigger :ref="(el) => setItemRef(el, index)" class="app-subnav__item" :value="item.key">
+            <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
+            <span>{{ item.label }}</span>
+            <small v-if="item.count != null">{{ item.count }}</small>
+          </TabsTrigger>
+        </template>
+      </TabsList>
+    </TabsRoot>
   </div>
 </template>
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { RouterLink } from 'vue-router';
+import { NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuRoot, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 
 export interface SubnavItem {
   key: string;
@@ -80,6 +85,12 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ (e: 'update:active', value: string): void }>();
+/* Seul un vrai changement d'onglet remonte : Reka peut signaler une valeur vide (montage,
+   liste d'onglets qui change), que la palette de commandes prenait pour un perimetre. */
+function choisir(key: string | number | undefined): void {
+  if (key === undefined || key === null || key === '' || String(key) === props.active) return;
+  emit('update:active', String(key));
+}
 
 const scroller = ref<HTMLElement | ComponentPublicInstance | null>(null);
 const itemRefs = ref<HTMLElement[]>([]);
@@ -89,24 +100,43 @@ const scrolled = ref(false);
    tenaient a l'ecran -- exactement le cas des quatre sections d'Explorer sur un
    telephone de 390px. */
 const overflowing = ref(false);
+/* Il reste des sections a droite : faux une fois arrive au bout, pour que la derniere
+   entree ne reste pas estompee. */
+const more = ref(false);
 
+function separe(index: number): boolean {
+  const item = props.items[index];
+  return index > 0 && Boolean(item.group) && item.group !== props.items[index - 1].group;
+}
 function setItemRef(el: Element | ComponentPublicInstance | null, index: number): void {
   const node = (el as ComponentPublicInstance)?.$el ?? el;
   if (node instanceof HTMLElement) itemRefs.value[index] = node;
 }
 
+/* La rangee qui defile : la liste de `NavigationMenu` (liens) ou de `Tabs` (onglets).
+   Cherchee par sa classe plutot que par une ref de composant : `NavigationMenuList`
+   enveloppe sa liste dans un conteneur, et la ref designerait ce dernier. */
+const racine = ref<HTMLElement | null>(null);
 function scrollerEl(): HTMLElement | null {
   const node = (scroller.value as ComponentPublicInstance)?.$el ?? scroller.value;
-  return node instanceof HTMLElement ? node : null;
+  if (node instanceof HTMLElement && node.classList.contains('app-subnav__scroller')) return node;
+  return racine.value?.querySelector<HTMLElement>('.app-subnav__scroller') ?? null;
+}
+
+function measureEdges(): void {
+  const el = scrollerEl();
+  scrolled.value = (el?.scrollLeft ?? 0) > 2;
+  more.value = el ? el.scrollLeft + el.clientWidth < el.scrollWidth - 2 : false;
 }
 
 function onScroll(): void {
-  scrolled.value = (scrollerEl()?.scrollLeft ?? 0) > 2;
+  measureEdges();
 }
 
 function measureOverflow(): void {
   const el = scrollerEl();
   overflowing.value = el ? el.scrollWidth > el.clientWidth + 1 : false;
+  measureEdges();
 }
 
 let resizeObserver: ResizeObserver | null = null;
@@ -124,29 +154,6 @@ onMounted(() => {
 });
 onBeforeUnmount(() => resizeObserver?.disconnect());
 watch(() => props.items.length, () => void nextTick(measureOverflow));
-
-/**
- * Flèches, Origine et Fin, comme l'exige le pattern Tabs.
- *
- * En variante `links` on ne fait rien : la liste de liens se parcourt à la tabulation,
- * et intercepter les flèches y retirerait à l'utilisateur le défilement de la page.
- */
-function onKeydown(event: KeyboardEvent): void {
-  if (props.variant !== 'tabs') return;
-  const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
-  if (!keys.includes(event.key)) return;
-  const current = props.items.findIndex((item) => item.key === props.active);
-  const last = props.items.length - 1;
-  let next = current;
-  if (event.key === 'ArrowRight') next = current >= last ? 0 : current + 1;
-  else if (event.key === 'ArrowLeft') next = current <= 0 ? last : current - 1;
-  else if (event.key === 'Home') next = 0;
-  else next = last;
-  if (next < 0 || !props.items[next]) return;
-  event.preventDefault();
-  emit('update:active', props.items[next].key);
-  nextTick(() => itemRefs.value[next]?.focus());
-}
 
 // La section active peut être hors du champ visible sur un écran étroit : sans ce
 // recentrage, l'utilisateur ne voit pas où il se trouve après une navigation.
@@ -166,57 +173,83 @@ watch(
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .app-subnav {
+  /* La capsule est portee par la racine, pas par la rangee qui defile : la rangee peut
+     ainsi estomper ses bords par un masque sans estomper le contour avec. Les anciens
+     degrades etaient des calques poses PAR-DESSUS les onglets, dans la couleur de fond :
+     ils recouvraient la pastille active d'un voile opaque des qu'elle touchait un bord. */
+  --subnav-fade-left: 0px;
+  --subnav-fade-right: 0px;
   position: relative;
+  /* Centree partout, a la largeur de ses onglets : meme axe que la recherche, qu'elle
+     soit dans la rangee collante, dans une fiche ou dans une fenetre. `margin-inline:
+     auto` centre aussi bien dans un bloc que dans une colonne flex. */
+  width: fit-content;
   min-width: 0;
-  /* Le dégradé signale qu'il reste des sections à droite. Il est purement décoratif :
-     le contenu masqué reste atteignable au clavier comme au doigt. */
-  &::after {
-    content: '';
-    opacity: 0;
-    transition: opacity .15s ease;
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 24px;
-    background: linear-gradient(to right, transparent, var(--bg));
-    pointer-events: none;
-  }
-  &.app-subnav--overflowing::after { opacity: 1; }
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+  &.app-subnav--scrolled { --subnav-fade-left: 28px; }
+  &.app-subnav--more { --subnav-fade-right: 28px; }
 }
 
 /* Le cadre se fait le plus discret possible : il n'a qu'a rassembler les sections, pas
    a se presenter comme un objet a part. Reglages serres (2px de gouttiere, coins de
    8px au lieu de 12) parce que la hauteur, elle, est fixee par la cible tactile de
    44px des items et ne peut pas descendre. */
-.app-subnav__scroller {
+/* `NavigationMenu` rend un `<nav>`, puis un conteneur, puis la liste : les deux premiers
+   ne doivent pas s'elargir a leur contenu, sinon la liste ne defilerait plus. */
+.app-subnav__root,
+.app-subnav__root > div {
+  min-width: 0;
+  max-width: 100%;
+}
+/* La liste des liens est rendue a l'interieur de `NavigationMenuList` : elle ne porte
+   pas l'attribut de portee du composant, d'ou `:deep()` sur toutes les regles de la
+   rangee (sans quoi les liens s'empilaient a la verticale). */
+:deep(ul.app-subnav__scroller) {
+  margin: 0;
+  list-style: none;
+}
+.app-subnav__entry {
+  display: flex;
+  flex: none;
+}
+/* Meme famille que le champ de recherche : une capsule posee, bord fin, fond de
+   surface. Elle flotte au-dessus du contenu quand la rangee colle en haut. */
+:deep(.app-subnav__scroller) {
   display: flex;
   gap: 2px;
   min-width: 0;
   max-width: 100%;
-  padding: 2px;
+  padding: 0;
   overflow-x: auto;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 0;
+  /* Le contenu s'estompe lui-meme vers le bord ou il reste des sections. */
+  -webkit-mask-image: linear-gradient(to right, transparent, var(--text) var(--subnav-fade-left), var(--text) calc(100% - var(--subnav-fade-right)), transparent);
+  mask-image: linear-gradient(to right, transparent, var(--text) var(--subnav-fade-left), var(--text) calc(100% - var(--subnav-fade-right)), transparent);
   scrollbar-width: none;
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
 }
-.app-subnav__scroller::-webkit-scrollbar { display: none; }
+:deep(.app-subnav__scroller)::-webkit-scrollbar { display: none; }
 
 .app-subnav__item {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--touch-target);
-  padding: 0 10px;
+  padding: 0 14px;
   border: 0;
-  /* Un cran sous le rayon du cadre : a rayon egal, la pastille active semblait deborder
-     dans les coins. */
-  border-radius: 6px;
+  /* Rayon de la capsule moins son coussin : a rayon egal, la pastille semblait deborder. */
+  border-radius: calc(var(--radius-lg) - 4px);
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -225,13 +258,29 @@ watch(
   text-decoration: none;
   cursor: pointer;
   scroll-snap-align: start;
+  transition: color var(--motion-duration-instant) var(--motion-ease-standard),
+    background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
-.app-subnav__item:hover { color: var(--text); background: rgba(255, 255, 255, .04); }
+.app-subnav__item:hover { color: var(--text); background: rgb(var(--ink) / .05); }
+.app-subnav__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* L'onglet actif : une pastille teintee d'accent dans la capsule, le meme langage que
+   le bouton « Filtres » de la recherche. */
 .app-subnav__item[aria-current='page'],
 .app-subnav__item[aria-selected='true'] {
   color: var(--text);
-  background: var(--surface-2);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  font-weight: 700;
+}
+@include bp.from(tablet) {
+  /* A la hauteur du champ de recherche (46px) : 36 + 2x4 de coussin + 2x1 de bord. */
+  .app-subnav__item { min-height: 36px; font-size: var(--fs-md); }
+  .app-subnav .app-subnav__item svg { width: 16px; height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-subnav__item { transition: none; }
 }
 .app-subnav__item svg { flex: none; width: 15px; height: 15px; }
 .app-subnav__item[aria-current='page'] svg,

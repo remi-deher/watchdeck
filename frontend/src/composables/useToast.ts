@@ -1,18 +1,8 @@
-import { ref, type Ref } from 'vue';
+import { shallowRef } from 'vue';
 
-/** Bouton facultatif porte par la notification (« Annuler », « Reessayer »…). */
 export interface ToastAction {
   label: string;
   run: () => void | Promise<void>;
-}
-
-export interface ToastItem {
-  id: number;
-  title: string;
-  message?: string;
-  type: 'info' | 'success' | 'error' | 'warning';
-  image?: string | null;
-  action?: ToastAction | null;
 }
 
 export interface AddToastOptions {
@@ -24,7 +14,21 @@ export interface AddToastOptions {
   action?: ToastAction | null;
 }
 
-const toasts = ref<ToastItem[]>([]);
+export interface AppToastMessage {
+  id: number;
+  title: string;
+  message: string;
+  type: NonNullable<AddToastOptions['type']>;
+  /** En millisecondes ; 0 = reste affiche jusqu'a sa fermeture. */
+  duration: number;
+  image: string | null;
+  action: ToastAction | null;
+}
+
+/* La file des notifications, lue par `AppToast` (Reka UI). Une simple liste reactive :
+   plus de service PrimeVue a enregistrer, ni de file d'attente pour les notifications
+   emises avant son montage. */
+export const toasts = shallowRef<AppToastMessage[]>([]);
 let nextId = 1;
 
 export function useToast() {
@@ -37,22 +41,12 @@ export function useToast() {
     action = null,
   }: AddToastOptions = {}): number {
     const id = nextId++;
-    const toast: ToastItem = { id, title, message, type, image, action };
-    toasts.value.push(toast);
-
-    if (duration > 0) {
-      setTimeout(() => {
-        dismissToast(id);
-      }, duration);
-    }
+    toasts.value = [...toasts.value, { id, title, message, type, duration, image, action }];
     return id;
   }
 
   function dismissToast(id: number): void {
-    const idx = toasts.value.findIndex((t) => t.id === id);
-    if (idx !== -1) {
-      toasts.value.splice(idx, 1);
-    }
+    toasts.value = toasts.value.filter((toast) => toast.id !== id);
   }
 
   function success(title: string, message = ''): number {
@@ -67,25 +61,9 @@ export function useToast() {
     return addToast({ title, message, type: 'info' });
   }
 
-  /**
-   * Notification porteuse d'un retour arriere.
-   *
-   * Aucune action de l'application n'etait annulable : une fois la confirmation
-   * validee, il n'y avait plus de recours. La fenetre est volontairement plus longue
-   * qu'une notification ordinaire -- il faut lire, comprendre qu'on s'est trompe, puis
-   * viser le bouton.
-   */
   function undoable(title: string, label: string, run: () => void | Promise<void>, message = ''): number {
     return addToast({ title, message, type: 'success', duration: 8000, action: { label, run } });
   }
 
-  return {
-    toasts,
-    addToast,
-    dismissToast,
-    success,
-    error,
-    info,
-    undoable,
-  };
+  return { addToast, dismissToast, removeToast: dismissToast, success, error, info, undoable };
 }

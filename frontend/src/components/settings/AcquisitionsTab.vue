@@ -1,63 +1,65 @@
 <template>
-  <div class="settings-grid">
-    <div class="settings-cards span-two">
-      <SettingsCard title="Acquisitions de series" :subtitle="acquisitionSubtitle" :icon="ListRestart" :status="acquisitions.counts.blocked_imports ? 'error' : acquisitions.counts.active_batches ? 'neutral' : 'active'" :collapsible="false">
-        <div class="acquisition-counters">
-          <span class="badge">{{ acquisitions.counts.active_batches }} lot(s)</span>
-          <span class="badge">{{ acquisitions.counts.active_queue }} element(s) actif(s)</span>
-          <span class="badge" :class="{ danger: acquisitions.counts.blocked_imports }">{{ acquisitions.counts.blocked_imports }} import(s) bloque(s)</span>
+  <div class="settings-rows">
+    <SettingsSection title="Acquisitions de séries" :subtitle="acquisitionSubtitle" :status="acquisitions.counts.blocked_imports ? 'error' : ''" :status-text="acquisitions.counts.blocked_imports ? 'Import bloqué' : ''">
+      <div class="acquisition-counters">
+        <span class="badge">{{ acquisitions.counts.active_batches }} lot(s)</span>
+        <span class="badge">{{ acquisitions.counts.active_queue }} element(s) actif(s)</span>
+        <span class="badge" :class="{ danger: acquisitions.counts.blocked_imports }">{{ acquisitions.counts.blocked_imports }} import(s) bloque(s)</span>
+      </div>
+      <article v-for="batch in acquisitions.items" :key="batch.id" class="acquisition-batch">
+        <div class="acquisition-head">
+          <div>
+            <strong>{{ batch.title }}</strong>
+            <span>{{ batchStatus(batch.status) }} · {{ sourceLabel(batch.source) }}</span>
+          </div>
+          <span class="badge">{{ scopeLabel(batch) }}</span>
         </div>
-        <article v-for="batch in acquisitions.items" :key="batch.id" class="acquisition-batch">
-          <div class="acquisition-head">
-            <div>
-              <strong>{{ batch.title }}</strong>
-              <span>{{ batchStatus(batch.status) }} · {{ sourceLabel(batch.source) }}</span>
-            </div>
-            <span class="badge">{{ scopeLabel(batch) }}</span>
+        <small>
+          Ouvert {{ formatDate(batch.opened_at) }}
+          <template v-if="batch.last_plex_change_at"> · dernier changement Plex {{ formatDate(batch.last_plex_change_at) }}</template>
+        </small>
+        <div v-if="batch.pending_events.length" class="acquisition-events">
+          {{ batch.pending_events.length }} jalon(s) Plex en attente du recapitulatif.
+        </div>
+        <div v-for="row in batch.queue" :key="row.id" class="queue-observation" :class="{ blocked: row.state === 'import_blocked' }">
+          <div>
+            <strong>{{ episodeLabel(row) }}</strong>
+            <span>{{ queueStateLabel(row.state) }} · {{ Math.round(row.progress || 0) }} %</span>
+            <small v-if="row.error">{{ row.error }}</small>
           </div>
-          <small>
-            Ouvert {{ formatDate(batch.opened_at) }}
-            <template v-if="batch.last_plex_change_at"> · dernier changement Plex {{ formatDate(batch.last_plex_change_at) }}</template>
-          </small>
-          <div v-if="batch.pending_events.length" class="acquisition-events">
-            {{ batch.pending_events.length }} jalon(s) Plex en attente du recapitulatif.
-          </div>
-          <div v-for="row in batch.queue" :key="row.id" class="queue-observation" :class="{ blocked: row.state === 'import_blocked' }">
-            <div>
-              <strong>{{ episodeLabel(row) }}</strong>
-              <span>{{ queueStateLabel(row.state) }} · {{ Math.round(row.progress || 0) }} %</span>
-              <small v-if="row.error">{{ row.error }}</small>
-            </div>
-            <span v-if="row.state === 'import_blocked'" class="badge danger">Intervention Sonarr</span>
-          </div>
-        </article>
-        <p v-if="!acquisitions.items.length" class="empty">Aucune acquisition de serie en cours.</p>
-      </SettingsCard>
-    </div>
+          <span v-if="row.state === 'import_blocked'" class="badge danger">Intervention Sonarr</span>
+        </div>
+      </article>
+      <p v-if="!acquisitions.items.length" class="empty">Aucune acquisition de série en cours.</p>
+    </SettingsSection>
   </div>
 </template>
 <script setup lang="ts">
 import { formatDateTimeShort as formatDate } from '@/utils/format';
-import { computed, onMounted, ref } from 'vue';
-import { ListRestart } from '@lucide/vue';
+import { computed } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
-import SettingsCard from './SettingsCard.vue';
+import SettingsSection from './SettingsSection.vue';
 
-const acquisitions = ref<{ items: any[]; counts: { active_batches: number; active_queue: number; blocked_imports: number } }>({ items: [], counts: { active_batches: 0, active_queue: 0, blocked_imports: 0 } });
+interface Acquisitions { items: any[]; counts: { active_batches: number; active_queue: number; blocked_imports: number } }
+const EMPTY: Acquisitions = { items: [], counts: { active_batches: 0, active_queue: 0, blocked_imports: 0 } };
+const queryClient = useQueryClient();
+const acquisitionsQuery = useQuery({
+  queryKey: ['settings', 'acquisitions'],
+  queryFn: ({ signal }) => api<Acquisitions>('/api/acquisition-batches', { signal }),
+});
+const acquisitions = computed(() => acquisitionsQuery.data.value ?? EMPTY);
 const acquisitionSubtitle = computed(() => acquisitions.value.counts.blocked_imports ? 'Intervention requise dans Sonarr' : acquisitions.value.counts.active_batches ? 'Telechargements et stabilisation en cours' : 'Aucun lot actif');
 
-async function loadAcquisitions(): Promise<void> {acquisitions.value=await api('/api/acquisition-batches')}
-
-function batchStatus(status: string): string {return status==='stabilizing'?'Stabilisation Plex':'Activite Sonarr'}
+function batchStatus(status: string): string {return status==='stabilizing'?'Stabilisation Plex':'Activité Sonarr'}
 function sourceLabel(source: string): string {return ({api:'API',rss:'Watchlist Plex',watchlist:'Watchlist Plex'} as Record<string, string>)[source]||source||'Source inconnue'}
 function scopeLabel(batch: any): string {return batch.expected_scope==='all_seasons'?`${batch.expected_seasons.length} saison(s) attendue(s)`:`${batch.expected_seasons.length} saison(s) surveillee(s)`}
-function queueStateLabel(state: string): string {return ({queued:'En attente',downloading:'Telechargement',importing:'Import',awaiting_import:'Import en attente',import_blocked:'Import bloque'} as Record<string, string>)[state]||state}
+function queueStateLabel(state: string): string {return ({queued:'En attente',downloading:'Téléchargement',importing:'Import',awaiting_import:'Import en attente',import_blocked:'Import bloqué'} as Record<string, string>)[state]||state}
 function episodeLabel(row: any): string {const season=row.season_number!=null?`S${String(row.season_number).padStart(2,'0')}`:'';const episode=row.episode_number!=null?`E${String(row.episode_number).padStart(2,'0')}`:'';return [season+episode,row.title].filter(Boolean).join(' · ')||'Element Sonarr'}
 
-onMounted(loadAcquisitions);
-useRealtime(['request.updated', 'download.updated'], () => loadAcquisitions());
+useRealtime(['request.updated', 'download.updated'], () => queryClient.invalidateQueries({ queryKey: ['settings', 'acquisitions'] }));
 </script>
 <style scoped lang="scss">
-.acquisition-counters,.acquisition-events{display:flex;gap: var(--space-2);flex-wrap:wrap}.acquisition-batch{border-top:1px solid var(--border);padding:14px 0;display:grid;gap: var(--space-2)}.acquisition-head,.queue-observation{display:flex;justify-content:space-between;gap: var(--space-3);align-items:flex-start}.acquisition-head div,.queue-observation div{display:grid;gap: var(--space-1)}.queue-observation{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}.queue-observation.blocked{border:1px solid var(--danger)}.badge.danger{background:color-mix(in srgb,var(--danger) 18%,transparent);color:var(--danger)}
+.acquisition-counters,.acquisition-events{display:flex;gap: var(--space-2);flex-wrap:wrap}.acquisition-batch{border-top:1px solid var(--border);padding:14px 0;display:grid;gap: var(--space-2)}.acquisition-head,.queue-observation{display:flex;justify-content:space-between;gap: var(--space-3);align-items:flex-start}.acquisition-head div,.queue-observation div{display:grid;gap: var(--space-1)}.queue-observation{padding:10px;border-radius:var(--radius-sm);background:var(--surface-2)}.queue-observation.blocked{border:1px solid var(--danger)}.badge.danger{background:color-mix(in srgb,var(--danger) 18%,transparent);color: var(--red-text)}
 </style>

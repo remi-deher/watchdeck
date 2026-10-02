@@ -14,48 +14,21 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, PlexUser, Settings
+from app.models import PlexUser, Settings
 from app.scheduler import sync_seer_users
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 
-def _make_engine():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    return engine
-
-
-@contextmanager
-def _session_from_engine(engine):
-    Session = sessionmaker(bind=engine)
-    s = Session()
-    try:
-        yield TestSession(s)
-    finally:
-        s.close()
-
-
 @pytest.fixture()
-def engine():
-    return _make_engine()
-
-
-@pytest.fixture()
-def db(engine):
-    with _session_from_engine(engine) as s:
-        yield s
+def db():
+    session = make_test_session()
+    yield session
+    session.close()
 
 
 def _add_settings(db, **kwargs) -> Settings:

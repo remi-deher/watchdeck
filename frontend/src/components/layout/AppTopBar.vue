@@ -1,5 +1,5 @@
 <template>
-  <header class="app-topbar" :class="{ 'is-hidden': toolbarHidden }">
+  <header v-if="showBar" class="app-topbar" :class="{ 'is-hidden': toolbarHidden }">
     <!-- Ni bouton de navigation ni titre en compact : le dock du bas porte deja
          « Plus », qui ouvre la meme feuille, et le titre de la page est repris juste
          en dessous. Les deux ne servaient qu'a rogner la largeur du champ de
@@ -13,7 +13,7 @@
       v-if="pageSearch?.showSearch"
       ref="searchContainer"
       class="app-topbar__field"
-      @focusin="searchFocused = true"
+      @focusin="onSearchFocusIn"
       @focusout="onSearchFocusOut"
     >
       <!-- Deploye, le champ recouvre la barre entiere, boutons compris : sans ce
@@ -134,9 +134,8 @@ const { hidden: toolbarHidden, setHold, reveal } = useChromeAutoHide();
    les doigts de l'utilisateur en train de s'en servir.
    `filtersOpen` ne fait plus partie de la condition. Il visait la feuille modale des
    filtres, mais sur grand ecran c'est une colonne ouverte par defaut : la barre du haut
-   ne se masquait alors jamais sur /downloads, sans que rien ne l'explique. Le cas mobile
-   reste couvert sans lui -- une modale pose `body.modal-open { overflow: hidden }`, donc
-   plus aucun evenement de defilement n'est emis tant qu'elle est ouverte. */
+   ne se masquait alors jamais sur /downloads, sans que rien ne l'explique. La feuille de
+   filtres du telephone, non modale, tient elle-meme la barre visible : voir FilterSidebar. */
 watch(searchFocused, (active) => setHold('topbar', active), { immediate: true });
 
 onMounted(() => {
@@ -176,6 +175,25 @@ function applyRecentSearch(query: string): void {
   historyRevision.value += 1;
 }
 
+/**
+ * Entrer dans le champ referme le tiroir de filtres.
+ *
+ * Les deux vivent dans la meme barre et se disputent le bas de l'ecran : la saisie y
+ * fait descendre la barre au ras du clavier, et le panneau serait reste suspendu
+ * au-dessus du vide qu'elle laisse. Le champ reste atteignable pendant que le panneau
+ * est ouvert -- le voile s'arrete sur la barre -- et y toucher bascule simplement d'un
+ * outil a l'autre.
+ *
+ * La cible est bien la zone de saisie : le bouton « Filtres » vit dans la meme boite et
+ * prend le focus a l'appui, refermer sur son propre focus l'aurait rendu inoperant.
+ */
+function onSearchFocusIn(event: FocusEvent): void {
+  searchFocused.value = true;
+  const target = event.target as HTMLElement | null;
+  if (!target?.classList?.contains('ui-search-field__input')) return;
+  if (pageSearch.value?.filtersOpen) pageSearch.value.onToggleFilters();
+}
+
 function onSearchFocusOut(): void {
   window.setTimeout(() => {
     searchFocused.value = Boolean(searchContainer.value?.contains(document.activeElement));
@@ -186,6 +204,17 @@ function onSearchFocusOut(): void {
 // sous-section le precisent, et c'est ce que l'utilisateur lit a l'ecran.
 const providedTitle = usePageTitle();
 const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
+
+/**
+ * En compact, la barre ne survit pas a une page qui n'a rien a y mettre.
+ *
+ * Elle y descend au ras du dock, et une capsule pleine largeur contenant une seule
+ * loupe y aurait l'allure d'un champ de saisie sans en etre un -- pour une recherche
+ * globale que la feuille « Plus » propose deja. Au-dessus du compact elle reste, meme
+ * vide : elle y porte le titre de la page, et sa position ne doit pas sauter d'une
+ * page a l'autre.
+ */
+const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.value));
 
 /* Les sections ne remontent ici qu'en mode deploye : plus bas, la barre n'a pas la
    largeur de les porter sans chasser le titre, seul repere visible depuis que le
@@ -228,11 +257,11 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
      arrondi, ce qui posait un voile sur le haut du champ de recherche. Un fond plein
      donne le meme resultat visuel, net, et sans couche compositee. */
   background: var(--surface-sunken);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, .28);
+  box-shadow: 0 10px 32px rgb(var(--shadow-color) / calc(.28 * var(--shadow-scale)));
   /* Pas de transition sur `left` : la valeur vient d'une variable qui change au
      repliement du rail, et l'animer figeait la position a l'ancienne valeur. Le rail
      lui-meme n'anime pas sa largeur, la barre n'a donc rien a rattraper. */
-  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translateY(calc(-100% - 14px)); pointer-events: none; }
 .app-topbar__context {
@@ -330,18 +359,19 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
 /* Ce sont les sections qui cedent la place, pas le titre : elles defilent dans leur
    propre cadre, alors qu'un titre tronque ne se recupere nulle part ailleurs. */
 .app-topbar__sections { flex: 1 1 0; min-width: 0; }
-.app-topbar__sections :deep(.app-subnav__scroller) { border: 0; background: transparent; padding: 0; }
+.app-topbar__sections :deep(.app-subnav) { width: auto; margin-inline: 0; border: 0; background: transparent; padding: 0; }
 .app-topbar__crumbs:has(~ .app-topbar__sections) { flex: 0 0 auto; max-width: 260px; }
 
 /* ── Recherche de page ──────────────────────────────────────────────────────── */
 .app-topbar__field { position: relative; display: none; flex: 1 1 auto; min-width: 0; }
 .app-topbar__field :deep(.ui-search-field) { width: 100%; max-width: none; height: 46px; }
+/* Le bouton est un segment de la capsule, pas une pastille posee dedans : il en occupe
+   toute la hauteur et vient au ras du bord droit. Le rayon vient du composant, qui
+   connait celui de la capsule. */
 .app-topbar__field :deep(.ui-search-field__filter) {
-  height: 34px;
-  margin-right: -5px;
-  padding: 0 12px;
-  border-radius: var(--radius-md);
+  padding: 0 14px;
   background: color-mix(in srgb, var(--accent) 13%, var(--surface-2));
+  border-left-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   color: var(--text);
   font-weight: 700;
 }
@@ -364,7 +394,7 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
 .app-topbar__filter-only:hover,
 .app-topbar__filter-only.active { background: color-mix(in srgb, var(--accent) 25%, var(--surface)); color: var(--accent); }
 .app-topbar__filter-only svg { width: 17px; height: 17px; }
-.app-topbar__filter-only strong { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: #1a1400; font-size: var(--fs-xs); }
+.app-topbar__filter-only strong { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); }
 .app-topbar__field :deep(.ui-search-field__filter:hover),
 .app-topbar__field :deep(.ui-search-field__filter.active) {
   background: color-mix(in srgb, var(--accent) 25%, var(--surface-2));
@@ -397,7 +427,7 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, .35);
+  box-shadow: 0 10px 26px rgb(var(--shadow-color) / calc(.35 * var(--shadow-scale)));
 }
 .app-topbar__escape:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 
@@ -413,13 +443,76 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
   border-radius: var(--radius-md);
   /* Meme raison que la barre elle-meme : opaque plutot que floute. */
   background: var(--surface-sunken);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, .38);
+  box-shadow: 0 14px 36px rgb(var(--shadow-color) / calc(.38 * var(--shadow-scale)));
 }
 .app-topbar__recent small { padding: 5px 8px; color: var(--muted); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; }
 .app-topbar__recent button { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .app-topbar__recent button:hover { background: var(--surface); }
 .app-topbar__recent svg { flex: none; width: 14px; color: var(--muted); }
 .app-topbar__recent span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Compact : la barre passe en bas ────────────────────────────────────────── */
+/* Elle reste flottante et ne reserve rien : le contenu passe dessous, et c'est le
+   masquage au defilement qui le decouvre. `--app-shell-offset-bottom` continue donc de
+   ne compter que le dock (voir `foundations/_tokens.scss`).
+   Le pouce atteint le bas de l'ecran, pas le haut -- et sur les pages de liste cette
+   barre est l'outil de travail, pas une decoration : on la manipule en parcourant ce
+   qu'elle filtre. */
+@include bp.until(shell-medium) {
+  .app-topbar {
+    top: auto;
+    bottom: calc(var(--app-shell-offset-bottom) + 8px);
+  }
+
+  /* Quand le champ occupe la barre a lui seul, l'enveloppe s'efface : elle ne groupe
+     plus rien. Gardee, elle dessinait un second objet derriere le premier -- un fond,
+     un contour et une ombre a elle, avec un rayon de 999px la ou le champ en a 16, si
+     bien que ses coins depassaient et se lisaient comme un rectangle pose derriere la
+     capsule. La barre redevient ce qu'elle est en compact : un simple support de
+     position. L'ombre passe au champ, qui est desormais la seule surface visible --
+     portee vers le haut, du cote ou le contenu passe. */
+  .app-topbar:has(.app-topbar__field) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  /* Panneau de filtres pose dessus : la capsule remplit alors la barre au lieu d'y etre
+     centree. Ses 46px dans 54 laissaient quatre pixels en haut, qui rouvraient entre le
+     panneau et elle l'interstice qu'on venait de fermer. Hors de ce cas elle garde sa
+     respiration : rien ne justifie de l'epaissir quand rien ne se pose dessus. */
+  body[data-filter-sheet] .app-topbar:has(.app-topbar__field) { align-items: stretch; }
+  body[data-filter-sheet] .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) { height: auto; }
+  .app-topbar:has(.app-topbar__field) :deep(.ui-search-field) {
+    box-shadow: 0 -8px 28px rgb(var(--shadow-color) / calc(.38 * var(--shadow-scale)));
+  }
+  /* Elle s'efface vers le bas, du cote ou elle vit. */
+  .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(100% + 14px)); }
+
+  /* Pendant la saisie, la barre descend au ras du bas de l'ecran.
+     Le dock s'efface au meme moment (voir `AppDock.vue`) : elle n'a donc plus a le
+     degager, et le creux de 64px qu'elle lui reservait se serait vu entre elle et le
+     clavier. `--keyboard-inset` ne vaut quelque chose qu'en onglet Safari, ou le
+     clavier recouvre la page : la barre s'y pose dessus. Dans une PWA installee il
+     vaut zero -- iOS a deja retreci le viewport, et le bas de l'ecran EST le haut du
+     clavier. La meme regle couvre donc les deux. */
+  /* `:has(input:focus)` et non `:focus-within` : la barre contient aussi le bouton
+     « Filtres », et le `mousedown` qui le focalise declenchait le deplacement AVANT le
+     `mouseup`. Celui-ci retombait alors hors du bouton, aucun `click` n'etait emis, et
+     le tiroir de filtres ne s'ouvrait plus du tout. Seule la zone de saisie leve un
+     clavier : elle seule doit faire bouger la barre. */
+  .app-topbar:has(.ui-search-field__input:focus) {
+    bottom: calc(var(--keyboard-inset) + max(8px, var(--safe-bottom)));
+  }
+  /* Tout ce qui se deployait sous le champ se deploie desormais au-dessus : en bas
+     d'ecran il n'y a plus de place dessous, et le clavier s'y installe. */
+  .app-topbar__escape,
+  .app-topbar__recent {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+}
 
 @include bp.from(shell-medium) {
   .app-topbar__search { display: flex; }
@@ -432,6 +525,14 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
      laissait a gauche d'une bande deux fois plus large -- 480px cales dans 972, soit
      246px hors du centre, alors que le conteneur, lui, etait bien centre. */
   .app-topbar__field :deep(.ui-search-field) { width: 100%; max-width: none; }
+  /* Meme effacement qu'en compact : sans lui, la barre dessinait une capsule grise
+     bordee autour du champ, un second contenant qui ne groupait rien. */
+  .app-topbar:has(.app-topbar__field) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
 }
 
 @include bp.from(shell-expanded) {
@@ -441,8 +542,11 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
      775 sur l'inventaire, 972 sur la bibliotheque -- et un centre decale d'autant. Les
      sortir du flux ne suffisait pas : le selecteur de periode fait 398px, il recouvrait
      le champ. Elles sont donc revenues dans la rangee de la page, ou elles ont la place
-     qu'il leur faut. */
-  .app-topbar__field {
+     qu'il leur faut.
+     Le bouton de recherche globale (pages sans recherche propre, comme l'Accueil)
+     prend la meme largeur : sans cela il s'etirait sur toute la barre. */
+  .app-topbar__field,
+  .app-topbar__search {
     flex: 0 1 auto;
     /* Largeur DEFINIE, pas `min(720px, 100%)` : la barre se dimensionne desormais sur
        son contenu, donc un pourcentage ici se resoudrait sur un parent qui depend
@@ -473,16 +577,23 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
     left: 14px;
     max-width: 90px;
   }
-  .app-topbar__field {
-    flex: 0 1 520px;
+  .app-topbar__field,
+  .app-topbar__search {
+    /* Base `auto` et non 520px : une base flex explicite l'emporte sur `width`, et le
+       champ gardait ses 520px sur une tablette en portrait (~800px), recouvrant le
+       titre. La reserve de 196px (98 par cote) doit rester garantie. */
+    flex: 0 1 auto;
     width: calc(100% - 196px);
+    max-width: 520px;
     margin: 0 auto;
   }
 }
 
 @include bp.until(tablet) {
   .app-topbar { left: max(10px, var(--safe-left)); right: max(10px, var(--safe-right)); width: auto; transform: none; }
-  .app-topbar.is-hidden:not(:focus-within) { transform: translateY(calc(-100% - 14px)); }
-
+  /* La translation d'effacement est declaree une seule fois, dans le bloc compact plus
+     haut, et vers le BAS : la barre y vit desormais. La redeclarer ici -- plus loin
+     dans la feuille, donc gagnante -- la renvoyait vers le haut, hors de son propre
+     cote, et l'effacement ne se voyait plus que par l'opacite. */
 }
 </style>

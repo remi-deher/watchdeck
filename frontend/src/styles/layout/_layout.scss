@@ -74,13 +74,6 @@
   gap: var(--space-4);
 }
 
-.panel-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-4);
-}
-
 @include bp.until(wide) {
   .media-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
@@ -96,31 +89,26 @@
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
-  background: rgba(0, 0, 0, .65);
+  z-index: var(--z-modal);
+  /* `--sheet-progress` (0 a 1) est pose pendant qu'on tire la feuille : le voile
+     s'eclaircit a mesure. Voir `useSheetGesture`. */
+  background: rgba(0, 0, 0, calc(.65 * (1 - .9 * var(--sheet-progress, 0))));
   padding-top: calc(var(--safe-top) + var(--app-shell-offset-top));
   padding-right: var(--safe-right);
   padding-left: var(--safe-left);
+  /* Glisser sur le voile ne doit rien faire defiler. Sans cela le geste cherchait le
+     premier ancetre defilant -- le document -- et emportait la page derriere la
+     feuille. Le panneau, lui, reclame explicitement le defilement vertical. */
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
-@include bp.until(tablet) {
-  /* Feuille ancrée en bas (bottom-sheet), cohérente avec le more-menu */
-  .detail-drawer,
-  .modal-panel {
-    --drawer-pad: 16px;
-    inset: auto 0 0 0;
-    width: 100%;
-    max-width: 100%;
-    max-height: 92dvh;
-    padding: var(--drawer-pad);
-    padding-left: max(var(--drawer-pad), var(--safe-left));
-    padding-right: max(var(--drawer-pad), var(--safe-right));
-    padding-bottom: max(var(--drawer-pad), var(--safe-bottom));
-    transform: none;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    border-bottom: 0;
-  }
-}
+/* La feuille ancrée en bas du mode compact vit desormais dans `components/_components.scss`,
+   juste apres la geometrie de bureau qu'elle remplace. Ici, chargee AVANT elle et a
+   specificite egale, elle ne s'appliquait jamais : une media query ne compte pas dans
+   la specificite, c'est donc la derniere regle ecrite qui l'emportait -- et le panneau
+   restait une modale centree sur telephone, a moitie sortie de l'ecran quand la
+   transition ecrasait son `translateX(-50%)`. */
 
 .drawer-head,
 .account-summary {
@@ -148,7 +136,6 @@
   border-radius: var(--panel-radius, 16px) var(--panel-radius, 16px) 0 0;
 }
 
-.detail-copy,
 .drawer-section,
 .status-stack,
 .checklist {
@@ -168,8 +155,7 @@
   .dashboard-grid,
   .metric-grid,
   .compact-metrics,
-  .settings-grid.two,
-  .template-workspace {
+  .settings-grid.two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -177,10 +163,6 @@
 @include bp.until(tablet) {
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .migration-panel {
-    grid-column: auto;
   }
 
   .timeline-row {
@@ -204,21 +186,12 @@
 
   .compact-metrics,
   .dashboard-grid,
-  .settings-grid.two,
-  .template-workspace {
+  .settings-grid.two {
     grid-template-columns: 1fr;
   }
 
   .span-two {
     grid-column: auto;
-  }
-
-  .detail-hero {
-    grid-template-columns: 100px minmax(0, 1fr);
-  }
-
-  .detail-hero > img {
-    width: 100px;
   }
 
   .calendar-day {
@@ -273,25 +246,40 @@
   .psh-layout { display: block; }
 }
 
-
 /* ── Filter-badge design system (global) ────────────────────────────────────
    Utilisé dans les sidebars de filtres (FilterGroup + FilterSidebar).
    Styles globaux pour traverser les niveaux de composants sans :deep().
    ─────────────────────────────────────────────────────────────────────────── */
+/* Une pastille, pas une ligne de liste.
+   « Action », « Pixar », « Dans Plex » sont des etiquettes courtes : leur donner chacune
+   toute la largeur transformait le panneau en rouleau. Sur Explorer il mesurait 3168px
+   pour une fenetre de 628 -- 21 genres et plus de 30 diffuseurs, un par ligne. En
+   pastilles qui s'enroulent, les memes 21 genres tiennent en quatre lignes.
+
+   `width: auto` suppose un parent qui enveloppe (voir `.filter-group-body`) ; les rares
+   entrees qui ont besoin de la largeur, parce qu'elles portent un compteur a droite, la
+   demandent par `.filter-badge--wide`. */
 .filter-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
   background: var(--surface-2);
-  color: var(--text-muted, #aaa);
-  font-size: 13px;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  transition: border-color var(--motion-duration-instant), background var(--motion-duration-instant), color var(--motion-duration-instant);
   text-align: left;
+  white-space: nowrap;
+}
+
+.filter-badge:has(.count) {
   width: 100%;
+  justify-content: space-between;
+  border-radius: var(--radius-sm);
 }
 .filter-badge:hover {
   border-color: var(--border);
@@ -307,7 +295,7 @@
 .filter-badge.excluded {
   border-color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
-  color: var(--danger);
+  color: var(--red-text);
   text-decoration: line-through;
 }
 .filter-badge .count {
@@ -320,13 +308,12 @@
 }
 .filter-badge.active .count {
   background: var(--accent);
-  color: #1a1400;
+  color: var(--on-accent);
 }
 .group-label {
   font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--text);
   letter-spacing: 0.5px;
 }
-

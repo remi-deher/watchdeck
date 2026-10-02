@@ -28,11 +28,12 @@ from ..models import (
 )
 from ..pagination import PaginationParams, paginated_response, pagination_params
 from ..scheduler import check_arr_statuses, poll_watchlists
-from ..services import arr_orphans, deleted_media, email_service, radarr, sonarr
+from ..services import arr_orphans, deleted_media, email_service, radarr, request_tracking, sonarr
 from ..services.notification_orchestrator import _get_recipients, _notify, _resolve_requester_users, notify_single_user
+from ..services.notification_policy import is_pseudo_requester
 from ..services.request_lifecycle import transition_request
 from ..services.vf_cache import delete_request_episode_cache
-from ..utils import async_get_or_404, now_utc_naive, parse_email_list
+from ..utils import async_get_or_404, now_utc_naive, parse_email_list, plex_image_proxy_url, wrap_image_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,18 @@ router = APIRouter(prefix="/api", tags=["requests"], dependencies=[Depends(requi
 
 
 def _caller_plex_user_id(request, db: AsyncSession) -> str | None:
+    """Identifiant servant a cloisonner les demandes d'un simple utilisateur.
+
+    None signifie « aucun filtre » : reserve aux admins et aux appels par token API.
+    Un utilisateur dont la session ne porte pas d'identite est refuse plutot que de
+    voir les demandes de tout le monde."""
     caller = current_user(request, db)
     if not caller or caller.get("is_owner") or caller.get("role") == "admin":
         return None
-    return caller.get("plex_user_id")
+    uid = caller.get("plex_user_id")
+    if not uid:
+        raise HTTPException(status_code=403, detail="Impossible d'identifier le compte demandeur.")
+    return uid
 
 
 async def _ensure_request_visible(req: MediaRequest, request, db: AsyncSession) -> None:
@@ -419,7 +428,17 @@ async def list_requests_compact(
                 MediaRequest.arr_id,
                 MediaRequest.episodes_available_count,
                 MediaRequest.episodes_aired_count,
+                MediaRequest.episodes_total_count,
                 MediaRequest.requested_at,
+                MediaRequest.fulfillment_status,
+                MediaRequest.fulfillment_updated_at,
+                MediaRequest.fulfillment_error,
+                MediaRequest.next_release_at,
+                MediaRequest.next_release_label,
+                MediaRequest.arr_processed_at,
+                MediaRequest.torrent_completed_at,
+                MediaRequest.available_at,
+                MediaRequest.vf_tracking_disabled,
             )
             .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
             .filter(*filters)
@@ -455,9 +474,27 @@ async def list_requests_compact(
         )
     ).all()
 
+    # Suivi de la page Demandes : motif d'attente, progression, fil de vie. La file de
+    # telechargement n'est lue que si une demande est encore en cours, depuis le cache
+    # commun ; indisponible, les cartes gardent leur motif sans pourcentage.
+    now = now_utc_naive()
+    queue_index: dict[int, dict] = {}
+    if any((row.status.value if hasattr(row.status, "value") else row.status) != "available" for row in rows):
+        try:
+            from .arr_queue_api import cached_download_queue
+
+            queue_index = request_tracking.queue_by_request(await cached_download_queue(db))
+        except Exception as exc:  # file illisible : le suivi reste utile sans elle
+            logger.debug("File de telechargement indisponible pour le suivi des demandes: %s", exc)
+
     return paginated_response(
         items=[
             {
+                "tracking": request_tracking.tracking_state(row, now, queue_index.get(row.id)),
+                "lifecycle": request_tracking.lifecycle(row),
+                "vf_missing": request_tracking.vf_missing(row),
+                "episodes_total_count": row.episodes_total_count,
+                "fulfillment_error": row.fulfillment_error,
                 "id": row.id,
                 "title": row.title,
                 "year": row.year,
@@ -465,10 +502,12 @@ async def list_requests_compact(
                 "status": row.status.value if hasattr(row.status, "value") else row.status,
                 "source": row.source,
                 "plex_user_id": row.plex_user_id,
-                "plex_user": row.plex_user,
+                "plex_user": None if is_pseudo_requester(row.plex_user_id) else row.plex_user,
                 "custom_name": row.custom_name,
-                "requested_by": row.custom_name or row.plex_user or row.plex_user_id,
-                "poster_url": row.poster_url,
+                "requested_by": None
+                if is_pseudo_requester(row.plex_user_id)
+                else row.custom_name or row.plex_user or row.plex_user_id,
+                "poster_url": wrap_image_proxy(row.poster_url),
                 "has_vf": row.has_vf,
                 "fr_is_default": row.fr_is_default,
                 "library_item_id": row.library_item_id,
@@ -486,7 +525,11 @@ async def list_requests_compact(
         facets={
             "by_type": {kind: count for kind, count in type_rows},
             "sources": sorted(source_rows),
-            "requesters": [{"id": row[0], "label": row[1] or row[2] or row[0]} for row in requester_rows if row[0]],
+            "requesters": [
+                {"id": row[0], "label": row[1] or row[2] or row[0]}
+                for row in requester_rows
+                if not is_pseudo_requester(row[0])
+            ],
         },
     )
 
@@ -611,9 +654,7 @@ async def plex_library_search(query: str, db: AsyncSession = Depends(get_db_asyn
                     "title": i.get("title", ""),
                     "year": i.get("year"),
                     "media_type": "show" if i.get("type") in ("show", "season", "episode") else "movie",
-                    "thumb": f"{s.plex_url.rstrip('/')}{i['thumb']}?X-Plex-Token={s.plex_token}"
-                    if i.get("thumb")
-                    else None,
+                    "thumb": plex_image_proxy_url(i.get("thumb")),
                     "summary": i.get("summary", ""),
                     "plex_type": i.get("type", ""),
                 }
@@ -1032,6 +1073,7 @@ async def withdraw_request(
                     media_type=req.media_type,
                     req_id=req.id,
                     is_admin=True,
+                    reason=reason,
                 )
                 try:
                     await email_service.send_cancelled_notification(settings, req, recipient, reason=reason)
@@ -1045,6 +1087,72 @@ async def withdraw_request(
     await db.delete(req)
     await db.commit()
     return {"status": "withdrawn", "plex_source": is_plex_source}
+
+
+async def _trace_self_cancellation(db: AsyncSession, req: MediaRequest, uid: str | None) -> None:
+    """Journalise -- et, si le demandeur l'a demande, notifie l'administrateur -- quand un
+    utilisateur annule lui-meme sa demande.
+
+    Ce chemin ne laissait aucune trace : la demande disparaissait de la liste sans mail,
+    sans entree au journal, sans rien. La creation, elle, est annoncee ; l'administrateur
+    voyait donc arriver les demandes mais jamais leur retrait, et ne pouvait pas savoir
+    qu'un media avait cesse d'etre attendu, ni pourquoi il n'etait plus suivi.
+
+    Le mail suit le reglage du demandeur (`notify_admin`), comme pour tous les autres
+    evenements. Sans lui, il reste la trace : elle porte le canal « none », qui dit qu'il
+    n'y avait rien a envoyer -- une ligne `success` sur le canal e-mail ferait croire a un
+    envoi, et la file de reprise irait la retenter.
+    """
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if not settings:
+        return
+
+    demandeur = None
+    if uid:
+        demandeur = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid))).scalars().first()
+    nom = (demandeur.display_name if demandeur else None) or req.plex_user or uid or "un utilisateur"
+
+    veut_prevenir_admin = bool(getattr(demandeur, "notify_admin", True)) if demandeur else False
+    destinataires: list[str] = []
+    if settings.email_enabled and veut_prevenir_admin:
+        destinataires = parse_email_list(settings.admin_notification_email or "")
+
+    if not destinataires:
+        db.add(
+            NotificationLog(
+                sent_at=now_utc_naive(),
+                event="cancelled",
+                channel="none",
+                recipient="",
+                success=True,
+                media_title=req.title,
+                media_type=req.media_type,
+                req_id=req.id,
+                is_admin=True,
+            )
+        )
+        return
+
+    motif = f"Demande annulee par {nom}."
+    for destinataire in destinataires:
+        log = NotificationLog(
+            sent_at=now_utc_naive(),
+            event="cancelled",
+            recipient=destinataire,
+            success=True,
+            media_title=req.title,
+            media_type=req.media_type,
+            req_id=req.id,
+            is_admin=True,
+            reason=motif,
+        )
+        try:
+            await email_service.send_cancelled_notification(settings, req, destinataire, reason=motif)
+        except Exception as e:  # noqa: BLE001 - l'annulation aboutit meme si le mail echoue
+            logger.warning(f"Envoi du mail 'cancelled' echoue pour {destinataire} (req#{req.id}): {e}")
+            log.success = False
+            log.error_msg = str(e)
+        db.add(log)
 
 
 @router.post("/requests/{request_id}/cancel")
@@ -1089,6 +1197,7 @@ async def cancel_own_request(request_id: int, request: Request, db: AsyncSession
 
     if not remaining:
         # Seul demandeur (ou admin annulant) : on annule la demande localement.
+        await _trace_self_cancellation(db, req, uid)
         await delete_request_episode_cache(db, req.id)
         await db.delete(req)
         await db.commit()

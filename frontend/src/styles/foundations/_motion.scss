@@ -1,29 +1,23 @@
+/* Langage de mouvement : memes valeurs que `frontend/src/motion/tokens.ts`. Toute
+ * transition passe par ces variables plutot que par une duree ecrite a la main. */
 :root {
-  --motion-duration-fast: 140ms;
-  --motion-duration-base: 220ms;
+  --motion-duration-instant: 120ms;
+  --motion-duration-fast: 200ms;
+  --motion-duration-base: 320ms;
   --motion-duration-reveal: 320ms;
+  --motion-duration-ample: 500ms;
   --motion-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --motion-ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* Ressort approche en CSS (depassement leger), pour les surfaces sans script. */
+  --motion-ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067, 1.099 24.3%, 1.108 26%, 1.100, 1.079 30.1%, 1.017 35.8%, 0.99 39.7%, 0.984 43.1%, 0.988 48.4%, 1.001 57%, 1);
 }
 
-/* Navigation between application views. The movement stays deliberately small so
- * content feels continuous without slowing down frequent navigation. */
-.page-shift-enter-active,
-.page-shift-leave-active {
-  transition:
-    opacity var(--motion-duration-base) var(--motion-ease-standard),
-    transform var(--motion-duration-base) var(--motion-ease-standard);
-}
-
-.page-shift-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-.page-shift-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
+/* `page-shift` a ete retire : il visait une `<Transition>` autour du `<RouterView>`, et
+ * plusieurs vues ont une racine multiple que Vue ne sait pas animer -- il avertit, puis
+ * laisse la vue sortante superposee a la nouvelle. Le fondu entre pages est desormais
+ * rendu par les transitions de vue du navigateur, plus bas dans ce fichier.
+ */
 
 /* PageShell provides a shared, capped stagger for headers, feedback and panels. */
 @keyframes page-content-reveal {
@@ -52,30 +46,8 @@
 .page-motion > :nth-child(7) { --motion-index: 6; }
 .page-motion > :nth-child(n + 8) { --motion-index: 7; }
 
-/* Reusable opt-in utilities for list-like content outside PageShell. */
-.motion-reveal {
-  animation: page-content-reveal var(--motion-duration-reveal) var(--motion-ease-emphasized) backwards;
-}
-
-.motion-stagger > * {
-  animation: page-content-reveal var(--motion-duration-reveal) var(--motion-ease-emphasized) backwards;
-  animation-delay: calc(min(var(--motion-index, 0), 12) * 28ms);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .page-shift-enter-active,
-  .page-shift-leave-active {
-    transition: opacity var(--motion-duration-fast) ease;
-  }
-
-  .page-shift-enter-from,
-  .page-shift-leave-to {
-    transform: none;
-  }
-
-  .page-motion > *,
-  .motion-reveal,
-  .motion-stagger > * {
+  .page-motion > * {
     animation: none;
   }
 }
@@ -101,8 +73,6 @@
 .app-nav-link,
 .app-subnav__item,
 .filter-badge,
-.quick-chip,
-.type-chip,
 .kpi-card,
 .hero-btn,
 .icon-button,
@@ -116,8 +86,6 @@
 .app-nav-link:active,
 .app-subnav__item:active,
 .filter-badge:active,
-.quick-chip:active,
-.type-chip:active,
 .kpi-card:active,
 .hero-btn:active,
 .icon-button:active,
@@ -134,37 +102,48 @@
 @media (hover: none) {
   .poster-card:active { transform: scale(0.985); }
 }
-
-/* ───────────────────────── Entree des surfaces modales ─────────────────────────
- *
- * Modales et tiroirs apparaissaient d'un seul coup, sans transition : sur un ecran
- * sombre, l'oeil ne sait pas d'ou vient le panneau et doit le relire entierement.
- * Le voile se fond, le panneau monte de quelques pixels en prenant sa taille.
- */
-.modal-fade-enter-active .modal-panel,
-.modal-fade-leave-active .modal-panel {
-  transition:
-    opacity var(--motion-duration-base) var(--motion-ease-emphasized),
-    transform var(--motion-duration-base) var(--motion-ease-emphasized);
+/* Meme mouvement pour les surfaces Reka UI, pilotees par `data-state` : Reka attend la
+   fin de l'animation de fermeture pour retirer la surface. */
+.drawer-backdrop[data-state="open"] { animation: surface-voile-in var(--motion-duration-base) var(--motion-ease-standard); }
+.drawer-backdrop[data-state="closed"] { animation: surface-voile-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
+.modal-panel[data-state="open"] { animation: surface-carte-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+.modal-panel[data-state="closed"] { animation: surface-carte-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
+@keyframes surface-voile-in { from { opacity: 0; } }
+@keyframes surface-voile-out { to { opacity: 0; } }
+@keyframes surface-carte-in { from { opacity: 0; transform: translate(-50%, 10px) scale(0.985); } }
+@keyframes surface-carte-out { to { opacity: 0; transform: translate(-50%, 10px) scale(0.985); } }
+@media (max-width: 767.98px) {
+  /* Feuille ancree en bas : elle monte de tout son long, et redescend. */
+  .modal-panel[data-state="open"] { animation: surface-feuille-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+  .modal-panel[data-state="closed"] { animation: surface-feuille-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
 }
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
+/* Tiroir de detail : il arrive du bord droit sur ordinateur, du bas sur telephone. */
+@media (min-width: 768px) {
+  .detail-drawer[data-state="open"] { animation: surface-tiroir-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+  .detail-drawer[data-state="closed"] { animation: surface-tiroir-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
 }
-.modal-fade-enter-from,
-.modal-fade-leave-to { opacity: 0; }
-.modal-fade-enter-from .modal-panel,
-.modal-fade-leave-to .modal-panel {
-  opacity: 0;
-  transform: translateY(10px) scale(0.985);
+@media (max-width: 767.98px) {
+  .detail-drawer[data-state="open"] { animation: surface-feuille-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+  .detail-drawer[data-state="closed"] { animation: surface-feuille-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
+}
+@keyframes surface-tiroir-in { from { transform: translate3d(100%, 0, 0); } }
+@keyframes surface-tiroir-out { to { transform: translate3d(100%, 0, 0); } }
+@keyframes surface-feuille-in { from { transform: translate3d(0, 100%, 0); } }
+@keyframes surface-feuille-out { to { transform: translate3d(0, 100%, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop[data-state], .modal-panel[data-state], .detail-drawer[data-state] { animation: none !important; }
 }
 
 /* En bas d'ecran la feuille vient du bord, pas du centre : c'est de la qu'on l'a
    appelee, et c'est la que le pouce la refermera. */
 @media (max-width: 767.98px) {
+  /* La feuille monte de tout son long, avec le leger depassement du ressort : elle
+     arrive, elle n'apparait pas. L'opacite reste pleine -- une feuille qui se fond en
+     glissant a l'air d'un fantome. */
   .modal-fade-enter-from .modal-panel,
   .modal-fade-leave-to .modal-panel {
-    transform: translateY(16px);
+    opacity: 1;
+    transform: translateY(100%);
   }
 }
 
@@ -174,15 +153,19 @@
   .app-nav-link:active,
   .app-subnav__item:active,
   .filter-badge:active,
-  .quick-chip:active,
-  .type-chip:active,
   .kpi-card:active,
   .hero-btn:active,
   .icon-button:active,
   .text-button:active,
   .app-dock__link:active,
   .poster-card:active { transform: none; }
-
-  .modal-fade-enter-from .modal-panel,
-  .modal-fade-leave-to .modal-panel { transform: none; }
 }
+
+/* Le transport de l'affiche jusqu'a la fiche a ete retire : il mesurait et deplacait
+ * l'affiche pendant que la fiche se construisait, et saccadait sur iPhone.
+ */
+
+/* L'apparition des cartes vit avec la carte elle-meme (`MediaCardShell`) : elle se joue
+ * une fois au montage. La variante pilotee par le defilement a ete retiree, elle faisait
+ * saccader les grandes grilles (voir le commentaire de `onRevealEnd`).
+ */

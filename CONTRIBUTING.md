@@ -74,8 +74,12 @@ docker logs plex-rss -f
 ## Tests
 
 La suite de tests utilise **pytest** + **pytest-asyncio**. Tous les tests sont dans `tests/`.
+Elle tourne sur PostgreSQL, seul moteur pris en charge : démarrez d'abord la base jetable.
 
 ```bash
+# Base PostgreSQL de test (en mémoire, port 5433)
+docker compose --profile test up -d postgres-test
+
 # Lancer tous les tests
 python -m pytest -v
 
@@ -90,7 +94,7 @@ python -m pytest tests/test_scheduler.py::test_poll_new_item_creates_request_and
 
 - Chaque fichier de service a son fichier de test miroir : `app/services/sonarr.py` → `tests/test_sonarr.py`.
 - Les tests unitaires mockent toujours les appels réseau (`httpx`, `aiosmtplib`) et ne touchent jamais de services externes réels.
-- Les tests qui accèdent à la base de données utilisent une DB SQLite **in-memory** avec `StaticPool` pour l'isolation entre les tests.
+- Les tests qui accèdent à la base passent par `make_test_session()` (ou la fixture `async_db`) : chaque test tourne dans une transaction PostgreSQL annulée à la fin, la base redevient vierge sans recréer le schéma.
 - Les endpoints FastAPI sont testés via `TestClient` avec `dependency_overrides` pour bypasser l'authentification et injecter la DB de test.
 
 ### Structure des tests
@@ -203,17 +207,16 @@ Les migrations sont dans `alembic/versions/`. Vérifiez toujours le fichier gén
 
 ```
 app/
-├── main.py                  # Point d'entrée FastAPI, lifespan (scheduler + worker)
+├── main.py                  # Point d'entrée FastAPI, lifespan, service de la SPA Vue
 ├── models.py                # Modèles SQLAlchemy : Settings, PlexUser, MediaRequest
-├── database.py              # Engine SQLite, SessionLocal, get_db
-├── scheduler.py             # poll_watchlists() + check_arr_statuses() (APScheduler)
-├── notification_queue.py    # Worker asyncio.Queue pour les emails / Discord / Telegram
+├── database.py              # Engine PostgreSQL (asyncpg), AsyncSessionLocal, get_db_async
+├── jobs.py                  # Worker ARQ : tâches planifiées et envoi des notifications
+├── notification_queue.py    # Notifications persistées puis envoyées par le worker ARQ
 ├── metrics.py               # Compteurs in-memory (latences, taux d'erreur)
 ├── log_buffer.py            # Handler logging circulaire (500 entrées, vue /logs)
 ├── routers/
 │   ├── api.py               # API REST JSON (/api/*)
-│   ├── auth.py              # Login, logout, setup wizard
-│   ├── pages.py             # Pages HTML rendues côté serveur (Jinja2)
+│   ├── auth.py              # API de connexion, installation, confidentialité (pages en Vue)
 │   ├── webhook.py           # Webhooks entrants Sonarr / Radarr / Plex
 │   ├── importexport.py      # Import / Export JSON
 │   └── email_templates.py   # Éditeur de templates email custom
@@ -266,7 +269,7 @@ Oui. Créez `app/services/monservice.py` avec `check_connection`, `request_media
 Les logs du scheduler sont accessibles dans l'UI sous **Logs**, ou via `docker logs plex-rss -f`. Le niveau DEBUG peut être activé en modifiant `logging.basicConfig` dans `main.py`.
 
 **Les tests modifient-ils ma base de données locale ?**
-Non. Tous les tests utilisent une base SQLite in-memory créée et détruite pour chaque test. Votre `data/plex_rss.db` n'est jamais touchée.
+Non. Ils utilisent la base jetable `postgres-test` (profil Compose `test`, port 5433), jamais la base `db` de l'application, et chaque test annule sa transaction.
 
 **Comment tester un webhook localement ?**
 Avec [ngrok](https://ngrok.com/) ou [localtunnel](https://theboroer.github.io/localtunnel-www/) pour exposer `localhost:8000` sur internet, puis configurez l'URL dans Sonarr/Radarr/Plex.

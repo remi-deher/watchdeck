@@ -14,23 +14,20 @@
         <ToggleSwitch v-model="form.vf_upgrade_enabled" title="Activer les améliorations VF" />
       </SettingsRow>
       <SettingsRow label="Médias VO" description="Médias dont aucune piste française n'a été détectée." :disabled="!form.vf_upgrade_enabled">
-        <input v-model="form.vf_upgrade_include_vo" :disabled="!form.vf_upgrade_enabled" type="checkbox">
+        <UiCheckbox v-model="form.vf_upgrade_include_vo" :disabled="!form.vf_upgrade_enabled" />
       </SettingsRow>
       <SettingsRow label="Saisons mixtes" description="Séries dont une partie seulement des épisodes est en VF." :disabled="!form.vf_upgrade_enabled">
-        <input v-model="form.vf_upgrade_include_mixed" :disabled="!form.vf_upgrade_enabled" type="checkbox">
+        <UiCheckbox v-model="form.vf_upgrade_include_mixed" :disabled="!form.vf_upgrade_enabled" />
       </SettingsRow>
       <SettingsRow label="Médias déjà en VF" :disabled="!form.vf_upgrade_enabled || form.vf_upgrade_protect_existing_vf">
-        <input v-model="form.vf_upgrade_include_vf" :disabled="!form.vf_upgrade_enabled || form.vf_upgrade_protect_existing_vf" type="checkbox">
+        <UiCheckbox v-model="form.vf_upgrade_include_vf" :disabled="!form.vf_upgrade_enabled || form.vf_upgrade_protect_existing_vf" />
       </SettingsRow>
       <SettingsRow
         label="Stratégie des saisons mixtes"
         :description="mixedModeHelp"
         :disabled="!form.vf_upgrade_enabled || !form.vf_upgrade_include_mixed || form.vf_upgrade_protect_existing_vf"
       >
-        <select v-model="form.vf_upgrade_mixed_mode" :disabled="!form.vf_upgrade_enabled || !form.vf_upgrade_include_mixed || form.vf_upgrade_protect_existing_vf">
-          <option value="episodes">Épisodes VO uniquement</option>
-          <option value="season">Pack saison complet</option>
-        </select>
+        <UiSelect v-model="form.vf_upgrade_mixed_mode" :disabled="!form.vf_upgrade_enabled || !form.vf_upgrade_include_mixed || form.vf_upgrade_protect_existing_vf" :options="[{ value: 'episodes', label: 'Épisodes VO uniquement' }, { value: 'season', label: 'Pack saison complet' }]" />
       </SettingsRow>
       <SettingsRow label="Protéger les fichiers déjà en VF" description="Aucun fichier français existant ne sera remplacé automatiquement.">
         <ToggleSwitch v-model="form.vf_upgrade_protect_existing_vf" title="Protéger les fichiers déjà en VF" />
@@ -94,7 +91,7 @@
         <input v-model="form.vf_upgrade_preference" placeholder="truefrench,vff,vfi,multi,vfq">
       </SettingsRow>
       <SettingsRow label="Confiance minimale" :description="confidenceHint">
-        <input v-model.number="form.vf_upgrade_min_confidence" type="range" min="0" max="100" step="5">
+        <UiSlider v-model="form.vf_upgrade_min_confidence" :min="0" :max="100" :step="5" label="Confiance minimale" />
       </SettingsRow>
       <SettingsRow label="Accepter un doublage québécois (VFQ)" description="Une VFQ est un vrai doublage français, mais différent de la VF de France.">
         <ToggleSwitch v-model="form.vf_upgrade_accept_vfq" title="Accepter un doublage québécois (VFQ)" />
@@ -121,10 +118,10 @@
         <ToggleSwitch v-model="form.vf_upgrade_protect_custom_format_score" title="Ne pas baisser le score CF" />
       </SettingsRow>
       <SettingsRow label="Taille minimale" description="En Go. Vide = aucune limite.">
-        <input v-model.number="form.vf_upgrade_min_size_gb" type="number" min="0" step="0.1" placeholder="Aucune">
+        <UiNumberField v-model="form.vf_upgrade_min_size_gb" :min="0" :step="0.1" placeholder="Aucune" />
       </SettingsRow>
       <SettingsRow label="Taille maximale" description="En Go. Vide = aucune limite.">
-        <input v-model.number="form.vf_upgrade_max_size_gb" type="number" min="0" step="0.1" placeholder="Aucune">
+        <UiNumberField v-model="form.vf_upgrade_max_size_gb" :min="0" :step="0.1" placeholder="Aucune" />
       </SettingsRow>
       <SettingsRow label="Autoriser une régression technique" description="Uniquement après confirmation manuelle.">
         <ToggleSwitch v-model="form.vf_upgrade_allow_technical_downgrade" title="Autoriser une régression technique" />
@@ -133,29 +130,22 @@
 
     <SettingsSection title="Recherche et performances" subtitle="Cadence les indexeurs sans les saturer.">
       <SettingsRow label="Cooldown" description="En heures, entre deux recherches sur un même média.">
-        <input v-model.number="form.vf_upgrade_cooldown_hours" type="number" min="1" max="720">
+        <UiNumberField v-model="form.vf_upgrade_cooldown_hours" :min="1" :max="720" />
       </SettingsRow>
       <SettingsRow label="Relance après échec" description="En heures.">
-        <input v-model.number="form.vf_upgrade_retry_hours" type="number" min="1" max="168">
+        <UiNumberField v-model="form.vf_upgrade_retry_hours" :min="1" :max="168" />
       </SettingsRow>
       <SettingsRow label="Recherches par passage">
-        <input v-model.number="form.vf_upgrade_max_searches_per_run" type="number" min="1" max="500">
+        <UiNumberField v-model="form.vf_upgrade_max_searches_per_run" :min="1" :max="500" />
       </SettingsRow>
       <SettingsRow label="Concurrence" description="Recherches menées en parallèle.">
-        <input v-model.number="form.vf_upgrade_search_concurrency" type="number" min="1" max="25">
+        <UiNumberField v-model="form.vf_upgrade_search_concurrency" :min="1" :max="25" />
       </SettingsRow>
       <SettingsRow label="Cadence de lancement" description="Délai (ms) entre le lancement de deux recherches, indépendant de la concurrence. Permet d'empiler plus de recherches en vol sans rafale brutale vers les indexeurs. 0 = désactivé.">
-        <input v-model.number="form.vf_upgrade_search_stagger_ms" type="number" min="0" max="60000" step="100">
+        <UiNumberField v-model="form.vf_upgrade_search_stagger_ms" :min="0" :max="60000" :step="100" />
       </SettingsRow>
       <SettingsRow label="Priorité des cibles" description="Détermine quelles recherches entrent dans la limite de chaque passage.">
-        <select v-model="form.vf_upgrade_priority">
-          <option value="mixed,vo,vf">Saisons mixtes, puis VO, puis VF</option>
-          <option value="mixed,vf,vo">Saisons mixtes, puis VF, puis VO</option>
-          <option value="vo,mixed,vf">VO, puis saisons mixtes, puis VF</option>
-          <option value="vo,vf,mixed">VO, puis VF, puis saisons mixtes</option>
-          <option value="vf,mixed,vo">VF, puis saisons mixtes, puis VO</option>
-          <option value="vf,vo,mixed">VF, puis VO, puis saisons mixtes</option>
-        </select>
+        <UiSelect v-model="form.vf_upgrade_priority" :options="[{ value: 'mixed,vo,vf', label: 'Saisons mixtes, puis VO, puis VF' }, { value: 'mixed,vf,vo', label: 'Saisons mixtes, puis VF, puis VO' }, { value: 'vo,mixed,vf', label: 'VO, puis saisons mixtes, puis VF' }, { value: 'vo,vf,mixed', label: 'VO, puis VF, puis saisons mixtes' }, { value: 'vf,mixed,vo', label: 'VF, puis saisons mixtes, puis VO' }, { value: 'vf,vo,mixed', label: 'VF, puis VO, puis saisons mixtes' }]" />
       </SettingsRow>
       <SettingsRow label="Prioriser les séries en cours de diffusion" description="Par défaut, l'efficacité prime (season pack d'une série terminée en tête, une seule recherche couvre toute la saison). Activé, les épisodes récents d'une série en cours passent devant.">
         <ToggleSwitch v-model="form.vf_upgrade_prioritize_continuing" title="Prioriser les séries en cours de diffusion" />
@@ -164,16 +154,16 @@
         <ToggleSwitch v-model="form.vf_upgrade_episodic_fallback" title="Fallback épisodique" />
       </SettingsRow>
       <SettingsRow label="Épisodes max par saison" description="Plafonne les recherches par épisode générées en fallback, pour qu'une série ne monopolise pas le budget de recherches." :disabled="!form.vf_upgrade_episodic_fallback">
-        <input v-model.number="form.vf_upgrade_episodic_fallback_limit" :disabled="!form.vf_upgrade_episodic_fallback" type="number" min="0" max="50">
+        <UiNumberField v-model="form.vf_upgrade_episodic_fallback_limit" :disabled="!form.vf_upgrade_episodic_fallback" :min="0" :max="50" />
       </SettingsRow>
       <SettingsRow label="Fenêtre de récence" description="En jours. Pour une série en cours de diffusion, seuls les épisodes diffusés dans cette fenêtre entrent dans le fallback." :disabled="!form.vf_upgrade_episodic_fallback">
-        <input v-model.number="form.vf_upgrade_episodic_fallback_days" :disabled="!form.vf_upgrade_episodic_fallback" type="number" min="1" max="365">
+        <UiNumberField v-model="form.vf_upgrade_episodic_fallback_days" :disabled="!form.vf_upgrade_episodic_fallback" :min="1" :max="365" />
       </SettingsRow>
       <SettingsRow label="Cooldown après échec" description="En heures. Double à chaque recherche restée bredouille sur une même cible, pour ne pas la retenter en boucle.">
-        <input v-model.number="form.vf_upgrade_no_result_backoff_base_hours" type="number" min="1" max="168">
+        <UiNumberField v-model="form.vf_upgrade_no_result_backoff_base_hours" :min="1" :max="168" />
       </SettingsRow>
       <SettingsRow label="Cooldown maximal après échecs répétés" description="En heures. Plafond du cooldown progressif ci-dessus.">
-        <input v-model.number="form.vf_upgrade_no_result_backoff_max_hours" type="number" min="1" max="720">
+        <UiNumberField v-model="form.vf_upgrade_no_result_backoff_max_hours" :min="1" :max="720" />
       </SettingsRow>
     </SettingsSection>
 
@@ -182,19 +172,19 @@
         <ToggleSwitch v-model="form.vf_upgrade_verify_after_import" title="Vérifier les pistes après import" />
       </SettingsRow>
       <SettingsRow label="Délai de validation" description="En minutes." :disabled="!form.vf_upgrade_verify_after_import">
-        <input v-model.number="form.vf_upgrade_verification_timeout_minutes" :disabled="!form.vf_upgrade_verify_after_import" type="number" min="15" max="1440">
+        <UiNumberField v-model="form.vf_upgrade_verification_timeout_minutes" :disabled="!form.vf_upgrade_verify_after_import" :min="15" :max="1440" />
       </SettingsRow>
       <SettingsRow label="Tentatives automatiques maximales" description="Une recherche manuelle reste toujours possible." :disabled="!form.vf_upgrade_verify_after_import">
-        <input v-model.number="form.vf_upgrade_max_retries" :disabled="!form.vf_upgrade_verify_after_import" type="number" min="0" max="10">
+        <UiNumberField v-model="form.vf_upgrade_max_retries" :disabled="!form.vf_upgrade_verify_after_import" :min="0" :max="10" />
       </SettingsRow>
       <SettingsRow label="Demander une nouvelle analyse Plex" description="À la fin du téléchargement." :disabled="!form.vf_upgrade_verify_after_import">
-        <input v-model="form.vf_upgrade_trigger_plex_scan" :disabled="!form.vf_upgrade_verify_after_import" type="checkbox">
+        <UiCheckbox v-model="form.vf_upgrade_trigger_plex_scan" :disabled="!form.vf_upgrade_verify_after_import" />
       </SettingsRow>
       <SettingsRow label="Mettre en liste noire une release non validée">
         <ToggleSwitch v-model="form.vf_upgrade_blacklist_failed" title="Mettre en liste noire une release non validée" />
       </SettingsRow>
       <SettingsRow label="Conservation de l'historique" description="En jours.">
-        <input v-model.number="form.vf_upgrade_history_retention_days" type="number" min="1" max="3650">
+        <UiNumberField v-model="form.vf_upgrade_history_retention_days" :min="1" :max="3650" />
       </SettingsRow>
     </SettingsSection>
 
@@ -219,7 +209,12 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiSlider from '@/components/ui/UiSlider.vue';
+import UiNumberField from '@/components/ui/UiNumberField.vue';
 import { computed, ref } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { form } from '@/settingsForm';
@@ -254,34 +249,38 @@ const confidenceHint = computed(() => {
 /* Diagnostic de la configuration langue des instances *arr : lecture seule, a la
    demande (un appel par instance vers /customformat + /qualityprofile), jamais au
    chargement de l'onglet. */
-const diagnostic = ref<any>(null);
-const diagLoading = ref(false);
+const queryClient = useQueryClient();
+const diagnosticQuery = useQuery({
+  queryKey: ['settings', 'vf-upgrades', 'arr-language-config'],
+  queryFn: () => api('/api/vf-upgrades/arr-language-config'),
+  enabled: false,
+});
+const diagnostic = computed(() => diagnosticQuery.data.value || null);
+const diagLoading = computed(() => diagnosticQuery.isFetching.value);
 const diagError = ref('');
-const installing = ref<number | null>(null);
+const installMutation = useMutation({
+  mutationFn: (id: number) => api<any>(`/api/vf-upgrades/arr-language-config/${id}/custom-format`, { method: 'POST' }),
+  retry: 0,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'vf-upgrades', 'arr-language-config'] }),
+});
+const installing = computed(() => installMutation.isPending.value ? Number(installMutation.variables.value) : null);
 
 async function loadDiagnostic() {
-  diagLoading.value = true;
   diagError.value = '';
   try {
-    diagnostic.value = await api('/api/vf-upgrades/arr-language-config');
+    await diagnosticQuery.refetch();
   } catch (e: any) {
     diagError.value = e?.message || 'Analyse impossible.';
-  } finally {
-    diagLoading.value = false;
   }
 }
 
 async function installCustomFormat(inst: any) {
-  installing.value = inst.id;
   diagError.value = '';
   try {
-    const res = await api(`/api/vf-upgrades/arr-language-config/${inst.id}/custom-format`, { method: 'POST' });
+    const res = await installMutation.mutateAsync(inst.id);
     diagError.value = res.next_step || '';
-    await loadDiagnostic();
   } catch (e: any) {
     diagError.value = e?.message || 'Création impossible.';
-  } finally {
-    installing.value = null;
   }
 }
 
@@ -317,6 +316,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .diag-btn {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
@@ -324,7 +324,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
   background: var(--surface-2);
   color: var(--text);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 
   &:disabled { opacity: 0.6; cursor: default; }
 }
@@ -333,11 +333,11 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 .diag-error,
 .diag-explain {
   margin: 0 0 var(--space-2);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
 }
 
-.diag-error { color: var(--warning, #e5a00d); }
+.diag-error { color: var(--amber-text); }
 
 .diag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
 
@@ -351,16 +351,16 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 
 .diag-verdict {
   padding: 0 var(--space-2);
-  border-radius: 999px;
-  font-size: 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.verdict-native { background: rgba(29, 185, 84, 0.15); color: #1db954; }
-.verdict-partial { background: rgba(229, 160, 13, 0.15); color: #e5a00d; }
+.verdict-native { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green-text); }
+.verdict-partial { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
 .verdict-absent,
-.verdict-unknown { background: rgba(231, 76, 60, 0.12); color: #e74c3c; }
+.verdict-unknown { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red-text); }
 
 .diag-verdict-dot {
   display: inline-block;
@@ -375,7 +375,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
   list-style: none;
   margin: 0 0 var(--space-2);
   padding: 0;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -414,7 +414,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 
 .effective-summary > span {
   padding: 4px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
   font-size: var(--fs-xs);
 }
@@ -425,7 +425,7 @@ select:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .effective-summary {
     flex-direction: column;
   }

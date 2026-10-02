@@ -1,6 +1,6 @@
 <template>
   <AppPage
-    title="Paramètres"
+    :title="pageTitle"
     v-model:query="query"
     search-scope="Réglages"
     placeholder="Filtrer les réglages…"
@@ -18,6 +18,7 @@
     <div class="settings-layout">
       <div class="settings-panel">
         <UiFeedback v-if="error" type="error" title="Enregistrement impossible" :message="error" />
+        <SettingsValidationSummary />
         <UiFeedback v-if="message" type="success" :message="message" />
 
         <!-- La question n'est plus « comment regler ceci » mais « ou vit ce reglage » :
@@ -38,7 +39,7 @@
           Aucun réglage de cette page ne correspond à « {{ query.trim() }} ».
         </p>
 
-        <SettingsOverview v-if="tab==='overview'" @select="selectTab"/>
+        <SettingsOverview v-if="tab==='overview'"/>
         <ConnectionsTab v-else-if="tab==='plex'"/>
         <ServicesTab v-else-if="tab==='services'"/>
         <WebhooksTab v-else-if="tab==='webhooks'"/>
@@ -47,7 +48,6 @@
         <DownloadsTab v-else-if="tab==='downloads'"/>
         <VfUpgradesSettingsTab v-else-if="tab==='vf-upgrades'"/>
         <PlanningMaintenanceTab v-else-if="tab==='scheduled-tasks'"/>
-        <AcquisitionsConflictsTab v-else-if="tab==='acquisitions'"/>
         <EmailTemplatesPanel v-else-if="tab==='templates'"/>
         <MessageReasonsPanel v-else-if="tab==='reasons'"/>
         <SystemVersionTab v-else-if="tab==='system-version'"/>
@@ -64,6 +64,7 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vu
 import { Save } from '@lucide/vue';
 import SettingsOverview from '@/components/settings/SettingsOverview.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { load, save, saving, error, message, isDirty } from '@/settingsForm';
 import { settingsSections } from '@/settingsSections';
@@ -82,7 +83,6 @@ const NotificationsRulesTab = defineAsyncComponent(() => import('@/components/se
 const DownloadsTab = defineAsyncComponent(() => import('@/components/settings/DownloadsTab.vue'));
 const VfUpgradesSettingsTab = defineAsyncComponent(() => import('@/components/settings/VfUpgradesSettingsTab.vue'));
 const PlanningMaintenanceTab = defineAsyncComponent(() => import('@/components/settings/PlanningMaintenanceTab.vue'));
-const AcquisitionsConflictsTab = defineAsyncComponent(() => import('@/components/settings/AcquisitionsConflictsTab.vue'));
 const EmailTemplatesPanel = defineAsyncComponent(() => import('@/components/EmailTemplatesPanel.vue'));
 const MessageReasonsPanel = defineAsyncComponent(() => import('@/components/settings/MessageReasonsPanel.vue'));
 const DataPrivacyTab = defineAsyncComponent(() => import('@/components/settings/DataPrivacyTab.vue'));
@@ -108,7 +108,9 @@ const elsewhere = computed(() => {
     (entry) => entry.path !== route.path && matchesQuery(`${entry.label} ${entry.group} ${entry.keywords.join(' ')}`, needle)
   ).slice(0, 6);
 });
-const standaloneTabs = new Set(['acquisitions', 'templates', 'overview', 'system-version']);
+// L'accueil n'enregistre rien, mais il lit les reglages (canaux actifs, adresse
+// publique) pour sa liste « A traiter » : il les charge comme les autres panneaux.
+const standaloneTabs = new Set(['acquisitions', 'templates', 'system-version']);
 let settingsLoadPromise: Promise<void> | undefined;
 function ensureSettingsLoaded(value = tab.value): Promise<void> {
   if (standaloneTabs.has(value)) return Promise.resolve();
@@ -118,6 +120,7 @@ function ensureSettingsLoaded(value = tab.value): Promise<void> {
   });
   return settingsLoadPromise;
 }
+const pageTitle = computed(() => (tab.value === 'overview' ? 'Administration' : String(route.meta?.title || 'Administration')));
 const currentTabLabel = computed(() => tabs.find((item) => item.key === tab.value)?.label || "Vue d'ensemble");
 function selectTab(value: string): void {
   router.push(PANEL_PATHS[value as SettingsPanel] || '/settings');

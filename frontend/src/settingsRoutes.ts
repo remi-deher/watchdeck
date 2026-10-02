@@ -37,7 +37,7 @@ export const PANEL_PATHS: Record<SettingsPanel, string> = {
   downloads: '/settings/automation',
   'vf-upgrades': '/settings/automation/vf-upgrades',
   'scheduled-tasks': '/settings/automation/scheduled-tasks',
-  acquisitions: '/settings/operations',
+  acquisitions: '/downloads/acquisitions',
   'notifications-channels': '/settings/notifications/channels',
   'notifications-rules': '/settings/notifications/rules',
   templates: '/settings/notifications/templates',

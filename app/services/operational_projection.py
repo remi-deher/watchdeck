@@ -55,7 +55,7 @@ def request_operational_projection(req: Any) -> dict[str, Any]:
         "downloading": "Le client de telechargement n'a pas encore termine.",
         "importing": "Sonarr/Radarr est en train d'importer les fichiers termines.",
         "awaiting_plex": "L'import *ARR est termine; Plex doit encore indexer et confirmer le media.",
-        "partially_available": "Une partie seulement du media est confirmee dans Plex.",
+        "partially_available": "Une partie des episodes ou saisons est deja dans Plex.",
         "failed": error or "Une erreur technique bloque le parcours.",
         "removed": "Le media n'est plus suivi par *ARR.",
     }
@@ -263,19 +263,69 @@ def build_media_history(
     return events
 
 
-def plex_library_projection() -> dict[str, Any]:
+def plex_library_timeline(item: Any = None) -> list[dict[str, Any]]:
+    """Parcours d'un media arrive dans Plex sans demande, a partir de ce qu'on sait.
+
+    Rien n'est invente : on ne connait ni la demande ni le telechargement, mais on sait
+    quand Plex l'a ajoute, s'il est suivi par *ARR et quand ses langues ont ete
+    analysees. Sans ces faits, le parcours se reduit a son etat final -- c'est ce qui
+    n'affichait qu'une etape.
+    """
+    steps: list[dict[str, Any]] = []
+    if item is not None:
+        if getattr(item, "added_at", None):
+            steps.append(
+                {
+                    "key": "added_to_plex",
+                    "label": "Ajoute a la bibliotheque Plex",
+                    "state": "completed",
+                    "occurred_at": format_datetime(item.added_at),
+                }
+            )
+        if getattr(item, "arr_id", None):
+            steps.append(
+                {
+                    "key": "tracked_by_arr",
+                    "label": "Suivi par " + ("Radarr" if getattr(item, "media_type", None) == "movie" else "Sonarr"),
+                    "state": "completed",
+                    "occurred_at": None,
+                }
+            )
+        if getattr(item, "vf_checked_at", None):
+            steps.append(
+                {
+                    "key": "languages_checked",
+                    "label": "Langues analysees",
+                    "state": "completed",
+                    "occurred_at": format_datetime(item.vf_checked_at),
+                }
+            )
+        if getattr(item, "vf_available_at", None):
+            steps.append(
+                {
+                    "key": "vf_available",
+                    "label": "VF disponible",
+                    "state": "completed",
+                    "occurred_at": format_datetime(item.vf_available_at),
+                }
+            )
+    steps.append(
+        {
+            "key": "completed",
+            "label": "Disponible dans Plex",
+            "state": "current" if steps else "completed",
+            "occurred_at": None,
+        }
+    )
+    return steps
+
+
+def plex_library_projection(item: Any = None) -> dict[str, Any]:
     return {
         "origin_kind": "plex",
         "origin_label": "Deja present dans Plex",
         "operational_status": "completed",
         "operational_status_label": "Disponible dans Plex",
         "waiting_reason": None,
-        "workflow_timeline": [
-            {
-                "key": "completed",
-                "label": "Deja present dans Plex",
-                "state": "completed",
-                "occurred_at": None,
-            }
-        ],
+        "workflow_timeline": plex_library_timeline(item),
     }

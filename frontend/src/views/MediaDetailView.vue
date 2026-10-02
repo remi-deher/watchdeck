@@ -1,21 +1,37 @@
 <template>
   <div class="media-detail-page">
-    <div v-if="loading" class="drawer-loading"><LoaderCircle class="spin" /> Chargement</div>
+    <!-- Le hero se monte des l'ouverture, avec ce que la carte touchee savait deja --
+         affiche, titre, annee -- puis garde sa place quand la fiche complete arrive.
+         L'affiche est ainsi a son emplacement final des la premiere image : le
+         transport depuis la vignette a une cible, et la surface ne change plus de
+         taille en pleine animation. -->
+    <MediaDetailHero
+      v-if="detail || apercu"
+      :detail="detail || apercu"
+      :preview="!detail"
+      :status-label="detail ? statusLabel : ''"
+      :status-class="statusClass"
+      :admin="admin"
+      :season-summary="seasonSummary"
+      :busy="busy"
+      :available="isInPlex"
+      :variant="enSurface ? 'sheet' : 'card'"
+      @back="goBack"
+      @report-issue="showIssueForm = !showIssueForm"
+      @scan="scanVff"
+      @open-audio="tab = 'audio'"
+      @request="handleRequestClick"
+    />
+    <div v-if="!detail && pending" class="media-detail-skeleton" aria-busy="true" aria-label="Chargement de la fiche">
+      <template v-if="apercu">
+        <span class="skeleton-line is-tabs" />
+        <span class="skeleton-line" />
+        <span class="skeleton-line" />
+        <span class="skeleton-line is-short" />
+      </template>
+      <div v-else class="drawer-loading"><LoaderCircle class="spin" /> Chargement</div>
+    </div>
     <template v-else-if="detail">
-      <MediaDetailHero
-        :detail="detail"
-        :status-label="statusLabel"
-        :status-class="statusClass"
-        :admin="admin"
-        :season-summary="seasonSummary"
-        :busy="busy"
-        :available="isInPlex"
-        @back="goBack"
-        @report-issue="showIssueForm = !showIssueForm"
-        @scan="scanVff"
-        @open-audio="tab = 'audio'"
-        @request="handleRequestClick"
-      />
 
       <div class="media-detail-body">
         <p v-if="error" class="notice error-text">{{ error }}</p>
@@ -33,7 +49,7 @@
             :addable-users="addableUsers"
             v-model:new-requester-id="newRequesterId"
             @add-requester="addRequester"
-            @open-release="(id: number) => router.push(`/releases/${id}`)"
+            @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
             @retry="(id: number) => requestAction(id, 'retry')"
             @catch-up-all="catchUpAll"
             @resend-mail="resendMail"
@@ -103,7 +119,7 @@
           title="Recommandés pour vous"
           :items="detail.recommendations || []"
           :requesting="recRequesting"
-          @open="item => router.push(relatedMediaPath(item))"
+          @open="openDetail"
           @request="requestRecMedia"
         />
         <MediaRecommendations
@@ -111,7 +127,7 @@
           title="Titres similaires"
           :items="detail.similar || []"
           :requesting="recRequesting"
-          @open="item => router.push(relatedMediaPath(item))"
+          @open="openDetail"
           @request="requestRecMedia"
         />
       </div>
@@ -122,7 +138,7 @@
          entierement vide : l'erreur etait bien stockee, mais son affichage vivait a
          l'interieur du bloc `detail`, qui ne se montait jamais. -->
     <UiEmptyState
-      v-else
+      v-else-if="!pending"
       :title="error ? 'Cette fiche n’a pas pu être chargée' : 'Cette fiche est introuvable'"
       :message="error || 'Le média a peut-être été retiré de la bibliothèque, ou le lien a vieilli.'"
     >
@@ -176,13 +192,19 @@
 </template>
 
 <script setup lang="ts">
+import { isMusicType } from '@/utils/labels';
 import { humanizeError } from '@/utils/apiError';
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { queryKeys } from '@/queryKeys';
 import { LoaderCircle } from "@lucide/vue";
 import { useRoute, useRouter } from "vue-router";
-import { api } from "@/api";
+import { api, ApiError } from "@/api";
+import { useToast } from "@/composables/useToast";
 import { mediaDetailPath, openPlexLink } from "@/mediaUrl";
 import MediaDetailHero from "@/components/media/MediaDetailHero.vue";
+import { useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
+import { apercuRecent } from "@/composables/useFicheApercu";
 import MediaSummaryTab from "@/components/media/MediaSummaryTab.vue";
 import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
 import MediaCalendarTab from "@/components/media/MediaCalendarTab.vue";
@@ -202,6 +224,18 @@ import { canModerateSession, loadSession } from "@/composables/useSession";
 import { useSeasonEpisodes } from "@/composables/useSeasonEpisodes";
 import { useRequestActions } from "@/composables/useRequestActions";
 import { useDirectMediaRequest } from "@/composables/useDirectMediaRequest";
+import { patchedAll } from '@/composables/useRealtimeQuery';
+
+const route = useRoute();
+const router = useRouter();
+const { actif: enSurface } = useMediaOverlay();
+// La recherche interactive s'ouvre dans la feuille, par-dessus la meme page de fond.
+const { ouvrir: ouvrirReleases } = useOuvrirFiche();
+const queryClient = useQueryClient();
+const { addToast } = useToast();
+const kind = computed(() => String(route.params.kind || ''));
+const mediaId = computed(() => String(route.params.id || ''));
+const mediaQueryKey = computed(() => ['media', kind.value, mediaId.value] as const);
 
 const {
   requesting: recRequesting,
@@ -211,28 +245,19 @@ const {
   cancelOptions: cancelRecOptions,
 } = useDirectMediaRequest({
   onUpdated: (changed: any, update: any) => {
-    const key = `${changed.media_type}:${changed.tmdb_id || changed.id}`;
-    if (detail.value?.recommendations) {
-      for (const item of detail.value.recommendations) {
-        if (`${item.media_type}:${item.tmdb_id || item.id}` === key) Object.assign(item, update);
-      }
-    }
-    if (detail.value?.similar) {
-      for (const item of detail.value.similar) {
-        if (`${item.media_type}:${item.tmdb_id || item.id}` === key) Object.assign(item, update);
-      }
-    }
+    const change = { ...changed, ...update };
+    queryClient.setQueryData<any>(mediaQueryKey.value, (current: any) => current && ({
+      ...current,
+      recommendations: patchedAll(current.recommendations || [], change, ['tmdb_id', 'id']).list,
+      similar: patchedAll(current.similar || [], change, ['tmdb_id', 'id']).list,
+    }));
   },
 });
 
-const route = useRoute();
-const router = useRouter();
-
-const detail = ref<any>(null), requesters = ref<any[]>([]), folders = ref<any[]>([]);
-const loading = ref(false), busy = ref(false), error = ref(''), successMessage = ref(''), tab = ref('summary');
+const busy = ref(false), actionError = ref(''), successMessage = ref(''), tab = ref('summary');
 const showRequestOptions = ref(false);
 const requestForm = reactive<{ plex_user_id: string; root_folder: string; seasons: number[] }>({ plex_user_id: '', root_folder: '', seasons: [] });
-const isMusic = computed(() => ['artist', 'album', 'track'].includes(detail.value?.media_type));
+const isMusic = computed(() => isMusicType(detail.value?.media_type));
 const artistAlbums = computed(() => detail.value?.albums || []);
 const albumTracks = computed(() => detail.value?.tracks || []);
 const tabs = computed(() => {
@@ -255,14 +280,12 @@ async function handleRequestClick(): Promise<void> {
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 
 const showIssueForm = ref(false), showCorrectionForm = ref(false);
-const users = ref<any[]>([]), correctionOptions = ref<any[]>([]);
 const correctionForm = reactive<Record<string, any>>({ scope: 'media', season_number: null, episode_number: null, recipient_user_ids: [], corrections: [], note: '' });
 const newRequesterId = ref('');
 
-const kind = computed(() => route.params.kind);
 const inDiscoverShell = computed(() => route.path.startsWith('/discover/'));
 
-const statusLabel = computed(() => detail.value?.operational_status_label || (detail.value?.available || detail.value?.in_library ? 'Disponible' : detail.value?.requested ? 'Deja demande' : detail.value?.request_status || ''));
+const statusLabel = computed(() => detail.value?.operational_status_label || (detail.value?.available || detail.value?.in_library ? 'Disponible' : detail.value?.requested ? 'Déjà demandé' : detail.value?.request_status || ''));
 const statusClass = computed(() => detail.value?.available || detail.value?.in_library ? 'available' : 'pending');
 const isInPlex = computed(() => Boolean(detail.value?.library_id || detail.value?.in_library));
 const seasonNumbers = computed(() => Array.from({ length: Number(detail.value?.number_of_seasons || 0) + 1 }, (_, i) => i));
@@ -307,9 +330,34 @@ const mergedVfDetail = seasons.detail;
 const seasonSummary = seasons.seasonSummary;
 const { envelopeError, availabilityError, vfStatusError } = seasons;
 
+const invalidateMedia = () => queryClient.invalidateQueries({ queryKey: mediaQueryKey.value });
+const autoImportMutation = useMutation({
+  mutationFn: ({ id, value }: { id: number; value: boolean | null }) => api(`/api/requests/${id}/auto-import`, {
+    method: 'PUT', body: JSON.stringify({ auto_import_reconciliation: value }),
+  }),
+  retry: 0,
+  onSuccess: invalidateMedia,
+});
+const joinMutation = useMutation({
+  mutationFn: (id: number) => api<any>(`/api/requests/${id}/join`, { method: 'POST' }),
+  retry: 0,
+  onSuccess: invalidateMedia,
+});
+const recheckMutation = useMutation({
+  mutationFn: (path: string) => api(path, { method: 'POST' }), retry: 0, onSuccess: invalidateMedia,
+});
+const issueMutation = useMutation({
+  mutationFn: (body: Record<string, any>) => api('/api/media/issues', { method: 'POST', body: JSON.stringify(body) }),
+  retry: 0, onSuccess: invalidateMedia,
+});
+const correctionMutation = useMutation({
+  mutationFn: (body: Record<string, any>) => api('/api/media/send-correction', { method: 'POST', body: JSON.stringify(body) }),
+  retry: 0, onSuccess: invalidateMedia,
+});
+
 function tabLabel(value: string): string {
   const audioLabel = detail.value?.media_type === 'show' ? 'Saisons & épisodes' : 'Pistes & langues';
-  return ({ summary: 'Resume', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier' } as Record<string, string>)[value];
+  return ({ summary: 'Résumé', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier' } as Record<string, string>)[value];
 }
 
 function mediaPath(core = false): string {
@@ -324,114 +372,76 @@ function mediaPath(core = false): string {
   return `/api/media/detail?library_id=${id}${core ? '&core=true' : ''}`;
 }
 
-async function loadUsers(): Promise<void> {
-  if (usersPromise) return usersPromise;
-  usersPromise = (async () => {
-    try {
-      const [userRows, options] = await Promise.all([
-        api('/api/users'),
-        api('/api/media/corrections/options'),
-      ]);
-      users.value = userRows;
-      correctionOptions.value = options;
-    } catch (e) {}
-  })();
-  return usersPromise;
-}
+const mediaQuery = useQuery({
+  queryKey: mediaQueryKey,
+  queryFn: async () => {
+    const payload = await api(mediaPath());
+    return kind.value === 'discover' ? payload : { ...payload.media, ...payload };
+  },
+  staleTime: 60_000,
+});
+const detail = computed<any>(() => mediaQuery.data.value || null);
+const loading = computed(() => mediaQuery.isPending.value || mediaQuery.isFetching.value);
+/* Seul le PREMIER chargement remplace le contenu : un rafraichissement en arriere-plan
+   (retour sur l'onglet, evenement temps reel) laissait auparavant la fiche entiere
+   disparaitre derriere un « Chargement » le temps d'une requete. */
+const pending = computed(() => mediaQuery.isPending.value);
+// Ce que la carte touchee savait deja, pour dessiner la fiche avant sa reponse.
+const apercu = apercuRecent();
+const error = computed({
+  get: () => actionError.value || (mediaQuery.error.value as Error | null)?.message || '',
+  set: (value: string) => { actionError.value = value; },
+});
+
+const usersQuery = useQuery({
+  queryKey: queryKeys.users.list,
+  queryFn: () => api<any[]>('/api/users'),
+  enabled: computed(() => showCorrectionForm.value || tab.value === 'requests'),
+});
+const correctionOptionsQuery = useQuery({
+  queryKey: ['media', 'corrections', 'options'],
+  queryFn: () => api<any[]>('/api/media/corrections/options'),
+  enabled: showCorrectionForm,
+  staleTime: 5 * 60_000,
+});
+const users = computed(() => usersQuery.data.value || []);
+const correctionOptions = computed(() => correctionOptionsQuery.data.value || []);
+
+const requestOptionsEnabled = computed(() => showRequestOptions.value && admin.value && kind.value === 'discover');
+const requestersQuery = useQuery({
+  queryKey: ['discover', 'requesters'],
+  queryFn: () => api<any[]>('/api/discover/requesters'),
+  enabled: requestOptionsEnabled,
+  staleTime: 60_000,
+});
+const requestService = computed(() => detail.value?.media_type === 'show' ? 'sonarr' : 'radarr');
+const foldersQuery = useQuery({
+  queryKey: computed(() => ['discover', requestService.value, 'folders']),
+  queryFn: () => api<any[]>(`/api/${requestService.value}/folders`).catch(() => []),
+  enabled: requestOptionsEnabled,
+  staleTime: 60_000,
+});
+const requesters = computed(() => requestersQuery.data.value || []);
+const folders = computed(() => foldersQuery.data.value || []);
 
 async function loadAdminFlag(): Promise<void> {
   admin.value = canModerateSession(await loadSession());
 }
 
-let loadGeneration = 0, usersPromise: Promise<void> | undefined = undefined;
 async function load(): Promise<void> {
-  const generation = ++loadGeneration;
-  loading.value = true; error.value = '';
-  seasons.reset();
-  usersPromise = undefined;
-  users.value = [];
-  correctionOptions.value = [];
-  tab.value = 'summary';
-  try {
-    const payload = await api(mediaPath(kind.value !== 'discover'));
-    if (generation !== loadGeneration) return;
-
-    if (kind.value === 'discover') {
-      if (payload.library_id) {
-        const nextPath = inDiscoverShell.value
-          ? `/discover/media/library/${payload.library_id}`
-          : `/library/media/library/${payload.library_id}`;
-        router.replace(nextPath);
-        return;
-      }
-      if (payload.request_id) {
-        const nextPath = inDiscoverShell.value
-          ? `/discover/media/request/${payload.request_id}`
-          : `/library/media/request/${payload.request_id}`;
-        router.replace(nextPath);
-        return;
-      }
-    }
-
-    detail.value = kind.value === 'discover' ? payload : { ...payload.media, ...payload };
-    if (['summary','missing','audio','requests','calendar'].includes(String(route.query.tab))) tab.value = String(route.query.tab);
-    if (kind.value === 'discover') {
-      const session = await loadSession();
-      admin.value = canModerateSession(session);
-      sessionUserId.value = session?.plex_user_id || '';
-      if (admin.value) {
-        const service = detail.value.media_type === 'show' ? 'sonarr' : 'radarr';
-        [requesters.value, folders.value] = await Promise.all([
-          api('/api/discover/requesters'),
-          api(`/api/${service}/folders`).catch(() => []),
-        ]);
-      } else {
-        requesters.value = [];
-        folders.value = [];
-      }
-      requestForm.plex_user_id = requesters.value.find((user: any) => user.plex_user_id === sessionUserId.value)?.plex_user_id
-        || sessionUserId.value || requesters.value[0]?.plex_user_id || '';
-      requestForm.seasons = seasonNumbers.value.filter((season: number) => season !== 0);
-    }
-  } catch (e: any) {
-    if (generation === loadGeneration) error.value = e.message;
-  } finally {
-    if (generation === loadGeneration) loading.value = false;
-  }
-
-  if (kind.value !== 'discover') {
-    api(mediaPath()).then((payload: any) => {
-      if (generation !== loadGeneration) return;
-      detail.value = {
-        ...detail.value,
-        ...(payload.media || {}),
-        ...payload,
-        media: payload.media || detail.value?.media,
-      };
-    }).catch((e: any) => {
-      if (generation === loadGeneration) error.value = e.message;
-    });
-
-    if (detail.value?.media_type === 'show') {
-      triggerBackgroundVfRescan(seasons.loadAll(), generation);
-      loadAdminFlag().catch(() => {});
-    } else {
-      triggerBackgroundVfRescan(
-        seasons.loadMovieVf().catch(e => { envelopeError.value = true; throw e; }),
-        generation,
-      );
-      loadAdminFlag().catch(() => {});
-    }
-  }
+  actionError.value = '';
+  await mediaQuery.refetch();
 }
 
-function triggerBackgroundVfRescan(initialLoad: Promise<any>, generation: number): void {
+function triggerBackgroundVfRescan(initialLoad: Promise<any>): void {
   initialLoad
     .then(() => {
-      if (generation !== loadGeneration || !isInPlex.value) return;
+      if (!isInPlex.value) return;
       return seasons.rescan();
     })
-    .catch(() => {});
+    .catch((e: any) => {
+      if (e instanceof ApiError && e.status === 410) leaveRemovedMedia(e.message);
+    });
 }
 
 const {
@@ -439,7 +449,7 @@ const {
   addRequester, catchUpAll, promoteRequester, removeRequester, deleteRequest, withdrawRequest,
 } = useRequestActions({
   detail, newRequesterId, askConfirm, busy, error,
-  reload: load,
+  reload: () => queryClient.invalidateQueries({ queryKey: mediaQueryKey.value }),
   onDeleted: () => router.push('/library'),
   askReason: (row) => askWithdrawReason(row),
 });
@@ -463,11 +473,7 @@ function settleReason(value: string | null): void {
 async function setAutoImport(row: any, value: boolean | null): Promise<void> {
   busy.value = true;
   try {
-    await api(`/api/requests/${row.id}/auto-import`, {
-      method: 'PUT',
-      body: JSON.stringify({ auto_import_reconciliation: value }),
-    });
-    row.auto_import_reconciliation = value;
+    await autoImportMutation.mutateAsync({ id: row.id, value });
   } catch (e: any) {
     error.value = humanizeError(e);
   } finally {
@@ -480,22 +486,27 @@ function goBack(): void {
   else router.push(inDiscoverShell.value ? '/discover' : '/library');
 }
 
+/* Recommandations et saga viennent de TMDB (mode Decouvrir), mais le catalogue d'un
+   artiste renvoie des elements de bibliotheque : leur `_kind` doit primer, sinon l'id de
+   bibliotheque d'un album etait pris pour un id TMDB (fiche cassee, libelle « Film »). */
 function relatedMediaPath(item: any): string {
-  return mediaDetailPath(item, 'discover', { discover: inDiscoverShell.value });
+  const kind = item._kind || (item.library_id ? 'library' : item.request_id ? 'request' : 'discover');
+  return mediaDetailPath(item, kind, { discover: inDiscoverShell.value });
 }
 
 function openDetail(item: any): void {
-  router.push(relatedMediaPath(item));
+  const path = relatedMediaPath(item);
+  if (path) router.push(path);
 }
 
 async function openCorrection(scope: string, season: number | null, episode: number | null): Promise<void> {
-  await loadUsers().catch(() => {});
+  showCorrectionForm.value = true;
+  await Promise.all([usersQuery.refetch(), correctionOptionsQuery.refetch()]).catch(() => {});
   correctionForm.scope = scope;
   correctionForm.season_number = season;
   correctionForm.episode_number = episode;
   const reqIds = (detail.value?.requests || []).map((r: any) => r.plex_user_id);
   correctionForm.recipient_user_ids = users.value.filter((u: any) => reqIds.includes(u.plex_user_id)).map((u: any) => u.id);
-  showCorrectionForm.value = true;
   showIssueForm.value = false;
 }
 
@@ -529,7 +540,7 @@ async function submitRequest(): Promise<void> {
         : `/library/media/request/${data.request_id}`;
       router.replace(nextPath);
     } else {
-      await load();
+      await queryClient.invalidateQueries({ queryKey: mediaQueryKey.value });
     }
   } catch (e: any) {
     error.value = e.message;
@@ -542,24 +553,35 @@ async function joinRequest(): Promise<void> {
   if (!detail.value?.request_id || !sessionUserId.value) return;
   busy.value = true; error.value = '';
   try {
-    const data = await api(`/api/requests/${detail.value.request_id}/join`, { method: 'POST' });
-    detail.value.requester_ids = data.requester_ids;
+    const data = await joinMutation.mutateAsync(detail.value.request_id);
     successMessage.value = data.already_joined ? 'Cette demande est déjà dans votre suivi.' : 'Demande ajoutée à votre suivi.';
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
+}
+
+/** Le média n'est plus dans Plex et le serveur vient de le retirer : la fiche n'existe plus. */
+function leaveRemovedMedia(message: string): void {
+  addToast({ type: 'info', title: 'Média retiré', message, duration: 8000 });
+  queryClient.invalidateQueries({ queryKey: ['library'] });
+  router.push(inDiscoverShell.value ? '/discover' : '/library');
 }
 
 async function scanVff(): Promise<void> {
   busy.value = true;
   try { await seasons.rescan(); }
-  catch (e: any) { error.value = e.message; } finally { busy.value = false; }
+  catch (e: any) {
+    if (e instanceof ApiError && e.status === 410) leaveRemovedMedia(e.message);
+    else error.value = e.message;
+  } finally { busy.value = false; }
 }
 
 async function recheckPlex(): Promise<void> {
-  busy.value = true;
+  busy.value = true; error.value = '';
   try {
     const media = detail.value.media || {};
-    await api(`/api/media/recheck-plex?${media.library_id ? `library_id=${media.library_id}` : `request_id=${media.request_id}`}`, { method: 'POST' });
-    await load();
+    const data = await recheckMutation.mutateAsync(`/api/media/recheck-plex?${media.library_id ? `library_id=${media.library_id}` : `request_id=${media.request_id}`}`);
+    if (data?.removed) leaveRemovedMedia(`« ${data.title} » n’est plus dans Plex : il a été retiré de Watchdeck.`);
+    else if (data?.found) successMessage.value = 'Présent dans Plex.';
+    else error.value = 'Toujours introuvable dans Plex.';
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
 }
 
@@ -567,9 +589,8 @@ async function reportIssue(issueMessage: string): Promise<void> {
   busy.value = true;
   try {
     const media = detail.value.media || {};
-    await api('/api/media/issues', { method: 'POST', body: JSON.stringify({ library_id: media.library_id, request_id: media.request_id, issue_type: 'other', message: issueMessage }) });
+    await issueMutation.mutateAsync({ library_id: media.library_id, request_id: media.request_id, issue_type: 'other', message: issueMessage });
     showIssueForm.value = false;
-    await load();
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
 }
 
@@ -577,7 +598,7 @@ async function sendCorrection(formPayload: Record<string, any>): Promise<void> {
   busy.value = true; error.value = '';
   try {
     const media = detail.value.media || {};
-    await api('/api/media/send-correction', { method: 'POST', body: JSON.stringify({ ...formPayload, library_id: media.library_id, request_id: media.request_id }) });
+    await correctionMutation.mutateAsync({ ...formPayload, library_id: media.library_id, request_id: media.request_id });
     showCorrectionForm.value = false;
     successMessage.value = 'Correction envoyée !';
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
@@ -588,12 +609,37 @@ function onStreamsAligned(): void {
   seasons.rescan();
 }
 
-watch(tab, value => { if (value === 'requests') loadUsers().catch(() => {}); });
-watch(() => [route.params.kind, route.params.id, route.query.media_type, route.query.id_type, route.query.tab], load);
-onMounted(load);
+watch(detail, async (payload) => {
+  if (!payload) return;
+  seasons.reset();
+  tab.value = ['summary','missing','audio','requests','calendar'].includes(String(route.query.tab)) ? String(route.query.tab) : 'summary';
+  if (kind.value === 'discover') {
+    if (payload.library_id) {
+      await router.replace(inDiscoverShell.value ? `/discover/media/library/${payload.library_id}` : `/library/media/library/${payload.library_id}`);
+      return;
+    }
+    if (payload.request_id) {
+      await router.replace(inDiscoverShell.value ? `/discover/media/request/${payload.request_id}` : `/library/media/request/${payload.request_id}`);
+      return;
+    }
+    const session = await loadSession();
+    admin.value = canModerateSession(session);
+    sessionUserId.value = session?.plex_user_id || '';
+    requestForm.seasons = seasonNumbers.value.filter((season: number) => season !== 0);
+    return;
+  }
+  if (payload.media_type === 'show') triggerBackgroundVfRescan(seasons.loadAll());
+  else triggerBackgroundVfRescan(seasons.loadMovieVf().catch(e => { envelopeError.value = true; throw e; }));
+  loadAdminFlag().catch(() => {});
+}, { immediate: true });
+
+watch([requesters, sessionUserId], ([rows, userId]) => {
+  requestForm.plex_user_id = rows.find((user: any) => user.plex_user_id === userId)?.plex_user_id || userId || rows[0]?.plex_user_id || '';
+});
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-detail-page {
   min-height: 100%;
   overflow-x: hidden;
@@ -614,14 +660,14 @@ onMounted(load);
   padding: 80px 0;
   color: var(--muted);
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .media-detail-body {
     padding-right: 16px;
     padding-bottom: calc(var(--app-shell-offset-bottom) + 76px);
     padding-left: 16px;
   }
 }
-@media (min-width: 1025px) {
+@include bp.from(desktop) {
   .media-detail-body { font-size: var(--fs-md); gap: var(--space-5); }
   .media-detail-body :deep(.drawer-section > h2),
   .media-detail-body :deep(.drawer-section > h3) { font-size: var(--fs-lg); }

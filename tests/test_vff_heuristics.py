@@ -1,11 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import ArrInstance, Base, LibraryItem, MediaRequest, Settings
+from app.models import ArrInstance, LibraryItem, MediaRequest, Settings
 from app.services.audio_analyzer import (
     compute_vf_granularity,
     get_audio_info,
@@ -13,7 +10,7 @@ from app.services.audio_analyzer import (
     show_has_full_french_audio,
 )
 from app.services.plex_finder import sync_plex_library_blocking
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def test_get_audio_info_filename_fallback():
@@ -236,19 +233,13 @@ def test_sync_plex_library_blocking():
         assert results[0]["title"] == "Inception"
         assert results[0]["tmdb_id"] == "27205"
         assert results[0]["plex_guid"] == "plex://movie/12345"
-        assert "X-Plex-Token=token" in results[0]["poster_url"]
+        assert results[0]["poster_url"] == "http://localhost:32400/photo/123"
+        assert "X-Plex-Token" not in results[0]["poster_url"]
 
 
 @pytest.mark.asyncio
 async def test_sync_plex_media():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False)
-    db = TestSession(Session())
+    db = make_test_session()
 
     # Initialisation de settings
     settings = Settings(
@@ -308,14 +299,7 @@ async def test_sync_plex_media_repairs_missing_ids_from_unique_radarr_title_and_
     from app.models import ArrInstance
     from app.services import plex_sync
 
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False)
-    db = TestSession(Session())
+    db = make_test_session()
     db.add(
         Settings(
             plex_url="http://localhost",
@@ -410,14 +394,7 @@ async def test_sync_plex_media_recent_persists_watermark_and_integrates_new_item
     from app.models import ArrInstance
     from app.services import plex_sync
 
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False)
-    db = TestSession(Session())
+    db = make_test_session()
 
     settings = Settings(
         plex_url="http://localhost",

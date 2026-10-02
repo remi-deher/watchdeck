@@ -6,7 +6,7 @@
     <MediaSaga v-if="!isMusic" :saga="detail.saga" />
 
     <div v-if="!isMusic && (detail.in_library || detail.requested || detail.request_id || detail.library_id)" class="action-grid compact-actions">
-      <UiButton :disabled="busy" @click="$emit('recheck-plex')"><template #icon><RefreshCw /></template>Verifier dans Plex</UiButton>
+      <UiButton :disabled="busy" @click="$emit('recheck-plex')"><template #icon><RefreshCw /></template>Vérifier dans Plex</UiButton>
       <UiButton :disabled="busy" @click="$emit('open-correction', 'media', null, null)"><template #icon><MessageSquareWarning /></template>Correction globale</UiButton>
     </div>
 
@@ -35,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import { isMusicType } from '@/utils/labels';
 import { computed } from 'vue';
 import { RefreshCw, MessageSquareWarning } from '@lucide/vue';
 import MediaIssueForm from './MediaIssueForm.vue';
@@ -65,7 +66,7 @@ const props = withDefaults(
   }
 );
 
-const isMusic = computed(() => props.detail?.media_type === 'artist' || props.detail?.media_type === 'album');
+const isMusic = computed(() => isMusicType(props.detail?.media_type));
 
 defineEmits<{
   (e: 'recheck-plex'): void;

@@ -14,6 +14,7 @@
       :key="rowKey(item)"
       :to="queueDetailPath(item)"
       class="queue-row"
+      @click="ouvrirFicheAuClic($event, queueDetailPath(item))"
     >
       <img
         v-if="item.poster_url"
@@ -53,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { computed } from 'vue';
 import PanelCard from '@/components/ui/PanelCard.vue';
 import { Film } from '@lucide/vue';
@@ -69,6 +71,7 @@ import {
 } from '@/downloads/queueRules';
 import type { QueueRow } from '@/downloads/queueRules';
 
+const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
 const props = withDefaults(
   defineProps<{
     queue?: QueueRow[];
@@ -197,17 +200,17 @@ function metaLine(item: any): string {
   height: 5px;
   overflow: hidden;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, .08);
+  background: rgb(var(--ink) / .08);
 }
 .queue-progress i {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: var(--accent);
-  transition: width .3s ease;
+  transition: width var(--motion-duration-base) var(--motion-ease-standard);
 }
-.queue-progress i.is-done { background: #22c55e; }
-.queue-progress i.is-error { background: #ef4444; }
+.queue-progress i.is-done { background: var(--green); }
+.queue-progress i.is-error { background: var(--red); }
 .queue-progress i.is-idle { background: var(--muted); }
 
 .queue-meta {

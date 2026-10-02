@@ -57,21 +57,26 @@
 
     <section v-if="trackerRows.length" class="tracker-panel">
       <header><h3>Répartition par tracker</h3><span>{{ trackerRows.length }} tracker(s)</span></header>
-      <div class="tracker-scroll">
-        <table>
-          <thead><tr><th>Tracker</th><th>Torrents</th><th>Envoi</th><th>Téléchargement</th><th>Ratio</th><th>Taille</th></tr></thead>
-          <tbody>
-            <tr v-for="row in trackerRows" :key="row.name">
-              <td>{{ row.name }}</td><td>{{ row.count }}</td><td>{{ formatSpeed(row.uploadSpeed) }}</td><td>{{ formatSpeed(row.downloadSpeed) }}</td><td>{{ formatRatio(row.ratioSum / row.count) }}</td><td>{{ formatBytes(row.size) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <UiDataTable class="tracker-scroll" label="Répartition par tracker" :rows="trackerRows" :columns="TRACKER_COLUMNS" :row-key="(row: any) => row.name">
+        <template #cell-upload="{ row }">{{ formatSpeed(row.uploadSpeed) }}</template>
+        <template #cell-download="{ row }">{{ formatSpeed(row.downloadSpeed) }}</template>
+        <template #cell-ratio="{ row }">{{ formatRatio(row.ratioSum / row.count) }}</template>
+        <template #cell-size="{ row }">{{ formatBytes(row.size) }}</template>
+      </UiDataTable>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+const TRACKER_COLUMNS: UiColumn[] = [
+  { key: 'name', label: 'Tracker', card: 'title', sortable: true },
+  { key: 'count', label: 'Torrents', sortable: true },
+  { key: 'upload', label: 'Envoi', sortable: true, sortValue: (row: any) => row.uploadSpeed },
+  { key: 'download', label: 'Téléchargement', sortable: true, sortValue: (row: any) => row.downloadSpeed },
+  { key: 'ratio', label: 'Ratio', sortable: true, sortValue: (row: any) => row.ratioSum / row.count },
+  { key: 'size', label: 'Taille', sortable: true },
+];
 import { computed } from 'vue';
 import { Activity, AlertTriangle, ChevronRight, Download, ExternalLink, HardDrive, Server, Upload } from '@lucide/vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
@@ -161,7 +166,7 @@ const trackerRows = computed(() => {
 .client-card {
   padding: 18px;
   cursor: pointer;
-  transition: border-color .15s ease, transform .15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .client-card:hover {
   border-color: var(--accent);
@@ -203,7 +208,7 @@ const trackerRows = computed(() => {
   font-weight: 700;
 }
 .state.ok {
-  color: var(--success);
+  color: var(--green-text);
   background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 .state.off {
@@ -211,7 +216,7 @@ const trackerRows = computed(() => {
   background: var(--surface-2);
 }
 .state.error {
-  color: var(--danger);
+  color: var(--red-text);
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 .client-counts {
@@ -236,7 +241,7 @@ const trackerRows = computed(() => {
   display: flex;
   gap: 7px;
   margin: 0 0 10px;
-  color: var(--warning);
+  color: var(--amber-text);
   font-size: var(--fs-xs);
 }
 .client-warning svg {
@@ -319,7 +324,7 @@ const trackerRows = computed(() => {
 .tracker-panel tbody tr:last-child td {
   border: 0;
 }
-@media (max-width: 520px) {
+@container page (max-width: 484px) {
   .client-grid {
     grid-template-columns: 1fr;
   }

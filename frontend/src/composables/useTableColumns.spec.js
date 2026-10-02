@@ -63,18 +63,6 @@ describe('useTableColumns', () => {
     expect(api.visibleColumns.value.map((column) => column.key)).toContain('viewer');
   });
 
-  it('redimensionne une colonne au pointeur, sans passer sous 50 px', () => {
-    const api = useTableColumns(ref(columns), { storageKey: 'test:e', defaultWidths: { title: 200 } });
-
-    api.startColumnResize('title', { clientX: 100, target: null });
-    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 160 }));
-    expect(api.columnWidths.value.title).toBe(260);
-
-    window.dispatchEvent(new MouseEvent('pointermove', { clientX: -900 }));
-    expect(api.columnWidths.value.title).toBe(50);
-    window.dispatchEvent(new MouseEvent('pointerup'));
-  });
-
   it('déplace une colonne au clavier comme au glisser-déposer', () => {
     // Le drag-and-drop HTML5 n'est opérable ni au clavier ni au toucher.
     const api = useTableColumns(ref(columns), { storageKey: 'test:f' });

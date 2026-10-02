@@ -237,6 +237,38 @@ def find_item_in_libraries(
     return None
 
 
+def is_item_in_libraries_strict(
+    plex_url: str,
+    plex_token: str,
+    library_names: list[str],
+    title: str,
+    year: Optional[int] = None,
+    tmdb_id: Optional[str] = None,
+    tvdb_id: Optional[str] = None,
+    imdb_id: Optional[str] = None,
+    plex_guid: Optional[str] = None,
+) -> bool:
+    """Le média est-il dans l'une des bibliothèques ? Version stricte, pour décider d'un retrait.
+
+    Contrairement à `find_item_in_libraries`, aucune erreur n'est avalée : une connexion
+    ou une bibliothèque illisible lève une exception, pour qu'un incident Plex ne passe
+    jamais pour une absence. Chaque bibliothèque est parcourue en entier ; le titre exact
+    (et l'année si connue) suffit à conclure à la présence, par prudence.
+    """
+    plex = connect(plex_url, plex_token)
+    wanted_title = (title or "").lower().strip()
+    for lib_name in library_names:
+        for cand in plex.library.section(lib_name).all():
+            if plex_guid and getattr(cand, "guid", None) == plex_guid:
+                return True
+            if (tmdb_id or tvdb_id or imdb_id) and _external_id_matches(cand, tmdb_id, tvdb_id, imdb_id):
+                return True
+            if wanted_title and (getattr(cand, "title", "") or "").lower().strip() == wanted_title:
+                if year is None or getattr(cand, "year", None) in (None, year):
+                    return True
+    return False
+
+
 # Correspondance entre le type d'un media chez nous et le "kind" d'une bibliotheque.
 _KIND_BY_MEDIA_TYPE = {"movie": "movie", "show": "series", "series": "series"}
 
@@ -489,7 +521,7 @@ def scan_media_vf(
             formatted_metadata[sn][en] = {
                 "title": meta.get("title"),
                 "overview": meta.get("overview") or "",
-                "still_url": plex.url(thumb, includeToken=True) if thumb else None,
+                "still_url": thumb if thumb else None,
                 "air_date": air_date.isoformat() if hasattr(air_date, "isoformat") else air_date,
                 "tracks": meta.get("tracks") or [],
                 "subtitles": meta.get("subtitles") or [],
@@ -588,11 +620,12 @@ def _plex_item_to_dict(m, lib: dict, plex_url: str, plex_token: str) -> dict:
         "year": getattr(m, "year", None),
         "media_type": media_type,
         "plex_guid": getattr(m, "guid", None),
+        "rating_key": str(rating_key) if (rating_key := getattr(m, "ratingKey", None)) is not None else None,
         "tmdb_id": tmdb_id,
         "tvdb_id": tvdb_id,
         "imdb_id": imdb_id,
-        "poster_url": f"{plex_url.rstrip('/')}{thumb}?X-Plex-Token={plex_token}" if thumb else None,
-        "art_url": f"{plex_url.rstrip('/')}{art}?X-Plex-Token={plex_token}" if art else None,
+        "poster_url": f"{plex_url.rstrip('/')}{thumb}" if thumb else None,
+        "art_url": f"{plex_url.rstrip('/')}{art}" if art else None,
         "genres": genres,
         "overview": overview or None,
         "added_at": getattr(m, "addedAt", None),

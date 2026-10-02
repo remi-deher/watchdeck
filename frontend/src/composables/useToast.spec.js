@@ -1,32 +1,30 @@
-import { describe, expect, it, vi } from 'vitest';
-import { useToast } from './useToast';
+import { afterEach, describe, expect, it } from 'vitest';
+import { toasts, useToast } from './useToast';
+
+afterEach(() => { toasts.value = []; });
 
 describe('useToast', () => {
-  it('adds and dismisses toasts correctly', () => {
-    const { toasts, addToast, dismissToast, success, error } = useToast();
-    const initialCount = toasts.value.length;
-
-    const id1 = success('Succès', 'Opération réussie');
-    expect(toasts.value.length).toBe(initialCount + 1);
-
-    const id2 = error('Erreur', 'Opération échouée');
-    expect(toasts.value.length).toBe(initialCount + 2);
-
-    dismissToast(id1);
-    expect(toasts.value.some(t => t.id === id1)).toBe(false);
-
-    dismissToast(id2);
+  it('ajoute une notification typee a la file, avec sa duree', () => {
+    const { success, error } = useToast();
+    success('Enregistré', 'Réglages sauvegardés.');
+    error('Échec');
+    expect(toasts.value.map((t) => [t.type, t.title, t.message, t.duration])).toEqual([
+      ['success', 'Enregistré', 'Réglages sauvegardés.', 4000],
+      ['error', 'Échec', '', 4000],
+    ]);
   });
 
-  it('auto-dismisses toast after duration', () => {
-    vi.useFakeTimers();
-    const { toasts, addToast } = useToast();
-    const id = addToast({ title: 'Auto dismiss', duration: 1000 });
+  it('retire une notification par son identifiant', () => {
+    const { info, dismissToast } = useToast();
+    const a = info('A');
+    info('B');
+    dismissToast(a);
+    expect(toasts.value.map((t) => t.title)).toEqual(['B']);
+  });
 
-    expect(toasts.value.some(t => t.id === id)).toBe(true);
-
-    vi.advanceTimersByTime(1100);
-    expect(toasts.value.some(t => t.id === id)).toBe(false);
-    vi.useRealTimers();
+  it("une notification annulable reste plus longtemps et porte son action", () => {
+    const run = () => {};
+    useToast().undoable('Supprimé', 'Annuler', run);
+    expect(toasts.value[0]).toMatchObject({ duration: 8000, action: { label: 'Annuler', run } });
   });
 });

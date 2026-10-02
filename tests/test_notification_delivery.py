@@ -6,9 +6,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.models import Base, EmailProvider, MediaRequest, NotificationDelivery, PlexUser, Settings
+from app.models import EmailProvider, MediaRequest, NotificationDelivery, PlexUser, Settings
 from app.services.email_providers import send_with_fallback
 from app.services.notification_delivery import (
     DeliveryRejected,
@@ -22,13 +21,9 @@ from app.services.notification_delivery import (
 )
 
 
-@pytest_asyncio.fixture
-async def sessions(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'delivery.db'}")
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    yield async_sessionmaker(engine, expire_on_commit=False)
-    await engine.dispose()
+@pytest.fixture
+def sessions(async_database):
+    return async_database.session_factory
 
 
 def test_stable_key_normalizes_recipient_and_ignores_rendering():
@@ -52,7 +47,9 @@ def test_stable_key_normalizes_recipient_and_ignores_rendering():
 
 
 @pytest.mark.asyncio
-async def test_only_one_concurrent_claim_and_durable_success(sessions):
+async def test_only_one_concurrent_claim_and_durable_success(committed_async_database):
+    # Deux connexions reelles : le verrou doit tenir entre transactions distinctes.
+    sessions = committed_async_database.session_factory
     identity = identity_for(1, "request", "bob@example.com", {})
 
     async def worker():

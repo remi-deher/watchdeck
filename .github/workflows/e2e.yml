@@ -32,7 +32,10 @@ permissions:
 jobs:
   responsive-navigation:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 10 min ne laissaient aucune marge : la suite Chromium puis iOS tourne en ~9 min
+    # un jour normal, et un runner plus lent ou une relance interne suffisait a couper
+    # le job en plein test (trois livraisons bloquees de suite).
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

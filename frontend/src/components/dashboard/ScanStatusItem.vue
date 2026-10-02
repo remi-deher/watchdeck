@@ -11,10 +11,10 @@
           <span class="scan-subtitle">{{ subtitle }}</span>
         </div>
       </div>
-      <button class="secondary btn-scan-action" :disabled="running" type="button" @click="$emit('action')">
+      <UiButton class="btn-scan-action" :disabled="running" @click="$emit('action')">
         <RefreshCw :class="{ spinning: running }" />
         <span>{{ actionLabel }}</span>
-      </button>
+      </UiButton>
     </div>
     <div v-if="running && progress != null" class="progress-bar-wrap">
       <div class="progress-bar animated" :style="{ width: `${progress}%` }" />
@@ -23,6 +23,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed } from 'vue';
 import { RefreshCw } from '@lucide/vue';
 
@@ -63,6 +64,6 @@ const statusLabel = computed(() => running.value ? 'En cours' : props.status ===
 .spinning { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .progress-bar-wrap { width: 100%; height: 3px; background: var(--surface); border-radius: var(--radius-xs); overflow: hidden; }
-.progress-bar { height: 100%; border-radius: var(--radius-xs); transition: width .3s ease; }
-.progress-bar.animated { background: linear-gradient(90deg, var(--accent) 0%, #38bdf8 100%); }
+.progress-bar { height: 100%; border-radius: var(--radius-xs); transition: width var(--motion-duration-base) var(--motion-ease-standard); }
+.progress-bar.animated { background: linear-gradient(90deg, var(--accent) 0%, var(--blue) 100%); }
 </style>

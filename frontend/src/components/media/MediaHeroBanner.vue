@@ -16,9 +16,12 @@
   >
     <div class="hero-slider">
       <Transition :name="transitionName">
-        <div class="hero-slide" :key="itemKey">
-          <div class="hero-backdrop" :style="backdropStyle" />
-          <div class="hero-shade" />
+        <UiHeroBackdrop
+          :key="itemKey"
+          class="hero-slide"
+          :image-url="backdropOf(activeItem)"
+          zoom-on-hover
+        >
           <div class="hero-content">
             <span class="eyebrow">{{ eyebrowText }}</span>
             <h1>{{ activeItem.title || activeItem.name }}</h1>
@@ -30,44 +33,49 @@
               <span v-else-if="mediaTypeLabel">{{ mediaTypeLabel }}</span>
             </div>
             <div class="hero-actions" @pointerdown.stop>
-              <RouterLink v-if="to" class="primary hero-btn" :to="to">Voir la fiche</RouterLink>
-              <button v-else class="primary hero-btn" type="button" @click="$emit('open', activeItem)">Voir la fiche</button>
+              <RouterLink v-if="to" class="primary hero-btn" :to="to" @click="ouvrirEnSurface">Voir la fiche</RouterLink>
+              <UiButton variant="primary" v-else class="hero-btn" @click="$emit('open', activeItem)">Voir la fiche</UiButton>
             </div>
           </div>
-        </div>
+          <template #overlay>
+            <div
+              v-if="normalizedItems.length > 1"
+              class="hero-dots"
+              role="tablist"
+              aria-label="Sélection à la une"
+              @pointerdown.stop
+              @pointermove.stop
+              @pointerup.stop
+            >
+              <button
+                v-for="(_, i) in normalizedItems"
+                :key="i"
+                type="button"
+                role="tab"
+                class="hero-dot"
+                :class="{ active: i === activeIndex }"
+                :aria-selected="i === activeIndex"
+                :aria-label="`Voir la sélection ${i + 1}`"
+                @click.stop="goTo(i)"
+              />
+            </div>
+          </template>
+        </UiHeroBackdrop>
       </Transition>
-    </div>
-
-    <!-- Points de pagination -->
-    <div
-      v-if="normalizedItems.length > 1"
-      class="hero-dots"
-      role="tablist"
-      aria-label="Sélection à la une"
-      @pointerdown.stop
-      @pointermove.stop
-      @pointerup.stop
-    >
-      <button
-        v-for="(_, i) in normalizedItems"
-        :key="i"
-        type="button"
-        role="tab"
-        class="hero-dot"
-        :class="{ active: i === activeIndex }"
-        :aria-selected="i === activeIndex"
-        :aria-label="`Voir la sélection ${i + 1}`"
-        @click.stop="goTo(i)"
-      />
     </div>
   </section>
   <div v-else-if="loading" class="media-hero-banner hero-loading" aria-label="Chargement de la sélection" />
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mediaDetailPath } from '@/mediaUrl';
+import { useRoute, useRouter } from 'vue-router';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
+import { memoriserApercu } from '@/composables/useFicheApercu';
 import MediaStatusBadge from '@/components/media/MediaStatusBadge.vue';
+import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -113,10 +121,22 @@ const itemKey = computed(() => {
   return `${activeItem.value.media_type || 'item'}-${id}-${activeIndex.value}`;
 });
 
-const backdropStyle = computed(() => {
-  const url = activeItem.value?.backdrop_url || activeItem.value?.art_url;
-  return url ? { backgroundImage: `url("${url}")` } : {};
-});
+const backdropOf = (item: any): string | null => item?.backdrop_url || item?.art_url || null;
+/* Les fonds sont charges d'avance : une diapositive qui entrait avant son image glissait
+   vide, et le defilement montrait un trou le temps du chargement. Les images restent
+   referencees pour que le navigateur les garde decodees. */
+const prechargees = new Map<string, HTMLImageElement>();
+watch(normalizedItems, (items) => {
+  if (typeof Image === 'undefined') return;
+  for (const item of items) {
+    const url = backdropOf(item);
+    if (!url || prechargees.has(url)) continue;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    prechargees.set(url, img);
+  }
+}, { immediate: true });
 
 const eyebrowText = computed(() => {
   if (props.eyebrow) return props.eyebrow;
@@ -127,6 +147,20 @@ const mediaTypeLabel = computed(() => {
   const type = activeItem.value?.media_type;
   return type ? LABELS[type] || '' : '';
 });
+
+const router = useRouter();
+const route = useRoute();
+
+/* La fiche se pose par-dessus Explorer, comme depuis une affiche : suivi en lien simple,
+   ce bouton REMPLACAIT la page par la fiche, qui s'affichait alors vide le temps de son
+   chargement, et le retour reconstruisait Explorer entier -- affiches vides comprises.
+   Le lien garde son adresse pour le clic milieu et « ouvrir dans un nouvel onglet ». */
+function ouvrirEnSurface(event: MouseEvent): void {
+  if (!to.value || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) return;
+  event.preventDefault();
+  memoriserApercu(activeItem.value);
+  ouvrirFiche(router, to.value as any, route.fullPath);
+}
 
 const to = computed(() => {
   if (!activeItem.value) return null;
@@ -263,14 +297,13 @@ onUnmounted(stopAutoplay);
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-hero-banner {
   position: relative;
   min-height: clamp(300px, 42vw, 460px);
   margin-bottom: var(--space-6);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--border);
   touch-action: pan-y;
   user-select: none;
   outline: none;
@@ -290,33 +323,6 @@ onUnmounted(stopAutoplay);
 .hero-slide {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: flex-end;
-  border-radius: inherit;
-  overflow: hidden;
-}
-
-.hero-backdrop {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center 20%;
-  transform: scale(1.02);
-  transition: transform 5s cubic-bezier(0.25, 1, 0.5, 1);
-  will-change: transform;
-}
-
-.hero-slide:hover .hero-backdrop {
-  transform: scale(1.05);
-}
-
-.hero-shade {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to top, rgba(9, 9, 11, 0.98) 0%, rgba(9, 9, 11, 0.65) 45%, rgba(9, 9, 11, 0.15) 100%),
-    linear-gradient(to right, rgba(9, 9, 11, 0.88) 0%, rgba(9, 9, 11, 0.4) 50%, transparent 80%);
-  pointer-events: none;
 }
 
 .hero-content {
@@ -339,7 +345,7 @@ onUnmounted(stopAutoplay);
 
 .hero-content h1 {
   margin: 0;
-  color: #fff;
+  color: var(--text);
   font-size: clamp(1.5rem, 3.5vw, 2.3rem);
   font-weight: 800;
   line-height: 1.15;
@@ -347,9 +353,12 @@ onUnmounted(stopAutoplay);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
+/* Texte pose sur l'image : blanc. La banniere force le theme sombre (theme-dark-scope),
+   ou --text est quasi blanc dans les deux themes ; un gris n'a pas de contraste fiable
+   sur une photo. */
 .hero-overview {
   margin: var(--space-1) 0 var(--space-2);
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text);
   font-size: var(--fs-sm);
   line-height: 1.5;
   display: -webkit-box;
@@ -364,7 +373,7 @@ onUnmounted(stopAutoplay);
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text);
   font-size: var(--fs-xs);
   font-weight: 600;
 }
@@ -432,7 +441,7 @@ onUnmounted(stopAutoplay);
   outline: none;
   appearance: none;
   -webkit-appearance: none;
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease, box-shadow 0.25s ease;
+  transition: width var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 /* Zone de clic tactile élargie */
@@ -465,7 +474,7 @@ onUnmounted(stopAutoplay);
   max-height: 8px;
   flex: 0 0 26px;
   background: var(--accent);
-  box-shadow: 0 0 12px rgba(229, 160, 13, 0.6);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 60%, transparent);
   transform: none;
 }
 
@@ -479,54 +488,39 @@ onUnmounted(stopAutoplay);
   50% { opacity: 0.3; }
 }
 
+/* Les deux diapositives glissent ensemble, collees bord a bord : meme duree, meme
+   courbe, et aucune ne s'efface. Le fondu a zero des deux cotes laissait voir le fond
+   noir entre elles au milieu du mouvement -- le « trou » du defilement. */
 .hero-slide-next-enter-active,
 .hero-slide-next-leave-active,
 .hero-slide-prev-enter-active,
 .hero-slide-prev-leave-active {
-  transition: transform 0.48s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.38s ease;
-  will-change: transform, opacity;
+  transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  will-change: transform;
 }
 
-.hero-slide-next-enter-from {
-  transform: translateX(100%);
-  opacity: 0;
-}
-.hero-slide-next-leave-to {
-  transform: translateX(-100%);
-  opacity: 0;
-}
-
-.hero-slide-prev-enter-from {
-  transform: translateX(-100%);
-  opacity: 0;
-}
-.hero-slide-prev-leave-to {
-  transform: translateX(100%);
-  opacity: 0;
-}
+.hero-slide-next-enter-from { transform: translateX(100%); }
+.hero-slide-next-leave-to { transform: translateX(-100%); }
+.hero-slide-prev-enter-from { transform: translateX(-100%); }
+.hero-slide-prev-leave-to { transform: translateX(100%); }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-slide-next-enter-active,
   .hero-slide-next-leave-active,
   .hero-slide-prev-enter-active,
   .hero-slide-prev-leave-active {
-    transition: opacity 0.3s ease;
+    transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
     transform: none !important;
   }
+  /* Sans mouvement, un fondu enchaine : la sortante reste pleine sous l'entrante. */
+  .hero-slide-next-enter-from,
+  .hero-slide-prev-enter-from { opacity: 0; }
 }
 
-@media (max-width: 640px) {
+@include bp.until(phablet) {
   .media-hero-banner {
     min-height: clamp(320px, 58vh, 420px);
     border-radius: var(--radius-md);
-  }
-  .hero-backdrop {
-    background-position: center 15%;
-  }
-  .hero-shade {
-    background:
-      linear-gradient(to top, rgba(9, 9, 11, 0.98) 0%, rgba(9, 9, 11, 0.75) 55%, rgba(9, 9, 11, 0.2) 100%),
-      linear-gradient(to right, rgba(9, 9, 11, 0.7) 0%, transparent 100%);
   }
   .hero-content {
     padding: var(--space-4) var(--space-4) calc(var(--space-6) + 12px);

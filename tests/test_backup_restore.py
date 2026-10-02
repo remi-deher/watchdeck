@@ -8,7 +8,7 @@ import pytest
 
 from app.backup_restore import (
     ARCHIVE_DUMP_NAME,
-    LegacyMigrationError,
+    BackupRestoreError,
     build_full_backup_zip,
     bundle_data_files,
     extract_data_files,
@@ -112,7 +112,7 @@ def test_read_full_backup_zip_rejects_missing_dump(tmp_path):
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("manifest.json", "{}")
 
-    with pytest.raises(LegacyMigrationError, match="database.dump"):
+    with pytest.raises(BackupRestoreError, match="database.dump"):
         read_full_backup_zip(zip_path, tmp_path / "extracted")
 
 
@@ -120,5 +120,67 @@ def test_read_full_backup_zip_rejects_corrupt_zip(tmp_path):
     bad_path = tmp_path / "not-a-zip.zip"
     bad_path.write_bytes(b"this is not a zip file")
 
-    with pytest.raises(LegacyMigrationError, match="invalide"):
+    with pytest.raises(BackupRestoreError, match="invalide"):
         read_full_backup_zip(bad_path, tmp_path / "extracted")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql+asyncpg://u:p@db/watchdeck",
+        "postgresql+psycopg2://u:p@db/watchdeck",
+        "postgresql://u:p@db/watchdeck",
+        "postgres://u:p@db/watchdeck",
+    ],
+)
+def test_postgres_client_url_normalizes_driver_prefixes(url):
+    from app.backup_restore import postgres_client_url
+
+    assert postgres_client_url(url) == "postgresql://u:p@db/watchdeck"
+
+
+def test_postgres_client_url_rejects_other_engines():
+    from app.backup_restore import postgres_client_url
+
+    with pytest.raises(BackupRestoreError, match="PostgreSQL"):
+        postgres_client_url("sqlite:///data/watchdeck.db")
+
+
+def test_create_postgres_backup_requires_client_tools(tmp_path, monkeypatch):
+    from app import backup_restore
+
+    monkeypatch.setattr(backup_restore.shutil, "which", lambda name: None)
+    with pytest.raises(BackupRestoreError, match="indisponibles"):
+        backup_restore.create_postgres_backup("postgresql://u:p@db/w", tmp_path)
+
+
+def test_create_postgres_backup_dumps_then_verifies(tmp_path, monkeypatch):
+    from app import backup_restore
+
+    calls = []
+    monkeypatch.setattr(backup_restore.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(backup_restore.subprocess, "run", lambda args, **kwargs: calls.append(args))
+
+    path = backup_restore.create_postgres_backup("postgresql+asyncpg://u:p@db/w", tmp_path / "backups")
+
+    assert path.parent == tmp_path / "backups"
+    assert calls[0][:2] == ["/usr/bin/pg_dump", "--format=custom"]
+    assert calls[0][-1] == "postgresql://u:p@db/w"
+    assert calls[1] == ["/usr/bin/pg_restore", "--list", str(path)]
+
+
+def test_create_postgres_backup_removes_partial_dump_on_failure(tmp_path, monkeypatch):
+    import subprocess
+
+    from app import backup_restore
+
+    def fail(args, **kwargs):
+        Path(args[3]).write_bytes(b"partiel")
+        raise subprocess.CalledProcessError(1, args, stderr="connexion refusée")
+
+    monkeypatch.setattr(backup_restore.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(backup_restore.subprocess, "run", fail)
+
+    with pytest.raises(BackupRestoreError, match="connexion refusée"):
+        backup_restore.create_postgres_backup("postgresql://u:p@db/w", tmp_path)
+    assert not list(tmp_path.glob("*.dump"))

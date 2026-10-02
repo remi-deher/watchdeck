@@ -1,20 +1,15 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, MediaRequest, PlexUser, RequestStatus, Settings
+from app.models import MediaRequest, PlexUser, RequestStatus, Settings
 from app.scheduler import _handle_show_progress_notification
 from app.services.notification_orchestrator import _resolve_series_granularity
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _make_db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    return TestSession(sessionmaker(bind=engine)())
+    return make_test_session()
 
 
 def _settings(**kwargs) -> Settings:

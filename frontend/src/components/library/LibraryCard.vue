@@ -11,7 +11,7 @@
         <span v-for="badge in badges" :key="badge.key" :class="badge.cls">{{ badge.label }}</span>
       </div>
       <label v-if="canModerate && item._kind === 'request' && !item.orphan" class="select-tag" @click.stop>
-        <input :checked="selected" :disabled="busy" type="checkbox" :aria-label="`Sélectionner ${item.title}`" @change="$emit('toggle-select', item.id)">
+        <UiCheckbox :model-value="selected" :disabled="busy" :aria-label="`Sélectionner ${item.title}`" @update:model-value="$emit('toggle-select', item.id)" />
       </label>
     </template>
     <template #meta>
@@ -41,7 +41,7 @@
     <MediaPoster :poster-url="item.poster_url" :is-music="isMusic">
       <template #badges>
         <label v-if="canModerate && item._kind === 'request' && !item.orphan" class="select-tag" @click.stop>
-          <input :checked="selected" :disabled="busy" type="checkbox" :aria-label="`Sélectionner ${item.title}`" @change="$emit('toggle-select', item.id)">
+          <UiCheckbox :model-value="selected" :disabled="busy" :aria-label="`Sélectionner ${item.title}`" @update:model-value="$emit('toggle-select', item.id)" />
         </label>
       </template>
     </MediaPoster>
@@ -60,25 +60,23 @@
            action il revient a chaque cycle de la watchlist. -->
       <template v-if="item._kind === 'request' && item.status === 'failed'">
         <small v-if="item.fulfillment_error" class="card-failure">{{ item.fulfillment_error }}</small>
-        <button
-          v-if="canModerate"
-          type="button"
-          class="secondary text-xs card-withdraw"
-          :disabled="busy"
-          @click.stop="$emit('act', item, 'withdraw')"
-        >Annuler et bloquer…</button>
+        <UiButton v-if="canModerate" class="text-xs card-withdraw" :disabled="busy" @click.stop="$emit('act', item, 'withdraw')">Annuler et bloquer…</UiButton>
       </template>
     </div>
   </article>
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from 'vue';
 import { Star } from '@lucide/vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
-import { mediaTypeLabel, vfLanguageState } from '@/utils/labels';
+import { mediaTypeLabel, vfLanguageState, isMusicType } from '@/utils/labels';
+import { requesterName } from '@/utils/userLabels';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import { statusLabel, statusShortLabel } from '@/components/media/mediaListHelpers';
@@ -90,12 +88,15 @@ const props = withDefaults(
     canModerate?: boolean;
     busy?: boolean;
     selected?: boolean;
+    /** Serveurs Plex portant ce media, quand la Bibliotheque en suit plusieurs. */
+    serverNames?: string[];
   }>(),
   {
     view: 'grid',
     canModerate: false,
     busy: false,
     selected: false,
+    serverNames: () => [],
   }
 );
 const emit = defineEmits<{
@@ -106,9 +107,10 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const route = useRoute();
 const opening = ref(false);
 
-const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.item.media_type));
+const isMusic = computed(() => isMusicType(props.item.media_type));
 
 const artistName = computed(() => {
   const match = /^Artiste \/ Album: (.+)$/m.exec(props.item.overview || '');
@@ -139,7 +141,7 @@ async function handleOpen(): Promise<void> {
       `/api/requests/orphans/${props.item.orphan_source}/${props.item.arr_instance_id}/${props.item.arr_id}/open`,
       { method: 'POST' },
     );
-    router.push(mediaDetailPath({ library_id: library_item_id }, 'library'));
+    ouvrirFiche(router, mediaDetailPath({ library_id: library_item_id }, 'library'), route.fullPath);
   } catch (e: any) {
     emit('error', e?.message || "Impossible d'ouvrir la fiche detaillee");
   } finally {
@@ -148,7 +150,7 @@ async function handleOpen(): Promise<void> {
 }
 
 function requesterLabel(item: any): string {
-  return item.custom_name || item.requested_by || item.plex_user || item.plex_user_id || '';
+  return requesterName(item);
 }
 
 const badges = computed(() => {
@@ -165,6 +167,7 @@ const badges = computed(() => {
   }
   const requester = requesterLabel(item);
   if (requester) list.push({ key: 'demandeur', cls: 'requester-tag', label: `👤 ${requester}` });
+  if (props.serverNames.length) list.push({ key: 'serveur', cls: 'requester-tag server-tag', label: props.serverNames.join(' + ') });
   return list;
 });
 </script>
@@ -224,6 +227,11 @@ const badges = computed(() => {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.server-tag {
+  border: 1px solid rgba(255, 255, 255, .28);
+  background: rgba(17, 24, 39, .9);
 }
 
 .card-failure { color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }

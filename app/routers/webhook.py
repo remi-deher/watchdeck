@@ -558,6 +558,16 @@ async def _instance_name(db: AsyncSession, instance_id: int | None) -> str | Non
     return inst.name if inst else None
 
 
+async def _arr_plex_server_id(db: AsyncSession, service: str, instance_id: int | None) -> int | None:
+    """Serveur Plex vers lequel importe l'instance *arr du webhook (None = principal)."""
+    query = select(ArrInstance.plex_server_id).filter(ArrInstance.arr_type == service)
+    if instance_id:
+        query = query.filter(ArrInstance.id == instance_id)
+    else:
+        query = query.filter(ArrInstance.enabled, ArrInstance.is_default)
+    return (await db.execute(query.limit(1))).scalar()
+
+
 async def _resolve_arr_connection(
     db: AsyncSession, service: str, instance_id: int | None
 ) -> tuple[str, str, str] | None:
@@ -646,6 +656,7 @@ async def sonarr_webhook(request: Request):
                 arr_url=conn[0] if conn else None,
                 arr_api_key=conn[1] if conn else None,
                 cache_key=conn[2] if conn else None,
+                plex_server_id=await _arr_plex_server_id(db, "sonarr", webhook_instance_id),
             )
 
         series = data.get("series", {})
@@ -738,6 +749,7 @@ async def radarr_webhook(request: Request):
                 arr_url=conn[0] if conn else None,
                 arr_api_key=conn[1] if conn else None,
                 cache_key=conn[2] if conn else None,
+                plex_server_id=await _arr_plex_server_id(db, "radarr", instance_id),
             )
 
         movie = data.get("movie", {})

@@ -1,14 +1,13 @@
 <template>
   <div class="interval-preset">
-    <select :value="selectValue" @change="onSelect(($event.target as HTMLSelectElement).value)">
-      <option v-for="p in presets" :key="p.value" :value="p.value">{{ p.label }}</option>
-      <option value="custom">Personnalise...</option>
-    </select>
-    <input v-if="customMode" type="number" min="1" :value="modelValue" placeholder="Valeur" @input="onCustomInput">
+    <UiSelect :model-value="selectValue" @update:model-value="onSelect($event)" :options="[...(presets).map((p) => ({ value: p.value, label: String(p.label) })), { value: 'custom', label: 'Personnalise...' }]" />
+    <UiNumberField v-if="customMode" :model-value="typeof modelValue === 'number' ? modelValue : Number(modelValue) || null" :min="1" placeholder="Valeur" aria-label="Valeur personnalisée" @update:model-value="onCustomInput" />
   </div>
 </template>
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import { computed, ref } from 'vue';
+import UiNumberField from '@/components/ui/UiNumberField.vue';
 
 export interface Preset {
   label: string;
@@ -44,9 +43,8 @@ function onSelect(raw: string): void {
   emit('update:modelValue', Number(raw));
 }
 
-function onCustomInput(event: Event): void {
-  const value = Number((event.target as HTMLInputElement).value);
-  if (value > 0) emit('update:modelValue', value);
+function onCustomInput(value: number | null): void {
+  if (value && value > 0) emit('update:modelValue', value);
 }
 </script>
 <style scoped lang="scss">

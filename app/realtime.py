@@ -25,7 +25,6 @@ EVENT_TYPES = {
     # L'import complet remplace toute la base : les onglets ouverts affichent alors des
     # donnees qui n'existent plus (et, depuis le cache SWR, pourraient les repeindre au
     # prochain montage). Voir le consommateur dans App.vue.
-    "migration.completed",
 }
 _subscribers: set[asyncio.Queue] = set()
 

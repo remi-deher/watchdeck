@@ -110,7 +110,10 @@ def _poster(path: Optional[str], size: str = "w342") -> Optional[str]:
     return f"{IMG_BASE}/{size}{path}" if path else None
 
 
-def _backdrop(path: Optional[str], size: str = "w780") -> Optional[str]:
+def _backdrop(path: Optional[str], size: str = "w1280") -> Optional[str]:
+    """Les backdrops servent de bandeau pleine largeur, sans `srcset` pour les decliner :
+    w780 etirait une image de 780 px sur un ecran de 1440, et pire encore sur un telephone
+    a forte densite. w1280 est le barreau suivant de TMDB."""
     return f"{IMG_BASE}/{size}{path}" if path else None
 
 

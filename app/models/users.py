@@ -67,6 +67,9 @@ class PlexUser(Base):
     password_hash: Mapped[Optional[str]] = mapped_column(default=None)
     totp_secret: Mapped[Optional[str]] = mapped_column(EncryptedText, default=None)
     totp_enabled: Mapped[bool] = mapped_column(default=False)
+    # Incremente pour fermer toutes les sessions ouvertes du compte (voir
+    # app/services/session_security.py).
+    session_version: Mapped[int] = mapped_column(default=0, server_default="0")
 
 
 class PasskeyCredential(Base):

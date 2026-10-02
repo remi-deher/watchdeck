@@ -125,6 +125,11 @@ class Settings(Base):
     # n'a pas bouge dans Plex ne peut pas avoir change de piste audio.
     vf_scan_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
 
+    # Filigrane de la derniere resynchronisation reussie de la disponibilite episode
+    # (voir episode_availability) : seules les series signalees par l'historique Sonarr
+    # depuis cette date sont rechargees, au lieu des ~770 series a chaque passage.
+    episode_availability_last_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+
     # --- TMDB (catalogue de découverte) ---
     tmdb_api_key: Mapped[Optional[str]] = mapped_column(EncryptedText)
     tmdb_enabled: Mapped[bool] = mapped_column(default=True)
@@ -202,6 +207,10 @@ class Settings(Base):
     # jobs planifies qui envoient les emails n'ont pas de "page courante" dont deriver
     # une URL) -- typiquement le lien vers /privacy dans le pied de page des emails.
     public_base_url: Mapped[Optional[str]] = mapped_column(default=None)
+    # Reverse-proxies de confiance (IP ou reseaux CIDR separes par des virgules) : seules
+    # leurs connexions peuvent annoncer l'IP du client dans X-Forwarded-For. Voir
+    # app/services/client_ip.py.
+    trusted_proxies: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
     # --- RGPD / confidentialite (page /privacy) ---
     # Identite du responsable de traitement -- sans ca, les sections "droits" et "base

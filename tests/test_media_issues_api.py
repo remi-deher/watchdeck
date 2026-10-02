@@ -75,7 +75,7 @@ def test_list_resolves_the_poster_from_the_linked_media(client, async_db):
 
     payload = client.get("/api/media/issues").json()
 
-    assert payload["items"][0]["poster_url"] == "/poster.jpg"
+    assert payload["items"][0]["poster_url"].startswith("/api/image-proxy?url=")
 
 
 def test_a_note_can_be_written_and_read_back(client, async_db):

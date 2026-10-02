@@ -4,7 +4,8 @@ import csv
 import io
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +13,13 @@ from ..database import get_db_async
 from ..dependencies import get_settings_or_404, require_admin
 from ..models import Settings
 from ..pagination import PaginationParams, pagination_params
-from ..services.library_analytics import analytics_items_payload, analytics_payload, analytics_summary_payload
+from ..services.library_analytics import (
+    analytics_item,
+    analytics_item_technical,
+    analytics_items_payload,
+    analytics_payload,
+    analytics_summary_payload,
+)
 
 router = APIRouter(prefix="/api/library-analytics", tags=["library-analytics"], dependencies=[Depends(require_admin)])
 
@@ -156,7 +163,8 @@ async def get_library_analytics_items(
     insight_field: Optional[str] = None,
     insight_value: Optional[str] = None,
     sort: Optional[str] = Query(
-        None, pattern="^(title|library|studio|container|size_bytes|plays|watch_time|last_viewed|viewer)$"
+        None,
+        pattern="^(title|library|studio|container|size_bytes|plays|watch_time|last_viewed|viewer|video|audio|subtitles)$",
     ),
     direction: str = Query("asc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db_async),
@@ -193,6 +201,36 @@ async def get_library_analytics_items(
         sort=sort,
         direction=direction,
     )
+
+
+@router.get("/items/{rating_key}")
+async def get_library_analytics_item(
+    rating_key: str,
+    db: AsyncSession = Depends(get_db_async),
+    settings: Settings = Depends(get_settings_or_404),
+):
+    """Un media, pour ouvrir sa fiche technique depuis un lien ou apres un rechargement."""
+    item = await analytics_item(settings, db, rating_key)
+    if item is None:
+        raise HTTPException(404, "Média introuvable dans l'analyse de la bibliothèque.")
+    return item
+
+
+@router.get("/items/{rating_key}/technical")
+async def get_library_analytics_item_technical(
+    rating_key: str,
+    db: AsyncSession = Depends(get_db_async),
+    settings: Settings = Depends(get_settings_or_404),
+):
+    """Fiche technique complete du fichier, lue a la demande dans Plex (profils, HDR,
+    debits, detail des pistes) : l'instantane n'en garde que le resume."""
+    try:
+        technical = await analytics_item_technical(settings, db, rating_key)
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, "Plex n'a pas pu fournir la fiche technique de ce fichier.") from exc
+    if technical is None:
+        raise HTTPException(404, "Ce fichier est introuvable dans Plex.")
+    return technical
 
 
 @router.get("/export.csv")

@@ -16,6 +16,24 @@ function mountPage(props = {}, slots = {}) {
   });
 }
 
+const librarySections = [
+  { key: 'catalog', label: 'Catalogue', to: '/library' },
+  { key: 'vf', label: 'Améliorations VF', to: '/vf-upgrades' },
+];
+
+/** Force le mode du shell, que `useShellMode` lit par media queries. */
+function stubShellMode(mode) {
+  const original = window.matchMedia;
+  window.matchMedia = (query) => ({
+    matches:
+      (query.includes('768') && (mode === 'medium' || mode === 'expanded')) ||
+      (query.includes('1200') && mode === 'expanded'),
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  return () => { window.matchMedia = original; };
+}
+
 describe('AppPage', () => {
   it('rend exactement un h1, porte par le patron et non par la vue', () => {
     const wrapper = mountPage({}, { default: '<section><h2>Films</h2></section>' });
@@ -54,17 +72,29 @@ describe('AppPage', () => {
     expect(usePageSearch().value).toBeNull();
   });
 
-  it('rend la sous-navigation quand la page expose des sections', () => {
-    const wrapper = mountPage({
-      sections: [
-        { key: 'catalog', label: 'Catalogue', to: '/library' },
-        { key: 'vf', label: 'Améliorations VF', to: '/vf-upgrades' },
-      ],
-      activeSection: 'vf',
-    });
-    const links = wrapper.findAll('.app-subnav__item');
-    expect(links).toHaveLength(2);
-    expect(links[1].attributes('aria-current')).toBe('page');
+  it('rend la sous-navigation en mode intermediaire, quand la largeur lui laisse une rangee', () => {
+    const restore = stubShellMode('medium');
+    try {
+      const wrapper = mountPage({ sections: librarySections, activeSection: 'vf' });
+      const links = wrapper.findAll('.app-subnav__item');
+      expect(links).toHaveLength(2);
+      expect(links[1].attributes('aria-current')).toBe('page');
+    } finally {
+      restore();
+    }
+  });
+
+  it('ne rend aucune rangee de sections en compact : le dock les porte', () => {
+    // Sur telephone, la rangee s'ajoutait a la barre du haut et au dock. Les sections
+    // vivent desormais dans la feuille ouverte depuis la destination active du dock,
+    // et la page ne doit surtout pas en afficher un second exemplaire.
+    const restore = stubShellMode('compact');
+    try {
+      const wrapper = mountPage({ sections: librarySections, activeSection: 'vf' });
+      expect(wrapper.find('.app-subnav__item').exists()).toBe(false);
+    } finally {
+      restore();
+    }
   });
 
   it('affiche les retours d’etat sans que la vue ait a les composer', () => {

@@ -1,3 +1,4 @@
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.vue';
@@ -25,7 +26,7 @@ vi.mock('@/composables/usePwaInstall', () => ({
 // Le shell monte RouterLink lui-meme (rail, dock, feuille) : le mock doit donc
 // l'exposer, sinon le composant echoue avant meme d'atteindre l'assertion.
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ path: '/dashboard', fullPath: '/dashboard', meta: {}, query: {} }),
+  useRoute: () => ({ path: '/dashboard', fullPath: '/dashboard', meta: {}, query: {}, matched: [{}] }),
   useRouter: () => ({ push: vi.fn() }),
   RouterLink: {
     props: ['to'],
@@ -45,6 +46,7 @@ vi.mock('@/cache', async (importOriginal) => {
 function mountApp() {
   return mount(App, {
     global: {
+      plugins: [[VueQueryPlugin, { queryClient: new QueryClient() }]],
       stubs: {
         RouterView: { template: '<div class="router-view-stub" />' },
         CommandPalette: true,

@@ -9,11 +9,11 @@
  */
 import type { Component } from 'vue';
 import type { RouteLocationNormalizedLoaded } from 'vue-router';
+import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 import {
   Activity,
   Bell,
   CalendarDays,
-  ChartNoAxesCombined,
   Clock,
   Compass,
   DatabaseZap,
@@ -26,12 +26,12 @@ import {
   Inbox,
   Languages,
   Library,
-  Lightbulb,
   Link2,
   ListOrdered,
   ListRestart,
   MessageSquareWarning,
   MonitorPlay,
+  Music2,
   PackageSearch,
   Plug,
   Radio,
@@ -41,7 +41,7 @@ import {
   Settings,
   Tv,
   Users,
-  Wrench,
+  Zap,
 } from '@lucide/vue';
 
 export type Access = 'admin' | 'moderator';
@@ -67,7 +67,7 @@ export interface NavSection {
  * destinations restent atteignables en entier depuis la feuille de navigation, qui
  * n'en cache aucune.
  */
-export const DOCK_DESTINATION_KEYS = ['dashboard', 'discover', 'requests', 'library'];
+export const DOCK_DESTINATION_KEYS = ['dashboard', 'library', 'discover', 'requests'];
 
 /** Une destination de premier niveau, présente dans le rail comme dans le dock. */
 export interface NavDestination {
@@ -80,6 +80,8 @@ export interface NavDestination {
   access?: Access;
   /** Réservée aux modérateurs non-admins. */
   moderatorOnly?: boolean;
+  /** `admin` : groupe de l'espace Administration, absent du rail et du dock de l'app. */
+  space?: 'admin';
   match: (path: string) => boolean;
 }
 
@@ -95,29 +97,38 @@ export interface NavContext {
 
 export const DESTINATIONS: NavDestination[] = [
   { key: 'dashboard', label: 'Accueil', icon: Gauge, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/dashboard') || p.startsWith('/issues'), to: '/dashboard' },
-  { key: 'discover', label: 'Explorer', icon: Compass, group: 'Explorer', match: (p) => (p.startsWith('/discover') && !p.startsWith('/discover/requests')) || p.startsWith('/calendar'), to: '/discover' },
+  // Groupe Explorer : la bibliotheque d'abord (ce qu'on possede), puis ce qu'on peut
+  // decouvrir, puis ce qui sort.
+  { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
+  { key: 'discover', label: 'Explorer', icon: Compass, group: 'Explorer', match: (p) => p.startsWith('/discover') && !p.startsWith('/discover/requests'), to: '/discover' },
+  // Le calendrier suit les sorties : un outil de suivi, pas une facon de parcourir le
+  // catalogue. Il etait une section d'Explorer ; il devient une destination.
+  { key: 'calendar', label: 'Calendrier', icon: CalendarDays, group: 'Explorer', match: (p) => p.startsWith('/calendar'), to: '/calendar' },
   { key: 'requests', label: 'Demandes', icon: Inbox, group: 'Workflow', match: (p) => p.startsWith('/discover/requests') || p.startsWith('/releases/'), to: '/discover/requests' },
   { key: 'downloads', label: 'Acquisition', icon: GitBranch, group: 'Workflow', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
-  { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
   // Lectures Plex et analyse du catalogue sont deux espaces distincts, pas deux
   // sections d'un meme : les regrouper obligeait chaque page a empiler sa propre
   // rangee d'onglets sous celle de la destination.
   { key: 'activity', label: 'Activité', icon: Activity, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/activity'), to: '/activity' },
-  { key: 'insights', label: 'Insights', icon: ChartNoAxesCombined, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/analytics'), to: '/analytics' },
-  // Les reglages formaient un troisieme niveau de navigation : le rail menait a
-  // « Administration », qui menait a « Parametres », qui portait sa propre colonne de
-  // dix-sept entrees en cinq groupes. Cette colonne refaisait le travail du rail et
-  // mangeait 300px de largeur -- la grille des taches planifiees s'y retrouvait coincee
-  // sur une seule colonne. Les cinq groupes deviennent donc des destinations a part
-  // entiere, et leurs entrees les sections de celles-ci : le modele a deux niveaux du
-  // reste de l'application, sans exception.
-  { key: 'admin-overview', label: 'Configuration', icon: Wrench, group: 'Administration', access: 'admin', match: (p) => p === '/settings' || p.startsWith('/maintenance'), to: '/settings' },
-  { key: 'admin-services', label: 'Services', icon: Plug, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/settings/services'), to: '/settings/services' },
-  { key: 'admin-automation', label: 'Automatisation', icon: Clock, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/settings/automation'), to: '/settings/automation' },
-  { key: 'admin-operations', label: 'Exploitation', icon: ListRestart, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/settings/operations') || p.startsWith('/logs'), to: '/settings/operations' },
-  { key: 'admin-notifications', label: 'Notifications', icon: Bell, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/notifications') || p.startsWith('/settings/notifications'), to: '/notifications' },
-  { key: 'admin-users', label: 'Utilisateurs', icon: Users, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/users'), to: '/users' },
-  { key: 'admin-system', label: 'Système', icon: DatabaseZap, group: 'Administration', access: 'admin', match: (p) => p.startsWith('/settings/system'), to: '/settings/system' },
+  // L'analyse du catalogue vit dans l'Inventaire (bascule Fichiers / Insights de la
+  // page) : une seule entree, sans rangee de sections.
+  { key: 'insights', label: 'Inventaire', icon: Table, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/analytics'), to: '/analytics' },
+  // L'administration n'a plus qu'une porte dans le rail (voir `ADMIN_ENTRY`) : ses sept
+  // destinations y occupaient la moitie de la colonne, qui etait coupee des 900px de
+  // haut. Elle forme desormais un espace a part, avec sa propre barre laterale qui prend
+  // la place du rail tant qu'on y est (voir `AppShell`). Les entrees ci-dessous sont les
+  // groupes de cet espace : elles restent des destinations -- avec leurs sections, leur
+  // etat actif et leur place dans la palette --, mais `space: 'admin'` les retire du
+  // rail, du dock et de la feuille de navigation de l'application.
+  { key: 'admin-overview', label: 'Vue d’ensemble', icon: Gauge, group: '', space: 'admin', access: 'admin', match: (p) => p === '/settings' || p.startsWith('/maintenance'), to: '/settings' },
+  { key: 'admin-connections', label: 'Connexions', icon: Plug, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/services'), to: '/settings/services' },
+  { key: 'admin-automation', label: 'Automatisation', icon: Zap, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/automation'), to: '/settings/automation' },
+  { key: 'admin-notifications', label: 'Notifications', icon: Bell, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/notifications') || p.startsWith('/settings/notifications'), to: '/notifications' },
+  { key: 'admin-users', label: 'Utilisateurs', icon: Users, group: 'Gérer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/users'), to: '/users' },
+  // Les journaux rejoignent le Systeme : « Exploitation » ne disait rien de ce qu'elle
+  // contenait, et son autre moitie (acquisitions et conflits) est un outil du quotidien,
+  // rendu a l'Acquisition.
+  { key: 'admin-system', label: 'Système', icon: DatabaseZap, group: 'Gérer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/system') || p.startsWith('/logs'), to: '/settings/system' },
   // Un moderateur sans acces au tableau de bord garde les signalements comme espace propre.
   { key: 'issues', label: 'Problèmes signalés', icon: MessageSquareWarning, group: 'Pilotage', access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues'), to: '/issues' },
 ];
@@ -134,9 +145,28 @@ function permitted<T extends { access?: Access; moderatorOnly?: boolean }>(
   });
 }
 
-/** Destinations visibles pour les droits donnés. */
+/** Destinations de l'application (hors espace Administration) visibles pour les droits donnés. */
 export function destinationsFor(isAdmin: boolean, canModerate: boolean): NavDestination[] {
-  return permitted(DESTINATIONS, isAdmin, canModerate);
+  return permitted(DESTINATIONS, isAdmin, canModerate).filter((destination) => !destination.space);
+}
+
+/** Groupes de l'espace Administration, dans l'ordre de sa barre latérale. */
+export function adminAreasFor(isAdmin: boolean): NavDestination[] {
+  return isAdmin ? DESTINATIONS.filter((destination) => destination.space === 'admin') : [];
+}
+
+/**
+ * La porte unique de l'espace Administration, posée en pied de rail à côté du profil.
+ *
+ * Ce n'est pas une destination : elle ne porte aucune section et n'est jamais « la »
+ * destination d'une page. Elle s'allume quand la page relève de l'un des groupes de
+ * l'espace.
+ */
+export const ADMIN_ENTRY = { key: 'admin', label: 'Administration', icon: Settings, to: '/settings' } as const;
+
+/** Vrai quand la destination appartient à l'espace Administration. */
+export function isAdminSpace(destination: Pick<NavDestination, 'space'> | null | undefined): boolean {
+  return destination?.space === 'admin';
 }
 
 /**
@@ -146,7 +176,7 @@ export function destinationsFor(isAdmin: boolean, canModerate: boolean): NavDest
  * mais constitue l'espace propre d'un modérateur, qui n'y a pas accès.
  */
 export function destinationForPath(path: string, isAdmin: boolean, canModerate: boolean): NavDestination | null {
-  return destinationsFor(isAdmin, canModerate).find((destination) => destination.match(path)) || null;
+  return permitted(DESTINATIONS, isAdmin, canModerate).find((destination) => destination.match(path)) || null;
 }
 
 /* ──────────────────────────────── Sections ──────────────────────────────── */
@@ -214,6 +244,9 @@ function pipelineSections(): NavSection[] {
     { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered },
     { key: 'missing', label: 'Éléments manquants', to: { path: '/downloads', query: { view: 'missing' } }, icon: PackageSearch },
     { key: 'clients', label: 'Clients', to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } }, icon: Download },
+    // Le suivi des lots de series et la resolution des conflits sont des taches du
+    // quotidien : ils vivaient caches dans les reglages, sous « Exploitation ».
+    { key: 'acquisitions', label: 'Acquisitions & conflits', to: '/downloads/acquisitions', icon: ListRestart },
   ];
 }
 
@@ -228,13 +261,14 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
   let sections: NavSection[] = [];
 
   switch (destinationKey) {
+    // Explorer n'a plus de sous-entrees dans le rail : Accueil, Films et Series sont des
+    // vues de la meme page, en onglets dans la page (voir `EXPLORER_TABS`). Une section
+    // unique, comme les Demandes : le rail n'affiche de sous-entrees qu'a partir de deux.
     case 'discover':
-      sections = [
-        { key: 'home', label: 'Accueil', to: '/discover', icon: House },
-        { key: 'shows', label: 'Séries', to: '/discover/shows', icon: Tv },
-        { key: 'movies', label: 'Films', to: '/discover/movies', icon: Film },
-        { key: 'calendar', label: 'Calendrier', to: '/calendar', icon: CalendarDays },
-      ];
+      sections = [{ key: 'home', label: 'Explorer', to: '/discover', icon: Compass }];
+      break;
+    case 'calendar':
+      sections = [{ key: 'calendar', label: 'Calendrier', to: '/calendar', icon: CalendarDays }];
       break;
     case 'requests':
       sections = [{ key: 'tracking', label: 'Suivi des demandes', to: '/discover/requests', icon: Inbox }];
@@ -257,15 +291,13 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
     case 'insights':
       sections = [
         { key: 'table', label: 'Inventaire', to: '/analytics', icon: Table },
-        { key: 'insights', label: 'Analyses', to: { path: '/analytics', query: { view: 'insights' } }, icon: Lightbulb },
       ];
       break;
     case 'admin-overview':
-      // Page d'etat, pas de navigation : elle dit ce qui est configure et ce qui manque.
-      // Une seule section, donc aucune rangee affichee.
-      sections = [{ key: 'overview', label: 'Configuration', to: '/settings', icon: Wrench }];
+      // Page d'etat, pas de navigation : ce qui est casse, ce qui manque, ce qui tourne.
+      sections = [{ key: 'overview', label: 'Vue d’ensemble', to: '/settings', icon: Gauge }];
       break;
-    case 'admin-services':
+    case 'admin-connections':
       sections = [
         { key: 'plex', label: 'Plex & Bibliothèque', to: '/settings/services', icon: Tv },
         { key: 'integrations', label: 'Intégrations', to: '/settings/services/integrations', icon: Plug },
@@ -279,15 +311,24 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'scheduled-tasks', label: 'Planification', to: '/settings/automation/scheduled-tasks', icon: Clock },
       ];
       break;
-    case 'admin-operations':
-      sections = [
-        { key: 'acquisitions', label: 'Acquisitions & conflits', to: '/settings/operations', icon: ListRestart },
-        { key: 'logs', label: 'Journaux', to: '/logs', icon: ScrollText },
-      ];
-      break;
     case 'admin-notifications':
+      // Le suivi des envois d'abord : la file d'attente (envoi suspendu, envois manuels)
+      // et le journal sont le quotidien de cette zone ; les reglages viennent ensuite.
       sections = [
-        { key: 'history', label: 'Historique', to: '/notifications', icon: Bell },
+        {
+          key: 'pending',
+          label: 'File d’attente',
+          to: { path: '/notifications', query: { tab: 'pending' } },
+          icon: Inbox,
+          active: (route) => route.path === '/notifications' && route.query.tab === 'pending',
+        },
+        {
+          key: 'history',
+          label: 'Journal des envois',
+          to: '/notifications',
+          icon: History,
+          active: (route) => route.path === '/notifications' && route.query.tab !== 'pending',
+        },
         { key: 'channels', label: 'Canaux', to: '/settings/notifications/channels', icon: Plug },
         { key: 'rules', label: 'Règles', to: '/settings/notifications/rules', icon: Settings },
         { key: 'templates', label: 'Modèles d’emails', to: '/settings/notifications/templates', icon: Link2 },
@@ -300,6 +341,7 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
     case 'admin-system':
       sections = [
         { key: 'data', label: 'Données & RGPD', to: '/settings/system', icon: DatabaseZap },
+        { key: 'logs', label: 'Journaux', to: '/logs', icon: ScrollText },
         { key: 'version', label: 'Version & mises à jour', to: '/settings/system/version', icon: GitBranch },
       ];
       break;
@@ -328,6 +370,25 @@ export function groupedSections(sections: NavSection[]): Array<{ label: string; 
   return groups;
 }
 
+/**
+ * Les destinations que le dock peut porter, dans l'ordre, filtrees selon les droits.
+ *
+ * Le calcul vit ici plutot que dans le dock parce que le shell a besoin de la meme
+ * reponse : les sections d'une destination absente du dock n'ont aucune entree ou se
+ * greffer, et doivent alors rejoindre la feuille de navigation. Deux copies de cette
+ * liste auraient fini par ne plus dire la meme chose.
+ */
+export function dockDestinationsFor(isAdmin: boolean, canModerate: boolean): NavDestination[] {
+  const permitted = destinationsFor(isAdmin, canModerate);
+  const preferred = DOCK_DESTINATION_KEYS
+    .map((key) => permitted.find((item) => item.key === key))
+    .filter((item): item is NavDestination => Boolean(item));
+  // Un utilisateur non-administrateur perd `dashboard` : on complete avec ses autres
+  // destinations plutot que de laisser un dock a trois entrees.
+  const filler = permitted.filter((item) => !preferred.includes(item));
+  return [...preferred, ...filler].slice(0, 4);
+}
+
 /** Section active pour la route courante : `active()` explicite, sinon égalité d'URL. */
 export function activeSectionKey(
   sections: NavSection[],
@@ -354,4 +415,40 @@ export function activeSectionKey(
     }
   }
   return best;
+}
+
+/* ─────────────────────────── Onglets dans la page ────────────────────────── */
+
+/* Explorer et la Bibliotheque presentent leurs vues par type de media en onglets dans la
+   page, a toutes les largeurs, plutot qu'en sous-entrees du rail : ce ne sont pas des
+   destinations mais des facons de regarder le meme ensemble. */
+
+/** Onglets d'Explorer : les vues de la page `/discover`. */
+export const EXPLORER_TABS: SubnavItem[] = [
+  { key: 'home', label: 'Accueil', to: '/discover', icon: House },
+  { key: 'movies', label: 'Films', to: '/discover/movies', icon: Film },
+  { key: 'shows', label: 'Séries', to: '/discover/shows', icon: Tv },
+];
+
+export function explorerTabFor(path: string): string {
+  if (path.startsWith('/discover/movies')) return 'movies';
+  if (path.startsWith('/discover/shows')) return 'shows';
+  return 'home';
+}
+
+const MUSIC_TYPES = ['artist', 'album', 'track'];
+
+/** Onglets du catalogue de la Bibliotheque : tout, ou un type de media. */
+export const LIBRARY_TYPE_TABS: SubnavItem[] = [
+  { key: 'all', label: 'Tout', to: { path: '/library', query: { hub: '1' } }, icon: Library },
+  { key: 'movie', label: 'Films', to: { path: '/library', query: { hub: '1', type: ['movie'] } }, icon: Film },
+  { key: 'show', label: 'Séries', to: { path: '/library', query: { hub: '1', type: ['show'] } }, icon: Tv },
+  { key: 'music', label: 'Musique', to: { path: '/library', query: { hub: '1', type: MUSIC_TYPES } }, icon: Music2 },
+];
+
+export function libraryTypeTabFor(route?: RouteLocationNormalizedLoaded): string {
+  const types = libraryTypeFilters(route);
+  if (types.length === 1 && (types[0] === 'movie' || types[0] === 'show')) return types[0];
+  if (types.length && types.every((type) => MUSIC_TYPES.includes(type))) return 'music';
+  return 'all';
 }

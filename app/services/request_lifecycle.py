@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import FulfillmentStatus, MediaRequest, RequestStatus
-from ..utils import now_utc_naive
+from ..utils import now_utc_naive, unwrap_image_proxy
 from .diagnostics import record_event, update_request_context
 from .download_history import record_completed
 from .notification_policy import register_transition_notification_intent
@@ -136,7 +136,7 @@ async def transition_request(
             media_type=req.media_type,
             source=source,
             instance_name=instance_name,
-            poster_url=req.poster_url,
+            poster_url=unwrap_image_proxy(req.poster_url),
             request_id=req.id,
         )
     try:

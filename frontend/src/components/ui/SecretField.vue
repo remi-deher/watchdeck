@@ -16,29 +16,18 @@
     <div class="secret-field">
       <input
         :id="field.id"
-        ref="input"
+        class="secret-input"
+        :type="visible ? 'text' : 'password'"
         :value="modelValue"
-        :type="revealed ? 'text' : 'password'"
         :placeholder="placeholder"
         :autocomplete="autocomplete"
         spellcheck="false"
         :aria-describedby="[field.describedBy, stateId].filter(Boolean).join(' ') || undefined"
-        @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-      >
-      <!-- Le bouton ne revele que la saisie en cours : le secret deja enregistre n'est
-           jamais renvoye au navigateur, il n'y a donc rien a devoiler tant qu'on n'a
-           pas tape quelque chose. -->
-      <button
-        type="button"
-        class="secret-reveal"
-        :disabled="!modelValue"
-        :aria-pressed="revealed"
-        :aria-label="revealed ? 'Masquer la saisie' : 'Afficher la saisie'"
-        :title="revealed ? 'Masquer la saisie' : 'Afficher la saisie'"
-        @click="revealed = !revealed"
-      >
-        <EyeOff v-if="revealed" :size="16" aria-hidden="true" />
-        <Eye v-else :size="16" aria-hidden="true" />
+        @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)" />
+      <!-- Le bouton n'apparait qu'une fois une valeur saisie : il n'y a rien a relire avant. -->
+      <button v-if="modelValue" type="button" class="secret-toggle" :aria-pressed="visible"
+        :aria-label="visible ? 'Masquer la valeur' : 'Afficher la valeur'" @click="visible = !visible">
+        <component :is="visible ? EyeOff : Eye" :size="16" aria-hidden="true" />
       </button>
     </div>
     <p :id="stateId" class="secret-state" :class="{ 'is-set': configured }">
@@ -69,8 +58,8 @@ const props = withDefaults(
 
 defineEmits<{ 'update:modelValue': [value: string] }>();
 
-const revealed = ref(false);
 const stateId = `secret-state-${useId()}`;
+const visible = ref(false);
 
 const placeholder = computed(() =>
   props.configured ? 'Laisser vide pour conserver la valeur actuelle' : 'Aucune valeur enregistrée'
@@ -85,28 +74,11 @@ const stateLabel = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.secret-field {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
-}
-.secret-field input {
-  flex: 1;
-  min-width: 0;
-}
-.secret-reveal {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: var(--touch-target);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--muted);
-  cursor: pointer;
-}
-.secret-reveal:hover:not(:disabled) { color: var(--text); border-color: var(--border-strong, var(--border)); }
-.secret-reveal:disabled { opacity: .45; cursor: not-allowed; }
+.secret-field{position:relative;display:flex;align-items:center;min-width:0}
+.secret-input{width:100%;min-width:0;padding-right:44px}
+.secret-toggle{position:absolute;right:4px;display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);cursor:pointer}
+.secret-toggle:hover{color:var(--text)}
+.secret-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .secret-state {
   display: flex;
   align-items: center;

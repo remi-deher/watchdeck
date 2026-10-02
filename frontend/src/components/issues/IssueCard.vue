@@ -45,7 +45,7 @@
       </div>
 
       <div class="issue-actions card-actions">
-        <UiButton v-if="mediaPath" size="sm" :to="mediaPath"><template #icon><ExternalLink /></template>Ouvrir la fiche</UiButton>
+        <UiButton v-if="mediaPath" size="sm" :to="mediaPath" @click="ouvrirFicheAuClic($event, mediaPath)"><template #icon><ExternalLink /></template>Ouvrir la fiche</UiButton>
         <UiButton v-if="issue.status === 'open'" size="sm" :disabled="busy" @click="$emit('update', 'investigating')">
           <template #icon><ScanSearch /></template>Prendre en charge
         </UiButton>
@@ -64,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { computed, ref, useId, watch } from 'vue';
 import { Check, ExternalLink, Film, RotateCcw, ScanSearch, Tv } from '@lucide/vue';
 import { formatDateTime } from '@/utils/format';
@@ -89,6 +90,7 @@ export interface Issue {
   request_id?: number;
 }
 
+const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
 const props = defineProps<{ issue: Issue; busy?: boolean }>();
 const emit = defineEmits<{
   (e: 'update', status: string): void;
@@ -132,6 +134,7 @@ function saveNote(): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .issue-card {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr);
@@ -142,7 +145,7 @@ function saveNote(): void {
 /* Un liseré de statut : la couleur porte l'urgence sans ajouter de texte. */
 .issue-card { border-left: 3px solid var(--border); }
 .issue-card.open { border-left-color: var(--accent); }
-.issue-card.investigating { border-left-color: #38bdf8; }
+.issue-card.investigating { border-left-color: var(--blue); }
 .issue-card.closed { border-left-color: color-mix(in srgb, var(--border) 70%, transparent); }
 
 .issue-cover {
@@ -184,11 +187,11 @@ function saveNote(): void {
   font-size: var(--fs-sm);
   resize: vertical;
 }
-.issue-note-saved { color: var(--green-text, #4ade80); font-size: var(--fs-xs); }
+.issue-note-saved { color: var(--green-text); font-size: var(--fs-xs); }
 
 .issue-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
-@media (max-width: 620px) {
+@include bp.until(phablet) {
   .issue-card { grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-3); }
 }
 </style>

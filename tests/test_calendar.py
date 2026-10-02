@@ -3,19 +3,24 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import ArrInstance, Base, LibraryItem, MediaRequest, RequestStatus
+from app.models import ArrInstance, LibraryItem, MediaRequest, RequestStatus
 from app.routers.calendar_api import unified_calendar
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def _make_db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    return TestSession(sessionmaker(bind=engine)())
+    return make_test_session()
+
+
+@pytest.fixture(autouse=True)
+def _empty_arr_queues():
+    """Files de telechargement vides par defaut : aucun test ne doit joindre un *arr."""
+    with (
+        patch("app.routers.calendar_api.sonarr.get_queue_episode_ids", new=AsyncMock(return_value=set())),
+        patch("app.routers.calendar_api.radarr.get_queue_movie_ids", new=AsyncMock(return_value=set())),
+    ):
+        yield
 
 
 @pytest.mark.asyncio
@@ -252,3 +257,63 @@ async def test_calendar_filters_share_the_same_raw_cache():
     assert len(filtered) == 1
     assert no_match == []
     assert mock_cal.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_calendar_flags_downloads_and_language_state():
+    """La page tire de ces champs l'etat « en telechargement » et ses filtres VF/source."""
+    from app.cache import cache
+
+    cache._memory.clear()
+    db = _make_db()
+    db.add(ArrInstance(id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="key", enabled=True))
+    db.add(ArrInstance(id=2, name="Radarr", arr_type="radarr", url="http://radarr", api_key="key", enabled=True))
+    db.add(LibraryItem(title="Breaking Bad", media_type="show", tvdb_id="81189", has_vf=True))
+    db.add(
+        MediaRequest(
+            plex_user_id="alice",
+            title="Dune",
+            media_type="movie",
+            tmdb_id="438631",
+            status=RequestStatus.sent_to_arr,
+            source="seer",
+        )
+    )
+    db.commit()
+
+    episodes = [
+        {
+            "id": 7,
+            "seasonNumber": 1,
+            "episodeNumber": 1,
+            "airDateUtc": "2026-07-10T00:00:00Z",
+            "hasFile": False,
+            "series": {"title": "Breaking Bad", "tvdbId": 81189},
+        },
+        {
+            "id": 8,
+            "seasonNumber": 1,
+            "episodeNumber": 2,
+            "airDateUtc": "2026-07-17T00:00:00Z",
+            "hasFile": False,
+            "series": {"title": "Breaking Bad", "tvdbId": 81189},
+        },
+    ]
+    movies = [{"id": 3, "title": "Dune", "tmdbId": 438631, "hasFile": False, "digitalRelease": "2026-07-20T00:00:00Z"}]
+    with (
+        patch("app.routers.calendar_api.sonarr.get_calendar", new=AsyncMock(return_value=episodes)),
+        patch("app.routers.calendar_api.radarr.get_calendar", new=AsyncMock(return_value=movies)),
+        patch("app.routers.calendar_api.sonarr.get_queue_episode_ids", new=AsyncMock(return_value={7})),
+        patch("app.routers.calendar_api.radarr.get_queue_movie_ids", new=AsyncMock(return_value={3})),
+    ):
+        events = await unified_calendar(start="2026-07-01", end="2026-08-01", tracked_only=False, db=db)
+
+    by_key = {(e["title"], e["subtitle"][:6]): e for e in events}
+    assert by_key[("Breaking Bad", "S01E01")]["downloading"] is True
+    assert by_key[("Breaking Bad", "S01E02")]["downloading"] is False
+    assert by_key[("Breaking Bad", "S01E01")]["vf_state"] == "vf"
+    dune = by_key[("Dune", "Sortie")]
+    assert dune["downloading"] is True
+    assert dune["release_type"] == "digital"
+    assert dune["vf_state"] == "requested"
+    assert dune["sources"] == ["seer"]

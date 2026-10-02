@@ -3,18 +3,29 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter, defaultdict
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 import httpx
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from ..database import AsyncSessionLocal
-from ..models import LibraryAnalyticsSnapshot, PlaybackSession, Settings
+from ..models import LibraryAnalyticsSnapshot, LibraryItem, PlaybackSession, Settings
 from ..pagination import paginated_response
-from ..utils import now_utc_naive
+from ..utils import now_utc_naive, wrap_image_proxy
+
+logger = logging.getLogger(__name__)
+
+# Version de la forme de la charge utile. L'instantane n'est recalcule que si le catalogue
+# ou l'historique bouge : un champ ajoute (vignette, identifiant de session) resterait
+# absent jusqu'au prochain ajout dans Plex. La version entre dans l'empreinte pour forcer
+# un recalcul au premier passage apres une mise a jour.
+PAYLOAD_VERSION = 3
 
 
 def _int(value, default=0) -> int:
@@ -30,6 +41,38 @@ def _list(value) -> list:
 
 def _stream_language(stream: dict) -> str:
     return stream.get("language") or stream.get("languageCode") or "Inconnu"
+
+
+def _poster_path(item: dict, media_type: str) -> str | None:
+    """Affiche Plex d'une ligne, au format portrait : celle de la saison ou de la serie
+    pour un episode (sa propre vignette est une capture 16/9), de l'album pour une piste."""
+    if media_type == "episode":
+        path = item.get("parentThumb") or item.get("grandparentThumb") or item.get("thumb")
+    elif media_type == "track":
+        path = item.get("parentThumb") or item.get("thumb") or item.get("grandparentThumb")
+    else:
+        path = item.get("thumb")
+    return path if isinstance(path, str) and path.startswith("/library/metadata/") else None
+
+
+def _art_path(item: dict, media_type: str) -> str | None:
+    """Image de fond Plex d'une ligne, pour le bandeau de sa fiche : celle de la serie pour
+    un episode, de l'album ou de l'artiste pour une piste."""
+    if media_type == "episode":
+        path = item.get("grandparentArt") or item.get("art")
+    elif media_type == "track":
+        path = item.get("parentArt") or item.get("grandparentArt") or item.get("art")
+    else:
+        path = item.get("art")
+    return path if isinstance(path, str) and path.startswith("/library/metadata/") else None
+
+
+def plex_thumb_url(path: str | None) -> str | None:
+    """Adresse cliente d'une image Plex, servie par le proxy : le jeton reste cote serveur.
+    Sans largeur : l'affichage (MediaArtwork) demande celle de son cadre."""
+    if not path:
+        return None
+    return f"/api/playback/thumb?path={quote(path, safe='')}"
 
 
 def _subtitle_type(stream: dict) -> str:
@@ -74,8 +117,13 @@ def parse_plex_item(
         "audio_languages": sorted({_stream_language(stream) for stream in audio}),
         "subtitle_languages": sorted({_stream_language(stream) for stream in subtitles}),
         "subtitle_types": sorted({_subtitle_type(stream) for stream in subtitles}),
-        "subtitle_count": len(subtitles),
+        # Le catalogue (`/sections/<cle>/all`) ne liste pas les pistes : sans `Stream`, le
+        # nombre de sous-titres est inconnu, pas nul. Le compter 0 affichait « Sans
+        # sous-titres » sur 100 % des fichiers en production.
+        "subtitle_count": len(subtitles) if streams else None,
         "audio_track_count": len(audio),
+        "thumb_url": plex_thumb_url(_poster_path(item, media_type)),
+        "art_url": plex_thumb_url(_art_path(item, media_type)),
     }
 
 
@@ -157,7 +205,7 @@ def apply_filters(rows: list[dict], filters: dict[str, Any]) -> list[dict]:
             subtitle = filters.get("subtitle")
             if subtitle == "with" and not row["subtitle_count"]:
                 continue
-            if subtitle == "without" and row["subtitle_count"]:
+            if subtitle == "without" and row["subtitle_count"] != 0:
                 continue
             if filters.get("subtitle_type") and filters["subtitle_type"] not in row.get("subtitle_types", []):
                 continue
@@ -213,7 +261,11 @@ def _build_payload(rows: list[dict], generated_at: str, filters: dict[str, Any])
             {
                 "kind": "subtitles",
                 "title": "Sans sous-titres",
-                "value": sum(not row["subtitle_count"] for row in filtered),
+                # None quand aucune ligne ne porte ses pistes : l'interface masque alors
+                # le raccourci plutot que d'annoncer tout le catalogue sans sous-titres.
+                "value": sum(row.get("subtitle_count") == 0 for row in filtered)
+                if any(row.get("subtitle_count") is not None for row in filtered)
+                else None,
                 "unit": "items",
             },
         ],
@@ -247,8 +299,55 @@ def _build_payload(rows: list[dict], generated_at: str, filters: dict[str, Any])
     }
 
 
+async def _catalog_fingerprint(settings: Settings) -> str | None:
+    """Empreinte du catalogue Plex, obtenue sans le telecharger.
+
+    `/library/sections` rend l'`updatedAt` de chaque section pour quelques octets et
+    ~0,07 s, la ou `fetch_plex_catalog` telecharge l'integralite des fiches (films,
+    episodes et pistes -- plus de vingt mille lignes sur une bibliotheque courante).
+    None si la sonde echoue : on recalcule alors, plutot que de risquer un instantane fige.
+    """
+    if not settings.plex_url or not settings.plex_token:
+        return None
+    headers = {"X-Plex-Token": settings.plex_token, "Accept": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=15, verify=settings.plex_verify_ssl) as client:
+            response = await client.get(f"{settings.plex_url.rstrip('/')}/library/sections", headers=headers)
+            response.raise_for_status()
+            sections = _list(response.json().get("MediaContainer", {}).get("Directory"))
+    except Exception as exc:
+        logger.debug("Analytique : sonde de catalogue indisponible (%s), recalcul complet", exc)
+        return None
+    return "|".join(f"{section.get('key')}:{section.get('updatedAt')}" for section in sections)
+
+
+async def _playback_fingerprint(db: AsyncSession) -> str:
+    """Empreinte de l'historique de lecture : il alimente aussi la charge utile
+    (nombre de lectures, spectateurs, dates), donc une bibliotheque inchangee ne
+    suffit pas a conclure que l'instantane est encore juste."""
+    row = (await db.execute(select(func.count(PlaybackSession.id), func.max(PlaybackSession.last_seen_at)))).one()
+    return f"{row[0]}:{row[1].isoformat() if row[1] else '-'}"
+
+
 async def refresh_library_analytics_snapshot(settings: Settings, db: AsyncSession) -> dict:
-    """Recalcule puis remplace le snapshot; l'ancien reste intact si le calcul échoue."""
+    """Recalcule puis remplace le snapshot; l'ancien reste intact si le calcul échoue.
+
+    Court-circuit quand RIEN de ce qui alimente la charge utile n'a bouge depuis le
+    dernier instantane : ni le catalogue Plex, ni l'historique de lecture. Le calcul
+    complet retelechargeait l'integralite du catalogue toutes les dix minutes -- 90 fois
+    par jour -- pour aboutir au meme resultat.
+    """
+    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
+    fingerprint = None
+    if snapshot is not None and snapshot.payload_json:
+        catalog_fp = await _catalog_fingerprint(settings)
+        if catalog_fp is not None:
+            fingerprint = f"{catalog_fp}#{await _playback_fingerprint(db)}#v{PAYLOAD_VERSION}"
+            if fingerprint == snapshot.source_fingerprint:
+                logger.info("Analytique : catalogue et lectures inchanges, instantane conserve")
+                snapshot.updated_at = now_utc_naive()
+                await db.commit()
+                return json.loads(snapshot.payload_json)
 
     catalog = await fetch_plex_catalog(settings)
     rows = [dict(item) for item in catalog["items"]]
@@ -285,11 +384,16 @@ async def refresh_library_analytics_snapshot(settings: Settings, db: AsyncSessio
         views = sorted(
             (
                 {
+                    # La ligne du journal ouvre la fiche de sa session (Activite).
+                    "session_id": session.id,
                     "user": session.user_name,
                     "at": (session.started_at or session.last_seen_at).isoformat()
                     if (session.started_at or session.last_seen_at)
                     else None,
                     "watched_ms": session.watched_ms or session.progress_ms or 0,
+                    # L'appareil (« Salon ») et son systeme (« tvOS ») de la lecture.
+                    "player": session.player_title or session.product,
+                    "platform": session.platform,
                 }
                 for session in sessions
                 if session.started_at or session.last_seen_at
@@ -302,11 +406,13 @@ async def refresh_library_analytics_snapshot(settings: Settings, db: AsyncSessio
 
     payload = _build_payload(rows, catalog["generated_at"], {})
     now = now_utc_naive()
-    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
     if snapshot is None:
         snapshot = LibraryAnalyticsSnapshot(id=1, payload_json="{}", generated_at=now, updated_at=now)
         db.add(snapshot)
     snapshot.payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    # Empreinte enregistree APRES le calcul : si celui-ci echoue, rien n'est ecrit et le
+    # prochain passage recalcule au lieu de croire l'instantane a jour.
+    snapshot.source_fingerprint = fingerprint
     snapshot.item_count = len(rows)
     snapshot.generated_at = datetime.fromisoformat(catalog["generated_at"])
     snapshot.updated_at = now
@@ -349,6 +455,17 @@ async def analytics_summary_payload(
 
 
 #: Tris de l'inventaire, appliques sur le catalogue filtre entier.
+def _resolution_rank(value: Any) -> int:
+    """Hauteur d'image d'une resolution Plex (« 4k », « 1080 », « sd »...), pour la trier."""
+    text = str(value or "").strip().lower()
+    if text in ("4k", "uhd", "2160"):
+        return 2160
+    if text == "sd":
+        return 480
+    digits = "".join(ch for ch in text if ch.isdigit())
+    return int(digits) if digits else 0
+
+
 ITEM_SORTS: dict[str, Any] = {
     "title": lambda row: str(row.get("title") or "").casefold(),
     "library": lambda row: str(row.get("library") or "").casefold(),
@@ -360,7 +477,27 @@ ITEM_SORTS: dict[str, Any] = {
     # Un media jamais vu passe apres tous les autres en ordre decroissant.
     "last_viewed": lambda row: row.get("last_viewed_at") or "",
     "viewer": lambda row: (row.get("viewers") or [""])[0].casefold(),
+    # Qualite : la resolution d'abord, le codec departage.
+    "video": lambda row: (_resolution_rank(row.get("video_resolution")), str(row.get("video_codec") or "").casefold()),
+    "audio": lambda row: (str(row.get("audio_codec") or "").casefold(), row.get("audio_track_count") or 0),
+    "subtitles": lambda row: row.get("subtitle_count") or 0,
 }
+
+
+async def _snapshot_payload(settings: Settings, db: AsyncSession) -> dict:
+    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
+    if snapshot is None:
+        return await refresh_library_analytics_snapshot(settings, db)
+    try:
+        return json.loads(snapshot.payload_json)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return await refresh_library_analytics_snapshot(settings, db)
+
+
+async def analytics_item(settings: Settings, db: AsyncSession, rating_key: str) -> dict | None:
+    """Un media du catalogue analyse, retrouve par sa cle Plex : ce qu'affiche sa fiche."""
+    payload = await _snapshot_payload(settings, db)
+    return next((row for row in payload.get("items", []) if str(row.get("rating_key") or "") == rating_key), None)
 
 
 async def analytics_items_payload(
@@ -376,19 +513,12 @@ async def analytics_items_payload(
     sort: str | None = None,
     direction: str = "asc",
 ) -> dict:
-    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
-    if snapshot is None:
-        payload = await refresh_library_analytics_snapshot(settings, db)
-    else:
-        try:
-            payload = json.loads(snapshot.payload_json)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            payload = await refresh_library_analytics_snapshot(settings, db)
+    payload = await _snapshot_payload(settings, db)
     rows = apply_filters(payload.get("items", []), filters)
     if insight_kind == "unwatched":
         rows = [row for row in rows if not row.get("play_count")]
     elif insight_kind == "subtitles":
-        rows = [row for row in rows if not row.get("subtitle_count")]
+        rows = [row for row in rows if row.get("subtitle_count") == 0]
     elif insight_kind == "distribution" and insight_field and insight_value is not None:
         allowed = {"media_type", "studio", "video_codec", "audio_codec", "video_resolution", "container"}
         if insight_field in allowed:
@@ -408,3 +538,139 @@ async def analytics_items_payload(
         limit=limit,
         generated_at=payload.get("generated_at"),
     )
+
+
+def _flag(value: Any) -> bool:
+    return str(value).lower() in {"1", "true"}
+
+
+def _dynamic_range(stream: dict) -> str | None:
+    """Plage dynamique d'une piste video : Dolby Vision, HDR10, HLG ou SDR."""
+    if _flag(stream.get("DOVIPresent")):
+        profile = stream.get("DOVIProfile")
+        return f"Dolby Vision{f' {profile}' if profile else ''}"
+    trc = str(stream.get("colorTrc") or "").lower()
+    if trc == "smpte2084":
+        return "HDR10"
+    if trc in {"arib-std-b67", "hlg"}:
+        return "HLG"
+    if trc or stream.get("colorPrimaries"):
+        return "SDR"
+    return None
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None  # NaN
+
+
+def parse_plex_technical(metadata: dict) -> dict[str, Any]:
+    """Fiche technique complete d'un fichier, lue dans `/library/metadata/<cle>`.
+
+    Le catalogue (`/library/sections/<cle>/all`) ne donne que le resume de chaque media :
+    codecs, resolution, poids. Profils, profondeur de couleur, HDR, debits et detail de
+    chaque piste ne figurent que dans la fiche du media, lue ici a la demande.
+    """
+    medias = _list(metadata.get("Media"))
+    media = medias[0] if medias else {}
+    part = (_list(media.get("Part")) or [{}])[0]
+    streams = _list(part.get("Stream"))
+    video = next((stream for stream in streams if _int(stream.get("streamType")) == 1), None)
+    audio = [stream for stream in streams if _int(stream.get("streamType")) == 2]
+    subtitles = [stream for stream in streams if _int(stream.get("streamType")) == 3]
+    return {
+        "file": {
+            "path": part.get("file"),
+            "size_bytes": _int(part.get("size")),
+            "container": part.get("container") or media.get("container"),
+            "duration_ms": _int(part.get("duration") or media.get("duration")),
+            "bitrate_kbps": _int(media.get("bitrate")),
+            "optimized_for_streaming": _flag(media.get("optimizedForStreaming") or part.get("optimizedForStreaming")),
+            "versions": len(medias),
+        },
+        "video": {
+            "codec": video.get("codec"),
+            "profile": video.get("profile"),
+            "width": _int(video.get("width")) or _int(media.get("width")),
+            "height": _int(video.get("height")) or _int(media.get("height")),
+            "resolution": media.get("videoResolution"),
+            "aspect_ratio": _float_or_none(media.get("aspectRatio")),
+            "frame_rate": _float_or_none(video.get("frameRate")),
+            "scan_type": video.get("scanType"),
+            "bit_depth": _int(video.get("bitDepth")) or None,
+            "chroma_subsampling": video.get("chromaSubsampling"),
+            "color_space": video.get("colorSpace"),
+            "dynamic_range": _dynamic_range(video),
+            "bitrate_kbps": _int(video.get("bitrate")),
+        }
+        if video
+        else None,
+        "audio": [
+            {
+                "language": stream.get("language") or stream.get("languageCode"),
+                "codec": stream.get("codec"),
+                "profile": stream.get("profile"),
+                "channels": _int(stream.get("channels")) or None,
+                "layout": stream.get("audioChannelLayout"),
+                "bitrate_kbps": _int(stream.get("bitrate")),
+                "sampling_rate": _int(stream.get("samplingRate")) or None,
+                "title": stream.get("title"),
+                "default": _flag(stream.get("default")),
+            }
+            for stream in audio
+        ],
+        "subtitles": [
+            {
+                "language": stream.get("language") or stream.get("languageCode"),
+                "codec": stream.get("codec") or stream.get("format"),
+                "title": stream.get("title"),
+                "forced": _flag(stream.get("forced")),
+                "hearing_impaired": _flag(stream.get("hearingImpaired")),
+                "external": bool(stream.get("key")),
+                "default": _flag(stream.get("default")),
+            }
+            for stream in subtitles
+        ],
+    }
+
+
+async def analytics_item_technical(settings: Settings, db: AsyncSession, rating_key: str) -> dict | None:
+    """Fiche technique Plex d'un media, et de quoi rejoindre sa fiche de bibliotheque.
+
+    None quand Plex ne connait pas (ou plus) la cle ; une erreur reseau remonte a
+    l'appelant, qui la distingue d'un media absent.
+    """
+    if not settings.plex_url or not settings.plex_token:
+        return None
+    async with httpx.AsyncClient(timeout=15, verify=settings.plex_verify_ssl) as client:
+        response = await client.get(
+            f"{settings.plex_url.rstrip('/')}/library/metadata/{quote(rating_key, safe='')}",
+            headers={"X-Plex-Token": settings.plex_token, "Accept": "application/json"},
+        )
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    metadata = (_list(response.json().get("MediaContainer", {}).get("Metadata")) or [None])[0]
+    if not metadata:
+        return None
+    media_type = metadata.get("type") or ""
+    guid = metadata.get("grandparentGuid") if media_type == "episode" else metadata.get("guid")
+    library_item_id = None
+    library_art = None
+    if guid:
+        row = (
+            await db.execute(select(LibraryItem.id, LibraryItem.art_url).filter(LibraryItem.plex_guid == guid).limit(1))
+        ).first()
+        if row:
+            library_item_id, library_art = row
+    return {
+        **parse_plex_technical(metadata),
+        "poster_url": plex_thumb_url(_poster_path(metadata, media_type)),
+        # Le fond de la bibliotheque (scan Plex ou TMDB) quand Plex n'en a pas pour ce fichier.
+        "art_url": plex_thumb_url(_art_path(metadata, media_type)) or wrap_image_proxy(library_art),
+        "summary": metadata.get("summary"),
+        "library_item_id": library_item_id,
+    }

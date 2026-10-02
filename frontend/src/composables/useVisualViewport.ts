@@ -1,4 +1,5 @@
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted } from 'vue';
+import { useEventListener } from '@vueuse/core';
 
 const KEYBOARD_THRESHOLD = 120;
 
@@ -18,15 +19,9 @@ export function updateVisualViewport(root: HTMLElement = document.documentElemen
 
 export function useVisualViewport(): void {
   const update = (): void => updateVisualViewport();
-  onMounted(() => {
-    update();
-    window.addEventListener('resize', update, { passive: true });
-    window.visualViewport?.addEventListener('resize', update, { passive: true });
-    window.visualViewport?.addEventListener('scroll', update, { passive: true });
-  });
-  onUnmounted(() => {
-    window.removeEventListener('resize', update);
-    window.visualViewport?.removeEventListener('resize', update);
-    window.visualViewport?.removeEventListener('scroll', update);
-  });
+  onMounted(update);
+  useEventListener(window, 'resize', update, { passive: true });
+  if (typeof window !== 'undefined' && window.visualViewport) {
+    useEventListener(window.visualViewport, ['resize', 'scroll'], update, { passive: true });
+  }
 }

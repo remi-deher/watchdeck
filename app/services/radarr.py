@@ -447,6 +447,7 @@ def _normalize_queue_record(r: dict, title: str, *, movie: dict | None = None) -
         "queue_id": r.get("id"),
         "arr_media_id": r.get("movieId"),
         "title": title,
+        "release_title": r.get("title"),
         "status": r.get("status"),  # queued / downloading / completed / paused / failed / warning
         "tracked_state": r.get("trackedDownloadState"),
         "tracked_status": r.get("trackedDownloadStatus"),
@@ -458,6 +459,7 @@ def _normalize_queue_record(r: dict, title: str, *, movie: dict | None = None) -
         "indexer": r.get("indexer"),
         "protocol": r.get("protocol"),
         "error": r.get("errorMessage"),
+        "status_messages": r.get("statusMessages") or [],
         # Métadonnées portées par la file (déjà connues de Radarr) — utilisées pour
         # pré-remplir l'import manuel quand le lien vers une MediaRequest est absent.
         "year": movie.get("year"),

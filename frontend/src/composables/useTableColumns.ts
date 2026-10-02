@@ -1,10 +1,10 @@
 /* Colonnes d'un tableau : ordre, visibilite, largeurs, et leur persistance.
  *
- * Ce code existait en double, presque a l'identique, dans `DataTable` et dans le tableau
- * des clients torrent -- avec une difference : seul le second savait redimensionner ses
- * colonnes et se resserrer. Les deux partagent desormais la meme mecanique, ce qui donne
- * a l'inventaire l'ergonomie de la page Acquisition sans la recoder. */
+ * Le moteur du tableau (tri, selection, redimensionnement) est TanStack Table, dans
+ * UiDataTable ; ce qui reste ici, c'est la memoire de l'utilisateur : quelles colonnes il
+ * veut voir, dans quel ordre, a quelle largeur. */
 import { computed, ref, watch, type Ref } from 'vue';
+import { readPreference, writePreference } from './usePreference';
 
 export interface TableColumnLike {
   key: string;
@@ -24,20 +24,12 @@ export interface UseTableColumnsOptions<T extends TableColumnLike> {
   minimumVisible?: number;
 }
 
-function readStored(storageKey: string): any {
-  try {
-    return JSON.parse(localStorage.getItem(storageKey) || 'null');
-  } catch {
-    return null;
-  }
-}
-
 export function useTableColumns<T extends TableColumnLike>(
   allColumns: Ref<T[]> | (() => T[]),
   options: UseTableColumnsOptions<T>
 ) {
   const source = computed(() => (typeof allColumns === 'function' ? allColumns() : allColumns.value));
-  const stored = readStored(options.storageKey);
+  const stored = readPreference<any>(options.storageKey, null);
   const minimumVisible = options.minimumVisible ?? 1;
 
   const validKeys = computed(() => new Set(source.value.map((column) => column.key)));
@@ -84,19 +76,12 @@ export function useTableColumns<T extends TableColumnLike>(
   watch(
     [visibleKeys, columnOrder, columnWidths, density],
     () => {
-      try {
-        localStorage.setItem(
-          options.storageKey,
-          JSON.stringify({
-            visible: [...visibleKeys.value],
-            order: columnOrder.value,
-            widths: columnWidths.value,
-            density: density.value,
-          })
-        );
-      } catch {
-        /* Préférences non persistables : le tableau reste utilisable. */
-      }
+      writePreference(options.storageKey, {
+        visible: [...visibleKeys.value],
+        order: columnOrder.value,
+        widths: columnWidths.value,
+        density: density.value,
+      });
     },
     { deep: true }
   );
@@ -152,28 +137,8 @@ export function useTableColumns<T extends TableColumnLike>(
     columnOrder.value = next;
   }
 
-  let resizingKey: string | null = null;
-  let resizeStartX = 0;
-  let resizeStartWidth = 0;
-
-  // pointerdown/move/up plutot que mousedown/mousemove/mouseup : le redimensionnement
-  // fonctionne ainsi aussi au doigt sur tablette, pas seulement a la souris.
-  function startColumnResize(key: string, event: PointerEvent): void {
-    resizingKey = key;
-    resizeStartX = event.clientX;
-    resizeStartWidth = columnWidths.value[key] || (event.target as HTMLElement)?.parentElement?.offsetWidth || 100;
-    window.addEventListener('pointermove', onResizeMove);
-    window.addEventListener('pointerup', onResizeEnd);
-  }
-  function onResizeMove(event: PointerEvent): void {
-    if (!resizingKey) return;
-    columnWidths.value = { ...columnWidths.value, [resizingKey]: Math.max(50, resizeStartWidth + event.clientX - resizeStartX) };
-  }
-  function onResizeEnd(): void {
-    resizingKey = null;
-    window.removeEventListener('pointermove', onResizeMove);
-    window.removeEventListener('pointerup', onResizeEnd);
-  }
+  // Le redimensionnement est l'affaire de TanStack Table (UiDataTable), qui ecrit ici les
+  // largeurs atteintes : elles sont memorisees avec le reste.
 
   function toggleDensity(): void {
     density.value = density.value === 'compact' ? 'comfortable' : 'compact';
@@ -194,7 +159,6 @@ export function useTableColumns<T extends TableColumnLike>(
     dragLeave,
     drop,
     moveColumn,
-    startColumnResize,
     toggleDensity,
   };
 }

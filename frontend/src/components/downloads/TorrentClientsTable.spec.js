@@ -1,11 +1,27 @@
 ﻿import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 
 import TorrentClientsTable from './TorrentClientsTable.vue';
 
 const api = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => api(...args) }));
+
+// Le detail d'un torrent s'ouvre dans la feuille : une navigation vers sa route, posee
+// sur la page courante.
+const push = vi.fn();
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ fullPath: '/downloads?view=clients&sub=instances' }),
+  useRouter: () => ({
+    push,
+    resolve: (to) => {
+      const [path, query = ''] = String(to).split('?');
+      return { path, query: Object.fromEntries(new URLSearchParams(query)), hash: '' };
+    },
+  }),
+}));
+const openedPath = () => push.mock.calls.at(-1)?.[0]?.path;
 
 const rows = [
   { client_id: 1, client_name: 'Maison', hash: 'bbb', title: 'Zulu', status: 'downloading', progress: 20, size: 2000, download_speed: 20, upload_speed: 2, ratio: 0.1, eta: 90, category: 'series', tags: 'watchdeck' },
@@ -16,8 +32,8 @@ function factory() {
   return mount(TorrentClientsTable, {
     props: { rows },
     global: {
+      plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
       stubs: {
-        DrawerShell: { template: '<aside><slot/><slot name="actions"/></aside>' },
         ModalShell: { props: ['open', 'title'], template: '<div v-if="open"><h2>{{ title }}</h2><slot/><slot name="actions"/></div>' },
         ConfirmModal: true,
       },
@@ -25,22 +41,25 @@ function factory() {
   });
 }
 
+// Le demontage apres chaque test est global : voir testSetup.js.
+
 describe('TorrentClientsTable', () => {
   beforeEach(() => {
     api.mockReset().mockResolvedValue({ ok: true });
+    push.mockReset();
     localStorage.clear();
   });
 
   it('trie les torrents en cliquant sur les colonnes', async () => {
     const wrapper = factory();
     expect(wrapper.findAll('.torrent-title').map(node => node.text())).toEqual(['Alpha', 'Zulu']);
-    await wrapper.findAll('.sort-button')[0].trigger('click');
+    await wrapper.findAll('thead .ui-data-table__sort')[0].trigger('click');
     expect(wrapper.findAll('.torrent-title').map(node => node.text())).toEqual(['Zulu', 'Alpha']);
   });
 
   it('applique une action à toute la sélection', async () => {
     const wrapper = factory();
-    await wrapper.find('thead input[type="checkbox"]').setValue(true);
+    await wrapper.find('thead [role="checkbox"]').trigger('click');
     await nextTick();
     expect(wrapper.text()).toContain('2 sélectionné(s)');
     await wrapper.find('.bulk-toolbar button').trigger('click');
@@ -58,17 +77,18 @@ describe('TorrentClientsTable', () => {
     expect(controlCalls.every(call => JSON.parse(call[1].body).action === 'pause')).toBe(true);
   });
 
-  it('ouvre le panneau de détails depuis le titre', async () => {
+  it('ouvre la fiche du torrent dans la feuille depuis le titre', async () => {
     const wrapper = factory();
     await wrapper.find('.torrent-title').trigger('click');
-    expect(wrapper.find('aside').text()).toContain('Seedbox');
-    expect(wrapper.find('aside').text()).toContain('aaa');
+    expect(openedPath()).toBe('/downloads/torrent/2/aaa');
+    // Posee sur la page courante, et non a sa place.
+    expect(push.mock.calls.at(-1)[0].state.__overlayBackground).toBe('/downloads?view=clients&sub=instances');
   });
 
   it('ouvre le détail au clic sur une ligne desktop sans la sélectionner', async () => {
     const wrapper = factory();
     await wrapper.find('tbody tr').trigger('click');
-    expect(wrapper.find('aside').text()).toContain('Seedbox');
+    expect(openedPath()).toBe('/downloads/torrent/2/aaa');
     expect(wrapper.text()).not.toContain('1 sélectionné(s)');
   });
 
@@ -77,7 +97,7 @@ describe('TorrentClientsTable', () => {
     window.matchMedia = vi.fn().mockReturnValue({ matches: true });
     const wrapper = factory();
     await wrapper.find('tbody tr').trigger('click');
-    expect(wrapper.find('aside').text()).toContain('Seedbox');
+    expect(openedPath()).toBe('/downloads/torrent/2/aaa');
     expect(wrapper.text()).not.toContain('1 sélectionné(s)');
     window.matchMedia = originalMatchMedia;
   });
@@ -99,7 +119,7 @@ describe('TorrentClientsTable', () => {
     const wrapper = factory();
     await wrapper.find('tbody tr').trigger('click', { ctrlKey: true });
     expect(wrapper.text()).toContain('1 sélectionné(s)');
-    expect(wrapper.find('aside').exists()).toBe(false);
+    expect(push).not.toHaveBeenCalled();
   });
 
   it('sélectionne tous les torrents avec Ctrl+A', async () => {
@@ -140,16 +160,18 @@ describe('TorrentClientsTable', () => {
 
   it('supporte le drag and drop direct sur th et le redimensionnement', async () => {
     const wrapper = factory();
-    const headers = wrapper.findAll('th');
-    await headers[1].trigger('dragstart');
-    await headers[2].trigger('drop');
+    const headers = wrapper.findAll('thead th[draggable="true"]');
+    await headers[0].trigger('dragstart');
+    await headers[1].trigger('drop');
     await nextTick();
     expect(JSON.parse(localStorage.getItem('watchdeck:torrent-table-columns:all')).order.slice(0, 2)).toEqual(['status', 'title']);
 
-    const resizer = wrapper.findAll('.col-resize-handle')[1];
-    resizer.element.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, bubbles: true }));
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 150, bubbles: true }));
-    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    // Apres l'echange, le titre est la deuxieme colonne ; TanStack redimensionne a la souris
+    // (et au doigt), pas par les evenements de pointeur.
+    const resizer = wrapper.findAll('.ui-data-table__resize')[1];
+    resizer.element.dispatchEvent(new MouseEvent('mousedown', { clientX: 100, bubbles: true }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 150, bubbles: true }));
+    document.dispatchEvent(new MouseEvent('mouseup', { clientX: 150, bubbles: true }));
     await nextTick();
     expect(JSON.parse(localStorage.getItem('watchdeck:torrent-table-columns:all')).widths.title).toBe(350);
   });

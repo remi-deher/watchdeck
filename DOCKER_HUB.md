@@ -125,7 +125,7 @@ Database migrations run when the API container starts.
 
 - PostgreSQL data: named volume `pgdata`.
 - Redis AOF data: named volume `redisdata`.
-- Application data and legacy migration files: `./data`.
+- Application data (encryption key, session key, image cache): `./data`.
 - Encryption key: `WATCHDECK_ENCRYPTION_KEY` in `.env`.
 
 Back up both PostgreSQL and the encryption key. Losing the encryption key prevents Watchdeck from decrypting stored integration secrets.
@@ -159,4 +159,4 @@ Watchdeck transforme « quelqu'un a demandé un film » en « il tourne dans la 
 
 Le déploiement complet nécessite l'API, un worker ARQ utilisant la même image, PostgreSQL et Redis. Utilisez le fichier Compose ci-dessus, ouvrez `http://localhost:8000`, puis suivez l'assistant de première configuration.
 
-Consultez le [README GitHub](https://github.com/remi-deher/watchdeck#français) pour la documentation complète en français, les sauvegardes, les restaurations et la migration depuis SQLite.
+Consultez le [README GitHub](https://github.com/remi-deher/watchdeck#français) pour la documentation complète en français, les sauvegardes et les restaurations.

@@ -7,13 +7,7 @@
   >
     <template #action>
       <div class="head-controls">
-        <select v-model="pollFilter" class="compact-select" aria-label="Filtrer les exécutions">
-          <option value="all">Tous</option>
-          <option value="errors">Erreurs uniquement</option>
-          <option v-for="job in availableJobs" :key="job" :value="job">
-            {{ friendlyJobName(job) }}
-          </option>
-        </select>
+        <UiSelect v-model="pollFilter" class="compact-select" aria-label="Filtrer les exécutions" :options="[{ value: 'all', label: 'Tous' }, { value: 'errors', label: 'Erreurs uniquement' }, ...(availableJobs).map((job) => ({ value: job, label: String(friendlyJobName(job)) }))]" />
         <span v-if="nextPoll.next_run_seconds != null" class="countdown-badge">
           <Clock class="inline-icon" />
           <span>{{ countdown }}</span>
@@ -70,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import { formatDateTimeShort as formatDate } from '@/utils/format';
 import { Check, Clock, Copy, Download, Languages, RefreshCw, Tv } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
@@ -242,7 +237,7 @@ function jobIcon(job: string) {
 
 .job-main.clickable {
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .job-main.clickable:hover {
@@ -270,8 +265,8 @@ function jobIcon(job: string) {
 }
 
 .job-icon-wrap.error {
-  color: var(--danger, #ef4444);
-  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--red-text);
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
 }
 
 .job-icon {
@@ -318,7 +313,7 @@ function jobIcon(job: string) {
 .error-box-title {
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--danger, #ef4444);
+  color: var(--red-text);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -334,7 +329,7 @@ function jobIcon(job: string) {
   color: var(--muted);
   font-size: var(--fs-xs);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .btn-copy:hover {
@@ -348,7 +343,7 @@ function jobIcon(job: string) {
 }
 
 .text-success {
-  color: var(--success);
+  color: var(--green-text);
 }
 
 .error-detail-box code {

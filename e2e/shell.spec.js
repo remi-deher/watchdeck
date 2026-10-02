@@ -89,9 +89,12 @@ test("chaque page expose un h1 unique, et son titre reste visible dans le shell"
     // En compact le titre a quitte la barre : il ne servait qu'a rogner la largeur du
     // champ de recherche, et le dock du bas indique deja la destination courante. Au-dela,
     // le shell continue de l'afficher.
+    // Dans l'Administration, la barre laterale remplace le rail et porte le nom de
+    // l'espace a la place du titre de la page.
     if (page.viewportSize().width >= 768) {
+      const adminSpace = (await page.locator('.app-rail[data-space="admin"]').count()) > 0;
       const visibleTitle = page.viewportSize().width >= 1200
-        ? page.locator('.app-rail__brand-name')
+        ? page.locator(adminSpace ? '.app-rail__space-title' : '.app-rail__brand-name')
         : page.locator('.app-topbar__context');
       await expect(visibleTitle, `le shell doit afficher "${title}" sur ${path}`).toHaveText(title);
     }
@@ -171,11 +174,24 @@ test("toute destination est atteignable au clavier seul", async ({ page }) => {
     // Le bouton de la barre du haut a disparu : « Plus », dans le dock, ouvre la meme
     // feuille et libere la largeur de la barre pour la recherche.
     const trigger = page.locator(".app-dock button").filter({ hasText: "Plus" });
+    // Le dock se monte avec la coquille, mais son bouton ne repond qu'une fois
+    // l'application hydratee : sur un serveur de dev froid -- le cas de l'integration
+    // continue, ou chaque module est compile a la premiere requete -- l'appui partait
+    // avant, et la feuille ne s'ouvrait jamais. On attend donc qu'il soit pose, et on
+    // laisse a l'ouverture le temps d'une compilation a froid ; ce qui est verifie ne
+    // change pas : la feuille doit s'ouvrir sur un simple appui clavier.
+    await expect(trigger).toBeVisible();
     await trigger.focus();
+    await expect(trigger).toBeFocused();
     await trigger.press("Enter");
     const sheet = page.getByRole("dialog", { name: "Navigation" });
-    await expect(sheet).toBeVisible();
-    await expect(sheet.getByRole("link", { name: "Explorer" })).toBeVisible();
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+    /* Meme patience pour le contenu que pour la feuille : ses destinations dependent de
+       la session, et la feuille peut donc s'ouvrir vide une fraction de seconde. Cinq
+       secondes suffisaient en local et pas sur un runner charge -- c'est ce qui faisait
+       echouer ce test une promotion sur deux, tantot ici, tantot sur l'assertion
+       precedente. Ce qui est verifie ne change pas. */
+    await expect(sheet.getByRole("link", { name: "Explorer" })).toBeVisible({ timeout: 20_000 });
     // Sur le document : la feuille se detache pendant sa fermeture, et viser
     // l'element rendait l'appui perdant face a sa propre disparition.
     await page.keyboard.press("Escape");
@@ -184,15 +200,35 @@ test("toute destination est atteignable au clavier seul", async ({ page }) => {
   }
 
   const links = page.locator(".app-rail a[href]");
-  await expect(links.first()).toBeVisible();
+  // Meme patience qu'en compact, et pour la meme raison : le serveur de dev compile
+  // chaque module a la premiere requete, et le rail peut se faire attendre sur un runner
+  // froid. Ce qui est verifie ne change pas -- chaque lien doit recevoir le focus et le
+  // montrer.
+  await expect(links.first()).toBeVisible({ timeout: 20_000 });
+  /* Attendre un rail STABLE. La page enregistre ses sections une fois montee, et elles
+     s'inserent sous la destination active : tant que ce n'est pas fait, les liens
+     suivants se decalent. Compter les liens puis viser leur rang visait alors un autre
+     element que prevu -- parfois un lien remplace juste apres avoir recu le focus, qui
+     le perdait (« inactive »). C'etait l'echec intermittent de ce test sous charge. */
+  let previousCount = -1;
+  await expect.poll(async () => {
+    const current = await links.count();
+    const stable = current === previousCount;
+    previousCount = current;
+    return stable;
+  }, { timeout: 20_000, intervals: [300] }).toBe(true);
 
   // Chaque lien du rail doit pouvoir recevoir le focus et le rendre visible : un
   // element focalisable sans indicateur visible est inutilisable au clavier.
   const count = await links.count();
   for (let index = 0; index < count; index += 1) {
     const link = links.nth(index);
+    /* Un seul appel a `focus()`, et l'assertion attend. Redemander le focus en boucle
+       paraissait plus robuste, mais chaque nouvelle demande reinitialise l'heuristique
+       `:focus-visible` du navigateur : le contour disparaissait alors une fois sur deux,
+       et c'est precisement lui qu'on verifie juste apres. */
     await link.focus();
-    await expect(link).toBeFocused();
+    await expect(link).toBeFocused({ timeout: 10_000 });
     const outlined = await link.evaluate((node) => {
       const style = window.getComputedStyle(node);
       return style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0;
@@ -230,19 +266,29 @@ test("le contenu n'est masque ni par la barre de contexte ni par le dock", async
 
   const topbar = await page.locator(".app-topbar").boundingBox();
   const firstChild = await main.locator(":scope > *").first().boundingBox();
-  expect(firstChild.y, "le contenu passe sous la barre de contexte").toBeGreaterThanOrEqual(
-    topbar.y + topbar.height - 1,
-  );
 
-  if (isCompact(page)) {
-    // Le dock est fixe : sans reserve en bas, il recouvrirait la fin du contenu, et
-    // rien dans la page ne le signalerait a l'utilisateur.
-    const dock = await page.locator(".app-dock").boundingBox();
-    const reserved = await main.evaluate(
-      (node) => parseFloat(window.getComputedStyle(node).paddingBottom),
+  if (!isCompact(page)) {
+    expect(firstChild.y, "le contenu passe sous la barre de contexte").toBeGreaterThanOrEqual(
+      topbar.y + topbar.height - 1,
     );
-    expect(reserved).toBeGreaterThanOrEqual(dock.height - 1);
+    return;
   }
+
+  // En compact la barre est passee en bas, au ras du dock : elle ne precede plus le
+  // contenu, elle flotte au-dessus de sa fin.
+  const dock = await page.locator(".app-dock").boundingBox();
+  expect(topbar.y, "la barre se tient au-dessus du dock").toBeGreaterThan(firstChild.y);
+  expect(topbar.y + topbar.height).toBeLessThanOrEqual(dock.y + 1);
+
+  const reserved = await main.evaluate(
+    (node) => parseFloat(window.getComputedStyle(node).paddingBottom),
+  );
+  // Le dock est opaque et fixe : sans reserve, il recouvrirait la fin du contenu.
+  expect(reserved, "le dock reste degage").toBeGreaterThanOrEqual(dock.height - 1);
+  // La barre, elle, ne reserve rien : elle flotte, et c'est son masquage au defilement
+  // qui decouvre ce qu'elle couvre. Lui reserver sa hauteur reprendrait en bas la place
+  // qu'on vient de rendre en haut.
+  expect(reserved, "la barre ne reserve aucune place").toBeLessThan(dock.height + topbar.height);
 });
 
 test("le rail se replie et se deploie, et le choix survit au rechargement", async ({ page }) => {
@@ -290,20 +336,21 @@ test("le selecteur de periode de l'activite change bien de valeur", async ({ pag
   // collante des sections, ou la barre du haut en mode deploye -- dans les deux cas
   // visible sans ouvrir quoi que ce soit.
   await page.goto("/activity");
-  const segmented = page.getByRole("tablist", { name: /Période/ }).first();
+  // Un choix exclusif (groupe de boutons bascules de Reka), et non des onglets.
+  const segmented = page.getByRole("group", { name: /Période/ }).first();
   await expect(segmented).toBeVisible({ timeout: 15000 });
   const options = segmented.locator("button");
   const count = await options.count();
   expect(count).toBeGreaterThan(1);
 
-  const activeBefore = await segmented.locator('[aria-pressed="true"], button.active').first().textContent();
+  const activeBefore = await segmented.locator('button[data-state="on"]').first().textContent();
   // On clique une option differente de celle en cours.
   for (let i = 0; i < count; i += 1) {
     const label = await options.nth(i).textContent();
     if (label !== activeBefore) { await options.nth(i).click(); break; }
   }
   await page.waitForTimeout(400);
-  const activeAfter = await segmented.locator('[aria-pressed="true"], button.active').first().textContent();
+  const activeAfter = await segmented.locator('button[data-state="on"]').first().textContent();
   expect(activeAfter).not.toBe(activeBefore);
 });
 
@@ -318,74 +365,71 @@ test("changer le tri de l'historique redemande la periode entiere", async ({ pag
   });
 
   await page.goto("/activity?view=history");
-  const segmented = page.getByRole("tablist", { name: /Trier/ }).first();
-  await expect(segmented).toBeVisible({ timeout: 15000 });
-  await segmented.getByRole("tab", { name: "Anciennes" }).click();
-
-  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("oldest");
+  // Chaque colonne se trie d'un clic ; un second clic inverse le sens.
+  const bar = page.getByRole("toolbar", { name: /Trier/ });
+  await expect(bar).toBeVisible({ timeout: 15000 });
+  await bar.getByRole("button", { name: /Trier par date/ }).click();
+  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("date_asc");
+  await bar.getByRole("button", { name: /Trier par titre/ }).click();
+  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("title_asc");
+  await bar.getByRole("button", { name: /Trier par titre/ }).click();
+  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("title_desc");
 });
 
-test("le tiroir d'une session occupe toute la hauteur, sans barre de defilement", async ({ page }) => {
-  test.skip(isCompact(page), "en compact le tiroir est une feuille ancree en bas");
-  // L'historique du serveur de test est vide : on fournit une lecture, seul moyen
-  // d'ouvrir le tiroir.
+test("une session s'ouvre dans la feuille, avec son adresse, et retour la referme", async ({ page }) => {
+  // L'historique du serveur de test est vide : on fournit deux lectures.
+  const session = (id, title) => ({
+    id,
+    source: "plex",
+    session_id: `s${id}`,
+    title,
+    user_name: "Lisa",
+    media_type: "movie",
+    playback_method: "direct_play",
+    watched_ms: 3_600_000,
+    duration_ms: 7_200_000,
+    started_at: "2026-01-01T20:00:00",
+    ended_at: "2026-01-01T21:00:00",
+    segments: [],
+  });
+  const sessions = [session(1, "Le Voyage de Chihiro"), session(2, "Princesse Mononoké")];
   await page.route("**/api/playback/history**", (route) =>
-    route.fulfill({
-      json: {
-        items: [
-          {
-            id: 1,
-            source: "plex",
-            session_id: "s1",
-            title: "Le Voyage de Chihiro",
-            user_name: "Lisa",
-            media_type: "movie",
-            playback_method: "direct_play",
-            watched_ms: 3_600_000,
-            duration_ms: 7_200_000,
-            started_at: "2026-01-01T20:00:00",
-            ended_at: "2026-01-01T21:00:00",
-            segments: [],
-          },
-        ],
-        total: 1,
-        has_more: false,
-        facets: { users: ["Lisa"], devices: [] },
-      },
-    }),
+    route.fulfill({ json: { items: sessions, total: 2, has_more: false, facets: { users: ["Lisa"], devices: [] } } }),
   );
+  await page.route("**/api/playback/sessions/*", (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/").pop());
+    route.fulfill({ json: sessions.find((item) => item.id === id) });
+  });
   await page.goto("/activity?view=history");
   const row = page.locator(".history-table button").first();
   await expect(row).toBeVisible({ timeout: 15000 });
   await row.click();
 
-  const drawer = page.locator(".detail-drawer");
-  await expect(drawer).toBeVisible();
-  const metrics = await drawer.evaluate((node) => {
-    const box = node.getBoundingClientRect();
-    return {
-      top: box.top,
-      bottomGap: window.innerHeight - box.bottom,
-      // La difference entre largeur de bordure a bordure et largeur utile revient a la
-      // barre de defilement : masquee, elle ne prend plus rien.
-      scrollbar: node.offsetWidth - node.clientWidth - 2,
-      scrollable: node.scrollHeight > node.clientHeight,
-    };
-  });
+  // La meme feuille que les fiches media, posee sur la page : l'historique reste derriere.
+  const sheet = page.locator(".media-overlay__panel");
+  await expect(sheet).toBeVisible();
+  await expect(page).toHaveURL(/\/activity\/session\/1$/);
+  await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Le Voyage de Chihiro");
+  await expect(page.locator(".history-table")).toBeAttached();
 
-  // La feuille part du haut de la fenetre : elle passe devant la barre flottante au lieu
-  // de lui ceder sa hauteur.
-  expect(metrics.top).toBeLessThanOrEqual(12);
-  expect(metrics.bottomGap).toBeLessThanOrEqual(12);
-  expect(metrics.scrollbar).toBeLessThanOrEqual(0);
-  // Masquer la barre ne doit pas empecher de lire la suite.
-  if (metrics.scrollable) {
-    const moved = await drawer.evaluate((node) => {
-      node.scrollTop = 200;
-      return node.scrollTop;
-    });
-    expect(moved).toBeGreaterThan(0);
-  }
+  // Suivant : la session voisine de la liste, sans nouvelle entree d'historique.
+  await sheet.getByRole("button", { name: "Session suivante" }).click();
+  await expect(page).toHaveURL(/\/activity\/session\/2$/);
+  await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Princesse Mononoké");
+
+  // Retour referme la feuille et ramene a la liste.
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/\/activity\?view=history$/);
+});
+
+test("ouverte par son adresse, une session s'affiche en pleine page", async ({ page }) => {
+  await page.route("**/api/playback/sessions/7", (route) =>
+    route.fulfill({ json: { id: 7, source: "plex", title: "Dune", user_name: "Lisa", media_type: "movie", segments: [] } }),
+  );
+  await page.goto("/activity/session/7");
+  await expect(page.getByRole("heading", { level: 1, name: "Dune" })).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".media-overlay__panel")).toHaveCount(0);
 });
 
 test("l'historique charge la suite au defilement", async ({ page }) => {
@@ -458,15 +502,30 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
   await expect(row).toBeVisible({ timeout: 15000 });
   await row.click();
 
-  const drawer = page.locator(".detail-drawer");
+  // La fiche d'un compte s'ouvre dans la feuille, a sa propre adresse.
+  const drawer = page.locator(".media-overlay__panel");
   await expect(drawer).toBeVisible();
-  await drawer.getByText("Seer", { exact: true }).click();
-  await drawer.locator("select").selectOption({ label: "Bob" });
-  await drawer.getByRole("button", { name: "Fusionner" }).click();
+  await expect(page).toHaveURL(/\/users\/1$/);
+  // La fusion vit desormais sous « Comptes lies » : elle etait rangee sous un onglet
+  // « Seer » avec lequel elle n'a aucun rapport.
+  await drawer.getByText("Comptes liés", { exact: true }).click();
+  // Un seul champ accepte le nom ou l'identifiant Plex : deux controles empiles se
+  // lisaient comme deux etapes obligatoires alors que ce sont des alternatives.
+  await drawer.getByLabel("Chercher le compte").fill("Bob");
+  // Le sens de la fusion est desormais un choix explicite, et le bouton reste inerte
+  // tant qu'il n'est pas fait : « Fusionner cet utilisateur dans X » ne disait pas
+  // lequel des deux comptes disparaissait.
+  await drawer.getByRole("radio", { name: /Conserver Alice/ }).check();
+  // Le bouton n'apparait qu'une fois le sens choisi, et se tient a cote de lui.
+  await drawer.getByRole("button", { name: "Fusionner", exact: true }).click();
 
   // La confirmation doit etre au premier plan : c'est elle qui doit recevoir le clic.
+  // (C'est la premiere des deux : supprimer un compte en demande maintenant deux.)
   const modal = page.locator(".modal-panel");
   await expect(modal).toBeVisible();
+  // Sur telephone la confirmation monte depuis le bas : on attend qu'elle soit posee, sans
+  // quoi le centre vise tombe encore sous l'ecran.
+  await modal.evaluate((node) => Promise.all(node.getAnimations().map((a) => a.finished)));
   const reachable = await modal.evaluate((node) => {
     const box = node.getBoundingClientRect();
     const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -585,7 +644,7 @@ test("les commandes d'une page ne recouvrent jamais la recherche", async ({ page
   await expect(tools).toHaveCount(0);
 
   // Le selecteur reste atteignable, dans la rangee de la page.
-  await expect(page.getByRole("tablist", { name: /Période/ }).first()).toBeVisible();
+  await expect(page.getByRole("group", { name: /Période/ }).first()).toBeVisible();
 });
 
 test("le hero d'une fiche est une carte posee dans la colonne", async ({ page }) => {
@@ -593,8 +652,9 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
      largeur, mais un objet different de tout le reste de l'application. Il reprend le
      cadre de la banniere d'Explorer -- carte bordee dans la colonne -- et son image
      reste fixe : sur une page de consultation, une animation au survol distrait de la
-     lecture. La comparaison ligne a ligne avec la banniere est verifiee separement,
-     sur les sources (MediaDetailHero.spec). */
+     lecture. Pas de trait autour de l'image : le voile en dessine le bord, egal sur les
+     quatre cotes. La comparaison ligne a ligne avec la banniere est verifiee
+     separement, sur les sources (MediaDetailHero.spec). */
   await page.route("**/api/media/detail**", (route) =>
     route.fulfill({
       json: {
@@ -611,14 +671,15 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
     }),
   );
   await page.goto("/library/media/request/1");
-  const hero = page.locator(".mdh-backdrop");
+  // Le hero passe par le fond partage UiHeroBackdrop ; `.mdh-hero` reste propre a la fiche.
+  const hero = page.locator(".mdh-hero");
   await expect(hero).toBeVisible({ timeout: 15000 });
 
   const cadre = await hero.evaluate((node) => {
     const cs = getComputedStyle(node);
     return { bordure: cs.borderTopWidth, rayon: cs.borderTopLeftRadius, transform: cs.transform };
   });
-  expect(cadre.bordure).toBe("1px");
+  expect(cadre.bordure).toBe("0px");
   expect(cadre.rayon).not.toBe("0px");
   // Ni echelle permanente, ni reaction au survol.
   expect(cadre.transform).toBe("none");
@@ -644,13 +705,32 @@ test("les demandes n'exposent qu'un seul bouton de filtres", async ({ page }) =>
 
 test("la vue d'ensemble des parametres ouvre bien une section", async ({ page }) => {
   await page.goto("/settings");
-  const card = page.locator("main a, main button").filter({ hasText: /Configurer/i }).first();
+  // Sur grand ecran, la tuile « Connexions » ; sur telephone, l'entree du sommaire.
+  const card = page.locator("main a:visible").filter({ hasText: /Connexions/i }).first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
   await page.waitForTimeout(500);
-  // Chaque section des reglages a desormais son chemin propre : les groupes sont
-  // devenus des destinations du rail, et `?tab=` n'est plus qu'une redirection.
+  // Chaque section des reglages a son chemin propre, et `?tab=` n'est plus qu'une
+  // redirection.
   expect(new URL(page.url()).pathname).toMatch(/^\/settings\/.+/);
+});
+
+test("l'administration a sa propre barre, et une seule porte dans le rail", async ({ page }) => {
+  test.skip(page.viewportSize().width < 768, "en compact, l'administration passe par la feuille de navigation");
+  await page.goto("/discover");
+  const rail = page.locator(".app-rail");
+  await expect(rail).toHaveAttribute("data-space", "app");
+  // La navigation initiale doit avoir abouti : cliquer pendant qu'elle attend la session
+  // l'annulerait, et /discover ne serait jamais devenue la derniere page visitee.
+  await expect(rail.locator('a[href="/discover"][aria-current="page"]')).toHaveCount(1);
+  await expect(rail.locator('a[href="/settings/services"]')).toHaveCount(0);
+  await rail.locator('a[href="/settings"]').click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(rail).toHaveAttribute("data-space", "admin");
+  await expect(rail.locator('a[href="/settings/services"]')).toHaveCount(1);
+  await rail.getByRole("link", { name: "Retour à Watchdeck" }).click();
+  await expect(page).toHaveURL(/\/discover$/);
+  await expect(rail).toHaveAttribute("data-space", "app");
 });
 
 test("le niveau 2 s'efface et revient avec la barre du haut", async ({ page }) => {
@@ -738,19 +818,13 @@ test("la palette trouve un film depuis n'importe quelle page", async ({ page }) 
   await expect(page.locator("#main-content")).toBeVisible();
 
   await page.keyboard.press("Control+k");
-  const palette = page.getByRole("dialog", { name: /Aller à/ });
+  const palette = page.getByRole("dialog", { name: /Rechercher/ });
   await expect(palette).toBeVisible();
 
   await palette.getByRole("combobox").fill("dune");
 
-  // Ouverte depuis les reglages, la palette propose d'abord la navigation et les
-  // reglages : c'est l'intention la plus probable a cet endroit. Les medias sont a
-  // une touche, dans l'autre onglet.
-  const tabs = palette.getByRole("tab");
-  await expect(tabs).toHaveCount(2);
-  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
-  await tabs.nth(0).click();
-
+  // Plus d'onglets : les medias arrivent en affiches, au-dessus de la navigation et des
+  // reglages, quelle que soit la page d'ou l'on ouvre la palette.
   const option = palette.getByRole("option", { name: /Dune \(2021\)/ });
   await expect(option).toBeVisible({ timeout: 10000 });
   expect(searchCalls, "la recherche doit etre differee, pas lancee a chaque frappe").toBeLessThanOrEqual(2);
@@ -758,7 +832,8 @@ test("la palette trouve un film depuis n'importe quelle page", async ({ page }) 
   await option.click();
   // La palette passe par mediaDetailPath, le meme assistant que la grille Explorer :
   // un media deja suivi mene ainsi a sa fiche bibliotheque ou a sa demande, et non a
-  // une fiche de decouverte qui ignorerait son etat.
+  // une fiche de decouverte qui ignorerait son etat. La fiche s'ouvre en feuille, par
+  // ouvrirFiche, au-dessus de la page d'ou l'on vient.
   await expect(page).toHaveURL(/\/discover\/media\/discover\/438631\?media_type=movie/);
 });
 
@@ -772,7 +847,7 @@ test("une saisie trop courte n'interroge pas le catalogue", async ({ page }) => 
   });
   await page.goto("/settings");
   await page.keyboard.press("Control+k");
-  const palette = page.getByRole("dialog", { name: /Aller à/ });
+  const palette = page.getByRole("dialog", { name: /Rechercher/ });
   await palette.getByRole("combobox").fill("d");
   await page.waitForTimeout(700);
   // Une seule lettre remonterait le catalogue entier pour rien.

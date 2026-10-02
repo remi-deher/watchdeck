@@ -12,7 +12,7 @@
       <div v-for="row in items.slice(0, 4)" :key="rowKey(row)" class="unmatched-item">
         <span class="unmatched-title">{{ row.title }}</span>
         <span class="badge">{{ row.instance || '-' }}</span>
-        <button class="icon-button" title="Associer manuellement" aria-label="Associer manuellement" @click="$emit('associate', row)"><Link /></button>
+        <UiButton icon-only title="Associer manuellement" aria-label="Associer manuellement" @click="$emit('associate', row)"><Link /></UiButton>
       </div>
       <div v-if="items.length > 4" class="unmatched-more">
         + {{ items.length - 4 }} autre(s)
@@ -22,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { AlertTriangle, Link } from '@lucide/vue';
 
 export interface UnmatchedItem {

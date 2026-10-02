@@ -8,6 +8,7 @@ vi.mock('@/api', () => ({ api: vi.fn() }));
 const routerPush = vi.fn();
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: routerPush }),
+  useRoute: () => ({ fullPath: '/library' }),
   RouterLink: {
     props: ['to'],
     template: '<a :href="typeof to === \'string\' ? to : to?.path"><slot /></a>',
@@ -67,6 +68,6 @@ describe('panneaux opérationnels', () => {
     });
 
     expect(wrapper.findAll('button').every(button => button.attributes('disabled') !== undefined)).toBe(true);
-    expect(wrapper.get('input[type="checkbox"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.get('[role="checkbox"]').attributes('disabled')).toBeDefined();
   });
 });

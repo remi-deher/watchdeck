@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils';
 
 import DownloadQueuePanel from './DownloadQueuePanel.vue';
 
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn(), resolve: vi.fn() }), useRoute: () => ({ fullPath: '/' }) }));
 
 const RouterLink = {
   props: ['to'],

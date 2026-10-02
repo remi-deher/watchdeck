@@ -4,20 +4,21 @@ import re
 from datetime import timedelta
 from typing import Any, Optional
 
-from sqlalchemy import delete, or_
+from sqlalchemy import delete, exists, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from ..database import AsyncSessionLocal
-from ..models import ArrInstance, LibraryItem, MediaRequest, RequestStatus, Settings
+from ..models import ArrInstance, LibraryItem, LibraryItemLocation, MediaRequest, RequestStatus, Settings
 from ..utils import now_utc, now_utc_naive
-from . import plex_finder
+from . import plex_finder, plex_servers
 from .arr_common import normalize_title
 from .media_matching import find_library_item_by_ids as _find_library_item_by_ids
 from .media_matching import link_request_to_library_item as _link_request_to_library_item
+from .plex_servers import PlexServerConnection
 from .radarr import get_all_movies
 from .sonarr import get_all_series
-from .vff_scanner import _invalidate_vf_cache, _parse_vff_libraries
+from .vff_scanner import _invalidate_vf_cache
 
 logger = logging.getLogger(__name__)
 
@@ -66,17 +67,59 @@ async def _find_library_item(db: AsyncSession, item: dict) -> "LibraryItem | Non
     )
 
 
-async def _integrate_plex_items(plex_items: list[dict], arr_lookup: dict) -> tuple[int, set[str]]:
+async def _record_location(db: AsyncSession, server_id: int, lib_item: LibraryItem, item: dict, now) -> None:
+    """Note qu'un media est present sur un serveur (une ligne par cle Plex du serveur)."""
+    rating_key = item.get("rating_key")
+    if not rating_key:
+        return
+    if lib_item.id is None:
+        await db.flush()
+    location = (
+        (
+            await db.execute(
+                select(LibraryItemLocation).filter(
+                    LibraryItemLocation.server_id == server_id,
+                    LibraryItemLocation.rating_key == rating_key,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if location is None:
+        db.add(
+            LibraryItemLocation(
+                library_item_id=lib_item.id,
+                server_id=server_id,
+                rating_key=rating_key,
+                plex_guid=item.get("plex_guid"),
+                seen_at=now,
+            )
+        )
+    else:
+        location.library_item_id = lib_item.id
+        location.plex_guid = item.get("plex_guid")
+        location.seen_at = now
+
+
+async def _integrate_plex_items(
+    plex_items: list[dict], arr_lookup: dict, server: Optional[PlexServerConnection] = None
+) -> tuple[int, set[str], set[str]]:
     """Intègre les médias Plex en base (insert/mise à jour).
 
     Utilise une session async dédiée et des commits par lots de 200 éléments pour
-    borner la transaction sans bloquer la boucle asyncio.
-    Retourne (nombre de nouveaux éléments ajoutés, ensemble des plex_guid vus).
+    borner la transaction sans bloquer la boucle asyncio. Un média vu sur plusieurs
+    serveurs reste une seule ligne LibraryItem ; seul le serveur principal (ou un
+    appel sans serveur) fait foi pour les métadonnées descriptives, pour qu'un
+    titre retouché sur un serveur secondaire n'écrase pas celui du principal.
+    Retourne (nombre de nouveaux éléments ajoutés, plex_guid vus, clés Plex vues).
     """
     db: AsyncSession = AsyncSessionLocal()
     now = now_utc_naive()
     added_count = 0
     seen_guids: set[str] = set()
+    seen_keys: set[str] = set()
+    authoritative = server is None or server.is_primary
     try:
         for i, item in enumerate(plex_items, 1):
             lib_item = await _find_library_item(db, item)
@@ -111,47 +154,47 @@ async def _integrate_plex_items(plex_items: list[dict], arr_lookup: dict) -> tup
                 added_date = added_date.replace(tzinfo=None)
 
             if lib_item is None:
-                db.add(
-                    LibraryItem(
-                        title=item["title"],
-                        year=item["year"],
-                        media_type=item["media_type"],
-                        tmdb_id=arr_tmdb_id or item["tmdb_id"],
-                        tvdb_id=item["tvdb_id"],
-                        imdb_id=arr_imdb_id or item["imdb_id"],
-                        plex_guid=item["plex_guid"],
-                        poster_url=item["poster_url"],
-                        art_url=item.get("art_url"),
-                        genres=item.get("genres"),
-                        overview=item["overview"],
-                        added_at=added_date,
-                        arr_instance_id=arr_instance_id,
-                        arr_id=arr_id,
-                        arr_slug=arr_slug,
-                        has_vf=None,
-                        audio_codec=item.get("audio_codec"),
-                        audio_bitrate=item.get("audio_bitrate"),
-                        audio_sample_rate=item.get("audio_sample_rate"),
-                        audio_channels=item.get("audio_channels"),
-                        duration_ms=item.get("duration_ms"),
-                        created_at=now,
-                        updated_at=now,
-                    )
+                lib_item = LibraryItem(
+                    title=item["title"],
+                    year=item["year"],
+                    media_type=item["media_type"],
+                    tmdb_id=arr_tmdb_id or item["tmdb_id"],
+                    tvdb_id=item["tvdb_id"],
+                    imdb_id=arr_imdb_id or item["imdb_id"],
+                    plex_guid=item["plex_guid"],
+                    poster_url=item["poster_url"],
+                    art_url=item.get("art_url"),
+                    genres=item.get("genres"),
+                    overview=item["overview"],
+                    added_at=added_date,
+                    arr_instance_id=arr_instance_id,
+                    arr_id=arr_id,
+                    arr_slug=arr_slug,
+                    has_vf=None,
+                    audio_codec=item.get("audio_codec"),
+                    audio_bitrate=item.get("audio_bitrate"),
+                    audio_sample_rate=item.get("audio_sample_rate"),
+                    audio_channels=item.get("audio_channels"),
+                    duration_ms=item.get("duration_ms"),
+                    created_at=now,
+                    updated_at=now,
                 )
+                db.add(lib_item)
                 added_count += 1
             else:
                 # Plex fait foi pour les metadonnees descriptives : un renommage manuel
                 # dans Plex (ex: retrait d'un suffixe "(VOSTFR)" apres remplacement du
                 # fichier VO par le VF) doit se refleter au sync suivant, pas rester fige
                 # sur ce qui a ete capture lors de la toute premiere integration.
-                if item["title"]:
-                    lib_item.title = item["title"]
-                if item["year"] is not None:
-                    lib_item.year = item["year"]
-                if item["overview"]:
-                    lib_item.overview = item["overview"]
-                if item.get("genres"):
-                    lib_item.genres = item["genres"]
+                if authoritative:
+                    if item["title"]:
+                        lib_item.title = item["title"]
+                    if item["year"] is not None:
+                        lib_item.year = item["year"]
+                    if item["overview"]:
+                        lib_item.overview = item["overview"]
+                    if item.get("genres"):
+                        lib_item.genres = item["genres"]
                 if not lib_item.plex_guid and item["plex_guid"]:
                     lib_item.plex_guid = item["plex_guid"]
                 if not lib_item.poster_url and item["poster_url"]:
@@ -176,13 +219,107 @@ async def _integrate_plex_items(plex_items: list[dict], arr_lookup: dict) -> tup
                     lib_item.duration_ms = item.get("duration_ms")
                 lib_item.updated_at = now
 
+            if server is not None:
+                await _record_location(db, server.id, lib_item, item, now)
+                if item.get("rating_key"):
+                    seen_keys.add(item["rating_key"])
+
             plex_sync_state["items_synced"] += 1
             if i % 200 == 0:
                 await db.commit()
         await db.commit()
     finally:
         await db.close()
-    return added_count, seen_guids
+    return added_count, seen_guids, seen_keys
+
+
+async def _prune_locations(db: AsyncSession, server_id: int, seen_keys: set[str]) -> None:
+    """Retire les emplacements d'un serveur dont la clé Plex n'a pas été revue au scan complet."""
+    if not seen_keys:
+        return
+    await db.execute(
+        delete(LibraryItemLocation).where(
+            LibraryItemLocation.server_id == server_id,
+            LibraryItemLocation.rating_key.notin_(seen_keys),
+        )
+    )
+    await db.commit()
+
+
+async def remove_library_items(db: AsyncSession, items: list[LibraryItem], source: str) -> int:
+    """Retire de la base des médias qui ne sont plus dans Plex (sans commit).
+
+    Les demandes rattachées sont détachées et, si elles étaient « disponibles »,
+    rétrogradées (availability_lost). Retourne le nombre de demandes rétrogradées.
+    """
+    from .request_lifecycle import transition_request
+
+    if not items:
+        return 0
+    ids = [item.id for item in items]
+    linked_reqs = (await db.execute(select(MediaRequest).filter(MediaRequest.library_item_id.in_(ids)))).scalars().all()
+    reverted = 0
+    for req in linked_reqs:
+        req.library_item_id = None
+        if req.status == RequestStatus.available:
+            await transition_request(db, req, "availability_lost", source=source)
+            logger.info("Plex : '%s' retiré de Plex — statut réinitialisé (availability_lost)", req.title)
+            reverted += 1
+    for item in items:
+        await db.delete(item)
+    return reverted
+
+
+_KIND_BY_MEDIA_TYPE = {"movie": "movie", "show": "series"}
+
+
+async def check_library_item_in_plex(
+    db: AsyncSession, item: LibraryItem, settings: Optional[Settings] = None
+) -> Optional[bool]:
+    """Le média est-il encore sur l'un des serveurs Plex suivis ?
+
+    True : vu sur au moins un serveur. False : absent de chaque serveur, chacun ayant
+    répondu et lu toutes ses bibliothèques. None : impossible de conclure (serveur
+    injoignable, bibliothèque illisible, serveur désactivé qui le portait, type de
+    média non vérifiable). Seul False autorise à retirer le média de la base.
+    """
+    kind = _KIND_BY_MEDIA_TYPE.get(item.media_type)
+    if kind is None:
+        return None
+    connections = await plex_servers.active_connections(db, settings)
+    located = (await plex_servers.servers_by_item(db, [item.id])).get(item.id, set())
+    if located - {conn.id for conn in connections}:
+        # Un serveur désactivé ou incomplet le portait : on ne peut pas le vérifier.
+        return None
+    checked_any = False
+    unknown = False
+    for conn in connections:
+        lib_names = [lib["name"] for lib in conn.libraries if lib["kind"] == kind]
+        if not lib_names:
+            continue
+        try:
+            present = await asyncio.to_thread(
+                plex_finder.is_item_in_libraries_strict,
+                conn.url,
+                conn.token,
+                lib_names,
+                item.title,
+                item.year,
+                item.tmdb_id,
+                item.tvdb_id,
+                item.imdb_id,
+                item.plex_guid,
+            )
+        except Exception as exc:
+            logger.warning("Plex : vérification de '%s' impossible sur %s : %s", item.title, conn.name, exc)
+            unknown = True
+            continue
+        if present:
+            return True
+        checked_any = True
+    if unknown or not checked_any:
+        return None
+    return False
 
 
 async def _build_arr_lookup(db: AsyncSession) -> dict:
@@ -270,41 +407,59 @@ async def sync_plex_media():
         if not settings or not settings.vff_enabled:
             plex_sync_state["status"] = "idle"
             return
-        if not settings.plex_url or not settings.plex_token:
+        connections = await plex_servers.active_connections(db, settings)
+        await db.commit()
+        if not connections:
             logger.info("VFF Sync : Plex non configuré, skip")
             plex_sync_state["status"] = "idle"
             return
-
-        libs = _parse_vff_libraries(settings)
-        if not libs:
+        connections = [conn for conn in connections if conn.libraries]
+        if not connections:
             logger.info("VFF Sync : aucune bibliothèque configurée, skip")
             plex_sync_state["status"] = "idle"
             return
 
-        logger.info("VFF Sync : début de la synchronisation de la bibliothèque Plex")
-        plex_items = await asyncio.to_thread(
-            plex_finder.sync_plex_library_blocking, settings.plex_url, settings.plex_token, libs
-        )
-
-        plex_sync_state["total_items"] = len(plex_items)
-        logger.info(f"VFF Sync : {len(plex_items)} média(s) récupéré(s) de Plex, intégration en base...")
-
         arr_lookup = await _build_arr_lookup(db)
-        added_count, seen_guids = await _integrate_plex_items(plex_items, arr_lookup)
+        added_count = 0
+        seen_guids: set[str] = set()
+        # La purge des médias disparus n'a de sens que si chaque serveur a bien répondu :
+        # un serveur injoignable (liste vide) ferait sinon passer tout son contenu pour
+        # supprimé alors qu'il est toujours là.
+        all_servers_answered = True
+        for conn in connections:
+            logger.info("VFF Sync : début de la synchronisation de la bibliothèque Plex (%s)", conn.name)
+            plex_items = await asyncio.to_thread(
+                plex_finder.sync_plex_library_blocking, conn.url, conn.token, conn.libraries
+            )
+            if not plex_items:
+                all_servers_answered = False
+                logger.info("VFF Sync : aucun média récupéré du serveur %s", conn.name)
+                continue
+            plex_sync_state["total_items"] += len(plex_items)
+            logger.info(
+                f"VFF Sync : {len(plex_items)} média(s) récupéré(s) de Plex ({conn.name}), intégration en base..."
+            )
+            server_added, server_guids, server_keys = await _integrate_plex_items(plex_items, arr_lookup, conn)
+            added_count += server_added
+            seen_guids |= server_guids
+            await _prune_locations(db, conn.id, server_keys)
+        if not all_servers_answered:
+            seen_guids = set()
 
         # Supprimer les LibraryItems dont le plex_guid n'est plus dans Plex et
         # rétrograder les demandes liées (available → sent_to_arr / availability_lost).
         # Un item sans plex_guid (match titre+année uniquement) n'est jamais touché ici :
         # on ne peut pas savoir avec certitude s'il était dans la fenêtre scannée.
         if seen_guids:
-            from .request_lifecycle import transition_request
-
             stale_items = (
                 (
                     await db.execute(
                         select(LibraryItem).where(
                             LibraryItem.plex_guid.isnot(None),
                             LibraryItem.plex_guid.notin_(seen_guids),
+                            # Un média encore vu sur un serveur (emplacement non purgé)
+                            # reste présent, même si ce serveur lui donne un autre guid.
+                            ~exists().where(LibraryItemLocation.library_item_id == LibraryItem.id),
                         )
                     )
                 )
@@ -313,27 +468,7 @@ async def sync_plex_media():
             )
 
             if stale_items:
-                stale_ids = [item.id for item in stale_items]
-                linked_reqs = (
-                    (await db.execute(select(MediaRequest).filter(MediaRequest.library_item_id.in_(stale_ids))))
-                    .scalars()
-                    .all()
-                )
-
-                reverted = 0
-                for req in linked_reqs:
-                    req.library_item_id = None
-                    if req.status == RequestStatus.available:
-                        await transition_request(db, req, "availability_lost", source="plex_sync")
-                        logger.info(
-                            "VFF Sync : '%s' retiré de Plex — statut réinitialisé (availability_lost)",
-                            req.title,
-                        )
-                        reverted += 1
-
-                for item in stale_items:
-                    await db.delete(item)
-
+                reverted = await remove_library_items(db, stale_items, source="plex_sync")
                 logger.info(
                     "VFF Sync : %d LibraryItem(s) stale(s) supprimé(s), %d demande(s) réinitialisée(s)",
                     len(stale_items),
@@ -404,12 +539,9 @@ async def sync_plex_media_recent():
         if not settings or not settings.vff_enabled:
             plex_sync_state["status"] = "idle"
             return
-        if not settings.plex_url or not settings.plex_token:
-            plex_sync_state["status"] = "idle"
-            return
-
-        libs = _parse_vff_libraries(settings)
-        if not libs:
+        connections = [conn for conn in await plex_servers.active_connections(db, settings) if conn.libraries]
+        await db.commit()
+        if not connections:
             plex_sync_state["status"] = "idle"
             return
 
@@ -424,10 +556,13 @@ async def sync_plex_media_recent():
             else run_started_at - _RECENT_SYNC_DEFAULT_LOOKBACK
         )
 
-        plex_items = await asyncio.to_thread(
-            plex_finder.sync_plex_library_recent_blocking, settings.plex_url, settings.plex_token, libs, since
-        )
-        plex_sync_state["total_items"] = len(plex_items)
+        fetched: list[tuple[PlexServerConnection, list[dict]]] = []
+        for conn in connections:
+            plex_items = await asyncio.to_thread(
+                plex_finder.sync_plex_library_recent_blocking, conn.url, conn.token, conn.libraries, since
+            )
+            plex_sync_state["total_items"] += len(plex_items)
+            fetched.append((conn, plex_items))
 
         # Avance le filigrane des la recuperation Plex reussie, avant l'integration en
         # base (_integrate_plex_items ouvre sa propre session) : un souci d'integration
@@ -435,14 +570,20 @@ async def sync_plex_media_recent():
         settings.plex_recent_sync_last_at = run_started_at
         await db.commit()
 
-        if plex_items:
-            logger.info(f"VFF Sync (recent) : {len(plex_items)} média(s) récemment ajouté(s) détecté(s)")
-            arr_lookup = await _build_arr_lookup(db)
-            added_count, _seen_guids = await _integrate_plex_items(plex_items, arr_lookup)
-            if added_count > 0:
-                from .vff_scanner import check_vf_statuses
+        arr_lookup = None
+        added_count = 0
+        for conn, plex_items in fetched:
+            if not plex_items:
+                continue
+            logger.info(f"VFF Sync (recent) : {len(plex_items)} média(s) récemment ajouté(s) détecté(s) ({conn.name})")
+            if arr_lookup is None:
+                arr_lookup = await _build_arr_lookup(db)
+            server_added, _seen_guids, _seen_keys = await _integrate_plex_items(plex_items, arr_lookup, conn)
+            added_count += server_added
+        if added_count > 0:
+            from .vff_scanner import check_vf_statuses
 
-                asyncio.create_task(check_vf_statuses())
+            asyncio.create_task(check_vf_statuses())
 
         plex_sync_state["status"] = "idle"
         plex_sync_state["finished_at"] = now_utc().isoformat()

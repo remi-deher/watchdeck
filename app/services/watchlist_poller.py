@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from .. import metrics as app_metrics
+from ..cache import cache
 from ..database import AsyncSessionLocal
 from ..models import ArrInstance, DownloadClient, MediaRequest, PlexUser, PollHistory, RequestStatus, Settings
 from ..utils import now_utc, now_utc_naive
@@ -415,7 +416,62 @@ async def _default_radarr_credentials(settings: Settings, db: AsyncSession | Non
     return (instance.url, instance.api_key) if instance else (None, None)
 
 
+# Une correspondance identifiant externe -> TMDB est definitive : un film ne change
+# jamais de fiche TMDB. La resoudre coute pourtant un aller-retour Radarr (et parfois
+# TMDB) par item et par cycle -- mesure en production, 2,4 s des 4,7 s d'un cycle
+# partaient a redemander les memes 40 correspondances, 2880 fois par jour.
+_TMDB_RESOLUTION_TTL = 30 * 24 * 3600
+# Un echec, lui, n'est PAS definitif : un film trop recent que Radarr ne connait pas
+# encore sera resolu plus tard. On memorise donc brievement, juste assez pour ne pas
+# refaire l'appel a chaque cycle d'une meme heure.
+_TMDB_RESOLUTION_MISS_TTL = 3600
+
+
+def _tmdb_cache_key(item: dict) -> str | None:
+    """Cle stable pour la resolution TMDB d'un item, ou None si rien d'identifiant.
+
+    Sans identifiant externe, la resolution retombe sur le titre : trop instable pour
+    etre memorisee (le meme titre peut designer deux oeuvres), on ne cache pas.
+    """
+    media_type = item.get("media_type") or "?"
+    for kind in ("imdb_id", "tvdb_id"):
+        value = item.get(kind)
+        if value:
+            return f"watchdeck:tmdb-resolution:{media_type}:{kind}:{value}"
+    return None
+
+
 async def _ensure_tmdb_id(item: dict, settings: Settings, user_obj, db: AsyncSession | None = None) -> dict:
+    """Garantit un tmdb_id sur l'item, en memorisant la correspondance resolue.
+
+    Enveloppe `_resolve_tmdb_id_uncached` : c'est toute la chaine de resolution qui est
+    mise en cache (Radarr, puis TMDB, puis titre, puis Seer), pas un seul maillon --
+    un item deja resolu ne redeclenche donc aucun appel, quelle que soit la source qui
+    avait abouti.
+    """
+    if item.get("tmdb_id"):
+        return item
+
+    key = _tmdb_cache_key(item)
+    if key:
+        cached = await cache.get_json(key)
+        if cached is not None:
+            resolved = cached.get("tmdb_id")
+            return {**item, "tmdb_id": resolved} if resolved else item
+
+    result = await _resolve_tmdb_id_uncached(item, settings, user_obj, db)
+
+    if key:
+        resolved = result.get("tmdb_id")
+        await cache.set_json(
+            key,
+            {"tmdb_id": resolved},
+            ttl_seconds=_TMDB_RESOLUTION_TTL if resolved else _TMDB_RESOLUTION_MISS_TTL,
+        )
+    return result
+
+
+async def _resolve_tmdb_id_uncached(item: dict, settings: Settings, user_obj, db: AsyncSession | None = None) -> dict:
     """Garantit un tmdb_id sur l'item quand c'est possible (normalisation déduplication).
 
     - Films : résout IMDB → TMDB via Radarr (disponible pour TOUS les utilisateurs,

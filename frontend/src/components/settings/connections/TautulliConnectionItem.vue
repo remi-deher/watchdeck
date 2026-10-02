@@ -1,0 +1,86 @@
+<template>
+  <SettingsItem
+    title="Import historique Tautulli"
+    subtitle="Source facultative pour rapatrier manuellement les anciennes lectures"
+    :icon="History"
+    :status="form.tautulli_enabled ? 'active' : 'inactive'"
+    :status-text="form.tautulli_enabled ? 'Activé' : 'Désactivé'"
+    keywords="url clé api importer normaliser historique sessions"
+    saveable
+  >
+    <template #actions>
+      <ToggleSwitch v-model="form.tautulli_enabled" label="Activer" title="Activer Tautulli"/>
+    </template>
+    <div class="settings-grid two">
+      <label class="span-two">URL Tautulli<input v-model.trim="form.tautulli_url" type="url" placeholder="http://tautulli:8181"><small>Adresse de votre instance Tautulli, ex. http://tautulli:8181 en Docker.</small></label>
+      <div class="span-two"><SecretField v-model="form.tautulli_api_key" label="Clé API" hint="Disponible dans Tautulli sous Réglages → Web Interface → API." :configured="Boolean(secretsPresent.tautulli_api_key)" /></div>
+    </div>
+    <p class="connection-result">
+      <strong>Importer</strong> récupère les sessions passées depuis Tautulli (jusqu'à la limite choisie).
+      <strong>Normaliser l'historique</strong> recalcule la décision de lecture, la progression et le temps regardé des sessions déjà importées.
+      Aucun import automatique n’est effectué : Tautulli reste une source historique manuelle et facultative.
+      Ce Tautulli suit le serveur Plex principal ; celui d’un serveur supplémentaire se règle dans sa fiche, et l’import les parcourt tous.
+    </p>
+    <div class="card-actions">
+      <UiButton :disabled="busy" @click="testConnection"><PlugZap/>Tester</UiButton>
+      <UiSelect v-model="importLength" :options="[{ value: 500, label: '500 sessions' }, { value: 2000, label: '2 000 sessions' }, { value: 10000, label: 'Tout (10 000 max.)' }]" />
+      <UiButton :disabled="busy" @click="runImport"><History/>Importer</UiButton>
+      <UiButton :disabled="busy" @click="normalizeHistory"><RefreshCw/>Normaliser l'historique</UiButton>
+    </div>
+    <p v-if="status" class="connection-result">{{ status }}</p>
+  </SettingsItem>
+  <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)"/>
+</template>
+
+<script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiButton from '@/components/ui/UiButton.vue';
+import { computed, ref } from 'vue';
+import { useMutation } from '@tanstack/vue-query';
+import { History, PlugZap, RefreshCw } from '@lucide/vue';
+import { api } from '@/api';
+import { form, save, secretsPresent } from '@/settingsForm';
+import SecretField from '@/components/ui/SecretField.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
+import { useConfirm } from '@/composables/useConfirm';
+import SettingsItem from '../SettingsItem.vue';
+
+const status=ref(''),importLength=ref(2000);
+const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
+const tautulliMutation = useMutation({
+  mutationFn: async ({ path, body }: { path: string; body?: any }) => {
+    await save();
+    return api<any>(path, { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) });
+  },
+  retry: 0,
+});
+const busy = computed(() => tautulliMutation.isPending.value);
+async function testConnection(): Promise<void> {
+  status.value='';
+  try{const result=await tautulliMutation.mutateAsync({path:'/api/playback/tautulli/test'});status.value=result.message}
+  catch(error: any){status.value=error.message}
+}
+async function runImport(): Promise<void> {
+  status.value='';
+  try{const result=await tautulliMutation.mutateAsync({path:'/api/playback/tautulli/import',body:{length:importLength.value}});status.value=`${result.imported} session(s) importée(s) sur ${result.received}.`}
+  catch(error: any){status.value=error.message}
+}
+async function normalizeHistory(): Promise<void> {
+  if(!await askConfirm({
+    title:"Normaliser l'historique Tautulli ?",
+    message:"Les décisions de lecture, la progression et le temps regardé des anciennes sessions seront recalculés depuis Tautulli.",
+    confirmLabel:"Normaliser",
+  }))return;
+  status.value='';
+  try{
+    const result=await tautulliMutation.mutateAsync({path:'/api/playback/tautulli/normalize',body:{length:10000}});
+    status.value=`${result.normalized} session(s) corrigée(s) sur ${result.matched} retrouvée(s).`;
+  }catch(error: any){status.value=error.message}
+}
+</script>
+
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+.card-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;margin-top:4px}.card-actions select{width:auto}.connection-result{margin:0;color:var(--muted);font-size:var(--fs-sm);line-height:1.5}@include bp.until(phablet) {.card-actions{display:grid;grid-template-columns:1fr 1fr}.card-actions>*{width:100%!important;min-height:44px}}@include bp.until(mobile-wide) {.card-actions{grid-template-columns:1fr}}
+</style>

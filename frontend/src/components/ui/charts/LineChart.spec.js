@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import LineChart from './LineChart.vue';
+import ChartCanvas from './ChartCanvas.vue';
 
 const points = Array.from({ length: 10 }, (_, i) => ({
   key: `j${i}`,
@@ -29,9 +30,10 @@ const drag = async (wrapper, fromX, toX) => {
 };
 
 describe('LineChart', () => {
-  it('trace un point par valeur', () => {
+  it('confie tous les points au canvas Chart.js', () => {
     const wrapper = mount(LineChart, { props: { points } });
-    expect(wrapper.find('path.line').attributes('d').split('L')).toHaveLength(10);
+    expect(wrapper.find('canvas').attributes('data-points')).toBe('10');
+    expect(wrapper.find('svg').exists()).toBe(false);
   });
 
   it('restreint la fenêtre à la plage sélectionnée', async () => {
@@ -41,7 +43,7 @@ describe('LineChart', () => {
     await drag(wrapper, 20, 60);
 
     // 20 % à 60 % de dix points : les index 2 à 5, soit quatre points.
-    expect(wrapper.find('path.line').attributes('d').split('L')).toHaveLength(4);
+    expect(wrapper.find('canvas').attributes('data-points')).toBe('4');
     expect(wrapper.find('.line-chart__reset').exists()).toBe(true);
   });
 
@@ -61,7 +63,7 @@ describe('LineChart', () => {
 
     await wrapper.find('.line-chart__reset').trigger('click');
 
-    expect(wrapper.find('path.line').attributes('d').split('L')).toHaveLength(10);
+    expect(wrapper.find('canvas').attributes('data-points')).toBe('10');
   });
 
   it('oublie le zoom quand les points changent', async () => {
@@ -74,5 +76,15 @@ describe('LineChart', () => {
     await wrapper.setProps({ points: points.slice(0, 6) });
 
     expect(wrapper.find('.line-chart__reset').exists()).toBe(false);
+  });
+
+  it("limite et espace les dates de l'axe pour qu'elles ne se chevauchent jamais", () => {
+    // Les dates sont dessinées dans le canvas, donc hors d'atteinte des tests e2e : on
+    // verrouille ici la configuration qui empêche Chart.js de les empiler.
+    const wrapper = mount(LineChart, { props: { points } });
+    const ticks = wrapper.findComponent(ChartCanvas).props('config').options.scales.x.ticks;
+    expect(ticks.autoSkip).not.toBe(false);
+    expect(ticks.maxTicksLimit).toBeLessThanOrEqual(6);
+    expect(ticks.maxRotation).toBe(0);
   });
 });

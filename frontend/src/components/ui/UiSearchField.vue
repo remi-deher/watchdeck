@@ -3,9 +3,14 @@
     <!-- L'icone dit la nature du geste avant meme la premiere frappe : une loupe
          interroge un corpus, un entonnoir retranche d'une liste deja affichee. -->
     <component :is="kind === 'filter' ? Funnel : Search" aria-hidden="true" class="ui-search-field__icon" />
+    <!-- `enterkeyhint` : le clavier logiciel annonce « Rechercher » plutot qu'un retour
+         a la ligne. Il n'y a pas de ligne suivante ici, la touche valide la recherche.
+         Pose avant `$attrs` pour qu'un appelant puisse encore l'infirmer. -->
     <input
+      class="ui-search-field__input"
       :value="query"
       type="search"
+      enterkeyhint="search"
       :placeholder="placeholder"
       :aria-label="ariaLabel || placeholder"
       v-bind="$attrs"
@@ -24,7 +29,6 @@
       <X aria-hidden="true" />
     </button>
     <template v-if="hasFilters">
-      <span class="ui-search-field__sep" aria-hidden="true" />
       <button
         type="button"
         class="ui-search-field__filter"
@@ -111,6 +115,7 @@ function onInput(event: Event): void {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .ui-search-field {
   display: flex;
   flex: 1;
@@ -124,6 +129,11 @@ function onInput(event: Event): void {
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
+/* Avec un bouton « Filtres », la capsule cede son coussin de droite : le bouton en
+   occupe toute la hauteur et vient au ras du bord, comme un segment de la capsule et
+   non comme une pastille posee dedans. Sans cela il restait un liseré de fond entre le
+   bouton et le contour -- huit pixels a droite, un en haut et en bas. */
+.ui-search-field:has(.ui-search-field__filter) { padding-right: 0; }
 .ui-search-field__icon { flex: none; width: 16px; height: 16px; color: var(--muted); }
 .ui-search-field input {
   flex: 1;
@@ -134,7 +144,7 @@ function onInput(event: Event): void {
   font-size: var(--fs-sm);
   outline: 0;
 }
-.ui-search-field__sep { flex: none; width: 1px; height: 18px; background: var(--border); }
+
 
 /* Un filtre se distingue de la recherche : bord teinte et fond legerement pose,
    pour qu'on sache d'un coup d'oeil qu'on retranche au lieu d'interroger. */
@@ -171,7 +181,7 @@ function onInput(event: Event): void {
 /* Sur telephone, le champ se confondait avec le fond de la barre : meme gris pour le
    contour, la barre et la page. Le contour prend donc la couleur de l'application, et
    la loupe avec lui -- c'est le seul repere qui dit ou taper. */
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .ui-search-field {
     border-color: color-mix(in srgb, var(--accent) 55%, transparent);
     background: color-mix(in srgb, var(--accent) 7%, var(--surface));
@@ -190,8 +200,15 @@ function onInput(event: Event): void {
   align-items: center;
   gap: 6px;
   height: 100%;
-  padding: 0 4px 0 8px;
+  padding: 0 12px;
+  /* La couture : un seul trait franc, qui remplace le separateur flottant d'avant --
+     celui-ci laissait huit pixels de vide de chaque cote et se lisait comme un espace
+     plutot que comme une limite. */
   border: 0;
+  border-left: 1px solid var(--border);
+  /* Le rayon suit celui de la capsule, moins l'epaisseur du contour : a rayon egal, le
+     coin du bouton depassait de la courbe et laissait apparaitre un croissant de fond. */
+  border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0;
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -209,7 +226,7 @@ function onInput(event: Event): void {
   padding: 0 4px;
   border-radius: var(--radius-pill);
   background: var(--accent);
-  color: #1a1400;
+  color: var(--on-accent);
   font-size: var(--fs-xs);
   font-weight: 700;
 }

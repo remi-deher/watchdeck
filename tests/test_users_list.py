@@ -4,20 +4,15 @@ aucune stat, la colonne affichait toujours "-".
 """
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, MediaRequest, PlexUser, RequestStatus
+from app.models import MediaRequest, PlexUser, RequestStatus
 from app.routers.users_api import list_users
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    session = TestSession(sessionmaker(bind=engine)())
+    session = make_test_session()
     yield session
     session.close()
 

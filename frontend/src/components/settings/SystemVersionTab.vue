@@ -19,9 +19,9 @@
             <dd class="commit-cell">
               <a v-if="info.repo_url" class="mono" :href="`${info.repo_url}/commit/${info.git_sha}`" target="_blank" rel="noopener noreferrer">{{ shortSha(info.git_sha) }}</a>
               <span v-else class="mono">{{ shortSha(info.git_sha) }}</span>
-              <button v-if="isRealSha(info.git_sha)" class="icon-button" type="button" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copySha(info.git_sha)">
+              <UiButton variant="ghost" size="sm" icon-only v-if="isRealSha(info.git_sha)" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copySha(info.git_sha)">
                 <Check v-if="copied" :size="14"/><Copy v-else :size="14"/>
-              </button>
+              </UiButton>
             </dd>
           </div>
           <div><dt>Build</dt><dd :title="formatDate(info.build_date)">{{ formatRelative(info.build_date) }}</dd></div>
@@ -67,9 +67,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { formatDateTimeSeconds, parseApiDate } from '@/utils/format';
+import { computed, ref } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { Check, Copy, ExternalLink, RefreshCw } from '@lucide/vue';
 import { api } from '@/api';
+import { humanizeError } from '@/utils/apiError';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -102,9 +105,13 @@ interface VersionInfo {
   release_checked_at: string | null;
 }
 
-const info = ref<VersionInfo | null>(null);
-const loading = ref(false);
-const error = ref('');
+const versionQuery = useQuery({
+  queryKey: ['settings', 'system-version'],
+  queryFn: ({ signal }) => api<VersionInfo>('/api/system/version', { signal }),
+});
+const info = computed(() => versionQuery.data.value ?? null);
+const loading = computed(() => versionQuery.isFetching.value);
+const error = computed(() => (versionQuery.error.value ? humanizeError(versionQuery.error.value) : ''));
 const copied = ref(false);
 
 function isRealSha(sha: string): boolean {
@@ -120,8 +127,8 @@ function mainComparisonMessage(comparison: MainComparison): string {
 }
 function formatDate(value: string): string {
   if (!value || value === 'unknown') return value;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('fr-FR');
+  const date = parseApiDate(value);
+  return Number.isNaN(date.getTime()) ? value : formatDateTimeSeconds(date);
 }
 
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
@@ -132,7 +139,7 @@ const relativeFormatter = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' })
 
 function formatRelative(value: string | null): string {
   if (!value || value === 'unknown') return value ?? '';
-  const date = new Date(value);
+  const date = parseApiDate(value);
   if (Number.isNaN(date.getTime())) return value;
   const diffSeconds = (date.getTime() - Date.now()) / 1000;
   const absSeconds = Math.abs(diffSeconds);
@@ -168,7 +175,9 @@ const statusBadge = computed<{ label: string; tone: BadgeTone } | null>(() => {
 // balise, donc aucun HTML/JS du corps de la release ne peut jamais s'executer,
 // meme si `body` contenait un jour du contenu non fiable.
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Guillemets compris : un lien Markdown finit dans un attribut href="...", qu'un `"`
+  // non echappe permettrait de refermer pour y ajouter un attribut (onmouseover...).
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function renderInline(escaped: string): string {
   return escaped
@@ -207,19 +216,9 @@ const renderedReleaseNotes = computed(() =>
   info.value?.latest_release?.body ? renderMarkdown(info.value.latest_release.body) : '<p>Aucune note de version.</p>',
 );
 
-async function load(): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    info.value = await api<VersionInfo>('/api/system/version');
-  } catch (err: any) {
-    error.value = err.message;
-  } finally {
-    loading.value = false;
-  }
+function load(): void {
+  void versionQuery.refetch();
 }
-
-onMounted(load);
 </script>
 
 <style scoped lang="scss">
@@ -229,20 +228,18 @@ onMounted(load);
 .version-grid dd { margin: 0; font-size: var(--fs-md); }
 .version-grid dd.mono, .version-grid dd .mono { font-family: var(--font-mono, monospace); }
 .commit-cell { display: flex; align-items: center; gap: var(--space-2); }
-.icon-button { display: inline-flex; align-items: center; justify-content: center; padding: 2px; border: none; background: transparent; color: var(--muted); cursor: pointer; border-radius: var(--radius-sm); }
-.icon-button:hover { color: var(--text); background: var(--surface-2); }
 .branch-badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; }
-.branch-badge.branch-main { color: var(--success); background: rgba(34,197,94,.13); }
-.branch-badge.branch-test { color: var(--accent); background: rgba(229,160,13,.13); }
-.branch-badge.branch-dev { color: #60a5fa; background: rgba(96,165,250,.13); }
+.branch-badge.branch-main { color: var(--green-text); background: color-mix(in srgb, var(--green) 13%, transparent); }
+.branch-badge.branch-test { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.branch-badge.branch-dev { color: var(--blue-text); background: color-mix(in srgb,var(--blue) 13%,transparent); }
 .status-badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: 700; }
-.status-badge.status-success { color: var(--success); background: rgba(34,197,94,.13); }
-.status-badge.status-warning { color: var(--accent); background: rgba(229,160,13,.13); }
-.status-badge.status-error { color: var(--danger, #ef4444); background: rgba(239,68,68,.13); }
+.status-badge.status-success { color: var(--green-text); background: color-mix(in srgb, var(--green) 13%, transparent); }
+.status-badge.status-warning { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.status-badge.status-error { color: var(--red-text); background: color-mix(in srgb, var(--red) 13%, transparent); }
 .status-badge.status-info { color: var(--muted); background: var(--surface-2); }
 .ui-feedback { margin-top: var(--space-3); }
 .checked-at { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-xs); }
-.release-body { max-height: 420px; margin: var(--space-3) 0 0; padding: var(--space-3); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); font-size: var(--fs-sm); line-height: 1.5; }
+.release-body { max-height: 420px; margin: var(--space-3) 0 0; padding: var(--space-3); overflow: auto; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface-2); font-size: var(--fs-sm); line-height: 1.5; }
 .release-body :deep(h3), .release-body :deep(h4) { margin: var(--space-3) 0 var(--space-2); font-size: var(--fs-md); }
 .release-body :deep(h3:first-child), .release-body :deep(h4:first-child) { margin-top: 0; }
 .release-body :deep(ul) { margin: 0 0 var(--space-2); padding-left: 1.3em; }

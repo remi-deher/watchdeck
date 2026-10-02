@@ -1,5 +1,8 @@
 <template>
-  <div class="app-page" :class="pageClass">
+  <!-- `page-motion` etale l'arrivee des blocs de la page, avec un plafond pour qu'une
+       longue page ne se deroule pas indefiniment. La regle vit dans `_motion.scss`,
+       ecrite elle aussi de longue date et jusqu'ici sans emploi. -->
+  <div class="app-page page-motion" :class="pageClass">
     <!-- Le titre reste dans le document mais pas a l'ecran : la barre de contexte
          affiche deja le meme intitule, en permanence et sans jamais defiler. Le h1
          garde donc son role de point d'entree pour la navigation par en-tetes, sans
@@ -26,6 +29,11 @@
         :aria-label="`Sections ${destinationLabel || title}`"
         @update:active="$emit('update:activeSection', $event)"
       />
+
+      <!-- Onglets propres a la page (types de Bibliotheque, vues d'Explorer) : ils
+           partagent le collage, l'ombre et l'effacement de la rangee au lieu d'en
+           reimplementer une copie dans la feuille globale. -->
+      <slot name="tabs" />
 
       <div v-if="hasTools && !toolsInBar" class="app-page__tools">
         <div class="app-page__tool-actions">
@@ -62,7 +70,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, useSlots, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, useSlots, watch } from 'vue';
+import { useIntersectionObserver } from '@vueuse/core';
 import AppSubnav, { type SubnavItem } from './AppSubnav.vue';
 import { providePageSearch, type PageSearch, type PageSearchKind } from '@/composables/usePageSearch';
 import { usePageSections } from '@/composables/usePageSections';
@@ -176,6 +185,7 @@ providePageSearch(
 const mode = useShellMode();
 const slots = useSlots();
 const hasTools = computed(() => Boolean(slots.tools || slots.actions));
+const hasTabs = computed(() => Boolean(slots.tabs));
 /* La cible du teleport appartient a la barre du haut, montee avant la page : elle est
    donc la des le premier rendu. On la verifie quand meme, pour qu'un AppPage monte hors
    du shell (tests isoles, tiroirs) retombe simplement sur sa rangee collante. */
@@ -191,9 +201,13 @@ const toolsInBar = computed(() => false);
 const { sections: derivedSections, activeKey, destinationLabel } = usePageSections();
 /* Meme source que la barre du haut : une seule lecture du defilement pour les deux. */
 const { hidden: chromeHidden } = useChromeAutoHide();
-const showSections = computed(() => mode.value !== 'expanded');
+/* Trois modes, trois porteurs, jamais deux a la fois : le rail en deploye, cette rangee
+   en intermediaire, et le dock en compact -- ou une rangee de plus, qui defilait
+   horizontalement des quatre sections, s'ajoutait a la barre du haut et au dock sur un
+   ecran qui n'a la hauteur d'aucune des trois. */
+const showSections = computed(() => mode.value === 'medium');
 const showStickyRow = computed(
-  () => (showSections.value && resolvedSections.value.length > 1) || (hasTools.value && !toolsInBar.value)
+  () => (showSections.value && resolvedSections.value.length > 1) || hasTabs.value || (hasTools.value && !toolsInBar.value)
 );
 const resolvedSections = computed<SubnavItem[]>(() =>
   props.sections.length ? props.sections : derivedSections.value
@@ -204,22 +218,38 @@ const resolvedActiveSection = computed(() =>
 
 const stickySentinel = ref<HTMLElement | null>(null);
 const isStuck = ref(false);
-let stickyObserver: IntersectionObserver | null = null;
 
 watch(mode, () => nextTick(syncToolsAnchor));
-onMounted(() => {
-  syncToolsAnchor();
-  if (typeof IntersectionObserver === 'undefined' || !stickySentinel.value) return;
-  stickyObserver = new IntersectionObserver(([entry]) => {
-    isStuck.value = !entry.isIntersecting;
-  });
-  stickyObserver.observe(stickySentinel.value);
+onMounted(syncToolsAnchor);
+useIntersectionObserver(stickySentinel, ([entry]) => {
+  if (entry) isStuck.value = !entry.isIntersecting;
 });
-onUnmounted(() => stickyObserver?.disconnect());
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+
+/* La cascade d'arrivee ne concerne que le contenu.
+ *
+ * `page-motion` anime chaque enfant direct : le temoin de collage et la rangee collante
+ * en faisaient donc partie. Or cette rangee porte les outils de la page, et son animation
+ * redemarre a chaque rendu -- la moindre frappe dans la recherche la remettait en
+ * mouvement. Le bouton « Filtres » qu'elle contient n'atteignait plus jamais une position
+ * stable : un clic s'y perdait, et l'integration continue l'a constate avant nous. Ces
+ * deux-la sont donc de la charpente, pas du contenu, et ne bougent pas.
+ */
+.app-page.page-motion > .app-page__sentinel,
+.app-page.page-motion > .app-page__sticky,
+.app-page.page-motion > .sr-only {
+  animation: none;
+}
+
+/* Conteneur de requetes : les composants de la page s'adaptent a la largeur du
+   contenu, pas a celle de la fenetre. Les deux divergent des 1200px, ou le menu passe
+   de 72 a 232px : le contenu y est plus etroit qu'a 1150px, et un seuil de fenetre
+   remettait la disposition large pile quand la place diminuait. */
 .app-page {
+  container: page / inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -241,31 +271,49 @@ onUnmounted(() => stickyObserver?.disconnect());
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  /* Tout sur l'axe de la recherche : sections et outils centres, cote a cote quand
+     les deux sont la (Activite en tablette), sur deux lignes si la place manque. */
+  justify-content: center;
   gap: var(--space-3);
   min-width: 0;
   padding: var(--space-2) 0;
-  background: var(--bg);
+  /* Plus de bande pleine largeur : seules les capsules flottent, comme la recherche.
+     La bande laisse passer les clics vers le contenu visible entre elles. */
+  background: transparent;
+  pointer-events: none;
 }
-/* La rangee de sections prend la place disponible, les outils juste la leur : a
-   parts egales, les onglets se faisaient tronquer par un bouton qui n'en demandait
-   pas tant. En dessous de 320px de reste, chacun reprend sa propre ligne. */
-.app-page__sticky > .app-subnav { flex: 1 1 320px; min-width: 0; }
-.app-page__sticky > .app-page__tools { flex: 0 1 auto; min-width: 0; }
+.app-page__sticky > * { pointer-events: auto; }
+.app-page__sticky > :deep(.app-subnav) { flex: 0 1 auto; min-width: 0; max-width: 100%; margin-inline: 0; }
+.app-page__sticky > .app-page__tools { flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .app-page__sentinel { display: block; width: 1px; height: 1px; margin-bottom: -1px; pointer-events: none; }
-/* L'ombre n'apparait qu'une fois decolle : au repos, elle soulignerait une barre qui
-   ne flotte pas encore au-dessus de quoi que ce soit. */
-.app-page__sticky.is-stuck { box-shadow: 0 10px 24px -18px rgba(0, 0, 0, .9); }
+/* L'ombre n'apparait qu'une fois decolle, et sur la capsule seule : au repos, elle
+   soulignerait une barre qui ne flotte pas encore au-dessus de quoi que ce soit. */
+.app-page__sticky.is-stuck > :deep(.app-subnav),
+.app-page__sticky.is-stuck > .app-page__tools {
+  box-shadow: 0 10px 28px rgb(var(--shadow-color) / calc(.3 * var(--shadow-scale)));
+}
 
 /* Meme geste que la barre du haut, meme duree : les deux surfaces doivent partir et
    revenir d'un seul mouvement, pas l'une apres l'autre. `:focus-within` protege le
    parcours au clavier -- une rangee d'onglets ne doit jamais s'effacer sous le focus. */
 .app-page__sticky {
-  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .app-page__sticky.is-hidden:not(:focus-within) {
   opacity: 0;
   transform: translateY(calc(-100% - var(--app-shell-offset-top, 54px)));
   pointer-events: none;
+}
+/* Sur PC, la rangee ne part pas avec la barre : elle monte prendre sa place, du meme
+   mouvement et a la meme duree. Les sections et outils restent ainsi a portee pendant
+   la lecture, sans vide au-dessus d'eux. Sur telephone la barre vit en bas : la rangee
+   garde l'effacement ci-dessus, pour rendre toute la hauteur au contenu. */
+@include bp.from(shell-medium) {
+  .app-page__sticky.is-hidden:not(:focus-within) {
+    opacity: 1;
+    transform: translateY(calc(var(--safe-top, 0px) - var(--app-shell-offset-top, 54px)));
+    pointer-events: none;
+  }
 }
 
 .app-page__tools {
@@ -275,14 +323,42 @@ onUnmounted(() => stickyObserver?.disconnect());
   flex-wrap: wrap;
   min-width: 0;
 }
+/* Dans la rangee collante, les outils forment une capsule de la meme famille que la
+   recherche et les sections : posee sur le contenu qui defile, elle garde lisibles les
+   boutons sans fond (Reglages, fleches du calendrier). */
+.app-page__sticky > .app-page__tools {
+  /* Une seule ligne qui defile, comme les sections : sur telephone la periode
+     d'Activite (neuf choix) debordait de la capsule. `safe center` retombe sur un
+     alignement a gauche quand ca deborde, sans quoi le debut serait coupe. */
+  flex-wrap: nowrap;
+  justify-content: safe center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+}
+.app-page__sticky > .app-page__tools::-webkit-scrollbar { display: none; }
+.app-page__sticky > .app-page__tools > .app-page__tool-actions { flex-wrap: nowrap; justify-content: safe center; min-width: max-content; }
+/* Un controle segmente (periode d'Activite) s'aplatit dans la capsule, et sa pastille
+   active parle le meme langage que l'onglet actif des sections. */
+.app-page__sticky > .app-page__tools :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
+.app-page__sticky > .app-page__tools :deep(.ui-segmented-item[data-state='on']) {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  box-shadow: none;
+  font-weight: 700;
+}
+/* Un slot rendu vide (outils conditionnels) ne doit pas laisser une capsule vide. */
+.app-page__sticky > .app-page__tools:not(:has(.app-page__tool-actions > *)) { display: none; }
 
 .app-page__tool-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  margin-left: auto;
   flex-wrap: wrap;
 }
-/* Sans recherche, les actions occupent toute la rangee et se rangent a gauche. */
-.app-page__tools:not(:has(.ui-search-field)) .app-page__tool-actions { margin-left: 0; }
 </style>

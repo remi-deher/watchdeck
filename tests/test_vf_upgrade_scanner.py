@@ -6,13 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from app.cache import cache
 from app.models import (
     ArrInstance,
-    Base,
     LibraryItem,
     MediaRequest,
     RequestStatus,
@@ -44,6 +41,7 @@ from app.services.release_matching import (
     french_release_evidence,
     parse_release_season_episode,
     release_is_french,
+    release_is_subtitle_only,
     release_matches_target,
 )
 from app.services.vf_upgrade_lifecycle import QueueCache, refresh_lifecycle
@@ -69,7 +67,7 @@ from app.services.vf_upgrade_scanner import (
     scan_vf_upgrades,
 )
 from app.utils import now_utc, now_utc_naive
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 # ---------------------------------------------------------------------------
 # release_is_french & release_matches_target
@@ -216,6 +214,53 @@ def test_release_is_french_rejects_unrelated_titles(title):
     assert release_is_french({"title": title, "languages": []}) is False
 
 
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("Movie.2020.VOSTFR.1080p.WEB", True),
+        ("Movie.2020.vostfr.1080p", True),
+        ("Some.Show.S01E01.MULTiSUBS.1080p.WEB-DL", True),
+        ("Some.Show.S01E01.MULTi-SUBS.1080p", True),
+        ("Some.Show.S01E01.Multi.Subs.1080p", True),
+        ("Some.Show.S01E01.MULTI_SUB.1080p", True),
+        ("Some.Show [Multi Subs] 1080p", True),
+        ("Movie.2020.MULTi.1080p", False),
+        ("Movie.2020.TRUEFRENCH.1080p", False),
+        ("Multisubscription.Saga.2020.1080p", False),
+    ],
+)
+def test_release_is_subtitle_only(title, expected):
+    assert release_is_subtitle_only({"title": title}) is expected
+
+
+@pytest.mark.asyncio
+async def test_search_task_never_proposes_vostfr_or_multisubs_releases():
+    """VOSTFR et MULTiSUBS n'annoncent qu'un francais en sous-titres : jamais proposees
+    en amelioration VF, meme avec un "MULTI" ou une langue francaise declaree."""
+    inst = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr.local", api_key="key")
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=1,
+        scope="movie",
+        arr_type="radarr",
+        inst=inst,
+        arr_id=99,
+        title="Some Movie",
+    )
+    releases = [
+        {"guid": "vostfr", "title": "Some.Movie.2020.VOSTFR.1080p", "protocol": "usenet", "languages": ["French"]},
+        {"guid": "multisubs", "title": "Some.Movie.2020.MULTi-SUBS.1080p", "protocol": "usenet", "languages": []},
+        {"guid": "multi", "title": "Some.Movie.2020.MULTi.1080p", "protocol": "usenet", "languages": []},
+    ]
+    with (
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=releases)),
+        patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
+    ):
+        matched = await _search_task(task, settings=None)
+
+    assert [release["guid"] for release in matched] == ["multi"]
+
+
 @pytest.mark.asyncio
 async def test_search_task_drops_zero_seed_torrents_but_keeps_usenet():
     """Un torrent a 0 seed ne demarrera jamais (personne pour l'uploader) : exclu de la
@@ -336,10 +381,7 @@ async def test_search_task_rejects_quebec_dub_unless_explicitly_accepted():
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = TestSession(Session())
+    session = make_test_session()
     yield session
     session.close()
 
@@ -579,6 +621,7 @@ async def test_download_completion_triggers_one_plex_refresh(db):
         arr_url=inst.url,
         arr_api_key=inst.api_key,
         cache_key=f"radarr:{inst.id}",
+        plex_server_id=None,
     )
 
 

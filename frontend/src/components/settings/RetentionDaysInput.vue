@@ -1,22 +1,24 @@
 <template>
   <div class="retention-input">
-    <input
+    <UiNumberField
       v-if="!indefinite"
-      type="number"
-      min="1"
-      :value="modelValue"
+      :model-value="modelValue"
+      :min="1"
+      aria-label="Durée de conservation en jours"
       :placeholder="placeholder != null ? String(placeholder) : ''"
-      @input="onInput"
-    >
+      @update:model-value="onInput"
+    />
     <label class="check retention-indefinite">
-      <input type="checkbox" :checked="indefinite" @change="onToggle(($event.target as HTMLInputElement).checked)">
+      <UiCheckbox :model-value="indefinite" @update:model-value="onToggle($event)" />
       Conserver indéfiniment
     </label>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import { computed, ref, watch } from 'vue';
+import UiNumberField from '@/components/ui/UiNumberField.vue';
 
 // Reglage "retention en jours" reutilisable
 const props = withDefaults(
@@ -35,9 +37,8 @@ const indefinite = computed(() => !props.modelValue);
 const lastCustomValue = ref<number>(props.modelValue || props.defaultDays);
 watch(() => props.modelValue, (value) => { if (value) lastCustomValue.value = value; });
 
-function onInput(event: Event): void {
-  const value = Number((event.target as HTMLInputElement).value);
-  if (value > 0) emit('update:modelValue', value);
+function onInput(value: number | null): void {
+  if (value && value > 0) emit('update:modelValue', value);
 }
 function onToggle(checked: boolean): void {
   emit('update:modelValue', checked ? null : lastCustomValue.value);
@@ -46,6 +47,6 @@ function onToggle(checked: boolean): void {
 
 <style scoped lang="scss">
 .retention-input { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.retention-input input[type="number"] { width: 100px; }
+.retention-input :deep(.ui-number-field) { width: 150px; }
 .retention-indefinite { width: auto; }
 </style>

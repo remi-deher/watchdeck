@@ -9,9 +9,38 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
   };
 }
 
-// Les dialogues (ModalShell, DrawerShell, AppNavSheet...) se Teleport vers <body>
+// jsdom n'implemente pas scrollIntoView : les listes Reka UI (Listbox, Select) y amenent
+// l'option active.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+
+// jsdom ne fournit pas non plus ResizeObserver : le curseur de Reka UI mesure sa poignee.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
+// Les dialogues (ModalShell, AppNavSheet...) se Teleport vers <body>
 // pour que useBodyScrollLock puisse rendre le reste de l'app inert pendant qu'ils sont
 // ouverts. Sans ce stub, wrapper.find() ne verrait plus leur contenu puisqu'il ne
 // cherche pas hors du sous-arbre monté par @vue/test-utils.
-import { config } from "@vue/test-utils";
-config.global.stubs = { ...config.global.stubs, teleport: true };
+import { afterEach } from "vitest";
+import { config, enableAutoUnmount } from "@vue/test-utils";
+
+/* Tout composant monte est demonte a la fin de son test. Sans cela, il survivait au
+   test suivant avec ses ecouteurs sur `window`, ses minuteurs et ses ecritures dans le
+   stockage local : un composant d'un test precedent pouvait reecrire une preference
+   apres le nettoyage du suivant. C'etait la cause des echecs intermittents, plus
+   frequents sous charge, de TorrentClientsTable.spec.js notamment. */
+enableAutoUnmount(afterEach);
+/* Le bouchon par defaut (`teleport: true`) rend une balise vide pour les portails de
+   Reka UI : leurs dialogues disparaissaient des tests. Celui-ci rend le contenu sur place. */
+config.global.stubs = { ...config.global.stubs, teleport: { template: '<div class="teleport-stub"><slot /></div>' } };
+// Directive globale enregistree dans main.ts : sans elle, chaque liste animee avertit.
+import { vBalancedGrid } from './directives/vBalancedGrid';
+import { vListMotion } from '@/motion/vListMotion';
+config.global.directives = { ...config.global.directives, 'list-motion': vListMotion, 'balanced-grid': vBalancedGrid };

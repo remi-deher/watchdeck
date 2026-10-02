@@ -161,12 +161,29 @@ def _calendar_entry_excluded(tracked, *, search_text, search_target, user, statu
     return False
 
 
+def _vf_state(tracked: Optional[dict]) -> Optional[str]:
+    """Etat de langue d'une entree, dans le vocabulaire du filtre `vf` ci-dessus.
+
+    Expose tel quel pour que la page puisse filtrer le mois deja charge sans le relire.
+    """
+    if not tracked:
+        return None
+    if not tracked.get("in_library"):
+        return "requested"
+    has_vf = tracked.get("has_vf")
+    if has_vf is True:
+        return "vf"
+    if has_vf is False:
+        return "vo"
+    return "unchecked"
+
+
 _CALENDAR_SOFT_TTL = 45
 _CALENDAR_HARD_TTL = 600
 
 
 def _calendar_cache_key(start: Optional[str], end: Optional[str]) -> str:
-    return f"watchdeck:calendar:raw:v2:{start or ''}|{end or ''}"
+    return f"watchdeck:calendar:raw:v3:{start or ''}|{end or ''}"
 
 
 def _filter_calendar_events(
@@ -329,17 +346,31 @@ async def _compute_calendar(
         .scalars()
         .all()
     )
-    remote_results = await asyncio.gather(
-        *(
-            sonarr.get_calendar(inst.url, inst.api_key, start_dt.isoformat(), end_dt.isoformat())
-            if inst.arr_type == "sonarr"
-            else radarr.get_calendar(inst.url, inst.api_key, start_dt.isoformat(), end_dt.isoformat())
-            for inst in instances
+    # La file de telechargement de chaque instance est lue en meme temps que son
+    # calendrier : elle dit quels episodes et films sont en cours de telechargement.
+    remote_results, queue_results = await asyncio.gather(
+        asyncio.gather(
+            *(
+                sonarr.get_calendar(inst.url, inst.api_key, start_dt.isoformat(), end_dt.isoformat())
+                if inst.arr_type == "sonarr"
+                else radarr.get_calendar(inst.url, inst.api_key, start_dt.isoformat(), end_dt.isoformat())
+                for inst in instances
+            ),
+            return_exceptions=True,
         ),
-        return_exceptions=True,
+        asyncio.gather(
+            *(
+                sonarr.get_queue_episode_ids(inst.url, inst.api_key)
+                if inst.arr_type == "sonarr"
+                else radarr.get_queue_movie_ids(inst.url, inst.api_key)
+                for inst in instances
+            ),
+            return_exceptions=True,
+        ),
     )
     events = []
-    for inst, remote_result in zip(instances, remote_results):
+    for inst, remote_result, queue_result in zip(instances, remote_results, queue_results):
+        queued_ids = queue_result if isinstance(queue_result, set) else set()
         try:
             if isinstance(remote_result, BaseException):
                 raise remote_result
@@ -426,6 +457,9 @@ async def _compute_calendar(
                             "rating": _arr_rating(series),
                             "genres": _arr_genres(series),
                             "has_file": bool(ep.get("hasFile")),
+                            "downloading": ep.get("id") in queued_ids,
+                            "vf_state": _vf_state(tracked),
+                            "sources": list((tracked or {}).get("request_sources") or []),
                             "tracked": bool(tracked),
                             "library_item_id": (tracked or {}).get("library_item_id"),
                             "request_id": (tracked or {}).get("request_id"),
@@ -522,6 +556,9 @@ async def _compute_calendar(
                                 "rating": rating,
                                 "genres": genres,
                                 "has_file": bool(m.get("hasFile")),
+                                "downloading": m.get("id") in queued_ids,
+                                "vf_state": _vf_state(tracked),
+                                "sources": list((tracked or {}).get("request_sources") or []),
                                 "tracked": bool(tracked),
                                 "library_item_id": (tracked or {}).get("library_item_id"),
                                 "request_id": (tracked or {}).get("request_id"),
