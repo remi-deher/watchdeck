@@ -97,6 +97,18 @@
             @updated="emit('refresh')"
           />
 
+          <!-- Sans VF ni sous-titre francais : Plex ou Bazarr peuvent en trouver un. -->
+          <UiButton
+            v-if="!item.has_vf && (item.sub_fr_status === 'absent' || item.sub_fr_status === 'no_track')"
+            class="compact"
+            :loading="searchingSubtitles.has(item.id)"
+            title="Chercher des sous-titres français (Bazarr s'il connaît ce média, sinon Plex)"
+            @click="searchSubtitles(item)"
+          >
+            <Captions :size="14" />
+            <span>Sous-titres FR</span>
+          </UiButton>
+
           <UiButton size="sm" :to="`/library/media/library/${item.id}`" @click="ouvrirFicheAuClic($event, `/library/media/library/${item.id}`)">Fiche</UiButton>
         </div>
       </div>
@@ -197,7 +209,10 @@ import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref } from 'vue';
-import { ChevronDown, ChevronUp, Film, MessageSquare, MessageSquareOff, RotateCcw, SlidersHorizontal, Tv, Volume2, VolumeX } from '@lucide/vue';
+import { api } from '@/api';
+import { useToast } from '@/composables/useToast';
+import { humanizeError } from '@/utils/apiError';
+import { Captions, ChevronDown, ChevronUp, Film, MessageSquare, MessageSquareOff, RotateCcw, SlidersHorizontal, Tv, Volume2, VolumeX } from '@lucide/vue';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
 import SeasonEpisodeList from '@/components/media/SeasonEpisodeList.vue';
 import { useAuditShowDetails } from '@/composables/vf/useAuditShowDetails';
@@ -232,6 +247,22 @@ const {
 } = useAuditShowDetails();
 const toggleAuditShow = (item: AuditItem) => toggle(item.id);
 const failedPosters = ref(new Set<string>());
+
+const { addToast } = useToast();
+const searchingSubtitles = ref(new Set<number>());
+async function searchSubtitles(item: AuditItem): Promise<void> {
+  searchingSubtitles.value = new Set([...searchingSubtitles.value, item.id]);
+  try {
+    const result = await api<any>(`/api/subtitles/library/${item.id}/search`, { method: 'POST', body: '{}' });
+    addToast({ type: 'success', title: item.title || 'Sous-titres', message: result.message || 'Recherche lancée.' });
+  } catch (e) {
+    addToast({ type: 'error', title: item.title || 'Sous-titres', message: humanizeError(e) });
+  } finally {
+    const next = new Set(searchingSubtitles.value);
+    next.delete(item.id);
+    searchingSubtitles.value = next;
+  }
+}
 </script>
 
 <style scoped lang="scss">

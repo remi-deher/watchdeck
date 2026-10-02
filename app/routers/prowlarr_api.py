@@ -81,6 +81,17 @@ async def get_prowlarr_overview(instance_id: int, db: AsyncSession = Depends(get
     return await prowlarr.get_overview_stats(inst.url, inst.api_key)
 
 
+@router.get("/prowlarr/{instance_id}/indexer-health")
+async def get_prowlarr_indexer_health(instance_id: int, days: int = 7, db: AsyncSession = Depends(get_db_async)):
+    inst = await async_get_or_404(db, ArrInstance, instance_id, "Instance Prowlarr introuvable")
+    if inst.arr_type != "prowlarr":
+        raise HTTPException(400, "Cette instance n'est pas une instance Prowlarr")
+    return {
+        "instance": {"id": inst.id, "name": inst.name, "url": inst.url},
+        **await prowlarr.get_indexer_health(inst.url, inst.api_key, days=max(1, min(days, 90))),
+    }
+
+
 @router.post("/prowlarr/grab")
 async def prowlarr_grab_release(body: ProwlarrGrabRequest, db: AsyncSession = Depends(get_db_async)):
     """Grab d'une release via le client de téléchargement configuré dans Prowlarr lui-même."""

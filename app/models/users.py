@@ -23,6 +23,8 @@ class PlexUser(Base):
     notify_on_request: Mapped[Optional[bool]] = mapped_column(default=True)
     notify_on_available: Mapped[Optional[bool]] = mapped_column(default=True)
     notify_digest: Mapped[Optional[bool]] = mapped_column(default=False)
+    # Lettre hebdomadaire « Nouveautés de la semaine » (services/newsletter.py).
+    notify_newsletter: Mapped[bool] = mapped_column(default=False, server_default="false")
     enabled: Mapped[bool] = mapped_column(default=True)
     discord_webhook_url: Mapped[Optional[str]] = mapped_column(default=None)
     telegram_chat_id: Mapped[Optional[str]] = mapped_column(default=None)
@@ -45,6 +47,9 @@ class PlexUser(Base):
     # auto_approve : si True, les demandes de cet utilisateur partent directement
     # vers *arr sans validation admin (même quand require_approval est actif).
     auto_approve: Mapped[bool] = mapped_column(default=False)
+    # Surcharge des quotas globaux de demandes : None = suit le réglage global, 0 = illimité.
+    quota_movie_limit: Mapped[Optional[int]] = mapped_column(default=None)
+    quota_show_limit: Mapped[Optional[int]] = mapped_column(default=None)
     locale: Mapped[Optional[str]] = mapped_column(default=None)
 
     # Routing

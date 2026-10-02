@@ -25,14 +25,14 @@
     <div v-if="prowlarrInstances.length" class="instance-family">
       <h2><Search /> Indexeurs</h2>
       <div v-balanced-grid="{ min: 320 }" class="instance-grid">
-        <article v-for="inst in prowlarrInstances" :key="`prowlarr-${inst.id}`" class="instance-card prowlarr-card" :class="{ disabled: !inst.enabled, error: getProwlarrStats(inst).connected === false }" @click="openProwlarr">
+        <article v-for="inst in prowlarrInstances" :key="`prowlarr-${inst.id}`" class="instance-card prowlarr-card" :class="{ disabled: !inst.enabled, error: getProwlarrStats(inst).connected === false }" @click="openProwlarr(inst)">
           <header class="instance-header">
             <div class="instance-identity"><span class="icon-avatar prowlarr"><Search /></span><div class="instance-title-wrap"><span class="type-label prowlarr">Prowlarr</span><div class="title-line"><strong>{{ inst.name }}</strong><ExternalLink /></div><small>{{ formatHost(inst.url) }}<template v-if="getProwlarrStats(inst).version"> · v{{ getProwlarrStats(inst).version }}</template></small></div></div>
             <span class="connection-state" :class="prowlarrConnectionClass(inst)">{{ prowlarrConnectionLabel(inst) }}</span>
           </header>
           <div class="instance-stats"><div class="stat-item"><strong class="stat-value">{{ getProwlarrStats(inst).total ?? '—' }}</strong><span class="stat-label">Indexeurs</span></div><div class="stat-item"><strong class="stat-value">{{ getProwlarrStats(inst).enabled ?? '—' }}</strong><span class="stat-label">Actifs</span></div><div class="stat-item"><strong class="stat-value" :class="{ danger: getProwlarrStats(inst).issues }">{{ getProwlarrStats(inst).issues ?? '—' }}</strong><span class="stat-label">Alertes</span></div></div>
           <div class="detail-list"><span><Search /> Rôle <strong>Recherche & indexation</strong></span><span><Network /> Protocoles <strong>{{ formatProtocols(getProwlarrStats(inst).protocols) }}</strong></span><span :class="{ danger: getProwlarrStats(inst).issues }"><AlertTriangle /> Santé <strong>{{ getProwlarrStats(inst).issues ? `${getProwlarrStats(inst).issues} alerte(s)` : 'Opérationnelle' }}</strong></span></div>
-          <footer class="instance-footer"><span class="action-link">Gérer les indexeurs <ArrowRight /></span></footer>
+          <footer class="instance-footer"><span class="action-link">Santé des indexeurs <ArrowRight /></span></footer>
         </article>
       </div>
     </div>
@@ -159,7 +159,7 @@ function formatRatio(value: number): string { return Number(value || 0).toLocale
 function formatProtocols(protocols: string[]): string { return Array.isArray(protocols) && protocols.length ? protocols.map(value => value.toUpperCase()).join(' · ') : '—'; }
 function prowlarrConnectionClass(instance: any): string { return !instance.enabled ? 'off' : getProwlarrStats(instance).connected === false ? 'error-badge' : 'ok'; }
 function prowlarrConnectionLabel(instance: any): string { return !instance.enabled ? 'Inactif' : getProwlarrStats(instance).connected === false ? 'Hors ligne' : 'Connecté'; }
-function openProwlarr(): void { router.push({ path: '/settings', query: { tab: 'services' } }); }
+function openProwlarr(instance: any): void { router.push(`/downloads/indexers/${instance.id}`); }
 
 function getClientBadgeClass(client: any): string {
   if (!client.enabled) return 'disabled-badge';

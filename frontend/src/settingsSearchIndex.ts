@@ -32,13 +32,13 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Plex & Bibliothèque',
     group: 'Connexions',
     path: '/settings/services',
-    keywords: ['plex', 'jeton', 'token', 'url plex', 'bibliotheque', 'scan', 'analyse vf', 'sections'],
+    keywords: ['plex', 'jeton', 'token', 'url plex', 'bibliotheque', 'scan', 'analyse vf', 'sections', 'approbation', 'quota', 'limite de demandes'],
   },
   {
     label: 'Intégrations',
     group: 'Connexions',
     path: '/settings/services/integrations',
-    keywords: ['sonarr', 'radarr', 'prowlarr', 'seer', 'overseerr', 'jellyseerr', 'tautulli', 'tracearr', 'tmdb', 'cle api'],
+    keywords: ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'sous-titres', 'seer', 'overseerr', 'jellyseerr', 'tautulli', 'tracearr', 'tmdb', 'cle api'],
   },
   {
     label: 'Webhooks & API',
@@ -56,7 +56,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Améliorations VF',
     group: 'Automatisation',
     path: '/settings/automation/vf-upgrades',
-    keywords: ['vf', 'vo', 'langue', 'francais', 'doublage', 'piste audio', 'surveillance'],
+    keywords: ['vf', 'vo', 'langue', 'francais', 'doublage', 'piste audio', 'surveillance', 'sous-titres', 'bazarr', 'srt'],
   },
   {
     label: 'Planification',
@@ -80,7 +80,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Règles',
     group: 'Notifications',
     path: '/settings/notifications/rules',
-    keywords: ['quand notifier', 'evenement', 'silence', 'digest', 'regroupement'],
+    keywords: ['quand notifier', 'evenement', 'silence', 'digest', 'regroupement', 'newsletter', 'nouveautes', 'lettre hebdomadaire'],
   },
   {
     label: 'Modèles d’emails',

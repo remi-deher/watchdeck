@@ -36,13 +36,14 @@ const props = defineProps<{ preferences: ProfilePreferences; plexEmail?: string 
 const emit = defineEmits<{ (e: 'notify', message: string): void; (e: 'error', message: string): void }>();
 const queryClient = useQueryClient();
 
-type ToggleKey = 'notify_on_available' | 'notify_vf_movie' | 'notify_vf_series' | 'notify_on_request' | 'notify_digest';
+type ToggleKey = 'notify_on_available' | 'notify_vf_movie' | 'notify_vf_series' | 'notify_on_request' | 'notify_digest' | 'notify_newsletter';
 const toggles: { key: ToggleKey; label: string; description: string }[] = [
   { key: 'notify_on_available', label: 'Ma demande est disponible', description: 'Quand un titre que vous avez demandé arrive sur Plex.' },
   { key: 'notify_vf_movie', label: 'La VF d’un film est arrivée', description: 'Quand la version française remplace la version originale.' },
   { key: 'notify_vf_series', label: 'La VF d’une série est arrivée', description: 'Même chose pour les épisodes de séries.' },
   { key: 'notify_on_request', label: 'Accusé de réception', description: 'Un message à chaque demande envoyée, pour confirmer qu’elle est bien partie.' },
   { key: 'notify_digest', label: 'Récapitulatif quotidien', description: 'Un seul message par jour avec les nouveautés.' },
+  { key: 'notify_newsletter', label: 'Nouveautés de la semaine', description: 'Une lettre par semaine avec les films et séries ajoutés au serveur, et leur langue.' },
 ];
 
 const email = ref('');

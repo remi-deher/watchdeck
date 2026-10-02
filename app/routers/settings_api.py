@@ -214,6 +214,18 @@ class SettingsUpdate(BaseModel):
     series_notify_language: Optional[bool] = None
     series_notify_granularity: Optional[str] = None
     require_approval: Optional[bool] = None
+    quota_movie_limit: Optional[int] = Field(default=None, ge=0)
+    quota_show_limit: Optional[int] = Field(default=None, ge=0)
+    quota_period_days: Optional[int] = Field(default=None, ge=1, le=365)
+    subtitle_search_enabled: Optional[bool] = None
+    subtitle_search_provider: Optional[str] = Field(default=None, pattern="^(auto|plex|bazarr)$")
+    subtitle_search_interval_hours: Optional[int] = Field(default=None, ge=1, le=168)
+    subtitle_search_batch_size: Optional[int] = Field(default=None, ge=1, le=200)
+    newsletter_enabled: Optional[bool] = None
+    newsletter_weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    newsletter_hour: Optional[int] = Field(default=None, ge=0, le=23)
+    newsletter_discord: Optional[bool] = None
+    indexer_alerts_enabled: Optional[bool] = None
     default_locale: Optional[str] = None
 
 
@@ -382,6 +394,11 @@ async def update_settings(
         "activity_retention_days",
     }
     payload = data.model_dump()
+    # Un quota vide dans le formulaire (envoye explicitement a null) signifie « illimite » :
+    # on l'enregistre a 0. Un champ absent du payload, lui, reste inchange.
+    for key in ("quota_movie_limit", "quota_show_limit"):
+        if key in data.model_fields_set and payload[key] is None:
+            payload[key] = 0
     _validate_notify_settings(payload)
     _normalize_trusted_proxies(payload)
     await _check_changed_service_links(payload, s)

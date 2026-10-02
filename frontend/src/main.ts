@@ -76,6 +76,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/discover', component: DiscoverView, meta: { title: 'Explorer' } },
   { path: '/downloads', component: DownloadsView, meta: { title: 'Acquisition' } },
   { path: '/downloads/acquisitions', component: () => import('@/views/AcquisitionsView.vue'), meta: { title: 'Acquisitions & conflits' } },
+  { path: '/downloads/indexers/:instanceId', component: () => import('@/views/IndexerHealthView.vue'), meta: { title: 'Santé des indexeurs' } },
   { path: '/downloads/torrent/:clientId/:hash', component: () => import('@/views/TorrentDetailView.vue'), meta: { title: 'Torrent' } },
   { path: '/activity', component: ActivityView, meta: { title: 'Activité & Insights' } },
   { path: '/activity/session/:sessionId', component: () => import('@/views/SessionDetailView.vue'), meta: { title: 'Session de lecture' } },

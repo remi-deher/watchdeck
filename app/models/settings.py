@@ -223,6 +223,33 @@ class Settings(Base):
     # d'un admin (statut pending_approval) avant d'être envoyée à *arr. Les admins et les
     # utilisateurs avec auto_approve=True ne sont jamais bloqués.
     require_approval: Mapped[bool] = mapped_column(default=False)
+    # --- Quotas de demandes (voir services/request_quotas.py) ---
+    # Nombre de films / séries qu'un utilisateur peut demander sur `quota_period_days`
+    # jours glissants. Vide ou 0 = illimité. Chaque compte peut surcharger ces limites.
+    quota_movie_limit: Mapped[Optional[int]] = mapped_column(default=None)
+    quota_show_limit: Mapped[Optional[int]] = mapped_column(default=None)
+    quota_period_days: Mapped[int] = mapped_column(default=7, server_default="7")
+
+    # --- Sous-titres français (voir services/subtitle_search.py) ---
+    # Recherche automatique, par lots, des sous-titres FR des médias en VO qui n'en ont
+    # pas. Fournisseur : "auto" (Bazarr s'il connaît le média, sinon Plex), "plex", "bazarr".
+    subtitle_search_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
+    subtitle_search_provider: Mapped[str] = mapped_column(default="auto", server_default="auto")
+    subtitle_search_interval_hours: Mapped[int] = mapped_column(default=6, server_default="6")
+    subtitle_search_batch_size: Mapped[int] = mapped_column(default=20, server_default="20")
+
+    # --- Lettre « Nouveautés de la semaine » (voir services/newsletter.py) ---
+    # Jour (0 = lundi) et heure murale locale de l'envoi hebdomadaire.
+    newsletter_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
+    newsletter_weekday: Mapped[int] = mapped_column(default=4, server_default="4")
+    newsletter_hour: Mapped[int] = mapped_column(default=18, server_default="18")
+    # Publie aussi la lettre sur le webhook Discord global.
+    newsletter_discord: Mapped[bool] = mapped_column(default=False, server_default="false")
+    newsletter_last_sent_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+
+    # Alerte (email admin, Discord) quand un indexeur Prowlarr tombe ou revient
+    # (voir services/indexer_health.py).
+    indexer_alerts_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
 
     # --- Sécurité réseau ---
     plex_verify_ssl: Mapped[bool] = mapped_column(default=True)

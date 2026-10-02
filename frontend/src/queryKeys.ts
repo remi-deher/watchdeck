@@ -8,6 +8,9 @@
  * `users`, `settings`, `playback`... n'y sont jamais ecrits.
  */
 export const queryKeys = {
+  me: {
+    quota: ['me', 'quota'] as const,
+  },
   users: {
     all: ['users'] as const,
     list: ['users', 'list'] as const,

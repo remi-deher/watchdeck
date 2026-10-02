@@ -17,8 +17,9 @@ from sqlalchemy.future import select
 
 from ..database import get_db_async
 from ..dependencies import current_user, require_auth
-from ..models import PasskeyCredential, PlexUser
+from ..models import PasskeyCredential, PlexUser, Settings
 from ..serializers import format_datetime
+from ..services import request_quotas
 from ..services.gdpr import export_user_data
 from ..services.session_security import revoke_user_sessions
 from ..utils import now_utc_naive, parse_email_list
@@ -33,6 +34,7 @@ SELF_PREFERENCES = (
     "notify_on_request",
     "notify_on_available",
     "notify_digest",
+    "notify_newsletter",
     "notify_vf_movie",
     "notify_vf_series",
 )
@@ -43,6 +45,7 @@ class PreferencesUpdate(BaseModel):
     notify_on_request: Optional[bool] = None
     notify_on_available: Optional[bool] = None
     notify_digest: Optional[bool] = None
+    notify_newsletter: Optional[bool] = None
     notify_vf_movie: Optional[bool] = None
     notify_vf_series: Optional[bool] = None
 
@@ -92,6 +95,16 @@ async def get_me(db: AsyncSession = Depends(get_db_async), curr: dict = Depends(
             for row in activity["recent"]
         ],
     }
+
+
+@router.get("/quota")
+async def get_my_quota(db: AsyncSession = Depends(get_db_async), curr: dict = Depends(current_user)):
+    """Quotas de demandes de l'appelant (compteurs de la page Decouvrir)."""
+    settings = (await db.execute(select(Settings))).scalars().first()
+    user_id = (curr or {}).get("id")
+    user = await db.get(PlexUser, user_id) if user_id else None
+    # Sans compte rattache (assistant initial, jeton d'API), rien n'est limite.
+    return await request_quotas.user_quotas(db, settings, user, user.plex_user_id if user else None, curr)
 
 
 @router.put("/preferences")

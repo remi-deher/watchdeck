@@ -46,7 +46,12 @@
         <NotificationsChannelsTab v-else-if="tab==='notifications-channels'"/>
         <NotificationsRulesTab v-else-if="tab==='notifications-rules'"/>
         <DownloadsTab v-else-if="tab==='downloads'"/>
-        <VfUpgradesSettingsTab v-else-if="tab==='vf-upgrades'"/>
+        <!-- Les sous-titres suivent les ameliorations VF sur la page, mais pas dans la
+             modale de reglages VF, qui ne monte que l'onglet VF. -->
+        <div v-else-if="tab==='vf-upgrades'" class="settings-rows">
+          <VfUpgradesSettingsTab/>
+          <SubtitleSearchSection/>
+        </div>
         <PlanningMaintenanceTab v-else-if="tab==='scheduled-tasks'"/>
         <EmailTemplatesPanel v-else-if="tab==='templates'"/>
         <MessageReasonsPanel v-else-if="tab==='reasons'"/>
@@ -82,6 +87,7 @@ const NotificationsChannelsTab = defineAsyncComponent(() => import('@/components
 const NotificationsRulesTab = defineAsyncComponent(() => import('@/components/settings/NotificationsRulesTab.vue'));
 const DownloadsTab = defineAsyncComponent(() => import('@/components/settings/DownloadsTab.vue'));
 const VfUpgradesSettingsTab = defineAsyncComponent(() => import('@/components/settings/VfUpgradesSettingsTab.vue'));
+const SubtitleSearchSection = defineAsyncComponent(() => import('@/components/settings/SubtitleSearchSection.vue'));
 const PlanningMaintenanceTab = defineAsyncComponent(() => import('@/components/settings/PlanningMaintenanceTab.vue'));
 const EmailTemplatesPanel = defineAsyncComponent(() => import('@/components/EmailTemplatesPanel.vue'));
 const MessageReasonsPanel = defineAsyncComponent(() => import('@/components/settings/MessageReasonsPanel.vue'));
