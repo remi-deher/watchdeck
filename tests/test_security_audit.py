@@ -472,6 +472,35 @@ def test_access_log_args_are_masked_not_dropped():
     assert "abc123" not in record.getMessage()
 
 
+def test_log_without_secret_is_left_untouched():
+    import logging
+
+    from app.log_buffer import RedactSecretsFilter
+
+    record = logging.LogRecord("app", logging.INFO, __file__, 1, "%s ok", ("/x",), None)
+    assert RedactSecretsFilter().filter(record)
+    assert record.args == ("/x",)
+
+
+@pytest.mark.parametrize(
+    ("msg", "args"),
+    [
+        ("POST /webhook/plex?secret=abc123", None),
+        ("%s?secret=%s", ("/webhook/plex", "abc123")),
+        ("%s%s", ("/webhook/plex?secr", "et=abc123")),
+    ],
+)
+def test_secret_split_or_inline_falls_back_to_flat_message(msg, args):
+    import logging
+
+    from app.log_buffer import RedactSecretsFilter
+
+    record = logging.LogRecord("app", logging.INFO, __file__, 1, msg, args, None)
+    assert RedactSecretsFilter().filter(record)
+    assert "abc123" not in record.getMessage()
+    assert record.args == ()
+
+
 def test_recent_auth_window_is_bounded():
     from app.routers.security_api import RECENT_AUTH_SECONDS, _require_recent_auth
 
