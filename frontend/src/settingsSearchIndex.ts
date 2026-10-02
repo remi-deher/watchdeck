@@ -32,13 +32,13 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Plex & Bibliothèque',
     group: 'Connexions',
     path: '/settings/services',
-    keywords: ['plex', 'jeton', 'token', 'url plex', 'bibliotheque', 'scan', 'analyse vf', 'sections'],
+    keywords: ['plex', 'jeton', 'token', 'url plex', 'bibliotheque', 'scan', 'analyse vf', 'sections', 'approbation', 'quota', 'limite de demandes'],
   },
   {
     label: 'Intégrations',
     group: 'Connexions',
     path: '/settings/services/integrations',
-    keywords: ['sonarr', 'radarr', 'prowlarr', 'seer', 'overseerr', 'jellyseerr', 'tautulli', 'tracearr', 'tmdb', 'cle api'],
+    keywords: ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'sous-titres', 'seer', 'overseerr', 'jellyseerr', 'tautulli', 'tracearr', 'tmdb', 'cle api'],
   },
   {
     label: 'Webhooks & API',

@@ -45,6 +45,9 @@ class PlexUser(Base):
     # auto_approve : si True, les demandes de cet utilisateur partent directement
     # vers *arr sans validation admin (même quand require_approval est actif).
     auto_approve: Mapped[bool] = mapped_column(default=False)
+    # Surcharge des quotas globaux de demandes : None = suit le réglage global, 0 = illimité.
+    quota_movie_limit: Mapped[Optional[int]] = mapped_column(default=None)
+    quota_show_limit: Mapped[Optional[int]] = mapped_column(default=None)
     locale: Mapped[Optional[str]] = mapped_column(default=None)
 
     # Routing

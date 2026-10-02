@@ -47,6 +47,15 @@
              etat (« Compte actif »). -->
         <UiCheckboxField v-model="form.auto_approve" label="Auto-approuver ses demandes" />
       </div>
+      <div v-if="form.role === 'user'" class="quota-section">
+        <h3>Quotas de demandes</h3>
+        <p class="hint">Vide : suit le quota global (Paramètres → Plex &amp; Bibliothèque). 0 : illimité pour ce compte.</p>
+        <div class="settings-grid two">
+          <label>Films<UiNumberField v-model="form.quota_movie_limit" :min="0" :max="1000" placeholder="Global" aria-label="Quota de films de ce compte" /></label>
+          <label>Séries<UiNumberField v-model="form.quota_show_limit" :min="0" :max="1000" placeholder="Global" aria-label="Quota de séries de ce compte" /></label>
+        </div>
+        <p v-if="quotaSummary" class="quota-usage">{{ quotaSummary }}</p>
+      </div>
       <label v-if="creating && isLocalAccount">Mot de passe initial<input v-model="initialPassword" type="password" minlength="8" autocomplete="new-password"></label>
       <div class="actions">
         <UiButton variant="primary" :loading="busy" @click="$emit('save')"><template #icon><Save/></template>Enregistrer</UiButton>
@@ -213,6 +222,7 @@ import UiSelect from '@/components/ui/UiSelect.vue';
 import UiRadioCards from '@/components/ui/UiRadioCards.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
+import UiNumberField from '@/components/ui/UiNumberField.vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
@@ -261,6 +271,13 @@ const emit = defineEmits<{
    vouees a l'echec. */
 /* « Comptes liés » reunit tout ce qui rattache ce compte a un autre. Il reste visible
    meme Seer desactive : la fusion, elle, n'a jamais dependu de Seer. */
+/* Consommation des quotas sur la periode, renvoyee par la fiche (GET /api/users/{id}). */
+const quotaSummary = computed(() => {
+  const quota = props.editing?.quota;
+  if (!quota || quota.exempt) return '';
+  const part = (entry: any, label: string) => (entry?.limit == null ? `${label} : illimité` : `${label} : ${entry.used}/${entry.limit}`);
+  return `Sur les ${quota.period_days} derniers jours — ${part(quota.movie, 'films')}, ${part(quota.show, 'séries')}.`;
+});
 const editorTabs = computed(() => ['profile', 'notifications', 'linked', 'activity', 'diagnostic']);
 const editorTabItems = computed(() => editorTabs.value.map((key: string) => ({ key, label: editorLabel(key) })));
 const editorTab = ref('profile');
@@ -389,6 +406,9 @@ defineExpose({
 .merge-commit button{flex:none}
 
 .local-account-toggle{margin-bottom:14px}
+.quota-section{display:grid;gap: var(--space-2)}
+.quota-section h3{margin:0;font-size:var(--fs-sm)}
+.quota-section .hint,.quota-usage{margin:0;color:var(--muted);font-size:var(--fs-xs)}
 .password-section{display:grid;gap: var(--space-2);margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 .password-section h3{display:flex;align-items:center;gap: var(--space-2);margin:0;font-size:var(--fs-md)}
 .password-section h3 svg{width:16px;height:16px}

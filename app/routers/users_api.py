@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import sqlalchemy
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -19,7 +19,7 @@ from ..models import (
     Settings,
 )
 from ..serializers import format_datetime, request_status_value, serialize_plex_user
-from ..services import plex_servers
+from ..services import plex_servers, request_quotas
 from ..services.email_service import _send as smtp_send
 from ..services.gdpr import erase_user_data, export_user_data
 from ..services.plex_api import get_users_for_tokens as plex_get_users_for_tokens
@@ -70,6 +70,9 @@ class UserCreate(BaseModel):
     role: str = "user"
     can_login: bool = True
     auto_approve: bool = False
+    # None = suit le quota global ; 0 = illimité pour ce compte.
+    quota_movie_limit: Optional[int] = Field(default=None, ge=0)
+    quota_show_limit: Optional[int] = Field(default=None, ge=0)
     sonarr_instance_id: Optional[int] = None
     radarr_instance_id: Optional[int] = None
     movie_notify_language: Optional[bool] = None
@@ -427,6 +430,8 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db_async)):
     data = serialize_plex_user(user, stats)
     data["diagnostic"] = diagnostic
     data["activity"] = activity
+    settings = (await db.execute(select(Settings))).scalars().first()
+    data["quota"] = await request_quotas.user_quotas(db, settings, user, user.plex_user_id)
     emails = {
         value.strip().lower()
         for raw in (user.notification_email, user.plex_email)

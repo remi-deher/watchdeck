@@ -223,6 +223,12 @@ class Settings(Base):
     # d'un admin (statut pending_approval) avant d'être envoyée à *arr. Les admins et les
     # utilisateurs avec auto_approve=True ne sont jamais bloqués.
     require_approval: Mapped[bool] = mapped_column(default=False)
+    # --- Quotas de demandes (voir services/request_quotas.py) ---
+    # Nombre de films / séries qu'un utilisateur peut demander sur `quota_period_days`
+    # jours glissants. Vide ou 0 = illimité. Chaque compte peut surcharger ces limites.
+    quota_movie_limit: Mapped[Optional[int]] = mapped_column(default=None)
+    quota_show_limit: Mapped[Optional[int]] = mapped_column(default=None)
+    quota_period_days: Mapped[int] = mapped_column(default=7, server_default="7")
 
     # --- Sécurité réseau ---
     plex_verify_ssl: Mapped[bool] = mapped_column(default=True)

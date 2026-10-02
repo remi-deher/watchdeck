@@ -214,6 +214,9 @@ class SettingsUpdate(BaseModel):
     series_notify_language: Optional[bool] = None
     series_notify_granularity: Optional[str] = None
     require_approval: Optional[bool] = None
+    quota_movie_limit: Optional[int] = Field(default=None, ge=0)
+    quota_show_limit: Optional[int] = Field(default=None, ge=0)
+    quota_period_days: Optional[int] = Field(default=None, ge=1, le=365)
     default_locale: Optional[str] = None
 
 
@@ -382,6 +385,11 @@ async def update_settings(
         "activity_retention_days",
     }
     payload = data.model_dump()
+    # Un quota vide dans le formulaire (envoye explicitement a null) signifie « illimite » :
+    # on l'enregistre a 0. Un champ absent du payload, lui, reste inchange.
+    for key in ("quota_movie_limit", "quota_show_limit"):
+        if key in data.model_fields_set and payload[key] is None:
+            payload[key] = 0
     _validate_notify_settings(payload)
     _normalize_trusted_proxies(payload)
     await _check_changed_service_links(payload, s)

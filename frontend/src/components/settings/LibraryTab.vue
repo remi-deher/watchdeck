@@ -26,6 +26,24 @@
       >
         <ToggleSwitch v-model="form.require_approval" title="Approbation admin requise" />
       </SettingsRow>
+      <SettingsRow
+        label="Quota de films"
+        description="Nombre de films qu'un utilisateur peut demander sur la période. Vide ou 0 : illimité. Les administrateurs et modérateurs ne sont jamais limités."
+      >
+        <UiNumberField v-model="form.quota_movie_limit" :min="0" :max="1000" placeholder="Illimité" aria-label="Quota de films" />
+      </SettingsRow>
+      <SettingsRow
+        label="Quota de séries"
+        description="Nombre de séries qu'un utilisateur peut demander sur la période. Vide ou 0 : illimité."
+      >
+        <UiNumberField v-model="form.quota_show_limit" :min="0" :max="1000" placeholder="Illimité" aria-label="Quota de séries" />
+      </SettingsRow>
+      <SettingsRow
+        label="Période des quotas"
+        description="Fenêtre glissante, en jours. Une demande issue de la watchlist au-delà du quota attend la validation d'un administrateur ; dans Découvrir, elle est refusée avec la date de la prochaine place libre."
+      >
+        <UiNumberField v-model="form.quota_period_days" :min="1" :max="365" aria-label="Période des quotas en jours" />
+      </SettingsRow>
     </SettingsSection>
 
     <SettingsSection
@@ -107,6 +125,7 @@
 </template>
 
 <script setup lang="ts">
+import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
