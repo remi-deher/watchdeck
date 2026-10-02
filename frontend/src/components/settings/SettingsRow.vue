@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-row" :class="{ disabled, block }">
+  <div ref="root" v-show="visible" class="settings-row" :class="{ disabled, block }">
     <div class="settings-row-label">
       <component :is="labelFor ? 'label' : 'span'" :for="labelFor" class="settings-row-title">{{ label }}</component>
       <p v-if="description" class="settings-row-desc">{{ description }}</p>
@@ -12,17 +12,20 @@
 /**
  * Une ligne de reglage : libelle a gauche, controle a droite, filet de separation.
  *
- * Remplace SettingsCard pour les reglages proprement dits. Une carte coute ~105 px
+ * Remplace l'ancienne carte pour les reglages proprement dits. Une carte coute ~105 px
  * de decor avant le premier champ (icone 44 px, padding 44 px, bordure, ombre,
  * espacement) : sur une page de reglages on ne consulte pas, on CHERCHE, et chaque
- * bordure interrompt le balayage vertical du regard. La carte reste pertinente pour
- * un objet autonome dote d'un etat -- une connexion Plex, une instance Sonarr --
- * mais pas pour une case a cocher.
+ * bordure interrompt le balayage vertical du regard. Un objet autonome dote d'un etat
+ * -- une connexion Plex, une instance Sonarr -- est une ligne de SettingsItem, qui
+ * ouvre son detail dans un volet.
  *
  * `block` bascule le controle sous le libelle : pour les contenus larges (selecteur
  * de bibliotheques, groupes de cases) qu'une colonne de droite comprimerait.
  */
-withDefaults(
+import { inject, ref } from 'vue';
+import { SETTINGS_GROUP_KEY, useSearchableBlock } from '@/composables/useSettingsSearch';
+
+const props = withDefaults(
   defineProps<{
     label: string;
     description?: string;
@@ -35,6 +38,16 @@ withDefaults(
   }>(),
   { description: '', disabled: false, block: false, labelFor: '' }
 );
+
+/* Une ligne se masque quand elle ne correspond pas a la recherche, sauf si c'est le
+   titre de sa section qui correspond. Elle ne compte pas dans le total du champ : ce sont
+   les sections qu'on compte. */
+const group = inject(SETTINGS_GROUP_KEY, null);
+const root = ref<HTMLElement | null>(null);
+const { visible } = useSearchableBlock(() => root.value, () => `${props.label} ${props.description}`, {
+  count: false,
+  alsoMatches: () => Boolean(group?.titleMatches.value),
+});
 </script>
 
 <style scoped lang="scss">

@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.65.0 — 2026-10-02
+
+
+### test
+
+- suivre la liste d'objets des réglages au lieu de la carte ([ffff7c3](https://github.com/remi-deher/watchdeck/commit/ffff7c395777a3071912d3f4d242694f47c3cd08))
+
+### ✨ Nouveautés
+
+- accès « mon compte » pour tous les rôles (/api/me) ([d1005f8](https://github.com/remi-deher/watchdeck/commit/d1005f8d89255670a18b9b8c0278216588f89243))
+- espace personnel avec onglets (Aperçu, Sécurité, Notifications, Compte) ([58dbb34](https://github.com/remi-deher/watchdeck/commit/58dbb34d7def64be1b98e23cf645b5fe5132a658))
+- remplacer les cartes par des lignes et des listes d'objets ([c7dc8ee](https://github.com/remi-deher/watchdeck/commit/c7dc8eee1fc3a7ac909b89011757a4c18252456d))
+
+### 🐛 Corrections
+
+- onglet par défaut une fois la session chargée, finitions mobile ([4709c6e](https://github.com/remi-deher/watchdeck/commit/4709c6e22f3151dd525a01d2ce39610483722239))
+- retirer un media supprime de Plex des qu'on le reverifie ([99e1cc7](https://github.com/remi-deher/watchdeck/commit/99e1cc74fb8d73859253851aa8e7544711e5208a))
+
+### 🔧 Maintenance
+
+- bump @vitejs/plugin-vue from 6.0.8 to 6.0.9 (#620) ([f0c81cd](https://github.com/remi-deher/watchdeck/commit/f0c81cd6380d7d4f8224f71d8a9ac5784c0b0cf8))
+- bump vue-router from 5.3.0 to 5.3.1 (#621) ([9b13966](https://github.com/remi-deher/watchdeck/commit/9b1396604fece828539e9366644c903ea8a6b5cb))
+- bump jsdom from 30.0.1 to 30.1.1 (#623) ([3cc79d7](https://github.com/remi-deher/watchdeck/commit/3cc79d794483fe3f81ac41b92ddc56aa289b9bfb))
+- sync main into dev ([fb7bcf0](https://github.com/remi-deher/watchdeck/commit/fb7bcf06d8ef50eef60ec5b8f1b5a7cd1e7183f6))
+- bump @types/node from 26.6.1 to 26.6.2 (#622) ([c140c0c](https://github.com/remi-deher/watchdeck/commit/c140c0cdb51234f4031597c35b7511b6afd453e6))
+## 1.64.2 — 2026-10-01
+
+
+### test
+
+- couvrir les chemins secondaires des correctifs de l'audit ([1372404](https://github.com/remi-deher/watchdeck/commit/1372404bc15cc23203e75a200735fd6a9e974e65))
+
+### 🐛 Corrections
+
+- corriger les 20 points de l'audit du 30/09 ([c8170d7](https://github.com/remi-deher/watchdeck/commit/c8170d74ab56126e68116838616004e842d1975f))
+- extraire les scripts en ligne du shell SPA avec HTMLParser ([5259b1c](https://github.com/remi-deher/watchdeck/commit/5259b1c0febb3b58b16c367ca88f6cbeea97a255))
+- retirer le code d'installation, proxies de confiance dans les parametres ([6b025d0](https://github.com/remi-deher/watchdeck/commit/6b025d064a1f6b94d9e9ce5ab9631bc91b9376b2))
+
+### 🔧 Maintenance
+
+- v1.64.2 (#619) ([32fef04](https://github.com/remi-deher/watchdeck/commit/32fef0424fb5c9ebdbde69b31b9d06a975fa1a8d))
 ## 1.64.1 — 2026-10-01
 
 
@@ -7,6 +48,10 @@
 
 - charger server_id dans les agregats des statistiques (#611) ([701a2b1](https://github.com/remi-deher/watchdeck/commit/701a2b18ea581a57e5b6eef9a38a07a647a8f11c))
 - file d'attente des notifications en tête, sans recherche ni motifs vagues (#610) ([62e84e5](https://github.com/remi-deher/watchdeck/commit/62e84e5286ca5b969003801b72d29d2bce6e7570))
+
+### 🔧 Maintenance
+
+- v1.64.1 (#615) ([c4883ce](https://github.com/remi-deher/watchdeck/commit/c4883cedd1c1ef7dd543f71ca930ba0f914481b7))
 ## 1.64.0 — 2026-10-01
 
 

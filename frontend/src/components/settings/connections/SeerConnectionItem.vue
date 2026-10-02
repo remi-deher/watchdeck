@@ -1,5 +1,13 @@
 ﻿<template>
-  <SettingsCard title="Seer" subtitle="Integration optionnelle avec une instance Overseerr ou Jellyseerr existante." :icon="Radar" :status="form.seer_enabled ? 'active' : 'inactive'" :default-open="form.seer_enabled">
+  <SettingsItem
+    title="Seer"
+    :subtitle="form.seer_enabled ? `Overseerr ou Jellyseerr · ${form.seer_mode === 'actor' ? 'acteur' : 'observateur'}` : 'Overseerr ou Jellyseerr, facultatif'"
+    :icon="Radar"
+    :status="form.seer_enabled ? 'active' : 'inactive'"
+    :status-text="form.seer_enabled ? 'Activé' : form.seer_url ? 'Désactivé' : 'Non configuré'"
+    keywords="overseerr jellyseerr url clé api mode observateur acteur"
+    saveable
+  >
     <template #actions>
       <ConnectionTestAction :loading="testing" :disabled="!form.seer_enabled" @test="testSeer" />
     </template>
@@ -21,7 +29,7 @@
         <small class="check-hint">Actif par défaut : les utilisateurs actifs sur Seer sont ignorés par Watchdeck (Seer gère leurs demandes et notifications). Desactive : Watchdeck traite et notifie aussi ces utilisateurs en parallele de Seer.</small>
       </template>
     </template>
-  </SettingsCard>
+  </SettingsItem>
 </template>
 
 <script setup lang="ts">
@@ -31,7 +39,7 @@ import { Radar } from '@lucide/vue';
 import { api } from '@/api';
 import { form, secretsPresent, success, fail } from '@/settingsForm';
 import SecretField from '@/components/ui/SecretField.vue';
-import SettingsCard from '../SettingsCard.vue';
+import SettingsItem from '../SettingsItem.vue';
 import ConnectionTestAction from './ConnectionTestAction.vue';
 import { useConnectionTest } from '@/composables/useConnectionTest';
 

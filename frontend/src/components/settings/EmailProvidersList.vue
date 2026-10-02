@@ -1,62 +1,48 @@
 <template>
-  <SettingsCard
+  <SettingsItemList
     title="Fournisseurs d'envoi d'email"
-    :subtitle="`${providers.length} fournisseur(s) configure(s)`"
-    :icon="Mail"
-    :status="providers.some(p => p.enabled) ? 'active' : 'inactive'"
-    :collapsible="false"
+    subtitle="Plusieurs fournisseurs peuvent être actifs : en cas d'échec, l'envoi bascule sur le suivant, dans l'ordre de la liste."
+    :count="providers.length"
+    :empty="!providers.length"
   >
     <template #actions>
-      <UiButton @click.stop="openSheet()"><Plus/>Ajouter</UiButton>
+      <UiButton @click="openSheet()"><Plus/>Ajouter</UiButton>
     </template>
-    <small style="margin-top:-4px;margin-bottom:4px;color:var(--muted)">
-      Plusieurs fournisseurs peuvent être actifs en parallèle : en cas d'échec, l'envoi bascule
-      automatiquement sur le suivant, par ordre de priorité (haut de liste = essayé en premier).
-    </small>
-    <UiDataTable label="Fournisseurs d'envoi d'email" :rows="providers" :columns="PROVIDER_COLUMNS" :row-key="(p: any) => p.id">
-      <template #empty><p class="empty">Aucun fournisseur configuré — les notifications par email ne peuvent pas partir.</p></template>
-      <template #cell-order="{ row: provider, index }">
-        <UiButton icon-only title="Monter" aria-label="Monter" :disabled="index===0" @click="move(Number(index),-1)"><ChevronUp/></UiButton>
-        <UiButton icon-only title="Descendre" aria-label="Descendre" :disabled="index===providers.length-1" @click="move(Number(index),1)"><ChevronDown/></UiButton>
+    <template #empty>Aucun fournisseur configuré : les notifications par email ne peuvent pas partir.</template>
+
+    <SettingsItem
+      v-for="(provider, index) in providers"
+      :key="provider.id"
+      :title="provider.name"
+      :subtitle="providerSummary(provider, index)"
+      :icon="Mail"
+      :status="provider.enabled ? 'active' : 'inactive'"
+      clickable
+      @open="openSheet(provider)"
+    >
+      <template #actions>
+        <UiButton size="sm" icon-only title="Monter" aria-label="Monter" :disabled="index===0" @click="move(index,-1)"><ChevronUp/></UiButton>
+        <UiButton size="sm" icon-only title="Descendre" aria-label="Descendre" :disabled="index===providers.length-1" @click="move(index,1)"><ChevronDown/></UiButton>
+        <UiButton size="sm" icon-only title="Tester" aria-label="Tester" @click="testProvider(provider)"><PlugZap/></UiButton>
+        <UiButton size="sm" icon-only :title="provider.enabled?'Désactiver':'Activer'" :aria-label="provider.enabled?'Désactiver':'Activer'" @click="toggle(provider)"><Power/></UiButton>
+        <UiButton size="sm" variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="remove(provider)"><Trash2/></UiButton>
       </template>
-      <template #cell-name="{ row: provider }"><strong>{{ provider.name }}</strong></template>
-      <template #cell-type="{ row: provider }"><span class="badge">{{ typeLabel(provider.provider_type) }}</span></template>
-      <template #cell-status="{ row: provider }">
-        <span class="badge" :class="provider.enabled?'available':'failed'">{{ provider.enabled?'Actif':'Inactif' }}</span>
-        <span v-if="provider.provider_type==='smtp_oauth2'" class="badge" :class="provider.oauth_connected?'available':'failed'">
-          {{ provider.oauth_connected?'Microsoft connecté':'Microsoft non connecté' }}
-        </span>
-      </template>
-      <template #cell-actions="{ row: provider }">
-        <UiButton icon-only title="Tester" aria-label="Tester" @click="testProvider(provider)"><PlugZap/></UiButton>
-        <UiButton icon-only title="Modifier" aria-label="Modifier" @click="openSheet(provider)"><Pencil/></UiButton>
-        <UiButton icon-only :title="provider.enabled?'Desactiver':'Activer'" :aria-label="provider.enabled?'Desactiver':'Activer'" @click="toggle(provider)"><Power/></UiButton>
-        <UiButton variant="danger" icon-only title="Supprimer" aria-label="Supprimer" @click="remove(provider)"><Trash2/></UiButton>
-      </template>
-    </UiDataTable>
-  </SettingsCard>
+    </SettingsItem>
+  </SettingsItemList>
 
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue';
-import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
-// L'ordre compte : c'est celui dans lequel les fournisseurs sont essayes.
-const PROVIDER_COLUMNS: UiColumn[] = [
-  { key: 'order', label: 'Ordre', className: 'actions' },
-  { key: 'name', label: 'Nom', card: 'title' },
-  { key: 'type', label: 'Type' },
-  { key: 'status', label: 'Statut' },
-  { key: 'actions', label: 'Actions', card: 'actions', className: 'actions' },
-];
 import { onMounted } from 'vue';
 import { useMutation } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
-import { ChevronDown, ChevronUp, Mail, Pencil, Plus, PlugZap, Power, Trash2 } from '@lucide/vue';
+import { ChevronDown, ChevronUp, Mail, Plus, PlugZap, Power, Trash2 } from '@lucide/vue';
 import { api } from '@/api';
 import { success, fail } from '@/settingsForm';
-import SettingsCard from './SettingsCard.vue';
+import SettingsItem from './SettingsItem.vue';
+import SettingsItemList from './SettingsItemList.vue';
 import ConfirmModal from '../ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
@@ -99,6 +85,12 @@ function remove(provider: any): Promise<void> { return removeProvider(provider, 
 
 const typeLabels: Record<string, string> = { smtp: 'SMTP', smtp_oauth2: 'SMTP OAuth2', brevo: 'Brevo' };
 function typeLabel(t: string): string { return typeLabels[t] || t; }
+// L'ordre compte : c'est celui dans lequel les fournisseurs sont essayes.
+function providerSummary(provider: any, index: number): string {
+  const parts = [`${index + 1}. ${typeLabel(provider.provider_type)}`];
+  if (provider.provider_type === 'smtp_oauth2') parts.push(provider.oauth_connected ? 'Microsoft connecté' : 'Microsoft non connecté');
+  return parts.join(' · ');
+}
 
 const providerActionMutation = useMutation({
   mutationFn: ({ path, body }: { path: string; body?: Record<string, any> }) => api<any>(path, { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) }),
