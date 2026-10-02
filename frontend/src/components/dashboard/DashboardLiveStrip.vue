@@ -297,7 +297,11 @@ const summary = computed(() => [
 /* Tout ce qui est pose sur l'affiche reste clair sur voile sombre, quel que soit le theme :
    l'image est sombre ou claire selon le film, pas selon l'interface. Voile et texte en
    canaux RVB, comme `--ink`, pour garder leurs opacites sans couleur en dur. */
-.live-poster { --scrim: 8 10 15; --on-poster: 255 255 255; position: relative; display: block; aspect-ratio: 2 / 3; max-width: 100%; overflow: hidden; border-radius: var(--radius-md); background: var(--media-placeholder); color: rgb(var(--on-poster)); transition: outline-color var(--motion-duration-instant) var(--motion-ease-standard); }
+.live-poster { --scrim: 8 10 15; --on-poster: 255 255 255; position: relative; display: block; aspect-ratio: 2 / 3; max-width: 100%; overflow: hidden; border-radius: var(--radius-md); background: var(--media-placeholder); color: rgb(var(--on-poster)); box-shadow: 0 0 0 1px rgb(var(--ink) / 22%), 0 8px 22px -12px rgb(var(--scrim) / 70%); transition: outline-color var(--motion-duration-instant) var(--motion-ease-standard); }
+/* Contour permanent : une image sombre se confondait avec le fond du panneau. Trait
+   couleur du texte a l'exterieur, filet clair a l'interieur, lisibles dans les deux themes ;
+   le survol garde son anneau decale. */
+.live-poster::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgb(var(--on-poster) / 12%); pointer-events: none; }
 .live-poster :deep(.media-artwork) { position: absolute; inset: 0; }
 .live-poster-shade { position: absolute; inset: 0; background: linear-gradient(to top, rgb(var(--scrim) / 94%) 0%, rgb(var(--scrim) / 60%) 32%, transparent 58%), linear-gradient(to bottom, rgb(var(--scrim) / 55%), transparent 26%); }
 .live-poster-pause { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(var(--scrim) / 30%); }
