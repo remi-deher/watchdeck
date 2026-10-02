@@ -19,7 +19,7 @@ from ..models import (
     VfUpgradeSuggestion,
 )
 from ..serializers import format_datetime, serialize_media_request
-from ..utils import async_get_or_404, wrap_image_proxy
+from ..utils import async_get_or_404, plex_image_proxy_url, wrap_image_proxy
 from . import tmdb
 from .media_annotate import annotate_media_items
 from .operational_projection import build_media_history, plex_library_projection
@@ -111,7 +111,9 @@ async def build_media_detail(
             arr_url = f"{instance.url.rstrip('/')}/{entity}/{media_obj.arr_slug}"
 
     if core_only:
-        operational = serialize_media_request(selected_request, {}) if selected_request else plex_library_projection()
+        operational = (
+            serialize_media_request(selected_request, {}) if selected_request else plex_library_projection(library_item)
+        )
         return {
             "media": _media_payload(
                 media_obj,
@@ -363,16 +365,15 @@ async def build_media_detail(
                                 for alb in artist.albums():
                                     albums.append(
                                         {
-                                            "id": getattr(alb, "ratingKey", hash(alb.title)),
-                                            "_kind": "library",
+                                            # Album absent de la bibliotheque : son ratingKey
+                                            # Plex n'est pas un id de LibraryItem, le marquer
+                                            # « library » ouvrait un autre element. Sans _kind,
+                                            # la carte s'affiche sans fiche a ouvrir.
+                                            "id": f"plex-{getattr(alb, 'ratingKey', hash(alb.title))}",
                                             "title": alb.title,
                                             "year": getattr(alb, "year", None),
                                             "media_type": "album",
-                                            "poster_url": wrap_image_proxy(
-                                                f"{s.plex_url.rstrip('/')}{alb.thumb}?X-Plex-Token={s.plex_token}"
-                                                if getattr(alb, "thumb", None)
-                                                else None
-                                            ),
+                                            "poster_url": plex_image_proxy_url(getattr(alb, "thumb", None)),
                                             "overview": getattr(alb, "summary", None),
                                         }
                                     )
@@ -467,7 +468,9 @@ async def build_media_detail(
             except Exception as exc:
                 logger.debug("Plex direct tracks fetch error: %s", exc)
 
-    operational = request_payloads[0] if request_payloads else (plex_library_projection() if library_item else {})
+    operational = (
+        request_payloads[0] if request_payloads else (plex_library_projection(library_item) if library_item else {})
+    )
     return {
         "media": _media_payload(
             media_obj,

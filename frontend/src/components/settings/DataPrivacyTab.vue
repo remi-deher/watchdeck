@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-merged">
+  <div class="settings-merged settings-rows">
     <DataTab/>
     <h2 class="settings-merged-heading">Confidentialité (RGPD)</h2>
     <GdprTab/>

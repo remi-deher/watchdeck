@@ -1,20 +1,15 @@
 <template>
-  <label class="ui-switch" :class="{ 'is-on': modelValue }" :title="title">
+  <label class="ui-switch" :class="{ 'is-on': modelValue, 'is-disabled': disabled }" :title="title">
     <span v-if="label" class="ui-switch-label">{{ label }}</span>
-    <input
-      type="checkbox"
-      role="switch"
-      :checked="modelValue"
-      :disabled="disabled"
-      :aria-checked="modelValue"
-      :aria-label="label || title || undefined"
-      @change="$emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
-    >
-    <span class="ui-switch-track"><span class="ui-switch-thumb" /></span>
+    <SwitchRoot class="ui-switch-track" :model-value="modelValue" :disabled="disabled" :aria-label="label || title || undefined"
+      @update:model-value="$emit('update:modelValue', $event)">
+      <SwitchThumb class="ui-switch-thumb" />
+    </SwitchRoot>
   </label>
 </template>
 
 <script setup lang="ts">
+import { SwitchRoot, SwitchThumb } from 'reka-ui';
 withDefaults(
   defineProps<{
     modelValue?: boolean;
@@ -37,12 +32,22 @@ defineEmits<{
 
 <style scoped lang="scss">
 .ui-switch { position: relative; display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; }
+.ui-switch.is-disabled { cursor: not-allowed; opacity: .55; }
 .ui-switch-label { color: var(--text); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
-.ui-switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.ui-switch-track { display: flex; align-items: center; width: 42px; height: 23px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface-2); transition: background .2s ease, border-color .2s ease; }
-.ui-switch-thumb { width: 15px; height: 15px; border-radius: 50%; background: var(--muted); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: transform .2s ease, background .2s ease; }
-.ui-switch input:checked + .ui-switch-track { border-color: rgba(229, 160, 13, .65); background: rgba(229, 160, 13, .24); }
-.ui-switch input:checked + .ui-switch-track .ui-switch-thumb { transform: translateX(17px); }
-.ui-switch input:focus-visible + .ui-switch-track { outline: 2px solid var(--accent); outline-offset: 3px; }
-.ui-switch input:disabled + .ui-switch-track { cursor: wait; opacity: .6; }
+/* Seul le pouce se deplace, par `transform` : le navigateur l'anime sans recalculer. */
+.ui-switch-track {
+  /* `min-height: 0` : la cible tactile de 44px imposee aux boutons vaut pour le libelle
+     cliquable qui l'enveloppe, pas pour la piste, qui debordait de son conteneur. */
+  position: relative; flex: none; width: 40px; height: 24px; min-height: 0; padding: 0;
+  border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); border-radius: var(--radius-pill); background: var(--surface-3);
+  cursor: inherit; transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+.ui-switch-track[data-state="checked"] { border-color: var(--accent); background: var(--accent); }
+.ui-switch-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ui-switch-thumb {
+  position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text); box-shadow: 0 1px 3px rgb(var(--shadow-color) / calc(0.35 * var(--shadow-scale)));
+  transition: transform var(--motion-duration-fast) var(--motion-ease-emphasized);
+}
+.ui-switch-thumb[data-state="checked"] { transform: translateX(16px); background: var(--on-accent); }
 </style>

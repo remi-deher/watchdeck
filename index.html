@@ -7,8 +7,18 @@
     <title>Watchdeck</title>
     <meta name="description" content="Hub de demandes, suivi d'acquisition et amélioration VF pour Plex et *arr." />
     <meta name="application-name" content="Watchdeck" />
-    <meta name="theme-color" content="#09090b" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
+    <meta name="theme-color" content="#0c0e14" />
+    <!-- Theme choisi (voir useTheme.ts), pose avant le premier rendu pour eviter un flash. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('watchdeck:theme');
+          var light = t === 'light' || (t !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches);
+          if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', light ? '#f4f2ed' : '#0c0e14');
+        } catch (e) {}
+      })();
+    </script>
     
     <!-- iOS / Safari PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -31,7 +41,7 @@
 
     <!-- Affiches TMDB : ouvre la connexion avant que la premiere jaquette soit demandee -->
     <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=Outfit:wght@500..800&display=swap" rel="stylesheet">
   </head>
   <body>
     <div id="app"></div>

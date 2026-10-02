@@ -1,14 +1,24 @@
 @use "sass:map";
 
-/* Canonical, mobile-first viewport boundaries.
- * Local content-driven breakpoints remain allowed while legacy views migrate,
- * but new shared components should use this map or container queries. */
+/* Bornes de viewport canoniques, mobile-first.
+ *
+ * `shell-medium` et `shell-expanded` sont les deux seuls seuils du shell applicatif :
+ * en dessous de `shell-medium` la navigation primaire est un dock bas, au-dessus c'est
+ * un rail latéral, déployé à partir de `shell-expanded`. Ces deux valeurs sont
+ * dupliquées — et seulement là — dans `styles/breakpoints.ts`, parce que le shell doit
+ * aussi les connaître en JavaScript pour monter le bon composant. Toute modification
+ * ici doit être reportée là-bas ; le test `foundations/breakpoints.spec.ts` échoue sinon.
+ *
+ * Les bornes locales pilotées par le contenu restent permises dans les vues, mais tout
+ * composant partagé doit passer par cette map ou par une container query. */
 $breakpoints: (
   mobile-wide: 420px,
   phablet: 640px,
   tablet: 768px,
+  shell-medium: 768px,
   desktop: 1025px,
   wide: 1200px,
+  shell-expanded: 1200px,
 );
 
 @function breakpoint($name) {

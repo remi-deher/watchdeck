@@ -1,11 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import ArrInstance, Base, LibraryItem, MediaRequest, Settings
+from app.models import ArrInstance, LibraryItem, MediaRequest, Settings
 from app.services.audio_analyzer import (
     compute_vf_granularity,
     get_audio_info,
@@ -13,7 +10,7 @@ from app.services.audio_analyzer import (
     show_has_full_french_audio,
 )
 from app.services.plex_finder import sync_plex_library_blocking
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 def test_get_audio_info_filename_fallback():
@@ -38,6 +35,35 @@ def test_get_audio_info_filename_fallback():
     assert has_fr is True
     assert any(t["is_fr"] for t in tracks)
     assert any("nom de fichier" in t["label"].lower() for t in tracks)
+    # Le repli nom de fichier est une presomption, pas une preuve : la piste annoncee
+    # par le nom du fichier n'existe pas dans le conteneur.
+    assert any(t.get("is_presumed") for t in tracks if t["is_fr"])
+
+
+def test_multi_in_a_track_title_is_not_proof_of_french_audio():
+    """« MULTI » decrit le conteneur (plusieurs pistes), jamais la piste : le traiter
+    comme une preuve de VF faisait passer des pistes anglaises de releases multi-langues
+    pour du francais, et validait des ameliorations VF a tort."""
+    mock_stream = MagicMock()
+    mock_stream.languageCode = "en"
+    mock_stream.language = "english"
+    mock_stream.title = "MULTI"
+    mock_stream.displayTitle = "English (MULTI) 5.1"
+
+    mock_part = MagicMock()
+    mock_part.file = "/data/movies/Some.Movie.2020.1080p.mkv"
+    mock_part.audioStreams.return_value = [mock_stream]
+    mock_part.subtitleStreams.return_value = []
+
+    mock_media = MagicMock()
+    mock_media.parts = [mock_part]
+
+    mock_movie = MagicMock()
+    mock_movie.media = [mock_media]
+
+    has_fr, tracks, _ = get_audio_info(mock_movie)
+    assert has_fr is False
+    assert not any(t["is_fr"] for t in tracks)
 
 
 def test_show_has_full_french_audio_rules():
@@ -207,19 +233,13 @@ def test_sync_plex_library_blocking():
         assert results[0]["title"] == "Inception"
         assert results[0]["tmdb_id"] == "27205"
         assert results[0]["plex_guid"] == "plex://movie/12345"
-        assert "X-Plex-Token=token" in results[0]["poster_url"]
+        assert results[0]["poster_url"] == "http://localhost:32400/photo/123"
+        assert "X-Plex-Token" not in results[0]["poster_url"]
 
 
 @pytest.mark.asyncio
 async def test_sync_plex_media():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False)
-    db = TestSession(Session())
+    db = make_test_session()
 
     # Initialisation de settings
     settings = Settings(
@@ -279,14 +299,7 @@ async def test_sync_plex_media_repairs_missing_ids_from_unique_radarr_title_and_
     from app.models import ArrInstance
     from app.services import plex_sync
 
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False)
-    db = TestSession(Session())
+    db = make_test_session()
     db.add(
         Settings(
             plex_url="http://localhost",
@@ -381,14 +394,7 @@ async def test_sync_plex_media_recent_persists_watermark_and_integrates_new_item
     from app.models import ArrInstance
     from app.services import plex_sync
 
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False)
-    db = TestSession(Session())
+    db = make_test_session()
 
     settings = Settings(
         plex_url="http://localhost",

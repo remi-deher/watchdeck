@@ -52,7 +52,9 @@ defineEmits<{
 
 <style scoped lang="scss">
 .panel-card {
-  container-type: inline-size;
+  /* Nomme : une requete sans nom viserait le conteneur le plus proche, et `page` ou
+     `panel` l'interceptaient des qu'une grille n'etait pas dans une carte. */
+  container: card / inline-size;
   min-width: 0;
 }
 </style>

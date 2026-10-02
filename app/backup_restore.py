@@ -1,9 +1,7 @@
 """Full disaster-recovery backup/restore: PostgreSQL dump + off-DB data files + JSON fallback.
 
-Distinct from `legacy_migration.py` (SQLite -> PostgreSQL, first install) even though it
-reuses `create_postgres_backup`/`postgres_client_url` from there: this module restores a
-*PostgreSQL dump produced by this same app* (see `scripts/postgres_backup.sh` for the CLI
-equivalent), bundled with the off-DB files a dump alone can't carry (encryption key, session
+This module restores a *PostgreSQL dump produced by this same app* (see
+`scripts/postgres_backup.sh` for the CLI equivalent), bundled with the off-DB files a dump alone can't carry (encryption key, session
 key, ignored-conflicts state) and a JSON export as a secondary, human-readable fallback if the
 binary dump ever can't be restored as-is (e.g. a PostgreSQL major-version mismatch).
 """
@@ -13,6 +11,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -22,12 +21,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .legacy_migration import LegacyMigrationError, create_postgres_backup, postgres_client_url
-
 logger = logging.getLogger(__name__)
 
-# Meme cle que app.routers.importexport : les deux operations remplacent entierement la base
-# et doivent rester mutuellement exclusives l'une de l'autre, pas seulement entre elles-memes.
+# Pose pendant qu'une restauration remplace la base : le worker ARQ (app/jobs.py) suspend
+# ses taches tant que la cle existe, et deux restaurations ne peuvent pas se chevaucher.
 MIGRATION_LOCK_KEY = "watchdeck:migration:lock"
 
 DATA_DIR = Path("data")
@@ -38,6 +35,42 @@ ARCHIVE_DUMP_NAME = "database.dump"
 ARCHIVE_DATA_NAME = "data-files.tar.gz"
 ARCHIVE_EXPORT_NAME = "export.json"
 ARCHIVE_MANIFEST_NAME = "manifest.json"
+
+
+class BackupRestoreError(RuntimeError):
+    """Raised when a backup cannot be produced or an archive cannot be safely restored."""
+
+
+def postgres_client_url(url: str) -> str:
+    """Return a libpq URL accepted by pg_dump/pg_restore."""
+    for prefix in ("postgresql+asyncpg://", "postgresql+psycopg2://", "postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql://" + url[len(prefix) :]
+    raise BackupRestoreError("La base doit etre PostgreSQL")
+
+
+def create_postgres_backup(target_url: str, directory: str | Path = "data/backups") -> Path:
+    """Dump PostgreSQL au format custom, relu par `pg_restore --list` avant d'etre rendu."""
+    pg_dump = shutil.which("pg_dump")
+    pg_restore = shutil.which("pg_restore")
+    if not pg_dump or not pg_restore:
+        raise BackupRestoreError("pg_dump/pg_restore indisponibles dans le conteneur")
+    backup_dir = Path(directory)
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    path = backup_dir / f"watchdeck-{datetime.now(timezone.utc):%Y%m%d-%H%M%S-%f}.dump"
+    try:
+        subprocess.run(
+            [pg_dump, "--format=custom", "--file", str(path), postgres_client_url(target_url)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run([pg_restore, "--list", str(path)], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        path.unlink(missing_ok=True)
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise BackupRestoreError(f"Sauvegarde PostgreSQL impossible : {detail}") from exc
+    return path
 
 
 def bundle_data_files(data_dir: Path = DATA_DIR) -> bytes | None:
@@ -67,11 +100,67 @@ def extract_data_files(tar_bytes: bytes, data_dir: Path = DATA_DIR) -> list[str]
     return extracted
 
 
+# Objets qu'un dump de Watchdeck ne contient jamais (le schema n'est fait que de tables,
+# sequences, index et contraintes) et qui permettraient a une archive forgee d'executer
+# du code dans PostgreSQL -- ou, avec un role superutilisateur, sur le conteneur lui-meme
+# (fonctions en langage non sur, declencheurs, extensions, COPY ... PROGRAM via regles...).
+_FORBIDDEN_DUMP_ENTRIES = (
+    "FUNCTION",
+    "PROCEDURE",
+    "AGGREGATE",
+    "TRIGGER",
+    "EVENT TRIGGER",
+    "EXTENSION",
+    "PROCEDURAL LANGUAGE",
+    "RULE",
+    "CAST",
+    "OPERATOR",
+    "CONVERSION",
+    "FOREIGN DATA WRAPPER",
+    "FOREIGN SERVER",
+    "FOREIGN TABLE",
+    "SERVER",
+    "USER MAPPING",
+    "PUBLICATION",
+    "SUBSCRIPTION",
+    "DATABASE",
+)
+_TOC_ENTRY_RE = re.compile(r"^\s*\d+;\s*\d+\s+\d+\s+(.+)$")
+
+
+def forbidden_dump_entries(toc: str) -> list[str]:
+    """Entrees de la table des matieres d'un dump (`pg_restore --list`) refusees."""
+    rejected = []
+    for line in toc.splitlines():
+        match = _TOC_ENTRY_RE.match(line)
+        if not match:
+            continue
+        description = match.group(1)
+        if any(description == kind or description.startswith(kind + " ") for kind in _FORBIDDEN_DUMP_ENTRIES):
+            rejected.append(description)
+    return rejected
+
+
 def restore_postgres_dump(dump_path: str | Path, target_url: str) -> None:
-    """Remplace entierement le contenu de la base cible par ce dump (pg_restore --clean)."""
+    """Remplace entierement le contenu de la base cible par ce dump (pg_restore --clean).
+
+    Le contenu du dump est inspecte avant toute ecriture : une archive contenant autre
+    chose que des donnees et un schema de tables est refusee (voir _FORBIDDEN_DUMP_ENTRIES).
+    """
     pg_restore = shutil.which("pg_restore")
     if not pg_restore:
-        raise LegacyMigrationError("pg_restore indisponible dans le conteneur")
+        raise BackupRestoreError("pg_restore indisponible dans le conteneur")
+    try:
+        toc = subprocess.run([pg_restore, "--list", str(dump_path)], check=True, capture_output=True, text=True).stdout
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise BackupRestoreError(f"Dump PostgreSQL illisible : {detail}") from exc
+    rejected = forbidden_dump_entries(toc)
+    if rejected:
+        raise BackupRestoreError(
+            "Archive refusee : le dump contient des objets qu'une sauvegarde Watchdeck ne contient jamais "
+            f"({', '.join(rejected[:5])})"
+        )
     try:
         subprocess.run(
             [
@@ -90,7 +179,7 @@ def restore_postgres_dump(dump_path: str | Path, target_url: str) -> None:
         )
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or str(exc)).strip()
-        raise LegacyMigrationError(f"Restauration PostgreSQL impossible : {detail}") from exc
+        raise BackupRestoreError(f"Restauration PostgreSQL impossible : {detail}") from exc
 
 
 def build_full_backup_zip(dump_path: Path, export_payload: dict[str, Any] | None, manifest: dict[str, Any]) -> bytes:
@@ -121,7 +210,7 @@ def read_full_backup_zip(zip_path: str | Path, extract_dir: Path) -> dict[str, A
         with zipfile.ZipFile(zip_path) as zf:
             names = set(zf.namelist())
             if ARCHIVE_DUMP_NAME not in names:
-                raise LegacyMigrationError(f"Archive invalide : {ARCHIVE_DUMP_NAME} absent")
+                raise BackupRestoreError(f"Archive invalide : {ARCHIVE_DUMP_NAME} absent")
             dump_target = extract_dir / ARCHIVE_DUMP_NAME
             dump_target.write_bytes(zf.read(ARCHIVE_DUMP_NAME))
             result["dump_path"] = dump_target
@@ -136,7 +225,7 @@ def read_full_backup_zip(zip_path: str | Path, extract_dir: Path) -> dict[str, A
 
                 result["manifest"] = json.loads(zf.read(ARCHIVE_MANIFEST_NAME))
     except zipfile.BadZipFile as exc:
-        raise LegacyMigrationError("Archive de sauvegarde invalide (zip corrompu)") from exc
+        raise BackupRestoreError("Archive de sauvegarde invalide (zip corrompu)") from exc
     return result
 
 
@@ -150,7 +239,7 @@ async def acquire_restore_lock() -> tuple[object | None, str | None]:
     token = uuid.uuid4().hex
     if not await redis.set(MIGRATION_LOCK_KEY, token, ex=3600, nx=True):
         await redis.aclose()
-        raise LegacyMigrationError("Une migration ou restauration est deja en cours")
+        raise BackupRestoreError("Une migration ou restauration est deja en cours")
     return redis, token
 
 
@@ -173,7 +262,7 @@ async def perform_full_restore(zip_bytes: bytes, target_url: str, *, tmp_dir: Pa
 
     Destructif et irreversible sans la sauvegarde de securite automatique prise avant
     (`data/backups/pre-restore-*`). Verrouille via Redis pour rester mutuellement exclusif
-    avec la migration SQLite legacy, qui remplace elle aussi la base entiere. Ne touche pas
+    avec une autre restauration, qui remplacerait elle aussi la base entiere. Ne touche pas
     au processus courant : c'est au routeur appelant de programmer un redemarrage apres coup,
     les connexions/pools existants n'etant plus valides une fois la base remplacee.
     """

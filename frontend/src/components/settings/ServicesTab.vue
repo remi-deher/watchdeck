@@ -1,18 +1,21 @@
 <template>
-  <div class="settings-grid">
-    <div class="settings-cards span-two">
-      <TautulliConnectionCard/>
-      <SeerConnectionCard/>
-      <TmdbConnectionCard/>
-      <ArrInstancesCard/>
-      <DownloadClientsCard/>
-    </div>
+  <div class="settings-rows">
+    <SettingsItemList title="Services" subtitle="Sources et compléments facultatifs. Ouvrez une ligne pour la configurer.">
+      <TmdbConnectionItem/>
+      <SeerConnectionItem/>
+      <TracearrConnectionItem/>
+      <TautulliConnectionItem/>
+    </SettingsItemList>
+    <ArrInstancesList/>
+    <DownloadClientsList/>
   </div>
 </template>
 <script setup lang="ts">
-import TautulliConnectionCard from './connections/TautulliConnectionCard.vue';
-import SeerConnectionCard from './connections/SeerConnectionCard.vue';
-import TmdbConnectionCard from './connections/TmdbConnectionCard.vue';
-import ArrInstancesCard from './connections/ArrInstancesCard.vue';
-import DownloadClientsCard from './connections/DownloadClientsCard.vue';
+import SettingsItemList from './SettingsItemList.vue';
+import TautulliConnectionItem from './connections/TautulliConnectionItem.vue';
+import TracearrConnectionItem from './connections/TracearrConnectionItem.vue';
+import SeerConnectionItem from './connections/SeerConnectionItem.vue';
+import TmdbConnectionItem from './connections/TmdbConnectionItem.vue';
+import ArrInstancesList from './connections/ArrInstancesList.vue';
+import DownloadClientsList from './connections/DownloadClientsList.vue';
 </script>

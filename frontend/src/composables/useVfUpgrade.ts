@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue';
+import { humanizeError } from '@/utils/apiError';
 import { api } from '@/api';
 import type { VfUpgradeItem } from '@/types/vfUpgrades';
 
@@ -31,7 +32,7 @@ export function useVfUpgrade(
       );
       suggestion.value = (data.suggestions || []).find(matches) || null;
     } catch (e: any) {
-      error.value = e?.message || String(e);
+      error.value = humanizeError(e);
     } finally {
       loading.value = false;
     }
@@ -59,13 +60,17 @@ export function useVfUpgrade(
           : 'Aucune release retournée par les indexeurs.';
       await load({ preserveFeedback: true });
     } catch (e: any) {
-      error.value = e?.message || String(e);
+      error.value = humanizeError(e);
     } finally {
       scanning.value = false;
     }
   }
 
-  async function grab(release: any, { force = true }: { force?: boolean } = {}): Promise<void> {
+  /* `force` est faux par defaut : il desarme les garde-fous du serveur (release refusee
+     par le profil *arr, regression technique -- voir services/vf_technical_guard.py) et
+     ne doit donc etre demande que par un appelant qui vient d'obtenir une confirmation
+     explicite de l'utilisateur. */
+  async function grab(release: any, { force = false }: { force?: boolean } = {}): Promise<void> {
     if (!suggestion.value) return;
     grabbing.value = release.guid;
     error.value = '';
@@ -77,7 +82,7 @@ export function useVfUpgrade(
       feedback.value = result.message || 'Release acceptee par Sonarr/Radarr.';
       await load({ preserveFeedback: true });
     } catch (e: any) {
-      error.value = e?.message || String(e);
+      error.value = humanizeError(e);
     } finally {
       grabbing.value = null;
     }
@@ -90,7 +95,7 @@ export function useVfUpgrade(
       await api(`/api/vf-upgrades/${suggestion.value.id}/dismiss`, { method: 'POST' });
       await load();
     } catch (e: any) {
-      error.value = e?.message || String(e);
+      error.value = humanizeError(e);
     }
   }
 

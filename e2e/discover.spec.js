@@ -48,8 +48,12 @@ test("charge progressivement le catalogue et conserve des liens accessibles", as
   await expect(page.locator(".discover-poster-link").first()).toHaveAttribute("href", /\/media\/discover\/1/);
   const cardBox = await page.locator('.discover-card').first().boundingBox();
   const posterBox = await page.locator('.discover-card .poster-shell').first().boundingBox();
-  expect(Math.abs(cardBox.width - posterBox.width)).toBeLessThanOrEqual(2);
-  expect(Math.abs(cardBox.height - posterBox.height)).toBeLessThanOrEqual(2);
+  /* Tolerance au pixel pres, et non au pixel exact : la carte porte desormais une
+     animation liee au defilement, donc un `transform`, et une boite composee se mesure
+     avec un arrondi sous-pixel. L'intention du test ne change pas -- l'affiche remplit
+     la carte, elle ne flotte pas dedans. */
+  expect(Math.abs(cardBox.width - posterBox.width)).toBeLessThanOrEqual(2.5);
+  expect(Math.abs(cardBox.height - posterBox.height)).toBeLessThanOrEqual(2.5);
 
   // Le sentinel (rootMargin 400px) declenche le chargement automatiquement des qu'il
   // est rendu — pas besoin de scroll manuel, et l'attendre serait racy puisqu'il est
@@ -58,25 +62,42 @@ test("charge progressivement le catalogue et conserve des liens accessibles", as
   await expect(page.getByText("4 affichés / 4")).toBeVisible();
 });
 
+/** Champ de recherche de la page, deplie d'abord si la largeur l'impose. */
+async function pageSearchBox(page) {
+  // La barre ne rend le champ qu'une fois que la page le lui a fourni : cliquer avant
+  // ouvrirait la recherche globale a la place.
+  const field = page.locator(".app-topbar__field");
+  await expect(field).toHaveCount(1, { timeout: 15_000 });
+  const compact = page.locator(".app-topbar__search-compact");
+  if (await compact.isVisible()) await compact.click();
+  const input = field.locator('input[type="search"]');
+  await expect(input).toBeVisible();
+  return input;
+}
+
 test("conserve le catalogue Films lors d'une recherche", async ({ page }) => {
   const searchRequest = page.waitForRequest(request => (
     request.url().includes("/api/discover/search")
     && request.url().includes("media_type=movie")
   ));
-  await page.getByRole("searchbox", { name: "Rechercher un film" }).fill("Dune");
+  await (await pageSearchBox(page)).fill("Dune");
   await searchRequest;
 });
 
 test("affiche la navigation dédiée et replie les filtres", async ({ page }) => {
-  // Une seule navigation contextuelle (AppNav), haute ou basse selon la largeur.
-  const navigation = page.locator('.app-primary-items');
-  await expect(navigation.getByRole("link", { name: "Séries" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "Films" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "Demandes" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "Calendrier" })).toBeVisible();
-  const filters = page.viewportSize().width <= 900
-    ? page.locator('.modal-panel')
-    : page.locator('.filter-sidebar');
+  // Accueil, Films et Series sont des vues de la meme page : des onglets dans la page, a
+  // toutes les largeurs, et non plus des sous-entrees du rail. Le calendrier est devenu
+  // une destination a part.
+  const onglets = page.getByRole("navigation", { name: "Vues d’Explorer" });
+  await expect(onglets.getByRole("link", { name: "Séries" })).toBeVisible();
+  await expect(onglets.getByRole("link", { name: "Films" })).toBeVisible();
+  // La page s'ouvre sur /discover/movies (voir beforeEach) : Films est l'onglet courant.
+  await expect(onglets.getByRole("link", { name: "Films" })).toHaveAttribute("aria-current", "page");
+  await expect(onglets.getByRole("link", { name: "Accueil" })).not.toHaveAttribute("aria-current", "page");
+  await expect(onglets.getByRole("link", { name: "Calendrier" })).toHaveCount(0);
+
+  // Un seul panneau a toutes les tailles : il sort de la barre de recherche.
+  const filters = page.locator('.filter-sheet');
   await expect(filters).toBeHidden();
   await page.getByRole("button", { name: /filtres/i }).click();
   await expect(filters).toBeVisible();
@@ -86,46 +107,66 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   const layoutFits = await filters.evaluate(element => element.scrollWidth <= element.clientWidth + 1);
   expect(layoutFits).toBe(true);
 
-  // Refermer avant de naviguer : sous 900px les filtres sont une modale, qui rend
-  // l'arriere-plan inert -- la navigation y est donc volontairement inatteignable.
-  if (page.viewportSize().width <= 900) {
-    await page.getByRole("button", { name: "Fermer" }).click();
-  } else {
-    await page.getByRole("button", { name: "Masquer les filtres" }).click();
-  }
+  // Refermer avant de naviguer, par le bouton meme qui l'a ouvert : le panneau
+  // prolonge la barre, qui reste atteignable.
+  await page.getByRole("button", { name: "Masquer les filtres" }).first().click();
   await expect(filters).toBeHidden();
 
-  await navigation.getByRole("link", { name: "Séries" }).click();
+  // Changer d'onglet met a jour le champ de la barre : la page suivante fournit sa propre
+  // recherche, et le demontage de la precedente ne doit pas l'effacer.
+  await onglets.getByRole("link", { name: "Séries" }).click();
   await expect(page).toHaveURL(/\/discover\/shows$/);
-  await expect(page.getByRole("searchbox", { name: "Rechercher une série" })).toBeVisible();
-  await navigation.getByRole("link", { name: "Films" }).click();
+  await expect(await pageSearchBox(page)).toHaveAttribute("aria-label", /Rechercher une série/);
+  await expect(onglets.getByRole("link", { name: "Séries" })).toHaveAttribute("aria-current", "page");
+
+  await onglets.getByRole("link", { name: "Films" }).click();
   await expect(page).toHaveURL(/\/discover\/movies$/);
 });
 
 test("reste utilisable au clavier et sur mobile", async ({ page }, testInfo) => {
   const firstCard = page.locator(".discover-card").first();
   const firstLink = firstCard.locator(".discover-poster-link");
+  const compact = page.viewportSize().width <= 640;
+  // L'action reste dans le DOM pour rester focalisable : c'est l'opacite qui commande
+  // sa visibilite, et `toBeVisible` passe a `opacity: 0`.
+  const request = firstCard.getByRole("button", { name: "Demander" });
+  const opacity = () => request.evaluate((node) => window.getComputedStyle(node).opacity);
+
+  // Sans souris, l'affiche est nue au repos : une grille de vignettes ne se lit plus
+  // des qu'un bouton pleine largeur s'empile sur chacune.
+  if (compact) expect(await opacity()).toBe("0");
+
   await firstLink.focus();
   await expect(firstLink).toBeFocused();
-  if (page.viewportSize().width <= 640) {
-    await expect(firstCard.getByRole("button", { name: "Demander" })).toBeVisible();
-  }
+
+  // Le focus clavier decouvre la carte comme le premier appui le ferait au doigt :
+  // une action focalisable mais invisible serait inatteignable au clavier.
+  if (compact) await expect.poll(opacity).toBe("1");
 });
 
-test("centre la recherche dans le contenu, sous la navigation commune", async ({ page }) => {
-  const searchBox = await page.locator('.psh-search-wrap').boundingBox();
-  const mainBox = await page.locator('#main-content').boundingBox();
-  expect(Math.abs((searchBox.x + searchBox.width / 2) - (mainBox.x + mainBox.width / 2))).toBeLessThan(3);
+test("place la recherche dans la barre, jamais dans le contenu", async ({ page }) => {
+  // Un seul champ de recherche a l'ecran, et il vit dans la barre : elle ne defile
+  // pas, et la page n'a plus a lui reserver une rangee.
+  await expect(page.locator("#main-content input[type=\"search\"]")).toHaveCount(0);
 
-  if (page.viewportSize().width >= 900) {
-    const top = page.locator('.app-primary-nav--top');
-    await expect(top).toBeVisible();
-    expect(await page.getByRole('button', { name: /Réduire le menu|Afficher le menu/ }).count()).toBe(0);
+  await expect(page.locator(".app-topbar__field")).toHaveCount(1, { timeout: 15_000 });
+  const main = await page.locator("#main-content").boundingBox();
+  const topbar = await page.locator(".app-topbar").boundingBox();
 
-    const widthBefore = (await top.boundingBox()).width;
-    await page.reload();
-    await expect(top).toBeVisible();
-    expect((await top.boundingBox()).width).toBe(widthBefore);
-    expect((await page.locator('#main-content').boundingBox()).x).toBe(mainBox.x);
+  const firstChild = await page.locator("#main-content > *").first().boundingBox();
+  if (page.viewportSize().width >= 768) {
+    // La barre est fixe : c'est le premier contenu de <main>, pas sa boite, qui doit
+    // commencer sous elle — la boite, elle, part de zero et se decale par son padding.
+    expect(firstChild.y).toBeGreaterThanOrEqual(topbar.y + topbar.height - 1);
+  } else {
+    // En compact la barre est en bas : le contenu ne la contourne plus, il commence en
+    // haut de l'ecran et passe sous elle.
+    expect(firstChild.y).toBeLessThan(topbar.y);
   }
+
+  // La geometrie du shell ne doit pas bouger d'un chargement a l'autre : c'est ce
+  // saut au rechargement qui trahissait les offsets recopies a plusieurs endroits.
+  await page.reload();
+  await expect(page.locator("#main-content")).toBeVisible();
+  expect((await page.locator("#main-content").boundingBox()).x).toBe(main.x);
 });

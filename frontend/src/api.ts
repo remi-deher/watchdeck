@@ -1,15 +1,64 @@
 import type { ApiRequestOptions } from '@/types/api';
+import { humanizeError, messageForStatus } from '@/utils/apiError';
+
+/** Erreur d'API portant le code HTTP, pour que l'appelant puisse decider sans reparser. */
+/**
+ * Rend lisible le motif renvoye par le serveur.
+ *
+ * `detail` n'est pas toujours une phrase : sur une requete mal formee, FastAPI renvoie
+ * la liste des champs en cause. Affichee telle quelle, elle donnait « [object Object] »
+ * a l'utilisateur -- un message qui ne dit rien et qu'on ne peut meme pas rapporter.
+ */
+function detailLisible(data: any): string {
+  const detail = data?.detail ?? data?.message;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    const phrases = detail
+      .map((entree: any) => {
+        if (typeof entree === 'string') return entree;
+        const champ = Array.isArray(entree?.loc) ? entree.loc.filter((p: unknown) => p !== 'query' && p !== 'body').join('.') : '';
+        const motif = entree?.msg || entree?.message || '';
+        return [champ, motif].filter(Boolean).join(' : ');
+      })
+      .filter(Boolean);
+    if (phrases.length) return phrases.join(' — ');
+  }
+  if (detail && typeof detail === 'object') {
+    const motif = detail.msg || detail.message;
+    if (typeof motif === 'string') return motif;
+  }
+  return '';
+}
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
 
 export async function api<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const response = await fetch(path, {
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+  } catch (error: any) {
+    /* Une annulation volontaire doit rester reconnaissable : plusieurs vues s'appuient
+       sur `error.name === 'AbortError'` pour ignorer la reponse d'une requete
+       remplacee. Tout le reste est une panne reseau, et « Failed to fetch » n'a jamais
+       rien dit a personne. */
+    if (error?.name === 'AbortError') throw error;
+    throw new Error(humanizeError(error));
+  }
   if (response.redirected && response.url.includes('/login')) {
     if (typeof window !== 'undefined') {
       window.location.href = response.url;
@@ -18,7 +67,8 @@ export async function api<T = any>(path: string, options: ApiRequestOptions = {}
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.detail || data.message || `HTTP ${response.status}`);
+    // Le detail du backend est deja redige et decrit le cas precis : il passe devant.
+    throw new ApiError(detailLisible(data) || messageForStatus(response.status), response.status);
   }
   return data as T;
 }
@@ -38,7 +88,7 @@ export async function streamEvents<T = any>(
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.detail || `HTTP ${response.status}`);
+    throw new ApiError(detailLisible(data) || messageForStatus(response.status), response.status);
   }
   if (!response.body) throw new Error('Flux non supporté par ce navigateur');
 
@@ -74,31 +124,4 @@ export async function streamEvents<T = any>(
   } finally {
     if (!finished) reader.cancel().catch(() => {});
   }
-}
-
-export function cachedResource<T = any>(
-  key: string,
-  ttlMs: number,
-  loader: () => Promise<T>
-): { cached: T | null; fresh: boolean; refresh: Promise<T> } {
-  const now = Date.now();
-  let cached: { savedAt: number; data: T } | null = null;
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-    cached = raw ? JSON.parse(raw) : null;
-  } catch {
-    cached = null;
-  }
-  const fresh = Boolean(cached && now - cached.savedAt < ttlMs);
-  const refresh = loader().then((data) => {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
-      }
-    } catch {
-      /* Quota dépassé */
-    }
-    return data;
-  });
-  return { cached: cached?.data || null, fresh, refresh };
 }

@@ -1,6 +1,5 @@
 <template>
-  <div class="page">
-    <PageSearchHeader title="Bibliothèque" description="Catalogue Plex, demandes en cours et suivi des versions." v-model:query="query" placeholder="Rechercher un média…" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @search="onSearch" @toggle-filters="toggleFilters" />
+    <AppPage title="Bibliothèque" v-model:query="query" search-scope="Bibliothèque" placeholder="Rechercher dans la bibliothèque…" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @search="onSearch" @toggle-filters="toggleFilters">
 
     <BulkActionBar v-if="canModerate" :count="selectedIds.length" singular="demande sélectionnée" plural="demandes sélectionnées" clear-label="Annuler" @clear="selectedIds=[]">
       <UiButton size="sm" @click="bulk('retry')"><template #icon><RotateCcw/></template>Relancer</UiButton>
@@ -8,75 +7,59 @@
       <UiButton variant="danger" size="sm" @click="bulk('delete')"><template #icon><Trash2/></template>Supprimer</UiButton>
     </BulkActionBar>
 
+    <!-- Tout, Films, Series, Musique : des onglets dans la page, a toutes les largeurs.
+         Les types etaient jusque-la caches dans le panneau de filtres ou dans les titres
+         des rangees de l'accueil. -->
+    <template #tabs>
+      <AppSubnav
+        :items="LIBRARY_TYPE_TABS"
+        :active="libraryTypeTabFor(route)"
+        aria-label="Types de médias"
+      />
+    </template>
+
     <div class="psh-layout">
       <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
         <template v-if="!isMusicShape">
           <FilterGroup label="Statut">
-            <button class="filter-badge" :class="{ active: !statusSingle }" @click="statusSingle = ''"><span>Tous les statuts</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'library' }" @click="statusSingle = 'library'"><span>Dans Plex</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'in_progress' }" @click="statusSingle = 'in_progress'"><span>En cours</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'partially_available' }" @click="statusSingle = 'partially_available'"><span>Partiellement dispo</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'orphan' }" @click="statusSingle = 'orphan'"><span>Suivi Sonarr/Radarr</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'pending_approval' }" @click="statusSingle = 'pending_approval'"><span>À approuver</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'pending' }" @click="statusSingle = 'pending'"><span>En attente</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'sent_to_arr' }" @click="statusSingle = 'sent_to_arr'"><span>Transmise</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'failed' }" @click="statusSingle = 'failed'"><span>Échec</span></button>
-            <button class="filter-badge" :class="{ active: statusSingle === 'rejected' }" @click="statusSingle = 'rejected'"><span>Refusée</span></button>
+            <UiChipGroup label="Statut" :options="[{ value: '', label: 'Tous les statuts' }, { value: 'library', label: 'Dans Plex' }, { value: 'in_progress', label: 'En cours' }, { value: 'partially_available', label: 'Partiellement dispo' }, { value: 'orphan', label: 'Suivi Sonarr/Radarr' }, { value: 'pending_approval', label: 'À approuver' }, { value: 'pending', label: 'En attente' }, { value: 'sent_to_arr', label: 'Transmise' }, { value: 'failed', label: 'Échec' }, { value: 'rejected', label: 'Refusée' }]" default-value="library" v-model="statusSingle" />
           </FilterGroup>
           <FilterGroup label="Version">
-            <button class="filter-badge" :class="{ active: !vf }" @click="vf = ''"><span>Toutes les langues</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'vf' }" @click="vf = 'vf'"><span>VF uniquement</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'vf_secondary' }" @click="vf = 'vf_secondary'"><span>VF secondaire</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'vo' }" @click="vf = 'vo'"><span>VO uniquement</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'mixed' }" @click="vf = 'mixed'"><span>Mixte (VF + VO)</span></button>
-            <button class="filter-badge" :class="{ active: vf === 'unchecked' }" @click="vf = 'unchecked'"><span>Non analysée</span></button>
+            <UiChipGroup label="Version" :options="[{ value: '', label: 'Toutes les langues' }, { value: 'vf', label: 'VF uniquement' }, { value: 'vf_secondary', label: 'VF secondaire' }, { value: 'vo', label: 'VO uniquement' }, { value: 'mixed', label: 'Mixte (VF + VO)' }, { value: 'unchecked', label: 'Non analysée' }]" v-model="vf" />
           </FilterGroup>
           <FilterGroup label="Sous-titres">
-            <button class="filter-badge" :class="{ active: !subtitle }" @click="subtitle = ''"><span>Tous</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'any_issue' }" @click="subtitle = 'any_issue'"><span>Problème sous-titre FR</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_absent' }" @click="subtitle = 'sub_fr_absent'"><span>Sous-titre FR absent</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_no_track' }" @click="subtitle = 'sub_fr_no_track'"><span>Aucune piste ST (hardcoded?)</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'sub_fr_not_default' }" @click="subtitle = 'sub_fr_not_default'"><span>Sous-titre FR non activé</span></button>
-            <button class="filter-badge" :class="{ active: subtitle === 'forced_fr_not_default' }" @click="subtitle = 'forced_fr_not_default'"><span>Sous-titre forcé FR non activé</span></button>
+            <UiChipGroup label="Sous-titres" :options="[{ value: '', label: 'Tous' }, { value: 'any_issue', label: 'Problème sous-titre FR' }, { value: 'sub_fr_absent', label: 'Sous-titre FR absent' }, { value: 'sub_fr_no_track', label: 'Sous-titres incrustés' }, { value: 'sub_fr_not_default', label: 'Sous-titre FR non activé' }, { value: 'forced_fr_not_default', label: 'Sous-titre forcé FR non activé' }]" v-model="subtitle" />
           </FilterGroup>
           <FilterGroup v-if="sources.length" label="Source">
-            <button class="filter-badge" :class="{ active: !sourceSingle }" @click="sourceSingle = ''"><span>Toutes</span></button>
-            <button v-for="s in sources" :key="s" class="filter-badge" :class="{ active: sourceSingle === s }" @click="sourceSingle = sourceSingle === s ? '' : s"><span>{{ s }}</span></button>
+            <UiChipGroup label="Source" :options="[{ value: '', label: 'Toutes' }, ...(sources).map((s: any) => ({ value: s, label: s }))]" v-model="sourceSingle" />
           </FilterGroup>
           <FilterGroup v-if="requesters.length > 1" label="Demandeur">
-            <button class="filter-badge" :class="{ active: !requesterSingle }" @click="requesterSingle = ''"><span>Tous</span></button>
-            <button v-for="r in requesters" :key="r.id" class="filter-badge" :class="{ active: requesterSingle === r.id }" @click="requesterSingle = requesterSingle === r.id ? '' : r.id"><span>{{ r.label }}</span></button>
+            <UiChipGroup label="Demandeur" :options="[{ value: '', label: 'Tous' }, ...requesters.map((r: any) => ({ value: r.id, label: r.label }))]" v-model="requesterSingle" />
           </FilterGroup>
         </template>
         <template v-else>
           <FilterGroup label="Tri">
-            <button class="filter-badge" :class="{ active: !sort }" @click="sort = ''"><span>Ajouts récents</span></button>
-            <button class="filter-badge" :class="{ active: sort === 'title_asc' }" @click="sort = 'title_asc'"><span>Titre (A-Z)</span></button>
-            <button class="filter-badge" :class="{ active: sort === 'title_desc' }" @click="sort = 'title_desc'"><span>Titre (Z-A)</span></button>
-            <button class="filter-badge" :class="{ active: sort === 'year_desc' }" @click="sort = 'year_desc'"><span>Année (récent → ancien)</span></button>
+            <UiChipGroup label="Tri" :options="[{ value: '', label: 'Ajouts récents' }, { value: 'title_asc', label: 'Titre (A-Z)' }, { value: 'title_desc', label: 'Titre (Z-A)' }, { value: 'year_desc', label: 'Année (récent → ancien)' }]" v-model="sort" />
           </FilterGroup>
           <FilterGroup label="Genre">
-            <button class="filter-badge" :class="{ active: !genre }" @click="genre = ''"><span>Tous</span></button>
-            <button v-for="g in ['Rock','Pop','Jazz','Electronic','Hip-Hop','Metal','Classical','Blues','Folk','Indie']" :key="g" class="filter-badge" :class="{ active: genre === g }" @click="genre = genre === g ? '' : g"><span>{{ g }}</span></button>
+            <UiChipGroup label="Genre" :options="[{ value: '', label: 'Tous' }, ...(['Rock','Pop','Jazz','Electronic','Hip-Hop','Metal','Classical','Blues','Folk','Indie']).map((g: any) => ({ value: g, label: g }))]" v-model="genre" />
           </FilterGroup>
           <FilterGroup label="Format">
-            <button class="filter-badge" :class="{ active: !audioFormat }" @click="audioFormat = ''"><span>Tous</span></button>
-            <button v-for="f in [['FLAC','FLAC'],['ALAC','ALAC'],['WAV','WAV'],['MP3','MP3'],['AAC','AAC / M4A'],['OGG','OGG']]" :key="f[0]" class="filter-badge" :class="{ active: audioFormat === f[0] }" @click="audioFormat = audioFormat === f[0] ? '' : f[0]"><span>{{ f[1] }}</span></button>
+            <UiChipGroup label="Format" :options="[{ value: '', label: 'Tous' }, ...([['FLAC','FLAC'],['ALAC','ALAC'],['WAV','WAV'],['MP3','MP3'],['AAC','AAC / M4A'],['OGG','OGG']]).map((f: any) => ({ value: f[0], label: f[1] }))]" v-model="audioFormat" />
           </FilterGroup>
           <FilterGroup label="Type">
-            <button class="filter-badge" :class="{ active: !releaseType }" @click="releaseType = ''"><span>Tous</span></button>
-            <button v-for="t in [['album','Album Studio'],['single','Single / EP'],['live','Concert / Live'],['compilation','Compilation']]" :key="t[0]" class="filter-badge" :class="{ active: releaseType === t[0] }" @click="releaseType = releaseType === t[0] ? '' : t[0]"><span>{{ t[1] }}</span></button>
+            <UiChipGroup label="Type" :options="[{ value: '', label: 'Tous' }, ...([['album','Album Studio'],['single','Single / EP'],['live','Concert / Live'],['compilation','Compilation']]).map((t: any) => ({ value: t[0], label: t[1] }))]" v-model="releaseType" />
           </FilterGroup>
           <FilterGroup label="Qualité">
-            <button class="filter-badge" :class="{ active: !hiRes }" @click="hiRes = ''"><span>Toutes</span></button>
-            <button class="filter-badge" :class="{ active: hiRes === 'hi_res' }" @click="hiRes = hiRes === 'hi_res' ? '' : 'hi_res'"><span>Hi-Res (24-bit / 96kHz+)</span></button>
-            <button class="filter-badge" :class="{ active: hiRes === 'standard' }" @click="hiRes = hiRes === 'standard' ? '' : 'standard'"><span>CD Standard (16-bit)</span></button>
+            <UiChipGroup label="Qualité" :options="[{ value: '', label: 'Toutes' }, { value: 'hi_res', label: 'Hi-Res (24-bit / 96kHz+)' }, { value: 'standard', label: 'CD Standard (16-bit)' }]" v-model="hiRes" />
           </FilterGroup>
           <FilterGroup label="Époque">
-            <button class="filter-badge" :class="{ active: !decade }" @click="decade = ''"><span>Toutes</span></button>
-            <button v-for="d in [['2020s','2020+'],['2010s','Années 2010'],['2000s','Années 2000'],['90s','Années 90'],['80s','Années 80'],['70s','Années 70 et avant']]" :key="d[0]" class="filter-badge" :class="{ active: decade === d[0] }" @click="decade = decade === d[0] ? '' : d[0]"><span>{{ d[1] }}</span></button>
+            <UiChipGroup label="Époque" :options="[{ value: '', label: 'Toutes' }, ...([['2020s','2020+'],['2010s','Années 2010'],['2000s','Années 2000'],['90s','Années 90'],['80s','Années 80'],['70s','Années 70 et avant']]).map((d: any) => ({ value: d[0], label: d[1] }))]" v-model="decade" />
           </FilterGroup>
         </template>
+        <FilterGroup v-if="libraryServers.length > 1" label="Serveur">
+          <UiChipGroup label="Serveur" :options="[{ value: '', label: 'Tous' }, ...libraryServers.map((s: any) => ({ value: String(s.id), label: s.name }))]" v-model="plexServer" />
+        </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
 
@@ -125,6 +108,7 @@
       <p class="library-result-count" aria-live="polite">{{ filtered.length }} média{{ filtered.length>1?'s':'' }} affiché{{ filtered.length>1?'s':'' }}</p>
 
       <MediaPosterCollection
+        ref="collection"
         :items="filtered"
         :loading="loading"
         :loading-more="loadingMore"
@@ -134,47 +118,58 @@
         @load-more="loadMore"
         @retry="load"
       >
+        <!-- Lignes non rendues au-dessus et au-dessous : voir useWindowVirtualGrid. -->
+        <div v-if="virtualGrid.padTop.value" class="virtual-spacer" data-virtual-spacer aria-hidden="true" :style="{ height: `${virtualGrid.padTop.value}px`, ...SPACER_STYLE }" />
         <LibraryCard
-          v-for="item in filtered"
-          :key="`${item._kind}-${item.id}`"
+          v-for="item in virtualGrid.visibleItems.value"
+          :key="libraryItemKey(item)"
           :item="item"
+          :animated="!virtualGrid.hasBeenShown(item)"
           view="grid"
           :can-moderate="canModerate"
           :busy="busy"
           :selected="selectedIds.includes(item.id)"
+          :server-names="serverNamesFor(item)"
           @open="openDetail"
           @toggle-select="toggleSelect"
           @act="act"
           @delete-orphan="deleteOrphan"
           @error="error = $event"
         />
+        <div v-if="virtualGrid.padBottom.value" class="virtual-spacer" data-virtual-spacer aria-hidden="true" :style="{ height: `${virtualGrid.padBottom.value}px`, ...SPACER_STYLE }" />
       </MediaPosterCollection>
     </template>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useWindowVirtualGrid } from '@/composables/useWindowVirtualGrid';
 import { useRoute, useRouter } from 'vue-router';
 import { CheckCheck, Film, Layers, Music2, RefreshCw, RotateCcw, Trash2, Tv } from '@lucide/vue';
+import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
 import { REQUEST_STATUSES } from '@/utils/labels';
+import { isPseudoRequester } from '@/utils/userLabels';
 import { proxyUrl } from '@/utils/mediaImage';
 import { api } from '@/api';
 import { readCache, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { useConfirm } from '@/composables/useConfirm';
 import { useAsyncAction } from '@/composables/useAsyncAction';
-import { useDebounced } from '@/composables/useDebounced';
-import { useLatestRequest } from '@/composables/useLatestRequest';
-import { useLibraryHubs } from '@/composables/useLibraryHubs';
+import { useDebounceFn } from '@vueuse/core';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { useLibraryHubs, type LibraryHub } from '@/composables/useLibraryHubs';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { canModerateSession, isAdminSession, loadSession } from '@/composables/useSession';
 import LibraryCard from '@/components/library/LibraryCard.vue';
 import MusicHubRow from '@/components/library/MusicHubRow.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
+import { LIBRARY_TYPE_TABS, libraryTypeTabFor } from '@/navigation';
 import MediaHeroBanner from '@/components/media/MediaHeroBanner.vue';
 import MediaPosterCollection from '@/components/media/MediaPosterCollection.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -185,7 +180,6 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 const route = useRoute();
 const router = useRouter();
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
-const request = useLatestRequest();
 
 // La modale Filtres modifie aussi le sous-type musical (Artistes/Albums/Pistes) -- on passe
 // par l'URL plutot que d'assigner typeFilters.value directement, pour rester coherent avec
@@ -224,11 +218,11 @@ async function openDetail(item: any): Promise<void> {
   if (item.media_type === 'track') {
     const album = await openTrackAlbum(item);
     if (album) {
-      router.push(mediaDetailPath(album, 'library'));
+      ouvrirFiche(router, mediaDetailPath(album, 'library'), route.fullPath);
       return;
     }
   }
-  router.push(mediaDetailPath(item, item._kind));
+  ouvrirFiche(router, mediaDetailPath(item, item._kind), route.fullPath);
 }
 
 // Une page de 200 cartes represente ~47 ecrans de defilement sur un telephone (mesure
@@ -244,10 +238,8 @@ const allRequestsRaw = ref<any[]>([]);
 const requestSummary = ref<Record<string, any>>({ total: 0, facets: { by_type: {}, sources: [], requesters: [] } });
 const orphans = ref<any[]>([]);
 const rawMetrics = ref<Record<string, any>>({});
-const users = ref<any[]>([]);
 const libraryOffset = ref(0);
 const hasMoreLibrary = ref(false);
-const loadingMore = ref(false);
 const selectedIds = ref<any[]>([]);
 const isAdmin = ref(false);
 const canModerate = ref(false);
@@ -263,6 +255,8 @@ const items = computed(() => {
   const libraryItems = partialLibraryIds.size
     ? libraryItemsRaw.value.filter((x: any) => !partialLibraryIds.has(x.id))
     : libraryItemsRaw.value;
+  // Filtre par serveur : une demande pas encore dans Plex n'est sur aucun serveur.
+  if (plexServer.value) return libraryItems;
   return [...libraryItems, ...pendingRequests.value, ...orphans.value];
 });
 
@@ -291,6 +285,8 @@ const genre = ref(String(route.query.genre || (!hubRequested && savedFilters.gen
 const audioFormat = ref(String(route.query.audio_format || (!hubRequested && savedFilters.audioFormat) || ''));
 const releaseType = ref(String(route.query.release_type || (!hubRequested && savedFilters.releaseType) || ''));
 const hiRes = ref(String(route.query.hi_res || (!hubRequested && savedFilters.hiRes) || ''));
+// Serveur Plex (Bibliotheque multi-serveurs) : ne montre que les medias vus sur lui.
+const plexServer = ref(String(route.query.server || (!hubRequested && savedFilters.plexServer) || ''));
 // La sidebar Bibliotheque (spaces.js) derive son onglet actif uniquement de
 // route.query.type -- si on arrive sur /library sans query et que typeFilters a ete
 // restaure depuis sessionStorage, la query ne le reflete pas encore : l'onglet actif
@@ -310,7 +306,7 @@ const isMusicShape = computed(() =>
 const isMusicHub = computed(() => {
   if (!isMusicShape.value) return false;
   return !query.value.trim() && !decade.value && !genre.value && !audioFormat.value
-    && !releaseType.value && !hiRes.value && !sort.value;
+    && !releaseType.value && !hiRes.value && !sort.value && !plexServer.value;
 });
 // Cible d'un clic sur l'en-tete d'une rangee du hub -- meme mecanisme que
 // la sidebar Bibliotheque (spaces.js, libraryTarget) : clone la query active pour ne pas ecraser d'autres
@@ -336,7 +332,7 @@ const isMovieShowHub = computed(() => {
   return !query.value.trim()
     && statusFilters.value.length === 1 && statusFilters.value[0] === 'library'
     && !vf.value && !sourceFilters.value.length && !requesterFilters.value.length
-    && !sort.value && !decade.value && !genre.value;
+    && !sort.value && !decade.value && !genre.value && !plexServer.value;
 });
 
 // Hub "Tout" : meme principe pour la vue d'atterrissage sans type selectionne --
@@ -347,7 +343,7 @@ const isAllHub = computed(() => {
   return !query.value.trim()
     && statusFilters.value.length === 1 && statusFilters.value[0] === 'library'
     && !vf.value && !sourceFilters.value.length && !requesterFilters.value.length
-    && !sort.value && !decade.value && !genre.value;
+    && !sort.value && !decade.value && !genre.value && !plexServer.value;
 });
 
 function allRequestsTarget() {
@@ -372,7 +368,6 @@ function typeRequestsTarget() {
   return { path: '/library', query: { ...detailQuery(), type: [singleType.value], status: REQUEST_STATUSES } };
 }
 
-const loading = ref(false);
 const error = ref('');
 
 const statusSingle = computed({
@@ -409,6 +404,7 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
     audioFormat,
     releaseType,
     hiRes,
+    plexServer,
     query,
   },
   {
@@ -423,17 +419,141 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
     audioFormat: '',
     releaseType: '',
     hiRes: '',
+    plexServer: '',
     query: '',
   }
 );
 
 // Rangees des trois pages d'atterrissage. Les predicats isAllHub/isMusicHub/
 // isMovieShowHub restent ici : ils dependent des filtres actifs, pas du chargement.
-const { music: musicHub, all: allHub, type: typeHub, loadMusicHub, loadAllHub, loadTypeHub } =
-  useLibraryHubs({ isAbort: e => request.isAbort(e), onError: message => { error.value = message; } });
+/** Hub affiche a la place de la grille, s'il y en a un. */
+const activeHub = computed<LibraryHub>(() =>
+  isAllHub.value ? 'all' : isMusicHub.value ? 'music' : isMovieShowHub.value ? 'type' : null);
+const { music: musicHub, all: allHub, type: typeHub, refreshActiveHub } =
+  useLibraryHubs({ activeHub, hubMediaType: singleType, onError: message => { error.value = message; } });
 const { recent: musicHubRecent, artists: musicHubArtists, albums: musicHubAlbums, tracks: musicHubTracks, loading: musicHubLoading } = musicHub;
 const { recent: allHubRecent, movies: allHubMovies, shows: allHubShows, music: allHubMusic, requests: allHubRequests, loading: allHubLoading } = allHub;
 const { recent: typeHubRecent, requests: typeHubRequests, genreRows: typeHubGenreRows, loading: typeHubLoading } = typeHub;
+
+/* La grille part des parametres DEMANDES par `load()`, appele aux memes moments qu'avant
+   (filtre, URL, recherche apres 250 ms) : la frappe ne relance donc rien a elle seule.
+   Quatre lectures, chacune sa cle : la bibliotheque (paginee, affichee des qu'elle
+   arrive), puis demandes, orphelins *arr et metriques qui completent la vue au fil de
+   l'eau -- aucune n'attend la plus lente, et changer de filtre annule celles en cours. */
+interface GridRequest { library: string; requests: string; metricsType: string; wantsLibrary: boolean }
+const queryClient = useQueryClient();
+
+// Serveurs Plex qui portent des medias : filtre et badge n'apparaissent qu'a partir de deux.
+const serversQuery = useQuery({
+  queryKey: ['library', 'servers'],
+  queryFn: ({ signal }) => api<any[]>('/api/library-servers', { signal }),
+  staleTime: 5 * 60 * 1000,
+});
+const libraryServers = computed<any[]>(() => (Array.isArray(serversQuery.data.value) ? serversQuery.data.value : []));
+/** Serveurs supplementaires d'un media (4K, famille...) : le principal va de soi. */
+function serverNamesFor(item: any): string[] {
+  const ids: number[] = item?.server_ids || [];
+  if (libraryServers.value.length < 2 || !ids.length) return [];
+  return libraryServers.value
+    .filter((server: any) => !server.is_primary && ids.includes(server.id))
+    .map((server: any) => server.name);
+}
+const gridRequest = ref<GridRequest | null>(null);
+function gridSnapshot(): GridRequest {
+  const library = _libraryParams(0);
+  library.delete('offset');
+  return {
+    library: library.toString(),
+    requests: _requestListParams().toString(),
+    metricsType: typeFilters.value.length === 1 ? typeFilters.value[0] : '',
+    wantsLibrary: wantsLibraryItems.value,
+  };
+}
+const gridActive = computed(() => activeHub.value === null && gridRequest.value !== null);
+const isCancel = (e: any) => e?.name === 'AbortError' || e?.name === 'CancelledError';
+
+const libraryQuery = useInfiniteQuery({
+  queryKey: computed(() => ['library', 'items', gridRequest.value?.library]),
+  queryFn: ({ pageParam, signal }) => api<any[]>(`/api/library?${gridRequest.value?.library}&offset=${pageParam}`, { signal }),
+  initialPageParam: 0,
+  getNextPageParam: (last: any[], pages: any[][]) => (last.length === PAGE_SIZE ? pages.reduce((sum, page) => sum + page.length, 0) : undefined),
+  // Aucun media Plex ne peut correspondre aux filtres : on economise l'appel.
+  enabled: computed(() => gridActive.value && Boolean(gridRequest.value?.wantsLibrary)),
+  staleTime: 30_000,
+});
+const requestsQuery = useQuery({
+  queryKey: computed(() => ['library', 'requests', gridRequest.value?.requests]),
+  queryFn: ({ signal }) => api<any>(`/api/requests-list?${gridRequest.value?.requests}`, { signal }),
+  enabled: gridActive,
+  staleTime: 30_000,
+});
+/* Les orphelins interrogent Sonarr/Radarr en direct : une panne ne doit pas bloquer la
+   page, elle vaut simplement « aucun orphelin ». */
+const orphansQuery = useQuery({
+  queryKey: ['library', 'orphans'],
+  queryFn: ({ signal }) => api<any[]>('/api/requests/orphans', { signal }).catch((e) => (isCancel(e) ? Promise.reject(e) : [])),
+  enabled: gridActive,
+  staleTime: 30_000,
+});
+const metricsQuery = useQuery({
+  queryKey: computed(() => ['library', 'metrics', gridRequest.value?.metricsType]),
+  queryFn: ({ signal }) => {
+    const type = gridRequest.value?.metricsType;
+    return api<any>(`/api/library-metrics${type ? `?media_type=${type}` : ''}`, { signal }).catch((e) => (isCancel(e) ? Promise.reject(e) : {}));
+  },
+  enabled: gridActive,
+  staleTime: 30_000,
+});
+
+const loadingMore = computed(() => libraryQuery.isFetchingNextPage.value);
+const loading = computed(() => {
+  if (activeHub.value === 'all') return allHub.loading.value;
+  if (activeHub.value === 'music') return musicHub.loading.value;
+  if (activeHub.value === 'type') return typeHub.loading.value;
+  if (!gridRequest.value) return true;
+  return gridRequest.value.wantsLibrary ? libraryQuery.isFetching.value && !loadingMore.value : requestsQuery.isFetching.value;
+});
+
+// Les donnees arrivees alimentent l'etat de la page, que primeFromCache a pu repeindre.
+watch(libraryQuery.data, (data) => {
+  if (!data) return;
+  const known = new Set<any>();
+  const rows = data.pages.flat().filter((row: any) => (known.has(row.id) ? false : (known.add(row.id), true)));
+  applyLibraryPage(rows);
+  // `applyLibraryPage` deduit la suite de la taille d'UNE page ; ici `rows` les cumule
+  // toutes : c'est la query qui sait s'il en reste.
+  hasMoreLibrary.value = Boolean(libraryQuery.hasNextPage.value) && wantsLibraryItems.value;
+}, { immediate: true });
+watch([requestsQuery.data, metricsQuery.data], ([requests, stats]) => { if (requests) applyRequestData(requests, stats || {}); }, { immediate: true });
+// Les orphelins sont filtres sur la recherche : a refaire quand elle change, meme en cache.
+watch([orphansQuery.data, gridRequest], ([rows]) => { if (rows) applyOrphans(rows); }, { immediate: true });
+watch([libraryQuery.error, requestsQuery.error], (failures) => {
+  const failure: any = failures.find((e: any) => e && !isCancel(e));
+  if (failure) error.value = failure.message;
+});
+
+/* Ecrit une fois les deux vagues arrivees : le cache represente ainsi une page complete,
+   jamais un etat intermediaire sans demandes ni orphelins. */
+let scrollRestored = false;
+watch(
+  () => [libraryQuery.data.value, requestsQuery.data.value, orphansQuery.data.value, metricsQuery.data.value, requestsQuery.isFetching.value] as const,
+  ([library, requests, orphanRows, stats, fetching]) => {
+    if (!requests || !orphanRows || fetching) return;
+    const firstPage = library?.pages[0];
+    if (firstPage || !gridRequest.value?.wantsLibrary) {
+      writeCache(_cacheKey(), { library: firstPage || [], requests, stats: stats || {}, orphans: orphanRows });
+    }
+    const savedScroll = sessionStorage.getItem('library.scroll_position');
+    if (savedScroll && !scrollRestored) {
+      scrollRestored = true;
+      setTimeout(() => {
+        window.scrollTo(0, Number(savedScroll));
+        sessionStorage.removeItem('library.scroll_position');
+      }, 100);
+    }
+  },
+);
+
 
 const sources = computed(() => requestSummary.value.facets?.sources || []);
 const requesters = computed(() => {
@@ -441,7 +561,7 @@ const requesters = computed(() => {
   const seen = new Map<string, string>();
   for (const row of allRequestsRaw.value) {
     const id = row.plex_user_id;
-    if (!id || seen.has(id)) continue;
+    if (isPseudoRequester(id) || seen.has(id)) continue;
     seen.set(id, row.requested_by || row.plex_user || id);
   }
   return [...seen.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
@@ -480,13 +600,34 @@ const filtered = computed(() => items.value.filter((item: any) => {
   return true;
 }));
 
+/* Grille virtualisee au-dela de 300 medias (voir useWindowVirtualGrid). La grille
+   `.media-grid` apparait et disparait avec les etats de chargement : on la retrouve
+   apres chaque rendu plutot que de la tenir pour acquise. */
+const collection = ref<any>(null);
+const gridElement = ref<HTMLElement | null>(null);
+const libraryItemKey = (item: any): string => `${item._kind}-${item.id}`;
+/* En ligne pour l'emporter sur la regle de MediaGrid, qui met ses enfants en
+   `content-visibility: auto` avec une taille intrinseque d'affiche : hors ecran,
+   l'intercalaire prendrait 280 px au lieu de la hauteur des lignes qu'il remplace. */
+const SPACER_STYLE = { gridColumn: '1 / -1', contentVisibility: 'visible', containIntrinsicSize: 'none' } as const;
+const virtualGrid = useWindowVirtualGrid(gridElement, filtered, libraryItemKey);
+watch([() => filtered.value.length, () => loading.value], () => {
+  void nextTick(() => { gridElement.value = collection.value?.$el?.querySelector?.('.media-grid') ?? null; });
+}, { immediate: true, flush: 'post' });
+
 function toggleSelect(id: any): void {
   selectedIds.value = selectedIds.value.includes(id) ? selectedIds.value.filter(x => x !== id) : [...selectedIds.value, id];
 }
 
+/* Surveille l'adresse, pas l'objet `route.query`. Posee derriere une fiche, la page lit
+   la route de fond (RouteScope), puis la route courante a la fermeture : deux objets
+   differents pour la meme adresse. Chacun relancait ce watcher, qui reassignait les
+   filtres et rechargeait la grille -- la page se rafraichissait et remontait en haut a
+   chaque ouverture et fermeture de fiche. */
 watch(
-  () => route.query,
-  (value: any) => {
+  () => route.fullPath,
+  () => {
+    const value: any = route.query;
     const returningToHub = value.hub === '1';
     query.value = value.query || '';
     statusFilters.value = value.status
@@ -503,19 +644,20 @@ watch(
     audioFormat.value = value.audio_format || '';
     releaseType.value = value.release_type || '';
     hiRes.value = value.hi_res || '';
+    // Comme les sous-titres : le serveur choisi survit aux changements d'onglet de type.
+    if (value.server) plexServer.value = String(value.server);
     if (returningToHub) {
       sourceFilters.value = [];
       requesterFilters.value = [];
     }
     load();
   },
-  { deep: true },
 );
 // `vf` fait partie de la liste depuis que le filtre est applique en SQL : tant qu'il ne
 // servait qu'au filtrage client, le changer suffisait a recalculer `filtered` sans
 // rechargement -- ce n'est plus le cas.
 watch(
-  [statusFilters, typeFilters, sourceFilters, requesterFilters, vf, subtitle, decade, sort, genre, audioFormat, releaseType, hiRes],
+  [statusFilters, typeFilters, sourceFilters, requesterFilters, vf, subtitle, decade, sort, genre, audioFormat, releaseType, hiRes, plexServer],
   () => {
     sessionStorage.setItem('library.active_filters', JSON.stringify({
       query: query.value,
@@ -531,6 +673,7 @@ watch(
       audioFormat: audioFormat.value,
       releaseType: releaseType.value,
       hiRes: hiRes.value,
+      plexServer: plexServer.value,
     }));
     load();
   },
@@ -539,9 +682,9 @@ watch(
 
 // La frappe au clavier abandonne la requete en cours avant d'armer le delai : inutile de
 // laisser courir une recherche que l'utilisateur est deja en train de reformuler.
-const scheduleLoad = useDebounced(load, 250);
+const scheduleLoad = useDebounceFn(load, 250);
 function onSearch(): void {
-  request.abort();
+  // Une lecture devenue obsolete est annulee par TanStack Query au changement de cle.
   scheduleLoad();
 }
 
@@ -558,6 +701,7 @@ function _libraryParams(offset: number): URLSearchParams {
   if (audioFormat.value) p.set('audio_format', audioFormat.value);
   if (releaseType.value) p.set('release_type', releaseType.value);
   if (hiRes.value) p.set('hi_res', hiRes.value);
+  if (plexServer.value) p.set('server_id', plexServer.value);
   p.set('limit', String(PAGE_SIZE));
   p.set('offset', String(offset));
   return p;
@@ -629,112 +773,34 @@ function primeFromCache(): void {
   applyOrphans(cached.orphans || []);
 }
 
+/** Une demande a change : seules les demandes et les metriques sont a relire. */
 async function refreshRequestData(): Promise<void> {
-  const [requests, stats] = await Promise.all([
-    api(`/api/requests-list?${_requestListParams()}`),
-    api(`/api/library-metrics${typeFilters.value.length === 1 ? `?media_type=${typeFilters.value[0]}` : ''}`).catch(() => ({})),
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['library', 'requests'] }),
+    queryClient.invalidateQueries({ queryKey: ['library', 'metrics'] }),
   ]);
-  applyRequestData(requests, stats);
 }
 
+/** Recharge : hub affiche, ou grille aux parametres courants (relue meme s'ils n'ont pas change). */
 async function load(): Promise<void> {
-  const { signal, isCurrent } = request.begin();
-  const options = { signal };
   error.value = '';
-  libraryOffset.value = 0;
-  loading.value = true;
-
-  // Hub "Tout" : 5 requetes dediees (une par bibliotheque + demandes), meme principe
-  // que les hubs Musique/Films/Series ci-dessous.
-  if (isAllHub.value) {
-    await loadAllHub(options);
-    if (isCurrent()) loading.value = false;
-    return;
-  }
-  // Hub Musique : 4 requetes dediees (10 items chacune) remplacent la grosse page
-  // paginee, inutile tant que le hub est affiche a la place de la grille.
-  if (isMusicHub.value) {
-    await loadMusicHub(options);
-    if (isCurrent()) loading.value = false;
-    return;
-  }
-  // Hub Films/Series : idem, 2 requetes dediees (derniers ajouts + dernieres demandes).
-  if (isMovieShowHub.value) {
-    await loadTypeHub(singleType.value, options);
-    if (isCurrent()) loading.value = false;
-    return;
-  }
-
-  // Chargement priorise (facon Seerr) : la bibliotheque (lecture DB pure, rapide)
-  // s'affiche des qu'elle arrive, sans attendre demandes/orphelins/metriques -- ces
-  // derniers completent la vue ensuite au fil de l'eau. Les orphelins en particulier
-  // interrogent Sonarr/Radarr en direct (cache court cote backend, voir
-  // arr_orphans.py) : avant, tout restait bloque derriere ce seul appel via
-  // Promise.all, donnant l'impression d'un rechargement complet a chaque visite.
-  let libraryPage: any[] | null = null;
-  try {
-    // Aucun media Plex ne peut correspondre aux filtres courants : on economise l'appel
-    // plutot que de charger une page qui serait entierement ecartee.
-    const library = wantsLibraryItems.value
-      ? await api(`/api/library?${_libraryParams(0)}`, options)
-      : [];
-    if (!isCurrent()) return;
-    libraryPage = library;
-    applyLibraryPage(library);
-  } catch (e: any) {
-    if (!request.isAbort(e) && isCurrent()) error.value = e.message;
-  } finally {
-    if (isCurrent()) loading.value = false;
-  }
-
-  if (!isCurrent()) return;
-  try {
-    const [requests, orphanRows, stats] = await Promise.all([
-      api(`/api/requests-list?${_requestListParams()}`, options),
-      api('/api/requests/orphans', options).catch(e => request.isAbort(e) ? Promise.reject(e) : []),
-      api(`/api/library-metrics${typeFilters.value.length === 1 ? `?media_type=${typeFilters.value[0]}` : ''}`, options).catch(e => request.isAbort(e) ? Promise.reject(e) : {}),
-    ]);
-    if (!isCurrent()) return;
-
-    applyRequestData(requests, stats);
-    applyOrphans(orphanRows);
-    // Ecrit une fois les deux vagues arrivees : le cache represente ainsi une page
-    // complete, jamais un etat intermediaire sans demandes ni orphelins.
-    if (libraryPage) writeCache(_cacheKey(), { library: libraryPage, requests, stats, orphans: orphanRows });
-    const savedScroll = sessionStorage.getItem('library.scroll_position');
-    if (savedScroll) {
-      setTimeout(() => {
-        window.scrollTo(0, Number(savedScroll));
-        sessionStorage.removeItem('library.scroll_position');
-      }, 100);
-    }
-  } catch (e: any) {
-    if (!request.isAbort(e) && isCurrent()) error.value = e.message;
-  }
+  if (activeHub.value) { await refreshActiveHub(); return; }
+  const next = gridSnapshot();
+  const unchanged = gridRequest.value !== null && JSON.stringify(gridRequest.value) === JSON.stringify(next);
+  gridRequest.value = next;
+  if (!next.wantsLibrary) applyLibraryPage([]);
+  if (!unchanged) return;
+  await Promise.all([
+    next.wantsLibrary ? libraryQuery.refetch() : null,
+    requestsQuery.refetch(),
+    orphansQuery.refetch(),
+    metricsQuery.refetch(),
+  ]);
 }
 
 async function loadMore(): Promise<void> {
   if (loading.value || loadingMore.value || !hasMoreLibrary.value) return;
-  loadingMore.value = true;
-  try {
-    const library = await api(`/api/library?${_libraryParams(libraryOffset.value)}`);
-    const known = new Set(libraryItemsRaw.value.map((x: any) => x.id));
-    libraryItemsRaw.value = [...libraryItemsRaw.value, ...library.filter((x: any) => !known.has(x.id)).map((x: any) => ({ ...x, _kind: 'library' }))];
-    libraryOffset.value += library.length;
-    hasMoreLibrary.value = library.length === PAGE_SIZE;
-  } catch (e: any) {
-    error.value = e.message;
-  } finally {
-    loadingMore.value = false;
-  }
-}
-
-async function loadUsers(): Promise<void> {
-  try {
-    users.value = await api('/api/users');
-  } catch (e) {
-    console.warn("Failed to load users for filter", e);
-  }
+  await libraryQuery.fetchNextPage();
 }
 
 // Les quatre mutations ci-dessous partageaient le meme bloc busy/try/catch/finally,
@@ -751,7 +817,7 @@ function deleteOrphan(row: any) {
   // d'irreversibilite ci-dessous : deux choix independants, pas un enchainement a fusionner.
   return run(() => {
     const deleteFiles = confirm(
-      `Supprimer aussi les fichiers deja telecharges pour "${row.title}" ?\n\n` +
+      `Supprimer aussi les fichiers déjà téléchargés pour "${row.title}" ?\n\n` +
       `Sans cela, ${source} arrete le suivi mais laisse les fichiers en place (toujours visibles dans Plex).`
     );
     return api(`/api/requests/orphans/${row.orphan_source}/${row.arr_instance_id}/${row.arr_id}?delete_files=${deleteFiles}`, { method: 'DELETE' });
@@ -796,11 +862,11 @@ onMounted(async () => {
   isAdmin.value = isAdminSession(session);
   canModerate.value = canModerateSession(session);
   await load();
-  loadUsers();
 });
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 /* Les styles filter-group / group-label / filter-badge viennent de FilterSidebar.vue */
 
 .music-hub {
@@ -830,7 +896,7 @@ onMounted(async () => {
   text-align: right;
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .music-hub { gap: var(--space-5); }
   .library-result-count { text-align: left; }
 }

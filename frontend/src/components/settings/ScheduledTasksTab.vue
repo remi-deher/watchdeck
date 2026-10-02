@@ -1,153 +1,114 @@
 <template>
-  <div class="settings-grid">
-    <div class="settings-cards span-two">
-      <SettingsCard title="Historique" subtitle="Duree de conservation de l'historique d'execution des taches planifiees ci-dessous." :icon="Archive" status="active" :collapsible="false">
-        <label>Historique de polling (jours)<RetentionDaysInput v-model="form.poll_history_retention_days" :default-days="30"/></label>
-      </SettingsCard>
+  <div class="settings-rows scheduled-tab">
+    <SettingsSection title="Historique" subtitle="Conservation de l'historique d'exécution des tâches ci-dessous.">
+      <SettingsRow label="Historique de polling" description="En jours.">
+        <RetentionDaysInput v-model="form.poll_history_retention_days" :default-days="30"/>
+      </SettingsRow>
+    </SettingsSection>
 
-      <SettingsCard
-        v-for="task in tasks"
-        :key="task.job"
-        :title="task.label"
-        :subtitle="task.description"
-        :icon="Clock"
-        :status="cardStatus(task)"
-        :status-text="cardStatusText(task)"
-        :collapsible="false"
-      >
-        <template #actions>
-          <button class="secondary" @click.stop="toggleHistory(task.job)">
-            <History/>{{ openHistory === task.job ? 'Masquer' : 'Historique' }}
-          </button>
+    <!-- Les tâches se comparent : un tableau aligne fréquence, dernière exécution et état
+         d'une tâche à l'autre, là où onze cartes faisaient défiler plus de trois écrans. -->
+    <SettingsSection title="Tâches planifiées" subtitle="Fréquence de chaque tâche de fond et résultat de sa dernière exécution.">
+      <UiDataTable label="Tâches planifiées" :rows="tasks" :columns="TASK_COLUMNS" :row-key="(task: any) => task.job" class="scheduled-table">
+        <template #empty><p class="empty">Aucune tâche planifiée.</p></template>
+        <template #cell-task="{ row: task }">
+          <strong>{{ task.label }}</strong>
+          <small class="scheduled-desc">{{ task.description }}</small>
+          <small v-if="task.state?.status === 'failed' && task.state?.last_error" class="scheduled-task-error">{{ task.state.last_error }}</small>
         </template>
+        <template #cell-frequency="{ row: task }">
+          <UiTimeField
+            v-if="task.settings_unit === 'heure (0-23)'"
+            :hour="form[task.settings_field] ?? 0"
+            :minute="task.settings_minute_field ? (form[task.settings_minute_field] ?? 0) : 0"
+            :with-minutes="!!task.settings_minute_field"
+            :aria-label="`Heure de déclenchement : ${task.label}`"
+            @update:hour="form[task.settings_field] = $event"
+            @update:minute="task.settings_minute_field && (form[task.settings_minute_field] = $event)"
+          />
+          <IntervalPresetInput v-else-if="presetsFor(task.settings_field)" v-model="form[task.settings_field]" :presets="presetsFor(task.settings_field)!"/>
+          <span v-else class="scheduled-fixed">{{ task.fixed_schedule || formatInterval(task.interval_seconds) }}</span>
+        </template>
+        <template #cell-last="{ row: task }">
+          <span v-if="task.state?.finished_at" class="scheduled-last">{{ formatDate(task.state.finished_at) }}<small>{{ formatDuration(task.state.duration_ms) }}</small></span>
+          <span v-else class="scheduled-never">Jamais</span>
+        </template>
+        <template #cell-status="{ row: task }">
+          <span class="scheduled-status" :class="taskStatus(task)">{{ taskStatusText(task) }}</span>
+        </template>
+        <template #cell-actions="{ row: task }">
+          <UiButton size="sm" @click="openHistory = task.job"><History/>Historique</UiButton>
+        </template>
+      </UiDataTable>
+    </SettingsSection>
 
-        <div class="scheduled-task-info">
-          <div class="scheduled-task-row">
-            <span>Intervalle actuel</span>
-            <strong>{{ formatInterval(task.interval_seconds) }}</strong>
-          </div>
-          <div v-if="task.fixed_schedule" class="scheduled-task-row">
-            <span>Planification</span>
-            <strong>{{ task.fixed_schedule }}</strong>
-          </div>
-          <div v-if="task.state?.finished_at" class="scheduled-task-row">
-            <span>Derniere execution</span>
-            <strong>{{ formatDate(task.state.finished_at) }} ({{ formatDuration(task.state.duration_ms) }})</strong>
-          </div>
-          <div v-if="task.state?.status === 'failed' && task.state?.last_error" class="scheduled-task-error">
-            {{ task.state.last_error }}
-          </div>
-        </div>
-
-        <label v-if="task.settings_unit === 'heure (0-23)'">
-          Heure de declenchement
-          <TimeOfDayInput v-model:hour="form[task.settings_field]" v-model:minute="form[task.settings_minute_field]"/>
-        </label>
-        <label v-else-if="jobPresets(task.job)">
-          Frequence
-          <IntervalPresetInput v-model="form[task.settings_field]" :presets="jobPresets(task.job)"/>
-        </label>
-
-        <div v-if="openHistory === task.job" class="scheduled-task-history">
-          <p v-if="historyLoading" class="notice">Chargement...</p>
-          <ul v-else-if="history.length">
-            <li v-for="row in history" :key="row.id" :class="row.status">
-              <span class="history-status">{{ row.status === 'complete' ? 'OK' : 'Echec' }}</span>
-              <span>{{ formatDate(row.started_at) }}</span>
-              <span>{{ formatDuration(row.duration_ms) }}</span>
-              <span v-if="row.error" class="scheduled-task-error">{{ row.error }}</span>
-            </li>
-          </ul>
-          <p v-else class="empty">Aucun historique.</p>
-        </div>
-      </SettingsCard>
-    </div>
+    <ModalShell :open="Boolean(openHistory)" :title="`Historique : ${historyTask?.label || ''}`" @close="openHistory = null">
+      <p v-if="historyLoading" class="notice">Chargement…</p>
+      <ul v-else-if="history.length" class="scheduled-task-history">
+        <li v-for="row in history" :key="row.id" :class="row.status">
+          <span class="history-status">{{ row.status === 'complete' ? 'OK' : 'Échec' }}</span>
+          <span>{{ formatDate(row.started_at) }}</span>
+          <span>{{ formatDuration(row.duration_ms) }}</span>
+          <span v-if="row.error" class="scheduled-task-error">{{ row.error }}</span>
+        </li>
+      </ul>
+      <p v-else class="empty">Aucun historique.</p>
+    </ModalShell>
   </div>
 </template>
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue';
 import { formatElapsed as formatDuration, formatDateTimeSeconds as formatDate } from '@/utils/format';
-import { onMounted, ref } from 'vue';
-import { Archive, Clock, History } from '@lucide/vue';
+import { computed, ref } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
+import { History } from '@lucide/vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
-import SettingsCard from './SettingsCard.vue';
+import { presetsFor } from '@/settingsPresets';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import ModalShell from '@/components/ui/ModalShell.vue';
+import SettingsSection from './SettingsSection.vue';
+import SettingsRow from './SettingsRow.vue';
 import IntervalPresetInput from './IntervalPresetInput.vue';
-import TimeOfDayInput from './TimeOfDayInput.vue';
+import UiTimeField from '@/components/ui/UiTimeField.vue';
 import RetentionDaysInput from './RetentionDaysInput.vue';
 
 // Presets par tache : chaque job periodique a ses propres frequences pertinentes
 // (un scan leger n'a pas les memes echelles de temps qu'une synchro complete).
-const JOB_PRESETS: Record<string, Array<{ label: string; value: number }>> = {
-  'watchlist': [
-    { label: '30 secondes', value: 30 },
-    { label: '45 secondes', value: 45 },
-    { label: '1 minute', value: 60 },
-    { label: '2 minutes', value: 120 },
-    { label: '5 minutes', value: 300 },
-  ],
-  'arr-statuses': [
-    { label: '1 minute', value: 60 },
-    { label: '5 minutes', value: 300 },
-    { label: '10 minutes', value: 600 },
-    { label: '15 minutes', value: 900 },
-    { label: '30 minutes', value: 1800 },
-    { label: '1 heure', value: 3600 },
-  ],
-  'vff-statuses': [
-    { label: '10 minutes', value: 10 },
-    { label: '15 minutes', value: 15 },
-    { label: '30 minutes', value: 30 },
-    { label: '1 heure', value: 60 },
-    { label: '3 heures', value: 180 },
-    { label: '6 heures', value: 360 },
-    { label: '12 heures', value: 720 },
-    { label: '24 heures', value: 1440 },
-  ],
-  'plex-sync-recent': [
-    { label: '5 minutes', value: 5 },
-    { label: '10 minutes', value: 10 },
-    { label: '15 minutes', value: 15 },
-    { label: '20 minutes', value: 20 },
-    { label: '30 minutes', value: 30 },
-    { label: '1 heure', value: 60 },
-  ],
-  'plex-sync': [
-    { label: '1 heure', value: 1 },
-    { label: '2 heures', value: 2 },
-    { label: '3 heures', value: 3 },
-    { label: '4 heures', value: 4 },
-    { label: '6 heures', value: 6 },
-    { label: '8 heures', value: 8 },
-    { label: '12 heures', value: 12 },
-    { label: '24 heures', value: 24 },
-    { label: '48 heures', value: 48 },
-    { label: '72 heures', value: 72 },
-  ],
-};
-// episode-tracking/episode-availability partagent vff_recheck_interval_minutes avec vff-statuses
-JOB_PRESETS['episode-tracking'] = JOB_PRESETS['vff-statuses'];
-JOB_PRESETS['episode-availability'] = JOB_PRESETS['vff-statuses'];
+const TASK_COLUMNS: UiColumn[] = [
+  { key: 'task', label: 'Tâche', card: 'title', minWidth: 240 },
+  { key: 'frequency', label: 'Fréquence' },
+  { key: 'last', label: 'Dernière exécution' },
+  { key: 'status', label: 'État' },
+  { key: 'actions', label: '', card: 'actions', className: 'actions' },
+];
 
-function jobPresets(job: string) { return JOB_PRESETS[job] || null; }
-
-const tasks = ref<any[]>([]);
 const openHistory = ref<string | null>(null);
-const history = ref<any[]>([]);
-const historyLoading = ref(false);
+const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
+const tasks = computed(() => tasksQuery.data.value || []);
+const historyQuery = useQuery({
+  queryKey: computed(() => ['settings', 'scheduled-tasks', openHistory.value, 'history']),
+  queryFn: () => api<any[]>(`/api/scheduled-tasks/${openHistory.value}/history`),
+  enabled: computed(() => Boolean(openHistory.value)),
+});
+const history = computed(() => historyQuery.data.value || []);
+const historyLoading = computed(() => historyQuery.isFetching.value);
 
-function cardStatus(task: any): string {
+const historyTask = computed(() => tasks.value.find((task: any) => task.job === openHistory.value) || null);
+
+function taskStatus(task: any): string {
   const status = task.state?.status;
   if (status === 'failed') return 'error';
   if (status === 'complete') return 'active';
   return 'neutral';
 }
 
-function cardStatusText(task: any): string {
+function taskStatusText(task: any): string {
   const status = task.state?.status;
-  if (status === 'failed') return 'Echec';
+  if (status === 'failed') return 'Échec';
   if (status === 'complete') return 'OK';
   if (status === 'running') return 'En cours';
-  return 'Jamais execute';
+  return 'Jamais exécutée';
 }
 
 function formatInterval(seconds: number): string {
@@ -158,56 +119,55 @@ function formatInterval(seconds: number): string {
   return `${Math.round(seconds / 86400)} j`;
 }
 
-
-async function loadTasks(): Promise<void> {
-  tasks.value = await api('/api/scheduled-tasks');
-}
-
-async function toggleHistory(job: string): Promise<void> {
-  if (openHistory.value === job) {
-    openHistory.value = null;
-    return;
-  }
-  openHistory.value = job;
-  historyLoading.value = true;
-  try {
-    history.value = await api(`/api/scheduled-tasks/${job}/history`);
-  } finally {
-    historyLoading.value = false;
-  }
-}
-
-onMounted(loadTasks);
 </script>
 <style scoped lang="scss">
-.scheduled-task-info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  font-size: var(--fs-sm);
-}
-.scheduled-task-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
+.scheduled-table :deep(td) { vertical-align: middle; }
+.scheduled-desc {
+  display: block;
+  max-width: 48ch;
+  margin-top: 2px;
   color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
 }
-.scheduled-task-row strong {
-  color: var(--text);
-  font-weight: 500;
-  text-align: right;
+.scheduled-last {
+  display: grid;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+.scheduled-last small,
+.scheduled-never {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.scheduled-fixed { color: var(--muted); }
+/* L'etat se lit a la couleur ET au mot, comme sur les lignes d'objets. */
+.scheduled-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.scheduled-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.scheduled-status.active { color: var(--green-text); }
+.scheduled-status.error { color: var(--red-text); }
 .scheduled-task-error {
-  font-size: var(--fs-sm);
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-xs);
   color: var(--red-text);
   word-break: break-word;
 }
 .scheduled-task-history {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  margin-top: 4px;
-}
-.scheduled-task-history ul {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -224,9 +184,10 @@ onMounted(loadTasks);
   padding: 6px 8px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
+  font-variant-numeric: tabular-nums;
 }
 .scheduled-task-history li.failed {
-  background: rgba(239, 68, 68, 0.08);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
 }
 .history-status {
   font-weight: 600;

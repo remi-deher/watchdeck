@@ -5,7 +5,7 @@ from html import escape
 from typing import Any, Optional
 
 import sqlalchemy
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import bindparam, text
@@ -15,7 +15,15 @@ from sqlalchemy.future import select
 from ..database import get_db_async
 from ..dependencies import current_user, require_admin
 from ..job_queue import arq_enabled, enqueue_job, notification_hold_enabled, set_notification_hold
-from ..models import AdminActionLog, DiagnosticEvent, MediaRequest, NotificationLog, PlexUser, Settings
+from ..models import (
+    AdminActionLog,
+    DiagnosticEvent,
+    MediaRequest,
+    NotificationLog,
+    PlexUser,
+    RequesterNotificationReceipt,
+    Settings,
+)
 from ..notification_queue import cancel_all_pending, cancel_pending, process_pending_id
 from ..notification_queue import enqueue as enqueue_notification
 from ..pagination import PaginationParams, paginated_response, pagination_params
@@ -196,6 +204,11 @@ def get_logs(_: None = Depends(require_admin)):
     return _get_logs()
 
 
+#: Catégories écrites dans `DiagnosticEvent` qui ne racontent pas le cycle de vie d'une
+#: demande, et n'ont donc rien à faire dans la vue par défaut du parcours.
+NON_JOURNEY_CATEGORIES = ("client_layout",)
+
+
 @router.get("/diagnostic-logs")
 async def list_diagnostic_logs(
     pagination: PaginationParams = Depends(pagination_params(max_limit=500, default_limit=200, strict=False)),
@@ -208,6 +221,13 @@ async def list_diagnostic_logs(
     q = select(DiagnosticEvent)
     if category:
         q = q.filter(DiagnosticEvent.category == category)
+    else:
+        # `DiagnosticEvent` sert aussi de journal à de la télémétrie qui n'appartient pas
+        # au parcours d'une demande : `client_layout` y écrit un événement à chaque
+        # ouverture de page, ce qui noyait l'onglet sous des lignes sans `request_id`
+        # (affichées « Demande #– ») et son objet de capacités navigateur. Elles restent
+        # consultables en demandant explicitement leur catégorie.
+        q = q.filter(DiagnosticEvent.category.notin_(NON_JOURNEY_CATEGORIES))
     if request_id:
         q = q.filter(DiagnosticEvent.request_id == request_id)
     if search:
@@ -333,6 +353,8 @@ async def list_notification_logs(
     types: str = None,
     users: str = None,
     search: str = None,
+    sort: str = Query("date", pattern="^(date|event|media|recipients|state)$"),
+    direction: str = Query("desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db_async),
 ):
     q = select(NotificationLog)
@@ -390,7 +412,17 @@ async def list_notification_logs(
             )
         )
 
-    q = q.order_by(NotificationLog.sent_at.desc())
+    # Chaque colonne de l'historique d'envoi se trie, en base, avant la pagination.
+    sort_keys = {
+        "date": NotificationLog.sent_at,
+        "event": NotificationLog.event,
+        "media": sqlalchemy.func.lower(NotificationLog.media_title),
+        "recipients": sqlalchemy.func.lower(NotificationLog.recipient),
+        "state": NotificationLog.success,
+    }
+    key = sort_keys[sort]
+    ordered = key.asc().nulls_last() if direction == "asc" else key.desc().nulls_last()
+    q = q.order_by(ordered, NotificationLog.sent_at.desc(), NotificationLog.id.desc())
     total = (await db.execute(sqlalchemy.select(sqlalchemy.func.count()).select_from(q.subquery()))).scalar()
     logs = (await db.execute(q.offset(pagination.offset).limit(pagination.limit))).scalars().all()
     return paginated_response(
@@ -493,7 +525,11 @@ async def preview_notification_log(log_id: int, db: AsyncSession = Depends(get_d
                 dry_run=True,
             )
         elif base_event == "cancelled":
-            subject, html = await send_cancelled_notification(settings, req, log.recipient, display_name, dry_run=True)
+            # Le motif ecrit par l'administrateur part avec le message : le rejouer sans
+            # lui donnait un apercu ampute du seul paragraphe qui explique la decision.
+            subject, html = await send_cancelled_notification(
+                settings, req, log.recipient, display_name, reason=log.reason or "", dry_run=True
+            )
         else:
             return {
                 "subject": None,
@@ -559,10 +595,72 @@ async def get_notification_hold(db: AsyncSession = Depends(get_db_async)):
     return {"enabled": await notification_hold_enabled(), "pending_count": int(pending_count or 0)}
 
 
+@router.get("/notifications/resume-preview")
+async def notification_resume_preview(db: AsyncSession = Depends(get_db_async)):
+    from ..models import PendingNotification
+    from ..services.notification_delivery import recipient_status
+
+    settings = (await db.execute(select(Settings))).scalars().first()
+    rows = (await db.execute(select(PendingNotification))).scalars().all()
+    counts = {"ready": 0, "obsolete": 0, "sent": 0, "cancelled": 0, "uncertain": 0, "old": 0}
+    for row in rows:
+        req = await db.get(MediaRequest, row.req_id)
+        context = _safe_json_value(row.reason, {})
+        recipients = _safe_json_value(row.recipients, [])
+        if not isinstance(context, dict) or not isinstance(recipients, list):
+            counts["obsolete"] += 1
+            continue
+        for recipient in recipients:
+            state = (
+                await recipient_status(db, req, settings, row.event, recipient, context)
+                if req and settings
+                else "obsolete"
+            )
+            if state == "ready" and row.created_at < now_utc_naive() - timedelta(days=1):
+                state = "old"
+            counts[state] += 1
+    return {"counts": counts, "pending_count": len(rows)}
+
+
+@router.get("/notifications/deliveries")
+async def notification_delivery_history(db: AsyncSession = Depends(get_db_async)):
+    from ..models import NotificationDelivery
+
+    rows = (
+        (await db.execute(select(NotificationDelivery).order_by(NotificationDelivery.updated_at.desc()).limit(100)))
+        .scalars()
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "send_key": row.send_key,
+                "req_id": row.req_id,
+                "event": row.event,
+                "recipient": row.recipient,
+                "state": row.state,
+                "updated_at": row.updated_at.isoformat() + "Z",
+                "detail": row.detail,
+            }
+            for row in rows
+        ]
+    }
+
+
 @router.put("/notifications/hold")
 async def update_notification_hold(
     body: NotificationHoldPayload, request: Request, db: AsyncSession = Depends(get_db_async)
 ):
+    if not body.enabled:
+        from ..models import PendingNotification
+
+        # Existing backlog remains explicitly reviewable even after an ARQ restart.
+        for row in (await db.execute(select(PendingNotification))).scalars().all():
+            context = _safe_json_value(row.reason, {})
+            if isinstance(context, dict):
+                context["held_for_review"] = True
+                row.reason = _json.dumps(context)
+        await db.commit()
     await set_notification_hold(body.enabled, db=db)
     pending_count = await db.scalar(text("SELECT COUNT(*) FROM pending_notifications"))
     await _log_admin_action(
@@ -726,6 +824,57 @@ async def _mark_pending_rows_handled(db: AsyncSession, rows: list) -> int:
     return handled
 
 
+async def _remember_cancelled_notifications(db: AsyncSession, rows: list) -> None:
+    """Persist cancellation separately from delivery, for each targeted requester."""
+    from ..models import NotificationDelivery
+    from ..services.notification_delivery import identity_for, prepare
+    from ..services.notification_orchestrator import notification_receipt_key
+
+    seen = set()
+    for row in rows:
+        context = _safe_json_value(row.reason, {})
+        if not isinstance(context, dict):
+            context = {}
+        mapping = context.get("requester_ids_by_recipient") or {}
+        recipients = _safe_json_value(row.recipients, [])
+        if not isinstance(mapping, dict) or not isinstance(recipients, list):
+            continue
+        event_key = "cancelled:" + notification_receipt_key(row.event, context)
+        for recipient in recipients:
+            identity = identity_for(row.req_id, row.event, recipient, context)
+            await prepare(db, identity)
+            await db.execute(
+                sqlalchemy.update(NotificationDelivery)
+                .where(
+                    NotificationDelivery.send_key == identity["send_key"],
+                    NotificationDelivery.state.in_(("prepared", "failed")),
+                )
+                .values(state="cancelled", updated_at=now_utc_naive(), detail="Annulée par un administrateur")
+            )
+            for uid in mapping.get(recipient, []):
+                key = (row.req_id, str(uid), event_key)
+                if key in seen:
+                    continue
+                seen.add(key)
+                existing = (
+                    await db.execute(
+                        select(RequesterNotificationReceipt.id).filter_by(
+                            req_id=row.req_id,
+                            plex_user_id=str(uid),
+                            event_key=event_key,
+                        )
+                    )
+                ).first()
+                if not existing:
+                    db.add(
+                        RequesterNotificationReceipt(
+                            req_id=row.req_id,
+                            plex_user_id=str(uid),
+                            event_key=event_key,
+                        )
+                    )
+
+
 @router.post("/notifications/pending/purge")
 async def purge_pending_notifications(
     body: PendingNotificationPurge,
@@ -734,11 +883,9 @@ async def purge_pending_notifications(
 ):
     ids = body.ids or []
     pending_rows = await _pending_rows_for_purge(db, ids)
+    await _remember_cancelled_notifications(db, pending_rows)
     handled = await _mark_pending_rows_handled(db, pending_rows) if body.mark_handled else 0
-    if body.mark_handled:
-        await db.commit()
-    else:
-        await db.rollback()
+    await db.commit()
     if ids:
         deleted = await cancel_pending(ids)
         action = "notification_queue_delete"
@@ -820,5 +967,5 @@ async def resend_notification(log_id: int, db: AsyncSession = Depends(get_db_asy
         if event == "available"
         else None
     )
-    await enqueue_notification(event, req.id, [log.recipient], context)
+    await enqueue_notification(event, req.id, [log.recipient], context, triggered_by="manual")
     return {"status": "queued", "recipient": log.recipient, "event": event}

@@ -1,0 +1,236 @@
+import { computed, ref, type ComputedRef } from 'vue';
+import { useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
+
+/**
+ * La fiche d'un media s'ouvre par-dessus la page d'ou on vient.
+ *
+ * Elle reste une route a part entiere -- son adresse se partage, le bouton « retour »
+ * la referme, un lien direct l'ouvre en pleine page. Mais quand on y arrive depuis une
+ * grille, la grille ne disparait pas : elle reste derriere, assombrie. On n'a plus
+ * l'impression de naviguer mais d'ouvrir, et c'est de cet ecart -- une vignette qui
+ * devient une image pleine largeur au-dessus de ce qu'on regardait -- que vient le
+ * mouvement. Une page qui remplace une page n'a rien a montrer.
+ *
+ * L'adresse de depart voyage dans l'etat de l'historique plutot que dans une variable :
+ * elle survit ainsi au rechargement et aux allers-retours, et chaque entree porte la
+ * sienne. Sans elle -- lien colle, favori, actualisation -- la fiche s'affiche en pleine
+ * page, exactement comme avant.
+ */
+
+const CLE_FOND = '__overlayBackground';
+
+export interface MediaOverlayState {
+  /** Vrai quand la fiche courante doit se poser au-dessus d'une page existante. */
+  actif: ComputedRef<boolean>;
+  /** La route a rendre derriere, ou `null` pour rendre la route courante normalement. */
+  routeDeFond: ComputedRef<RouteLocationNormalizedLoaded | null>;
+  /** Referme la surface en revenant a la page de fond. */
+  fermer: () => void;
+}
+
+/** Ajoute l'adresse de depart a une navigation, pour que la cible s'ouvre en surface. */
+export function etatDeSurface(depuis: string): Record<string, unknown> {
+  return { [CLE_FOND]: depuis };
+}
+
+/**
+ * Ouvre une fiche media par-dessus la page courante.
+ *
+ * A utiliser partout ou l'on poussait `mediaDetailPath(...)` directement : sans l'adresse
+ * de depart, la fiche remplacerait la page au lieu de s'y poser, et l'on perdrait la
+ * grille -- sa position de defilement comprise.
+ */
+export function ouvrirFiche(
+  router: { push: (to: any) => unknown; resolve: (to: any) => { path: string; query: any; hash: string } },
+  cible: string | Record<string, unknown>,
+  depuis: string,
+  /** Etat supplementaire de l'entree : la liste parcourue, pour « precedent / suivant ». */
+  extra: Record<string, unknown> = {},
+): Promise<unknown> {
+  // La promesse est rendue pour qui doit attendre la navigation (la palette, qui ne
+  // se ferme qu'une fois la fiche inscrite dans l'historique).
+  return Promise.resolve(router.push({ ...destinationDeFiche(router, cible), state: { ...extra, ...etatDeSurface(depuis) } }));
+}
+
+const CLE_VOISINS = '__sheetSiblings';
+
+/** Etat portant la liste d'ou l'on ouvre une fiche : ses identifiants, dans l'ordre. */
+export function etatDeVoisins(ids: Array<string | number>): Record<string, unknown> {
+  return { [CLE_VOISINS]: ids.map(String) };
+}
+
+/** Identifiants de la liste d'origine, relus dans l'entree d'historique courante. */
+export function voisinsCourants(): string[] {
+  if (typeof history === 'undefined') return [];
+  const valeur = (history.state as Record<string, unknown> | null)?.[CLE_VOISINS];
+  return Array.isArray(valeur) ? valeur.map(String) : [];
+}
+
+const CLE_SERIE = '__sheetRun';
+
+/** Une lecture d'une serie de lectures consecutives : de quoi l'afficher sans la charger. */
+export interface LectureDeSerie {
+  id: string;
+  method: string;
+  started_at: string;
+  watched_ms: number;
+  label: string;
+}
+
+/** Etat portant les lectures consecutives repliees dans la ligne ouverte. */
+export function etatDeSerie(lectures: LectureDeSerie[]): Record<string, unknown> {
+  return { [CLE_SERIE]: lectures.map((lecture) => ({ ...lecture, id: String(lecture.id) })) };
+}
+
+/** Lectures consecutives de la ligne d'origine, relues dans l'entree d'historique courante. */
+export function serieCourante(): LectureDeSerie[] {
+  if (typeof history === 'undefined') return [];
+  const valeur = (history.state as Record<string, unknown> | null)?.[CLE_SERIE];
+  return Array.isArray(valeur) ? (valeur as LectureDeSerie[]) : [];
+}
+
+/**
+ * Decompose une adresse de fiche en ses trois parties.
+ *
+ * Une adresse de media porte souvent une chaine de requete -- `?media_type=show` dit au
+ * serveur s'il s'agit d'un film ou d'une serie. Deposee telle quelle dans `path`, elle
+ * est perdue : le routeur prend la valeur pour un chemin litteral. Le serveur recevait
+ * alors un type vide et refusait la requete, et la fiche affichait « n'a pas pu etre
+ * chargee ». On passe donc par le routeur lui-meme, qui sait separer chemin, requete et
+ * ancre.
+ */
+export function destinationDeFiche(
+  router: { resolve: (to: any) => { path: string; query: any; hash: string } },
+  cible: string | Record<string, unknown>
+): { path: string; query: unknown; hash: string } {
+  const resolue = router.resolve(cible as any);
+  return { path: resolue.path, query: resolue.query, hash: resolue.hash };
+}
+
+/* `router.resolve` ne charge pas les vues paresseuses (`() => import(...)`) : seule la
+   navigation le fait. Apres un rechargement sur une fiche ouverte depuis une page, la
+   page de fond est restauree par `resolve` seul ; `RouterView` recevait alors la
+   fonction de chargement en guise de composant et affichait la promesse en texte
+   (« [object Promise] »). On charge donc ces vues comme le fait le routeur, et le fond
+   n'est rendu qu'une fois pret. */
+const vuesChargees = ref(0);
+const chargementsEnCours = new Set<string>();
+
+function estVueParesseuse(composant: unknown): composant is () => Promise<any> {
+  return (
+    typeof composant === 'function' &&
+    !('displayName' in composant) &&
+    !('props' in composant) &&
+    !('__vccOpts' in composant)
+  );
+}
+
+/** Vrai si toutes les vues de la route sont chargees ; sinon lance leur chargement. */
+export function vuesDeRoutePretes(route: RouteLocationNormalizedLoaded | null): boolean {
+  if (!route) return true;
+  void vuesChargees.value;
+  const enAttente = route.matched.flatMap((record) =>
+    Object.entries(record.components || {})
+      .filter(([, composant]) => estVueParesseuse(composant))
+      .map(([nom, composant]) => ({ record, nom, charger: composant as () => Promise<any> })),
+  );
+  if (!enAttente.length) return true;
+  const cle = route.fullPath;
+  if (!chargementsEnCours.has(cle)) {
+    chargementsEnCours.add(cle);
+    void Promise.all(
+      enAttente.map(async ({ record, nom, charger }) => {
+        const module = await charger();
+        // Meme remplacement que le routeur apres une navigation.
+        (record.components as Record<string, unknown>)[nom] = module?.default ?? module;
+      }),
+    )
+      .catch(() => {})
+      .finally(() => {
+        chargementsEnCours.delete(cle);
+        vuesChargees.value += 1;
+      });
+  }
+  return false;
+}
+
+export function useMediaOverlay(): MediaOverlayState {
+  const route = useRoute();
+  const router = useRouter();
+
+  const adresseDeFond = computed<string | null>(() => {
+    // `route.fullPath` est lu pour que le calcul se refasse a chaque navigation :
+    // `history.state` n'est pas reactif et ne declencherait rien de lui-meme.
+    void route.fullPath;
+    if (typeof history === 'undefined') return null;
+    const valeur = (history.state as Record<string, unknown> | null)?.[CLE_FOND];
+    return typeof valeur === 'string' && valeur ? valeur : null;
+  });
+
+  // Resolue une seule fois par adresse : passer d'une fiche a l'autre depuis la meme
+  // grille ne doit pas presenter a la page de fond une route « nouvelle » a chaque fois.
+  let derniere: { adresse: string; route: RouteLocationNormalizedLoaded } | null = null;
+  const routeDeFond = computed(() => {
+    const adresse = adresseDeFond.value;
+    if (!adresse) return null;
+    if (derniere?.adresse === adresse) return derniere.route;
+    try {
+      const route = router.resolve(adresse) as unknown as RouteLocationNormalizedLoaded;
+      derniere = { adresse, route };
+      return route;
+    } catch {
+      // Une adresse devenue invalide ne doit pas empecher la fiche de s'afficher : on
+      // retombe simplement sur la pleine page.
+      return null;
+    }
+  });
+
+  const actif = computed(() => routeDeFond.value !== null);
+
+  function fermer(): void {
+    // `back()` plutot qu'un `push` vers la page de fond : l'entree de la fiche est
+    // consommee, et l'on retrouve la grille exactement ou on l'avait laissee --
+    // position de defilement comprise.
+    if (actif.value) router.back();
+    else router.push('/discover');
+  }
+
+  return { actif, routeDeFond, fermer };
+}
+
+/**
+ * Ouverture de fiche pour un lien ou un bouton quelconque.
+ *
+ * `ouvrir` pose la fiche en surface ; depuis une surface deja ouverte (session, autre
+ * fiche), elle la remplace sur la meme page de fond, pour que « retour » y ramene.
+ * `auClic` s'accroche au `@click` d'un lien qui garde son `:to` : le clic simple ouvre
+ * la surface, les clics enrichis (milieu, Ctrl, nouvel onglet) restent au navigateur.
+ */
+export function useOuvrirFiche(): {
+  ouvrir: (cible: string | Record<string, unknown>) => void;
+  auClic: (event: MouseEvent, cible: string | Record<string, unknown> | null | undefined) => void;
+} {
+  const route = useRoute();
+  const router = useRouter();
+  const { routeDeFond } = useMediaOverlay();
+
+  function ouvrir(cible: string | Record<string, unknown>): void {
+    void ouvrirFiche(router, cible, routeDeFond.value?.fullPath ?? route.fullPath);
+  }
+
+  function auClic(event: MouseEvent, cible: string | Record<string, unknown> | null | undefined): void {
+    if (!cible || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0) return;
+    event.preventDefault();
+    ouvrir(cible);
+  }
+
+  return { ouvrir, auClic };
+}
+
+/** Etat de surface de l'entree courante (page de fond, voisins), a reporter sur une
+ *  navigation qui remplace la fiche par une autre. Sans les cles internes du routeur. */
+export function etatDeSurfaceCourant(): Record<string, unknown> {
+  if (typeof history === 'undefined' || !history.state) return {};
+  const etat = history.state as Record<string, unknown>;
+  return Object.fromEntries([CLE_FOND, CLE_VOISINS, CLE_SERIE].filter((cle) => cle in etat).map((cle) => [cle, etat[cle]]));
+}

@@ -18,9 +18,14 @@ on:
     tags:
       - "v*"
 
+# Pas d'annulation d'un build en cours : la resynchronisation main -> test pousse sur
+# `test` quelques minutes apres la promotion, pendant que le build de la vraie version
+# attend encore sa CI. L'annuler laissait :test sur l'ancien code, et la release
+# suivante attendait en vain une image qui ne viendrait plus (v1.56.0). Le push suivant
+# patiente simplement son tour.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -55,20 +60,33 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           EVENT_BEFORE: ${{ github.event.before }}
           CURRENT_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           # Un tag est l'artefact de release : toujours construit, quel que soit le diff.
           if [ "$REF_TYPE" = "tag" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Premier push sur une branche (pas de "before" exploitable) : on construit.
-          if [ -z "$EVENT_BEFORE" ] || [ "$EVENT_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+          # Base de comparaison : le code que porte REELLEMENT l'image publiee, pas le
+          # push precedent. Si le build precedent a ete annule ou a echoue, le push
+          # precedent n'a jamais ete construit : comparer a lui faisait sauter le build
+          # d'une resynchronisation « CHANGELOG seul », et :test restait sur l'ancien code.
+          BASE="$EVENT_BEFORE"
+          if [ "$REF_NAME" = "test" ] && docker pull --quiet mrcryllix/watchdeck:test >/dev/null 2>&1; then
+            IMAGE_REV="$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' mrcryllix/watchdeck:test 2>/dev/null || true)"
+            if [ -n "$IMAGE_REV" ] && [ "$IMAGE_REV" != "<no value>" ] && git cat-file -e "$IMAGE_REV^{commit}" 2>/dev/null; then
+              BASE="$IMAGE_REV"
+              echo "Comparaison avec le code de l'image :test publiee ($IMAGE_REV)."
+            fi
+          fi
+          # Premier push sur une branche (pas de base exploitable) : on construit.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # Un historique tronque peut faire echouer le diff : on construit par securite
           # plutot que de rater une image (meme principe que dans e2e.yml).
-          if ! CHANGED="$(git diff --name-only "$EVENT_BEFORE...$CURRENT_SHA" 2>&1)"; then
+          if ! CHANGED="$(git diff --name-only "$BASE...$CURRENT_SHA" 2>&1)"; then
             echo "::warning::git diff a echoue ($CHANGED) -- build par securite."
             echo "build=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -142,7 +160,7 @@ jobs:
       id-token: write # signature Cosign keyless (OIDC Fulcio/Rekor)
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -181,7 +199,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Docker metadata
         id: meta
@@ -197,7 +215,7 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           push: true
@@ -226,7 +244,21 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           for image in mrcryllix/watchdeck ghcr.io/remi-deher/watchdeck; do
-            cosign sign --yes "${image}@${DIGEST}"
+            signed=false
+            for attempt in 1 2 3; do
+              if cosign sign --yes "${image}@${DIGEST}"; then
+                signed=true
+                break
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "::warning::Signature Cosign de ${image} échouée (tentative ${attempt}/3), nouvelle tentative."
+                sleep $((attempt * 10))
+              fi
+            done
+            if [ "$signed" != "true" ]; then
+              echo "::error::Impossible de signer ${image}@${DIGEST} après 3 tentatives."
+              exit 1
+            fi
           done
 
   # PROMOTION (tags uniquement) : publie en production l'image DEJA construite et
@@ -245,7 +277,7 @@ jobs:
       id-token: write # signature Cosign keyless (OIDC Fulcio/Rekor)
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -266,39 +298,22 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Resolve the tested image
+      # Le tag arrive souvent AVANT que l'image :test de son code soit prete : le build
+      # de `test` attend d'abord la CI du commit (E2E compris, ~10 min), alors que la
+      # promotion vers main et la release passent en moins de temps. Le tag trouvait
+      # donc l'image :test de la version precedente et refusait la release a chaque
+      # cycle, jusqu'a une relance manuelle. On attend desormais que :test porte le
+      # code de cette release ; seul un ecart qui persiste (hotfix direct sur main)
+      # fait echouer.
+      - name: Resolve the tested image (waits for :test to carry this release)
         id: tested
+        env:
+          WAIT_MINUTES: "30"
         run: |
           set -euo pipefail
           REF="mrcryllix/watchdeck:test"
-          # On passe par un `pull` + `docker inspect` plutot que par
-          # `imagetools inspect --format` : nos images sont publiees sous forme de
-          # liste de manifestes (multi-plateforme + attestations), et dans ce cas le
-          # champ .Image de imagetools devient une map indexee par plateforme --
-          # `.Image.Config.Labels` n'y resout pas. `docker inspect` sur l'image tiree
-          # a, lui, une forme stable et documentee.
-          docker pull --quiet "$REF"
-          DIGEST="$(docker inspect --format '{{ index .RepoDigests 0 }}' "$REF" | cut -d@ -f2)"
-          REVISION="$(docker inspect \
-            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$REF")"
-          if [ -z "$DIGEST" ] || [ -z "$REVISION" ] || [ "$REVISION" = "<no value>" ]; then
-            echo "::error::Impossible de determiner l'image testee (digest='$DIGEST', revision='$REVISION')."
-            echo "::error::L'image :test doit avoir ete construite APRES l'ajout du label de revision"
-            echo "::error::(voir 'labels:' dans le job build-and-push). Promouvoir une image dont on ne"
-            echo "::error::peut pas prouver l'origine reviendrait a publier du code non verifie."
-            exit 1
-          fi
-          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
-          echo "Image testee : $REF@$DIGEST (commit $REVISION)"
-
-      - name: Verify the tested image matches this release
-        env:
-          REVISION: ${{ steps.tested.outputs.revision }}
-        run: |
-          set -euo pipefail
           # Seuls ces chemins entrent dans l'image (voir les COPY du Dockerfile).
           # On les compare volontairement plutot que l'arbre complet : le commit de
           # release ajoute CHANGELOG.md, qui ne fait PAS partie de l'image -- une
@@ -306,20 +321,39 @@ jobs:
           PATHS="app alembic alembic.ini scripts docker-entrypoint.sh Dockerfile \
                  frontend package.json package-lock.json vite.config.ts \
                  tsconfig.json tsconfig.node.json index.html requirements.txt"
-          if ! git cat-file -e "$REVISION^{commit}" 2>/dev/null; then
-            echo "::error::Le commit $REVISION de l'image testee est introuvable dans ce depot."
-            exit 1
-          fi
-          if git diff --quiet "$REVISION" "${{ github.sha }}" -- $PATHS; then
-            echo "L'image testee correspond exactement au code de cette release."
-          else
-            echo "::error::Le code de cette release DIFFERE de l'image testee :"
-            git diff --name-only "$REVISION" "${{ github.sha }}" -- $PATHS
-            echo "::error::Promotion refusee -- publier cette image livrerait autre chose que le code tague."
-            echo "::error::Cause probable : un commit est arrive sur main sans passer par test (hotfix direct)."
-            echo "::error::Corriger en resynchronisant main dans test, puis en repromouvant test -> main."
-            exit 1
-          fi
+          deadline=$(( $(date +%s) + WAIT_MINUTES * 60 ))
+          while :; do
+            # `pull` + `docker inspect` plutot que `imagetools inspect --format` : nos
+            # images sont des listes de manifestes (multi-plateforme + attestations),
+            # ou `.Image.Config.Labels` ne resout pas.
+            docker pull --quiet "$REF" >/dev/null
+            DIGEST="$(docker inspect --format '{{ index .RepoDigests 0 }}' "$REF" | cut -d@ -f2)"
+            REVISION="$(docker inspect \
+              --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$REF")"
+            if [ -z "$DIGEST" ] || [ -z "$REVISION" ] || [ "$REVISION" = "<no value>" ]; then
+              echo "::error::Impossible de determiner l'image testee (digest='$DIGEST', revision='$REVISION')."
+              echo "::error::Promouvoir une image dont on ne peut pas prouver l'origine reviendrait a publier du code non verifie."
+              exit 1
+            fi
+            if git cat-file -e "$REVISION^{commit}" 2>/dev/null \
+              && git diff --quiet "$REVISION" "${{ github.sha }}" -- $PATHS; then
+              echo "Image testee : $REF@$DIGEST (commit $REVISION), identique au code de cette release."
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Apres ${WAIT_MINUTES} min, l'image testee ($REVISION) DIFFERE encore de cette release :"
+              git diff --name-only "$REVISION" "${{ github.sha }}" -- $PATHS || true
+              echo "::error::Promotion refusee -- publier cette image livrerait autre chose que le code tague."
+              echo "::error::Cause probable : un commit est arrive sur main sans passer par test (hotfix direct)."
+              echo "::error::Corriger en resynchronisant main dans test, puis en repromouvant test -> main."
+              exit 1
+            fi
+            echo "L'image :test porte encore $REVISION : attente de la construction de test (nouvel essai dans 60 s)."
+            sleep 60
+            git fetch --quiet origin test || true
+          done
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
 
       - name: Compute release metadata
         id: meta
@@ -327,7 +361,7 @@ jobs:
 
       - name: Stamp the release version onto the tested image
         id: stamp
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: Dockerfile.release
@@ -373,7 +407,21 @@ jobs:
           DIGEST: ${{ steps.stamp.outputs.digest }}
         run: |
           for image in mrcryllix/watchdeck ghcr.io/remi-deher/watchdeck; do
-            cosign sign --yes "${image}@${DIGEST}"
+            signed=false
+            for attempt in 1 2 3; do
+              if cosign sign --yes "${image}@${DIGEST}"; then
+                signed=true
+                break
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "::warning::Signature Cosign de ${image} échouée (tentative ${attempt}/3), nouvelle tentative."
+                sleep $((attempt * 10))
+              fi
+            done
+            if [ "$signed" != "true" ]; then
+              echo "::error::Impossible de signer ${image}@${DIGEST} après 3 tentatives."
+              exit 1
+            fi
           done
 
       - name: Summary

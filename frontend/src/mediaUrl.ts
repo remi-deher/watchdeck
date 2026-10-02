@@ -1,3 +1,5 @@
+import { isMusicType } from '@/utils/labels';
+
 export interface MediaDetailPathOptions {
   discover?: boolean;
 }
@@ -24,7 +26,13 @@ export function mediaDetailPath(
   if (kind === 'library' || (!kind && Boolean(item.library_id))) {
     return `${base}/library/${item.library_id || item.id}`;
   }
-  // Découvrir (pas encore suivi)
+  // Découvrir (pas encore suivi) : TMDB ne connait que films et series. Un element
+  // musical sans identifiant de bibliotheque n'a pas de fiche : on n'en fabrique pas une
+  // cassee (l'id de bibliotheque d'un album etait pris pour un id TMDB).
+  if (isMusicType(item.media_type)) {
+    const libraryId = item.library_id ?? (kind === 'library' ? item.id : undefined);
+    return libraryId != null ? `${base}/library/${libraryId}` : '';
+  }
   const params = new URLSearchParams();
   if (item.media_type) params.set('media_type', item.media_type);
   let id = item.id;

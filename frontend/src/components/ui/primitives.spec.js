@@ -6,7 +6,6 @@ import LoadMore from './LoadMore.vue';
 import MetricCard from './MetricCard.vue';
 import MetricGrid from './MetricGrid.vue';
 import PanelCard from './PanelCard.vue';
-import TabNav from './TabNav.vue';
 import ToggleSwitch from './ToggleSwitch.vue';
 import UiButton from './UiButton.vue';
 import UiEmptyState from './UiEmptyState.vue';
@@ -78,23 +77,40 @@ describe('UiButton links', () => {
 describe('UiCheckboxField', () => {
   it('associe le libellé et l’aide puis émet la nouvelle valeur', async () => {
     const wrapper = mount(UiCheckboxField, { props: { modelValue: false, label: 'Notifications', hint: 'Recevoir un résumé.' } });
-    const input = wrapper.find('input');
-    expect(wrapper.find('label').attributes('for')).toBe(input.attributes('id'));
-    expect(input.attributes('aria-describedby')).toBe(wrapper.find('.ui-checkbox-hint').attributes('id'));
-    await input.setValue(true);
+    const box = wrapper.find('[role="checkbox"]');
+    expect(wrapper.find('label').attributes('for')).toBe(box.attributes('id'));
+    expect(box.attributes('aria-describedby')).toBe(wrapper.find('.ui-checkbox-hint').attributes('id'));
+    expect(box.attributes('aria-checked')).toBe('false');
+    await box.trigger('click');
     expect(wrapper.emitted('update:modelValue')).toEqual([[true]]);
   });
 });
 
 describe('UiSegmentedControl', () => {
-  it('expose la sélection et émet le nouvel onglet', async () => {
+  it('expose un choix exclusif (groupe de boutons bascules), pas des onglets', async () => {
     const wrapper = mount(UiSegmentedControl, { props: {
       modelValue: 'week', ariaLabel: 'Période',
       options: [{ value: 'week', label: 'Semaine' }, { value: 'month', label: 'Mois', count: 3 }],
     } });
-    expect(wrapper.findAll('[role="tab"]')[0].attributes('aria-selected')).toBe('true');
-    await wrapper.findAll('button')[1].trigger('click');
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+    expect(wrapper.find('[role="group"]').attributes('aria-label')).toBe('Période');
+    const boutons = wrapper.findAll('button');
+    expect(boutons[0].attributes('data-state')).toBe('on');
+    expect(boutons[1].attributes('data-state')).toBe('off');
+    await boutons[1].trigger('click');
     expect(wrapper.emitted('update:modelValue')).toEqual([['month']]);
+  });
+
+  it('ne deselectionne pas la valeur choisie et rend son type a la valeur', async () => {
+    const wrapper = mount(UiSegmentedControl, { props: {
+      modelValue: 30, ariaLabel: 'Période',
+      options: [{ value: 7, label: '7 j' }, { value: 30, label: '30 j' }],
+    } });
+    const boutons = wrapper.findAll('button');
+    await boutons[1].trigger('click');
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    await boutons[0].trigger('click');
+    expect(wrapper.emitted('update:modelValue')).toEqual([[7]]);
   });
 });
 
@@ -308,36 +324,6 @@ describe('PanelCard', () => {
   });
 });
 
-describe('TabNav', () => {
-  const tabs = [
-    { value: 'queue', label: 'File active', count: 3, badgeClass: 'error-badge' },
-    { value: 'history', label: 'Historique' },
-  ];
-
-  it('marque l’onglet courant et expose les rôles ARIA', () => {
-    const wrapper = mount(TabNav, { props: { tabs, modelValue: 'queue', ariaLabel: 'Téléchargements' } });
-    expect(wrapper.find('nav.detail-tabs').attributes('aria-label')).toBe('Téléchargements');
-    expect(wrapper.find('nav').attributes('role')).toBe('tablist');
-    const [active, other] = wrapper.findAll('button[role="tab"]');
-    expect(active.attributes('aria-selected')).toBe('true');
-    expect(active.classes()).toContain('active');
-    expect(other.attributes('aria-selected')).toBe('false');
-  });
-
-  it('affiche le compteur seulement là où il y en a un', () => {
-    const wrapper = mount(TabNav, { props: { tabs, modelValue: 'queue' } });
-    const badges = wrapper.findAll('.tab-badge');
-    expect(badges).toHaveLength(1);
-    expect(badges[0].text()).toBe('3');
-    expect(badges[0].classes()).toContain('error-badge');
-  });
-
-  it('émet la nouvelle valeur au clic', async () => {
-    const wrapper = mount(TabNav, { props: { tabs, modelValue: 'queue' } });
-    await wrapper.findAll('button')[1].trigger('click');
-    expect(wrapper.emitted('update:modelValue')).toEqual([['history']]);
-  });
-});
 
 describe('LoadMore', () => {
   it('ne s’affiche que s’il reste des pages', () => {
@@ -364,24 +350,22 @@ describe('LoadMore', () => {
 describe('ToggleSwitch', () => {
   it('expose un interrupteur accessible reflétant son état', () => {
     const wrapper = mount(ToggleSwitch, { props: { modelValue: true, label: 'Réactiver' } });
-    const input = wrapper.find('input');
-    expect(input.attributes('role')).toBe('switch');
-    expect(input.attributes('aria-checked')).toBe('true');
-    expect(input.element.checked).toBe(true);
+    const control = wrapper.find('[role="switch"]');
+    expect(control.attributes('aria-checked')).toBe('true');
     expect(wrapper.find('label').classes()).toContain('is-on');
     // Le libellé est du vrai texte, pas un `content:` CSS : lisible par un lecteur d'écran.
     expect(wrapper.find('.ui-switch-label').text()).toBe('Réactiver');
-    expect(input.attributes('aria-label')).toBe('Réactiver');
+    expect(control.attributes('aria-label')).toBe('Réactiver');
   });
 
   it('émet la nouvelle valeur au changement', async () => {
     const wrapper = mount(ToggleSwitch, { props: { modelValue: false } });
-    await wrapper.find('input').setValue(true);
+    await wrapper.find('[role="switch"]').trigger('click');
     expect(wrapper.emitted('update:modelValue')).toEqual([[true]]);
   });
 
   it('se laisse désactiver pendant une écriture en cours', () => {
     const wrapper = mount(ToggleSwitch, { props: { modelValue: false, disabled: true } });
-    expect(wrapper.find('input').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[role="switch"]').attributes('disabled')).toBeDefined();
   });
 });

@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue';
+import { isReadonly, ref, type Ref } from 'vue';
 import { api } from '@/api';
 import { canModerateSession, loadSession } from '@/composables/useSession';
 
@@ -74,7 +74,11 @@ export function useDirectMediaRequest({ onUpdated }: DirectMediaRequestOptions =
         request_status: data.pending_approval ? 'pending_approval' : 'sent_to_arr',
         is_downloading: false,
       };
-      Object.assign(item, update);
+      /* Un element d'une liste locale (saga, recommandations) est mis a jour ici meme.
+         Un element detenu par le cache de TanStack Query arrive en lecture seule : le
+         modifier echouait en silence (avertissement « target is readonly »), et c'est a
+         son proprietaire de remettre au cache une copie modifiee, via `onUpdated`. */
+      if (!isReadonly(item)) Object.assign(item, update);
       onUpdated?.(item, update);
       requestSuccess.value = data.already_existed
         ? `${item.title || item.name} était déjà demandé.`

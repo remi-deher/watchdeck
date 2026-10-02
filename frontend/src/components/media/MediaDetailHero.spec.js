@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import MediaDetailHero from './MediaDetailHero.vue';
+import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 
 describe('MediaDetailHero', () => {
   it('priorise le chargement de l’affiche principale avec une taille responsive', () => {
@@ -138,5 +139,31 @@ describe('MediaDetailHero', () => {
     });
 
     expect(wrapper.text()).not.toContain('Rechercher');
+  });
+  it('sort le retour du flux, pour qu’il ne descende pas avec le titre', () => {
+    // La banniere ancre son contenu en bas, comme celle d'Explorer : un bouton reste
+    // dans le flux se retrouverait au fond de l'image, sous l'affiche.
+    const wrapper = mount(MediaDetailHero, { props: { detail: { title: 'Inception', media_type: 'movie' } } });
+
+    const backdrop = wrapper.getComponent(UiHeroBackdrop);
+    expect(backdrop.get('.ui-hero-backdrop__overlay .mdh-back').exists()).toBe(true);
+    expect(wrapper.find('.mdh-content .mdh-back').exists()).toBe(false);
+  });
+
+  it('rend le fond hero partage en mode carte ou feuille', async () => {
+    const wrapper = mount(MediaDetailHero, {
+      props: { detail: { title: 'Inception', media_type: 'movie', backdrop_url: '/hero.jpg' } },
+    });
+
+    expect(wrapper.getComponent(UiHeroBackdrop).props()).toMatchObject({ variant: 'card', zoomOnHover: false });
+    await wrapper.setProps({ variant: 'sheet' });
+    expect(wrapper.getComponent(UiHeroBackdrop).props()).toMatchObject({ variant: 'sheet', position: 'center 18%' });
+  });
+
+  it('n’affiche pas l’origine « Déjà présent dans Plex », redondante avec le statut', () => {
+    const plex = mount(MediaDetailHero, { props: { detail: { title: 'X', media_type: 'show', origin_kind: 'plex', origin_label: 'Deja present dans Plex' }, statusLabel: 'Disponible dans Plex' } });
+    expect(plex.find('.origin-badge').exists()).toBe(false);
+    const seerr = mount(MediaDetailHero, { props: { detail: { title: 'X', media_type: 'movie', origin_kind: 'request', origin_label: 'Demande via Seerr' } } });
+    expect(seerr.get('.origin-badge').text()).toBe('Demande via Seerr');
   });
 });

@@ -1,3 +1,5 @@
+@use "../foundations/breakpoints" as bp;
+
 .panel,
 .metric-card,
 .media-card {
@@ -12,7 +14,7 @@
 
 .media-card {
   overflow: hidden;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 /* Variante « avec icone » de .metric-card (Activite Plex) : l'icone et le bloc de texte
@@ -38,16 +40,16 @@
   background: var(--surface-2);
   border-radius: var(--btn-radius);
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), background var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .primary {
-  color: #151515;
+  color: var(--on-accent);
   background: var(--accent-gradient, var(--accent));
   border: none;
   padding: 0 16px;
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(229, 160, 13, 0.15);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .primary span,
@@ -57,12 +59,12 @@
 
 .primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(229, 160, 13, 0.3);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .secondary:hover:not(:disabled),
 .icon-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--ink) / 0.08);
   transform: translateY(-1px);
 }
 
@@ -111,111 +113,54 @@
 }
 
 /* Fondations UI communes : en-têtes, statuts et retours système. */
-.ui-page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding-bottom: 4px;
-}
-.ui-page-heading { min-width: 0; display: grid; gap: var(--space-1); }
-.ui-page-title-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.ui-page-title-row h1 { margin: 0; line-height: 1.15; }
-.ui-page-heading > p { margin: 0; color: var(--muted); max-width: 68ch; line-height: 1.5; }
-.ui-breadcrumbs { display: flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
-.ui-breadcrumbs a { color: inherit; text-decoration: none; }
-.ui-breadcrumbs a:hover { color: var(--text); }
-.ui-page-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
 
 .ui-feedback { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; align-items: center; gap: var(--space-3); min-height: 48px; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); color: var(--muted); }
 .ui-feedback > svg { width: 19px; height: 19px; }
 .ui-feedback > div { display: grid; gap: var(--space-1); }
 .ui-feedback strong { color: var(--text); font-size: var(--fs-sm); }
 .ui-feedback span { font-size: var(--fs-sm); line-height: 1.4; }
-.ui-feedback.is-success { color: var(--green-text); border-color: rgba(34,197,94,.3); background: rgba(34,197,94,.07); }
-.ui-feedback.is-error { color: var(--red-text); border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.07); }
-.ui-feedback.is-warning { color: var(--accent); border-color: rgba(229,160,13,.35); background: rgba(229,160,13,.07); }
+.ui-feedback.is-success { color: var(--green-text); border-color: color-mix(in srgb, var(--green) 30%, transparent); background: color-mix(in srgb, var(--green) 7%, transparent); }
+.ui-feedback.is-error { color: var(--red-text); border-color: color-mix(in srgb, var(--red) 35%, transparent); background: color-mix(in srgb, var(--red) 7%, transparent); }
+.ui-feedback.is-warning { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .ui-feedback.is-loading > svg { animation: spin 1s linear infinite; }
 .ui-feedback-close { display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; color: currentColor; border-radius: var(--radius-sm); cursor: pointer; }
-.ui-feedback-close:hover { background: rgba(255,255,255,.06); }
+.ui-feedback-close:hover { background: rgb(var(--ink) / .06); }
 .ui-feedback-close svg { width: 17px; }
 
-@media (max-width: 767.98px) {
-  .ui-page-header { display: grid; gap: var(--space-4); }
-  .ui-page-actions { width: 100%; justify-content: stretch; }
-  .ui-page-actions > .primary { flex: 1; min-height: 44px; }
-  .ui-page-actions > .secondary, .ui-page-actions > .icon-button { min-height: 44px; }
-  .ui-page-actions > .icon-button { width: 44px; }
+@include bp.until(tablet) {
   .ui-feedback { grid-template-columns: auto minmax(0,1fr) auto; }
   .ui-feedback > .ui-button { grid-column: 2 / -1; justify-self: start; }
 }
 
-.form-save-bar { position: fixed; right: max(22px,var(--safe-right)); bottom: max(22px,var(--safe-bottom),var(--keyboard-inset)); left: max(22px,var(--safe-left)); z-index: 38; display: flex; align-items: center; gap: var(--space-4); width: auto; max-width: 540px; margin-left: auto; padding: 11px 12px 11px 15px; border: 1px solid rgba(229,160,13,.38); border-radius: var(--radius-md); color: var(--text); background: rgba(20,20,24,.96); box-shadow: 0 16px 45px rgba(0,0,0,.5); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.form-save-bar { position: fixed; right: max(22px,var(--safe-right)); bottom: max(22px,var(--safe-bottom),var(--keyboard-inset)); left: max(22px,var(--safe-left)); z-index: 38; display: flex; align-items: center; gap: var(--space-4); width: auto; max-width: 540px; margin-left: auto; padding: 11px 12px 11px 15px; border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent); border-radius: var(--radius-md); color: var(--text); background: var(--surface-glass); box-shadow: 0 16px 45px rgb(var(--shadow-color) / calc(.5 * var(--shadow-scale))); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
 .form-save-bar > div { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1; }
 .form-save-bar > div > span:last-child { display: grid; gap: var(--space-1); }
 .form-save-bar strong { font-size: var(--fs-sm); }
 .form-save-bar small { color: var(--muted); font-size: var(--fs-xs); }
 .form-save-bar .ui-button--primary { flex: none; min-height: 42px; }
-.unsaved-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(229,160,13,.13),0 0 14px rgba(229,160,13,.45); }
-.save-bar-enter-active,.save-bar-leave-active { transition: opacity .2s ease,transform .2s ease; }
+.unsaved-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent),0 0 14px color-mix(in srgb, var(--accent) 45%, transparent); }
+.save-bar-enter-active,.save-bar-leave-active { transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard); }
 .save-bar-enter-from,.save-bar-leave-to { opacity: 0; transform: translateY(12px); }
 
 /* Lisibilité homogène des formulaires et de leur aide contextuelle. */
-.form-section > label:not(.check),.settings-card label:not(.check),.detail-drawer label:not(.check) { display: grid; gap: var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
-.form-section label small,.settings-card label small,.detail-drawer label small { color: var(--muted); font-size: var(--fs-xs); font-weight: 400; line-height: 1.45; }
+.form-section > label:not(.check),.settings-drawer-body label:not(.check),.detail-drawer label:not(.check) { display: grid; gap: var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+.form-section label small,.settings-drawer-body label small,.detail-drawer label small { color: var(--muted); font-size: var(--fs-xs); font-weight: 400; line-height: 1.45; }
 textarea:focus-visible,input:focus-visible,select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),select:invalid { border-color: var(--red); }
 
-@media (min-width: 768px) and (max-width: 1024px) {
+@include bp.between(tablet, desktop) {
   .form-save-bar { right: max(18px,var(--safe-right)); bottom: max(18px,var(--safe-bottom)); }
 }
 
-@media (max-width: 767.98px) {
-  .form-save-bar { left: max(10px,var(--safe-left)); right: max(10px,var(--safe-right)); bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 10px); width: auto; gap: var(--space-3); }
+@include bp.until(tablet) {
+  .form-save-bar { left: max(10px,var(--safe-left)); right: max(10px,var(--safe-right)); bottom: calc(var(--app-shell-offset-bottom) + 10px); width: auto; gap: var(--space-3); }
   .form-save-bar small { display: none; }
   .form-save-bar .ui-button--primary { min-height: 46px; }
 }
 
-@media (max-width: 420px) {
+@include bp.until(mobile-wide) {
   .form-save-bar strong { font-size: var(--fs-xs); }
   .form-save-bar .ui-button--primary { padding: 0 12px; }
-}
-
-/* Barre de filtres unifiée : inline sur grand écran, feuille tactile sur petit écran. */
-.ui-filter-bar { display: flex; align-items: center; gap: var(--space-3); min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
-.ui-filter-primary { display: flex; flex: 1 1 260px; min-width: 180px; }
-.ui-filter-primary > * { width: 100%; }
-.ui-filter-desktop { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
-.ui-filter-desktop select { min-width: 150px; }
-.ui-filter-reset { min-height: 38px; padding: 0 10px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
-.ui-filter-reset:hover { color: var(--text); }
-.ui-filter-mobile-trigger { display: none; }
-.ui-filter-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: #151515; font-size: var(--fs-xs); font-weight: 800; }
-.ui-filter-overlay { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; padding: calc(var(--safe-top) + var(--app-top-nav-clearance)) var(--safe-right) 0 var(--safe-left); background: rgba(5,5,8,.66); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
-.ui-filter-sheet { width: min(100%, 620px); max-height: min(82dvh, calc(var(--visual-viewport-height) - var(--app-top-nav-clearance) - var(--safe-top)), 720px); display: grid; grid-template-rows: auto minmax(0,1fr) auto; border: 1px solid var(--border); border-bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; background: #121216; box-shadow: 0 -18px 50px rgba(0,0,0,.55); overflow: hidden; }
-.ui-filter-sheet header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 16px 18px; border-bottom: 1px solid var(--border); }
-.ui-filter-sheet header span { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .08em; }
-.ui-filter-sheet h2 { margin: 2px 0 0; font-size: var(--fs-lg); }
-.ui-filter-sheet-content { display: grid; align-content: start; gap: var(--space-4); padding: 18px; overflow-y: auto; }
-.ui-filter-sheet-content > * { width: 100%; min-height: 44px; }
-.ui-filter-sheet footer { display: grid; grid-template-columns: auto minmax(0,1fr); gap: var(--space-3); padding: 12px 18px max(12px,var(--safe-bottom)); border-top: 1px solid var(--border); background: #121216; }
-.ui-filter-sheet footer button { min-height: 46px; }
-.filter-sheet-enter-active,.filter-sheet-leave-active { transition: opacity .2s ease; }
-.filter-sheet-enter-active .ui-filter-sheet,.filter-sheet-leave-active .ui-filter-sheet { transition: transform .22s ease; }
-.filter-sheet-enter-from,.filter-sheet-leave-to { opacity: 0; }
-.filter-sheet-enter-from .ui-filter-sheet,.filter-sheet-leave-to .ui-filter-sheet { transform: translateY(100%); }
-
-@media (max-width: 767.98px) {
-  .ui-filter-bar { position: sticky; top: calc(8px + var(--safe-top)); z-index: 19; }
-  .ui-filter-desktop { display: none; }
-  .ui-filter-mobile-trigger { display: inline-flex; min-height: 44px; }
-  .ui-filter-primary { min-width: 0; }
-}
-
-@media (max-width: 520px) {
-  .ui-filter-sheet { width: 100%; max-height: 88dvh; }
-  .ui-filter-sheet footer { grid-template-columns: 1fr; }
-  .ui-filter-sheet footer .ui-button--primary { grid-row: 1; }
 }
 
 /* Badge dans le flux, par defaut.
@@ -246,7 +191,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   padding: 0 8px;
   border-radius: var(--radius-xs);
   color: var(--text);
-  background: rgba(20, 20, 20, .9);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   font-size: var(--fs-sm);
   white-space: nowrap;
@@ -261,21 +206,25 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   min-width: 0;
 }
 
-.badge.available,
 .badge.sent_to_arr {
-  border-color: rgba(34, 197, 94, .55);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent);
+}
+
+.badge.available {
+  border-color: color-mix(in srgb, var(--green) 55%, transparent);
   color: var(--green-text);
 }
 
 .badge.failed,
 .danger {
-  border-color: rgba(239, 68, 68, .6);
+  border-color: color-mix(in srgb, var(--red) 60%, transparent);
   color: var(--red-text);
 }
 
 .badge.pending_approval,
 .badge.partially_available {
-  border-color: rgba(229, 160, 13, .6);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   color: var(--accent);
 }
 
@@ -284,8 +233,16 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   color: var(--muted);
 }
 
+/* Une tache qui tourne n'est ni un succes ni une alerte : elle est en cours. Faute de
+   ce ton, « En cours » empruntait le vert de `available` -- la meme couleur que « tout
+   est fait ». */
+.badge.running {
+  border-color: color-mix(in srgb, var(--blue) 55%, transparent);
+  color: var(--blue-text);
+}
+
 .badge.rejected {
-  border-color: rgba(239, 68, 68, .6);
+  border-color: color-mix(in srgb, var(--red) 60%, transparent);
   color: var(--red-text);
 }
 
@@ -298,205 +255,22 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 }
 
 /* Forms stack by default and gain a second column only from the tablet boundary. */
-.form-grid,
-.form-grid.two,
 .settings-grid.two.form-section {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 
-@media (min-width: 768px) {
-  .form-grid.two,
+@include bp.from(tablet) {
   .settings-grid.two.form-section { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .form-grid > .span-two,
   .settings-grid.two.form-section > .span-two { grid-column: 1 / -1; }
-}
-
-/* --- Regroupe plusieurs barres sticky (filtres + actions groupees) pour qu'elles s'empilent au lieu de se superposer --- */
-.sticky-stack {
-  position: sticky;
-  top: calc(12px + var(--safe-top));
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: 16px;
-}
-
-.sticky-stack .filters-panel,
-.sticky-stack .bulk-bar {
-  position: static;
-  margin-bottom: 0;
-}
-
-@media (max-width: 600px) {
-  .sticky-stack {
-    top: calc(8px + var(--safe-top));
-  }
-}
-
-/* --- Toolbar de filtres (Demandes, Bibliotheque...) --- */
-.filters-panel {
-  position: sticky;
-  top: calc(12px + var(--safe-top));
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: 16px;
-  padding: 10px;
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: var(--panel-radius);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, .2);
-}
-
-.filter-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.filter-row .search {
-  flex-grow: 1;
-}
-
-.filter-pills-scroll {
-  position: relative;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--panel-radius);
-}
-
-.filter-label {
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.filter-pills-scroll .divider {
-  width: 1px;
-  height: 22px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-
-.filter-select {
-  min-height: 34px;
-  padding: 0 30px 0 10px;
-  border-radius: var(--radius-pill);
-  font-size: var(--fs-sm);
-  width: auto;
-}
-
-.filter-pill {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-  white-space: nowrap;
-}
-
-.filter-pill:hover {
-  background: rgba(255, 255, 255, 0.08);
-  transform: translateY(-1px);
-}
-
-.filter-pill.active {
-  color: #151515;
-  background: var(--accent-gradient, var(--accent));
-  border-color: transparent;
-  font-weight: 600;
-}
-
-.filter-pill.dropdown-toggle svg {
-  width: 14px;
-  height: 14px;
-  color: var(--muted);
-  transition: transform 0.2s ease;
-}
-
-.multi-select {
-  position: relative;
-}
-
-.multi-select.open .filter-pill.dropdown-toggle {
-  border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.multi-select.open .filter-pill.dropdown-toggle svg {
-  transform: rotate(180deg);
-}
-
-.multi-select-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 220px;
-  max-height: 300px;
-  overflow-y: auto;
-  padding: 8px;
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-}
-
-.multi-select-menu .check {
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--fs-sm);
-  transition: background 0.15s ease;
-}
-
-.multi-select-menu .check:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.multi-select-menu .clear-selection {
-  margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  text-align: left;
-}
-
-.multi-select-menu .clear-selection:hover {
-  color: var(--text);
 }
 
 .form-section label {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  color: rgba(255, 255, 255, 0.75);
+  color: rgb(var(--ink) / 0.75);
   font-size: var(--fs-sm);
   font-weight: 500;
   text-align: left;
@@ -508,7 +282,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   flex-direction: row;
   align-items: center;
   gap: var(--space-3);
-  color: rgba(255, 255, 255, 0.85);
+  color: rgb(var(--ink) / 0.85);
   font-size: var(--fs-sm);
   cursor: pointer;
   user-select: none;
@@ -535,24 +309,371 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 
 .detail-drawer,
 .modal-panel {
+  /* Conteneur de requetes : le contenu d'une fenetre s'adapte a la largeur de la
+     fenetre elle-meme (680px sur ordinateur, tout l'ecran sur telephone). */
+  container: panel / inline-size;
   --drawer-pad: 24px;
   position: fixed;
-  z-index: 41;
+  z-index: var(--z-modal-panel);
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--surface-3);
   border: 1px solid var(--border);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 20px 60px rgb(var(--shadow-color) / calc(0.55 * var(--shadow-scale)));
   border-radius: var(--panel-radius, 16px);
-  inset: calc(5vh + var(--safe-top) + var(--app-top-nav-clearance)) auto auto 50%;
+  inset: calc(5vh + var(--safe-top) + var(--app-shell-offset-top)) auto auto 50%;
   width: min(680px, calc(100% - 24px));
-  max-height: calc(90dvh - var(--safe-top) - var(--safe-bottom) - var(--app-top-nav-clearance));
+  max-height: calc(90dvh - var(--safe-top) - var(--safe-bottom) - var(--app-shell-offset-top));
   padding: var(--drawer-pad);
   transform: translateX(-50%);
   overscroll-behavior: contain;
+  touch-action: pan-y;
+  /* La barre de defilement est masquee, pas le defilement : sur une feuille pleine
+     hauteur elle longeait tout l'ecran pour quelques centaines de pixels de contenu.
+     L'en-tete collant et le bord du contenu suffisent a dire qu'il reste a lire. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-@media (max-width: 767.98px) {
+/* Sur telephone, la boite de dialogue devient une feuille ancree en bas : elle epouse
+   la hauteur de son contenu et grandit vers le haut jusqu'a son plafond, au lieu de
+   flotter au milieu a une taille fixe. Un panneau de deux filtres ne prend alors que la
+   place de deux filtres.
+
+   Ce bloc doit rester APRES la geometrie de bureau ci-dessus : les deux visent
+   `.modal-panel` avec la meme specificite, et une media query n'en ajoute pas. Place
+   dans `layout/_layout.scss`, charge plus tot, il etait purement et simplement ignore. */
+@include bp.until(tablet) {
+  .detail-drawer,
+  .modal-panel {
+    --drawer-pad: 16px;
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    padding: var(--drawer-pad);
+    padding-left: max(var(--drawer-pad), var(--safe-left));
+    padding-right: max(var(--drawer-pad), var(--safe-right));
+    padding-bottom: max(var(--drawer-pad), var(--safe-bottom));
+    /* Aucun centrage a preserver : la feuille occupe toute la largeur. C'est ce qui la
+       met a l'abri du `transform` de la transition, qui redeclarait la propriete en
+       entier et emportait le `translateX(-50%)` du mode centre avec lui. */
+    transform: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+  }
+}
+
+/* Volet d'un objet de réglage (SettingsItem). Sur ordinateur il glisse depuis la
+   droite et occupe la hauteur de l'écran : la liste reste visible à côté, on garde le
+   contexte de ce qu'on configure. Sur téléphone, c'est la feuille ancrée en bas commune
+   à toutes les fenêtres (bloc ci-dessus). */
+@include bp.from(tablet) {
+  .modal-panel.settings-drawer {
+    inset: calc(var(--safe-top) + 12px) calc(var(--safe-right) + 12px) 12px auto;
+    width: min(480px, calc(100% - 24px));
+    max-height: none;
+    transform: none;
+  }
+  .modal-panel.settings-drawer[data-state="open"] { animation: surface-tiroir-in var(--motion-duration-base) var(--motion-ease-emphasized); }
+  .modal-panel.settings-drawer[data-state="closed"] { animation: surface-tiroir-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
+}
+
+.settings-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.settings-drawer-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-panel.settings-drawer > .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.settings-drawer-body input:not([type="checkbox"]),
+.settings-drawer-body select,
+.settings-drawer-body textarea {
+  min-height: 44px;
+}
+
+/* Les options binaires restent de vraies lignes de choix : le libellé entier est la
+   zone cliquable, pas une petite case qu'il faut viser. */
+.settings-drawer-body .check {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  line-height: 1.4;
+}
+
+.settings-drawer-body .check:has(input:checked),
+.settings-drawer-body .check:has([data-state="checked"]) {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-2));
+}
+
+.settings-drawer-body > .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* La feuille de filtres s'arrête SUR la barre de recherche, jamais dessus.
+   C'est la règle du mode bureau, simplement retournée : là-haut le voile porte déjà un
+   coussin de la hauteur de la barre, pour que le champ, le bouton et son compteur
+   restent lisibles pendant qu'on coche -- et ce compteur est précisément ce que le
+   panneau fait varier. Le bouton reste donc atteignable, et le retoucher referme :
+   l'aller et le retour se font du même pouce, au même endroit.
+
+   Conditionné à la présence réelle de la barre (`body:has`) : sur une page qui n'en a
+   pas, la feuille n'a aucune raison de laisser un vide sous elle. */
+@include bp.until(shell-medium) {
+  body:has(.app-topbar) {
+    /* Pose exactement sur le bord haut de la barre, sans interstice : la valeur est
+       celle de la barre elle-meme (`bottom` + sa hauteur). Six pixels d'ecart y
+       laissaient voir la page entre les deux, et le panneau et la barre se lisaient
+       comme deux objets separes au lieu d'une seule pile. */
+    .drawer-backdrop:has(> .filter-sheet),
+    .drawer-backdrop--filter-sheet,
+    .modal-panel.filter-sheet {
+      bottom: calc(var(--app-shell-offset-bottom) + 8px + var(--app-topbar-h));
+    }
+    /* Meme largeur que la barre, aux memes gouttieres : pleine largeur, le panneau
+       depassait de dix pixels de chaque cote et les deux ne pouvaient plus se lire comme
+       une seule pile -- c'etait la barre qui semblait retrecie. */
+    .modal-panel.filter-sheet {
+      left: max(10px, var(--safe-left));
+      right: max(10px, var(--safe-right));
+      width: auto;
+      max-width: none;
+      max-height: calc(92dvh - var(--app-shell-offset-bottom) - var(--app-topbar-h));
+      /* Le liseré de la barre remonte autour du panneau. Sans lui, la pile qu'on vient
+         de souder changeait de couleur de contour en son milieu : accent en bas, blanc
+         à 8 % au-dessus, et la rupture se lisait exactement là où l'on voulait une
+         continuité. Un seul objet, un seul trait. */
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+    /* Il sort du bord haut de la barre, et y rentre : voir `surface-sortie-barre`. */
+    .modal-panel.filter-sheet[data-state="open"] { animation: surface-sortie-barre-haut-in 220ms var(--motion-ease-emphasized); }
+    .modal-panel.filter-sheet[data-state="closed"] { animation: surface-sortie-barre-haut-out 160ms var(--motion-ease-exit) forwards; }
+    /* La capsule perd ses coins hauts tant que la feuille est posee dessus : arrondis,
+       ils creusaient deux encoches sombres sous le bord bas du panneau. Son ombre
+       portee vers le haut s'efface aussi -- elle aurait assombri le pied du panneau
+       qu'elle est censee detacher du contenu. C'est la capsule qu'on vise, pas la barre :
+       en compact cette derniere n'a plus ni fond ni contour, elle ne fait que porter. */
+    /* Coins du raccord : droits panneau ouvert, et de nouveau arrondis a mesure qu'on
+       fait rentrer le panneau au doigt (`--filter-sheet-progress`, 0 a 1, pose par
+       `useSheetGesture` pendant le geste). */
+    &[data-filter-sheet] .app-topbar .ui-search-field {
+      --raccord: calc(var(--radius-lg) * var(--filter-sheet-progress, 0));
+      border-radius: var(--raccord) var(--raccord) var(--radius-lg) var(--radius-lg);
+      box-shadow: none;
+    }
+    /* Le bouton « Filtres » suit la capsule : son coin haut-droit, seul arrondi restant,
+       creusait une encoche sous le bord du panneau. Le haut de la barre devient donc
+       droit sur toute sa largeur, et ce sont ses arrondis du BAS qui referment la pile --
+       la forme dit alors d'elle-meme ou le panneau s'arrete. */
+    &[data-filter-sheet] .app-topbar .ui-search-field__filter {
+      border-radius: 0 calc((var(--radius-lg) - 1px) * var(--filter-sheet-progress, 0)) calc(var(--radius-lg) - 1px) 0;
+    }
+  }
+}
+
+/* Au-dela du telephone, la meme pile retournee : la barre est en haut, le panneau
+   descend de son bord bas, a la largeur exacte du champ (mesuree par FilterSidebar et
+   publiee en `--filter-anchor-*`). Le voile commence sous la barre : le champ et le
+   bouton « Filtres » restent atteignables, et retoucher le bouton referme. */
+@include bp.from(shell-medium) {
+  body:has(.app-topbar) {
+    .drawer-backdrop:has(> .filter-sheet),
+    .drawer-backdrop--filter-sheet {
+      top: var(--filter-anchor-top, 64px);
+      background: color-mix(in srgb, #000 28%, transparent);
+    }
+    .modal-panel.filter-sheet {
+      inset: var(--filter-anchor-top, 64px) auto auto var(--filter-anchor-left, 50%);
+      width: var(--filter-anchor-width, min(720px, calc(100% - 24px)));
+      max-width: none;
+      max-height: min(70dvh, calc(100dvh - var(--filter-anchor-top, 64px) - 16px));
+      padding-top: var(--space-3);
+      transform: none;
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+      border-top: 0;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      box-shadow: 0 24px 48px rgb(var(--shadow-color) / calc(.45 * var(--shadow-scale)));
+    }
+    /* Pas de poignee de glissement ni d'en-tete : le panneau prolonge la barre, il n'a
+       pas a se presenter. Le titre reste lu par les lecteurs d'ecran. */
+    .modal-panel.filter-sheet .sheet-grab { display: none; }
+    .modal-panel.filter-sheet .panel-head {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .modal-panel.filter-sheet[data-state="open"] { animation: surface-sortie-barre-bas-in 220ms var(--motion-ease-emphasized); }
+    .modal-panel.filter-sheet[data-state="closed"] { animation: surface-sortie-barre-bas-out 160ms var(--motion-ease-exit) forwards; }
+    /* Le champ perd ses coins bas tant que le panneau y est accroche : arrondis, ils
+       creusaient deux encoches au raccord. */
+    &[data-filter-sheet] .app-topbar .ui-search-field,
+    &[data-filter-sheet] .app-topbar .app-topbar__filter-only {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+    &[data-filter-sheet] .app-topbar .ui-search-field__filter {
+      border-bottom-right-radius: 0;
+    }
+  }
+}
+
+/* La capsule de recherche change de forme avec le panneau de filtres, progressivement :
+   ses coins au raccord se redressent pendant que le panneau sort, et se rarrondissent
+   pendant qu'il rentre. Hors ouverture (donc a la fermeture) : la duree du retour, 160ms ;
+   pendant l'ouverture, celle de la sortie, 220ms. Sans transition, la barre changeait de
+   forme d'un coup, avant ou apres le panneau. */
+.app-topbar .ui-search-field,
+.app-topbar .app-topbar__filter-only,
+.app-topbar .ui-search-field__filter {
+  transition:
+    border-radius 160ms var(--motion-ease-exit),
+    border-color 160ms var(--motion-ease-exit),
+    box-shadow 160ms var(--motion-ease-exit);
+}
+body[data-filter-sheet] .app-topbar .ui-search-field,
+body[data-filter-sheet] .app-topbar .app-topbar__filter-only,
+body[data-filter-sheet] .app-topbar .ui-search-field__filter {
+  transition:
+    border-radius var(--filter-sheet-duree, 220ms) var(--filter-sheet-courbe, var(--motion-ease-emphasized)),
+    border-color 220ms var(--motion-ease-emphasized),
+    box-shadow 220ms var(--motion-ease-emphasized);
+}
+/* Au doigt (ou a la souris, par la poignee), la barre suit le panneau sans delai : ses
+   coins dependent directement de `--filter-sheet-progress`, pose a chaque mouvement. */
+body[data-filter-sheet-drag] .app-topbar .ui-search-field,
+body[data-filter-sheet-drag] .app-topbar .app-topbar__filter-only,
+body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-topbar .ui-search-field,
+  .app-topbar .app-topbar__filter-only,
+  .app-topbar .ui-search-field__filter { transition: none; }
+}
+
+/* Le panneau de filtres sort de la barre de recherche, et y rentre.
+   Glisse et estompe : il part de la barre (translation) et le bord qui la touche reste
+   fixe pendant que l'autre se deplie (`clip-path`). Rien ne depasse donc de l'autre
+   cote du raccord : on le voit sortir de dessous le champ, pas flotter devant. Un
+   fondu leger adoucit les deux extremites. Deux sens : vers le bas sur ordinateur (la
+   barre est en haut), vers le haut sur telephone (elle est en bas). */
+/* Le masque rogne aussi, cote barre, la distance de la translation (16px) : les deux
+   progressent au meme rythme, et la partie du panneau qui remonterait devant le champ
+   reste cachee -- il sort de dessous la barre, pas par-dessus.
+   `clip-path` part et arrive sur `inset(0)`, jamais sur `none` : le navigateur ne sait
+   pas interpoler vers `none`, et le depliage sautait d'un coup a la premiere image. */
+@keyframes surface-sortie-barre-bas-in {
+  from { opacity: .35; transform: translateY(-16px); clip-path: inset(16px 0 100% 0); }
+  to { opacity: 1; transform: none; clip-path: inset(0); }
+}
+@keyframes surface-sortie-barre-bas-out {
+  from { opacity: 1; transform: none; clip-path: inset(0); }
+  to { opacity: 0; transform: translateY(-16px); clip-path: inset(16px 0 100% 0); }
+}
+@keyframes surface-sortie-barre-haut-in {
+  from { opacity: .35; transform: translateY(16px); clip-path: inset(100% 0 16px 0); }
+  to { opacity: 1; transform: none; clip-path: inset(0); }
+}
+@keyframes surface-sortie-barre-haut-out {
+  from { opacity: 1; transform: none; clip-path: inset(0); }
+  to { opacity: 0; transform: translateY(16px); clip-path: inset(100% 0 16px 0); }
+}
+
+/* Pendant le geste, la feuille suit le doigt sans transition : une interpolation entre
+   deux positions rendrait le suivi mou et en retard sur la main. C'est au relachement
+   que le mouvement redevient anime -- retour en place, ou sortie par le bas. */
+.modal-panel.is-dragging,
+.detail-drawer.is-dragging {
+  transition: none;
+  cursor: grabbing;
+}
+
+/* Poignee des feuilles du mode compact.
+ *
+ * `touch-action: none` est l'element essentiel : sans lui, le navigateur interprete le
+ * glissement comme un defilement et ne nous laisse jamais la main -- sur iOS le geste ne
+ * demarrait pas du tout. La barre elle-meme sert de reperage : une surface qui se tire
+ * doit le montrer, sinon personne n'essaie.
+ */
+.sheet-grab {
+  display: none;
+  touch-action: none;
+  cursor: grab;
+  padding: 10px 0 4px;
+  margin: calc(-1 * var(--drawer-pad, 16px)) calc(-1 * var(--drawer-pad, 16px)) 0;
+}
+.sheet-grab > span {
+  display: block;
+  width: 42px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 26%, transparent);
+}
+.modal-panel.is-dragging .sheet-grab { cursor: grabbing; }
+
+@include bp.until(tablet) {
+  .sheet-grab { display: block; }
+}
+
+/* Le flou du pied s'efface pendant le geste : floutter ce qui passe derriere une surface
+   qui bouge oblige le navigateur a recomposer la scene a chaque image, et c'est ce qui
+   fait clignoter l'ensemble sur Safari. A l'arret, il ne coute qu'une fois. */
+.modal-panel.is-dragging > .actions,
+.detail-drawer.is-dragging > .drawer-actions {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.detail-drawer::-webkit-scrollbar,
+.modal-panel::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Une boite de dialogue ouverte depuis un tiroir doit passer devant lui. Les deux
+   partageaient le meme z-index : seul l'ordre du DOM les departageait, et la modale --
+   montee avec sa page, donc teleportee avant le tiroir ouvert plus tard -- se retrouvait
+   dessous. Cliquer « Fusionner » ouvrait bien la confirmation, mais elle etait
+   inatteignable : le geste n'avait aucun effet visible. */
+.drawer-backdrop:has(> .modal-panel) { z-index: var(--z-modal); }
+/* Surfaces Reka UI : le voile et le panneau sont freres dans <body>, et non plus parent
+   et enfant -- chacun porte donc son propre rang. `data-state` n'existe que sur eux. */
+.drawer-backdrop[data-state] { z-index: var(--z-modal); }
+.confirm-modal { width: min(440px, calc(100% - 24px)); }
+/* Une confirmation passe devant tout le reste : posee depuis un tiroir ou une modale, elle
+   se retrouvait dessous a rang egal, et aucun clic ne l'atteignait. */
+.drawer-backdrop--confirm-modal[data-state] { z-index: var(--z-confirm); }
+.modal-panel.confirm-modal[data-state] { z-index: var(--z-confirm-panel); }
+.confirm-modal__message { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.5; }
+.modal-panel[data-state],
+.detail-drawer[data-state] { z-index: var(--z-modal-panel); }
+.modal-panel { z-index: var(--z-modal-panel); }
+
+@include bp.until(tablet) {
   .modal-panel > .actions,
   .detail-drawer > .drawer-actions {
     position: sticky;
@@ -571,17 +692,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .detail-drawer > .drawer-actions > * { width: 100%; }
 }
 
-.modal-bg {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(40px) brightness(0.22);
-  transform: scale(1.15);
-  z-index: -1;
-  pointer-events: none;
-}
-
 .form-section textarea,
 .code-editor {
   width: 100%;
@@ -591,7 +701,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--font-mono);
   line-height: 1.45;
 }
 
@@ -637,19 +747,19 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   font-weight: 600;
   color: var(--muted);
   text-decoration: none;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgb(var(--ink) / 0.04);
+  border: 1px solid rgb(var(--ink) / 0.07);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
 .panel-link:hover {
   color: var(--accent);
-  background: rgba(229, 160, 13, 0.08);
-  border-color: rgba(229, 160, 13, 0.25);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(229, 160, 13, 0.12);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .unmatched-header > .panel-link {
@@ -670,11 +780,8 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .primary,
   .secondary,
   .icon-button,
-  .filter-pill,
   .filter-select,
-  .panel-link,
-  .close-sheet-btn,
-  .segmented button {
+  .panel-link {
     min-height: 44px;
   }
 
@@ -701,11 +808,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
     transform: translate(-50%, -50%);
   }
 
-  .close-sheet-btn {
-    width: 44px;
-    height: 44px;
-  }
-
   /* Empêche le zoom automatique iOS au focus (police < 16px) */
   .filter-select,
   input,
@@ -719,7 +821,124 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 .primary:active:not(:disabled),
 .secondary:active:not(:disabled),
 .icon-button:active:not(:disabled),
-.filter-pill:active,
 .panel-link:active {
   transform: scale(0.97);
+}
+
+/* ───────────────────────── Squelettes de chargement ─────────────────────────
+ *
+ * La forme de ce qui arrive, a sa place : le contenu remplace le squelette sans que la
+ * page ne saute. Le reflet glisse par `transform` sur un pseudo-element -- anime par le
+ * compositeur, il ne coute aucun repeint, la ou un `background-position` anime
+ * redessinerait chaque barre a chaque image sur telephone.
+ */
+.skeleton-line,
+.skeleton-pill {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  height: 12px;
+  margin: 0 0 10px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.skeleton-line.is-short { width: 58%; }
+.skeleton-line.is-tabs { height: 34px; width: 72%; margin-bottom: var(--space-5); border-radius: var(--radius-md); }
+.skeleton-pill { display: inline-block; width: 92px; height: 30px; margin: 0 8px 0 0; }
+.skeleton-line::after,
+.skeleton-pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 9%, transparent), transparent);
+  animation: skeleton-sweep 1.4s var(--motion-ease-standard) infinite;
+}
+@keyframes skeleton-sweep { to { transform: translateX(100%); } }
+
+.media-detail-skeleton { padding: 0 var(--space-5) var(--space-6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line::after,
+  .skeleton-pill::after { animation: none; }
+}
+
+/* Declencheur des blocs repliables (Reka Collapsible, ex-<details>) : un bouton, remis a
+   plat pour que chaque bloc garde l'apparence de son ancien <summary>. */
+.collapsible-trigger { display: flex; align-items: center; gap: var(--space-2); width: 100%; margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.collapsible-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs); }
+
+/* Infobulles UiTooltip (Reka Tooltip), dont celles des boutons-icones de UiButton. */
+.ui-tooltip {
+  z-index: var(--z-tooltip);
+  max-width: 260px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  box-shadow: 0 8px 24px rgb(var(--shadow-color) / calc(0.4 * var(--shadow-scale)));
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.35;
+  user-select: none;
+}
+.ui-tooltip[data-state="delayed-open"],
+.ui-tooltip[data-state="instant-open"] { animation: ui-tooltip-in var(--motion-duration-instant) var(--motion-ease-emphasized); }
+@keyframes ui-tooltip-in { from { opacity: 0; transform: translateY(2px); } }
+@media (prefers-reduced-motion: reduce) { .ui-tooltip { animation: none !important; } }
+
+/* Menus UiMenu et UiContextMenu (Reka DropdownMenu / ContextMenu), teleportes dans <body>. */
+.ui-menu {
+  z-index: var(--z-popover);
+  min-width: 200px;
+  max-width: min(360px, calc(100vw - 16px));
+  max-height: min(380px, var(--reka-dropdown-menu-content-available-height, var(--reka-context-menu-content-available-height, 380px)));
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  outline: none;
+}
+.ui-menu[data-state="open"] { animation: ui-menu-in var(--motion-duration-fast) var(--motion-ease-emphasized); }
+@keyframes ui-menu-in { from { opacity: 0; transform: scale(0.97); } }
+.ui-menu-label {
+  overflow: hidden;
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-menu-separator { height: 1px; margin: 4px -4px; background: var(--border); }
+.ui-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+.ui-menu-item[data-highlighted] { background: var(--surface-2); color: var(--accent); }
+.ui-menu-item--danger { color: var(--red-text); }
+.ui-menu-item--danger[data-highlighted] { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--red-text); }
+.ui-menu-item[data-disabled] { cursor: not-allowed; opacity: .5; }
+.ui-menu-item svg { flex: none; width: 15px; height: 15px; }
+@media (pointer: coarse) { .ui-menu-item { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .ui-menu { animation: none !important; } }
+/* En-tete commun des panneaux : les variantes restent contextualisees dans leur vue
+   quand leur contenu impose un empilement ou une presentation particuliere. */
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
 }

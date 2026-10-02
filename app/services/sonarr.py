@@ -56,6 +56,12 @@ get_queue_series_ids = partial(
     product=PRODUCT,
     log_name="get_queue_series_ids",
 )
+get_queue_episode_ids = partial(
+    arr_common.get_queue_media_ids,
+    id_key="episodeId",
+    product=PRODUCT,
+    log_name="get_queue_episode_ids",
+)
 delete_series = partial(
     arr_common.delete_media,
     resource="series",
@@ -598,6 +604,7 @@ def _normalize_queue_record(r: dict, title: str, *, series: dict | None = None, 
         "download_id": r.get("downloadId"),
         "output_path": r.get("outputPath"),
         "title": title,
+        "release_title": r.get("title"),
         "status": r.get("status"),
         "tracked_state": r.get("trackedDownloadState"),
         "tracked_status": r.get("trackedDownloadStatus"),

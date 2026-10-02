@@ -7,14 +7,13 @@
     :bordered="bordered"
     :elevate-on-hover="elevateOnHover"
   >
-    <template #default="{ revealed, reveal }">
+    <template #default>
       <component
         :is="to ? RouterLink : 'div'"
         v-bind="linkAttributes"
         :aria-label="accessibleLabel"
         class="poster-link catalog-poster-link discover-poster-link"
-        @pointerdown="rememberPointerState($event, revealed)"
-        @click="handleActivate($event, revealed, reveal)"
+        @click="handleActivate"
         @keydown.enter="handleKeyboardActivate"
         @keydown.space="handleKeyboardActivate"
       >
@@ -59,7 +58,7 @@
           :to="resolvedTo"
           class="poster-action nav-action"
           :aria-label="actionLabel + ' : ' + title"
-          @click.stop
+          @click.stop="handleActivate"
         >{{ actionLabel }}</RouterLink>
       </slot>
     </template>
@@ -67,13 +66,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { computed } from 'vue';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { Download, Star } from '@lucide/vue';
-import { mediaTypeLabel } from '@/utils/labels';
+import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaCardShell from './MediaCardShell.vue';
 import MediaPoster from './MediaPoster.vue';
 import MediaStatusBadge from './MediaStatusBadge.vue';
+import { memoriserApercu } from '@/composables/useFicheApercu';
+import { destinationDeFiche, etatDeSurface } from '@/composables/useMediaOverlay';
 
 const props = withDefaults(
   defineProps<{
@@ -102,7 +103,10 @@ const emit = defineEmits<{
   (e: 'open', item: any): void;
 }>();
 
-const isMusic = computed(() => ['artist', 'album', 'track'].includes(props.item.media_type));
+const router = useRouter();
+const route = useRoute();
+
+const isMusic = computed(() => isMusicType(props.item.media_type));
 const title = computed(() => props.item.title || props.item.name || 'Sans titre');
 const rating = computed(() => {
   const value = Number(props.item.vote_average || props.item.vote || 0);
@@ -117,39 +121,56 @@ const linkAttributes = computed(() => props.to
   ? { to: props.to }
   : { role: 'link', tabindex: 0 });
 const resolvedTo = computed(() => props.to || '/');
-const pointerStartedRevealed = ref(false);
-const pointerWasCoarse = ref(false);
 
-function rememberPointerState(e: PointerEvent, revealed: boolean): void {
-  pointerStartedRevealed.value = revealed;
-  pointerWasCoarse.value = e.pointerType === 'touch'
-    || (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches);
-}
-
-function handleActivate(e: MouseEvent, revealed: boolean, reveal: () => void): void {
-  const needsReveal = pointerWasCoarse.value ? !pointerStartedRevealed.value : !revealed;
-  pointerWasCoarse.value = false;
-  if (needsReveal) {
-    e.preventDefault();
-    e.stopPropagation();
-    reveal();
+/**
+ * Le premier appui sur une carte encore fermee ne parvient jamais jusqu'ici :
+ * `MediaCardShell` l'intercepte en capture pour decouvrir titre et action. Ce
+ * gestionnaire ne voit donc que les activations d'une carte deja ouverte.
+ */
+/* La navigation passe par une transition de vue quand le navigateur sait la faire :
+   l'affiche touchee est transportee jusqu'a l'en-tete de la fiche, au lieu de disparaitre
+   avec l'ecran. On intercepte donc le lien plutot que de le laisser naviguer seul -- sans
+   quoi la navigation a deja eu lieu quand la transition demarre, et il n'y a plus rien a
+   photographier. */
+/* La fiche s'ouvre par-dessus la grille : on porte l'adresse de depart dans l'etat de la
+   navigation, et c'est elle qui reste rendue derriere. Le lien conserve son `href` --
+   clic milieu, « ouvrir dans un nouvel onglet » et partage continuent de donner une page
+   entiere -- mais un clic ordinaire passe par ici. */
+function handleActivate(event?: MouseEvent | KeyboardEvent): void {
+  /* Ce que la carte sait du media sert a dessiner la fiche avant sa reponse -- y compris
+     quand la carte delegue l'ouverture a son parent (mediatheque). */
+  if (!props.to) {
+    memoriserApercu(props.item);
+    emit('open', props.item);
     return;
   }
-  if (!props.to) emit('open', props.item);
+  // Les clics enrichis (nouvel onglet, telechargement) restent au navigateur.
+  const souris = event as MouseEvent | undefined;
+  if (souris && (souris.metaKey || souris.ctrlKey || souris.shiftKey || souris.altKey || souris.button > 0)) return;
+  event?.preventDefault();
+
+  const cible = { ...destinationDeFiche(router, props.to as any), state: etatDeSurface(route.fullPath) } as any;
+
+  /* On releve la position de la vignette avant de naviguer : c'est de la qu'elle partira
+     quand l'affiche de la fiche apparaitra, une fois les donnees chargees. */
+  memoriserApercu(props.item);
+  void router.push(cible);
 }
 
 function handleKeyboardActivate(e: KeyboardEvent): void {
   if (!props.to) {
     e.preventDefault();
     emit('open', props.item);
+    return;
   }
+  handleActivate(e);
 }
 </script>
 
 <style scoped lang="scss">
 .poster-action {
   background: var(--accent);
-  color: #111;
+  color: var(--on-accent);
 }
 .poster-action svg { width: 15px; height: 15px; }
 .request-action {

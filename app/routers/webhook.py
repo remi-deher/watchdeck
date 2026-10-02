@@ -558,6 +558,16 @@ async def _instance_name(db: AsyncSession, instance_id: int | None) -> str | Non
     return inst.name if inst else None
 
 
+async def _arr_plex_server_id(db: AsyncSession, service: str, instance_id: int | None) -> int | None:
+    """Serveur Plex vers lequel importe l'instance *arr du webhook (None = principal)."""
+    query = select(ArrInstance.plex_server_id).filter(ArrInstance.arr_type == service)
+    if instance_id:
+        query = query.filter(ArrInstance.id == instance_id)
+    else:
+        query = query.filter(ArrInstance.enabled, ArrInstance.is_default)
+    return (await db.execute(query.limit(1))).scalar()
+
+
 async def _resolve_arr_connection(
     db: AsyncSession, service: str, instance_id: int | None
 ) -> tuple[str, str, str] | None:
@@ -646,6 +656,7 @@ async def sonarr_webhook(request: Request):
                 arr_url=conn[0] if conn else None,
                 arr_api_key=conn[1] if conn else None,
                 cache_key=conn[2] if conn else None,
+                plex_server_id=await _arr_plex_server_id(db, "sonarr", webhook_instance_id),
             )
 
         series = data.get("series", {})
@@ -654,6 +665,23 @@ async def sonarr_webhook(request: Request):
         tvdb_id = series.get("tvdbId")
         episode_file_media_info = (data.get("episodeFile") or {}).get("mediaInfo") or {}
         arr_detected_vf = languages_list_has_french(episode_file_media_info.get("audioLanguages"))
+
+        # Une amelioration VF en attente de validation est confirmee des maintenant :
+        # `mediaInfo.audioLanguages` est mesure par ffprobe sur le fichier importe,
+        # inutile d'attendre le prochain scan Plex pour en prendre acte.
+        if arr_detected_vf:
+            from ..services.vf_upgrade_lifecycle import confirm_from_arr_import
+
+            for episode in data.get("episodes") or []:
+                await confirm_from_arr_import(
+                    db,
+                    "sonarr",
+                    sonarr_id,
+                    instance_id=webhook_instance_id,
+                    season_number=episode.get("seasonNumber"),
+                    episode_number=episode.get("episodeNumber"),
+                )
+            await db.commit()
 
         matched = await _mark_available_and_notify(
             title,
@@ -721,6 +749,7 @@ async def radarr_webhook(request: Request):
                 arr_url=conn[0] if conn else None,
                 arr_api_key=conn[1] if conn else None,
                 cache_key=conn[2] if conn else None,
+                plex_server_id=await _arr_plex_server_id(db, "radarr", instance_id),
             )
 
         movie = data.get("movie", {})
@@ -730,6 +759,14 @@ async def radarr_webhook(request: Request):
         imdb_id = movie.get("imdbId")
         movie_file_media_info = (data.get("movieFile") or {}).get("mediaInfo") or {}
         arr_detected_vf = languages_list_has_french(movie_file_media_info.get("audioLanguages"))
+
+        # Voir le webhook Sonarr : confirmation immediate de l'amelioration VF depuis
+        # les pistes audio mesurees a l'import, sans attendre le scan Plex.
+        if arr_detected_vf:
+            from ..services.vf_upgrade_lifecycle import confirm_from_arr_import
+
+            await confirm_from_arr_import(db, "radarr", radarr_id, instance_id=instance_id)
+            await db.commit()
 
         matched = await _mark_available_and_notify(
             title,

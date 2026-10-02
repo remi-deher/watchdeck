@@ -1,86 +1,122 @@
 <template>
-  <a href="#main-content" class="skip-link">Aller au contenu principal</a>
-  <div class="shell" :class="isWide ? 'shell--top' : 'shell--bar'">
-    <!-- Navigation adaptative : destinations principales + sections contextuelles. -->
-    <AppNav
-      :orientation="isWide ? 'top' : 'bar'"
-      :is-admin="isAdmin"
-      :can-moderate="canModerate"
-      @open-palette="palette?.open()"
-    />
-    <CommandPalette ref="palette" :is-admin="isAdmin" :can-moderate="canModerate" />
-
-    <main id="main-content" class="main" tabindex="-1">
-      <RouterView v-slot="{ Component, route: viewRoute }">
-        <component :is="Component" :key="viewRoute.path" />
+  <!-- Connexion, installation, confidentialite : ni shell, ni session, ni temps reel. -->
+  <RouterView v-if="pagePublique" />
+  <template v-else>
+  <AppShell :is-admin="isAdmin" :can-moderate="canModerate">
+    <RouteErrorBoundary>
+      <!-- Quand la fiche d'un media s'ouvre depuis une grille, c'est la page de depart
+           qui reste rendue ici : la grille ne disparait pas, elle passe dessous. La
+           fiche, elle, est posee par-dessus (voir `MediaOverlay`). Sans adresse de
+           depart -- lien colle, favori, actualisation -- `routeDeFond` vaut `null` et
+           la fiche s'affiche en pleine page, comme n'importe quelle autre. -->
+      <RouterView v-slot="{ Component }" :route="routeDeFond ?? undefined">
+        <!-- Vue Router reutilise naturellement une vue quand plusieurs chemins pointent
+             vers le meme composant. Ne pas la clef-er par chemin permet notamment a
+             /discover de devenir /discover/explore sans detruire le champ de recherche
+             apres la premiere lettre.
+             Pas de `<Transition>` ici, malgre le `page-shift` qui dort dans
+             `_motion.scss` : plusieurs vues -- la fiche media, entre autres -- ont une
+             racine multiple, et Vue ne sait pas animer un fragment. Il avertit, puis
+             laisse la vue sortante dans le document, qui se superpose a la nouvelle.
+             L'arrivee du contenu passe donc par la composition echelonnee de
+             `page-motion`, et l'ouverture d'une fiche par la surface ci-dessous. -->
+        <!-- Page de fond restauree apres un rechargement : ses vues paresseuses ne sont
+             pas encore chargees (voir `vuesDeRoutePretes`), on attend qu'elles le soient. -->
+        <RouteScope v-if="fondPret" :route="routeDeFond">
+          <component :is="Component" />
+        </RouteScope>
       </RouterView>
-    </main>
-    <div id="route-announcer" class="sr-only" role="status" aria-live="polite">{{ routeAnnouncement }}</div>
-    <ToastStack :toasts="toasts" @dismiss="dismissToast"/>
-  </div>
-</template>
+    </RouteErrorBoundary>
+  </AppShell>
 
+  <MediaOverlay :open="surfaceOuverte" :aria-label="libelleSurface" @close="fermerSurface" @after-leave="ficheAffichee = null">
+    <!-- La fiche reste rendue, figee sur SA route, pendant que la surface s'en va : sans
+         cela son contenu disparaissait a l'instant ou l'on fermait, et c'etait une
+         surface vide qui glissait -- demontee, de surcroit, dans l'image meme ou
+         l'animation devait commencer.
+         La surface rend la vue de la route, quelle qu'elle soit : fiche media, session de
+         lecture, torrent, utilisateur... Toute route ouverte avec une page de depart
+         (voir `ouvrirFiche`) s'y pose ; ouverte directement, elle s'affiche en pleine page. -->
+    <RouteScope v-if="ficheAffichee" :route="ficheAffichee.route">
+      <RouterView v-slot="{ Component }" :route="ficheAffichee.route">
+        <component :is="Component" :key="ficheAffichee.cle" />
+      </RouterView>
+    </RouteScope>
+  </MediaOverlay>
+  </template>
+  <AppToast />
+</template>
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute } from 'vue-router';
-import { api } from "@/api";
-import { clearCache, syncCacheOwner } from "@/cache";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { useRoute, type RouteLocationNormalizedLoaded } from "vue-router";
+import { syncCacheOwner } from "@/cache";
+import { useQueryClient } from "@tanstack/vue-query";
+import { synchroniserProprietaire } from "@/offline/stockage";
 import { connectRealtime } from "@/events";
-import ToastStack from "@/components/ui/ToastStack.vue";
-import AppNav from "@/components/layout/AppNav.vue";
-import CommandPalette from "@/components/layout/CommandPalette.vue";
+import AppShell from "@/components/layout/AppShell.vue";
+import MediaOverlay from "@/components/media/MediaOverlay.vue";
+import AppToast from '@/components/ui/AppToast.vue';
+import { useMediaOverlay, vuesDeRoutePretes } from "@/composables/useMediaOverlay";
+import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary.vue";
+import RouteScope from "@/components/layout/RouteScope.vue";
 import { playbackStartsFromEvent, playbackTitle } from "@/playbackToast";
-import { useMediaQuery } from "@/composables/useMediaQuery";
 import { useVisualViewport } from "@/composables/useVisualViewport";
 import { reportClientCapabilities } from "@/clientCapabilities";
 import { canModerateSession, isAdminSession, loadSession } from "@/composables/useSession";
+import { useToast } from "@/composables/useToast";
+/* La fiche media se pose au-dessus de la page d'ou l'on vient plutot que de la
+   remplacer -- voir `useMediaOverlay` pour le pourquoi. */
+const { actif: surfaceOuverte, routeDeFond, fermer: fermerSurface } = useMediaOverlay();
+const fondPret = computed(() => vuesDeRoutePretes(routeDeFond.value));
+const routeCourante = useRoute();
+/* Nom de la surface pour les lecteurs d'ecran : le titre de la route (« Média »,
+   « Session de lecture »...). */
+const libelleSurface = computed(() => String(ficheAffichee.value?.route.meta?.title || 'Détail'));
+const ficheAffichee = shallowRef<{ route: RouteLocationNormalizedLoaded; cle: string } | null>(null);
+watch(
+  () => [surfaceOuverte.value, routeCourante.fullPath] as const,
+  ([ouverte, cle]) => {
+    // Tant que la surface est ouverte, elle suit la route (passage d'une fiche a l'autre) ;
+    // a la fermeture, on garde la derniere fiche jusqu'a la fin de la sortie.
+    if (ouverte) ficheAffichee.value = { route: { ...routeCourante } as RouteLocationNormalizedLoaded, cle };
+  },
+  { immediate: true },
+);
+
+/* Avant la premiere navigation, la route n'est pas encore resolue : on se fie a l'adresse
+   de chargement. Les pages publiques sont toujours ouvertes par un chargement complet
+   (le serveur les aiguille), et les quitter recharge la page. */
+const PUBLIC_PATHS = new Set(['/login', '/setup', '/privacy']);
+const chargementPublic = PUBLIC_PATHS.has(window.location.pathname.replace(/\/+$/, '') || '/');
+const pagePublique = computed(() => (routeCourante.matched.length ? routeCourante.meta.public === true : chargementPublic));
+
+const queryClient = useQueryClient();
 const session=ref<any>(null);
-const palette=ref<{open:()=>void}|null>(null);
 useVisualViewport();
-const route=useRoute();
 const isAdmin=computed(()=>isAdminSession(session.value));
 const canModerate=computed(()=>canModerateSession(session.value));
-// Le shell garde la même hiérarchie, mais l'adapte à la portée : barre haute sur les
-// grands écrans, dock inférieur sur téléphone et tablette étroite.
-const isWide=useMediaQuery('(min-width: 900px)');
-const toasts=ref<any[]>([]);
 const seenPlaybackEvents=new Set<string>();
-const toastTimers=new Map<string, ReturnType<typeof setTimeout>>();
-function dismissToast(id: string | number): void {toasts.value=toasts.value.filter(toast=>toast.id!==id);clearTimeout(toastTimers.get(String(id)));toastTimers.delete(String(id))}
+const { addToast } = useToast();
+let swUpdateToastShown=false;
 function showPlaybackToasts(event: any): void {
   const started=playbackStartsFromEvent(event);
   for(const session of started){
     const fingerprint=`${event.detail.id||''}:${session.session_id||session.id||playbackTitle(session)}`;
     if(seenPlaybackEvents.has(fingerprint))continue;
     seenPlaybackEvents.add(fingerprint);
-    const id=`playback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    toasts.value=[...toasts.value.slice(-3),{id,type:'playback',title:`${session.user_name||'Un utilisateur'} lance une lecture`,message:playbackTitle(session),image:session.thumb_url||''}];
-    toastTimers.set(id,setTimeout(()=>dismissToast(id),7000));
+    addToast({type:'info',title:`${session.user_name||'Un utilisateur'} lance une lecture`,message:playbackTitle(session),image:session.thumb_url||'',duration:7000});
   }
 }
-// Un import complet a remplace toute la base : tout ce que cet onglet affiche, et tout ce
-// qu'il a mis en cache, reference des lignes qui n'existent plus. On purge et on recharge
-// plutot que de laisser l'utilisateur agir sur des donnees fantomes.
-function onMigrationCompleted(): void {clearCache();window.location.reload()}
 // Sans ce toast, un nouveau service worker installe restait silencieux : l'utilisateur
 // continuait a utiliser une version perimee de l'app sans jamais etre invite a recharger.
 function onSwUpdateAvailable(): void {
-  if(toasts.value.some(toast=>toast.type==='update'))return;
-  toasts.value=[...toasts.value,{id:'sw-update',type:'update',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.'}];
+  if(swUpdateToastShown)return;
+  swUpdateToastShown=true;
+  addToast({type:'info',title:'Nouvelle version disponible',message:'Rechargez pour mettre à jour Watchdeck.',duration:0,action:{label:'Recharger',run:()=>window.location.reload()}});
 }
-const routeAnnouncement=ref('');
-let isFirstNavigation=true;
-watch(()=>route.fullPath,async()=>{
-  // La premiere "navigation" est le chargement initial de la page : le focus y est
-  // deja au bon endroit et il n'y a rien a annoncer.
-  if(isFirstNavigation){isFirstNavigation=false;return}
-  await nextTick();
-  document.getElementById('main-content')?.focus({preventScroll:true});
-  const title=typeof route.meta.title==='string'?route.meta.title:'';
-  routeAnnouncement.value=title?`Page ${title} chargée`:'Page chargée';
-});
 onMounted(async()=>{
-  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:migration.completed',onMigrationCompleted);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
-onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:migration.completed',onMigrationCompleted);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);toastTimers.forEach(clearTimeout)});
+  if(chargementPublic)return;
+  window.addEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.addEventListener('watchdeck:sw-update-available',onSwUpdateAvailable);session.value=await loadSession();syncCacheOwner(session.value);void synchroniserProprietaire(queryClient,session.value);if(session.value){connectRealtime();window.requestAnimationFrame(()=>void reportClientCapabilities())}});
+onUnmounted(()=>{window.removeEventListener('watchdeck:activity.updated',showPlaybackToasts as EventListener);window.removeEventListener('watchdeck:sw-update-available',onSwUpdateAvailable)});
 </script>
 

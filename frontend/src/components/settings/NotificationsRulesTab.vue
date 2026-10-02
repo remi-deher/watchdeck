@@ -1,55 +1,64 @@
 <template>
-  <div class="settings-grid">
-    <div class="settings-cards span-two">
-      <SettingsCard title="Retention et digest" subtitle="Duree de conservation des journaux de notifications, et recapitulatif quotidien par email." :icon="Archive" status="active" :collapsible="false">
-        <label>Journaux de notifications (jours)<RetentionDaysInput v-model="form.notification_log_retention_days" :default-days="30"/></label>
-        <label class="check"><input v-model="form.digest_enabled" type="checkbox"> Digest actif</label>
-        <small class="check-hint">Envoie un recapitulatif quotidien par email, a l'heure choisie ci-dessous, aux utilisateurs ayant active le digest dans leurs preferences — au lieu de recevoir chaque notification individuellement.</small>
-        <label>Heure du digest<TimeOfDayInput v-model:hour="form.digest_hour" v-model:minute="form.digest_minute"/></label>
-      </SettingsCard>
-    </div>
-
-    <section class="panel form-section span-two">
-      <h2>Evenements et canaux</h2>
-      <p class="hint">Choisis, pour chaque type d'evenement, quels canaux doivent envoyer une notification. Un canal doit d'abord etre active dans l'onglet Canaux pour que sa case ici ait un effet.</p>
-      <dl class="event-legend">
-        <div v-for="event in notificationEvents" :key="event.key">
-          <dt>{{ event.label }}</dt>
-          <dd>{{ event.description }}</dd>
+  <div class="settings-rows">
+    <SettingsSection title="Événements et canaux" subtitle="Pour chaque type d'événement, les canaux qui envoient une notification. Un canal doit d'abord être activé dans Canaux pour que sa case ait un effet.">
+      <SettingsRow label="Matrice des envois" block>
+        <dl class="event-legend">
+          <div v-for="event in notificationEvents" :key="event.key">
+            <dt>{{ event.label }}</dt>
+            <dd>{{ event.description }}</dd>
+          </div>
+        </dl>
+        <div class="event-matrix">
+          <div></div><strong>Email</strong><strong>Discord</strong><strong>Telegram</strong><strong>ntfy</strong><strong>Gotify</strong>
+          <template v-for="event in notificationEvents" :key="event.key">
+            <strong :title="event.description">{{ event.label }}</strong>
+            <!-- Une case au croisement d'une ligne et d'une colonne n'a de sens que
+                 reliee aux deux : le libelle enveloppant etait vide, et un lecteur
+                 d'ecran n'annoncait qu'« case à cocher ». -->
+            <label class="check"><UiCheckbox v-model="form[`email_on_${event.key}`]" :aria-label="`${event.label} — Email`" /></label>
+            <label v-for="channel in channels" :key="channel.key" class="check"><UiCheckbox v-model="form[`${channel.key}_send_${event.key}`]" :aria-label="`${event.label} — ${channel.label}`" /></label>
+          </template>
         </div>
-      </dl>
-      <div class="event-matrix">
-        <div></div><strong>Email</strong><strong>Discord</strong><strong>Telegram</strong><strong>ntfy</strong><strong>Gotify</strong>
-        <template v-for="event in notificationEvents" :key="event.key">
-          <strong :title="event.description">{{ event.label }}</strong>
-          <label class="check"><input v-model="form[`email_on_${event.key}`]" type="checkbox"></label>
-          <label v-for="channel in channels" :key="channel.key" class="check"><input v-model="form[`${channel.key}_send_${event.key}`]" type="checkbox"></label>
-        </template>
-      </div>
-      <label class="check"><input v-model="form.email_on_vf_available" type="checkbox"> Email lors d'une amelioration VO vers VF</label>
-      <small class="check-hint">Notifie separement quand un media deja disponible en VO recoit sa VF, en plus de la notification de disponibilite initiale.</small>
-      <div class="settings-grid two">
-        <label class="check"><input v-model="form.movie_notify_language" type="checkbox"> Distinguer VO/VF pour les films</label>
-        <small class="check-hint">Actif : un film disponible d'abord en VO puis mis a jour en VF declenche deux notifications separees. Desactive : une seule notification generique "disponible", sans distinction de langue.</small>
-        <label class="check"><input v-model="form.series_notify_language" type="checkbox"> Distinguer VO/VF pour les series</label>
-        <small class="check-hint">Actif : les jalons VO/VF d'une serie suivent la granularite choisie ci-dessous. Desactive : suivi de disponibilite classique, sans notification liee a la langue.</small>
-        <label>Granularite series
-          <select v-model="form.series_notify_granularity">
-            <option value="minimal">Serie complete</option>
-            <option value="jalons">Debut et fin de saison</option>
-            <option value="tout">Chaque episode</option>
-          </select>
-          <small>A quel rythme une serie en cours declenche une notification : une seule fois a la fin, a chaque debut/fin de saison, ou a chaque episode disponible.</small>
-        </label>
-      </div>
-    </section>
+      </SettingsRow>
+      <SettingsRow label="Email lors d'une amélioration VO vers VF" description="Notifie séparément quand un média déjà disponible en VO reçoit sa VF, en plus de la notification de disponibilité initiale.">
+        <ToggleSwitch v-model="form.email_on_vf_available" title="Email lors d'une amélioration VO vers VF" />
+      </SettingsRow>
+    </SettingsSection>
+
+    <SettingsSection title="Langue des notifications" subtitle="Distinguer la VO et la VF, et le rythme des notifications de séries.">
+      <SettingsRow label="Distinguer VO/VF pour les films" description="Activé : un film disponible en VO puis en VF déclenche deux notifications. Désactivé : une seule notification « disponible », sans distinction de langue.">
+        <ToggleSwitch v-model="form.movie_notify_language" title="Distinguer VO/VF pour les films" />
+      </SettingsRow>
+      <SettingsRow label="Distinguer VO/VF pour les séries" description="Activé : les jalons VO/VF suivent la granularité ci-dessous. Désactivé : suivi de disponibilité classique, sans notification liée à la langue.">
+        <ToggleSwitch v-model="form.series_notify_language" title="Distinguer VO/VF pour les séries" />
+      </SettingsRow>
+      <SettingsRow label="Granularité des séries" description="Une seule fois à la fin, à chaque début et fin de saison, ou à chaque épisode disponible.">
+        <UiSelect v-model="form.series_notify_granularity" aria-label="Granularité des séries" :options="[{ value: 'minimal', label: 'Série complète' }, { value: 'jalons', label: 'Début et fin de saison' }, { value: 'tout', label: 'Chaque épisode' }]" />
+      </SettingsRow>
+    </SettingsSection>
+
+    <SettingsSection title="Rétention et digest" subtitle="Conservation des journaux de notifications, et récapitulatif quotidien par email.">
+      <SettingsRow label="Journaux de notifications" description="En jours.">
+        <RetentionDaysInput v-model="form.notification_log_retention_days" :default-days="30"/>
+      </SettingsRow>
+      <SettingsRow label="Digest quotidien" description="Un récapitulatif par jour, à l'heure choisie, pour les utilisateurs qui l'ont activé dans leurs préférences, au lieu de chaque notification.">
+        <ToggleSwitch v-model="form.digest_enabled" title="Digest quotidien" />
+      </SettingsRow>
+      <SettingsRow label="Heure du digest" :disabled="!form.digest_enabled">
+        <UiTimeField v-model:hour="form.digest_hour" v-model:minute="form.digest_minute" aria-label="Heure du digest"/>
+      </SettingsRow>
+    </SettingsSection>
   </div>
 </template>
 <script setup lang="ts">
-import { Archive, Bell, Megaphone, MessageSquare, Send } from '@lucide/vue';
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
+import { Bell, Megaphone, MessageSquare, Send } from '@lucide/vue';
 import { form } from '@/settingsForm';
-import SettingsCard from './SettingsCard.vue';
-import TimeOfDayInput from './TimeOfDayInput.vue';
+import SettingsSection from './SettingsSection.vue';
+import SettingsRow from './SettingsRow.vue';
+import UiTimeField from '@/components/ui/UiTimeField.vue';
 import RetentionDaysInput from './RetentionDaysInput.vue';
 
 const channels = [
@@ -62,14 +71,14 @@ const channels = [
 // utilisee aussi par l'editeur de modeles d'email) pour ne pas raconter une autre
 // histoire que celle des emails reellement envoyes.
 const notificationEvents = [
-  { key: 'request', label: 'Nouvelle demande', description: 'Confirmation envoyee quand une demande est enregistree.' },
-  { key: 'available', label: 'Disponibilite', description: "Un media (ou un episode/une saison suivie) est disponible sur Plex — VO, VF, amelioration VO→VF, ou jalon de serie, selon le contexte." },
-  { key: 'failure', label: 'Echec', description: "La demande n'a pas pu etre transmise a Sonarr ou Radarr." },
+  { key: 'request', label: 'Nouvelle demande', description: 'Confirmation envoyée quand une demande est enregistrée.' },
+  { key: 'available', label: 'Disponibilité', description: "Un média (ou un épisode/une saison suivie) est disponible sur Plex — VO, VF, amélioration VO→VF, ou jalon de série, selon le contexte." },
+  { key: 'failure', label: 'Échec', description: "La demande n'a pas pu être transmise à Sonarr ou Radarr." },
 ];
 </script>
 <style scoped lang="scss">
+.event-matrix { width: 100%; }
 .event-legend {
-  grid-column: 1 / -1;
   display: grid;
   gap: var(--space-1) var(--space-4);
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

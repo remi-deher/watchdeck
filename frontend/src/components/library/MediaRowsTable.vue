@@ -1,62 +1,59 @@
 <template>
-  <DataTable
-    ref="tableRef"
-    :columns="columns"
+  <!-- Le serveur trie tout le catalogue filtre : le tableau ne fait qu'emettre la demande.
+       Une meme ligne disait l'absence de trois facons differentes : « 0 · aucun »,
+       « personne », « jamais ». Dans un tableau dense, la valeur vide s'ecrit toujours
+       pareil -- le tiret cadratin -- et la formulation en toutes lettres reste pour le
+       fiche de detail, ou il y a la place de l'expliquer. -->
+  <UiDataTable
+    class="panel media-rows-table"
+    label="Fichiers média"
     :rows="items"
-    :row-key="rowKey"
-    preference-scope="library-inventory"
-    default-sort-key="title"
-    clickable-rows
-    aria-label="Fichiers média"
-    @row-click="details = $event"
+    :columns="visibleColumns"
+    :row-key="(row: any) => row.id ?? `${row.rating_key}-${row.file_path}`"
+    :sort="sortKey ? { key: sortKey, direction: sortDirection } : null"
+    manual-sort
+    clickable
+    :row-class="rowClass"
+    @update:sort="(value) => value && emit('update:sort', value)"
+    @row-click="openDetails"
   >
-    <template #cell-title="{ row }"><strong>{{ title(row) }}</strong><small>{{ mediaTypeLabel(row.media_type) }}</small></template>
-    <template #cell-video="{ row }">{{ row.video_resolution || '—' }} · {{ row.video_codec || '—' }}</template>
-    <template #cell-audio="{ row }">{{ row.audio_codec || '—' }} · {{ (row.audio_languages || []).join(', ') || 'langue inconnue' }} · {{ row.audio_track_count || 0 }} piste(s)</template>
-    <template #cell-subtitles="{ row }">{{ row.subtitle_count || 0 }} · {{ (row.subtitle_types || row.subtitle_languages || []).join(', ') || 'aucun' }}</template>
-    <template #cell-size_bytes="{ row }">{{ bytes(row.size_bytes) }}</template>
-    <template #cell-plays="{ row }">{{ row.play_count || 0 }} lecture(s) · {{ (row.viewers || []).join(', ') || 'personne' }}</template>
     <template #empty>Aucun fichier ne correspond aux filtres.</template>
-  </DataTable>
+    <template #cell-title="{ row }">
+      <span class="media-cell">
+        <MediaArtwork :src="row.thumb_url || ''" :alt="''" :type="row.media_type" size="small" />
+        <span class="media-cell__text"><strong>{{ title(row) }}</strong><small>{{ subtitle(row) }}</small></span>
+      </span>
+    </template>
+    <template #cell-video="{ row }">
+      <span v-if="quality(row).length" class="quality-tags">
+        <span v-for="(tag, index) in quality(row)" :key="tag" class="quality-tag" :class="{ 'is-accent': index === 0 && isHighDefinition(row) }">{{ tag }}</span>
+      </span>
+      <template v-else>—</template>
+    </template>
+    <template #cell-audio="{ row }">{{ [row.audio_codec, (row.audio_languages || []).join(', '), row.audio_track_count ? `${row.audio_track_count} piste(s)` : ''].filter(Boolean).join(' · ') || '—' }}</template>
+    <template #cell-subtitles="{ row }">{{ row.subtitle_count ? [`${row.subtitle_count}`, (row.subtitle_types || row.subtitle_languages || []).join(', ')].filter(Boolean).join(' · ') : '—' }}</template>
+    <template #cell-size_bytes="{ row }">
+      <span class="size-cell">{{ bytes(row.size_bytes) }}<span class="size-bar" aria-hidden="true"><i :style="{ width: `${sizeShare(row)}%` }"></i></span></span>
+    </template>
+    <template #cell-plays="{ row }">{{ row.play_count ? `${row.play_count} lecture(s)` : '—' }}</template>
+    <template #cell-viewer="{ row }">{{ (row.viewers || []).join(', ') || '—' }}</template>
+    <template #cell-last_viewed="{ row }">{{ row.last_viewed_at ? formatDate(row.last_viewed_at) : '—' }}</template>
+  </UiDataTable>
 
-  <DrawerShell v-if="details" eyebrow="Fichier média" :title="title(details)" @close="details = null">
-    <section class="drawer-section">
-      <h3>Média</h3>
-      <dl class="detail-grid">
-        <div><dt>Type</dt><dd>{{ mediaTypeLabel(details.media_type) }}</dd></div>
-        <div><dt>Bibliothèque</dt><dd>{{ details.library || '—' }}</dd></div>
-        <div><dt>Studio</dt><dd>{{ details.studio || '—' }}</dd></div>
-        <div><dt>Année</dt><dd>{{ details.year || '—' }}</dd></div>
-        <div><dt>Ajouté le</dt><dd>{{ formatDate(details.added_at) }}</dd></div>
-        <div><dt>Durée</dt><dd>{{ duration(details.duration_ms) }}</dd></div>
-      </dl>
-    </section>
-    <section class="drawer-section">
-      <h3>Fichier</h3>
-      <dl class="detail-grid">
-        <div><dt>Poids</dt><dd>{{ bytes(details.size_bytes) }}</dd></div>
-        <div><dt>Conteneur</dt><dd>{{ details.container || '—' }}</dd></div>
-        <div><dt>Vidéo</dt><dd>{{ details.video_resolution || '—' }} · {{ details.video_codec || '—' }}</dd></div>
-        <div><dt>Audio</dt><dd>{{ details.audio_codec || '—' }}<template v-if="details.audio_channels"> · {{ details.audio_channels }} canaux</template></dd></div>
-        <div><dt>Pistes audio</dt><dd>{{ (details.audio_languages || []).join(', ') || 'aucune' }}</dd></div>
-        <div><dt>Sous-titres</dt><dd>{{ (details.subtitle_types || details.subtitle_languages || []).join(', ') || 'aucun' }}</dd></div>
-      </dl>
-    </section>
-    <section class="drawer-section">
-      <h3>Audience</h3>
-      <dl class="detail-list">
-        <div><dt>Lectures</dt><dd>{{ details.play_count || 0 }}</dd></div>
-        <div><dt>Temps visionné</dt><dd>{{ duration(details.watch_time_ms) }}</dd></div>
-        <div><dt>Spectateurs</dt><dd>{{ (details.viewers || []).join(', ') || 'personne' }}</dd></div>
-      </dl>
-    </section>
-  </DrawerShell>
+  <ColumnPickerModal :open="showColumnPicker" :prefs="columnPrefs" :defaults="columns" @close="showColumnPicker = false" />
+
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
-import DrawerShell from '@/components/DrawerShell.vue';
+import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
+import MediaArtwork from '@/components/activity/MediaArtwork.vue';
+import { codecLabel } from '@/utils/conversionVerdict';
+import { resolutionLabel } from '@/utils/mediaTechnical';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import ColumnPickerModal from '@/components/ui/ColumnPickerModal.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 import { mediaTypeLabel } from '@/utils/labels';
 import {
   formatDateTime as formatDate,
@@ -64,43 +61,99 @@ import {
   formatFileSize as bytes,
 } from '@/utils/format';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     items?: any[];
+    /** Tri courant, applique par le serveur sur tout le catalogue filtre. */
+    sortKey?: string | null;
+    sortDirection?: 'asc' | 'desc';
   }>(),
   {
     items: () => [],
+    sortKey: undefined,
+    sortDirection: 'asc',
   }
 );
 
-const columns: DataTableColumn[] = [
-  { key: 'title', label: 'Titre', required: true, className: 'card-title' },
-  { key: 'library', label: 'Bibliothèque' },
-  { key: 'studio', label: 'Studio' },
-  { key: 'video', label: 'Qualité', sortable: false },
-  { key: 'audio', label: 'Audio', sortable: false },
-  { key: 'container', label: 'Conteneur' },
-  { key: 'subtitles', label: 'Sous-titres', sortable: false },
-  { key: 'size_bytes', label: 'Poids' },
-  { key: 'plays', label: 'Audience', sortable: false },
+const emit = defineEmits<{
+  (e: 'update:sort', value: { key: string; direction: 'asc' | 'desc' }): void;
+}>();
+
+const columns: UiColumn[] = [
+  { key: 'title', label: 'Titre', required: true, sortable: true, card: 'title' },
+  { key: 'library', label: 'Bibliothèque', hint: 'Section Plex du fichier', sortable: true, className: 'col-narrow' },
+  { key: 'studio', label: 'Studio', hint: 'Studio ou label', sortable: true, className: 'col-narrow' },
+  { key: 'video', label: 'Qualité', hint: 'Résolution, codec vidéo, conteneur', sortable: true },
+  { key: 'audio', label: 'Audio', hint: 'Codec, langues, nombre de pistes', sortable: true },
+  { key: 'container', label: 'Conteneur', hint: 'Format du fichier', sortable: true, className: 'col-narrow' },
+  { key: 'subtitles', label: 'Sous-titres', hint: 'Nombre et langues', sortable: true },
+  { key: 'size_bytes', label: 'Poids', hint: 'Taille sur le disque', sortable: true },
+  { key: 'plays', label: 'Lectures', hint: 'Nombre de lectures', sortable: true },
+  { key: 'viewer', label: 'Spectateurs', hint: 'Qui l’a regardé', sortable: true },
+  { key: 'last_viewed', label: 'Dernier visionnage', hint: 'Date de la dernière lecture', sortable: true },
 ];
 
-const details = ref<any | null>(null);
-const tableRef = ref<{ openColumnPicker: () => void } | null>(null);
-defineExpose({ openColumnPicker: () => tableRef.value?.openColumnPicker() });
+/* La fiche technique d'un fichier s'ouvre dans la feuille, avec sa propre adresse
+   (voir AnalyticsItemView). */
+const route = useRoute();
+const router = useRouter();
+function openDetails(row: any): void {
+  if (!row?.rating_key) return;
+  // Les lignes chargees voyagent avec la fiche : ses fleches (et j / k) passent au
+  // fichier voisin sans refermer la feuille.
+  const ids = props.items.map((item: any) => item.rating_key).filter(Boolean);
+  ouvrirFiche(router, `/analytics/item/${encodeURIComponent(row.rating_key)}`, route.fullPath, etatDeVoisins(ids));
+}
+/* La ligne dont la fiche est ouverte reste marquee sous la feuille. `currentRoute` et non
+   `useRoute()` : rendue en fond, la page recoit la route de fond, pas celle de la fiche. */
+const openKey = computed(() => {
+  const path = router.currentRoute.value.path;
+  return path.startsWith('/analytics/item/') ? decodeURIComponent(path.slice('/analytics/item/'.length)) : '';
+});
+const rowClass = (row: any): string => (openKey.value && row.rating_key === openKey.value ? 'is-open' : '');
+const showColumnPicker = ref(false);
+const columnPrefs = useTableColumns(
+  () => columns,
+  { storageKey: 'watchdeck:data-table-columns:library-inventory' },
+);
+const { visibleColumns } = columnPrefs;
+defineExpose({ openColumnPicker: () => { showColumnPicker.value = true; } });
 
-const rowKey = (row: any): string => `${row.rating_key}:${row.title}`;
 const title = (row: any): string => (row.grandparent_title ? `${row.grandparent_title} · ${row.title}` : row.title);
+const known = (value: unknown): boolean => Boolean(value) && !/^inconnue?$/i.test(String(value));
+const subtitle = (row: any): string => [mediaTypeLabel(row.media_type), row.year, row.library].filter(Boolean).join(' · ');
+const isHighDefinition = (row: any): boolean => /^(4k|8k|2160|1440)$/i.test(String(row.video_resolution || ''));
+const quality = (row: any): string[] => [
+  resolutionLabel(row.video_resolution),
+  known(row.video_codec) ? codecLabel(row.video_codec) : '',
+  known(row.container) ? String(row.container).toUpperCase() : '',
+].filter(Boolean);
+/* Barre de poids relative au plus lourd des fichiers affiches : on repere d'un coup
+   d'oeil ce qui pese, sans lire chaque valeur. */
+const largest = computed(() => Math.max(1, ...props.items.map((row: any) => Number(row.size_bytes || 0))));
+const sizeShare = (row: any): number => Math.round((Number(row.size_bytes || 0) / largest.value) * 100);
 </script>
 
 <style scoped lang="scss">
-.drawer-section { margin-top: 22px; }
-.drawer-section:first-child { margin-top: 8px; }
-.drawer-section h3 { margin: 0 0 12px; }
-.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: 0; }
-.detail-grid div, .detail-list div { padding: 10px; border-radius: var(--radius-sm); background: var(--surface-2); }
-.detail-grid dt, .detail-list dt { color: var(--muted); font-size: var(--fs-xs); }
-.detail-grid dd, .detail-list dd { margin: 4px 0 0; font-weight: 700; }
-.detail-list { display: grid; gap: var(--space-2); margin: 0; }
-@media (max-width: 520px) { .detail-grid { grid-template-columns: 1fr; } }
+/* Les colonnes se partageaient la largeur a parts egales : « Studio : Inconnu » et
+   « Conteneur : mkv » prenaient autant de place que le titre, qui se repliait alors sur
+   six lignes et faisait passer certaines rangees a 400px de haut. On donne au titre la
+   largeur qu'il demande, et on empeche les colonnes courtes de s'etaler. */
+:deep(td.card-title), :deep(th.card-title) { min-width: 240px; }
+:deep(td.card-title strong) { display: block; overflow-wrap: anywhere; }
+:deep(td.col-narrow), :deep(th.col-narrow) { width: 1%; white-space: nowrap; }
+:deep(tbody td) { vertical-align: middle; }
+:deep(tr.is-open td) { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+:deep(tr.is-open td:first-child) { box-shadow: inset 3px 0 0 var(--accent); }
+.media-cell { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.media-cell__text { display: grid; gap: 2px; min-width: 0; }
+.media-cell__text small { color: var(--muted); font-size: var(--fs-xs); }
+.quality-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.quality-tag { display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border-radius: var(--radius-xs); background: var(--surface-3); font-size: var(--fs-xs); font-weight: 650; white-space: nowrap; }
+.quality-tag.is-accent { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.size-cell { display: inline-grid; gap: 5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.size-bar { display: block; width: 72px; height: 4px; overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-3); }
+.size-bar i { display: block; height: 100%; border-radius: inherit; background: var(--muted); }
+:deep(tr.is-open) .size-bar i { background: var(--accent); }
+
 </style>

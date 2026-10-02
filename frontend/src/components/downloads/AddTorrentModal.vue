@@ -1,20 +1,20 @@
 <template>
   <ModalShell :open="open" title="Ajouter un torrent" subtitle="Envoyer un torrent ou un lien Magnet vers un client configuré." @close="emit('close')">
-    <div class="add-torrent-tabs" role="tablist" aria-label="Source du torrent">
-      <button class="tab-btn" :class="{ active: mode === 'url' }" type="button" role="tab" :aria-selected="mode === 'url'" @click="mode = 'url'">
-        <Link /> Lien Magnet / URL
-      </button>
-      <button class="tab-btn" :class="{ active: mode === 'file' }" type="button" role="tab" :aria-selected="mode === 'file'" @click="mode = 'file'">
-        <Upload /> Fichier .torrent
-      </button>
-    </div>
+    <!-- Deux sources, deux panneaux : le pattern Tabs d'AppSubnav (Reka UI) remplace les
+         boutons `role="tab"` poses a la main, qui n'avaient ni fleches ni tabindex mobile. -->
+    <AppSubnav
+      class="add-torrent-tabs"
+      variant="tabs"
+      :items="SOURCE_TABS"
+      :active="mode"
+      aria-label="Source du torrent"
+      @update:active="mode = $event"
+    />
 
     <form class="add-torrent-form" @submit.prevent="submit">
       <div v-if="clients.length > 1" class="form-group">
         <label for="torrent-client">Client torrent cible</label>
-        <select id="torrent-client" v-model="selectedClientId">
-          <option v-for="cl in clients" :key="cl.id" :value="cl.id">{{ cl.name }} ({{ cl.client_type }})</option>
-        </select>
+        <UiSelect id="torrent-client" v-model="selectedClientId" :options="[...(clients).map((cl) => ({ value: cl.id, label: `${cl.name} (${cl.client_type})` }))]" />
       </div>
 
       <!-- Mode URL / Magnet -->
@@ -59,18 +59,18 @@
         </div>
       </div>
 
-      <button v-if="metadata.mutable" type="button" class="secondary metadata-toggle" @click="showMetadataManager = !showMetadataManager"><Tags />{{ showMetadataManager ? 'Masquer la gestion' : 'Gérer les catégories et tags' }}</button>
+      <UiButton v-if="metadata.mutable" class="metadata-toggle" @click="showMetadataManager = !showMetadataManager"><Tags />{{ showMetadataManager ? 'Masquer la gestion' : 'Gérer les catégories et tags' }}</UiButton>
       <section v-if="showMetadataManager && metadata.mutable" class="metadata-manager">
         <div v-for="kind in metadataKinds" :key="kind.key" class="metadata-kind">
           <header><strong>{{ kind.label }}</strong><span>{{ kind.items.length }}</span></header>
-          <div class="metadata-create"><input v-model="newMetadata[kind.key]" :placeholder="`Nouvelle ${kind.singular.toLowerCase()}`" @keyup.enter.prevent="createMetadata(kind.key)" /><button type="button" class="secondary" :disabled="metadataBusy || !newMetadata[kind.key].trim()" @click="createMetadata(kind.key)"><Plus />Créer</button></div>
+          <div class="metadata-create"><input v-model="newMetadata[kind.key]" :placeholder="`Nouvelle ${kind.singular.toLowerCase()}`" @keyup.enter.prevent="createMetadata(kind.key)" /><UiButton :disabled="metadataBusy || !newMetadata[kind.key].trim()" @click="createMetadata(kind.key)"><Plus />Créer</UiButton></div>
           <div class="metadata-list">
             <div v-for="item in kind.items" :key="item" class="metadata-item">
               <input v-if="editing.kind===kind.key&&editing.name===item" v-model="editing.value" @keyup.enter.prevent="renameMetadata" />
               <span v-else>{{ item }}</span>
-              <button v-if="editing.kind===kind.key&&editing.name===item" type="button" class="icon-button" title="Enregistrer" @click="renameMetadata"><Check /></button>
-              <button v-else type="button" class="icon-button" title="Renommer" @click="startRename(kind.key,item)"><Pencil /></button>
-              <button type="button" class="icon-button danger" :title="pendingDelete.kind===kind.key&&pendingDelete.name===item?'Confirmer la suppression':'Supprimer'" @click="requestDelete(kind.key,item)"><Trash2 /></button>
+              <UiButton icon-only v-if="editing.kind===kind.key&&editing.name===item" title="Enregistrer" @click="renameMetadata"><Check /></UiButton>
+              <UiButton icon-only v-else title="Renommer" @click="startRename(kind.key,item)"><Pencil /></UiButton>
+              <UiButton variant="danger" icon-only :title="pendingDelete.kind===kind.key&&pendingDelete.name===item?'Confirmer la suppression':'Supprimer'" @click="requestDelete(kind.key,item)"><Trash2 /></UiButton>
             </div>
           </div>
         </div>
@@ -79,16 +79,19 @@
       <p v-if="errorMessage" class="error-msg">{{ errorMessage }}</p>
 
       <div class="form-actions">
-        <button type="button" class="secondary text-xs" :disabled="busy" @click="emit('close')">Annuler</button>
-        <button type="submit" class="primary text-xs" :disabled="busy || !canSubmit">
+        <UiButton class="text-xs" :disabled="busy" @click="emit('close')">Annuler</UiButton>
+        <UiButton variant="primary" type="submit" class="text-xs" :disabled="busy || !canSubmit">
           {{ busy ? 'Ajout en cours...' : 'Ajouter le torrent' }}
-        </button>
+        </UiButton>
       </div>
     </form>
   </ModalShell>
 </template>
 
 <script setup lang="ts">
+import AppSubnav, { type SubnavItem } from '@/components/ui/AppSubnav.vue';
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import { computed, reactive, ref, watch } from 'vue';
 import { Check, FileText, Link, Pencil, Plus, Tags, Trash2, Upload } from '@lucide/vue';
 import { api } from '@/api';
@@ -112,6 +115,10 @@ const emit = defineEmits<{
   (e: 'added'): void;
 }>();
 
+const SOURCE_TABS: SubnavItem[] = [
+  { key: 'url', label: 'Lien Magnet / URL', icon: Link },
+  { key: 'file', label: 'Fichier .torrent', icon: Upload },
+];
 const mode = ref('url');
 const selectedClientId = ref<string | number | null>(null);
 const torrentUrl = ref('');
@@ -300,51 +307,8 @@ async function submit(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
-.add-torrent-tabs {
-  display: flex;
-  gap: 6px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 10px;
-  margin-bottom: 14px;
-  max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-.add-torrent-tabs::-webkit-scrollbar { display: none; }
-.tab-btn {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-@media (max-width: 640px) {
-  .tab-btn { min-height: 44px; }
-}
-.tab-btn:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-.tab-btn.active {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  font-weight: 700;
-}
-.tab-btn svg {
-  width: 14px;
-  height: 14px;
-}
+@use '@/styles/foundations/breakpoints' as bp;
+.add-torrent-tabs { margin-bottom: var(--space-3); }
 .add-torrent-form {
   display: flex;
   flex-direction: column;
@@ -370,7 +334,7 @@ async function submit(): Promise<void> {
   color: var(--text);
   font: inherit;
   font-size: var(--fs-xs);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard);
 }
 .form-group input:focus,
 .form-group select:focus,
@@ -384,7 +348,7 @@ async function submit(): Promise<void> {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-@media (max-width: 480px) {
+@container panel (max-width: 448px) {
   .form-row {
     grid-template-columns: 1fr;
   }
@@ -400,7 +364,7 @@ async function submit(): Promise<void> {
   border-radius: var(--radius-md);
   background: var(--surface-2);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
   font-size: var(--fs-xs);
   color: var(--muted);
   text-align: center;
@@ -417,7 +381,7 @@ async function submit(): Promise<void> {
   color: var(--accent);
 }
 .error-msg {
-  color: var(--danger);
+  color: var(--red-text);
   font-size: var(--fs-xs);
   margin: 0;
   padding: 6px 10px;
@@ -434,9 +398,9 @@ async function submit(): Promise<void> {
   border-top: 1px solid var(--border);
 }
 .metadata-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;align-self:flex-start;min-height:38px}.metadata-toggle svg,.metadata-create svg{width:15px;height:15px}
-.metadata-manager{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2)}
+.metadata-manager{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px;border:1px solid var(--border);border-radius:var(--panel-radius);background:var(--surface-2)}
 .metadata-kind{display:grid;align-content:start;gap:8px;min-width:0}.metadata-kind>header{display:flex;align-items:center;justify-content:space-between}.metadata-kind>header span{color:var(--muted);font-size:var(--fs-xs)}
 .metadata-create{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}.metadata-create input,.metadata-item input{min-width:0;width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)}.metadata-create button{display:inline-flex;align-items:center;gap:5px;padding:0 9px}
-.metadata-list{display:grid;gap:4px;max-height:190px;overflow-y:auto;overscroll-behavior:contain}.metadata-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:4px;min-height:36px;padding:3px 4px 3px 9px;border-radius:var(--radius-sm);background:var(--surface)}.metadata-item>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)}.metadata-item .icon-button{width:30px;height:30px;padding:0}.metadata-item .icon-button svg{width:14px;height:14px}
-@media(max-width:640px){.metadata-manager{grid-template-columns:1fr}.metadata-toggle{align-self:stretch}.metadata-list{max-height:150px}}
+.metadata-list{display:grid;gap:4px;max-height:190px;overflow-y:auto;overscroll-behavior:contain}.metadata-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:4px;min-height:36px;padding:3px 4px 3px 9px;border-radius:var(--radius-sm);background:var(--surface)}.metadata-item>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)}.metadata-item :deep(.ui-button){width:30px;height:30px;padding:0}.metadata-item :deep(.ui-button svg){width:14px;height:14px}
+@include bp.until(phablet) {.metadata-manager{grid-template-columns:1fr}.metadata-toggle{align-self:stretch}.metadata-list{max-height:150px}}
 </style>

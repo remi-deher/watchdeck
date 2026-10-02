@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -500,6 +501,52 @@ def test_analytics_computes_completion_quality_and_user_trends():
     assert analytics["users"][0]["favorite_title"] == "Foundation"
 
 
+def test_analytics_tracks_direct_stream_and_containers():
+    """La conversion légère a son suivi, comme le transcodage : causes, conteneurs, appareils."""
+    import json
+    from datetime import datetime, timedelta
+
+    started = datetime(2026, 7, 20, 20, 0)
+
+    def row(index, method, details=None, container="mkv", subtitle_decision=None):
+        return PlaybackSession(
+            source_session_id=f"session-{index}",
+            title=f"Film {index}",
+            media_type="movie",
+            user_name="Rémi",
+            player_title="Chromecast",
+            playback_method=method,
+            subtitle_decision=subtitle_decision,
+            container=container,
+            transcode_details=json.dumps(details) if details else None,
+            duration_ms=3_600_000,
+            watched_ms=3_000_000,
+            started_at=started + timedelta(hours=index),
+            ended_at=started + timedelta(hours=index + 1),
+            last_seen_at=started + timedelta(hours=index + 1),
+        )
+
+    rows = [
+        row(0, "direct_stream", {"protocol": "dash", "container": {"from": "mkv", "to": "mp4"}}),
+        row(1, "direct_stream", {"protocol": "hls", "container": {"from": "mp4", "to": "mp4"}}),
+        row(2, "direct_stream", {"container": {"from": "mkv", "to": "mkv"}}, subtitle_decision="transcode"),
+        row(3, "direct_play", None, container="mkv"),
+    ]
+
+    quality = _analytics(rows, [])["quality"]
+
+    assert quality["direct_stream_reasons"] == [
+        {"label": "Conteneur MKV → MP4", "count": 1},
+        {"label": "Diffusion en segments HLS", "count": 1},
+        {"label": "Sous-titres", "count": 1},
+    ]
+    assert quality["containers"] == [
+        {"label": "MKV", "count": 3, "converted": 1},
+        {"label": "MP4", "count": 1, "converted": 0},
+    ]
+    assert quality["devices"][0]["direct_streams"] == 3
+
+
 def test_activity_endpoint_returns_snapshot(client):
     payload = {"active": [], "history": [], "summary": {"sessions": 0}, "daily": [], "users": []}
     with patch("app.routers.activity_api.activity_snapshot", new=AsyncMock(return_value=payload)):
@@ -535,9 +582,168 @@ def test_statistics_builds_and_uses_daily_aggregates(client, async_db):
         "users": 1,
         "transcodes": 1,
         "transcode_rate": 100.0,
+        "direct_streams": 0,
+        "direct_stream_rate": 0,
     }
     aggregate = async_db.query(PlaybackDailyAggregate).one()
     assert aggregate.media_label == "Film agrégé"
+
+
+def test_statistics_user_scope_restricts_every_aggregate(client, async_db):
+    """`?user=` doit porter sur les agrégats, pas seulement sur les listes.
+
+    Sans filtre côté serveur, les cartes de la Vue d'ensemble affichaient les chiffres de
+    tout le monde sous un titre nominatif : c'est précisément ce que ce test interdit.
+    """
+    from app.utils import now_utc_naive
+
+    for name, title, watched in (("Rémi", "Film A", 3_600_000), ("Lisa", "Film B", 1_800_000)):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"scope-{name}",
+                title=title,
+                user_name=name,
+                media_type="movie",
+                playback_method="direct_play",
+                watched_ms=watched,
+                started_at=now_utc_naive(),
+                last_seen_at=now_utc_naive(),
+                ended_at=now_utc_naive(),
+            )
+        )
+    async_db.commit()
+
+    everyone = client.get("/api/playback/statistics?days=7").json()
+    assert everyone["summary"]["sessions"] == 2
+    assert everyone["summary"]["watch_ms"] == 5_400_000
+
+    scoped = client.get("/api/playback/statistics?days=7&user=R%C3%A9mi").json()
+    assert scoped["summary"]["sessions"] == 1
+    assert scoped["summary"]["watch_ms"] == 3_600_000
+    assert scoped["summary"]["users"] == 1
+    assert [row["name"] for row in scoped["users"]] == ["Rémi"]
+    assert [row["title"] for row in scoped["history"]] == ["Film A"]
+    assert {row["title"] for row in scoped["analytics"]["popular"]} == {"Film A"}
+    # La courbe quotidienne vient des agrégats journaliers : elle doit suivre elle aussi.
+    assert sum(point["watch_ms"] for point in scoped["daily"]) == 3_600_000
+
+
+def test_history_filters_run_in_the_database_not_on_the_last_hundred_rows(client, async_db):
+    """Filtrer l'historique doit interroger la période, pas la fenêtre déjà chargée.
+
+    L'instantané d'activité ne porte que les cent dernières lectures toutes personnes
+    confondues. Filtrer côté client sur cette fenêtre donnait « les lectures d'Untel
+    parmi les cent dernières » au lieu de ses cent dernières — faux, et invisible.
+    """
+    from app.utils import now_utc_naive
+
+    base = now_utc_naive()
+    # 120 lectures de Lisa, plus récentes, puis 5 de Rémi repoussées hors de la fenêtre.
+    for index in range(120):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"lisa-{index}",
+                title=f"Série Lisa {index}",
+                user_name="Lisa",
+                media_type="episode",
+                playback_method="direct_play",
+                player_title="Chromecast",
+                watched_ms=60_000,
+                started_at=base - timedelta(minutes=index),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    for index in range(5):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"remi-{index}",
+                title=f"Film Rémi {index}",
+                user_name="Rémi",
+                media_type="movie",
+                playback_method="transcode",
+                player_title="Apple TV",
+                watched_ms=60_000,
+                started_at=base - timedelta(days=2, minutes=index),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    async_db.commit()
+
+    # Les 5 lectures de Rémi sont hors des 100 dernières : seul un filtre en base les voit.
+    snapshot = client.get("/api/playback/statistics?days=7").json()
+    assert len(snapshot["history"]) == 100
+    assert not [row for row in snapshot["history"] if row["user_name"] == "Rémi"]
+
+    scoped = client.get("/api/playback/history?days=7&user=R%C3%A9mi").json()
+    assert scoped["total"] == 5
+    assert {row["user_name"] for row in scoped["items"]} == {"Rémi"}
+
+    # Les listes de choix couvrent la période entière, pas la sélection courante.
+    assert scoped["facets"]["users"] == ["Lisa", "Rémi"]
+    assert scoped["facets"]["devices"] == ["Apple TV", "Chromecast"]
+
+    paged = client.get("/api/playback/history?days=7&user=Lisa&limit=50&offset=100").json()
+    assert paged["total"] == 120
+    assert len(paged["items"]) == 20
+    assert paged["has_more"] is False
+
+    assert client.get("/api/playback/history?days=7&method=transcode").json()["total"] == 5
+    assert client.get("/api/playback/history?days=7&media_type=movie").json()["total"] == 5
+    assert client.get("/api/playback/history?days=7&device=Apple+TV").json()["total"] == 5
+    assert client.get("/api/playback/history?days=7&query=Film+R%C3%A9mi").json()["total"] == 5
+
+
+def test_daily_aggregates_follow_new_sessions_instead_of_freezing(client, async_db):
+    """Les agrégats journaliers doivent suivre les lectures qui arrivent après leur calcul.
+
+    Ils n'étaient construits que lorsque la fenêtre n'en contenait aucun : la première
+    consultation figeait la courbe et les totaux, et tout ce qui se lisait ensuite
+    disparaissait des « lectures quotidiennes » alors que les analyses, calculées en
+    direct sur les sessions, continuaient d'en tenir compte. Les deux moitiés de la même
+    page se contredisaient.
+    """
+    from app.utils import now_utc_naive
+
+    base = now_utc_naive().replace(hour=12, minute=0, second=0, microsecond=0)
+
+    def add_session(index: str, user: str) -> None:
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"stale-{index}",
+                title=f"Film {index}",
+                user_name=user,
+                media_type="movie",
+                playback_method="direct_play",
+                watched_ms=600_000,
+                started_at=base,
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+
+    add_session("1", "Lisa")
+    async_db.commit()
+
+    first = client.get("/api/playback/statistics?days=7&refresh=true").json()
+    assert first["summary"]["sessions"] == 1
+    assert sum(point["sessions"] for point in first["daily"]) == 1
+
+    # Deux lectures de plus arrivent après ce premier calcul.
+    add_session("2", "Lisa")
+    add_session("3", "Rémi")
+    async_db.commit()
+
+    second = client.get("/api/playback/statistics?days=7&refresh=true").json()
+    assert second["summary"]["sessions"] == 3
+    assert sum(point["sessions"] for point in second["daily"]) == 3
+    # La courbe doit dire la même chose que les analyses calculées en direct.
+    assert sum(point["sessions"] for point in second["daily"]) == len(second["history"])
+
+    scoped = client.get("/api/playback/statistics?days=7&refresh=true&user=Lisa").json()
+    assert scoped["summary"]["sessions"] == 2
+    assert sum(point["sessions"] for point in scoped["daily"]) == 2
 
 
 def test_daily_aggregate_query_reuses_grouping_parameters_for_postgresql():
@@ -626,6 +832,60 @@ ROTATED_SESSION_XML = """
 """
 
 EMPTY_SESSIONS_XML = '<MediaContainer size="0"></MediaContainer>'
+
+DIRECT_PLAY_SESSION_XML = """
+<MediaContainer size="2">
+  <Video sessionKey="11" ratingKey="5001" title="Lecture directe" type="movie"
+         viewOffset="600000" duration="5400000" year="2024">
+    <Media audioCodec="ac3" videoCodec="h264" videoResolution="1080" container="mkv">
+      <Part id="9001" size="1234567890" container="mkv" decision="directplay">
+        <Stream streamType="1" selected="1" decision="directplay" codec="h264" />
+        <Stream streamType="2" selected="1" decision="directplay" codec="ac3" />
+      </Part>
+    </Media>
+    <User id="7" title="Lisa" />
+    <Player address="192.168.1.30" machineIdentifier="apple-tv" platform="tvOS"
+            product="Plex for Apple TV" state="playing" title="Apple TV" />
+    <Session bandwidth="9000" id="direct-play-session" location="lan" />
+  </Video>
+  <Video sessionKey="12" ratingKey="5002" title="Audio converti" type="movie"
+         viewOffset="300000" duration="4800000" year="2023">
+    <Media audioCodec="truehd" videoCodec="hevc" videoResolution="4k" container="mkv">
+      <Part id="9002" size="987654321" container="mkv" decision="transcode">
+        <Stream streamType="1" selected="1" decision="copy" codec="hevc" />
+        <Stream streamType="2" selected="1" decision="transcode" codec="truehd" />
+      </Part>
+    </Media>
+    <User id="8" title="Rémi" />
+    <Player address="192.168.1.31" machineIdentifier="shield" platform="Android"
+            product="Plex for Android (TV)" state="playing" title="Shield" />
+    <Session bandwidth="24000" id="audio-transcode-session" location="lan" />
+  </Video>
+</MediaContainer>
+"""
+
+
+def test_direct_play_is_not_recorded_as_unknown():
+    """Une lecture directe doit être reconnue comme telle.
+
+    Plex ne décrit la décision qu'à l'endroit où elle a lieu : `TranscodeSession` n'existe
+    que lorsqu'il y a conversion, et `Media` ne porte pas toujours `videoDecision` /
+    `audioDecision`. En s'arrêtant à ces deux sources, toute lecture directe arrivait sans
+    décision et finissait en « inconnu » — ce qui donnait 84 sessions inconnues sur 107 et
+    pas une seule « lecture directe » en base.
+    """
+    direct, audio_transcode = parse_plex_sessions(DIRECT_PLAY_SESSION_XML, anonymize_ips=False)
+
+    assert direct["playback_method"] == "direct_play"
+    assert direct["video_decision"] == "directplay"
+    assert direct["audio_decision"] == "directplay"
+
+    # L'audio converti sous une vidéo copiée reste un transcodage : la décision de la
+    # `Part` ne doit pas primer sur celle des flux.
+    assert audio_transcode["playback_method"] == "transcode"
+    assert audio_transcode["video_decision"] == "copy"
+    assert audio_transcode["audio_decision"] == "transcode"
+
 
 PRODUCTION_PAUSED_SESSION_XML = """
 <MediaContainer size="1">
@@ -1087,3 +1347,459 @@ async def test_session_segments_cascade_deletion(async_db):
         .first()
     )
     assert remaining_seg is None
+
+
+def test_the_period_can_cover_the_whole_history(client):
+    """« Tout l'historique » doit passer les bornes de l'API.
+
+    Les périodes s'arrêtaient à 3650 jours — dix ans pile — ce qui laissait « 10 ans »
+    tout juste possible et « tout » hors d'atteinte : la requête repartait en 422 avant
+    d'atteindre le service.
+    """
+    assert client.get("/api/playback/statistics?days=36500").status_code == 200
+    assert client.get("/api/playback/history?days=36500").status_code == 200
+    assert client.get("/api/playback?days=36500").status_code == 200
+    assert client.get("/api/playback/statistics?days=36501").status_code == 422
+
+
+def test_history_sorting_covers_the_period_not_the_loaded_page(client, async_db):
+    """Les trois tris doivent porter sur toute la période, pas sur la page affichée.
+
+    Le tri vivait dans le navigateur, sur les cent lignes déjà chargées : « Anciennes »
+    ne faisait que retourner les cent lectures les plus récentes — la plus ancienne de
+    la période n'apparaissait jamais — et le changement de tri ne déclenchait même pas
+    de rechargement.
+    """
+    base = now_utc_naive()
+    for index in range(150):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"sort-{index}",
+                title=f"Film {index}",
+                user_name="Lisa",
+                media_type="movie",
+                # La plus longue est aussi la plus ancienne : un tri limité à la première
+                # page ne peut la trouver ni par « oldest » ni par « longest ».
+                watched_ms=1_000 + index,
+                started_at=base - timedelta(minutes=index),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    async_db.commit()
+
+    recent = client.get("/api/playback/history?days=7&sort=recent").json()
+    oldest = client.get("/api/playback/history?days=7&sort=oldest").json()
+    longest = client.get("/api/playback/history?days=7&sort=longest").json()
+
+    assert recent["items"][0]["title"] == "Film 0"
+    assert oldest["items"][0]["title"] == "Film 149"
+    assert longest["items"][0]["title"] == "Film 149"
+    # Le tri s'applique avant la pagination : la deuxième page suit le même ordre.
+    page_two = client.get("/api/playback/history?days=7&sort=oldest&offset=100").json()
+    assert page_two["items"][0]["title"] == "Film 49"
+    assert client.get("/api/playback/history?days=7&sort=nimporte").status_code == 422
+
+
+def test_history_sorts_on_every_column_in_both_directions(client, async_db):
+    """Chaque colonne de l'historique se trie, en base, dans les deux sens."""
+    base = now_utc_naive()
+    rows = [
+        # titre, serie, utilisateur, appareil, methode, duree, anciennete (minutes)
+        ("Zorro", None, "bob", "Salon", "transcode", 3_000, 10),
+        ("Episode 1", "Andor", "alice", "Chambre", "direct_play", 1_000, 5),
+        ("Mulan", None, "carole", "Bureau", "direct_stream", 2_000, 1),
+    ]
+    for index, (title, series, user, device, method, watched, age) in enumerate(rows):
+        async_db.add(
+            PlaybackSession(
+                source_session_id=f"col-{index}",
+                title=title,
+                grandparent_title=series,
+                user_name=user,
+                player_title=device,
+                playback_method=method,
+                media_type="episode" if series else "movie",
+                watched_ms=watched,
+                started_at=base - timedelta(minutes=age),
+                last_seen_at=base,
+                ended_at=base,
+            )
+        )
+    async_db.commit()
+
+    def first(sort):
+        response = client.get(f"/api/playback/history?days=7&sort={sort}")
+        assert response.status_code == 200, sort
+        return response.json()["items"][0]["title"]
+
+    # Un episode se range sous le nom de sa serie.
+    assert first("title_asc") == "Episode 1"
+    assert first("title_desc") == "Zorro"
+    assert first("user_asc") == "Episode 1"
+    assert first("user_desc") == "Mulan"
+    assert first("device_asc") == "Mulan"
+    assert first("device_desc") == "Zorro"
+    assert first("method_asc") == "Episode 1"
+    assert first("method_desc") == "Zorro"
+    assert first("duration_asc") == "Episode 1"
+    assert first("duration_desc") == "Zorro"
+    assert first("date_asc") == "Zorro"
+    assert first("date_desc") == "Mulan"
+    assert client.get("/api/playback/history?days=7&sort=title_sideways").status_code == 422
+
+
+def test_history_leaves_the_running_playback_to_the_live_view(client, async_db):
+    """Une lecture en cours n'est pas encore une trace d'historique.
+
+    Elle figurait en tête de l'historique — c'est la plus récente — et le tiroir ouvert
+    sur cette ligne se réécrivait tout seul à chaque sondage du direct : on croyait
+    consulter une trace, on regardait le direct.
+    """
+    base = now_utc_naive()
+    async_db.add(
+        PlaybackSession(
+            source_session_id="finie",
+            title="Lecture terminée",
+            user_name="Lisa",
+            media_type="movie",
+            watched_ms=60_000,
+            started_at=base - timedelta(hours=2),
+            last_seen_at=base,
+            ended_at=base - timedelta(hours=1),
+        )
+    )
+    async_db.add(
+        PlaybackSession(
+            source_session_id="en-cours",
+            title="Lecture en cours",
+            user_name="Rémi",
+            media_type="movie",
+            started_at=base - timedelta(minutes=5),
+            last_seen_at=base,
+            ended_at=None,
+        )
+    )
+    async_db.commit()
+
+    history = client.get("/api/playback/history?days=7").json()
+
+    assert [row["title"] for row in history["items"]] == ["Lecture terminée"]
+    assert history["total"] == 1
+    # Les listes de choix suivent : proposer « Rémi » ne renverrait aucune ligne.
+    assert history["facets"]["users"] == ["Lisa"]
+    # La lecture en cours reste visible là où elle a un sens.
+    assert [row["title"] for row in client.get("/api/playback/live").json()["active"]] == ["Lecture en cours"]
+
+
+def test_playback_session_detail_endpoint_returns_one_session(client, async_db):
+    row = PlaybackSession(source_session_id="detail-1", title="Dune", user_name="Rémi", media_type="movie")
+    async_db.add(row)
+    async_db.commit()
+
+    response = client.get(f"/api/playback/sessions/{row.id}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == row.id
+    assert body["title"] == "Dune"
+    assert body["user_name"] == "Rémi"
+    assert body["segments"] == []
+
+    assert client.get("/api/playback/sessions/999999").status_code == 404
+
+
+def test_session_times_are_sent_as_utc_and_peak_hours_read_in_local_time():
+    """Les instants partent avec leur fuseau ; les heures de pointe sont en heure locale.
+
+    Stockes en UTC naif et envoyes sans fuseau, ils etaient lus par le navigateur comme
+    des heures locales : toutes les heures des sessions avaient deux heures de retard
+    l'ete. La carte des heures de pointe, elle, comptait en UTC.
+    """
+    from app.services.playback_activity import _analytics, _serialize
+
+    # 18:10 UTC le 24 septembre = 20:10 a Paris (heure d'ete).
+    row = PlaybackSession(
+        source_session_id="tz",
+        title="Film",
+        started_at=datetime(2026, 9, 24, 18, 10),
+        ended_at=datetime(2026, 9, 24, 19, 0),
+        watched_ms=1,
+    )
+    row.segments = []
+    serialized = _serialize(row)
+    assert serialized["started_at"] == "2026-09-24T18:10:00+00:00"
+    assert serialized["ended_at"] == "2026-09-24T19:00:00+00:00"
+
+    heatmap = {(cell["weekday"], cell["hour"]): cell["sessions"] for cell in _analytics([row], [])["heatmap"]}
+    assert heatmap[(3, 20)] == 1  # jeudi, 20 h a Paris
+    assert heatmap[(3, 18)] == 0
+
+
+def test_parse_plex_sessions_reads_the_transcode_buffer():
+    """Le tampon d'un transcodage : l'avance du transcodeur sur la tete de lecture."""
+    xml = PLEX_SESSIONS_XML.replace(
+        '<TranscodeSession audioDecision="copy"',
+        '<TranscodeSession maxOffsetAvailable="960.5" speed="2.4" throttled="1" audioDecision="copy"',
+    )
+    session = parse_plex_sessions(xml)[0]
+    # viewOffset 900 000 ms, transcode jusqu'a 960,5 s : 60,5 s d'avance.
+    assert session["transcode_buffer_ms"] == 60_500
+    assert session["transcode_speed"] == 2.4
+    assert session["transcode_throttled"] is True
+
+
+def test_direct_play_has_no_transcode_buffer():
+    import re
+
+    xml = re.sub(r"<TranscodeSession[^>]*/>", "", PLEX_SESSIONS_XML)
+    session = parse_plex_sessions(xml)[0]
+    assert session["transcode_buffer_ms"] is None
+    assert session["transcode_speed"] is None
+
+
+def test_playback_action_routes(client):
+    import httpx
+
+    target = "app.routers.activity_api"
+    with (
+        patch(f"{target}.terminate_playback", new=AsyncMock()) as terminate,
+        patch(f"{target}.publish", new=AsyncMock()),
+    ):
+        response = client.post("/api/playback/sessions/7/terminate", json={"reason": "Maintenance"})
+    assert response.status_code == 200
+    assert terminate.await_args.args[:2] == (7, "Maintenance")
+
+    with patch(
+        f"{target}.terminate_playback",
+        new=AsyncMock(side_effect=playback_activity.PlaybackActionError("déjà terminée")),
+    ):
+        response = client.post("/api/playback/sessions/7/terminate", json={"reason": ""})
+    assert response.status_code == 409
+    assert "déjà terminée" in response.json()["detail"]
+
+    with patch(f"{target}.terminate_playback", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.post("/api/playback/sessions/7/terminate", json={}).status_code == 502
+
+    with patch(f"{target}.plex_server_activities", new=AsyncMock(return_value=[{"uuid": "a1"}])):
+        assert client.get("/api/playback/server-activities").json() == {"activities": [{"uuid": "a1"}]}
+    with patch(f"{target}.plex_server_activities", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.get("/api/playback/server-activities").status_code == 502
+
+    with patch(f"{target}.cancel_plex_activity", new=AsyncMock()):
+        assert client.delete("/api/playback/server-activities/a1").json() == {"status": "cancelled"}
+    with patch(
+        f"{target}.cancel_plex_activity", new=AsyncMock(side_effect=playback_activity.PlaybackActionError("finie"))
+    ):
+        assert client.delete("/api/playback/server-activities/a1").status_code == 409
+    with patch(f"{target}.cancel_plex_activity", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert client.delete("/api/playback/server-activities/a1").status_code == 502
+
+
+def test_playback_thumb_is_resized_when_the_view_asks(client):
+    from app.dependencies import get_settings_or_404
+
+    proxy = AsyncMock(return_value=None)
+    client.app.dependency_overrides[get_settings_or_404] = lambda: Settings(plex_url="http://plex", plex_token="t")
+    try:
+        with patch("app.routers.activity_api.image_proxy", new=proxy):
+            client.get("/api/playback/thumb", params={"path": "/library/metadata/5190/thumb/2", "width": 312})
+            client.get("/api/playback/thumb", params={"path": "/library/metadata/5190/thumb/2"})
+    finally:
+        client.app.dependency_overrides.pop(get_settings_or_404, None)
+    sized, original = proxy.await_args_list
+    assert (sized.kwargs["width"], sized.kwargs["image_format"]) == (312, "webp")
+    assert (original.kwargs["width"], original.kwargs["image_format"]) == (None, "original")
+
+
+def test_parse_sessions_describes_video_audio_and_container_for_every_mode():
+    """Chaque lecture, même directe, dit ses flux : codec, débit, langues, conversion."""
+    sheets = {
+        "5001": {
+            "container": "mkv",
+            "streams": [
+                {"id": "1", "streamType": "1", "codec": "h264", "height": "1080", "width": "1920", "bitrate": "8000"},
+                {
+                    "id": "2",
+                    "streamType": "2",
+                    "codec": "ac3",
+                    "channels": "6",
+                    "bitrate": "640",
+                    "language": "Français",
+                },
+                {
+                    "id": "3",
+                    "streamType": "2",
+                    "codec": "dca",
+                    "channels": "6",
+                    "bitrate": "1509",
+                    "language": "English",
+                },
+            ],
+        },
+        "5002": {
+            "container": "mkv",
+            "streams": [
+                {"id": "4", "streamType": "1", "codec": "hevc", "height": "2160", "bitrate": "40000"},
+                {"id": "5", "streamType": "2", "codec": "truehd", "channels": "8", "language": "English"},
+            ],
+        },
+    }
+    xml = """
+<MediaContainer size="2">
+  <Video sessionKey="11" ratingKey="5001" title="Lecture directe" type="movie" viewOffset="0" duration="5400000">
+    <Media container="mkv">
+      <Part container="mkv" decision="directplay">
+        <Stream id="1" streamType="1" selected="1" decision="directplay" codec="h264" />
+        <Stream id="2" streamType="2" selected="1" decision="directplay" codec="ac3" />
+      </Part>
+    </Media>
+    <Session id="direct" />
+  </Video>
+  <Video sessionKey="12" ratingKey="5002" title="Audio converti" type="movie" viewOffset="0" duration="4800000">
+    <Media container="mkv">
+      <Part container="mkv" decision="transcode">
+        <Stream id="4" streamType="1" selected="1" decision="copy" codec="hevc" />
+        <Stream id="5" streamType="2" selected="1" decision="transcode" codec="aac" channels="2" bitrate="256" />
+      </Part>
+    </Media>
+    <Session id="converted" />
+    <TranscodeSession key="/transcode/sessions/abc" videoDecision="copy" audioDecision="transcode"
+                      sourceAudioCodec="truehd" audioCodec="aac" audioChannels="2" container="mkv" protocol="http" />
+  </Video>
+</MediaContainer>
+"""
+
+    direct, converted = parse_plex_sessions(xml, media_sheets=sheets)
+    direct_tracks = json.loads(direct["stream_details"])["tracks"]
+    converted_tracks = json.loads(converted["stream_details"])["tracks"]
+
+    assert direct_tracks["container"] == {"from": "mkv", "to": "mkv", "converted": False, "protocol": None}
+    assert direct_tracks["video"]["from"]["bitrate_kbps"] == 8000
+    assert direct_tracks["video"]["to"] == direct_tracks["video"]["from"]
+    assert [(item["language"], item["played"]) for item in direct_tracks["audio"]["languages"]] == [
+        ("Français", True),
+        ("English", False),
+    ]
+    assert direct_tracks["audio"]["languages"][1]["bitrate_kbps"] == 1509
+    assert converted_tracks["audio"]["from"]["codec"] == "truehd"
+    assert converted_tracks["audio"]["to"] == {"codec": "aac", "channels": 2, "bitrate_kbps": 256}
+    assert converted_tracks["video"]["decision"] == "copy"
+
+
+def test_direct_stream_reason_covers_every_cause():
+    """Chaque cause de conversion légère, de la décision de Plex au cas indéterminé."""
+    import json
+
+    from app.services.playback_activity import _direct_stream_reason
+
+    def row(**kwargs):
+        return PlaybackSession(source_session_id="s", title="t", playback_method="direct_stream", **kwargs)
+
+    assert _direct_stream_reason(row(plex_decision_text="Direct play not available")) == "Direct play not available"
+    assert _direct_stream_reason(row(subtitle_decision="transcode")) == "Sous-titres"
+    details = json.dumps({"protocol": "hls", "container": {"from": "mp4", "to": "mp4"}})
+    assert _direct_stream_reason(row(transcode_details=details)) == "Diffusion en segments HLS"
+    assert _direct_stream_reason(row(video_decision="copy")) == "Flux recopiés"
+    assert _direct_stream_reason(row()) == "Non déterminée"
+
+
+def test_parse_sessions_marks_played_audio_by_language_when_ids_differ():
+    """Sans identifiant commun, la piste écoutée se retrouve par langue et codec."""
+    sheets = {
+        "7": {
+            "container": "mkv",
+            "streams": [
+                {"id": "20", "streamType": "2", "codec": "aac", "language": "English"},
+                {"id": "21", "streamType": "2", "codec": "ac3", "language": "Français"},
+            ],
+        }
+    }
+    xml = """
+<MediaContainer size="1">
+  <Video sessionKey="1" ratingKey="7" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv">
+      <Part container="mkv" decision="directplay">
+        <Stream id="99" streamType="2" selected="1" decision="directplay" codec="ac3" language="Français" />
+      </Part>
+    </Media>
+    <Session id="s" />
+  </Video>
+</MediaContainer>
+"""
+    [session] = parse_plex_sessions(xml, media_sheets=sheets)
+    languages = json.loads(session["stream_details"])["tracks"]["audio"]["languages"]
+    assert [(item["language"], item["played"]) for item in languages] == [("English", False), ("Français", True)]
+
+
+def test_parse_sessions_lists_subtitles_and_marks_selected_one():
+    """Les sous-titres du fichier, celui affiché, et ce que Plex en fait."""
+    sheets = {
+        "8": {
+            "container": "mkv",
+            "streams": [
+                {
+                    "id": "30",
+                    "streamType": "3",
+                    "codec": "srt",
+                    "language": "Français",
+                    "forced": "1",
+                    "title": "Forced",
+                    "displayTitle": "Français (SRT Forced)",
+                },
+                {"id": "31", "streamType": "3", "codec": "pgs", "language": "English", "hearingImpaired": "1"},
+                {"id": "32", "streamType": "3", "codec": "ass", "language": "Español", "key": "/library/streams/32"},
+            ],
+        }
+    }
+    xml = """
+<MediaContainer size="2">
+  <Video sessionKey="1" ratingKey="8" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv">
+      <Part container="mkv" decision="transcode">
+        <Stream id="31" streamType="3" selected="1" decision="burn" codec="pgs" language="English" />
+      </Part>
+    </Media>
+    <Session id="s" />
+  </Video>
+  <Video sessionKey="2" ratingKey="9" title="Sans fiche" type="movie" viewOffset="0" duration="1000">
+    <Media container="mp4">
+      <Part container="mp4" decision="transcode">
+        <Stream id="40" streamType="3" selected="1" decision="transcode" codec="srt" format="ass" language="Deutsch" />
+      </Part>
+    </Media>
+    <Session id="t" />
+  </Video>
+</MediaContainer>
+"""
+    burned, orphan = parse_plex_sessions(xml, media_sheets=sheets)
+    subtitles = json.loads(burned["stream_details"])["tracks"]["subtitles"]
+    assert subtitles["decision"] == "burn"
+    assert subtitles["to"] is None
+    assert [(item["language"], item["selected"]) for item in subtitles["languages"]] == [
+        ("Français", False),
+        ("English", True),
+        ("Español", False),
+    ]
+    assert subtitles["languages"][0]["forced"] is True
+    assert subtitles["languages"][1]["hearing_impaired"] is True
+    assert subtitles["languages"][2]["external"] is True
+    # Le nom donné à la piste, pas le displayTitle générique de Plex.
+    assert [item["title"] for item in subtitles["languages"]] == ["Forced", None, None]
+
+    fallback = json.loads(orphan["stream_details"])["tracks"]["subtitles"]
+    assert fallback["decision"] == "transcode"
+    assert fallback["to"] == "ass"
+    assert [(item["language"], item["selected"]) for item in fallback["languages"]] == [("Deutsch", True)]
+
+
+def test_parse_sessions_without_subtitles_has_none():
+    xml = """
+<MediaContainer size="1">
+  <Video sessionKey="1" ratingKey="7" title="Film" type="movie" viewOffset="0" duration="1000">
+    <Media container="mkv"><Part container="mkv" decision="directplay" /></Media>
+    <Session id="s" />
+  </Video>
+</MediaContainer>
+"""
+    [session] = parse_plex_sessions(xml)
+    assert json.loads(session["stream_details"])["tracks"]["subtitles"] is None

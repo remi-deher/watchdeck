@@ -52,8 +52,10 @@ def _snapshot_calls() -> dict[str, Callable]:
         "recently_available": lambda db: metrics_api.stats_recently_available(db, limit=5),
         "recent_requests": lambda db: metrics_api.stats_recent_requests(db, limit=10),
         "upcoming": lambda db: calendar_api.upcoming_releases(db=db, limit=8),
+        # Appel direct, sans FastAPI : chaque parametre declare en `Query(...)` doit etre
+        # passe explicitement, sinon il arrive comme objet Query (« KeyError: Query(date) »).
         "notifications": lambda db: notifications_api.list_notification_logs(
-            pagination=PaginationParams(offset=0, limit=5), db=db
+            pagination=PaginationParams(offset=0, limit=5), sort="date", direction="desc", db=db
         ),
     }
 
@@ -64,7 +66,7 @@ async def _compute_snapshot(sections: set[str] | None = None) -> dict:
     results = await asyncio.gather(*(_with_session(call) for call in calls.values()), return_exceptions=True)
     payload: dict = {"errors": []}
     if sections is None or "next_poll" in sections:
-        payload["next_poll"] = metrics_api.next_poll_info()
+        payload["next_poll"] = await metrics_api.next_poll_info()
     for name, result in zip(calls, results):
         if isinstance(result, Exception):
             payload["errors"].append(name)
@@ -89,9 +91,9 @@ async def _stream_sections(sections: set[str] | None = None) -> AsyncIterator[st
         except Exception as exc:  # noqa: BLE001 - une section en echec n'annule pas les autres
             return name, None, exc
 
-    # Simple coup d'oeil au scheduler, sans I/O : part immediatement.
+    # Simple lecture d'un TTL Redis : part immediatement.
     if sections is None or "next_poll" in sections:
-        yield _frame({"next_poll": metrics_api.next_poll_info()})
+        yield _frame({"next_poll": await metrics_api.next_poll_info()})
 
     calls = {name: call for name, call in _snapshot_calls().items() if sections is None or name in sections}
     tasks = [asyncio.create_task(_named(name, call)) for name, call in calls.items()]
@@ -115,7 +117,7 @@ async def _stream_sections(sections: set[str] | None = None) -> AsyncIterator[st
     # Alimente le meme cache que /dashboard/snapshot, pour qu'un rafraichissement cible ou
     # un repli reparte d'une valeur chaude au lieu de tout recalculer.
     if sections is None and collected and not errors:
-        payload = {**collected, "next_poll": metrics_api.next_poll_info(), "errors": []}
+        payload = {**collected, "next_poll": await metrics_api.next_poll_info(), "errors": []}
         await cache.set_json(_CACHE_KEY, {"value": payload, "cached_at": time.time()}, ttl_seconds=60)
 
 

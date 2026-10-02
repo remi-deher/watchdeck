@@ -360,6 +360,37 @@ async def test_personalization_uses_only_the_current_plex_users_history(db):
 
 
 @pytest.mark.asyncio
+async def test_personalization_ignores_music_listening(db):
+    """Une ecoute de musique etait comptee comme un film vu : un titre homonyme d'un film
+    en faisait une graine de recommandation et le masquait comme deja vu."""
+    from datetime import timedelta
+
+    now = now_utc_naive()
+    db.add_all(
+        [
+            LibraryItem(title="Mirage", year=2026, media_type="movie", tmdb_id="555"),
+            PlaybackSession(
+                source="plex",
+                source_session_id="song",
+                plex_user_id="user-1",
+                user_name="Moi",
+                media_type="track",
+                title="Mirage",
+                year=2026,
+                started_at=now,
+                ended_at=now + timedelta(minutes=3),
+            ),
+        ]
+    )
+    db.commit()
+
+    seeds, watched = await _personalization_seeds(db, "user-1")
+
+    assert seeds == []
+    assert watched == set()
+
+
+@pytest.mark.asyncio
 async def test_personalization_filters_watched_and_available_media(db):
     from datetime import timedelta
 

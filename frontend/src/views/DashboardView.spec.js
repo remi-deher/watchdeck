@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { VueQueryPlugin } from '@tanstack/vue-query';
+import { createQueryClient } from '@/queryClient';
 
 import DashboardView from './DashboardView.vue';
 
@@ -8,7 +10,6 @@ const streamEventsMock = vi.fn();
 
 vi.mock('@/api', () => ({
   api: (...args) => apiMock(...args),
-  cachedResource: (_key, _ttl, loader) => ({ cached: null, refresh: loader() }),
   streamEvents: (...args) => streamEventsMock(...args),
 }));
 vi.mock('@/cache', () => ({
@@ -16,13 +17,12 @@ vi.mock('@/cache', () => ({
   writeCache: vi.fn(),
 }));
 vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
-vi.mock('@/composables/usePolling', () => ({ usePolling: vi.fn() }));
 
 function mountView() {
   return mount(DashboardView, {
     global: {
+      plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]],
       stubs: {
-        PageHeader: true,
         UiFeedback: true,
         OnboardingChecklist: true,
         DashboardActionCenter: true,
@@ -67,24 +67,26 @@ describe('DashboardView supervision', () => {
     // Le tableau de bord compte plusieurs sections repliables : on vise celle de
     // Supervision par son intitule, pas par sa position dans le document.
     const supervision = wrapper
-      .findAll('details')
+      .findAll('.ui-disclosure')
       .find((node) => node.text().includes('Supervision'));
     expect(supervision).toBeTruthy();
-    expect(supervision.element.open).toBe(false);
-    expect(streamEventsMock.mock.calls[0][0]).not.toContain('counts');
+    expect(supervision.attributes('data-state')).toBe('closed');
+    // `counts` alimente le bandeau « Situation actuelle » tout en haut de la page : il
+    // fait desormais partie du premier chargement, contrairement aux sections qui ne
+    // servent qu'au bloc Supervision lui-meme.
+    expect(streamEventsMock.mock.calls[0][0]).toContain('counts');
     expect(streamEventsMock.mock.calls[0][0]).not.toContain('top_requested');
     expect(apiMock).not.toHaveBeenCalledWith('/api/health');
-    expect(apiMock).not.toHaveBeenCalledWith('/api/disk-space');
+    expect(apiMock).not.toHaveBeenCalledWith('/api/disk-space', expect.anything());
 
-    supervision.element.open = true;
-    await supervision.trigger('toggle');
+    await supervision.get('.ui-disclosure-trigger').trigger('click');
     await flushPromises();
 
-    expect(localStorage.getItem('dashboard.supervisionOpen')).toBe('1');
+    expect(localStorage.getItem('watchdeck:dashboard.supervisionOpen')).toBe('true');
     expect(apiMock).toHaveBeenCalledWith('/api/health');
-    expect(apiMock).toHaveBeenCalledWith('/api/disk-space');
+    expect(apiMock).toHaveBeenCalledWith('/api/disk-space', expect.anything());
     expect(apiMock).toHaveBeenCalledWith(
-      '/api/dashboard/snapshot?sections=counts,top_requested,by_user,notifications',
+      '/api/dashboard/snapshot?sections=top_requested,by_user,notifications',
     );
   });
 });

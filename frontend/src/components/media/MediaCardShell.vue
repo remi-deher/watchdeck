@@ -1,18 +1,21 @@
 <template>
   <article
     class="media-card poster-card"
-    :class="{ 'is-music': isMusic, bordered, animated, elevated: elevateOnHover, 'has-action': hasAction }"
+    :class="{ 'is-music': isMusic, bordered, animated: playing, elevated: elevateOnHover, 'has-action': hasAction }"
     :style="hasAction && actionPadding ? { '--card-action-padding': actionPadding } : undefined"
+    @animationend.self="onRevealEnd"
   >
     <div
       class="poster-wrap"
       :class="{ revealed, 'has-action': hasAction }"
-      @mouseenter="revealed = true"
-      @mouseleave="revealed = false"
-      @focusin="revealed = true"
-      @focusout="revealed = false"
+      @pointerdown.capture="notePointer"
+      @click.capture="interceptFirstTap"
+      @mouseenter="revealOnHover"
+      @mouseleave="concealOnHover"
+      @focusin="reveal"
+      @focusout="conceal"
     >
-      <slot :revealed="revealed" :reveal="() => (revealed = true)" />
+      <slot :revealed="revealed" :reveal="reveal" />
       <slot name="action" :revealed="revealed" />
     </div>
   </article>
@@ -20,8 +23,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useCardReveal } from '@/composables/useCardReveal';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     isMusic?: boolean;
     hasAction?: boolean;
@@ -40,10 +44,83 @@ withDefaults(
   }
 );
 
-const revealed = ref(false);
+const { revealed, reveal, conceal } = useCardReveal();
+
+/**
+ * L'apparition ne se joue qu'une fois.
+ *
+ * La grille rend ses cartes hors ecran en `content-visibility: auto` : chaque carte qui
+ * revient a l'ecran est rendue a nouveau, et une animation CSS encore attachee repart
+ * alors de zero. Mesure sur 1 000 affiches (Chromium, defilement continu) : 72 ms par
+ * image en mediane et 358 taches longues, contre 36 ms et 13 une fois la classe retiree
+ * a la fin de l'animation -- autant que sans aucune animation.
+ */
+const playing = ref(props.animated);
+function onRevealEnd(event: AnimationEvent): void {
+  if (event.animationName.startsWith('card-reveal')) playing.value = false;
+}
+
+/**
+ * Premier appui : decouvrir la carte, pas l'ouvrir.
+ *
+ * L'interception vit sur le conteneur et en phase de *capture*, pas sur le lien
+ * lui-meme : un `@click` pose sur le `RouterLink` partage l'element avec le
+ * gestionnaire interne du routeur, et l'ordre des deux s'inverse entre le build de dev
+ * et celui de production -- en production le routeur naviguait le premier, emportant
+ * l'utilisateur vers la fiche avant que l'action ait pu se montrer. Depuis le parent,
+ * la capture precede toujours le lien.
+ */
+/* Au doigt, les navigateurs simulent un survol et un focus avant le clic, et ceux-ci
+   revelent deja la carte : un test « revelee ? » au moment du clic ouvrait donc la fiche
+   au premier appui (Safari). A l'inverse, quand ce survol change la page, Safari comme
+   Chromium peuvent *supprimer* le clic du premier appui : un drapeau pose par ce clic
+   manquait alors, et le second appui n'etait qu'un nouveau premier appui (la fiche ne
+   s'ouvrait jamais). La seule chose fiable est l'etat de la carte au `pointerdown`,
+   qui precede tous ces evenements simules : deja revelee avant l'appui, la carte
+   s'ouvre ; sinon l'appui ne fait que la reveler. */
+const lastPointer = ref<string>('');
+const revealedBeforePress = ref<boolean | null>(null);
+
+function notePointer(e: PointerEvent): void {
+  lastPointer.value = e.pointerType || '';
+  revealedBeforePress.value = revealed.value;
+}
+
+function revealOnHover(): void {
+  if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
+  reveal();
+}
+
+/* Le survol simule d'un appui se termine aussi : Chromium (Linux, Android) envoie un
+   `mouseleave` juste apres le clic, qui refermait aussitot la carte que l'appui venait
+   de reveler. Au doigt, c'est la perte du focus (appui ailleurs) ou la revelation
+   d'une autre carte qui la referme. */
+function concealOnHover(): void {
+  if (lastPointer.value === 'touch' || lastPointer.value === 'pen') return;
+  conceal();
+}
+
+function interceptFirstTap(e: MouseEvent): void {
+  const wasRevealed = revealedBeforePress.value;
+  revealedBeforePress.value = null;
+  // Le type du pointeur qui a appuye fait foi : une souris ouvre au premier clic, meme
+  // sur un appareil tactile. Faute de pointerdown (clic clavier, appel programme), on
+  // retombe sur la nature de l'ecran.
+  const tactile = lastPointer.value
+    ? lastPointer.value === 'touch' || lastPointer.value === 'pen'
+    : Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+  // A la souris, le survol a deja revele la carte : le clic ouvre, comme avant.
+  if (!tactile) return;
+  // Sans pointerdown (clavier), le focus a revele la carte : Entree l'ouvre.
+  if (wasRevealed ?? revealed.value) return;
+  e.preventDefault();
+  e.stopPropagation();
+  reveal();
+}
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 @keyframes card-reveal {
   from {
     opacity: 0;
@@ -67,15 +144,23 @@ const revealed = ref(false);
   -webkit-mask-image: -webkit-radial-gradient(white, black);
   background: var(--surface-2);
   color: inherit;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .poster-card.is-music { aspect-ratio: 1 / 1; }
 .poster-card.bordered { border: 1px solid var(--border); }
 .poster-card.animated {
   animation: card-reveal 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   animation-delay: calc(min(var(--card-index, 0), 16) * 24ms);
-  will-change: transform, opacity;
+  /* Pas de `will-change` ici : il promeut la carte sur sa propre couche graphique, et une
+     grille en compte vingt. Safari finit par manquer de memoire de composition et
+     l'affichage saute. Le navigateur promeut de lui-meme le temps de l'animation, qui
+     dure trois dixiemes de seconde. */
 }
+
+/* L'apparition liee au defilement (`animation-timeline: view()`) a ete retiree : elle
+ * attachait une timeline a chaque carte, recalculee a chaque image, et ne se terminait
+ * jamais -- impossible donc de la jouer une seule fois. Sur 1 000 affiches, c'etait la
+ * premiere cause de saccade au defilement (voir `onRevealEnd`). */
 .poster-card:hover,
 .poster-card:focus-within {
   border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
@@ -87,6 +172,14 @@ const revealed = ref(false);
   z-index: 5;
 }
 
+/* `.media-card div:last-child` (_views.scss) donne 10px de marge a toute derniere div
+   d'une carte, affiche comprise : elle debordait alors de 20px autour de l'image. Le
+   `!important` qui l'en protegeait est remplace par un selecteur plus specifique
+   (0,3,0 contre 0,2,1). */
+.poster-card .poster-wrap {
+  padding: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .poster-card.animated {
     animation: none;
@@ -96,7 +189,6 @@ const revealed = ref(false);
   position: relative;
   width: 100%;
   height: 100%;
-  padding: 0 !important;
   border-radius: inherit;
   overflow: hidden;
 }
@@ -149,12 +241,12 @@ const revealed = ref(false);
   opacity: 0;
   pointer-events: none;
   border-radius: inherit;
-  transition: opacity .18s ease;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .poster-wrap:hover :deep(.poster-overlay),
 .poster-wrap:focus-within :deep(.poster-overlay),
 .poster-wrap.revealed :deep(.poster-overlay) { opacity: 1; pointer-events: auto; }
-.poster-wrap :deep(.poster-copy) { display: grid; gap: var(--space-1); width: 100%; min-width: 0; padding: 0 !important; }
+.poster-wrap :deep(.poster-copy) { display: grid; gap: var(--space-1); width: 100%; min-width: 0; padding: 0; }
 .poster-wrap :deep(.poster-copy > strong) {
   display: -webkit-box;
   overflow: hidden;
@@ -167,10 +259,10 @@ const revealed = ref(false);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.poster-wrap :deep(.poster-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding: 0 !important; }
+.poster-wrap :deep(.poster-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding: 0; }
 .poster-wrap :deep(.poster-meta > span) { color: rgba(255, 255, 255, .82); font-size: var(--fs-xs); font-weight: 650; }
-.poster-wrap :deep(.poster-rating) { display: inline-flex !important; align-items: center; gap: var(--space-1); }
-.poster-wrap :deep(.poster-rating svg) { width: 12px; height: 12px; color: #fbbf24; fill: currentColor; }
+.poster-wrap :deep(.poster-rating) { display: inline-flex; align-items: center; gap: var(--space-1); }
+.poster-wrap :deep(.poster-rating svg) { width: 12px; height: 12px; color: var(--amber-text); fill: currentColor; }
 .poster-wrap :deep(.poster-action) {
   position: absolute;
   inset: auto 9px 9px;
@@ -189,7 +281,10 @@ const revealed = ref(false);
   box-shadow: 0 5px 16px rgba(0, 0, 0, .38);
   opacity: 0;
   pointer-events: none;
-  transition: opacity .18s ease;
+  /* `transform` figure ici et pas seulement dans `_motion.scss` : ce bloc scope
+     redeclare la propriete `transition` en entier et effacait la regle globale, si bien
+     que l'enfoncement a l'appui sautait au lieu de s'animer. */
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 .poster-wrap:hover :deep(.poster-action),
 .poster-wrap:focus-within :deep(.poster-action),
@@ -198,9 +293,9 @@ const revealed = ref(false);
 .poster-wrap :deep(.poster-action.nav-action) {
   border: 1px solid color-mix(in srgb, var(--text) 60%, transparent);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
-  color: var(--text) !important;
+  color: var(--text);
 }
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .poster-card:hover,
   .poster-card:focus-within { transform: translateY(-2px); }
   .poster-wrap :deep(.poster-overlay) { padding-inline: 10px; }
@@ -209,5 +304,17 @@ const revealed = ref(false);
 @media (pointer: coarse) {
   .poster-card:hover,
   .poster-card:focus-within { transform: none; }
+  /* Sans souris il n'y a pas de survol : l'action se decouvre au premier appui, en
+     meme temps que l'overlay, et le second appui la declenche ou ouvre la fiche. Au
+     repos l'affiche reste donc nue -- une grille de vignettes ne se lit plus des qu'un
+     bouton plein cadre s'empile sur chacune. Seule la cible de 44px exigee par iOS
+     comme par Material est forcee ici : les 34px du bloc principal l'emportaient sur
+     la regle globale de `_base.scss`, moins specifique. */
+  .poster-wrap :deep(.poster-action) {
+    min-height: var(--touch-target);
+  }
+  /* Le titre se reserve la hauteur du bouton : 10px de plus ici, sinon il passe
+     dessous. */
+  .poster-wrap.has-action :deep(.poster-overlay) { padding-bottom: var(--card-action-padding, 68px); }
 }
 </style>

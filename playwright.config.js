@@ -3,6 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
+  // Le serveur de dev compile le graphe de modules a la premiere requete : ce premier
+  // `goto` depasse regulierement les 30s par defaut, et faisait echouer le test qui
+  // avait la malchance d'ouvrir le bal. Le delai vise le demarrage a froid, pas les
+  // assertions, qui gardent leur propre expiration de 5s.
+  timeout: 60_000,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",

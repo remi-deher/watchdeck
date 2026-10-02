@@ -14,7 +14,15 @@ from fastapi.testclient import TestClient
 from app.database import get_db_async as get_db
 from app.dependencies import require_admin, require_auth
 from app.main import app
-from app.models import DiagnosticEvent, MediaRequest, NotificationLog, PlexUser, Settings
+from app.models import (
+    DiagnosticEvent,
+    MediaRequest,
+    NotificationDelivery,
+    NotificationLog,
+    PendingNotification,
+    PlexUser,
+    Settings,
+)
 from tests.async_support import AsyncSessionContext
 
 # ---------------------------------------------------------------------------
@@ -46,6 +54,7 @@ def _make_log(
     error_msg=None,
     req_id=42,
     sent_at=None,
+    reason=None,
 ):
     from datetime import datetime, timezone
 
@@ -59,6 +68,7 @@ def _make_log(
         success=success,
         error_msg=error_msg,
         req_id=req_id,
+        reason=reason,
         sent_at=sent_at or datetime(2026, 1, 15, 10, 0, 0, tzinfo=timezone.utc),
     )
 
@@ -127,6 +137,50 @@ def test_diagnostic_logs_are_filterable(async_db):
         assert response.status_code == 200
         assert response.json()["items"][0]["action"] == "matched"
         assert response.json()["items"][0]["details"]["plex_guid"] == "plex://movie/test"
+    finally:
+        _cleanup()
+
+
+def test_diagnostic_logs_exclude_client_telemetry_by_default(async_db):
+    """Le parcours d'une demande ne doit pas etre noye sous la telemetrie client.
+
+    `DiagnosticEvent` sert aussi de journal a `client_layout`, qui ecrit un evenement a
+    chaque ouverture de page : sans `request_id`, ces lignes s'affichaient « Demande #– »
+    et poussaient les vraies etapes hors de l'ecran. Elles restent consultables en
+    demandant explicitement leur categorie.
+    """
+    async_db.add(
+        DiagnosticEvent(
+            request_id=7,
+            correlation_id="request:7",
+            category="arr",
+            action="sent",
+            status="success",
+            title="Transmise a Radarr",
+        )
+    )
+    async_db.add(
+        DiagnosticEvent(
+            request_id=None,
+            correlation_id="client-layout:user:11",
+            category="client_layout",
+            action="capabilities_reported",
+            status="success",
+            message="desktop",
+        )
+    )
+    async_db.commit()
+    client = _client_with_db(async_db)
+    try:
+        default = client.get("/api/diagnostic-logs")
+        assert default.status_code == 200
+        categories = [item["category"] for item in default.json()["items"]]
+        assert "arr" in categories
+        assert "client_layout" not in categories
+
+        explicit = client.get("/api/diagnostic-logs?category=client_layout")
+        assert explicit.status_code == 200
+        assert [item["category"] for item in explicit.json()["items"]] == ["client_layout"]
     finally:
         _cleanup()
 
@@ -249,7 +303,7 @@ def test_resend_queues_notification(async_db):
         assert data["status"] == "queued"
         assert data["recipient"] == "u@b.com"
         assert data["event"] == "request"
-        mock_enqueue.assert_called_once_with("request", 42, ["u@b.com"], None)
+        mock_enqueue.assert_called_once_with("request", 42, ["u@b.com"], None, triggered_by="manual")
     finally:
         _cleanup()
 
@@ -453,5 +507,124 @@ def test_preview_uses_custom_subject_and_user(async_db):
         # l'apostrophe devient une entité, toujours affichée normalement par le navigateur.
         assert "Alerte pour Bob L&#x27;Eponge - Dune" in r.text
         assert "bob@bikini.bottom" in r.text
+    finally:
+        _cleanup()
+
+
+def test_notification_resume_preview_and_delivery_ledger(async_db):
+    """Le rattrapage expose les entrées invalides et le journal durable par destinataire."""
+    request = _make_req(req_id=83, title="Dune", media_type="movie")
+    async_db.add_all(
+        [
+            _make_settings(),
+            request,
+            PendingNotification(event="request", req_id=request.id, recipients='"not-a-list"', reason="{}"),
+            NotificationDelivery(
+                send_key="key-83",
+                req_id=request.id,
+                event="request",
+                recipient="user@example.com",
+                state="sent",
+                detail=None,
+            ),
+        ]
+    )
+    async_db.commit()
+    client = _client_with_db(async_db)
+    try:
+        preview = client.get("/api/notifications/resume-preview")
+        assert preview.status_code == 200
+        assert preview.json()["counts"]["obsolete"] == 1
+
+        history = client.get("/api/notifications/deliveries")
+        assert history.status_code == 200
+        assert history.json()["items"] == [
+            {
+                "send_key": "key-83",
+                "req_id": 83,
+                "event": "request",
+                "recipient": "user@example.com",
+                "state": "sent",
+                "updated_at": history.json()["items"][0]["updated_at"],
+                "detail": None,
+            }
+        ]
+    finally:
+        _cleanup()
+
+
+def test_the_cancellation_preview_replays_the_reason_that_was_sent(async_db):
+    """L'apercu rejoue le rendu a partir du gabarit : il doit rejouer le motif aussi.
+
+    Le texte libre ecrit par l'administrateur partait bien dans le mail, mais l'apercu du
+    journal le reconstruisait sans lui. On relisait donc une annulation amputee du seul
+    paragraphe qui explique la decision -- et rien ne permettait de retrouver ce qui avait
+    ete dit au demandeur.
+    """
+    settings = Settings(id=1)
+    req = MediaRequest(id=42, title="Inception", media_type="movie", plex_user_id="alice", source="rss")
+    log = _make_log(event="cancelled", reason="Absent du catalogue de telechargement.")
+    async_db.add_all([settings, req, log])
+    async_db.commit()
+
+    envoi = AsyncMock(return_value=("Sujet", "<p>corps</p>"))
+    client = _client_with_db(async_db)
+    try:
+        with patch("app.routers.notifications_api.send_cancelled_notification", new=envoi):
+            r = client.get("/api/notifications/1/preview")
+        assert r.status_code == 200
+        assert envoi.await_args.kwargs["reason"] == "Absent du catalogue de telechargement."
+    finally:
+        _cleanup()
+
+
+def test_notification_log_sorts_on_every_column(async_db):
+    """Chaque colonne de l'historique d'envoi se trie, en base, dans les deux sens."""
+    from datetime import datetime
+
+    async_db.add_all(
+        [
+            _make_log(
+                log_id=1,
+                event="request",
+                recipient="zoe@x.fr",
+                media_title="Brazil",
+                success=True,
+                sent_at=datetime(2026, 9, 1),
+            ),
+            _make_log(
+                log_id=2,
+                event="available",
+                recipient="anna@x.fr",
+                media_title="Casablanca",
+                success=False,
+                sent_at=datetime(2026, 9, 3),
+            ),
+            _make_log(
+                log_id=3,
+                event="failed",
+                recipient="marc@x.fr",
+                media_title="Amadeus",
+                success=True,
+                sent_at=datetime(2026, 9, 2),
+            ),
+        ]
+    )
+    async_db.commit()
+    client = _client_with_db(async_db)
+    try:
+
+        def ids(query):
+            response = client.get(f"/api/notifications/log?{query}")
+            assert response.status_code == 200, query
+            return [item["id"] for item in response.json()["items"]]
+
+        assert ids("") == [2, 3, 1]  # par defaut : les plus recents d'abord
+        assert ids("sort=date&direction=asc") == [1, 3, 2]
+        assert ids("sort=media&direction=asc") == [3, 1, 2]
+        assert ids("sort=recipients&direction=asc") == [2, 3, 1]
+        assert ids("sort=event&direction=asc") == [2, 3, 1]
+        assert ids("sort=state&direction=asc")[0] == 2  # les echecs d'abord
+        assert client.get("/api/notifications/log?sort=nimporte").status_code == 422
     finally:
         _cleanup()

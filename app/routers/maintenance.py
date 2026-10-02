@@ -116,6 +116,15 @@ ACTIONS_META = {
         "icon": "bi-arrow-repeat",
         "color": "secondary",
     },
+    "repair-posters": {
+        "label": "Réparer les affiches",
+        "description": (
+            "Reconstruit depuis TMDB les affiches dont la source Plex a expiré "
+            "(metadata-static.plex.tv renvoie 403 sur d'anciennes URL)."
+        ),
+        "icon": "bi-image",
+        "color": "secondary",
+    },
     "retry-failed": {
         "label": "Relancer les échouées",
         "description": "Repasse toutes les demandes en échec en attente et déclenche un poll.",
@@ -139,12 +148,6 @@ ACTIONS_META = {
         "description": "Résout les tmdb_id manquants (films : IMDB→TMDB via Radarr, sinon Seer par titre), puis fusionne tous les doublons. Corrige les doublons RSS ↔ Seer dus à des identifiants différents.",
         "icon": "bi-magic",
         "color": "primary",
-    },
-    "recover-sqlite": {
-        "label": "Récupérer l'ancienne base SQLite",
-        "description": "Ré-importe les utilisateurs, requêtes et historiques manquants depuis plex_rss.db.",
-        "icon": "bi-database-fill-up",
-        "color": "danger",
     },
     "resync-availability": {
         "label": "Resynchroniser les états de disponibilité",
@@ -629,32 +632,22 @@ async def _run_merge_duplicates(run: MaintenanceRun):
         raise
 
 
-async def _run_recover_sqlite(run: MaintenanceRun):
+async def _run_repair_posters(run: MaintenanceRun):
     emit = _Emit(run, logging.getLogger("app.maintenance"))
-    emit.info("Démarrage de la récupération SQLite...")
-    try:
-        import asyncio
-        import sys
+    from ..database import AsyncSessionLocal
+    from ..services.poster_repair import repair_posters
 
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable,
-            "scripts/recover_sqlite_data.py",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        while True:
-            line = await proc.stdout.readline()
-            if not line:
-                break
-            text = line.decode().strip()
-            if text:
-                emit.info(text)
-        await proc.wait()
-        if proc.returncode == 0:
-            emit.ok("Récupération SQLite terminée.")
-        else:
-            emit.err(f"Le script a échoué avec le code {proc.returncode}")
-            raise RuntimeError(f"Code {proc.returncode}")
+    try:
+        emit.info("Recherche des affiches dont la source a expiré…")
+        run.progress = 20
+        async with AsyncSessionLocal() as db:
+            result = await repair_posters(db)
+        run.progress = 100
+        emit.ok(f"{result['repaired']} affiche(s) reconstruite(s) depuis TMDB sur {result['scanned']} examinée(s).")
+        if result["unresolved"]:
+            # Un media que TMDB ne connait pas garde son affiche morte : le composant
+            # affiche alors son repli plutot qu'un cadre vide.
+            emit.warn(f"{result['unresolved']} média(s) sans affiche TMDB : repli visuel conservé.")
     except Exception as e:
         emit.err(str(e))
         raise
@@ -689,7 +682,7 @@ _ACTION_RUNNERS = {
     "recalculate-dates": _run_recalculate_dates,
     "merge-duplicates": _run_merge_duplicates,
     "enrich-and-merge": _run_enrich_and_merge,
-    "recover-sqlite": _run_recover_sqlite,
+    "repair-posters": _run_repair_posters,
     "resync-availability": _run_resync_availability,
 }
 

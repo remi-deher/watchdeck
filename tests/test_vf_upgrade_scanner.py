@@ -6,13 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from app.cache import cache
 from app.models import (
     ArrInstance,
-    Base,
     LibraryItem,
     MediaRequest,
     RequestStatus,
@@ -29,9 +26,10 @@ from app.routers.vf_upgrades_api import (
     VfUpgradeMediaRef,
     VfUpgradeScanSelectionRequest,
     _media_payload,
-    _refresh_lifecycle,
+    dismiss_vf_upgrade,
     grab_vf_upgrade,
     list_vf_upgrades,
+    restore_vf_upgrade,
     set_vf_upgrade_ignored,
     trigger_vf_upgrade_scan_selected,
     vf_upgrade_audit,
@@ -43,8 +41,10 @@ from app.services.release_matching import (
     french_release_evidence,
     parse_release_season_episode,
     release_is_french,
+    release_is_subtitle_only,
     release_matches_target,
 )
+from app.services.vf_upgrade_lifecycle import QueueCache, refresh_lifecycle
 from app.services.vf_upgrade_scanner import (
     _build_movie_tasks,
     _build_show_tasks,
@@ -67,7 +67,7 @@ from app.services.vf_upgrade_scanner import (
     scan_vf_upgrades,
 )
 from app.utils import now_utc, now_utc_naive
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 # ---------------------------------------------------------------------------
 # release_is_french & release_matches_target
@@ -161,13 +161,46 @@ def test_explicit_multi_marker_is_sufficient_despite_japanese_declared_language(
     }
 
     assert release_is_french(release) is True
-    assert french_release_evidence(release)["vf_confidence"] == 100
+    # "MULTI" seul reste accepte au seuil par defaut, mais n'est plus note comme une
+    # preuve certaine : le conteneur multi-pistes n'est frequemment que MULTI-sous-titres.
+    evidence = french_release_evidence(release)
+    assert evidence["vf_kind"] == "multi"
+    assert evidence["vf_confidence"] == 70
 
 
 def test_declared_french_language_is_sufficient_without_title_marker():
     evidence = french_release_evidence({"title": "Some.Show.S01E01.720p.WEB-DL", "languages": ["French"]})
 
-    assert evidence["vf_confidence"] == 100
+    assert evidence["vf_kind"] == "french_declared"
+    assert evidence["vf_confidence"] == 90
+
+
+@pytest.mark.parametrize(
+    ("title", "languages", "kind", "confidence"),
+    [
+        ("Movie.2020.TRUEFRENCH.1080p", [], "truefrench", 100),
+        ("Movie.2020.VFF.1080p", [], "vff", 100),
+        ("Movie.2020.VFF2.1080p", [], "vff_variant", 95),
+        ("Movie.2020.VFI.1080p", [], "vfi", 95),
+        ("Movie.2020.1080p", ["French"], "french_declared", 90),
+        ("Movie.2020.FRENCH.1080p", [], "french_title", 85),
+        ("Movie.2020.VF.1080p", [], "vf", 80),
+        ("Movie.2020.MULTi.1080p", [], "multi", 70),
+        ("Movie.2020.VFQ.1080p", [], "vfq", 70),
+        ("Movie.2020.VQ.1080p", [], "vfq", 70),
+        # Un marqueur quebecois ne decide qu'a defaut de marqueur francais de France.
+        ("Movie.2020.MULTi.VFQ.1080p", [], "vfq", 70),
+        ("Movie.2020.TRUEFRENCH.VFQ.1080p", [], "truefrench", 100),
+        ("Movie.2020.1080p", ["English"], None, 0),
+    ],
+)
+def test_french_release_evidence_grades_by_marker_strength(title, languages, kind, confidence):
+    """Le bareme distingue la solidite de la preuve : sans lui, `vf_upgrade_min_confidence`
+    etait decoratif (toute release retenue valait 100)."""
+    evidence = french_release_evidence({"title": title, "languages": languages})
+
+    assert evidence["vf_kind"] == kind
+    assert evidence["vf_confidence"] == confidence
 
 
 @pytest.mark.parametrize(
@@ -179,6 +212,53 @@ def test_declared_french_language_is_sufficient_without_title_marker():
 )
 def test_release_is_french_rejects_unrelated_titles(title):
     assert release_is_french({"title": title, "languages": []}) is False
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("Movie.2020.VOSTFR.1080p.WEB", True),
+        ("Movie.2020.vostfr.1080p", True),
+        ("Some.Show.S01E01.MULTiSUBS.1080p.WEB-DL", True),
+        ("Some.Show.S01E01.MULTi-SUBS.1080p", True),
+        ("Some.Show.S01E01.Multi.Subs.1080p", True),
+        ("Some.Show.S01E01.MULTI_SUB.1080p", True),
+        ("Some.Show [Multi Subs] 1080p", True),
+        ("Movie.2020.MULTi.1080p", False),
+        ("Movie.2020.TRUEFRENCH.1080p", False),
+        ("Multisubscription.Saga.2020.1080p", False),
+    ],
+)
+def test_release_is_subtitle_only(title, expected):
+    assert release_is_subtitle_only({"title": title}) is expected
+
+
+@pytest.mark.asyncio
+async def test_search_task_never_proposes_vostfr_or_multisubs_releases():
+    """VOSTFR et MULTiSUBS n'annoncent qu'un francais en sous-titres : jamais proposees
+    en amelioration VF, meme avec un "MULTI" ou une langue francaise declaree."""
+    inst = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr.local", api_key="key")
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=1,
+        scope="movie",
+        arr_type="radarr",
+        inst=inst,
+        arr_id=99,
+        title="Some Movie",
+    )
+    releases = [
+        {"guid": "vostfr", "title": "Some.Movie.2020.VOSTFR.1080p", "protocol": "usenet", "languages": ["French"]},
+        {"guid": "multisubs", "title": "Some.Movie.2020.MULTi-SUBS.1080p", "protocol": "usenet", "languages": []},
+        {"guid": "multi", "title": "Some.Movie.2020.MULTi.1080p", "protocol": "usenet", "languages": []},
+    ]
+    with (
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=releases)),
+        patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
+    ):
+        matched = await _search_task(task, settings=None)
+
+    assert [release["guid"] for release in matched] == ["multi"]
 
 
 @pytest.mark.asyncio
@@ -257,7 +337,41 @@ async def test_search_task_keeps_multi_release_at_default_confidence_threshold()
         matched = await _search_task(task, settings=settings)
 
     assert [item["guid"] for item in matched] == [release["guid"]]
-    assert matched[0]["vf_confidence"] == 100
+    assert matched[0]["vf_confidence"] == 70
+
+
+@pytest.mark.asyncio
+async def test_search_task_rejects_quebec_dub_unless_explicitly_accepted():
+    """Une VFQ est un vrai doublage francais, mais pas celui qu'attend une bibliotheque
+    francaise : refusee par defaut, acceptee seulement sur reglage explicite."""
+    inst = ArrInstance(name="Radarr", arr_type="radarr", url="http://radarr.local", api_key="key")
+    task = _SearchTask(
+        source_type="library_item",
+        source_id=42,
+        scope="movie",
+        arr_type="radarr",
+        inst=inst,
+        arr_id=77,
+        title="Some Movie",
+    )
+    release = {
+        "guid": "some-movie-vfq",
+        "title": "Some.Movie.2020.MULTi.VFQ.1080p.WEB-DL",
+        "protocol": "usenet",
+        "size": 8e9,
+        "languages": [],
+    }
+
+    with (
+        patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=[release])),
+        patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
+    ):
+        refused = await _search_task(task, Settings(vf_upgrade_min_confidence=65))
+        accepted = await _search_task(task, Settings(vf_upgrade_min_confidence=65, vf_upgrade_accept_vfq=True))
+
+    assert list(refused) == []
+    assert [item["guid"] for item in accepted] == [release["guid"]]
+    assert accepted[0]["vf_kind"] == "vfq"
 
 
 # ---------------------------------------------------------------------------
@@ -267,10 +381,7 @@ async def test_search_task_keeps_multi_release_at_default_confidence_threshold()
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = TestSession(Session())
+    session = make_test_session()
     yield session
     session.close()
 
@@ -487,17 +598,22 @@ async def test_download_completion_triggers_one_plex_refresh(db):
     db.add(suggestion)
     db.commit()
 
+    settings = db.query(Settings).first()
+    queues = QueueCache()
     with (
-        patch("app.routers.vf_upgrades_api.radarr.get_queue", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_lifecycle.radarr.get_queue", new=AsyncMock(return_value=[])) as get_queue,
         patch(
             "app.services.vff_scanner.trigger_plex_library_refresh",
             new=AsyncMock(),
         ) as refresh,
     ):
-        await _refresh_lifecycle(db, suggestion, item)
-        await _refresh_lifecycle(db, suggestion, item)
+        await refresh_lifecycle(db, suggestion, item, settings=settings, queues=queues, notify=False)
+        await refresh_lifecycle(db, suggestion, item, settings=settings, queues=queues, notify=False)
 
     assert suggestion.status == "awaiting_verification"
+    # La file *arr n'est lue qu'une fois par instance et par passage : le dashboard
+    # faisait auparavant un appel HTTP complet par suggestion active.
+    get_queue.assert_awaited_once()
     refresh.assert_awaited_once_with(
         db.query(Settings).first(),
         "movie",
@@ -505,6 +621,7 @@ async def test_download_completion_triggers_one_plex_refresh(db):
         arr_url=inst.url,
         arr_api_key=inst.api_key,
         cache_key=f"radarr:{inst.id}",
+        plex_server_id=None,
     )
 
 
@@ -1049,7 +1166,7 @@ async def test_manual_vo_movie_search_is_persisted_as_relevant_upgrade(db):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_hides_irrelevant_legacy_pending_but_keeps_auto_results(db):
+async def test_dashboard_closes_stale_vo_suggestion_but_keeps_vf_upgrade_results(db):
     legacy_media = _movie_item(db, title="Ancienne recherche manuelle", has_vf=True)
     auto_media = _movie_item(db, title="Scan automatique", has_vf=True, arr_id=100)
     db.add_all(
@@ -1061,6 +1178,7 @@ async def test_dashboard_hides_irrelevant_legacy_pending_but_keeps_auto_results(
                 releases_json='[{"guid":"legacy"}]',
                 status="pending",
                 origin="legacy",
+                target_kind="vo",
             ),
             VfUpgradeSuggestion(
                 source_type="library_item",
@@ -1077,8 +1195,46 @@ async def test_dashboard_hides_irrelevant_legacy_pending_but_keeps_auto_results(
 
     payload = await vf_upgrade_dashboard(db=db)
 
-    assert [item["media"]["title"] for item in payload["items"]] == ["Scan automatique"]
-    assert payload["items"][0]["origin"] == "auto"
+    items = {item["media"]["title"]: item for item in payload["items"]}
+    assert items["Ancienne recherche manuelle"]["status"] == "verified"
+    assert "modification externe" in items["Ancienne recherche manuelle"]["arr_message"]
+    assert items["Scan automatique"]["status"] == "pending"
+    assert items["Scan automatique"]["origin"] == "auto"
+
+
+@pytest.mark.asyncio
+async def test_list_closes_external_episode_upgrade_after_audio_rescan(db):
+    item = _show_item(db, title="Serie amelioree hors application", has_vf=False)
+    db.add_all(
+        [
+            VfEpisodeStatus(
+                source_type="library_item",
+                source_id=item.id,
+                season_number=1,
+                episode_number=3,
+                has_vf=True,
+                is_known_episode=True,
+                checked_at=now_utc_naive(),
+            ),
+            VfUpgradeSuggestion(
+                source_type="library_item",
+                source_id=item.id,
+                scope="episode",
+                season_number=1,
+                episode_number=3,
+                releases_json='[{"guid":"vf"}]',
+                status="pending",
+                origin="auto",
+                target_kind="vo",
+            ),
+        ]
+    )
+    db.commit()
+
+    payload = await list_vf_upgrades("library_item", item.id, db=db)
+
+    assert payload["suggestions"][0]["status"] == "verified"
+    assert "modification externe" in payload["suggestions"][0]["arr_message"]
 
 
 @pytest.mark.asyncio
@@ -1623,7 +1779,7 @@ async def test_search_task_logs_when_no_match(db):
 
     with (
         patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=vo_only_releases)),
-        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
     ):
         result = await _search_task(task, settings)
 
@@ -1650,7 +1806,7 @@ async def test_search_task_rejects_wrong_season(db):
 
     with (
         patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=releases)),
-        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
     ):
         result = await _search_task(task)
 
@@ -1689,7 +1845,7 @@ async def test_search_task_rejects_arr_identity_mismatch(db):
 
     with (
         patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=releases)),
-        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
     ):
         result = await _search_task(task)
 
@@ -1719,7 +1875,7 @@ async def test_search_task_rejects_no_marker_no_language(db):
 
     with (
         patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=releases)),
-        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
     ):
         result = await _search_task(task, settings)
 
@@ -1749,7 +1905,7 @@ async def test_search_task_rejects_low_confidence(db):
 
     with (
         patch("app.services.vf_upgrade_scanner.sonarr.get_releases", new=AsyncMock(return_value=releases)),
-        patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+        patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
     ):
         result = await _search_task(task, settings)
 
@@ -1777,7 +1933,7 @@ async def test_search_task_rejects_by_size_bounds(db):
     for s in (settings_min, settings_max):
         with (
             patch("app.services.vf_upgrade_scanner.radarr.get_releases", new=AsyncMock(return_value=releases)),
-            patch("app.services.vf_upgrade_scanner._current_release_titles", new=AsyncMock(return_value=[])),
+            patch("app.services.vf_upgrade_scanner._current_files_in_scope", new=AsyncMock(return_value=[])),
         ):
             result = await _search_task(task, s)
         assert list(result) == [], f"Attendu rejet avec {s}"
@@ -2254,16 +2410,59 @@ async def test_scan_vf_upgrades_marks_stuck_items_error_on_late_failure(db):
         ),
         patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
     ):
-        # _search_task echoue mais est capture dans _run_task (releases=[]) -- le scan
-        # se termine donc normalement ici ; ce test verifie plutot que le champ
-        # "no_result" est bien pose meme quand la recherche a leve une exception.
         result = await scan_vf_upgrades(force=False)
 
     assert result["status"] == "idle"
+    assert result["errors"] == 1
     items = db.sync_session.query(VfUpgradeScanRunItem).all()
     assert len(items) == 1
-    assert items[0].status == "no_result"
+    assert items[0].status == "error"
     assert items[0].finished_at is not None
+    runs = db.sync_session.query(VfUpgradeScanRun).all()
+    # Toutes les recherches du cycle ont echoue : ce n'est pas un cycle "sans resultat".
+    assert runs[0].status == "degraded"
+    assert runs[0].tasks_errored == 1
+
+
+@pytest.mark.asyncio
+async def test_indexer_failure_neither_backs_off_nor_drops_pending_suggestion(db):
+    """Un indexeur injoignable n'est pas une absence de VF : ni cooldown progressif, ni
+    suppression de la suggestion encore valide (l'echec technique penalisait la cible
+    deux fois)."""
+    settings_row = Settings(vff_enabled=True, vf_upgrade_enabled=True)
+    db.add(settings_row)
+    _radarr_instance(db)
+    item = _movie_item(db, title="Indexer Down", has_vf=False)
+    db.add(
+        VfUpgradeSuggestion(
+            source_type="library_item",
+            source_id=item.id,
+            scope="movie",
+            releases_json=json.dumps([{"guid": "still-valid", "title": "Indexer.Down.TRUEFRENCH.1080p"}]),
+            status="pending",
+            origin="auto",
+            target_kind="vo",
+        )
+    )
+    db.commit()
+
+    record = AsyncMock()
+    with (
+        patch("app.services.vf_upgrade_scanner.AsyncSessionLocal", return_value=db),
+        patch(
+            "app.services.vf_upgrade_scanner._search_task",
+            new=AsyncMock(side_effect=RuntimeError("indexer 429")),
+        ),
+        patch("app.services.vf_upgrade_scanner._record_search_outcome", new=record),
+        patch("app.services.vf_upgrade_scanner._recent_scan_keys", new=AsyncMock(return_value=set())),
+        patch("app.services.vf_upgrade_scanner.radarr.get_movie_files", new=AsyncMock(return_value=[])),
+    ):
+        await scan_vf_upgrades(force=False)
+
+    record.assert_not_awaited()
+    survivor = db.sync_session.query(VfUpgradeSuggestion).one()
+    assert survivor.status == "pending"
+    assert json.loads(survivor.releases_json)[0]["guid"] == "still-valid"
 
 
 @pytest.mark.asyncio
@@ -2447,3 +2646,61 @@ async def test_trigger_vf_upgrade_scan_selected_calls_scan_with_only(db):
     assert result["scanned"] == 1
     items = db.sync_session.query(VfUpgradeScanRunItem).all()
     assert [i.title for i in items] == ["Endpoint Selected Movie"]
+
+
+@pytest.mark.asyncio
+async def test_dismiss_can_be_undone(db):
+    """« Ignorer » doit avoir un inverse.
+
+    L'action se repete une fois par ligne et se clique vite ; sans retour arriere, une
+    suggestion ecartee par erreur ne revenait que par une relance complete de la
+    recherche. `restore` la remet exactement dans l'etat ou `dismiss` l'a prise.
+    """
+    item = _movie_item(db)
+    suggestion = VfUpgradeSuggestion(
+        source_type="library_item",
+        source_id=item.id,
+        scope="movie",
+        status="pending",
+    )
+    db.add(suggestion)
+    db.commit()
+    db.refresh(suggestion)
+
+    with patch("app.routers.vf_upgrades_api.publish", new=AsyncMock()):
+        await dismiss_vf_upgrade(suggestion.id, db)
+        db.refresh(suggestion)
+        assert suggestion.status == "dismissed"
+
+        await restore_vf_upgrade(suggestion.id, db)
+        db.refresh(suggestion)
+        assert suggestion.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_restore_refuses_a_suggestion_that_moved_on(db):
+    """Une suggestion qui a evolue depuis (acceptee, relancee) ne doit pas etre ecrasee :
+    le retour arriere ne vaut que pour l'action qu'il annule."""
+    item = _movie_item(db)
+    suggestion = VfUpgradeSuggestion(
+        source_type="library_item",
+        source_id=item.id,
+        scope="movie",
+        status="grabbed",
+    )
+    db.add(suggestion)
+    db.commit()
+    db.refresh(suggestion)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await restore_vf_upgrade(suggestion.id, db)
+    assert excinfo.value.status_code == 409
+    db.refresh(suggestion)
+    assert suggestion.status == "grabbed"
+
+
+@pytest.mark.asyncio
+async def test_restore_reports_an_unknown_suggestion(db):
+    with pytest.raises(HTTPException) as excinfo:
+        await restore_vf_upgrade(999999, db)
+    assert excinfo.value.status_code == 404

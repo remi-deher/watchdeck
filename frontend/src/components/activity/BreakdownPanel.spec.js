@@ -1,0 +1,91 @@
+/** Les trois lectures d'une répartition : barres, camembert, tableau triable. */
+import { describe, expect, it } from 'vitest';
+import { mount } from '@vue/test-utils';
+import BreakdownPanel from './BreakdownPanel.vue';
+
+const items = [
+  { label: 'Warner', value: 30 },
+  { label: 'Ghibli', value: 50 },
+  { label: 'Pixar', value: 20 },
+];
+
+const mountPanel = (props = {}) =>
+  mount(BreakdownPanel, { props: { title: 'Studios', items, interactive: true, ...props } });
+
+const showTable = async (wrapper) => {
+  await wrapper.find('button[aria-label="Afficher le tableau"]').trigger('click');
+  return wrapper;
+};
+const labels = (wrapper) =>
+  wrapper.findAll('.breakdown-table tbody tr').map((row) => row.findAll('td')[0].text());
+
+describe('BreakdownPanel', () => {
+  it('affiche un camembert par défaut', () => {
+    // Les barres ont disparu : a repartition egale, le camembert dit la meme chose sur
+    // deux fois moins de hauteur, ce qui permet d'aligner les cartes entre elles.
+    const wrapper = mountPanel();
+
+    const pie = wrapper.findComponent({ name: 'PieChart' });
+    expect(pie.exists()).toBe(true);
+    expect(pie.find('canvas').attributes('data-points')).toBe('3');
+    expect(wrapper.find('.breakdown-list').exists()).toBe(false);
+  });
+
+  it('lit la légende en clair : nom, valeur et part', () => {
+    const wrapper = mountPanel();
+
+    const first = wrapper.findAll('.pie-legend button')[0];
+    expect(first.find('span').text()).toBe('Warner');
+    expect(first.find('strong').text()).toBe('30');
+    expect(first.find('small').text()).toBe('30.0 %');
+  });
+
+  it('remonte la catégorie choisie dans le camembert', async () => {
+    const wrapper = mountPanel();
+
+    await wrapper.findAll('.pie-legend button')[1].trigger('click');
+
+    expect(wrapper.emitted('select')?.[0]).toEqual(['Ghibli']);
+  });
+
+  it('ne laisse pas cliquer une répartition qui ne filtre rien', async () => {
+    const wrapper = mountPanel({ interactive: false });
+
+    await wrapper.findAll('.pie-legend button')[0].trigger('click');
+
+    expect(wrapper.emitted('select')).toBeUndefined();
+  });
+
+  it('trie le tableau par libellé puis inverse le sens', async () => {
+    // La répartition arrive ordonnée par valeur ; retrouver une catégorie précise
+    // demande l'ordre alphabétique.
+    const wrapper = await showTable(mountPanel());
+    expect(labels(wrapper)).toEqual(['Warner', 'Ghibli', 'Pixar']);
+
+    await wrapper.findAll('.breakdown-table thead .ui-data-table__sort')[0].trigger('click');
+    expect(labels(wrapper)).toEqual(['Ghibli', 'Pixar', 'Warner']);
+
+    await wrapper.findAll('.breakdown-table thead .ui-data-table__sort')[0].trigger('click');
+    expect(labels(wrapper)).toEqual(['Warner', 'Pixar', 'Ghibli']);
+  });
+
+  it('trie par valeur, de la plus grande à la plus petite', async () => {
+    const wrapper = await showTable(mountPanel());
+
+    await wrapper.findAll('.breakdown-table thead .ui-data-table__sort')[1].trigger('click');
+
+    expect(labels(wrapper)).toEqual(['Ghibli', 'Warner', 'Pixar']);
+    expect(wrapper.findAll('.breakdown-table thead th')[1].attributes('aria-sort')).toBe('descending');
+  });
+
+  it('laisse « Autres » en queue quel que soit le tri', async () => {
+    // « Autres » est un reste, pas une catégorie : le trier avec les autres le ferait
+    // remonter en tête dès qu'il pèse plus lourd qu'elles.
+    const many = Array.from({ length: 40 }, (_, i) => ({ label: `Studio ${i}`, value: i + 1 }));
+    const wrapper = await showTable(mountPanel({ items: many }));
+
+    await wrapper.findAll('.breakdown-table thead .ui-data-table__sort')[1].trigger('click');
+
+    expect(labels(wrapper).at(-1)).toBe('Autres');
+  });
+});

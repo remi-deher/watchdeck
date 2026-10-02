@@ -7,13 +7,7 @@
   >
     <template #action>
       <div class="head-controls">
-        <select v-model="pollFilter" class="compact-select" aria-label="Filtrer les exécutions">
-          <option value="all">Tous</option>
-          <option value="errors">Erreurs uniquement</option>
-          <option v-for="job in availableJobs" :key="job" :value="job">
-            {{ friendlyJobName(job) }}
-          </option>
-        </select>
+        <UiSelect v-model="pollFilter" class="compact-select" aria-label="Filtrer les exécutions" :options="[{ value: 'all', label: 'Tous' }, { value: 'errors', label: 'Erreurs uniquement' }, ...(availableJobs).map((job) => ({ value: job, label: String(friendlyJobName(job)) }))]" />
         <span v-if="nextPoll.next_run_seconds != null" class="countdown-badge">
           <Clock class="inline-icon" />
           <span>{{ countdown }}</span>
@@ -38,8 +32,8 @@
               <component :is="jobIcon(run.job)" class="job-icon" />
             </div>
             <div class="job-titles">
-              <strong>{{ friendlyJobName(run.job) }}</strong>
-              <span class="job-time">{{ formatDate(run.started_at) }}</span>
+              <strong>{{ friendlyJobName(run.job) }}<template v-if="run.runCount > 1"> · {{ run.runCount }} exécutions</template></strong>
+              <span class="job-time">{{ run.runCount > 1 ? `de ${formatDate(run.oldestStartedAt)} à ${formatDate(run.started_at)}` : formatDate(run.started_at) }}</span>
             </div>
           </div>
           <span class="badge" :class="run.errors ? 'failed' : 'available'">
@@ -70,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
 import { formatDateTimeShort as formatDate } from '@/utils/format';
 import { Check, Clock, Copy, Download, Languages, RefreshCw, Tv } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
@@ -109,10 +104,38 @@ const availableJobs = computed(() => {
   return Array.from(jobs).filter(Boolean);
 });
 
-const filteredPolls = computed(() => {
+const matchingPolls = computed(() => {
   if (pollFilter.value === 'all') return props.polls;
   if (pollFilter.value === 'errors') return props.polls.filter((p) => p.errors);
   return props.polls.filter((p) => p.job === pollFilter.value);
+});
+
+/**
+ * Regroupe les executions consecutives d'une meme tache au meme resultat.
+ *
+ * La watchlist tourne toutes les minutes et renvoie invariablement le meme compte : le
+ * panneau n'affichait qu'elle, six lignes identiques sur six, et une anomalie survenue
+ * sur une autre tache n'y aurait jamais ete visible. Les echecs, eux, ne sont jamais
+ * regroupes -- chacun garde sa ligne, son detail depliable et son horodatage.
+ */
+const filteredPolls = computed(() => {
+  const grouped: any[] = [];
+  for (const run of matchingPolls.value) {
+    const previous = grouped[grouped.length - 1];
+    const mergeable =
+      previous &&
+      !run.errors &&
+      !previous.errors &&
+      previous.job === run.job &&
+      (previous.items_processed || 0) === (run.items_processed || 0);
+    if (mergeable) {
+      previous.runCount = (previous.runCount || 1) + 1;
+      previous.oldestStartedAt = run.started_at;
+      continue;
+    }
+    grouped.push({ ...run, runCount: 1, oldestStartedAt: run.started_at });
+  }
+  return grouped;
 });
 
 const expandedErrors = reactive<Record<string | number, boolean>>({});
@@ -214,7 +237,7 @@ function jobIcon(job: string) {
 
 .job-main.clickable {
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .job-main.clickable:hover {
@@ -242,8 +265,8 @@ function jobIcon(job: string) {
 }
 
 .job-icon-wrap.error {
-  color: var(--danger, #ef4444);
-  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--red-text);
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
 }
 
 .job-icon {
@@ -288,9 +311,9 @@ function jobIcon(job: string) {
 }
 
 .error-box-title {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--danger, #ef4444);
+  color: var(--red-text);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -304,9 +327,9 @@ function jobIcon(job: string) {
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
 
 .btn-copy:hover {
@@ -320,13 +343,13 @@ function jobIcon(job: string) {
 }
 
 .text-success {
-  color: var(--success);
+  color: var(--green-text);
 }
 
 .error-detail-box code {
   display: block;
   font-family: var(--font-mono, monospace);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.4;
   color: var(--text);
   white-space: pre-wrap;

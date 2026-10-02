@@ -1,29 +1,26 @@
 <template>
-  <section class="kpi-banner" :aria-label="audit ? 'Indicateurs clés de l’audit' : 'Indicateurs des opportunités'">
-    <article
-      v-for="card in cards"
-      :key="card.filter"
-      class="kpi-card"
-      :class="{ active: activeFilter === card.filter }"
-      role="button"
-      tabindex="0"
-      @click="emit('select', card.filter)"
-      @keydown.enter="emit('select', card.filter)"
-    >
-      <div class="kpi-icon-wrap" :class="card.tone">
-        <component :is="card.icon" :size="20" />
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-label">{{ card.label }}</span>
-        <strong>{{ card.value }}</strong>
-        <small class="kpi-sub">{{ card.description }}</small>
-      </div>
-    </article>
+  <!-- Ces pastilles sont le filtre de la page, pas un tableau de bord. Elles etaient six
+       grandes tuiles de meme poids, sur deux rangees : on lisait des chiffres avant la
+       liste, et rien ne distinguait ce qui demande une action de ce qui est archive.
+       Un vrai `button` apporte l'activation au clavier et `aria-pressed` dit lequel
+       filtre la liste. La legende detaillee passe dans `title`. -->
+  <section class="kpi-banner" :aria-label="audit ? 'Filtres de l’audit' : 'Filtres des opportunités'">
+    <UiChipGroup
+      :model-value="activeFilter"
+      :options="options"
+      :label="audit ? 'Filtres de l’audit' : 'Filtres des opportunités'"
+      reselectable
+      align="center"
+      scroll
+      item-class="filter-badge vf-kpi-filter"
+      @update:model-value="emit('select', $event)"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, type Component } from 'vue';
+import UiChipGroup, { type UiChipOption } from '@/components/ui/UiChipGroup.vue';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -85,49 +82,30 @@ const cards = computed<KpiCard[]>(() => props.audit ? [
   { filter: 'history', label: 'Historique', value: props.historyCount, description: 'VF validées ou rejetées', tone: 'kpi-ok', icon: CheckCircle2 },
   { filter: 'ignored', label: 'Ignorées', value: props.ignoredCount, description: 'Séries/films exclus du scan', tone: 'kpi-muted', icon: EyeOff },
 ]);
+const toneMap: Record<string, UiChipOption['tone']> = {
+  'kpi-accent': 'accent',
+  'kpi-danger': 'danger',
+  'kpi-warning': 'warning',
+  'kpi-info': 'info',
+  'kpi-ok': 'ok',
+};
+const options = computed(() => cards.value.map((card) => ({
+  value: card.filter,
+  label: card.label,
+  count: card.value,
+  icon: card.icon,
+  tone: toneMap[card.tone],
+  title: card.description,
+})));
 </script>
 
 <style scoped lang="scss">
 .kpi-banner {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-  gap: var(--space-3);
-}
-
-.kpi-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
   min-width: 0;
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-1);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
-
-.kpi-card:hover { transform: translateY(-1px); border-color: var(--border-strong); }
-.kpi-card.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface-1)); }
-
-.kpi-icon-wrap {
-  display: grid;
-  flex: 0 0 38px;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border-radius: var(--radius-md);
+.kpi-banner :deep(.vf-kpi-filter) {
+  width: auto;
+  justify-content: flex-start;
+  border-radius: var(--radius-pill);
 }
-
-.kpi-accent { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
-.kpi-warning { background: rgba(234, 179, 8, 0.14); color: #fde047; }
-.kpi-danger { background: rgba(239, 68, 68, 0.14); color: #fca5a5; }
-.kpi-info { background: rgba(56, 189, 248, 0.14); color: #7dd3fc; }
-.kpi-ok { background: rgba(34, 197, 94, 0.14); color: #86efac; }
-.kpi-muted, .kpi-neutral { background: var(--surface-2); color: var(--muted); }
-
-.kpi-body { display: grid; min-width: 0; gap: 1px; }
-.kpi-label { color: var(--muted); font-size: var(--fs-xs); font-weight: 650; }
-.kpi-body strong { color: var(--text); font-size: var(--fs-xl); line-height: 1.1; }
-.kpi-sub { overflow: hidden; color: var(--muted); font-size: 0.69rem; text-overflow: ellipsis; white-space: nowrap; }
 </style>

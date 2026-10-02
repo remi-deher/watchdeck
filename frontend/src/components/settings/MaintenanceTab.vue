@@ -1,92 +1,82 @@
 <template>
-  <div class="settings-grid">
-    <div class="maintenance-head">
-      <p>Opérations contrôlées et progression en direct.</p>
-    </div>
+  <div class="maintenance-tab">
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
-    <section class="action-grid">
-      <article v-for="(meta, key) in actions" :key="key" class="panel action-card">
-        <div>
-          <h2>{{ meta.label || key }}</h2>
-          <p>{{ meta.description }}</p>
-          <p v-if="!meta.enabled" class="text-sm error-text mt-2" style="font-size: var(--fs-sm); color: var(--error);">
-            <i class="bi bi-exclamation-triangle"></i> {{ meta.disabled_reason }}
-          </p>
-        </div>
-        <button class="primary" :disabled="running || meta.enabled === false" @click="run(key)">
-          <Play/>Executer
-        </button>
-      </article>
-    </section>
+    <SettingsItemList title="Maintenance" subtitle="Opérations ponctuelles, avec leur progression en direct.">
+      <SettingsItem
+        v-for="(meta, key) in actions"
+        :key="key"
+        :title="meta.label || String(key)"
+        :subtitle="meta.enabled === false ? meta.disabled_reason : meta.description"
+        :status="meta.enabled === false ? 'error' : 'neutral'"
+        :status-text="meta.enabled === false ? 'Indisponible' : ''"
+        :keywords="meta.description"
+      >
+        <template #actions>
+          <UiButton size="sm" :disabled="running || meta.enabled === false" @click="run(String(key))"><Play/>Exécuter</UiButton>
+        </template>
+      </SettingsItem>
+    </SettingsItemList>
     <section v-if="current" class="panel run-panel">
       <UiSectionHeader :title="current.action">
         <template #meta><StatusBadge :status="current.status" /></template>
       </UiSectionHeader>
-      <progress :value="current.progress" max="100"></progress>
+      <UiProgress :value="current.progress" label="Progression de la tâche" />
       <pre>{{ (current.logs || []).join('\n') }}</pre>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import UiButton from '@/components/ui/UiButton.vue';
+import UiProgress from '@/components/ui/UiProgress.vue';
+import { computed, ref } from "vue";
+import { useMutation, useQuery } from '@tanstack/vue-query';
 import { Play } from "@lucide/vue";
 import { api } from "@/api";
 import { useRealtime } from "@/events";
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
+import SettingsItem from './SettingsItem.vue';
+import SettingsItemList from './SettingsItemList.vue';
 
-const actions = ref<Record<string, any>>({});
-const current = ref<any>(null);
-const loading = ref(false);
-const running = ref(false);
-const error = ref('');
-let runId: string | undefined;
+const runId = ref<string>();
+const actionError = ref('');
+const actionsQuery = useQuery({ queryKey: ['settings', 'maintenance', 'actions'], queryFn: () => api<Record<string, any>>('/api/maintenance/actions') });
+const actions = computed(() => actionsQuery.data.value || {});
+const runQuery = useQuery({
+  queryKey: computed(() => ['settings', 'maintenance', 'run', runId.value]),
+  queryFn: () => api<any>(`/api/maintenance/run/${runId.value}`),
+  enabled: computed(() => Boolean(runId.value)),
+});
+const current = computed(() => runQuery.data.value || null);
+const running = computed(() => startMutation.isPending.value || Boolean(runId.value && !['done', 'error'].includes(current.value?.status)));
+const error = computed(() => actionError.value || (actionsQuery.error.value as Error | null)?.message || (runQuery.error.value as Error | null)?.message || '');
 
 async function load(): Promise<void> {
-  loading.value = true;
-  try {
-    actions.value = await api('/api/maintenance/actions');
-  } catch (e: any) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
+  actionError.value = '';
+  await actionsQuery.refetch();
 }
 
+const startMutation = useMutation({ mutationFn: (action: string) => api<any>(`/api/maintenance/run/${action}`, { method: 'POST' }), retry: 0 });
+
 async function run(action: string): Promise<void> {
-  running.value = true;
-  error.value = '';
+  actionError.value = '';
   try {
-    const data = await api(`/api/maintenance/run/${action}`, { method: 'POST' });
-    runId = data.run_id;
-    if (runId) poll(runId);
+    const data = await startMutation.mutateAsync(action);
+    runId.value = data.run_id;
   } catch (e: any) {
-    error.value = e.message;
-    running.value = false;
+    actionError.value = e.message;
   }
 }
 
 async function poll(id: string): Promise<void> {
-  try {
-    current.value = await api(`/api/maintenance/run/${id}`);
-    if (['done', 'error'].includes(current.value.status)) {
-      running.value = false;
-      return;
-    }
-  } catch (e: any) {
-    error.value = e.message;
-    running.value = false;
-  }
+  if (id === runId.value) await runQuery.refetch();
 }
 
 useRealtime(['job.updated'], (type?: string, event?: any) => {
-  if (runId && (!type || event?.run_id === runId)) poll(runId);
+  if (runId.value && (!type || event?.run_id === runId.value)) poll(runId.value);
 });
-
-onMounted(load);
 </script>
 
 <style scoped lang="scss">
-.maintenance-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.maintenance-head p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.maintenance-tab { display: flex; flex-direction: column; gap: var(--space-3); }
 </style>

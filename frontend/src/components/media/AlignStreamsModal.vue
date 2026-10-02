@@ -31,27 +31,11 @@
           </button>
         </header>
 
-        <div class="target-mode-options">
-          <label class="radio-option">
-            <input v-model="scopeMode" type="radio" value="selection" :disabled="busy">
-            <div class="radio-content">
-              <strong>Sélection ciblée</strong>
-              <span>Choisir précisément les épisodes/saisons — présélectionné : ce qui a besoin d'être réaligné</span>
-            </div>
-          </label>
-
-          <label class="radio-option">
-            <input v-model="scopeMode" type="radio" value="series" :disabled="busy">
-            <div class="radio-content">
-              <strong>Toute la série</strong>
-              <span>Aligne tous les épisodes de toutes les saisons, sans distinction</span>
-            </div>
-          </label>
-        </div>
+        <UiRadioCards v-model="scopeMode" label="Portée de l’alignement" :disabled="busy" :options="[{ value: 'selection', label: 'Sélection ciblée', description: 'Choisir précisément les épisodes/saisons — présélectionné : ce qui a besoin d\'être réaligné' }, { value: 'series', label: 'Toute la série', description: 'Aligne tous les épisodes de toutes les saisons, sans distinction' }]" />
 
         <template v-if="scopeMode === 'selection'">
           <label class="show-all-toggle">
-            <input type="checkbox" v-model="showAllEpisodes" :disabled="busy">
+            <UiCheckbox v-model="showAllEpisodes" :disabled="busy" />
             <span>Afficher tous les épisodes (pas seulement ceux à réaligner)</span>
           </label>
 
@@ -69,36 +53,22 @@
               <div class="season-header-row">
                 <strong>Saison {{ season.season_number }}</strong>
                 <span v-if="eps.length" class="badge pending">{{ eps.length }}</span>
-                <button
-                  type="button"
-                  class="icon-button"
-                  :disabled="busy || rescanning"
-                  title="Réanalyser cette saison"
-                  @click.stop="rescanSeason(season.season_number)"
-                >
+                <UiButton variant="ghost" size="sm" icon-only :disabled="busy || rescanning" title="Réanalyser cette saison" @click.stop="rescanSeason(season.season_number)">
                   <RotateCcw :size="13" />
-                </button>
+                </UiButton>
               </div>
             </template>
 
             <template #episode="{ season, episode: ep }">
               <label class="episode-check-item" :class="{ active: isEpisodeSelected(season.season_number, ep.episode) }" @click.stop>
-                <input
-                  type="checkbox"
-                  :checked="isEpisodeSelected(season.season_number, ep.episode)"
+                <UiCheckbox
+                  :model-value="isEpisodeSelected(season.season_number, ep.episode)"
                   :disabled="busy"
-                  @change="toggleEpisode(season.season_number, ep.episode)"
-                >
+                  @update:model-value="toggleEpisode(season.season_number, ep.episode)" />
                 <span class="episode-label"><strong>{{ ep.episode }}.</strong> {{ ep.title }}</span>
-                <button
-                  type="button"
-                  class="icon-button"
-                  :disabled="busy || rescanning"
-                  title="Réanalyser cet épisode"
-                  @click.stop="rescanEpisode(season.season_number, ep.episode)"
-                >
+                <UiButton variant="ghost" size="sm" icon-only :disabled="busy || rescanning" title="Réanalyser cet épisode" @click.stop="rescanEpisode(season.season_number, ep.episode)">
                   <RotateCcw :size="12" />
-                </button>
+                </UiButton>
               </label>
             </template>
           </SeasonEpisodeList>
@@ -122,23 +92,7 @@
           <span>Mode d'alignement</span>
         </header>
 
-        <div class="target-mode-options">
-          <label class="radio-option">
-            <input v-model="alignMode" type="radio" value="auto" :disabled="busy">
-            <div class="radio-content">
-              <strong>Automatique intelligent (PASTA)</strong>
-              <span>Sélectionne automatiquement la meilleure piste française (VFF prioritaire) et les sous-titres adaptés</span>
-            </div>
-          </label>
-
-          <label class="radio-option">
-            <input v-model="alignMode" type="radio" value="custom" :disabled="busy">
-            <div class="radio-content">
-              <strong>Personnalisé (Choix libre)</strong>
-              <span>Choisir manuellement n'importe quelle piste audio et sous-titre parmi les flux disponibles</span>
-            </div>
-          </label>
-        </div>
+        <UiRadioCards v-model="alignMode" label="Mode d’alignement" :disabled="busy" :options="[{ value: 'auto', label: 'Automatique intelligent (PASTA)', description: 'Sélectionne automatiquement la meilleure piste française (VFF prioritaire) et les sous-titres adaptés' }, { value: 'custom', label: 'Personnalisé (Choix libre)', description: 'Choisir manuellement n\'importe quelle piste audio et sous-titre parmi les flux disponibles' }]" />
 
         <!-- Sélecteurs manuels de flux (si mode personnalisé) -->
         <div v-if="alignMode === 'custom'" class="custom-streams-pickers">
@@ -146,28 +100,14 @@
             <label for="custom-audio-select" class="form-label">
               <Volume2 :size="14" /> Piste audio souhaitée
             </label>
-            <select id="custom-audio-select" v-model="customAudioId" class="ui-select" :disabled="busy">
-              <option v-for="stream in (preview.all_audio_streams || [])" :key="stream.id" :value="stream.id">
-                {{ stream.title || stream.language?.toUpperCase() || 'Audio' }}
-                {{ stream.codec ? `(${stream.codec.toUpperCase()}${stream.channels ? ' ' + stream.channels : ''})` : '' }}
-                {{ stream.id === preview.current_audio?.id ? ' — [Actuelle]' : '' }}
-              </option>
-            </select>
+            <UiSelect id="custom-audio-select" v-model="customAudioId" class="ui-select" :disabled="busy" :options="[...((preview.all_audio_streams || [])).map((stream: any) => ({ value: stream.id, label: `${stream.title || stream.language?.toUpperCase() || 'Audio'} ${stream.codec ? `(${stream.codec.toUpperCase()}${stream.channels ? ' ' + stream.channels : ''})` : ''} ${stream.id === preview.current_audio?.id ? ' — [Actuelle]' : ''}` }))]" />
           </div>
 
           <div class="form-group">
             <label for="custom-sub-select" class="form-label">
               <MessageSquare :size="14" /> Sous-titres souhaités
             </label>
-            <select id="custom-sub-select" v-model="customSubtitleId" class="ui-select" :disabled="busy">
-              <option :value="0">Désactivés (Aucun sous-titre)</option>
-              <option v-for="stream in (preview.all_subtitle_streams || [])" :key="stream.id" :value="stream.id">
-                {{ stream.title || stream.language?.toUpperCase() || 'Sous-titre' }}
-                {{ stream.forced ? '(Forcé)' : '' }}
-                {{ stream.codec ? `[${stream.codec.toUpperCase()}]` : '' }}
-                {{ stream.id === preview.current_subtitle?.id ? ' — [Actuel]' : '' }}
-              </option>
-            </select>
+            <UiSelect id="custom-sub-select" v-model="customSubtitleId" class="ui-select" :disabled="busy" :options="[{ value: 0, label: 'Désactivés (Aucun sous-titre)' }, ...((preview.all_subtitle_streams || [])).map((stream: any) => ({ value: stream.id, label: `${stream.title || stream.language?.toUpperCase() || 'Sous-titre'} ${stream.forced ? '(Forcé)' : ''} ${stream.codec ? `[${stream.codec.toUpperCase()}]` : ''} ${stream.id === preview.current_subtitle?.id ? ' — [Actuel]' : ''}` }))]" />
           </div>
         </div>
       </section>
@@ -268,33 +208,7 @@
           <span>Profils Plex cibles</span>
         </header>
 
-        <div class="target-mode-options">
-          <label class="radio-option">
-            <input
-              v-model="targetMode"
-              type="radio"
-              value="all"
-              :disabled="busy"
-            >
-            <div class="radio-content">
-              <strong>Tous les profils</strong>
-              <span>Applique automatiquement ces pistes pour l'administrateur et tous les utilisateurs partagés (Plex Home et invités)</span>
-            </div>
-          </label>
-
-          <label class="radio-option">
-            <input
-              v-model="targetMode"
-              type="radio"
-              value="custom"
-              :disabled="busy"
-            >
-            <div class="radio-content">
-              <strong>Profils spécifiques</strong>
-              <span>Choisir manuellement les utilisateurs Plex concernés</span>
-            </div>
-          </label>
-        </div>
+        <UiRadioCards v-model="targetMode" label="Profils Plex cibles" :disabled="busy" :options="[{ value: 'all', label: 'Tous les profils', description: 'Applique automatiquement ces pistes pour l\'administrateur et tous les utilisateurs partagés (Plex Home et invités)' }, { value: 'custom', label: 'Profils spécifiques', description: 'Choisir manuellement les utilisateurs Plex concernés' }]" />
 
         <!-- Liste des utilisateurs si mode custom -->
         <div v-if="targetMode === 'custom'" class="user-checkbox-grid">
@@ -304,12 +218,10 @@
             class="user-check-item"
             :class="{ active: selectedUsers.has(user.name) }"
           >
-            <input
-              type="checkbox"
-              :checked="selectedUsers.has(user.name)"
+            <UiCheckbox
+              :model-value="selectedUsers.has(user.name)"
               :disabled="busy"
-              @change="toggleUser(user.name)"
-            >
+              @update:model-value="toggleUser(user.name)" />
             <div class="user-info">
               <span class="user-title">{{ user.title || user.name }}</span>
               <span v-if="user.is_admin" class="user-tag">Admin</span>
@@ -337,6 +249,10 @@
 </template>
 
 <script setup lang="ts">
+import UiSelect from '@/components/ui/UiSelect.vue';
+import UiRadioCards from '@/components/ui/UiRadioCards.vue';
+import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import { humanizeError } from '@/utils/apiError';
 import { computed, ref, watch } from 'vue';
 import { ListVideo, MessageSquare, RotateCcw, SlidersHorizontal, Users, Volume2 } from '@lucide/vue';
 import { api } from '@/api';
@@ -543,7 +459,7 @@ async function fetchPreview(): Promise<void> {
       customSubtitleId.value = data.target_subtitle ? data.target_subtitle.id : 0;
     }
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     loading.value = false;
   }
@@ -623,7 +539,7 @@ async function confirmAlign(): Promise<void> {
     emit('applied', { item: props.item, res });
     emit('close');
   } catch (e: any) {
-    error.value = e?.message || String(e);
+    error.value = humanizeError(e);
   } finally {
     busy.value = false;
   }
@@ -631,6 +547,7 @@ async function confirmAlign(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .align-streams-modal {
   max-width: 620px;
   width: 95vw;
@@ -685,7 +602,7 @@ async function confirmAlign(): Promise<void> {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 
-  @media (max-width: 600px) {
+  @include bp.until(phablet) {
     grid-template-columns: 1fr;
   }
 }
@@ -714,7 +631,7 @@ async function confirmAlign(): Promise<void> {
   border-radius: var(--radius-xs);
   font-size: var(--fs-sm);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--motion-duration-fast);
 
   &:focus {
     border-color: var(--accent);
@@ -774,7 +691,7 @@ async function confirmAlign(): Promise<void> {
 }
 
 .diff-label {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -795,7 +712,7 @@ async function confirmAlign(): Promise<void> {
 }
 
 .stream-name.highlight {
-  color: var(--green-text, #22c55e);
+  color: var(--green-text, var(--green));
 }
 
 .highlight-none {
@@ -815,17 +732,17 @@ async function confirmAlign(): Promise<void> {
 }
 
 .badge-ok {
-  border-color: rgba(34, 197, 94, 0.4);
-  color: var(--green-text, #22c55e);
-  background: rgba(34, 197, 94, 0.1);
-  font-size: 11px;
+  border-color: color-mix(in srgb, var(--green) 40%, transparent);
+  color: var(--green-text, var(--green));
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+  font-size: var(--fs-xs);
 }
 
 .badge-warning {
-  border-color: rgba(234, 179, 8, 0.5);
-  color: #fde047;
-  background: rgba(234, 179, 8, 0.14);
-  font-size: 11px;
+  border-color: color-mix(in srgb, var(--amber) 50%, transparent);
+  color: var(--amber-text);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  font-size: var(--fs-xs);
 }
 
 /* Portée épisodes (séries) */
@@ -884,27 +801,8 @@ async function confirmAlign(): Promise<void> {
   flex: 1;
 }
 
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-}
 
-.icon-button:hover {
-  color: var(--text);
-  background: var(--surface-hover, var(--surface-2));
-}
 
-.icon-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
 
 .episode-check-item {
   display: flex;
@@ -948,47 +846,12 @@ async function confirmAlign(): Promise<void> {
   color: var(--text);
 }
 
-.target-mode-options {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
-.radio-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
 
-.radio-option:hover {
-  border-color: var(--border-hover, var(--border));
-}
 
-.radio-option input {
-  margin-top: 3px;
-}
 
-.radio-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
 
-.radio-content strong {
-  font-size: var(--fs-sm);
-  color: var(--text);
-}
 
-.radio-content span {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-}
 
 .user-checkbox-grid {
   display: grid;
@@ -1034,7 +897,7 @@ async function confirmAlign(): Promise<void> {
 }
 
 .user-tag {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 1px 4px;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--accent) 15%, transparent);
@@ -1044,13 +907,13 @@ async function confirmAlign(): Promise<void> {
 }
 
 .user-tag-home {
-  background: rgba(34, 197, 94, 0.14);
-  color: var(--green-text, #22c55e);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green-text, var(--green));
 }
 
 .user-tag-guest {
-  background: rgba(234, 179, 8, 0.14);
-  color: #eab308;
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--amber-text);
 }
 
 .spin {
@@ -1061,7 +924,7 @@ async function confirmAlign(): Promise<void> {
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 600px) {
+@include bp.until(phablet) {
   .diff-cols {
     grid-template-columns: 1fr;
     gap: 8px;

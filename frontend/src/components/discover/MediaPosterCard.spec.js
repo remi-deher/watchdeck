@@ -1,6 +1,27 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
+import { etatDeSurface } from '@/composables/useMediaOverlay';
+
+const routerPush = vi.fn();
+/* La carte n'attend plus que le lien navigue tout seul : elle intercepte le clic pour
+   porter l'adresse de depart, qui fait s'ouvrir la fiche au-dessus de la grille. */
+/* `resolve` fait partie du contrat : la carte s'en sert pour separer le chemin de sa
+   chaine de requete. Depose tel quel dans `path`, un `?media_type=show` etait perdu et le
+   serveur refusait la requete. */
+vi.mock('vue-router', async () => ({
+  useRouter: () => ({
+    push: routerPush,
+    resolve: (to) => {
+      const brut = typeof to === 'string' ? to : to?.path || '';
+      const [path, requete = ''] = brut.split('?');
+      const query = Object.fromEntries(new URLSearchParams(requete).entries());
+      return { path, query, hash: '' };
+    },
+  }),
+  useRoute: () => ({ fullPath: '/discover/explore' }),
+  RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+}));
 
 function mountCard(item = {}) {
   return mount(MediaPosterCard, {
@@ -18,6 +39,30 @@ function mountCard(item = {}) {
 }
 
 describe('MediaPosterCard', () => {
+  it("conserve la chaine de requete de l'adresse", async () => {
+    /* `?media_type=show` dit au serveur s'il s'agit d'un film ou d'une serie. En deposant
+       l'adresse entiere dans `path`, le routeur la prenait pour un chemin litteral et la
+       requete etait perdue : le serveur recevait un type vide, refusait l'appel, et la
+       fiche affichait « n'a pas pu etre chargee ». Constate en production. */
+    routerPush.mockClear();
+    const wrapper = mount(MediaPosterCard, {
+      props: {
+        item: { tmdb_id: 95350, media_type: 'show', title: 'Serie test' },
+        to: '/discover/media/discover/95350?media_type=show',
+      },
+    });
+
+    await wrapper.get('.discover-poster-link').trigger('click');
+
+    expect(routerPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '/discover/media/discover/95350',
+        query: { media_type: 'show' },
+      }),
+    );
+    wrapper.unmount();
+  });
+
   it('rend une carte accessible et son action', () => {
     const wrapper = mountCard();
 
@@ -77,11 +122,53 @@ describe('MediaPosterCard', () => {
       expect(firstClick.defaultPrevented).toBe(true);
       expect(wrapper.get('.poster-wrap').classes()).toContain('revealed');
 
+      routerPush.mockClear();
       link.element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
       const secondClick = new MouseEvent('click', { bubbles: true, cancelable: true });
       link.element.dispatchEvent(secondClick);
 
-      expect(secondClick.defaultPrevented).toBe(false);
+      /* Le second appui ouvre bien le media -- mais par une navigation portee, et non en
+         laissant le lien suivre son `href` : c'est l'adresse de depart qui fait rester la
+         grille derriere la fiche au lieu d'etre remplacee par elle. */
+      expect(secondClick.defaultPrevented).toBe(true);
+      expect(routerPush).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/media/discover/42',
+          query: {},
+          state: etatDeSurface('/discover/explore'),
+        }),
+      );
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it("laisse l'affiche nue tant qu'aucun appui ne l'a revelee", () => {
+    const wrapper = mountCard();
+
+    // Le bouton reste dans le DOM pour rester focalisable au clavier : c'est la classe
+    // `revealed` qui commande son opacite et ses `pointer-events`.
+    expect(wrapper.get('.poster-wrap').classes()).not.toContain('revealed');
+    expect(wrapper.find('.poster-action').exists()).toBe(true);
+  });
+
+  it('referme la carte precedente quand une autre est revelee', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = (query) => ({ matches: query === '(pointer: coarse)' });
+
+    try {
+      const first = mountCard();
+      const second = mountCard({ tmdb_id: 43, title: 'Autre film' });
+
+      for (const wrapper of [first, second]) {
+        const link = wrapper.get('.discover-poster-link');
+        link.element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+        link.element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        await wrapper.vm.$nextTick();
+      }
+
+      expect(second.get('.poster-wrap').classes()).toContain('revealed');
+      expect(first.get('.poster-wrap').classes()).not.toContain('revealed');
     } finally {
       window.matchMedia = originalMatchMedia;
     }

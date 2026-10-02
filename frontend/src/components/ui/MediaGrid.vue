@@ -77,6 +77,7 @@ const isEmpty = computed(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .media-grid-shell {
   display: flex;
   flex-direction: column;
@@ -103,7 +104,7 @@ const isEmpty = computed(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-@media (min-width: 640px) {
+@include bp.from(phablet) {
   .media-grid--poster {
     grid-template-columns: repeat(auto-fill, var(--poster-grid-min));
     justify-content: start;
@@ -112,7 +113,7 @@ const isEmpty = computed(() => {
   .media-grid--music { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 }
 
-@media (min-width: 1200px) {
+@include bp.from(wide) {
   .media-grid--poster { gap: var(--poster-grid-gap); }
   .media-grid--compact { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .media-grid--music { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }

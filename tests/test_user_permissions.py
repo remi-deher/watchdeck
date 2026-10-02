@@ -9,11 +9,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base, PlexUser
+from app.models import PlexUser
 from app.routers.users_api import (
     BulkDeleteUpdate,
     BulkPermissionsUpdate,
@@ -23,14 +20,12 @@ from app.routers.users_api import (
     delete_user,
     update_user,
 )
-from tests.async_support import TestSession
+from tests.async_support import make_test_session
 
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    session = TestSession(sessionmaker(bind=engine)())
+    session = make_test_session()
     yield session
     session.close()
 
@@ -62,7 +57,7 @@ async def test_update_user_accepts_moderator_role(db):
     """`role="moderator"` doit être accepté par la validation (whitelist élargie)."""
     admin = _user(db)
     result = await update_user(admin.id, _payload(role="moderator"), _request(user_id=999), db)
-    assert result.role == "moderator"
+    assert result["role"] == "moderator"
 
 
 @pytest.mark.asyncio
@@ -80,15 +75,15 @@ async def test_update_user_allows_demoting_someone_else(db):
     caller = _user(db, plex_user_id="caller", role="admin")
     other = _user(db, plex_user_id="other", role="admin")
     result = await update_user(other.id, _payload(plex_user_id="other", role="user"), _request(user_id=caller.id), db)
-    assert result.role == "user"
+    assert result["role"] == "user"
 
 
 @pytest.mark.asyncio
 async def test_update_user_allows_other_self_edits(db):
     admin = _user(db)
     result = await update_user(admin.id, _payload(role="admin", display_name="Alice B"), _request(user_id=admin.id), db)
-    assert result.display_name == "Alice B"
-    assert result.role == "admin"
+    assert result["display_name"] == "Alice B"
+    assert result["role"] == "admin"
 
 
 @pytest.mark.asyncio

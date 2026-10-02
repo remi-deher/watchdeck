@@ -1,72 +1,54 @@
 <template>
-  <div class="page">
-    <PageSearchHeader
+    <AppPage
       :title="pageTitle"
-      :description="pageDescription"
       v-model:query="query"
+      search-scope="Explorer"
       :placeholder="searchPlaceholder"
       :hide-search="mode === 'requests'"
-      has-filters
+      :has-filters="mode !== 'requests'"
       :active-count="activeFilterCount"
       :filters-open="filtersOpen"
       @search="handleSearchInput"
-      @toggle-filters="toggleFilters"
-    />
+      @toggle-filters="toggleFilters">
+
+    <!-- Accueil, Films et Series : trois vues de la meme page, en onglets a toutes les
+         largeurs (elles etaient des sous-entrees du rail). Absents des Demandes, qui
+         partagent cette vue, et d'une page de diffuseur ou de studio. -->
+    <template v-if="mode !== 'requests' && !isSourceMode" #tabs>
+      <AppSubnav
+        :items="EXPLORER_TABS"
+        :active="explorerTabFor(route.path)"
+        aria-label="Vues d’Explorer"
+      />
+    </template>
+
     <div class="psh-layout">
-      <FilterSidebar :open="filtersOpen" :active-count="activeFilterCount" @close="closeFilters" @reset="resetFilters">
+      <FilterSidebar v-if="mode !== 'requests'" :open="filtersOpen" :active-count="activeFilterCount" :match-count="filteredCount" @close="closeFilters" @reset="resetFilters">
         <FilterGroup v-if="!isSourceMode" label="Section">
-          <button
-            v-for="entry in sections"
-            :key="entry.value"
-            class="filter-badge"
-            :class="{ active: section === entry.value && !query }"
-            @click="setSection(entry.value)"
-          ><span>{{ entry.label }}</span></button>
+          <UiChipGroup label="Section" :options="sections" :model-value="query ? null : section" @update:model-value="setSection" />
         </FilterGroup>
 
         <FilterGroup v-if="!fixedMediaType" label="Type de média">
-          <button
-            v-for="entry in availableMediaTypes"
-            :key="entry.value"
-            class="filter-badge"
-            :class="{ active: mediaType === entry.value }"
-            @click="setMediaType(entry.value)"
-          ><span>{{ entry.label }}</span></button>
+          <UiChipGroup label="Type de média" :options="availableMediaTypes" :model-value="mediaType" @update:model-value="setMediaType" />
         </FilterGroup>
 
         <FilterGroup v-if="isSourceMode" label="Tri">
-          <button class="filter-badge" :class="{ active: sortBy === 'popularity.desc' }" @click="setSort('popularity.desc')"><span>Plus populaires</span></button>
-          <button class="filter-badge" :class="{ active: sortBy === 'primary_release_date.desc' }" @click="setSort('primary_release_date.desc')"><span>Plus récents</span></button>
-          <button class="filter-badge" :class="{ active: sortBy === 'vote_average.desc' }" @click="setSort('vote_average.desc')"><span>Mieux notés</span></button>
+          <UiChipGroup label="Tri" :options="SORT_OPTIONS" :model-value="sortBy" @update:model-value="setSort" />
         </FilterGroup>
 
         <FilterGroup label="Disponibilité">
-          <button class="filter-badge" :class="{ active: !availability }" @click="setAvailability('')"><span>Tous les états</span></button>
-          <button class="filter-badge" :class="{ active: availability === 'available' }" @click="setAvailability('available')"><span>Dans Plex</span></button>
-          <button class="filter-badge" :class="{ active: availability === 'requested' }" @click="setAvailability('requested')"><span>Déjà demandé</span></button>
-          <button class="filter-badge" :class="{ active: availability === 'new' }" @click="setAvailability('new')"><span>À demander</span></button>
+          <UiChipGroup label="Disponibilité" :options="AVAILABILITY_OPTIONS" :model-value="availability || ''" @update:model-value="setAvailability" />
         </FilterGroup>
 
-        <FilterGroup v-if="genres.length" label="Genre">
-          <button class="filter-badge" :class="{ active: !genre }" @click="setGenre('')"><span>Tous</span></button>
-          <button
-            v-for="entry in genres"
-            :key="entry.id"
-            class="filter-badge"
-            :class="{ active: String(genre) === String(entry.id) }"
-            @click="setGenre(String(entry.id))"
-          ><span>{{ entry.name }}</span></button>
+        <!-- Vingt-et-un genres et une trentaine de diffuseurs : deplies d'office, ces
+             deux groupes portaient a eux seuls l'essentiel des 3168px du panneau. Ils
+             s'ouvrent a la demande, en affichant ce qu'ils retiennent. -->
+        <FilterGroup v-if="genres.length" label="Genre" :default-open="false" :value="genreLabel">
+          <UiChipGroup label="Genre" :options="genreOptions" :model-value="genre ? String(genre) : ''" @update:model-value="setGenre" />
         </FilterGroup>
 
-        <FilterGroup v-if="sources.length" label="Diffuseur / Studio">
-          <button class="filter-badge" :class="{ active: !sourceKey }" @click="sourceKey = ''; selectSource()"><span>Tous</span></button>
-          <button
-            v-for="source in sources"
-            :key="`${source.kind}:${source.id}`"
-            class="filter-badge"
-            :class="{ active: sourceKey === `${source.kind}:${source.id}` }"
-            @click="sourceKey = sourceKey === `${source.kind}:${source.id}` ? '' : `${source.kind}:${source.id}`; selectSource()"
-          ><span>{{ source.name }}</span></button>
+        <FilterGroup v-if="sources.length" label="Diffuseur / Studio" :default-open="false" :value="sourceLabel">
+          <UiChipGroup label="Diffuseur / Studio" :options="sourceOptions" :model-value="sourceKey || ''" @update:model-value="(key) => { sourceKey = key; selectSource(); }" />
         </FilterGroup>
       </FilterSidebar>
       <div class="psh-main">
@@ -111,8 +93,8 @@
                 <p v-if="personalized.seeds.length">Inspiré par {{ personalized.seeds.map((item: any) => item.title).join(', ') }}</p>
               </div>
               <div class="personalized-options" aria-label="Préférences de recommandation">
-                <label><input v-model="hideAvailable" type="checkbox" @change="reloadPersonalized"> Masquer les médias dans Plex</label>
-                <label><input v-model="hideWatched" type="checkbox" @change="reloadPersonalized"> Masquer les médias déjà vus</label>
+                <UiCheckboxField v-model="hideAvailable" @update:model-value="reloadPersonalized" label="Masquer les médias dans Plex" />
+                <UiCheckboxField v-model="hideWatched" @update:model-value="reloadPersonalized" label="Masquer les médias déjà vus" />
               </div>
             </header>
             <UiFeedback v-if="personalized.error" type="error" :message="personalized.error" retry @retry="loadPersonalized" />
@@ -363,7 +345,10 @@
             </div>
             <div class="discover-heading-meta">
               <span class="meta-pill" aria-live="polite">
-                <strong>{{ displayedItems.length }}</strong> affiché{{ displayedItems.length > 1 ? 's' : '' }}<template v-if="totalResults"> / {{ totalResults }}</template>
+                <!-- Le total du serveur ne vaut que pour la requete non filtree : le montrer a cote
+                     d'un tri fait ici donnait « 9 affiches / 10000 », ou le second chiffre ne
+                     decrivait plus rien de ce qu'on avait sous les yeux. -->
+                <strong>{{ displayedItems.length }}</strong> affiché{{ displayedItems.length > 1 ? 's' : '' }}<template v-if="totalResults && !availability"> / {{ totalResults }}</template>
               </span>
             </div>
           </div>
@@ -414,10 +399,23 @@
     </div><!-- .discover-body -->
       </div><!-- .psh-main -->
     </div><!-- .psh-layout -->
-  </div>
+  </AppPage>
 </template>
 
 <script setup lang="ts">
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
+import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+const SORT_OPTIONS = [
+  { value: 'popularity.desc', label: 'Plus populaires' },
+  { value: 'primary_release_date.desc', label: 'Plus récents' },
+  { value: 'vote_average.desc', label: 'Mieux notés' },
+];
+const AVAILABILITY_OPTIONS = [
+  { value: '', label: 'Tous les états' },
+  { value: 'available', label: 'Dans Plex' },
+  { value: 'requested', label: 'Déjà demandé' },
+  { value: 'new', label: 'À demander' },
+];
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ArrowRight } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -432,11 +430,14 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import RequestOptionsModal from '@/components/media/RequestOptionsModal.vue';
 import MyRequestsPanel from '@/components/discover/MyRequestsPanel.vue';
-import { useDebounced } from '@/composables/useDebounced';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
+import { EXPLORER_TABS, explorerTabFor } from '@/navigation';
+import { useDebounceFn } from '@vueuse/core';
 import { mediaRequestKey, useDirectMediaRequest } from '@/composables/useDirectMediaRequest';
-import { useLatestRequest } from '@/composables/useLatestRequest';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/vue-query';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { mediaDetailPath } from '@/mediaUrl';
+import { usePreference } from '@/composables/usePreference';
 
 const initialParams = new URLSearchParams(window.location.search);
 const route = useRoute();
@@ -459,7 +460,6 @@ function mediaTypeFromLocation(params = new URLSearchParams(window.location.sear
 }
 const validSections = new Set(['trending', 'popular', 'coming-soon', 'genres']);
 const mode = ref(initialModeFromLocation());
-const items = ref<any[]>([]);
 const query = ref(initialParams.get('q') || '');
 const mediaType = ref(mediaTypeFromLocation(initialParams));
 const section = ref(validSections.has(initialParams.get('section') || '') ? initialParams.get('section') as string : 'trending');
@@ -468,19 +468,14 @@ const availability = ref(['available', 'requested', 'new'].includes(initialParam
 const sourceKey = ref(initialParams.get('source') || (window.location.pathname.startsWith('/discover/source/') ? window.location.pathname.replace('/discover/source/', '').replace('/', ':') : ''));
 const sortBy = ref(initialParams.get('sort') || 'popularity.desc');
 const genres = ref<any[]>([]);
-const loading = ref(false);
-const loadingMore = ref(false);
-const error = ref('');
-const page = ref(1);
-const totalPages = ref(1);
-const totalResults = ref(0);
-const request = useLatestRequest();
 const sources = ref<any[]>([]);
+const genreOptions = computed(() => [{ value: '', label: 'Tous' }, ...genres.value.map((entry) => ({ value: String(entry.id), label: entry.name }))]);
+const sourceOptions = computed(() => [{ value: '', label: 'Tous' }, ...sources.value.map((source) => ({ value: `${source.kind}:${source.id}`, label: source.name }))]);
 const sourcesLoading = ref(true);
 const sourcesError = ref('');
 const homeLoaded = ref(false);
-const hideAvailable = ref(localStorage.getItem('discover.hideAvailable') === 'true');
-const hideWatched = ref(localStorage.getItem('discover.hideWatched') === 'true');
+const hideAvailable = usePreference('discover.hideAvailable', false);
+const hideWatched = usePreference('discover.hideWatched', false);
 
 function emptyPersonalizedRail() {
   return { items: [] as any[] };
@@ -633,6 +628,23 @@ const sectionDescription = computed(() => ({
   genres: 'Explorez le catalogue par univers',
 })[section.value]);
 
+/* Ce que les deux longs groupes retiennent, pour le dire sans les deplier. */
+const genreLabel = computed(() => genres.value.find(g => String(g.id) === String(genre.value))?.name || 'Tous');
+const sourceLabel = computed(() => sources.value.find(s => `${s.kind}:${s.id}` === sourceKey.value)?.name || 'Tous');
+
+/* Le decompte du pied du tiroir. Les filtres s'appliquent a la volee ici : `totalResults`
+   suit donc la selection en cours, il n'y a pas d'etat « en attente » a prevoir. Hors du
+   mode explorateur il ne veut rien dire -- l'accueil n'est pas une liste filtree -- et le
+   pied retombe alors sur un libelle generique plutot que d'afficher zero. */
+/* Le decompte annonce ce qui sera reellement affiche. `availability` trie cote client,
+   parmi les seules fiches deja chargees : annoncer le total du serveur promettait
+   « 10 000 resultats » pour une page qui allait en montrer trois, et le chiffre ne
+   bougeait jamais d'un filtre a l'autre -- de quoi croire qu'aucun ne s'applique. */
+const filteredCount = computed(() => {
+  if (mode.value !== 'explore' || !displayedItems.value.length) return null;
+  return availability.value ? displayedItems.value.length : totalResults.value;
+});
+
 const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, close: closeFilters, reset: resetFiltersDrawer } = useFiltersDrawer(
   { mediaType, section, genre, availability, sourceKey, sortBy },
   {
@@ -644,6 +656,10 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
     sortBy: 'popularity.desc',
   },
   {
+    memoriser: 'decouvrir',
+    // Section et source sont de la navigation, pas des filtres a retenir.
+    champsMemorises: ['genre', 'availability', 'sortBy'],
+    parametresAdresse: { sortBy: 'sort' },
     activeCountFn: () => [
       !fixedMediaType.value && mediaType.value !== 'all',
       !isSourceMode.value && section.value !== 'trending',
@@ -666,12 +682,20 @@ const displayedItems = computed(() => items.value.filter(item => {
   if (availability.value === 'new') return !item.requested && !item.available && !item.in_library;
   return true;
 }));
-const hasMore = computed(() => page.value < totalPages.value);
+const hasMore = computed(() => Boolean(catalogQuery.hasNextPage.value));
 const { requesting, requestError, requestSuccess, requestMedia, optionsDialog, confirmOptions, cancelOptions } = useDirectMediaRequest({ onUpdated: updateMatchingMedia });
 
 function updateMatchingMedia(changed: any, update: any) {
   const key = mediaRequestKey(changed);
-  for (const item of items.value) if (mediaRequestKey(item) === key) Object.assign(item, update);
+  // Le catalogue appartient au cache : on y remet une copie modifiee, sans muter.
+  queryClient.setQueryData<{ pages: CatalogPage[]; pageParams: unknown[] }>(catalogKey.value, (current) => current && {
+    ...current,
+    pages: current.pages.map((chunk) => ({
+      ...chunk,
+      items: (chunk.items || []).map((item) => (mediaRequestKey(item) === key ? { ...item, ...update } : item)),
+    })),
+  });
+  // Accueil et recommandations sont un etat local de la page, pas le cache.
   for (const state of Object.values(home) as any[]) {
     if (state.item && mediaRequestKey(state.item) === key) Object.assign(state.item, update);
     for (const item of state.items) if (mediaRequestKey(item) === key) Object.assign(item, update);
@@ -699,7 +723,7 @@ function sourcePath(source: any) {
   };
 }
 function showHome() {
-  request.abort();
+  abortCatalog();
   mode.value = 'home';
   router.push('/discover');
   if (!homeLoaded.value) loadHome();
@@ -731,6 +755,15 @@ function handleSearchInput() {
   else scheduleSearch();
 }
 
+/* URL que la page vient d'ecrire elle-meme. Le `watch` de la route ne doit reagir qu'aux
+   vraies navigations (precedent, suivant, lien partage) : relancer `load()` sur la mise a
+   jour de `?q=` qui suit chaque frappe court-circuitait le delai de la recherche, et
+   envoyait une requete par lettre tapee. */
+let selfWrittenUrl = '';
+function replaceExplorerUrl(target: { path: string; query: Record<string, string> }): void {
+  selfWrittenUrl = router.resolve(target).fullPath;
+  router.replace(target);
+}
 function syncExplorerUrl() {
   if (mode.value !== 'explore') return;
   const params = new URLSearchParams();
@@ -743,23 +776,23 @@ function syncExplorerUrl() {
 
   if (route.path.startsWith('/discover/source/')) {
     if (activeSourceName.value && activeSourceName.value !== 'Diffuseur') params.set('name', activeSourceName.value);
-    router.replace({ path: route.path, query: Object.fromEntries(params.entries()) });
+    replaceExplorerUrl({ path: route.path, query: Object.fromEntries(params.entries()) });
     return;
   }
 
   if (sourceKey.value) params.set('source', sourceKey.value);
   const path = fixedMediaType.value === 'movie' ? '/discover/movies' : fixedMediaType.value === 'show' ? '/discover/shows' : '/discover/explore';
-  router.replace({ path, query: Object.fromEntries(params.entries()) });
+  replaceExplorerUrl({ path, query: Object.fromEntries(params.entries()) });
 }
 
 function applyExplorerUrl() {
   if (route.path === '/discover/requests') {
-    request.abort();
+    abortCatalog();
     mode.value = 'requests';
     return;
   }
   if (route.path === '/discover') {
-    request.abort();
+    abortCatalog();
     mode.value = 'home';
     sourceKey.value = '';
     if (!homeLoaded.value) loadHome();
@@ -887,8 +920,6 @@ async function loadPersonalized() {
 }
 
 function reloadPersonalized() {
-  localStorage.setItem('discover.hideAvailable', String(hideAvailable.value));
-  localStorage.setItem('discover.hideWatched', String(hideWatched.value));
   loadPersonalized();
 }
 
@@ -959,43 +990,68 @@ function endpoint(targetPage: number) {
   if (section.value === 'coming-soon') return `/api/discover/coming-soon?${type}&${pagination}`;
   return `/api/discover/discover?${type}&${pagination}${genre.value ? `&genre=${genre.value}` : ''}`;
 }
-async function load({ append = false } = {}) {
-  syncExplorerUrl();
-  const targetPage = append ? page.value + 1 : 1;
-  const { signal, isCurrent } = append ? request.extend() : request.begin();
-  if (append) loadingMore.value = true;
-  else loading.value = true;
-  error.value = '';
-  try {
-    const payload = await api(endpoint(targetPage), { signal });
-    if (!isCurrent()) return;
-    const incoming = payload.items || [];
-    if (append) {
-      const known = new Set(items.value.map(mediaRequestKey));
-      items.value = [...items.value, ...incoming.filter((item: any) => !known.has(mediaRequestKey(item)))];
-    } else {
-      items.value = incoming;
-    }
-    page.value = payload.page || targetPage;
-    totalPages.value = payload.total_pages || 1;
-    totalResults.value = payload.total_results || incoming.length;
-  } catch (loadError: any) {
-    if (!request.isAbort(loadError) && isCurrent()) {
-      error.value = loadError.message;
-      if (!append) items.value = [];
-    }
-  } finally {
-    if (isCurrent()) {
-      loading.value = false;
-      loadingMore.value = false;
+/* Le catalogue part d'une URL DEMANDEE et non des filtres en direct : `load()` reste
+   appele aux memes moments qu'avant (filtre, section, recherche apres 300 ms), et
+   certains reglages ne concernent pas le serveur (disponibilite, filtre local). La cle
+   est l'URL de la premiere page ; les pages suivantes en sont DERIVEES, jamais des refs
+   du moment -- sinon une saisie en cours se glisserait dans la page 2 d'une ancienne
+   recherche. Changer de cle annule la lecture devenue obsolete. */
+interface CatalogPage { items?: any[]; page?: number; total_pages?: number; total_results?: number }
+const queryClient = useQueryClient();
+const catalogUrl = ref<string | null>(null);
+const catalogKey = computed(() => ['discover', 'catalog', catalogUrl.value]);
+const FIRST_PAGE = 'page=1&paginated=true';
+const catalogQuery = useInfiniteQuery({
+  queryKey: catalogKey,
+  queryFn: ({ pageParam, signal }) => api<CatalogPage>(String(catalogUrl.value).replace(FIRST_PAGE, `page=${pageParam}&paginated=true`), { signal }),
+  initialPageParam: 1,
+  getNextPageParam: (last: CatalogPage, pages: CatalogPage[]) => {
+    const current = last.page || pages.length;
+    return current < (last.total_pages || 1) ? current + 1 : undefined;
+  },
+  enabled: computed(() => catalogUrl.value !== null),
+  staleTime: 60_000,
+});
+/* Les pages TMDB se recouvrent parfois : un media deja affiche n'est pas repete. */
+const items = computed<any[]>(() => {
+  const seen = new Set<string>();
+  const list: any[] = [];
+  for (const chunk of catalogQuery.data.value?.pages || []) {
+    for (const item of chunk.items || []) {
+      const key = mediaRequestKey(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push(item);
     }
   }
+  return list;
+});
+const lastPage = computed(() => catalogQuery.data.value?.pages.at(-1));
+const totalResults = computed(() => lastPage.value?.total_results || items.value.length);
+const loadingMore = computed(() => catalogQuery.isFetchingNextPage.value);
+const loading = computed(() => catalogQuery.isFetching.value && !loadingMore.value);
+const error = computed(() => (catalogQuery.error.value as Error | null)?.message || '');
+
+async function load({ append = false } = {}) {
+  /* Charger la page suivante ne change rien a l'URL : la resynchroniser declenchait un
+     `router.replace`, et le `scrollBehavior` du routeur ramenait la grille en haut a
+     chaque palier de defilement infini. On ne l'appelle donc que pour un vrai
+     changement de contexte (recherche, filtre, section). */
+  if (append) { await catalogQuery.fetchNextPage(); return; }
+  syncExplorerUrl();
+  const next = endpoint(1);
+  if (catalogUrl.value === next) await catalogQuery.refetch();
+  else catalogUrl.value = next;
 }
 function reload() { return load(); }
+/** Quitter l'explorateur : la lecture en cours n'a plus de destinataire. */
+function abortCatalog(): void {
+  void queryClient.cancelQueries({ queryKey: ['discover', 'catalog'] });
+}
 function loadMore() { if (!loadingMore.value && hasMore.value) load({ append: true }); }
-const debouncedReload = useDebounced(reload, 300);
+const debouncedReload = useDebounceFn(reload, 300);
 function scheduleSearch() {
-  request.abort();
+  abortCatalog();
   syncExplorerUrl();
   debouncedReload();
 }
@@ -1044,11 +1100,14 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
   // La recherche d'accueil change seulement l'URL : le même champ et les mêmes
   // résultats restent montés, sans lancer une seconde requête ni perdre le focus.
   if (prevPath === '/discover' && path === '/discover/explore' && mode.value === 'explore' && query.value) return;
+  // Mise a jour ecrite par la page elle-meme : son chargement est deja programme.
+  if (selfWrittenUrl && route.fullPath === selfWrittenUrl) { selfWrittenUrl = ''; return; }
   applyExplorerUrl();
 });
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .discover-home-rails :deep(.ui-disclosure-content) { gap: var(--space-5); }
 .discover-body { display: grid; gap: var(--space-5); }
 .discover-home-view,
@@ -1065,7 +1124,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 .personalized-options input { accent-color: var(--accent); }
 .discover-sections { display: flex; align-items: center; gap: var(--space-1); overflow-x: auto; scrollbar-width: none; }
 .discover-sections button { padding: 6px 10px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); white-space: nowrap; }
-.discover-sections button.active { background: var(--accent); color: #111; }
+.discover-sections button.active { background: var(--accent); color: var(--on-accent); }
 .discover-heading {
   display: flex;
   align-items: flex-end;
@@ -1118,7 +1177,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 /* ─── Transitions de Mode Découvrir (Fluid Crossfade) ─── */
 .discover-mode-enter-active,
 .discover-mode-leave-active {
-  transition: opacity 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   will-change: opacity, transform;
 }
 .discover-mode-enter-from {
@@ -1159,7 +1218,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
 @media (prefers-reduced-motion: reduce) {
   .discover-mode-enter-active,
   .discover-mode-leave-active {
-    transition: opacity 0.15s ease;
+    transition: opacity var(--motion-duration-instant) var(--motion-ease-standard);
     transform: none !important;
   }
   .discover-home-rails > * {
@@ -1167,7 +1226,7 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
   }
 }
 
-@media (max-width: 767.98px) {
+@include bp.until(tablet) {
   .discover-heading {
     flex-direction: column;
     align-items: flex-start;

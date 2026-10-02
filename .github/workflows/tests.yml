@@ -53,7 +53,7 @@ jobs:
       ENABLE_ARQ: "0"
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,6 +71,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      # La sortie de `npm run build` (app/static/vue) n'est plus suivie par git : l'API la
+      # sert, et test_static_delivery.py la verifie. Elle doit donc exister avant pytest.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Build Vue SPA for backend tests
+        run: npm ci && npm run build
+
       # Volontairement AVANT les tests : ceux-ci s'executent ensuite sur le schema
       # reellement produit par les migrations, et non sur un schema fabrique a part.
       # (Dans l'autre sens, les tables creees par les tests faisaient echouer alembic.)
@@ -82,12 +91,9 @@ jobs:
       - name: Run tests with coverage
         env:
           REDIS_URL: "redis://127.0.0.1:6379/0"
-          # Fait tourner la suite sur PostgreSQL, comme la production, au lieu de
-          # SQLite en memoire. SQLite n'applique pas les cles etrangeres, ignore les
-          # contraintes de longueur et n'a pas le modele de verrouillage de PostgreSQL :
-          # des defauts reels passaient inapercus (une ligne download_history orpheline
-          # etait acceptee, par exemple). Sans cette variable, la suite retombe sur
-          # SQLite pour rester lancable en local sans PostgreSQL.
+          # La suite tourne sur PostgreSQL, comme la production (seul moteur pris en
+          # charge). En local, la meme base jetable s'obtient avec
+          # `docker compose --profile test up -d postgres-test` (voir tests/async_support.py).
           TEST_DATABASE_URL: postgresql+psycopg2://watchdeck:ci-password@127.0.0.1:5432/watchdeck_test
         # Seuil global remonte de 60 a 65 : c'est la couverture reellement atteinte,
         # l'ecart precedent laissait de la marge pour regresser sans que rien n'alerte.
@@ -124,7 +130,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -133,6 +139,10 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Typecheck frontend
+        # Rien n'executait ce script : la rupture entre vue-tsc et TypeScript 7 est
+        # ainsi restee invisible, et avec elle des erreurs de types bien reelles.
+        run: npm run typecheck
       - name: Run frontend unit tests
         run: npm run test:unit
       - run: npm run build
@@ -143,7 +153,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -193,7 +203,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.changes.outputs.relevant == 'true'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Configure test secrets
         if: steps.changes.outputs.relevant == 'true'
@@ -208,7 +218,7 @@ jobs:
       # quasi instantane au lieu de tout recompiler.
       - name: Build image (cached)
         if: steps.changes.outputs.relevant == 'true'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           load: true
@@ -228,7 +238,7 @@ jobs:
 
       - name: Rebuild image (cached)
         if: steps.changes.outputs.relevant == 'true'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           load: true

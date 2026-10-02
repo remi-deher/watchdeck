@@ -1,14 +1,14 @@
 """
 Queue asynchrone pour l'envoi des notifications (email + Discord + Telegram).
 
-Au lieu d'attendre chaque envoi en ligne dans le scheduler (ce qui bloque le cycle
-de polling), les notifications sont empilées dans une queue asyncio et traitées
-par un worker indépendant.
+Au lieu d'attendre chaque envoi en ligne dans le cycle de polling, les notifications
+sont persistées (`PendingNotification`) puis confiées au worker ARQ.
 
 Cycle de vie :
-- `start_worker()` est appelé au démarrage de l'app (lifespan dans main.py).
-- `enqueue()` est appelé par le scheduler pour chaque événement.
-- Le worker ouvre sa propre session DB pour mettre à jour les flags d'envoi.
+- `enqueue()` est appelé par les tâches de fond pour chaque événement.
+- Le job ARQ `job_send_notification` appelle `process_pending_id()`, qui ouvre sa
+  propre session DB pour mettre à jour les flags d'envoi.
+- Au démarrage, le worker ARQ réenfile les notifications encore en attente.
 """
 
 import asyncio
@@ -16,6 +16,7 @@ import inspect
 import json
 import logging
 from datetime import timedelta
+from uuid import uuid4
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,14 @@ from .services.email_service import (
     send_request_notification,
 )
 from .services.notification_catalog import event_mail_flags
+from .services.notification_delivery import (
+    DeliveryUncertain,
+    delivery_identity,
+    finish,
+    identity_for,
+    prepare,
+    recipient_status,
+)
 from .services.notifications import (
     ChannelNotConfigured,
     send_discord,
@@ -54,9 +63,6 @@ from .utils import mask_email, now_utc, now_utc_naive, parse_email_list
 
 logger = logging.getLogger(__name__)
 
-_queue: asyncio.Queue = asyncio.Queue()
-_worker_task: asyncio.Task | None = None
-_cancelled_pending_ids: set[int] = set()
 
 _RETRY_DELAYS = [2, 5]  # secondes entre chaque tentative
 
@@ -166,13 +172,13 @@ async def enqueue(
     `triggered_by` ("auto" par défaut, "manual" pour un renvoi déclenché depuis la
     fiche détail) est embarqué dans `context` plutôt que d'ajouter une colonne à
     `PendingNotification` — même raison : éviter une migration sur une table éphémère,
-    et il survit au rechargement après redémarrage (_load_pending) puisque tout le
+    et il survit à un redémarrage (réenfilage au démarrage du worker ARQ) puisque tout le
     contexte est sérialisé/désérialisé en JSON.
 
     Persiste d'abord la notification en base (`PendingNotification`) pour qu'elle
     survive à un crash/redémarrage entre l'empilement et son traitement par le worker
-    (la queue asyncio en mémoire serait sinon vidée silencieusement). La ligne est
-    supprimée par `_worker` une fois le traitement terminé (succès ou échec définitif).
+    ARQ. La ligne est supprimée par `process_pending_id` une fois le traitement terminé
+    (succès ou échec définitif).
     """
     pending_id = None
     normalized_event = event
@@ -219,8 +225,11 @@ async def persist_pending_notification(
 ) -> tuple[int | None, str, dict]:
     """Ajoute une notification à la transaction courante, sans commit ni planification."""
     event, normalized_context = _normalize_event_context(event, context)
+    if await notification_hold_enabled():
+        normalized_context["held_for_review"] = True
     if triggered_by != "auto":
         normalized_context["triggered_by"] = triggered_by
+        normalized_context.setdefault("resend_id", str(uuid4()))
     recipients_json = json.dumps(recipients)
     reason_json = json.dumps(normalized_context)
     existing = (
@@ -244,6 +253,8 @@ async def persist_pending_notification(
         )
         return None, event, normalized_context
     row = PendingNotification(event=event, req_id=req_id, recipients=recipients_json, reason=reason_json)
+    for recipient in recipients:
+        await prepare(db, identity_for(req_id, event, recipient, normalized_context))
     db.add(row)
     flush_result = db.flush()
     if inspect.isawaitable(flush_result):
@@ -268,7 +279,8 @@ async def schedule_pending_notification(
             logger.error("Impossible de mettre la notification #%s dans ARQ: %s", pending_id, exc)
             raise
     else:
-        _queue.put_nowait((pending_id, event, req_id, recipients, context))
+        # Sans ARQ, la ligne reste en base : le worker la réenfile à son démarrage.
+        logger.warning("ARQ désactivé : notification #%s conservée en attente", pending_id)
 
 
 async def _delete_pending(pending_id: int | None):
@@ -283,11 +295,10 @@ async def _delete_pending(pending_id: int | None):
 
 
 async def cancel_pending(ids: list[int]) -> int:
-    """Supprime des notifications persistées et annule celles déjà rechargées en mémoire."""
+    """Supprime des notifications persistées."""
     clean_ids = [int(i) for i in ids if i is not None]
     if not clean_ids:
         return 0
-    _cancelled_pending_ids.update(clean_ids)
     async with AsyncSessionLocal() as db:
         try:
             stmt = text("DELETE FROM pending_notifications WHERE id IN :ids").bindparams(
@@ -304,11 +315,9 @@ async def cancel_pending(ids: list[int]) -> int:
 
 
 async def cancel_all_pending() -> int:
-    """Vide toute la queue persistée et annule les entrées déjà en mémoire."""
+    """Vide toute la queue persistée."""
     async with AsyncSessionLocal() as db:
         try:
-            ids = [row[0] for row in (await db.execute(text("SELECT id FROM pending_notifications"))).fetchall()]
-            _cancelled_pending_ids.update(int(i) for i in ids)
             result = await db.execute(text("DELETE FROM pending_notifications"))
             await db.commit()
             deleted = result.rowcount
@@ -323,29 +332,6 @@ async def cancel_pending_availability_notifications(request_ids: list[int] | Non
     """Supprime les disponibilités déjà en attente avant un resync silencieux."""
     async with AsyncSessionLocal() as db:
         try:
-            if request_ids:
-                ids = [
-                    row[0]
-                    for row in (
-                        await db.execute(
-                            text(
-                                "SELECT id FROM pending_notifications "
-                                "WHERE event = 'available' AND req_id IN :request_ids"
-                            ).bindparams(bindparam("request_ids", expanding=True)),
-                            {"request_ids": [int(i) for i in request_ids]},
-                        )
-                    ).fetchall()
-                ]
-            else:
-                ids = [
-                    row[0]
-                    for row in (
-                        await db.execute(text("SELECT id FROM pending_notifications WHERE event = 'available'"))
-                    ).fetchall()
-                ]
-            _cancelled_pending_ids.update(int(i) for i in ids)
-            if not ids:
-                return 0
             if request_ids:
                 result = await db.execute(
                     text(
@@ -363,56 +349,6 @@ async def cancel_pending_availability_notifications(request_ids: list[int] | Non
             return 0
 
 
-async def _load_pending():
-    """Recharge dans la queue asyncio les notifications persistées non traitées
-    (typiquement après un redémarrage/crash survenu entre `enqueue()` et leur envoi).
-
-    Lit les colonnes brutes via SQL plutôt que l'ORM : une seule ligne corrompue
-    (ex. `created_at` non parsable en datetime) ferait sinon échouer l'hydratation
-    ORM de la requête entière (`.all()`), et avec elle la relecture de TOUTE ligne
-    valide présente au même moment — perte silencieuse de vraies notifications en
-    attente. Chaque ligne invalide est ignorée individuellement à la place.
-    """
-    async with AsyncSessionLocal() as db:
-        try:
-            raw_rows = (
-                await db.execute(
-                    text("SELECT id, event, req_id, recipients, reason FROM pending_notifications ORDER BY id")
-                )
-            ).fetchall()
-            loaded = 0
-            skipped = 0
-            for row_id, event, req_id, recipients_raw, reason_raw in raw_rows:
-                if event not in EMAIL_SENDERS:
-                    skipped += 1
-                    continue
-                try:
-                    req_id = int(req_id)
-                except (TypeError, ValueError):
-                    skipped += 1
-                    continue
-                try:
-                    recipients = json.loads(recipients_raw)
-                    if not isinstance(recipients, list):
-                        recipients = []
-                except Exception:
-                    recipients = []
-                try:
-                    context = json.loads(reason_raw) if reason_raw else {}
-                    if not isinstance(context, dict):
-                        context = {}
-                except Exception:
-                    context = {}
-                _queue.put_nowait((row_id, event, req_id, recipients, context))
-                loaded += 1
-            if loaded:
-                logger.info(f"{loaded} notification(s) en attente rechargée(s) après redémarrage")
-            if skipped:
-                logger.warning(f"{skipped} ligne(s) invalide(s) ignorée(s) dans pending_notifications au rechargement")
-        except Exception as e:
-            logger.error(f"Impossible de recharger les notifications en attente: {e}")
-
-
 async def _send_with_retry(
     settings: Settings, req: MediaRequest, event: str, recipient: str, context: dict, display_name: str | None = None
 ) -> tuple[bool, str | None]:
@@ -426,11 +362,17 @@ async def _send_with_retry(
         try:
             sender = EMAIL_SENDERS.get(event)
             if sender:
-                await sender(settings, req, recipient, context, display_name)
+                token = delivery_identity.set(identity_for(req.id, event, recipient, context))
+                try:
+                    await sender(settings, req, recipient, context, display_name)
+                finally:
+                    delivery_identity.reset(token)
             logger.info(
                 f"Notification [{event}] envoyée à {mask_email(recipient)} pour '{req.title}' (tentative {attempt + 1})"
             )
             return True, None
+        except DeliveryUncertain as e:
+            return False, str(e)
         except Exception as e:
             error_msg = str(e)
             if attempt < len(_RETRY_DELAYS):
@@ -469,10 +411,10 @@ async def _send_push_with_retry(coro_factory) -> tuple[bool | None, str | None]:
 class NotificationDeliveryError(Exception):
     """Levée quand au moins un destinataire n'a pas pu être livré après retries.
 
-    Signale à l'appelant (ARQ ou worker asyncio) de NE PAS supprimer la
+    Signale à l'appelant (le job ARQ) de NE PAS supprimer la
     PendingNotification persistée, pour qu'elle survive à un redémarrage/à un
     nouveau job ARQ plutôt que d'être perdue silencieusement (voir
-    process_pending_id / _worker).
+    process_pending_id).
     """
 
 
@@ -503,6 +445,8 @@ async def _process(event: str, req_id: int, recipients: list[str], context: dict
                 return True
             if not force and await notification_hold_enabled():
                 return False
+            if context.get("held_for_review") and not force:
+                return False
 
             # Résolution des emails admin pour marquer is_admin dans les logs
             admin_emails = set(parse_email_list(settings.admin_notification_email))
@@ -517,13 +461,24 @@ async def _process(event: str, req_id: int, recipients: list[str], context: dict
             # Envoi email à chaque destinataire avec retry automatique. Le lien Plex
             # est résolu une seule fois pour toute la notification.
             all_ok = True
+            attempted = False
             delivery_context = dict(context)
             if event == "available":
                 delivery_context["_plex_deep_link"] = await resolve_plex_web_url(settings, req, db=db)
             for recipient in recipients:
+                state = await recipient_status(db, req, settings, event, recipient, context)
+                if state != "ready":
+                    if state == "uncertain":
+                        all_ok = False
+                    elif state == "obsolete":
+                        identity = identity_for(req_id, event, recipient, context)
+                        await prepare(db, identity)
+                        await finish(db, identity["send_key"], "obsolete", detail="Éligibilité modifiée avant envoi")
+                    continue
                 success, error_msg = await _send_with_retry(
                     settings, req, event, recipient, delivery_context, display_name
                 )
+                attempted = True
                 if not success:
                     all_ok = False
                 db.add(
@@ -568,6 +523,8 @@ async def _process(event: str, req_id: int, recipients: list[str], context: dict
                                 )
                             )
 
+            if recipients and not attempted:
+                return all_ok  # obsolete/previously sent emails must not trigger fresh push notifications
             # Mise à jour des flags uniquement si tous les emails ont été envoyés avec succès
             app_metrics.record_notification(all_ok)
             await record_event(
@@ -732,7 +689,7 @@ async def process_pending_id(pending_id: int, force: bool = False) -> str | int 
         req = (await db.execute(select(MediaRequest).filter(MediaRequest.id == int(req_id)))).scalars().first()
         user_id = req.plex_user_id if req else None
 
-        if not force and recipients:
+        if not force and recipients and context.get("triggered_by") != "manual":
             already = await _already_delivered_recipients(db, event, int(req_id), context)
             if already:
                 remaining = [r for r in recipients if r not in already]
@@ -757,69 +714,3 @@ async def process_pending_id(pending_id: int, force: bool = False) -> str | int 
         raise NotificationDeliveryError(f"Notification #{pending_id} [{event}] non livrée à tous les destinataires")
     await _delete_pending(pending_id)
     return user_id
-
-
-async def _worker():
-    logger.info("Notification worker démarré")
-    while True:
-        try:
-            pending_id, event, req_id, recipients, context = await _queue.get()
-            if pending_id in _cancelled_pending_ids:
-                logger.info(f"Notification en attente #{pending_id} annulée avant envoi")
-                _cancelled_pending_ids.discard(pending_id)
-                await _delete_pending(pending_id)
-            else:
-                if recipients:
-                    async with AsyncSessionLocal() as db:
-                        already = await _already_delivered_recipients(db, event, req_id, context)
-                    recipients = [r for r in recipients if r not in already]
-                if not recipients:
-                    await _delete_pending(pending_id)
-                    continue
-                ok = await _process(event, req_id, recipients, context)
-                if ok:
-                    await _delete_pending(pending_id)
-                else:
-                    # Conservée en base plutôt que perdue : ce worker en mémoire ne la
-                    # retentera pas lui-même dans ce cycle de vie du process, mais
-                    # _load_pending() la réenfilera au prochain démarrage de l'app —
-                    # cohérent avec la garantie de survie déjà documentée sur ce modèle.
-                    logger.warning(
-                        f"Notification #{pending_id} [{event}] non livrée, conservée pour reprise ultérieure"
-                    )
-        except asyncio.CancelledError:
-            logger.info("Notification worker arrêté")
-            break
-        except Exception as e:
-            logger.error(f"Notification worker boucle erreur: {e}")
-        finally:
-            try:
-                _queue.task_done()
-            except Exception:
-                pass
-
-
-async def start_worker():
-    global _worker_task
-    await _load_pending()
-    _worker_task = asyncio.create_task(_worker())
-    return _worker_task
-
-
-async def stop_worker():
-    """Annule le worker et attend sa sortie (bornée) avant de rendre la main.
-
-    Sans ce await, `lifespan` (main.py) rendait la main à uvicorn immédiatement
-    après `.cancel()`, sans savoir si le worker était en plein milieu d'un
-    `db.commit()` (traitement d'une notification) au moment de l'arrêt — un
-    process tué (SIGKILL, timeout d'arrêt Docker dépassé) pendant une écriture
-    SQLite en cours est un facteur de corruption. Le timeout court reste un
-    filet de sécurité : mieux vaut couper après 5 s qu'empêcher tout arrêt.
-    """
-    if not _worker_task or _worker_task.done():
-        return
-    _worker_task.cancel()
-    try:
-        await asyncio.wait_for(_worker_task, timeout=5)
-    except (asyncio.CancelledError, asyncio.TimeoutError):
-        pass

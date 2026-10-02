@@ -39,6 +39,11 @@ class NotificationLog(Base):
     is_upgrade: Mapped[bool] = mapped_column(default=False)
     season_number: Mapped[Optional[int]] = mapped_column(default=None)
     episode_number: Mapped[Optional[int]] = mapped_column(default=None)
+    # Texte libre ecrit par l'administrateur et envoye avec le message -- le motif d'une
+    # annulation, par exemple. L'apercu rejoue le rendu a partir du gabarit et de la
+    # demande ; sans cette colonne, ce paragraphe-la manquait a la relecture alors qu'il
+    # etait bien parti, et rien ne permettait de savoir ce qui avait ete dit.
+    reason: Mapped[Optional[str]] = mapped_column(default=None)
 
 
 class NotificationMilestone(Base):
@@ -98,3 +103,20 @@ class PendingNotification(Base):
     req_id: Mapped[int] = mapped_column(index=True)
     recipients: Mapped[str]  # JSON list[str]
     reason: Mapped[str] = mapped_column(default="")
+
+
+class NotificationDelivery(Base):
+    """Durable per-recipient send ledger, independent of the disposable queue."""
+
+    __tablename__ = "notification_deliveries"
+
+    send_key: Mapped[str] = mapped_column(primary_key=True)
+    req_id: Mapped[int] = mapped_column(index=True)
+    event: Mapped[str]
+    recipient: Mapped[str]
+    state: Mapped[str] = mapped_column(default="prepared", index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+    provider_id: Mapped[Optional[int]]
+    provider_message_id: Mapped[Optional[str]]
+    detail: Mapped[Optional[str]]

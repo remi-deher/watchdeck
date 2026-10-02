@@ -1,16 +1,32 @@
 import { createApp } from 'vue';
+import { vBalancedGrid } from '@/directives/vBalancedGrid';
+import { vListMotion } from '@/motion/vListMotion';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { VueQueryPlugin } from '@tanstack/vue-query';
+import { brancherStockage } from '@/offline/stockage';
+import { installerSortieDePage } from '@/composables/usePageExit';
+import { createQueryClient } from '@/queryClient';
+import { settingsPinia } from '@/settingsForm';
+import { suivreDernierePageApp } from '@/composables/lastAppPath';
 import App from './App.vue';
+// Import statique volontaire : App.vue monte deja la fiche par-dessus la page, elle
+// est donc dans le bundle initial et un import() ici ne decouperait rien.
+import MediaDetailView from './views/MediaDetailView.vue';
 import { isAdminSession, isModeratorSession, loadSession } from './composables/useSession';
-import PageHeader from './components/ui/PageHeader.vue';
-import PageShell from './components/ui/PageShell.vue';
-import PageSearchHeader from './components/ui/PageSearchHeader.vue';
+import AppPage from '@/components/ui/AppPage.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
 import FilterSidebar from './components/ui/FilterSidebar.vue';
 import StatusBadge from './components/ui/StatusBadge.vue';
 import UiFeedback from './components/ui/UiFeedback.vue';
-import FilterBar from './components/ui/FilterBar.vue';
 import FormSaveBar from './components/ui/FormSaveBar.vue';
 import { registerServiceWorker } from './pwa';
+import { useTheme } from './composables/useTheme';
+import { installerRetourDesSurfaces } from './composables/useBackButtonClose';
+import { installerRetourNatif } from './composables/useRetourNatif';
+import { installerMemoireDesAdresses } from './composables/useMemoireDesFiltres';
+
+// Theme : branche des le demarrage pour suivre le systeme et synchroniser la barre d'etat.
+useTheme();
 import { recoverFromStaleAssets } from './assetRecovery';
 import './styles.scss';
 
@@ -29,7 +45,6 @@ const ReleaseSearchView = () => import('./views/ReleaseSearchView.vue');
 const ProfileView = () => import('./views/ProfileView.vue');
 const LogsView = () => import('./views/LogsView.vue');
 const IssuesView = () => import('./views/IssuesView.vue');
-const MediaDetailView = () => import('./views/MediaDetailView.vue');
 const PersonDetailView = () => import('./views/PersonDetailView.vue');
 
 registerServiceWorker();
@@ -44,6 +59,10 @@ if (import.meta.env.PROD) {
 }
 
 const routes: RouteRecordRaw[] = [
+  // Pages publiques : servies sans session et affichees hors du shell (voir App.vue).
+  { path: '/login', component: () => import('./views/auth/LoginView.vue'), meta: { title: 'Connexion', public: true } },
+  { path: '/setup', component: () => import('./views/auth/SetupView.vue'), meta: { title: 'Installation', public: true } },
+  { path: '/privacy', component: () => import('./views/auth/PrivacyView.vue'), meta: { title: 'Confidentialité', public: true } },
   { path: '/', redirect: '/discover' },
   { path: '/dashboard', component: DashboardView, meta: { title: 'Accueil' } },
   { path: '/discover/source/:kind/:id', component: DiscoverView, meta: { title: 'Explorer' } },
@@ -56,19 +75,35 @@ const routes: RouteRecordRaw[] = [
   { path: '/discover/person/:id', component: PersonDetailView, meta: { title: 'Personne' } },
   { path: '/discover', component: DiscoverView, meta: { title: 'Explorer' } },
   { path: '/downloads', component: DownloadsView, meta: { title: 'Acquisition' } },
+  { path: '/downloads/acquisitions', component: () => import('@/views/AcquisitionsView.vue'), meta: { title: 'Acquisitions & conflits' } },
+  { path: '/downloads/torrent/:clientId/:hash', component: () => import('@/views/TorrentDetailView.vue'), meta: { title: 'Torrent' } },
   { path: '/activity', component: ActivityView, meta: { title: 'Activité & Insights' } },
+  { path: '/activity/session/:sessionId', component: () => import('@/views/SessionDetailView.vue'), meta: { title: 'Session de lecture' } },
   { path: '/analytics', component: LibraryAnalyticsView, meta: { title: 'Analytique bibliothèque' } },
+  { path: '/analytics/item/:ratingKey', component: () => import('@/views/AnalyticsItemView.vue'), meta: { title: 'Fichier média' } },
   { path: '/requests', redirect: (to) => ({ path: '/library', query: to.query }) },
   { path: '/library', component: LibraryView, meta: { title: 'Bibliothèque' } },
   { path: '/vf-upgrades', component: VfUpgradesView, meta: { title: 'Améliorations VF' } },
+  { path: '/vf-upgrades/settings', component: () => import('@/views/VfSettingsView.vue'), meta: { title: 'Réglages VF' } },
   { path: '/issues', component: IssuesView, meta: { title: 'Problèmes signalés' } },
   { path: '/calendar', component: CalendarView, meta: { title: 'Calendrier' } },
-  { path: '/users', component: UsersView, meta: { title: 'Administration' } },
-  { path: '/users/:userId', component: UsersView, meta: { title: 'Administration' } },
+  { path: '/users', component: UsersView, meta: { title: 'Utilisateurs' } },
+  { path: '/users/new', component: () => import('@/views/UserDetailView.vue'), meta: { title: 'Nouvel utilisateur' } },
+  { path: '/users/:userId', component: () => import('@/views/UserDetailView.vue'), meta: { title: 'Utilisateur' } },
   { path: '/notifications', component: NotificationsView, meta: { title: 'Notifications' } },
   { path: '/logs', component: LogsView, meta: { title: 'Journaux' } },
-  { path: '/settings', component: SettingsView, meta: { title: 'Paramètres' } },
-  { path: '/maintenance', redirect: { path: '/settings', query: { tab: 'scheduled-tasks' } } },
+  // Un chemin par section : partageable, marquable en favori, et coherent avec le reste
+  // de l'application. Le parametre `?tab=` reste accepte et redirige (voir SettingsView).
+  { path: '/settings', component: SettingsView, meta: { title: 'Administration' } },
+  { path: '/settings/resource/:kind/:id', component: () => import('@/views/SettingsResourceView.vue'), meta: { title: 'Réglage' } },
+  { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Connexions' } },
+  { path: '/settings/automation/:section?', component: SettingsView, meta: { title: 'Automatisation' } },
+  // « Exploitation » a ete dissoute : les journaux sont dans le Systeme, les acquisitions
+  // et conflits dans l'Acquisition. L'ancien chemin circule encore dans les favoris.
+  { path: '/settings/operations/:section?', redirect: '/downloads/acquisitions' },
+  { path: '/settings/notifications/:section?', component: SettingsView, meta: { title: 'Notifications' } },
+  { path: '/settings/system/:section?', component: SettingsView, meta: { title: 'Système' } },
+  { path: '/maintenance', redirect: '/settings/automation/scheduled-tasks' },
   { path: '/profile', component: ProfileView, meta: { title: 'Profil' } },
   { path: '/releases/:requestId', component: ReleaseSearchView, meta: { title: 'Recherche de version' } },
   { path: '/library/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
@@ -79,14 +114,36 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory('/'),
   routes,
-  scrollBehavior(_to, _from, savedPosition) {
-    return savedPosition || { top: 0 };
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition;
+    /* Rester sur place quand seule la requete change : ces navigations-la sont des
+       `router.replace` emis par la page elle-meme pour refleter ses filtres dans l'URL,
+       pas un changement de page. Les renvoyer en haut arrachait l'utilisateur a
+       l'endroit qu'il etait en train de lire. */
+    if (to.path === from.path) return false;
+    /* Une fiche posee par-dessus une page ne deplace pas cette page : la renvoyer en haut
+       faisait sauter la grille visible sous le fond assombri, et la fermeture devait
+       ensuite la faire redescendre. */
+    if ((history.state as Record<string, unknown> | null)?.__overlayBackground) return false;
+    return { top: 0 };
   },
 });
+
+// Avant les autres gardes : un retour qui ferme une surface ne doit declencher ni
+// chargement de session ni redirection.
+installerRetourDesSurfaces(router);
+installerRetourNatif(router);
+installerMemoireDesAdresses(router);
+suivreDernierePageApp(router);
 
 if (import.meta.env.PROD) {
   router.onError((error) => { void recoverFromStaleAssets(error); });
 }
+
+/* Le passage d'une destination a l'autre s'accompagne d'une sortie breve : sans elle,
+   l'ancien ecran disparaissait et le nouveau etait simplement la. Voir `usePageExit`
+   pour la raison qui interdit une `<Transition>` autour du `<RouterView>`. */
+installerSortieDePage(router);
 
 router.afterEach((to) => {
   const title = typeof to.meta.title === 'string' ? to.meta.title : '';
@@ -95,6 +152,7 @@ router.afterEach((to) => {
 
 const PLAIN_USER_ALLOWED_PREFIXES = ['/discover', '/calendar', '/profile', '/media', '/releases'];
 router.beforeEach(async (to) => {
+  if (to.meta.public) return true;
   const session = await loadSession();
   const originalPath = to.redirectedFrom?.path ?? to.path;
   if (originalPath === '/') {
@@ -115,13 +173,15 @@ router.beforeEach(async (to) => {
 });
 
 createApp(App)
-  .component('PageHeader', PageHeader)
-  .component('PageShell', PageShell)
-  .component('PageSearchHeader', PageSearchHeader)
+  .directive('list-motion', vListMotion)
+  .directive('balanced-grid', vBalancedGrid)
+  .component('AppPage', AppPage)
+  .component('AppSubnav', AppSubnav)
   .component('FilterSidebar', FilterSidebar)
   .component('StatusBadge', StatusBadge)
   .component('UiFeedback', UiFeedback)
-  .component('FilterBar', FilterBar)
   .component('FormSaveBar', FormSaveBar)
+  .use(settingsPinia)
+  .use(VueQueryPlugin, { queryClient: createQueryClient(), clientPersister: brancherStockage })
   .use(router)
   .mount('#app');
