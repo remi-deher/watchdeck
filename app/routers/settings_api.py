@@ -225,6 +225,7 @@ class SettingsUpdate(BaseModel):
     newsletter_weekday: Optional[int] = Field(default=None, ge=0, le=6)
     newsletter_hour: Optional[int] = Field(default=None, ge=0, le=23)
     newsletter_discord: Optional[bool] = None
+    indexer_alerts_enabled: Optional[bool] = None
     default_locale: Optional[str] = None
 
 

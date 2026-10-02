@@ -178,6 +178,15 @@ JOB_CATALOG = [
         "default_seconds": 604800,
         "fixed_schedule": None,
     },
+    {
+        "job": "indexer-health",
+        "label": "Santé des indexeurs Prowlarr",
+        "description": "Previent l'administrateur quand un indexeur Prowlarr tombe en panne ou fonctionne de nouveau.",
+        "settings_field": None,
+        "settings_unit": None,
+        "default_seconds": 900,
+        "fixed_schedule": "Toutes les 15 minutes",
+    },
 ]
 
 

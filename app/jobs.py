@@ -496,6 +496,13 @@ async def job_newsletter(ctx: dict, force: bool = False):
     return await _run(ctx, "newsletter", lambda: send_newsletter(force=force), force=True)
 
 
+async def job_indexer_health(ctx: dict, force: bool = False):
+    """Alerte quand un indexeur Prowlarr tombe ou revient."""
+    from .services.indexer_health import check_indexers
+
+    return await _run(ctx, "indexer-health", check_indexers, force=force, interval_seconds=15 * 60)
+
+
 PURGE_LOCAL_HOUR = 3  # repli quand aucun reglage n'est encore charge
 
 
@@ -765,6 +772,10 @@ async def cron_newsletter(ctx: dict):
     return await job_newsletter(ctx)
 
 
+async def cron_indexer_health(ctx: dict):
+    return await job_indexer_health(ctx)
+
+
 class WorkerSettings:
     functions = [
         job_watchlist,
@@ -787,6 +798,7 @@ class WorkerSettings:
         job_digest,
         job_subtitle_search,
         job_newsletter,
+        job_indexer_health,
         job_send_notification,
         job_maintenance,
     ]
@@ -832,6 +844,7 @@ class WorkerSettings:
         cron(cron_subtitle_search, minute=20, second=45, unique=True),
         # Chaque heure pile ; job_newsletter n'envoie qu'au jour et a l'heure reglés.
         cron(cron_newsletter, minute=1, second=0, unique=True),
+        cron(cron_indexer_health, minute={7, 22, 37, 52}, unique=True),
     ]
     on_startup = startup
     on_shutdown = shutdown

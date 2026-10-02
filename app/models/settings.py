@@ -247,6 +247,10 @@ class Settings(Base):
     newsletter_discord: Mapped[bool] = mapped_column(default=False, server_default="false")
     newsletter_last_sent_at: Mapped[Optional[datetime]] = mapped_column(default=None)
 
+    # Alerte (email admin, Discord) quand un indexeur Prowlarr tombe ou revient
+    # (voir services/indexer_health.py).
+    indexer_alerts_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
+
     # --- Sécurité réseau ---
     plex_verify_ssl: Mapped[bool] = mapped_column(default=True)
 

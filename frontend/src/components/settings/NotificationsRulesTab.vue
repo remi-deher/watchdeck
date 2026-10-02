@@ -20,6 +20,9 @@
           </template>
         </div>
       </SettingsRow>
+      <SettingsRow label="Alerte de panne d'indexeur" description="Prévient l'email administrateur, et Discord s'il est actif, quand un indexeur Prowlarr tombe en panne ou fonctionne de nouveau.">
+        <ToggleSwitch v-model="form.indexer_alerts_enabled" title="Alerte de panne d'indexeur" />
+      </SettingsRow>
       <SettingsRow label="Email lors d'une amélioration VO vers VF" description="Notifie séparément quand un média déjà disponible en VO reçoit sa VF, en plus de la notification de disponibilité initiale.">
         <ToggleSwitch v-model="form.email_on_vf_available" title="Email lors d'une amélioration VO vers VF" />
       </SettingsRow>
