@@ -34,6 +34,7 @@ SELF_PREFERENCES = (
     "notify_on_request",
     "notify_on_available",
     "notify_digest",
+    "notify_newsletter",
     "notify_vf_movie",
     "notify_vf_series",
 )
@@ -44,6 +45,7 @@ class PreferencesUpdate(BaseModel):
     notify_on_request: Optional[bool] = None
     notify_on_available: Optional[bool] = None
     notify_digest: Optional[bool] = None
+    notify_newsletter: Optional[bool] = None
     notify_vf_movie: Optional[bool] = None
     notify_vf_series: Optional[bool] = None
 

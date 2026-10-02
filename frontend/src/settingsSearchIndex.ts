@@ -80,7 +80,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Règles',
     group: 'Notifications',
     path: '/settings/notifications/rules',
-    keywords: ['quand notifier', 'evenement', 'silence', 'digest', 'regroupement'],
+    keywords: ['quand notifier', 'evenement', 'silence', 'digest', 'regroupement', 'newsletter', 'nouveautes', 'lettre hebdomadaire'],
   },
   {
     label: 'Modèles d’emails',

@@ -89,6 +89,8 @@
           <small class="check-hint">Email envoyé quand un média qu'elle a demandé devient disponible dans Plex.</small>
           <UiCheckboxField v-model="form.notify_digest" label="Récapitulatif quotidien (digest)" />
           <small class="check-hint">Reçoit un résumé une fois par jour au lieu d'un email par événement — nécessite que le digest soit activé globalement (Paramètres → Notifications → Règles).</small>
+          <UiCheckboxField v-model="form.notify_newsletter" label="Nouveautés de la semaine" />
+          <small class="check-hint">Lettre hebdomadaire avec les films et séries ajoutés au serveur — nécessite que la lettre soit activée (Paramètres → Notifications → Règles).</small>
           <UiCheckboxField v-model="form.notify_admin" label="Copier l'administrateur" />
           <small class="check-hint">Ajoute l'adresse email admin en copie sur les notifications envoyées à cette personne.</small>
         </div>

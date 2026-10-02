@@ -61,6 +61,7 @@ class UserCreate(BaseModel):
     notify_on_request: Optional[bool] = True
     notify_on_available: Optional[bool] = True
     notify_digest: Optional[bool] = False
+    notify_newsletter: bool = False
     notify_vf_movie: Optional[bool] = True
     notify_vf_series: Optional[bool] = True
     discord_webhook_url: Optional[str] = None
@@ -90,6 +91,7 @@ class BulkNotificationUpdate(BaseModel):
     notify_on_request: Optional[bool] = None
     notify_on_available: Optional[bool] = None
     notify_digest: Optional[bool] = None
+    notify_newsletter: Optional[bool] = None
     notify_vf_movie: Optional[bool] = None
     notify_vf_series: Optional[bool] = None
     movie_notify_language: Optional[bool] = None
@@ -906,6 +908,7 @@ async def bulk_update_notifications(payload: BulkNotificationUpdate, db: AsyncSe
         "notify_on_request",
         "notify_on_available",
         "notify_digest",
+        "notify_newsletter",
         "notify_vf_movie",
         "notify_vf_series",
         "movie_notify_language",

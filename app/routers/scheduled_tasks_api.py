@@ -169,6 +169,15 @@ JOB_CATALOG = [
         "default_seconds": 21600,
         "fixed_schedule": None,
     },
+    {
+        "job": "newsletter",
+        "label": "Lettre « Nouveautés de la semaine »",
+        "description": "Envoie chaque semaine aux abonnes les films et series ajoutes a Plex, si active.",
+        "settings_field": "newsletter_hour",
+        "settings_unit": "heure (0-23)",
+        "default_seconds": 604800,
+        "fixed_schedule": None,
+    },
 ]
 
 

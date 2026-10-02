@@ -238,6 +238,15 @@ class Settings(Base):
     subtitle_search_interval_hours: Mapped[int] = mapped_column(default=6, server_default="6")
     subtitle_search_batch_size: Mapped[int] = mapped_column(default=20, server_default="20")
 
+    # --- Lettre « Nouveautés de la semaine » (voir services/newsletter.py) ---
+    # Jour (0 = lundi) et heure murale locale de l'envoi hebdomadaire.
+    newsletter_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
+    newsletter_weekday: Mapped[int] = mapped_column(default=4, server_default="4")
+    newsletter_hour: Mapped[int] = mapped_column(default=18, server_default="18")
+    # Publie aussi la lettre sur le webhook Discord global.
+    newsletter_discord: Mapped[bool] = mapped_column(default=False, server_default="false")
+    newsletter_last_sent_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+
     # --- Sécurité réseau ---
     plex_verify_ssl: Mapped[bool] = mapped_column(default=True)
 

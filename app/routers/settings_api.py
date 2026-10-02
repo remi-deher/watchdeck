@@ -221,6 +221,10 @@ class SettingsUpdate(BaseModel):
     subtitle_search_provider: Optional[str] = Field(default=None, pattern="^(auto|plex|bazarr)$")
     subtitle_search_interval_hours: Optional[int] = Field(default=None, ge=1, le=168)
     subtitle_search_batch_size: Optional[int] = Field(default=None, ge=1, le=200)
+    newsletter_enabled: Optional[bool] = None
+    newsletter_weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    newsletter_hour: Optional[int] = Field(default=None, ge=0, le=23)
+    newsletter_discord: Optional[bool] = None
     default_locale: Optional[str] = None
 
 

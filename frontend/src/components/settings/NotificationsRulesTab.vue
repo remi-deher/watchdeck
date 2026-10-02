@@ -48,18 +48,57 @@
         <UiTimeField v-model:hour="form.digest_hour" v-model:minute="form.digest_minute" aria-label="Heure du digest"/>
       </SettingsRow>
     </SettingsSection>
+
+    <SettingsSection
+      title="Nouveautés de la semaine"
+      subtitle="Une lettre hebdomadaire avec les films et séries ajoutés à Plex, leur affiche et leur langue, pour les utilisateurs qui l'ont activée dans leur profil."
+      :status="form.newsletter_enabled ? 'active' : 'inactive'"
+    >
+      <template #actions>
+        <UiButton href="/api/newsletter/preview" target="_blank" rel="noopener"><Eye />Aperçu</UiButton>
+        <UiButton :loading="sendingTest" @click="sendTest"><MailCheck />M'envoyer un test</UiButton>
+      </template>
+      <SettingsRow label="Envoi hebdomadaire">
+        <ToggleSwitch v-model="form.newsletter_enabled" title="Envoi hebdomadaire" />
+      </SettingsRow>
+      <SettingsRow label="Jour et heure" description="Heure locale. La lettre couvre les ajouts depuis le précédent envoi." :disabled="!form.newsletter_enabled">
+        <div class="newsletter-when">
+          <UiSelect v-model="form.newsletter_weekday" aria-label="Jour d'envoi" :disabled="!form.newsletter_enabled" :options="weekdays" />
+          <UiSelect v-model="form.newsletter_hour" aria-label="Heure d'envoi" :disabled="!form.newsletter_enabled" :options="hours" />
+        </div>
+      </SettingsRow>
+      <SettingsRow label="Publier aussi sur Discord" description="Sur le webhook Discord global (Canaux), en plus des emails." :disabled="!form.newsletter_enabled">
+        <ToggleSwitch v-model="form.newsletter_discord" :disabled="!form.newsletter_enabled" title="Publier aussi sur Discord" />
+      </SettingsRow>
+    </SettingsSection>
   </div>
 </template>
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import { Bell, Megaphone, MessageSquare, Send } from '@lucide/vue';
-import { form } from '@/settingsForm';
+import { Bell, Eye, MailCheck, Megaphone, MessageSquare, Send } from '@lucide/vue';
+import { ref } from 'vue';
+import { api } from '@/api';
+import UiButton from '@/components/ui/UiButton.vue';
+import { form, success, fail } from '@/settingsForm';
 import SettingsSection from './SettingsSection.vue';
 import SettingsRow from './SettingsRow.vue';
 import UiTimeField from '@/components/ui/UiTimeField.vue';
 import RetentionDaysInput from './RetentionDaysInput.vue';
+
+const weekdays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'].map((label, value) => ({ value, label }));
+const hours = Array.from({ length: 24 }, (_, value) => ({ value, label: `${String(value).padStart(2, '0')} h` }));
+
+/* Envoi de test a l'adresse de l'administrateur, avec les ajouts de la periode en cours. */
+const sendingTest = ref(false);
+async function sendTest(): Promise<void> {
+  sendingTest.value = true;
+  try {
+    const result = await api<any>('/api/newsletter/test', { method: 'POST', body: '{}' });
+    success(`Lettre de test envoyée à ${result.recipient} (${result.items} ajout(s)).`);
+  } catch (e) { fail(e); } finally { sendingTest.value = false; }
+}
 
 const channels = [
   { key: 'discord', label: 'Discord', icon: MessageSquare },
@@ -78,6 +117,7 @@ const notificationEvents = [
 </script>
 <style scoped lang="scss">
 .event-matrix { width: 100%; }
+.newsletter-when { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .event-legend {
   display: grid;
   gap: var(--space-1) var(--space-4);

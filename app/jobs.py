@@ -486,6 +486,16 @@ async def job_subtitle_search(ctx: dict, force: bool = False):
     return await _run(ctx, "subtitle-search", search_missing_batch, force=force, interval_seconds=interval)
 
 
+async def job_newsletter(ctx: dict, force: bool = False):
+    """Lettre « Nouveautes de la semaine », au jour et a l'heure locaux reglés."""
+    from .services.newsletter import is_due, send_newsletter
+
+    settings = await _settings()
+    if not force and not is_due(settings, now_utc_naive()):
+        return {"status": "not_due"}
+    return await _run(ctx, "newsletter", lambda: send_newsletter(force=force), force=True)
+
+
 PURGE_LOCAL_HOUR = 3  # repli quand aucun reglage n'est encore charge
 
 
@@ -751,6 +761,10 @@ async def cron_subtitle_search(ctx: dict):
     return await job_subtitle_search(ctx)
 
 
+async def cron_newsletter(ctx: dict):
+    return await job_newsletter(ctx)
+
+
 class WorkerSettings:
     functions = [
         job_watchlist,
@@ -772,6 +786,7 @@ class WorkerSettings:
         job_notification_purge,
         job_digest,
         job_subtitle_search,
+        job_newsletter,
         job_send_notification,
         job_maintenance,
     ]
@@ -815,6 +830,8 @@ class WorkerSettings:
         cron(cron_digest, minute=None, unique=True),
         # Toutes les heures ; job_subtitle_search decide via l'intervalle configure.
         cron(cron_subtitle_search, minute=20, second=45, unique=True),
+        # Chaque heure pile ; job_newsletter n'envoie qu'au jour et a l'heure reglés.
+        cron(cron_newsletter, minute=1, second=0, unique=True),
     ]
     on_startup = startup
     on_shutdown = shutdown

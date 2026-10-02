@@ -75,7 +75,9 @@ def test_plex_search_for_show_targets_only_episodes_without_french():
         patch("app.services.plex_finder.find_item_in_libraries", return_value=show),
         patch("app.services.audio_analyzer.bulk_reload_episodes", return_value={1: missing}),
     ):
-        result = subtitle_search.search_plex_subtitles_blocking("http://plex", "t", [], title="Serie", media_type="show")
+        result = subtitle_search.search_plex_subtitles_blocking(
+            "http://plex", "t", [], title="Serie", media_type="show"
+        )
     assert result == {
         "success": True,
         "provider": "plex",
@@ -90,7 +92,10 @@ def test_plex_search_for_show_targets_only_episodes_without_french():
 
 def test_plex_search_reports_missing_media_and_connection_errors():
     with patch("app.services.plex_finder.connect", side_effect=RuntimeError("refused")):
-        assert "Connexion Plex impossible" in subtitle_search.search_plex_subtitles_blocking("u", "t", [], title="X")["error"]
+        assert (
+            "Connexion Plex impossible"
+            in subtitle_search.search_plex_subtitles_blocking("u", "t", [], title="X")["error"]
+        )
     with (
         patch("app.services.plex_finder.connect", return_value=MagicMock()),
         patch("app.services.plex_finder.find_item_in_libraries", return_value=None),
