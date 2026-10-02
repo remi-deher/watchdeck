@@ -6,7 +6,7 @@ import httpx
 import pytest
 from sqlalchemy.future import select
 
-from app.models import PlaybackSession, PlexServer, Settings
+from app.models import PlaybackSession, PlexServer, PlexUser, Settings
 from app.services import playback_activity
 from app.services.playback_activity import (
     _collect_plex_activity_unlocked,
@@ -215,3 +215,27 @@ async def test_statistics_with_real_async_session(async_database):
     thumbs = {item["title"]: item["thumb_url"] for item in snapshot["analytics"]["popular"]}
     assert thumbs["Principal"] == "/api/playback/thumb?path=%2Flibrary%2Fmetadata%2F10%2Fthumb"
     assert thumbs["4K"].endswith(f"&server={second.id}")
+
+
+@pytest.mark.asyncio
+async def test_live_snapshot_carries_viewer_avatars(async_db):
+    _setup(async_db)
+    async_db.add_all(
+        [
+            PlexUser(plex_user_id="lea", display_name="Léa", avatar_url="https://plex.tv/users/lea/avatar"),
+            PlexUser(plex_user_id="tom", plex_account_uuid="42", avatar_url="https://plex.tv/users/tom/avatar"),
+            PlaybackSession(source="plex", source_session_id="a", title="Severance", user_name="LÉA"),
+            PlaybackSession(source="plex", source_session_id="b", title="Dune", user_name="Thomas", plex_user_id="42"),
+            PlaybackSession(source="plex", source_session_id="c", title="Alien", user_name="Inconnu"),
+        ]
+    )
+    async_db.commit()
+
+    snapshot = await live_activity_snapshot(db=async_db)
+
+    avatars = {item["title"]: item["user_avatar_url"] for item in snapshot["active"]}
+    assert avatars == {
+        "Severance": "https://plex.tv/users/lea/avatar",
+        "Dune": "https://plex.tv/users/tom/avatar",
+        "Alien": None,
+    }
