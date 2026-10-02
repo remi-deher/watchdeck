@@ -1,49 +1,46 @@
 <template>
-  <div class="settings-grid">
-    <div class="settings-cards span-two">
-      <SettingsCard title="Acquisitions de séries" :subtitle="acquisitionSubtitle" :icon="ListRestart" :status="acquisitions.counts.blocked_imports ? 'error' : acquisitions.counts.active_batches ? 'neutral' : 'active'" :collapsible="false">
-        <div class="acquisition-counters">
-          <span class="badge">{{ acquisitions.counts.active_batches }} lot(s)</span>
-          <span class="badge">{{ acquisitions.counts.active_queue }} element(s) actif(s)</span>
-          <span class="badge" :class="{ danger: acquisitions.counts.blocked_imports }">{{ acquisitions.counts.blocked_imports }} import(s) bloque(s)</span>
+  <div class="settings-rows">
+    <SettingsSection title="Acquisitions de séries" :subtitle="acquisitionSubtitle" :status="acquisitions.counts.blocked_imports ? 'error' : ''" :status-text="acquisitions.counts.blocked_imports ? 'Import bloqué' : ''">
+      <div class="acquisition-counters">
+        <span class="badge">{{ acquisitions.counts.active_batches }} lot(s)</span>
+        <span class="badge">{{ acquisitions.counts.active_queue }} element(s) actif(s)</span>
+        <span class="badge" :class="{ danger: acquisitions.counts.blocked_imports }">{{ acquisitions.counts.blocked_imports }} import(s) bloque(s)</span>
+      </div>
+      <article v-for="batch in acquisitions.items" :key="batch.id" class="acquisition-batch">
+        <div class="acquisition-head">
+          <div>
+            <strong>{{ batch.title }}</strong>
+            <span>{{ batchStatus(batch.status) }} · {{ sourceLabel(batch.source) }}</span>
+          </div>
+          <span class="badge">{{ scopeLabel(batch) }}</span>
         </div>
-        <article v-for="batch in acquisitions.items" :key="batch.id" class="acquisition-batch">
-          <div class="acquisition-head">
-            <div>
-              <strong>{{ batch.title }}</strong>
-              <span>{{ batchStatus(batch.status) }} · {{ sourceLabel(batch.source) }}</span>
-            </div>
-            <span class="badge">{{ scopeLabel(batch) }}</span>
+        <small>
+          Ouvert {{ formatDate(batch.opened_at) }}
+          <template v-if="batch.last_plex_change_at"> · dernier changement Plex {{ formatDate(batch.last_plex_change_at) }}</template>
+        </small>
+        <div v-if="batch.pending_events.length" class="acquisition-events">
+          {{ batch.pending_events.length }} jalon(s) Plex en attente du recapitulatif.
+        </div>
+        <div v-for="row in batch.queue" :key="row.id" class="queue-observation" :class="{ blocked: row.state === 'import_blocked' }">
+          <div>
+            <strong>{{ episodeLabel(row) }}</strong>
+            <span>{{ queueStateLabel(row.state) }} · {{ Math.round(row.progress || 0) }} %</span>
+            <small v-if="row.error">{{ row.error }}</small>
           </div>
-          <small>
-            Ouvert {{ formatDate(batch.opened_at) }}
-            <template v-if="batch.last_plex_change_at"> · dernier changement Plex {{ formatDate(batch.last_plex_change_at) }}</template>
-          </small>
-          <div v-if="batch.pending_events.length" class="acquisition-events">
-            {{ batch.pending_events.length }} jalon(s) Plex en attente du recapitulatif.
-          </div>
-          <div v-for="row in batch.queue" :key="row.id" class="queue-observation" :class="{ blocked: row.state === 'import_blocked' }">
-            <div>
-              <strong>{{ episodeLabel(row) }}</strong>
-              <span>{{ queueStateLabel(row.state) }} · {{ Math.round(row.progress || 0) }} %</span>
-              <small v-if="row.error">{{ row.error }}</small>
-            </div>
-            <span v-if="row.state === 'import_blocked'" class="badge danger">Intervention Sonarr</span>
-          </div>
-        </article>
-        <p v-if="!acquisitions.items.length" class="empty">Aucune acquisition de série en cours.</p>
-      </SettingsCard>
-    </div>
+          <span v-if="row.state === 'import_blocked'" class="badge danger">Intervention Sonarr</span>
+        </div>
+      </article>
+      <p v-if="!acquisitions.items.length" class="empty">Aucune acquisition de série en cours.</p>
+    </SettingsSection>
   </div>
 </template>
 <script setup lang="ts">
 import { formatDateTimeShort as formatDate } from '@/utils/format';
 import { computed } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { ListRestart } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
-import SettingsCard from './SettingsCard.vue';
+import SettingsSection from './SettingsSection.vue';
 
 interface Acquisitions { items: any[]; counts: { active_batches: number; active_queue: number; blocked_imports: number } }
 const EMPTY: Acquisitions = { items: [], counts: { active_batches: 0, active_queue: 0, blocked_imports: 0 } };

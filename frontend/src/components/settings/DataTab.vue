@@ -1,60 +1,58 @@
 <template>
-  <div class="settings-grid">
-    <div class="settings-cards span-two">
-      <SettingsCard title="Export et sauvegarde" subtitle="Deux formats distincts : un export JSON portable, et un dump complet de la base." :icon="HardDriveDownload" status="neutral" :collapsible="false">
-        <UiCheckboxField v-model="includeSecrets" label="Inclure les identifiants" />
-        <small class="check-hint">Sans cette case, les tokens Plex/*arr et cles de notification sont omis de l'export JSON — pratique pour partager une config sans exposer de secrets.</small>
-        <div class="actions">
-          <UiButton :href="includeSecrets?'/api/export?include_secrets=true':'/api/export'"><Download/>Exporter en JSON</UiButton>
-          <UiButton href="/api/backup/db"><HardDriveDownload/>Backup complet</UiButton>
-        </div>
-        <p class="warning-text">Ces fichiers peuvent contenir des secrets.</p>
-        <p class="hint">"Exporter en JSON" produit un fichier lisible et portable (utilisateurs, paramètres, demandes, instances *arr, clients de téléchargement, fournisseurs et modèles d'email) réutilisable avec "Importer un export JSON" ci-dessous. Les journaux et données regenerables (bibliotheque, historiques, cache) sont inclus pour reference mais jamais reimportes. "Backup complet" produit un dump PostgreSQL brut, destine a une restauration via <code>docker compose --profile operations run --rm restore</code> (voir le README).</p>
-      </SettingsCard>
+  <div class="settings-rows">
+    <SettingsSection title="Export et sauvegarde" subtitle="Deux formats : un export JSON portable, et un dump complet de la base. Ces fichiers peuvent contenir des secrets.">
+      <SettingsRow label="Inclure les identifiants" description="Sans cette option, les jetons Plex/*arr et les clés de notification sont omis de l'export JSON : pratique pour partager une configuration.">
+        <ToggleSwitch v-model="includeSecrets" title="Inclure les identifiants" />
+      </SettingsRow>
+      <SettingsRow label="Export JSON" description="Fichier lisible et réimportable : utilisateurs, paramètres, demandes, instances *arr, clients, fournisseurs et modèles d'email. Journaux et caches y figurent pour référence mais ne sont jamais réimportés.">
+        <UiButton :href="includeSecrets?'/api/export?include_secrets=true':'/api/export'"><Download/>Exporter en JSON</UiButton>
+      </SettingsRow>
+      <SettingsRow label="Backup de la base" description="Dump PostgreSQL brut, à restaurer avec docker compose --profile operations run --rm restore (voir le README).">
+        <UiButton href="/api/backup/db"><HardDriveDownload/>Backup complet</UiButton>
+      </SettingsRow>
+    </SettingsSection>
 
-      <SettingsCard title="Importer un export JSON" subtitle="Fusionne un export JSON précédent dans cette instance, sans rien supprimer." :icon="Upload" status="neutral" :collapsible="false">
-        <input ref="jsonInput" type="file" accept=".json">
-        <div class="actions">
+    <SettingsSection title="Importer un export JSON" subtitle="Fusionne un export précédent dans cette instance : les données sont ajoutées ou mises à jour, rien n'est effacé.">
+      <SettingsRow label="Fichier JSON" block>
+        <div class="data-line">
+          <input ref="jsonInput" type="file" accept=".json" aria-label="Fichier JSON à importer">
           <UiButton :disabled="busy" @click="importJson"><Upload/>Fusionner les données</UiButton>
         </div>
-        <p class="hint">Les utilisateurs et données du fichier sont ajoutés ou mis à jour (upsert) par-dessus l'existant — rien n'est effacé. Utile pour restaurer un export JSON ou fusionner deux instances.</p>
-      </SettingsCard>
+      </SettingsRow>
+    </SettingsSection>
 
-      <SettingsCard title="Reprise après sinistre" subtitle="Sauvegarde complète (base + clés + configuration) et restauration à l'identique." :icon="ShieldAlert" status="neutral" :collapsible="false">
-        <div class="actions">
-          <UiButton href="/api/backup/full"><ShieldAlert/>Telecharger la sauvegarde complete</UiButton>
-        </div>
-        <p class="hint">Archive unique contenant le dump PostgreSQL complet, la clé de chiffrement et les autres fichiers hors base, plus un export JSON de repli. C'est la seule méthode qui restaure absolument tout à l'identique (y compris le compte admin et les historiques) — l'export JSON ci-dessus en est volontairement une version partielle.</p>
-
-        <input ref="fullBackupInput" type="file" accept=".zip" @change="onFullBackupFileChange">
+    <SettingsSection title="Reprise après sinistre" subtitle="Archive unique : dump PostgreSQL, clé de chiffrement, fichiers hors base et export JSON de repli. Seule méthode qui restaure tout à l'identique, compte admin et historiques compris.">
+      <SettingsRow label="Sauvegarde complète">
+        <UiButton href="/api/backup/full"><ShieldAlert/>Télécharger</UiButton>
+      </SettingsRow>
+      <SettingsRow label="Restaurer une sauvegarde" description="Remplace toute l'instance par le contenu de l'archive." block>
+        <input ref="fullBackupInput" type="file" accept=".zip" aria-label="Archive de sauvegarde complète" @change="onFullBackupFileChange">
         <template v-if="fullBackupSelected">
           <p class="warning-text">Cette action remplace ENTIÈREMENT la base de données et la configuration actuelles par celles de l'archive. Rien n'est fusionné : tout ce qui existe aujourd'hui sur cette instance (réglages, utilisateurs, demandes, historiques) sera perdu, hormis une sauvegarde de sécurité automatique prise juste avant. L'application redémarre ensuite.</p>
-          <label>Confirmation<input v-model="fullRestoreConfirmation" class="mono" placeholder="REMPLACER"></label>
-          <UiButton variant="primary" class="danger-button" :disabled="busy||fullRestoreConfirmation!=='REMPLACER'" @click="restoreFullBackup"><ShieldAlert/>Tout remplacer</UiButton>
+          <div class="data-line">
+            <input v-model="fullRestoreConfirmation" class="mono" placeholder="REMPLACER" aria-label="Tapez REMPLACER pour confirmer">
+            <UiButton variant="primary" class="danger-button" :disabled="busy||fullRestoreConfirmation!=='REMPLACER'" @click="restoreFullBackup"><ShieldAlert/>Tout remplacer</UiButton>
+          </div>
         </template>
         <p v-if="restoreRestarting" class="hint">Restauration terminée, l'application redémarre. Cette page va se recharger automatiquement.</p>
-      </SettingsCard>
+      </SettingsRow>
+    </SettingsSection>
 
-      <SettingsCard title="Médias supprimés" :icon="Trash2" status="neutral" :collapsible="false">
-        <p>
-          Ces medias ont ete deliberement supprimes par un admin. Toute nouvelle demande
-          pour l'un d'eux (watchlist, requete manuelle) sera forcee en attente
-          d'approbation, même si l'auto-approbation est activée.
-        </p>
-        <p v-if="!deletedLog.length">Aucun média dans ce journal.</p>
-        <div v-for="entry in deletedLog" :key="entry.id" class="detail-row">
-          <div>
-            <strong>{{ entry.title }}</strong><br>
-            <small>{{ mediaTypeLabel(entry.media_type) }} · supprime le {{ formatDate(entry.deleted_at) }}{{ entry.deleted_by ? ` par ${entry.deleted_by}` : '' }}</small>
-          </div>
-          <UiButton :disabled="busy" @click="forgetEntry(entry.id)">Oublier</UiButton>
-        </div>
-      </SettingsCard>
-    </div>
+    <SettingsSection title="Médias supprimés" subtitle="Supprimés délibérément par un admin : toute nouvelle demande pour l'un d'eux reste en attente d'approbation, même avec l'auto-approbation.">
+      <SettingsRow
+        v-for="entry in deletedLog"
+        :key="entry.id"
+        :label="entry.title"
+        :description="`${mediaTypeLabel(entry.media_type)} · supprimé le ${formatDate(entry.deleted_at)}${entry.deleted_by ? ` par ${entry.deleted_by}` : ''}`"
+      >
+        <UiButton :disabled="busy" @click="forgetEntry(entry.id)">Oublier</UiButton>
+      </SettingsRow>
+      <p v-if="!deletedLog.length" class="hint data-hint">Aucun média dans ce journal.</p>
+    </SettingsSection>
   </div>
 </template>
 <script setup lang="ts">
-import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { formatDate } from '@/utils/format';
 import { mediaTypeLabel } from '@/utils/labels';
@@ -63,7 +61,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Download, HardDriveDownload, ShieldAlert, Trash2, Upload } from '@lucide/vue';
 import { api } from '@/api';
 import { load, success, fail } from '@/settingsForm';
-import SettingsCard from './SettingsCard.vue';
+import SettingsSection from './SettingsSection.vue';
+import SettingsRow from './SettingsRow.vue';
 
 const includeSecrets = ref(false);
 const queryClient = useQueryClient();
@@ -118,3 +117,18 @@ async function restoreFullBackup(): Promise<void> {
   } catch (e) { fail(e); }
 }
 </script>
+<style scoped lang="scss">
+.data-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.data-line input {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.data-hint {
+  margin: 10px 0 0;
+}
+</style>
