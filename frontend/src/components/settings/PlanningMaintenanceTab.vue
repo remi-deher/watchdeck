@@ -1,7 +1,6 @@
 <template>
-  <div class="settings-merged">
+  <div class="settings-rows">
     <ScheduledTasksTab/>
-    <h2 class="settings-merged-heading">Maintenance</h2>
     <MaintenanceTab/>
   </div>
 </template>
@@ -9,6 +8,3 @@
 import ScheduledTasksTab from './ScheduledTasksTab.vue';
 import MaintenanceTab from './MaintenanceTab.vue';
 </script>
-<style scoped lang="scss">
-.settings-merged-heading { margin: var(--space-2) 0 0; font-size: var(--fs-lg); }
-</style>
