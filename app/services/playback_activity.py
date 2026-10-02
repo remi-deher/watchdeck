@@ -625,6 +625,8 @@ def _serialize_segment(segment: PlaybackSessionSegment) -> dict:
 
 def _serialize(row: PlaybackSession) -> dict:
     thumb_url = _thumb_url(row)
+    stream_details = _json_or_none(row.stream_details)
+    artwork = (stream_details or {}).get("artwork") or {}
     segments = list(row.segments or [])
     return {
         "id": row.id,
@@ -642,6 +644,8 @@ def _serialize(row: PlaybackSession) -> dict:
         "rating_key": row.rating_key,
         "library": row.library_section_title,
         "thumb_url": thumb_url,
+        "art_url": _artwork_url(row, artwork.get("art")),
+        "logo_url": _artwork_url(row, artwork.get("logo")),
         "player": row.player_title,
         "platform": row.platform,
         "product": row.product,
@@ -673,7 +677,7 @@ def _serialize(row: PlaybackSession) -> dict:
         "transcode_throttled": row.transcode_throttled,
         "transcode_hw": row.transcode_hw,
         "transcode_details": _json_or_none(row.transcode_details),
-        "stream_details": _json_or_none(row.stream_details),
+        "stream_details": stream_details,
         "is_download": bool(row.is_download),
         # Bleu, comme la pastille Direct Stream : conteneur changé, rien de réencodé.
         "transcode_remux": _remux_label(_json_or_none(row.transcode_details)),
@@ -756,6 +760,37 @@ def _tautulli_session_values(item: dict, settings: Settings, location: dict) -> 
         **values,
         **location,
     }
+
+
+def _session_artwork(media) -> dict:
+    """Fond et logo de l'œuvre lue, pour les dispositions larges du bandeau « En direct ».
+
+    Un épisode prend le fond de la série : sa propre image est une capture d'écran. Le
+    logo (`clearLogo`) n'existe que sur les serveurs Plex récents, et pas pour tous les
+    médias ; l'interface s'en passe alors.
+    """
+    is_episode = media.get("type") == "episode"
+    art = (
+        (media.get("grandparentArt") or media.get("art"))
+        if is_episode
+        else (media.get("art") or media.get("grandparentArt"))
+    )
+    logo = next(
+        (image.get("url") for image in media.findall("Image") if image.get("type") == "clearLogo" and image.get("url")),
+        None,
+    )
+    return {
+        key: value
+        for key, value in {"art": art, "logo": logo}.items()
+        if value and str(value).startswith("/library/metadata/")
+    }
+
+
+def _artwork_url(row: PlaybackSession, path: str | None) -> str | None:
+    if not path:
+        return None
+    server = f"&server={row.server_id}" if getattr(row, "server_id", None) else ""
+    return f"/api/playback/thumb?path={quote(path, safe='')}{server}"
 
 
 def _thumb_url(row: PlaybackSession) -> str | None:
@@ -1327,6 +1362,7 @@ def parse_plex_sessions(
                 "stream_details": json.dumps(
                     {
                         **stream_details,
+                        "artwork": _session_artwork(media),
                         "tracks": _tracks(
                             transcode_attrs,
                             media_attrs,
