@@ -25,7 +25,7 @@ test("ajouter une instance *arr se fait dans la feuille, puis la referme", async
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/settings/services/integrations");
-  const card = page.locator(".settings-card").filter({ hasText: "Instances Sonarr, Radarr et Prowlarr" });
+  const card = page.locator(".settings-item-list").filter({ hasText: "Instances Sonarr, Radarr et Prowlarr" });
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
   await card.getByRole("button", { name: "Ajouter" }).first().click();
@@ -48,13 +48,11 @@ test("modifier une instance ouvre sa fiche préremplie, à son adresse", async (
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/settings/services/integrations");
-  const card = page.locator(".settings-card").filter({ hasText: "Instances Sonarr, Radarr et Prowlarr" });
+  const card = page.locator(".settings-item-list").filter({ hasText: "Instances Sonarr, Radarr et Prowlarr" });
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
-  // La carte peut s'afficher repliee : on la deplie pour atteindre la ligne.
-  const deplier = card.getByRole("button", { name: "Deplier" });
-  if (await deplier.isVisible()) await deplier.click();
-  await card.getByRole("button", { name: "Modifier" }).first().click();
+  // La ligne de l'instance ouvre sa fiche.
+  await card.getByRole("button", { name: /Radarr maison/ }).click();
   const sheet = page.locator(".media-overlay__panel");
   await expect(page).toHaveURL(/\/settings\/resource\/arr\/3$/);
   await expect(sheet.getByLabel("Nom")).toHaveValue("Radarr maison");
