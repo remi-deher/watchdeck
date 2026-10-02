@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.68.0 — 2026-10-02
+
+
+### ✨ Nouveautés
+
+- bandeau « En direct » adapté au nombre de lectures, contour visible (#644) ([bb7f25f](https://github.com/remi-deher/watchdeck/commit/bb7f25f6b87d990194dff973e567182e9dc665db))
 ## 1.67.0 — 2026-10-02
 
 
 ### ✨ Nouveautés
 
 - bloc « En direct sur Plex » en mur d'affiches (#639) ([536aa79](https://github.com/remi-deher/watchdeck/commit/536aa7952a4443314ceafa0bcc4bb9683b09c42e))
+
+### 🔧 Maintenance
+
+- v1.67.0 (#643) ([10a5e26](https://github.com/remi-deher/watchdeck/commit/10a5e26595dab267caeb67a25c5082b5484495c6))
 ## 1.66.0 — 2026-10-02
 
 
