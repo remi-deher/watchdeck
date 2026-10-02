@@ -1,10 +1,10 @@
 <template>
-  <CrudResourceCard
+  <CrudResourceList
     title="Clients de téléchargement direct"
-    subtitle="Clients configurés — utilisés pour pousser une release choisie manuellement via la recherche Prowlarr"
+    subtitle="Reçoivent une release choisie à la main dans la recherche Prowlarr."
     :icon="Download"
     :items="clients"
-    :columns="columns"
+    :item-subtitle="(item: any) => [clientLabel(item.client_type), item.url].filter(Boolean).join(' · ')"
     empty-label="Aucun client configuré."
     add-label="Ajouter"
     @open-modal="openSheet"
@@ -22,18 +22,14 @@ import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { useMutation } from '@tanstack/vue-query';
 import { Download } from '@lucide/vue';
 import { api } from '@/api';
-import CrudResourceCard from '../CrudResourceCard.vue';
+import CrudResourceList from '../CrudResourceList.vue';
 import ConfirmModal from '../../ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
 import { success, fail } from '@/settingsForm';
 
-const columns = [
-  { key: 'name', label: 'Nom', isTitle: true },
-  { key: 'client_type', label: 'Type', isBadge: true },
-  { key: 'url', label: 'Adresse', class: 'url-cell' },
-  { key: 'enabled', label: 'Statut', isStatus: true },
-];
+const CLIENT_LABELS: Record<string, string> = { qbittorrent: 'qBittorrent', transmission: 'Transmission', deluge: 'Deluge' };
+function clientLabel(type: string): string { return CLIENT_LABELS[type] || type || ''; }
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const clientDefaults = { name: '', client_type: 'qbittorrent', url: '', username: '', password: '', category: '', tags: '', is_default: false, enabled: true };

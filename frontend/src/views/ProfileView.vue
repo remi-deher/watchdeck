@@ -1,342 +1,279 @@
-﻿<template>
-  <AppPage hide-search
-    title="Profil"
-    :error="error"
-    :success="message"
-    @dismiss-success="message = ''"
-  >
-
-    <div class="settings-grid">
-      <div class="settings-cards span-two">
-        <SettingsCard title="Compte" subtitle="Identité et mot de passe de connexion." :icon="UserRound" status="active" :collapsible="false">
-          <div class="account-summary">
-            <div>
-              <strong>{{ displayName }}</strong>
-              <span class="badge">{{ roleLabel }}</span>
-              <p>{{ identity?.notification_email || identity?.plex_email || 'Aucun email renseigné' }}</p>
-              <code v-if="identity?.plex_user_id">{{ identity.plex_user_id }}</code>
-            </div>
-          </div>
-          <template v-if="canManageSecurity">
-            <UiField v-if="identity?.has_local_password" label="Mot de passe actuel" hint="Requis pour confirmer qu'il s'agit bien de vous." v-slot="field">
-              <input :id="field.id" v-model="currentPassword" type="password" autocomplete="current-password" :aria-describedby="field.describedBy">
-            </UiField>
-            <UiField v-else-if="totpEnabled" label="Code à 6 chiffres" hint="Code de votre application d'authentification, pour confirmer qu'il s'agit bien de vous." v-slot="field">
-              <input :id="field.id" v-model="passwordOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456" :aria-describedby="field.describedBy">
-            </UiField>
-            <UiField label="Nouveau mot de passe" hint="Laissez ce champ vide si vous ne souhaitez pas changer votre mot de passe actuel." v-slot="field">
-              <input :id="field.id" v-model="password" type="password" minlength="8" autocomplete="new-password" placeholder="Au moins 8 caractères" :aria-describedby="field.describedBy">
-            </UiField>
-            <div class="actions">
-              <UiButton variant="primary" :loading="busy" :disabled="password.length < 8" @click="changePassword"><template #icon><KeyRound/></template>Modifier le mot de passe</UiButton>
-            </div>
-          </template>
-          <p v-else class="hint">Ce compte n'est pas lié à un utilisateur Plex : le mot de passe se change depuis l'assistant de configuration initial.</p>
-        </SettingsCard>
-
-        <template v-if="canManageSecurity">
-          <SettingsCard title="Double authentification" subtitle="Exige un code temporaire (TOTP) en plus du mot de passe à la connexion." :icon="ShieldCheck" :status="totpEnabled ? 'active' : 'inactive'" :collapsible="false">
-            <template v-if="totpEnabled">
-              <p class="hint">La double authentification est active sur ce compte. La désactiver supprime cette protection supplémentaire.</p>
-              <UiField label="Code à 6 chiffres" hint="Saisissez un code actuel pour confirmer la désactivation." v-slot="field">
-                <input :id="field.id" v-model="totpDisableCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456" :aria-describedby="field.describedBy">
-              </UiField>
-              <div class="actions">
-                <UiButton variant="danger" :loading="busy" :disabled="totpDisableCode.length !== 6" @click="disableTotp"><template #icon><ShieldCheck/></template>Désactiver le TOTP</UiButton>
-              </div>
-            </template>
-            <template v-else-if="totpSecret">
-              <p class="hint">Scannez ce QR code dans votre application d'authentification (Google Authenticator, Authy, Bitwarden…), puis saisissez le code à 6 chiffres qu'elle affiche pour confirmer l'activation.</p>
-              <img v-if="totpQr" :src="totpQr" class="totp-qr" alt="QR code TOTP">
-              <p>Secret manuel (si le QR code ne fonctionne pas) : <code>{{ totpSecret }}</code></p>
-              <UiField label="Code à 6 chiffres" v-slot="field">
-                <input :id="field.id" v-model="totpCode" inputmode="numeric" maxlength="6" placeholder="123456">
-              </UiField>
-              <div class="actions">
-                <UiButton variant="primary" :loading="busy" :disabled="totpCode.length !== 6" @click="enableTotp"><template #icon><ShieldCheck/></template>Activer</UiButton>
-                <UiButton :disabled="busy" @click="cancelTotpSetup">Annuler</UiButton>
-              </div>
-            </template>
-            <template v-else>
-              <p class="hint">Non configurée — n'importe qui connaissant votre mot de passe peut se connecter. Recommandé pour un compte administrateur.</p>
-              <div class="actions">
-                <UiButton :loading="busy" @click="setupTotp"><template #icon><ShieldCheck/></template>Configurer</UiButton>
-              </div>
-            </template>
-          </SettingsCard>
-
-          <SettingsCard title="Passkeys" subtitle="Connexion sans mot de passe via l'empreinte, le visage ou une clé de sécurité de l'appareil." :icon="Fingerprint" :status="passkeys.length ? 'active' : 'inactive'" :collapsible="false">
-            <p v-if="!webAuthnAvailable" class="hint">Ton navigateur ne prend pas en charge les passkeys (WebAuthn).</p>
-            <div class="actions">
-              <UiButton :loading="busy" :disabled="!webAuthnAvailable" @click="registerPasskey"><template #icon><Fingerprint/></template>Enregistrer une passkey</UiButton>
-            </div>
-            <div v-for="key in passkeys" :key="key.credential_id" class="inline-row">
-              <div>
-                <strong>{{ key.name }}</strong>
-                <span>Ajoutée le {{ formatDate(key.created_at) }}</span>
-              </div>
-              <UiButton variant="danger" size="sm" icon-only title="Supprimer" aria-label="Supprimer" @click="deletePasskey(key)"><Trash2/></UiButton>
-            </div>
-            <UiEmptyState v-if="!passkeys.length" title="Aucune passkey enregistrée" compact />
-          </SettingsCard>
-        </template>
-
-        <SettingsCard
-          title="Application Mobile (PWA)"
-          subtitle="Installez Watchdeck sur votre smartphone ou bureau pour un accès plein écran rapide."
-          :icon="Smartphone"
-          :status="isInstalled ? 'active' : 'inactive'"
-          :collapsible="false"
-        >
-          <div v-if="isInstalled" class="pwa-status-badge">
-            <span class="badge available">✓ Application installée en mode autonome</span>
-            <p class="hint">Watchdeck s'exécute comme une application native avec son propre écran d'accueil et raccourcis.</p>
-          </div>
-          <div v-else class="pwa-install-section">
-            <p class="hint">
-              Watchdeck est compatible PWA (Progressive Web App). Vous pouvez l'ajouter à votre écran d'accueil sans passer par les stores d'applications.
-            </p>
-            <div class="actions">
-              <UiButton v-if="canInstall" variant="primary" :disabled="busy" @click="promptInstall"><template #icon><Download /></template>Installer l'application</UiButton>
-              <UiButton v-else-if="isIos" @click="showIosGuide = !showIosGuide"><template #icon><Smartphone /></template>Instructions pour iOS</UiButton>
-              <span v-else class="hint">Pour installer Watchdeck, utilisez le menu de votre navigateur (icône Installer dans la barre d'adresse ou « Ajouter à l'écran d'accueil »).</span>
-            </div>
-
-            <div v-if="showIosGuide" class="ios-guide-box">
-              <strong>Installation sur iPhone / iPad (Safari) :</strong>
-              <ol>
-                <li>1. Appuyez sur l'icône de <strong>Partage</strong> (rectangle avec flèche vers le haut).</li>
-                <li>2. Faites défiler et touchez <strong>« Sur l'écran d'accueil »</strong>.</li>
-                <li>3. Confirmez en touchant <strong>Ajouter</strong>.</li>
-              </ol>
-            </div>
-          </div>
-        </SettingsCard>
-
-        <SettingsCard title="Apparence" subtitle="Thème de l'interface sur cet appareil." :icon="Palette" status="active" :collapsible="false">
-          <UiRadioCards v-model="themeChoice" :options="themeCards" label="Thème de l'interface" />
-        </SettingsCard>
-
-        <p v-if="!canManageSecurity" class="hint">La double authentification et les passkeys nécessitent un compte lié à un utilisateur Plex.</p>
+<template>
+  <AppPage hide-search title="Profil" :error="error" :success="message" @dismiss-success="message = ''">
+    <!-- En-tete : qui je suis, puis mes chiffres. Les onglets viennent dessous. -->
+    <header class="profile-hero">
+      <UiAvatar class="profile-hero__avatar" :src="account?.avatar_url" :name="name" tone="accent" size="lg" />
+      <div class="profile-hero__text">
+        <h2>Bonjour {{ firstName }}</h2>
+        <p>{{ heroLine }}</p>
       </div>
-    </div>
+    </header>
+
+    <MetricGrid v-if="account" class="profile-metrics" grid-class="profile-metrics-grid" aria-label="Mes chiffres">
+      <MetricCard label="Mes demandes" :value="stats.total" :detail="lastRequestDetail" :loading="loading" to="/discover/requests" />
+      <MetricCard label="Disponibles" :value="stats.available + stats.partially_available" :detail="availableDetail" :loading="loading" card-class="profile-metric--ok" />
+      <MetricCard label="En cours" :value="inProgress" :detail="pendingApprovalDetail" :loading="loading" />
+      <MetricCard label="Protection du compte" :value="`${score.done}/${score.total}`" :detail="gap ? gapShort : 'Tout est en place'" :loading="loading" :card-class="gap ? 'profile-metric--todo' : 'profile-metric--ok'" />
+    </MetricGrid>
+
+    <AppSubnav v-model:active="tab" class="profile-tabs" variant="tabs" :items="tabItems" aria-label="Sections du profil" />
+
+    <section v-if="tab === 'overview'" class="profile-panel" aria-label="Aperçu">
+      <div v-if="gap" class="profile-todo">
+        <span class="profile-todo__mark" aria-hidden="true">!</span>
+        <p><strong>{{ gap.key === 'totp' ? 'Activez la double authentification.' : 'Ajoutez une passkey.' }}</strong> {{ gap.detail }}</p>
+        <UiButton variant="primary" @click="tab = 'security'">{{ gap.key === 'totp' ? 'Activer' : 'Ajouter' }}</UiButton>
+      </div>
+
+      <div class="profile-section-head">
+        <h3>Mes dernières demandes</h3>
+        <RouterLink to="/discover/requests">Tout voir</RouterLink>
+      </div>
+      <UiEmptyState v-if="account && !recent.length" title="Aucune demande pour l’instant" description="Les titres que vous demandez depuis Explorer apparaîtront ici." compact />
+      <ul v-else class="profile-requests">
+        <li v-for="item in recent" :key="item.id">
+          <RouterLink :to="mediaDetailPath({ request_id: item.id }, 'request', { discover: true })" class="profile-request">
+            <MediaPoster :poster-url="item.poster_url" :alt="''" sizes="(max-width: 640px) 30vw, 160px" />
+            <strong>{{ item.title }}</strong>
+            <span class="profile-request__status" :class="statusTone(item.status)">{{ requestStatusLabel(item.status) }}</span>
+          </RouterLink>
+        </li>
+      </ul>
+    </section>
+
+    <section v-else-if="tab === 'security'" class="profile-panel" aria-label="Sécurité">
+      <ProfileSecurityTab v-if="account" :account="account" @notify="notify" />
+    </section>
+
+    <section v-else-if="tab === 'notifications'" class="profile-panel" aria-label="Notifications">
+      <ProfileNotificationsTab v-if="account" :preferences="account.preferences" :plex-email="account.plex_email" @notify="notify" @error="actionError = $event" />
+    </section>
+
+    <section v-else class="profile-panel" aria-label="Compte et appareil">
+      <ProfileAccountTab :account="account" />
+    </section>
   </AppPage>
 </template>
 
-<script setup>
-import { formatDate } from '@/utils/format';
-import { base64UrlToBuffer, bufferToBase64Url } from '@/utils/webauthn';
-import { computed, ref, watch } from 'vue';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Fingerprint, KeyRound, Palette, ShieldCheck, UserRound, Smartphone, Download, Trash2 } from '@lucide/vue';
-import UiRadioCards from '@/components/ui/UiRadioCards.vue';
-import { useTheme } from '@/composables/useTheme';
-import QRCode from 'qrcode';
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { api } from '@/api';
-import SettingsCard from '@/components/settings/SettingsCard.vue';
-
-const { choice: themeChoice } = useTheme();
-const themeCards = [
-  { value: 'system', label: 'Système', description: "Suit le réglage clair ou sombre de l'appareil." },
-  { value: 'dark', label: 'Sombre', description: 'Fond bleu nuit, idéal le soir et pour les affiches.' },
-  { value: 'light', label: 'Clair', description: 'Fond clair, plus lisible en plein jour.' },
-];
-import { usePwaInstall } from '@/composables/usePwaInstall';
-import UiField from '@/components/ui/UiField.vue';
+import AppPage from '@/components/ui/AppPage.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
+import MetricCard from '@/components/ui/MetricCard.vue';
+import MetricGrid from '@/components/ui/MetricGrid.vue';
+import UiAvatar from '@/components/ui/UiAvatar.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
+import MediaPoster from '@/components/media/MediaPoster.vue';
+import ProfileAccountTab from '@/components/profile/ProfileAccountTab.vue';
+import ProfileNotificationsTab from '@/components/profile/ProfileNotificationsTab.vue';
+import ProfileSecurityTab from '@/components/profile/ProfileSecurityTab.vue';
+import { firstSecurityGap, securityChecks, securityScore, type ProfilePreferences } from '@/components/profile/profileSecurity';
 import { useSession } from '@/composables/useSession';
+import { mediaDetailPath } from '@/mediaUrl';
+import { formatDateLong, formatRelativeDate } from '@/utils/format';
+import { requestStatusLabel } from '@/utils/labels';
+import { roleLabel } from '@/utils/userLabels';
 
-const { canInstall, isInstalled, isIos, promptInstall } = usePwaInstall();
-const showIosGuide = ref(false);
+interface RecentRequest { id: number; title: string; status: string; poster_url?: string | null; media_type?: string }
+interface MeAccount {
+  id: number;
+  plex_user_id: string;
+  display_name: string;
+  role: string;
+  source?: string | null;
+  avatar_url?: string | null;
+  plex_email?: string | null;
+  created_at?: string | null;
+  last_login_at?: string | null;
+  has_local_password: boolean;
+  totp_enabled: boolean;
+  passkey_count: number;
+  preferences: ProfilePreferences;
+  stats: Record<string, number> & { last_requested_at?: string | null };
+  recent_requests: RecentRequest[];
+}
 
-const queryClient = useQueryClient();
+type Tab = 'overview' | 'security' | 'notifications' | 'account';
+
 const { session } = useSession();
-const userId = computed(() => session.value?.id || null);
-const identityQuery = useQuery({
-  queryKey: computed(() => ['users', 'detail', userId.value]),
-  queryFn: () => api(`/api/users/${userId.value}`),
-  enabled: computed(() => Boolean(userId.value)),
+// Le compte de l'assistant d'installation n'a pas d'id : rien a demander a /api/me.
+const hasAccount = computed(() => Boolean(session.value?.id));
+const meQuery = useQuery({
+  queryKey: ['me'],
+  queryFn: () => api<MeAccount>('/api/me'),
+  enabled: hasAccount,
 });
-const passkeysQuery = useQuery({
-  queryKey: computed(() => ['users', 'passkeys', userId.value]),
-  queryFn: () => api(`/api/users/${userId.value}/passkeys`),
-  enabled: computed(() => Boolean(userId.value)),
+const account = computed(() => meQuery.data.value || null);
+const loading = computed(() => meQuery.isPending.value && hasAccount.value);
+
+// La session arrive apres le premier rendu : l'onglet par defaut suit son chargement,
+// tant que la personne n'en a pas choisi un elle-meme.
+const chosenTab = ref<Tab | null>(null);
+const tab = computed<Tab>({
+  get: () => chosenTab.value || (hasAccount.value ? 'overview' : 'account'),
+  set: (value) => { chosenTab.value = value; },
 });
-const identity = computed(() => identityQuery.data.value || session.value);
-const password = ref('');
-const currentPassword = ref('');
-const passwordOtp = ref('');
-const totpDisableCode = ref('');
-const totpEnabled = ref(false);
-const totpSecret = ref('');
-const totpCode = ref('');
-const totpQr = ref('');
-const passkeys = computed(() => passkeysQuery.data.value || []);
+
 const actionError = ref('');
 const message = ref('');
-const webAuthnAvailable = Boolean(window.PublicKeyCredential && navigator.credentials);
+const error = computed(() => actionError.value || meQuery.error.value?.message || '');
+function notify(text: string) { message.value = text; actionError.value = ''; }
 
-// Le compte admin cree par l'assistant /setup initial n'est pas rattache a un
-// PlexUser (voir app/routers/auth.py setup_post) : la session n'a alors pas d'id,
-// et /api/users/{id}/... n'a rien a servir — on masque TOTP/passkeys plutot que
-// d'afficher des actions qui echoueraient silencieusement.
-const canManageSecurity = computed(() => Boolean(identity.value?.id));
-const displayName = computed(() => (
-  identity.value?.custom_name || identity.value?.display_name || identity.value?.plex_user_id || identity.value?.username || 'Compte'
-));
-const roleLabel = computed(() => identity.value?.role || '');
-const error = computed(() => actionError.value || identityQuery.error.value?.message || passkeysQuery.error.value?.message || '');
-
-function notify(text) { message.value = text; actionError.value = ''; }
-const invalidateIdentity = () => queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId.value] });
-const invalidatePasskeys = () => queryClient.invalidateQueries({ queryKey: ['users', 'passkeys', userId.value] });
-
-const passwordMutation = useMutation({
-  mutationFn: () => api(`/api/users/${userId.value}/password`, {
-    method: 'POST',
-    body: JSON.stringify({ password: password.value, current_password: currentPassword.value, otp_code: passwordOtp.value }),
-  }),
-  retry: 0,
-});
-const setupTotpMutation = useMutation({
-  mutationFn: () => api(`/api/users/${userId.value}/totp/setup`, { method: 'POST' }),
-  retry: 0,
-  gcTime: 0,
-});
-const enableTotpMutation = useMutation({
-  mutationFn: () => api(`/api/users/${userId.value}/totp/enable`, { method: 'POST', body: JSON.stringify({ code: totpCode.value }) }),
-  retry: 0,
-  onSuccess: invalidateIdentity,
-});
-const disableTotpMutation = useMutation({
-  mutationFn: () => api(`/api/users/${userId.value}/totp`, { method: 'DELETE', body: JSON.stringify({ code: totpDisableCode.value }) }),
-  retry: 0,
-  onSuccess: invalidateIdentity,
-});
-const deletePasskeyMutation = useMutation({
-  mutationFn: (key) => api(`/api/users/${userId.value}/passkeys/${encodeURIComponent(key.credential_id)}`, { method: 'DELETE' }),
-  retry: 0,
-  onSuccess: invalidatePasskeys,
-});
-const busy = computed(() => [passwordMutation, setupTotpMutation, enableTotpMutation, disableTotpMutation, deletePasskeyMutation, registerPasskeyMutation]
-  .some((mutation) => mutation.isPending.value));
-
-async function changePassword() {
-  try {
-    await passwordMutation.mutateAsync();
-    password.value = '';
-    currentPassword.value = '';
-    passwordOtp.value = '';
-    notify('Mot de passe modifié.');
-  } catch (e) { actionError.value = e.message; }
-}
-
-async function setupTotp() {
-  try {
-    const data = await setupTotpMutation.mutateAsync();
-    totpSecret.value = data.secret;
-    totpQr.value = await QRCode.toDataURL(data.uri, { width: 220, margin: 1 });
-    setupTotpMutation.reset();
-  } catch (e) { actionError.value = e.message; setupTotpMutation.reset(); }
-}
-
-function cancelTotpSetup() {
-  totpSecret.value = '';
-  totpCode.value = '';
-  totpQr.value = '';
-}
-
-async function enableTotp() {
-  try {
-    await enableTotpMutation.mutateAsync();
-    cancelTotpSetup();
-    totpEnabled.value = true;
-    notify('Double authentification activée.');
-  } catch (e) { actionError.value = e.message; }
-}
-
-async function disableTotp() {
-  try {
-    await disableTotpMutation.mutateAsync();
-    totpDisableCode.value = '';
-    totpEnabled.value = false;
-    notify('Double authentification désactivée.');
-  } catch (e) { actionError.value = e.message; }
-}
-
-async function deletePasskey(key) {
-  try {
-    await deletePasskeyMutation.mutateAsync(key);
-  } catch (e) { actionError.value = e.message; }
-}
-
-const registerPasskeyMutation = useMutation({
-  retry: 0,
-  mutationFn: async () => {
-    const options = await api('/api/users/webauthn/register/options', { method: 'POST', body: JSON.stringify({ user_id: identity.value.id }) });
-    options.challenge = base64UrlToBuffer(options.challenge);
-    options.user.id = base64UrlToBuffer(options.user.id);
-    options.excludeCredentials = (options.excludeCredentials || []).map(entry => ({ ...entry, id: base64UrlToBuffer(entry.id) }));
-    const credential = await navigator.credentials.create({ publicKey: options });
-    const payload = credential.toJSON ? credential.toJSON() : {
-      id: credential.id,
-      rawId: bufferToBase64Url(credential.rawId),
-      type: credential.type,
-      response: {
-        clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
-        attestationObject: bufferToBase64Url(credential.response.attestationObject),
-      },
-      clientExtensionResults: credential.getClientExtensionResults(),
-    };
-    const name = prompt('Nom de la passkey', 'Passkey') || 'Passkey';
-    await api('/api/users/webauthn/register/verify', { method: 'POST', body: JSON.stringify({ user_id: identity.value.id, credential: payload, name }) });
-  },
-  onSuccess: invalidatePasskeys,
+const name = computed(() => account.value?.display_name || session.value?.username || 'Compte');
+const firstName = computed(() => name.value.split(/\s+/)[0]);
+const heroLine = computed(() => {
+  const parts = [roleLabel(account.value?.role || session.value?.role)];
+  if (account.value?.created_at) parts.push(`membre depuis ${formatDateLong(account.value.created_at).replace(/^\d+\s/, '')}`);
+  if (account.value) parts.push(account.value.source === 'local' ? 'compte local' : 'connecté avec Plex');
+  if (account.value?.last_login_at) parts.push(`dernière connexion ${formatRelativeDate(account.value.last_login_at).toLowerCase()}`);
+  return parts.join(' · ');
 });
 
-async function registerPasskey() {
-  actionError.value = '';
-  try {
-    await registerPasskeyMutation.mutateAsync();
-    notify('Passkey enregistrée.');
-  } catch (e) { actionError.value = e.message; }
+const stats = computed(() => {
+  const s = account.value?.stats || {};
+  const n = (key: string) => Number(s[key] || 0);
+  return {
+    total: n('total'), available: n('available'), partially_available: n('partially_available'),
+    pending: n('pending'), pending_approval: n('pending_approval'), sent: n('sent'),
+  };
+});
+const inProgress = computed(() => stats.value.pending + stats.value.pending_approval + stats.value.sent);
+const lastRequestDetail = computed(() => (account.value?.stats.last_requested_at
+  ? `dernière ${formatRelativeDate(account.value.stats.last_requested_at).toLowerCase()}`
+  : 'aucune pour l’instant'));
+const availableDetail = computed(() => (stats.value.total
+  ? `${Math.round(((stats.value.available + stats.value.partially_available) / stats.value.total) * 100)} %`
+  : ''));
+const pendingApprovalDetail = computed(() => (stats.value.pending_approval
+  ? `dont ${stats.value.pending_approval} à approuver`
+  : 'téléchargement ou recherche'));
+
+const checks = computed(() => securityChecks(account.value));
+const score = computed(() => securityScore(checks.value));
+const gap = computed(() => firstSecurityGap(checks.value));
+const gapShort = computed(() => (gap.value?.key === 'totp' ? '2FA à activer' : 'passkey conseillée'));
+
+const recent = computed(() => (account.value?.recent_requests || []).slice(0, 6));
+function statusTone(status: string): string {
+  if (status === 'available' || status === 'partially_available') return 'is-ok';
+  if (status === 'failed' || status === 'rejected') return 'is-ko';
+  return 'is-wait';
 }
 
-watch(identity, (value) => { totpEnabled.value = Boolean(value?.totp_enabled); }, { immediate: true });
+const tabItems = computed(() => {
+  const todo = checks.value.filter((c) => !c.ok).length;
+  const items: { key: Tab; label: string; count?: number }[] = [];
+  if (hasAccount.value) {
+    items.push(
+      { key: 'overview', label: 'Aperçu' },
+      { key: 'security', label: 'Sécurité', ...(todo ? { count: todo } : {}) },
+      { key: 'notifications', label: 'Notifications' },
+    );
+  }
+  items.push({ key: 'account', label: 'Compte et appareil' });
+  return items;
+});
 </script>
 
 <style scoped lang="scss">
-.pwa-status-badge {
+@use '@/styles/foundations/breakpoints' as bp;
+
+.profile-hero {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 14%, var(--surface)) 0%, var(--surface) 60%);
 }
 
-.pwa-install-section {
+.profile-hero .profile-hero__avatar {
+  width: 72px;
+  height: 72px;
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+}
+
+.profile-hero__text { min-width: 0; }
+.profile-hero h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-2xl); }
+.profile-hero p { margin: 4px 0 0; color: var(--muted); font-size: var(--fs-sm); }
+
+.profile-metrics { margin-top: var(--space-4); }
+.profile-metrics :deep(.profile-metric--ok strong) { color: var(--green-text, var(--green)); }
+.profile-metrics :deep(.profile-metric--todo strong) { color: var(--accent); }
+
+.profile-tabs { margin-top: var(--space-5); }
+.profile-panel { padding-top: var(--space-4); }
+
+.profile-todo {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--space-3);
-}
-
-.ios-guide-box {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  margin-bottom: var(--space-5);
   padding: 12px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  border-left: 3px solid var(--accent);
-  font-size: var(--fs-xs);
-  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  font-size: var(--fs-sm);
+}
+.profile-todo p { margin: 0; flex: 1; color: var(--text); line-height: 1.45; }
+.profile-todo__mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-weight: 700;
 }
 
-.ios-guide-box ol {
-  margin: 0;
-  padding-left: 0;
-  list-style: none;
+.profile-section-head {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.profile-section-head h3 { margin: 0; font-size: var(--fs-md); }
+.profile-section-head a { flex: none; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.profile-section-head a:hover { color: var(--text); }
+
+.profile-requests {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.profile-request { display: block; color: inherit; text-decoration: none; }
+.profile-request :deep(.poster-shell) { aspect-ratio: 2 / 3; border-radius: var(--radius-sm); }
+.profile-request strong { display: block; margin-top: 6px; overflow: hidden; font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
+.profile-request__status { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.profile-request__status::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ''; }
+.profile-request__status.is-ok { color: var(--green-text, var(--green)); }
+.profile-request__status.is-wait { color: var(--accent); }
+.profile-request__status.is-ko { color: var(--red-text, var(--red)); }
+
+@include bp.until(tablet) {
+  .profile-requests { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .profile-requests li:nth-child(n + 5) { display: none; }
+}
+
+@include bp.until(phablet) {
+  .profile-hero { gap: var(--space-3); padding: var(--space-4); }
+  .profile-hero .profile-hero__avatar { width: 52px; height: 52px; font-size: var(--fs-lg); }
+  .profile-hero h2 { font-size: var(--fs-xl); }
+  .profile-todo { flex-wrap: wrap; }
+  .profile-todo .ui-button { margin-left: 40px; }
+  .profile-requests { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+  .profile-requests li:nth-child(n + 4) { display: none; }
 }
 </style>
