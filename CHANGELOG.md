@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.66.0 — 2026-10-02
+
+
+### ✨ Nouveautés
+
+- quotas de demandes par utilisateur ([0f4e4ad](https://github.com/remi-deher/watchdeck/commit/0f4e4ad6798018686ddd1ea92a2fb3714296c41b))
+- recherche des sous-titres FR via Plex ou Bazarr ([4604175](https://github.com/remi-deher/watchdeck/commit/460417578cdc20ca0cbdaa81171260edd846899c))
+- lettre « Nouveautés de la semaine » ([8a1830d](https://github.com/remi-deher/watchdeck/commit/8a1830da9602125c6493836f75cc2b15cfd7c550))
+- santé des indexeurs et alertes de panne ([da54b35](https://github.com/remi-deher/watchdeck/commit/da54b35f219bcce6d8b699b1dbf83e25e56d7491))
+
+### 👷 CI/CD
+
+- diff-cover compare au parent de base du commit de fusion (#632) ([612e912](https://github.com/remi-deher/watchdeck/commit/612e912020086c0c010ca10c0cdd69f82dd55867))
+
+### 🔧 Maintenance
+
+- bump aiosmtplib from 5.1.2 to 5.1.3 (#299) ([08e09be](https://github.com/remi-deher/watchdeck/commit/08e09be3b46a6fdebd02a921f7f8a3d52fcf7fb4))
+- bump pinia from 3.0.4 to 4.0.3 (#532) ([acfd7ba](https://github.com/remi-deher/watchdeck/commit/acfd7baf08b9ad8d048b802fa16ef39980591e9c))
+- bump @lucide/vue from 1.47.0 to 1.48.0 (#624) ([c664f38](https://github.com/remi-deher/watchdeck/commit/c664f3802ca7a2cfd057b3472deb5e0f1e93e816))
+- bump python from `05b2b8b` to `c6ead21` (#212) ([553dd3d](https://github.com/remi-deher/watchdeck/commit/553dd3dd1d8883004f07c0db04d5093ff266dab7))
+- bump node from `aadf416` to `0b36e8c` (#199) ([8a3f6ce](https://github.com/remi-deher/watchdeck/commit/8a3f6ce332c1bd9edf30e6ae02f638ffafb315a7))
+- bump python-dotenv from 1.2.2 to 1.2.3 (#169) ([223d555](https://github.com/remi-deher/watchdeck/commit/223d5559023718ab7a23eeb7f36ecf5a5b19dfdc))
 ## 1.65.0 — 2026-10-02
 
 
@@ -25,6 +47,7 @@
 - bump jsdom from 30.0.1 to 30.1.1 (#623) ([3cc79d7](https://github.com/remi-deher/watchdeck/commit/3cc79d794483fe3f81ac41b92ddc56aa289b9bfb))
 - sync main into dev ([fb7bcf0](https://github.com/remi-deher/watchdeck/commit/fb7bcf06d8ef50eef60ec5b8f1b5a7cd1e7183f6))
 - bump @types/node from 26.6.1 to 26.6.2 (#622) ([c140c0c](https://github.com/remi-deher/watchdeck/commit/c140c0cdb51234f4031597c35b7511b6afd453e6))
+- v1.65.0 (#630) ([0d03a5f](https://github.com/remi-deher/watchdeck/commit/0d03a5fe3d7b88932814aa37aa6e82f88d1a3cf3))
 ## 1.64.2 — 2026-10-01
 
 
