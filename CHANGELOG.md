@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.67.0 — 2026-10-02
+
+
+### ✨ Nouveautés
+
+- bloc « En direct sur Plex » en mur d'affiches (#639) ([536aa79](https://github.com/remi-deher/watchdeck/commit/536aa7952a4443314ceafa0bcc4bb9683b09c42e))
 ## 1.66.0 — 2026-10-02
 
 
@@ -22,6 +28,7 @@
 - bump python from `05b2b8b` to `c6ead21` (#212) ([553dd3d](https://github.com/remi-deher/watchdeck/commit/553dd3dd1d8883004f07c0db04d5093ff266dab7))
 - bump node from `aadf416` to `0b36e8c` (#199) ([8a3f6ce](https://github.com/remi-deher/watchdeck/commit/8a3f6ce332c1bd9edf30e6ae02f638ffafb315a7))
 - bump python-dotenv from 1.2.2 to 1.2.3 (#169) ([223d555](https://github.com/remi-deher/watchdeck/commit/223d5559023718ab7a23eeb7f36ecf5a5b19dfdc))
+- v1.66.0 (#636) ([6097535](https://github.com/remi-deher/watchdeck/commit/609753515f8908f644a0e993ce1fa351682e5dbf))
 ## 1.65.0 — 2026-10-02
 
 
