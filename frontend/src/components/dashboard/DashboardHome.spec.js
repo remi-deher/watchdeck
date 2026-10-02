@@ -82,6 +82,28 @@ describe('DashboardLiveStrip', () => {
     expect(wrapper.emitted('select')[0][0]).toStrictEqual(sessions[1]);
   });
 
+  it('detaille la qualite, le son, le reseau et la raison du transcodage', () => {
+    const sessions = [{
+      session_id: 3, title: 'Dune', user_name: 'Rémi', player: 'Apple TV', playback_method: 'transcode', state: 'playing',
+      progress_ms: 60_000, duration_ms: 600_000, geo_city: 'Lyon',
+      transcode_reason: { source: 'deduced', text: 'Codec HEVC non lu par le lecteur' },
+      stream_details: {
+        dynamic_range: { source: 'HDR10', output: 'SDR' },
+        tracks: {
+          video: { decision: 'transcode', from: { width: 3840, height: 1600 }, to: { height: 1080 } },
+          audio: { from: { channels: 8, language: 'Français' } },
+          subtitles: { languages: [{ language: 'English', selected: true }] },
+        },
+      },
+    }];
+    const wrapper = mount(DashboardLiveStrip, { props: { sessions }, global });
+    const chips = wrapper.findAll('.live-chip').map((chip) => chip.text());
+    expect(chips).toEqual(['4K → 1080p', 'HDR10 → SDR', '7.1 · FR', 'ST EN', 'Distant · Lyon']);
+    expect(wrapper.find('.live-card-reason').text()).toBe('Codec HEVC non lu par le lecteur');
+    expect(wrapper.find('.live-card-who').text()).toBe('Rémi · Apple TV');
+    expect(wrapper.text()).toContain('serveur libre vers');
+  });
+
   it('tient sur une ligne quand rien ne joue', () => {
     const wrapper = mount(DashboardLiveStrip, { global });
     expect(wrapper.find('.live-strip').classes()).toContain('is-idle');

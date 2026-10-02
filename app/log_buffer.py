@@ -58,10 +58,22 @@ class RedactSecretsFilter(logging.Filter):
             message = record.getMessage()
         except Exception:
             return True
-        redacted = redact_secrets(message)
-        if redacted != message:
-            record.msg = redacted
-            record.args = ()
+        if redact_secrets(message) == message:
+            return True
+        # Masquer dans les arguments sans les vider : le format d'acces
+        # d'uvicorn deballe record.args (5 valeurs) au moment d'ecrire.
+        if isinstance(record.args, tuple) and record.args:
+            args = tuple(redact_secrets(arg) if isinstance(arg, str) else arg for arg in record.args)
+            msg = redact_secrets(record.msg) if isinstance(record.msg, str) else record.msg
+            try:
+                rendered: str | None = str(msg) % args
+            except (TypeError, ValueError):
+                rendered = None
+            if rendered is not None and redact_secrets(rendered) == rendered:
+                record.msg, record.args = msg, args
+                return True
+        record.msg = redact_secrets(message)
+        record.args = ()
         return True
 
 
