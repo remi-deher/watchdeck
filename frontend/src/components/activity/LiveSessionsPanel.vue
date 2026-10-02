@@ -99,6 +99,9 @@ import { formatBandwidth } from '@/utils/format';
 export interface LiveSession {
   session_id: string | number;
   thumb_url?: string;
+  /** Fond (fanart) et logo de l'oeuvre, pour les dispositions larges de l'accueil. */
+  art_url?: string | null;
+  logo_url?: string | null;
   media_type?: string;
   title?: string;
   grandparent_title?: string;

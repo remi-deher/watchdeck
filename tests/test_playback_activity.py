@@ -1731,6 +1731,29 @@ def test_parse_sessions_marks_played_audio_by_language_when_ids_differ():
     assert [(item["language"], item["played"]) for item in languages] == [("English", False), ("Français", True)]
 
 
+def test_parse_sessions_keeps_show_art_and_logo_for_wide_layouts():
+    """Un épisode garde le fond de la série et son logo ; une URL hors Plex est écartée."""
+    xml = """
+<MediaContainer size="2">
+  <Video sessionKey="1" ratingKey="9" type="episode" title="Ep" art="/library/metadata/9/art/1"
+         grandparentArt="/library/metadata/3/art/2">
+    <Image type="coverPoster" url="/library/metadata/3/thumb/2" />
+    <Image type="clearLogo" url="/library/metadata/3/clearLogo/2" />
+    <Session id="a" />
+  </Video>
+  <Video sessionKey="2" ratingKey="7" type="movie" title="Film" art="https://example.org/art.jpg">
+    <Session id="b" />
+  </Video>
+</MediaContainer>
+"""
+    episode, movie = parse_plex_sessions(xml)
+    assert json.loads(episode["stream_details"])["artwork"] == {
+        "art": "/library/metadata/3/art/2",
+        "logo": "/library/metadata/3/clearLogo/2",
+    }
+    assert json.loads(movie["stream_details"])["artwork"] == {}
+
+
 def test_parse_sessions_lists_subtitles_and_marks_selected_one():
     """Les sous-titres du fichier, celui affiché, et ce que Plex en fait."""
     sheets = {
