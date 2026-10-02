@@ -126,7 +126,14 @@ export interface LiveSession {
   transcode_reason?: TranscodeReasonData | null;
   transcode_remux?: string | null;
   is_download?: boolean;
-  stream_details?: { relayed?: boolean | null } | null;
+  stream_details?: {
+    relayed?: boolean | null;
+    local?: boolean | null;
+    dynamic_range?: { source?: string | null; output?: string | null } | null;
+    tracks?: Record<string, any> | null;
+  } | null;
+  /** Avatar Plex du spectateur, quand son compte est connu de Watchdeck. */
+  user_avatar_url?: string | null;
   geo_status?: string;
   geo_city?: string;
   geo_region?: string;
