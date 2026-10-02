@@ -701,6 +701,27 @@ async def library_metrics(media_type: Optional[str] = None, db: AsyncSession = D
     }
 
 
+async def _recheck_library_item(db: AsyncSession, item: LibraryItem) -> dict:
+    """Revérifie un média de la bibliothèque sur chaque serveur Plex suivi.
+
+    Absent de tous (chaque serveur ayant répondu) : il est retiré tout de suite, sans
+    attendre le prochain scan complet, seul autre moment où une suppression dans Plex
+    est remarquée. En cas de doute, rien n'est retiré.
+    """
+    from ..services.plex_sync import check_library_item_in_plex, remove_library_items
+
+    present = await check_library_item_in_plex(db, item)
+    if present is None:
+        raise HTTPException(502, "Impossible de vérifier ce média sur tous les serveurs Plex. Réessayez plus tard.")
+    if present:
+        return {"found": True, "already_in_library": True, "library_id": item.id}
+    title = item.title
+    await remove_library_items(db, [item], source="plex_recheck")
+    await db.commit()
+    logger.info("Recheck Plex : '%s' n'est plus dans Plex, retiré de la bibliothèque", title)
+    return {"found": False, "removed": True, "title": title}
+
+
 @router.post("/media/recheck-plex")
 async def recheck_plex(
     request_id: Optional[int] = None,
@@ -727,8 +748,8 @@ async def recheck_plex(
         raise HTTPException(400, "request_id or library_id is required")
 
     if library_id:
-        await async_get_or_404(db, LibraryItem, library_id, "Library item not found")
-        return {"found": True, "already_in_library": True, "library_id": library_id}
+        item = await async_get_or_404(db, LibraryItem, library_id, "Library item not found")
+        return await _recheck_library_item(db, item)
     media = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
 
     settings = (await db.execute(select(Settings))).scalars().first()
