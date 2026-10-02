@@ -1,6 +1,6 @@
 <template>
   <CrudResourceList
-    title="Instances Sonarr, Radarr et Prowlarr"
+    title="Instances Sonarr, Radarr, Prowlarr et Bazarr"
     :icon="ServerCog"
     :items="arrInstances"
     :item-subtitle="(item: any) => [capitalize(item.arr_type), item.url].filter(Boolean).join(' · ')"

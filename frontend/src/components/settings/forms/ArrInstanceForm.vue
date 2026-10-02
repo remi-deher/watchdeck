@@ -1,17 +1,19 @@
 <template>
-  <!-- Instance Sonarr, Radarr ou Prowlarr, dans la feuille ouverte depuis Integrations. -->
+  <!-- Instance Sonarr, Radarr, Prowlarr ou Bazarr, dans la feuille ouverte depuis Integrations. -->
   <UiFeedback v-if="notFound" type="error" message="Cette instance n’existe plus." />
   <form v-else class="compact-form" @submit.prevent="enregistrer">
     <UiFeedback v-if="error" type="error" :message="error" />
     <label>Nom<input v-model="form.name"></label>
     <label>Type
-      <UiSelect v-model="form.arr_type" :options="[{ value: 'sonarr', label: 'Sonarr' }, { value: 'radarr', label: 'Radarr' }, { value: 'prowlarr', label: 'Prowlarr' }]" />
+      <UiSelect v-model="form.arr_type" :options="[{ value: 'sonarr', label: 'Sonarr' }, { value: 'radarr', label: 'Radarr' }, { value: 'prowlarr', label: 'Prowlarr' }, { value: 'bazarr', label: 'Bazarr' }]" />
     </label>
     <label>URL<input v-model="form.url" type="url"></label>
     <label>Clé API
       <input v-model="form.api_key" type="password">
-      <small>Disponible dans Sonarr/Radarr/Prowlarr sous Réglages -> Général -> Clé API.</small>
+      <small>Disponible dans Sonarr/Radarr/Prowlarr/Bazarr sous Réglages -> Général -> Clé API.</small>
     </label>
+    <small v-if="form.arr_type === 'bazarr'" class="check-hint">Bazarr doit être relié aux mêmes instances Radarr/Sonarr que Watchdeck : il retrouve les médias par leur identifiant Radarr/Sonarr.</small>
+    <template v-if="hasArrOptions">
     <label>Profil
       <UiSelect v-model="form.quality_profile_id" :options="[{ value: null, label: 'Par défaut' }, ...profiles.map((profile: any) => ({ value: profile.id, label: String(profile.name) }))]" />
     </label>
@@ -19,7 +21,8 @@
       <UiSelect v-model="form.root_folder" :options="[{ value: '', label: 'Par défaut' }, ...folders.map((folder: any) => ({ value: folder.path || folder, label: String(folder.path || folder) }))]" />
     </label>
     <small class="check-hint">Renseigne URL et Clé API puis clique « Charger profils et dossiers » pour remplir les deux listes ci-dessus depuis cette instance.</small>
-    <label v-if="plexServerOptions.length > 1 && form.arr_type !== 'prowlarr'">Serveur Plex
+    </template>
+    <label v-if="plexServerOptions.length > 1 && hasArrOptions">Serveur Plex
       <UiSelect v-model="form.plex_server_id" :options="plexServerOptions" />
       <small>Serveur dont les bibliothèques sont rafraîchies après un import de cette instance.</small>
     </label>
@@ -27,7 +30,7 @@
     <small class="check-hint">Instance utilisée par défaut pour ce type (Sonarr/Radarr) quand plusieurs sont configurées et qu'aucune n'est explicitement choisie pour une demande.</small>
 
     <div class="form-actions">
-      <UiButton @click="loadOptions"><ListRestart />Charger profils et dossiers</UiButton>
+      <UiButton v-if="hasArrOptions" @click="loadOptions"><ListRestart />Charger profils et dossiers</UiButton>
       <ConnectionTestAction :loading="testing" :disabled="!form.url || !form.api_key" label="Tester" @test="test" />
       <UiButton @click="emit('cancel')">Annuler</UiButton>
       <UiButton variant="primary" type="submit" :loading="saving" :disabled="!form.name || !form.url || !form.api_key"><Save />{{ creating ? 'Ajouter' : 'Mettre à jour' }}</UiButton>
@@ -71,9 +74,11 @@ const plexServerOptions = computed(() => (Array.isArray(plexServersQuery.data.va
   .filter((server) => server.is_primary || server.enabled || server.id === form.plex_server_id)
   .map((server) => ({ value: server.is_primary ? null : server.id, label: server.name })));
 
+/* Profils, dossiers et serveur Plex n'ont de sens que pour Sonarr et Radarr. */
+const hasArrOptions = computed(() => form.arr_type === 'sonarr' || form.arr_type === 'radarr');
 const profiles = ref<any[]>([]), folders = ref<any[]>([]);
 async function loadOptions(): Promise<void> {
-  if (form.arr_type === 'prowlarr') { profiles.value = []; folders.value = []; return; }
+  if (!hasArrOptions.value) { profiles.value = []; folders.value = []; return; }
   const q = !creating.value ? `?instance_id=${props.id}` : `?url=${encodeURIComponent(form.url)}&api_key=${encodeURIComponent(form.api_key)}`;
   [profiles.value, folders.value] = await Promise.all([
     api<any[]>(`/api/${form.arr_type}/profiles${q}`).catch(() => []),

@@ -1,4 +1,4 @@
-"""CRUD des instances Sonarr/Radarr/Prowlarr et lecture de leur configuration (profils de qualite, dossiers racine, tags)."""
+"""CRUD des instances Sonarr/Radarr/Prowlarr/Bazarr et lecture de leur configuration (profils de qualite, dossiers racine, tags)."""
 
 import asyncio
 import logging
@@ -12,8 +12,8 @@ from sqlalchemy.future import select
 from ..database import get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, DownloadClient, PlexServer
+from ..services import bazarr, prowlarr, radarr, sonarr
 from ..services import integration_configuration as configuration
-from ..services import prowlarr, radarr, sonarr
 from .arr_shared import (
     _arr_call,
     _arr_folders,
@@ -65,6 +65,7 @@ async def arr_capabilities(db: AsyncSession = Depends(get_db_async)):
         "has_sonarr": "sonarr" in enabled_types,
         "has_radarr": "radarr" in enabled_types,
         "has_prowlarr": "prowlarr" in enabled_types,
+        "has_bazarr": "bazarr" in enabled_types,
         "sonarr_configured": "sonarr" in configured_types,
         "radarr_configured": "radarr" in configured_types,
         "prowlarr_configured": "prowlarr" in configured_types,
@@ -169,6 +170,9 @@ async def test_arr_instance(body: TestArrInstanceBody):
         return {"success": ok, "message": msg}
     elif body.arr_type == "radarr":
         ok, msg = await radarr.check_connection(body.url, body.api_key)
+        return {"success": ok, "message": msg}
+    elif body.arr_type == "bazarr":
+        ok, msg = await bazarr.check_connection(body.url, body.api_key)
         return {"success": ok, "message": msg}
     return {"success": False, "message": f"Type d'instance inconnu : {body.arr_type}"}
 

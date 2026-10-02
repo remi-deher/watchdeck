@@ -54,6 +54,7 @@
       <div class="psh-main">
     <!-- Contenu principal -->
     <div class="discover-body">
+      <RequestQuotaNotice v-if="mode !== 'requests'" />
       <UiFeedback v-if="requestError" type="error" :message="requestError" dismissible @dismiss="requestError=''" />
       <UiFeedback v-if="requestSuccess" type="success" :message="requestSuccess" dismissible @dismiss="requestSuccess=''" />
 
@@ -434,6 +435,7 @@ import AppSubnav from '@/components/ui/AppSubnav.vue';
 import { EXPLORER_TABS, explorerTabFor } from '@/navigation';
 import { useDebounceFn } from '@vueuse/core';
 import { mediaRequestKey, useDirectMediaRequest } from '@/composables/useDirectMediaRequest';
+import RequestQuotaNotice from '@/components/discover/RequestQuotaNotice.vue';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/vue-query';
 import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
 import { mediaDetailPath } from '@/mediaUrl';

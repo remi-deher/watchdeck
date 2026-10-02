@@ -1,5 +1,7 @@
 import { isReadonly, ref, type Ref } from 'vue';
+import { useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
+import { queryKeys } from '@/queryKeys';
 import { canModerateSession, loadSession } from '@/composables/useSession';
 
 export function mediaRequestKey(item: { media_type?: string; tmdb_id?: number | string; id?: number | string }): string {
@@ -23,6 +25,7 @@ export interface DirectMediaRequestOptions {
 }
 
 export function useDirectMediaRequest({ onUpdated }: DirectMediaRequestOptions = {}) {
+  const queryClient = useQueryClient();
   const requesting = ref<string[]>([]);
   const requestError = ref('');
   const requestSuccess = ref('');
@@ -86,6 +89,8 @@ export function useDirectMediaRequest({ onUpdated }: DirectMediaRequestOptions =
     } catch (error: any) {
       requestError.value = error?.message || "Impossible d'envoyer la demande.";
     } finally {
+      // Le compteur de quota (Decouvrir) suit chaque tentative, acceptee ou refusee.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me.quota });
       requesting.value = requesting.value.filter((entry) => entry !== key);
     }
   }

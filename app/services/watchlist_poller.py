@@ -15,7 +15,7 @@ from ..cache import cache
 from ..database import AsyncSessionLocal
 from ..models import ArrInstance, DownloadClient, MediaRequest, PlexUser, PollHistory, RequestStatus, Settings
 from ..utils import now_utc, now_utc_naive
-from . import deleted_media, prowlarr
+from . import deleted_media, prowlarr, request_quotas
 from .acquisition_routing import find_active_media_arr
 from .diagnostics import record_event, update_request_context
 from .distributed_lock import acquire_distributed_lock, release_distributed_lock
@@ -792,6 +792,7 @@ async def _process_watchlist_item(
         if item.get("imdb_id") and not existing.imdb_id:
             existing.imdb_id = item["imdb_id"]
 
+    quota_exceeded = None
     if existing:
         # Ne retenter que les statuts récupérables
         if existing.status in (RequestStatus.pending, RequestStatus.failed):
@@ -808,6 +809,13 @@ async def _process_watchlist_item(
         ):
             logger.info("'%s' ignoré (bloqué après annulation) — ne sera pas recréé.", item["title"])
             return "skip"
+        # Quota atteint : la demande est quand meme enregistree (la watchlist n'offre aucun
+        # moyen de prevenir l'utilisateur au moment de l'ajout), mais elle attend la
+        # validation d'un administrateur au lieu de partir vers Sonarr/Radarr.
+        if item["media_type"] in request_quotas.QUOTA_MEDIA_TYPES and not request_quotas.is_exempt(user_obj):
+            state = await request_quotas.quota_state(db, settings, user_obj, uid, item["media_type"])
+            if state.exceeded:
+                quota_exceeded = state
         # L'affiche fournie par Plex peut venir d'une source qui expire : quand TMDB
         # connait le media, on retient d'emblee son affiche, reconstructible a tout moment.
         poster = item.get("poster_url")
@@ -862,6 +870,16 @@ async def _process_watchlist_item(
         db, item["media_type"], tmdb_id=item.get("tmdb_id"), tvdb_id=item.get("tvdb_id"), imdb_id=item.get("imdb_id")
     ):
         needs_approval = True
+    if quota_exceeded is not None:
+        needs_approval = True
+        await record_event(
+            db,
+            category="request",
+            action="quota_exceeded",
+            request=req,
+            message=request_quotas.exceeded_message(quota_exceeded) + " Demande mise en attente de validation.",
+            details={"used": quota_exceeded.used, "limit": quota_exceeded.limit},
+        )
     if needs_approval:
         await transition_request(db, req, "approval_required", source=item.get("source") or "watchlist")
         await db.commit()

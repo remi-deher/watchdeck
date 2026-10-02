@@ -71,6 +71,7 @@ from .routers import (
     me_api,
     message_reasons_api,
     metrics_api,
+    newsletter_api,
     notifications_api,
     onboarding_api,
     plex_servers_api,
@@ -79,6 +80,7 @@ from .routers import (
     scheduled_tasks_api,
     security_api,
     settings_api,
+    subtitles_api,
     system_api,
     users_api,
     vf_upgrades_api,
@@ -456,6 +458,8 @@ app.include_router(arr_instances_api.router)
 app.include_router(plex_servers_api.router)
 app.include_router(download_clients_api.router)
 app.include_router(prowlarr_api.router)
+app.include_router(subtitles_api.router)
+app.include_router(newsletter_api.router)
 app.include_router(arr_releases_api.router)
 app.include_router(arr_queue_api.router)
 app.include_router(manual_import_api.router)

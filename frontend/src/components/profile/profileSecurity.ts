@@ -17,6 +17,7 @@ export interface ProfilePreferences {
   notify_on_request?: boolean | null;
   notify_on_available?: boolean | null;
   notify_digest?: boolean | null;
+  notify_newsletter?: boolean | null;
   notify_vf_movie?: boolean | null;
   notify_vf_series?: boolean | null;
 }
