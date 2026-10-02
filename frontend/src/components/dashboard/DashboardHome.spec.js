@@ -104,6 +104,31 @@ describe('DashboardLiveStrip', () => {
     expect(wrapper.text()).toContain('serveur libre vers');
   });
 
+  it('adapte la disposition au nombre de lectures', () => {
+    const make = (count) => Array.from({ length: count }, (_, i) => ({ session_id: i + 1, title: `Film ${i + 1}`, state: 'playing' }));
+    const list = (count) => mount(DashboardLiveStrip, { props: { sessions: make(count) }, global }).find('.live-strip-list');
+    expect(list(1).classes()).toContain('is-banner');
+    expect(list(3).classes()).toContain('is-fanart');
+    expect(list(3).attributes('style')).toContain('--live-count: 3');
+    expect(list(5).classes()).toContain('is-fanart');
+    expect(list(6).classes()).toContain('is-posters');
+  });
+
+  it('montre le fond et le logo de l oeuvre en disposition large, le titre sinon', async () => {
+    const session = {
+      session_id: 'a', title: 'Le pilote', grandparent_title: 'Bref', season_number: 1, episode_number: 3, state: 'playing',
+      thumb_url: '/api/playback/thumb?path=%2Fposter', art_url: '/api/playback/thumb?path=%2Fart', logo_url: '/api/playback/thumb?path=%2Flogo',
+    };
+    const wrapper = mount(DashboardLiveStrip, { props: { sessions: [session] }, global });
+    expect(wrapper.find('.live-backdrop img').attributes('src')).toContain('%2Fart');
+    expect(wrapper.find('.live-inset img').attributes('src')).toContain('%2Fposter');
+    expect(wrapper.find('.live-logo').attributes('src')).toBe('/api/playback/thumb?path=%2Flogo&width=600');
+    expect(wrapper.find('.live-logo-label').text()).toBe('S1 · É3');
+    await wrapper.find('.live-logo').trigger('error');
+    expect(wrapper.find('.live-logo').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Bref · S1 · É3');
+  });
+
   it('tient sur une ligne quand rien ne joue', () => {
     const wrapper = mount(DashboardLiveStrip, { global });
     expect(wrapper.find('.live-strip').classes()).toContain('is-idle');
