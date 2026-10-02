@@ -8,7 +8,7 @@
  * Les cartes se déclarent elles-mêmes plutôt que d'être parcourues depuis la page : leur
  * contenu vit dans des slots, et seule la carte sait ce qu'elle porte vraiment.
  */
-import { computed, inject, provide, ref, type ComputedRef, type InjectionKey, type Ref } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, provide, ref, watch, type ComputedRef, type InjectionKey, type Ref } from 'vue';
 
 export interface SettingsSearchContext {
   query: Ref<string>;
@@ -79,4 +79,58 @@ export function provideSettingsSearch(query: Ref<string>): SettingsSearchContext
 /** Contexte de recherche, ou `null` hors des réglages — une carte reste utilisable seule. */
 export function useSettingsSearch(): SettingsSearchContext | null {
   return inject(KEY, null);
+}
+
+/* Contexte d'un groupe (section de réglages, liste d'objets) pour ses lignes : quand la
+   recherche correspond au titre du groupe, toutes ses lignes restent affichées -- chercher
+   « seed » doit montrer la section « Seed et nettoyage » entière, pas une section vide. */
+export interface SettingsGroupContext {
+  titleMatches: ComputedRef<boolean>;
+}
+export const SETTINGS_GROUP_KEY: InjectionKey<SettingsGroupContext> = Symbol('settings-group');
+
+/**
+ * Bloc filtrable par la barre de recherche des réglages : section, ligne ou objet.
+ *
+ * Le bloc lit son propre texte rendu (titre, aide, contenu des slots) plutôt que ses
+ * seules propriétés, comme le faisait la carte. `count` décide s'il compte dans le
+ * « n sur m » du champ : on compte les groupes et les objets, pas chaque ligne.
+ */
+export function useSearchableBlock(
+  element: () => HTMLElement | null | undefined,
+  extraText: () => string = () => '',
+  options: { count?: boolean; alsoMatches?: () => boolean } = {}
+): { visible: Ref<boolean>; query: ComputedRef<string> } {
+  const search = useSettingsSearch();
+  const visible = ref(true);
+  const id = Symbol('settings-block');
+  const counted = options.count !== false;
+
+  function evaluate(): boolean {
+    const query = search?.query.value || '';
+    const found = Boolean(options.alsoMatches?.()) || matchesQuery(`${extraText()} ${element()?.textContent || ''}`, query);
+    visible.value = found;
+    return found;
+  }
+
+  if (search) {
+    onMounted(async () => {
+      if (counted) search.register(id, evaluate);
+      // Le texte n'existe qu'après le rendu des slots.
+      await nextTick();
+      evaluate();
+      search.refresh();
+    });
+    onBeforeUnmount(() => {
+      if (counted) search.unregister(id);
+    });
+    watch(
+      () => search.query.value,
+      () => {
+        evaluate();
+        search.refresh();
+      }
+    );
+  }
+  return { visible, query: computed(() => search?.query.value || '') };
 }
