@@ -1,5 +1,5 @@
 <template>
-  <CollapsibleRoot v-model:open="open" as="section" class="settings-section">
+  <CollapsibleRoot ref="root" v-show="visible" v-model:open="open" as="section" class="settings-section">
     <header class="settings-section-head">
       <div class="settings-section-heading">
         <h3>
@@ -30,17 +30,21 @@ import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui
 /**
  * Un groupe de reglages : titre en TEXTE, pas en boite.
  *
- * Pendant de SettingsRow. La ou SettingsCard enferme chaque groupe dans un cadre
+ * Pendant de SettingsRow. La ou l'ancienne carte enfermait chaque groupe dans un cadre
  * avec icone, bordure, ombre et badge, on se contente ici d'un titre et d'un filet :
  * la hierarchie reste lisible, sans les ~105 px de decor par bloc.
  *
- * `collapsible` est volontairement a false par defaut, a l'inverse de SettingsCard
- * (defaultOpen: false) : une page dense que l'on deroule vaut mieux qu'une page
+ * La section se filtre avec la recherche des reglages : elle reste affichee si son titre
+ * ou l'une de ses lignes correspond, et ses lignes suivent (voir `useSearchableBlock`).
+ *
+ * `collapsible` est volontairement a false par defaut, a l'inverse de l'ancienne
+ * carte (repliee par defaut) : une page dense que l'on deroule vaut mieux qu'une page
  * courte qu'il faut fouiller en ouvrant les boites une a une. Le repli ne sert donc
  * qu'aux options avancees, rarement touchees.
  */
-import { ref } from 'vue';
+import { computed, provide, ref } from 'vue';
 import { ChevronDown } from '@lucide/vue';
+import { matchesQuery, SETTINGS_GROUP_KEY, useSearchableBlock } from '@/composables/useSettingsSearch';
 
 const props = withDefaults(
   defineProps<{
@@ -56,6 +60,11 @@ const props = withDefaults(
 );
 
 const open = ref(props.defaultOpen);
+
+const root = ref<{ $el?: HTMLElement } | null>(null);
+const { visible, query } = useSearchableBlock(() => root.value?.$el, () => `${props.title} ${props.subtitle}`);
+const titleMatches = computed(() => Boolean(query.value.trim()) && matchesQuery(`${props.title} ${props.subtitle}`, query.value));
+provide(SETTINGS_GROUP_KEY, { titleMatches });
 const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : props.status === 'inactive' ? 'Inactif' : '');
 </script>
 
@@ -96,6 +105,10 @@ const statusLabel = props.statusText || (props.status === 'active' ? 'Actif' : p
   font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--muted);
+}
+
+.settings-section-status.error {
+  color: var(--red-text);
 }
 
 .settings-section-status.active {

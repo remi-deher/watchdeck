@@ -32,7 +32,7 @@
       <label>Client ID<input v-model="form.oauth_client_id"></label>
       <label>Client secret (optionnel)<input v-model="form.oauth_client_secret" type="password" placeholder="Laisser vide pour conserver / si client public"></label>
       <div v-if="!creating" class="oauth-state">
-        <span class="settings-card-status" :class="connected ? 'active' : 'error'">
+        <span class="badge" :class="connected ? 'available' : 'failed'">
           {{ connected ? 'Compte Microsoft connecté' : 'Non connecté' }}
         </span>
         <UiButton @click="connectMicrosoft"><PlugZap />{{ connected ? 'Reconnecter' : 'Connecter avec Microsoft' }}</UiButton>

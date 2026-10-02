@@ -1,5 +1,14 @@
 ﻿<template>
-  <SettingsCard title="Plex" subtitle="Connexion au serveur Plex local — requise pour la bibliotheque, les demandes et la synchronisation VF." :icon="Server" :status="plexStatus" :default-open="true">
+  <SettingsItem
+    :title="name"
+    :subtitle="summary || form.plex_url || 'Requis pour la bibliothèque, les demandes et l’analyse VF'"
+    :tag="/principal/i.test(name) ? '' : 'Principal'"
+    :icon="Server"
+    :status="plexStatus"
+    :status-text="plexStatus === 'active' ? 'Configuré' : 'À configurer'"
+    keywords="plex url token jeton universal watchlist rss sso certificat tls"
+    saveable
+  >
     <template #actions>
       <ConnectionTestAction :loading="testingPlex" @test="testPlex" />
     </template>
@@ -13,7 +22,7 @@
       </ConnectionTestAction>
       <UiButton @click="startPlexSso"><LogIn/>Connexion Plex SSO</UiButton>
     </div>
-  </SettingsCard>
+  </SettingsItem>
 </template>
 
 <script setup lang="ts">
@@ -24,10 +33,12 @@ import { LogIn, Rss, Server } from '@lucide/vue';
 import { api } from '@/api';
 import { form, load, secretsPresent, success, fail, testSaved, validationErrors } from '@/settingsForm';
 import SecretField from '@/components/ui/SecretField.vue';
-import SettingsCard from '../SettingsCard.vue';
+import SettingsItem from '../SettingsItem.vue';
 import UiField from '@/components/ui/UiField.vue';
 import ConnectionTestAction from './ConnectionTestAction.vue';
 import { useConnectionTest } from '@/composables/useConnectionTest';
+
+withDefaults(defineProps<{ name?: string; summary?: string }>(), { name: 'Plex', summary: '' });
 
 // secretsPresent.plex_token reflete la config reelle (persistee), contrairement a
 // form.plex_token qui est toujours vide juste apres le chargement (voir settingsForm.ts).

@@ -1,10 +1,9 @@
 <template>
-  <CrudResourceCard
+  <CrudResourceList
     title="Instances Sonarr, Radarr et Prowlarr"
-    :subtitle="`${arrInstances.length} instance(s) configurée(s)`"
     :icon="ServerCog"
     :items="arrInstances"
-    :columns="columns"
+    :item-subtitle="(item: any) => [capitalize(item.arr_type), item.url].filter(Boolean).join(' · ')"
     empty-label="Aucune instance configurée."
     add-label="Ajouter"
     @open-modal="openSheet"
@@ -23,17 +22,12 @@ import { useMutation } from '@tanstack/vue-query';
 import { ServerCog } from '@lucide/vue';
 import { api } from '@/api';
 import { success, fail } from '@/settingsForm';
-import CrudResourceCard from '../CrudResourceCard.vue';
+import CrudResourceList from '../CrudResourceList.vue';
 import ConfirmModal from '../../ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
 
-const columns = [
-  { key: 'name', label: 'Nom', isTitle: true },
-  { key: 'arr_type', label: 'Type', isBadge: true },
-  { key: 'url', label: 'Adresse', class: 'url-cell' },
-  { key: 'enabled', label: 'Statut', isStatus: true },
-];
+function capitalize(value: string): string { return value ? value.charAt(0).toUpperCase() + value.slice(1) : ''; }
 
 const arrDefaults = { name: '', arr_type: 'sonarr', url: '', api_key: '', quality_profile_id: null, root_folder: '', minimum_availability: 'released', is_default: false, enabled: true, indexer_ids: null };
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();

@@ -270,6 +270,38 @@ def _activity_row(req: MediaRequest, role: str) -> dict:
     }
 
 
+async def _request_stats(user: PlexUser, db: AsyncSession) -> dict:
+    """Compteurs de demandes d'un utilisateur, par statut (fiche admin et page Profil)."""
+    rows = (
+        await db.execute(
+            select(MediaRequest.status, MediaRequest.requested_at).filter(
+                MediaRequest.plex_user_id == user.plex_user_id
+            )
+        )
+    ).all()
+    stats = {
+        "total": 0,
+        "available": 0,
+        "partially_available": 0,
+        "failed": 0,
+        "rejected": 0,
+        "sent": 0,
+        "pending": 0,
+        "pending_approval": 0,
+        "last_requested_at": None,
+    }
+    for status, req_at in rows:
+        stats["total"] += 1
+        s = status.value if hasattr(status, "value") else str(status)
+        if s == "sent_to_arr":
+            stats["sent"] += 1
+        elif s in stats:
+            stats[s] += 1
+        if req_at and (stats["last_requested_at"] is None or req_at > stats["last_requested_at"]):
+            stats["last_requested_at"] = req_at
+    return stats
+
+
 async def _build_user_activity(user: PlexUser, db: AsyncSession, limit: int = 12) -> dict:
     rows: dict[int, dict] = {}
     primary = (
@@ -387,23 +419,7 @@ async def list_users(db: AsyncSession = Depends(get_db_async)):
 async def get_user(user_id: int, db: AsyncSession = Depends(get_db_async)):
     """Détail complet d'un utilisateur + ses stats de demandes (pour la modale hub)."""
     user = await async_get_or_404(db, PlexUser, user_id, "User not found")
-    rows = (
-        await db.execute(
-            select(MediaRequest.status, MediaRequest.requested_at).filter(
-                MediaRequest.plex_user_id == user.plex_user_id
-            )
-        )
-    ).all()
-    stats = {"total": 0, "available": 0, "failed": 0, "sent": 0, "pending": 0, "last_requested_at": None}
-    for status, req_at in rows:
-        stats["total"] += 1
-        s = status.value if hasattr(status, "value") else str(status)
-        if s == "sent_to_arr":
-            stats["sent"] += 1
-        elif s in stats:
-            stats[s] += 1
-        if req_at and (stats["last_requested_at"] is None or req_at > stats["last_requested_at"]):
-            stats["last_requested_at"] = req_at
+    stats = await _request_stats(user, db)
 
     # Utilise le sérialiseur centralisé
     diagnostic = await _build_user_diagnostic(user, stats.copy(), db)

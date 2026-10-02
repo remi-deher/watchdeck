@@ -1,80 +1,59 @@
 <template>
-  <div class="scheduled-tab">
-    <!-- Réglage global, pas une tâche : il garde toute la largeur, au-dessus de la grille. -->
-    <SettingsCard title="Historique" subtitle="Durée de conservation de l'historique d'exécution des tâches planifiées ci-dessous." :icon="Archive" status="active" :collapsible="false">
-      <label>Historique de polling (jours)<RetentionDaysInput v-model="form.poll_history_retention_days" :default-days="30"/></label>
-    </SettingsCard>
+  <div class="settings-rows scheduled-tab">
+    <SettingsSection title="Historique" subtitle="Conservation de l'historique d'exécution des tâches ci-dessous.">
+      <SettingsRow label="Historique de polling" description="En jours.">
+        <RetentionDaysInput v-model="form.poll_history_retention_days" :default-days="30"/>
+      </SettingsRow>
+    </SettingsSection>
 
-    <!-- Les tâches se lisent en parallèle : une grille les rend comparables d'un coup
-         d'œil, là où onze cartes pleine largeur obligeaient à faire défiler. -->
-    <div class="settings-cards settings-cards--grid">
-      <SettingsCard
-        v-for="task in tasks"
-        :key="task.job"
-        :title="task.label"
-        :subtitle="task.description"
-        :icon="Clock"
-        :status="cardStatus(task)"
-        :status-text="cardStatusText(task)"
-        :collapsible="false"
-      >
-        <template #actions>
-          <UiButton @click.stop="toggleHistory(task.job)">
-            <History/>{{ openHistory === task.job ? 'Masquer' : 'Historique' }}
-          </UiButton>
+    <!-- Les tâches se comparent : un tableau aligne fréquence, dernière exécution et état
+         d'une tâche à l'autre, là où onze cartes faisaient défiler plus de trois écrans. -->
+    <SettingsSection title="Tâches planifiées" subtitle="Fréquence de chaque tâche de fond et résultat de sa dernière exécution.">
+      <UiDataTable label="Tâches planifiées" :rows="tasks" :columns="TASK_COLUMNS" :row-key="(task: any) => task.job" class="scheduled-table">
+        <template #empty><p class="empty">Aucune tâche planifiée.</p></template>
+        <template #cell-task="{ row: task }">
+          <strong>{{ task.label }}</strong>
+          <small class="scheduled-desc">{{ task.description }}</small>
+          <small v-if="task.state?.status === 'failed' && task.state?.last_error" class="scheduled-task-error">{{ task.state.last_error }}</small>
         </template>
-
-        <div class="scheduled-task-info">
-          <div class="scheduled-task-row">
-            <span>Intervalle actuel</span>
-            <strong>{{ formatInterval(task.interval_seconds) }}</strong>
-          </div>
-          <div v-if="task.fixed_schedule" class="scheduled-task-row">
-            <span>Planification</span>
-            <strong>{{ task.fixed_schedule }}</strong>
-          </div>
-          <div v-if="task.state?.finished_at" class="scheduled-task-row">
-            <span>Dernière exécution</span>
-            <strong>{{ formatDate(task.state.finished_at) }} ({{ formatDuration(task.state.duration_ms) }})</strong>
-          </div>
-          <div v-if="task.state?.status === 'failed' && task.state?.last_error" class="scheduled-task-error">
-            {{ task.state.last_error }}
-          </div>
-        </div>
-
-        <label v-if="task.settings_unit === 'heure (0-23)'">
-          Heure de déclenchement
-          <!-- Toutes les taches a heure murale n'ont pas de minute reglable : la purge des
-               journaux se declenche a l'heure pile. Sans ce repli, `form[undefined]`
-               laissait le champ horaire entierement vide. -->
+        <template #cell-frequency="{ row: task }">
           <UiTimeField
+            v-if="task.settings_unit === 'heure (0-23)'"
             :hour="form[task.settings_field] ?? 0"
             :minute="task.settings_minute_field ? (form[task.settings_minute_field] ?? 0) : 0"
             :with-minutes="!!task.settings_minute_field"
-            aria-label="Heure de déclenchement"
+            :aria-label="`Heure de déclenchement : ${task.label}`"
             @update:hour="form[task.settings_field] = $event"
             @update:minute="task.settings_minute_field && (form[task.settings_minute_field] = $event)"
           />
-        </label>
-        <label v-else-if="presetsFor(task.settings_field)">
-          Frequence
-          <IntervalPresetInput v-model="form[task.settings_field]" :presets="presetsFor(task.settings_field)!"/>
-        </label>
+          <IntervalPresetInput v-else-if="presetsFor(task.settings_field)" v-model="form[task.settings_field]" :presets="presetsFor(task.settings_field)!"/>
+          <span v-else class="scheduled-fixed">{{ task.fixed_schedule || formatInterval(task.interval_seconds) }}</span>
+        </template>
+        <template #cell-last="{ row: task }">
+          <span v-if="task.state?.finished_at" class="scheduled-last">{{ formatDate(task.state.finished_at) }}<small>{{ formatDuration(task.state.duration_ms) }}</small></span>
+          <span v-else class="scheduled-never">Jamais</span>
+        </template>
+        <template #cell-status="{ row: task }">
+          <span class="scheduled-status" :class="taskStatus(task)">{{ taskStatusText(task) }}</span>
+        </template>
+        <template #cell-actions="{ row: task }">
+          <UiButton size="sm" @click="openHistory = task.job"><History/>Historique</UiButton>
+        </template>
+      </UiDataTable>
+    </SettingsSection>
 
-        <div v-if="openHistory === task.job" class="scheduled-task-history">
-          <p v-if="historyLoading" class="notice">Chargement...</p>
-          <ul v-else-if="history.length">
-            <li v-for="row in history" :key="row.id" :class="row.status">
-              <span class="history-status">{{ row.status === 'complete' ? 'OK' : 'Échec' }}</span>
-              <span>{{ formatDate(row.started_at) }}</span>
-              <span>{{ formatDuration(row.duration_ms) }}</span>
-              <span v-if="row.error" class="scheduled-task-error">{{ row.error }}</span>
-            </li>
-          </ul>
-          <p v-else class="empty">Aucun historique.</p>
-        </div>
-      </SettingsCard>
-    </div>
+    <ModalShell :open="Boolean(openHistory)" :title="`Historique : ${historyTask?.label || ''}`" @close="openHistory = null">
+      <p v-if="historyLoading" class="notice">Chargement…</p>
+      <ul v-else-if="history.length" class="scheduled-task-history">
+        <li v-for="row in history" :key="row.id" :class="row.status">
+          <span class="history-status">{{ row.status === 'complete' ? 'OK' : 'Échec' }}</span>
+          <span>{{ formatDate(row.started_at) }}</span>
+          <span>{{ formatDuration(row.duration_ms) }}</span>
+          <span v-if="row.error" class="scheduled-task-error">{{ row.error }}</span>
+        </li>
+      </ul>
+      <p v-else class="empty">Aucun historique.</p>
+    </ModalShell>
   </div>
 </template>
 <script setup lang="ts">
@@ -82,18 +61,27 @@ import UiButton from '@/components/ui/UiButton.vue';
 import { formatElapsed as formatDuration, formatDateTimeSeconds as formatDate } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { Archive, Clock, History } from '@lucide/vue';
+import { History } from '@lucide/vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
 import { presetsFor } from '@/settingsPresets';
-import SettingsCard from './SettingsCard.vue';
+import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import ModalShell from '@/components/ui/ModalShell.vue';
+import SettingsSection from './SettingsSection.vue';
+import SettingsRow from './SettingsRow.vue';
 import IntervalPresetInput from './IntervalPresetInput.vue';
 import UiTimeField from '@/components/ui/UiTimeField.vue';
 import RetentionDaysInput from './RetentionDaysInput.vue';
 
 // Presets par tache : chaque job periodique a ses propres frequences pertinentes
 // (un scan leger n'a pas les memes echelles de temps qu'une synchro complete).
-
+const TASK_COLUMNS: UiColumn[] = [
+  { key: 'task', label: 'Tâche', card: 'title', minWidth: 240 },
+  { key: 'frequency', label: 'Fréquence' },
+  { key: 'last', label: 'Dernière exécution' },
+  { key: 'status', label: 'État' },
+  { key: 'actions', label: '', card: 'actions', className: 'actions' },
+];
 
 const openHistory = ref<string | null>(null);
 const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
@@ -106,19 +94,21 @@ const historyQuery = useQuery({
 const history = computed(() => historyQuery.data.value || []);
 const historyLoading = computed(() => historyQuery.isFetching.value);
 
-function cardStatus(task: any): string {
+const historyTask = computed(() => tasks.value.find((task: any) => task.job === openHistory.value) || null);
+
+function taskStatus(task: any): string {
   const status = task.state?.status;
   if (status === 'failed') return 'error';
   if (status === 'complete') return 'active';
   return 'neutral';
 }
 
-function cardStatusText(task: any): string {
+function taskStatusText(task: any): string {
   const status = task.state?.status;
   if (status === 'failed') return 'Échec';
   if (status === 'complete') return 'OK';
   if (status === 'running') return 'En cours';
-  return 'Jamais execute';
+  return 'Jamais exécutée';
 }
 
 function formatInterval(seconds: number): string {
@@ -129,73 +119,61 @@ function formatInterval(seconds: number): string {
   return `${Math.round(seconds / 86400)} j`;
 }
 
-
-async function toggleHistory(job: string): Promise<void> {
-  if (openHistory.value === job) {
-    openHistory.value = null;
-    return;
-  }
-  openHistory.value = job;
-}
 </script>
 <style scoped lang="scss">
-.scheduled-tab {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-/* Deux colonnes libellé/valeur alignées d'une ligne à l'autre : en `flex` avec
-   `space-between`, chaque valeur se calait où le libellé la laissait, et rien ne
-   s'alignait verticalement d'une carte à l'autre. */
-.scheduled-task-info {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px var(--space-3);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border);
-  font-size: var(--fs-sm);
-}
-/* Chiffres alignes a la virgule d'une ligne a l'autre : des durees et des dates en
-   chasse proportionnelle donnent une colonne de droite en dents de scie. */
-.scheduled-task-info strong {
-  font-variant-numeric: tabular-nums;
-}
-.scheduled-task-row {
-  display: contents;
-}
-.scheduled-task-row span {
+.scheduled-table :deep(td) { vertical-align: middle; }
+.scheduled-desc {
+  display: block;
+  max-width: 48ch;
+  margin-top: 2px;
   color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+.scheduled-last {
+  display: grid;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.scheduled-task-row strong {
-  min-width: 0;
-  color: var(--text);
-  font-weight: 600;
-  text-align: right;
+.scheduled-last small,
+.scheduled-never {
+  color: var(--muted);
+  font-size: var(--fs-xs);
 }
+.scheduled-fixed { color: var(--muted); }
+/* L'etat se lit a la couleur ET au mot, comme sur les lignes d'objets. */
+.scheduled-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.scheduled-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.scheduled-status.active { color: var(--green-text); }
+.scheduled-status.error { color: var(--red-text); }
 .scheduled-task-error {
-  grid-column: 1 / -1;
-  font-size: var(--fs-sm);
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-xs);
   color: var(--red-text);
   word-break: break-word;
 }
 .scheduled-task-history {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  margin-top: 4px;
-}
-/* Toutes les cartes partageant desormais la meme hauteur, un historique deplie les
-   ferait toutes grandir. On le borne et on le fait defiler sur lui-meme. */
-.scheduled-task-history ul {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  max-height: 190px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 .scheduled-task-history li {
   display: flex;
@@ -206,6 +184,7 @@ async function toggleHistory(job: string): Promise<void> {
   padding: 6px 8px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
+  font-variant-numeric: tabular-nums;
 }
 .scheduled-task-history li.failed {
   background: color-mix(in srgb, var(--red) 8%, transparent);

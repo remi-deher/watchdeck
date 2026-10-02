@@ -1,7 +1,15 @@
 <template>
-  <SettingsCard title="Import historique Tautulli" subtitle="Source facultative pour rapatrier manuellement les anciennes lectures" :icon="History" :status="form.tautulli_enabled ? 'active' : 'inactive'" :default-open="form.tautulli_enabled">
+  <SettingsItem
+    title="Import historique Tautulli"
+    subtitle="Source facultative pour rapatrier manuellement les anciennes lectures"
+    :icon="History"
+    :status="form.tautulli_enabled ? 'active' : 'inactive'"
+    :status-text="form.tautulli_enabled ? 'Activé' : 'Désactivé'"
+    keywords="url clé api importer normaliser historique sessions"
+    saveable
+  >
     <template #actions>
-      <ToggleSwitch v-model="form.tautulli_enabled" :label="form.tautulli_enabled ? 'Activé' : 'Désactivé'"/>
+      <ToggleSwitch v-model="form.tautulli_enabled" label="Activer" title="Activer Tautulli"/>
     </template>
     <div class="settings-grid two">
       <label class="span-two">URL Tautulli<input v-model.trim="form.tautulli_url" type="url" placeholder="http://tautulli:8181"><small>Adresse de votre instance Tautulli, ex. http://tautulli:8181 en Docker.</small></label>
@@ -20,8 +28,8 @@
       <UiButton :disabled="busy" @click="normalizeHistory"><RefreshCw/>Normaliser l'historique</UiButton>
     </div>
     <p v-if="status" class="connection-result">{{ status }}</p>
-    <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)"/>
-  </SettingsCard>
+  </SettingsItem>
+  <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)"/>
 </template>
 
 <script setup lang="ts">
@@ -36,7 +44,7 @@ import SecretField from '@/components/ui/SecretField.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { useConfirm } from '@/composables/useConfirm';
-import SettingsCard from '../SettingsCard.vue';
+import SettingsItem from '../SettingsItem.vue';
 
 const status=ref(''),importLength=ref(2000);
 const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
