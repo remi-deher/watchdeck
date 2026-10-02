@@ -160,6 +160,33 @@ JOB_CATALOG = [
         "default_seconds": 3600,
         "fixed_schedule": None,
     },
+    {
+        "job": "subtitle-search",
+        "label": "Sous-titres FR manquants",
+        "description": "Cherche, par lots, les sous-titres francais des medias en VO qui n'en ont pas (Plex ou Bazarr), si active.",
+        "settings_field": "subtitle_search_interval_hours",
+        "settings_unit": "heures",
+        "default_seconds": 21600,
+        "fixed_schedule": None,
+    },
+    {
+        "job": "newsletter",
+        "label": "Lettre « Nouveautés de la semaine »",
+        "description": "Envoie chaque semaine aux abonnes les films et series ajoutes a Plex, si active.",
+        "settings_field": "newsletter_hour",
+        "settings_unit": "heure (0-23)",
+        "default_seconds": 604800,
+        "fixed_schedule": None,
+    },
+    {
+        "job": "indexer-health",
+        "label": "Santé des indexeurs Prowlarr",
+        "description": "Previent l'administrateur quand un indexeur Prowlarr tombe en panne ou fonctionne de nouveau.",
+        "settings_field": None,
+        "settings_unit": None,
+        "default_seconds": 900,
+        "fixed_schedule": "Toutes les 15 minutes",
+    },
 ]
 
 

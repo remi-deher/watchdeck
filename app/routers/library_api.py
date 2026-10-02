@@ -8,6 +8,7 @@ import sqlalchemy
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -27,7 +28,7 @@ from ..models import (
     Settings,
     VfEpisodeStatus,
 )
-from ..services import deleted_media, radarr, sonarr
+from ..services import deleted_media, radarr, request_quotas, sonarr
 from ..services import seer as seer_service
 from ..services.diagnostics import record_event, update_request_context
 from ..services.email_service import build_correction_email, send_correction_notification
@@ -959,6 +960,31 @@ async def _needs_approval(
     return True
 
 
+async def _enforce_request_quota(db: AsyncSession, settings, caller: dict, body: "MediaAddRequest") -> None:
+    """Refuse une nouvelle demande quand le quota du compte est atteint (HTTP 429).
+
+    Redemander un media deja connu ne cree pas de nouvelle demande : le quota ne s'applique
+    donc qu'aux medias encore absents des demandes."""
+    if body.media_type not in request_quotas.QUOTA_MEDIA_TYPES:
+        return
+    uid = body.plex_user_id
+    if not uid:
+        return
+    user = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == uid))).scalars().first()
+    if request_quotas.is_exempt(user, caller):
+        return
+    filters = []
+    if body.tmdb_id:
+        filters.append(MediaRequest.tmdb_id == str(body.tmdb_id))
+    if body.tvdb_id:
+        filters.append(MediaRequest.tvdb_id == str(body.tvdb_id))
+    if filters and (await db.execute(select(MediaRequest.id).filter(or_(*filters)).limit(1))).first():
+        return
+    state = await request_quotas.quota_state(db, settings, user, uid, body.media_type)
+    if state.exceeded:
+        raise HTTPException(429, request_quotas.exceeded_message(state))
+
+
 async def _create_pending_request(db: AsyncSession, body: "MediaAddRequest") -> dict:
     """Enregistre une demande en attente de validation (aucune soumission à *arr)."""
     tmdb_str = str(body.tmdb_id) if body.tmdb_id else None
@@ -1055,6 +1081,9 @@ async def media_add(body: MediaAddRequest, request: Request, db: AsyncSession = 
         body.use_seer = False
         body.bypass_seer = False
     item = body.model_dump()
+
+    if caller and not caller_is_moderator:
+        await _enforce_request_quota(db, s, caller, body)
 
     pending = await _needs_approval(db, s, caller, body.plex_user_id, body)
     if pending:
