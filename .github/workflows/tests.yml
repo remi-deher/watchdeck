@@ -106,12 +106,14 @@ jobs:
       # et empeche donc la dette de croitre sans exiger de rattraper le passe.
       - name: Check coverage of changed lines
         if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
+        # Le checkout d'une PR est un commit de fusion dont le premier parent est la
+        # base au moment du lancement. On compare a ce parent plutot que de recuperer
+        # la branche de base : si elle avance pendant le job (fusion d'une autre PR),
+        # un fetch --depth=1 greffait une nouvelle pointe sans ancetre commun et
+        # diff-cover echouait sur "no merge base".
         run: |
-          git fetch origin "$BASE_REF" --depth=1
           python -m diff_cover.diff_cover_tool coverage.xml \
-            --compare-branch="origin/$BASE_REF" \
+            --compare-branch=HEAD^1 \
             --fail-under=80 \
             --markdown-report=diff-cover.md
           cat diff-cover.md >> "$GITHUB_STEP_SUMMARY"
