@@ -69,3 +69,4 @@ test-results/
 # Sortie de `npm run build` : reconstruite par le Dockerfile (etape frontend-builder)
 # et par la CI avant pytest ; la suivre dans git ne faisait que produire des conflits.
 app/static/vue/
+dump.rdb

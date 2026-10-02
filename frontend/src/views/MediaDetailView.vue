@@ -199,7 +199,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { queryKeys } from '@/queryKeys';
 import { LoaderCircle } from "@lucide/vue";
 import { useRoute, useRouter } from "vue-router";
-import { api } from "@/api";
+import { api, ApiError } from "@/api";
+import { useToast } from "@/composables/useToast";
 import { mediaDetailPath, openPlexLink } from "@/mediaUrl";
 import MediaDetailHero from "@/components/media/MediaDetailHero.vue";
 import { useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
@@ -231,6 +232,7 @@ const { actif: enSurface } = useMediaOverlay();
 // La recherche interactive s'ouvre dans la feuille, par-dessus la meme page de fond.
 const { ouvrir: ouvrirReleases } = useOuvrirFiche();
 const queryClient = useQueryClient();
+const { addToast } = useToast();
 const kind = computed(() => String(route.params.kind || ''));
 const mediaId = computed(() => String(route.params.id || ''));
 const mediaQueryKey = computed(() => ['media', kind.value, mediaId.value] as const);
@@ -437,7 +439,9 @@ function triggerBackgroundVfRescan(initialLoad: Promise<any>): void {
       if (!isInPlex.value) return;
       return seasons.rescan();
     })
-    .catch(() => {});
+    .catch((e: any) => {
+      if (e instanceof ApiError && e.status === 410) leaveRemovedMedia(e.message);
+    });
 }
 
 const {
@@ -554,17 +558,30 @@ async function joinRequest(): Promise<void> {
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
 }
 
+/** Le média n'est plus dans Plex et le serveur vient de le retirer : la fiche n'existe plus. */
+function leaveRemovedMedia(message: string): void {
+  addToast({ type: 'info', title: 'Média retiré', message, duration: 8000 });
+  queryClient.invalidateQueries({ queryKey: ['library'] });
+  router.push(inDiscoverShell.value ? '/discover' : '/library');
+}
+
 async function scanVff(): Promise<void> {
   busy.value = true;
   try { await seasons.rescan(); }
-  catch (e: any) { error.value = e.message; } finally { busy.value = false; }
+  catch (e: any) {
+    if (e instanceof ApiError && e.status === 410) leaveRemovedMedia(e.message);
+    else error.value = e.message;
+  } finally { busy.value = false; }
 }
 
 async function recheckPlex(): Promise<void> {
-  busy.value = true;
+  busy.value = true; error.value = '';
   try {
     const media = detail.value.media || {};
-    await recheckMutation.mutateAsync(`/api/media/recheck-plex?${media.library_id ? `library_id=${media.library_id}` : `request_id=${media.request_id}`}`);
+    const data = await recheckMutation.mutateAsync(`/api/media/recheck-plex?${media.library_id ? `library_id=${media.library_id}` : `request_id=${media.request_id}`}`);
+    if (data?.removed) leaveRemovedMedia(`« ${data.title} » n’est plus dans Plex : il a été retiré de Watchdeck.`);
+    else if (data?.found) successMessage.value = 'Présent dans Plex.';
+    else error.value = 'Toujours introuvable dans Plex.';
   } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
 }
 

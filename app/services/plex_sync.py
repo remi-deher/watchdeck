@@ -246,6 +246,82 @@ async def _prune_locations(db: AsyncSession, server_id: int, seen_keys: set[str]
     await db.commit()
 
 
+async def remove_library_items(db: AsyncSession, items: list[LibraryItem], source: str) -> int:
+    """Retire de la base des médias qui ne sont plus dans Plex (sans commit).
+
+    Les demandes rattachées sont détachées et, si elles étaient « disponibles »,
+    rétrogradées (availability_lost). Retourne le nombre de demandes rétrogradées.
+    """
+    from .request_lifecycle import transition_request
+
+    if not items:
+        return 0
+    ids = [item.id for item in items]
+    linked_reqs = (await db.execute(select(MediaRequest).filter(MediaRequest.library_item_id.in_(ids)))).scalars().all()
+    reverted = 0
+    for req in linked_reqs:
+        req.library_item_id = None
+        if req.status == RequestStatus.available:
+            await transition_request(db, req, "availability_lost", source=source)
+            logger.info("Plex : '%s' retiré de Plex — statut réinitialisé (availability_lost)", req.title)
+            reverted += 1
+    for item in items:
+        await db.delete(item)
+    return reverted
+
+
+_KIND_BY_MEDIA_TYPE = {"movie": "movie", "show": "series"}
+
+
+async def check_library_item_in_plex(
+    db: AsyncSession, item: LibraryItem, settings: Optional[Settings] = None
+) -> Optional[bool]:
+    """Le média est-il encore sur l'un des serveurs Plex suivis ?
+
+    True : vu sur au moins un serveur. False : absent de chaque serveur, chacun ayant
+    répondu et lu toutes ses bibliothèques. None : impossible de conclure (serveur
+    injoignable, bibliothèque illisible, serveur désactivé qui le portait, type de
+    média non vérifiable). Seul False autorise à retirer le média de la base.
+    """
+    kind = _KIND_BY_MEDIA_TYPE.get(item.media_type)
+    if kind is None:
+        return None
+    connections = await plex_servers.active_connections(db, settings)
+    located = (await plex_servers.servers_by_item(db, [item.id])).get(item.id, set())
+    if located - {conn.id for conn in connections}:
+        # Un serveur désactivé ou incomplet le portait : on ne peut pas le vérifier.
+        return None
+    checked_any = False
+    unknown = False
+    for conn in connections:
+        lib_names = [lib["name"] for lib in conn.libraries if lib["kind"] == kind]
+        if not lib_names:
+            continue
+        try:
+            present = await asyncio.to_thread(
+                plex_finder.is_item_in_libraries_strict,
+                conn.url,
+                conn.token,
+                lib_names,
+                item.title,
+                item.year,
+                item.tmdb_id,
+                item.tvdb_id,
+                item.imdb_id,
+                item.plex_guid,
+            )
+        except Exception as exc:
+            logger.warning("Plex : vérification de '%s' impossible sur %s : %s", item.title, conn.name, exc)
+            unknown = True
+            continue
+        if present:
+            return True
+        checked_any = True
+    if unknown or not checked_any:
+        return None
+    return False
+
+
 async def _build_arr_lookup(db: AsyncSession) -> dict:
     """Table de correspondance (media_type, id_kind, id_valeur) -> (instance, arr_id, slug),
     partagee par le scan complet et le scan incremental pour rattacher un media Plex a
@@ -375,8 +451,6 @@ async def sync_plex_media():
         # Un item sans plex_guid (match titre+année uniquement) n'est jamais touché ici :
         # on ne peut pas savoir avec certitude s'il était dans la fenêtre scannée.
         if seen_guids:
-            from .request_lifecycle import transition_request
-
             stale_items = (
                 (
                     await db.execute(
@@ -394,27 +468,7 @@ async def sync_plex_media():
             )
 
             if stale_items:
-                stale_ids = [item.id for item in stale_items]
-                linked_reqs = (
-                    (await db.execute(select(MediaRequest).filter(MediaRequest.library_item_id.in_(stale_ids))))
-                    .scalars()
-                    .all()
-                )
-
-                reverted = 0
-                for req in linked_reqs:
-                    req.library_item_id = None
-                    if req.status == RequestStatus.available:
-                        await transition_request(db, req, "availability_lost", source="plex_sync")
-                        logger.info(
-                            "VFF Sync : '%s' retiré de Plex — statut réinitialisé (availability_lost)",
-                            req.title,
-                        )
-                        reverted += 1
-
-                for item in stale_items:
-                    await db.delete(item)
-
+                reverted = await remove_library_items(db, stale_items, source="plex_sync")
                 logger.info(
                     "VFF Sync : %d LibraryItem(s) stale(s) supprimé(s), %d demande(s) réinitialisée(s)",
                     len(stale_items),

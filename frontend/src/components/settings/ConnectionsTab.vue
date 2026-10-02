@@ -1,20 +1,14 @@
 <template>
-  <div class="settings-merged">
-    <div class="settings-grid">
-      <div class="settings-cards span-two">
-        <PlexConnectionCard/>
-        <PlexServersCard/>
-        <PlexActivityCard/>
-      </div>
-    </div>
+  <div class="settings-rows">
+    <PlexServersList/>
+    <PlexActivitySection/>
     <h2 class="settings-merged-heading">Bibliothèque & VF</h2>
     <LibraryTab/>
   </div>
 </template>
 <script setup lang="ts">
-import PlexConnectionCard from './connections/PlexConnectionCard.vue';
-import PlexServersCard from './connections/PlexServersCard.vue';
-import PlexActivityCard from './connections/PlexActivityCard.vue';
+import PlexServersList from './connections/PlexServersList.vue';
+import PlexActivitySection from './connections/PlexActivitySection.vue';
 import LibraryTab from './LibraryTab.vue';
 </script>
 <style scoped lang="scss">

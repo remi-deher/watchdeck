@@ -865,6 +865,16 @@ async def library_vff_scan(
 
     res = await asyncio.to_thread(_blocking)
     if not res.get("found"):
+        if not res.get("error"):
+            # Introuvable sans erreur : le média a sans doute été retiré de Plex. On le
+            # confirme sur chaque serveur avant de le retirer de la bibliothèque.
+            from ..services.plex_sync import check_library_item_in_plex, remove_library_items
+
+            if await check_library_item_in_plex(db, item, settings) is False:
+                title = item.title
+                await remove_library_items(db, [item], source="plex_recheck")
+                await db.commit()
+                raise HTTPException(410, f"« {title} » n'est plus dans Plex : il a été retiré de Watchdeck.")
         raise HTTPException(404, res.get("error", "Media not found in Plex libraries"))
 
     now = now_utc_naive()

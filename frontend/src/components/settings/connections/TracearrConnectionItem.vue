@@ -1,14 +1,17 @@
 <template>
-  <SettingsCard
+  <SettingsItem
     title="Enrichissement Tracearr"
     subtitle="Complète les lectures dont Plex n’a pas conservé la décision"
     :icon="Sparkles"
     :status="form.tracearr_enabled ? 'active' : 'inactive'"
-    :default-open="form.tracearr_enabled"
+    :status-text="form.tracearr_enabled ? 'Activé' : 'Désactivé'"
+    keywords="url clé api enrichir import lectures"
+    saveable
   >
     <template #actions>
-      <ToggleSwitch v-model="form.tracearr_enabled" :label="form.tracearr_enabled ? 'Activé' : 'Désactivé'"/>
+      <ToggleSwitch v-model="form.tracearr_enabled" label="Activer" title="Activer Tracearr"/>
     </template>
+
 
     <div class="settings-grid two">
       <label class="span-two">URL Tracearr
@@ -39,7 +42,7 @@
     </div>
 
     <p v-if="status" class="connection-result">{{ status }}</p>
-  </SettingsCard>
+  </SettingsItem>
 </template>
 
 <script setup lang="ts">
@@ -51,7 +54,7 @@ import { api } from '@/api';
 import { form, save, secretsPresent } from '@/settingsForm';
 import SecretField from '@/components/ui/SecretField.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import SettingsCard from '../SettingsCard.vue';
+import SettingsItem from '../SettingsItem.vue';
 
 const busy = ref(false);
 const status = ref('');
