@@ -68,6 +68,7 @@ from .routers import (
     library_api,
     maintenance,
     manual_import_api,
+    me_api,
     message_reasons_api,
     metrics_api,
     notifications_api,
@@ -461,6 +462,7 @@ app.include_router(manual_import_api.router)
 app.include_router(downloads_api.router)
 app.include_router(users_api.router)
 app.include_router(security_api.router)
+app.include_router(me_api.router)
 app.include_router(requests_api.router)
 app.include_router(calendar_api.router)
 app.include_router(client_capabilities_api.router)
