@@ -32,6 +32,7 @@ from ..models import (
     PlaybackSession,
     PlaybackSessionSegment,
     PlexServer,
+    PlexUser,
     Settings,
 )
 from ..realtime import publish
@@ -2959,6 +2960,46 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
     }
 
 
+async def _live_avatars(rows, db) -> dict[str, str]:
+    """Avatar Plex des spectateurs en cours, pour les cartes de l'accueil.
+
+    Une session ne porte que l'identifiant de compte du serveur et le nom affiché : on
+    rapproche par l'UUID de compte, puis par l'identifiant, le nom ou le nom personnalisé
+    (en minuscules). Une seule requête, bornée aux spectateurs du moment ; un compte
+    désactivé garde son avatar, la lecture en cours étant bien la sienne.
+    """
+    account_ids = {row.plex_user_id for row in rows if row.plex_user_id}
+    names = {row.user_name.lower() for row in rows if row.user_name}
+    if not account_ids and not names:
+        return {}
+    users = (
+        (
+            await db.execute(
+                select(PlexUser).filter(
+                    PlexUser.avatar_url.is_not(None),
+                    or_(
+                        PlexUser.plex_account_uuid.in_(account_ids),
+                        func.lower(PlexUser.plex_user_id).in_(names),
+                        func.lower(PlexUser.display_name).in_(names),
+                        func.lower(PlexUser.custom_name).in_(names),
+                    ),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    avatars: dict[str, str] = {}
+    for user in users:
+        if user.plex_account_uuid and user.plex_account_uuid in account_ids:
+            avatars.setdefault(user.plex_account_uuid, user.avatar_url)
+        for label in (user.plex_user_id, user.display_name, user.custom_name):
+            key = (label or "").lower()
+            if key and key in names:
+                avatars.setdefault(key, user.avatar_url)
+    return avatars
+
+
 async def live_activity_snapshot(db=None) -> dict:
     """Retourne uniquement les sessions actives, pour le polling fréquent."""
     if db is None:
@@ -2981,10 +3022,12 @@ async def live_activity_snapshot(db=None) -> dict:
     configured = bool(connections)
     # Le nom du serveur n'est utile qu'a partir de deux : il distingue alors les lectures.
     server_names = {stored_server_id(conn): conn.name for conn in connections} if len(connections) > 1 else {}
+    avatars = await _live_avatars(active, db)
     items = []
     for row in active:
         item = _serialize(row)
         item["server_name"] = server_names.get(row.server_id)
+        item["user_avatar_url"] = avatars.get(row.plex_user_id or "") or avatars.get((row.user_name or "").lower())
         items.append(item)
     return {
         "active": items,
