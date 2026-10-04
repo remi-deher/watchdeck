@@ -1,11 +1,17 @@
 # Changelog
 
+## 1.68.1 — 2026-10-04
+
 ## 1.68.0 — 2026-10-02
 
 
 ### ✨ Nouveautés
 
 - bandeau « En direct » adapté au nombre de lectures, contour visible (#644) ([bb7f25f](https://github.com/remi-deher/watchdeck/commit/bb7f25f6b87d990194dff973e567182e9dc665db))
+
+### 🔧 Maintenance
+
+- v1.68.0 (#648) ([5862388](https://github.com/remi-deher/watchdeck/commit/586238852e63047c4c1f08b1bd99761d64dc3fe0))
 ## 1.67.0 — 2026-10-02
 
 
