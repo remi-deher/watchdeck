@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 STREAM_KEY = "watchdeck:events:v1"
 CHANNEL = "watchdeck:events"
 EVENT_TYPES = {
+    "storage.updated",
     "request.updated",
     "download.updated",
     "health.updated",

@@ -37,7 +37,7 @@ WORKDIR /app
 # mises a jour du depot Alpine au build evite notamment de conserver une libssl
 # vulnerable alors qu'une version corrigee est deja publiee.
 RUN apk upgrade --no-cache && \
-    apk add --no-cache libffi su-exec postgresql16-client
+    apk add --no-cache libffi su-exec postgresql16-client rsync
 
 COPY --from=builder /install /usr/local
 
