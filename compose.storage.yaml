@@ -1,0 +1,37 @@
+# Optional storage engine: docker compose -f docker-compose.yml -f compose.storage.yaml up -d transfers
+# Same Watchdeck image, separate process/resources. API/regular worker get no media mounts.
+services:
+  transfers:
+    image: ${WATCHDECK_IMAGE:-mrcryllix/watchdeck:latest}
+    build: .
+    container_name: watchdeck-transfers
+    entrypoint: ["sh", "/app/scripts/storage-entrypoint.sh"]
+    command: ["python", "-m", "app.storage.worker"]
+    restart: unless-stopped
+    stop_grace_period: 45s
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time; from pathlib import Path; assert time.time()-Path('/tmp/watchdeck-transfers-heartbeat').stat().st_mtime < 60"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    environment:
+      TRANSFER_UID: ${TRANSFER_UID:-568}
+      TRANSFER_GID: ${TRANSFER_GID:-568}
+      TZ: ${TZ:-Europe/Paris}
+      DATABASE_URL: postgresql://watchdeck:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-watchdeck}
+      REDIS_URL: redis://redis:6379/0
+      WATCHDECK_ENCRYPTION_KEY: ${WATCHDECK_ENCRYPTION_KEY:-}
+    volumes:
+      - ./data:/app/data:ro
+      - ${STORAGE_DATA1_PATH:?Configure STORAGE_DATA1_PATH}:/storage/data1
+      - ${STORAGE_DATA2_PATH:?Configure STORAGE_DATA2_PATH}:/storage/data2
+      - ${STORAGE_USB_PATH:?Configure STORAGE_USB_PATH}:/storage/usb
+    depends_on:
+      api:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

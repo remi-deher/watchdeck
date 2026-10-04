@@ -105,7 +105,8 @@ export const DESTINATIONS: NavDestination[] = [
   // catalogue. Il etait une section d'Explorer ; il devient une destination.
   { key: 'calendar', label: 'Calendrier', icon: CalendarDays, group: 'Explorer', match: (p) => p.startsWith('/calendar'), to: '/calendar' },
   { key: 'requests', label: 'Demandes', icon: Inbox, group: 'Workflow', match: (p) => p.startsWith('/discover/requests') || p.startsWith('/releases/'), to: '/discover/requests' },
-  { key: 'downloads', label: 'Acquisition', icon: GitBranch, group: 'Workflow', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
+  { key: 'downloads', label: 'Acquisition', icon: GitBranch, group: 'Gestion des médias', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
+  { key: 'storage', label: 'Stockage et transferts', icon: DatabaseZap, group: 'Gestion des médias', access: 'admin', match: (p) => p.startsWith('/storage'), to: '/storage' },
   // Lectures Plex et analyse du catalogue sont deux espaces distincts, pas deux
   // sections d'un meme : les regrouper obligeait chaque page a empiler sa propre
   // rangee d'onglets sous celle de la destination.
@@ -347,6 +348,9 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       break;
     case 'issues':
       sections = [{ key: 'issues', label: 'Problèmes', to: '/issues', icon: MessageSquareWarning }];
+      break;
+    case 'storage':
+      sections = [{ key: 'storage', label: 'Stockage et transferts', to: '/storage', icon: DatabaseZap }];
       break;
     case 'downloads':
       sections = pipelineSections();
