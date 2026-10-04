@@ -24,4 +24,4 @@ websockets==17.1
 pillow==12.3.0
 
 # Verified remote destination hashes used by storage transfers.
-paramiko==3.5.1
+paramiko==5.0.0

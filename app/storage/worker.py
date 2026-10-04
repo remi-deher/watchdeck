@@ -11,7 +11,7 @@ import shutil
 import signal
 import threading
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import httpx
 from sqlalchemy import select, text
@@ -189,8 +189,8 @@ async def process_item(db, job, item, stop):
         raise ValueError("Serveur Plex indisponible.")
     discovered = await discover_instance_roots(db, instance)
     for side in ("source", "destination"):
-        arr_root = str(Path(snap[side + "_arr"]).parent)
-        plex_root = str(Path(snap[side + "_plex"]).parent)
+        arr_root = str(PurePosixPath(snap[side + "_arr"]).parent)
+        plex_root = str(PurePosixPath(snap[side + "_plex"]).parent)
         if arr_root not in discovered["arr_roots"] or not any(
             root["path"] == plex_root and root["section_id"] == snap["plex_section_id"]
             for root in discovered["plex_roots"]
@@ -423,7 +423,7 @@ async def process_item(db, job, item, stop):
         await plex_get(
             conn,
             f"/library/sections/{snap['plex_section_id']}/refresh",
-            {"path": str(Path(snap["source_plex"]).parent)},
+            {"path": str(PurePosixPath(snap["source_plex"]).parent)},
         )
     except Exception:
         log.exception("Déplacement terminé, rafraîchissement du dossier source Plex à réessayer.")

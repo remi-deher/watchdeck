@@ -81,7 +81,7 @@ def connecter():
 
 
 def executer(script, stop=None):
-    from integrite import Interrompu
+    from .integrite import Interrompu
 
     client = connecter()
     channel = None
@@ -127,7 +127,7 @@ def tester():
 
 
 def empreinte_destination(path, stop=None, phase=None):
-    from integrite import Interrompu, empreinte
+    from .integrite import Interrompu, empreinte
 
     mode = CONFIG.get("hash_destination", "hybride")
     if mode not in ("hybride", "nfs", "ssh"):

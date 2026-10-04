@@ -68,6 +68,9 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
+      - name: Install rsync for transfer integrity tests
+        run: sudo apt-get update -qq && sudo apt-get install -y rsync
+
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
