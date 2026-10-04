@@ -80,6 +80,7 @@ from .routers import (
     scheduled_tasks_api,
     security_api,
     settings_api,
+    storage_api,
     subtitles_api,
     system_api,
     users_api,
@@ -454,6 +455,7 @@ app.include_router(auth.router)
 app.include_router(activity_api.router)
 app.include_router(settings_api.router)
 app.include_router(system_api.router)
+app.include_router(storage_api.router)
 app.include_router(arr_instances_api.router)
 app.include_router(plex_servers_api.router)
 app.include_router(download_clients_api.router)
@@ -498,6 +500,7 @@ app.include_router(events_api.router)
 
 SPA_INDEX = os.path.join("app", "static", "vue", "index.html")
 SPA_ROOTS = {
+    "storage",
     "activity",
     "dashboard",
     "discover",

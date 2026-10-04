@@ -237,10 +237,14 @@ async def _prune_locations(db: AsyncSession, server_id: int, seen_keys: set[str]
     """Retire les emplacements d'un serveur dont la clé Plex n'a pas été revue au scan complet."""
     if not seen_keys:
         return
+    from ..storage.migration_guard import active_migration_for
+
+    protected = select(LibraryItem.id).where(active_migration_for(LibraryItem))
     await db.execute(
         delete(LibraryItemLocation).where(
             LibraryItemLocation.server_id == server_id,
             LibraryItemLocation.rating_key.notin_(seen_keys),
+            LibraryItemLocation.library_item_id.notin_(protected),
         )
     )
     await db.commit()
@@ -254,6 +258,12 @@ async def remove_library_items(db: AsyncSession, items: list[LibraryItem], sourc
     """
     from .request_lifecycle import transition_request
 
+    if not items:
+        return 0
+    from ..storage.migration_guard import guarded_library_ids
+
+    protected = await guarded_library_ids(db, [item.id for item in items])
+    items = [item for item in items if item.id not in protected]
     if not items:
         return 0
     ids = [item.id for item in items]

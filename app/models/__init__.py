@@ -125,3 +125,5 @@ __all__ = [
     "VfUpgradeSuggestion",
     "WatchlistSource",
 ]
+
+from .storage import StorageLocation, StorageTransfer, StorageTransferItem

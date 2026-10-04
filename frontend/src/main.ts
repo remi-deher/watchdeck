@@ -95,6 +95,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/logs', component: LogsView, meta: { title: 'Journaux' } },
   // Un chemin par section : partageable, marquable en favori, et coherent avec le reste
   // de l'application. Le parametre `?tab=` reste accepte et redirige (voir SettingsView).
+  { path: '/storage', component: () => import('@/views/StorageView.vue'), meta: { title: 'Stockages et transferts' } },
   { path: '/settings', component: SettingsView, meta: { title: 'Administration' } },
   { path: '/settings/resource/:kind/:id', component: () => import('@/views/SettingsResourceView.vue'), meta: { title: 'Réglage' } },
   { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Connexions' } },
@@ -167,6 +168,7 @@ router.beforeEach(async (to) => {
     const qs = to.fullPath.includes('?') ? '?' + to.fullPath.split('?')[1] : '';
     return `${targetBase}/${to.params.kind}/${to.params.id}${qs}`;
   }
+  if (session && to.path.startsWith('/storage') && !isAdminSession(session)) return '/discover';
   if (session && !isAdminSession(session) && !isModeratorSession(session)) {
     if (!PLAIN_USER_ALLOWED_PREFIXES.some((prefix) => to.path.startsWith(prefix))) return '/discover';
   }

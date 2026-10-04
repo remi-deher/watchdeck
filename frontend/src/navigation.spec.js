@@ -62,7 +62,7 @@ describe('navigation — destinations', () => {
   });
 
   it('regroupe les destinations selon le workflow métier', () => {
-    expect(new Set(destinationsFor(true, true).map((d) => d.group))).toEqual(new Set(['Pilotage', 'Explorer', 'Workflow']));
+    expect(new Set(destinationsFor(true, true).map((d) => d.group))).toEqual(new Set(['Pilotage', 'Explorer', 'Workflow', 'Gestion des médias']));
     expect(new Set(adminAreasFor(true).map((d) => d.group))).toEqual(new Set(['', 'Configurer', 'Gérer']));
   });
 
