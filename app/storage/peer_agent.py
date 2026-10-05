@@ -9,8 +9,23 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
+
+
+def provide_auth(path, token, done):
+    while not done.is_set():
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+        except OSError:
+            done.wait(0.1)
+            continue
+        try:
+            os.write(fd, ("watchdeck:" + token + "\n").encode())
+        finally:
+            os.close(fd)
+        return
 
 
 def serve():
@@ -28,16 +43,14 @@ def serve():
     st = root.stat()
     if [st.st_dev, st.st_ino] != body["identity"]:
         raise ValueError("Receiver storage changed")
-    # rsync needs a file-like authentication source; keep it in anonymous RAM,
-    # never on the NAS filesystem. /proc lets its child read our protected fd.
-    with (
-        os.fdopen(os.memfd_create("watchdeck-rsync-auth", os.MFD_CLOEXEC), "wb") as auth,
-        tempfile.TemporaryDirectory(prefix="watchdeck-rsync-peer-") as tmp,
-    ):
-        os.fchmod(auth.fileno(), 0o600)
-        auth.write(("watchdeck:" + body["secret"] + "\n").encode())
-        auth.flush()
-        auth_path = f"/proc/{os.getpid()}/fd/{auth.fileno()}"
+    # A FIFO carries authentication directly from RAM into rsync. Its contents
+    # are never a regular file, and the containing directory is private (0700).
+    with tempfile.TemporaryDirectory(prefix="watchdeck-rsync-peer-") as tmp:
+        pipe_path = Path(tmp) / "auth.pipe"
+        os.mkfifo(pipe_path, 0o600)
+        done = threading.Event()
+        writer = threading.Thread(target=provide_auth, args=(pipe_path, body["secret"], done), daemon=True)
+        writer.start()
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
             port = reservation.getsockname()[1]
@@ -57,7 +70,7 @@ def serve():
                     "read only = no",
                     "list = no",
                     "auth users = watchdeck",
-                    f"secrets file = {auth_path}",
+                    f"secrets file = {pipe_path}",
                     "hosts allow = 127.0.0.1",
                     "hosts deny = *",
                 ]
@@ -101,6 +114,8 @@ def serve():
             except subprocess.TimeoutExpired:
                 os.killpg(proc.pid, signal.SIGKILL)
                 proc.wait()
+            done.set()
+            writer.join(timeout=2)
             print(json.dumps({"stopped": True}), flush=True)
 
 

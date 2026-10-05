@@ -201,17 +201,9 @@ def test_receiver_loopback_authentication_cleanup_and_identity(tmp_path, monkeyp
         secret="ephemeral",
     )
     monkeypatch.setitem(sys.modules, "fcntl", NS(LOCK_EX=1, LOCK_NB=2, flock=Mock()))
-    if not hasattr(peer_agent.os, "memfd_create"):
-        monkeypatch.setattr(
-            peer_agent.os,
-            "memfd_create",
-            lambda *a: __import__("os").open(
-                tmp_path / "memory-auth", __import__("os").O_RDWR | __import__("os").O_CREAT
-            ),
-            raising=False,
-        )
-        monkeypatch.setattr(peer_agent.os, "MFD_CLOEXEC", 1, raising=False)
-        monkeypatch.setattr(peer_agent.os, "fchmod", lambda *a: None, raising=False)
+    if not hasattr(peer_agent.os, "mkfifo"):
+        monkeypatch.setattr(peer_agent.os, "mkfifo", lambda path, mode: Path(path).touch(), raising=False)
+    monkeypatch.setattr(peer_agent.threading, "Thread", Mock())
     real_open = builtins.open
     monkeypatch.setattr(peer_agent, "open", lambda path, *args: real_open(tmp_path / "lock", *args), raising=False)
     monkeypatch.setattr(peer_agent.os, "getuid", lambda: 100, raising=False)
@@ -229,7 +221,7 @@ def test_receiver_loopback_authentication_cleanup_and_identity(tmp_path, monkeyp
         config = Path(command[-1].split("=", 1)[1])
         captured["config"] = config.read_text()
         captured["temp"] = config.parent
-        assert "secrets file = /proc/" in captured["config"]
+        assert "auth.pipe" in captured["config"]
         assert not (config.parent / "secret").exists()
         return proc
 
@@ -281,3 +273,17 @@ def test_binary_exec_relay_does_not_require_tcp_forwarding(monkeypatch, listen):
     if listen:
         listener.close.assert_called_once()
         assert json.loads(raw.getvalue().split(b"\n")[0])["port"] == 3210
+
+
+def test_fifo_authentication_stream_closes_descriptor(monkeypatch):
+    from app.storage import peer_agent
+
+    opened = Mock(return_value=123)
+    written = Mock()
+    closed = Mock()
+    monkeypatch.setattr(peer_agent.os, "open", opened)
+    monkeypatch.setattr(peer_agent.os, "write", written)
+    monkeypatch.setattr(peer_agent.os, "close", closed)
+    peer_agent.provide_auth("pipe", "one-time", threading.Event())
+    written.assert_called_once_with(123, b"watchdeck:one-time\n")
+    closed.assert_called_once_with(123)
