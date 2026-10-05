@@ -121,7 +121,7 @@ describe('Storage root correspondence table', () => {
   roots[1].arr_roots.push('/usb/SERIES');await wrapper.vm.$nextTick();
   const selects=wrapper.findAll('.prepare-route select');await selects[0].setValue('/usb/FILMS');await selects[1].setValue('/usb/SERIES');
   await wrapper.find('form').trigger('submit');await wrapper.find('form').trigger('submit');await flushPromises();
-  const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(2);expect(calls.map(([,opts])=>JSON.parse(opts.body).arr_instance_id)).toEqual([1,2]);
+  const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);expect(JSON.parse(calls[0][1].body).routes.map(r=>r.arr_instance_id)).toEqual([1,2]);
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);roots[1].arr_roots.pop();wrapper.unmount();
  });
  it('sends multiple checked sources with one shared objective',async()=>{
@@ -132,17 +132,12 @@ describe('Storage root correspondence table', () => {
   const checks=wrapper.findAll('.source-choices input');await checks[0].setValue(true);await checks[2].setValue(true);
   await wrapper.find('.prepare-route select').setValue('/usb/FILMS');
   expect(wrapper.find('.source-choices input[value="/usb/FILMS"]').attributes('disabled')).toBeDefined();
-  await wrapper.find('form').trigger('submit');expect(wrapper.findAll('.objective-options input')).toHaveLength(2);
-  expect(wrapper.text()).toContain('Quantité d’espace à libérer par racine');
-  expect(wrapper.find('select').exists()).toBe(false);
-  await wrapper.find('.root-goal input[type="number"]').setValue(123);
-  expect(wrapper.find('.root-goal input[type="range"]').element.value).toBe('123');
+  await wrapper.find('form').trigger('submit');expect(wrapper.findAll('.objective-options input')).toHaveLength(3);
+  expect(wrapper.text()).toContain('Espace à libérer au total');
   await wrapper.find('input[type="number"]').setValue(600);
-  expect(wrapper.find('.root-goal input[type="number"]').element.value).toBe('600');
-
   await wrapper.find('form').trigger('submit');await flushPromises();
   const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);
-  expect(JSON.parse(calls[0][1].body)).toMatchObject({source_roots:['/data/FILMS','/data2/FILMS'],destination_root:'/usb/FILMS',goal_gb:600,root_goals:{'/data/FILMS':600,'/data2/FILMS':600}});
+  expect(JSON.parse(calls[0][1].body)).toMatchObject({goal_gb:600,routes:[{source_roots:['/data/FILMS','/data2/FILMS'],destination_root:'/usb/FILMS',root_goals:{}}]});
   roots[0].arr_roots.pop();wrapper.unmount();
  });
  it('does not show a create-task button in transfers',async()=>{

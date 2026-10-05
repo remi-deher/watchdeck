@@ -87,6 +87,10 @@ async def preview(db, body):
 
 
 async def _preview(db, body):
+    if getattr(body, "routes", None):
+        from .objectives import preview_batch
+
+        return await preview_batch(db, body)
     if getattr(body, "transfer_methods", None):
         from .access import preview_priority
 

@@ -118,7 +118,13 @@ async def test_arr_preview_filters_occupied_titles_and_reserves_destination_spac
     instance = NS(id=1, enabled=True, arr_type="radarr")
     db = NS(
         get=AsyncMock(return_value=instance),
-        execute=AsyncMock(side_effect=[NS(all=lambda: [(1, 2)]), NS(scalar=lambda: 2_000_000_000)]),
+        execute=AsyncMock(
+            side_effect=[
+                NS(all=lambda: [(1, 2)]),
+                NS(scalar=lambda: 2_000_000_000),
+                NS(scalars=lambda: NS(all=lambda: [])),
+            ]
+        ),
     )
     source = dict(freeSpace=1_000_000_000)
     destination = dict(freeSpace=5_000_000_000)
@@ -201,7 +207,10 @@ async def test_multiple_sources_share_title_and_capacity_limits(monkeypatch, mod
 
     instance = NS(id=1, enabled=True, arr_type="radarr")
     db = NS(
-        get=AsyncMock(return_value=instance), execute=AsyncMock(side_effect=[NS(all=lambda: []), NS(scalar=lambda: 0)])
+        get=AsyncMock(return_value=instance),
+        execute=AsyncMock(
+            side_effect=[NS(all=lambda: []), NS(scalar=lambda: 0), NS(scalars=lambda: NS(all=lambda: []))]
+        ),
     )
     monkeypatch.setattr(arr, "discover_instance_roots", AsyncMock(return_value={}))
 

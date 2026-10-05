@@ -6,7 +6,7 @@
     <StorageOverviewPanel v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="rootRows.filter(r=>r.arr_root).length" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
     <UiFeedback v-if="previewProgress" type="info" :message="previewProgress" role="status" aria-live="polite" />
-    <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="discoveredRoots" :accesses="accesses" :locations="locations" :busy="busy" @configure="tab='settings'" @preview="preview" />
+    <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="discoveredRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :busy="busy" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
 
     <StorageTransferList v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,true)" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
@@ -21,7 +21,7 @@
       </template>
     </section>
 
-    <StoragePreviewDialog v-if="plan" v-model="selected" :plan="plan" :busy="busy" :error="error" :gb="gb" @close="plan=null" @launch="launch(true)" @save="launch(false)" />
+    <StoragePreviewDialog v-if="plan" v-model="selected" :plan="plan" :busy="busy" :error="error" :gb="gb" @close="plan=null" @launch="launch(true)" @save="launch(false)"  @protect="protectTitle"/>
   </AppPage>
 </template>
 
@@ -91,7 +91,11 @@ async function refreshRoots(silent=false){if(rootsLoading.value)return;rootsLoad
 async function checkMapping(id:number,index:number|string){const key=comparisonKey(id,index);checking.value=key;try{comparisons.value[key]=await api(`/api/storage/locations/${id}/mappings/${index}/check`,{method:'POST'});}catch(e:any){comparisons.value[key]={error:e.message};}finally{checking.value='';}}
 const editingTaskId=ref(0);
 const accesses=ref<any[]>([]),connections=ref<any[]>([]),bindingDrafts=ref<Record<string,any>>({});
-const form=ref({transfer_methods:['arr'] as string[],access_ids:{} as Record<string,number>,root_access_ids:{} as Record<string,number>,access_id:0,verification:'standard',name:'',routes:[] as any[],transfer_mode:'arr',arr_instance_id:0,source_root:'',destination_root:'',source_id:0,destination_id:0,mode:'release_space',goal_gb:500,media_type:'all',max_titles:250,auto_resume:true});
+const protectedTitles=ref<any[]>([]);
+async function loadProtections(){protectedTitles.value=await api('/api/storage/protected-titles');}
+const protectTitle=(item:any)=>act(async()=>{await api(`/api/storage/protected-titles/${item.arr_instance_id}/${item.arr_id}`,{method:'PUT',body:JSON.stringify({title:item.title})});selected.value=selected.value.filter(key=>key!==item.key);item.protected=true;await loadProtections();});
+const unprotectTitle=(key:string)=>act(async()=>{await api('/api/storage/protected-titles/'+key.replace(':','/'),{method:'DELETE'});await loadProtections();});
+const form=ref({transfer_methods:['arr'] as string[],access_ids:{} as Record<string,number>,root_access_ids:{} as Record<string,number>,access_id:0,verification:'standard',name:'',routes:[] as any[],transfer_mode:'arr',arr_instance_id:0,source_root:'',destination_root:'',source_id:0,destination_id:0,mode:'release_space',goal_gb:20,target_titles:null as number|null,preference:"closest",media_type:'all',max_titles:250,auto_resume:true});
 
 const newMapping=()=>newAssociationMapping(instances.value[0]?.id||0);
 const locationForm=ref({name:'',mount_path:'',reserve_gb:100,enabled:true,mappings:[newMapping()]});
@@ -100,16 +104,19 @@ async function load(silent=false){if(loading.value)return;loading.value=true;try
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
 const previewProgress=ref('');
 const preview=()=>act(async()=>{
+ await loadProtections();
  plan.value=null;const {routes,...settings}=form.value;if(editingTaskId.value && routes.length!==1)throw new Error('Modifiez une seule instance pour cette tâche, ou créez une nouvelle tâche.');const requestedRoutes=routes.map((r:any)=>({...r}));
- const groups:any[]=[];for(const route of requestedRoutes){const root_access_ids={...settings.root_access_ids};for(const root of [...route.source_roots,route.destination_root]){const endpoint=selectedRootAccess(settings,accesses.value,route.arr_instance_id,root);if(endpoint)root_access_ids[`${route.arr_instance_id}:${root}`]=endpoint.id;}const body={...settings,...route,root_access_ids,media_type:'all',root_goals:Object.fromEntries(route.source_roots.map((root:string)=>[root,route.root_goals?.[root] ?? settings.goal_gb])),task_id:editingTaskId.value};const result:any=await calculatePreview(body, seconds=>{previewProgress.value=`Calcul de l’aperçu · ${seconds} s · vérification des racines, des accès et du catalogue Plex…`;});if(result.transfer_mode){body.transfer_mode=result.transfer_mode;body.access_id=result.access_id;body.transfer_methods=[];Object.assign(body,{preferred_methods:result.preferred_methods});}groups.push({...result,body,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||route.arr_instance_id,submitted:false});}
- plan.value={groups,items:groups.flatMap(g=>g.items)};selected.value=plan.value.items.map((i:any)=>i.key);previewProgress.value='';
+ const preparedRoutes=requestedRoutes.map((route:any)=>{const root_access_ids={...settings.root_access_ids};for(const root of [...route.source_roots,route.destination_root]){const endpoint=selectedRootAccess(settings,accesses.value,route.arr_instance_id,root);if(endpoint)root_access_ids[`${route.arr_instance_id}:${root}`]=endpoint.id;}return {...route,root_access_ids,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||String(route.arr_instance_id)};});
+ const result:any=await calculatePreview({...settings,routes:preparedRoutes,task_id:editingTaskId.value},seconds=>{previewProgress.value=`Calcul de l’aperçu · ${seconds} s · contrôle des accès et recherche des titres…`;});
+ plan.value=result.groups?result:{groups:[{...result,body:settings,name:'Sélection',submitted:false}]};selected.value=settings.mode==='selection'?[]:plan.value.groups.flatMap((g:any)=>g.items.map((i:any)=>i.key));previewProgress.value='';
+
 });
 const launch=(startImmediately=true)=>act(async()=>{
  for(const group of plan.value.groups){if(group.submitted)continue;const keys=group.items.filter((i:any)=>selected.value.includes(i.key)).map((i:any)=>i.key);if(!keys.length)continue;await api('/api/storage/transfers'+(editingTaskId.value?`/${editingTaskId.value}`:''),{method:editingTaskId.value?'PUT':'POST',body:JSON.stringify({...group.body,selection:keys,start_immediately:startImmediately})});group.submitted=true;}
  plan.value=null;editingTaskId.value=0;tab.value='transfers';await load();
 });
-function createTask(){editingTaskId.value=0;plan.value=null;tab.value='prepare';}
-function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.mode==='selection'?'release_space':job.params.mode,media_type:'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;tab.value='prepare';}
+function createTask(){void loadProtections().catch((e:any)=>error.value=e.message);editingTaskId.value=0;plan.value=null;tab.value='prepare';}
+function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.objective_mode || job.params.mode,media_type:'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;tab.value='prepare';}
 async function verifyTask(job:any){prepareTask(job,true);await preview();}
 const removeTask=(id:number)=>act(async()=>{await api(`/api/storage/transfers/${id}`,{method:'DELETE'});await load();});
 const command=(id:number,action:string)=>act(async()=>{await api(`/api/storage/transfers/${id}/command`,{method:'POST',body:JSON.stringify({action})});await load();});
@@ -129,7 +136,7 @@ const saveLocation=()=>act(async()=>{
 });
 let timer:ReturnType<typeof setInterval>|undefined;
 function backgroundRefresh(){if(document.hidden)return;void load(true);if(Date.now()-rootsCheckedAt>=60000)void refreshRoots(true);}
-onMounted(async()=>{await load();await refreshRoots();timer=setInterval(backgroundRefresh,5000);document.addEventListener('visibilitychange',backgroundRefresh);});
+onMounted(async()=>{await load();void loadProtections().catch((e:any)=>error.value=e.message);await refreshRoots();timer=setInterval(backgroundRefresh,5000);document.addEventListener('visibilitychange',backgroundRefresh);});
 onUnmounted(()=>{if(timer)clearInterval(timer);document.removeEventListener('visibilitychange',backgroundRefresh);});
 useRealtime(['storage.updated'],()=>void load(true),{debounceMs:600});
 </script>
