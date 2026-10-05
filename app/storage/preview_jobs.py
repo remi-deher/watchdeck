@@ -12,7 +12,7 @@ from ..database import AsyncSessionLocal
 from . import service
 from .discovery import redis_client
 
-_tasks = set()
+_tasks: set[asyncio.Task[None]] = set()
 TTL = 900
 TIMEOUT = 600
 PREFIX = "storage:preview:"
