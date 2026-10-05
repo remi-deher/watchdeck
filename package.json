@@ -14,7 +14,7 @@
     "@lucide/vue": "^1.48.0",
     "@tanstack/query-async-storage-persister": "^5.103.2",
     "@tanstack/query-persist-client-core": "^5.103.2",
-    "@tanstack/vue-query": "^5.103.2",
+    "@tanstack/vue-query": "^5.104.0",
     "@tanstack/vue-table": "^9.2.4",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vueuse/core": "^15.0.0",
