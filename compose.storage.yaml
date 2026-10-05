@@ -1,4 +1,4 @@
-# Optional storage engine: docker compose -f docker-compose.yml -f compose.storage.yaml up -d transfers
+# SSH/API engine (no media mounts required): docker compose -f docker-compose.yml -f compose.storage.yaml up -d transfers
 # Same Watchdeck image, separate process/resources. API/regular worker get no media mounts.
 services:
   transfers:
@@ -25,9 +25,6 @@ services:
       WATCHDECK_ENCRYPTION_KEY: ${WATCHDECK_ENCRYPTION_KEY:-}
     volumes:
       - ./data:/app/data:ro
-      - ${STORAGE_DATA1_PATH:?Configure STORAGE_DATA1_PATH}:/storage/data1
-      - ${STORAGE_DATA2_PATH:?Configure STORAGE_DATA2_PATH}:/storage/data2
-      - ${STORAGE_USB_PATH:?Configure STORAGE_USB_PATH}:/storage/usb
     depends_on:
       api:
         condition: service_healthy

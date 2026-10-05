@@ -26,13 +26,14 @@ def chemin_distant(path):
     raise RuntimeError("Chemin destination sans correspondance SSH")
 
 
-def connecter():
+def connecter(config=None):
+    config = CONFIG if config is None else config
     import io
 
     import paramiko
 
-    host, user = CONFIG.get("ssh_host"), CONFIG.get("ssh_user")
-    attendu = CONFIG.get("ssh_fingerprint", "").strip()
+    host, user = config.get("ssh_host"), config.get("ssh_user")
+    attendu = config.get("ssh_fingerprint", "").strip()
     if not host or not user or not attendu:
         raise RuntimeError("SSH incomplet : hôte, utilisateur et empreinte serveur requis")
 
@@ -46,7 +47,7 @@ def connecter():
     client.set_missing_host_key_policy(Epingle())
     args = dict(
         hostname=host,
-        port=int(CONFIG.get("ssh_port", 22)),
+        port=int(config.get("ssh_port", 22)),
         username=user,
         timeout=10,
         banner_timeout=10,
@@ -54,9 +55,9 @@ def connecter():
         allow_agent=False,
         look_for_keys=False,
     )
-    if CONFIG.get("ssh_auth", "password") == "key":
-        cle = CONFIG.get("ssh_private_key", "")
-        mot = CONFIG.get("ssh_passphrase") or None
+    if config.get("ssh_auth", "password") == "key":
+        cle = config.get("ssh_private_key", "")
+        mot = config.get("ssh_passphrase") or None
         pkey = None
         for classe in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
             try:
@@ -68,7 +69,7 @@ def connecter():
             raise RuntimeError("Clé privée SSH invalide ou phrase secrète incorrecte")
         args["pkey"] = pkey
     else:
-        args["password"] = CONFIG.get("ssh_password", "")
+        args["password"] = config.get("ssh_password", "")
     try:
         client.connect(**args)
         return client

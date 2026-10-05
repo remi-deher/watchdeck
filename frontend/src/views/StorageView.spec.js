@@ -31,7 +31,7 @@ describe('Storage root correspondence table', () => {
   const wrapper=await factory();
   const row=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
   await row.find('select').setValue(JSON.stringify(['1','/media/FILMS']));
-  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer les')).trigger('click');await flushPromises();
+  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer')).trigger('click');await flushPromises();
   expect(request).toHaveBeenCalledWith('/api/storage/roots/check',expect.objectContaining({method:'POST',body:JSON.stringify({arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1',subdirectory:''})}));
   expect(row.text()).toContain('Correspondance confirmée sur 5 / 12');
   await row.find('select').setValue(JSON.stringify(['1','/usb/MEDIA/FILMS']));
@@ -43,7 +43,7 @@ describe('Storage root correspondence table', () => {
  it('saves a confirmed Arr/Plex association without an engine path or modal',async()=>{
   const wrapper=await factory();
   const row=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
-  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer les')).trigger('click');await flushPromises();
+  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer')).trigger('click');await flushPromises();
   const call=request.mock.calls.find(([path,opts])=>path==='/api/storage/locations' && opts?.method==='POST');
   expect(JSON.parse(call[1].body)).toMatchObject({mount_path:'',mappings:[{arr_root:'/data/FILMS',plex_root:'/media/FILMS'}]});
   expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
@@ -54,7 +54,7 @@ describe('Storage root correspondence table', () => {
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/roots/check'?{status:'mismatch'}:original(path,opts));
   const wrapper=await factory();
   const row=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
-  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer les')).trigger('click');await flushPromises();
+  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer')).trigger('click');await flushPromises();
   expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/locations' && opts?.method==='POST')).toBe(false);
   expect(wrapper.text()).toContain('Correspondance Arr/Plex non confirmée');
   wrapper.unmount();
@@ -62,22 +62,22 @@ describe('Storage root correspondence table', () => {
  it.each(['arr_empty','plex_empty'])('saves an empty root with a warning (%s)',async(empty_reason)=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/roots/check'?{status:'empty',empty_reason,items:[]}:original(path,opts));
   const wrapper=await factory();const row=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
-  expect(row.findAll('button')).toHaveLength(0);
-  expect(wrapper.findAll('button').filter(b=>b.text().startsWith('Vérifier et enregistrer les'))).toHaveLength(1);
-  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer les')).trigger('click');await flushPromises();
+  expect(row.findAll('button').some(b=>b.text()==='Vérifier et enregistrer')).toBe(false);
+  expect(wrapper.findAll('button').filter(b=>b.text().startsWith('Vérifier et enregistrer'))).toHaveLength(1);
+  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer')).trigger('click');await flushPromises();
   expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/locations' && opts?.method==='POST')).toBe(true);
   expect(row.text()).toContain('Aucun média');expect(wrapper.text()).toContain('contenu non confirmé');
   expect(wrapper.find('[role="dialog"]').exists()).toBe(false);wrapper.unmount();
  });
  it('checks and saves every selected root from one global button',async()=>{
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer les')).trigger('click');await flushPromises();
+  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer')).trigger('click');await flushPromises();
   expect(request.mock.calls.filter(([path])=>path==='/api/storage/roots/check')).toHaveLength(3);
   expect(request.mock.calls.filter(([path,opts])=>path==='/api/storage/locations' && opts?.method==='POST')).toHaveLength(3);
   expect(wrapper.text()).toContain('3 correspondance(s) enregistrée(s)');wrapper.unmount();
  });
  it('reports progress and only forces explicitly selected mismatches',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/roots/check'?{status:'mismatch'}:original(path,opts));
-  const wrapper=await factory();const button=()=>wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer les'));
+  const wrapper=await factory();const button=()=>wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer'));
   await button().trigger('click');await flushPromises();
   expect(wrapper.find('progress').attributes('value')).toBe('3');
   expect(wrapper.find('progress').attributes('max')).toBe('3');
@@ -88,8 +88,8 @@ describe('Storage root correspondence table', () => {
   expect(wrapper.text()).toContain('contenu non confirmé');wrapper.unmount();
  });
  it('uses one table and skips saved associations until explicitly rechecked',async()=>{
-  const wrapper=await factory();const button=()=>wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer les'));
-  expect(wrapper.findAll('table')).toHaveLength(2);expect(wrapper.text()).not.toContain('Comment savoir si');
+  const wrapper=await factory();const button=()=>wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer'));
+  expect(wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').exists()).toBe(true);expect(wrapper.text()).not.toContain('Comment savoir si');
   await button().trigger('click');await flushPromises();expect(button().attributes('disabled')).toBeDefined();
   const before=request.mock.calls.filter(([path])=>path==='/api/storage/roots/check').length;
   await wrapper.findAll('button').find(b=>b.text()==='Tout revérifier').trigger('click');await flushPromises();
@@ -108,7 +108,7 @@ describe('Storage root correspondence table', () => {
   expect(wrapper.find('input[value="rsync"]').exists()).toBe(false);
   expect(wrapper.text()).toContain('Stockages');
   expect(wrapper.text()).not.toContain('Watchdeck ne garantit');
-  expect(wrapper.text()).toContain('Quelles instances cibler');
+  expect(wrapper.text()).toContain('Instances à déplacer');
   expect(wrapper.text()).not.toContain('doivent être montés');
   wrapper.unmount();
  });
@@ -199,7 +199,7 @@ describe('Storage root correspondence table', () => {
   const row=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
   const element=row.element;
   await row.find('select').setValue(JSON.stringify(['1','/media/FILMS']));
-  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer les')).trigger('click');await flushPromises();
+  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer')).trigger('click');await flushPromises();
   expect(wrapper.findAll('button').some(b=>b.text().startsWith('Actualiser'))).toBe(false);
   clock.mockReturnValue(165000);
   const tick=interval.mock.calls.find(([,delay])=>delay===5000)[0];
@@ -225,6 +225,28 @@ describe('Storage root correspondence table', () => {
   const history=wrapper.find('[aria-label="Historique récent des lots"]');
   expect(history.text()).toContain('0 film(s) / 1 série(s)');expect(history.text()).toContain('10 min');
   wrapper.unmount();
+ });
+
+ it('saves paths for multiple rows globally and validates the shared connection once',async()=>{
+  const previous=request.getMockImplementation(),bindings=[];
+  request.mockImplementation(async(path,options)=>{
+   if(path==='/api/storage/connections')return [{id:7,name:'NAS',method:'ssh',tested:true}];
+   if(path==='/api/storage/bindings/multiple'){bindings.push(JSON.parse(options.body));return {saved:true};}
+   if(path==='/api/storage/accesses')return bindings.length?[{id:8,connection_id:7,name:'NAS',revision:'new',validation:{},roots:bindings.map(b=>({...b,...b.bindings[0]}))}]:[];
+   return previous(path,options);
+  });
+  const w=await factory();const rows=w.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr');
+  for(const [index,path] of [[0,'/mnt/data/FILMS'],[1,'/mnt/usb/FILMS']]){
+   await rows[index].findAll('button').find(b=>b.text()==='Configurer').trigger('click');
+   await rows[index].findAll('select')[1].setValue('7');
+   await rows[index].find('input[placeholder="Chemin accessible"]').setValue(path);
+   await rows[index].findAll('button').find(b=>b.text()==='Terminer').trigger('click');
+  }
+  await w.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer')).trigger('click');await flushPromises();
+  expect(bindings).toEqual([{arr_instance_id:1,arr_root:'/data/FILMS',bindings:[{connection_id:7,path:'/mnt/data/FILMS'}]},{arr_instance_id:1,arr_root:'/usb/FILMS',bindings:[{connection_id:7,path:'/mnt/usb/FILMS'}]}]);
+  expect(request.mock.calls.filter(([p])=>p==='/api/storage/accesses/8/validate')).toHaveLength(1);
+  expect(request.mock.calls.some(([p,o])=>p==='/api/storage/transfers' && o?.method==='POST')).toBe(false);
+  w.unmount();
  });
 
 });

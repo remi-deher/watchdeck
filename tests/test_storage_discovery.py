@@ -145,6 +145,7 @@ def test_mount_discovery_requires_file_proof_before_automatic_selection(tmp_path
         return original_read(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "read_text", read_mountinfo)
+    monkeypatch.setattr(discovery, "media_mounts", lambda: ["/storage/usb"])
     monkeypatch.setattr("app.storage.worker.mounted_root", lambda mount: base)
     monkeypatch.setattr(discovery, "compatible", lambda left, right: True)
     monkeypatch.setattr(discovery, "sample_matches", lambda path, files: matches)

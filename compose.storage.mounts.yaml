@@ -1,0 +1,8 @@
+# Optional local rsync mounts, in addition to compose.storage.yaml.
+# docker compose -f docker-compose.yml -f compose.storage.yaml -f compose.storage.mounts.yaml up -d transfers
+services:
+  transfers:
+    volumes:
+      - ${STORAGE_DATA1_PATH:?Configure STORAGE_DATA1_PATH}:/storage/data1
+      - ${STORAGE_DATA2_PATH:?Configure STORAGE_DATA2_PATH}:/storage/data2
+      - ${STORAGE_USB_PATH:?Configure STORAGE_USB_PATH}:/storage/usb
