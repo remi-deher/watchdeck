@@ -1,10 +1,11 @@
 <template>
   <div class="task-actions">
     <UiButton v-if="job.status==='draft'" variant="primary" :disabled="busy" @click="$emit('verify',job)">Vérifier et lancer</UiButton>
-    <UiButton v-else-if="!terminal && !cancelRequested" :disabled="busy" @click="$emit('command',job.id,active?'pause':'resume')">{{ active?'Pause':'Reprendre le lot' }}</UiButton>
-    <UiButton v-if="!terminal" :disabled="busy || cancelling" @click="$emit('cancel',job)">{{ cancelling?'Annulation…':job.status==='cancel_blocked'?'Réessayer l’annulation':'Annuler la tâche' }}</UiButton>
+    <UiButton v-else-if="!terminal && !cancelRequested" variant="primary" :disabled="busy" @click="$emit('command',job.id,active?'pause':['blocked','failed'].includes(job.status)?'retry':'resume')">{{ active?'Mettre en pause':['blocked','failed'].includes(job.status)?'Réessayer':'Reprendre le lot' }}</UiButton>
+
     <UiMenu :disabled="busy" :label="job.params?.name || `Tâche #${job.id}`">
       <template #trigger><UiButton icon-only :aria-label="`Actions de la tâche ${job.id}`"><Ellipsis :size="20" /></UiButton></template>
+      <UiMenuItem v-if="!terminal" :disabled="cancelling" @select="$emit('cancel',job)">{{ job.status==='cancel_blocked'?'Réessayer l’annulation':'Annuler la tâche' }}</UiMenuItem>
       <UiMenuItem v-if="job.status==='draft'" @select="$emit('edit',job)">Modifier</UiMenuItem>
       <UiMenuItem :disabled="cancelling" variant="danger" @select="$emit('remove',job)">{{ job.status==='draft'?'Supprimer le brouillon':'Supprimer la tâche' }}</UiMenuItem>
       <UiMenuItem v-if="!terminal && !cancelRequested && job.status!=='draft'" :disabled="job.status==='running'" @select="$emit('command',job.id,'retry')">Réessayer les titres en erreur</UiMenuItem>

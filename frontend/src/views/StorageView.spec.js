@@ -215,7 +215,7 @@ describe('Storage root correspondence table', () => {
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Vue d’ensemble').trigger('click');
   expect(wrapper.find('[aria-label="Capacité des stockages"]').text()).toContain('5 Go libres');
   expect(wrapper.find('[aria-label="Capacité des stockages"]').text()).toContain('10 Go au total');
-  expect(wrapper.find('progress').attributes('value')).toBe('50');
+  expect(wrapper.find('[aria-label="Volume copié de la tâche 1"]').attributes('aria-valuenow')).toBe('50');
   expect(wrapper.text()).toContain('20 Mo/s');expect(wrapper.text()).toContain('≈ 50 s');
   expect(wrapper.text()).toContain('7 Go');
   const history=wrapper.find('[aria-label="Historique récent des lots"]');

@@ -20,9 +20,12 @@ test('transfer actions and title details remain accessible at every screen size'
   }
   await page.goto('/storage',{waitUntil:'domcontentloaded',timeout:120_000});
   await page.getByRole('tab',{name:'Transferts',exact:true}).click();
-  const cancel=page.getByRole('button',{name:'Annuler la tâche',exact:true});
+  const openActions=()=>page.getByRole('button',{name:'Actions de la tâche 9'}).click();
+  await openActions();
+  const cancel=page.getByRole('menuitem',{name:'Annuler la tâche',exact:true});
   await expect(cancel).toBeVisible();
-  expect((await cancel.boundingBox()).height).toBeGreaterThanOrEqual(43.5);
+  expect((await page.getByRole('button',{name:'Reprendre le lot'}).boundingBox()).height).toBeGreaterThanOrEqual(43.5);
+  await page.keyboard.press('Escape');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
   await page.getByText('Voir les 2 titres et leurs détails',{exact:true}).click();
   const details=page.getByRole('button',{name:'Détails de The Simpsons',exact:true});
@@ -34,7 +37,7 @@ test('transfer actions and title details remain accessible at every screen size'
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog')).toContainText('/data/SERIES/The Simpsons');
   await page.getByRole('dialog').getByRole('button',{name:'Fermer',exact:true}).last().click();
-  await cancel.click();
+  await openActions();await cancel.click();
   await expect(page.getByRole('dialog')).toContainText('Avec rsync');
   expect(commands).toBe(0);
   await page.getByRole('button',{name:'Garder la tâche',exact:true}).click();
@@ -42,7 +45,7 @@ test('transfer actions and title details remain accessible at every screen size'
   await page.getByRole('button',{name:'Actions de la tâche 9'}).click();
   await expect(page.getByRole('menuitem',{name:'Relancer avec de nouveaux paramètres'})).toBeVisible();
   await page.keyboard.press('Escape');
-  await cancel.click();
+  await openActions();await cancel.click();
   await page.getByRole('button',{name:'Annuler et nettoyer',exact:true}).click();
   await expect.poll(()=>commands).toBe(1);
 });

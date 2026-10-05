@@ -3,14 +3,11 @@
   <AppSubnav v-model:active="filter" :items="filterItems" variant="tabs" class="compact-subnav" aria-label="Filtrer les tâches" />
   <UiEmptyState v-if="!filteredJobs.length" title="Aucune tâche" message="Aucune tâche dans cette section." compact />
   <PanelCard v-for="job in filteredJobs" :key="job.id" class="transfer-batch">
-   <header class="task-main"><div class="task-heading"><h2>{{ job.params?.name || `Tâche #${job.id}` }}</h2><UiBadge :tone="job.status==='completed'?'success':['cancel_blocked','blocked'].includes(job.status)?'warning':'neutral'">{{ status(job.status) }}</UiBadge></div><StorageTaskActions :job="job" :busy="busy" @relaunch="$emit('relaunch',$event)" @verify="$emit('verify',$event)" @edit="$emit('edit',$event)" @duplicate="$emit('duplicate',$event)" @remove="removing=$event" @cancel="cancelling=$event" @command="(id,action)=>$emit('command',id,action)" /></header>
-   <div class="task-subline"><span class="task-route">{{ instanceName(job) }} · {{ job.params?.source_roots?.join(', ') || locationName(job.source_id) }} → {{ job.params?.destination_root || locationName(job.destination_id) }}</span><span>{{ job.items.length }} titres · {{ gb(job.planned_bytes) }}</span></div>
-   <div v-if="job.status!=='draft'" class="batch-summary"><span>{{ finished(job) }} / {{ job.items.length }} terminés</span><span>{{ job.items.filter((item:any)=>!['completed','cancelled'].includes(item.status)).length }} restants</span><span>{{ gb(copied(job)) }} copiés</span><span>{{ gb(awaitingCleanup(job)) }} en attente de suppression</span><span>{{ gb(job.released_bytes) }} réellement libérés</span></div>
-   <p v-if="activeItem(job)">Maintenant : <strong>{{ activeItem(job).title }}</strong> · {{ status(activeItem(job).status) }}</p><p v-else-if="job.status!=='draft'">{{ job.status==='completed'?'Lot terminé':job.status==='cancelled'?'Tâche annulée · copies complètes conservées':'En attente du prochain titre' }}</p>
+   <StorageTransferSummary :job="job" :instance="instanceName(job)" :source="locationName(job.source_id)" :destination="locationName(job.destination_id)" :status="status" :gb="gb" :date="date"><template #actions><StorageTaskActions :job="job" :busy="busy" @relaunch="$emit('relaunch',$event)" @verify="$emit('verify',$event)" @edit="$emit('edit',$event)" @duplicate="$emit('duplicate',$event)" @remove="removing=$event" @cancel="cancelling=$event" @command="(id,action)=>$emit('command',id,action)" /></template></StorageTransferSummary>
    <p v-if="job.params?.delete_after_cancel">Suppression demandée : en attente de l’annulation sûre et du nettoyage.</p>
    <UiFeedback v-if="job.error" type="warning" :message="job.error" /><p v-if="!terminal(job) && job.status!=='draft' && job.desired_state !== 'run' && job.desired_state!=='cancel'">{{ job.desired_state==='pause'?'Pause':'Arrêt' }} demandé : {{ job.params?.transfer_mode==='arr'?'les prochains titres sont suspendus ; une copie Arr déjà lancée peut continuer.':'les fichiers partiels restent conservés.' }}</p>
 
-   <UiProgress v-if="job.status!=='draft' && job.items.length" :value="finished(job)" :max="job.items.length" :label="`Titres terminés de la tâche ${job.id}`" /><UiFeedback v-if="job.status==='cancelling'" type="loading" message="Arrêt de la copie et nettoyage des fichiers temporaires. Les copies complètes restent conservées." />
+<UiFeedback v-if="job.status==='cancelling'" type="loading" message="Arrêt de la copie et nettoyage des fichiers temporaires. Les copies complètes restent conservées." />
    <p v-if="activeItem(job) && ['arr_pending','copying'].includes(activeItem(job).status) && job.params?.transfer_mode==='arr'">Déplacement en cours dans {{ job.items.some((i:any)=>i.media_type==='series')?'Sonarr':'Radarr' }}. La progression de copie n’est pas fournie ; le suivi compte les titres terminés.</p>
    <div v-if="issues(job).length" class="task-issues"><strong>{{ issues(job).length }} titre(s) à traiter</strong><ul><li v-for="issue in reasons(job)" :key="issue.reason">{{ issue.count }} titre(s) : {{ issue.reason }}<small>{{ advice(issue.reason) }}</small></li></ul><p>Consultez les détails des titres pour corriger le motif, puis réessayez. Les autres titres peuvent continuer.</p></div>
    <details class="task-titles"><summary>Voir les {{ job.items.length }} titres et leurs détails</summary>
@@ -34,11 +31,10 @@
 </template>
 <script setup lang="ts">
 import PanelCard from '@/components/ui/PanelCard.vue';
-import UiBadge from '@/components/ui/UiBadge.vue';
-import UiProgress from '@/components/ui/UiProgress.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import StorageTaskActions from './StorageTaskActions.vue';
+import StorageTransferSummary from './StorageTransferSummary.vue';
 import StorageItemDialog from './StorageItemDialog.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -57,7 +53,6 @@ const taskPool=computed(()=>props.tab==='history'?props.jobs.filter(j=>['complet
 const filteredJobs=computed(()=>taskPool.value.filter(j=>matchesJob(j,filter.value)));
 const countJobs=(key:string)=>taskPool.value.filter(j=>matchesJob(j,key)).length;
 const items=(job:any)=>filter.value==='issues'?issues(job):job.items;const finished=(job:any)=>job.items.filter((i:any)=>i.status==='completed').length;
-const copied=(job:any)=>job.items.reduce((n:number,i:any)=>n+(['switching','plex_pending','cleaning','completed'].includes(i.status)?i.size_bytes:Math.min(i.size_bytes,i.progress?.copied_bytes||0)),0);
 const awaitingCleanup=(job:any)=>job.items.filter((i:any)=>['switching','plex_pending','cleaning'].includes(i.status)).reduce((n:number,i:any)=>n+i.size_bytes,0);
 const columns:UiColumn[]=[{key:'title',label:'Titre',card:'title'},{key:'size',label:'Volume'},{key:'state',label:'Étape / état'},{key:'updated',label:'Dernière activité',card:'hidden'},{key:'details',label:'Détails',card:'actions'}];
 defineEmits<{command:[id:number,action:string],create:[],edit:[job:any],duplicate:[job:any],verify:[job:any],remove:[id:number],relaunch:[job:any]}>();
@@ -65,7 +60,9 @@ defineEmits<{command:[id:number,action:string],create:[],edit:[job:any],duplicat
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.job-list{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0;max-width:100%}.compact-subnav :deep(.app-subnav__scroller){justify-content:center}.transfer-batch{padding:14px;min-width:0;width:100%;max-width:100%;box-sizing:border-box}.task-main{display:flex;justify-content:space-between;align-items:center;gap:12px}.task-heading{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}.task-heading h2{margin:0;font-size:var(--fs-base);overflow-wrap:anywhere}.task-subline{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;color:var(--muted);font-size:var(--fs-sm);margin:8px 0}.task-route{min-width:0;overflow-wrap:anywhere}.batch-summary{display:flex;flex-wrap:wrap;gap:12px;font-size:var(--fs-sm);padding:8px 0}.task-titles,.task-metadata{margin-top:8px;min-width:0}.task-titles>summary,.task-metadata>summary{min-height:44px;cursor:pointer;align-content:center}.task-issues{font-size:var(--fs-sm)}.task-issues small{display:block}.transfer-batch :deep(.ui-data-table){margin:8px 0;max-height:none}.transfer-batch :deep(.ui-data-table button){min-height:44px}.transfer-batch p{font-size:var(--fs-sm);overflow-wrap:anywhere}
+.job-list{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0;max-width:100%}.compact-subnav :deep(.app-subnav__scroller){justify-content:center}.transfer-batch{padding:22px;min-width:0;width:100%;max-width:100%;box-sizing:border-box}.task-main{display:flex;justify-content:space-between;align-items:center;gap:12px}.task-heading{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}.task-heading h2{margin:0;font-size:var(--fs-base);overflow-wrap:anywhere}.task-subline{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;color:var(--muted);font-size:var(--fs-sm);margin:8px 0}.task-route{min-width:0;overflow-wrap:anywhere}.batch-summary{display:flex;flex-wrap:wrap;gap:12px;font-size:var(--fs-sm);padding:8px 0}.task-titles,.task-metadata{margin-top:8px;min-width:0}.task-titles>summary,.task-metadata>summary{min-height:44px;cursor:pointer;align-content:center}.task-issues{font-size:var(--fs-sm)}.task-issues small{display:block}.transfer-batch :deep(.ui-data-table){margin:8px 0;max-height:none}.transfer-batch :deep(.ui-data-table button){min-height:44px}.transfer-batch p{font-size:var(--fs-sm);overflow-wrap:anywhere}
 @container card (max-width:600px){.task-main{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}}
 @include bp.until(phablet){.task-main{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}.task-actions{width:100%}.compact-subnav :deep(.app-subnav__scroller){justify-content:flex-start}.transfer-batch :deep(.table-cards){overflow:visible}.transfer-batch :deep(.table-cards td){padding:6px 0}.transfer-batch :deep(.table-cards td.card-actions){justify-content:flex-end}.transfer-batch :deep(.table-cards tr){padding:10px;margin-bottom:8px}}
 </style>
+
+<style scoped lang="scss">.task-issues{border:1px solid var(--accent);border-radius:var(--radius-md);padding:12px 14px;margin:16px 0;background:var(--surface-2)}.task-issues>strong{color:var(--accent)}.task-issues ul{padding-left:18px}.task-titles{border-top:1px solid var(--border);margin-top:16px}@media(max-width:600px){.transfer-batch{padding:16px}}</style>
