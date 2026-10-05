@@ -117,7 +117,7 @@ async def preview_arr(db, body, capacity_overrides=None):
         (
             await db.execute(
                 select(StorageTransferItem.arr_instance_id, StorageTransferItem.arr_id).where(
-                    StorageTransferItem.status != "completed",
+                    StorageTransferItem.status.notin_(["completed", "cancelled"]),
                     StorageTransferItem.transfer_id != getattr(body, "task_id", 0),
                 )
             )
@@ -128,7 +128,7 @@ async def preview_arr(db, body, capacity_overrides=None):
             select(func.coalesce(func.sum(StorageTransferItem.size_bytes), 0)).where(
                 StorageTransferItem.arr_instance_id == instance.id,
                 StorageTransferItem.snapshot["destination_root"].as_string() == destination,
-                StorageTransferItem.status != "completed",
+                StorageTransferItem.status.notin_(["completed", "cancelled"]),
                 StorageTransferItem.transfer_id != getattr(body, "task_id", 0),
             )
         )
@@ -158,6 +158,7 @@ async def preview_arr(db, body, capacity_overrides=None):
                 title=media["title"],
                 media_type=kind,
                 size_bytes=int(size),
+                added=media.get("added", ""),
                 snapshot=dict(
                     source_location_id=sl.id,
                     source_arr=media["path"],
@@ -171,10 +172,15 @@ async def preview_arr(db, body, capacity_overrides=None):
                 ),
             )
         )
+    from .objectives import enrich_candidates
+
+    await enrich_candidates(db, instance, candidates, body)
     # Minimum-free applies to each source, not the sum of potentially shared disks.
     if body.mode == "minimum_free" or root_goals:
         chosen, excluded, requested = [], [], 0
         covered = True
+        count_covered = True
+        source_objectives = []
         available = max(0, dst["freeSpace"] - int(reserved))
         for source, src, sm, sl in source_routes:
             part = choose_candidates(
@@ -185,12 +191,23 @@ async def preview_arr(db, body, capacity_overrides=None):
                 available,
                 max(1, body.max_titles - len(chosen)),
                 set(body.selection) if body.selection is not None else None,
+                getattr(body, "target_titles", None),
+                getattr(body, "preference", "closest"),
             )
             if len(chosen) >= body.max_titles:
                 part["excluded"].extend(dict(item, explanation="Limite de titres atteinte") for item in part["items"])
                 part["items"] = []
                 part["planned_bytes"] = 0
             covered = covered and part["planned_bytes"] >= part["requested_bytes"]
+            count_covered = count_covered and part["count_covered"]
+            source_objectives.append(
+                dict(
+                    source_id=sl.id,
+                    name=source,
+                    requested_bytes=part["requested_bytes"],
+                    requested_titles=getattr(body, "target_titles", None),
+                )
+            )
             chosen.extend(part["items"])
             excluded.extend(part["excluded"])
             requested += part["requested_bytes"]
@@ -203,6 +220,9 @@ async def preview_arr(db, body, capacity_overrides=None):
             requested_bytes=requested,
             goal_covered=covered,
             remaining_capacity_bytes=available,
+            requested_titles=(getattr(body, "target_titles", None) or 0) * len(source_routes) or None,
+            count_covered=count_covered,
+            source_objectives=source_objectives,
         )
     else:
         result = choose_candidates(
@@ -213,7 +233,23 @@ async def preview_arr(db, body, capacity_overrides=None):
             max(0, dst["freeSpace"] - int(reserved)),
             body.max_titles,
             set(body.selection) if body.selection is not None else None,
+            getattr(body, "target_titles", None),
+            getattr(body, "preference", "closest"),
         )
+    if getattr(body, "catalogue", False):
+        capacity = max(0, dst["freeSpace"] - int(reserved))
+        result["items"] = [
+            dict(i, explanation="Titre disponible")
+            for i in candidates
+            if not i.get("protected") and 0 < i["size_bytes"] <= capacity
+        ]
+        result["excluded"] = [
+            dict(i, explanation="Titre protégé" if i.get("protected") else "Volume ou capacité insuffisants")
+            for i in candidates
+            if i.get("protected") or not 0 < i["size_bytes"] <= capacity
+        ]
+        result["planned_bytes"] = 0
+        result["remaining_capacity_bytes"] = capacity
     dl = await virtual_location(db, instance, destination, dst, dm)
     result.update(
         source=location_json(source_routes[0][3]),

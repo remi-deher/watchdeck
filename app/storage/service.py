@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from ..models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
 from ..services.plex_servers import connection_for
@@ -87,6 +87,10 @@ async def preview(db, body):
 
 
 async def _preview(db, body):
+    if getattr(body, "routes", None):
+        from .objectives import preview_batch
+
+        return await preview_batch(db, body)
     if getattr(body, "transfer_methods", None):
         from .access import preview_priority
 
@@ -151,7 +155,7 @@ async def _preview(db, body):
         await db.execute(
             select(StorageTransferItem.arr_instance_id, StorageTransferItem.arr_id)
             .join(StorageTransfer, StorageTransfer.id == StorageTransferItem.transfer_id)
-            .where(StorageTransferItem.status != "completed")
+            .where(StorageTransferItem.status.notin_(["completed", "cancelled"]))
         )
     ).all()
     occupied = set(occupied)
@@ -397,3 +401,12 @@ async def resolve_mapping(db, body):
     if comparison["status"] != "sample_matched":
         result["automatic"] = None
     return result
+
+
+async def forget_transfer(db, job):
+    """Forget terminal metadata only; filesystem cleanup belongs to cancellation."""
+    if job.status not in ("draft", "completed", "cancelled"):
+        raise ValueError("Terminer l’annulation avant de supprimer cette tâche.")
+    await db.execute(delete(StorageTransferItem).where(StorageTransferItem.transfer_id == job.id))
+    await db.delete(job)
+    await db.commit()

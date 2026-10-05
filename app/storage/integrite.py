@@ -86,6 +86,20 @@ def verifier_dossier(src, dst, stop=None, preuves=None, mode="renforce"):
     return fichiers
 
 
+def discard_partial(path, expected):
+    """Never remove a published file, a link, or an artifact changed since inspection."""
+    import stat
+    from pathlib import Path
+
+    if not path.endswith(".partiel") or any(parent.is_symlink() for parent in [Path(path), *Path(path).parents]):
+        raise Arret("Nettoyage limité aux fichiers temporaires ordinaires.")
+    metadata = os.lstat(path)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1 or signature(path) != expected:
+        raise Arret("Fichier temporaire modifié ou lié : nettoyage refusé.")
+    os.unlink(path)
+    return True
+
+
 def _copier_python(src, dst, avance, stop, preuve_existante=None):
     """Reprise du préfixe vérifié, puis contrôle SHA-256 avant renommage."""
     avant = signature(src)

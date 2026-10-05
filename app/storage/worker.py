@@ -14,7 +14,7 @@ import time
 from pathlib import Path, PurePosixPath
 
 import httpx
-from sqlalchemy import select, text
+from sqlalchemy import and_, or_, select, text
 
 from ..database import AsyncSessionLocal, async_engine
 from ..models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
@@ -341,6 +341,8 @@ async def process_item(db, job, item, stop):
             sample[:] = [time.monotonic(), 0]
             speed[0] = None
             await progress(name, 0)
+            snap["temporary_files"] = list(dict.fromkeys([*snap.get("temporary_files", []), name]))
+            await update_item(db, item, "copying", snapshot=dict(snap))
 
             def advance(delta):
                 copied[0] += delta
@@ -366,6 +368,18 @@ async def process_item(db, job, item, stop):
             await update_item(db, item, "deferred", "Lecture active : bascule reportée.")
             return
         await no_arr_download(instance, item)
+        if stop.is_set():
+            raise Interrompu()
+        from .switch_guard import confirm_complete
+
+        media = await confirm_complete(
+            instance,
+            item,
+            snap,
+            await asyncio.to_thread(read_inventory, src, False),
+            await asyncio.to_thread(read_inventory, dst, False),
+            arr_request,
+        )
         if stop.is_set():
             raise Interrompu()
         await update_item(db, item, "switching")
@@ -527,6 +541,8 @@ async def run_transfer(transfer_id, lease):
                     if job.desired_state == "pause"
                     else "stopped"
                     if job.desired_state == "stop"
+                    else "cancelling"
+                    if job.desired_state == "cancel"
                     else "running"
                 )
             else:
@@ -552,6 +568,8 @@ async def run_engine():
             for job in (await db.execute(select(StorageTransfer).where(StorageTransfer.status == "running"))).scalars():
                 if job.desired_state == "run" and job.auto_resume:
                     job.status = "queued"
+                elif job.desired_state == "cancel":
+                    job.status = "cancelling"
                 else:
                     job.status = "paused"
                     job.desired_state = "pause"
@@ -568,8 +586,48 @@ async def run_engine():
                         )
                     )
                 ).scalars():
-                    job.status = "paused" if job.desired_state == "pause" else "stopped"
+                    job.status = (
+                        "paused"
+                        if job.desired_state == "pause"
+                        else "cancelling"
+                        if job.desired_state == "cancel"
+                        else "stopped"
+                    )
                 await db.commit()
+                cancellation = (
+                    await db.execute(
+                        select(StorageTransfer)
+                        .where(
+                            StorageTransfer.desired_state == "cancel",
+                            or_(
+                                StorageTransfer.status == "cancelling",
+                                and_(
+                                    StorageTransfer.status.in_(["cancelled", "completed"]),
+                                    StorageTransfer.params["delete_after_cancel"].as_boolean().is_(True),
+                                ),
+                            ),
+                        )
+                        .order_by(StorageTransfer.id)
+                        .limit(1)
+                    )
+                ).scalar_one_or_none()
+                if cancellation:
+                    from .cancellation import cancel_transfer
+
+                    async def heartbeat():
+                        while True:
+                            HEARTBEAT.touch()
+                            await asyncio.sleep(1)
+
+                    pulse = asyncio.create_task(heartbeat())
+                    try:
+                        cancellation_done = await cancel_transfer(db, cancellation, lease)
+                    finally:
+                        pulse.cancel()
+                        await asyncio.gather(pulse, return_exceptions=True)
+                    if cancellation_done:
+                        await asyncio.sleep(1)
+                        continue
                 job = (
                     await db.execute(
                         select(StorageTransfer)

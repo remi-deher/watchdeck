@@ -90,6 +90,10 @@ def dispatch(body, integrity, stop):
         return path.stat().st_size
     if op == "signature":
         return integrity["signature"](str(path))
+    if op == "discard_partial":
+        if stop.is_set():
+            raise ValueError("Session interrompue.")
+        return integrity["discard_partial"](str(path), body["signature"])
     if op == "hash":
         return integrity["empreinte"](str(path), stop)
     if op == "free":

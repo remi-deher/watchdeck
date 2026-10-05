@@ -84,3 +84,12 @@ class StorageConnection(Base):
     credentials: Mapped[Optional[str]] = mapped_column(EncryptedText())
     fingerprint: Mapped[str] = mapped_column(default="")
     tested: Mapped[bool] = mapped_column(default=False)
+
+
+class StorageProtectedTitle(Base):
+    __tablename__ = "storage_protected_titles"
+    __table_args__ = (Index("ix_storage_protected_arr", "arr_instance_id", "arr_id", unique=True),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    arr_instance_id: Mapped[int] = mapped_column(ForeignKey("arr_instances.id", ondelete="CASCADE"))
+    arr_id: Mapped[int]
+    title: Mapped[str]

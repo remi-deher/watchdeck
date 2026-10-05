@@ -63,7 +63,7 @@ async def save_access(body, db, access=None):
                         )
                         .exists(),
                     ),
-                    StorageTransfer.status.notin_(["completed", "draft", "stopped"]),
+                    StorageTransfer.status.notin_(["completed", "draft", "stopped", "cancelled"]),
                 )
             )
         ).first()

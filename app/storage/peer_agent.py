@@ -61,9 +61,11 @@ def serve():
                     "address = 127.0.0.1",
                     f"port = {port}",
                     "use chroot = no",
-                    f"uid = {os.getuid()}",
-                    f"gid = {os.getgid()}",
+                    # Unprivileged daemons must retain the SSH user's groups.
+                    # An explicit gid asks rsync to call setgroups(), which fails.
+                    *(["uid = 0", "gid = 0"] if os.getuid() == 0 else []),
                     f"pid file = {tmp}/pid",
+                    f"lock file = {tmp}/connections.lock",
                     "max connections = 1",
                     "[media]",
                     f"path = {root}",

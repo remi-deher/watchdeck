@@ -50,7 +50,7 @@ async def assert_editable(db, accesses):
                         )
                         .exists(),
                     ),
-                    StorageTransfer.status.notin_(["completed", "draft", "stopped"]),
+                    StorageTransfer.status.notin_(["completed", "draft", "stopped", "cancelled"]),
                 )
             )
         ).first()

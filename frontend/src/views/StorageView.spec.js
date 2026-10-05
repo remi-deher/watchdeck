@@ -10,7 +10,7 @@ const roots = [
   { arr_instance_id: 2, name: 'Sonarr', arr_type: 'sonarr', arr_roots: ['/data/SERIES'], plex_roots: [{ section_id:'2',library:'Séries',path:'/media/SERIES' }] },
 ];
 async function factory() {
- const wrapper = mount(StorageView, {global:{stubs:{AppSubnav:{props:['items','active'],emits:['update:active'],template:'<nav class="app-subnav__root"><button v-for="item in items" :key="item.key" @click="$emit(\'update:active\',item.key)">{{ item.label }}<span v-if="item.count!=null"> {{ item.count }}</span></button></nav>'},AppPage:{template:'<main><slot name="tools"/><slot/></main>'}, ModalShell:{props:['open'],template:'<div v-if="open" role="dialog"><slot/></div>'}}}});
+ const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},AppSubnav:{props:['items','active'],emits:['update:active'],template:'<nav class="app-subnav__root"><button v-for="item in items" :key="item.key" @click="$emit(\'update:active\',item.key)">{{ item.label }}<span v-if="item.count!=null"> {{ item.count }}</span></button></nav>'},AppPage:{template:'<main><slot name="tools"/><slot/></main>'}, ModalShell:{props:['open'],template:'<div v-if="open" role="dialog"><slot/></div>'}}}});
  await flushPromises();
  await wrapper.findAll('button').find(b=>b.text()==='Stockages').trigger('click');
  await flushPromises();
@@ -121,7 +121,7 @@ describe('Storage root correspondence table', () => {
   roots[1].arr_roots.push('/usb/SERIES');await wrapper.vm.$nextTick();
   const selects=wrapper.findAll('.prepare-route select');await selects[0].setValue('/usb/FILMS');await selects[1].setValue('/usb/SERIES');
   await wrapper.find('form').trigger('submit');await wrapper.find('form').trigger('submit');await flushPromises();
-  const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(2);expect(calls.map(([,opts])=>JSON.parse(opts.body).arr_instance_id)).toEqual([1,2]);
+  const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);expect(JSON.parse(calls[0][1].body).routes.map(r=>r.arr_instance_id)).toEqual([1,2]);
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);roots[1].arr_roots.pop();wrapper.unmount();
  });
  it('sends multiple checked sources with one shared objective',async()=>{
@@ -132,17 +132,12 @@ describe('Storage root correspondence table', () => {
   const checks=wrapper.findAll('.source-choices input');await checks[0].setValue(true);await checks[2].setValue(true);
   await wrapper.find('.prepare-route select').setValue('/usb/FILMS');
   expect(wrapper.find('.source-choices input[value="/usb/FILMS"]').attributes('disabled')).toBeDefined();
-  await wrapper.find('form').trigger('submit');expect(wrapper.findAll('.objective-options input')).toHaveLength(2);
-  expect(wrapper.text()).toContain('Quantité d’espace à libérer par racine');
-  expect(wrapper.find('select').exists()).toBe(false);
-  await wrapper.find('.root-goal input[type="number"]').setValue(123);
-  expect(wrapper.find('.root-goal input[type="range"]').element.value).toBe('123');
+  await wrapper.find('form').trigger('submit');expect(wrapper.findAll('.objective-options input')).toHaveLength(3);
+  expect(wrapper.text()).toContain('Espace à libérer au total');
   await wrapper.find('input[type="number"]').setValue(600);
-  expect(wrapper.find('.root-goal input[type="number"]').element.value).toBe('600');
-
   await wrapper.find('form').trigger('submit');await flushPromises();
   const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);
-  expect(JSON.parse(calls[0][1].body)).toMatchObject({source_roots:['/data/FILMS','/data2/FILMS'],destination_root:'/usb/FILMS',goal_gb:600,root_goals:{'/data/FILMS':600,'/data2/FILMS':600}});
+  expect(JSON.parse(calls[0][1].body)).toMatchObject({goal_gb:600,routes:[{source_roots:['/data/FILMS','/data2/FILMS'],destination_root:'/usb/FILMS',root_goals:{}}]});
   roots[0].arr_roots.pop();wrapper.unmount();
  });
  it('does not show a create-task button in transfers',async()=>{
@@ -248,6 +243,24 @@ describe('Storage root correspondence table', () => {
   expect(request.mock.calls.filter(([p])=>p==='/api/storage/accesses/8/validate')).toHaveLength(1);
   expect(request.mock.calls.some(([p,o])=>p==='/api/storage/transfers' && o?.method==='POST')).toBe(false);
   w.unmount();
+ });
+
+ it('offers removal and revalidated relaunch for a cancelled task',async()=>{
+  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',desired_state:'cancel',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:100e9},destination:{free_bytes:200e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
+  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  expect(wrapper.text()).toContain('Relancer avec de nouveaux paramètres');
+  await wrapper.findAll('button').find(b=>b.text()==='Relancer avec les mêmes paramètres').trigger('click');await flushPromises();
+  const call=request.mock.calls.find(([path])=>path==='/api/storage/preview');expect(JSON.parse(call[1].body)).toMatchObject({task_id:0,goal_gb:20});
+  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);wrapper.unmount();
+ });
+ it('confirms removal of a paused task before requesting durable cancellation',async()=>{
+  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:18,status:'paused',desired_state:'pause',params:{transfer_mode:'rsync_ssh'},items:[]}]:path==='/api/storage/transfers/18'&&opts?.method==='DELETE'?{deletion_pending:18}:original(path,opts));
+  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Supprimer la tâche').trigger('click');
+  expect(wrapper.text()).toContain('ses fichiers temporaires nettoyés');
+  expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
+  await wrapper.findAll('button').find(b=>b.text()==='Annuler et supprimer').trigger('click');await flushPromises();
+  expect(request).toHaveBeenCalledWith('/api/storage/transfers/18',{method:'DELETE'});expect(wrapper.text()).toContain('annulation et nettoyage en cours');wrapper.unmount();
  });
 
 });
