@@ -3,6 +3,8 @@
 import hashlib
 import json
 import os
+import queue
+import re
 import shutil
 import signal
 import subprocess
@@ -97,7 +99,90 @@ def dispatch(body, integrity, stop):
     if op == "mkdir":
         path.mkdir(parents=body["parents"], exist_ok=body["exist_ok"])
         return True
+    if op == "send_peer":
+        filename = body["filename"]
+        if Path(filename).name != filename or filename in ("", ".", ".."):
+            raise ValueError("Nom destination invalide.")
+        before = integrity["signature"](str(path))
+        command = [
+            "rsync",
+            "--times",
+            "--ignore-times",
+            "--inplace",
+            "--no-whole-file",
+            "--fsync",
+            "--info=progress2",
+            "--outbuf=L",
+            "--checksum-choice=xxh128",
+            "--",
+            str(path),
+            f"rsync://watchdeck@127.0.0.1:{int(body['port'])}/media/{filename}",
+        ]
+        proc = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            env=dict(os.environ, LC_ALL="C", RSYNC_PASSWORD=body["secret"]),
+        )
+        output = queue.Queue()
+
+        def read():
+            while True:
+                block = os.read(proc.stdout.fileno(), 4096)
+                if not block:
+                    break
+                output.put(block.decode("utf-8", errors="replace"))
+
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        text, count = "", 0
+        try:
+            while proc.poll() is None or reader.is_alive() or not output.empty():
+                if stop.is_set():
+                    raise ValueError("Copie interrompue.")
+                try:
+                    text = (text + output.get(timeout=0.2))[-16000:]
+                    values = re.findall(r"(?:^|[\r\n])\s*([\d,]+)\s+\d+%", text)
+                    if values:
+                        current = min(before[1], int(values[-1].replace(",", "")))
+                        if current > count:
+                            emit(dict(delta=current - count))
+                            count = current
+                except queue.Empty:
+                    pass
+            if proc.returncode or before != integrity["signature"](str(path)):
+                raise ValueError("Copie rsync refusée.")
+            return dict(source=before, bytes=count)
+        finally:
+            integrity["_arreter_rsync"](proc)
+            reader.join(timeout=2)
+            proc.stdout.close()
+    if op == "remove_peer":
+        files = inventory(path, False)
+        if path in [Path(root) for root in roots] or not body["files"] or not set(files).issubset(body["files"]):
+            raise ValueError("Nettoyage refusé.")
+        for name in files:
+            if integrity["signature"](str(checked(str(path / name), roots))) != body["proofs"].get(name, {}).get(
+                "source"
+            ):
+                raise ValueError("Source modifiée.")
+        if stop.is_set():
+            raise ValueError("Session interrompue.")
+        shutil.rmtree(path)
+        return True
     src, dst = path, checked(body["dst"], roots)
+    if op == "promote_peer":
+        if (
+            not str(src).endswith(".partiel")
+            or str(src) != str(dst) + ".partiel"
+            or integrity["signature"](str(src)) != body["signature"]
+        ):
+            raise ValueError("Copie partielle modifiée.")
+        if stop.is_set():
+            raise ValueError("Session interrompue.")
+        os.replace(src, dst)
+        return True
     if (
         src == dst
         or src in dst.parents

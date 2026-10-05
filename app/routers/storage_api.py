@@ -40,6 +40,7 @@ class PreviewBody(BaseModel):
     access_id: int = 0
     transfer_methods: list[Literal["arr", "rsync_ssh", "rsync_local"]] = Field(default_factory=list, max_length=3)
     access_ids: dict[str, int] = Field(default_factory=dict)
+    root_access_ids: dict[str, int] = Field(default_factory=dict)
     preferred_methods: list[Literal["arr", "rsync_ssh", "rsync_local"]] = Field(default_factory=list, max_length=3)
     verification: Literal["standard", "renforce"] = "standard"
     arr_instance_id: int = 0

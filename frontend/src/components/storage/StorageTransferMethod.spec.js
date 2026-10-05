@@ -23,7 +23,7 @@ describe('Explicit transfer methods',()=>{
   expect(wrapper.findAll('input[type=checkbox]')[0].element.disabled).toBe(false);
   expect(wrapper.findAll('input[type=checkbox]')[2].element.disabled).toBe(true);
   expect(wrapper.text()).toContain('Aucun changement de mode après le début');
-  expect(wrapper.find('select').findAll('option').map(o=>o.text())).toContain('NAS');
+  expect(wrapper.find('select').exists()).toBe(false);
   expect(wrapper.find('input[type=radio][value=standard]').element.checked).toBe(true);
   expect(wrapper.text()).toContain('partage NFS / SMB');
  });
@@ -49,4 +49,19 @@ describe('Explicit transfer methods',()=>{
   expect(wrapper.find('button[type=submit]').element.disabled).toBe(true);
   wrapper.unmount();
  });
+ it('uses the configured SSH access for each root without extra selectors',()=>{
+  const model={transfer_methods:['rsync_ssh'],max_titles:250,routes:[{arr_instance_id:1,source_roots:['/data/FILMS'],destination_root:'/usb/FILMS'}]};
+  const accesses=[{...endpoint,roots:[endpoint.roots[0]]},{...endpoint,id:2,name:'ARTEMIS',roots:[endpoint.roots[1]]}];
+  const wrapper=mount(StoragePreparePanel,{props:{modelValue:model,roots:[{arr_instance_id:1,name:'Radarr',arr_roots:['/data/FILMS','/usb/FILMS'],capacities:{'/data/FILMS':{free_bytes:500e9},'/usb/FILMS':{free_bytes:100e9}}}],accesses,busy:false}});
+  expect(wrapper.find('button[type=submit]').element.disabled).toBe(false);
+  expect(wrapper.findAll('select')).toHaveLength(1);
+  expect(wrapper.text()).toContain('500 Go libres');
+  expect(wrapper.text()).toContain('100 Go libres');
+ });
+ it('does not choose silently between ambiguous SSH accesses',()=>{
+  const model={transfer_methods:['rsync_ssh'],routes:[{arr_instance_id:1,source_roots:['/data/FILMS'],destination_root:'/usb/FILMS'}]};
+  const wrapper=mount(StorageTransferMethod,{props:{modelValue:model,accesses:[endpoint,{...endpoint,id:2}],busy:false}});
+  expect(wrapper.text()).toContain('plusieurs accès SSH');
+ });
+
 });

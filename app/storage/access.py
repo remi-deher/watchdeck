@@ -127,43 +127,72 @@ def matching_root(access, instance_id, root):
 async def preview_rsync(db, body):
     from .arr_transfer import preview_arr
 
-    access = await db.get(StorageAccess, body.access_id)
-    if not access or access.method != ("ssh" if body.transfer_mode == "rsync_ssh" else "local"):
-        raise ValueError("Choisir un accès rsync correspondant à la méthode.")
-    if access.validation.get("revision") != access.revision:
-        raise ValueError("Testez et validez cet accès avant de préparer le transfert.")
+    if not hasattr(body, "destination_root") or not hasattr(body, "arr_instance_id"):
+        raise ValueError("Racines source et destination requises.")
     sources = body.source_roots or [body.source_root]
+    selected = {}
+    method = "ssh" if body.transfer_mode == "rsync_ssh" else "local"
     for root in [*sources, body.destination_root]:
+        access_id = (
+            getattr(body, "root_access_ids", {}).get(f"{body.arr_instance_id}:{root}", body.access_id)
+            if method == "ssh"
+            else body.access_id
+        )
+        access = await db.get(StorageAccess, access_id)
+        if not access or access.method != method or access.validation.get("revision") != access.revision:
+            raise ValueError("Choisissez un accès validé pour chaque racine.")
         matching_root(access, body.arr_instance_id, root)
-    # Revalidate live files and rights; stored validation is not sufficient at launch.
-    await validate_access(db, access)
+        selected[root] = access
+    for access in {a.id: a for a in selected.values()}.values():
+        await validate_access(db, access)
     capacities = {
-        r["arr_root"]: r["free_bytes"]
-        for r in access.validation["roots"]
-        if r["arr_instance_id"] == body.arr_instance_id
+        root: next(
+            r["free_bytes"]
+            for r in a.validation["roots"]
+            if r["arr_instance_id"] == body.arr_instance_id and r["arr_root"] == root
+        )
+        for root, a in selected.items()
     }
+    access = selected[body.destination_root]
     target = matching_root(access, body.arr_instance_id, body.destination_root)
     destination = next(
         r
         for r in access.validation["roots"]
         if r["arr_instance_id"] == body.arr_instance_id and r["arr_root"] == body.destination_root
     )
+    body.access_id = access.id
+    destination_config = await config_for(db, access) if method == "ssh" else None
+    if method == "ssh":
+        import asyncio
+
+        from .peer_fs import validate_bridge
+
+        for source_access in {
+            a.id: a for root, a in selected.items() if root in sources and a.id != access.id
+        }.values():
+            await asyncio.to_thread(validate_bridge, await config_for(db, source_access))
     for source in sources:
-        source_path = PurePosixPath(matching_root(access, body.arr_instance_id, source))
-        destination_path = PurePosixPath(target)
-        if (
-            source_path == destination_path
-            or source_path in destination_path.parents
-            or destination_path in source_path.parents
-        ):
-            raise ValueError("Chemins physiques source et destination identiques ou imbriqués.")
-        proof = next(
-            r
-            for r in access.validation["roots"]
-            if r["arr_instance_id"] == body.arr_instance_id and r["arr_root"] == source
-        )
-        if proof.get("identity") and proof["identity"] == destination.get("identity"):
-            raise ValueError("Source et destination désignent le même dossier physique.")
+        source_access = selected[source]
+        same_host = source_access.id == access.id
+        if method == "ssh" and not same_host:
+            config = await config_for(db, source_access)
+            same_host = config.get("ssh_fingerprint") == destination_config.get("ssh_fingerprint")
+        if same_host:
+            source_path = PurePosixPath(matching_root(source_access, body.arr_instance_id, source))
+            destination_path = PurePosixPath(target)
+            if (
+                source_path == destination_path
+                or source_path in destination_path.parents
+                or destination_path in source_path.parents
+            ):
+                raise ValueError("Chemins physiques source et destination identiques ou imbriqués.")
+            proof = next(
+                r
+                for r in source_access.validation["roots"]
+                if r["arr_instance_id"] == body.arr_instance_id and r["arr_root"] == source
+            )
+            if proof.get("identity") and proof["identity"] == destination.get("identity"):
+                raise ValueError("Source et destination désignent le même dossier physique.")
     result = await preview_arr(db, body, capacity_overrides=capacities)
     if result["planned_bytes"] > destination["free_bytes"]:
         raise ValueError("Espace destination insuffisant selon le serveur rsync.")
@@ -171,12 +200,14 @@ async def preview_rsync(db, body):
         snap = item["snapshot"]
         root = str(PurePosixPath(snap["source_arr"]).parent)
         snap.update(
-            source_mount=matching_root(access, body.arr_instance_id, root),
+            source_mount=matching_root(selected[root], body.arr_instance_id, root),
             destination_mount=target,
             relative=PurePosixPath(snap["source_arr"]).name,
             access_id=access.id,
             access_revision=access.revision,
         )
+        if selected[root].id != access.id:
+            snap.update(source_access_id=selected[root].id, source_access_revision=selected[root].revision)
     result["note"] = (
         "Rsync copie et vérifie avant la bascule Arr/Plex. L’original est conservé jusqu’à confirmation Plex. Pause interrompt la copie ; aucun repli automatique."
     )
@@ -192,19 +223,30 @@ async def filesystem_for(db, job, snapshot):
     expected = "ssh" if job.params["transfer_mode"] == "rsync_ssh" else "local"
     if access.method != expected or access.validation.get("revision") != access.revision:
         raise ValueError("Accès rsync non validé.")
-    for side in ("source", "destination"):
+    source_access = await db.get(StorageAccess, snapshot.get("source_access_id", access.id))
+    if not source_access or source_access.revision != snapshot.get("source_access_revision", access.revision):
+        raise ValueError("Accès source modifié depuis la préparation.")
+    if source_access.method != expected or source_access.validation.get("revision") != source_access.revision:
+        raise ValueError("Accès source non validé.")
+    for side, endpoint in (("source", source_access), ("destination", access)):
         root = str(PurePosixPath(snapshot[side + "_arr"]).parent)
-        if matching_root(access, job.params["arr_instance_id"], root) != snapshot[side + "_mount"]:
+        if matching_root(endpoint, job.params["arr_instance_id"], root) != snapshot[side + "_mount"]:
             raise ValueError("Correspondance moteur modifiée.")
-    config = await config_for(db, access)
     if access.method == "ssh":
         from .integrite import SESSION_VERIFICATION
+        from .peer_fs import PeerFilesystem
 
-        return RemoteFilesystem(
-            config,
-            sorted({r["path"] for r in access.roots}),
-            SESSION_VERIFICATION,
-            {r["path"]: r["identity"] for r in access.validation["roots"]},
+        async def remote(endpoint):
+            return RemoteFilesystem(
+                await config_for(db, endpoint),
+                sorted({r["path"] for r in endpoint.roots}),
+                SESSION_VERIFICATION,
+                {r["path"]: r["identity"] for r in endpoint.validation["roots"]},
+            )
+
+        destination = await remote(access)
+        return (
+            destination if source_access.id == access.id else PeerFilesystem(await remote(source_access), destination)
         )
     return None
 

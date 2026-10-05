@@ -7,11 +7,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 
 from ..database import get_db_async
 from ..dependencies import require_admin
-from ..models import StorageAccess, StorageConnection, StorageTransfer
+from ..models import StorageAccess, StorageConnection, StorageTransfer, StorageTransferItem
 from ..storage import connections
 from ..storage.local_mounts import media_path
 from ..storage.planning import absolute_path
@@ -41,7 +41,15 @@ async def assert_editable(db, accesses):
         active = (
             await db.execute(
                 select(StorageTransfer.id).where(
-                    StorageTransfer.params["access_id"].as_integer() == access.id,
+                    or_(
+                        StorageTransfer.params["access_id"].as_integer() == access.id,
+                        select(StorageTransferItem.id)
+                        .where(
+                            StorageTransferItem.transfer_id == StorageTransfer.id,
+                            StorageTransferItem.snapshot["source_access_id"].as_integer() == access.id,
+                        )
+                        .exists(),
+                    ),
                     StorageTransfer.status.notin_(["completed", "draft", "stopped"]),
                 )
             )

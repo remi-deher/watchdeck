@@ -6,11 +6,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 
 from ..database import get_db_async
 from ..dependencies import require_admin
-from ..models import StorageAccess, StorageTransfer
+from ..models import StorageAccess, StorageTransfer, StorageTransferItem
 from ..storage.access import access_json, validate_access
 from ..storage.local_mounts import media_path
 from ..storage.planning import absolute_path
@@ -54,7 +54,15 @@ async def save_access(body, db, access=None):
         active = (
             await db.execute(
                 select(StorageTransfer.id).where(
-                    StorageTransfer.params["access_id"].as_integer() == access.id,
+                    or_(
+                        StorageTransfer.params["access_id"].as_integer() == access.id,
+                        select(StorageTransferItem.id)
+                        .where(
+                            StorageTransferItem.transfer_id == StorageTransfer.id,
+                            StorageTransferItem.snapshot["source_access_id"].as_integer() == access.id,
+                        )
+                        .exists(),
+                    ),
                     StorageTransfer.status.notin_(["completed", "draft", "stopped"]),
                 )
             )
