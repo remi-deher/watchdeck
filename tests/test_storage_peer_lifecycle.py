@@ -201,6 +201,17 @@ def test_receiver_loopback_authentication_cleanup_and_identity(tmp_path, monkeyp
         secret="ephemeral",
     )
     monkeypatch.setitem(sys.modules, "fcntl", NS(LOCK_EX=1, LOCK_NB=2, flock=Mock()))
+    if not hasattr(peer_agent.os, "memfd_create"):
+        monkeypatch.setattr(
+            peer_agent.os,
+            "memfd_create",
+            lambda *a: __import__("os").open(
+                tmp_path / "memory-auth", __import__("os").O_RDWR | __import__("os").O_CREAT
+            ),
+            raising=False,
+        )
+        monkeypatch.setattr(peer_agent.os, "MFD_CLOEXEC", 1, raising=False)
+        monkeypatch.setattr(peer_agent.os, "fchmod", lambda *a: None, raising=False)
     real_open = builtins.open
     monkeypatch.setattr(peer_agent, "open", lambda path, *args: real_open(tmp_path / "lock", *args), raising=False)
     monkeypatch.setattr(peer_agent.os, "getuid", lambda: 100, raising=False)
@@ -218,8 +229,8 @@ def test_receiver_loopback_authentication_cleanup_and_identity(tmp_path, monkeyp
         config = Path(command[-1].split("=", 1)[1])
         captured["config"] = config.read_text()
         captured["temp"] = config.parent
-        secret = config.parent / "secret"
-        assert secret.read_text() == "watchdeck:ephemeral\n"
+        assert "secrets file = /proc/" in captured["config"]
+        assert not (config.parent / "secret").exists()
         return proc
 
     monkeypatch.setattr(peer_agent.subprocess, "Popen", popen)

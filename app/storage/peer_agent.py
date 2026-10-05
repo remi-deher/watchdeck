@@ -28,10 +28,16 @@ def serve():
     st = root.stat()
     if [st.st_dev, st.st_ino] != body["identity"]:
         raise ValueError("Receiver storage changed")
-    with tempfile.TemporaryDirectory(prefix="watchdeck-rsync-peer-") as tmp:
-        secret = Path(tmp) / "secret"
-        secret.write_text("watchdeck:" + body["secret"] + "\n")
-        secret.chmod(0o600)
+    # rsync needs a file-like authentication source; keep it in anonymous RAM,
+    # never on the NAS filesystem. /proc lets its child read our protected fd.
+    with (
+        os.fdopen(os.memfd_create("watchdeck-rsync-auth", os.MFD_CLOEXEC), "wb") as auth,
+        tempfile.TemporaryDirectory(prefix="watchdeck-rsync-peer-") as tmp,
+    ):
+        os.fchmod(auth.fileno(), 0o600)
+        auth.write(("watchdeck:" + body["secret"] + "\n").encode())
+        auth.flush()
+        auth_path = f"/proc/{os.getpid()}/fd/{auth.fileno()}"
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
             port = reservation.getsockname()[1]
@@ -51,7 +57,7 @@ def serve():
                     "read only = no",
                     "list = no",
                     "auth users = watchdeck",
-                    f"secrets file = {secret}",
+                    f"secrets file = {auth_path}",
                     "hosts allow = 127.0.0.1",
                     "hosts deny = *",
                 ]
