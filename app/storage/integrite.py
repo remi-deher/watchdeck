@@ -45,6 +45,19 @@ def signature(path):
     return [os.path.realpath(path), st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_dev, st.st_ino]
 
 
+def permissions_destination(temporary, destination):
+    """Use the destination's access policy, never import a source ACL from another server."""
+    reference = destination if os.path.exists(destination) else os.path.dirname(destination)
+    permissions = os.stat(reference).st_mode & 0o666
+    os.chmod(temporary, permissions | 0o600)
+
+
+def metadata_destination(source, temporary, destination):
+    st = os.stat(source)
+    os.utime(temporary, ns=(st.st_atime_ns, st.st_mtime_ns))
+    permissions_destination(temporary, destination)
+
+
 def preuve(src, dst, sha, avant):
     if signature(src) != avant:
         raise Arret(f"Source modifiée pendant la vérification : {src}; original conservé")
@@ -159,7 +172,7 @@ def _copier_python(src, dst, avance, stop, preuve_existante=None):
     sha = h.hexdigest()
     if os.path.getsize(tmp) != taille or sha != empreinte(tmp, stop):
         raise Arret(f"Intégrité SHA-256 incorrecte : {src}; original conservé")
-    shutil.copystat(src, tmp)
+    metadata_destination(src, tmp, dst)
     os.replace(tmp, dst)
     return preuve(src, dst, sha, avant)
 
@@ -290,7 +303,7 @@ def copier_rsync(src, dst, avance, stop, preuve_existante=None, phase=None, mode
             raise Arret(f"Intégrité SHA-256 incorrecte : {src}; original conservé")
     if signature(src) != avant:
         raise Arret(f"Source modifiée pendant la vérification : {src}")
-    shutil.copystat(src, tmp)
+    metadata_destination(src, tmp, dst)
     os.replace(tmp, dst)
     p = preuve(src, dst, sha, avant)
     p["verification"] = "sha256" if sha else "rsync"

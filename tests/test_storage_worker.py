@@ -118,6 +118,8 @@ def transfer(tmp_path, monkeypatch):
 async def test_copy_switch_confirm_cleanup_and_restart(transfer):
     t = transfer
     await worker.process_item(t.db, t.job, t.item, t.stop)
+    assert t.item.status == "plex_pending" and t.source.exists()
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
     assert t.item.status == "completed"
     assert not t.source.exists()
     assert (t.destination / "film.mkv").read_bytes() == b"content" * 1000
@@ -190,11 +192,11 @@ async def test_preconditions_preserve_original(transfer, monkeypatch, issue):
 @pytest.mark.asyncio
 async def test_plex_pending_preserves_source_until_confirmation(transfer, monkeypatch):
     t = transfer
-    monkeypatch.setattr(worker, "plex_files", AsyncMock(side_effect=[{"film.mkv": ["123"]}, {}]))
+    monkeypatch.setattr(worker, "plex_files", AsyncMock(return_value={"film.mkv": ["123"]}))
     await worker.process_item(t.db, t.job, t.item, t.stop)
     assert t.item.status == "plex_pending" and t.source.exists() and t.destination.exists()
     monkeypatch.setattr(worker, "plex_files", AsyncMock(return_value={"film.mkv": ["123"]}))
-    await worker.process_item(t.db, t.job, t.item, t.stop)
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
     assert t.item.status == "completed" and not t.source.exists()
 
 
@@ -212,6 +214,44 @@ async def test_rescan_failure_preserves_source(transfer, monkeypatch):
     with pytest.raises(ValueError, match="Rescan"):
         await worker.process_item(t.db, t.job, t.item, t.stop)
     assert t.source.exists() and t.destination.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("destination", [{}, {"film.mkv": ["999"]}])
+async def test_finalization_never_deletes_without_same_plex_identity(transfer, monkeypatch, destination):
+    t = transfer
+    await worker.process_item(t.db, t.job, t.item, t.stop)
+    monkeypatch.setattr(worker, "plex_files", AsyncMock(return_value=destination))
+    if destination:
+        with pytest.raises(ValueError, match="autre fiche"):
+            await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    else:
+        await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    assert t.item.status == "plex_pending"
+    assert t.source.exists()
+    assert not t.item.snapshot.get("cleanup_intent")
+
+
+@pytest.mark.asyncio
+async def test_finalization_rechecks_playback_after_verification(transfer, monkeypatch):
+    t = transfer
+    await worker.process_item(t.db, t.job, t.item, t.stop)
+    monkeypatch.setattr(worker, "is_playing", AsyncMock(side_effect=[False, False, True]))
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    assert t.item.status == "plex_pending" and t.source.exists()
+
+
+@pytest.mark.asyncio
+async def test_finalization_does_not_recopy_or_submit_another_arr_scan(transfer, monkeypatch):
+    t = transfer
+    await worker.process_item(t.db, t.job, t.item, t.stop)
+    request = AsyncMock(side_effect=worker.arr_request)
+    monkeypatch.setattr(worker, "arr_request", request)
+    monkeypatch.setattr(worker, "copier_fichier", lambda *args: pytest.fail("Already copied"))
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    assert t.item.status == "completed"
+    assert all(call.args[1] == "GET" for call in request.call_args_list)
+    assert t.item.progress["plex_source_refresh_pending"]
 
 
 class Context:
@@ -271,6 +311,9 @@ async def test_queue_continues_and_durable_commands(tmp_path, monkeypatch, outco
 @pytest.mark.asyncio
 @pytest.mark.parametrize("queued", ["job", "idle"])
 async def test_restart_recovery_respects_auto_resume_and_manual_pause(tmp_path, monkeypatch, queued):
+    from app.storage import plex_finalization
+
+    monkeypatch.setattr(plex_finalization, "run_finalizer", AsyncMock())
     shutdown = threading.Event()
     monkeypatch.setattr(worker, "SHUTDOWN", shutdown)
     monkeypatch.setattr(worker, "HEARTBEAT", tmp_path / "heartbeat")
@@ -375,6 +418,9 @@ async def test_plex_http_empty_refresh_and_json(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("done", [True, False])
 async def test_engine_processes_cancellation_and_pending_arr_does_not_block_next_job(tmp_path, monkeypatch, done):
+    from app.storage import plex_finalization
+
+    monkeypatch.setattr(plex_finalization, "run_finalizer", AsyncMock())
     import asyncio
 
     from app.storage import cancellation

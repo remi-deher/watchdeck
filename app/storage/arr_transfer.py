@@ -260,7 +260,7 @@ async def preview_arr(db, body, capacity_overrides=None):
     return result
 
 
-async def process_arr(db, job, item, stop):
+async def process_arr(db, job, item, stop, *, finalize_only=False):
     from .integrite import Interrompu
     from .worker import confirm_media_identity, is_playing, no_arr_download, plex_files, plex_get, update_item
 
@@ -272,6 +272,8 @@ async def process_arr(db, job, item, stop):
     conn = await connection_for(db, instance.plex_server_id)
     if not conn:
         raise ValueError("Connexion Plex indisponible.")
+    if finalize_only and (not snap.get("arr_command_id") or not snap.get("original_plex")):
+        raise ValueError("Preuves du déplacement Arr absentes : finalisation refusée.")
     if not snap.get("arr_command_id"):
         if snap.get("arr_submission_intent"):
             raise ValueError(
@@ -332,7 +334,7 @@ async def process_arr(db, job, item, stop):
         )
         snap["arr_command_id"] = command["id"]
         await update_item(db, item, "arr_pending", snapshot=snap)
-    while True:
+    while not finalize_only:
         if stop.is_set():
             raise Interrompu()
         command = await arr_request(instance, "GET", f"command/{snap['arr_command_id']}")
@@ -344,7 +346,11 @@ async def process_arr(db, job, item, stop):
     media = await arr_request(instance, "GET", f"{resource}/{item.arr_id}")
     if media["path"] != snap["destination_arr"]:
         raise ValueError("Commande terminée mais chemin destination non confirmé par Arr.")
-    await plex_get(conn, f"/library/sections/{snap['plex_section_id']}/refresh", {"path": snap["destination_plex"]})
+    if not finalize_only:
+        await update_item(db, item, "plex_pending", "Déplacement Arr terminé · finalisation Plex en arrière-plan.")
+        return
+    if stop.is_set():
+        raise Interrompu()
     destination = await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
     if destination != snap["original_plex"]:
         await update_item(db, item, "plex_pending", "Déplacement Arr terminé ; confirmation des fiches Plex attendue.")

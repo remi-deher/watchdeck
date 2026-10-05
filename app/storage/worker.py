@@ -160,7 +160,7 @@ async def update_item(db, item, status, reason=None, **changes):
     if previous != status:
         telemetry["phase_started_at"] = time.time()
         telemetry["bytes_per_second"] = None
-    if status == "completed":
+    if status == "completed" and (previous != "completed" or not telemetry.get("finished_at")):
         telemetry["finished_at"] = now_utc_naive().isoformat()
     item.progress = telemetry
     item.status = status
@@ -171,11 +171,11 @@ async def update_item(db, item, status, reason=None, **changes):
     await db.commit()
 
 
-async def process_item(db, job, item, stop):
+async def process_item(db, job, item, stop, *, finalize_only=False):
     if job.params.get("transfer_mode", "rsync") == "arr":
         from .arr_transfer import process_arr
 
-        return await process_arr(db, job, item, stop)
+        return await process_arr(db, job, item, stop, finalize_only=finalize_only)
     snap = dict(item.snapshot)
     fs = None
     if job.params.get("transfer_mode") in ("rsync_ssh", "rsync_local"):
@@ -225,6 +225,8 @@ async def process_item(db, job, item, stop):
         await update_item(db, item, item.status, snapshot=snap)
     resource = "movie" if item.media_type == "movie" else "series"
     media = await arr_request(instance, "GET", f"{resource}/{item.arr_id}")
+    if finalize_only and media["path"] != snap["destination_arr"]:
+        raise ValueError("Chemin Arr non confirmé : finalisation refusée, original conservé.")
     if media["path"] not in (snap["source_arr"], snap["destination_arr"]):
         raise ValueError("Le chemin Arr a changé depuis l’aperçu.")
     roots = await arr_request(instance, "GET", "rootfolder")
@@ -232,6 +234,11 @@ async def process_item(db, job, item, stop):
         raise ValueError("Le dossier destination doit être enregistré dans les dossiers racine Arr.")
     await no_arr_download(instance, item)
     if await is_playing(conn, snap):
+        if finalize_only:
+            await update_item(
+                db, item, "plex_pending", "Lecture Plex active : original conservé, finalisation reportée."
+            )
+            return
         await update_item(
             db,
             item,
@@ -290,7 +297,7 @@ async def process_item(db, job, item, stop):
             != snap["original_plex"]
         ):
             raise ValueError("Confirmation Plex manquante après nettoyage.")
-        await update_item(db, item, "completed", progress={})
+        await update_item(db, item, "completed", progress={"plex_source_refresh_pending": True})
         return
     if media["path"] == snap["source_arr"]:
         destination = await db.get(StorageLocation, job.destination_id)
@@ -387,6 +394,66 @@ async def process_item(db, job, item, stop):
         await arr_request(instance, "PUT", f"{resource}/{item.arr_id}?moveFiles=false", media)
     if stop.is_set():
         raise Interrompu()
+    if not finalize_only:
+        await rescan_arr(instance, item, resource, snap, stop)
+        await update_item(
+            db,
+            item,
+            "plex_pending",
+            "Copie terminée · finalisation Plex en arrière-plan ; original conservé.",
+        )
+        return
+    media = await arr_request(instance, "GET", f"{resource}/{item.arr_id}")
+    files = await arr_request(
+        instance,
+        "GET",
+        f"moviefile?movieId={item.arr_id}" if item.media_type == "movie" else f"episodefile?seriesId={item.arr_id}",
+    )
+    expected = {n.replace(os.sep, "/") for n in snap["files"] if n.lower().endswith(VIDEO)}
+    if media["path"] != snap["destination_arr"] or not expected.issubset({f.get("relativePath", "") for f in files}):
+        raise ValueError("Arr ne reconnaît pas tous les fichiers destination : original conservé.")
+    recognized = await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
+    if any(snap["original_plex"].get(name) != keys for name, keys in recognized.items()):
+        raise ValueError("Destination associée à une autre fiche Plex : original conservé, contrôle nécessaire.")
+    if recognized != snap["original_plex"]:
+        await update_item(
+            db,
+            item,
+            "plex_pending",
+            "Copie terminée · destination non confirmée sur la même fiche Plex ; original conservé.",
+        )
+        return
+    if await is_playing(conn, snap):
+        await update_item(db, item, "plex_pending", "Lecture active : nettoyage reporté, original conservé.")
+        return
+    await no_arr_download(instance, item)
+    remaining = await asyncio.to_thread(read_inventory, src, False)
+    destination_files = await asyncio.to_thread(read_inventory, dst, False)
+    if set(destination_files) != set(snap["files"]) or not set(remaining).issubset(snap["files"]):
+        raise ValueError("Inventaire modifié : nettoyage refusé.")
+    if not snap.get("cleanup_intent") and set(remaining) != set(snap["files"]):
+        raise ValueError("Fichiers source disparus : nettoyage refusé.")
+    proofs = dict(item.proofs)
+    await asyncio.to_thread(verify_folder, src, dst, stop, proofs, mode)
+    snap["cleanup_signatures"] = {name: signature_of(dst / name) for name in snap["files"]}
+    if await is_playing(conn, snap):
+        await update_item(db, item, "plex_pending", "Lecture active : nettoyage reporté, original conservé.")
+        return
+    await no_arr_download(instance, item)
+    snap["cleanup_intent"] = True
+    await update_item(db, item, "cleaning", proofs=proofs, snapshot=snap)
+    if stop.is_set():
+        raise Interrompu()
+    path_for(snap["source_mount"], snap["relative"])
+    path_for(snap["destination_mount"], snap["relative"])
+    if fs:
+        await asyncio.to_thread(fs.remove, src, dst, snap["files"], snap["cleanup_signatures"], dict(item.proofs))
+    else:
+        await asyncio.to_thread(shutil.rmtree, src)
+    await update_item(db, item, "completed", progress={"plex_source_refresh_pending": True})
+
+
+async def rescan_arr(instance, item, resource, snap, stop):
     command = await arr_request(
         instance,
         "POST",
@@ -417,46 +484,6 @@ async def process_item(db, job, item, stop):
     expected = {n.replace(os.sep, "/") for n in snap["files"] if n.lower().endswith(VIDEO)}
     if media["path"] != snap["destination_arr"] or not expected.issubset({f.get("relativePath", "") for f in files}):
         raise ValueError("Arr ne reconnaît pas tous les fichiers destination : original conservé.")
-    await plex_get(conn, f"/library/sections/{snap['plex_section_id']}/refresh", {"path": snap["destination_plex"]})
-    await update_item(db, item, "plex_pending", "Confirmation des fiches Plex en attente ; original conservé.")
-    if (
-        await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
-        != snap["original_plex"]
-    ):
-        return
-    if await is_playing(conn, snap):
-        await update_item(db, item, "deferred", "Lecture active : nettoyage reporté.")
-        return
-    await no_arr_download(instance, item)
-    remaining = await asyncio.to_thread(read_inventory, src, False)
-    destination_files = await asyncio.to_thread(read_inventory, dst, False)
-    if set(destination_files) != set(snap["files"]) or not set(remaining).issubset(snap["files"]):
-        raise ValueError("Inventaire modifié : nettoyage refusé.")
-    if not snap.get("cleanup_intent") and set(remaining) != set(snap["files"]):
-        raise ValueError("Fichiers source disparus : nettoyage refusé.")
-    await asyncio.to_thread(verify_folder, src, dst, stop, dict(item.proofs), mode)
-    # The cleanup intent is committed after validation. Standard mode adds no full reread.
-    proofs = dict(item.proofs)
-    snap["cleanup_signatures"] = {name: signature_of(dst / name) for name in snap["files"]}
-    if stop.is_set():
-        raise Interrompu()
-    snap["cleanup_intent"] = True
-    await update_item(db, item, "cleaning", proofs=proofs, snapshot=snap)
-    path_for(snap["source_mount"], snap["relative"])
-    path_for(snap["destination_mount"], snap["relative"])
-    if fs:
-        await asyncio.to_thread(fs.remove, src, dst, snap["files"], snap["cleanup_signatures"], dict(item.proofs))
-    else:
-        await asyncio.to_thread(shutil.rmtree, src)
-    await update_item(db, item, "completed", progress={})
-    try:
-        await plex_get(
-            conn,
-            f"/library/sections/{snap['plex_section_id']}/refresh",
-            {"path": str(PurePosixPath(snap["source_plex"]).parent)},
-        )
-    except Exception:
-        log.exception("Déplacement terminé, rafraîchissement du dossier source Plex à réessayer.")
 
 
 async def refresh_storage():
@@ -479,6 +506,8 @@ async def refresh_storage():
 
 
 async def run_transfer(transfer_id, lease):
+    from .plex_finalization import FINALIZATION_STATES, MUTATION_LOCK, transfer_status
+
     stop = threading.Event()
     lease_failed = threading.Event()
 
@@ -523,12 +552,13 @@ async def run_transfer(transfer_id, lease):
                 .all()
             )
             for item in items:
-                if item.status == "completed":
+                if item.status in ("completed", *FINALIZATION_STATES):
                     continue
                 if stop.is_set():
                     break
                 try:
-                    await process_item(db, job, item, stop)
+                    async with MUTATION_LOCK:
+                        await process_item(db, job, item, stop)
                 except Interrompu:
                     break
                 except Exception as exc:
@@ -546,7 +576,9 @@ async def run_transfer(transfer_id, lease):
                     else "running"
                 )
             else:
-                job.status = "completed" if all(i.status == "completed" for i in items) else "blocked"
+                for item in items:
+                    await db.refresh(item)
+                job.status = transfer_status(items)
             job.updated_at = now_utc_naive()
             await db.commit()
     finally:
@@ -565,82 +597,100 @@ async def run_engine():
             raise RuntimeError("Un moteur de transfert est déjà actif.")
         await lease.commit()
         async with AsyncSessionLocal() as db:
-            for job in (await db.execute(select(StorageTransfer).where(StorageTransfer.status == "running"))).scalars():
+            for job in (
+                await db.execute(select(StorageTransfer).where(StorageTransfer.status.in_(["running", "finalizing"])))
+            ).scalars():
                 if job.desired_state == "run" and job.auto_resume:
-                    job.status = "queued"
+                    job.status = "finalizing" if job.status == "finalizing" else "queued"
                 elif job.desired_state == "cancel":
                     job.status = "cancelling"
                 else:
                     job.status = "paused"
                     job.desired_state = "pause"
             await db.commit()
-        while not SHUTDOWN.is_set():
-            await refresh_storage()
-            HEARTBEAT.touch()
-            async with AsyncSessionLocal() as db:
-                # A queued pause is durable even before any file starts copying.
-                for job in (
-                    await db.execute(
-                        select(StorageTransfer).where(
-                            StorageTransfer.status == "queued", StorageTransfer.desired_state != "run"
+        from .plex_finalization import MUTATION_LOCK, run_finalizer
+
+        finalizer = asyncio.create_task(run_finalizer(SHUTDOWN))
+
+        def finalizer_done(task):
+            if not task.cancelled() and task.exception():
+                SHUTDOWN.set()
+
+        finalizer.add_done_callback(finalizer_done)
+        try:
+            while not SHUTDOWN.is_set():
+                await refresh_storage()
+                HEARTBEAT.touch()
+                async with AsyncSessionLocal() as db:
+                    # A queued pause is durable even before any file starts copying.
+                    for job in (
+                        await db.execute(
+                            select(StorageTransfer).where(
+                                StorageTransfer.status.in_(["queued", "finalizing"]),
+                                StorageTransfer.desired_state != "run",
+                            )
                         )
-                    )
-                ).scalars():
-                    job.status = (
-                        "paused"
-                        if job.desired_state == "pause"
-                        else "cancelling"
-                        if job.desired_state == "cancel"
-                        else "stopped"
-                    )
-                await db.commit()
-                cancellation = (
-                    await db.execute(
-                        select(StorageTransfer)
-                        .where(
-                            StorageTransfer.desired_state == "cancel",
-                            or_(
-                                StorageTransfer.status == "cancelling",
-                                and_(
-                                    StorageTransfer.status.in_(["cancelled", "completed"]),
-                                    StorageTransfer.params["delete_after_cancel"].as_boolean().is_(True),
+                    ).scalars():
+                        job.status = (
+                            "paused"
+                            if job.desired_state == "pause"
+                            else "cancelling"
+                            if job.desired_state == "cancel"
+                            else "stopped"
+                        )
+                    await db.commit()
+                    cancellation = (
+                        await db.execute(
+                            select(StorageTransfer)
+                            .where(
+                                StorageTransfer.desired_state == "cancel",
+                                or_(
+                                    StorageTransfer.status == "cancelling",
+                                    and_(
+                                        StorageTransfer.status.in_(["cancelled", "completed"]),
+                                        StorageTransfer.params["delete_after_cancel"].as_boolean().is_(True),
+                                    ),
                                 ),
-                            ),
+                            )
+                            .order_by(StorageTransfer.id)
+                            .limit(1)
                         )
-                        .order_by(StorageTransfer.id)
-                        .limit(1)
-                    )
-                ).scalar_one_or_none()
-                if cancellation:
-                    from .cancellation import cancel_transfer
+                    ).scalar_one_or_none()
+                    if cancellation:
+                        from .cancellation import cancel_transfer
 
-                    async def heartbeat():
-                        while True:
-                            HEARTBEAT.touch()
+                        async def heartbeat():
+                            while True:
+                                HEARTBEAT.touch()
+                                await asyncio.sleep(1)
+
+                        pulse = asyncio.create_task(heartbeat())
+                        try:
+                            async with MUTATION_LOCK:
+                                cancellation_done = await cancel_transfer(db, cancellation, lease)
+                        finally:
+                            pulse.cancel()
+                            await asyncio.gather(pulse, return_exceptions=True)
+                        if cancellation_done:
                             await asyncio.sleep(1)
+                            continue
+                    job = (
+                        await db.execute(
+                            select(StorageTransfer)
+                            .where(StorageTransfer.status == "queued", StorageTransfer.desired_state == "run")
+                            .order_by(StorageTransfer.id)
+                            .limit(1)
+                        )
+                    ).scalar_one_or_none()
+                    transfer_id = job.id if job else None
+                if transfer_id:
+                    await run_transfer(transfer_id, lease)
+                else:
+                    await asyncio.sleep(3)
 
-                    pulse = asyncio.create_task(heartbeat())
-                    try:
-                        cancellation_done = await cancel_transfer(db, cancellation, lease)
-                    finally:
-                        pulse.cancel()
-                        await asyncio.gather(pulse, return_exceptions=True)
-                    if cancellation_done:
-                        await asyncio.sleep(1)
-                        continue
-                job = (
-                    await db.execute(
-                        select(StorageTransfer)
-                        .where(StorageTransfer.status == "queued", StorageTransfer.desired_state == "run")
-                        .order_by(StorageTransfer.id)
-                        .limit(1)
-                    )
-                ).scalar_one_or_none()
-                transfer_id = job.id if job else None
-            if transfer_id:
-                await run_transfer(transfer_id, lease)
-            else:
-                await asyncio.sleep(3)
+        finally:
+            SHUTDOWN.set()
+            await finalizer
 
 
 async def main():

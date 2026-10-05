@@ -24,7 +24,7 @@ const props=defineProps<{job:any,busy:boolean}>();
 const terminal=computed(()=>['completed','cancelled'].includes(props.job.status));
 const cancelRequested=computed(()=>['cancelling','cancel_blocked'].includes(props.job.status));
 const cancelling=computed(()=>props.job.status==='cancelling');
-const active=computed(()=>props.job.desired_state==='run' && ['running','queued'].includes(props.job.status));
+const active=computed(()=>props.job.desired_state==='run' && ['running','queued','finalizing'].includes(props.job.status));
 defineEmits<{command:[id:number,action:string],verify:[job:any],edit:[job:any],remove:[job:any],duplicate:[job:any],cancel:[job:any],relaunch:[job:any]}>();
 </script>
 <style scoped lang="scss">

@@ -52,7 +52,8 @@ async def test_resume_tracks_existing_arr_command_without_submitting_again(monke
     await arr.process_arr(db, NS(), item, threading.Event())
     assert all(call.args[1] == "GET" for call in request.call_args_list)
     assert request.call_args_list[0].args[2] == "command/123"
-    assert update.call_args.args[2] == "completed"
+    assert update.call_args.args[2] == "plex_pending"
+    worker.plex_get.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -108,7 +109,7 @@ async def test_fresh_move_submits_one_bulk_command_and_persists_its_id(monkeypat
         movies=[dict(movieId=2, sourcePath="/data/FILMS/Film")],
     )
     assert any(call.kwargs.get("snapshot", {}).get("arr_command_id") == 123 for call in update.call_args_list)
-    assert update.call_args.args[2] == "completed"
+    assert update.call_args.args[2] == "plex_pending"
 
 
 @pytest.mark.asyncio
