@@ -9,7 +9,9 @@ import time
 
 
 def relay():
-    body = json.loads(sys.stdin.buffer.readline())
+    # Read the header without prefetching binary protocol bytes into a buffer.
+    stream_input = getattr(sys.stdin.buffer, "raw", sys.stdin.buffer)
+    body = json.loads(stream_input.readline())
     listener = None
     stream = None
     try:
