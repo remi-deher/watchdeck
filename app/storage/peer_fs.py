@@ -13,20 +13,6 @@ from .remote_fs import remote_call
 from .ssh_hash import connecter
 
 
-def validate_bridge(config):
-    client = connecter(config)
-    try:
-        transport = client.get_transport()
-        port = transport.request_port_forward("127.0.0.1", 0)
-        transport.cancel_port_forward("127.0.0.1", port)
-    except Exception:
-        raise ValueError(
-            "Le serveur SSH source doit autoriser les tunnels TCP pour le transfert entre serveurs."
-        ) from None
-    finally:
-        client.close()
-
-
 def bridge(left, right, stop):
     try:
         while not stop.is_set():
@@ -46,7 +32,7 @@ def copy_peer(source, destination, src, dst, stop, advance, phase):
     receiver = sender = control = None
     finished = threading.Event()
     heartbeat = None
-    port = None
+    source_proxy = destination_proxy = None
     try:
         receiver = connecter(destination.config)
         agent = Path(__file__).with_name("peer_agent.py").read_text(encoding="utf-8")
@@ -85,17 +71,26 @@ def copy_peer(source, destination, src, dst, stop, advance, phase):
         heartbeat.start()
         sender = connecter(source.config)
 
-        def forward(channel, _origin, _server):
-            try:
-                target = receiver.get_transport().open_channel(
-                    "direct-tcpip", ("127.0.0.1", response["port"]), ("127.0.0.1", 0), timeout=10
-                )
-            except Exception:
-                channel.close()
-                return
-            threading.Thread(target=bridge, args=(channel, target, finished), daemon=True).start()
-
-        port = sender.get_transport().request_port_forward("127.0.0.1", 0, handler=forward)
+        relay = Path(__file__).with_name("relay_agent.py").read_text(encoding="utf-8")
+        relay_command = "python3 -u -c " + shlex.quote(
+            "import base64;exec(base64.b64decode(" + repr(base64.b64encode(relay.encode()).decode()) + "))"
+        )
+        source_proxy = sender.get_transport().open_session(timeout=10)
+        source_proxy.settimeout(15)
+        source_proxy.exec_command(relay_command)
+        source_proxy.sendall(b'{"listen":true}\n')
+        line = b""
+        while b"\n" not in line:
+            data = source_proxy.recv(4096)
+            if not data or len(line) > 4096:
+                raise ValueError("Relais SSH source indisponible ; original conservé.")
+            line += data
+        port = json.loads(line.split(b"\n", 1)[0])["port"]
+        destination_proxy = receiver.get_transport().open_session(timeout=10)
+        destination_proxy.exec_command(relay_command)
+        destination_proxy.sendall(json.dumps(dict(listen=False, port=response["port"])).encode() + b"\n")
+        source_proxy.settimeout(None)
+        threading.Thread(target=bridge, args=(source_proxy, destination_proxy, finished), daemon=True).start()
         if phase:
             phase("copie rsync entre les deux serveurs SSH")
         return remote_call(
@@ -116,14 +111,11 @@ def copy_peer(source, destination, src, dst, stop, advance, phase):
         )
     finally:
         finished.set()
+        for proxy in (source_proxy, destination_proxy):
+            if proxy is not None:
+                proxy.close()
         if sender is not None:
-            try:
-                if port is not None and sender.get_transport():
-                    sender.get_transport().cancel_port_forward("127.0.0.1", port)
-            except Exception:
-                pass
-            finally:
-                sender.close()
+            sender.close()
         if control is not None:
             try:
                 control.sendall(b"stop\n")

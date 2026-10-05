@@ -162,15 +162,6 @@ async def preview_rsync(db, body):
     )
     body.access_id = access.id
     destination_config = await config_for(db, access) if method == "ssh" else None
-    if method == "ssh":
-        import asyncio
-
-        from .peer_fs import validate_bridge
-
-        for source_access in {
-            a.id: a for root, a in selected.items() if root in sources and a.id != access.id
-        }.values():
-            await asyncio.to_thread(validate_bridge, await config_for(db, source_access))
     for source in sources:
         source_access = selected[source]
         same_host = source_access.id == access.id

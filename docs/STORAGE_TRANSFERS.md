@@ -138,7 +138,7 @@ La connexion locale conserve un `browse_root` (par défaut `/storage`), modifiab
 
 Les racines reprennent leurs accès validés dans **Stockages** : la préparation ne demande pas de nouvelle configuration SSH. Chaque racine doit avoir un accès SSH unique (ou l’accès déjà fixé dans une tâche existante). Les accès source et destination ainsi que leurs révisions sont conservés dans la tâche ; une modification impose de refaire l’aperçu.
 
-Lorsque les accès diffèrent, le moteur relaie les données entre deux tunnels SSH. Il ne copie aucune clé SSH sur les NAS. Un récepteur rsync temporaire, authentifié et limité au dossier destination, écoute uniquement sur la boucle locale du serveur destination. Le serveur source doit autoriser les tunnels TCP SSH ; ce point est contrôlé dans l’aperçu. Le débit dépend aussi du réseau du moteur.
+Lorsque les accès diffèrent, le moteur relaie les données entre deux tunnels SSH. Il ne copie aucune clé SSH sur les NAS. Un récepteur rsync temporaire, authentifié et limité au dossier destination, écoute uniquement sur la boucle locale du serveur destination. Le relais utilise des sessions SSH ordinaires et fonctionne même lorsque les tunnels TCP SSH sont désactivés. Le débit dépend aussi du réseau du moteur.
 
 La copie utilise un fichier `.partiel`, réparé par le delta rsync lors d’une reprise. La vérification standard utilise le checksum xxh128 du transfert ; le mode renforcé calcule SHA-256 localement sur chacun des deux serveurs. Après un redémarrage, les preuves du processus précédent sont contrôlées de nouveau. L’original est conservé jusqu’à la vérification de la destination et aux confirmations Arr/Plex. Une pause ou une déconnexion ferme les tunnels et arrête les opérations temporaires.
 

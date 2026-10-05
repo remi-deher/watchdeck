@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd()))
-from app.storage.peer_fs import PeerFilesystem, validate_bridge
+from app.storage.peer_fs import PeerFilesystem
 from app.storage.remote_fs import RemoteFilesystem, remote_call
 from app.storage.ssh_hash import connecter
 
@@ -22,7 +22,7 @@ created = []
 password = secrets.token_hex(20)
 try:
     for name in names:
-        command = "apk add --no-cache openssh-server >/dev/null && ssh-keygen -A >/dev/null 2>&1 && printf 'root:%s\\n' \"$SMOKE_PASSWORD\" | chpasswd && mkdir -p /media && exec /usr/sbin/sshd -D -e -o PermitRootLogin=yes -o PasswordAuthentication=yes -o AllowTcpForwarding=yes"
+        command = "apk add --no-cache openssh-server >/dev/null && ssh-keygen -A >/dev/null 2>&1 && printf 'root:%s\\n' \"$SMOKE_PASSWORD\" | chpasswd && mkdir -p /media && exec /usr/sbin/sshd -D -e -o PermitRootLogin=yes -o PasswordAuthentication=yes -o AllowTcpForwarding=no"
         subprocess.run(
             [
                 "docker",
@@ -94,7 +94,6 @@ try:
     c.close()
     a = source.path("/media/Film/test.mkv")
     b = destination.path("/media/Film/test.mkv")
-    validate_bridge(configs[0])
     progress = []
     stop = threading.Event()
 

@@ -122,25 +122,11 @@ def test_tcp_bridge_is_bidirectional_and_closes_on_disconnect():
         thread.join(3)
 
 
-@pytest.mark.parametrize("failure", [False, True])
-def test_tunnel_capability_always_closes_connection(monkeypatch, failure):
-    client = Mock()
-    client.get_transport.return_value.request_port_forward.side_effect = OSError("private") if failure else None
-    monkeypatch.setattr(peer_fs, "connecter", Mock(return_value=client))
-    if failure:
-        with pytest.raises(ValueError, match="tunnels TCP") as exc:
-            peer_fs.validate_bridge({})
-        assert "private" not in str(exc.value)
-    else:
-        peer_fs.validate_bridge({})
-        client.get_transport.return_value.cancel_port_forward.assert_called_once()
-    client.close.assert_called_once()
-
-
 @pytest.mark.parametrize("reply", [b'{"port":1234}\n', b'{"error":"receiver refused"}\n', b""])
 def test_peer_tunnel_lifecycle_and_receiver_errors(monkeypatch, reply):
     receiver, sender = Mock(), Mock()
     control = receiver.get_transport.return_value.open_session.return_value
+    receiver.get_transport.return_value.open_session.side_effect = [control, Mock()]
     control.recv.return_value = reply
     control.exit_status_ready.return_value = True
     source = NS(config={}, roots=["/source"], identities={}, session="test")
@@ -149,11 +135,8 @@ def test_peer_tunnel_lifecycle_and_receiver_errors(monkeypatch, reply):
     relay = Mock()
     monkeypatch.setattr(peer_fs, "bridge", relay)
 
-    def request(*args, handler):
-        handler(Mock(), None, None)
-        return 3210
-
-    sender.get_transport.return_value.request_port_forward.side_effect = request
+    proxy = sender.get_transport.return_value.open_session.return_value
+    proxy.recv.return_value = b'{"port":3210}\n'
     remote = Mock(return_value={"copied": True})
     monkeypatch.setattr(peer_fs, "remote_call", remote)
     if b"port" in reply:
@@ -253,3 +236,37 @@ def test_receiver_loopback_authentication_cleanup_and_identity(tmp_path, monkeyp
     proc.wait.assert_called_once()
     messages = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert messages[0]["port"] > 0 and messages[-1]["stopped"] is True
+
+
+@pytest.mark.parametrize("listen", [False, True])
+def test_binary_exec_relay_does_not_require_tcp_forwarding(monkeypatch, listen):
+    import io
+
+    from app.storage import relay_agent
+
+    stdin = NS(buffer=io.BytesIO(json.dumps(dict(listen=listen, port=1234)).encode() + b"\n"), fileno=lambda: 0)
+    raw = io.BytesIO()
+    stdout = io.TextIOWrapper(raw, encoding="utf-8")
+    stream = Mock()
+    stream.recv.return_value = b"protocol"
+    listener = Mock()
+    listener.getsockname.return_value = ("127.0.0.1", 3210)
+    listener.accept.return_value = (stream, ("127.0.0.1", 123))
+    monkeypatch.setattr(relay_agent.sys, "stdin", stdin)
+    monkeypatch.setattr(relay_agent.sys, "stdout", stdout)
+    monkeypatch.setattr(relay_agent.socket, "socket", Mock(return_value=listener))
+    monkeypatch.setattr(relay_agent.socket, "create_connection", Mock(return_value=stream))
+    monkeypatch.setattr(
+        relay_agent.select,
+        "select",
+        Mock(side_effect=[([stdin.buffer], [], []), ([stream], [], []), ([stdin.buffer], [], [])]),
+    )
+    monkeypatch.setattr(relay_agent.os, "read", Mock(side_effect=[b"incoming", b""]))
+    relay_agent.relay()
+    stream.sendall.assert_called_once_with(b"incoming")
+    stream.close.assert_called_once()
+    stdout.flush()
+    assert raw.getvalue().endswith(b"protocol")
+    if listen:
+        listener.close.assert_called_once()
+        assert json.loads(raw.getvalue().split(b"\n")[0])["port"] == 3210

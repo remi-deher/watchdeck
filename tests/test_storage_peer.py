@@ -33,7 +33,6 @@ async def test_preview_pins_both_servers_and_uses_destination_capacity(monkeypat
         destination_root="/usb/FILMS",
     )
     monkeypatch.setattr(access, "validate_access", AsyncMock())
-    monkeypatch.setattr("app.storage.peer_fs.validate_bridge", Mock())
     monkeypatch.setattr(access, "config_for", AsyncMock(side_effect=lambda db, a: dict(ssh_fingerprint=str(a.id))))
     plan = dict(planned_bytes=50, items=[dict(snapshot=dict(source_arr="/data/FILMS/Film"))])
     preview = AsyncMock(return_value=plan)
