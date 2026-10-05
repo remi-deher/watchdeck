@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
+from .local_mounts import media_mounts
 from .planning import absolute_path
 
 
@@ -44,13 +45,55 @@ def sample_matches(folder, files):
 
 
 def inspect_request(body):
+    if body.get("operation") == "browse":
+        from .worker import mounted_root
+
+        value = body["path"]
+        mounts = media_mounts()
+        if value == "/":
+            visible = sorted({"/storage", *(mount for mount in mounts if not mount.startswith("/storage/"))})
+            return dict(
+                path=value,
+                parent=None,
+                directories=[dict(name=mount, path=mount) for mount in visible],
+                selectable=False,
+            )
+        if value == "/storage" and value not in mounts:
+            return dict(
+                path=value,
+                parent="/",
+                directories=[
+                    dict(name=mount.removeprefix("/storage/"), path=mount)
+                    for mount in mounts
+                    if mount.startswith("/storage/")
+                ],
+                selectable=False,
+            )
+        path = mounted_root(value)
+        directories = []
+        for entry in path.iterdir():
+            if entry.is_dir() and not entry.is_symlink():
+                directories.append(dict(name=entry.name, path=str(entry)))
+            if len(directories) > 500:
+                raise ValueError("Trop de dossiers : indiquez un chemin plus précis.")
+        parent = str(path.parent)
+        if not any(parent == mount or parent.startswith(mount + "/") for mount in mounts):
+            parent = "/"
+        return dict(
+            path=str(path),
+            parent=parent,
+            directories=sorted(directories, key=lambda f: f["name"].casefold()),
+            selectable=True,
+        )
+    if body.get("operation") == "validate_access":
+        from .remote_agent import validate_root
+        from .worker import mounted_root
+
+        mounted_root(body["path"])
+        return validate_root(body["path"], body.get("samples", []))
     from .worker import mounted_root
 
-    mounts = []
-    for line in Path("/proc/self/mountinfo").read_text().splitlines():
-        root = line.split()[4].replace("\\040", " ")
-        if root.startswith("/storage/"):
-            mounts.append(root)
+    mounts = media_mounts()
     candidates = []
     for mount in sorted(set(mounts)):
         try:

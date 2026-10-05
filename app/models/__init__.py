@@ -126,4 +126,4 @@ __all__ = [
     "WatchlistSource",
 ]
 
-from .storage import StorageLocation, StorageTransfer, StorageTransferItem
+from .storage import StorageAccess, StorageConnection, StorageLocation, StorageTransfer, StorageTransferItem

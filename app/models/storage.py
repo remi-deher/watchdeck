@@ -6,6 +6,7 @@ from typing import Optional
 from sqlalchemy import JSON, BigInteger, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ..crypto import EncryptedText
 from ..utils import now_utc_naive
 from .base import Base
 
@@ -56,3 +57,30 @@ class StorageTransferItem(Base):
     reason: Mapped[Optional[str]]
     created_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc_naive)
+
+
+class StorageAccess(Base):
+    """One execution endpoint, credentials encrypted and excluded from snapshots."""
+
+    __tablename__ = "storage_accesses"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    connection_id: Mapped[Optional[int]] = mapped_column(ForeignKey("storage_connections.id"))
+    method: Mapped[str]
+    name: Mapped[str]
+    revision: Mapped[str]
+    connection: Mapped[dict] = mapped_column(JSON, default=dict)
+    credentials: Mapped[Optional[str]] = mapped_column(EncryptedText())
+    roots: Mapped[list] = mapped_column(JSON, default=list)
+    validation: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class StorageConnection(Base):
+    __tablename__ = "storage_connections"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    method: Mapped[str]
+    revision: Mapped[str]
+    connection: Mapped[dict] = mapped_column(JSON, default=dict)
+    credentials: Mapped[Optional[str]] = mapped_column(EncryptedText())
+    fingerprint: Mapped[str] = mapped_column(default="")
+    tested: Mapped[bool] = mapped_column(default=False)

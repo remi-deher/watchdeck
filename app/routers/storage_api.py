@@ -10,6 +10,7 @@ from ..database import get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
 from ..storage import service
+from ..storage.local_mounts import media_path
 from ..storage.planning import absolute_path
 from ..utils import now_utc_naive
 
@@ -35,7 +36,12 @@ class LocationBody(BaseModel):
 class PreviewBody(BaseModel):
     source_id: int = 0
     destination_id: int = 0
-    transfer_mode: Literal["arr"] = "arr"
+    transfer_mode: Literal["arr", "rsync_ssh", "rsync_local"] = "arr"
+    access_id: int = 0
+    transfer_methods: list[Literal["arr", "rsync_ssh", "rsync_local"]] = Field(default_factory=list, max_length=3)
+    access_ids: dict[str, int] = Field(default_factory=dict)
+    preferred_methods: list[Literal["arr", "rsync_ssh", "rsync_local"]] = Field(default_factory=list, max_length=3)
+    verification: Literal["standard", "renforce"] = "standard"
     arr_instance_id: int = 0
     source_root: str = ""
     source_roots: list[str] = Field(default_factory=list, max_length=50)
@@ -84,8 +90,8 @@ async def roots(db=Depends(get_db_async)):
 async def save_location(db, body, location=None):
     try:
         mount = absolute_path(body.mount_path) if body.mount_path else ""
-        if mount and not mount.startswith("/storage/"):
-            raise ValueError("Le montage du moteur doit être situé sous /storage/.")
+        if mount:
+            mount = media_path(mount)
         seen = set()
         for mapping in body.mappings:
             mapping.arr_root = absolute_path(mapping.arr_root)
