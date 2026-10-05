@@ -146,7 +146,7 @@ async def _preview(db, body):
             .join(StorageTransfer, StorageTransfer.id == StorageTransferItem.transfer_id)
             .where(
                 StorageTransfer.destination_id == destination.id,
-                StorageTransferItem.status.in_(["pending", "prepared", "copying", "verifying", "arr_pending"]),
+                StorageTransferItem.claimed.is_(True),
             )
         )
     ).scalar()
@@ -155,7 +155,10 @@ async def _preview(db, body):
         await db.execute(
             select(StorageTransferItem.arr_instance_id, StorageTransferItem.arr_id)
             .join(StorageTransfer, StorageTransfer.id == StorageTransferItem.transfer_id)
-            .where(StorageTransferItem.status.notin_(["completed", "cancelled"]))
+            .where(
+                StorageTransferItem.claimed.is_(True),
+                StorageTransferItem.transfer_id != getattr(body, "task_id", 0),
+            )
         )
     ).all()
     occupied = set(occupied)

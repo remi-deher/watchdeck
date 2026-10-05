@@ -6,7 +6,9 @@ from pathlib import PurePosixPath
 from types import SimpleNamespace
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from ..database import AsyncSessionLocal
 from ..models import ArrInstance, StorageLocation, StorageTransferItem
 from ..services.plex_servers import connection_for
 from ..utils import now_utc_naive
@@ -53,21 +55,41 @@ async def route(db, instance, root, discovered):
 
 async def virtual_location(db, instance, root, declared, mapping):
     name = f"Arr {instance.id} · {root}"
-    existing = (await db.execute(select(StorageLocation).where(StorageLocation.mount_path == ""))).scalars().all()
-    location = next(
-        (
-            location
-            for location in existing
-            if len(location.mappings) == 1
-            and location.mappings[0]["arr_instance_id"] == instance.id
-            and location.mappings[0]["arr_root"] == root
-        ),
-        None,
-    )
+    virtual_key = f"{instance.id}:{root}"
+    # Commit this small registry row independently. Otherwise its unique-key
+    # insert would remain uncommitted during the slow Arr/Plex inventory scan,
+    # making another read-only preview for the same root wait behind it.
+    async with AsyncSessionLocal() as registry:
+        location_id = await registry.scalar(
+            pg_insert(StorageLocation)
+            .values(
+                virtual_key=virtual_key,
+                name=name,
+                mount_path="",
+                mappings=[mapping],
+                reserve_bytes=0,
+                enabled=True,
+                free_bytes=declared["freeSpace"],
+                health="arr_verified",
+                checked_at=now_utc_naive(),
+            )
+            .on_conflict_do_update(
+                index_elements=[StorageLocation.virtual_key],
+                set_={
+                    "name": name,
+                    "mappings": [mapping],
+                    "free_bytes": declared["freeSpace"],
+                    "health": "arr_verified",
+                    "checked_at": now_utc_naive(),
+                },
+            )
+            .returning(StorageLocation.id)
+        )
+        await registry.commit()
+    location = await db.get(StorageLocation, location_id)
     if not location:
-        location = StorageLocation(name=name, mount_path="", mappings=[mapping], reserve_bytes=0, enabled=True)
-        db.add(location)
-        await db.flush()
+        raise RuntimeError("Impossible de réserver la racine Arr comme stockage virtuel.")
+    location.name = name
     location.mappings = [mapping]
     location.free_bytes = declared["freeSpace"]
     location.health = "arr_verified"
@@ -117,7 +139,7 @@ async def preview_arr(db, body, capacity_overrides=None):
         (
             await db.execute(
                 select(StorageTransferItem.arr_instance_id, StorageTransferItem.arr_id).where(
-                    StorageTransferItem.status.notin_(["completed", "cancelled"]),
+                    StorageTransferItem.claimed.is_(True),
                     StorageTransferItem.transfer_id != getattr(body, "task_id", 0),
                 )
             )
@@ -128,7 +150,7 @@ async def preview_arr(db, body, capacity_overrides=None):
             select(func.coalesce(func.sum(StorageTransferItem.size_bytes), 0)).where(
                 StorageTransferItem.arr_instance_id == instance.id,
                 StorageTransferItem.snapshot["destination_root"].as_string() == destination,
-                StorageTransferItem.status.notin_(["completed", "cancelled"]),
+                StorageTransferItem.claimed.is_(True),
                 StorageTransferItem.transfer_id != getattr(body, "task_id", 0),
             )
         )

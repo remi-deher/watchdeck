@@ -7,7 +7,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, select, text
+from sqlalchemy import or_, select
 
 from ..database import get_db_async
 from ..dependencies import require_admin
@@ -46,11 +46,12 @@ async def assert_editable(db, accesses):
                         select(StorageTransferItem.id)
                         .where(
                             StorageTransferItem.transfer_id == StorageTransfer.id,
+                            StorageTransferItem.claimed.is_(True),
                             StorageTransferItem.snapshot["source_access_id"].as_integer() == access.id,
                         )
                         .exists(),
                     ),
-                    StorageTransfer.status.notin_(["completed", "draft", "stopped", "cancelled"]),
+                    StorageTransfer.status.notin_(["completed", "draft", "cancelled"]),
                 )
             )
         ).first()
@@ -67,7 +68,6 @@ async def list_connections(db=Depends(get_db_async)):
 
 
 async def save_profile(body, db, conn=None):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     accesses = []
     if conn:
         accesses = (
@@ -132,7 +132,6 @@ class TrustBody(BaseModel):
 
 @router.post("/connections/{connection_id}/trust")
 async def trust_connection(connection_id: int, body: TrustBody, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     conn = await get_connection(db, connection_id)
     accesses = (await db.execute(select(StorageAccess).where(StorageAccess.connection_id == conn.id))).scalars().all()
     await assert_editable(db, accesses)
@@ -152,7 +151,6 @@ async def trust_connection(connection_id: int, body: TrustBody, db=Depends(get_d
 
 @router.post("/connections/{connection_id}/test")
 async def test_connection(connection_id: int, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     conn = await get_connection(db, connection_id)
     conn.tested = False
     try:
@@ -195,7 +193,6 @@ class BindingBody(BaseModel):
 
 @router.post("/bindings")
 async def save_binding(body: BindingBody, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     try:
         root = absolute_path(body.arr_root)
         path = absolute_path(body.path) if body.connection_id else ""
@@ -246,7 +243,6 @@ class MultipleBindingsBody(BaseModel):
 
 @router.post("/bindings/multiple")
 async def save_multiple_bindings(body: MultipleBindingsBody, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     try:
         root = absolute_path(body.arr_root)
         entries = []

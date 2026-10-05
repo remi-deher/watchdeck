@@ -4,7 +4,8 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from ..database import get_db_async
 from ..dependencies import require_admin
@@ -192,7 +193,6 @@ async def preview_status(key: str):
 
 @router.post("/preview")
 async def preview(body: PreviewBody, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     if body.task_id:
         await draft_task(db, body.task_id)
     try:
@@ -217,8 +217,7 @@ async def create_transfer(body: PreviewBody, db=Depends(get_db_async)):
     body.routes = []
     if not body.selection:
         raise HTTPException(422, "Valider une sélection explicite depuis l’aperçu.")
-    # Serialize creation with all other previews->jobs. Never trust client paths/sizes.
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
+    # Rebuild the plan at submission time; a browser preview is never a reservation.
     try:
         plan = await service.preview(db, body)
     except ValueError as exc:
@@ -247,9 +246,17 @@ async def create_transfer(body: PreviewBody, db=Depends(get_db_async)):
                 media_type=item["media_type"],
                 size_bytes=item["size_bytes"],
                 snapshot=item["snapshot"],
+                claimed=body.start_immediately,
             )
         )
-    await db.commit()
+    try:
+        await db.flush()
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            409, "Un titre a déjà été réservé par une autre tâche. Recalculez l’aperçu ou retirez ce titre."
+        ) from exc
     return await service.transfer_json(db, job)
 
 
@@ -266,7 +273,6 @@ async def draft_task(db, transfer_id):
 
 @router.put("/transfers/{transfer_id}")
 async def update_transfer(transfer_id: int, body: PreviewBody, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     job = await draft_task(db, transfer_id)
     body.task_id = transfer_id
     body.catalogue = False
@@ -297,15 +303,22 @@ async def update_transfer(transfer_id: int, body: PreviewBody, db=Depends(get_db
                 media_type=item["media_type"],
                 size_bytes=item["size_bytes"],
                 snapshot=item["snapshot"],
+                claimed=body.start_immediately,
             )
         )
-    await db.commit()
+    try:
+        await db.flush()
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            409, "Un titre a déjà été réservé par une autre tâche. Recalculez l’aperçu ou retirez ce titre."
+        ) from exc
     return await service.transfer_json(db, job)
 
 
 @router.delete("/transfers/{transfer_id}")
 async def delete_draft(transfer_id: int, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     job = (
         await db.execute(select(StorageTransfer).where(StorageTransfer.id == transfer_id).with_for_update())
     ).scalar_one_or_none()
@@ -346,6 +359,27 @@ async def command(transfer_id: int, body: CommandBody, db=Depends(get_db_async))
         raise HTTPException(409, "Recalculer l’aperçu avant de lancer cette tâche.")
     if job.status == "completed":
         raise HTTPException(409, "Cette tâche est terminée.")
+    if body.action in ("resume", "retry"):
+        items = (
+            await db.execute(
+                select(StorageTransferItem)
+                .where(
+                    StorageTransferItem.transfer_id == transfer_id,
+                    StorageTransferItem.status.notin_(["completed", "cancelled"]),
+                )
+                .with_for_update()
+            )
+        ).scalars()
+        for item in items:
+            item.claimed = True
+        try:
+            await db.flush()
+        except IntegrityError as exc:
+            await db.rollback()
+            raise HTTPException(
+                409,
+                "Un titre de cette tâche est déjà réservé par une autre tâche. Annulez-la ou retirez le titre avant de reprendre.",
+            ) from exc
     job.desired_state = "run" if body.action in ("resume", "retry") else body.action
     if job.desired_state == "run" and job.status != "running":
         job.status = "queued"

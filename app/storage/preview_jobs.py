@@ -6,8 +6,6 @@ import logging
 import uuid
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import text
-
 from ..database import AsyncSessionLocal
 from . import service
 from .discovery import redis_client
@@ -16,7 +14,7 @@ _tasks: set[asyncio.Task[None]] = set()
 TTL = 900
 TIMEOUT = 600
 PREFIX = "storage:preview:"
-LOCK = PREFIX + "active"
+ACTIVE = PREFIX + "active:"
 logger = logging.getLogger(__name__)
 
 
@@ -24,12 +22,11 @@ async def start(body):
     client = redis_client()
     key = uuid.uuid4().hex
     try:
-        if not await client.set(LOCK, key, nx=True, ex=TIMEOUT + 30):
-            raise ValueError("Un aperçu est déjà en cours. Attendez sa fin avant de réessayer.")
+        await client.set(ACTIVE + key, "1", ex=TIMEOUT + 30)
         try:
             await client.set(PREFIX + key, json.dumps(dict(status="running")), ex=TTL)
         except BaseException:
-            await client.delete(LOCK)
+            await client.delete(ACTIVE + key)
             raise
         task = asyncio.create_task(calculate(key, body.model_copy(deep=True)))
         _tasks.add(task)
@@ -43,7 +40,6 @@ async def calculate(key, body):
     client = redis_client()
     try:
         async with asyncio.timeout(TIMEOUT), AsyncSessionLocal() as db:
-            await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
             if body.task_id:
                 from ..routers.storage_api import draft_task
 
@@ -67,12 +63,7 @@ async def calculate(key, body):
         await client.set(PREFIX + key, json.dumps(result), ex=TTL)
     finally:
         try:
-            await client.eval(
-                "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end return 0",
-                1,
-                LOCK,
-                key,
-            )
+            await client.delete(ACTIVE + key)
         finally:
             await client.aclose()
 
@@ -84,7 +75,7 @@ async def status(key):
         if not value:
             raise ValueError("Cet aperçu a expiré. Relancez son calcul.")
         result = json.loads(value)
-        if result["status"] == "running" and await client.get(LOCK) != key:
+        if result["status"] == "running" and not await client.exists(ACTIVE + key):
             return dict(status="failed", error="Le service a redémarré ou le calcul a expiré. Relancez l’aperçu.")
         return result
     finally:

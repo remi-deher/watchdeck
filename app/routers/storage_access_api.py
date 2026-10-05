@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, select, text
+from sqlalchemy import or_, select
 
 from ..database import get_db_async
 from ..dependencies import require_admin
@@ -49,7 +49,6 @@ async def list_accesses(db=Depends(get_db_async)):
 
 
 async def save_access(body, db, access=None):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     if access:
         active = (
             await db.execute(
@@ -59,11 +58,12 @@ async def save_access(body, db, access=None):
                         select(StorageTransferItem.id)
                         .where(
                             StorageTransferItem.transfer_id == StorageTransfer.id,
+                            StorageTransferItem.claimed.is_(True),
                             StorageTransferItem.snapshot["source_access_id"].as_integer() == access.id,
                         )
                         .exists(),
                     ),
-                    StorageTransfer.status.notin_(["completed", "draft", "stopped", "cancelled"]),
+                    StorageTransfer.status.notin_(["completed", "draft", "cancelled"]),
                 )
             )
         ).first()
@@ -122,7 +122,6 @@ async def test_access(access_id: int, db=Depends(get_db_async)):
     access = await db.get(StorageAccess, access_id)
     if not access:
         raise HTTPException(404, "Accès inconnu.")
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     access.validation = {}
     try:
         result = await validate_access(db, access)

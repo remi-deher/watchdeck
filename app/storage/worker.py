@@ -164,6 +164,8 @@ async def update_item(db, item, status, reason=None, **changes):
         telemetry["finished_at"] = now_utc_naive().isoformat()
     item.progress = telemetry
     item.status = status
+    if status in ("completed", "cancelled"):
+        item.claimed = False
     item.reason = reason
     item.updated_at = now_utc_naive()
     for key, value in changes.items():
@@ -172,6 +174,8 @@ async def update_item(db, item, status, reason=None, **changes):
 
 
 async def process_item(db, job, item, stop, *, finalize_only=False):
+    if not item.claimed:
+        raise ValueError("Ce titre n’est pas réservé par une tâche active ; relancez la tâche pour le vérifier.")
     if job.params.get("transfer_mode", "rsync") == "arr":
         from .arr_transfer import process_arr
 

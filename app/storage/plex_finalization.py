@@ -166,7 +166,9 @@ async def finalize_item(item_id, scans, lease, shutdown):
 
 async def run_finalizer(shutdown):
     async with async_engine.connect() as lease:
-        if not (await lease.execute(text("SELECT pg_try_advisory_lock(190041, 2)"))).scalar():
+        # Reserved namespace: 1 is the transfer engine, 3 is Plex finalization.
+        # Storage API requests must never use this session-level worker lease.
+        if not (await lease.execute(text("SELECT pg_try_advisory_lock(190041, 3)"))).scalar():
             raise RuntimeError("Un moteur de finalisation Plex est déjà actif.")
         await lease.commit()
         while not shutdown.is_set():
