@@ -80,3 +80,78 @@ async def test_api_never_auto_confirms_without_arr_plex_identity(monkeypatch, st
     result = await storage_api.resolve_root(body, db)
     assert bool(result["automatic"]) is automatic
     assert engine.call_args.args[0]["files"] == [dict(path="Film/Film.mkv", size=5)]
+
+
+@pytest.mark.asyncio
+async def test_discovery_worker_ignores_expired_requests_and_recovers_from_bad_payload(monkeypatch):
+    import asyncio
+    import json
+
+    from app.storage import discovery
+
+    client = AsyncMock()
+    client.lpop.side_effect = [
+        json.dumps(dict(key="expired", expires=0, body={})),
+        "invalid json",
+        json.dumps(dict(key="valid", expires=10**12, body={"arr_root": "/usb/FILMS"})),
+        None,
+    ]
+    result = {"candidates": [], "automatic": None}
+    inspector = __import__("unittest.mock", fromlist=["Mock"]).Mock(return_value=result)
+    monkeypatch.setattr(discovery, "redis_client", lambda: client)
+    monkeypatch.setattr(discovery, "inspect_request", inspector)
+
+    async def stop_when_idle(delay):
+        if delay == 0.25:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(discovery.asyncio, "sleep", stop_when_idle)
+    with pytest.raises(asyncio.CancelledError):
+        await discovery.serve_discovery()
+    inspector.assert_called_once_with({"arr_root": "/usb/FILMS"})
+    client.set.assert_awaited_once_with("valid", json.dumps(result), ex=30)
+    client.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_engine_timeout_closes_connection_without_accepting_missing_proof(monkeypatch):
+    from app.storage import discovery
+
+    client = AsyncMock()
+    client.get.return_value = None
+    monkeypatch.setattr(discovery, "redis_client", lambda: client)
+    monkeypatch.setattr(discovery.asyncio, "sleep", AsyncMock())
+    with pytest.raises(ValueError, match="indisponible"):
+        await discovery.request_engine({"arr_root": "/usb/FILMS"})
+    assert client.get.await_count == 80
+    client.delete.assert_not_awaited()
+    client.aclose.assert_awaited_once()
+
+
+@pytest.mark.parametrize("matches,expected", [(True, True), (False, False)])
+def test_mount_discovery_requires_file_proof_before_automatic_selection(tmp_path, monkeypatch, matches, expected):
+    from pathlib import Path
+
+    from app.storage import discovery
+
+    base = tmp_path / "usb"
+    folder = base / "MEDIA" / "FILMS"
+    folder.mkdir(parents=True)
+    original_read = Path.read_text
+
+    def read_mountinfo(path, *args, **kwargs):
+        if str(path) == str(Path("/proc/self/mountinfo")):
+            return "1 2 0:1 / /storage/usb rw\n2 2 0:1 / /unrelated rw"
+        return original_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_mountinfo)
+    monkeypatch.setattr("app.storage.worker.mounted_root", lambda mount: base)
+    monkeypatch.setattr(discovery, "compatible", lambda left, right: True)
+    monkeypatch.setattr(discovery, "sample_matches", lambda path, files: matches)
+    result = discovery.inspect_request({"arr_root": "/usb/FILMS", "plex_root": "/usb/MEDIA/FILMS"})
+    assert len(result["candidates"]) == 1
+    candidate = result["candidates"][0]
+    assert candidate["mount_path"] == "/storage/usb"
+    assert Path(candidate["subdirectory"]).parts == ("MEDIA", "FILMS")
+    assert candidate["matched"] is matches
+    assert bool(result["automatic"]) is expected
