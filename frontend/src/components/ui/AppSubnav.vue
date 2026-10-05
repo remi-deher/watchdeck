@@ -43,7 +43,7 @@
     </NavigationMenuRoot>
     <!-- Onglets : Reka UI porte `role="tablist"`/`tab`, le tabindex mobile et les fleches,
          Origine et Fin du pattern Tabs -- une centaine de lignes de moins ici. -->
-    <TabsRoot v-else :model-value="active" @update:model-value="choisir">
+    <TabsRoot v-else class="app-subnav__root" :model-value="active" @update:model-value="choisir">
       <TabsList ref="scroller" class="app-subnav__scroller" :aria-label="ariaLabel" @scroll="onScroll">
         <template v-for="(item, index) in items" :key="item.key">
           <span v-if="separe(index)" class="app-subnav__separator" aria-hidden="true" />
