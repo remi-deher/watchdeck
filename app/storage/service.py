@@ -12,6 +12,17 @@ from .planning import absolute_path, choose_candidates, relative_path
 
 
 async def arr_request(instance, method, path, body=None):
+    from .preview_cache import read_inventory
+
+    async def fetch():
+        return await _arr_request(instance, method, path, body)
+
+    if method == "GET":
+        return await read_inventory(("arr", instance.id, instance.url, path), fetch)
+    return await fetch()
+
+
+async def _arr_request(instance, method, path, body=None):
     async with httpx.AsyncClient(timeout=60) as client:
         response = await client.request(
             method, instance.url.rstrip("/") + "/api/v3/" + path, headers={"X-Api-Key": instance.api_key}, json=body
@@ -69,6 +80,13 @@ def location_json(location):
 
 
 async def preview(db, body):
+    from .preview_cache import inventory_cache
+
+    with inventory_cache():
+        return await _preview(db, body)
+
+
+async def _preview(db, body):
     if getattr(body, "transfer_methods", None):
         from .access import preview_priority
 

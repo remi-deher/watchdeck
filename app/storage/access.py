@@ -80,7 +80,7 @@ async def samples_for(db, instance_id, root):
     return samples[:20]
 
 
-async def validate_access(db, access):
+async def validate_access(db, access, selected_roots=None):
     from .arr_transfer import route
     from .discovery import request_engine
     from .remote_fs import remote_call
@@ -89,6 +89,8 @@ async def validate_access(db, access):
     config = await config_for(db, access)
     results = []
     for root in access.roots:
+        if selected_roots is not None and (root["arr_instance_id"], root["arr_root"]) not in selected_roots:
+            continue
         instance = await db.get(ArrInstance, root["arr_instance_id"])
         if not instance or not instance.enabled:
             raise ValueError("Instance Arr indisponible.")
@@ -106,6 +108,10 @@ async def validate_access(db, access):
                 **result,
                 warning="Aucun média Arr trouvé : accès validé, contenu non confirmé." if not samples else "",
             )
+        )
+    if selected_roots is not None:
+        results.extend(
+            r for r in access.validation.get("roots", []) if (r["arr_instance_id"], r["arr_root"]) not in selected_roots
         )
     access.validation = dict(revision=access.revision, checked_at=now_utc_naive().isoformat(), roots=results)
     if getattr(access, "connection_id", None):
@@ -144,7 +150,11 @@ async def preview_rsync(db, body):
         matching_root(access, body.arr_instance_id, root)
         selected[root] = access
     for access in {a.id: a for a in selected.values()}.values():
-        await validate_access(db, access)
+        await validate_access(
+            db,
+            access,
+            {(body.arr_instance_id, root) for root, endpoint in selected.items() if endpoint.id == access.id},
+        )
     capacities = {
         root: next(
             r["free_bytes"]
