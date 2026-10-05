@@ -3,7 +3,7 @@
     <UiFeedback v-if="error" type="error" :message="error" /><UiFeedback v-if="savedMessage" type="success" :message="savedMessage" />
     <AppSubnav v-model:active="tab" :items="tabs" variant="tabs" class="storage-subnav" aria-label="Sections du stockage" />
 
-    <StorageOverviewPanel v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="rootRows.filter(r=>r.arr_root).length" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
+    <StorageOverviewPanel :instances="instances" v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="rootRows.filter(r=>r.arr_root).length" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
     <UiFeedback v-if="previewProgress" type="info" :message="previewProgress" role="status" aria-live="polite" />
     <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="discoveredRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :busy="busy" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
