@@ -5,7 +5,7 @@
   <form @submit.prevent="step===1?step=2:$emit('preview')">
    <template v-if="step===1">
     <h3>Instances à déplacer</h3><div class="instance-choices"><label v-for="instance in roots" :key="instance.arr_instance_id" class="check instance-choice"><input type="checkbox" :checked="selected(instance.arr_instance_id)" :disabled="busy || Boolean(instance.error)" @change="toggle(instance)" />{{ instance.name }} · {{ instance.arr_type==='radarr'?'Films':'Séries' }}</label></div>
-    <fieldset class="route-card" v-for="route in form.routes" :key="route.arr_instance_id"><legend>{{ instanceName(route.arr_instance_id) }}</legend><div class="prepare-route"><fieldset class="source-choices"><legend>Déplacer depuis</legend><label v-for="root in rootsFor(route)" :key="root" class="check"><input v-model="route.source_roots" type="checkbox" :value="root" :disabled="busy || root===route.destination_root" />{{ root }}</label></fieldset><span class="route-arrow" aria-hidden="true">→</span><label class="destination-choice">Destination<select v-model="route.destination_root" required :disabled="busy"><option value="" disabled>Choisir la destination</option><option v-for="root in rootsFor(route).filter(r=>!route.source_roots.includes(r))" :key="root" :value="root">{{ root }}</option></select></label></div></fieldset>
+    <fieldset class="route-card" v-for="route in form.routes" :key="route.arr_instance_id"><legend>{{ instanceName(route.arr_instance_id) }}</legend><div class="prepare-route"><fieldset class="source-choices"><legend>Déplacer depuis</legend><label v-for="root in rootsFor(route)" :key="root" class="check"><input v-model="route.source_roots" type="checkbox" :value="root" :disabled="busy || root===route.destination_root" />{{ root }}<small class="root-capacity">{{ capacity(route.arr_instance_id,root) }}</small></label></fieldset><span class="route-arrow" aria-hidden="true">→</span><label class="destination-choice">Destination<select v-model="route.destination_root" required :disabled="busy"><option value="" disabled>Choisir la destination</option><option v-for="root in rootsFor(route).filter(r=>!route.source_roots.includes(r))" :key="root" :value="root">{{ root }} · {{ capacity(route.arr_instance_id,root) }}</option></select><small class="root-capacity">{{ capacity(route.arr_instance_id,route.destination_root) }}</small></label></div></fieldset>
     <StorageTransferMethod v-model="form" :accesses="accesses||[]" :busy="busy" @configure="$emit('configure')" />
     <div class="prepare-footer"><span>{{ form.routes.length }} instance(s) · {{ form.routes.reduce((n:number,r:any)=>n+r.source_roots.length,0) }} source(s)</span><UiButton type="submit" variant="primary" :disabled="!validRoutes || busy">Continuer vers l’objectif</UiButton></div>
    </template>
@@ -27,14 +27,24 @@
 <script setup lang="ts">
 import {computed,ref} from 'vue';
 import StorageTransferMethod from './StorageTransferMethod.vue';
+import {selectedRootAccess} from './transferAccess';
 import UiButton from '@/components/ui/UiButton.vue';
-const props=defineProps<{roots:any[],accesses?:any[],busy:boolean}>();const form=defineModel<any>({required:true});const step=ref(1);
+const props=defineProps<{roots:any[],accesses?:any[],locations?:any[],busy:boolean}>();const form=defineModel<any>({required:true});const step=ref(1);
 const selected=(id:number)=>form.value.routes?.some((r:any)=>r.arr_instance_id===id);
 function toggle(instance:any){const routes=form.value.routes||[];form.value.routes=selected(instance.arr_instance_id)?routes.filter((r:any)=>r.arr_instance_id!==instance.arr_instance_id):[...routes,{arr_instance_id:instance.arr_instance_id,source_roots:[],root_goals:{},destination_root:''}];}
+function capacity(instance:number,root:string){
+ if(!root)return '';
+ const endpoint=selectedRootAccess(form.value,props.accesses||[],instance,root);
+ const proof=endpoint?.validation?.roots?.find((r:any)=>r.arr_instance_id===instance && r.arr_root===root);
+ const arr=props.roots.find(r=>r.arr_instance_id===instance)?.capacities?.[root];
+ const saved=props.locations?.find(l=>l.mappings?.some((m:any)=>m.arr_instance_id===instance&&m.arr_root===root));
+ const bytes=proof?.free_bytes ?? arr?.free_bytes ?? saved?.free_bytes;
+ return bytes==null?'Espace disponible inconnu':`${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1}).format(bytes/1e9)} Go libres · dernier contrôle`;
+}
 const rootsFor=(route:any):string[]=>props.roots.find(r=>r.arr_instance_id===route.arr_instance_id)?.arr_roots||[];
 const instanceName=(id:number)=>props.roots.find(r=>r.arr_instance_id===id)?.name||id;
 const validRoutes=computed(()=>form.value.routes?.length && form.value.routes.every((route:any)=>route.source_roots?.length && route.destination_root && !route.source_roots.includes(route.destination_root)) && validAccess.value);
-const validAccess=computed(()=>{const modes=form.value.transfer_methods ?? [form.value.transfer_mode];return modes.length>0 && modes.every((mode:string)=>{if(mode==='arr')return true;const id=form.value.access_ids?.[mode] ?? (form.value.transfer_mode===mode?form.value.access_id:0);const access=props.accesses?.find(a=>a.id===id && a.method===(mode==='rsync_ssh'?'ssh':'local') && a.validation?.revision===a.revision);return Boolean(access && form.value.routes.every((route:any)=>[...route.source_roots,route.destination_root].every(root=>access.roots.some((r:any)=>r.arr_instance_id===route.arr_instance_id && r.arr_root===root))));});});
+const validAccess=computed(()=>{const modes=form.value.transfer_methods ?? [form.value.transfer_mode];return modes.length>0 && modes.every((mode:string)=>{if(mode==='arr')return true;if(mode==='rsync_ssh')return form.value.routes.every((route:any)=>[...route.source_roots,route.destination_root].every(root=>selectedRootAccess(form.value,props.accesses||[],route.arr_instance_id,root)));const id=form.value.access_ids?.[mode] ?? (form.value.transfer_mode===mode?form.value.access_id:0);const access=props.accesses?.find(a=>a.id===id && a.method===(mode==='rsync_ssh'?'ssh':'local') && a.validation?.revision===a.revision);return Boolean(access && form.value.routes.every((route:any)=>[...route.source_roots,route.destination_root].every(root=>access.roots.some((r:any)=>r.arr_instance_id===route.arr_instance_id && r.arr_root===root))));});});
 const limitTitles=ref(form.value.max_titles<250);
 function setGeneral(value:string){form.value.goal_gb=value===''?null:Number(value);for(const route of form.value.routes)route.root_goals={};}
 function setRoot(route:any,root:string,value:string){route.root_goals={...route.root_goals,[root]:value===''?null:Number(value)};}
@@ -45,7 +55,7 @@ defineEmits<{preview:[],configure:[]}>();
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
-.source-choices{display:grid;gap:10px;margin:0;min-width:0}.source-choices label{overflow-wrap:anywhere}.objective-routes{padding-left:20px;overflow-wrap:anywhere}.objective-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.objective-options legend{margin-bottom:12px}.objective-options label{border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;display:grid;gap:8px}.objective-options label.chosen{border-color:var(--accent);background:var(--bg-hover)}.objective-options small,.form-grid small{line-height:1.5;color:var(--text-muted)}@include bp.until(tablet){.objective-options{grid-template-columns:1fr}}
+.root-capacity{font-family:inherit;font-size:12px;color:var(--text-muted);margin-left:auto;white-space:normal}.source-choices{display:grid;gap:10px;margin:0;min-width:0}.source-choices label{overflow-wrap:anywhere}.objective-routes{padding-left:20px;overflow-wrap:anywhere}.objective-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.objective-options legend{margin-bottom:12px}.objective-options label{border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;display:grid;gap:8px}.objective-options label.chosen{border-color:var(--accent);background:var(--bg-hover)}.objective-options small,.form-grid small{line-height:1.5;color:var(--text-muted)}@include bp.until(tablet){.objective-options{grid-template-columns:1fr}}
 </style>
 
 <style scoped lang="scss">

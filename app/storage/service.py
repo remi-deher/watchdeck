@@ -40,6 +40,7 @@ async def discover_instance_roots(db, instance):
         arr_type=instance.arr_type,
         plex_server_id=conn.id,
         arr_roots=[r["path"].rstrip("/") for r in arr_roots],
+        capacities={r["path"].rstrip("/"): dict(free_bytes=r.get("freeSpace")) for r in arr_roots},
         plex_roots=[
             dict(section_id=str(s["key"]), library=s["title"], path=location["path"].rstrip("/"))
             for s in sections
