@@ -247,7 +247,10 @@ def test_binary_exec_relay_does_not_require_tcp_forwarding(monkeypatch, listen):
 
     from app.storage import relay_agent
 
-    stdin = NS(buffer=io.BytesIO(json.dumps(dict(listen=listen, port=1234)).encode() + b"\n"), fileno=lambda: 0)
+    stdin = NS(
+        buffer=io.BufferedReader(io.BytesIO(json.dumps(dict(listen=listen, port=1234)).encode() + b"\n")),
+        fileno=lambda: 0,
+    )
     raw = io.BytesIO()
     stdout = io.TextIOWrapper(raw, encoding="utf-8")
     stream = Mock()
