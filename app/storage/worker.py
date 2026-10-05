@@ -159,7 +159,7 @@ async def update_item(db, item, status, reason=None, **changes):
     next_progress = changes.pop("progress", None)
     if next_progress is not None:
         telemetry.update(next_progress)
-    if status in ("prepared", "copying", "verifying", "switching", "plex_pending", "cleaning"):
+    if status in ("prepared", "copying", "verifying", "switching", "plex_pending", "cleaning", "arr_pending"):
         telemetry.setdefault("started_at", now_utc_naive().isoformat())
     if previous != status:
         telemetry["phase_started_at"] = time.time()
@@ -176,6 +176,10 @@ async def update_item(db, item, status, reason=None, **changes):
 
 
 async def process_item(db, job, item, stop):
+    if job.params.get("transfer_mode", "rsync") == "arr":
+        from .arr_transfer import process_arr
+
+        return await process_arr(db, job, item, stop)
     snap = dict(item.snapshot)
     src = local_media(snap["source_mount"], snap["relative"])
     dst = local_media(snap["destination_mount"], snap["relative"])
@@ -432,6 +436,8 @@ async def process_item(db, job, item, stop):
 async def refresh_storage():
     async with AsyncSessionLocal() as db:
         for location in (await db.execute(select(StorageLocation))).scalars():
+            if not location.mount_path:
+                continue
             try:
                 root = mounted_root(location.mount_path)
                 usage = shutil.disk_usage(root)
@@ -523,7 +529,7 @@ async def run_transfer(transfer_id, lease):
         raise RuntimeError("Verrou perdu : arrêt du moteur avant tout autre lot.")
 
 
-async def main():
+async def run_engine():
     if not shutil.which("rsync"):
         raise RuntimeError("rsync absent de l’image.")
     async with async_engine.connect() as lease:
@@ -565,6 +571,17 @@ async def main():
                 await run_transfer(transfer_id, lease)
             else:
                 await asyncio.sleep(3)
+
+
+async def main():
+    from .discovery import serve_discovery
+
+    discovery_task = asyncio.create_task(serve_discovery())
+    try:
+        await run_engine()
+    finally:
+        discovery_task.cancel()
+        await asyncio.gather(discovery_task, return_exceptions=True)
 
 
 if __name__ == "__main__":

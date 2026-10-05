@@ -68,6 +68,10 @@ def location_json(location):
 
 
 async def preview(db, body):
+    if getattr(body, "transfer_mode", "rsync") == "arr":
+        from .arr_transfer import preview_arr
+
+        return await preview_arr(db, body)
     if body.source_id == body.destination_id:
         raise ValueError("Choisir deux stockages différents.")
     source, destination = (
@@ -82,6 +86,27 @@ async def preview(db, body):
             raise ValueError(
                 "Le moteur doit confirmer les montages et leur espace libre (contrôle de moins de 90 secondes)."
             )
+    from types import SimpleNamespace
+
+    for location in (source, destination):
+        for mapping in location.mappings:
+            resolved = await resolve_mapping(db, SimpleNamespace(**mapping))
+            candidate = next(
+                (
+                    c
+                    for c in resolved["candidates"]
+                    if c["mount_path"] == location.mount_path and c["subdirectory"] == mapping.get("subdirectory", "")
+                ),
+                None,
+            )
+            status = resolved["comparison"]["status"]
+            if (
+                not candidate
+                or status not in ("sample_matched", "empty")
+                or (status == "sample_matched" and not candidate["matched"])
+                or (location is source and status != "sample_matched")
+            ):
+                raise ValueError("rsync : chemins Arr/Plex/moteur non validés pour la source ou la destination.")
     available = max(0, (destination.free_bytes or 0) - destination.reserve_bytes)
     reserved = (
         await db.execute(
@@ -89,7 +114,7 @@ async def preview(db, body):
             .join(StorageTransfer, StorageTransfer.id == StorageTransferItem.transfer_id)
             .where(
                 StorageTransfer.destination_id == destination.id,
-                StorageTransferItem.status.in_(["pending", "prepared", "copying", "verifying"]),
+                StorageTransferItem.status.in_(["pending", "prepared", "copying", "verifying", "arr_pending"]),
             )
         )
     ).scalar()
@@ -242,7 +267,7 @@ async def check_mapping(db, location, mapping_index):
     ]
     results = []
     catalog = await plex_files(conn, mapping["plex_section_id"], mapping["plex_root"], kind) if eligible else {}
-    for media, relative in sorted(eligible, key=lambda t: t[0]["id"])[:5]:
+    for media, relative in sorted(eligible, key=lambda t: t[0]["id"])[:5] if catalog else []:
         try:
             files = await arr_request(
                 instance,
@@ -286,6 +311,7 @@ async def check_mapping(db, location, mapping_index):
         total_titles=len(titles),
         available_titles=len(eligible),
         pending_titles=len(titles) - len(eligible),
+        empty_reason="plex_empty" if eligible and not catalog else "arr_empty" if not eligible else None,
         checked_titles=len(results),
         matched_titles=sum(r["status"] == "matched" for r in results),
         status="empty"
@@ -296,5 +322,50 @@ async def check_mapping(db, location, mapping_index):
         if any(r["status"] == "unavailable" for r in results)
         else "sample_matched",
         items=results,
-        note="Contrôle API de 5 titres maximum. Chaque titre sera revérifié avant son déplacement ; le montage du moteur reste un contrôle distinct.",
+        note="Contrôle API de 5 titres maximum. Chaque titre sera revérifié avant son déplacement ; une racine vide ne permet pas de confirmer le contenu.",
     )
+
+
+async def resolve_mapping(db, body):
+    from types import SimpleNamespace
+
+    from .discovery import request_engine
+    from .planning import relative_path
+
+    body.arr_root = absolute_path(body.arr_root)
+    body.plex_root = absolute_path(body.plex_root)
+    comparison = await check_mapping(db, SimpleNamespace(mappings=[body.model_dump()]), 0)
+    instance = await db.get(ArrInstance, body.arr_instance_id)
+    kind = "movie" if instance.arr_type == "radarr" else "series"
+    media = await arr_request(instance, "GET", kind)
+    samples = []
+    for title in sorted(media, key=lambda t: t["id"]):
+        relative = relative_path(title["path"], body.arr_root)
+        if (
+            not relative
+            or "/" in relative
+            or not (
+                title.get("hasFile")
+                or title.get("movieFile")
+                or title.get("sizeOnDisk")
+                or title.get("statistics", {}).get("episodeFileCount")
+            )
+        ):
+            continue
+        files = await arr_request(
+            instance,
+            "GET",
+            f"moviefile?movieId={title['id']}" if kind == "movie" else f"episodefile?seriesId={title['id']}",
+        )
+        samples.extend(
+            dict(path=relative + "/" + f["relativePath"], size=f["size"])
+            for f in files
+            if f.get("relativePath") and f.get("size") is not None
+        )
+        if len(samples) >= 5:
+            break
+    result = await request_engine(dict(arr_root=body.arr_root, plex_root=body.plex_root, files=samples[:20]))
+    result["comparison"] = comparison
+    if comparison["status"] != "sample_matched":
+        result["automatic"] = None
+    return result
