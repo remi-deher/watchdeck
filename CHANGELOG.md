@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.71.1 — 2026-10-05
+
+
+### 🐛 Corrections
+
+- preserve SSH relay protocol bytes ([093b1ae](https://github.com/remi-deher/watchdeck/commit/093b1ae678a6faa5c9057284d252dc8beaec51ef))
 ## 1.71.0 — 2026-10-05
 
 
 ### ✨ Nouveautés
 
 - support rsync transfers between SSH servers ([d5366d6](https://github.com/remi-deher/watchdeck/commit/d5366d6479d8aae32cb05591eb011f11b35a0e78))
+
+### 🔧 Maintenance
+
+- v1.71.0 (#673) ([36991ac](https://github.com/remi-deher/watchdeck/commit/36991acac488eb5c1b75c011e9d7ff7096ebf79d))
 ## 1.70.0 — 2026-10-05
 
 
