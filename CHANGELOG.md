@@ -1,11 +1,61 @@
 # Changelog
 
+## 1.72.0 — 2026-10-05
+
+
+### test
+
+- cover SSH probing and connection failure safeguards ([c398756](https://github.com/remi-deher/watchdeck/commit/c398756e4ecccf7c531297a255a74b909dca2af9))
+- verify local directory filtering and mount navigation ([eb32374](https://github.com/remi-deher/watchdeck/commit/eb32374e80e9fe0d5d70c17743a368c96542b353))
+- cover SSH relay lifecycle and cleanup safeguards ([b87130e](https://github.com/remi-deher/watchdeck/commit/b87130e511edc981759dbc5263d32bbcd9dbf4d7))
+- support FIFO lifecycle checks on Windows ([63cc8ef](https://github.com/remi-deher/watchdeck/commit/63cc8ef81bf495794376b2c7d6df86497ec624c2))
+
+### ✨ Nouveautés
+
+- add validated rsync connections and simplify transfer setup ([b3ca23e](https://github.com/remi-deher/watchdeck/commit/b3ca23ed0bbeb2800d02c36a3d3faa7e1b2432a3))
+- support rsync transfers between SSH servers ([a12ad90](https://github.com/remi-deher/watchdeck/commit/a12ad9035127e5490f7b218d5c08856dd1eb00ef))
+- enable rsync transfers between SSH servers ([8dead70](https://github.com/remi-deher/watchdeck/commit/8dead709207bb1a7e8289bdc503759e8ca875339))
+
+### 🐛 Corrections
+
+- relay rsync without SSH TCP forwarding ([c58cc93](https://github.com/remi-deher/watchdeck/commit/c58cc93f6929d5a33d6b798865bbe704b392955c))
+- keep temporary rsync authentication in memory ([ff8f4bc](https://github.com/remi-deher/watchdeck/commit/ff8f4bc9b47cbe9494d36b15932cf0c77b932bd4))
+- stream rsync authentication through a private FIFO ([f3441c2](https://github.com/remi-deher/watchdeck/commit/f3441c2bd6e4d46078df6ebeb0bf12c2d8315a1c))
+- preserve binary bytes after SSH relay handshake ([4a2bcbe](https://github.com/remi-deher/watchdeck/commit/4a2bcbe47971b72269a182a4e6330e86e8974507))
+- preserve SSH relay protocol bytes ([12e07e7](https://github.com/remi-deher/watchdeck/commit/12e07e75a5cc4d5400d8b7486da84d66ffb03e7e))
+- calculate previews without HTTP timeouts ([bd7d358](https://github.com/remi-deher/watchdeck/commit/bd7d35898b798ed27a6169a2f3744bada3d409b6))
+- type preview background tasks ([bb0d956](https://github.com/remi-deher/watchdeck/commit/bb0d956ca2681012b13b9bb61f50bc140805a8a8))
+- calculate previews without HTTP timeouts ([40d8546](https://github.com/remi-deher/watchdeck/commit/40d854685be5cb46f83c2797e786e5824b570820))
+- prevent preparation preview timeouts ([af6dcb8](https://github.com/remi-deher/watchdeck/commit/af6dcb89e94313f0dd7a3ea9b5ea44f3b8cf6a8d))
+
+### 🔧 Maintenance
+
+- bump @tanstack/query-async-storage-persister (#657) ([f475ecf](https://github.com/remi-deher/watchdeck/commit/f475ecf77c5e0a61880f5ea3af67565928a0fa69))
+- bump @types/node from 26.6.2 to 26.6.3 (#658) ([7dc4dec](https://github.com/remi-deher/watchdeck/commit/7dc4dec36b09b7fa64a9e65722ddbd5041cc2b13))
+- bump markdown from 3.10.3 to 3.11 (#660) ([7884212](https://github.com/remi-deher/watchdeck/commit/788421253f87d8e4c5b4d5c010ccedd7aa72a11b))
+- bump webauthn from 3.0.0 to 3.0.1 (#664) ([8d29d2b](https://github.com/remi-deher/watchdeck/commit/8d29d2b72a8a3d490beddf5d63b29fa3dbab1398))
+- sync main into dev ([18c4f71](https://github.com/remi-deher/watchdeck/commit/18c4f7150409ea70e12d2bbbc1ade366c9224346))
+- sync main into dev ([a6bb898](https://github.com/remi-deher/watchdeck/commit/a6bb89849a083ebc3446426cd3b39d334f886d30))
+- sync test before SSH rsync promotion ([978c728](https://github.com/remi-deher/watchdeck/commit/978c728032bfe6238cf9176a4416209a3218718c))
+- sync tested SSH rsync promotion ([1775cf6](https://github.com/remi-deher/watchdeck/commit/1775cf6095d01d36cf4b7b364f57593cde05f5cf))
+- sync release metadata into test ([26f5a55](https://github.com/remi-deher/watchdeck/commit/26f5a556aff4ef695d167d2a382dc05417e40fa0))
+- sync release and tested relay fix ([be411de](https://github.com/remi-deher/watchdeck/commit/be411de15450da3a85fc85b9634f0053bb0ee3bd))
+- sync release metadata and tested SSH relay ([10733c3](https://github.com/remi-deher/watchdeck/commit/10733c3a97cc5101a7c73fdd4851670e7d598ae2))
+- preserve release ancestry for promotion ([682a0ce](https://github.com/remi-deher/watchdeck/commit/682a0ce6a4276ba8ab88753280f74d189be6206c))
+- sync main into dev ([4119fa1](https://github.com/remi-deher/watchdeck/commit/4119fa1cc95b9e5192949ce19175be26b21ff0f9))
+- sync main into dev ([574158a](https://github.com/remi-deher/watchdeck/commit/574158adb5aeff981ef001e8d6b89059b7f3a20a))
+- preserve release ancestry for promotion ([4cb5c34](https://github.com/remi-deher/watchdeck/commit/4cb5c34a4d3b823ce481a65834c6459d3c58df42))
+- sync released branch before preview promotion ([4ce7f11](https://github.com/remi-deher/watchdeck/commit/4ce7f118032f7c2c7384d6d44d23d6ad883f8c17))
 ## 1.71.1 — 2026-10-05
 
 
 ### 🐛 Corrections
 
 - preserve SSH relay protocol bytes ([093b1ae](https://github.com/remi-deher/watchdeck/commit/093b1ae678a6faa5c9057284d252dc8beaec51ef))
+
+### 🔧 Maintenance
+
+- v1.71.1 (#679) ([ad57a6c](https://github.com/remi-deher/watchdeck/commit/ad57a6cf484d06d2b84331e08d45af3b5fbc81cd))
 ## 1.71.0 — 2026-10-05
 
 
