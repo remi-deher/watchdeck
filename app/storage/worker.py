@@ -177,11 +177,17 @@ async def process_item(db, job, item, stop):
     read_inventory = fs.inventory if fs else inventory
     signature_of = fs.signature if fs else integrite.signature
     hash_file = fs.hash if fs else integrite.empreinte
-    copy_file = fs.copy if fs else copier_fichier
+    copy_file = fs.copy if fs else lambda source, target, *args: copier_fichier(str(source), str(target), *args)
     verify_folder = fs.verify if fs else verifier_dossier
     free_space = fs.free if fs else lambda path: shutil.disk_usage(path).free
+    from .peer_fs import PeerFilesystem
+
     src = path_for(snap["source_mount"], snap["relative"])
-    dst = path_for(snap["destination_mount"], snap["relative"])
+    dst = (
+        fs.path(str(PurePosixPath(snap["destination_mount"]) / snap["relative"]), "destination")
+        if isinstance(fs, PeerFilesystem)
+        else path_for(snap["destination_mount"], snap["relative"])
+    )
     if src == dst or (not fs and src.exists() and dst.exists() and os.path.samefile(src, dst)):
         raise ValueError("Source et destination identiques.")
     instance = await db.get(ArrInstance, item.arr_instance_id)
@@ -259,16 +265,16 @@ async def process_item(db, job, item, stop):
         if set(snap.get("cleanup_signatures", {})) != set(snap["files"]):
             raise ValueError("Preuves de nettoyage incomplètes.")
         for name, signature in snap["cleanup_signatures"].items():
-            if signature_of(str(dst / name)) != signature:
+            if signature_of(dst / name) != signature:
                 raise ValueError("Destination modifiée après interruption du nettoyage.")
     # A crash after deletion is only accepted with a previously committed cleanup intent.
     if not src.exists():
         if not snap.get("cleanup_intent"):
             raise ValueError("Source absente sans intention de nettoyage enregistrée.")
         for name, proof in item.proofs.items():
-            if signature_of(str(dst / name)) != snap.get("cleanup_signatures", {}).get(name):
+            if signature_of(dst / name) != snap.get("cleanup_signatures", {}).get(name):
                 raise ValueError("Destination modifiée après interruption du nettoyage.")
-            if proof.get("sha256") and await asyncio.to_thread(hash_file, str(dst / name), stop) != proof["sha256"]:
+            if proof.get("sha256") and await asyncio.to_thread(hash_file, dst / name, stop) != proof["sha256"]:
                 raise ValueError("Intégrité destination incorrecte après interruption du nettoyage.")
         if (
             await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
@@ -340,15 +346,13 @@ async def process_item(db, job, item, stop):
             def phase(label):
                 asyncio.run_coroutine_threadsafe(update_item(db, item, "verifying"), loop).result(timeout=30)
 
-            proof = await asyncio.to_thread(
-                copy_file, str(source), str(target), advance, stop, proofs.get(name), phase, mode
-            )
+            proof = await asyncio.to_thread(copy_file, source, target, advance, stop, proofs.get(name), phase, mode)
             proofs[name] = proof
             await progress(name, source.stat().st_size)
             base[0] += source.stat().st_size
             await update_item(db, item, "copying", proofs=dict(proofs))
         await update_item(db, item, "verifying")
-        await asyncio.to_thread(verify_folder, str(src), str(dst), stop, proofs, mode)
+        await asyncio.to_thread(verify_folder, src, dst, stop, proofs, mode)
         if await is_playing(conn, snap):
             await update_item(db, item, "deferred", "Lecture active : bascule reportée.")
             return
@@ -407,10 +411,10 @@ async def process_item(db, job, item, stop):
         raise ValueError("Inventaire modifié : nettoyage refusé.")
     if not snap.get("cleanup_intent") and set(remaining) != set(snap["files"]):
         raise ValueError("Fichiers source disparus : nettoyage refusé.")
-    await asyncio.to_thread(verify_folder, str(src), str(dst), stop, dict(item.proofs), mode)
+    await asyncio.to_thread(verify_folder, src, dst, stop, dict(item.proofs), mode)
     # The cleanup intent is committed after validation. Standard mode adds no full reread.
     proofs = dict(item.proofs)
-    snap["cleanup_signatures"] = {name: signature_of(str(dst / name)) for name in snap["files"]}
+    snap["cleanup_signatures"] = {name: signature_of(dst / name) for name in snap["files"]}
     if stop.is_set():
         raise Interrompu()
     snap["cleanup_intent"] = True

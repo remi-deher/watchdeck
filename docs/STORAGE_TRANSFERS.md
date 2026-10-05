@@ -132,3 +132,16 @@ Les accès SSH et locaux d’une même racine peuvent désormais coexister dans 
 La connexion locale conserve un `browse_root` (par défaut `/storage`), modifiable par exemple vers `/usb1` ou `/media2`. Le bouton « Voir les volumes montés » ouvre `/`, une liste virtuelle des seuls montages média détectés dans `/proc/self/mountinfo` : le contenu de la racine du conteneur n’est jamais listé. Les montages système et applicatifs, les fichiers montés isolément et les liens symboliques sont exclus. Le moteur vérifie à nouveau la présence d’un montage réel avant chaque accès ; un dossier qui existe sur le disque du conteneur ne suffit pas. Cette configuration ne crée aucun montage Docker : les volumes doivent déjà être déclarés dans Compose.
 
 `/storage` reste une entrée virtuelle de l’explorateur, même sans montage. Elle regroupe uniquement les volumes montés sous ce chemin et affiche une liste vide lorsqu’il n’y en a aucun. Elle ne devient sélectionnable pour un transfert que si `/storage` est lui-même un volume réellement monté.
+
+
+## Rsync entre deux serveurs SSH
+
+Les racines reprennent leurs accès validés dans **Stockages** : la préparation ne demande pas de nouvelle configuration SSH. Chaque racine doit avoir un accès SSH unique (ou l’accès déjà fixé dans une tâche existante). Les accès source et destination ainsi que leurs révisions sont conservés dans la tâche ; une modification impose de refaire l’aperçu.
+
+Lorsque les accès diffèrent, le moteur relaie les données entre deux tunnels SSH. Il ne copie aucune clé SSH sur les NAS. Un récepteur rsync temporaire, authentifié et limité au dossier destination, écoute uniquement sur la boucle locale du serveur destination. Le relais utilise des sessions SSH ordinaires et fonctionne même lorsque les tunnels TCP SSH sont désactivés. Le débit dépend aussi du réseau du moteur.
+
+La copie utilise un fichier `.partiel`, réparé par le delta rsync lors d’une reprise. La vérification standard utilise le checksum xxh128 du transfert ; le mode renforcé calcule SHA-256 localement sur chacun des deux serveurs. Après un redémarrage, les preuves du processus précédent sont contrôlées de nouveau. L’original est conservé jusqu’à la vérification de la destination et aux confirmations Arr/Plex. Une pause ou une déconnexion ferme les tunnels et arrête les opérations temporaires.
+
+**Préparer** affiche l’espace libre des sources et de la destination au dernier contrôle. L’aperçu recontrôle les capacités avant de créer une tâche ; une valeur inconnue est indiquée comme telle.
+
+Test d’intégration isolé : `python scripts/storage_peer_smoke.py` avec Docker disponible et l’image locale `watchdeck:local`. Le script crée puis supprime deux conteneurs temporaires ; il vérifie la pause, la reprise d’une copie partielle corrompue, les deux modes de vérification et le nettoyage après contrôle.

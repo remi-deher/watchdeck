@@ -24,7 +24,7 @@ def remote_call(config, payload, stop=None, advance=None, phase=None, session=""
     command = "python3 -u -c " + shlex.quote(
         "import base64;exec(base64.b64decode(" + repr(base64.b64encode(script.encode()).decode()) + "))"
     )
-    deadline = time.monotonic() + (28800 if payload["op"] in ("copy", "verify", "hash") else 60)
+    deadline = time.monotonic() + (28800 if payload["op"] in ("copy", "send_peer", "verify", "hash") else 60)
     client = connecter(config)
     channel = None
     try:
@@ -145,7 +145,7 @@ class RemotePath:
         return self.value
 
     def __eq__(self, other):
-        return str(self) == str(other)
+        return str(self) == str(other) and (not isinstance(other, RemotePath) or self.fs is other.fs)
 
     def __truediv__(self, relative):
         return RemotePath(str(PurePosixPath(self.value) / relative), self.fs)
