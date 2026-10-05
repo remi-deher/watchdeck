@@ -151,7 +151,7 @@ async def _preview(db, body):
         await db.execute(
             select(StorageTransferItem.arr_instance_id, StorageTransferItem.arr_id)
             .join(StorageTransfer, StorageTransfer.id == StorageTransferItem.transfer_id)
-            .where(StorageTransferItem.status != "completed")
+            .where(StorageTransferItem.status.notin_(["completed", "cancelled"]))
         )
     ).all()
     occupied = set(occupied)

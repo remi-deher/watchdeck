@@ -288,6 +288,7 @@ async def test_restart_recovery_respects_auto_resume_and_manual_pause(tmp_path, 
             side_effect=[
                 result(restart),
                 result([paused]),
+                NS(scalar_one_or_none=lambda: None),
                 NS(scalar_one_or_none=lambda: NS(id=7) if queued == "job" else None),
             ]
         ),
@@ -369,3 +370,54 @@ async def test_plex_http_empty_refresh_and_json(monkeypatch):
     conn = NS(url="http://test", token="dummy")
     assert await worker.plex_get(conn, "/refresh") == {}
     assert await worker.plex_get(conn, "/sections") == {"size": 2}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("done", [True, False])
+async def test_engine_processes_cancellation_and_pending_arr_does_not_block_next_job(tmp_path, monkeypatch, done):
+    import asyncio
+
+    from app.storage import cancellation
+
+    real_sleep = asyncio.sleep
+    shutdown = threading.Event()
+    monkeypatch.setattr(worker, "SHUTDOWN", shutdown)
+    monkeypatch.setattr(worker, "HEARTBEAT", tmp_path / "heartbeat")
+    restart = NS(status="running", desired_state="cancel", auto_resume=True)
+    queued = NS(status="queued", desired_state="cancel")
+    job = NS(id=1, status="cancelling")
+    results = [NS(scalars=lambda: [restart]), NS(scalars=lambda: [queued]), NS(scalar_one_or_none=lambda: job)]
+    if not done:
+        results.append(NS(scalar_one_or_none=lambda: NS(id=2)))
+    db = NS(execute=AsyncMock(side_effect=results), commit=AsyncMock())
+    lease = NS(execute=AsyncMock(return_value=NS(scalar=lambda: True)), commit=AsyncMock())
+    monkeypatch.setattr(worker, "async_engine", NS(connect=lambda: Context(lease)))
+    monkeypatch.setattr(worker, "AsyncSessionLocal", lambda: Context(db))
+    monkeypatch.setattr(worker.shutil, "which", lambda _: True)
+    monkeypatch.setattr(worker, "refresh_storage", AsyncMock())
+
+    async def cancel(*args):
+        await real_sleep(0)
+        assert worker.HEARTBEAT.exists()
+        if done:
+            shutdown.set()
+        return done
+
+    monkeypatch.setattr(cancellation, "cancel_transfer", cancel)
+
+    async def run(*args):
+        shutdown.set()
+
+    run_mock = AsyncMock(side_effect=run)
+    monkeypatch.setattr(worker, "run_transfer", run_mock)
+
+    async def sleep(*args):
+        await real_sleep(0)
+
+    monkeypatch.setattr(worker.asyncio, "sleep", sleep)
+    await worker.run_engine()
+    assert restart.status == queued.status == "cancelling"
+    if done:
+        run_mock.assert_not_awaited()
+    else:
+        assert run_mock.await_args.args[0] == 2

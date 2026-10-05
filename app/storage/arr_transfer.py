@@ -117,7 +117,7 @@ async def preview_arr(db, body, capacity_overrides=None):
         (
             await db.execute(
                 select(StorageTransferItem.arr_instance_id, StorageTransferItem.arr_id).where(
-                    StorageTransferItem.status != "completed",
+                    StorageTransferItem.status.notin_(["completed", "cancelled"]),
                     StorageTransferItem.transfer_id != getattr(body, "task_id", 0),
                 )
             )
@@ -128,7 +128,7 @@ async def preview_arr(db, body, capacity_overrides=None):
             select(func.coalesce(func.sum(StorageTransferItem.size_bytes), 0)).where(
                 StorageTransferItem.arr_instance_id == instance.id,
                 StorageTransferItem.snapshot["destination_root"].as_string() == destination,
-                StorageTransferItem.status != "completed",
+                StorageTransferItem.status.notin_(["completed", "cancelled"]),
                 StorageTransferItem.transfer_id != getattr(body, "task_id", 0),
             )
         )

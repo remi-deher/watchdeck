@@ -154,7 +154,7 @@ async def update_location(location_id: int, body: LocationBody, db=Depends(get_d
         await db.execute(
             select(StorageTransfer.id).where(
                 (StorageTransfer.source_id == location_id) | (StorageTransfer.destination_id == location_id),
-                StorageTransfer.status != "completed",
+                StorageTransfer.status.notin_(["completed", "cancelled"]),
             )
         )
     ).first()
@@ -305,7 +305,7 @@ async def delete_draft(transfer_id: int, db=Depends(get_db_async)):
 
 
 class CommandBody(BaseModel):
-    action: Literal["pause", "resume", "stop", "retry"]
+    action: Literal["pause", "resume", "stop", "retry", "cancel"]
 
 
 @router.post("/transfers/{transfer_id}/command")
@@ -313,6 +313,15 @@ async def command(transfer_id: int, body: CommandBody, db=Depends(get_db_async))
     job = await db.get(StorageTransfer, transfer_id)
     if not job:
         raise HTTPException(404, "Tâche inconnue.")
+    if body.action == "cancel" and job.status not in ("completed", "cancelled"):
+        job.desired_state = "cancel"
+        job.status = "cancelling"
+        job.auto_resume = False
+        job.updated_at = now_utc_naive()
+        await db.commit()
+        return await service.transfer_json(db, job)
+    if job.status in ("cancelling", "cancel_blocked", "cancelled"):
+        raise HTTPException(409, "Cette tâche est annulée ou en cours d’annulation.")
     if job.status == "draft":
         raise HTTPException(409, "Recalculer l’aperçu avant de lancer cette tâche.")
     if job.status == "completed":
