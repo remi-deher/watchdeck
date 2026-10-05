@@ -245,4 +245,22 @@ describe('Storage root correspondence table', () => {
   w.unmount();
  });
 
+ it('offers removal and revalidated relaunch for a cancelled task',async()=>{
+  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',desired_state:'cancel',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:100e9},destination:{free_bytes:200e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
+  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  expect(wrapper.text()).toContain('Relancer avec de nouveaux paramètres');
+  await wrapper.findAll('button').find(b=>b.text()==='Relancer avec les mêmes paramètres').trigger('click');await flushPromises();
+  const call=request.mock.calls.find(([path])=>path==='/api/storage/preview');expect(JSON.parse(call[1].body)).toMatchObject({task_id:0,goal_gb:20});
+  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);wrapper.unmount();
+ });
+ it('confirms removal of a paused task before requesting durable cancellation',async()=>{
+  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:18,status:'paused',desired_state:'pause',params:{transfer_mode:'rsync_ssh'},items:[]}]:path==='/api/storage/transfers/18'&&opts?.method==='DELETE'?{deletion_pending:18}:original(path,opts));
+  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Supprimer la tâche').trigger('click');
+  expect(wrapper.text()).toContain('ses fichiers temporaires nettoyés');
+  expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
+  await wrapper.findAll('button').find(b=>b.text()==='Annuler et supprimer').trigger('click');await flushPromises();
+  expect(request).toHaveBeenCalledWith('/api/storage/transfers/18',{method:'DELETE'});expect(wrapper.text()).toContain('annulation et nettoyage en cours');wrapper.unmount();
+ });
+
 });

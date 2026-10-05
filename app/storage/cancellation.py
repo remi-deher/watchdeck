@@ -78,4 +78,8 @@ async def cancel_transfer(db, job, lease):
         job.error = str(exc)
     job.updated_at = now_utc_naive()
     await db.commit()
+    if job.status == "cancelled" and job.params.get("delete_after_cancel"):
+        from .service import forget_transfer
+
+        await forget_transfer(db, job)
     return True

@@ -346,8 +346,35 @@ async def test_draft_launch_revalidates_and_replaces_snapshot(monkeypatch):
 @pytest.mark.asyncio
 async def test_delete_only_draft_and_release_reservations(monkeypatch):
     job = NS(id=14, status="draft")
-    monkeypatch.setattr(api, "draft_task", AsyncMock(return_value=job))
-    db = NS(execute=AsyncMock(), delete=AsyncMock(), commit=AsyncMock())
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: job)), delete=AsyncMock(), commit=AsyncMock())
     assert await api.delete_draft(14, db) == {"deleted": 14}
     db.delete.assert_awaited_once_with(job)
     db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["completed", "cancelled"])
+async def test_delete_terminal_task_only_forgets_metadata(status):
+    job = NS(id=14, status=status)
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: job)), delete=AsyncMock(), commit=AsyncMock())
+    assert await api.delete_draft(14, db) == {"deleted": 14}
+    db.delete.assert_awaited_once_with(job)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["running", "paused", "stopped", "cancel_blocked"])
+async def test_delete_active_task_persists_cleanup_before_forgetting(status):
+    job = NS(id=14, status=status, params={"transfer_mode": "rsync_ssh"}, desired_state="run", auto_resume=True)
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: job)), delete=AsyncMock(), commit=AsyncMock())
+    assert await api.delete_draft(14, db) == {"deletion_pending": 14}
+    assert job.status == "cancelling" and job.desired_state == "cancel" and not job.auto_resume
+    assert job.params["delete_after_cancel"]
+    db.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_unknown_task_is_404():
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: None)))
+    with pytest.raises(HTTPException) as caught:
+        await api.delete_draft(404, db)
+    assert caught.value.status_code == 404

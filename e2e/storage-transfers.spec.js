@@ -40,7 +40,7 @@ test('transfer actions and title details remain accessible at every screen size'
   await page.getByRole('button',{name:'Garder la tâche',exact:true}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button',{name:'Actions de la tâche 9'}).click();
-  await expect(page.getByRole('menuitem',{name:'Créer une nouvelle tâche similaire'})).toBeVisible();
+  await expect(page.getByRole('menuitem',{name:'Relancer avec de nouveaux paramètres'})).toBeVisible();
   await page.keyboard.press('Escape');
   await cancel.click();
   await page.getByRole('button',{name:'Annuler et nettoyer',exact:true}).click();

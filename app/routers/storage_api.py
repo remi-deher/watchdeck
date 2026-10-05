@@ -306,11 +306,22 @@ async def update_transfer(transfer_id: int, body: PreviewBody, db=Depends(get_db
 @router.delete("/transfers/{transfer_id}")
 async def delete_draft(transfer_id: int, db=Depends(get_db_async)):
     await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
-    job = await draft_task(db, transfer_id)
-    await db.execute(delete(StorageTransferItem).where(StorageTransferItem.transfer_id == job.id))
-    await db.delete(job)
+    job = (
+        await db.execute(select(StorageTransfer).where(StorageTransfer.id == transfer_id).with_for_update())
+    ).scalar_one_or_none()
+    if not job:
+        raise HTTPException(404, "Tâche inconnue.")
+    if job.status in ("draft", "completed", "cancelled"):
+        await service.forget_transfer(db, job)
+        return {"deleted": transfer_id}
+    # Persist deletion intent; the worker must finish cancellation and cleanup first.
+    job.params = {**job.params, "delete_after_cancel": True}
+    job.desired_state = "cancel"
+    job.status = "cancelling"
+    job.auto_resume = False
+    job.updated_at = now_utc_naive()
     await db.commit()
-    return {"deleted": transfer_id}
+    return {"deletion_pending": transfer_id}
 
 
 class CommandBody(BaseModel):

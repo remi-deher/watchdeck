@@ -223,3 +223,22 @@ def test_remote_cleanup_stops_before_deletion(tmp_path):
     with pytest.raises(ValueError, match="interrompue"):
         remote_agent.dispatch({"op": "discard_partial", "roots": [str(tmp_path)], "path": str(partial)}, {}, stop)
     assert partial.exists()
+
+
+@pytest.mark.asyncio
+async def test_deletion_intent_is_applied_only_after_safe_cleanup():
+    db, job, lease = state([], transfer_mode="rsync", delete_after_cancel=True)
+    db.delete = AsyncMock()
+    assert await cancellation.cancel_transfer(db, job, lease)
+    assert job.status == "cancelled"
+    db.delete.assert_awaited_once_with(job)
+
+
+@pytest.mark.asyncio
+async def test_failed_cancellation_retains_deletion_intent_and_proofs(monkeypatch):
+    item = NS(status="copying", snapshot={"arr_submission_intent": True}, progress={})
+    db, job, lease = state([item], transfer_mode="arr", delete_after_cancel=True)
+    db.delete = AsyncMock()
+    assert await cancellation.cancel_transfer(db, job, lease)
+    assert job.status == "cancel_blocked" and job.params["delete_after_cancel"]
+    db.delete.assert_not_awaited()

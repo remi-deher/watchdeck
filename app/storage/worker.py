@@ -14,7 +14,7 @@ import time
 from pathlib import Path, PurePosixPath
 
 import httpx
-from sqlalchemy import select, text
+from sqlalchemy import and_, or_, select, text
 
 from ..database import AsyncSessionLocal, async_engine
 from ..models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
@@ -597,7 +597,16 @@ async def run_engine():
                 cancellation = (
                     await db.execute(
                         select(StorageTransfer)
-                        .where(StorageTransfer.status == "cancelling", StorageTransfer.desired_state == "cancel")
+                        .where(
+                            StorageTransfer.desired_state == "cancel",
+                            or_(
+                                StorageTransfer.status == "cancelling",
+                                and_(
+                                    StorageTransfer.status.in_(["cancelled", "completed"]),
+                                    StorageTransfer.params["delete_after_cancel"].as_boolean().is_(True),
+                                ),
+                            ),
+                        )
                         .order_by(StorageTransfer.id)
                         .limit(1)
                     )
