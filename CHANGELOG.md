@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.70.0 — 2026-10-05
+
+
+### ✨ Nouveautés
+
+- add validated rsync transfer setup ([75038fe](https://github.com/remi-deher/watchdeck/commit/75038fe41cbd6ba1159c9f8db84d7c6e09b8f749))
 ## 1.69.0 — 2026-10-05
 
 
@@ -22,6 +28,7 @@
 - sync test before storage promotion ([f09b7e9](https://github.com/remi-deher/watchdeck/commit/f09b7e9686d92f662bb8949a7c28531f2cbe47f5))
 - sync main into dev ([d8fae12](https://github.com/remi-deher/watchdeck/commit/d8fae12c520b35b480d4063c302b43c19cf2188b))
 - sync main into dev ([d818002](https://github.com/remi-deher/watchdeck/commit/d818002d7a8282ed8ae47d40df61493bcef2d257))
+- v1.69.0 (#656) ([c4763b7](https://github.com/remi-deher/watchdeck/commit/c4763b710ec2892474b1ff64c00e5393d9a00a9b))
 ## 1.68.1 — 2026-10-04
 
 
