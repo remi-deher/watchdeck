@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StorageView from './StorageView.vue';
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('@/api', () => ({ api: request }));
+vi.mock('@/components/storage/previewJob', () => ({calculatePreview: (body) => request('/api/storage/preview', {method:'POST',body:JSON.stringify(body)})}));
 vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
 const roots = [
   { arr_instance_id: 1, name: 'Radarr', arr_type: 'radarr', arr_roots: ['/data/FILMS','/usb/FILMS'], plex_roots: [{ section_id:'1',library:'Films',path:'/media/FILMS' }, { section_id:'1',library:'Films',path:'/usb/MEDIA/FILMS' }] },

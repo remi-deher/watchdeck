@@ -54,6 +54,15 @@ def inventory(source: Path, require_video=True) -> list[str]:
 
 
 async def plex_get(conn, path, params=None):
+    from .preview_cache import read_inventory
+
+    return await read_inventory(
+        ("plex", conn.url, conn.token, path, tuple(sorted((params or {}).items()))),
+        lambda: _plex_get(conn, path, params),
+    )
+
+
+async def _plex_get(conn, path, params=None):
     async with httpx.AsyncClient(timeout=60) as client:
         response = await client.get(
             conn.url.rstrip("/") + path,

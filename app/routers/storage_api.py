@@ -163,6 +163,28 @@ async def update_location(location_id: int, body: LocationBody, db=Depends(get_d
     return await save_location(db, body, location)
 
 
+@router.post("/preview/start", status_code=202)
+async def start_preview(body: PreviewBody):
+    from ..storage import preview_jobs
+
+    try:
+        return await preview_jobs.start(body)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.get("/preview/{key}")
+async def preview_status(key: str):
+    from ..storage import preview_jobs
+
+    if len(key) != 32 or any(char not in "0123456789abcdef" for char in key):
+        raise HTTPException(404, "Aperçu inconnu.")
+    try:
+        return await preview_jobs.status(key)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
 @router.post("/preview")
 async def preview(body: PreviewBody, db=Depends(get_db_async)):
     await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))

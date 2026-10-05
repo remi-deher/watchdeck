@@ -5,6 +5,7 @@
 
     <StorageOverviewPanel v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="rootRows.filter(r=>r.arr_root).length" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
+    <UiFeedback v-if="previewProgress" type="info" :message="previewProgress" role="status" aria-live="polite" />
     <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="discoveredRoots" :accesses="accesses" :locations="locations" :busy="busy" @configure="tab='settings'" @preview="preview" />
 
     <StorageTransferList v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,true)" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
@@ -32,6 +33,7 @@ import StorageOverviewPanel from '@/components/storage/StorageOverviewPanel.vue'
 import StorageTransferList from '@/components/storage/StorageTransferList.vue';
 import StoragePreviewDialog from '@/components/storage/StoragePreviewDialog.vue';
 import StorageConnectionPanel from '@/components/storage/StorageConnectionPanel.vue';
+import {calculatePreview} from '@/components/storage/previewJob';
 import {selectedRootAccess} from '@/components/storage/transferAccess';
 import StoragePreparePanel from '@/components/storage/StoragePreparePanel.vue';
 import StorageRootTable from '@/components/storage/StorageRootTable.vue';
@@ -95,11 +97,12 @@ const newMapping=()=>newAssociationMapping(instances.value[0]?.id||0);
 const locationForm=ref({name:'',mount_path:'',reserve_gb:100,enabled:true,mappings:[newMapping()]});
 const {selectedBytes,gb,date,locationName}=useStorageTelemetry(locations,jobs,tab,plan,selected);
 async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(locations.value.map(l=>[l.id,l.mappings]))!==JSON.stringify(nextLocations.map(l=>[l.id,l.mappings])))comparisons.value={};if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
-async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;}}
+async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
+const previewProgress=ref('');
 const preview=()=>act(async()=>{
  plan.value=null;const {routes,...settings}=form.value;if(editingTaskId.value && routes.length!==1)throw new Error('Modifiez une seule instance pour cette tâche, ou créez une nouvelle tâche.');const requestedRoutes=routes.map((r:any)=>({...r}));
- const groups:any[]=[];for(const route of requestedRoutes){const root_access_ids={...settings.root_access_ids};for(const root of [...route.source_roots,route.destination_root]){const endpoint=selectedRootAccess(settings,accesses.value,route.arr_instance_id,root);if(endpoint)root_access_ids[`${route.arr_instance_id}:${root}`]=endpoint.id;}const body={...settings,...route,root_access_ids,media_type:'all',root_goals:Object.fromEntries(route.source_roots.map((root:string)=>[root,route.root_goals?.[root] ?? settings.goal_gb])),task_id:editingTaskId.value};const result:any=await api('/api/storage/preview',{method:'POST',body:JSON.stringify(body)});if(result.transfer_mode){body.transfer_mode=result.transfer_mode;body.access_id=result.access_id;body.transfer_methods=[];Object.assign(body,{preferred_methods:result.preferred_methods});}groups.push({...result,body,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||route.arr_instance_id,submitted:false});}
- plan.value={groups,items:groups.flatMap(g=>g.items)};selected.value=plan.value.items.map((i:any)=>i.key);
+ const groups:any[]=[];for(const route of requestedRoutes){const root_access_ids={...settings.root_access_ids};for(const root of [...route.source_roots,route.destination_root]){const endpoint=selectedRootAccess(settings,accesses.value,route.arr_instance_id,root);if(endpoint)root_access_ids[`${route.arr_instance_id}:${root}`]=endpoint.id;}const body={...settings,...route,root_access_ids,media_type:'all',root_goals:Object.fromEntries(route.source_roots.map((root:string)=>[root,route.root_goals?.[root] ?? settings.goal_gb])),task_id:editingTaskId.value};const result:any=await calculatePreview(body, seconds=>{previewProgress.value=`Calcul de l’aperçu · ${seconds} s · vérification des racines, des accès et du catalogue Plex…`;});if(result.transfer_mode){body.transfer_mode=result.transfer_mode;body.access_id=result.access_id;body.transfer_methods=[];Object.assign(body,{preferred_methods:result.preferred_methods});}groups.push({...result,body,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||route.arr_instance_id,submitted:false});}
+ plan.value={groups,items:groups.flatMap(g=>g.items)};selected.value=plan.value.items.map((i:any)=>i.key);previewProgress.value='';
 });
 const launch=(startImmediately=true)=>act(async()=>{
  for(const group of plan.value.groups){if(group.submitted)continue;const keys=group.items.filter((i:any)=>selected.value.includes(i.key)).map((i:any)=>i.key);if(!keys.length)continue;await api('/api/storage/transfers'+(editingTaskId.value?`/${editingTaskId.value}`:''),{method:editingTaskId.value?'PUT':'POST',body:JSON.stringify({...group.body,selection:keys,start_immediately:startImmediately})});group.submitted=true;}
