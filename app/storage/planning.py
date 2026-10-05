@@ -66,6 +66,15 @@ def choose_candidates(
         # Keep both under- and over-target frontiers for each count. Never round bytes.
         states: dict[int, dict[int, tuple[int, ...]]] = {0: {0: ()}}
         limit = min(max_titles, (target_titles + 1) if target_titles else max_titles, len(eligible))
+        smallest_total = 0
+        useful_count = 0
+        for size in sorted(i["size_bytes"] for i in eligible):
+            smallest_total += size
+            useful_count += 1
+            if smallest_total >= required:
+                break
+        if target_titles is None:
+            limit = min(limit, useful_count)
         for index, item in enumerate(eligible):
             for count in range(min(index + 1, limit), 0, -1):
                 bucket = states.setdefault(count, {})
@@ -73,7 +82,10 @@ def choose_candidates(
                     new = size + item["size_bytes"]
                     if new > available:
                         continue
-                    if group_limits:
+                    if group_limits and len(group_limits) == 1:
+                        if new > next(iter(group_limits.values())):
+                            continue
+                    elif group_limits:
                         same_group = item.get("capacity_group")
                         group_size = (
                             sum(
