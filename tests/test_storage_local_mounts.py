@@ -66,3 +66,22 @@ def test_storage_group_remains_accessible_when_no_volume_is_mounted(monkeypatch)
     assert result == dict(path="/storage", parent="/", directories=[], selectable=False)
     root = discovery.inspect_request(dict(operation="browse", path="/"))
     assert root["directories"] == [dict(name="/storage", path="/storage")]
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_browser_lists_only_directories_with_safe_parent(tmp_path, monkeypatch, nested):
+    from app.storage import worker
+
+    root = tmp_path / "mounted"
+    root.mkdir()
+    current = root / "library" if nested else root
+    current.mkdir(exist_ok=True)
+    (current / "Zebra").mkdir()
+    (current / "alpha").mkdir()
+    (current / "movie.mkv").write_bytes(b"movie")
+    monkeypatch.setattr(discovery, "media_mounts", lambda: [str(root)])
+    monkeypatch.setattr(worker, "mounted_root", lambda value: Path(value))
+    result = discovery.inspect_request(dict(operation="browse", path=str(current)))
+    assert result["selectable"] is True
+    assert result["parent"] == (str(root) if nested else "/")
+    assert result["directories"] == [dict(name=name, path=str(current / name)) for name in ["alpha", "Zebra"]]
