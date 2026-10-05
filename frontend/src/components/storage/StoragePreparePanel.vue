@@ -39,8 +39,12 @@ const objectives=[{value:'release_space',label:'Libérer de l’espace',descript
 defineEmits<{preview:[]}>();
 </script>
 
-<style scoped>
-.source-choices{display:grid;gap:10px;margin:0;min-width:0}.source-choices label{overflow-wrap:anywhere}.objective-routes{padding-left:20px;overflow-wrap:anywhere}.objective-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.objective-options legend{margin-bottom:12px}.objective-options label{border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;display:grid;gap:8px}.objective-options label.chosen{border-color:var(--accent);background:var(--bg-hover)}.objective-options small,.form-grid small{line-height:1.5;color:var(--text-muted)}@media(max-width:700px){.objective-options{grid-template-columns:1fr}}
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+
+.source-choices{display:grid;gap:10px;margin:0;min-width:0}.source-choices label{overflow-wrap:anywhere}.objective-routes{padding-left:20px;overflow-wrap:anywhere}.objective-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.objective-options legend{margin-bottom:12px}.objective-options label{border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;display:grid;gap:8px}.objective-options label.chosen{border-color:var(--accent);background:var(--bg-hover)}.objective-options small,.form-grid small{line-height:1.5;color:var(--text-muted)}@include bp.until(tablet){.objective-options{grid-template-columns:1fr}}
 </style>
 
-<style scoped>.root-objectives,.advanced-objectives{margin:20px 0}.root-goal{display:grid;grid-template-columns:minmax(180px,1fr) minmax(100px,1fr) 110px auto;gap:12px;align-items:center;margin:12px 0}.root-goal label{min-width:0}.root-goal code{overflow-wrap:anywhere}.root-goal small{display:block;color:var(--text-muted)}.root-goal input[type=range]{padding:0;width:100%;height:24px;accent-color:var(--accent)}@media(max-width:700px){.root-goal{grid-template-columns:1fr 100px}.root-goal label{grid-column:1/-1}}</style>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+.root-objectives,.advanced-objectives{margin:20px 0}.root-goal{display:grid;grid-template-columns:minmax(180px,1fr) minmax(100px,1fr) 110px auto;gap:12px;align-items:center;margin:12px 0}.root-goal label{min-width:0}.root-goal code{overflow-wrap:anywhere}.root-goal small{display:block;color:var(--text-muted)}.root-goal input[type=range]{padding:0;width:100%;height:24px;accent-color:var(--accent)}@include bp.until(tablet){.root-goal{grid-template-columns:1fr 100px}.root-goal label{grid-column:1/-1}}</style>

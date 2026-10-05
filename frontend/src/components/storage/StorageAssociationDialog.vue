@@ -26,6 +26,8 @@ defineEmits<{save:[],close:[],check:[mapping:any]}>();
 </style>
 
 <style lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+
 .storage-association-modal {
   color: var(--text);
   .association-form { min-width: 0; }
@@ -37,6 +39,6 @@ defineEmits<{save:[],close:[],check:[mapping:any]}>();
   fieldset { min-width: 0; }
   .warning { color: var(--accent); }
   .healthy { color: var(--green-text); }
-  @media (max-width: 700px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
+  @include bp.until(tablet) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
 }
 </style>

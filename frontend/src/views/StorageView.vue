@@ -126,4 +126,6 @@ useRealtime(['storage.updated'],()=>void load(true),{debounceMs:600});
 .storage-page { @include storage.styles; }
 </style>
 
-<style scoped>.storage-subnav :deep(.app-subnav__scroller){justify-content:center}@media(max-width:650px){.storage-subnav :deep(.app-subnav__scroller){justify-content:flex-start}}</style>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+.storage-subnav :deep(.app-subnav__scroller){justify-content:center}@include bp.until(phablet){.storage-subnav :deep(.app-subnav__scroller){justify-content:flex-start}}</style>
