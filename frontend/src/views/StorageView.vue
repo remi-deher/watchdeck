@@ -107,7 +107,7 @@ const preview=()=>act(async()=>{
  await loadProtections();
  plan.value=null;const {routes,...settings}=form.value;if(editingTaskId.value && routes.length!==1)throw new Error('Modifiez une seule instance pour cette tâche, ou créez une nouvelle tâche.');const requestedRoutes=routes.map((r:any)=>({...r}));
  const preparedRoutes=requestedRoutes.map((route:any)=>{const root_access_ids={...settings.root_access_ids};for(const root of [...route.source_roots,route.destination_root]){const endpoint=selectedRootAccess(settings,accesses.value,route.arr_instance_id,root);if(endpoint)root_access_ids[`${route.arr_instance_id}:${root}`]=endpoint.id;}return {...route,root_access_ids,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||String(route.arr_instance_id)};});
- const result:any=await calculatePreview({...settings,routes:preparedRoutes,task_id:editingTaskId.value},seconds=>{previewProgress.value=`Calcul de l’aperçu · ${seconds} s · contrôle des accès et recherche des titres…`;});
+ const result:any=await calculatePreview({...settings,routes:preparedRoutes,task_id:editingTaskId.value},(seconds,phase)=>{previewProgress.value=`Calcul de l’aperçu · ${seconds} s · ${phase}`;});
  plan.value=result.groups?result:{groups:[{...result,body:settings,name:'Sélection',submitted:false}]};selected.value=settings.mode==='selection'?[]:plan.value.groups.flatMap((g:any)=>g.items.map((i:any)=>i.key));previewProgress.value='';
 
 });
@@ -115,9 +115,12 @@ const launch=(startImmediately=true)=>act(async()=>{
  for(const group of plan.value.groups){if(group.submitted)continue;const keys=group.items.filter((i:any)=>selected.value.includes(i.key)).map((i:any)=>i.key);if(!keys.length)continue;await api('/api/storage/transfers'+(editingTaskId.value?`/${editingTaskId.value}`:''),{method:editingTaskId.value?'PUT':'POST',body:JSON.stringify({...group.body,selection:keys,start_immediately:startImmediately})});group.submitted=true;}
  plan.value=null;editingTaskId.value=0;tab.value='transfers';await load();
 });
-function createTask(){void loadProtections().catch((e:any)=>error.value=e.message);editingTaskId.value=0;plan.value=null;tab.value='prepare';}
-function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.objective_mode || job.params.mode,media_type:'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;tab.value='prepare';}
-async function relaunchTask(job:any){prepareTask(job,false);await preview();}
+function createTask(){void loadProtections().catch((e:any)=>error.value=e.message);editingTaskId.value=0;plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
+function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.objective_mode || job.params.mode,media_type:job.params.media_type||'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
+function relaunchTask(job:any){
+ prepareTask(job,false);
+ previewProgress.value='Paramètres repris depuis la tâche terminée. Vérifiez-les, puis calculez un nouvel aperçu avant de lancer la copie.';
+}
 async function verifyTask(job:any){prepareTask(job,true);await preview();}
 const removeTask=(id:number)=>act(async()=>{const result:any=await api(`/api/storage/transfers/${id}`,{method:'DELETE'});savedMessage.value=result.deletion_pending?'Suppression demandée : annulation et nettoyage en cours.':'Tâche supprimée.';await load();});
 const command=(id:number,action:string)=>act(async()=>{await api(`/api/storage/transfers/${id}/command`,{method:'POST',body:JSON.stringify({action})});await load();});

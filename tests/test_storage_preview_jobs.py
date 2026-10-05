@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.routers.storage_api import PreviewBody
-from app.storage import preview_jobs
+from app.storage import mapping_proofs, preview_jobs
 from app.storage.preview_cache import inventory_cache, read_inventory
 
 
@@ -26,6 +26,9 @@ class Redis:
 
     async def delete(self, key):
         self.values.pop(key, None)
+
+    async def exists(self, key):
+        return key in self.values
 
     async def eval(self, script, count, lock, key):
         if self.values.get(lock) == key:
@@ -51,6 +54,26 @@ async def test_inventory_cache_is_scoped_and_does_not_share_mutated_results():
 
 
 @pytest.mark.asyncio
+async def test_mapping_proofs_are_reused_only_for_the_exact_endpoint_and_association(monkeypatch):
+    redis = Redis()
+    monkeypatch.setattr(mapping_proofs, "redis_client", lambda: redis)
+    instance = NS(id=1, url="http://arr", arr_type="radarr", api_key="arr-key")
+    discovered = dict(
+        plex_server_id=4,
+        plex_url="http://plex",
+        plex_token_fingerprint="token-fingerprint",
+    )
+    mapping = dict(arr_root="/data/FILMS", plex_root="/media/FILMS", plex_section_id="3")
+    proof = dict(status="sample_matched", matched_titles=5, checked_titles=5)
+    await mapping_proofs.put(instance, discovered, mapping, proof)
+    assert (await mapping_proofs.get(instance, discovered, mapping))["matched_titles"] == 5
+    assert await mapping_proofs.get(instance, discovered, {**mapping, "plex_root": "/other/FILMS"}) is None
+    assert await mapping_proofs.get(instance, {**discovered, "plex_url": "http://other"}, mapping) is None
+    await mapping_proofs.put(instance, discovered, mapping, {"status": "mismatch"})
+    assert await mapping_proofs.get(instance, discovered, mapping) is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("error", [None, ValueError("Correspondance absente"), RuntimeError("secret")])
 async def test_background_preview_returns_immediately_and_rolls_back(monkeypatch, error):
     redis = Redis()
@@ -72,18 +95,19 @@ async def test_background_preview_returns_immediately_and_rolls_back(monkeypatch
     monkeypatch.setattr(preview_jobs.service, "preview", preview)
     job = await preview_jobs.start(PreviewBody())
     assert (await preview_jobs.status(job["id"]))["status"] == "running"
-    with pytest.raises(ValueError, match="déjà"):
-        await preview_jobs.start(PreviewBody())
+    second_job = await preview_jobs.start(PreviewBody())
+    assert second_job["id"] != job["id"]
     gate.set()
     await asyncio.gather(*preview_jobs._tasks)
     result = await preview_jobs.status(job["id"])
     assert result["status"] == ("failed" if error else "completed")
+    assert (await preview_jobs.status(second_job["id"]))["status"] == ("failed" if error else "completed")
     if error:
         assert "secret" not in json.dumps(result)
     else:
-        db.rollback.assert_awaited_once()
+        assert db.rollback.await_count == 2
     db.commit.assert_not_awaited()
-    assert preview_jobs.LOCK not in redis.values
+    assert not any(key.startswith(preview_jobs.ACTIVE) for key in redis.values)
 
 
 @pytest.mark.asyncio

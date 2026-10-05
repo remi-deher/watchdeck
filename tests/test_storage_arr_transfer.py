@@ -30,6 +30,43 @@ async def test_route_accepts_empty_destination_only_after_access_and_plex_mappin
 
 
 @pytest.mark.asyncio
+async def test_route_reuses_recent_proof_for_explicit_mapping_and_prefers_it_to_heuristic(monkeypatch):
+    saved = NS(
+        virtual_key=None,
+        mappings=[
+            dict(
+                arr_instance_id=1,
+                arr_root="/data/FILMS",
+                plex_root="/usb/MEDIA/FILMS",
+                plex_section_id="2",
+            )
+        ],
+    )
+    result = NS(scalars=lambda: NS(all=lambda: [saved]))
+    db = NS(execute=AsyncMock(return_value=result))
+    instance = NS(id=1)
+    discovered = {
+        "plex_url": "http://plex",
+        "plex_server_id": 9,
+        "plex_roots": [
+            dict(path="/media/FILMS", section_id="1"),
+            dict(path="/usb/MEDIA/FILMS", section_id="2"),
+        ],
+    }
+    monkeypatch.setattr(
+        arr, "arr_request", AsyncMock(return_value=[dict(path="/data/FILMS", accessible=True, freeSpace=100)])
+    )
+    monkeypatch.setattr(arr, "check_mapping", AsyncMock())
+    from app.storage import mapping_proofs
+
+    monkeypatch.setattr(mapping_proofs, "get", AsyncMock(return_value={"status": "sample_matched"}))
+    _, mapping, comparison = await arr.route(db, instance, "/data/FILMS", discovered)
+    assert mapping["plex_root"] == "/usb/MEDIA/FILMS"
+    assert comparison["status"] == "sample_matched"
+    arr.check_mapping.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["movie", "series"])
 async def test_resume_tracks_existing_arr_command_without_submitting_again(monkeypatch, kind):
     db = NS(get=AsyncMock(return_value=NS(enabled=True, plex_server_id=1)))
@@ -91,7 +128,12 @@ async def test_fresh_move_submits_one_bulk_command_and_persists_its_id(monkeypat
         ]
     )
     monkeypatch.setattr(arr, "arr_request", request)
-    monkeypatch.setattr(arr, "route", AsyncMock(return_value=({"freeSpace": 100}, {}, {})))
+
+    async def route(_db, _instance, root, _discovered):
+        plex_root = "/media/FILMS" if root == "/data/FILMS" else "/usb/MEDIA/FILMS"
+        return {"freeSpace": 100}, {"plex_root": plex_root, "plex_section_id": "1"}, {}
+
+    monkeypatch.setattr(arr, "route", route)
     monkeypatch.setattr(arr, "discover_instance_roots", AsyncMock(return_value={}))
     monkeypatch.setattr(arr, "connection_for", AsyncMock(return_value=NS()))
     for name in ("confirm_media_identity", "no_arr_download", "plex_get"):
@@ -110,6 +152,33 @@ async def test_fresh_move_submits_one_bulk_command_and_persists_its_id(monkeypat
     )
     assert any(call.kwargs.get("snapshot", {}).get("arr_command_id") == 123 for call in update.call_args_list)
     assert update.call_args.args[2] == "plex_pending"
+
+
+@pytest.mark.asyncio
+async def test_move_refuses_mapping_changed_after_preview(monkeypatch):
+    db = NS(get=AsyncMock(return_value=NS(id=1, enabled=True, plex_server_id=1)))
+    snap = dict(
+        source_arr="/data/FILMS/Film",
+        destination_arr="/usb/FILMS/Film",
+        destination_root="/usb/FILMS",
+        source_plex="/media/FILMS/Film",
+        destination_plex="/usb/MEDIA/FILMS/Film",
+        plex_section_id="1",
+    )
+    item = NS(arr_instance_id=1, arr_id=2, media_type="movie", snapshot=snap, size_bytes=5)
+
+    async def route(_db, _instance, root, _discovered):
+        plex_root = "/media/FILMS" if root == "/data/FILMS" else "/usb/CHANGED"
+        return {"freeSpace": 100}, {"plex_root": plex_root, "plex_section_id": "1"}, {}
+
+    request = AsyncMock()
+    monkeypatch.setattr(arr, "arr_request", request)
+    monkeypatch.setattr(arr, "route", route)
+    monkeypatch.setattr(arr, "discover_instance_roots", AsyncMock(return_value={}))
+    monkeypatch.setattr(arr, "connection_for", AsyncMock(return_value=NS()))
+    with pytest.raises(ValueError, match="Correspondance Arr/Plex modifiée"):
+        await arr.process_arr(db, NS(), item, threading.Event())
+    request.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -186,9 +255,24 @@ def test_new_transfer_schema_rejects_rsync():
 
 
 @pytest.mark.asyncio
-async def test_arr_preparation_reuses_saved_association_instead_of_duplicate_capacity_card():
+async def test_arr_preparation_reuses_saved_association_instead_of_duplicate_capacity_card(monkeypatch):
     location = NS(id=7, mappings=[dict(arr_instance_id=1, arr_root="/data/FILMS")])
-    db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: [location]))))
+    db = NS(get=AsyncMock(return_value=location))
+
+    class Registry:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def scalar(self, _statement):
+            return location.id
+
+        async def commit(self):
+            return None
+
+    monkeypatch.setattr(arr, "AsyncSessionLocal", Registry)
     result = await arr.virtual_location(
         db,
         NS(id=1),

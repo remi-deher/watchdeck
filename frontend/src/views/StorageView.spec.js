@@ -246,12 +246,13 @@ describe('Storage root correspondence table', () => {
   w.unmount();
  });
 
- it('offers removal and revalidated relaunch for a cancelled task',async()=>{
+ it('offers removal and restores cancelled task parameters without launching a preview',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',desired_state:'cancel',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:100e9},destination:{free_bytes:200e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
   expect(wrapper.text()).toContain('Relancer avec de nouveaux paramètres');
-  await wrapper.findAll('button').find(b=>b.text()==='Relancer avec les mêmes paramètres').trigger('click');await flushPromises();
-  const call=request.mock.calls.find(([path])=>path==='/api/storage/preview');expect(JSON.parse(call[1].body)).toMatchObject({task_id:0,goal_gb:20});
+  await wrapper.findAll('button').find(b=>b.text()==='Préparer une nouvelle tâche avec ces paramètres').trigger('click');await flushPromises();
+  expect(wrapper.text()).toContain('Paramètres repris depuis la tâche terminée');
+  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(false);
   expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);wrapper.unmount();
  });
  it('confirms removal of a paused task before requesting durable cancellation',async()=>{

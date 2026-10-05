@@ -104,7 +104,14 @@ async def test_preview_and_transfer_serialization(monkeypatch):
 async def test_location_save_and_commands(monkeypatch):
     instance = NS(id=1, arr_type="radarr")
     existing = StorageLocation(id=1)
-    db = NS(get=AsyncMock(return_value=instance), commit=AsyncMock(), refresh=AsyncMock(), add=lambda obj: None)
+    db = NS(
+        get=AsyncMock(return_value=instance),
+        execute=AsyncMock(return_value=NS(scalars=lambda: [])),
+        flush=AsyncMock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+        add=lambda obj: None,
+    )
     roots = {"arr_roots": ["/data/FILMS"], "plex_roots": [{"path": "/media/FILMS", "section_id": "3"}]}
     monkeypatch.setattr(service, "discover_instance_roots", AsyncMock(return_value=roots))
     body = api.LocationBody(
@@ -334,7 +341,7 @@ async def test_draft_launch_revalidates_and_replaces_snapshot(monkeypatch):
     monkeypatch.setattr(service, "preview", refresh)
     monkeypatch.setattr(service, "transfer_json", AsyncMock(return_value={"id": 12}))
     added = []
-    db = NS(execute=AsyncMock(), add=added.append, commit=AsyncMock())
+    db = NS(execute=AsyncMock(), add=added.append, flush=AsyncMock(), commit=AsyncMock())
     body = api.PreviewBody(arr_instance_id=1, selection=["1:7"], start_immediately=True)
     await api.update_transfer(12, body, db)
     refresh.assert_awaited_once_with(db, body)

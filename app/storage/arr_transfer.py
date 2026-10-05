@@ -22,21 +22,29 @@ async def route(db, instance, root, discovered):
     declared = next((r for r in roots if r["path"].rstrip("/") == root), None)
     if not declared or declared.get("accessible") is not True or not isinstance(declared.get("freeSpace"), int):
         raise ValueError("Arr doit confirmer une racine accessible et son espace libre.")
-    choices = [p for p in discovered["plex_roots"] if compatible(root, p["path"])]
-    if len(choices) != 1:
-        # An explicitly saved association can disambiguate non-conventional paths.
-        locations = (await db.execute(select(StorageLocation))).scalars().all()
-        saved = [
-            m
-            for location in locations
-            for m in location.mappings
-            if m["arr_instance_id"] == instance.id and m["arr_root"] == root
-        ]
-        choices = [
-            p
-            for p in discovered["plex_roots"]
-            if any(m["plex_root"] == p["path"] and m["plex_section_id"] == p["section_id"] for m in saved)
-        ]
+    # An explicitly configured association takes precedence over a path-name
+    # heuristic. Ignore virtual locations: preview creates those for capacity
+    # accounting and they do not prove that a person validated the association.
+    try:
+        locations = (
+            (await db.execute(select(StorageLocation).where(StorageLocation.virtual_key.is_(None)))).scalars().all()
+        )
+    except AttributeError:  # Small test doubles may not implement a DB query.
+        locations = []
+    saved = [
+        m
+        for location in locations
+        for m in location.mappings
+        if m["arr_instance_id"] == instance.id and m["arr_root"] == root
+    ]
+    saved_pairs = {(m["plex_root"], str(m["plex_section_id"])) for m in saved}
+    if len(saved_pairs) > 1:
+        raise ValueError("Plusieurs correspondances sont enregistrées pour cette racine : corrigez Stockages.")
+    if saved_pairs:
+        plex_root, section_id = next(iter(saved_pairs))
+        choices = [p for p in discovered["plex_roots"] if p["path"] == plex_root and str(p["section_id"]) == section_id]
+    else:
+        choices = [p for p in discovered["plex_roots"] if compatible(root, p["path"])]
     if len(choices) != 1:
         raise ValueError("Correspondance Arr/Plex ambiguë ou absente : associez cette racine dans Stockages.")
     plex = choices[0]
@@ -47,7 +55,16 @@ async def route(db, instance, root, discovered):
         plex_section_id=plex["section_id"],
         subdirectory="",
     )
-    comparison = await check_mapping(db, SimpleNamespace(mappings=[mapping]), 0)
+    from .mapping_proofs import get
+
+    comparison = None
+    try:
+        comparison = await get(instance, discovered, mapping)
+    except Exception:
+        # Redis is an optimization only; if unavailable, keep the full safety check.
+        comparison = None
+    if comparison is None:
+        comparison = await check_mapping(db, SimpleNamespace(mappings=[mapping]), 0, discovered=discovered)
     if comparison["status"] not in ("sample_matched", "empty"):
         raise ValueError("Correspondance Arr/Plex non confirmée : déplacement refusé.")
     return declared, mapping, comparison
@@ -98,6 +115,8 @@ async def virtual_location(db, instance, root, declared, mapping):
 
 
 async def preview_arr(db, body, capacity_overrides=None):
+    from .preview_progress import report
+
     instance = await db.get(ArrInstance, body.arr_instance_id)
     if not instance or not instance.enabled or instance.arr_type not in ("radarr", "sonarr"):
         raise ValueError("Choisir une instance Sonarr/Radarr active.")
@@ -119,6 +138,7 @@ async def preview_arr(db, body, capacity_overrides=None):
         raise ValueError("Les racines source et destination doivent être distinctes et non imbriquées.")
     if any(a != b and a.startswith(b + "/") for a in sources for b in sources):
         raise ValueError("Les racines source ne doivent pas être imbriquées.")
+    await report("Vérification des racines et correspondances récemment validées…")
     discovered = await discover_instance_roots(db, instance)
     dst, dm, _ = await route(db, instance, destination, discovered)
     if capacity_overrides is not None:
@@ -155,6 +175,7 @@ async def preview_arr(db, body, capacity_overrides=None):
             )
         )
     ).scalar()
+    await report(f"Lecture du catalogue {instance.arr_type.title()}…")
     candidates = []
     for media in await arr_request(instance, "GET", kind):
         matching = next((entry for entry in source_routes if relative_path(media["path"], entry[0])), None)
@@ -194,6 +215,7 @@ async def preview_arr(db, body, capacity_overrides=None):
                 ),
             )
         )
+    await report("Application de l’objectif, des protections et des limites…")
     from .objectives import enrich_candidates
 
     await enrich_candidates(db, instance, candidates, body)
@@ -303,7 +325,12 @@ async def process_arr(db, job, item, stop, *, finalize_only=False):
             )
         discovered = await discover_instance_roots(db, instance)
         for side in ("source", "destination"):
-            declared, _, _ = await route(db, instance, str(PurePosixPath(snap[side + "_arr"]).parent), discovered)
+            root = str(PurePosixPath(snap[side + "_arr"]).parent)
+            declared, mapping, _ = await route(db, instance, root, discovered)
+            relative = relative_path(snap[side + "_arr"], root)
+            expected_plex = mapping["plex_root"] + "/" + relative if relative else None
+            if mapping["plex_section_id"] != snap["plex_section_id"] or expected_plex != snap[side + "_plex"]:
+                raise ValueError("Correspondance Arr/Plex modifiée depuis l’aperçu : recalculer la tâche.")
             if side == "destination" and declared["freeSpace"] < item.size_bytes:
                 raise ValueError("Espace destination insuffisant au moment du déplacement.")
         media = await arr_request(instance, "GET", f"{resource}/{item.arr_id}")

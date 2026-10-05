@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from datetime import datetime, timedelta
 from pathlib import PurePosixPath
 from types import SimpleNamespace
 
@@ -123,6 +124,34 @@ async def validate_access(db, access, selected_roots=None):
     return access_json(access)
 
 
+async def validation_is_fresh(db, access, selected_roots):
+    """Reuse recent path/permission checks for previews, never across revisions."""
+    validation = access.validation or {}
+    if validation.get("revision") != access.revision:
+        return False
+    connection_id = getattr(access, "connection_id", None)
+    if connection_id:
+        from ..models import StorageConnection
+
+        connection = await db.get(StorageConnection, connection_id)
+        if not connection or not connection.tested or validation.get("connection_revision") != connection.revision:
+            return False
+    try:
+        checked_at = datetime.fromisoformat(validation["checked_at"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if checked_at.tzinfo:
+        checked_at = checked_at.replace(tzinfo=None)
+    from ..utils import now_utc_naive
+
+    if now_utc_naive() - checked_at > timedelta(minutes=15):
+        return False
+    validated = {(root.get("arr_instance_id"), root.get("arr_root")): root for root in validation.get("roots", [])}
+    return all(
+        (root := validated.get(pair)) is not None and isinstance(root.get("free_bytes"), int) for pair in selected_roots
+    )
+
+
 def matching_root(access, instance_id, root):
     matches = [r for r in access.roots if r["arr_instance_id"] == instance_id and r["arr_root"] == root]
     if len(matches) != 1:
@@ -132,6 +161,7 @@ def matching_root(access, instance_id, root):
 
 async def preview_rsync(db, body):
     from .arr_transfer import preview_arr
+    from .preview_progress import report
 
     if not hasattr(body, "destination_root") or not hasattr(body, "arr_instance_id"):
         raise ValueError("Racines source et destination requises.")
@@ -149,12 +179,11 @@ async def preview_rsync(db, body):
             raise ValueError("Choisissez un accès validé pour chaque racine.")
         matching_root(access, body.arr_instance_id, root)
         selected[root] = access
+    await report("Vérification des accès SSH / montages et de leurs échantillons…")
     for access in {a.id: a for a in selected.values()}.values():
-        await validate_access(
-            db,
-            access,
-            {(body.arr_instance_id, root) for root, endpoint in selected.items() if endpoint.id == access.id},
-        )
+        roots = {(body.arr_instance_id, root) for root, endpoint in selected.items() if endpoint.id == access.id}
+        if not await validation_is_fresh(db, access, roots):
+            await validate_access(db, access, roots)
     capacities = {
         root: next(
             r["free_bytes"]

@@ -1,5 +1,6 @@
 """Administrative inventory and previews; the API never mounts media folders."""
 
+import hashlib
 from datetime import timedelta
 
 import httpx
@@ -50,6 +51,8 @@ async def discover_instance_roots(db, instance):
         name=instance.name,
         arr_type=instance.arr_type,
         plex_server_id=conn.id,
+        plex_url=conn.url,
+        plex_token_fingerprint=hashlib.sha256(conn.token.encode()).hexdigest(),
         arr_roots=[r["path"].rstrip("/") for r in arr_roots],
         capacities={r["path"].rstrip("/"): dict(free_bytes=r.get("freeSpace")) for r in arr_roots},
         plex_roots=[
@@ -87,6 +90,8 @@ async def preview(db, body):
 
 
 async def _preview(db, body):
+    from .preview_progress import report
+
     if getattr(body, "routes", None):
         from .objectives import preview_batch
 
@@ -104,6 +109,7 @@ async def _preview(db, body):
         from .arr_transfer import preview_arr
 
         return await preview_arr(db, body)
+    await report("Préparation des stockages et correspondances…")
     if body.source_id == body.destination_id:
         raise ValueError("Choisir deux stockages différents.")
     source, destination = (
@@ -268,7 +274,7 @@ async def transfer_json(db, job):
     )
 
 
-async def check_mapping(db, location, mapping_index):
+async def check_mapping(db, location, mapping_index, discovered=None):
     """Read-only API comparison. A sample never certifies an entire storage mount."""
     from .worker import confirm_media_identity, plex_files
 
@@ -276,7 +282,7 @@ async def check_mapping(db, location, mapping_index):
     instance = await db.get(ArrInstance, mapping["arr_instance_id"])
     if not instance or not instance.enabled:
         raise ValueError("Instance Arr indisponible.")
-    roots = await discover_instance_roots(db, instance)
+    roots = discovered or await discover_instance_roots(db, instance)
     if mapping["arr_root"] not in roots["arr_roots"] or not any(
         p["path"] == mapping["plex_root"] and p["section_id"] == mapping["plex_section_id"] for p in roots["plex_roots"]
     ):
@@ -284,6 +290,9 @@ async def check_mapping(db, location, mapping_index):
     conn = await connection_for(db, instance.plex_server_id)
     kind = "movie" if instance.arr_type == "radarr" else "series"
     resource = "movie" if kind == "movie" else "series"
+    from .preview_progress import report
+
+    await report("Vérification du contenu Plex pour cette correspondance…")
     titles = []
     for media in await arr_request(instance, "GET", resource):
         relative = relative_path(media["path"], mapping["arr_root"])
@@ -341,7 +350,7 @@ async def check_mapping(db, location, mapping_index):
             results.append(dict(title=media["title"], status="matched", files=len(expected)))
         except ValueError as exc:
             results.append(dict(title=media["title"], status="mismatch", reason=str(exc)))
-    return dict(
+    result = dict(
         checked_at=now_utc_naive(),
         total_titles=len(titles),
         available_titles=len(eligible),
@@ -359,6 +368,15 @@ async def check_mapping(db, location, mapping_index):
         items=results,
         note="Contrôle API de 5 titres maximum. Chaque titre sera revérifié avant son déplacement ; une racine vide ne permet pas de confirmer le contenu.",
     )
+    from .mapping_proofs import put
+
+    try:
+        await put(instance, roots, mapping, result)
+    except Exception:
+        # A cache outage must never turn a successful read-only comparison into
+        # a failed storage check.
+        pass
+    return result
 
 
 async def resolve_mapping(db, body):

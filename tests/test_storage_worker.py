@@ -45,6 +45,7 @@ def transfer(tmp_path, monkeypatch):
         arr_id=1,
         media_type="movie",
         status="pending",
+        claimed=True,
         progress={},
         proofs={},
         snapshot=snap,
@@ -126,9 +127,11 @@ async def test_copy_switch_confirm_cleanup_and_restart(transfer):
     assert t.item.progress["copied_bytes"] == 7000
     assert t.item.snapshot["cleanup_intent"]
     assert t.item.progress["finished_at"]
+    t.item.claimed = True  # Simulate the durable claim reacquired by a retry.
     await worker.process_item(t.db, t.job, t.item, t.stop)
     assert t.item.status == "completed"
     (t.destination / "film.mkv").write_bytes(b"changed")
+    t.item.claimed = True
     with pytest.raises(ValueError, match="Destination modifiée"):
         await worker.process_item(t.db, t.job, t.item, t.stop)
 
