@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.71.0 — 2026-10-05
+
+
+### ✨ Nouveautés
+
+- support rsync transfers between SSH servers ([d5366d6](https://github.com/remi-deher/watchdeck/commit/d5366d6479d8aae32cb05591eb011f11b35a0e78))
 ## 1.70.0 — 2026-10-05
 
 
 ### ✨ Nouveautés
 
 - add validated rsync transfer setup ([75038fe](https://github.com/remi-deher/watchdeck/commit/75038fe41cbd6ba1159c9f8db84d7c6e09b8f749))
+
+### 🔧 Maintenance
+
+- v1.70.0 (#668) ([41d4af5](https://github.com/remi-deher/watchdeck/commit/41d4af5dc6fea445e43798cb606f104e653b7163))
 ## 1.69.0 — 2026-10-05
 
 
