@@ -68,6 +68,15 @@ def location_json(location):
 
 
 async def preview(db, body):
+    if getattr(body, "transfer_methods", None):
+        from .access import preview_priority
+
+        return await preview_priority(db, body)
+
+    if getattr(body, "transfer_mode", "") in ("rsync_ssh", "rsync_local"):
+        from .access import preview_rsync
+
+        return await preview_rsync(db, body)
     if getattr(body, "transfer_mode", "rsync") == "arr":
         from .arr_transfer import preview_arr
 

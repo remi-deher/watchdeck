@@ -14,8 +14,8 @@ passlib[bcrypt]==1.7.4
 itsdangerous==2.2.0
 psycopg2-binary==2.9.13
 cryptography==50.0.1
-webauthn==3.0.0
-markdown==3.10.3
+webauthn==3.0.1
+markdown==3.11
 asyncpg==0.31.0
 redis==5.3.1
 arq==0.28.0

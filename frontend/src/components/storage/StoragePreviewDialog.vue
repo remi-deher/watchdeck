@@ -2,6 +2,7 @@
  <ModalShell :open="true" title="3 · Aperçu des déplacements" :busy="busy" :error="error" panel-class="storage-preview-modal" @close="$emit('close')">
   <p>{{ selected.length }} titre(s) sélectionné(s) · {{ gb(selectedBytes) }}</p>
   <section v-for="group in plan.groups" :key="group.body.arr_instance_id"><h3>{{ group.name }} · {{ group.body.source_roots?.join(', ') || group.body.source_root }} → {{ group.body.destination_root }}</h3>
+   <p>Mode retenu : <strong>{{ methodLabel(group.transfer_mode || group.body.transfer_mode) }}</strong></p><p>Vérification : <strong>{{ verificationLabel(group) }}</strong></p><p v-if="group.skipped_methods?.length" class="warning">Contrôles non validés pour {{ group.skipped_methods.map(methodLabel).join(', ') }}. Le mode suivant a été retenu avant toute copie.</p>
    <p v-for="source in group.sources || [group.source]" :key="source.id">{{ source.name }} : {{ gb(source.free_bytes) }} → {{ gb(source.free_bytes==null?null:source.free_bytes+sourceVolume(group,source.id)) }} libres après déplacement</p><p>Destination : {{ gb(group.destination.free_bytes) }} → {{ gb(group.destination.free_bytes==null?null:group.destination.free_bytes-volume(group)) }} libres</p>
    <p v-if="!group.goal_covered" class="warning">Objectif partiellement couvert.</p><p v-if="group.submitted">Lot déjà lancé.</p>
    <UiDataTable :label="`Titres proposés ${group.name}`" :rows="group.items" :columns="columns" :row-key="row=>row.key"><template #cell-select="{row}"><input v-model="selected" type="checkbox" :value="row.key" :disabled="busy || group.submitted" :aria-label="`Sélectionner ${row.title}`" /></template><template #cell-size="{row}">{{ gb(row.size_bytes) }}</template><template #cell-source="{row}"><code>{{ row.snapshot.source_arr }}</code></template><template #cell-destination="{row}"><code>{{ row.snapshot.destination_arr }}</code></template></UiDataTable>
@@ -12,6 +13,8 @@
 <script setup lang="ts">
 import {computed} from 'vue';import ModalShell from '@/components/ui/ModalShell.vue';import UiDataTable,{type UiColumn} from '@/components/ui/UiDataTable.vue';import UiButton from '@/components/ui/UiButton.vue';
 const props=defineProps<{plan:any,busy:boolean,error:string,gb:(v:any)=>string}>();const selected=defineModel<string[]>({required:true});
+const methodLabel=(mode:string)=>({'arr':'API Sonarr / Radarr','rsync_ssh':'Rsync par SSH','rsync_local':'Rsync local'} as Record<string,string>)[mode]||mode;
+const verificationLabel=(group:any)=>(group.transfer_mode || group.body.transfer_mode)==='arr'?'Déplacement géré par Sonarr / Radarr':group.body.verification==='renforce'?'Renforcée · SHA-256':'Standard · rsync';
 const volume=(group:any)=>group.items.filter((i:any)=>selected.value.includes(i.key)).reduce((s:number,i:any)=>s+i.size_bytes,0);
 const sourceVolume=(group:any,id:number)=>group.items.filter((i:any)=>selected.value.includes(i.key) && (i.snapshot.source_location_id===id || !i.snapshot.source_location_id)).reduce((s:number,i:any)=>s+i.size_bytes,0);
 const selectedBytes=computed(()=>props.plan.groups.reduce((s:number,g:any)=>s+volume(g),0));

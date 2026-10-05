@@ -22,26 +22,13 @@ from ..services.plex_servers import connection_for
 from ..utils import now_utc_naive
 from . import integrite, ssh_hash
 from .integrite import Interrompu, copier_fichier, verifier_dossier
+from .local_mounts import mounted_root  # re-exported for discovery and existing callers
 from .service import arr_request, discover_instance_roots
 
 log = logging.getLogger(__name__)
 VIDEO = (".mkv", ".mp4", ".avi", ".m4v", ".mov", ".ts", ".m2ts", ".wmv")
 SHUTDOWN = threading.Event()
 HEARTBEAT = Path("/tmp/watchdeck-transfers-heartbeat")
-
-
-def mounted_root(root: str) -> Path:
-    path = Path(root)
-    if not root.startswith("/storage/") or path.is_symlink() or path.resolve() != path or not path.is_dir():
-        raise ValueError("Montage absent, lien symbolique ou chemin hors /storage.")
-    mounts = Path("/proc/self/mountinfo").read_text().splitlines()
-    valid = any(
-        (m := line.split()[4].replace("\\040", " ")).startswith("/storage/") and (root == m or root.startswith(m + "/"))
-        for line in mounts
-    )
-    if not valid:
-        raise ValueError("Stockage non monté : refus de travailler sur un dossier local de remplacement.")
-    return path
 
 
 def local_media(root: str, relative: str) -> Path:
@@ -181,9 +168,21 @@ async def process_item(db, job, item, stop):
 
         return await process_arr(db, job, item, stop)
     snap = dict(item.snapshot)
-    src = local_media(snap["source_mount"], snap["relative"])
-    dst = local_media(snap["destination_mount"], snap["relative"])
-    if src == dst or (src.exists() and dst.exists() and os.path.samefile(src, dst)):
+    fs = None
+    if job.params.get("transfer_mode") in ("rsync_ssh", "rsync_local"):
+        from .access import filesystem_for
+
+        fs = await filesystem_for(db, job, snap)
+    path_for = (lambda root, relative: fs.path(str(PurePosixPath(root) / relative))) if fs else local_media
+    read_inventory = fs.inventory if fs else inventory
+    signature_of = fs.signature if fs else integrite.signature
+    hash_file = fs.hash if fs else integrite.empreinte
+    copy_file = fs.copy if fs else copier_fichier
+    verify_folder = fs.verify if fs else verifier_dossier
+    free_space = fs.free if fs else lambda path: shutil.disk_usage(path).free
+    src = path_for(snap["source_mount"], snap["relative"])
+    dst = path_for(snap["destination_mount"], snap["relative"])
+    if src == dst or (not fs and src.exists() and dst.exists() and os.path.samefile(src, dst)):
         raise ValueError("Source et destination identiques.")
     instance = await db.get(ArrInstance, item.arr_instance_id)
     if not instance or not instance.enabled:
@@ -248,7 +247,7 @@ async def process_item(db, job, item, stop):
         await confirm_media_identity(conn, snap["original_plex"], snap, item.media_type)
         if not src.is_dir():
             raise ValueError("Source absente.")
-        snap["files"] = await asyncio.to_thread(inventory, src)
+        snap["files"] = await asyncio.to_thread(read_inventory, src)
         videos = {n.replace(os.sep, "/") for n in snap["files"] if n.lower().endswith(VIDEO)}
         if videos != set(snap["original_plex"]):
             raise ValueError("Tous les fichiers vidéo source doivent être reconnus par Plex.")
@@ -260,19 +259,16 @@ async def process_item(db, job, item, stop):
         if set(snap.get("cleanup_signatures", {})) != set(snap["files"]):
             raise ValueError("Preuves de nettoyage incomplètes.")
         for name, signature in snap["cleanup_signatures"].items():
-            if integrite.signature(str(dst / name)) != signature:
+            if signature_of(str(dst / name)) != signature:
                 raise ValueError("Destination modifiée après interruption du nettoyage.")
     # A crash after deletion is only accepted with a previously committed cleanup intent.
     if not src.exists():
         if not snap.get("cleanup_intent"):
             raise ValueError("Source absente sans intention de nettoyage enregistrée.")
         for name, proof in item.proofs.items():
-            if integrite.signature(str(dst / name)) != snap.get("cleanup_signatures", {}).get(name):
+            if signature_of(str(dst / name)) != snap.get("cleanup_signatures", {}).get(name):
                 raise ValueError("Destination modifiée après interruption du nettoyage.")
-            if (
-                proof.get("sha256")
-                and await asyncio.to_thread(integrite.empreinte, str(dst / name), stop) != proof["sha256"]
-            ):
+            if proof.get("sha256") and await asyncio.to_thread(hash_file, str(dst / name), stop) != proof["sha256"]:
                 raise ValueError("Intégrité destination incorrecte après interruption du nettoyage.")
         if (
             await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
@@ -284,10 +280,10 @@ async def process_item(db, job, item, stop):
     if media["path"] == snap["source_arr"]:
         destination = await db.get(StorageLocation, job.destination_id)
         needed = sum((src / name).stat().st_size for name in snap["files"])
-        if shutil.disk_usage(dst.parent).free - needed < destination.reserve_bytes:
+        if free_space(dst.parent) - needed < destination.reserve_bytes:
             raise ValueError("Réserve de destination insuffisante au début de la copie.")
         if dst.exists():
-            found = await asyncio.to_thread(inventory, dst, False)
+            found = await asyncio.to_thread(read_inventory, dst, False)
             if any(name.removesuffix(".partiel") not in snap["files"] for name in found):
                 raise ValueError("La destination contient des fichiers étrangers au titre.")
             existing_plex = await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
@@ -345,14 +341,14 @@ async def process_item(db, job, item, stop):
                 asyncio.run_coroutine_threadsafe(update_item(db, item, "verifying"), loop).result(timeout=30)
 
             proof = await asyncio.to_thread(
-                copier_fichier, str(source), str(target), advance, stop, proofs.get(name), phase, mode
+                copy_file, str(source), str(target), advance, stop, proofs.get(name), phase, mode
             )
             proofs[name] = proof
             await progress(name, source.stat().st_size)
             base[0] += source.stat().st_size
             await update_item(db, item, "copying", proofs=dict(proofs))
         await update_item(db, item, "verifying")
-        await asyncio.to_thread(verifier_dossier, str(src), str(dst), stop, proofs, mode)
+        await asyncio.to_thread(verify_folder, str(src), str(dst), stop, proofs, mode)
         if await is_playing(conn, snap):
             await update_item(db, item, "deferred", "Lecture active : bascule reportée.")
             return
@@ -405,23 +401,26 @@ async def process_item(db, job, item, stop):
         await update_item(db, item, "deferred", "Lecture active : nettoyage reporté.")
         return
     await no_arr_download(instance, item)
-    remaining = await asyncio.to_thread(inventory, src, False)
-    destination_files = await asyncio.to_thread(inventory, dst, False)
+    remaining = await asyncio.to_thread(read_inventory, src, False)
+    destination_files = await asyncio.to_thread(read_inventory, dst, False)
     if set(destination_files) != set(snap["files"]) or not set(remaining).issubset(snap["files"]):
         raise ValueError("Inventaire modifié : nettoyage refusé.")
     if not snap.get("cleanup_intent") and set(remaining) != set(snap["files"]):
         raise ValueError("Fichiers source disparus : nettoyage refusé.")
-    await asyncio.to_thread(verifier_dossier, str(src), str(dst), stop, dict(item.proofs), mode)
+    await asyncio.to_thread(verify_folder, str(src), str(dst), stop, dict(item.proofs), mode)
     # The cleanup intent is committed after validation. Standard mode adds no full reread.
     proofs = dict(item.proofs)
-    snap["cleanup_signatures"] = {name: integrite.signature(str(dst / name)) for name in snap["files"]}
+    snap["cleanup_signatures"] = {name: signature_of(str(dst / name)) for name in snap["files"]}
     if stop.is_set():
         raise Interrompu()
     snap["cleanup_intent"] = True
     await update_item(db, item, "cleaning", proofs=proofs, snapshot=snap)
-    local_media(snap["source_mount"], snap["relative"])
-    local_media(snap["destination_mount"], snap["relative"])
-    await asyncio.to_thread(shutil.rmtree, src)
+    path_for(snap["source_mount"], snap["relative"])
+    path_for(snap["destination_mount"], snap["relative"])
+    if fs:
+        await asyncio.to_thread(fs.remove, src, dst, snap["files"], snap["cleanup_signatures"], dict(item.proofs))
+    else:
+        await asyncio.to_thread(shutil.rmtree, src)
     await update_item(db, item, "completed", progress={})
     try:
         await plex_get(

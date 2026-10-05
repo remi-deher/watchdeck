@@ -75,7 +75,7 @@ async def virtual_location(db, instance, root, declared, mapping):
     return location
 
 
-async def preview_arr(db, body):
+async def preview_arr(db, body, capacity_overrides=None):
     instance = await db.get(ArrInstance, body.arr_instance_id)
     if not instance or not instance.enabled or instance.arr_type not in ("radarr", "sonarr"):
         raise ValueError("Choisir une instance Sonarr/Radarr active.")
@@ -99,9 +99,13 @@ async def preview_arr(db, body):
         raise ValueError("Les racines source ne doivent pas être imbriquées.")
     discovered = await discover_instance_roots(db, instance)
     dst, dm, _ = await route(db, instance, destination, discovered)
+    if capacity_overrides is not None:
+        dst = {**dst, "freeSpace": capacity_overrides[destination]}
     source_routes = []
     for source in sources:
         src, sm, comparison = await route(db, instance, source, discovered)
+        if capacity_overrides is not None:
+            src = {**src, "freeSpace": capacity_overrides[source]}
         if sm["plex_section_id"] != dm["plex_section_id"]:
             raise ValueError("Le déplacement doit rester dans la même bibliothèque Plex.")
         if comparison["status"] != "sample_matched":

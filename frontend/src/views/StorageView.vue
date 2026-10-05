@@ -5,15 +5,19 @@
 
     <StorageOverviewPanel v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="rootRows.filter(r=>r.arr_root).length" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
-    <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="discoveredRoots" :busy="busy" @preview="preview" />
+    <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="discoveredRoots" :accesses="accesses" :busy="busy" @configure="tab='settings'" @preview="preview" />
 
     <StorageTransferList v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,true)" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
     <section v-if="tab === 'settings'" class="storage-card">
+      <AppSubnav v-model:active="settingsTab" :items="settingsTabs" variant="tabs" class="storage-subnav" aria-label="Configuration des stockages" />
+      <StorageConnectionPanel v-if="settingsTab==='connections'" :connections="connections" @changed="load()" />
+      <template v-if="settingsTab==='roots'">
       <h2>Stockages et correspondances</h2>
-      <StorageRootTable v-model:forced="forcedAssociations" :progress="scanProgress" :saved-pairs="savedPairs" :saved-proofs="savedProofs" :dirty-count="dirtyRows.length" v-model:pairs="rootPairs" :root-rows="rootRows" :draft-comparisons="draftComparisons" :checking="checking" :busy="busy" :date="date" @save="saveRoots(false)" @recheck="saveRoots(true)" />
+      <StorageRootTable :connections="connections" :accesses="accesses" :binding-drafts="bindingDrafts" @binding="(key,value)=>bindingDrafts[key]=value" v-model:forced="forcedAssociations" :progress="scanProgress" :saved-pairs="savedPairs" :saved-proofs="savedProofs" :dirty-count="dirtyRows.length" v-model:pairs="rootPairs" :root-rows="rootRows" :draft-comparisons="draftComparisons" :checking="checking" :busy="busy" :date="date" @save="saveRoots(false)" @recheck="saveRoots(true)" />
       <UiButton @click="resetLocation(); locationDialog = true">Configurer une association Arr / Plex</UiButton>
       <StorageAssociationDialog v-model="locationForm" :open="locationDialog" :error="error" :busy="busy" :edit-id="editId" :instances="instances" :roots="discoveredRoots" :checking="checking" :draft-comparisons="draftComparisons" :date="date" @check="checkDraft" @save="saveLocation" @close="resetLocation();locationDialog=false" />
+      </template>
     </section>
 
     <StoragePreviewDialog v-if="plan" v-model="selected" :plan="plan" :busy="busy" :error="error" :gb="gb" @close="plan=null" @launch="launch(true)" @save="launch(false)" />
@@ -27,6 +31,7 @@ import {useStorageTelemetry} from '@/components/storage/useStorageTelemetry';
 import StorageOverviewPanel from '@/components/storage/StorageOverviewPanel.vue';
 import StorageTransferList from '@/components/storage/StorageTransferList.vue';
 import StoragePreviewDialog from '@/components/storage/StoragePreviewDialog.vue';
+import StorageConnectionPanel from '@/components/storage/StorageConnectionPanel.vue';
 import StoragePreparePanel from '@/components/storage/StoragePreparePanel.vue';
 import StorageRootTable from '@/components/storage/StorageRootTable.vue';
 import StorageAssociationDialog from '@/components/storage/StorageAssociationDialog.vue';
@@ -38,6 +43,8 @@ import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 const tabs=[{key:'overview',label:'Vue d’ensemble'},{key:'prepare',label:'Préparer'},{key:'transfers',label:'Transferts'},{key:'history',label:'Historique'},{key:'settings',label:'Stockages'}];
+const settingsTab=ref('roots');
+const settingsTabs=[{key:'roots',label:'Stockages'},{key:'connections',label:'Connexions'}];
 const tab=ref('overview'),locations=ref<any[]>([]),jobs=ref<any[]>([]),instances=ref<any[]>([]),discoveredRoots=ref<any[]>([]),loading=ref(false),busy=ref(false),error=ref(''),plan=ref<any>(null),selected=ref<string[]>([]),editId=ref<number|null>(null);
 const rootsLoading=ref(false),checking=ref(''),comparisons=ref<Record<string,any>>({}),draftComparisons=ref<Record<string,any>>({});
 const rootPairs=ref<Record<string,string>>({});
@@ -46,7 +53,7 @@ const forcedAssociations=ref<Record<string,boolean>>({});
 const scanProgress=ref({total:0,completed:0,current:'',saved:0,empty:0,failed:0,started:0,finished:0});
 const sessionSaved=ref<Record<string,string>>({}),savedProofs=ref<Record<string,any>>({});
 const savedPairs=computed(()=>{const pairs:Record<string,string>={};for(const l of locations.value)for(const m of l.mappings)pairs[`${m.arr_instance_id}:${m.arr_root}`]=JSON.stringify([m.plex_section_id,m.plex_root]);return {...pairs,...sessionSaved.value};});
-const dirtyRows=computed(()=>rootRows.value.filter(row=>rootPairs.value[row.key] && !row.error && rootPairs.value[row.key]!==savedPairs.value[row.key]));
+const dirtyRows=computed(()=>rootRows.value.filter(row=>rootPairs.value[row.key] && !row.error && (rootPairs.value[row.key]!==savedPairs.value[row.key] || Boolean(bindingDrafts.value[row.key]))));
 async function saveRoot(row:any){
  const mapping=rootMapping(row);const comparison:any=await api('/api/storage/roots/check',{method:'POST',body:JSON.stringify(mapping)});
  draftComparisons.value[draftKey(mapping)]=comparison;
@@ -62,7 +69,8 @@ const saveRoots=(all=false)=>act(async()=>{
  savedMessage.value='';let saved=0,empty=0;const failures:string[]=[];
  const rows=all?rootRows.value.filter(row=>rootPairs.value[row.key] && !row.error):dirtyRows.value;
  scanProgress.value={total:rows.length,completed:0,current:'',saved:0,empty:0,failed:0,started:Date.now(),finished:0};
- for(const row of rows){scanProgress.value.current=`${row.instance} · ${row.arr_root}`;try{if(await saveRoot(row)){empty++;scanProgress.value.empty++;}saved++;scanProgress.value.saved++;}catch(e:any){scanProgress.value.failed++;failures.push(`${row.instance} · ${row.arr_root} : ${e.message}`);}finally{scanProgress.value.completed++;}}
+ for(const row of rows){scanProgress.value.current=`${row.instance} · ${row.arr_root}`;try{if((all || rootPairs.value[row.key]!==savedPairs.value[row.key]) && await saveRoot(row)){empty++;scanProgress.value.empty++;}if(bindingDrafts.value[row.key]){await api('/api/storage/bindings/multiple',{method:'POST',body:JSON.stringify({arr_instance_id:row.arr_instance_id,arr_root:row.arr_root,...bindingDrafts.value[row.key]})});delete bindingDrafts.value[row.key];}saved++;scanProgress.value.saved++;}catch(e:any){scanProgress.value.failed++;failures.push(`${row.instance} · ${row.arr_root} : ${e.message}`);}finally{scanProgress.value.completed++;}}
+ await load();for(const access of accesses.value.filter(a=>a.roots.length && (all || a.validation?.revision!==a.revision))){scanProgress.value.total++;scanProgress.value.current=`Validation rsync · ${access.name}`;try{await api(`/api/storage/accesses/${access.id}/validate`,{method:'POST'});}catch(e:any){failures.push(`${access.name} : ${e.message}`);scanProgress.value.failed++;}finally{scanProgress.value.completed++;}}await load();
  scanProgress.value.current='';scanProgress.value.finished=Date.now();
  savedMessage.value=saved?`${saved} correspondance(s) enregistrée(s). ${empty?`${empty} racine(s) vide(s) ou forcée(s) : contenu non confirmé. `:''}Aucun transfert lancé.`:'';
  if(failures.length)error.value=failures.join(' · ');
@@ -79,16 +87,17 @@ async function refreshRoots(silent=false){if(rootsLoading.value)return;rootsLoad
 
 async function checkMapping(id:number,index:number|string){const key=comparisonKey(id,index);checking.value=key;try{comparisons.value[key]=await api(`/api/storage/locations/${id}/mappings/${index}/check`,{method:'POST'});}catch(e:any){comparisons.value[key]={error:e.message};}finally{checking.value='';}}
 const editingTaskId=ref(0);
-const form=ref({name:'',routes:[] as any[],transfer_mode:'arr',arr_instance_id:0,source_root:'',destination_root:'',source_id:0,destination_id:0,mode:'release_space',goal_gb:500,media_type:'all',max_titles:250,auto_resume:true});
+const accesses=ref<any[]>([]),connections=ref<any[]>([]),bindingDrafts=ref<Record<string,any>>({});
+const form=ref({transfer_methods:['arr'] as string[],access_ids:{} as Record<string,number>,access_id:0,verification:'standard',name:'',routes:[] as any[],transfer_mode:'arr',arr_instance_id:0,source_root:'',destination_root:'',source_id:0,destination_id:0,mode:'release_space',goal_gb:500,media_type:'all',max_titles:250,auto_resume:true});
 
 const newMapping=()=>newAssociationMapping(instances.value[0]?.id||0);
 const locationForm=ref({name:'',mount_path:'',reserve_gb:100,enabled:true,mappings:[newMapping()]});
 const {selectedBytes,gb,date,locationName}=useStorageTelemetry(locations,jobs,tab,plan,selected);
-async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers')]);if(JSON.stringify(locations.value.map(l=>[l.id,l.mappings]))!==JSON.stringify(nextLocations.map(l=>[l.id,l.mappings])))comparisons.value={};if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
+async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(locations.value.map(l=>[l.id,l.mappings]))!==JSON.stringify(nextLocations.map(l=>[l.id,l.mappings])))comparisons.value={};if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;}}
 const preview=()=>act(async()=>{
  plan.value=null;const {routes,...settings}=form.value;if(editingTaskId.value && routes.length!==1)throw new Error('Modifiez une seule instance pour cette tâche, ou créez une nouvelle tâche.');const requestedRoutes=routes.map((r:any)=>({...r}));
- const groups:any[]=[];for(const route of requestedRoutes){const body={...settings,...route,media_type:'all',root_goals:Object.fromEntries(route.source_roots.map((root:string)=>[root,route.root_goals?.[root] ?? settings.goal_gb])),task_id:editingTaskId.value};const result:any=await api('/api/storage/preview',{method:'POST',body:JSON.stringify(body)});groups.push({...result,body,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||route.arr_instance_id,submitted:false});}
+ const groups:any[]=[];for(const route of requestedRoutes){const body={...settings,...route,media_type:'all',root_goals:Object.fromEntries(route.source_roots.map((root:string)=>[root,route.root_goals?.[root] ?? settings.goal_gb])),task_id:editingTaskId.value};const result:any=await api('/api/storage/preview',{method:'POST',body:JSON.stringify(body)});if(result.transfer_mode){body.transfer_mode=result.transfer_mode;body.access_id=result.access_id;body.transfer_methods=[];Object.assign(body,{preferred_methods:result.preferred_methods});}groups.push({...result,body,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||route.arr_instance_id,submitted:false});}
  plan.value={groups,items:groups.flatMap(g=>g.items)};selected.value=plan.value.items.map((i:any)=>i.key);
 });
 const launch=(startImmediately=true)=>act(async()=>{
@@ -96,7 +105,7 @@ const launch=(startImmediately=true)=>act(async()=>{
  plan.value=null;editingTaskId.value=0;tab.value='transfers';await load();
 });
 function createTask(){editingTaskId.value=0;plan.value=null;tab.value='prepare';}
-function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,mode:job.params.mode==='selection'?'release_space':job.params.mode,media_type:'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;tab.value='prepare';}
+function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.mode==='selection'?'release_space':job.params.mode,media_type:'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;tab.value='prepare';}
 async function verifyTask(job:any){prepareTask(job,true);await preview();}
 const removeTask=(id:number)=>act(async()=>{await api(`/api/storage/transfers/${id}`,{method:'DELETE'});await load();});
 const command=(id:number,action:string)=>act(async()=>{await api(`/api/storage/transfers/${id}/command`,{method:'POST',body:JSON.stringify({action})});await load();});
