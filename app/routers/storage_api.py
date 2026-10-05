@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 
 from ..database import get_db_async
 from ..dependencies import require_admin
@@ -26,22 +26,30 @@ class MappingBody(BaseModel):
 
 class LocationBody(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    mount_path: str
+    mount_path: str = ""
     mappings: list[MappingBody] = Field(min_length=1)
     reserve_gb: float = Field(default=100, ge=0, le=1000000)
     enabled: bool = True
 
 
 class PreviewBody(BaseModel):
-    source_id: int
-    destination_id: int
+    source_id: int = 0
+    destination_id: int = 0
+    transfer_mode: Literal["arr"] = "arr"
+    arr_instance_id: int = 0
+    source_root: str = ""
+    source_roots: list[str] = Field(default_factory=list, max_length=50)
+    name: str = Field(default="", max_length=100)
+    destination_root: str = ""
     mode: Literal["selection", "release_space", "minimum_free"] = "release_space"
     goal_gb: float = Field(default=500, gt=0, le=1000000)
+    root_goals: dict[str, float] = Field(default_factory=dict)
     media_type: Literal["all", "movie", "series"] = "all"
     max_titles: int = Field(default=20, ge=1, le=250)
     selection: list[str] | None = None
-    verification: Literal["standard", "renforce"] = "standard"
     auto_resume: bool = True
+    start_immediately: bool = True
+    task_id: int = 0
 
 
 @router.get("/locations")
@@ -75,8 +83,8 @@ async def roots(db=Depends(get_db_async)):
 
 async def save_location(db, body, location=None):
     try:
-        mount = absolute_path(body.mount_path)
-        if not mount.startswith("/storage/"):
+        mount = absolute_path(body.mount_path) if body.mount_path else ""
+        if mount and not mount.startswith("/storage/"):
             raise ValueError("Le montage du moteur doit être situé sous /storage/.")
         seen = set()
         for mapping in body.mappings:
@@ -150,8 +158,13 @@ async def update_location(location_id: int, body: LocationBody, db=Depends(get_d
 
 @router.post("/preview")
 async def preview(body: PreviewBody, db=Depends(get_db_async)):
+    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
+    if body.task_id:
+        await draft_task(db, body.task_id)
     try:
-        return await service.preview(db, body)
+        result = await service.preview(db, body)
+        await db.commit()
+        return result
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -164,6 +177,8 @@ async def transfers(db=Depends(get_db_async)):
 
 @router.post("/transfers")
 async def create_transfer(body: PreviewBody, db=Depends(get_db_async)):
+    if body.task_id:
+        raise HTTPException(422, "Utiliser la modification de la tâche existante.")
     if not body.selection:
         raise HTTPException(422, "Valider une sélection explicite depuis l’aperçu.")
     # Serialize creation with all other previews->jobs. Never trust client paths/sizes.
@@ -174,13 +189,15 @@ async def create_transfer(body: PreviewBody, db=Depends(get_db_async)):
         raise HTTPException(422, str(exc)) from exc
     if set(body.selection) != set(i["key"] for i in plan["items"]):
         raise HTTPException(409, "La sélection a changé ou ne tient plus sur la destination : recalculer l’aperçu.")
+    body.source_id = plan["source"]["id"]
+    body.destination_id = plan["destination"]["id"]
     job = StorageTransfer(
         source_id=body.source_id,
         destination_id=body.destination_id,
-        params=body.model_dump(exclude={"selection"}),
+        params=body.model_dump(exclude={"selection", "task_id", "start_immediately"}),
         auto_resume=body.auto_resume,
-        status="queued",
-        desired_state="run",
+        status="queued" if body.start_immediately else "draft",
+        desired_state="run" if body.start_immediately else "pause",
     )
     db.add(job)
     await db.flush()
@@ -200,6 +217,64 @@ async def create_transfer(body: PreviewBody, db=Depends(get_db_async)):
     return await service.transfer_json(db, job)
 
 
+async def draft_task(db, transfer_id):
+    job = (
+        await db.execute(select(StorageTransfer).where(StorageTransfer.id == transfer_id).with_for_update())
+    ).scalar_one_or_none()
+    if not job:
+        raise HTTPException(404, "Tâche inconnue.")
+    if job.status != "draft":
+        raise HTTPException(409, "Seule une tâche non lancée peut être modifiée.")
+    return job
+
+
+@router.put("/transfers/{transfer_id}")
+async def update_transfer(transfer_id: int, body: PreviewBody, db=Depends(get_db_async)):
+    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
+    job = await draft_task(db, transfer_id)
+    body.task_id = transfer_id
+    if not body.selection:
+        raise HTTPException(422, "Choisir des titres dans l’aperçu.")
+    try:
+        plan = await service.preview(db, body)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if set(body.selection) != {item["key"] for item in plan["items"]}:
+        raise HTTPException(409, "La sélection a changé : recalculer l’aperçu.")
+    await db.execute(delete(StorageTransferItem).where(StorageTransferItem.transfer_id == transfer_id))
+    job.source_id = plan["source"]["id"]
+    job.destination_id = plan["destination"]["id"]
+    job.params = body.model_dump(exclude={"selection", "task_id", "start_immediately"})
+    job.auto_resume = body.auto_resume
+    job.status = "queued" if body.start_immediately else "draft"
+    job.desired_state = "run" if body.start_immediately else "pause"
+    job.updated_at = now_utc_naive()
+    for item in plan["items"]:
+        db.add(
+            StorageTransferItem(
+                transfer_id=job.id,
+                arr_instance_id=item["arr_instance_id"],
+                arr_id=item["arr_id"],
+                title=item["title"],
+                media_type=item["media_type"],
+                size_bytes=item["size_bytes"],
+                snapshot=item["snapshot"],
+            )
+        )
+    await db.commit()
+    return await service.transfer_json(db, job)
+
+
+@router.delete("/transfers/{transfer_id}")
+async def delete_draft(transfer_id: int, db=Depends(get_db_async)):
+    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
+    job = await draft_task(db, transfer_id)
+    await db.execute(delete(StorageTransferItem).where(StorageTransferItem.transfer_id == job.id))
+    await db.delete(job)
+    await db.commit()
+    return {"deleted": transfer_id}
+
+
 class CommandBody(BaseModel):
     action: Literal["pause", "resume", "stop", "retry"]
 
@@ -209,6 +284,8 @@ async def command(transfer_id: int, body: CommandBody, db=Depends(get_db_async))
     job = await db.get(StorageTransfer, transfer_id)
     if not job:
         raise HTTPException(404, "Tâche inconnue.")
+    if job.status == "draft":
+        raise HTTPException(409, "Recalculer l’aperçu avant de lancer cette tâche.")
     if job.status == "completed":
         raise HTTPException(409, "Cette tâche est terminée.")
     job.desired_state = "run" if body.action in ("resume", "retry") else body.action
@@ -246,3 +323,13 @@ async def check_draft_mapping(body: MappingBody, db=Depends(get_db_async)):
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(502, "Comparaison indisponible : vérifier les connexions Arr/Plex.") from exc
+
+
+@router.post("/roots/resolve")
+async def resolve_root(body: MappingBody, db=Depends(get_db_async)):
+    try:
+        return await service.resolve_mapping(db, body)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, "Détection indisponible : vérifier le moteur et les connexions Arr/Plex.") from exc

@@ -22,6 +22,22 @@ def test_capacity_selection_rules(mode):
 
 @pytest.mark.asyncio
 async def test_preview_and_transfer_serialization(monkeypatch):
+    monkeypatch.setattr(
+        service,
+        "resolve_mapping",
+        AsyncMock(
+            side_effect=lambda db, body: dict(
+                comparison={"status": "sample_matched"},
+                candidates=[
+                    dict(
+                        mount_path="/storage/data1" if body.arr_root == "/data/FILMS" else "/storage/usb",
+                        subdirectory="FILMS",
+                        matched=True,
+                    )
+                ],
+            )
+        ),
+    )
     mapping = dict(
         arr_instance_id=1, arr_root="/data/FILMS", plex_root="/media/FILMS", plex_section_id="3", subdirectory="FILMS"
     )
@@ -67,7 +83,9 @@ async def test_preview_and_transfer_serialization(monkeypatch):
             ]
         ),
     )
-    body = api.PreviewBody(source_id=1, destination_id=2, goal_gb=1, selection=["1:1"])
+    body = api.PreviewBody.model_construct(
+        transfer_mode="rsync", source_id=1, destination_id=2, goal_gb=1, selection=["1:1"]
+    )
     plan = await service.preview(db, body)
     assert plan["items"][0]["snapshot"]["destination_mount"] == "/storage/usb/FILMS"
     assert plan["items"][0]["snapshot"]["destination_arr"] == "/usb/FILMS/Film"
@@ -120,11 +138,19 @@ async def test_job_creation_does_not_trust_client_selection(monkeypatch):
 
     db = NS(execute=AsyncMock(), add=added.append, flush=flush, commit=AsyncMock())
     item = dict(key="1:1", arr_instance_id=1, arr_id=1, title="Film", media_type="movie", size_bytes=100, snapshot={})
-    monkeypatch.setattr(service, "preview", AsyncMock(return_value={"items": [item]}))
+    monkeypatch.setattr(
+        service, "preview", AsyncMock(return_value={"items": [item], "source": {"id": 1}, "destination": {"id": 2}})
+    )
     monkeypatch.setattr(service, "transfer_json", AsyncMock(return_value={"id": 1}))
-    body = api.PreviewBody(source_id=1, destination_id=2, selection=["1:1"])
+    body = api.PreviewBody.model_construct(transfer_mode="rsync", source_id=1, destination_id=2, selection=["1:1"])
     assert await api.create_transfer(body, db) == {"id": 1}
     assert len(added) == 2 and added[1].size_bytes == 100
+    assert added[0].status == "queued"
+    body.start_immediately = False
+    await api.create_transfer(body, db)
+    assert added[2].status == "draft" and added[2].desired_state == "pause"
+    assert "task_id" not in added[2].params
+
     body.selection = ["9:9"]
     with pytest.raises(HTTPException) as exc:
         await api.create_transfer(body, db)
@@ -238,3 +264,90 @@ async def test_saved_job_payload_preserves_telemetry(monkeypatch):
     data = await service.transfer_json(db, job)
     assert data["planned_bytes"] == 100 and data["released_bytes"] == 0
     assert data["items"][0]["progress"]["copied_bytes"] == 50
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["radarr", "sonarr"])
+@pytest.mark.parametrize("has_media", [False, True])
+async def test_empty_arr_or_plex_root_is_not_a_mismatch(monkeypatch, kind, has_media):
+    from app.storage import worker
+
+    instance = NS(enabled=True, arr_type=kind, plex_server_id=1)
+    mapping = dict(arr_instance_id=1, arr_root="/usb/MEDIA", plex_root="/usb/MEDIA", plex_section_id="3")
+    db = NS(get=AsyncMock(return_value=instance))
+    monkeypatch.setattr(
+        service,
+        "discover_instance_roots",
+        AsyncMock(
+            return_value={"arr_roots": ["/usb/MEDIA"], "plex_roots": [{"path": "/usb/MEDIA", "section_id": "3"}]}
+        ),
+    )
+    monkeypatch.setattr(service, "connection_for", AsyncMock(return_value=NS()))
+    media = dict(id=1, title="Title", path="/usb/MEDIA/Title", hasFile=True, statistics={"episodeFileCount": 1})
+    request = AsyncMock(return_value=[media] if has_media else [])
+    monkeypatch.setattr(service, "arr_request", request)
+    catalog = AsyncMock(return_value={})
+    monkeypatch.setattr(worker, "plex_files", catalog)
+    result = await service.check_mapping(db, NS(mappings=[mapping]), 0)
+    assert result["status"] == "empty"
+    assert result["empty_reason"] == ("plex_empty" if has_media else "arr_empty")
+    assert result["checked_titles"] == 0
+    assert request.await_count == 1
+    assert catalog.await_count == int(has_media)
+
+
+@pytest.mark.asyncio
+async def test_draft_cannot_be_launched_without_new_preview():
+    db = NS(get=AsyncMock(return_value=NS(status="draft")), commit=AsyncMock())
+    with pytest.raises(HTTPException) as exc:
+        await api.command(1, api.CommandBody(action="resume"), db)
+    assert exc.value.status_code == 409
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_started_task_cannot_be_edited():
+    from unittest.mock import Mock
+
+    result = Mock()
+    result.scalar_one_or_none.return_value = NS(status="running")
+    db = NS(execute=AsyncMock(return_value=result))
+    with pytest.raises(HTTPException) as exc:
+        await api.draft_task(db, 1)
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_draft_launch_revalidates_and_replaces_snapshot(monkeypatch):
+    job = NS(id=12, status="draft")
+    monkeypatch.setattr(api, "draft_task", AsyncMock(return_value=job))
+    item = dict(
+        key="1:7",
+        arr_instance_id=1,
+        arr_id=7,
+        title="Film",
+        media_type="movie",
+        size_bytes=123,
+        snapshot={"destination_arr": "/usb/FILMS/Film"},
+    )
+    refresh = AsyncMock(return_value={"items": [item], "source": {"id": 1}, "destination": {"id": 2}})
+    monkeypatch.setattr(service, "preview", refresh)
+    monkeypatch.setattr(service, "transfer_json", AsyncMock(return_value={"id": 12}))
+    added = []
+    db = NS(execute=AsyncMock(), add=added.append, commit=AsyncMock())
+    body = api.PreviewBody(arr_instance_id=1, selection=["1:7"], start_immediately=True)
+    await api.update_transfer(12, body, db)
+    refresh.assert_awaited_once_with(db, body)
+    assert body.task_id == 12 and job.status == "queued" and job.desired_state == "run"
+    assert added[0].snapshot == item["snapshot"]
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_only_draft_and_release_reservations(monkeypatch):
+    job = NS(id=14, status="draft")
+    monkeypatch.setattr(api, "draft_task", AsyncMock(return_value=job))
+    db = NS(execute=AsyncMock(), delete=AsyncMock(), commit=AsyncMock())
+    assert await api.delete_draft(14, db) == {"deleted": 14}
+    db.delete.assert_awaited_once_with(job)
+    db.commit.assert_awaited_once()
