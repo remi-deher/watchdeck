@@ -178,7 +178,8 @@ describe('Storage root correspondence table', () => {
   const wrapper=await factory();
   await wrapper.findAll('button').find(b=>b.text()==='Vue d’ensemble').trigger('click');
   const text=wrapper.text();
-  expect(text).toContain('2 Go à déplacer');
+  expect(text).not.toContain('Go à déplacer');
+  expect(text).not.toContain('Préparer un déplacement');
   expect(text).toContain('3 Go');
   expect(text).toContain('1 en pause ou arrêtée(s)');
   expect(wrapper.find('[aria-label="Titres restants par stockage et type"]').exists()).toBe(false);

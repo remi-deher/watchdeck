@@ -19,6 +19,11 @@ test('transfer actions and title details remain accessible at every screen size'
     await page.route('**/vue/**',route=>{const path=new URL(route.request().url()).pathname;return route.fulfill({contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'application/octet-stream',body:readFileSync('app/static'+path)});});
   }
   await page.goto('/storage',{waitUntil:'domcontentloaded',timeout:120_000});
+  await page.getByRole('tab',{name:'Vue d’ensemble',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Transfert actif',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Préparer un déplacement',exact:true})).toHaveCount(0);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
+  await page.screenshot({path:`.codex/overview-live-${test.info().project.name}.png`,fullPage:true});
   await page.getByRole('tab',{name:'Transferts',exact:true}).click();
   const openActions=()=>page.getByRole('button',{name:'Actions de la tâche 9'}).click();
   await openActions();

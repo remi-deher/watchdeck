@@ -65,4 +65,6 @@ defineEmits<{command:[id:number,action:string],create:[],edit:[job:any],duplicat
 @include bp.until(phablet){.task-main{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}.task-actions{width:100%}.compact-subnav :deep(.app-subnav__scroller){justify-content:flex-start}.transfer-batch :deep(.table-cards){overflow:visible}.transfer-batch :deep(.table-cards td){padding:6px 0}.transfer-batch :deep(.table-cards td.card-actions){justify-content:flex-end}.transfer-batch :deep(.table-cards tr){padding:10px;margin-bottom:8px}}
 </style>
 
-<style scoped lang="scss">.task-issues{border:1px solid var(--accent);border-radius:var(--radius-md);padding:12px 14px;margin:16px 0;background:var(--surface-2)}.task-issues>strong{color:var(--accent)}.task-issues ul{padding-left:18px}.task-titles{border-top:1px solid var(--border);margin-top:16px}@media(max-width:600px){.transfer-batch{padding:16px}}</style>
+<style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+.task-issues{border:1px solid var(--accent);border-radius:var(--radius-md);padding:12px 14px;margin:16px 0;background:var(--surface-2)}.task-issues>strong{color:var(--accent)}.task-issues ul{padding-left:18px}.task-titles{border-top:1px solid var(--border);margin-top:16px}@include bp.until(phablet){.transfer-batch{padding:16px}}</style>
