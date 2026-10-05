@@ -1,7 +1,33 @@
 # Changelog
 
+## 1.69.0 — 2026-10-05
+
+
+### test
+
+- cover discovery proof and worker recovery ([81a2229](https://github.com/remi-deher/watchdeck/commit/81a2229ae60167c2192db9f6e3fac48f3c9edfba))
+
+### ✨ Nouveautés
+
+- integrate durable media transfers and storage dashboard ([4b0e47d](https://github.com/remi-deher/watchdeck/commit/4b0e47da69fa844f40ccff4af8ee0e262724d0c1))
+- manage Arr transfers with per-root goals and compact task views ([81c807e](https://github.com/remi-deher/watchdeck/commit/81c807ef78a29a92f571c63602dffb0a2a975fa2))
+
+### 🐛 Corrections
+
+- harden verification and cover transfer recovery ([49cb07b](https://github.com/remi-deher/watchdeck/commit/49cb07b72ad2a4981ead2f0544ba7ef5a3f119f2))
+- use shared responsive breakpoints ([7a97d0a](https://github.com/remi-deher/watchdeck/commit/7a97d0ae040c239e2da26f37f56ca85fe405a33a))
+
+### 🔧 Maintenance
+
+- sync test before storage promotion ([f09b7e9](https://github.com/remi-deher/watchdeck/commit/f09b7e9686d92f662bb8949a7c28531f2cbe47f5))
+- sync main into dev ([d8fae12](https://github.com/remi-deher/watchdeck/commit/d8fae12c520b35b480d4063c302b43c19cf2188b))
+- sync main into dev ([d818002](https://github.com/remi-deher/watchdeck/commit/d818002d7a8282ed8ae47d40df61493bcef2d257))
 ## 1.68.1 — 2026-10-04
 
+
+### 🔧 Maintenance
+
+- v1.68.1 (#652) ([1b66c01](https://github.com/remi-deher/watchdeck/commit/1b66c0149aae6d0f1c41940bd06aa86ad28b3635))
 ## 1.68.0 — 2026-10-02
 
 
