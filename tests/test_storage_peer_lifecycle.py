@@ -281,6 +281,7 @@ def test_fifo_authentication_stream_closes_descriptor(monkeypatch):
     opened = Mock(return_value=123)
     written = Mock()
     closed = Mock()
+    monkeypatch.setattr(peer_agent.os, "O_NONBLOCK", 2048, raising=False)
     monkeypatch.setattr(peer_agent.os, "open", opened)
     monkeypatch.setattr(peer_agent.os, "write", written)
     monkeypatch.setattr(peer_agent.os, "close", closed)
