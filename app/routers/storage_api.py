@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
@@ -83,6 +84,61 @@ async def storage_instances(db=Depends(get_db_async)):
         )
     ).scalars()
     return [dict(id=item.id, name=item.name, arr_type=item.arr_type, enabled=item.enabled) for item in instances]
+
+
+@router.get("/inventory")
+async def inventory_list(
+    source: Literal["arr", "plex"] | None = None,
+    endpoint_id: int | None = None,
+    offset: int = 0,
+    limit: int = 100,
+    db=Depends(get_db_async),
+):
+    from ..models import StorageInventory
+
+    query = select(StorageInventory)
+    if source:
+        query = query.where(StorageInventory.source == source)
+    if endpoint_id is not None:
+        query = query.where(StorageInventory.endpoint_id == endpoint_id)
+    rows = (
+        (await db.execute(query.order_by(StorageInventory.id).offset(max(offset, 0)).limit(min(max(limit, 1), 200))))
+        .scalars()
+        .all()
+    )
+    return [
+        dict(
+            id=r.id,
+            source=r.source,
+            endpoint_id=r.endpoint_id,
+            entity_id=r.entity_id,
+            media_type=r.media_type,
+            present=r.present,
+            observed_at=r.observed_at,
+            data=r.data,
+        )
+        for r in rows
+    ]
+
+
+@router.post("/inventory/{observation_id}/refresh")
+async def inventory_refresh(observation_id: int, db=Depends(get_db_async)):
+    from ..models import StorageInventory
+    from ..services.plex_servers import connection_for
+    from ..storage.inventory import refresh_plex_item
+
+    row = await db.get(StorageInventory, observation_id)
+    if not row or row.source != "plex":
+        raise HTTPException(404, "Observation Plex inconnue.")
+    conn = await connection_for(db, row.endpoint_id)
+    if not conn:
+        raise HTTPException(409, "Serveur Plex non configuré ou désactivé.")
+    try:
+        return await refresh_plex_item(db, conn, row.entity_id, row.media_type, row.provider_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(503, "Plex indisponible : observations précédentes conservées.") from exc
 
 
 @router.get("/roots")

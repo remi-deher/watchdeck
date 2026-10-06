@@ -621,6 +621,19 @@ def _plex_item_to_dict(m, lib: dict, plex_url: str, plex_token: str) -> dict:
         "media_type": media_type,
         "plex_guid": getattr(m, "guid", None),
         "rating_key": str(rating_key) if (rating_key := getattr(m, "ratingKey", None)) is not None else None,
+        "storage_section_id": m._data.get("librarySectionID") if getattr(m, "_data", None) is not None else None,
+        "storage_files": [
+            {
+                "path": part.get("file"),
+                "size_bytes": int(part.get("size")) if part.get("size", "").isdigit() else None,
+                "rating_key": str(getattr(m, "ratingKey", "")),
+                "present": True,
+            }
+            for part in (m._data.findall("Media/Part") if getattr(m, "_data", None) is not None else [])
+            if part.get("file")
+        ]
+        if media_type == "movie" and getattr(m, "_data", None) is not None
+        else None,
         "tmdb_id": tmdb_id,
         "tvdb_id": tvdb_id,
         "imdb_id": imdb_id,

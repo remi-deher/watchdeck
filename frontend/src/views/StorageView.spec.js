@@ -10,7 +10,7 @@ const roots = [
   { arr_instance_id: 2, name: 'Sonarr', arr_type: 'sonarr', arr_roots: ['/data/SERIES'], plex_roots: [{ section_id:'2',library:'Séries',path:'/media/SERIES' }] },
 ];
 async function factory(openSettings=true) {
- const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},AppSubnav:{props:['items','active'],emits:['update:active'],template:'<nav class="app-subnav__root"><button v-for="item in items" :key="item.key" @click="$emit(\'update:active\',item.key)">{{ item.label }}<span v-if="item.count!=null"> {{ item.count }}</span></button></nav>'},AppPage:{template:'<main><slot name="tools"/><slot/></main>'}, ModalShell:{props:['open'],template:'<div v-if="open" role="dialog"><slot/></div>'}}}});
+ const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},AppSubnav:{props:['items','active'],emits:['update:active'],template:'<nav class="app-subnav__root"><button v-for="item in items" :key="item.key" @click="$emit(\'update:active\',item.key)">{{ item.label }}<span v-if="item.count!=null"> {{ item.count }}</span></button></nav>'},AppPage:{template:'<main><slot name="tools"/><slot/></main>'}, ModalShell:{props:['open','error'],template:'<div v-if="open" role="dialog"><span>{{ error }}</span><slot/></div>'}}}});
  await flushPromises();
  if(openSettings){await wrapper.findAll('button').find(b=>b.text()==='Stockages').trigger('click');await flushPromises();}
  return wrapper;
@@ -259,6 +259,29 @@ describe('Storage root correspondence table', () => {
   expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
   await wrapper.findAll('button').find(b=>b.text()==='Annuler et supprimer').trigger('click');await flushPromises();
   expect(request).toHaveBeenCalledWith('/api/storage/transfers/18',{method:'DELETE'});expect(wrapper.text()).toContain('annulation et nettoyage en cours');wrapper.unmount();
+ });
+
+ it('opens saved settings without calculating a preview when modifying a completed task',async()=>{
+  const original=request.getMockImplementation();
+  request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'completed',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:original(path,opts));
+  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');await flushPromises();
+  expect(wrapper.find('.instance-choice').exists()).toBe(true);
+  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(false);
+  wrapper.unmount();
+ });
+ it('shows a loading modal without opening preparation while relaunch preview is pending',async()=>{
+  const original=request.getMockImplementation();let rejectPreview;
+  request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?new Promise((resolve,reject)=>{rejectPreview=reject;}):original(path,opts));
+  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
+  expect(wrapper.find('[role="dialog"] [role="status"]').exists()).toBe(true);
+  expect(wrapper.find('.instance-choice').exists()).toBe(false);
+  rejectPreview(new Error('Plex indisponible'));await flushPromises();
+  expect(wrapper.find('[role="dialog"]').text()).toContain('Plex indisponible');
+  await wrapper.findAll('button').find(b=>b.text()==='Modifier les réglages').trigger('click');
+  expect(wrapper.find('.instance-choice').exists()).toBe(true);
+  wrapper.unmount();
  });
 
 });

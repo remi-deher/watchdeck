@@ -150,15 +150,30 @@ async def plex_files(conn, section, root, kind, *, snapshot=None, title=None, ra
             )
             search_snapshot["alternate_titles"] = [*names, *snapshot.get("alternate_titles", [])]
         seen = set()
-        for query in plex_title_queries(title, search_snapshot):
-            data = await plex_get(
-                conn,
-                f"/library/sections/{section}/all",
-                {"type": 2 if kind == "series" else 1, "title": query, "includeMedia": 1, "includeGuids": 1},
-            )
+        moved_paths = []
+        known = []
+        if db is not None and getattr(conn, "url", None) and snapshot.get(provider + "_id"):
+            from .inventory import candidate_keys
+
+            known = await candidate_keys(db, conn, kind, snapshot[provider + "_id"])
+        for query in [None] * bool(known) + plex_title_queries(title, search_snapshot):
+            try:
+                data = await plex_get(
+                    conn,
+                    "/library/metadata/" + ",".join(known) if query is None else f"/library/sections/{section}/all",
+                    {"includeMedia": 1, "includeGuids": 1}
+                    if query is None
+                    else {"type": 2 if kind == "series" else 1, "title": query, "includeMedia": 1, "includeGuids": 1},
+                )
+            except httpx.HTTPStatusError as exc:
+                if query is None and exc.response.status_code == 404:
+                    continue
+                raise
             matches = []
             for item in data.get("Metadata", []):
                 key = item.get("ratingKey")
+                if query is None and str(item.get("librarySectionID")) != str(section):
+                    continue
                 if not key or str(key) in seen:
                     continue
                 seen.add(str(key))
@@ -170,12 +185,37 @@ async def plex_files(conn, section, root, kind, *, snapshot=None, title=None, ra
                     all_leaves = await plex_get(conn, f"/library/metadata/{key}/allLeaves", {"includeMedia": 1})
                     leaves = all_leaves.get("Metadata", [])
                 files = _files_under_root(leaves, root)
+                if query is None and expected_guid in guids:
+                    from .inventory import files_from_metadata, safe_record_plex
+
+                    current_files = files_from_metadata(leaves)
+                    await safe_record_plex(
+                        conn,
+                        [
+                            dict(
+                                title=item.get("title", title),
+                                rating_key=str(key),
+                                media_type="show" if kind == "series" else "movie",
+                                storage_section_id=str(section),
+                                storage_files=current_files,
+                                **{provider + "_id": str(snapshot[provider + "_id"])},
+                            )
+                        ],
+                    )
+                    if not files:
+                        moved_paths.extend(f["path"] for f in current_files)
                 if files:
                     matches.append(files)
             if len(matches) > 1:
                 raise ValueError("Plusieurs fiches Plex correspondent à ce titre et à son identifiant.")
             if matches:
                 return matches[0]
+        if moved_paths:
+            raise ValueError(
+                "Plex indique un nouvel emplacement : "
+                + ", ".join(sorted(set(moved_paths))[:3])
+                + ". Modifiez les réglages et préparez un nouvel aperçu."
+            )
         return {}
 
     # Only association setup uses this broad, paginated inventory. Transfer

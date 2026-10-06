@@ -3,16 +3,17 @@
     <UiFeedback v-if="error" type="error" :message="error" /><UiFeedback v-if="savedMessage" type="success" :message="savedMessage" />
     <AppSubnav v-model:active="tab" :items="tabs" variant="tabs" class="storage-subnav" aria-label="Sections du stockage" />
 
-    <StorageOverviewPanel :instances="instances" v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="configuredRootCount" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
+    <StorageOverviewPanel :instances="instances" v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="configuredRootCount" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,$event.status==='draft')" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
     <UiFeedback v-if="previewProgress" type="info" :message="previewProgress" role="status" aria-live="polite" />
     <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="prepareRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :busy="busy" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
 
-    <StorageTransferList v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
+    <StorageTransferList v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,$event.status==='draft')" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
     <section v-if="tab === 'settings'" class="storage-card">
       <AppSubnav v-model:active="settingsTab" :items="settingsTabs" variant="tabs" class="storage-subnav" aria-label="Configuration des stockages" />
       <StorageConnectionPanel v-if="settingsTab==='connections'" :connections="connections" @changed="load()" />
+      <StorageInventoryPanel v-if="settingsTab==='inventory'" />
       <template v-if="settingsTab==='roots'">
       <h2>Stockages et correspondances</h2>
       <StorageRootTable :connections="connections" :accesses="accesses" :binding-drafts="bindingDrafts" @binding="(key,value)=>bindingDrafts[key]=value" :progress="scanProgress" :saved-pairs="savedPairs" :dirty-count="dirtyRows.length" v-model:pairs="rootPairs" :root-rows="rootRows" :busy="busy" @save="saveRoots" />
@@ -21,7 +22,11 @@
       </template>
     </section>
 
-    <StoragePreviewDialog v-if="plan" v-model="selected" :plan="plan" :busy="busy" :error="error" :gb="gb" @close="plan=null" @launch="launch(true)" @save="launch(false)"  @protect="protectTitle"/>
+    <ModalShell v-if="previewOpening && !plan" :open="true" title="Aperçu des déplacements" :busy="busy" :error="error" @close="previewOpening=false">
+      <p v-if="busy" role="status"><span class="preview-spinner" aria-hidden="true" /> {{ previewProgress || 'Préparation de l’aperçu…' }}</p>
+      <UiButton v-if="!busy && error" @click="previewOpening=false;tab='prepare'">Modifier les réglages</UiButton>
+    </ModalShell>
+    <StoragePreviewDialog v-if="plan" v-model="selected" :plan="plan" :busy="busy" :error="error" :gb="gb" @close="plan=null;previewOpening=false" @launch="launch(true)" @save="launch(false)"  @protect="protectTitle"/>
   </AppPage>
 </template>
 
@@ -33,6 +38,7 @@ import StorageOverviewPanel from '@/components/storage/StorageOverviewPanel.vue'
 import StorageTransferList from '@/components/storage/StorageTransferList.vue';
 import StoragePreviewDialog from '@/components/storage/StoragePreviewDialog.vue';
 import StorageConnectionPanel from '@/components/storage/StorageConnectionPanel.vue';
+import StorageInventoryPanel from '@/components/storage/StorageInventoryPanel.vue';
 import {calculatePreview} from '@/components/storage/previewJob';
 import {selectedRootAccess} from '@/components/storage/transferAccess';
 import StoragePreparePanel from '@/components/storage/StoragePreparePanel.vue';
@@ -42,12 +48,13 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import UiButton from '@/components/ui/UiButton.vue';
+
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 const tabs=[{key:'overview',label:'Vue d’ensemble'},{key:'prepare',label:'Préparer'},{key:'transfers',label:'Transferts'},{key:'history',label:'Historique'},{key:'settings',label:'Stockages'}];
 const settingsTab=ref('roots');
-const settingsTabs=[{key:'roots',label:'Stockages'},{key:'connections',label:'Connexions'}];
+const settingsTabs=[{key:'roots',label:'Stockages'},{key:'connections',label:'Connexions'},{key:'inventory',label:'Inventaire'}];
 const tab=ref('overview'),locations=ref<any[]>([]),jobs=ref<any[]>([]),instances=ref<any[]>([]),discoveredRoots=ref<any[]>([]),loading=ref(false),busy=ref(false),error=ref(''),plan=ref<any>(null),selected=ref<string[]>([]),editId=ref<number|null>(null);
 const rootsLoading=ref(false);
 const rootPairs=ref<Record<string,string>>({});
@@ -131,6 +138,7 @@ const {selectedBytes,gb,date,locationName}=useStorageTelemetry(locations,jobs,ta
 async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
 const previewProgress=ref('');
+const previewOpening=ref(false);
 const preview=()=>act(async()=>{
  await loadProtections();
  plan.value=null;const {routes,...settings}=form.value;if(editingTaskId.value && routes.length!==1)throw new Error('Modifiez une seule instance pour cette tâche, ou créez une nouvelle tâche.');const requestedRoutes=routes.map((r:any)=>({...r}));
@@ -141,12 +149,15 @@ const preview=()=>act(async()=>{
 });
 const launch=(startImmediately=true)=>act(async()=>{
  for(const group of plan.value.groups){if(group.submitted)continue;const keys=group.items.filter((i:any)=>selected.value.includes(i.key)).map((i:any)=>i.key);if(!keys.length)continue;await api('/api/storage/transfers'+(editingTaskId.value?`/${editingTaskId.value}`:''),{method:editingTaskId.value?'PUT':'POST',body:JSON.stringify({...group.body,selection:keys,start_immediately:startImmediately})});group.submitted=true;}
- plan.value=null;editingTaskId.value=0;tab.value='transfers';await load();
+ plan.value=null;previewOpening.value=false;editingTaskId.value=0;tab.value='transfers';await load();
 });
-function createTask(){void loadProtections().catch((e:any)=>error.value=e.message);editingTaskId.value=0;plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
-function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.objective_mode || job.params.mode,media_type:job.params.media_type||'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
+function createTask(){previewOpening.value=false;void loadProtections().catch((e:any)=>error.value=e.message);editingTaskId.value=0;plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
+function prepareTask(job:any,editing:boolean){previewOpening.value=false;editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.objective_mode || job.params.mode,media_type:job.params.media_type||'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
 async function relaunchTask(job:any){
+ const previousTab=tab.value;
  prepareTask(job,false);
+ tab.value=previousTab;
+ previewOpening.value=true;
  previewProgress.value='Paramètres repris depuis la tâche terminée. Calcul de l’aperçu…';
  await preview();
 }
@@ -173,3 +184,5 @@ useRealtime(['storage.updated'],()=>void load(true),{debounceMs:600});
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 .storage-subnav :deep(.app-subnav__scroller){justify-content:center}@include bp.until(phablet){.storage-subnav :deep(.app-subnav__scroller){justify-content:flex-start}}</style>
+
+<style scoped>.preview-spinner{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:preview-spin .8s linear infinite;margin-right:8px}@keyframes preview-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.preview-spinner{animation:none}}</style>

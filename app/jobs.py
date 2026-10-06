@@ -748,6 +748,16 @@ async def cron_plex_sync_recent(ctx: dict):
     return await job_plex_sync_recent(ctx)
 
 
+async def cron_storage_inventory(ctx: dict):
+    from .storage.inventory import refresh_background
+
+    try:
+        async with asyncio.timeout(240):
+            await refresh_background()
+    except Exception:
+        logger.warning("Storage inventory refresh interrupted", exc_info=True)
+
+
 async def cron_playback_activity(ctx: dict):
     return await job_playback_activity(ctx)
 
@@ -803,6 +813,7 @@ class WorkerSettings:
         job_maintenance,
     ]
     cron_jobs = [
+        cron(cron_storage_inventory, minute={3, 18, 33, 48}, unique=True),
         cron(cron_watchlist, second={0, 30}, unique=True, run_at_startup=True),
         cron(cron_arr_statuses, minute={0, 15, 30, 45}, unique=True),
         cron(cron_torrent_statuses, minute=set(range(0, 60, 2)), unique=True),

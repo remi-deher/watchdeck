@@ -155,3 +155,16 @@ Avec rsync, la racine Arr ne change qu’après copie et vérification de tous l
 Une commande de déplacement déjà lancée par l’API Sonarr/Radarr peut continuer : l’annulation attend son résultat, sans tenter de l’interrompre ou de revenir sur le déplacement. Cette attente n’empêche pas les autres tâches de démarrer.
 
 Les actions et détails des titres utilisent les composants partagés. Sur petit écran, les lignes restent compactes ; les chemins et dates détaillées s’ouvrent dans une modale adaptée au tactile.
+
+
+## Relancer, modifier et inventaire
+
+Pour une tâche terminée ou annulée, **Relancer** ouvre directement la modale d’aperçu avec un indicateur de chargement, en reprenant les réglages enregistrés. **Modifier** ouvre la préparation sans calculer d’aperçu. Le lancement reste une action explicite depuis l’aperçu.
+
+L’onglet **Stockages → Inventaire** présente des observations indépendantes de Plex et de Sonarr/Radarr : identifiants, chemins, tailles et dates d’observation. Deux tables dédiées, sans lien de suppression vers les données métier, conservent ces informations. Les synchronisations habituelles alimentent l’inventaire à partir des réponses déjà reçues. Un traitement indépendant toutes les quinze minutes complète les fichiers Plex par lots de vingt titres et les détails des fichiers Arr par lots de dix titres ; les fichiers datant de moins de six heures sont conservés. L’inventaire Plex fonctionne sans instance Arr.
+
+La préparation des aperçus réutilise le catalogue Arr lorsqu’un catalogue complet a été enregistré depuis moins de trente minutes pour la même connexion. Sinon, elle interroge Arr normalement. Un cache absent ou indisponible n’empêche pas ce repli. Les contrôles d’accès, d’espace, d’identité et des fichiers réellement déplacés restent effectués sur les sources actuelles ; une observation ne constitue jamais une autorisation de déplacement.
+
+Une actualisation ciblée d’une fiche Plex retrouve les chemins actuellement connus de Plex. Si la fiche a été recréée, le miroir local permet une recherche par identifiant TMDB/TVDB ; plusieurs correspondances sont refusées. Les anciens chemins restent visibles comme historiques. Un déplacement externe ne peut être découvert que lorsque Plex l’a détecté : il faut alors actualiser le dossier concerné dans Plex, puis la fiche. Aucun scan global automatique n’est déclenché par une erreur de chemin.
+
+Une panne ou une réponse partielle conserve les observations précédentes. Seul un catalogue Arr complet et réussi peut marquer un titre absent. L’actualisation des observations est isolée des transactions de synchronisation métier.
