@@ -434,3 +434,33 @@ async def test_delete_unknown_task_is_404():
     with pytest.raises(HTTPException) as caught:
         await api.delete_draft(404, db)
     assert caught.value.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["draft", "completed", "cancelled"])
+async def test_save_existing_configuration_without_preview_or_new_job(monkeypatch, status):
+    from unittest.mock import Mock
+
+    job = NS(id=12, status=status, params={"name": "Old"})
+    result = Mock()
+    result.scalar_one_or_none.return_value = job
+    db = NS(execute=AsyncMock(return_value=result), commit=AsyncMock(), add=Mock())
+    preview = AsyncMock()
+    monkeypatch.setattr(service, "preview", preview)
+    monkeypatch.setattr(service, "transfer_json", AsyncMock(return_value={"id": 12}))
+    body = api.PreviewBody(name="New name", start_immediately=False, selection=[])
+    assert await api.update_transfer(12, body, db) == {"id": 12}
+    assert job.status == status and job.params["name"] == "New name"
+    preview.assert_not_awaited()
+    db.add.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["completed", "cancelled"])
+async def test_terminal_job_is_editable_with_same_identity(status):
+    from unittest.mock import Mock
+
+    job = NS(id=12, status=status)
+    result = Mock()
+    result.scalar_one_or_none.return_value = job
+    assert await api.draft_task(NS(execute=AsyncMock(return_value=result)), 12) is job

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 from .integrite import Interrompu
 from .ssh_hash import connecter
+from .ssh_pool import acquire, release
 
 
 def remote_call(config, payload, stop=None, advance=None, phase=None, session=""):
@@ -25,7 +26,7 @@ def remote_call(config, payload, stop=None, advance=None, phase=None, session=""
         "import base64;exec(base64.b64decode(" + repr(base64.b64encode(script.encode()).decode()) + "))"
     )
     deadline = time.monotonic() + (28800 if payload["op"] in ("copy", "send_peer", "verify", "hash") else 60)
-    client = connecter(config)
+    client = acquire(config, connecter)
     channel = None
     try:
         channel = client.get_transport().open_session(timeout=10)
@@ -66,7 +67,7 @@ def remote_call(config, payload, stop=None, advance=None, phase=None, session=""
     finally:
         if channel is not None:
             channel.close()
-        client.close()
+        release(client)
 
 
 class RemoteFilesystem:

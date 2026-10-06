@@ -325,8 +325,8 @@ async def draft_task(db, transfer_id):
     ).scalar_one_or_none()
     if not job:
         raise HTTPException(404, "Tâche inconnue.")
-    if job.status != "draft":
-        raise HTTPException(409, "Seule une tâche non lancée peut être modifiée.")
+    if job.status not in ("draft", "completed", "cancelled"):
+        raise HTTPException(409, "Terminez ou annulez la tâche avant de modifier ses paramètres.")
     return job
 
 
@@ -337,7 +337,16 @@ async def update_transfer(transfer_id: int, body: PreviewBody, db=Depends(get_db
     body.catalogue = False
     body.routes = []
     if not body.selection:
-        raise HTTPException(422, "Choisir des titres dans l’aperçu.")
+        if body.start_immediately:
+            raise HTTPException(422, "Choisir des titres dans l’aperçu.")
+        # Saving configuration never scans libraries or reserves media.
+        job.params = body.model_dump(exclude={"selection", "task_id", "start_immediately"})
+        job.auto_resume = body.auto_resume
+        job.updated_at = now_utc_naive()
+        if job.status == "draft":
+            await db.execute(delete(StorageTransferItem).where(StorageTransferItem.transfer_id == transfer_id))
+        await db.commit()
+        return await service.transfer_json(db, job)
     try:
         plan = await service.preview(db, body)
     except ValueError as exc:
@@ -352,6 +361,7 @@ async def update_transfer(transfer_id: int, body: PreviewBody, db=Depends(get_db
     job.status = "queued" if body.start_immediately else "draft"
     job.desired_state = "run" if body.start_immediately else "pause"
     job.updated_at = now_utc_naive()
+    job.error = None
     for item in plan["items"]:
         db.add(
             StorageTransferItem(
