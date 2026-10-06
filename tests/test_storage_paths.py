@@ -1,10 +1,9 @@
 """Fail-closed discovery and identity checks for storage transfers."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
-from fastapi import HTTPException
 
 from app.routers.storage_api import LocationBody, save_location
 from app.storage import service, worker
@@ -19,8 +18,13 @@ def test_path_component_boundary():
 
 
 @pytest.mark.asyncio
-async def test_undeclared_arr_root_is_rejected(monkeypatch):
-    db = SimpleNamespace(get=AsyncMock(return_value=SimpleNamespace(arr_type="radarr")))
+async def test_undeclared_arr_root_is_saved_but_rejected_when_checked(monkeypatch):
+    db = SimpleNamespace(
+        get=AsyncMock(return_value=SimpleNamespace(id=1, enabled=True, arr_type="radarr")),
+        add=Mock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+    )
     monkeypatch.setattr(
         service,
         "discover_instance_roots",
@@ -33,14 +37,20 @@ async def test_undeclared_arr_root_is_rejected(monkeypatch):
         mount_path="/storage/data1",
         mappings=[dict(arr_instance_id=1, arr_root="/data/other", plex_root="/media/films", plex_section_id="1")],
     )
-    with pytest.raises(HTTPException) as caught:
-        await save_location(db, body)
-    assert caught.value.status_code == 422
+    saved = await save_location(db, body)
+    service.discover_instance_roots.assert_not_awaited()
+    with pytest.raises(ValueError, match="racine"):
+        await service.check_mapping(db, SimpleNamespace(mappings=saved["mappings"]), 0)
 
 
 @pytest.mark.asyncio
-async def test_wrong_plex_library_is_rejected(monkeypatch):
-    db = SimpleNamespace(get=AsyncMock(return_value=SimpleNamespace(arr_type="radarr")))
+async def test_wrong_plex_library_is_saved_but_rejected_when_checked(monkeypatch):
+    db = SimpleNamespace(
+        get=AsyncMock(return_value=SimpleNamespace(id=1, enabled=True, arr_type="radarr")),
+        add=Mock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+    )
     monkeypatch.setattr(
         service,
         "discover_instance_roots",
@@ -53,9 +63,10 @@ async def test_wrong_plex_library_is_rejected(monkeypatch):
         mount_path="/storage/data1",
         mappings=[dict(arr_instance_id=1, arr_root="/data/films", plex_root="/media/films", plex_section_id="2")],
     )
-    with pytest.raises(HTTPException) as caught:
-        await save_location(db, body)
-    assert caught.value.status_code == 422
+    saved = await save_location(db, body)
+    service.discover_instance_roots.assert_not_awaited()
+    with pytest.raises(ValueError, match="racine"):
+        await service.check_mapping(db, SimpleNamespace(mappings=saved["mappings"]), 0)
 
 
 @pytest.mark.asyncio
@@ -83,23 +94,29 @@ async def test_series_episodes_from_two_shows_are_rejected(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_unavailable_service_does_not_accept_paths(monkeypatch):
-    db = SimpleNamespace(get=AsyncMock(return_value=SimpleNamespace(arr_type="radarr")))
+async def test_offline_configuration_is_saved_but_checks_still_fail(monkeypatch):
+    db = SimpleNamespace(
+        get=AsyncMock(return_value=SimpleNamespace(id=1, enabled=True, arr_type="radarr")),
+        add=Mock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+    )
     monkeypatch.setattr(service, "discover_instance_roots", AsyncMock(side_effect=RuntimeError("offline")))
     body = LocationBody(
         name="DATA1",
         mount_path="/storage/data1",
         mappings=[dict(arr_instance_id=1, arr_root="/data/films", plex_root="/media/films", plex_section_id="1")],
     )
-    with pytest.raises(HTTPException) as caught:
-        await save_location(db, body)
-    assert caught.value.status_code == 422
+    saved = await save_location(db, body)
+    service.discover_instance_roots.assert_not_awaited()
+    with pytest.raises(RuntimeError, match="offline"):
+        await service.check_mapping(db, SimpleNamespace(mappings=saved["mappings"]), 0)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "plex_names,expected_status",
-    [({"Film/Film.mkv": ["1"]}, "sample_matched"), ({"Film/Other.mkv": ["1"]}, "mismatch")],
+    [({"Film.mkv": ["1"]}, "sample_matched"), ({"Other.mkv": ["1"]}, "mismatch")],
 )
 async def test_readonly_mapping_comparison(monkeypatch, plex_names, expected_status):
     instance = SimpleNamespace(id=1, enabled=True, arr_type="radarr", plex_server_id=1)
