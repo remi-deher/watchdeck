@@ -165,7 +165,7 @@ async def virtual_location(db, instance, root, declared, mapping):
 
 
 async def configured_route(db, instance, root):
-    """Build a preparation route from saved mappings and cached capacity only."""
+    """Validate only the selected route when calculating a preview."""
     locations = (await db.execute(select(StorageLocation))).scalars().all()
     mappings = [
         mapping
@@ -181,12 +181,10 @@ async def configured_route(db, instance, root):
         )
     plex_root, section_id = next(iter(pairs))
     mapping = next(m for m in mappings if (m["plex_root"], str(m["plex_section_id"])) == (plex_root, section_id))
-    cache = next(
-        (location for location in locations if location.virtual_key == f"{instance.id}:{root}"),
-        None,
-    )
-    free_space = cache.free_bytes if cache and isinstance(cache.free_bytes, int) else None
-    declared = {"path": root, "freeSpace": free_space, "accessible": None}
+    from .preview_cache import read_inventory
+
+    discovered = await read_inventory(("storage_roots", instance.id), lambda: discover_instance_roots(db, instance))
+    declared, mapping, _ = await route(db, instance, root, discovered)
     location = await virtual_location(db, instance, root, declared, mapping)
     return declared, mapping, location
 

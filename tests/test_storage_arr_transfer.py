@@ -9,6 +9,23 @@ from app.storage import worker
 
 
 @pytest.mark.asyncio
+async def test_configured_preview_route_uses_live_checks_only_for_the_selected_root(monkeypatch):
+    mapping = dict(arr_instance_id=1, arr_root="/data/FILMS", plex_root="/media/FILMS", plex_section_id="3")
+    location = NS(id=7, virtual_key=None, mappings=[mapping])
+    db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: [location]))))
+    instance = NS(id=1)
+    discovered = {"arr_roots": ["/data/FILMS", "/unavailable/FILMS"]}
+    monkeypatch.setattr(arr, "discover_instance_roots", AsyncMock(return_value=discovered))
+    live = {"path": "/data/FILMS", "freeSpace": 100, "accessible": True}
+    check = AsyncMock(return_value=(live, mapping, {"status": "sample_matched"}))
+    monkeypatch.setattr(arr, "route", check)
+    monkeypatch.setattr(arr, "virtual_location", AsyncMock(return_value=location))
+    declared, _, _ = await arr.configured_route(db, instance, "/data/FILMS")
+    assert declared == live
+    check.assert_awaited_once_with(db, instance, "/data/FILMS", discovered)
+
+
+@pytest.mark.asyncio
 async def test_route_refuses_inaccessible_roots_even_when_declared(monkeypatch):
     monkeypatch.setattr(
         arr, "arr_request", AsyncMock(return_value=[dict(path="/usb/FILMS", accessible=False, freeSpace=100)])

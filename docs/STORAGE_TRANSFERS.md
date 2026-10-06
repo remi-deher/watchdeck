@@ -19,9 +19,9 @@ L’API applique les migrations avant de devenir saine. Le moteur charge la clé
 
 La page `/storage`, réservée aux administrateurs, liste une ligne par racine Arr et par instance. Les dossiers Plex proposés viennent des bibliothèques du même type sur le serveur associé à l’instance. Une racine Plex est proposée si une seule option partage l’identité de stockage et le dernier segment complet du chemin : `/usb/FILMS` peut correspondre à `/usb/MEDIA/FILMS`, mais pas à `/data/FILMS` ni à `/usb2/FILMS`. Les alias conventionnels `/data` et `/media` désignent DATA1 pour les suggestions. Ces noms ne constituent jamais une preuve : la confirmation nécessite les contrôles de contenu.
 
-Choisir le dossier Plex puis **Vérifier**. Ce contrôle utilise uniquement les API : il compare les chemins relatifs des fichiers et les identifiants TMDB/TVDB sur cinq titres présents maximum. Les titres sans fichiers sont écartés ; un dossier vide ne peut pas être confirmé. Un résultat concordant certifie seulement l’échantillon affiché, à la date indiquée. Une modification du choix Plex masque le résultat de l’ancienne paire.
+Choisir le dossier Plex puis **Enregistrer**. La configuration conserve les associations et les chemins sans comparer les bibliothèques ni tester les accès. Les racines utilisées sont contrôlées lors du calcul de l’aperçu : déclaration et accessibilité Arr, association Plex, puis comparaison API sur cinq titres présents maximum par racine. Plex est interrogé par titre et dossier ; aucun inventaire complet de bibliothèque n’est demandé pour ce contrôle. Un dossier Arr vide est admis, mais ne confirme pas le contenu.
 
-Le bouton Enregistrer sauvegarde une association Arr/Plex confirmée sans demander de montage moteur. La préparation utilise les racines déclarées et accessibles par Arr.
+Le bouton Enregistrer sauvegarde une association Arr/Plex sans demander de montage moteur ni de validation réseau. La préparation reste accessible avant les contrôles.
 
 ## Accès rsync
 
@@ -29,9 +29,9 @@ Dans Stockages, ajouter un accès SSH ou un accès aux fichiers montés. Un acc�
 
 L’accès SSH exige hôte, port, utilisateur, empreinte SHA256 du serveur et mot de passe ou clé privée importée (avec phrase secrète si nécessaire). L’empreinte se récupère par un canal de confiance, par exemple `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256` sur le serveur. Les secrets sont chiffrés par le mécanisme Watchdeck existant ; ils ne sont jamais renvoyés au navigateur ni enregistrés dans les tâches.
 
-« Tester et valider » contrôle les associations Arr/Plex, un échantillon de noms/tailles de fichiers Arr, les permissions et un fichier temporaire écrit puis effacé, rsync et la capacité. Une racine sans fichiers Arr est admise avec un avertissement ; elle ne prouve pas le contenu. Modifier un accès invalide sa validation et les aperçus précédents. Un accès utilisé par une tâche non terminée ne peut pas être modifié.
+Le calcul de l’aperçu contrôle automatiquement les accès rsync des seules sources et destinations choisies : connexion SSH si nécessaire, noms/tailles de fichiers Arr échantillonnés, permissions, fichier temporaire écrit puis effacé, rsync et capacité. Les preuves sont datées par racine et peuvent être réutilisées pendant 15 minutes si les révisions sont identiques. Un dossier inutilisé n’est pas testé et ne bloque pas la tâche. Modifier un accès invalide ses preuves et les aperçus précédents ; les accès d’une tâche active restent protégés contre les modifications.
 
-Préparer propose API Arr par défaut, rsync SSH et rsync fichiers montés. Les méthodes rsync exigent un accès validé couvrant toutes les racines de la sélection. Le serveur refait les contrôles lors de l’aperçu et du lancement. Aucun fallback automatique n’est activé.
+Préparer propose API Arr par défaut, rsync SSH et rsync fichiers montés. Les méthodes peuvent être choisies sans validation préalable. L’aperçu exige une configuration couvrant les racines retenues et effectue les contrôles ciblés ; les protections du moteur restent actives au démarrage et pendant le déplacement.
 
 ## Exécution rsync
 
@@ -60,7 +60,7 @@ Le paquet rsync reste installé pour la méthode locale et les anciennes tâches
 
 ## Organisation de l’interface
 
-StorageView coordonne la navigation et les appels API. useStorageTelemetry calcule les indicateurs de suivi ; storageAssociations centralise les helpers de correspondance. StoragePreparePanel affiche la préparation ; StorageTransferMethod choisit le protocole ; StorageAccessPanel configure et teste les accès rsync ; StorageRootTable gère la présentation des associations et émet les demandes de vérification/enregistrement ; StorageAssociationDialog édite une association. Ces composants réutilisent UiButton, UiDataTable et ModalShell. Le style partagé est contenu dans la page ; le formulaire de la modale conserve son style après téléportation. Le module backend arr_transfer isole le protocole Arr du traitement rsync. `access` gère les profils et validations, `remote_fs` le protocole SSH, `remote_agent` les opérations sur le serveur. Une session SSH interrompue cesse ses heartbeats : rsync s’arrête en conservant son fichier partiel. Un verrou distant empêche une nouvelle copie concurrente pendant cet arrêt. La méthode est conservée pour chaque tâche.
+StorageView coordonne la navigation et les appels API. useStorageTelemetry calcule les indicateurs de suivi ; storageAssociations centralise les helpers de correspondance. StoragePreparePanel affiche la préparation ; StorageTransferMethod choisit le protocole ; StorageConnectionPanel configure les connexions et permet la confirmation de l’identité SSH ; StorageRootTable gère la présentation des associations et émet les demandes d’enregistrement ; StorageAssociationDialog édite une association. Ces composants réutilisent UiButton, UiDataTable et ModalShell. Le style partagé est contenu dans la page ; le formulaire de la modale conserve son style après téléportation. Le module backend arr_transfer isole le protocole Arr du traitement rsync. `access` gère les profils et validations, `remote_fs` le protocole SSH, `remote_agent` les opérations sur le serveur. Une session SSH interrompue cesse ses heartbeats : rsync s’arrête en conservant son fichier partiel. Un verrou distant empêche une nouvelle copie concurrente pendant cet arrêt. La méthode est conservée pour chaque tâche.
 
 
 ### Tâches enregistrées sans lancement
@@ -119,9 +119,9 @@ SHA-256 identique. Aucune copie de média réel n’est déclenchée par les tes
 
 Dans Stockages, les **Connexions** conservent séparément les identifiants SSH chiffrés ou l’accès local du moteur. Une connexion peut servir à plusieurs racines. L’empreinte SSH est détectée au premier contact, puis doit être confirmée explicitement. Elle reste épinglée : un changement d’identité bloque les connexions suivantes.
 
-Chaque ligne de **Stockages et correspondances** peut configurer un accès SSH et un accès local indépendants. L’API Arr ne nécessite aucun accès aux fichiers. Le chemin appartient à cette racine et non aux identifiants. Le bouton … parcourt les dossiers accessibles en lecture seule ; il ne crée ni supprime rien et ignore les liens symboliques. Les chemins locaux doivent correspondre à un véritable volume média monté dans le moteur, quel que soit son emplacement. Le bouton global Vérifier et enregistrer sauvegarde les associations puis valide les chemins rsync. Une modification invalide la validation précédente. Aucun transfert n’est lancé par la configuration.
+Chaque ligne de **Stockages et correspondances** peut configurer un accès SSH et un accès local indépendants. L’API Arr ne nécessite aucun accès aux fichiers. Le bouton … parcourt les dossiers en lecture seule, sans test préalable des chemins ; pour SSH, l’identité du serveur doit être confirmée. Les chemins locaux doivent appartenir à un véritable volume média monté dans le moteur. Le bouton global **Enregistrer** conserve les associations et les chemins sans scanner les bibliothèques ni valider tous les dossiers. Aucun transfert n’est lancé par la configuration.
 
-Les deux racines d’un transfert rsync doivent appartenir à la même connexion validée. L’API Arr reste le mode par défaut ; aucun montage supplémentaire n’est requis pour SSH. La migration 0042 sépare les anciens profils sans exposer ou déchiffrer leurs secrets ; leurs connexions doivent être testées avant utilisation.
+Les sources et la destination peuvent utiliser deux connexions SSH distinctes. Les connexions sont testées automatiquement lors de l’aperçu si nécessaire ; leur identité SSH doit avoir été confirmée explicitement dans Connexions. L’API Arr reste le mode par défaut ; aucun montage supplémentaire n’est requis pour SSH. La migration 0042 sépare les anciens profils sans exposer leurs secrets.
 
 
 Les accès SSH et locaux d’une même racine peuvent désormais coexister dans la colonne **Accès aux fichiers**. Les modes de transfert autorisés et leur ordre de priorité se choisissent dans **Préparer**, avec des cases à cocher et les boutons ↑ / ↓. L’aperçu essaie les modes dans cet ordre et affiche le mode retenu ainsi que les contrôles échoués. La tâche enregistrée conserve ses préférences et fixe son mode d’exécution : aucun repli après le début d’une copie ou pendant une reprise. L’API reste sélectionnée seule par défaut.
@@ -136,7 +136,7 @@ La connexion locale conserve un `browse_root` (par défaut `/storage`), modifiab
 
 ## Rsync entre deux serveurs SSH
 
-Les racines reprennent leurs accès validés dans **Stockages** : la préparation ne demande pas de nouvelle configuration SSH. Chaque racine doit avoir un accès SSH unique (ou l’accès déjà fixé dans une tâche existante). Les accès source et destination ainsi que leurs révisions sont conservés dans la tâche ; une modification impose de refaire l’aperçu.
+Les racines reprennent leurs accès configurés dans **Stockages** : la préparation ne demande pas de nouvelle configuration SSH. Chaque racine doit avoir un accès SSH unique (ou l’accès déjà fixé dans une tâche existante). Les accès source et destination ainsi que leurs révisions sont conservés dans la tâche ; une modification impose de refaire l’aperçu.
 
 Lorsque les accès diffèrent, le moteur relaie les données entre deux tunnels SSH. Il ne copie aucune clé SSH sur les NAS. Un récepteur rsync temporaire, authentifié et limité au dossier destination, écoute uniquement sur la boucle locale du serveur destination. Le relais utilise des sessions SSH ordinaires et fonctionne même lorsque les tunnels TCP SSH sont désactivés. Le débit dépend aussi du réseau du moteur.
 

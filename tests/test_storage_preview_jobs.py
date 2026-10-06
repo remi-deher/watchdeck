@@ -90,7 +90,7 @@ async def test_confirmed_mapping_proof_lasts_for_a_day_but_empty_root_proof_expi
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("error", [None, ValueError("Correspondance absente"), RuntimeError("secret")])
-async def test_background_preview_returns_immediately_and_rolls_back(monkeypatch, error):
+async def test_background_preview_returns_immediately_and_persists_successful_checks(monkeypatch, error):
     redis = Redis()
     gate = asyncio.Event()
     db = NS(execute=AsyncMock(), rollback=AsyncMock(), commit=AsyncMock())
@@ -119,9 +119,9 @@ async def test_background_preview_returns_immediately_and_rolls_back(monkeypatch
     assert (await preview_jobs.status(second_job["id"]))["status"] == ("failed" if error else "completed")
     if error:
         assert "secret" not in json.dumps(result)
+        db.commit.assert_not_awaited()
     else:
-        assert db.rollback.await_count == 2
-    db.commit.assert_not_awaited()
+        assert db.commit.await_count == 2
     assert not any(key.startswith(preview_jobs.ACTIVE) for key in redis.values)
 
 
@@ -140,8 +140,16 @@ async def test_only_selected_access_roots_are_revalidated(monkeypatch):
     from app.storage import access, arr_transfer
 
     chosen = dict(arr_instance_id=1, arr_root="/data/SERIES", path="/mnt/data/SERIES")
-    other = dict(arr_instance_id=1, arr_root="/usb/SERIES", path="/mnt/usb/SERIES", identity=[1, 2])
-    endpoint = NS(method="ssh", roots=[chosen, other], revision="revision", validation={"roots": [other]})
+    other = dict(
+        arr_instance_id=1,
+        arr_root="/usb/SERIES",
+        path="/mnt/usb/SERIES",
+        identity=[1, 2],
+        checked_at="2020-01-01T00:00:00",
+    )
+    endpoint = NS(
+        method="ssh", roots=[chosen, other], revision="revision", validation={"revision": "revision", "roots": [other]}
+    )
     db = NS(get=AsyncMock(return_value=NS(enabled=True, id=1)), flush=AsyncMock())
     monkeypatch.setattr(access, "config_for", AsyncMock(return_value={}))
     monkeypatch.setattr(access, "samples_for", AsyncMock(return_value=[]))

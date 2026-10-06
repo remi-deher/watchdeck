@@ -15,9 +15,9 @@
       <StorageConnectionPanel v-if="settingsTab==='connections'" :connections="connections" @changed="load()" />
       <template v-if="settingsTab==='roots'">
       <h2>Stockages et correspondances</h2>
-      <StorageRootTable :connections="connections" :accesses="accesses" :binding-drafts="bindingDrafts" @binding="(key,value)=>bindingDrafts[key]=value" v-model:forced="forcedAssociations" :progress="scanProgress" :saved-pairs="savedPairs" :saved-proofs="savedProofs" :dirty-count="dirtyRows.length" v-model:pairs="rootPairs" :root-rows="rootRows" :draft-comparisons="draftComparisons" :checking="checking" :busy="busy" :date="date" @save="saveRoots(false)" @recheck="saveRoots(true)" />
+      <StorageRootTable :connections="connections" :accesses="accesses" :binding-drafts="bindingDrafts" @binding="(key,value)=>bindingDrafts[key]=value" :progress="scanProgress" :saved-pairs="savedPairs" :dirty-count="dirtyRows.length" v-model:pairs="rootPairs" :root-rows="rootRows" :busy="busy" @save="saveRoots" />
       <UiButton @click="resetLocation(); locationDialog = true">Configurer une association Arr / Plex</UiButton>
-      <StorageAssociationDialog v-model="locationForm" :open="locationDialog" :error="error" :busy="busy" :edit-id="editId" :instances="instances" :roots="discoveredRoots" :checking="checking" :draft-comparisons="draftComparisons" :date="date" @check="checkDraft" @save="saveLocation" @close="resetLocation();locationDialog=false" />
+      <StorageAssociationDialog v-model="locationForm" :open="locationDialog" :error="error" :busy="busy" :edit-id="editId" :instances="instances" :roots="discoveredRoots" @save="saveLocation" @close="resetLocation();locationDialog=false" />
       </template>
     </section>
 
@@ -27,7 +27,7 @@
 
 <script setup lang="ts">
 import AppSubnav from '@/components/ui/AppSubnav.vue';
-import {draftKey, comparisonLabel, newAssociationMapping, rootMapping as mappingFromPair, suggestedPlex} from '@/components/storage/storageAssociations';
+import {newAssociationMapping, rootMapping as mappingFromPair, suggestedPlex} from '@/components/storage/storageAssociations';
 import {useStorageTelemetry} from '@/components/storage/useStorageTelemetry';
 import StorageOverviewPanel from '@/components/storage/StorageOverviewPanel.vue';
 import StorageTransferList from '@/components/storage/StorageTransferList.vue';
@@ -49,33 +49,30 @@ const tabs=[{key:'overview',label:'Vue d’ensemble'},{key:'prepare',label:'Pré
 const settingsTab=ref('roots');
 const settingsTabs=[{key:'roots',label:'Stockages'},{key:'connections',label:'Connexions'}];
 const tab=ref('overview'),locations=ref<any[]>([]),jobs=ref<any[]>([]),instances=ref<any[]>([]),discoveredRoots=ref<any[]>([]),loading=ref(false),busy=ref(false),error=ref(''),plan=ref<any>(null),selected=ref<string[]>([]),editId=ref<number|null>(null);
-const rootsLoading=ref(false),checking=ref(''),comparisons=ref<Record<string,any>>({}),draftComparisons=ref<Record<string,any>>({});
+const rootsLoading=ref(false);
 const rootPairs=ref<Record<string,string>>({});
 const locationDialog=ref(false),savedMessage=ref('');
-const forcedAssociations=ref<Record<string,boolean>>({});
 const scanProgress=ref({total:0,completed:0,current:'',saved:0,empty:0,failed:0,started:0,finished:0});
-const sessionSaved=ref<Record<string,string>>({}),savedProofs=ref<Record<string,any>>({});
+const sessionSaved=ref<Record<string,string>>({});
 const savedPairs=computed(()=>{const pairs:Record<string,string>={};for(const l of locations.value)if(l.virtual!==true)for(const m of l.mappings)pairs[`${m.arr_instance_id}:${m.arr_root}`]=JSON.stringify([m.plex_section_id,m.plex_root]);return {...pairs,...sessionSaved.value};});
 const dirtyRows=computed(()=>rootRows.value.filter(row=>rootPairs.value[row.key] && !row.error && (rootPairs.value[row.key]!==savedPairs.value[row.key] || Boolean(bindingDrafts.value[row.key]))));
 async function saveRoot(row:any){
- const mapping=rootMapping(row);const comparison:any=await api('/api/storage/roots/check',{method:'POST',body:JSON.stringify(mapping)});
- draftComparisons.value[draftKey(mapping)]=comparison;
- if(!['sample_matched','empty'].includes(comparison.status) && !(forcedAssociations.value[draftKey(mapping)] && ['mismatch','incomplete'].includes(comparison.status)))throw new Error('Correspondance Arr/Plex non confirmée : corrigez cette association avant de l’enregistrer.');
+ const mapping=rootMapping(row);
  const existing=locations.value.find(l=>l.mappings.some((m:any)=>m.arr_instance_id===row.arr_instance_id && m.arr_root===row.arr_root));
  if(existing){editLocation(existing,false);const index=locationForm.value.mappings.findIndex((m:any)=>m.arr_instance_id===row.arr_instance_id && m.arr_root===row.arr_root);locationForm.value.mappings[index]={...locationForm.value.mappings[index],...mapping};}
  else{resetLocation();locationForm.value.name=`${row.instance} · ${row.arr_root}`;locationForm.value.mount_path='';locationForm.value.mappings=[mapping];}
  await persistLocation();
- sessionSaved.value[row.key]=rootPairs.value[row.key];savedProofs.value[draftKey(mapping)]={...comparison,forced:!['sample_matched','empty'].includes(comparison.status)};
- return comparison.status!=='sample_matched';
+ sessionSaved.value[row.key]=rootPairs.value[row.key];
+
 }
-const saveRoots=(all=false)=>act(async()=>{
- savedMessage.value='';let saved=0,empty=0;const failures:string[]=[];
- const rows=all?rootRows.value.filter(row=>rootPairs.value[row.key] && !row.error):dirtyRows.value;
+const saveRoots=()=>act(async()=>{
+ savedMessage.value='';let saved=0;const failures:string[]=[];
+ const rows=dirtyRows.value;
  scanProgress.value={total:rows.length,completed:0,current:'',saved:0,empty:0,failed:0,started:Date.now(),finished:0};
- for(const row of rows){scanProgress.value.current=`${row.instance} · ${row.arr_root}`;try{if((all || rootPairs.value[row.key]!==savedPairs.value[row.key]) && await saveRoot(row)){empty++;scanProgress.value.empty++;}if(bindingDrafts.value[row.key]){await api('/api/storage/bindings/multiple',{method:'POST',body:JSON.stringify({arr_instance_id:row.arr_instance_id,arr_root:row.arr_root,...bindingDrafts.value[row.key]})});delete bindingDrafts.value[row.key];}saved++;scanProgress.value.saved++;}catch(e:any){scanProgress.value.failed++;failures.push(`${row.instance} · ${row.arr_root} : ${e.message}`);}finally{scanProgress.value.completed++;}}
- await load();for(const access of accesses.value.filter(a=>a.roots.length && (all || a.validation?.revision!==a.revision))){scanProgress.value.total++;scanProgress.value.current=`Validation rsync · ${access.name}`;try{await api(`/api/storage/accesses/${access.id}/validate`,{method:'POST'});}catch(e:any){failures.push(`${access.name} : ${e.message}`);scanProgress.value.failed++;}finally{scanProgress.value.completed++;}}await load();
+ for(const row of rows){scanProgress.value.current=`${row.instance} · ${row.arr_root}`;try{if(rootPairs.value[row.key]!==savedPairs.value[row.key])await saveRoot(row);if(bindingDrafts.value[row.key]){await api('/api/storage/bindings/multiple',{method:'POST',body:JSON.stringify({arr_instance_id:row.arr_instance_id,arr_root:row.arr_root,...bindingDrafts.value[row.key]})});delete bindingDrafts.value[row.key];}saved++;scanProgress.value.saved++;}catch(e:any){scanProgress.value.failed++;failures.push(`${row.instance} · ${row.arr_root} : ${e.message}`);}finally{scanProgress.value.completed++;}}
+ await load();
  scanProgress.value.current='';scanProgress.value.finished=Date.now();
- savedMessage.value=saved?`${saved} correspondance(s) enregistrée(s). ${empty?`${empty} racine(s) vide(s) ou forcée(s) : contenu non confirmé. `:''}Aucun transfert lancé.`:'';
+ savedMessage.value=saved?`${saved} correspondance(s) enregistrée(s). Les dossiers utilisés seront contrôlés lors de l’aperçu. Aucun transfert lancé.`:'';
  if(failures.length)error.value=failures.join(' · ');
 });
 const MAPPING_COLUMNS:UiColumn[]=[{key:'location',label:'Stockage / instance',sortable:true,card:'title'},{key:'arr_root',label:'Racine Arr'},{key:'plex_root',label:'Racine Plex'},{key:'check',label:'Contrôle du contenu'}];
@@ -90,10 +87,15 @@ const prepareRoots=computed(()=>{
  };
  for(const location of locations.value){
   for(const mapping of location.mappings||[]){
-   if(location.virtual===true)continue;
    const item=ensure(mapping.arr_instance_id);
    if(!item.arr_roots.includes(mapping.arr_root))item.arr_roots.push(mapping.arr_root);
    item.plex_roots.push({path:mapping.plex_root,section_id:String(mapping.plex_section_id)});
+  }
+ }
+ for(const access of accesses.value){
+  for(const root of access.roots||[]){
+   const item=ensure(root.arr_instance_id);
+   if(!item.arr_roots.includes(root.arr_root))item.arr_roots.push(root.arr_root);
   }
  }
  for(const instance of instances.value)if(instance.enabled!==false)ensure(instance.id);
@@ -110,13 +112,11 @@ const prepareRoots=computed(()=>{
 });
 const mappingRows=computed(()=>locations.value.flatMap(location=>location.mappings.map((mapping:any,index:number)=>({key:comparisonKey(location.id,index),location:location.name,location_id:location.id,index,instance:instances.value.find(i=>i.id===mapping.arr_instance_id)?.name||mapping.arr_instance_id,mapping}))));
 const rootMapping=(row:any)=>mappingFromPair(row,rootPairs.value[row.key]);
-async function checkDraft(mapping:any){const key=draftKey(mapping);checking.value=key;try{draftComparisons.value[key]=await api('/api/storage/roots/check',{method:'POST',body:JSON.stringify(mapping)});}catch(e:any){draftComparisons.value[key]={error:e.message};}finally{checking.value='';}}
 
 const comparisonKey=(id:number,index:number|string)=>`${id}:${index}`;
 let rootsCheckedAt=0;
 async function refreshRoots(silent=false){if(rootsLoading.value)return;rootsLoading.value=true;try{const next=await api<any[]>('/api/storage/roots');if(JSON.stringify(next)!==JSON.stringify(discoveredRoots.value)){discoveredRoots.value=next;const pairs:Record<string,string>={};for(const root of next){for(const path of root.arr_roots){const key=`${root.arr_instance_id}:${path}`;const candidates=locations.value.flatMap(l=>l.mappings.map((m:any)=>({mapping:m,virtual:l.virtual===true}))).filter(({mapping}:any)=>mapping.arr_instance_id===root.arr_instance_id && mapping.arr_root===path);const saved=(candidates.find(({virtual}:any)=>!virtual)||candidates[0])?.mapping;const choice=rootPairs.value[key] ?? (saved?JSON.stringify([saved.plex_section_id,saved.plex_root]):suggestedPlex(path,root.plex_roots));pairs[key]=root.plex_roots.some((p:any)=>JSON.stringify([p.section_id,p.path])===choice)?choice:'';}}rootPairs.value=pairs;instances.value=next.map(r=>({id:r.arr_instance_id,name:r.name,arr_type:r.arr_type}));for(const mapping of locationForm.value.mappings){if(!mapping.arr_instance_id)mapping.arr_instance_id=instances.value[0]?.id||0;}}rootsCheckedAt=Date.now();}catch(e:any){if(!silent)error.value=e.message;}finally{rootsLoading.value=false;}}
 
-async function checkMapping(id:number,index:number|string){const key=comparisonKey(id,index);checking.value=key;try{comparisons.value[key]=await api(`/api/storage/locations/${id}/mappings/${index}/check`,{method:'POST'});}catch(e:any){comparisons.value[key]={error:e.message};}finally{checking.value='';}}
 const editingTaskId=ref(0);
 const accesses=ref<any[]>([]),connections=ref<any[]>([]),bindingDrafts=ref<Record<string,any>>({});
 const protectedTitles=ref<any[]>([]);
@@ -128,7 +128,7 @@ const form=ref({transfer_methods:['arr'] as string[],access_ids:{} as Record<str
 const newMapping=()=>newAssociationMapping(instances.value[0]?.id||0);
 const locationForm=ref({name:'',mount_path:'',reserve_gb:100,enabled:true,mappings:[newMapping()]});
 const {selectedBytes,gb,date,locationName}=useStorageTelemetry(locations,jobs,tab,plan,selected);
-async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value.map(l=>[l.id,l.mappings]))!==JSON.stringify(nextLocations.map(l=>[l.id,l.mappings])))comparisons.value={};if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
+async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
 const previewProgress=ref('');
 const preview=()=>act(async()=>{
@@ -155,18 +155,8 @@ const removeTask=(id:number)=>act(async()=>{const result:any=await api(`/api/sto
 const command=(id:number,action:string)=>act(async()=>{await api(`/api/storage/transfers/${id}/command`,{method:'POST',body:JSON.stringify({action})});await load();});
 function resetLocation(){editId.value=null;locationForm.value={name:'',mount_path:'',reserve_gb:100,enabled:true,mappings:[newMapping()]};}
 function editLocation(l:any,open=true){locationDialog.value=open;editId.value=l.id;locationForm.value={name:l.name,mount_path:l.mount_path,reserve_gb:l.reserve_bytes/1e9,enabled:l.enabled,mappings:l.mappings.map((mapping:any)=>({...mapping}))};}
-async function persistLocation(){await api('/api/storage/locations'+(editId.value?`/${editId.value}`:''),{method:editId.value?'PUT':'POST',body:JSON.stringify(locationForm.value)});comparisons.value={};resetLocation();locationDialog.value=false;savedMessage.value='Correspondance enregistrée. Aucun transfert lancé.';await load();}
-const saveLocation=()=>act(async()=>{
- let emptyWarning=false;
- for(const mapping of locationForm.value.mappings){
-  const result:any=await api('/api/storage/roots/check',{method:'POST',body:JSON.stringify(mapping)});
-  draftComparisons.value[draftKey(mapping)]=result;
-  if(!['sample_matched','empty'].includes(result.status))throw new Error('Correspondance Arr/Plex non confirmée : corrigez cette association avant de l’enregistrer.');
-  emptyWarning ||= result.status==='empty';
- }
- await persistLocation();
- if(emptyWarning)savedMessage.value='Correspondance enregistrée. Aucun média trouvé dans au moins une racine : contenu non confirmé. Aucun transfert lancé.';
-});
+async function persistLocation(){await api('/api/storage/locations'+(editId.value?`/${editId.value}`:''),{method:editId.value?'PUT':'POST',body:JSON.stringify(locationForm.value)});resetLocation();locationDialog.value=false;savedMessage.value='Correspondance enregistrée. Aucun transfert lancé.';await load();}
+const saveLocation=()=>act(persistLocation);
 let timer:ReturnType<typeof setInterval>|undefined;
 function backgroundRefresh(){if(document.hidden)return;void load(true);if(tab.value==='settings' && settingsTab.value==='roots' && Date.now()-rootsCheckedAt>=60000)void refreshRoots(true);}
 watch([tab,settingsTab],([current,sub])=>{if(current==='settings' && sub==='roots' && Date.now()-rootsCheckedAt>=60000)void refreshRoots(true);});

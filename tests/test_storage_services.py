@@ -277,7 +277,7 @@ async def test_saved_job_payload_preserves_telemetry(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["radarr", "sonarr"])
 @pytest.mark.parametrize("has_media", [False, True])
-async def test_empty_arr_or_plex_root_is_not_a_mismatch(monkeypatch, kind, has_media):
+async def test_empty_arr_root_is_allowed_but_missing_plex_title_is_a_mismatch(monkeypatch, kind, has_media):
     from app.storage import worker
 
     instance = NS(enabled=True, arr_type=kind, plex_server_id=1)
@@ -297,11 +297,14 @@ async def test_empty_arr_or_plex_root_is_not_a_mismatch(monkeypatch, kind, has_m
     catalog = AsyncMock(return_value={})
     monkeypatch.setattr(worker, "plex_files", catalog)
     result = await service.check_mapping(db, NS(mappings=[mapping]), 0)
-    assert result["status"] == "empty"
-    assert result["empty_reason"] == ("plex_empty" if has_media else "arr_empty")
-    assert result["checked_titles"] == 0
+    assert result["status"] == ("mismatch" if has_media else "empty")
+    assert result["empty_reason"] == (None if has_media else "arr_empty")
+    assert result["checked_titles"] == int(has_media)
     assert request.await_count == 1
     assert catalog.await_count == int(has_media)
+    if has_media:
+        assert catalog.call_args.args[2] == "/usb/MEDIA/Title"
+        assert catalog.call_args.kwargs["title"] == "Title"
 
 
 @pytest.mark.asyncio
@@ -311,6 +314,51 @@ async def test_draft_cannot_be_launched_without_new_preview():
         await api.command(1, api.CommandBody(action="resume"), db)
     assert exc.value.status_code == 409
     db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_configuration_can_be_saved_when_arr_and_plex_are_offline(monkeypatch):
+    from unittest.mock import Mock
+
+    db = NS(
+        get=AsyncMock(return_value=NS(id=1, arr_type="radarr")), add=Mock(), commit=AsyncMock(), refresh=AsyncMock()
+    )
+    discovery = AsyncMock(side_effect=RuntimeError("offline"))
+    monkeypatch.setattr(service, "discover_instance_roots", discovery)
+    body = api.LocationBody(
+        name="Films",
+        mappings=[dict(arr_instance_id=1, arr_root="/data/FILMS", plex_root="/media/FILMS", plex_section_id="3")],
+    )
+    await api.save_location(db, body)
+    discovery.assert_not_awaited()
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["radarr", "sonarr"])
+async def test_mapping_comparison_queries_only_sample_titles_in_the_selected_root(monkeypatch, kind):
+    from app.storage import worker
+
+    instance = NS(enabled=True, arr_type=kind, plex_server_id=1)
+    mapping = dict(arr_instance_id=1, arr_root="/data/MEDIA", plex_root="/media/MEDIA", plex_section_id="3")
+    db = NS(get=AsyncMock(return_value=instance))
+    monkeypatch.setattr(service, "connection_for", AsyncMock(return_value=NS()))
+    titles = [dict(id=i, title=f"Title {i}", path=f"/data/MEDIA/Title {i}", hasFile=True) for i in range(7)]
+    titles.append(dict(id=10, title="Unrelated", path="/other/MEDIA/Unrelated", hasFile=True))
+    request = AsyncMock(
+        side_effect=lambda instance, method, path: (
+            titles if path in ("movie", "series") else [{"relativePath": "video.mkv"}]
+        )
+    )
+    monkeypatch.setattr(service, "arr_request", request)
+    files = AsyncMock(return_value={"video.mkv": ["42"]})
+    monkeypatch.setattr(worker, "plex_files", files)
+    monkeypatch.setattr(worker, "confirm_media_identity", AsyncMock())
+    discovered = {"arr_roots": ["/data/MEDIA"], "plex_roots": [{"path": "/media/MEDIA", "section_id": "3"}]}
+    result = await service.check_mapping(db, NS(mappings=[mapping]), 0, discovered=discovered)
+    assert result["checked_titles"] == 5 and result["status"] == "sample_matched"
+    assert [call.kwargs["title"] for call in files.call_args_list] == [f"Title {i}" for i in range(5)]
+    assert all(call.args[2].startswith("/media/MEDIA/Title ") for call in files.call_args_list)
 
 
 @pytest.mark.asyncio
