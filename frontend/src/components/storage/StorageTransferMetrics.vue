@@ -23,7 +23,7 @@ import {transferMetrics,copyDuration} from './transferMetrics';
 const props=defineProps<{job:any}>();
 const now=ref(Date.now()/1000);
 let timer:ReturnType<typeof setInterval>|undefined;
-onMounted(()=>{timer=setInterval(()=>{now.value=Date.now()/1000;},5000);});
+onMounted(()=>{timer=setInterval(()=>{now.value=Date.now()/1000;},1000);});
 onUnmounted(()=>clearInterval(timer));
 const metrics=computed(()=>transferMetrics(props.job,now.value));
 const gb=(bytes:number)=>`${(bytes/1e9).toLocaleString('fr-FR',{maximumFractionDigits:1})} Go`;
