@@ -172,8 +172,8 @@ class BrowseBody(BaseModel):
 @router.post("/connections/{connection_id}/browse")
 async def browse_connection(connection_id: int, body: BrowseBody, db=Depends(get_db_async)):
     conn = await get_connection(db, connection_id)
-    if not conn.tested:
-        raise HTTPException(422, "Testez la connexion avant de parcourir les dossiers.")
+    if conn.method == "ssh" and not conn.fingerprint:
+        raise HTTPException(422, "Confirmez l’identité du serveur SSH avant de parcourir les dossiers.")
     try:
         if conn.method == "ssh":
             return await asyncio.to_thread(connections.browse, conn, body.path)

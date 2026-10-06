@@ -1,4 +1,4 @@
-"""Short HTTP requests around long, read-only planning; no transfer is launched."""
+"""Short HTTP requests around planning and targeted checks; no transfer is launched."""
 
 import asyncio
 import json
@@ -63,8 +63,8 @@ async def calculate(key, body):
 
                 await draft_task(db, body.task_id)
             result = await service.preview(db, body)
-            # Roll back request-scoped DB state; short-lived path proofs live in Redis.
-            await db.rollback()
+            # Persist only configuration proofs and capacities; no transfer is launched.
+            await db.commit()
         result = dict(status="completed", result=jsonable_encoder(result))
     except ValueError as exc:
         result = dict(status="failed", error=str(exc))

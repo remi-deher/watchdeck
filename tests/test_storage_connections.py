@@ -66,10 +66,20 @@ async def test_identity_changed_during_confirmation_is_rejected(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_unvalidated_connection_cannot_browse():
-    db = NS(get=AsyncMock(return_value=profile(tested=False)))
+async def test_untrusted_connection_cannot_browse():
+    db = NS(get=AsyncMock(return_value=profile(tested=False, fingerprint="")))
     with pytest.raises(HTTPException):
         await api.browse_connection(1, api.BrowseBody(path="/tmp"), db)
+
+
+@pytest.mark.asyncio
+async def test_trusted_connection_can_browse_without_transfer_validation(monkeypatch):
+    conn = profile(tested=False)
+    db = NS(get=AsyncMock(return_value=conn))
+    browse = Mock(return_value={"directories": []})
+    monkeypatch.setattr(connections, "browse", browse)
+    assert await api.browse_connection(1, api.BrowseBody(path="/tmp"), db) == {"directories": []}
+    assert conn.tested is False
 
 
 @pytest.mark.asyncio
@@ -225,8 +235,10 @@ async def test_all_failed_priorities_refuse_job(monkeypatch):
     monkeypatch.setattr(access, "preview_rsync", AsyncMock(side_effect=ValueError("no access")))
     monkeypatch.setattr(arr_transfer, "preview_arr", AsyncMock(side_effect=ValueError("no mapping")))
     body = PreviewBody(transfer_methods=["rsync_ssh", "arr"])
-    with pytest.raises(ValueError, match="Aucune méthode"):
+    with pytest.raises(ValueError, match="Aucune méthode") as exc:
         await access.preview_priority(NS(), body)
+    assert "rsync_ssh : no access" in str(exc.value)
+    assert "arr : no mapping" in str(exc.value)
     assert body.transfer_methods == ["rsync_ssh", "arr"]
 
 

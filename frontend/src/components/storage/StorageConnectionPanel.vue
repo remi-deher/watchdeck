@@ -5,8 +5,8 @@
   <UiFeedback v-if="error" type="error" :message="error" />
   <UiDataTable label="Connexions configurées" :columns="columns" :rows="connections" :row-key="(row:any)=>row.id">
    <template #cell-method="{row}">{{ row.method==='ssh'?'SSH':'Fichiers montés' }}</template>
-   <template #cell-state="{row}">{{ row.tested?'Validé':'À tester' }}</template>
-   <template #cell-actions="{row}"><UiButton :disabled="busy" @click="edit(row)">Configurer</UiButton><UiButton :loading="testing===row.id" :disabled="busy" @click="validate(row.id)">Tester et valider</UiButton></template>
+   <template #cell-state="{row}">{{ row.method==='ssh'&&!row.trusted?'Identité à confirmer':'Configurée · contrôle à l’aperçu' }}</template>
+   <template #cell-actions="{row}"><UiButton :disabled="busy" @click="edit(row)">Configurer</UiButton><UiButton v-if="row.method==='ssh'&&!row.trusted" :loading="testing===row.id" :disabled="busy" @click="validate(row.id)">Confirmer le serveur SSH</UiButton></template>
   </UiDataTable>
   <UiButton :disabled="busy" @click="edit()">Ajouter une connexion</UiButton>
   <ModalShell :open="open" title="Configurer une connexion" @close="open=false">
@@ -20,7 +20,7 @@
      <label v-else>Mot de passe<input v-model="form.password" type="password" autocomplete="new-password" :placeholder="form.has_credentials?'Conservé si laissé vide':''" /></label>
     </template>
     <template v-else><label>Dossier de départ de l’explorateur<input v-model="form.connection.browse_root" placeholder="/storage" required /></label><p>Les volumes doivent être déclarés dans Docker Compose. Ce réglage choisit leur chemin dans le moteur ; il ne crée pas de montage.</p></template>
-    <section v-if="observed" class="trust-server"><h3>Confirmer le serveur SSH</h3><p>Empreinte détectée : <code>{{ observed.fingerprint }}</code></p><p v-if="observed.changed">L’identité du serveur a changé. Vérifiez cette modification avant de continuer.</p><label class="check"><input v-model="trusted" type="checkbox" />Je fais confiance à ce serveur</label><UiButton :disabled="busy || !trusted" @click="trust">Confirmer et tester</UiButton></section>
+    <section v-if="observed" class="trust-server"><h3>Confirmer le serveur SSH</h3><p>Empreinte détectée : <code>{{ observed.fingerprint }}</code></p><p v-if="observed.changed">L’identité du serveur a changé. Vérifiez cette modification avant de continuer.</p><label class="check"><input v-model="trusted" type="checkbox" />Je fais confiance à ce serveur</label><UiButton :disabled="busy || !trusted" @click="trust">Confirmer le serveur</UiButton></section>
     <p>Les chemins sont configurés séparément dans le tableau des stockages. Aucun transfert n’est lancé.</p>
     <div class="actions"><UiButton :disabled="busy" @click="open=false">Annuler</UiButton><UiButton type="submit" variant="primary" :loading="busy">Enregistrer la connexion</UiButton></div>
    </form>
@@ -41,9 +41,9 @@ const form=ref<any>(fresh());
 const columns=[{key:'name',label:'Connexion',card:'title' as const},{key:'method',label:'Méthode'},{key:'state',label:'Validation'},{key:'actions',label:'Actions'}];
 function edit(access?:any){error.value='';observed.value=null;trusted.value=false;form.value=access?{...fresh(),...JSON.parse(JSON.stringify(access)),connection:{...fresh().connection,...access.connection}}:fresh();open.value=true;}
 async function importKey(event:Event){const input=event.target as HTMLInputElement;const file=input.files?.[0];if(file){if(file.size>32768){error.value='Clé trop volumineuse.';return;}form.value.private_key=await file.text();input.value='';}}
-async function save(){busy.value=true;error.value='';try{const result:any=await api(`/api/storage/connections${form.value.id?'/'+form.value.id:''}`,{method:form.value.id?'PUT':'POST',body:JSON.stringify(form.value)});form.value={...fresh(),...result,connection:{...fresh().connection,...result.connection}};emit('changed');if(result.method==='ssh'&&!result.trusted){observed.value=await api(`/api/storage/connections/${result.id}/discover`,{method:'POST'});}else{await api(`/api/storage/connections/${result.id}/test`,{method:'POST'});open.value=false;emit('changed');}}catch(e:any){error.value=e.message;}finally{busy.value=false;}}
-async function trust(){busy.value=true;error.value='';try{await api(`/api/storage/connections/${form.value.id}/trust`,{method:'POST',body:JSON.stringify({fingerprint:observed.value.fingerprint})});await api(`/api/storage/connections/${form.value.id}/test`,{method:'POST'});open.value=false;emit('changed');}catch(e:any){error.value=e.message;}finally{busy.value=false;}}
-async function validate(id:number){busy.value=true;testing.value=id;error.value='';try{const c=props.connections.find(c=>c.id===id);if(c?.method==='ssh'&&!c.trusted){edit(c);observed.value=await api(`/api/storage/connections/${id}/discover`,{method:'POST'});}else await api(`/api/storage/connections/${id}/test`,{method:'POST'});}catch(e:any){error.value=e.message;}finally{testing.value=0;busy.value=false;emit('changed');}}
+async function save(){busy.value=true;error.value='';try{await api(`/api/storage/connections${form.value.id?'/'+form.value.id:''}`,{method:form.value.id?'PUT':'POST',body:JSON.stringify(form.value)});open.value=false;emit('changed');}catch(e:any){error.value=e.message;}finally{busy.value=false;}}
+async function trust(){busy.value=true;error.value='';try{await api(`/api/storage/connections/${form.value.id}/trust`,{method:'POST',body:JSON.stringify({fingerprint:observed.value.fingerprint})});open.value=false;emit('changed');}catch(e:any){error.value=e.message;}finally{busy.value=false;}}
+async function validate(id:number){busy.value=true;testing.value=id;error.value='';try{const c=props.connections.find(c=>c.id===id);edit(c);observed.value=await api(`/api/storage/connections/${id}/discover`,{method:'POST'});}catch(e:any){error.value=e.message;}finally{testing.value=0;busy.value=false;}}
 </script>
 <style scoped>
 .trust-server{padding:12px;border:1px solid var(--border);border-radius:8px}.trust-server code{overflow-wrap:anywhere}label{display:grid;gap:6px;margin:12px 0}label.check{display:flex;align-items:center}textarea{width:100%;box-sizing:border-box;color:var(--text-primary);background:var(--bg-input,var(--bg));border:1px solid var(--border);border-radius:8px;padding:12px}small{color:var(--text-muted);line-height:1.5}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}

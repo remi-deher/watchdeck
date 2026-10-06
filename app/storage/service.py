@@ -310,9 +310,21 @@ async def check_mapping(db, location, mapping_index, discovered=None):
         )
     ]
     results = []
-    catalog = await plex_files(conn, mapping["plex_section_id"], mapping["plex_root"], kind) if eligible else {}
-    for media, relative in sorted(eligible, key=lambda t: t[0]["id"])[:5] if catalog else []:
+    for media, relative in sorted(eligible, key=lambda t: t[0]["id"])[:5]:
         try:
+            plex = await plex_files(
+                conn,
+                mapping["plex_section_id"],
+                mapping["plex_root"] + "/" + relative,
+                kind,
+                snapshot={"tmdb_id": media.get("tmdbId"), "tvdb_id": media.get("tvdbId")},
+                title=media["title"],
+            )
+            if not plex:
+                results.append(
+                    dict(title=media["title"], status="mismatch", reason="Titre absent du dossier Plex associé.")
+                )
+                continue
             files = await arr_request(
                 instance,
                 "GET",
@@ -328,8 +340,6 @@ async def check_mapping(db, location, mapping_index, discovered=None):
                     )
                 )
                 continue
-            prefix = relative + "/"
-            plex = {name[len(prefix) :]: keys for name, keys in catalog.items() if name.startswith(prefix)}
             missing = expected - set(plex)
             extra = set(plex) - expected
             ambiguous = [name for name, keys in plex.items() if len(keys) != 1]
@@ -355,7 +365,7 @@ async def check_mapping(db, location, mapping_index, discovered=None):
         total_titles=len(titles),
         available_titles=len(eligible),
         pending_titles=len(titles) - len(eligible),
-        empty_reason="plex_empty" if eligible and not catalog else "arr_empty" if not eligible else None,
+        empty_reason="arr_empty" if not eligible else None,
         checked_titles=len(results),
         matched_titles=sum(r["status"] == "matched" for r in results),
         status="empty"
