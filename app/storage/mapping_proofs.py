@@ -3,6 +3,7 @@
 import hashlib
 import json
 
+from ..crypto import fingerprint_secret
 from .discovery import redis_client
 
 TTL = 24 * 60 * 60
@@ -16,7 +17,7 @@ def proof_key(instance, discovered, mapping):
         "arr_instance_id": instance.id,
         "arr_url": instance.url.rstrip("/"),
         "arr_type": instance.arr_type,
-        "arr_key_fingerprint": hashlib.sha256(instance.api_key.encode()).hexdigest(),
+        "arr_key_fingerprint": fingerprint_secret(instance.api_key),
         "plex_server_id": discovered["plex_server_id"],
         "plex_url": discovered["plex_url"].rstrip("/"),
         "plex_token_fingerprint": discovered["plex_token_fingerprint"],

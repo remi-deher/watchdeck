@@ -1,11 +1,11 @@
 """Administrative inventory and previews; the API never mounts media folders."""
 
-import hashlib
 from datetime import timedelta
 
 import httpx
 from sqlalchemy import delete, func, select
 
+from ..crypto import fingerprint_secret
 from ..models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
 from ..services.plex_servers import connection_for
 from ..utils import now_utc_naive
@@ -52,7 +52,7 @@ async def discover_instance_roots(db, instance):
         arr_type=instance.arr_type,
         plex_server_id=conn.id,
         plex_url=conn.url,
-        plex_token_fingerprint=hashlib.sha256(conn.token.encode()).hexdigest(),
+        plex_token_fingerprint=fingerprint_secret(conn.token),
         arr_roots=[r["path"].rstrip("/") for r in arr_roots],
         capacities={r["path"].rstrip("/"): dict(free_bytes=r.get("freeSpace")) for r in arr_roots},
         plex_roots=[
