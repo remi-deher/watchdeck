@@ -80,6 +80,7 @@ async def test_local_paths_cannot_escape_mounts(path):
 @pytest.mark.asyncio
 async def test_worker_rejects_stale_configuration_and_preserves_execution_method():
     endpoint = profile()
+    endpoint.roots.append(dict(arr_instance_id=2, arr_root="/data/SERIES", path="/offline/SERIES"))
     db = NS(get=AsyncMock(return_value=endpoint))
     job = NS(params=dict(transfer_mode="rsync_ssh", arr_instance_id=1))
     snap = dict(access_id=1, access_revision="old")
@@ -95,6 +96,11 @@ async def test_worker_rejects_stale_configuration_and_preserves_execution_method
     fs = await access.filesystem_for(db, job, snap)
     assert isinstance(fs, remote_fs.RemoteFilesystem)
     assert fs.identities["/mnt/usb/FILMS"] == [3, 4]
+    assert fs.roots == ["/mnt/data/FILMS", "/mnt/usb/FILMS"]
+    source_proof = endpoint.validation["roots"].pop(0)
+    with pytest.raises(ValueError, match="Racine .* non validée"):
+        await access.filesystem_for(db, job, snap)
+    endpoint.validation["roots"].insert(0, source_proof)
     endpoint.method = "local"
     with pytest.raises(ValueError, match="non validé"):
         await access.filesystem_for(db, job, snap)
@@ -299,6 +305,97 @@ async def test_recent_file_access_validation_is_reused_but_stale_proof_expires()
     endpoint.validation["checked_at"] = now_utc_naive().isoformat()
     endpoint.validation["revision"] = "old"
     assert not await access.validation_is_fresh(db, endpoint, roots)
+
+
+@pytest.mark.asyncio
+async def test_preview_validates_unchecked_access_only_for_selected_instance_and_roots(monkeypatch):
+    endpoint = profile(validation={})
+    endpoint.roots.append(dict(arr_instance_id=2, arr_root="/data/SERIES", path="/unavailable/SERIES"))
+    db = NS(get=AsyncMock(return_value=endpoint))
+    body = NS(
+        access_id=1,
+        transfer_mode="rsync_ssh",
+        arr_instance_id=1,
+        source_roots=["/data/FILMS"],
+        destination_root="/usb/FILMS",
+    )
+
+    async def validate(db, endpoint, selected_roots):
+        assert selected_roots == {(1, "/data/FILMS"), (1, "/usb/FILMS")}
+        endpoint.validation = {
+            "revision": endpoint.revision,
+            "roots": [
+                {"arr_instance_id": instance, "arr_root": root, "free_bytes": 100} for instance, root in selected_roots
+            ],
+        }
+
+    check = AsyncMock(side_effect=validate)
+    monkeypatch.setattr(access, "validate_access", check)
+    monkeypatch.setattr(
+        "app.storage.arr_transfer.preview_arr", AsyncMock(return_value={"planned_bytes": 5, "items": []})
+    )
+    await access.preview_rsync(db, body)
+    check.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_checking_one_root_does_not_refresh_an_old_unselected_proof():
+    from datetime import timedelta
+
+    from app.utils import now_utc_naive
+
+    endpoint = profile(
+        validation={
+            "revision": "rev",
+            "checked_at": now_utc_naive().isoformat(),
+            "roots": [
+                {
+                    "arr_instance_id": 1,
+                    "arr_root": "/data/FILMS",
+                    "free_bytes": 100,
+                    "checked_at": (now_utc_naive() - timedelta(hours=1)).isoformat(),
+                },
+                {
+                    "arr_instance_id": 1,
+                    "arr_root": "/usb/FILMS",
+                    "free_bytes": 100,
+                    "checked_at": now_utc_naive().isoformat(),
+                },
+            ],
+        }
+    )
+    db = NS(get=AsyncMock())
+    assert not await access.validation_is_fresh(db, endpoint, {(1, "/data/FILMS")})
+    assert await access.validation_is_fresh(db, endpoint, {(1, "/usb/FILMS")})
+
+
+@pytest.mark.asyncio
+async def test_preview_tests_connection_without_manual_validation(monkeypatch):
+    from app.models import StorageConnection
+    from app.storage import arr_transfer, connections
+
+    endpoint = profile(connection_id=9, validation={})
+    conn = NS(
+        id=9, method="ssh", tested=False, fingerprint="SHA256:pinned", revision="conn", connection={}, credentials="{}"
+    )
+    instance = NS(id=1, enabled=True)
+    db = NS(
+        get=AsyncMock(side_effect=lambda model, id: conn if model is StorageConnection else instance), flush=AsyncMock()
+    )
+    check = Mock()
+    monkeypatch.setattr(connections, "test_connection", check)
+    monkeypatch.setattr("app.storage.service.discover_instance_roots", AsyncMock(return_value={}))
+    monkeypatch.setattr(arr_transfer, "route", AsyncMock())
+    samples = AsyncMock(return_value=[])
+    monkeypatch.setattr(access, "samples_for", samples)
+    remote = Mock(return_value={"identity": [1, 2], "free_bytes": 100})
+    monkeypatch.setattr(remote_fs, "remote_call", remote)
+    await access.validate_access(db, endpoint, {(1, "/data/FILMS")})
+    assert conn.tested
+    check.assert_called_once_with(conn)
+    samples.assert_awaited_once_with(db, 1, "/data/FILMS")
+    assert remote.call_args.args[1]["roots"] == ["/mnt/data/FILMS"]
+    assert len(endpoint.validation["roots"]) == 1
 
 
 @pytest.mark.asyncio

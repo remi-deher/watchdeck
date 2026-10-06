@@ -42,16 +42,20 @@ def ssh_config(access):
     )
 
 
-async def config_for(db, access):
+async def config_for(db, access, *, require_tested=True):
     from ..models import StorageConnection
     from .connections import config
 
     if not getattr(access, "connection_id", None):
         return ssh_config(access)
     connection = await db.get(StorageConnection, access.connection_id)
-    if not connection or connection.method != access.method or not connection.tested:
+    if not connection or connection.method != access.method or (require_tested and not connection.tested):
         raise ValueError("Connexion non testée ou indisponible.")
-    if access.validation and access.validation.get("connection_revision") not in (None, connection.revision):
+    if (
+        require_tested
+        and access.validation
+        and access.validation.get("connection_revision") not in (None, connection.revision)
+    ):
         raise ValueError("Connexion modifiée : validez à nouveau les chemins.")
     return config(connection)
 
@@ -84,10 +88,22 @@ async def samples_for(db, instance_id, root):
 async def validate_access(db, access, selected_roots=None):
     from .arr_transfer import route
     from .discovery import request_engine
+    from .preview_cache import read_inventory
     from .remote_fs import remote_call
     from .service import discover_instance_roots
 
-    config = await config_for(db, access)
+    config = await config_for(db, access, require_tested=False)
+    conn = None
+    if getattr(access, "connection_id", None):
+        from ..models import StorageConnection
+        from . import connections
+
+        conn = await db.get(StorageConnection, access.connection_id)
+        if access.method == "ssh" and not conn.fingerprint:
+            raise ValueError("Confirmez l’identité du serveur SSH dans Connexions avant l’aperçu.")
+        if not conn.tested:
+            await asyncio.to_thread(connections.test_connection, conn)
+            conn.tested = True
     results = []
     for root in access.roots:
         if selected_roots is not None and (root["arr_instance_id"], root["arr_root"]) not in selected_roots:
@@ -95,7 +111,7 @@ async def validate_access(db, access, selected_roots=None):
         instance = await db.get(ArrInstance, root["arr_instance_id"])
         if not instance or not instance.enabled:
             raise ValueError("Instance Arr indisponible.")
-        discovered = await discover_instance_roots(db, instance)
+        discovered = await read_inventory(("storage_roots", instance.id), lambda: discover_instance_roots(db, instance))
         await route(db, instance, root["arr_root"], discovered)
         samples = await samples_for(db, instance.id, root["arr_root"])
         request = dict(op="validate", roots=[root["path"]], path=root["path"], samples=samples)
@@ -107,18 +123,22 @@ async def validate_access(db, access, selected_roots=None):
             dict(
                 **root,
                 **result,
+                checked_at=now_utc_naive().isoformat(),
                 warning="Aucun média Arr trouvé : accès validé, contenu non confirmé." if not samples else "",
             )
         )
-    if selected_roots is not None:
+    if (
+        selected_roots is not None
+        and access.validation.get("revision") == access.revision
+        and (conn is None or access.validation.get("connection_revision") == conn.revision)
+    ):
         results.extend(
-            r for r in access.validation.get("roots", []) if (r["arr_instance_id"], r["arr_root"]) not in selected_roots
+            {**r, "checked_at": r.get("checked_at", access.validation.get("checked_at", ""))}
+            for r in access.validation.get("roots", [])
+            if (r.get("arr_instance_id"), r.get("arr_root")) not in selected_roots
         )
     access.validation = dict(revision=access.revision, checked_at=now_utc_naive().isoformat(), roots=results)
-    if getattr(access, "connection_id", None):
-        from ..models import StorageConnection
-
-        conn = await db.get(StorageConnection, access.connection_id)
+    if conn is not None:
         access.validation = {**access.validation, "connection_revision": conn.revision}
     await db.flush()
     return access_json(access)
@@ -148,8 +168,21 @@ async def validation_is_fresh(db, access, selected_roots):
         return False
     validated = {(root.get("arr_instance_id"), root.get("arr_root")): root for root in validation.get("roots", [])}
     return all(
-        (root := validated.get(pair)) is not None and isinstance(root.get("free_bytes"), int) for pair in selected_roots
+        (root := validated.get(pair)) is not None
+        and isinstance(root.get("free_bytes"), int)
+        and _root_proof_is_fresh(root, validation["checked_at"])
+        for pair in selected_roots
     )
+
+
+def _root_proof_is_fresh(root, fallback):
+    try:
+        checked_at = datetime.fromisoformat(root.get("checked_at", fallback))
+        if checked_at.tzinfo:
+            checked_at = checked_at.replace(tzinfo=None)
+        return now_utc_naive() - checked_at <= timedelta(minutes=15)
+    except (ValueError, TypeError):
+        return False
 
 
 def matching_root(access, instance_id, root):
@@ -175,11 +208,20 @@ async def preview_rsync(db, body):
             else body.access_id
         )
         access = await db.get(StorageAccess, access_id)
-        if not access or access.method != method or access.validation.get("revision") != access.revision:
-            raise ValueError("Choisissez un accès validé pour chaque racine.")
+        if not access or access.method != method:
+            raise ValueError(f"Configurez un accès {method} pour la racine {root}.")
         matching_root(access, body.arr_instance_id, root)
         selected[root] = access
-    await report("Lecture des accès et des dernières capacités connues…")
+    by_access = {}
+    for root, endpoint in selected.items():
+        by_access.setdefault(endpoint.id, (endpoint, set()))[1].add((body.arr_instance_id, root))
+    for endpoint, roots in by_access.values():
+        if not await validation_is_fresh(db, endpoint, roots):
+            await report(f"Contrôle de {endpoint.name} · {len(roots)} dossier(s) sélectionné(s)…")
+            try:
+                await validate_access(db, endpoint, selected_roots=roots)
+            except (ValueError, OSError, RuntimeError) as exc:
+                raise ValueError(f"{endpoint.name} ({', '.join(sorted(root for _, root in roots))}) : {exc}") from exc
 
     def cached_root(access, root):
         return next(
@@ -191,9 +233,7 @@ async def preview_rsync(db, body):
             {},
         )
 
-    # Preparation is intentionally read-only and does not reconnect to SSH or
-    # rescan Arr/Plex roots. These values are estimates; filesystem and Arr
-    # access are checked again by the worker when the task actually starts.
+    # Capacities come from checks of the selected roots only.
     capacities = {
         root: cached_root(access, root).get("free_bytes")
         for root, access in selected.items()
@@ -238,7 +278,7 @@ async def preview_rsync(db, body):
         if selected[root].id != access.id:
             snap.update(source_access_id=selected[root].id, source_access_revision=selected[root].revision)
     result["note"] = (
-        "Les racines et l’espace seront vérifiés au lancement ; les capacités affichées ici sont les dernières valeurs connues. "
+        "Les accès et les capacités des dossiers sélectionnés ont été contrôlés pour cet aperçu. "
         "Rsync copie et vérifie avant la bascule Arr/Plex. L’original est conservé jusqu’à confirmation Plex. Pause interrompt la copie ; aucun repli automatique."
     )
     return result
@@ -262,16 +302,26 @@ async def filesystem_for(db, job, snapshot):
         root = str(PurePosixPath(snapshot[side + "_arr"]).parent)
         if matching_root(endpoint, job.params["arr_instance_id"], root) != snapshot[side + "_mount"]:
             raise ValueError("Correspondance moteur modifiée.")
+        if expected == "ssh" and not any(
+            proof.get("path") == snapshot[side + "_mount"] and proof.get("identity")
+            for proof in endpoint.validation.get("roots", [])
+        ):
+            raise ValueError(f"Racine {root} non validée : refaites l’aperçu de cette tâche.")
     if access.method == "ssh":
         from .integrite import SESSION_VERIFICATION
         from .peer_fs import PeerFilesystem
 
         async def remote(endpoint):
+            paths = {
+                snapshot[side + "_mount"]
+                for side, selected_endpoint in (("source", source_access), ("destination", access))
+                if selected_endpoint.id == endpoint.id
+            }
             return RemoteFilesystem(
                 await config_for(db, endpoint),
-                sorted({r["path"] for r in endpoint.roots}),
+                sorted(paths),
                 SESSION_VERIFICATION,
-                {r["path"]: r["identity"] for r in endpoint.validation["roots"]},
+                {r["path"]: r["identity"] for r in endpoint.validation["roots"] if r["path"] in paths},
             )
 
         destination = await remote(access)
@@ -292,6 +342,7 @@ async def preview_priority(db, body):
     import paramiko
 
     failures = []
+    reasons = []
     for mode in methods:
         candidate = body.model_copy(deep=True)
         candidate.transfer_methods = []
@@ -299,8 +350,10 @@ async def preview_priority(db, body):
         candidate.access_id = 0 if mode == "arr" else candidate.access_ids.get(mode, candidate.access_id)
         try:
             result = await (preview_arr(db, candidate) if mode == "arr" else preview_rsync(db, candidate))
-        except (ValueError, OSError, RuntimeError, httpx.HTTPError, paramiko.SSHException):
+        except (ValueError, OSError, RuntimeError, httpx.HTTPError, paramiko.SSHException) as exc:
             failures.append(mode)
+            if isinstance(exc, ValueError):
+                reasons.append(f"{mode} : {exc}")
             continue
         result["transfer_mode"] = mode
         result["access_id"] = candidate.access_id
@@ -310,4 +363,5 @@ async def preview_priority(db, body):
         body.transfer_mode, body.access_id = mode, candidate.access_id
         body.transfer_methods = []
         return result
-    raise ValueError("Aucune méthode choisie n’a passé les contrôles. Vérifiez les accès et les associations.")
+    detail = " " + " ; ".join(reasons) if reasons else ""
+    raise ValueError("Aucune méthode choisie n’a passé les contrôles. Vérifiez les accès et les associations." + detail)

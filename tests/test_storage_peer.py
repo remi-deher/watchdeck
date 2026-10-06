@@ -15,6 +15,7 @@ async def test_preview_pins_both_servers_and_uses_destination_capacity(monkeypat
     def endpoint(id, root, path, free):
         return NS(
             id=id,
+            name=f"NAS {id}",
             method="ssh",
             revision=str(id),
             roots=[dict(arr_instance_id=1, arr_root=root, path=path)],
@@ -43,6 +44,8 @@ async def test_preview_pins_both_servers_and_uses_destination_capacity(monkeypat
     assert (snap["source_access_revision"], snap["access_revision"]) == ("1", "2")
     assert body.access_id == 2
     assert preview.call_args.kwargs["capacity_overrides"] == {"/data/FILMS": 20, "/usb/FILMS": 100}
+    assert access.validate_access.call_args_list[0].kwargs["selected_roots"] == {(1, "/data/FILMS")}
+    assert access.validate_access.call_args_list[1].kwargs["selected_roots"] == {(1, "/usb/FILMS")}
 
 
 def test_equal_paths_on_different_servers_are_distinct():

@@ -128,19 +128,6 @@ async def save_location(db, body, location=None):
             instance = await db.get(ArrInstance, mapping.arr_instance_id)
             if not instance or instance.arr_type not in ("radarr", "sonarr"):
                 raise ValueError("Instance Sonarr/Radarr inconnue.")
-            try:
-                discovered = await service.discover_instance_roots(db, instance)
-            except Exception as exc:
-                raise ValueError("Impossible de vérifier les dossiers racine Arr/Plex.") from exc
-            if mapping.arr_root not in discovered["arr_roots"]:
-                raise ValueError("Le chemin Arr doit être un dossier racine déclaré dans cette instance.")
-            if not any(
-                p["path"] == mapping.plex_root and p["section_id"] == mapping.plex_section_id
-                for p in discovered["plex_roots"]
-            ):
-                raise ValueError(
-                    "Le chemin Plex doit appartenir à la bibliothèque du même type sur le serveur associé."
-                )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     location = location or StorageLocation()
