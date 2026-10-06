@@ -68,6 +68,7 @@ from .playback import (
 from .settings import (
     Settings,
 )
+from .storage_inventory import StorageInventory, StorageInventoryScope
 from .users import (
     LoginAttempt,
     PasskeyCredential,
@@ -116,6 +117,8 @@ __all__ = [
     "TrackerFavicon",
     "SeriesAcquisitionBatch",
     "Settings",
+    "StorageInventory",
+    "StorageInventoryScope",
     "SonarrQueueObservation",
     "VfCategory",
     "VfEpisodeStatus",

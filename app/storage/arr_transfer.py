@@ -267,7 +267,9 @@ async def preview_arr(db, body, capacity_overrides=None):
     ).scalar()
     await report(f"Lecture du catalogue {instance.arr_type.title()}…")
     candidates = []
-    for media in await arr_request(instance, "GET", kind):
+    from .inventory import arr_catalog
+
+    for media in await arr_catalog(db, instance, lambda: arr_request(instance, "GET", kind)):
         matching = next((entry for entry in source_routes if relative_path(media["path"], entry[0])), None)
         if matching is None:
             continue

@@ -230,6 +230,10 @@ async def _integrate_plex_items(
         await db.commit()
     finally:
         await db.close()
+    if server is not None:
+        from ..storage.inventory import safe_record_plex
+
+        await safe_record_plex(server, plex_items)
     return added_count, seen_guids, seen_keys
 
 
@@ -344,6 +348,9 @@ async def _build_arr_lookup(db: AsyncSession) -> dict:
         try:
             if inst.arr_type == "radarr":
                 movies = await get_all_movies(inst.url, inst.api_key)
+                from ..storage.inventory import safe_record_arr
+
+                await safe_record_arr(inst, movies)
                 for m in movies:
                     tmdb = str(m.get("tmdbId") or "")
                     imdb = m.get("imdbId")
@@ -359,6 +366,9 @@ async def _build_arr_lookup(db: AsyncSession) -> dict:
                         title_candidates.setdefault(title_key, []).append(value)
             elif inst.arr_type == "sonarr":
                 series = await get_all_series(inst.url, inst.api_key)
+                from ..storage.inventory import safe_record_arr
+
+                await safe_record_arr(inst, series)
                 for s in series:
                     tvdb = str(s.get("tvdbId") or "")
                     tmdb = str(s.get("tmdbId") or "")
