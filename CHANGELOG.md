@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.74.1 — 2026-10-06
+
+
+### test
+
+- align browser checks with explicit task duplication ([5b2816b](https://github.com/remi-deher/watchdeck/commit/5b2816bd3eb568d734e182f0c231eb36edab87e9))
+
+### 🐛 Corrections
+
+- reuse SSH sessions and preserve task identity and telemetry ([34cf3a1](https://github.com/remi-deher/watchdeck/commit/34cf3a15512b49ee16f6a6e87f0388544035340f))
 ## 1.74.0 — 2026-10-06
 
 
@@ -15,6 +25,10 @@
 ### 🐛 Corrections
 
 - keep provider identifiers optional for Plex-only inventory ([29f1858](https://github.com/remi-deher/watchdeck/commit/29f1858151b2b28f3c4a4cdf57cdec46ab787231))
+
+### 🔧 Maintenance
+
+- v1.74.0 (#711) ([fbdbd19](https://github.com/remi-deher/watchdeck/commit/fbdbd194edfee18bc1cbaabdf697f0a84fc0dd1e))
 ## 1.73.4 — 2026-10-06
 
 
