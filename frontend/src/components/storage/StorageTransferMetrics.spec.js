@@ -7,7 +7,7 @@ const job=()=>({id:3,status:'running',desired_state:'run',params:{transfer_mode:
 describe('Transfer copy metrics',()=>{
   it('counts partial bytes across the lot and estimates only the remaining copy',()=>{
     const m=transferMetrics(job(),105);
-    expect(m).toEqual({total:40e9,copied:15e9,remaining:25e9,rate:25e6,seconds:1000,percent:37.5});
+    expect(m).toMatchObject({total:40e9,copied:15e9,remaining:25e9,rate:25e6,seconds:1000,percent:37.5});
   });
   it('does not count Plex confirmation as bytes still needing copying',()=>{
     const j=job();j.items[1].status='plex_pending';
@@ -35,4 +35,13 @@ describe('Transfer copy metrics',()=>{
       expect(wrapper.text()).toContain('Reste à copier');
     } finally {wrapper.unmount();vi.useRealTimers();}
   });
+});
+
+
+describe('retained transfer measurements',()=>{
+ it('retains historical speed without inventing an ETA during verification',()=>{
+  const j={status:'finalizing',desired_state:'run',params:{transfer_mode:'rsync_ssh'},items:[{status:'verifying',size_bytes:100,progress:{copied_bytes:100,bytes_per_second:null,last_bytes_per_second:25e6,rate_measured_at:100}}]};
+  const m=transferMetrics(j,120);
+  expect(m.lastRate).toBe(25e6);expect(m.rate).toBeNull();expect(m.seconds).toBeNull();expect(m.copied).toBe(100);
+ });
 });

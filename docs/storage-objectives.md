@@ -13,6 +13,11 @@ L’espace de l’aperçu est une estimation. Les données copiées et celles en
 
 ## Gestion des tâches
 
-Le menu d’une tâche terminée ou annulée propose une relance avec les mêmes paramètres : un nouvel aperçu est calculé avec les chemins et les titres disponibles actuellement, sans reprendre les anciennes preuves de copie ni lancer automatiquement un transfert. La relance avec de nouveaux paramètres ouvre la préparation. Une tâche en pause conserve aussi son action Reprendre pour continuer ses propres fichiers et points de reprise.
+- **Relancer** : calcule un nouvel aperçu depuis les paramètres enregistrés. La confirmation réutilise le même identifiant de tâche, avec de nouveaux titres et preuves. Aucun transfert ne démarre à l’ouverture.
+- **Modifier** : ouvre les paramètres du brouillon ou de la tâche terminée/annulée. Enregistrer conserve le même identifiant, même après renommage, sans calculer d’aperçu ni lancer de transfert. Les preuves du dernier transfert terminé restent conservées jusqu’à la confirmation d’une nouvelle sélection.
+- **Créer une copie** : ouvre une nouvelle préparation avec les paramètres copiés. Seule sa confirmation crée une nouvelle tâche ; deux tâches peuvent avoir les mêmes paramètres.
+- Une tâche active ou interrompue conserve Reprendre/Réessayer pour ses fichiers et points de reprise. Terminez ou annulez son transfert avant de modifier ses paramètres.
+
+Le débit récent sert à estimer le temps de copie restant. Entre les phases et après la fin, la dernière mesure reste visible avec son libellé explicite ; elle ne produit pas d’estimation lorsque la copie n’est plus active. Les connexions SSH sont réutilisées pendant le traitement d’un titre puis fermées, y compris après interruption. Chaque opération utilise un canal distinct, les identités SSH épinglées et les vérifications d’intégrité restent obligatoires.
 
 Supprimer un brouillon ou une tâche terminée retire son historique. Pour une tâche active ou arrêtée avec des fichiers partiels, la demande de suppression est persistée : le moteur termine l’annulation sûre et le nettoyage des seuls fichiers temporaires avant de retirer la tâche. Un échec conserve la tâche et son motif pour réessayer. Les originaux et les copies complètes ne sont pas supprimés par cette action.

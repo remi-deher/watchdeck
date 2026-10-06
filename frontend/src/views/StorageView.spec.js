@@ -26,7 +26,7 @@ describe('Storage root correspondence table', () => {
   });
   const wrapper=await factory(false);
   await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Relancer avec de nouveaux paramètres').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Créer une copie').trigger('click');
   await wrapper.findAll('.instance-choice input')[0].setValue(false);
   await wrapper.findAll('.instance-choice input')[1].setValue(true);
   expect(wrapper.findAll('.source-choices input').map(input=>input.element.value)).toEqual(['/data/SERIES']);
@@ -244,7 +244,7 @@ describe('Storage root correspondence table', () => {
  it('opens a fresh preview directly when relaunching a cancelled task',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',desired_state:'cancel',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:100e9},destination:{free_bytes:200e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  expect(wrapper.text()).toContain('Relancer avec de nouveaux paramètres');
+  expect(wrapper.text()).toContain('Créer une copie');
   await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
   expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(true);
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
@@ -281,6 +281,47 @@ describe('Storage root correspondence table', () => {
   expect(wrapper.find('[role="dialog"]').text()).toContain('Plex indisponible');
   await wrapper.findAll('button').find(b=>b.text()==='Modifier les réglages').trigger('click');
   expect(wrapper.find('.instance-choice').exists()).toBe(true);
+  wrapper.unmount();
+ });
+
+ it('saves a renamed completed task in place without generating a preview',async()=>{
+  const original=request.getMockImplementation();
+  const job={id:17,status:'completed',params:{name:'Old name',mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]};
+  request.mockImplementation(async(path,opts)=>{
+   if(path==='/api/storage/locations')return roots.flatMap(instance=>instance.arr_roots.map((root,index)=>({id:instance.arr_instance_id*10+index,mappings:[{arr_instance_id:instance.arr_instance_id,arr_root:root}]})));
+   if(path==='/api/storage/transfers'&&!opts)return [job];
+   if(path==='/api/storage/transfers/17'&&opts?.method==='PUT')return {id:17};
+   return original(path,opts);
+  });
+  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');
+  await wrapper.find('form').trigger('submit');
+  const name=wrapper.findComponent({name:'StorageObjectiveFields'}).find('input');
+  await name.setValue('Renamed task');
+  await wrapper.findAll('button').find(b=>b.text()==='Enregistrer les modifications').trigger('click');await flushPromises();
+  const update=request.mock.calls.find(([path,opts])=>path==='/api/storage/transfers/17'&&opts?.method==='PUT');
+  expect(update).toBeDefined();expect(JSON.parse(update[1].body)).toMatchObject({name:'Renamed task',start_immediately:false,selection:[]});
+  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(false);
+  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);
+  wrapper.unmount();
+ });
+
+ it('relaunches into the existing job ID rather than creating another entry',async()=>{
+  const original=request.getMockImplementation();
+  const job={id:17,status:'completed',params:{name:'Named job',mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]};
+  request.mockImplementation(async(path,opts)=>{
+   if(path==='/api/storage/transfers'&&!opts)return [job];
+   if(path==='/api/storage/preview')return {source:{id:1,free_bytes:100e9},destination:{id:2,free_bytes:200e9},items:[{key:'1:7',title:'Film',size_bytes:20e9,snapshot:{}}],excluded:[],goal_covered:true};
+   if(path==='/api/storage/transfers/17'&&opts?.method==='PUT')return {id:17};
+   return original(path,opts);
+  });
+  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
+  const previewRequest=request.mock.calls.find(([path])=>path==='/api/storage/preview');
+  expect(JSON.parse(previewRequest[1].body)).toMatchObject({task_id:17,name:'Named job'});
+  await wrapper.findAll('button').find(b=>b.text()==='Lancer la sélection').trigger('click');await flushPromises();
+  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers/17'&&opts?.method==='PUT')).toBe(true);
+  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);
   wrapper.unmount();
  });
 
