@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.73.4 — 2026-10-06
+
+
+### 🐛 Corrections
+
+- prevent preview registry from locking its own transaction ([8658546](https://github.com/remi-deher/watchdeck/commit/865854699912befbb11fa09d7d16b07cf230f08b))
 ## 1.73.3 — 2026-10-06
 
 
 ### 🐛 Corrections
 
 - revalidate historical mappings when relaunching transfers ([710f4cb](https://github.com/remi-deher/watchdeck/commit/710f4cb000f39bdfcff8f0ebc9f7e1c41d063a03))
+
+### 🔧 Maintenance
+
+- v1.73.3 (#703) ([065d866](https://github.com/remi-deher/watchdeck/commit/065d866eeee115a715e74f83730244c0fea4dbe9))
 ## 1.73.2 — 2026-10-06
 
 
