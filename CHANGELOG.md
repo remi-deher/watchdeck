@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.73.0 — 2026-10-06
+
+
+### test
+
+- use saved mappings in storage preparation ([1a6d564](https://github.com/remi-deher/watchdeck/commit/1a6d564c6ebbd294749e2f4d25c6431fea13f0f7))
+
+### ⚡ Performance
+
+- bound objective search for large libraries ([14ee730](https://github.com/remi-deher/watchdeck/commit/14ee7302a1089fdca386eb9130f080c126b02df8))
+
+### ✨ Nouveautés
+
+- add safe task cancellation and responsive transfer controls ([d53edef](https://github.com/remi-deher/watchdeck/commit/d53edef7b5ec2489a48387d0a9adfa196b33200f))
+- clarify space goals and distribute moves across titles ([31fc686](https://github.com/remi-deher/watchdeck/commit/31fc6862f04031b69e31683bb1e31a6cb686ff63))
+- add safe deletion and task relaunch ([280bb23](https://github.com/remi-deher/watchdeck/commit/280bb238c8cc355e104371e0654bbc9979e29818))
+- modernize transfer cards with shared live copy metrics ([cac5546](https://github.com/remi-deher/watchdeck/commit/cac554667dc3ab6d4668aaf23ef6e575f8e948e9))
+- simplify overview and use shared responsive breakpoints ([62f81b5](https://github.com/remi-deher/watchdeck/commit/62f81b52c129cb8736a7e0a0a220ed076aab9f84))
+
+### 🐛 Corrections
+
+- run peer rsync receiver without privileged filesystem or group operations ([27c46da](https://github.com/remi-deher/watchdeck/commit/27c46da2ca4f3dba43757918a71399d1077f5cdf))
+- finalize Plex asynchronously and preserve destination access policy ([d6f421f](https://github.com/remi-deher/watchdeck/commit/d6f421f2d7727b2e466b7dc13c1dcbc5812398a2))
+- replace global preview lock with title claims ([3212a62](https://github.com/remi-deher/watchdeck/commit/3212a62589418b6603b94fa708ad9ce5e99e7fbf))
+- speed up previews and restore task actions ([10a1976](https://github.com/remi-deher/watchdeck/commit/10a19769d6868d032968a2f26cca9520e302076b))
+- validate roots once per transfer lot ([6249e99](https://github.com/remi-deher/watchdeck/commit/6249e999ca4c0f800fd9d616b2ff011d1cd43df0))
+- key API secret fingerprints ([86e5ec4](https://github.com/remi-deher/watchdeck/commit/86e5ec49d28b4b50b6580c89b23ddbe5e98771eb))
 ## 1.72.0 — 2026-10-05
 
 
@@ -46,6 +73,7 @@
 - sync main into dev ([574158a](https://github.com/remi-deher/watchdeck/commit/574158adb5aeff981ef001e8d6b89059b7f3a20a))
 - preserve release ancestry for promotion ([4cb5c34](https://github.com/remi-deher/watchdeck/commit/4cb5c34a4d3b823ce481a65834c6459d3c58df42))
 - sync released branch before preview promotion ([4ce7f11](https://github.com/remi-deher/watchdeck/commit/4ce7f118032f7c2c7384d6d44d23d6ad883f8c17))
+- v1.72.0 ([c2d7d3b](https://github.com/remi-deher/watchdeck/commit/c2d7d3bed87dd97daf7b541ce4781ff594009627))
 ## 1.71.1 — 2026-10-05
 
 
