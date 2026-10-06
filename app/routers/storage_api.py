@@ -3,7 +3,7 @@
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
@@ -266,6 +266,46 @@ async def preview(body: PreviewBody, db=Depends(get_db_async)):
 async def transfers(db=Depends(get_db_async)):
     jobs = (await db.execute(select(StorageTransfer).order_by(StorageTransfer.id.desc()).limit(50))).scalars()
     return [await service.transfer_json(db, j) for j in jobs]
+
+
+@router.get("/transfers/telemetry")
+async def transfer_telemetry(
+    ids: str = Query(..., pattern=r"^\d+(,\d+){0,49}$", max_length=600), db=Depends(get_db_async)
+):
+    """Bounded live measurements; no snapshots, proofs or external-service reads."""
+    columns = (
+        StorageTransfer.id,
+        StorageTransfer.status,
+        StorageTransfer.desired_state,
+        StorageTransfer.error,
+        StorageTransfer.updated_at,
+        StorageTransfer.worker_seen_at,
+    )
+    rows = (
+        await db.execute(select(*columns).where(StorageTransfer.id.in_([int(value) for value in ids.split(",")])))
+    ).mappings()
+    jobs = {row["id"]: {**row, "items": [], "released_bytes": 0} for row in rows}
+    if not jobs:
+        return []
+    items = (
+        await db.execute(
+            select(
+                StorageTransferItem.id,
+                StorageTransferItem.transfer_id,
+                StorageTransferItem.status,
+                StorageTransferItem.reason,
+                StorageTransferItem.progress,
+                StorageTransferItem.updated_at,
+                StorageTransferItem.size_bytes,
+            ).where(StorageTransferItem.transfer_id.in_(jobs))
+        )
+    ).mappings()
+    for row in items:
+        job = jobs[row["transfer_id"]]
+        job["items"].append({key: value for key, value in row.items() if key not in ("transfer_id", "size_bytes")})
+        if row["status"] == "completed":
+            job["released_bytes"] += row["size_bytes"]
+    return list(jobs.values())
 
 
 @router.post("/transfers")
