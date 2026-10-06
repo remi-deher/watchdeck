@@ -34,16 +34,17 @@ def remote_call(config, payload, stop=None, advance=None, phase=None, session=""
         channel.exec_command(command)
         channel.sendall(json.dumps(payload).encode() + b"\n")
         buffer = b""
-        last = 0.0
+        last = time.monotonic()
+        heartbeat_failed = False
         while True:
             if time.monotonic() > deadline:
                 raise ValueError("Délai SSH dépassé ; original conservé.")
             if stop is not None and stop.is_set():
-                channel.sendall(b"stop\n")
+                try:
+                    channel.sendall(b"stop\n")
+                except OSError:
+                    pass
                 raise Interrompu()
-            if time.monotonic() - last > 2:
-                channel.sendall(b"alive\n")
-                last = time.monotonic()
             if channel.recv_ready():
                 buffer += channel.recv(65536)
                 if len(buffer) > 8_000_000:
@@ -63,6 +64,16 @@ def remote_call(config, payload, stop=None, advance=None, phase=None, session=""
                 channel.recv_stderr(65536)
             if channel.exit_status_ready() and not channel.recv_ready():
                 raise ValueError("Session SSH interrompue ; original conservé. Réessayer par SSH.")
+            # Drain output first: a successful agent may already have closed stdin
+            # while its final result is still buffered in the SSH channel.
+            if not heartbeat_failed and time.monotonic() - last > 2 and not channel.recv_ready():
+                try:
+                    channel.sendall(b"alive\n")
+                except OSError:
+                    # A close can race with this send. Keep reading the result;
+                    # never rerun an operation whose outcome is still unknown.
+                    heartbeat_failed = True
+                last = time.monotonic()
             time.sleep(0.05)
     finally:
         if channel is not None:
