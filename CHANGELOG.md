@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.74.5 — 2026-10-06
+
+
+### 🐛 Corrections
+
+- prevent speed label flicker between telemetry ticks ([3719b3f](https://github.com/remi-deher/watchdeck/commit/3719b3f3468b58a76998b491bdb454e6c92d1bb9))
 ## 1.74.4 — 2026-10-06
 
 
 ### 🐛 Corrections
 
 - allow original Plex source during destination resume checks ([4eb1cea](https://github.com/remi-deher/watchdeck/commit/4eb1ceacb4b99c86ffb851f7639287cf4c155e2e))
+
+### 🔧 Maintenance
+
+- v1.74.4 (#727) ([6293ad4](https://github.com/remi-deher/watchdeck/commit/6293ad4fa643b01c2ded1037e71bfd3eac4af2c5))
 ## 1.74.3 — 2026-10-06
 
 
