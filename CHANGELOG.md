@@ -1,11 +1,30 @@
 # Changelog
 
+## 1.74.0 — 2026-10-06
+
+
+### test
+
+- enforce inventory identity and optional cache isolation ([cf48fba](https://github.com/remi-deher/watchdeck/commit/cf48fba0edf36f9b585eca3bdc98cd7aa1dabda8))
+- cover inventory API, background isolation and episode pagination ([2434a76](https://github.com/remi-deher/watchdeck/commit/2434a762d655d0bb14f937b9c7480563950ead70))
+
+### ✨ Nouveautés
+
+- separate relaunch settings and reuse independent media inventory ([ff12f79](https://github.com/remi-deher/watchdeck/commit/ff12f793a2d341ee1b9cef40b5a8713ba649b2bc))
+
+### 🐛 Corrections
+
+- keep provider identifiers optional for Plex-only inventory ([29f1858](https://github.com/remi-deher/watchdeck/commit/29f1858151b2b28f3c4a4cdf57cdec46ab787231))
 ## 1.73.4 — 2026-10-06
 
 
 ### 🐛 Corrections
 
 - prevent preview registry from locking its own transaction ([8658546](https://github.com/remi-deher/watchdeck/commit/865854699912befbb11fa09d7d16b07cf230f08b))
+
+### 🔧 Maintenance
+
+- v1.73.4 (#707) ([8e445d1](https://github.com/remi-deher/watchdeck/commit/8e445d1206e1e9ca05a06ca27460895cf345e85d))
 ## 1.73.3 — 2026-10-06
 
 
