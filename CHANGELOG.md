@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.74.3 — 2026-10-06
+
+
+### 🐛 Corrections
+
+- refresh transfer speed every second with lightweight telemetry ([f3bad4d](https://github.com/remi-deher/watchdeck/commit/f3bad4dd303d15ab24210de031535d31307ca2c2))
 ## 1.74.2 — 2026-10-06
 
 
 ### 🐛 Corrections
 
 - drain SSH results before sending heartbeat on closed channels ([691fb5a](https://github.com/remi-deher/watchdeck/commit/691fb5ada771df8bb58042cd373bbdf4d2255c3d))
+
+### 🔧 Maintenance
+
+- v1.74.2 (#718) ([00e025f](https://github.com/remi-deher/watchdeck/commit/00e025faf507c809f7db18a12af75722f9ff40c0))
 ## 1.74.1 — 2026-10-06
 
 
