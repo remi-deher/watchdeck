@@ -43,19 +43,28 @@ def transfer(tmp_path, monkeypatch):
         id=1,
         arr_instance_id=1,
         arr_id=1,
+        size_bytes=5000,
+        title="Film",
         media_type="movie",
         status="pending",
+        claimed=True,
         progress={},
         proofs={},
         snapshot=snap,
         reason=None,
     )
     job = NS(destination_id=2, params={"verification": "renforce"})
-    media_state = {"path": snap["source_arr"]}
+    media_state = {
+        "path": snap["source_arr"],
+        "roots": [
+            {"path": "/data/FILMS", "accessible": True, "freeSpace": 1_000_000_000_000},
+            {"path": "/usb/FILMS", "accessible": True, "freeSpace": 1_000_000_000_000},
+        ],
+    }
 
     async def arr(instance, method, path, body=None):
         if path == "rootfolder":
-            return [{"path": "/usb/FILMS"}]
+            return list(media_state["roots"])
         if path.startswith("queue"):
             return {"records": []}
         if path == "movie/1":
@@ -78,26 +87,13 @@ def transfer(tmp_path, monkeypatch):
             return {"Metadata": [{"Guid": [{"id": "tmdb://10"}]}]}
         return {}
 
-    async def files(conn, section, path, kind):
+    async def files(conn, section, path, kind, **kwargs):
         if path == snap["source_plex"] or media_state["path"] == snap["destination_arr"]:
             return {"film.mkv": ["123"]}
         return {}
 
     monkeypatch.setattr(worker, "local_media", lambda root, relative: Path(root) / relative)
     monkeypatch.setattr(worker, "connection_for", AsyncMock(return_value=NS(id=1)))
-    monkeypatch.setattr(
-        worker,
-        "discover_instance_roots",
-        AsyncMock(
-            return_value={
-                "arr_roots": ["/data/FILMS", "/usb/FILMS"],
-                "plex_roots": [
-                    {"path": "/media/FILMS", "section_id": "3"},
-                    {"path": "/usb/MEDIA/FILMS", "section_id": "3"},
-                ],
-            }
-        ),
-    )
     monkeypatch.setattr(worker, "arr_request", arr)
     monkeypatch.setattr(worker, "plex_get", plex)
     monkeypatch.setattr(worker, "plex_files", files)
@@ -118,15 +114,19 @@ def transfer(tmp_path, monkeypatch):
 async def test_copy_switch_confirm_cleanup_and_restart(transfer):
     t = transfer
     await worker.process_item(t.db, t.job, t.item, t.stop)
+    assert t.item.status == "plex_pending" and t.source.exists()
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
     assert t.item.status == "completed"
     assert not t.source.exists()
     assert (t.destination / "film.mkv").read_bytes() == b"content" * 1000
     assert t.item.progress["copied_bytes"] == 7000
     assert t.item.snapshot["cleanup_intent"]
     assert t.item.progress["finished_at"]
+    t.item.claimed = True  # Simulate the durable claim reacquired by a retry.
     await worker.process_item(t.db, t.job, t.item, t.stop)
     assert t.item.status == "completed"
     (t.destination / "film.mkv").write_bytes(b"changed")
+    t.item.claimed = True
     with pytest.raises(ValueError, match="Destination modifiée"):
         await worker.process_item(t.db, t.job, t.item, t.stop)
 
@@ -157,9 +157,7 @@ async def test_active_playback_defers_without_copy(transfer, monkeypatch):
 async def test_preconditions_preserve_original(transfer, monkeypatch, issue):
     t = transfer
     if issue == "root":
-        monkeypatch.setattr(
-            worker, "discover_instance_roots", AsyncMock(return_value={"arr_roots": [], "plex_roots": []})
-        )
+        t.state["roots"] = []
     elif issue == "identity":
         t.item.snapshot["plex_machine"] = "other"
     elif issue == "arr_path":
@@ -190,11 +188,11 @@ async def test_preconditions_preserve_original(transfer, monkeypatch, issue):
 @pytest.mark.asyncio
 async def test_plex_pending_preserves_source_until_confirmation(transfer, monkeypatch):
     t = transfer
-    monkeypatch.setattr(worker, "plex_files", AsyncMock(side_effect=[{"film.mkv": ["123"]}, {}]))
+    monkeypatch.setattr(worker, "plex_files", AsyncMock(return_value={"film.mkv": ["123"]}))
     await worker.process_item(t.db, t.job, t.item, t.stop)
     assert t.item.status == "plex_pending" and t.source.exists() and t.destination.exists()
     monkeypatch.setattr(worker, "plex_files", AsyncMock(return_value={"film.mkv": ["123"]}))
-    await worker.process_item(t.db, t.job, t.item, t.stop)
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
     assert t.item.status == "completed" and not t.source.exists()
 
 
@@ -212,6 +210,44 @@ async def test_rescan_failure_preserves_source(transfer, monkeypatch):
     with pytest.raises(ValueError, match="Rescan"):
         await worker.process_item(t.db, t.job, t.item, t.stop)
     assert t.source.exists() and t.destination.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("destination", [{}, {"film.mkv": ["999"]}])
+async def test_finalization_never_deletes_without_same_plex_identity(transfer, monkeypatch, destination):
+    t = transfer
+    await worker.process_item(t.db, t.job, t.item, t.stop)
+    monkeypatch.setattr(worker, "plex_files", AsyncMock(return_value=destination))
+    if destination:
+        with pytest.raises(ValueError, match="autre fiche"):
+            await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    else:
+        await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    assert t.item.status == "plex_pending"
+    assert t.source.exists()
+    assert not t.item.snapshot.get("cleanup_intent")
+
+
+@pytest.mark.asyncio
+async def test_finalization_rechecks_playback_after_verification(transfer, monkeypatch):
+    t = transfer
+    await worker.process_item(t.db, t.job, t.item, t.stop)
+    monkeypatch.setattr(worker, "is_playing", AsyncMock(side_effect=[False, False, True]))
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    assert t.item.status == "plex_pending" and t.source.exists()
+
+
+@pytest.mark.asyncio
+async def test_finalization_does_not_recopy_or_submit_another_arr_scan(transfer, monkeypatch):
+    t = transfer
+    await worker.process_item(t.db, t.job, t.item, t.stop)
+    request = AsyncMock(side_effect=worker.arr_request)
+    monkeypatch.setattr(worker, "arr_request", request)
+    monkeypatch.setattr(worker, "copier_fichier", lambda *args: pytest.fail("Already copied"))
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    assert t.item.status == "completed"
+    assert all(call.args[1] == "GET" for call in request.call_args_list)
+    assert t.item.progress["plex_source_refresh_pending"]
 
 
 class Context:
@@ -232,21 +268,22 @@ async def test_queue_continues_and_durable_commands(tmp_path, monkeypatch, outco
 
     job = NS(id=1, status="queued", desired_state="pause" if outcome == "pause" else "run")
     items = [
-        NS(id=1, status="completed"),
-        NS(id=2, status="pending", progress={}),
-        NS(id=3, status="pending", progress={}),
+        NS(id=1, status="completed", claimed=False),
+        NS(id=2, status="pending", progress={}, claimed=True),
+        NS(id=3, status="pending", progress={}, claimed=True),
     ]
     result = NS(scalars=lambda: NS(all=lambda: items))
     db = NS(
         get=AsyncMock(return_value=job), execute=AsyncMock(return_value=result), commit=AsyncMock(), refresh=AsyncMock()
     )
     monkeypatch.setattr(worker, "AsyncSessionLocal", lambda: Context(db))
+    monkeypatch.setattr(worker, "validate_transfer_roots", AsyncMock())
     monkeypatch.setattr(worker, "refresh_storage", AsyncMock())
     monkeypatch.setattr(worker, "HEARTBEAT", tmp_path / "heartbeat")
     monkeypatch.setattr(worker, "SHUTDOWN", threading.Event())
     lease = NS(execute=AsyncMock(side_effect=RuntimeError("lease lost") if outcome == "lease_lost" else None))
 
-    async def process(db, job, item, stop):
+    async def process(db, job, item, stop, *, preflight_validated=False):
         await asyncio.sleep(0)
         if stop.is_set():
             raise worker.Interrompu()
@@ -271,6 +308,9 @@ async def test_queue_continues_and_durable_commands(tmp_path, monkeypatch, outco
 @pytest.mark.asyncio
 @pytest.mark.parametrize("queued", ["job", "idle"])
 async def test_restart_recovery_respects_auto_resume_and_manual_pause(tmp_path, monkeypatch, queued):
+    from app.storage import plex_finalization
+
+    monkeypatch.setattr(plex_finalization, "run_finalizer", AsyncMock())
     shutdown = threading.Event()
     monkeypatch.setattr(worker, "SHUTDOWN", shutdown)
     monkeypatch.setattr(worker, "HEARTBEAT", tmp_path / "heartbeat")
@@ -348,6 +388,57 @@ async def test_pagination_and_session_paths(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_plex_transfer_lookup_targets_one_movie_by_title_and_path(monkeypatch):
+    title_search = AsyncMock(
+        return_value={
+            "Metadata": [
+                {
+                    "ratingKey": "42",
+                    "Media": [{"Part": [{"file": "/media/Film/Film.mkv"}]}],
+                }
+            ]
+        }
+    )
+    monkeypatch.setattr(worker, "plex_get", title_search)
+    result = await worker.plex_files(
+        NS(),
+        "3",
+        "/media/Film",
+        "movie",
+        snapshot={"tmdb_id": 42},
+        title="Film",
+    )
+    assert result == {"Film.mkv": ["42"]}
+    title_search.assert_awaited_once_with(
+        title_search.await_args.args[0],
+        "/library/sections/3/all",
+        {"type": 1, "title": "=Film", "includeMedia": 1},
+    )
+
+
+@pytest.mark.asyncio
+async def test_plex_transfer_lookup_targets_series_leaves_and_known_rating_keys(monkeypatch):
+    plex = NS()
+    lookup = AsyncMock(
+        side_effect=[
+            {"Metadata": [{"ratingKey": "show-1"}]},
+            {"Metadata": [{"ratingKey": "episode-1", "Media": [{"Part": [{"file": "/media/Show/S01E01.mkv"}]}]}]},
+            {"Metadata": [{"ratingKey": "episode-1", "Media": [{"Part": [{"file": "/usb/Show/S01E01.mkv"}]}]}]},
+        ]
+    )
+    monkeypatch.setattr(worker, "plex_get", lookup)
+    source = await worker.plex_files(plex, "2", "/media/Show", "series", snapshot={"tvdb_id": 8}, title="Show")
+    destination = await worker.plex_files(plex, "2", "/usb/Show", "series", rating_keys=source)
+    assert source == {"S01E01.mkv": ["episode-1"]}
+    assert destination == source
+    assert [call.args[1] for call in lookup.await_args_list] == [
+        "/library/sections/2/all",
+        "/library/metadata/show-1/allLeaves",
+        "/library/metadata/episode-1",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_plex_http_empty_refresh_and_json(monkeypatch):
     import httpx
 
@@ -375,6 +466,9 @@ async def test_plex_http_empty_refresh_and_json(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("done", [True, False])
 async def test_engine_processes_cancellation_and_pending_arr_does_not_block_next_job(tmp_path, monkeypatch, done):
+    from app.storage import plex_finalization
+
+    monkeypatch.setattr(plex_finalization, "run_finalizer", AsyncMock())
     import asyncio
 
     from app.storage import cancellation

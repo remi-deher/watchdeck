@@ -2,6 +2,28 @@ import {readFileSync} from 'node:fs';
 import { expect, test } from '@playwright/test';
 test.use({serviceWorkers:'block'});
 
+test('background Plex finalization is readable and pausable', async ({page})=>{
+ test.setTimeout(120_000);
+ const job={id:9,status:'finalizing',desired_state:'run',params:{name:'Finalisation des films',transfer_mode:'rsync_ssh'},planned_bytes:4e9,released_bytes:1e9,items:[{id:1,title:'Film terminé',status:'completed',size_bytes:1e9,snapshot:{}},{id:2,title:'Film à confirmer',status:'plex_pending',size_bytes:3e9,progress:{plex_checked_at:1700000000},snapshot:{}}]};
+ await page.route('**/api/**',async route=>{
+  const path=new URL(route.request().url()).pathname;
+  await route.fulfill({json:path==='/api/session'?{role:'admin',is_owner:true}:path==='/api/storage/transfers'?[job]:path==='/api/users'||path.startsWith('/api/storage/')?[]:{}});
+ });
+ if(process.env.WATCHDECK_E2E_BUILT){
+  await page.route('**/storage',route=>route.fulfill({contentType:'text/html',body:readFileSync('app/static/vue/index.html','utf8')}));
+  await page.route('**/vue/**',route=>{const path=new URL(route.request().url()).pathname;return route.fulfill({contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'application/octet-stream',body:readFileSync('app/static'+path)});});
+ }
+ await page.goto('/storage',{waitUntil:'domcontentloaded',timeout:120_000});
+ await page.getByRole('tab',{name:'Transferts',exact:true}).click();
+ await expect(page.getByText('Copie terminée · Finalisation Plex en arrière-plan',{exact:true})).toBeVisible();
+ await expect(page.getByText('1 titre(s) à confirmer · 3 Go conservés à la source.')).toBeVisible();
+ const pause=page.getByRole('button',{name:'Mettre en pause',exact:true});
+ await expect(pause).toBeVisible();
+ const box=await pause.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(page.viewportSize().width+1);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
+ await page.screenshot({path:`.codex/plex-finalization-${test.info().project.name}.png`,fullPage:true});
+});
+
 test('transfer actions and title details remain accessible at every screen size', async ({ page }) => {
   test.setTimeout(120_000);
   const job = {id:9,status:'paused',desired_state:'pause',params:{name:'Séries à transférer',transfer_mode:'rsync_ssh'},planned_bytes:930e9,released_bytes:0,items:[

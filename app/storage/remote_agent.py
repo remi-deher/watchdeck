@@ -185,6 +185,7 @@ def dispatch(body, integrity, stop):
             raise ValueError("Copie partielle modifiée.")
         if stop.is_set():
             raise ValueError("Session interrompue.")
+        integrity["permissions_destination"](str(src), str(dst))
         os.replace(src, dst)
         return True
     if (

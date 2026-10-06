@@ -7,8 +7,10 @@ describe('background preview', () => {
   beforeEach(() => api.mockReset());
   it('fetches a completed preview through short requests', async () => {
     api.mockResolvedValueOnce({id:'job'}).mockResolvedValueOnce({status:'completed',result:{items:[]}});
-    expect(await calculatePreview({goal_gb:100}, vi.fn())).toEqual({items:[]});
+    const progress=vi.fn();
+    expect(await calculatePreview({goal_gb:100}, progress)).toEqual({items:[]});
     expect(api.mock.calls[1][0]).toBe('/api/storage/preview/job');
+    expect(progress).toHaveBeenCalledWith(expect.any(Number),'Calcul en cours…');
   });
   it('shows the reported failure', async () => {
     api.mockResolvedValueOnce({id:'job'}).mockResolvedValueOnce({status:'failed',error:'Correspondance absente'});

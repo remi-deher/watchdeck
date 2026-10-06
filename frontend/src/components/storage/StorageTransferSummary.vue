@@ -3,6 +3,7 @@
   <header><div class="heading"><div class="title"><h2>{{ job.params?.name || `Tâche #${job.id}` }}</h2><UiBadge :tone="job.status==='completed'?'success':['blocked','failed','cancel_blocked'].includes(job.status)?'warning':'neutral'">{{ status(job.status) }}</UiBadge></div><p class="caption">Tâche #{{ job.id }} · {{ instance }} · {{ method }} · {{ job.params?.verification==='sha256'?'SHA 256':'Vérification standard' }}</p></div><div class="summary-actions"><slot name="actions" /></div></header>
   <div class="route"><div><small>Depuis</small><strong>{{ job.params?.source_roots?.join(' · ') || source }}</strong></div><ArrowRight :size="20" aria-hidden="true" /><div><small>Vers</small><strong>{{ job.params?.destination_root || destination }}</strong></div></div>
   <StorageTransferMetrics :job="job" />
+  <StoragePlexFinalization :job="job" :gb="gb" />
   <div v-if="current" class="current"><span class="current-icon"><ArrowUpRight :size="20" aria-hidden="true" /></span><div><small>{{ status(current.status) }} · {{ current.status==='copying'?'Fichier en cours':'Titre en cours' }}</small><strong>{{ current.title }}</strong><p v-if="current.progress?.file">{{ current.progress.file }}</p></div></div>
   <footer><span><b>{{ gb(job.released_bytes || 0) }} réellement libérés</b><template v-if="awaiting"> · {{ gb(awaiting) }} en attente de suppression</template></span><span>Créé : {{ date(job.created_at) }}</span></footer>
  </div>
@@ -12,6 +13,7 @@ import {computed} from 'vue';
 import {ArrowRight,ArrowUpRight} from '@lucide/vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
 import StorageTransferMetrics from './StorageTransferMetrics.vue';
+import StoragePlexFinalization from './StoragePlexFinalization.vue';
 const props=defineProps<{job:any,instance:string,source:string,destination:string,status:(value:string)=>string,gb:(value:any)=>string,date:(value:any)=>string}>();
 const method=computed(()=>(({arr:'API Sonarr / Radarr',rsync_ssh:'Rsync par SSH',rsync_local:'Rsync local'} as Record<string,string>)[props.job.params?.transfer_mode as string] || 'Rsync'));
 const current=computed(()=>props.job.items.find((i:any)=>i.status==='copying') || props.job.items.find((i:any)=>['prepared','copying','verifying','switching','plex_pending','cleaning','arr_pending'].includes(i.status)));

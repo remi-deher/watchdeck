@@ -38,7 +38,7 @@ async def test_host_change_resets_trust_and_invalidates_paths():
     conn = profile()
     endpoint = NS(id=2, name="old", method="ssh", revision="old", validation={"revision": "old"})
     db = NS(
-        execute=AsyncMock(side_effect=[None, NS(scalars=lambda: NS(all=lambda: [endpoint])), NS(first=lambda: None)]),
+        execute=AsyncMock(side_effect=[NS(scalars=lambda: NS(all=lambda: [endpoint])), NS(first=lambda: None)]),
         add=Mock(),
         commit=AsyncMock(),
         refresh=AsyncMock(),
@@ -54,7 +54,7 @@ async def test_identity_changed_during_confirmation_is_rejected(monkeypatch):
     conn = profile()
     db = NS(
         get=AsyncMock(return_value=conn),
-        execute=AsyncMock(side_effect=[None, NS(scalars=lambda: NS(all=lambda: []))]),
+        execute=AsyncMock(side_effect=[NS(scalars=lambda: NS(all=lambda: [])), None]),
         commit=AsyncMock(),
     )
     monkeypatch.setattr(connections, "probe", lambda *_: dict(fingerprint="SHA256:different"))
@@ -130,7 +130,6 @@ async def test_binding_updates_one_root_and_reuses_connection():
         get=AsyncMock(return_value=conn),
         execute=AsyncMock(
             side_effect=[
-                None,
                 NS(scalars=lambda: NS(all=lambda: [endpoint])),
                 NS(first=lambda: None),
                 NS(first=lambda: None),
@@ -160,7 +159,7 @@ async def test_binding_to_api_only_removes_no_files():
         validation={"revision": "old"},
     )
     db = NS(
-        execute=AsyncMock(side_effect=[None, NS(scalars=lambda: NS(all=lambda: [endpoint])), NS(first=lambda: None)]),
+        execute=AsyncMock(side_effect=[NS(scalars=lambda: NS(all=lambda: [endpoint])), NS(first=lambda: None)]),
         commit=AsyncMock(),
     )
     await api.save_binding(api.BindingBody(arr_instance_id=2, arr_root="/data/FILMS"), db)
@@ -173,7 +172,7 @@ async def test_active_task_prevents_binding_change():
     endpoint = NS(id=3, connection_id=1, roots=[dict(arr_instance_id=2, arr_root="/data/FILMS", path="/mnt/old")])
     db = NS(
         get=AsyncMock(return_value=conn),
-        execute=AsyncMock(side_effect=[None, NS(scalars=lambda: NS(all=lambda: [endpoint])), NS(first=lambda: (9,))]),
+        execute=AsyncMock(side_effect=[NS(scalars=lambda: NS(all=lambda: [endpoint])), NS(first=lambda: (9,))]),
         commit=AsyncMock(),
     )
     with pytest.raises(HTTPException) as exc:
@@ -235,7 +234,11 @@ async def test_all_failed_priorities_refuse_job(monkeypatch):
 async def test_multiple_bindings_are_atomic_on_invalid_second_path():
     conn = profile()
     local = profile(id=2, method="local")
-    db = NS(execute=AsyncMock(), get=AsyncMock(side_effect=[conn, local]), commit=AsyncMock())
+    db = NS(
+        execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: []))),
+        get=AsyncMock(side_effect=[conn, local]),
+        commit=AsyncMock(),
+    )
     body = api.MultipleBindingsBody(
         arr_instance_id=1,
         arr_root="/data/FILMS",
@@ -244,7 +247,7 @@ async def test_multiple_bindings_are_atomic_on_invalid_second_path():
     with pytest.raises(HTTPException):
         await api.save_multiple_bindings(body, db)
     db.commit.assert_not_called()
-    assert db.execute.await_count == 1
+    assert db.execute.await_count == 0
 
 
 @pytest.mark.asyncio
@@ -255,7 +258,6 @@ async def test_ssh_and_local_paths_coexist():
     db = NS(
         execute=AsyncMock(
             side_effect=[
-                None,
                 NS(scalars=lambda: NS(all=lambda: endpoints)),
                 NS(first=lambda: None),
                 NS(first=lambda: None),
@@ -296,7 +298,7 @@ def test_browser_can_start_at_server_root_without_allowing_it_for_transfers(monk
 async def test_local_connection_preserves_custom_browse_root(base):
     conn = profile(method="local", connection={})
     db = NS(
-        execute=AsyncMock(side_effect=[None, NS(scalars=lambda: NS(all=lambda: []))]),
+        execute=AsyncMock(side_effect=[NS(scalars=lambda: NS(all=lambda: [])), None]),
         add=Mock(),
         commit=AsyncMock(),
         refresh=AsyncMock(),

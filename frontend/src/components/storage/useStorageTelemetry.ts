@@ -6,7 +6,7 @@ const remainingItems=computed(()=>allItems.value.filter(i=>!['completed','cancel
 const completedItems=computed(()=>allItems.value.filter(i=>i.status==='completed'));
 const remainingBytes=computed(()=>remainingItems.value.reduce((sum,item)=>sum+item.size_bytes,0));
 const releasedBytes=computed(()=>completedItems.value.reduce((sum,item)=>sum+item.size_bytes,0));
-const activeJobs=computed(()=>jobs.value.filter(j=>['queued','running'].includes(j.status)));
+const activeJobs=computed(()=>jobs.value.filter(j=>['queued','running','finalizing'].includes(j.status)));
 const pausedJobs=computed(()=>jobs.value.filter(j=>['paused','stopped'].includes(j.status)));
 const remainingFor=(id:number)=>remainingItems.value.filter(i=>i.source_id===id);
 const REMAINING_COLUMNS:UiColumn[]=[{key:'location',label:'Stockage source',card:'title'},{key:'type',label:'Type'},{key:'count',label:'Titres restants'},{key:'bytes',label:'Volume restant'}];
@@ -24,14 +24,14 @@ const HISTORY_COLUMNS:UiColumn[]=[{key:'route',label:'Trajet',card:'title'},{key
 function jobStart(j:any){return j.items.map((i:any)=>i.progress?.started_at).filter(Boolean).sort()[0];}
 function jobEnd(j:any){return j.status==='completed'?j.items.map((i:any)=>i.progress?.finished_at).filter(Boolean).sort().at(-1):null;}
 function elapsed(j:any){const start=jobStart(j),end=jobEnd(j);return start && end?duration(Math.max(0,(new Date(end).getTime()-new Date(start).getTime())/1000)):'Indisponible';}
-const recentRows=computed(()=>jobs.value.filter(j=>['completed','blocked','stopped','paused','cancelled','cancel_blocked'].includes(j.status)).slice(0,5).map(j=>({id:j.id,route:`${locationName(j.source_id)} → ${locationName(j.destination_id)}`,state:status(j.status),titles:`${j.items.filter((i:any)=>i.media_type==='movie').length} film(s) / ${j.items.filter((i:any)=>i.media_type==='series').length} série(s)`,volume:j.released_bytes,dates:`${jobStart(j)?date(jobStart(j)):'Début non enregistré'} / ${jobEnd(j)?date(jobEnd(j)):'Non terminé'}`,duration:elapsed(j),deferred:j.items.filter((i:any)=>['blocked','deferred','plex_pending'].includes(i.status)).length})));
-const issues=computed(()=>jobs.value.flatMap(j=>j.items).filter(i=>['blocked','deferred','plex_pending'].includes(i.status)));
+const recentRows=computed(()=>jobs.value.filter(j=>['completed','blocked','stopped','paused','cancelled','cancel_blocked'].includes(j.status)).slice(0,5).map(j=>({id:j.id,route:`${locationName(j.source_id)} → ${locationName(j.destination_id)}`,state:status(j.status),titles:`${j.items.filter((i:any)=>i.media_type==='movie').length} film(s) / ${j.items.filter((i:any)=>i.media_type==='series').length} série(s)`,volume:j.released_bytes,dates:`${jobStart(j)?date(jobStart(j)):'Début non enregistré'} / ${jobEnd(j)?date(jobEnd(j)):'Non terminé'}`,duration:elapsed(j),deferred:j.items.filter((i:any)=>['blocked','deferred'].includes(i.status)).length})));
+const issues=computed(()=>jobs.value.flatMap(j=>j.items).filter(i=>['blocked','deferred'].includes(i.status)));
 const visibleJobs=computed(()=>jobs.value.filter(j=>tab.value==='history'?['completed','blocked','stopped','paused','cancelled','cancel_blocked'].includes(j.status):j.status!=='completed'));
 const selectedBytes=computed(()=>plan.value?.items.filter((i:any)=>selected.value.includes(i.key)).reduce((a:number,i:any)=>a+i.size_bytes,0)||0);
 const gb=(n:any)=>n==null?'—':`${(Number(n)/1e9).toLocaleString('fr-FR',{maximumFractionDigits:1})} Go`;
 const date=(n:any)=>n?new Date(n.endsWith('Z')?n:n+'Z').toLocaleString('fr-FR'):'Non contrôlé';
 const locationName=(id:number)=>locations.value.find(l=>l.id===id)?.name||`Stockage ${id}`;
-const labels:Record<string,string>={draft:'À lancer',queued:'En attente',running:'En cours',pending:'En attente',prepared:'Préparé',copying:'Copie',verifying:'Vérification',switching:'Bascule Arr',plex_pending:'Confirmation Plex',arr_pending:'Déplacement confié à Arr',cleaning:'Nettoyage',completed:'Terminé',blocked:'À traiter',deferred:'Reporté',paused:'En pause',stopped:'Arrêté',cancelling:'Annulation en cours',cancelled:'Annulé',cancel_blocked:'Annulation à traiter'};
+const labels:Record<string,string>={draft:'À lancer',queued:'En attente',running:'En cours',pending:'En attente',prepared:'Préparé',copying:'Copie',verifying:'Vérification',switching:'Bascule Arr',finalizing:'Finalisation Plex',plex_pending:'Copie terminée · finalisation Plex',arr_pending:'Déplacement confié à Arr',cleaning:'Nettoyage',completed:'Terminé',blocked:'À traiter',deferred:'Reporté',paused:'En pause',stopped:'Arrêté',cancelling:'Annulation en cours',cancelled:'Annulé',cancel_blocked:'Annulation à traiter'};
 const status=(value:string)=>labels[value]||value;
 
 return {remainingItems,completedItems,remainingBytes,releasedBytes,activeJobs,pausedJobs,remainingFor,REMAINING_COLUMNS,remainingRows,usedPercent,reservePercent,projectedFree,activeItem,copyPercent,rateLabel,copyEta,HISTORY_COLUMNS,jobStart,jobEnd,elapsed,recentRows,issues,visibleJobs,selectedBytes,gb,date,locationName,status};

@@ -14,6 +14,7 @@ from .base import Base
 class StorageLocation(Base):
     __tablename__ = "storage_locations"
     id: Mapped[int] = mapped_column(primary_key=True)
+    virtual_key: Mapped[Optional[str]] = mapped_column(unique=True)
     name: Mapped[str]
     mount_path: Mapped[str]
     mappings: Mapped[list] = mapped_column(JSON, default=list)
@@ -51,6 +52,7 @@ class StorageTransferItem(Base):
     media_type: Mapped[str]
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(default="pending")
+    claimed: Mapped[bool] = mapped_column(default=False, nullable=False)
     snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     proofs: Mapped[dict] = mapped_column(JSON, default=dict)
     progress: Mapped[dict] = mapped_column(JSON, default=dict)

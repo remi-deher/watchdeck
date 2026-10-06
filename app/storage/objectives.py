@@ -60,10 +60,12 @@ async def enrich_candidates(db, instance, candidates, body):
 async def preview_batch(db, body):
     """Gather validated catalogues, then choose across instances for a global goal."""
     from ..routers.storage_api import PreviewBody
+    from .preview_progress import report
     from .service import _preview
 
     groups = []
-    for route in body.routes:
+    for index, route in enumerate(body.routes, 1):
+        await report(f"Analyse de l’instance {index}/{len(body.routes)}…")
         child = PreviewBody.model_validate(
             {
                 **body.model_dump(),
@@ -100,7 +102,8 @@ async def preview_batch(db, body):
         )
     if body.mode == "minimum_free" or any(r.get("root_goals") for r in body.routes):
         # Per-source objectives are explicit; retain their independently checked plans.
-        for group, route in zip(groups, body.routes):
+        for index, (group, route) in enumerate(zip(groups, body.routes), 1):
+            await report(f"Ajustement de l’objectif sur la source {index}/{len(groups)}…")
             child = PreviewBody.model_validate({**group["body"], **route, "routes": [], "selection": body.selection})
             result = await _preview(db, child)
             group.update(result)

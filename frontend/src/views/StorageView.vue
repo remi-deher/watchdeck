@@ -3,10 +3,10 @@
     <UiFeedback v-if="error" type="error" :message="error" /><UiFeedback v-if="savedMessage" type="success" :message="savedMessage" />
     <AppSubnav v-model:active="tab" :items="tabs" variant="tabs" class="storage-subnav" aria-label="Sections du stockage" />
 
-    <StorageOverviewPanel :instances="instances" v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="rootRows.filter(r=>r.arr_root).length" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
+    <StorageOverviewPanel :instances="instances" v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="configuredRootCount" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
     <UiFeedback v-if="previewProgress" type="info" :message="previewProgress" role="status" aria-live="polite" />
-    <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="discoveredRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :busy="busy" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
+    <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="prepareRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :busy="busy" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
 
     <StorageTransferList v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
@@ -38,7 +38,7 @@ import {selectedRootAccess} from '@/components/storage/transferAccess';
 import StoragePreparePanel from '@/components/storage/StoragePreparePanel.vue';
 import StorageRootTable from '@/components/storage/StorageRootTable.vue';
 import StorageAssociationDialog from '@/components/storage/StorageAssociationDialog.vue';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -55,7 +55,7 @@ const locationDialog=ref(false),savedMessage=ref('');
 const forcedAssociations=ref<Record<string,boolean>>({});
 const scanProgress=ref({total:0,completed:0,current:'',saved:0,empty:0,failed:0,started:0,finished:0});
 const sessionSaved=ref<Record<string,string>>({}),savedProofs=ref<Record<string,any>>({});
-const savedPairs=computed(()=>{const pairs:Record<string,string>={};for(const l of locations.value)for(const m of l.mappings)pairs[`${m.arr_instance_id}:${m.arr_root}`]=JSON.stringify([m.plex_section_id,m.plex_root]);return {...pairs,...sessionSaved.value};});
+const savedPairs=computed(()=>{const pairs:Record<string,string>={};for(const l of locations.value)if(l.virtual!==true)for(const m of l.mappings)pairs[`${m.arr_instance_id}:${m.arr_root}`]=JSON.stringify([m.plex_section_id,m.plex_root]);return {...pairs,...sessionSaved.value};});
 const dirtyRows=computed(()=>rootRows.value.filter(row=>rootPairs.value[row.key] && !row.error && (rootPairs.value[row.key]!==savedPairs.value[row.key] || Boolean(bindingDrafts.value[row.key]))));
 async function saveRoot(row:any){
  const mapping=rootMapping(row);const comparison:any=await api('/api/storage/roots/check',{method:'POST',body:JSON.stringify(mapping)});
@@ -80,13 +80,41 @@ const saveRoots=(all=false)=>act(async()=>{
 });
 const MAPPING_COLUMNS:UiColumn[]=[{key:'location',label:'Stockage / instance',sortable:true,card:'title'},{key:'arr_root',label:'Racine Arr'},{key:'plex_root',label:'Racine Plex'},{key:'check',label:'Contrôle du contenu'}];
 const rootRows=computed(()=>discoveredRoots.value.flatMap(root=>(root.arr_roots.length?root.arr_roots:['']).map((path:string)=>({key:`${root.arr_instance_id}:${path}`,arr_instance_id:root.arr_instance_id,instance:root.name,kind:root.arr_type,arr_root:path,plex_roots:root.plex_roots,error:root.error}))));
+const configuredRootCount=computed(()=>new Set(locations.value.filter((location:any)=>location.virtual!==true).flatMap((location:any)=>location.mappings.map((mapping:any)=>`${mapping.arr_instance_id}:${mapping.arr_root}`))).size);
+const prepareRoots=computed(()=>{
+ const rootsByInstance=new Map<number,any>();
+ const ensure=(id:number)=>{
+  const instance=instances.value.find((entry:any)=>entry.id===id);
+  if(!rootsByInstance.has(id))rootsByInstance.set(id,{arr_instance_id:id,name:instance?.name||`Instance ${id}`,arr_type:instance?.arr_type||'sonarr',arr_roots:[],capacities:{},plex_roots:[]});
+  return rootsByInstance.get(id);
+ };
+ for(const location of locations.value){
+  for(const mapping of location.mappings||[]){
+   if(location.virtual===true)continue;
+   const item=ensure(mapping.arr_instance_id);
+   if(!item.arr_roots.includes(mapping.arr_root))item.arr_roots.push(mapping.arr_root);
+   item.plex_roots.push({path:mapping.plex_root,section_id:String(mapping.plex_section_id)});
+  }
+ }
+ for(const instance of instances.value)if(instance.enabled!==false)ensure(instance.id);
+ for(const route of form.value.routes||[]){
+  const item=ensure(route.arr_instance_id);
+  for(const path of [...(route.source_roots||[]),route.destination_root].filter(Boolean))if(!item.arr_roots.includes(path))item.arr_roots.push(path);
+ }
+ for(const location of locations.value){
+  const mapping=location.mappings?.[0];if(!mapping)continue;
+  const item=ensure(mapping.arr_instance_id);
+  if(location.free_bytes!=null)item.capacities[mapping.arr_root]={free_bytes:location.free_bytes};
+ }
+ return [...rootsByInstance.values()].filter((item:any)=>instances.value.find((entry:any)=>entry.id===item.arr_instance_id)?.enabled!==false);
+});
 const mappingRows=computed(()=>locations.value.flatMap(location=>location.mappings.map((mapping:any,index:number)=>({key:comparisonKey(location.id,index),location:location.name,location_id:location.id,index,instance:instances.value.find(i=>i.id===mapping.arr_instance_id)?.name||mapping.arr_instance_id,mapping}))));
 const rootMapping=(row:any)=>mappingFromPair(row,rootPairs.value[row.key]);
 async function checkDraft(mapping:any){const key=draftKey(mapping);checking.value=key;try{draftComparisons.value[key]=await api('/api/storage/roots/check',{method:'POST',body:JSON.stringify(mapping)});}catch(e:any){draftComparisons.value[key]={error:e.message};}finally{checking.value='';}}
 
 const comparisonKey=(id:number,index:number|string)=>`${id}:${index}`;
 let rootsCheckedAt=0;
-async function refreshRoots(silent=false){if(rootsLoading.value)return;rootsLoading.value=true;try{const next=await api<any[]>('/api/storage/roots');if(JSON.stringify(next)!==JSON.stringify(discoveredRoots.value)){discoveredRoots.value=next;const pairs:Record<string,string>={};for(const root of next){for(const path of root.arr_roots){const key=`${root.arr_instance_id}:${path}`;const saved=locations.value.flatMap(l=>l.mappings).find(m=>m.arr_instance_id===root.arr_instance_id && m.arr_root===path);const choice=rootPairs.value[key] ?? (saved?JSON.stringify([saved.plex_section_id,saved.plex_root]):suggestedPlex(path,root.plex_roots));pairs[key]=root.plex_roots.some((p:any)=>JSON.stringify([p.section_id,p.path])===choice)?choice:'';}}rootPairs.value=pairs;instances.value=next.map(r=>({id:r.arr_instance_id,name:r.name,arr_type:r.arr_type}));for(const mapping of locationForm.value.mappings){if(!mapping.arr_instance_id)mapping.arr_instance_id=instances.value[0]?.id||0;}}rootsCheckedAt=Date.now();}catch(e:any){if(!silent)error.value=e.message;}finally{rootsLoading.value=false;}}
+async function refreshRoots(silent=false){if(rootsLoading.value)return;rootsLoading.value=true;try{const next=await api<any[]>('/api/storage/roots');if(JSON.stringify(next)!==JSON.stringify(discoveredRoots.value)){discoveredRoots.value=next;const pairs:Record<string,string>={};for(const root of next){for(const path of root.arr_roots){const key=`${root.arr_instance_id}:${path}`;const candidates=locations.value.flatMap(l=>l.mappings.map((m:any)=>({mapping:m,virtual:l.virtual===true}))).filter(({mapping}:any)=>mapping.arr_instance_id===root.arr_instance_id && mapping.arr_root===path);const saved=(candidates.find(({virtual}:any)=>!virtual)||candidates[0])?.mapping;const choice=rootPairs.value[key] ?? (saved?JSON.stringify([saved.plex_section_id,saved.plex_root]):suggestedPlex(path,root.plex_roots));pairs[key]=root.plex_roots.some((p:any)=>JSON.stringify([p.section_id,p.path])===choice)?choice:'';}}rootPairs.value=pairs;instances.value=next.map(r=>({id:r.arr_instance_id,name:r.name,arr_type:r.arr_type}));for(const mapping of locationForm.value.mappings){if(!mapping.arr_instance_id)mapping.arr_instance_id=instances.value[0]?.id||0;}}rootsCheckedAt=Date.now();}catch(e:any){if(!silent)error.value=e.message;}finally{rootsLoading.value=false;}}
 
 async function checkMapping(id:number,index:number|string){const key=comparisonKey(id,index);checking.value=key;try{comparisons.value[key]=await api(`/api/storage/locations/${id}/mappings/${index}/check`,{method:'POST'});}catch(e:any){comparisons.value[key]={error:e.message};}finally{checking.value='';}}
 const editingTaskId=ref(0);
@@ -100,14 +128,14 @@ const form=ref({transfer_methods:['arr'] as string[],access_ids:{} as Record<str
 const newMapping=()=>newAssociationMapping(instances.value[0]?.id||0);
 const locationForm=ref({name:'',mount_path:'',reserve_gb:100,enabled:true,mappings:[newMapping()]});
 const {selectedBytes,gb,date,locationName}=useStorageTelemetry(locations,jobs,tab,plan,selected);
-async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(locations.value.map(l=>[l.id,l.mappings]))!==JSON.stringify(nextLocations.map(l=>[l.id,l.mappings])))comparisons.value={};if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
+async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value.map(l=>[l.id,l.mappings]))!==JSON.stringify(nextLocations.map(l=>[l.id,l.mappings])))comparisons.value={};if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
 const previewProgress=ref('');
 const preview=()=>act(async()=>{
  await loadProtections();
  plan.value=null;const {routes,...settings}=form.value;if(editingTaskId.value && routes.length!==1)throw new Error('Modifiez une seule instance pour cette tâche, ou créez une nouvelle tâche.');const requestedRoutes=routes.map((r:any)=>({...r}));
  const preparedRoutes=requestedRoutes.map((route:any)=>{const root_access_ids={...settings.root_access_ids};for(const root of [...route.source_roots,route.destination_root]){const endpoint=selectedRootAccess(settings,accesses.value,route.arr_instance_id,root);if(endpoint)root_access_ids[`${route.arr_instance_id}:${root}`]=endpoint.id;}return {...route,root_access_ids,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||String(route.arr_instance_id)};});
- const result:any=await calculatePreview({...settings,routes:preparedRoutes,task_id:editingTaskId.value},seconds=>{previewProgress.value=`Calcul de l’aperçu · ${seconds} s · contrôle des accès et recherche des titres…`;});
+ const result:any=await calculatePreview({...settings,routes:preparedRoutes,task_id:editingTaskId.value},(seconds,phase)=>{previewProgress.value=`Calcul de l’aperçu · ${seconds} s · ${phase}`;});
  plan.value=result.groups?result:{groups:[{...result,body:settings,name:'Sélection',submitted:false}]};selected.value=settings.mode==='selection'?[]:plan.value.groups.flatMap((g:any)=>g.items.map((i:any)=>i.key));previewProgress.value='';
 
 });
@@ -115,9 +143,13 @@ const launch=(startImmediately=true)=>act(async()=>{
  for(const group of plan.value.groups){if(group.submitted)continue;const keys=group.items.filter((i:any)=>selected.value.includes(i.key)).map((i:any)=>i.key);if(!keys.length)continue;await api('/api/storage/transfers'+(editingTaskId.value?`/${editingTaskId.value}`:''),{method:editingTaskId.value?'PUT':'POST',body:JSON.stringify({...group.body,selection:keys,start_immediately:startImmediately})});group.submitted=true;}
  plan.value=null;editingTaskId.value=0;tab.value='transfers';await load();
 });
-function createTask(){void loadProtections().catch((e:any)=>error.value=e.message);editingTaskId.value=0;plan.value=null;tab.value='prepare';}
-function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.objective_mode || job.params.mode,media_type:'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;tab.value='prepare';}
-async function relaunchTask(job:any){prepareTask(job,false);await preview();}
+function createTask(){void loadProtections().catch((e:any)=>error.value=e.message);editingTaskId.value=0;plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
+function prepareTask(job:any,editing:boolean){editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.objective_mode || job.params.mode,media_type:job.params.media_type||'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
+async function relaunchTask(job:any){
+ prepareTask(job,false);
+ previewProgress.value='Paramètres repris depuis la tâche terminée. Calcul de l’aperçu…';
+ await preview();
+}
 async function verifyTask(job:any){prepareTask(job,true);await preview();}
 const removeTask=(id:number)=>act(async()=>{const result:any=await api(`/api/storage/transfers/${id}`,{method:'DELETE'});savedMessage.value=result.deletion_pending?'Suppression demandée : annulation et nettoyage en cours.':'Tâche supprimée.';await load();});
 const command=(id:number,action:string)=>act(async()=>{await api(`/api/storage/transfers/${id}/command`,{method:'POST',body:JSON.stringify({action})});await load();});
@@ -136,8 +168,9 @@ const saveLocation=()=>act(async()=>{
  if(emptyWarning)savedMessage.value='Correspondance enregistrée. Aucun média trouvé dans au moins une racine : contenu non confirmé. Aucun transfert lancé.';
 });
 let timer:ReturnType<typeof setInterval>|undefined;
-function backgroundRefresh(){if(document.hidden)return;void load(true);if(Date.now()-rootsCheckedAt>=60000)void refreshRoots(true);}
-onMounted(async()=>{await load();void loadProtections().catch((e:any)=>error.value=e.message);await refreshRoots();timer=setInterval(backgroundRefresh,5000);document.addEventListener('visibilitychange',backgroundRefresh);});
+function backgroundRefresh(){if(document.hidden)return;void load(true);if(tab.value==='settings' && settingsTab.value==='roots' && Date.now()-rootsCheckedAt>=60000)void refreshRoots(true);}
+watch([tab,settingsTab],([current,sub])=>{if(current==='settings' && sub==='roots' && Date.now()-rootsCheckedAt>=60000)void refreshRoots(true);});
+onMounted(async()=>{await load();void loadProtections().catch((e:any)=>error.value=e.message);if(tab.value==='settings' && settingsTab.value==='roots')await refreshRoots();timer=setInterval(backgroundRefresh,5000);document.addEventListener('visibilitychange',backgroundRefresh);});
 onUnmounted(()=>{if(timer)clearInterval(timer);document.removeEventListener('visibilitychange',backgroundRefresh);});
 useRealtime(['storage.updated'],()=>void load(true),{debounceMs:600});
 </script>

@@ -232,9 +232,12 @@ async def test_validation_checks_arr_plex_and_physical_paths_without_committing_
 
 @pytest.mark.asyncio
 async def test_rsync_preview_keeps_planning_and_annotates_only_validated_paths(monkeypatch):
+    from app.utils import now_utc_naive
+
     endpoint = profile(
         validation=dict(
             revision="rev",
+            checked_at=now_utc_naive().isoformat(),
             roots=[
                 dict(arr_instance_id=1, arr_root="/usb/FILMS", free_bytes=100),
                 dict(arr_instance_id=1, arr_root="/data/FILMS", free_bytes=20),
@@ -263,13 +266,39 @@ async def test_rsync_preview_keeps_planning_and_annotates_only_validated_paths(m
         access_revision="rev",
     )
     assert "secret" not in json.dumps(output)
-    recheck.assert_awaited_once()
+    recheck.assert_not_awaited()
     plan["planned_bytes"] = 101
     with pytest.raises(ValueError, match="insuffisant"):
         await access.preview_rsync(db, body)
     body.source_roots = ["/unknown/FILMS"]
     with pytest.raises(ValueError, match="chacune"):
         await access.preview_rsync(db, body)
+
+
+@pytest.mark.asyncio
+async def test_recent_file_access_validation_is_reused_but_stale_proof_expires():
+    from datetime import timedelta
+
+    from app.utils import now_utc_naive
+
+    endpoint = profile(
+        validation=dict(
+            revision="rev",
+            checked_at=now_utc_naive().isoformat(),
+            roots=[
+                dict(arr_instance_id=1, arr_root="/data/FILMS", free_bytes=20),
+                dict(arr_instance_id=1, arr_root="/usb/FILMS", free_bytes=100),
+            ],
+        )
+    )
+    db = NS(get=AsyncMock())
+    roots = {(1, "/data/FILMS"), (1, "/usb/FILMS")}
+    assert await access.validation_is_fresh(db, endpoint, roots)
+    endpoint.validation["checked_at"] = (now_utc_naive() - timedelta(minutes=16)).isoformat()
+    assert not await access.validation_is_fresh(db, endpoint, roots)
+    endpoint.validation["checked_at"] = now_utc_naive().isoformat()
+    endpoint.validation["revision"] = "old"
+    assert not await access.validation_is_fresh(db, endpoint, roots)
 
 
 @pytest.mark.asyncio
