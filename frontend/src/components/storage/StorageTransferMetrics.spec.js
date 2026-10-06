@@ -19,6 +19,30 @@ describe('Transfer copy metrics',()=>{
     const j=job();j.desired_state='pause';expect(transferMetrics(j,105).rate).toBeNull();
     j.desired_state='run';j.params.transfer_mode='arr';expect(transferMetrics(j,105).rate).toBeNull();
   });
+  it('accepts a fresh sample ahead of the display tick but rejects large clock offsets',()=>{
+    const j=job();j.items[1].progress.updated_at=105.7;
+    expect(transferMetrics(j,105).rate).toBe(25e6);
+    expect(transferMetrics(j,106).rate).toBe(25e6);
+    expect(transferMetrics(j,121).rate).toBeNull();
+    expect(transferMetrics(j,90).rate).toBeNull();
+  });
+  it('keeps the current-speed label when new samples arrive between clock ticks',async()=>{
+    vi.useFakeTimers();vi.setSystemTime(new Date(105000));
+    const j=job();j.items[1].progress.last_bytes_per_second=25e6;
+    const wrapper=mount(StorageTransferMetrics,{props:{job:j}});
+    try {
+      for(let second=105;second<109;second++){
+        const next=job();next.items[1].progress={...j.items[1].progress,updated_at:second+0.7};
+        await wrapper.setProps({job:next});
+        expect(wrapper.text()).toContain('Débit actuel');
+        expect(wrapper.text()).not.toContain('Dernier débit mesuré');
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(wrapper.text()).toContain('Débit actuel');
+      }
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(wrapper.text()).toContain('Dernier débit mesuré');
+    } finally {wrapper.unmount();vi.useRealTimers();}
+  });
   it('clamps byte counters and formats rounded hour boundaries',()=>{
     const j=job();j.items[1].progress.copied_bytes=100e9;
     expect(transferMetrics(j,105).copied).toBe(30e9);
