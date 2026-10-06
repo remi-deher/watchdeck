@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.73.2 — 2026-10-06
+
+
+### 🐛 Corrections
+
+- resolve Plex titles without false mapping failures ([701df22](https://github.com/remi-deher/watchdeck/commit/701df22ed75071161e98d425a8910876ac4cf947))
 ## 1.73.1 — 2026-10-06
 
 
@@ -10,6 +16,10 @@
 ### 🐛 Corrections
 
 - validate selected transfer roots during preview ([e05f727](https://github.com/remi-deher/watchdeck/commit/e05f727bbb0f574181ba60b04b1b32f215c7d155))
+
+### 🔧 Maintenance
+
+- v1.73.1 (#694) ([e8738bd](https://github.com/remi-deher/watchdeck/commit/e8738bd84d74d0b23e316d5dfbe2fb011cf456ad))
 ## 1.73.0 — 2026-10-06
 
 
