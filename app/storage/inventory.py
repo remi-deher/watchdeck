@@ -288,7 +288,7 @@ async def refresh_plex_item(db, conn, rating_key, kind, provider_id=None):
                 continue
             raise
         items = metadata.get("Metadata", [])
-        if len(items) != 1 or items[0].get("type") not in ("movie", "show"):
+        if len(items) != 1 or items[0].get("type") != ("movie" if kind == "movie" else "show"):
             continue
         item = items[0]
         expected = ("tmdb" if kind == "movie" else "tvdb") + "://" + str(provider_id)

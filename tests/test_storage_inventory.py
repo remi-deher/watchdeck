@@ -238,3 +238,36 @@ async def test_worker_refreshes_known_key_and_reports_external_move(monkeypatch)
         await worker.plex_files(conn, "3", "/old/Film", "movie", snapshot={"tmdb_id": "42"}, title="Film", db=db)
     assert lookup.await_args_list[0].args[1] == "/library/metadata/7"
     assert record.await_args.args[1][0]["storage_files"][0]["path"] == "/new/Film/a.mkv"
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_wrong_media_type_with_same_provider_id(monkeypatch):
+    db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: []))))
+    monkeypatch.setattr(
+        worker,
+        "plex_get",
+        AsyncMock(return_value={"Metadata": [{"ratingKey": "7", "type": "show", "Guid": [{"id": "tmdb://42"}]}]}),
+    )
+    write = AsyncMock()
+    monkeypatch.setattr(inventory, "record", write)
+    with pytest.raises(ValueError, match="introuvable ou ambigu"):
+        await inventory.refresh_plex_item(db, NS(id=2, url="http://plex", token="key"), "7", "movie", "42")
+    write.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cache_database_failure_falls_back_without_touching_business_session(monkeypatch):
+    from sqlalchemy.exc import SQLAlchemyError
+
+    class Unavailable:
+        async def __aenter__(self):
+            raise SQLAlchemyError("cache unavailable")
+
+        async def __aexit__(self, *args):
+            pass
+
+    monkeypatch.setattr(inventory, "AsyncSessionLocal", Unavailable)
+    db = NS(execute=AsyncMock())
+    live = AsyncMock(return_value=[{"id": 17}])
+    assert await inventory.arr_catalog(db, NS(id=2, url="http://arr", api_key="key"), live) == [{"id": 17}]
+    db.execute.assert_not_awaited()
