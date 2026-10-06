@@ -88,7 +88,29 @@ def _files_under_root(items, root):
     return {name: sorted(keys) for name, keys in result.items()}
 
 
-async def plex_files(conn, section, root, kind, *, snapshot=None, title=None, rating_keys=None):
+def plex_title_queries(title, snapshot):
+    """Bounded searches for Arr aliases; paths and provider IDs remain the proof."""
+    import re
+
+    queries = []
+    names = [title, *snapshot.get("alternate_titles", [])]
+    for name in names:
+        if not isinstance(name, str) or not name.strip():
+            continue
+        name = name.strip()
+        clean = re.sub(r"\s*[\[(]?(?:19|20)\d{2}[\])]?$", "", name).strip()
+        for query in (name, clean, clean.split(":", 1)[0].strip()):
+            if query and query not in queries:
+                queries.append(query)
+    # Plex sometimes uses a shortened or translated subtitle. The prefix only
+    # discovers candidates; it never replaces the path and TMDB/TVDB checks.
+    prefix = " ".join(re.split(r"[:\s]+", title.strip())[:3])
+    if prefix and prefix not in queries:
+        queries.append(prefix)
+    return queries[:12]
+
+
+async def plex_files(conn, section, root, kind, *, snapshot=None, title=None, rating_keys=None, db=None):
     """Read files for one title when its identity is known; keep full enumeration for root setup checks."""
     if rating_keys is not None:
         keys = sorted({str(key) for values in rating_keys.values() for key in values})
@@ -103,27 +125,58 @@ async def plex_files(conn, section, root, kind, *, snapshot=None, title=None, ra
         return result
 
     if snapshot is not None and title:
-        params = {
-            "type": 2 if kind == "series" else 1,
-            "title": "=" + title,
-            "includeMedia": 1,
-        }
-        data = await plex_get(conn, f"/library/sections/{section}/all", params)
-        matches = []
-        for item in data.get("Metadata", []):
-            leaves = [item]
-            if kind == "series":
+        provider = "tvdb" if kind == "series" else "tmdb"
+        expected_guid = f"{provider}://{snapshot.get(provider + '_id')}"
+        search_snapshot = dict(snapshot)
+        if db is not None and getattr(conn, "id", None) and snapshot.get(provider + "_id"):
+            from ..models import LibraryItem, LibraryItemLocation
+
+            # The local Plex mirror supplies translated names without a library
+            # scan. It only locates candidates; live files and IDs are rechecked.
+            names = (
+                (
+                    await db.execute(
+                        select(LibraryItem.title)
+                        .join(LibraryItemLocation, LibraryItemLocation.library_item_id == LibraryItem.id)
+                        .where(
+                            LibraryItemLocation.server_id == conn.id,
+                            getattr(LibraryItem, provider + "_id") == str(snapshot[provider + "_id"]),
+                        )
+                        .limit(12)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            search_snapshot["alternate_titles"] = [*names, *snapshot.get("alternate_titles", [])]
+        seen = set()
+        for query in plex_title_queries(title, search_snapshot):
+            data = await plex_get(
+                conn,
+                f"/library/sections/{section}/all",
+                {"type": 2 if kind == "series" else 1, "title": query, "includeMedia": 1, "includeGuids": 1},
+            )
+            matches = []
+            for item in data.get("Metadata", []):
                 key = item.get("ratingKey")
-                if not key:
+                if not key or str(key) in seen:
                     continue
-                all_leaves = await plex_get(conn, f"/library/metadata/{key}/allLeaves", {"includeMedia": 1})
-                leaves = all_leaves.get("Metadata", [])
-            files = _files_under_root(leaves, root)
-            if files:
-                matches.append(files)
-        if len(matches) > 1:
-            raise ValueError("Plusieurs fiches Plex correspondent à ce titre et à son identifiant.")
-        return matches[0] if matches else {}
+                seen.add(str(key))
+                guids = {g.get("id") for g in item.get("Guid", [])}
+                if guids and expected_guid not in guids:
+                    continue
+                leaves = [item]
+                if kind == "series":
+                    all_leaves = await plex_get(conn, f"/library/metadata/{key}/allLeaves", {"includeMedia": 1})
+                    leaves = all_leaves.get("Metadata", [])
+                files = _files_under_root(leaves, root)
+                if files:
+                    matches.append(files)
+            if len(matches) > 1:
+                raise ValueError("Plusieurs fiches Plex correspondent à ce titre et à son identifiant.")
+            if matches:
+                return matches[0]
+        return {}
 
     # Only association setup uses this broad, paginated inventory. Transfer
     # workers pass either the Arr identity or the Plex ratingKeys above.
@@ -368,6 +421,7 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
             item.media_type,
             snapshot=snap,
             title=item.title,
+            db=db,
         )
         if not snap["original_plex"] or any(len(keys) != 1 for keys in snap["original_plex"].values()):
             raise ValueError("Les fiches Plex originales ne sont pas identifiées de façon unique.")
@@ -426,6 +480,7 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
                 item.media_type,
                 snapshot=snap,
                 title=item.title,
+                db=db,
             )
             if existing_plex and any(snap["original_plex"].get(name) != keys for name, keys in existing_plex.items()):
                 raise ValueError("La destination appartient à une autre fiche Plex : copie refusée.")

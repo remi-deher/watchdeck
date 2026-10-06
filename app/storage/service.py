@@ -210,6 +210,7 @@ async def _preview(db, body):
                         destination_root=target["arr_root"],
                         tmdb_id=media.get("tmdbId"),
                         tvdb_id=media.get("tvdbId"),
+                        alternate_titles=[a["title"] for a in media.get("alternateTitles", []) if a.get("title")],
                     ),
                 )
             )
@@ -317,8 +318,13 @@ async def check_mapping(db, location, mapping_index, discovered=None):
                 mapping["plex_section_id"],
                 mapping["plex_root"] + "/" + relative,
                 kind,
-                snapshot={"tmdb_id": media.get("tmdbId"), "tvdb_id": media.get("tvdbId")},
+                snapshot={
+                    "tmdb_id": media.get("tmdbId"),
+                    "tvdb_id": media.get("tvdbId"),
+                    "alternate_titles": [a["title"] for a in media.get("alternateTitles", []) if a.get("title")],
+                },
                 title=media["title"],
+                db=db,
             )
             if not plex:
                 results.append(
