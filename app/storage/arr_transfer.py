@@ -82,7 +82,15 @@ async def route(db, instance, root, discovered):
     if comparison is None:
         comparison = await check_mapping(db, SimpleNamespace(mappings=[mapping]), 0, discovered=discovered)
     if comparison["status"] not in ("sample_matched", "empty"):
-        raise ValueError("Correspondance Arr/Plex non confirmée : déplacement refusé.")
+        failures = [
+            f"{item['title']} : {item.get('reason', item['status'])}"
+            for item in comparison.get("items", [])
+            if item["status"] != "matched"
+        ]
+        detail = " ; ".join(failures[:5])
+        raise ValueError(
+            "Correspondance Arr/Plex non confirmée : déplacement refusé." + (" " + detail if detail else "")
+        )
     return declared, mapping, comparison
 
 
@@ -283,6 +291,7 @@ async def preview_arr(db, body, capacity_overrides=None):
                     plex_section_id=sm["plex_section_id"],
                     tmdb_id=media.get("tmdbId"),
                     tvdb_id=media.get("tvdbId"),
+                    alternate_titles=[a["title"] for a in media.get("alternateTitles", []) if a.get("title")],
                 ),
             )
         )

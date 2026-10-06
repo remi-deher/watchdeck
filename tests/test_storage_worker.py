@@ -412,7 +412,7 @@ async def test_plex_transfer_lookup_targets_one_movie_by_title_and_path(monkeypa
     title_search.assert_awaited_once_with(
         title_search.await_args.args[0],
         "/library/sections/3/all",
-        {"type": 1, "title": "=Film", "includeMedia": 1},
+        {"type": 1, "title": "Film", "includeMedia": 1, "includeGuids": 1},
     )
 
 
@@ -436,6 +436,98 @@ async def test_plex_transfer_lookup_targets_series_leaves_and_known_rating_keys(
         "/library/metadata/show-1/allLeaves",
         "/library/metadata/episode-1",
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "arr_title,aliases,plex_title",
+    [
+        ("The Honor Student at Magic High School (2021)", [], "The Honor Student at Magic High School"),
+        ("Frieren: Beyond Journey's End", [], "Frieren"),
+        ("English title (2026)", ["Titre français"], "Titre français"),
+    ],
+)
+async def test_plex_lookup_finds_aliases_without_scanning_library(monkeypatch, arr_title, aliases, plex_title):
+    async def request(conn, path, params):
+        if path.endswith("/allLeaves"):
+            return {"Metadata": [{"ratingKey": "ep", "Media": [{"Part": [{"file": "/media/Show/ep.mkv"}]}]}]}
+        assert params["title"] and not params["title"].startswith("=")
+        return {
+            "Metadata": [{"ratingKey": "show", "Guid": [{"id": "tvdb://8"}]}] if params["title"] == plex_title else []
+        }
+
+    lookup = AsyncMock(side_effect=request)
+    monkeypatch.setattr(worker, "plex_get", lookup)
+    assert await worker.plex_files(
+        None, "2", "/media/Show", "series", snapshot={"tvdb_id": 8, "alternate_titles": aliases}, title=arr_title
+    ) == {"ep.mkv": ["ep"]}
+    assert len(lookup.await_args_list) <= 13
+
+
+@pytest.mark.asyncio
+async def test_plex_lookup_rejects_wrong_identity_and_wrong_folder(monkeypatch):
+    lookup = AsyncMock(
+        return_value={
+            "Metadata": [
+                {
+                    "ratingKey": "wrong-id",
+                    "Guid": [{"id": "tmdb://99"}],
+                    "Media": [{"Part": [{"file": "/media/Film/a.mkv"}]}],
+                },
+                {
+                    "ratingKey": "wrong-path",
+                    "Guid": [{"id": "tmdb://42"}],
+                    "Media": [{"Part": [{"file": "/media/Other/a.mkv"}]}],
+                },
+            ]
+        }
+    )
+    monkeypatch.setattr(worker, "plex_get", lookup)
+    assert await worker.plex_files(None, "3", "/media/Film", "movie", snapshot={"tmdb_id": 42}, title="Film") == {}
+
+
+@pytest.mark.asyncio
+async def test_plex_lookup_rejects_duplicate_same_identity_in_folder(monkeypatch):
+    lookup = AsyncMock(
+        return_value={
+            "Metadata": [
+                {"ratingKey": key, "Guid": [{"id": "tmdb://42"}], "Media": [{"Part": [{"file": "/media/Film/a.mkv"}]}]}
+                for key in ("1", "2")
+            ]
+        }
+    )
+    monkeypatch.setattr(worker, "plex_get", lookup)
+    with pytest.raises(ValueError, match="Plusieurs fiches"):
+        await worker.plex_files(None, "3", "/media/Film", "movie", snapshot={"tmdb_id": 42}, title="Film")
+
+
+@pytest.mark.asyncio
+async def test_plex_lookup_uses_translated_name_from_identity_and_server_mirror(monkeypatch):
+    db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: ["Un amour invisible"]))))
+
+    async def request(conn, path, params):
+        if path.endswith("/allLeaves"):
+            return {"Metadata": [{"ratingKey": "ep", "Media": [{"Part": [{"file": "/media/Show/ep.mkv"}]}]}]}
+        return {
+            "Metadata": [{"ratingKey": "show", "Guid": [{"id": "tvdb://470520"}]}]
+            if params["title"] == "Un amour invisible"
+            else []
+        }
+
+    monkeypatch.setattr(worker, "plex_get", AsyncMock(side_effect=request))
+    assert await worker.plex_files(
+        NS(id=7),
+        "2",
+        "/media/Show",
+        "series",
+        snapshot={"tvdb_id": 470520},
+        title="Love Unseen Beneath the Clear Night Sky (2026)",
+        db=db,
+    ) == {"ep.mkv": ["ep"]}
+    statement = db.execute.await_args.args[0].compile()
+    assert "library_item_locations.server_id" in str(statement)
+    assert "library_items.tvdb_id" in str(statement)
+    assert 7 in statement.params.values() and "470520" in statement.params.values()
 
 
 @pytest.mark.asyncio
