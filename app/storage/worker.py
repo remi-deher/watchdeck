@@ -112,7 +112,9 @@ def plex_title_queries(title, snapshot):
     return queries[:12]
 
 
-async def plex_files(conn, section, root, kind, *, snapshot=None, title=None, rating_keys=None, db=None):
+async def plex_files(
+    conn, section, root, kind, *, snapshot=None, title=None, rating_keys=None, db=None, expected_other_root=None
+):
     """Read files for one title when its identity is known; keep full enumeration for root setup checks."""
     if rating_keys is not None:
         keys = sorted({str(key) for values in rating_keys.values() for key in values})
@@ -205,7 +207,15 @@ async def plex_files(conn, section, root, kind, *, snapshot=None, title=None, ra
                         ],
                     )
                     if not files:
-                        moved_paths.extend(f["path"] for f in current_files)
+                        # A destination probe may still find the saved source.
+                        # Only that exact folder is expected; third locations
+                        # remain relocation errors and never authorize cleanup.
+                        expected_prefix = expected_other_root.rstrip("/") + "/" if expected_other_root else None
+                        moved_paths.extend(
+                            f["path"]
+                            for f in current_files
+                            if expected_prefix is None or not f["path"].startswith(expected_prefix)
+                        )
                 if files:
                     matches.append(files)
             if len(matches) > 1:
@@ -528,6 +538,7 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
                 snapshot=snap,
                 title=item.title,
                 db=db,
+                expected_other_root=snap["source_plex"],
             )
             if existing_plex and any(snap["original_plex"].get(name) != keys for name, keys in existing_plex.items()):
                 raise ValueError("La destination appartient à une autre fiche Plex : copie refusée.")

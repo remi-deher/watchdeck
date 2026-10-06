@@ -241,6 +241,47 @@ async def test_worker_refreshes_known_key_and_reports_external_move(monkeypatch)
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path,expected,error",
+    [
+        ("/source/Film/a.mkv", {}, False),
+        ("/destination/Film/a.mkv", {"a.mkv": ["episode"]}, False),
+        ("/elsewhere/Film/a.mkv", None, True),
+        ("/source/Film-other/a.mkv", None, True),
+    ],
+)
+async def test_destination_probe_accepts_saved_source_but_rejects_external_moves(monkeypatch, path, expected, error):
+    db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: []))))
+    conn = NS(id=2, url="http://plex", token="key")
+    monkeypatch.setattr(inventory, "candidate_keys", AsyncMock(return_value=["show"]))
+    monkeypatch.setattr(inventory, "safe_record_plex", AsyncMock())
+
+    async def lookup(conn, request_path, params):
+        if request_path.endswith("/allLeaves"):
+            return {"Metadata": [{"ratingKey": "episode", "Media": [{"Part": [{"file": path}]}]}]}
+        return {
+            "Metadata": [{"ratingKey": "show", "librarySectionID": "3", "Guid": [{"id": "tvdb://42"}], "title": "Film"}]
+        }
+
+    monkeypatch.setattr(worker, "plex_get", AsyncMock(side_effect=lookup))
+    call = worker.plex_files(
+        conn,
+        "3",
+        "/destination/Film",
+        "series",
+        snapshot={"tvdb_id": "42"},
+        title="Film",
+        db=db,
+        expected_other_root="/source/Film",
+    )
+    if error:
+        with pytest.raises(ValueError, match="nouvel emplacement"):
+            await call
+    else:
+        assert await call == expected
+
+
+@pytest.mark.asyncio
 async def test_refresh_rejects_wrong_media_type_with_same_provider_id(monkeypatch):
     db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: []))))
     monkeypatch.setattr(

@@ -111,6 +111,26 @@ def transfer(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_resume_destination_lookup_allows_original_source_folder(transfer, monkeypatch):
+    t = transfer
+    t.destination.mkdir()
+    original_lookup = worker.plex_files
+    calls = []
+
+    async def lookup(*args, **kwargs):
+        calls.append((args[2], kwargs))
+        return await original_lookup(*args, **kwargs)
+
+    monkeypatch.setattr(worker, "plex_files", lookup)
+    await worker.process_item(t.db, t.job, t.item, t.stop)
+    destination_probe = next(kwargs for path, kwargs in calls if path == t.item.snapshot["destination_plex"])
+    assert destination_probe["expected_other_root"] == t.item.snapshot["source_plex"]
+    assert t.item.status == "plex_pending" and t.source.exists()
+    await worker.process_item(t.db, t.job, t.item, t.stop, finalize_only=True)
+    assert t.item.status == "completed"
+
+
+@pytest.mark.asyncio
 async def test_copy_switch_confirm_cleanup_and_restart(transfer):
     t = transfer
     await worker.process_item(t.db, t.job, t.item, t.stop)
