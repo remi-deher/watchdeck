@@ -432,7 +432,9 @@ def test_new_transfer_schema_rejects_rsync():
 
 @pytest.mark.asyncio
 async def test_arr_preparation_reuses_saved_association_instead_of_duplicate_capacity_card(monkeypatch):
-    location = NS(id=7, mappings=[dict(arr_instance_id=1, arr_root="/data/FILMS")])
+    from app.models import StorageLocation
+
+    location = StorageLocation(id=7, mappings=[dict(arr_instance_id=1, arr_root="/data/FILMS")])
     db = NS(get=AsyncMock(return_value=location))
 
     class Registry:
@@ -459,6 +461,50 @@ async def test_arr_preparation_reuses_saved_association_instead_of_duplicate_cap
     assert result is location
     assert result.health == "arr_verified"
     assert result.free_bytes == 100
+
+
+@pytest.mark.asyncio
+async def test_repeated_virtual_capacity_updates_do_not_lock_their_own_registry(committed_async_database, monkeypatch):
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.models import StorageLocation
+
+    factory = committed_async_database.session_factory
+    monkeypatch.setattr(arr, "AsyncSessionLocal", factory)
+    mapping = dict(arr_instance_id=1, arr_root="/data/FILMS", plex_root="/media/FILMS", plex_section_id="3")
+    async with factory() as seed:
+        seed.add(
+            StorageLocation(
+                virtual_key="1:/data/FILMS",
+                name="Previous capacity",
+                mount_path="",
+                mappings=[mapping],
+                reserve_bytes=0,
+                enabled=True,
+            )
+        )
+        await seed.commit()
+    async with factory() as db:
+        # Route discovery loads this row before the independent capacity update.
+        location = (await db.execute(select(StorageLocation))).scalar_one()
+        first = await asyncio.wait_for(
+            arr.virtual_location(db, NS(id=1), "/data/FILMS", dict(freeSpace=100), mapping), 2
+        )
+        assert first is location and first.free_bytes == 100
+        assert not db.is_modified(location)
+        # This query reproduces the autoflush before a batch preview's second pass.
+        await db.execute(select(StorageLocation))
+        second = await asyncio.wait_for(
+            arr.virtual_location(db, NS(id=1), "/data/FILMS", dict(freeSpace=200), mapping), 2
+        )
+        assert second is location and second.free_bytes == 200
+        assert not db.is_modified(location)
+        await db.rollback()
+    async with factory() as check:
+        stored = (await check.execute(select(StorageLocation))).scalar_one()
+        assert stored.free_bytes == 200
 
 
 @pytest.mark.asyncio
