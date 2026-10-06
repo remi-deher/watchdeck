@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.74.4 — 2026-10-06
+
+
+### 🐛 Corrections
+
+- allow original Plex source during destination resume checks ([4eb1cea](https://github.com/remi-deher/watchdeck/commit/4eb1ceacb4b99c86ffb851f7639287cf4c155e2e))
 ## 1.74.3 — 2026-10-06
 
 
 ### 🐛 Corrections
 
 - refresh transfer speed every second with lightweight telemetry ([f3bad4d](https://github.com/remi-deher/watchdeck/commit/f3bad4dd303d15ab24210de031535d31307ca2c2))
+
+### 🔧 Maintenance
+
+- v1.74.3 (#723) ([8002624](https://github.com/remi-deher/watchdeck/commit/8002624d7f3fc4b1d71ff0e542deb8571b92cb29))
 ## 1.74.2 — 2026-10-06
 
 
