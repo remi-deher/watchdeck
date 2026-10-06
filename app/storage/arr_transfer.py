@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm.attributes import set_committed_value
 
 from ..database import AsyncSessionLocal
 from ..models import ArrInstance, StorageLocation, StorageTransferItem
@@ -159,11 +160,18 @@ async def virtual_location(db, instance, root, declared, mapping):
     location = await db.get(StorageLocation, location_id)
     if not location:
         raise RuntimeError("Impossible de réserver la racine Arr comme stockage virtuel.")
-    location.name = name
-    location.mappings = [mapping]
-    location.free_bytes = free_space
-    location.health = health
-    location.checked_at = checked_at
+    # These values were already committed by registry. Ordinary assignments on
+    # an identity-map row loaded earlier would autoflush a second UPDATE here.
+    # A later pass of the same preview would then block its registry upsert on
+    # the outer transaction's own row lock, until the preview timed out.
+    for field, value in {
+        "name": name,
+        "mappings": [mapping],
+        "free_bytes": free_space,
+        "health": health,
+        "checked_at": checked_at,
+    }.items():
+        set_committed_value(location, field, value)
     return location
 
 
