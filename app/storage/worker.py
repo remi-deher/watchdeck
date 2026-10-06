@@ -11,6 +11,7 @@ import shutil
 import signal
 import threading
 import time
+from collections import deque
 from pathlib import Path, PurePosixPath
 
 import httpx
@@ -536,7 +537,7 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
         last = [0.0]
         copied = [0]
         base = [0]
-        sample = [time.monotonic(), 0]
+        sample = deque([(time.monotonic(), 0)], maxlen=4)
         speed = [None]
 
         async def progress(name, bytes_done):
@@ -564,7 +565,8 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
             target = dst / name
             target.parent.mkdir(parents=True, exist_ok=True)
             copied[0] = 0
-            sample[:] = [time.monotonic(), 0]
+            sample.clear()
+            sample.append((time.monotonic(), 0))
             speed[0] = None
             await progress(name, 0)
             snap["temporary_files"] = list(dict.fromkeys([*snap.get("temporary_files", []), name]))
@@ -572,12 +574,12 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
 
             def advance(delta):
                 copied[0] += delta
-                if time.monotonic() - last[0] > 1:
+                if time.monotonic() - last[0] >= 1:
                     last[0] = time.monotonic()
-                    elapsed = last[0] - sample[0]
-                    if elapsed >= 3:
-                        speed[0] = (copied[0] - sample[1]) / elapsed
-                        sample[:] = [last[0], copied[0]]
+                    elapsed = last[0] - sample[0][0]
+                    if elapsed > 0:
+                        speed[0] = max(0, (copied[0] - sample[0][1]) / elapsed)
+                        sample.append((last[0], copied[0]))
                     asyncio.run_coroutine_threadsafe(progress(name, copied[0]), loop).result(timeout=30)
 
             def phase(label):

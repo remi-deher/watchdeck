@@ -47,6 +47,7 @@ import StorageAssociationDialog from '@/components/storage/StorageAssociationDia
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
+import {useStorageLiveTelemetry} from '@/components/storage/useStorageLiveTelemetry';
 import UiButton from '@/components/ui/UiButton.vue';
 
 import UiFeedback from '@/components/ui/UiFeedback.vue';
@@ -135,6 +136,7 @@ const form=ref({transfer_methods:['arr'] as string[],access_ids:{} as Record<str
 const newMapping=()=>newAssociationMapping(instances.value[0]?.id||0);
 const locationForm=ref({name:'',mount_path:'',reserve_gb:100,enabled:true,mappings:[newMapping()]});
 const {selectedBytes,gb,date,locationName}=useStorageTelemetry(locations,jobs,tab,plan,selected);
+useStorageLiveTelemetry(jobs,loading);
 async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
 const previewProgress=ref('');

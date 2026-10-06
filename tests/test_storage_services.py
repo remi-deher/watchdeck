@@ -464,3 +464,41 @@ async def test_terminal_job_is_editable_with_same_identity(status):
     result = Mock()
     result.scalar_one_or_none.return_value = job
     assert await api.draft_task(NS(execute=AsyncMock(return_value=result)), 12) is job
+
+
+@pytest.mark.asyncio
+async def test_live_telemetry_reads_only_measurements_in_two_queries():
+    from unittest.mock import Mock
+
+    job_result = Mock()
+    job_result.mappings.return_value = [dict(id=4, status="running", desired_state="run", error=None)]
+    item_result = Mock()
+    item_result.mappings.return_value = [
+        dict(
+            id=15,
+            transfer_id=4,
+            status="copying",
+            reason=None,
+            progress={"bytes_per_second": 25_000_000},
+            size_bytes=100,
+        ),
+        dict(id=16, transfer_id=4, status="completed", reason=None, progress={}, size_bytes=200),
+    ]
+    db = NS(execute=AsyncMock(side_effect=[job_result, item_result]))
+    result = await api.transfer_telemetry(ids="4", db=db)
+    assert result[0]["id"] == 4 and result[0]["released_bytes"] == 200
+    assert result[0]["items"][0]["progress"]["bytes_per_second"] == 25_000_000
+    assert "snapshot" not in str(db.execute.call_args_list)
+    assert "proofs" not in str(db.execute.call_args_list)
+    assert db.execute.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_missing_telemetry_jobs_do_not_read_items():
+    from unittest.mock import Mock
+
+    result = Mock()
+    result.mappings.return_value = []
+    db = NS(execute=AsyncMock(return_value=result))
+    assert await api.transfer_telemetry(ids="4", db=db) == []
+    db.execute.assert_awaited_once()

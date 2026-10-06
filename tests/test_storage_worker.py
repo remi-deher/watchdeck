@@ -607,3 +607,30 @@ async def test_engine_processes_cancellation_and_pending_arr_does_not_block_next
         run_mock.assert_not_awaited()
     else:
         assert run_mock.await_args.args[0] == 2
+
+
+@pytest.mark.asyncio
+async def test_copy_rate_is_published_after_each_second_before_three_seconds(transfer, monkeypatch):
+    t = transfer
+    original_copy = worker.copier_fichier
+    clock = [worker.time.monotonic()]
+    monkeypatch.setattr(worker.time, "monotonic", lambda: clock[0])
+    rates = []
+
+    def copying(src, dst, advance, stop, proof, phase, mode):
+        def measured(delta):
+            if not delta:
+                return
+            first = delta // 2
+            for part in (first, delta - first):
+                clock[0] += 1.1
+                advance(part)
+                rates.append(t.item.progress.get("bytes_per_second"))
+
+        return original_copy(src, dst, measured, stop, proof, phase, mode)
+
+    monkeypatch.setattr(worker, "copier_fichier", copying)
+    await worker.process_item(t.db, t.job, t.item, t.stop)
+    assert len(rates) == 2 and all(rate is not None and rate > 0 for rate in rates)
+    assert rates[0] == pytest.approx(rates[1])
+    assert t.item.progress["last_bytes_per_second"] == pytest.approx(rates[-1])
