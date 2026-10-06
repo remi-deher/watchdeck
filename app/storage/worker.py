@@ -23,7 +23,7 @@ from ..utils import now_utc_naive
 from . import integrite, ssh_hash
 from .integrite import Interrompu, copier_fichier, verifier_dossier
 from .local_mounts import mounted_root  # re-exported for discovery and existing callers
-from .service import arr_request, discover_instance_roots
+from .service import arr_request
 
 log = logging.getLogger(__name__)
 VIDEO = (".mkv", ".mp4", ".avi", ".m4v", ".mov", ".ts", ".m2ts", ".wmv")
@@ -73,7 +73,60 @@ async def _plex_get(conn, path, params=None):
         return response.json().get("MediaContainer", {}) if response.content else {}
 
 
-async def plex_files(conn, section, root, kind):
+def _files_under_root(items, root):
+    result = {}
+    prefix = root.rstrip("/") + "/"
+    for item in items:
+        rating_key = item.get("ratingKey")
+        if not rating_key:
+            continue
+        for media in item.get("Media", []):
+            for part in media.get("Part", []):
+                name = part.get("file", "")
+                if name.startswith(prefix) and name.lower().endswith(VIDEO):
+                    result.setdefault(name[len(prefix) :], set()).add(str(rating_key))
+    return {name: sorted(keys) for name, keys in result.items()}
+
+
+async def plex_files(conn, section, root, kind, *, snapshot=None, title=None, rating_keys=None):
+    """Read files for one title when its identity is known; keep full enumeration for root setup checks."""
+    if rating_keys is not None:
+        keys = sorted({str(key) for values in rating_keys.values() for key in values})
+        result = {}
+        for start in range(0, len(keys), 50):
+            data = await plex_get(
+                conn,
+                "/library/metadata/" + ",".join(keys[start : start + 50]),
+                {"includeMedia": 1},
+            )
+            result.update(_files_under_root(data.get("Metadata", []), root))
+        return result
+
+    if snapshot is not None and title:
+        params = {
+            "type": 2 if kind == "series" else 1,
+            "title": "=" + title,
+            "includeMedia": 1,
+        }
+        data = await plex_get(conn, f"/library/sections/{section}/all", params)
+        matches = []
+        for item in data.get("Metadata", []):
+            leaves = [item]
+            if kind == "series":
+                key = item.get("ratingKey")
+                if not key:
+                    continue
+                all_leaves = await plex_get(conn, f"/library/metadata/{key}/allLeaves", {"includeMedia": 1})
+                leaves = all_leaves.get("Metadata", [])
+            files = _files_under_root(leaves, root)
+            if files:
+                matches.append(files)
+        if len(matches) > 1:
+            raise ValueError("Plusieurs fiches Plex correspondent à ce titre et à son identifiant.")
+        return matches[0] if matches else {}
+
+    # Only association setup uses this broad, paginated inventory. Transfer
+    # workers pass either the Arr identity or the Plex ratingKeys above.
     result = {}
     start = 0
     while True:
@@ -149,6 +202,57 @@ async def no_arr_download(instance, item):
         raise ValueError("Un téléchargement ou import est en cours pour ce titre.")
 
 
+async def validate_transfer_roots(db, job, items):
+    """Validate every selected Arr root once before the lot touches its first title."""
+    if not items:
+        return
+    instances = {}
+    root_paths = {}
+    needed_by_destination = {}
+    mappings = set()
+    for item in items:
+        instance_id = item.arr_instance_id
+        instance = instances.get(instance_id)
+        if instance is None:
+            instance = await db.get(ArrInstance, instance_id)
+            if not instance or not instance.enabled:
+                raise ValueError("Instance Arr indisponible au démarrage du lot.")
+            instances[instance_id] = instance
+            root_paths[instance_id] = set()
+        snapshot = item.snapshot
+        for side in ("source", "destination"):
+            arr_root = str(PurePosixPath(snapshot[f"{side}_arr"]).parent).rstrip("/") or "/"
+            plex_root = str(PurePosixPath(snapshot[f"{side}_plex"]).parent)
+            root_paths[instance_id].add(arr_root)
+            mappings.add((instance_id, arr_root, plex_root, str(snapshot["plex_section_id"])))
+        if job.params.get("transfer_mode") == "arr":
+            destination_root = str(PurePosixPath(snapshot["destination_arr"]).parent).rstrip("/") or "/"
+            key = (instance_id, destination_root)
+            needed_by_destination[key] = needed_by_destination.get(key, 0) + int(item.size_bytes)
+
+    from .arr_transfer import snapshot_mapping_matches
+
+    for instance_id, arr_root, plex_root, section_id in mappings:
+        if not await snapshot_mapping_matches(db, instances[instance_id], arr_root, plex_root, section_id):
+            raise ValueError("Une correspondance Arr/Plex du lot a changé depuis sa préparation.")
+
+    live_by_instance = {}
+    for instance_id, instance in instances.items():
+        live_roots = await arr_request(instance, "GET", "rootfolder")
+        live_by_instance[instance_id] = {str(root.get("path", "")).rstrip("/") or "/": root for root in live_roots}
+        for root_path in root_paths[instance_id]:
+            root = live_by_instance[instance_id].get(root_path)
+            if not root or root.get("accessible") is not True:
+                raise ValueError(f"Arr ne confirme plus l’accès à la racine {root_path} du lot.")
+
+    if job.params.get("transfer_mode") == "arr":
+        for (instance_id, root_path), needed in needed_by_destination.items():
+            root = live_by_instance[instance_id][root_path]
+            free_space = root.get("freeSpace")
+            if not isinstance(free_space, int) or free_space < needed:
+                raise ValueError(f"Espace Arr insuffisant sur {root_path} pour lancer le lot entier.")
+
+
 async def update_item(db, item, status, reason=None, **changes):
     telemetry = dict(item.progress or {})
     previous = item.status
@@ -173,9 +277,11 @@ async def update_item(db, item, status, reason=None, **changes):
     await db.commit()
 
 
-async def process_item(db, job, item, stop, *, finalize_only=False):
+async def process_item(db, job, item, stop, *, finalize_only=False, preflight_validated=False):
     if not item.claimed:
         raise ValueError("Ce titre n’est pas réservé par une tâche active ; relancez la tâche pour le vérifier.")
+    if not preflight_validated and not finalize_only:
+        await validate_transfer_roots(db, job, [item])
     if job.params.get("transfer_mode", "rsync") == "arr":
         from .arr_transfer import process_arr
 
@@ -209,15 +315,6 @@ async def process_item(db, job, item, stop, *, finalize_only=False):
     conn = await connection_for(db, instance.plex_server_id)
     if not conn:
         raise ValueError("Serveur Plex indisponible.")
-    discovered = await discover_instance_roots(db, instance)
-    for side in ("source", "destination"):
-        arr_root = str(PurePosixPath(snap[side + "_arr"]).parent)
-        plex_root = str(PurePosixPath(snap[side + "_plex"]).parent)
-        if arr_root not in discovered["arr_roots"] or not any(
-            root["path"] == plex_root and root["section_id"] == snap["plex_section_id"]
-            for root in discovered["plex_roots"]
-        ):
-            raise ValueError("Racines Arr/Plex modifiées depuis la préparation : déplacement refusé.")
     identity = await plex_get(conn, "/identity")
     machine = identity.get("machineIdentifier")
     if not machine:
@@ -233,9 +330,6 @@ async def process_item(db, job, item, stop, *, finalize_only=False):
         raise ValueError("Chemin Arr non confirmé : finalisation refusée, original conservé.")
     if media["path"] not in (snap["source_arr"], snap["destination_arr"]):
         raise ValueError("Le chemin Arr a changé depuis l’aperçu.")
-    roots = await arr_request(instance, "GET", "rootfolder")
-    if snap["destination_root"] not in [r["path"].rstrip("/") for r in roots]:
-        raise ValueError("Le dossier destination doit être enregistré dans les dossiers racine Arr.")
     await no_arr_download(instance, item)
     if await is_playing(conn, snap):
         if finalize_only:
@@ -267,7 +361,14 @@ async def process_item(db, job, item, stop, *, finalize_only=False):
     if "original_plex" not in snap:
         if media["path"] != snap["source_arr"]:
             raise ValueError("Référence Plex originale absente : contrôle manuel nécessaire.")
-        snap["original_plex"] = await plex_files(conn, snap["plex_section_id"], snap["source_plex"], item.media_type)
+        snap["original_plex"] = await plex_files(
+            conn,
+            snap["plex_section_id"],
+            snap["source_plex"],
+            item.media_type,
+            snapshot=snap,
+            title=item.title,
+        )
         if not snap["original_plex"] or any(len(keys) != 1 for keys in snap["original_plex"].values()):
             raise ValueError("Les fiches Plex originales ne sont pas identifiées de façon unique.")
         await confirm_media_identity(conn, snap["original_plex"], snap, item.media_type)
@@ -297,7 +398,13 @@ async def process_item(db, job, item, stop, *, finalize_only=False):
             if proof.get("sha256") and await asyncio.to_thread(hash_file, dst / name, stop) != proof["sha256"]:
                 raise ValueError("Intégrité destination incorrecte après interruption du nettoyage.")
         if (
-            await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
+            await plex_files(
+                conn,
+                snap["plex_section_id"],
+                snap["destination_plex"],
+                item.media_type,
+                rating_keys=snap["original_plex"],
+            )
             != snap["original_plex"]
         ):
             raise ValueError("Confirmation Plex manquante après nettoyage.")
@@ -312,7 +419,14 @@ async def process_item(db, job, item, stop, *, finalize_only=False):
             found = await asyncio.to_thread(read_inventory, dst, False)
             if any(name.removesuffix(".partiel") not in snap["files"] for name in found):
                 raise ValueError("La destination contient des fichiers étrangers au titre.")
-            existing_plex = await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
+            existing_plex = await plex_files(
+                conn,
+                snap["plex_section_id"],
+                snap["destination_plex"],
+                item.media_type,
+                snapshot=snap,
+                title=item.title,
+            )
             if existing_plex and any(snap["original_plex"].get(name) != keys for name, keys in existing_plex.items()):
                 raise ValueError("La destination appartient à une autre fiche Plex : copie refusée.")
         dst.mkdir(exist_ok=True)
@@ -416,7 +530,13 @@ async def process_item(db, job, item, stop, *, finalize_only=False):
     expected = {n.replace(os.sep, "/") for n in snap["files"] if n.lower().endswith(VIDEO)}
     if media["path"] != snap["destination_arr"] or not expected.issubset({f.get("relativePath", "") for f in files}):
         raise ValueError("Arr ne reconnaît pas tous les fichiers destination : original conservé.")
-    recognized = await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
+    recognized = await plex_files(
+        conn,
+        snap["plex_section_id"],
+        snap["destination_plex"],
+        item.media_type,
+        rating_keys=snap["original_plex"],
+    )
     if any(snap["original_plex"].get(name) != keys for name, keys in recognized.items()):
         raise ValueError("Destination associée à une autre fiche Plex : original conservé, contrôle nécessaire.")
     if recognized != snap["original_plex"]:
@@ -555,14 +675,29 @@ async def run_transfer(transfer_id, lease):
                 .scalars()
                 .all()
             )
+            active_items = [
+                item
+                for item in items
+                if item.claimed and item.status not in ("completed", *FINALIZATION_STATES, "cancelled")
+            ]
+            preflight_error = None
+            try:
+                await validate_transfer_roots(db, job, active_items)
+            except Exception as exc:
+                preflight_error = str(exc)
+                log.warning("Lot %s bloqué avant son premier titre : %s", job.id, preflight_error)
+                for item in active_items:
+                    await update_item(db, item, "blocked", preflight_error)
             for item in items:
+                if preflight_error:
+                    break
                 if item.status in ("completed", *FINALIZATION_STATES):
                     continue
                 if stop.is_set():
                     break
                 try:
                     async with MUTATION_LOCK:
-                        await process_item(db, job, item, stop)
+                        await process_item(db, job, item, stop, preflight_validated=True)
                 except Interrompu:
                     break
                 except Exception as exc:

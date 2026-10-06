@@ -79,7 +79,7 @@ def location_json(location):
             "checked_at",
             "health",
         )
-    }
+    } | {"virtual": location.virtual_key is not None}
 
 
 async def preview(db, body):

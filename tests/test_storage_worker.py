@@ -43,6 +43,8 @@ def transfer(tmp_path, monkeypatch):
         id=1,
         arr_instance_id=1,
         arr_id=1,
+        size_bytes=5000,
+        title="Film",
         media_type="movie",
         status="pending",
         claimed=True,
@@ -52,11 +54,17 @@ def transfer(tmp_path, monkeypatch):
         reason=None,
     )
     job = NS(destination_id=2, params={"verification": "renforce"})
-    media_state = {"path": snap["source_arr"]}
+    media_state = {
+        "path": snap["source_arr"],
+        "roots": [
+            {"path": "/data/FILMS", "accessible": True, "freeSpace": 1_000_000_000_000},
+            {"path": "/usb/FILMS", "accessible": True, "freeSpace": 1_000_000_000_000},
+        ],
+    }
 
     async def arr(instance, method, path, body=None):
         if path == "rootfolder":
-            return [{"path": "/usb/FILMS"}]
+            return list(media_state["roots"])
         if path.startswith("queue"):
             return {"records": []}
         if path == "movie/1":
@@ -79,26 +87,13 @@ def transfer(tmp_path, monkeypatch):
             return {"Metadata": [{"Guid": [{"id": "tmdb://10"}]}]}
         return {}
 
-    async def files(conn, section, path, kind):
+    async def files(conn, section, path, kind, **kwargs):
         if path == snap["source_plex"] or media_state["path"] == snap["destination_arr"]:
             return {"film.mkv": ["123"]}
         return {}
 
     monkeypatch.setattr(worker, "local_media", lambda root, relative: Path(root) / relative)
     monkeypatch.setattr(worker, "connection_for", AsyncMock(return_value=NS(id=1)))
-    monkeypatch.setattr(
-        worker,
-        "discover_instance_roots",
-        AsyncMock(
-            return_value={
-                "arr_roots": ["/data/FILMS", "/usb/FILMS"],
-                "plex_roots": [
-                    {"path": "/media/FILMS", "section_id": "3"},
-                    {"path": "/usb/MEDIA/FILMS", "section_id": "3"},
-                ],
-            }
-        ),
-    )
     monkeypatch.setattr(worker, "arr_request", arr)
     monkeypatch.setattr(worker, "plex_get", plex)
     monkeypatch.setattr(worker, "plex_files", files)
@@ -162,9 +157,7 @@ async def test_active_playback_defers_without_copy(transfer, monkeypatch):
 async def test_preconditions_preserve_original(transfer, monkeypatch, issue):
     t = transfer
     if issue == "root":
-        monkeypatch.setattr(
-            worker, "discover_instance_roots", AsyncMock(return_value={"arr_roots": [], "plex_roots": []})
-        )
+        t.state["roots"] = []
     elif issue == "identity":
         t.item.snapshot["plex_machine"] = "other"
     elif issue == "arr_path":
@@ -275,21 +268,22 @@ async def test_queue_continues_and_durable_commands(tmp_path, monkeypatch, outco
 
     job = NS(id=1, status="queued", desired_state="pause" if outcome == "pause" else "run")
     items = [
-        NS(id=1, status="completed"),
-        NS(id=2, status="pending", progress={}),
-        NS(id=3, status="pending", progress={}),
+        NS(id=1, status="completed", claimed=False),
+        NS(id=2, status="pending", progress={}, claimed=True),
+        NS(id=3, status="pending", progress={}, claimed=True),
     ]
     result = NS(scalars=lambda: NS(all=lambda: items))
     db = NS(
         get=AsyncMock(return_value=job), execute=AsyncMock(return_value=result), commit=AsyncMock(), refresh=AsyncMock()
     )
     monkeypatch.setattr(worker, "AsyncSessionLocal", lambda: Context(db))
+    monkeypatch.setattr(worker, "validate_transfer_roots", AsyncMock())
     monkeypatch.setattr(worker, "refresh_storage", AsyncMock())
     monkeypatch.setattr(worker, "HEARTBEAT", tmp_path / "heartbeat")
     monkeypatch.setattr(worker, "SHUTDOWN", threading.Event())
     lease = NS(execute=AsyncMock(side_effect=RuntimeError("lease lost") if outcome == "lease_lost" else None))
 
-    async def process(db, job, item, stop):
+    async def process(db, job, item, stop, *, preflight_validated=False):
         await asyncio.sleep(0)
         if stop.is_set():
             raise worker.Interrompu()
@@ -391,6 +385,57 @@ async def test_pagination_and_session_paths(monkeypatch):
     assert await worker.plex_files(None, "3", "/media/Film", "movie") == {"a.mkv": ["1"]}
     monkeypatch.setattr(worker, "plex_get", AsyncMock(return_value={"Metadata": [metadata("1", "/usb/Film/a.mkv")]}))
     assert await worker.is_playing(None, dict(source_plex="/media/Film", destination_plex="/usb/Film"))
+
+
+@pytest.mark.asyncio
+async def test_plex_transfer_lookup_targets_one_movie_by_title_and_path(monkeypatch):
+    title_search = AsyncMock(
+        return_value={
+            "Metadata": [
+                {
+                    "ratingKey": "42",
+                    "Media": [{"Part": [{"file": "/media/Film/Film.mkv"}]}],
+                }
+            ]
+        }
+    )
+    monkeypatch.setattr(worker, "plex_get", title_search)
+    result = await worker.plex_files(
+        NS(),
+        "3",
+        "/media/Film",
+        "movie",
+        snapshot={"tmdb_id": 42},
+        title="Film",
+    )
+    assert result == {"Film.mkv": ["42"]}
+    title_search.assert_awaited_once_with(
+        title_search.await_args.args[0],
+        "/library/sections/3/all",
+        {"type": 1, "title": "=Film", "includeMedia": 1},
+    )
+
+
+@pytest.mark.asyncio
+async def test_plex_transfer_lookup_targets_series_leaves_and_known_rating_keys(monkeypatch):
+    plex = NS()
+    lookup = AsyncMock(
+        side_effect=[
+            {"Metadata": [{"ratingKey": "show-1"}]},
+            {"Metadata": [{"ratingKey": "episode-1", "Media": [{"Part": [{"file": "/media/Show/S01E01.mkv"}]}]}]},
+            {"Metadata": [{"ratingKey": "episode-1", "Media": [{"Part": [{"file": "/usb/Show/S01E01.mkv"}]}]}]},
+        ]
+    )
+    monkeypatch.setattr(worker, "plex_get", lookup)
+    source = await worker.plex_files(plex, "2", "/media/Show", "series", snapshot={"tvdb_id": 8}, title="Show")
+    destination = await worker.plex_files(plex, "2", "/usb/Show", "series", rating_keys=source)
+    assert source == {"S01E01.mkv": ["episode-1"]}
+    assert destination == source
+    assert [call.args[1] for call in lookup.await_args_list] == [
+        "/library/sections/2/all",
+        "/library/metadata/show-1/allLeaves",
+        "/library/metadata/episode-1",
+    ]
 
 
 @pytest.mark.asyncio

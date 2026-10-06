@@ -9,15 +9,21 @@ const roots = [
   { arr_instance_id: 1, name: 'Radarr', arr_type: 'radarr', arr_roots: ['/data/FILMS','/usb/FILMS'], plex_roots: [{ section_id:'1',library:'Films',path:'/media/FILMS' }, { section_id:'1',library:'Films',path:'/usb/MEDIA/FILMS' }] },
   { arr_instance_id: 2, name: 'Sonarr', arr_type: 'sonarr', arr_roots: ['/data/SERIES'], plex_roots: [{ section_id:'2',library:'Séries',path:'/media/SERIES' }] },
 ];
-async function factory() {
+async function factory(openSettings=true) {
  const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},AppSubnav:{props:['items','active'],emits:['update:active'],template:'<nav class="app-subnav__root"><button v-for="item in items" :key="item.key" @click="$emit(\'update:active\',item.key)">{{ item.label }}<span v-if="item.count!=null"> {{ item.count }}</span></button></nav>'},AppPage:{template:'<main><slot name="tools"/><slot/></main>'}, ModalShell:{props:['open'],template:'<div v-if="open" role="dialog"><slot/></div>'}}}});
  await flushPromises();
- await wrapper.findAll('button').find(b=>b.text()==='Stockages').trigger('click');
- await flushPromises();
+ if(openSettings){await wrapper.findAll('button').find(b=>b.text()==='Stockages').trigger('click');await flushPromises();}
  return wrapper;
 }
 describe('Storage root correspondence table', () => {
- beforeEach(()=>{localStorage.clear();request.mockReset();request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/roots/resolve'?{candidates:[],automatic:null,comparison:{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}}:path==='/api/storage/roots/check'?{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}:[]);});
+ beforeEach(()=>{localStorage.clear();request.mockReset();request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/instances'?[{id:1,name:'Radarr',arr_type:'radarr',enabled:true},{id:2,name:'Sonarr',arr_type:'sonarr',enabled:true}]:path==='/api/storage/roots/resolve'?{candidates:[],automatic:null,comparison:{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}}:path==='/api/storage/roots/check'?{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}:[]);});
+ it('does not read Arr/Plex roots when opening the overview or preparation',async()=>{
+  const wrapper=await factory(false);
+  expect(request.mock.calls.some(([path])=>path==='/api/storage/roots')).toBe(false);
+  await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');await flushPromises();
+  expect(request.mock.calls.some(([path])=>path==='/api/storage/roots')).toBe(false);
+  wrapper.unmount();
+ });
  it('renders one shared-table row per Arr root without assuming a Plex match',async()=>{
   const wrapper=await factory();
   const table=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]');
@@ -103,6 +109,22 @@ describe('Storage root correspondence table', () => {
   expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/locations/7' && opts?.method==='PUT')).toBe(true);
   expect(wrapper.text()).not.toContain('could not be cloned');wrapper.unmount();
  });
+ it('promotes a temporary preview mapping only after verify-and-save',async()=>{
+  const original=request.getMockImplementation();let promoted=false;
+  const location={id:7,name:'Arr 1 · /data/FILMS',mount_path:'',reserve_bytes:0,enabled:true,virtual:true,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1',subdirectory:''}]};
+  request.mockImplementation(async(path,opts)=>{
+   if(path==='/api/storage/locations'&&!opts)return [promoted?{...location,virtual:false}:location];
+   if(path==='/api/storage/locations/7'&&opts?.method==='PUT'){promoted=true;return {...location,virtual:false};}
+   return original(path,opts);
+  });
+  const wrapper=await factory();
+  const row=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
+  expect(row.text()).toContain('À enregistrer');
+  await wrapper.findAll('button').find(b=>b.text().startsWith('Vérifier et enregistrer')).trigger('click');await flushPromises();
+  expect(request).toHaveBeenCalledWith('/api/storage/locations/7',expect.objectContaining({method:'PUT'}));
+  expect(row.text()).toContain('Validé');
+  wrapper.unmount();
+ });
  it('only offers Arr preparation without rsync or engine settings',async()=>{
   const wrapper=await factory();
   await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');
@@ -113,32 +135,31 @@ describe('Storage root correspondence table', () => {
   expect(wrapper.text()).not.toContain('doivent être montés');
   wrapper.unmount();
  });
- it('prepares multiple instances with independent routes and a shared preview',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/preview'?{source:{free_bytes:10e9},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
+ it('prepares multiple instances from saved roots with a shared preview',async()=>{
+  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/locations'?
+   [{id:1,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1'}]},{id:2,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:1,arr_root:'/usb/FILMS',plex_root:'/usb/MEDIA/FILMS',plex_section_id:'1'}]},{id:3,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:2,arr_root:'/data/SERIES',plex_root:'/media/SERIES',plex_section_id:'2'}]},{id:4,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:2,arr_root:'/usb/SERIES',plex_root:'/usb/MEDIA/SERIES',plex_section_id:'2'}]}]:path==='/api/storage/preview'?{source:{free_bytes:10e9},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');
   const choices=wrapper.findAll('.instance-choice input');await choices[0].setValue(true);await choices[1].setValue(true);
   const sourceChecks=wrapper.findAll('.source-choices input');await sourceChecks[0].setValue(true);await sourceChecks[2].setValue(true);
-  roots[1].arr_roots.push('/usb/SERIES');await wrapper.vm.$nextTick();
   const selects=wrapper.findAll('.prepare-route select');await selects[0].setValue('/usb/FILMS');await selects[1].setValue('/usb/SERIES');
   await wrapper.find('form').trigger('submit');await wrapper.find('form').trigger('submit');await flushPromises();
   const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);expect(JSON.parse(calls[0][1].body).routes.map(r=>r.arr_instance_id)).toEqual([1,2]);
-  expect(wrapper.find('[role="dialog"]').exists()).toBe(true);roots[1].arr_roots.pop();wrapper.unmount();
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(true);wrapper.unmount();
  });
  it('sends multiple checked sources with one shared objective',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/preview'?{source:{free_bytes:0},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  roots[0].arr_roots.push('/data2/FILMS');
+  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/locations'?[{id:1,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1'}]},{id:2,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data2/FILMS',plex_root:'/media2/FILMS',plex_section_id:'1'}]},{id:3,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:1,arr_root:'/usb/FILMS',plex_root:'/usb/MEDIA/FILMS',plex_section_id:'1'}]}]:path==='/api/storage/preview'?{source:{free_bytes:0},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');
   await wrapper.find('.instance-choice input').setValue(true);
-  const checks=wrapper.findAll('.source-choices input');await checks[0].setValue(true);await checks[2].setValue(true);
+  const checks=wrapper.findAll('.source-choices input');await checks[0].setValue(true);await checks[1].setValue(true);
   await wrapper.find('.prepare-route select').setValue('/usb/FILMS');
-  expect(wrapper.find('.source-choices input[value="/usb/FILMS"]').attributes('disabled')).toBeDefined();
+  expect(wrapper.find('.source-choices input[value="/usb/FILMS"]').element.disabled).toBe(true);
   await wrapper.find('form').trigger('submit');expect(wrapper.findAll('.objective-options input')).toHaveLength(3);
   expect(wrapper.text()).toContain('Espace à libérer au total');
   await wrapper.find('input[type="number"]').setValue(600);
   await wrapper.find('form').trigger('submit');await flushPromises();
   const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);
   expect(JSON.parse(calls[0][1].body)).toMatchObject({goal_gb:600,routes:[{source_roots:['/data/FILMS','/data2/FILMS'],destination_root:'/usb/FILMS',root_goals:{}}]});
-  roots[0].arr_roots.pop();wrapper.unmount();
+  wrapper.unmount();
  });
  it('does not show a create-task button in transfers',async()=>{
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
@@ -246,13 +267,14 @@ describe('Storage root correspondence table', () => {
   w.unmount();
  });
 
- it('offers removal and restores cancelled task parameters without launching a preview',async()=>{
+ it('opens a fresh preview directly when relaunching a cancelled task',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',desired_state:'cancel',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:100e9},destination:{free_bytes:200e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
   expect(wrapper.text()).toContain('Relancer avec de nouveaux paramètres');
-  await wrapper.findAll('button').find(b=>b.text()==='Préparer une nouvelle tâche avec ces paramètres').trigger('click');await flushPromises();
-  expect(wrapper.text()).toContain('Paramètres repris depuis la tâche terminée');
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(false);
+  await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
+  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(true);
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+  expect(wrapper.find('[role="dialog"]').text()).toContain('Mode retenu : API Sonarr / Radarr');
   expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);wrapper.unmount();
  });
  it('confirms removal of a paused task before requesting durable cancellation',async()=>{

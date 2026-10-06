@@ -73,6 +73,18 @@ async def locations(db=Depends(get_db_async)):
     ]
 
 
+@router.get("/instances")
+async def storage_instances(db=Depends(get_db_async)):
+    instances = (
+        await db.execute(
+            select(ArrInstance)
+            .where(ArrInstance.arr_type.in_(["radarr", "sonarr"]))
+            .order_by(ArrInstance.name, ArrInstance.id)
+        )
+    ).scalars()
+    return [dict(id=item.id, name=item.name, arr_type=item.arr_type, enabled=item.enabled) for item in instances]
+
+
 @router.get("/roots")
 async def roots(db=Depends(get_db_async)):
     results = []
@@ -132,6 +144,10 @@ async def save_location(db, body, location=None):
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     location = location or StorageLocation()
+    # Saving a correspondence from the roots table promotes an API-preview
+    # capacity row to a durable, user-confirmed association. Virtual rows are
+    # deliberately ignored by transfer planning until this point.
+    location.virtual_key = None
     location.name = body.name.strip()
     location.mount_path = mount
     location.mappings = [m.model_dump() for m in body.mappings]

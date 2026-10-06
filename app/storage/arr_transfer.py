@@ -23,17 +23,24 @@ async def route(db, instance, root, discovered):
     if not declared or declared.get("accessible") is not True or not isinstance(declared.get("freeSpace"), int):
         raise ValueError("Arr doit confirmer une racine accessible et son espace libre.")
     # An explicitly configured association takes precedence over a path-name
-    # heuristic. Ignore virtual locations: preview creates those for capacity
-    # accounting and they do not prove that a person validated the association.
+    # heuristic. Virtual rows are temporary preview capacity records, not saved
+    # configuration. If one contains a non-obvious association, ask the user to
+    # save it from Stockages instead of silently trusting a generated row.
     try:
-        locations = (
-            (await db.execute(select(StorageLocation).where(StorageLocation.virtual_key.is_(None)))).scalars().all()
-        )
+        locations = (await db.execute(select(StorageLocation))).scalars().all()
     except AttributeError:  # Small test doubles may not implement a DB query.
         locations = []
+    persistent = [location for location in locations if location.virtual_key is None]
     saved = [
         m
+        for location in persistent
+        for m in location.mappings
+        if m["arr_instance_id"] == instance.id and m["arr_root"] == root
+    ]
+    temporary = [
+        m
         for location in locations
+        if location.virtual_key is not None
         for m in location.mappings
         if m["arr_instance_id"] == instance.id and m["arr_root"] == root
     ]
@@ -45,6 +52,15 @@ async def route(db, instance, root, discovered):
         choices = [p for p in discovered["plex_roots"] if p["path"] == plex_root and str(p["section_id"]) == section_id]
     else:
         choices = [p for p in discovered["plex_roots"] if compatible(root, p["path"])]
+        temporary_pairs = {(m["plex_root"], str(m["plex_section_id"])) for m in temporary}
+        if temporary_pairs and (
+            len(temporary_pairs) > 1
+            or not choices
+            or next(iter(temporary_pairs)) != (choices[0]["path"], str(choices[0]["section_id"]))
+        ):
+            raise ValueError(
+                "Cette correspondance existe seulement dans un stockage temporaire : enregistrez-la dans Stockages."
+            )
     if len(choices) != 1:
         raise ValueError("Correspondance Arr/Plex ambiguë ou absente : associez cette racine dans Stockages.")
     plex = choices[0]
@@ -70,9 +86,43 @@ async def route(db, instance, root, discovered):
     return declared, mapping, comparison
 
 
+async def snapshot_mapping_matches(db, instance, root, plex_root, plex_section_id):
+    """Compare a planned mapping with saved settings without rescanning Plex."""
+    try:
+        locations = (await db.execute(select(StorageLocation))).scalars().all()
+    except AttributeError:  # Small test doubles may only exercise path heuristics.
+        locations = []
+    persistent = [location for location in locations if location.virtual_key is None]
+    configured = [
+        mapping
+        for location in persistent
+        for mapping in location.mappings
+        if mapping["arr_instance_id"] == instance.id and mapping["arr_root"] == root
+    ]
+    if not configured:
+        configured = [
+            mapping
+            for location in locations
+            if location.virtual_key is not None
+            for mapping in location.mappings
+            if mapping["arr_instance_id"] == instance.id and mapping["arr_root"] == root
+        ]
+    pairs = {(mapping["plex_root"], str(mapping["plex_section_id"])) for mapping in configured}
+    if len(pairs) > 1:
+        raise ValueError("Plusieurs correspondances sont enregistrées pour cette racine : corrigez Stockages.")
+    if pairs:
+        return next(iter(pairs)) == (plex_root, str(plex_section_id))
+    # Older jobs may have been prepared from the deterministic path heuristic
+    # before the user saved an explicit association.
+    return compatible(root, plex_root)
+
+
 async def virtual_location(db, instance, root, declared, mapping):
     name = f"Arr {instance.id} · {root}"
     virtual_key = f"{instance.id}:{root}"
+    free_space = declared.get("freeSpace")
+    health = "arr_verified" if isinstance(free_space, int) else "unknown"
+    checked_at = now_utc_naive() if isinstance(free_space, int) else None
     # Commit this small registry row independently. Otherwise its unique-key
     # insert would remain uncommitted during the slow Arr/Plex inventory scan,
     # making another read-only preview for the same root wait behind it.
@@ -86,18 +136,18 @@ async def virtual_location(db, instance, root, declared, mapping):
                 mappings=[mapping],
                 reserve_bytes=0,
                 enabled=True,
-                free_bytes=declared["freeSpace"],
-                health="arr_verified",
-                checked_at=now_utc_naive(),
+                free_bytes=free_space,
+                health=health,
+                checked_at=checked_at,
             )
             .on_conflict_do_update(
                 index_elements=[StorageLocation.virtual_key],
                 set_={
                     "name": name,
                     "mappings": [mapping],
-                    "free_bytes": declared["freeSpace"],
-                    "health": "arr_verified",
-                    "checked_at": now_utc_naive(),
+                    "free_bytes": free_space,
+                    "health": health,
+                    "checked_at": checked_at,
                 },
             )
             .returning(StorageLocation.id)
@@ -108,10 +158,37 @@ async def virtual_location(db, instance, root, declared, mapping):
         raise RuntimeError("Impossible de réserver la racine Arr comme stockage virtuel.")
     location.name = name
     location.mappings = [mapping]
-    location.free_bytes = declared["freeSpace"]
-    location.health = "arr_verified"
-    location.checked_at = now_utc_naive()
+    location.free_bytes = free_space
+    location.health = health
+    location.checked_at = checked_at
     return location
+
+
+async def configured_route(db, instance, root):
+    """Build a preparation route from saved mappings and cached capacity only."""
+    locations = (await db.execute(select(StorageLocation))).scalars().all()
+    mappings = [
+        mapping
+        for location in locations
+        if location.virtual_key is None
+        for mapping in location.mappings
+        if mapping["arr_instance_id"] == instance.id and mapping["arr_root"] == root
+    ]
+    pairs = {(m["plex_root"], str(m["plex_section_id"])) for m in mappings}
+    if len(pairs) != 1:
+        raise ValueError(
+            f"Aucune correspondance enregistrée et unique pour {root}. Configurez-la dans Stockages avant l’aperçu."
+        )
+    plex_root, section_id = next(iter(pairs))
+    mapping = next(m for m in mappings if (m["plex_root"], str(m["plex_section_id"])) == (plex_root, section_id))
+    cache = next(
+        (location for location in locations if location.virtual_key == f"{instance.id}:{root}"),
+        None,
+    )
+    free_space = cache.free_bytes if cache and isinstance(cache.free_bytes, int) else None
+    declared = {"path": root, "freeSpace": free_space, "accessible": None}
+    location = await virtual_location(db, instance, root, declared, mapping)
+    return declared, mapping, location
 
 
 async def preview_arr(db, body, capacity_overrides=None):
@@ -138,21 +215,17 @@ async def preview_arr(db, body, capacity_overrides=None):
         raise ValueError("Les racines source et destination doivent être distinctes et non imbriquées.")
     if any(a != b and a.startswith(b + "/") for a in sources for b in sources):
         raise ValueError("Les racines source ne doivent pas être imbriquées.")
-    await report("Vérification des racines et correspondances récemment validées…")
-    discovered = await discover_instance_roots(db, instance)
-    dst, dm, _ = await route(db, instance, destination, discovered)
+    await report("Lecture des correspondances enregistrées…")
+    dst, dm, dl = await configured_route(db, instance, destination)
     if capacity_overrides is not None:
-        dst = {**dst, "freeSpace": capacity_overrides[destination]}
+        dst = {**dst, "freeSpace": capacity_overrides.get(destination, dst["freeSpace"])}
     source_routes = []
     for source in sources:
-        src, sm, comparison = await route(db, instance, source, discovered)
+        src, sm, sl = await configured_route(db, instance, source)
         if capacity_overrides is not None:
-            src = {**src, "freeSpace": capacity_overrides[source]}
+            src = {**src, "freeSpace": capacity_overrides.get(source, src["freeSpace"])}
         if sm["plex_section_id"] != dm["plex_section_id"]:
             raise ValueError("Le déplacement doit rester dans la même bibliothèque Plex.")
-        if comparison["status"] != "sample_matched":
-            raise ValueError("Aucun fichier source permettant de confirmer la correspondance.")
-        sl = await virtual_location(db, instance, source, src, sm)
         source_routes.append((source, src, sm, sl))
     kind = "movie" if instance.arr_type == "radarr" else "series"
     occupied = set(
@@ -182,7 +255,7 @@ async def preview_arr(db, body, capacity_overrides=None):
         if matching is None:
             continue
         source, src, sm, sl = matching
-        if body.mode == "minimum_free" and src["freeSpace"] >= goal_for(source):
+        if body.mode == "minimum_free" and src["freeSpace"] is not None and src["freeSpace"] >= goal_for(source):
             continue
         relative = relative_path(media["path"], source)
         if (
@@ -225,13 +298,17 @@ async def preview_arr(db, body, capacity_overrides=None):
         covered = True
         count_covered = True
         source_objectives = []
-        available = max(0, dst["freeSpace"] - int(reserved))
+        available = max(
+            0,
+            (dst["freeSpace"] if dst["freeSpace"] is not None else sum(i["size_bytes"] for i in candidates))
+            - int(reserved),
+        )
         for source, src, sm, sl in source_routes:
             part = choose_candidates(
                 [item for item in candidates if item["snapshot"]["source_location_id"] == sl.id],
                 body.mode,
                 goal_for(source),
-                src["freeSpace"],
+                src["freeSpace"] if src["freeSpace"] is not None else 0,
                 available,
                 max(1, body.max_titles - len(chosen)),
                 set(body.selection) if body.selection is not None else None,
@@ -274,14 +351,22 @@ async def preview_arr(db, body, capacity_overrides=None):
             body.mode,
             int(body.goal_gb * 1e9),
             None,
-            max(0, dst["freeSpace"] - int(reserved)),
+            max(
+                0,
+                (dst["freeSpace"] if dst["freeSpace"] is not None else sum(i["size_bytes"] for i in candidates))
+                - int(reserved),
+            ),
             body.max_titles,
             set(body.selection) if body.selection is not None else None,
             getattr(body, "target_titles", None),
             getattr(body, "preference", "closest"),
         )
     if getattr(body, "catalogue", False):
-        capacity = max(0, dst["freeSpace"] - int(reserved))
+        capacity = max(
+            0,
+            (dst["freeSpace"] if dst["freeSpace"] is not None else sum(i["size_bytes"] for i in candidates))
+            - int(reserved),
+        )
         result["items"] = [
             dict(i, explanation="Titre disponible")
             for i in candidates
@@ -294,12 +379,14 @@ async def preview_arr(db, body, capacity_overrides=None):
         ]
         result["planned_bytes"] = 0
         result["remaining_capacity_bytes"] = capacity
-    dl = await virtual_location(db, instance, destination, dst, dm)
     result.update(
         source=location_json(source_routes[0][3]),
         sources=[location_json(entry[3]) for entry in source_routes],
         destination=location_json(dl),
-        note="Arr gère le déplacement. Pause/arrêt suspendent les prochains titres ; une commande déjà confiée à Arr peut continuer.",
+        note=(
+            "Les racines et l’espace seront vérifiés au lancement ; les capacités affichées ici sont les dernières valeurs connues. "
+            "Arr gère le déplacement. Pause/arrêt suspendent les prochains titres ; une commande déjà confiée à Arr peut continuer."
+        ),
     )
     return result
 
@@ -323,16 +410,6 @@ async def process_arr(db, job, item, stop, *, finalize_only=False):
             raise ValueError(
                 "Envoi Arr incertain après interruption : contrôler la commande dans Arr avant toute nouvelle soumission."
             )
-        discovered = await discover_instance_roots(db, instance)
-        for side in ("source", "destination"):
-            root = str(PurePosixPath(snap[side + "_arr"]).parent)
-            declared, mapping, _ = await route(db, instance, root, discovered)
-            relative = relative_path(snap[side + "_arr"], root)
-            expected_plex = mapping["plex_root"] + "/" + relative if relative else None
-            if mapping["plex_section_id"] != snap["plex_section_id"] or expected_plex != snap[side + "_plex"]:
-                raise ValueError("Correspondance Arr/Plex modifiée depuis l’aperçu : recalculer la tâche.")
-            if side == "destination" and declared["freeSpace"] < item.size_bytes:
-                raise ValueError("Espace destination insuffisant au moment du déplacement.")
         media = await arr_request(instance, "GET", f"{resource}/{item.arr_id}")
         if media["path"] != snap["source_arr"]:
             raise ValueError("Chemin Arr modifié depuis l’aperçu.")
@@ -357,7 +434,14 @@ async def process_arr(db, job, item, stop, *, finalize_only=False):
                     progress={**item.progress, "quiet_since": quiet or time.time()},
                 )
                 return
-        originals = await plex_files(conn, snap["plex_section_id"], snap["source_plex"], item.media_type)
+        originals = await plex_files(
+            conn,
+            snap["plex_section_id"],
+            snap["source_plex"],
+            item.media_type,
+            snapshot=snap,
+            title=item.title,
+        )
         await confirm_media_identity(conn, originals, snap, item.media_type)
         if stop.is_set():
             raise Interrompu()
@@ -400,7 +484,13 @@ async def process_arr(db, job, item, stop, *, finalize_only=False):
         return
     if stop.is_set():
         raise Interrompu()
-    destination = await plex_files(conn, snap["plex_section_id"], snap["destination_plex"], item.media_type)
+    destination = await plex_files(
+        conn,
+        snap["plex_section_id"],
+        snap["destination_plex"],
+        item.media_type,
+        rating_keys=snap["original_plex"],
+    )
     if destination != snap["original_plex"]:
         await update_item(db, item, "plex_pending", "Déplacement Arr terminé ; confirmation des fiches Plex attendue.")
         return

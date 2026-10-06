@@ -1,5 +1,6 @@
 <template>
   <div class="task-actions">
+    <UiButton v-if="terminal" variant="primary" :disabled="busy" @click="$emit('relaunch',job)">Relancer</UiButton>
     <UiButton v-if="job.status==='draft'" variant="primary" :disabled="busy" @click="$emit('verify',job)">Vérifier et lancer</UiButton>
     <UiButton v-else-if="!terminal && !cancelRequested" variant="primary" :disabled="busy" @click="$emit('command',job.id,active?'pause':['blocked','failed'].includes(job.status)?'retry':'resume')">{{ active?'Mettre en pause':['blocked','failed'].includes(job.status)?'Réessayer':'Reprendre le lot' }}</UiButton>
 
@@ -9,7 +10,6 @@
       <UiMenuItem v-if="job.status==='draft'" @select="$emit('edit',job)">Modifier</UiMenuItem>
       <UiMenuItem :disabled="cancelling" variant="danger" @select="$emit('remove',job)">{{ job.status==='draft'?'Supprimer le brouillon':'Supprimer la tâche' }}</UiMenuItem>
       <UiMenuItem v-if="!terminal && !cancelRequested && job.status!=='draft'" :disabled="job.status==='running'" @select="$emit('command',job.id,'retry')">Réessayer les titres en erreur</UiMenuItem>
-      <UiMenuItem v-if="terminal" @select="$emit('relaunch',job)">Préparer une nouvelle tâche avec ces paramètres</UiMenuItem>
       <UiMenuItem @select="$emit('duplicate',job)">Relancer avec de nouveaux paramètres</UiMenuItem>
     </UiMenu>
   </div>

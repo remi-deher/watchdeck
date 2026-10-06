@@ -5,7 +5,8 @@ import json
 
 from .discovery import redis_client
 
-TTL = 30 * 60
+TTL = 24 * 60 * 60
+EMPTY_TTL = 2 * 60
 PREFIX = "storage:mapping-proof:"
 
 
@@ -56,7 +57,11 @@ async def put(instance, discovered, mapping, comparison):
                     "total_titles": comparison.get("total_titles", 0),
                 }
             ),
-            ex=TTL,
+            # A successful sample is configuration evidence; keep it through
+            # normal task preparation without rescanning a whole library every
+            # 30 minutes. Empty roots expire quickly so newly imported media is
+            # noticed without requiring a long wait.
+            ex=EMPTY_TTL if comparison.get("status") == "empty" else TTL,
         )
     finally:
         await client.aclose()

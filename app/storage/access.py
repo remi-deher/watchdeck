@@ -179,26 +179,29 @@ async def preview_rsync(db, body):
             raise ValueError("Choisissez un accès validé pour chaque racine.")
         matching_root(access, body.arr_instance_id, root)
         selected[root] = access
-    await report("Vérification des accès SSH / montages et de leurs échantillons…")
-    for access in {a.id: a for a in selected.values()}.values():
-        roots = {(body.arr_instance_id, root) for root, endpoint in selected.items() if endpoint.id == access.id}
-        if not await validation_is_fresh(db, access, roots):
-            await validate_access(db, access, roots)
-    capacities = {
-        root: next(
-            r["free_bytes"]
-            for r in a.validation["roots"]
-            if r["arr_instance_id"] == body.arr_instance_id and r["arr_root"] == root
+    await report("Lecture des accès et des dernières capacités connues…")
+
+    def cached_root(access, root):
+        return next(
+            (
+                entry
+                for entry in (access.validation or {}).get("roots", [])
+                if entry.get("arr_instance_id") == body.arr_instance_id and entry.get("arr_root") == root
+            ),
+            {},
         )
-        for root, a in selected.items()
+
+    # Preparation is intentionally read-only and does not reconnect to SSH or
+    # rescan Arr/Plex roots. These values are estimates; filesystem and Arr
+    # access are checked again by the worker when the task actually starts.
+    capacities = {
+        root: cached_root(access, root).get("free_bytes")
+        for root, access in selected.items()
+        if isinstance(cached_root(access, root).get("free_bytes"), int)
     }
     access = selected[body.destination_root]
     target = matching_root(access, body.arr_instance_id, body.destination_root)
-    destination = next(
-        r
-        for r in access.validation["roots"]
-        if r["arr_instance_id"] == body.arr_instance_id and r["arr_root"] == body.destination_root
-    )
+    destination = cached_root(access, body.destination_root)
     body.access_id = access.id
     destination_config = await config_for(db, access) if method == "ssh" else None
     for source in sources:
@@ -216,15 +219,11 @@ async def preview_rsync(db, body):
                 or destination_path in source_path.parents
             ):
                 raise ValueError("Chemins physiques source et destination identiques ou imbriqués.")
-            proof = next(
-                r
-                for r in source_access.validation["roots"]
-                if r["arr_instance_id"] == body.arr_instance_id and r["arr_root"] == source
-            )
-            if proof.get("identity") and proof["identity"] == destination.get("identity"):
+            proof = cached_root(source_access, source)
+            if proof.get("identity") and proof.get("identity") == destination.get("identity"):
                 raise ValueError("Source et destination désignent le même dossier physique.")
     result = await preview_arr(db, body, capacity_overrides=capacities)
-    if result["planned_bytes"] > destination["free_bytes"]:
+    if isinstance(destination.get("free_bytes"), int) and result["planned_bytes"] > destination["free_bytes"]:
         raise ValueError("Espace destination insuffisant selon le serveur rsync.")
     for item in result["items"]:
         snap = item["snapshot"]
@@ -239,6 +238,7 @@ async def preview_rsync(db, body):
         if selected[root].id != access.id:
             snap.update(source_access_id=selected[root].id, source_access_revision=selected[root].revision)
     result["note"] = (
+        "Les racines et l’espace seront vérifiés au lancement ; les capacités affichées ici sont les dernières valeurs connues. "
         "Rsync copie et vérifie avant la bascule Arr/Plex. L’original est conservé jusqu’à confirmation Plex. Pause interrompt la copie ; aucun repli automatique."
     )
     return result

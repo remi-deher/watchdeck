@@ -14,11 +14,13 @@ from app.storage.preview_cache import inventory_cache, read_inventory
 class Redis:
     def __init__(self):
         self.values = {}
+        self.expiries = {}
 
     async def set(self, key, value, nx=False, ex=None):
         if nx and key in self.values:
             return False
         self.values[key] = value
+        self.expiries[key] = ex
         return True
 
     async def get(self, key):
@@ -71,6 +73,19 @@ async def test_mapping_proofs_are_reused_only_for_the_exact_endpoint_and_associa
     assert await mapping_proofs.get(instance, {**discovered, "plex_url": "http://other"}, mapping) is None
     await mapping_proofs.put(instance, discovered, mapping, {"status": "mismatch"})
     assert await mapping_proofs.get(instance, discovered, mapping) is None
+
+
+@pytest.mark.asyncio
+async def test_confirmed_mapping_proof_lasts_for_a_day_but_empty_root_proof_expires_quickly(monkeypatch):
+    redis = Redis()
+    monkeypatch.setattr(mapping_proofs, "redis_client", lambda: redis)
+    instance = NS(id=1, url="http://arr", arr_type="radarr", api_key="arr-key")
+    discovered = dict(plex_server_id=4, plex_url="http://plex", plex_token_fingerprint="token-fingerprint")
+    mapping = dict(arr_root="/data/FILMS", plex_root="/media/FILMS", plex_section_id="3")
+    await mapping_proofs.put(instance, discovered, mapping, {"status": "sample_matched"})
+    assert redis.expiries[mapping_proofs.proof_key(instance, discovered, mapping)] == 24 * 60 * 60
+    await mapping_proofs.put(instance, discovered, mapping, {"status": "empty"})
+    assert redis.expiries[mapping_proofs.proof_key(instance, discovered, mapping)] == 2 * 60
 
 
 @pytest.mark.asyncio

@@ -103,7 +103,7 @@ async def test_preview_and_transfer_serialization(monkeypatch):
 @pytest.mark.asyncio
 async def test_location_save_and_commands(monkeypatch):
     instance = NS(id=1, arr_type="radarr")
-    existing = StorageLocation(id=1)
+    existing = StorageLocation(id=1, virtual_key="1:/data/FILMS")
     db = NS(
         get=AsyncMock(return_value=instance),
         execute=AsyncMock(return_value=NS(scalars=lambda: [])),
@@ -121,6 +121,7 @@ async def test_location_save_and_commands(monkeypatch):
     )
     saved = await api.save_location(db, body, existing)
     assert saved["mount_path"] == "/storage/data1" and saved["health"] == "not_checked"
+    assert saved["virtual"] is False and existing.virtual_key is None
     await api.create_location(body, db)
     job = NS(status="paused", desired_state="pause")
     db.get = AsyncMock(return_value=job)
