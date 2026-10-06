@@ -271,3 +271,159 @@ async def test_cache_database_failure_falls_back_without_touching_business_sessi
     live = AsyncMock(return_value=[{"id": 17}])
     assert await inventory.arr_catalog(db, NS(id=2, url="http://arr", api_key="key"), live) == [{"id": 17}]
     db.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_inventory_api_filters_sources_and_paginates(committed_async_database, monkeypatch):
+    from app.routers import storage_api
+
+    factory = committed_async_database.session_factory
+    monkeypatch.setattr(inventory, "AsyncSessionLocal", factory)
+    for source, endpoint in [("arr", 1), ("plex", 2)]:
+        await inventory.record(
+            source,
+            endpoint,
+            "rev",
+            [
+                dict(entity_id=str(i), media_type="movie", provider_id=str(i), data={"title": f"Film {i}"})
+                for i in range(3)
+            ],
+        )
+    async with factory() as db:
+        rows = await storage_api.inventory_list(source="plex", endpoint_id=2, offset=1, limit=1, db=db)
+        assert len(rows) == 1 and rows[0]["entity_id"] == "1"
+        assert rows[0]["source"] == "plex" and rows[0]["present"] is True
+        assert len(await storage_api.inventory_list(offset=-5, limit=999, db=db)) == 6
+        assert await storage_api.inventory_list(source="arr", endpoint_id=2, db=db) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "case,expected",
+    [("unknown", 404), ("arr", 404), ("disabled", 409), ("ambiguous", 409), ("offline", 503), ("ok", None)],
+)
+async def test_inventory_refresh_api_explains_recoverable_failures(monkeypatch, case, expected):
+    from fastapi import HTTPException
+
+    from app.routers import storage_api
+    from app.services import plex_servers
+
+    row = (
+        None
+        if case == "unknown"
+        else NS(
+            source="arr" if case == "arr" else "plex",
+            endpoint_id=2,
+            entity_id="7",
+            media_type="movie",
+            provider_id="42",
+        )
+    )
+    db = NS(get=AsyncMock(return_value=row))
+    conn = NS(id=2)
+    monkeypatch.setattr(plex_servers, "connection_for", AsyncMock(return_value=None if case == "disabled" else conn))
+    refresh = AsyncMock(return_value={"files": [{"path": "/new/a.mkv"}]})
+    if case == "ambiguous":
+        refresh.side_effect = ValueError("Ambiguous identity")
+    if case == "offline":
+        refresh.side_effect = httpx.ConnectError("offline")
+    monkeypatch.setattr(inventory, "refresh_plex_item", refresh)
+    if expected:
+        with pytest.raises(HTTPException) as exc:
+            await storage_api.inventory_refresh(17, db=db)
+        assert exc.value.status_code == expected
+        if case in ("unknown", "arr", "disabled"):
+            refresh.assert_not_awaited()
+    else:
+        result = await storage_api.inventory_refresh(17, db=db)
+        assert result["files"][0]["path"] == "/new/a.mkv"
+        refresh.assert_awaited_once_with(db, conn, "7", "movie", "42")
+
+
+@pytest.mark.asyncio
+async def test_background_batches_continue_after_offline_sources(monkeypatch):
+    from app.services import plex_servers
+    from app.storage import service
+
+    good = NS(id=1, arr_type="sonarr", url="http://arr", api_key="key")
+    offline = NS(id=2, arr_type="radarr", url="http://offline", api_key="key")
+    ignored = NS(id=3, arr_type="prowlarr")
+    revision = inventory.arr_revision(good)
+    first = NS(entity_id="1", endpoint_revision=revision)
+    second = NS(entity_id="2", endpoint_revision=revision)
+    obsolete = NS(entity_id="3", endpoint_revision="obsolete")
+    locations = [
+        (NS(server_id=2, rating_key=str(i)), NS(media_type=kind, tmdb_id="42", tvdb_id="43"))
+        for i, kind in [(1, "movie"), (2, "show")]
+    ]
+    db = NS(
+        execute=AsyncMock(
+            side_effect=[
+                NS(scalars=lambda: NS(all=lambda: [good, offline, ignored])),
+                NS(all=lambda: [(first, good), (second, good), (obsolete, good)]),
+                NS(all=lambda: locations),
+            ]
+        )
+    )
+
+    class Session:
+        async def __aenter__(self):
+            return db
+
+        async def __aexit__(self, *args):
+            pass
+
+    monkeypatch.setattr(inventory, "AsyncSessionLocal", Session)
+    request = AsyncMock(side_effect=[[{"id": 1}], httpx.ConnectError("offline")])
+    monkeypatch.setattr(service, "arr_request", request)
+    save = AsyncMock()
+    monkeypatch.setattr(inventory, "safe_record_arr", save)
+    arr_files = AsyncMock(side_effect=[httpx.ConnectError("offline"), {}])
+    monkeypatch.setattr(inventory, "refresh_arr_files", arr_files)
+    conn = NS(id=2)
+    monkeypatch.setattr(plex_servers, "connection_for", AsyncMock(return_value=conn))
+    plex_files = AsyncMock(side_effect=[httpx.ConnectError("offline"), {}])
+    monkeypatch.setattr(inventory, "refresh_plex_item", plex_files)
+    await inventory.refresh_background()
+    save.assert_awaited_once_with(good, [{"id": 1}])
+    assert request.await_count == 2
+    assert arr_files.await_count == 2 and plex_files.await_count == 2
+    assert plex_files.await_args.args[3:5] == ("series", "43")
+    assert db.execute.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_cron_inventory_does_not_propagate_source_failure(monkeypatch):
+    from app import jobs
+
+    refresh = AsyncMock(side_effect=RuntimeError("source offline"))
+    monkeypatch.setattr(inventory, "refresh_background", refresh)
+    await jobs.cron_storage_inventory({})
+    refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_series_refresh_pages_episodes_and_records_sizes(monkeypatch):
+    db = NS(
+        execute=AsyncMock(side_effect=[NS(scalars=lambda: NS(all=lambda: [])), NS(scalar_one_or_none=lambda: None)])
+    )
+    lookup = AsyncMock(
+        side_effect=[
+            {"Metadata": [{"ratingKey": "7", "type": "show", "title": "Show", "Guid": [{"id": "tvdb://42"}]}]},
+            {
+                "totalSize": 2,
+                "Metadata": [{"ratingKey": "8", "Media": [{"Part": [{"file": "/shows/e01.mkv", "size": 120}]}]}],
+            },
+            {
+                "totalSize": 2,
+                "Metadata": [{"ratingKey": "9", "Media": [{"Part": [{"file": "/shows/e02.mkv", "size": 130}]}]}],
+            },
+        ]
+    )
+    monkeypatch.setattr(worker, "plex_get", lookup)
+    write = AsyncMock()
+    monkeypatch.setattr(inventory, "record", write)
+    result = await inventory.refresh_plex_item(db, NS(id=2, url="http://plex", token="key"), "7", "series", "42")
+    assert sum(file["size_bytes"] for file in result["files"]) == 250
+    assert lookup.await_args.args[2]["X-Plex-Container-Start"] == 1
+    write.assert_awaited_once()
