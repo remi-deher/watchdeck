@@ -24,6 +24,7 @@ from . import integrite, ssh_hash
 from .integrite import Interrompu, copier_fichier, verifier_dossier
 from .local_mounts import mounted_root  # re-exported for discovery and existing callers
 from .service import arr_request
+from .ssh_pool import scoped_connections
 
 log = logging.getLogger(__name__)
 VIDEO = (".mkv", ".mp4", ".avi", ".m4v", ".mov", ".ts", ".m2ts", ".wmv")
@@ -354,6 +355,10 @@ async def update_item(db, item, status, reason=None, **changes):
         telemetry.update(next_progress)
     if status in ("prepared", "copying", "verifying", "switching", "plex_pending", "cleaning", "arr_pending"):
         telemetry.setdefault("started_at", now_utc_naive().isoformat())
+    measured = telemetry.get("bytes_per_second")
+    if measured and measured > 0:
+        telemetry["last_bytes_per_second"] = measured
+        telemetry["rate_measured_at"] = telemetry.get("updated_at", time.time())
     if previous != status:
         telemetry["phase_started_at"] = time.time()
         telemetry["bytes_per_second"] = None
@@ -370,6 +375,7 @@ async def update_item(db, item, status, reason=None, **changes):
     await db.commit()
 
 
+@scoped_connections
 async def process_item(db, job, item, stop, *, finalize_only=False, preflight_validated=False):
     if not item.claimed:
         raise ValueError("Ce titre n’est pas réservé par une tâche active ; relancez la tâche pour le vérifier.")

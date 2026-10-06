@@ -11,7 +11,7 @@
       <UiMenuItem v-if="job.status==='draft'" @select="$emit('edit',job)">Modifier</UiMenuItem>
       <UiMenuItem :disabled="cancelling" variant="danger" @select="$emit('remove',job)">{{ job.status==='draft'?'Supprimer le brouillon':'Supprimer la tâche' }}</UiMenuItem>
       <UiMenuItem v-if="!terminal && !cancelRequested && job.status!=='draft'" :disabled="job.status==='running'" @select="$emit('command',job.id,'retry')">Réessayer les titres en erreur</UiMenuItem>
-      <UiMenuItem @select="$emit('duplicate',job)">Relancer avec de nouveaux paramètres</UiMenuItem>
+      <UiMenuItem @select="$emit('duplicate',job)">Créer une copie</UiMenuItem>
     </UiMenu>
   </div>
 </template>

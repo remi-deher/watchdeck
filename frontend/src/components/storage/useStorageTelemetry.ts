@@ -18,7 +18,7 @@ const activeItem=(job:any)=>job.items.find((i:any)=>['prepared','copying','verif
 const copyPercent=(i:any)=>i.size_bytes>0?Math.min(100,Math.max(0,Math.round((i.progress?.copied_bytes||0)/i.size_bytes*100))):0;
 const duration=(seconds:number)=>seconds<60?`${Math.ceil(seconds)} s`:seconds<3600?`${Math.ceil(seconds/60)} min`:`${Math.floor(seconds/3600)} h ${Math.ceil(seconds%3600/60)} min`;
 function measuredRate(i:any){const p=i?.progress;return i?.status==='copying' && p?.bytes_per_second>0 && Date.now()/1000-p.updated_at<15?p.bytes_per_second:null;}
-const rateLabel=(i:any)=>measuredRate(i)?`${(measuredRate(i)/1e6).toLocaleString('fr-FR',{maximumFractionDigits:1})} Mo/s`:'Débit en attente de mesure';
+const rateLabel=(i:any)=>measuredRate(i)?`${(measuredRate(i)/1e6).toLocaleString('fr-FR',{maximumFractionDigits:1})} Mo/s`:i?.progress?.last_bytes_per_second>0?`${(i.progress.last_bytes_per_second/1e6).toLocaleString('fr-FR',{maximumFractionDigits:1})} Mo/s · dernière mesure`:'Débit en attente de mesure';
 function copyEta(job:any){const item=activeItem(job),rate=measuredRate(item);if(!rate || job.desired_state!=='run')return 'Estimation indisponible';const bytes=job.items.filter((i:any)=>!['completed','cancelled'].includes(i.status)).reduce((n:number,i:any)=>n+Math.max(0,i.size_bytes-(i.progress?.copied_bytes||0)),0);return `≈ ${duration(bytes/rate)}`;}
 const HISTORY_COLUMNS:UiColumn[]=[{key:'route',label:'Trajet',card:'title'},{key:'state',label:'État'},{key:'titles',label:'Films / séries'},{key:'volume',label:'Volume libéré'},{key:'dates',label:'Début / fin'},{key:'duration',label:'Durée écoulée'},{key:'deferred',label:'À traiter'}];
 function jobStart(j:any){return j.items.map((i:any)=>i.progress?.started_at).filter(Boolean).sort()[0];}

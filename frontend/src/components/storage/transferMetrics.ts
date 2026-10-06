@@ -7,7 +7,12 @@ export function transferMetrics(job:any, now=Date.now()/1000) {
   const remaining=Math.max(0,total-copied);
   const rates=items.filter((item:any)=>item.status==='copying').map((item:any)=>item.progress).filter((p:any)=>Number.isFinite(p?.bytes_per_second) && p.bytes_per_second>0 && Number.isFinite(p.updated_at) && now>=p.updated_at && now-p.updated_at<15);
   const rate=job.desired_state==='run' && job.params?.transfer_mode!=='arr' && ['running','queued'].includes(job.status) && rates.length?rates.reduce((sum:number,p:any)=>sum+p.bytes_per_second,0):null;
-  return {total,copied,remaining,rate,seconds:rate && remaining>0?remaining/rate:null,percent:total>0?copied/total*100:0};
+  const lastMeasurement=items.map((item:any)=>item.progress).filter((p:any)=>p?.last_bytes_per_second>0).sort((a:any,b:any)=>(b.rate_measured_at||0)-(a.rate_measured_at||0))[0];
+  const lastRate=job.params?.transfer_mode==='arr'?null:lastMeasurement?.last_bytes_per_second||null;
+  const starts=items.map((item:any)=>item.progress?.started_at).filter(Boolean).map((value:string)=>Date.parse(value.endsWith('Z')?value:value+'Z')/1000);
+  const ends=items.map((item:any)=>item.progress?.finished_at).filter(Boolean).map((value:string)=>Date.parse(value.endsWith('Z')?value:value+'Z')/1000);
+  const elapsed=starts.length?Math.max(0,(['completed','cancelled'].includes(job.status)&&ends.length?Math.max(...ends):now)-Math.min(...starts)):null;
+  return {total,copied,remaining,rate,lastRate,elapsed,seconds:rate && remaining>0?remaining/rate:null,percent:total>0?copied/total*100:0};
 }
 
 export function copyDuration(seconds:number|null) {

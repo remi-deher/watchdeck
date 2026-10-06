@@ -6,11 +6,13 @@
       <div><dt>Total</dt><dd>{{ gb(metrics.total) }}</dd></div>
       <div><dt>Transféré</dt><dd>{{ gb(metrics.copied) }}</dd></div>
       <div><dt>{{ job.status==='cancelled'?'Non transféré':'Reste à copier' }}</dt><dd>{{ gb(metrics.remaining) }}</dd></div>
-      <div><dt>Débit</dt><dd>{{ metrics.rate?`${(metrics.rate/1e6).toLocaleString('fr-FR',{maximumFractionDigits:1})} Mo/s`:'—' }}</dd></div>
+      <div><dt>{{ metrics.rate?'Débit actuel':'Dernier débit mesuré' }}</dt><dd>{{ (metrics.rate || metrics.lastRate)?`${((metrics.rate || metrics.lastRate)/1e6).toLocaleString('fr-FR',{maximumFractionDigits:1})} Mo/s`:'—' }}</dd></div>
+      <div><dt>Durée écoulée</dt><dd>{{ copyDuration(metrics.elapsed) }}</dd></div>
       <div><dt>Temps de copie restant</dt><dd>{{ metrics.seconds!=null?`≈ ${copyDuration(metrics.seconds)}`:'—' }}</dd></div>
     </dl>
     <small v-if="job.params?.transfer_mode==='arr'">Sonarr / Radarr ne fournit pas le débit ni la progression des fichiers : seuls les titres copiés et confirmés sont comptés.</small>
     <small v-else-if="metrics.rate">Estimation au débit actuel, hors vérification, confirmation Plex et suppression des originaux.</small>
+    <small v-else-if="metrics.lastRate">Dernière mesure conservée ; l’estimation reprendra avec une mesure de copie récente.</small>
     <small v-else-if="job.status==='running' && job.desired_state==='run'">Débit et estimation disponibles pendant la copie, après les premières mesures.</small>
   </div>
 </template>

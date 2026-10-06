@@ -3,12 +3,12 @@
     <UiFeedback v-if="error" type="error" :message="error" /><UiFeedback v-if="savedMessage" type="success" :message="savedMessage" />
     <AppSubnav v-model:active="tab" :items="tabs" variant="tabs" class="storage-subnav" aria-label="Sections du stockage" />
 
-    <StorageOverviewPanel :instances="instances" v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="configuredRootCount" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,$event.status==='draft')" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
+    <StorageOverviewPanel :instances="instances" v-if="tab==='overview'" :jobs="jobs" :locations="locations" :busy="busy" :mapping-count="mappingRows.length" :root-count="configuredRootCount" @navigate="tab=$event" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
     <UiFeedback v-if="previewProgress" type="info" :message="previewProgress" role="status" aria-live="polite" />
-    <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="prepareRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :busy="busy" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
+    <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="prepareRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :editing="Boolean(editingTaskId)" :busy="busy" @save="saveTaskSettings" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
 
-    <StorageTransferList v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,$event.status==='draft')" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
+    <StorageTransferList v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
 
     <section v-if="tab === 'settings'" class="storage-card">
       <AppSubnav v-model:active="settingsTab" :items="settingsTabs" variant="tabs" class="storage-subnav" aria-label="Configuration des stockages" />
@@ -142,7 +142,7 @@ const previewOpening=ref(false);
 const preview=()=>act(async()=>{
  await loadProtections();
  plan.value=null;const {routes,...settings}=form.value;if(editingTaskId.value && routes.length!==1)throw new Error('Modifiez une seule instance pour cette tâche, ou créez une nouvelle tâche.');const requestedRoutes=routes.map((r:any)=>({...r}));
- const preparedRoutes=requestedRoutes.map((route:any)=>{const root_access_ids={...settings.root_access_ids};for(const root of [...route.source_roots,route.destination_root]){const endpoint=selectedRootAccess(settings,accesses.value,route.arr_instance_id,root);if(endpoint)root_access_ids[`${route.arr_instance_id}:${root}`]=endpoint.id;}return {...route,root_access_ids,name:instances.value.find(i=>i.id===route.arr_instance_id)?.name||String(route.arr_instance_id)};});
+ const preparedRoutes=requestedRoutes.map((route:any)=>{const root_access_ids={...settings.root_access_ids};for(const root of [...route.source_roots,route.destination_root]){const endpoint=selectedRootAccess(settings,accesses.value,route.arr_instance_id,root);if(endpoint)root_access_ids[`${route.arr_instance_id}:${root}`]=endpoint.id;}return {...route,root_access_ids,name:settings.name || instances.value.find(i=>i.id===route.arr_instance_id)?.name||String(route.arr_instance_id)};});
  const result:any=await calculatePreview({...settings,routes:preparedRoutes,task_id:editingTaskId.value},(seconds,phase)=>{previewProgress.value=`Calcul de l’aperçu · ${seconds} s · ${phase}`;});
  plan.value=result.groups?result:{groups:[{...result,body:settings,name:'Sélection',submitted:false}]};selected.value=settings.mode==='selection'?[]:plan.value.groups.flatMap((g:any)=>g.items.map((i:any)=>i.key));previewProgress.value='';
 
@@ -151,11 +151,18 @@ const launch=(startImmediately=true)=>act(async()=>{
  for(const group of plan.value.groups){if(group.submitted)continue;const keys=group.items.filter((i:any)=>selected.value.includes(i.key)).map((i:any)=>i.key);if(!keys.length)continue;await api('/api/storage/transfers'+(editingTaskId.value?`/${editingTaskId.value}`:''),{method:editingTaskId.value?'PUT':'POST',body:JSON.stringify({...group.body,selection:keys,start_immediately:startImmediately})});group.submitted=true;}
  plan.value=null;previewOpening.value=false;editingTaskId.value=0;tab.value='transfers';await load();
 });
+const saveTaskSettings=()=>act(async()=>{
+ const {routes,...settings}=form.value;
+ if(routes.length!==1)throw new Error('Une tâche correspond à une instance. Créez une copie pour une autre tâche.');
+ await api(`/api/storage/transfers/${editingTaskId.value}`,{method:'PUT',body:JSON.stringify({...settings,...routes[0],source_root:routes[0].source_roots[0],routes:[],selection:[],start_immediately:false})});
+ savedMessage.value='Paramètres enregistrés dans la tâche existante. Aucun transfert lancé.';
+ editingTaskId.value=0;tab.value='transfers';await load();
+});
 function createTask(){previewOpening.value=false;void loadProtections().catch((e:any)=>error.value=e.message);editingTaskId.value=0;plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
 function prepareTask(job:any,editing:boolean){previewOpening.value=false;editingTaskId.value=editing?job.id:0;form.value={...form.value,...job.params,transfer_methods:job.params.preferred_methods?.length?[...job.params.preferred_methods]:[job.params.transfer_mode||'arr'],access_ids:{...job.params.access_ids,...(job.params.access_id?{[job.params.transfer_mode]:job.params.access_id}:{})},mode:job.params.objective_mode || job.params.mode,media_type:job.params.media_type||'all',routes:[{arr_instance_id:job.params.arr_instance_id,source_roots:job.params.source_roots?.length?[...job.params.source_roots]:[job.params.source_root],destination_root:job.params.destination_root,root_goals:{...job.params.root_goals}}]};plan.value=null;previewProgress.value='';savedMessage.value='';error.value='';tab.value='prepare';}
 async function relaunchTask(job:any){
  const previousTab=tab.value;
- prepareTask(job,false);
+ prepareTask(job,true);
  tab.value=previousTab;
  previewOpening.value=true;
  previewProgress.value='Paramètres repris depuis la tâche terminée. Calcul de l’aperçu…';

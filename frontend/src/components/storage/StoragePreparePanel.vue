@@ -13,7 +13,7 @@
     <ul class="objective-routes"><li v-for="route in form.routes" :key="route.arr_instance_id"><strong>{{ instanceName(route.arr_instance_id) }}</strong> · {{ route.source_roots.join(', ') }} → {{ route.destination_root }}</li></ul>
     <fieldset class="objective-options"><legend>Que souhaitez-vous faire ?</legend><label v-for="choice in objectives" :key="choice.value" :class="{chosen:form.mode===choice.value}"><input v-model="form.mode" type="radio" :value="choice.value" :disabled="busy" /><strong>{{ choice.label }}</strong><small>{{ choice.description }}</small></label></fieldset>
     <StorageObjectiveFields v-model="form" :busy="busy" :protected-titles="protectedTitles || []" @unprotect="$emit('unprotect',$event)" />
-    <div class="actions"><UiButton :disabled="busy" @click="step=1">Retour aux stockages</UiButton><UiButton type="submit" variant="primary" :loading="busy">Calculer l’aperçu</UiButton></div>
+    <div class="actions"><UiButton :disabled="busy" @click="step=1">Retour aux stockages</UiButton><UiButton v-if="editing" :disabled="busy || !validRoutes" @click="$emit('save')">Enregistrer les modifications</UiButton><UiButton type="submit" variant="primary" :loading="busy">Calculer l’aperçu</UiButton></div>
    </template>
   </form>
  </section>
@@ -24,7 +24,7 @@ import StorageObjectiveFields from './StorageObjectiveFields.vue';
 import StorageTransferMethod from './StorageTransferMethod.vue';
 import {selectedRootAccess} from './transferAccess';
 import UiButton from '@/components/ui/UiButton.vue';
-const props=defineProps<{roots:any[],accesses?:any[],locations?:any[],protectedTitles?:any[],busy:boolean}>();const form=defineModel<any>({required:true});const step=ref(1);
+const props=defineProps<{roots:any[],accesses?:any[],locations?:any[],protectedTitles?:any[],busy:boolean,editing?:boolean}>();const form=defineModel<any>({required:true});const step=ref(1);
 const selected=(id:number)=>form.value.routes?.some((r:any)=>r.arr_instance_id===id);
 function toggle(instance:any){const routes=form.value.routes||[];form.value.routes=selected(instance.arr_instance_id)?routes.filter((r:any)=>r.arr_instance_id!==instance.arr_instance_id):[...routes,{arr_instance_id:instance.arr_instance_id,source_roots:[],root_goals:{},destination_root:''}];}
 function capacity(instance:number,root:string){
@@ -40,7 +40,7 @@ const rootsFor=(route:any):string[]=>props.roots.find(r=>r.arr_instance_id===rou
 const instanceName=(id:number)=>props.roots.find(r=>r.arr_instance_id===id)?.name||id;
 const validRoutes=computed(()=>form.value.routes?.length && form.value.routes.every((route:any)=>route.source_roots?.length && route.destination_root && !route.source_roots.includes(route.destination_root)) && (form.value.transfer_methods ?? [form.value.transfer_mode]).length>0);
 const objectives=[{value:'release_space',label:'Libérer une quantité d’espace',description:'Récupérer une quantité de Go sur l’ensemble des sources.'},{value:'minimum_free',label:'Atteindre un espace libre minimum',description:'Obtenir le seuil souhaité sur chaque source.'},{value:'selection',label:'Déplacer des titres choisis',description:'Choisir des films ou des séries sans objectif d’espace.'}];
-defineEmits<{preview:[],configure:[],unprotect:[key:string]}>();
+defineEmits<{save:[],preview:[],configure:[],unprotect:[key:string]}>();
 </script>
 
 <style scoped lang="scss">

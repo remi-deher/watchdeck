@@ -11,6 +11,7 @@ from pathlib import Path
 from .integrite import Interrompu
 from .remote_fs import remote_call
 from .ssh_hash import connecter
+from .ssh_pool import acquire, release
 
 
 def bridge(left, right, stop):
@@ -34,7 +35,7 @@ def copy_peer(source, destination, src, dst, stop, advance, phase):
     heartbeat = None
     source_proxy = destination_proxy = None
     try:
-        receiver = connecter(destination.config)
+        receiver = acquire(destination.config, connecter)
         agent = Path(__file__).with_name("peer_agent.py").read_text(encoding="utf-8")
         command = "python3 -u -c " + shlex.quote(
             "import base64;exec(base64.b64decode(" + repr(base64.b64encode(agent.encode()).decode()) + "))"
@@ -69,7 +70,7 @@ def copy_peer(source, destination, src, dst, stop, advance, phase):
 
         heartbeat = threading.Thread(target=keep_alive, daemon=True)
         heartbeat.start()
-        sender = connecter(source.config)
+        sender = acquire(source.config, connecter)
 
         relay = Path(__file__).with_name("relay_agent.py").read_text(encoding="utf-8")
         relay_command = "python3 -u -c " + shlex.quote(
@@ -115,7 +116,7 @@ def copy_peer(source, destination, src, dst, stop, advance, phase):
             if proxy is not None:
                 proxy.close()
         if sender is not None:
-            sender.close()
+            release(sender)
         if control is not None:
             try:
                 control.sendall(b"stop\n")
@@ -127,7 +128,7 @@ def copy_peer(source, destination, src, dst, stop, advance, phase):
                 pass
             control.close()
         if receiver is not None:
-            receiver.close()
+            release(receiver)
         if heartbeat is not None:
             heartbeat.join(timeout=3)
 
