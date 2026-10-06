@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.73.1 — 2026-10-06
+
+
+### test
+
+- align path checks with preview validation ([baee089](https://github.com/remi-deher/watchdeck/commit/baee08983fce3ab0c7f504443188657d2ada35b4))
+
+### 🐛 Corrections
+
+- validate selected transfer roots during preview ([e05f727](https://github.com/remi-deher/watchdeck/commit/e05f727bbb0f574181ba60b04b1b32f215c7d155))
 ## 1.73.0 — 2026-10-06
 
 
@@ -27,6 +37,10 @@
 - speed up previews and restore task actions ([10a1976](https://github.com/remi-deher/watchdeck/commit/10a19769d6868d032968a2f26cca9520e302076b))
 - validate roots once per transfer lot ([6249e99](https://github.com/remi-deher/watchdeck/commit/6249e999ca4c0f800fd9d616b2ff011d1cd43df0))
 - key API secret fingerprints ([86e5ec4](https://github.com/remi-deher/watchdeck/commit/86e5ec49d28b4b50b6580c89b23ddbe5e98771eb))
+
+### 🔧 Maintenance
+
+- v1.73.0 (#690) ([1afed43](https://github.com/remi-deher/watchdeck/commit/1afed43c0ffb6eb69224fbe92812deeaa133ef25))
 ## 1.72.0 — 2026-10-05
 
 
