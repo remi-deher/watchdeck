@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.74.2 — 2026-10-06
+
+
+### 🐛 Corrections
+
+- drain SSH results before sending heartbeat on closed channels ([691fb5a](https://github.com/remi-deher/watchdeck/commit/691fb5ada771df8bb58042cd373bbdf4d2255c3d))
 ## 1.74.1 — 2026-10-06
 
 
@@ -10,6 +16,10 @@
 ### 🐛 Corrections
 
 - reuse SSH sessions and preserve task identity and telemetry ([34cf3a1](https://github.com/remi-deher/watchdeck/commit/34cf3a15512b49ee16f6a6e87f0388544035340f))
+
+### 🔧 Maintenance
+
+- v1.74.1 (#715) ([ba83368](https://github.com/remi-deher/watchdeck/commit/ba8336890a54e973d2049d468e218f9930e81537))
 ## 1.74.0 — 2026-10-06
 
 
