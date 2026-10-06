@@ -1,6 +1,6 @@
 import pytest
 
-from app.crypto import decrypt_secret, encrypt_secret
+from app.crypto import decrypt_secret, encrypt_secret, fingerprint_secret
 
 
 def _clear_key_env(monkeypatch):
@@ -37,3 +37,14 @@ def test_encrypt_secret_roundtrip_with_key(monkeypatch):
     assert encrypted != "secret"
     assert encrypted.startswith("enc:v1:")
     assert decrypt_secret(encrypted) == "secret"
+
+
+def test_fingerprint_secret_is_stable_and_keyed(monkeypatch):
+    _clear_key_env(monkeypatch)
+    monkeypatch.setenv("WATCHDECK_ENCRYPTION_KEY", "first-key")
+    first = fingerprint_secret("api-token")
+    assert first == fingerprint_secret("api-token")
+    assert first != fingerprint_secret("different-token")
+
+    monkeypatch.setenv("WATCHDECK_ENCRYPTION_KEY", "second-key")
+    assert first != fingerprint_secret("api-token")

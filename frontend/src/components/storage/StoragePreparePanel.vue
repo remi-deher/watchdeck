@@ -12,13 +12,7 @@
    <template v-else>
     <ul class="objective-routes"><li v-for="route in form.routes" :key="route.arr_instance_id"><strong>{{ instanceName(route.arr_instance_id) }}</strong> · {{ route.source_roots.join(', ') }} → {{ route.destination_root }}</li></ul>
     <fieldset class="objective-options"><legend>Que souhaitez-vous faire ?</legend><label v-for="choice in objectives" :key="choice.value" :class="{chosen:form.mode===choice.value}"><input v-model="form.mode" type="radio" :value="choice.value" :disabled="busy" /><strong>{{ choice.label }}</strong><small>{{ choice.description }}</small></label></fieldset>
-    <div class="form-grid">
-     <label>Nom de la tâche<input v-model="form.name" maxlength="100" placeholder="Ex. Libérer de la place pour les prochaines sorties" /></label>
-     <label>{{ form.mode==='minimum_free'?'Espace libre souhaité par racine (Go)':'Quantité d’espace à libérer par racine (Go)' }}<input :value="form.goal_gb" type="number" min="1" max="1000000" required :disabled="busy" @input="setGeneral(($event.target as HTMLInputElement).value)" /><small>Changer cette valeur réinitialise les personnalisations de toutes les racines.</small></label>
-     <label class="check"><input v-model="form.auto_resume" type="checkbox" /> Reprendre automatiquement le suivi après redémarrage</label>
-    </div>
-    <details class="root-objectives"><summary>Personnaliser par racine · {{ form.routes.reduce((n:number,r:any)=>n+r.source_roots.length,0) }} source(s)</summary><fieldset class="route-card" v-for="route in form.routes" :key="route.arr_instance_id"><legend>{{ instanceName(route.arr_instance_id) }}</legend><div v-for="root in route.source_roots" :key="root" class="root-goal"><label :for="`goal-${route.arr_instance_id}-${root}`"><code>{{ root }}</code><small>{{ route.root_goals?.[root] != null?'Personnalisé':'Valeur générale' }}</small></label><input type="range" min="1" :max="Math.max(10000,form.goal_gb,route.root_goals?.[root]||0)" :value="route.root_goals?.[root] ?? form.goal_gb" :aria-label="`Objectif en Go pour ${instanceName(route.arr_instance_id)} ${root}`" :disabled="busy" @input="setRoot(route,root,($event.target as HTMLInputElement).value)" /><input :id="`goal-${route.arr_instance_id}-${root}`" type="number" min="1" max="1000000" required :value="route.root_goals?.[root] ?? form.goal_gb" :aria-label="`Objectif précis en Go pour ${instanceName(route.arr_instance_id)} ${root}`" :disabled="busy" @input="setRoot(route,root,($event.target as HTMLInputElement).value)" /><UiButton v-if="route.root_goals?.[root] != null" :disabled="busy" @click="delete route.root_goals[root]">Réinitialiser</UiButton></div></fieldset></details>
-    <details class="advanced-objectives"><summary>Options avancées</summary><label class="check"><input v-model="limitTitles" type="checkbox" :disabled="busy" @change="form.max_titles=limitTitles?20:250" />Limiter le nombre de titres par instance</label><label v-if="limitTitles">Maximum de titres<input v-model.number="form.max_titles" type="number" min="1" max="250" required :disabled="busy" /><small>Cette limite peut empêcher d’atteindre l’objectif d’espace ; l’aperçu le signalera.</small></label></details>
+    <StorageObjectiveFields v-model="form" :busy="busy" :protected-titles="protectedTitles || []" @unprotect="$emit('unprotect',$event)" />
     <div class="actions"><UiButton :disabled="busy" @click="step=1">Retour aux stockages</UiButton><UiButton type="submit" variant="primary" :loading="busy">Calculer l’aperçu</UiButton></div>
    </template>
   </form>
@@ -26,10 +20,11 @@
 </template>
 <script setup lang="ts">
 import {computed,ref} from 'vue';
+import StorageObjectiveFields from './StorageObjectiveFields.vue';
 import StorageTransferMethod from './StorageTransferMethod.vue';
 import {selectedRootAccess} from './transferAccess';
 import UiButton from '@/components/ui/UiButton.vue';
-const props=defineProps<{roots:any[],accesses?:any[],locations?:any[],busy:boolean}>();const form=defineModel<any>({required:true});const step=ref(1);
+const props=defineProps<{roots:any[],accesses?:any[],locations?:any[],protectedTitles?:any[],busy:boolean}>();const form=defineModel<any>({required:true});const step=ref(1);
 const selected=(id:number)=>form.value.routes?.some((r:any)=>r.arr_instance_id===id);
 function toggle(instance:any){const routes=form.value.routes||[];form.value.routes=selected(instance.arr_instance_id)?routes.filter((r:any)=>r.arr_instance_id!==instance.arr_instance_id):[...routes,{arr_instance_id:instance.arr_instance_id,source_roots:[],root_goals:{},destination_root:''}];}
 function capacity(instance:number,root:string){
@@ -45,22 +40,17 @@ const rootsFor=(route:any):string[]=>props.roots.find(r=>r.arr_instance_id===rou
 const instanceName=(id:number)=>props.roots.find(r=>r.arr_instance_id===id)?.name||id;
 const validRoutes=computed(()=>form.value.routes?.length && form.value.routes.every((route:any)=>route.source_roots?.length && route.destination_root && !route.source_roots.includes(route.destination_root)) && validAccess.value);
 const validAccess=computed(()=>{const modes=form.value.transfer_methods ?? [form.value.transfer_mode];return modes.length>0 && modes.every((mode:string)=>{if(mode==='arr')return true;if(mode==='rsync_ssh')return form.value.routes.every((route:any)=>[...route.source_roots,route.destination_root].every(root=>selectedRootAccess(form.value,props.accesses||[],route.arr_instance_id,root)));const id=form.value.access_ids?.[mode] ?? (form.value.transfer_mode===mode?form.value.access_id:0);const access=props.accesses?.find(a=>a.id===id && a.method===(mode==='rsync_ssh'?'ssh':'local') && a.validation?.revision===a.revision);return Boolean(access && form.value.routes.every((route:any)=>[...route.source_roots,route.destination_root].every(root=>access.roots.some((r:any)=>r.arr_instance_id===route.arr_instance_id && r.arr_root===root))));});});
-const limitTitles=ref(form.value.max_titles<250);
-function setGeneral(value:string){form.value.goal_gb=value===''?null:Number(value);for(const route of form.value.routes)route.root_goals={};}
-function setRoot(route:any,root:string,value:string){route.root_goals={...route.root_goals,[root]:value===''?null:Number(value)};}
-const objectives=[{value:'release_space',label:'Libérer de l’espace',description:'Déplacer une quantité de données depuis chaque racine.'},{value:'minimum_free',label:'Atteindre un espace libre minimum',description:'Obtenir au moins l’espace souhaité sur chaque racine.'}];
-defineEmits<{preview:[],configure:[]}>();
+const objectives=[{value:'release_space',label:'Libérer une quantité d’espace',description:'Récupérer une quantité de Go sur l’ensemble des sources.'},{value:'minimum_free',label:'Atteindre un espace libre minimum',description:'Obtenir le seuil souhaité sur chaque source.'},{value:'selection',label:'Déplacer des titres choisis',description:'Choisir des films ou des séries sans objectif d’espace.'}];
+defineEmits<{preview:[],configure:[],unprotect:[key:string]}>();
 </script>
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
-.root-capacity{font-family:inherit;font-size:12px;color:var(--text-muted);margin-left:auto;white-space:normal}.source-choices{display:grid;gap:10px;margin:0;min-width:0}.source-choices label{overflow-wrap:anywhere}.objective-routes{padding-left:20px;overflow-wrap:anywhere}.objective-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.objective-options legend{margin-bottom:12px}.objective-options label{border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;display:grid;gap:8px}.objective-options label.chosen{border-color:var(--accent);background:var(--bg-hover)}.objective-options small,.form-grid small{line-height:1.5;color:var(--text-muted)}@include bp.until(tablet){.objective-options{grid-template-columns:1fr}}
+.root-capacity{font-family:inherit;font-size:12px;color:var(--text-muted);margin-left:auto;white-space:normal}.source-choices{display:grid;gap:10px;margin:0;min-width:0}.source-choices label{overflow-wrap:anywhere}.objective-routes{padding-left:20px;overflow-wrap:anywhere}.objective-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.objective-options legend{margin-bottom:12px}.objective-options label{border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;display:grid;gap:8px}.objective-options label.chosen{border-color:var(--accent);background:var(--bg-hover)}.objective-options small,.form-grid small{line-height:1.5;color:var(--text-muted)}@include bp.until(tablet){.objective-options{grid-template-columns:1fr}}
 </style>
 
-<style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
-.root-objectives,.advanced-objectives{margin:20px 0}.root-goal{display:grid;grid-template-columns:minmax(180px,1fr) minmax(100px,1fr) 110px auto;gap:12px;align-items:center;margin:12px 0}.root-goal label{min-width:0}.root-goal code{overflow-wrap:anywhere}.root-goal small{display:block;color:var(--text-muted)}.root-goal input[type=range]{padding:0;width:100%;height:24px;accent-color:var(--accent)}@include bp.until(tablet){.root-goal{grid-template-columns:1fr 100px}.root-goal label{grid-column:1/-1}}</style>
+
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;

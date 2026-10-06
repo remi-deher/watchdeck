@@ -222,6 +222,9 @@ def test_receiver_loopback_authentication_cleanup_and_identity(tmp_path, monkeyp
         captured["config"] = config.read_text()
         captured["temp"] = config.parent
         assert "auth.pipe" in captured["config"]
+        assert f"lock file = {config.parent}/connections.lock" in captured["config"]
+        assert "uid =" not in captured["config"]
+        assert "gid =" not in captured["config"]
         assert not (config.parent / "secret").exists()
         return proc
 

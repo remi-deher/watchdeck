@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -42,6 +43,15 @@ def _get_or_create_encryption_key() -> str:
         # Système de fichiers ne supportant pas les permissions Unix (ex: certains volumes Windows).
         pass
     return key
+
+
+def fingerprint_secret(value: str) -> str:
+    """Return a stable, keyed fingerprint without storing a plain secret hash."""
+    return hmac.new(
+        _get_or_create_encryption_key().encode("utf-8"),
+        value.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _fernet():

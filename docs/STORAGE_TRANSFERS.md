@@ -145,3 +145,13 @@ La copie utilise un fichier `.partiel`, réparé par le delta rsync lors d’une
 **Préparer** affiche l’espace libre des sources et de la destination au dernier contrôle. L’aperçu recontrôle les capacités avant de créer une tâche ; une valeur inconnue est indiquée comme telle.
 
 Test d’intégration isolé : `python scripts/storage_peer_smoke.py` avec Docker disponible et l’image locale `watchdeck:local`. Le script crée puis supprime deux conteneurs temporaires ; il vérifie la pause, la reprise d’une copie partielle corrompue, les deux modes de vérification et le nettoyage après contrôle.
+
+## Annuler une tâche
+
+Dans **Transferts**, « Annuler la tâche » ouvre une confirmation. Le moteur arrête la copie avant de nettoyer uniquement les fichiers `.partiel` identifiés pour cette tâche. Les copies complètes et les fichiers source non transférés sont conservés ; les deux emplacements de bibliothèque Plex restent configurés. Si un accès ou un contrôle de sécurité empêche le nettoyage, la tâche affiche le motif et permet de réessayer l’annulation.
+
+Avec rsync, la racine Arr ne change qu’après copie et vérification de tous les fichiers du titre. Le moteur compare à nouveau les inventaires source, destination et Arr juste avant la bascule : une série incomplète ou un épisode ajouté pendant la copie empêche cette bascule.
+
+Une commande de déplacement déjà lancée par l’API Sonarr/Radarr peut continuer : l’annulation attend son résultat, sans tenter de l’interrompre ou de revenir sur le déplacement. Cette attente n’empêche pas les autres tâches de démarrer.
+
+Les actions et détails des titres utilisent les composants partagés. Sur petit écran, les lignes restent compactes ; les chemins et dates détaillées s’ouvrent dans une modale adaptée au tactile.

@@ -103,8 +103,15 @@ async def test_preview_and_transfer_serialization(monkeypatch):
 @pytest.mark.asyncio
 async def test_location_save_and_commands(monkeypatch):
     instance = NS(id=1, arr_type="radarr")
-    existing = StorageLocation(id=1)
-    db = NS(get=AsyncMock(return_value=instance), commit=AsyncMock(), refresh=AsyncMock(), add=lambda obj: None)
+    existing = StorageLocation(id=1, virtual_key="1:/data/FILMS")
+    db = NS(
+        get=AsyncMock(return_value=instance),
+        execute=AsyncMock(return_value=NS(scalars=lambda: [])),
+        flush=AsyncMock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+        add=lambda obj: None,
+    )
     roots = {"arr_roots": ["/data/FILMS"], "plex_roots": [{"path": "/media/FILMS", "section_id": "3"}]}
     monkeypatch.setattr(service, "discover_instance_roots", AsyncMock(return_value=roots))
     body = api.LocationBody(
@@ -114,6 +121,7 @@ async def test_location_save_and_commands(monkeypatch):
     )
     saved = await api.save_location(db, body, existing)
     assert saved["mount_path"] == "/storage/data1" and saved["health"] == "not_checked"
+    assert saved["virtual"] is False and existing.virtual_key is None
     await api.create_location(body, db)
     job = NS(status="paused", desired_state="pause")
     db.get = AsyncMock(return_value=job)
@@ -334,7 +342,7 @@ async def test_draft_launch_revalidates_and_replaces_snapshot(monkeypatch):
     monkeypatch.setattr(service, "preview", refresh)
     monkeypatch.setattr(service, "transfer_json", AsyncMock(return_value={"id": 12}))
     added = []
-    db = NS(execute=AsyncMock(), add=added.append, commit=AsyncMock())
+    db = NS(execute=AsyncMock(), add=added.append, flush=AsyncMock(), commit=AsyncMock())
     body = api.PreviewBody(arr_instance_id=1, selection=["1:7"], start_immediately=True)
     await api.update_transfer(12, body, db)
     refresh.assert_awaited_once_with(db, body)
@@ -346,8 +354,35 @@ async def test_draft_launch_revalidates_and_replaces_snapshot(monkeypatch):
 @pytest.mark.asyncio
 async def test_delete_only_draft_and_release_reservations(monkeypatch):
     job = NS(id=14, status="draft")
-    monkeypatch.setattr(api, "draft_task", AsyncMock(return_value=job))
-    db = NS(execute=AsyncMock(), delete=AsyncMock(), commit=AsyncMock())
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: job)), delete=AsyncMock(), commit=AsyncMock())
     assert await api.delete_draft(14, db) == {"deleted": 14}
     db.delete.assert_awaited_once_with(job)
     db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["completed", "cancelled"])
+async def test_delete_terminal_task_only_forgets_metadata(status):
+    job = NS(id=14, status=status)
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: job)), delete=AsyncMock(), commit=AsyncMock())
+    assert await api.delete_draft(14, db) == {"deleted": 14}
+    db.delete.assert_awaited_once_with(job)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["running", "paused", "stopped", "cancel_blocked"])
+async def test_delete_active_task_persists_cleanup_before_forgetting(status):
+    job = NS(id=14, status=status, params={"transfer_mode": "rsync_ssh"}, desired_state="run", auto_resume=True)
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: job)), delete=AsyncMock(), commit=AsyncMock())
+    assert await api.delete_draft(14, db) == {"deletion_pending": 14}
+    assert job.status == "cancelling" and job.desired_state == "cancel" and not job.auto_resume
+    assert job.params["delete_after_cancel"]
+    db.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_unknown_task_is_404():
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: None)))
+    with pytest.raises(HTTPException) as caught:
+        await api.delete_draft(404, db)
+    assert caught.value.status_code == 404

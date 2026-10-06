@@ -4,7 +4,8 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from ..database import get_db_async
 from ..dependencies import require_admin
@@ -49,10 +50,15 @@ class PreviewBody(BaseModel):
     name: str = Field(default="", max_length=100)
     destination_root: str = ""
     mode: Literal["selection", "release_space", "minimum_free"] = "release_space"
+    objective_mode: Literal["selection", "release_space", "minimum_free"] | None = None
     goal_gb: float = Field(default=500, gt=0, le=1000000)
     root_goals: dict[str, float] = Field(default_factory=dict)
     media_type: Literal["all", "movie", "series"] = "all"
     max_titles: int = Field(default=20, ge=1, le=250)
+    catalogue: bool = Field(default=False, exclude=True)
+    target_titles: int | None = Field(default=None, ge=1, le=250)
+    preference: Literal["closest", "oldest_added", "least_recently_watched"] = "closest"
+    routes: list[dict] = Field(default_factory=list, max_length=20)
     selection: list[str] | None = None
     auto_resume: bool = True
     start_immediately: bool = True
@@ -65,6 +71,18 @@ async def locations(db=Depends(get_db_async)):
         service.location_json(s)
         for s in (await db.execute(select(StorageLocation).order_by(StorageLocation.id))).scalars()
     ]
+
+
+@router.get("/instances")
+async def storage_instances(db=Depends(get_db_async)):
+    instances = (
+        await db.execute(
+            select(ArrInstance)
+            .where(ArrInstance.arr_type.in_(["radarr", "sonarr"]))
+            .order_by(ArrInstance.name, ArrInstance.id)
+        )
+    ).scalars()
+    return [dict(id=item.id, name=item.name, arr_type=item.arr_type, enabled=item.enabled) for item in instances]
 
 
 @router.get("/roots")
@@ -126,6 +144,10 @@ async def save_location(db, body, location=None):
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     location = location or StorageLocation()
+    # Saving a correspondence from the roots table promotes an API-preview
+    # capacity row to a durable, user-confirmed association. Virtual rows are
+    # deliberately ignored by transfer planning until this point.
+    location.virtual_key = None
     location.name = body.name.strip()
     location.mount_path = mount
     location.mappings = [m.model_dump() for m in body.mappings]
@@ -154,7 +176,7 @@ async def update_location(location_id: int, body: LocationBody, db=Depends(get_d
         await db.execute(
             select(StorageTransfer.id).where(
                 (StorageTransfer.source_id == location_id) | (StorageTransfer.destination_id == location_id),
-                StorageTransfer.status != "completed",
+                StorageTransfer.status.notin_(["completed", "cancelled"]),
             )
         )
     ).first()
@@ -187,7 +209,6 @@ async def preview_status(key: str):
 
 @router.post("/preview")
 async def preview(body: PreviewBody, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     if body.task_id:
         await draft_task(db, body.task_id)
     try:
@@ -208,10 +229,11 @@ async def transfers(db=Depends(get_db_async)):
 async def create_transfer(body: PreviewBody, db=Depends(get_db_async)):
     if body.task_id:
         raise HTTPException(422, "Utiliser la modification de la tâche existante.")
+    body.catalogue = False
+    body.routes = []
     if not body.selection:
         raise HTTPException(422, "Valider une sélection explicite depuis l’aperçu.")
-    # Serialize creation with all other previews->jobs. Never trust client paths/sizes.
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
+    # Rebuild the plan at submission time; a browser preview is never a reservation.
     try:
         plan = await service.preview(db, body)
     except ValueError as exc:
@@ -240,9 +262,17 @@ async def create_transfer(body: PreviewBody, db=Depends(get_db_async)):
                 media_type=item["media_type"],
                 size_bytes=item["size_bytes"],
                 snapshot=item["snapshot"],
+                claimed=body.start_immediately,
             )
         )
-    await db.commit()
+    try:
+        await db.flush()
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            409, "Un titre a déjà été réservé par une autre tâche. Recalculez l’aperçu ou retirez ce titre."
+        ) from exc
     return await service.transfer_json(db, job)
 
 
@@ -259,9 +289,10 @@ async def draft_task(db, transfer_id):
 
 @router.put("/transfers/{transfer_id}")
 async def update_transfer(transfer_id: int, body: PreviewBody, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
     job = await draft_task(db, transfer_id)
     body.task_id = transfer_id
+    body.catalogue = False
+    body.routes = []
     if not body.selection:
         raise HTTPException(422, "Choisir des titres dans l’aperçu.")
     try:
@@ -288,24 +319,42 @@ async def update_transfer(transfer_id: int, body: PreviewBody, db=Depends(get_db
                 media_type=item["media_type"],
                 size_bytes=item["size_bytes"],
                 snapshot=item["snapshot"],
+                claimed=body.start_immediately,
             )
         )
-    await db.commit()
+    try:
+        await db.flush()
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            409, "Un titre a déjà été réservé par une autre tâche. Recalculez l’aperçu ou retirez ce titre."
+        ) from exc
     return await service.transfer_json(db, job)
 
 
 @router.delete("/transfers/{transfer_id}")
 async def delete_draft(transfer_id: int, db=Depends(get_db_async)):
-    await db.execute(text("SELECT pg_advisory_xact_lock(190041, 2)"))
-    job = await draft_task(db, transfer_id)
-    await db.execute(delete(StorageTransferItem).where(StorageTransferItem.transfer_id == job.id))
-    await db.delete(job)
+    job = (
+        await db.execute(select(StorageTransfer).where(StorageTransfer.id == transfer_id).with_for_update())
+    ).scalar_one_or_none()
+    if not job:
+        raise HTTPException(404, "Tâche inconnue.")
+    if job.status in ("draft", "completed", "cancelled"):
+        await service.forget_transfer(db, job)
+        return {"deleted": transfer_id}
+    # Persist deletion intent; the worker must finish cancellation and cleanup first.
+    job.params = {**job.params, "delete_after_cancel": True}
+    job.desired_state = "cancel"
+    job.status = "cancelling"
+    job.auto_resume = False
+    job.updated_at = now_utc_naive()
     await db.commit()
-    return {"deleted": transfer_id}
+    return {"deletion_pending": transfer_id}
 
 
 class CommandBody(BaseModel):
-    action: Literal["pause", "resume", "stop", "retry"]
+    action: Literal["pause", "resume", "stop", "retry", "cancel"]
 
 
 @router.post("/transfers/{transfer_id}/command")
@@ -313,10 +362,40 @@ async def command(transfer_id: int, body: CommandBody, db=Depends(get_db_async))
     job = await db.get(StorageTransfer, transfer_id)
     if not job:
         raise HTTPException(404, "Tâche inconnue.")
+    if body.action == "cancel" and job.status not in ("completed", "cancelled"):
+        job.desired_state = "cancel"
+        job.status = "cancelling"
+        job.auto_resume = False
+        job.updated_at = now_utc_naive()
+        await db.commit()
+        return await service.transfer_json(db, job)
+    if job.status in ("cancelling", "cancel_blocked", "cancelled"):
+        raise HTTPException(409, "Cette tâche est annulée ou en cours d’annulation.")
     if job.status == "draft":
         raise HTTPException(409, "Recalculer l’aperçu avant de lancer cette tâche.")
     if job.status == "completed":
         raise HTTPException(409, "Cette tâche est terminée.")
+    if body.action in ("resume", "retry"):
+        items = (
+            await db.execute(
+                select(StorageTransferItem)
+                .where(
+                    StorageTransferItem.transfer_id == transfer_id,
+                    StorageTransferItem.status.notin_(["completed", "cancelled"]),
+                )
+                .with_for_update()
+            )
+        ).scalars()
+        for item in items:
+            item.claimed = True
+        try:
+            await db.flush()
+        except IntegrityError as exc:
+            await db.rollback()
+            raise HTTPException(
+                409,
+                "Un titre de cette tâche est déjà réservé par une autre tâche. Annulez-la ou retirez le titre avant de reprendre.",
+            ) from exc
     job.desired_state = "run" if body.action in ("resume", "retry") else body.action
     if job.desired_state == "run" and job.status != "running":
         job.status = "queued"
@@ -362,3 +441,47 @@ async def resolve_root(body: MappingBody, db=Depends(get_db_async)):
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(502, "Détection indisponible : vérifier le moteur et les connexions Arr/Plex.") from exc
+
+
+class ProtectionBody(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+
+
+@router.get("/protected-titles")
+async def protected_titles(db=Depends(get_db_async)):
+    from ..models.storage import StorageProtectedTitle
+
+    return [
+        dict(key=f"{r.arr_instance_id}:{r.arr_id}", title=r.title)
+        for r in (await db.execute(select(StorageProtectedTitle))).scalars()
+    ]
+
+
+@router.put("/protected-titles/{instance_id}/{arr_id}")
+async def protect_title(instance_id: int, arr_id: int, body: ProtectionBody, db=Depends(get_db_async)):
+    from sqlalchemy.dialects.postgresql import insert
+
+    from ..models.storage import StorageProtectedTitle
+
+    if not await db.get(ArrInstance, instance_id):
+        raise HTTPException(404, "Instance inconnue")
+    await db.execute(
+        insert(StorageProtectedTitle)
+        .values(arr_instance_id=instance_id, arr_id=arr_id, title=body.title)
+        .on_conflict_do_update(index_elements=["arr_instance_id", "arr_id"], set_={"title": body.title})
+    )
+    await db.commit()
+    return {"protected": True}
+
+
+@router.delete("/protected-titles/{instance_id}/{arr_id}")
+async def unprotect_title(instance_id: int, arr_id: int, db=Depends(get_db_async)):
+    from ..models.storage import StorageProtectedTitle
+
+    await db.execute(
+        delete(StorageProtectedTitle).where(
+            StorageProtectedTitle.arr_instance_id == instance_id, StorageProtectedTitle.arr_id == arr_id
+        )
+    )
+    await db.commit()
+    return {"protected": False}
