@@ -112,7 +112,7 @@ async def safe_record_arr(instance, items):
             dict(
                 entity_id=str(m["id"]),
                 media_type="movie" if instance.arr_type == "radarr" else "series",
-                provider_id=str(m.get("tmdbId") if instance.arr_type == "radarr" else m.get("tvdbId")),
+                provider_id=str((m.get("tmdbId") if instance.arr_type == "radarr" else m.get("tvdbId")) or "") or None,
                 data=m,
             )
             for m in items
@@ -189,7 +189,7 @@ async def safe_record_plex(conn, items):
                 dict(
                     entity_id=item["rating_key"],
                     media_type=kind,
-                    provider_id=str(item.get("tmdb_id" if kind == "movie" else "tvdb_id")),
+                    provider_id=str(item.get("tmdb_id" if kind == "movie" else "tvdb_id") or "") or None,
                     data=data,
                 )
             )

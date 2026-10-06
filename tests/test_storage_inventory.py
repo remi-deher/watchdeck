@@ -427,3 +427,32 @@ async def test_series_refresh_pages_episodes_and_records_sizes(monkeypatch):
     assert sum(file["size_bytes"] for file in result["files"]) == 250
     assert lookup.await_args.args[2]["X-Plex-Container-Start"] == 1
     write.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_plex_only_inventory_keeps_missing_provider_id_optional(monkeypatch):
+    write = AsyncMock()
+    monkeypatch.setattr(inventory, "record", write)
+    conn = NS(id=2, url="http://plex", token="key")
+    await inventory.safe_record_plex(conn, [{"rating_key": "7", "media_type": "movie", "title": "Local film"}])
+    assert write.await_args.args[3][0]["provider_id"] is None
+    db = NS(execute=AsyncMock(return_value=NS(scalar_one_or_none=lambda: None)))
+    monkeypatch.setattr(
+        worker,
+        "plex_get",
+        AsyncMock(
+            return_value={
+                "Metadata": [
+                    {
+                        "ratingKey": "7",
+                        "type": "movie",
+                        "title": "Local film",
+                        "Media": [{"Part": [{"file": "/films/local.mkv", "size": 100}]}],
+                    }
+                ]
+            }
+        ),
+    )
+    result = await inventory.refresh_plex_item(db, conn, "7", "movie", None)
+    assert result["files"][0]["path"] == "/films/local.mkv"
+    assert write.await_args.args[3][0]["provider_id"] is None
