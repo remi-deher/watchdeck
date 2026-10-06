@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.73.3 — 2026-10-06
+
+
+### 🐛 Corrections
+
+- revalidate historical mappings when relaunching transfers ([710f4cb](https://github.com/remi-deher/watchdeck/commit/710f4cb000f39bdfcff8f0ebc9f7e1c41d063a03))
 ## 1.73.2 — 2026-10-06
 
 
 ### 🐛 Corrections
 
 - resolve Plex titles without false mapping failures ([701df22](https://github.com/remi-deher/watchdeck/commit/701df22ed75071161e98d425a8910876ac4cf947))
+
+### 🔧 Maintenance
+
+- v1.73.2 (#698) ([9f57b22](https://github.com/remi-deher/watchdeck/commit/9f57b22bbf88440729ff7a6a6b139f62cf31bdca))
 ## 1.73.1 — 2026-10-06
 
 
