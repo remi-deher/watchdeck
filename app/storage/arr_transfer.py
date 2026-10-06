@@ -22,10 +22,8 @@ async def route(db, instance, root, discovered):
     declared = next((r for r in roots if r["path"].rstrip("/") == root), None)
     if not declared or declared.get("accessible") is not True or not isinstance(declared.get("freeSpace"), int):
         raise ValueError("Arr doit confirmer une racine accessible et son espace libre.")
-    # An explicitly configured association takes precedence over a path-name
-    # heuristic. Virtual rows are temporary preview capacity records, not saved
-    # configuration. If one contains a non-obvious association, ask the user to
-    # save it from Stockages instead of silently trusting a generated row.
+    # Explicit configuration wins. Older tasks keep associations in virtual
+    # capacity rows: reuse an unambiguous candidate only after the API proof below.
     try:
         locations = (await db.execute(select(StorageLocation))).scalars().all()
     except AttributeError:  # Small test doubles may not implement a DB query.
@@ -45,22 +43,17 @@ async def route(db, instance, root, discovered):
         if m["arr_instance_id"] == instance.id and m["arr_root"] == root
     ]
     saved_pairs = {(m["plex_root"], str(m["plex_section_id"])) for m in saved}
+    temporary_pairs = {(m["plex_root"], str(m["plex_section_id"])) for m in temporary}
+    candidate_pairs = saved_pairs or temporary_pairs
     if len(saved_pairs) > 1:
         raise ValueError("Plusieurs correspondances sont enregistrées pour cette racine : corrigez Stockages.")
-    if saved_pairs:
-        plex_root, section_id = next(iter(saved_pairs))
+    if not saved_pairs and len(temporary_pairs) > 1:
+        raise ValueError("Plusieurs correspondances historiques existent pour cette racine : corrigez Stockages.")
+    if candidate_pairs:
+        plex_root, section_id = next(iter(candidate_pairs))
         choices = [p for p in discovered["plex_roots"] if p["path"] == plex_root and str(p["section_id"]) == section_id]
     else:
         choices = [p for p in discovered["plex_roots"] if compatible(root, p["path"])]
-        temporary_pairs = {(m["plex_root"], str(m["plex_section_id"])) for m in temporary}
-        if temporary_pairs and (
-            len(temporary_pairs) > 1
-            or not choices
-            or next(iter(temporary_pairs)) != (choices[0]["path"], str(choices[0]["section_id"]))
-        ):
-            raise ValueError(
-                "Cette correspondance existe seulement dans un stockage temporaire : enregistrez-la dans Stockages."
-            )
     if len(choices) != 1:
         raise ValueError("Correspondance Arr/Plex ambiguë ou absente : associez cette racine dans Stockages.")
     plex = choices[0]
@@ -81,6 +74,8 @@ async def route(db, instance, root, discovered):
         comparison = None
     if comparison is None:
         comparison = await check_mapping(db, SimpleNamespace(mappings=[mapping]), 0, discovered=discovered)
+    if not saved_pairs and temporary_pairs and comparison["status"] == "empty" and not compatible(root, plex["path"]):
+        raise ValueError("Correspondance historique vide non confirmable : enregistrez-la dans Stockages.")
     if comparison["status"] not in ("sample_matched", "empty"):
         failures = [
             f"{item['title']} : {item.get('reason', item['status'])}"
@@ -182,6 +177,14 @@ async def configured_route(db, instance, root):
         for mapping in location.mappings
         if mapping["arr_instance_id"] == instance.id and mapping["arr_root"] == root
     ]
+    if not mappings:
+        mappings = [
+            mapping
+            for location in locations
+            if location.virtual_key is not None
+            for mapping in location.mappings
+            if mapping["arr_instance_id"] == instance.id and mapping["arr_root"] == root
+        ]
     pairs = {(m["plex_root"], str(m["plex_section_id"])) for m in mappings}
     if len(pairs) != 1:
         raise ValueError(

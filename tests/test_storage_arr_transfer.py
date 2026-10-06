@@ -9,9 +9,10 @@ from app.storage import worker
 
 
 @pytest.mark.asyncio
-async def test_configured_preview_route_uses_live_checks_only_for_the_selected_root(monkeypatch):
+@pytest.mark.parametrize("virtual_key", [None, "1:/data/FILMS"])
+async def test_configured_preview_route_uses_live_checks_only_for_the_selected_root(monkeypatch, virtual_key):
     mapping = dict(arr_instance_id=1, arr_root="/data/FILMS", plex_root="/media/FILMS", plex_section_id="3")
-    location = NS(id=7, virtual_key=None, mappings=[mapping])
+    location = NS(id=7, virtual_key=virtual_key, mappings=[mapping])
     db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: [location]))))
     instance = NS(id=1)
     discovered = {"arr_roots": ["/data/FILMS", "/unavailable/FILMS"]}
@@ -84,7 +85,8 @@ async def test_route_reuses_recent_proof_for_explicit_mapping_and_prefers_it_to_
 
 
 @pytest.mark.asyncio
-async def test_route_does_not_treat_temporary_preview_mapping_as_saved_configuration(monkeypatch):
+@pytest.mark.parametrize("status", ["sample_matched", "mismatch", "empty"])
+async def test_route_revalidates_historical_preview_mapping(monkeypatch, status):
     temporary = NS(
         virtual_key="2:/data2/FILMS",
         mappings=[dict(arr_instance_id=2, arr_root="/data2/FILMS", plex_root="/media2/FILMS", plex_section_id="3")],
@@ -95,8 +97,40 @@ async def test_route_does_not_treat_temporary_preview_mapping_as_saved_configura
         "arr_request",
         AsyncMock(return_value=[dict(path="/data2/FILMS", accessible=True, freeSpace=100)]),
     )
-    with pytest.raises(ValueError, match="enregistrez-la dans Stockages"):
-        await arr.route(db, NS(id=2), "/data2/FILMS", {"plex_roots": [dict(path="/media2/FILMS", section_id="3")]})
+    from app.storage import mapping_proofs
+
+    monkeypatch.setattr(mapping_proofs, "get", AsyncMock(return_value=None))
+    check = AsyncMock(return_value={"status": status})
+    monkeypatch.setattr(arr, "check_mapping", check)
+    discovered = {"plex_roots": [dict(path="/media2/FILMS", section_id="3")]}
+    if status == "sample_matched":
+        _, mapping, _ = await arr.route(db, NS(id=2), "/data2/FILMS", discovered)
+        assert mapping["plex_root"] == "/media2/FILMS"
+    else:
+        with pytest.raises(ValueError, match="non confirm|non confirmable"):
+            await arr.route(db, NS(id=2), "/data2/FILMS", discovered)
+    check.assert_awaited_once()
+    assert temporary.virtual_key == "2:/data2/FILMS"
+
+
+@pytest.mark.asyncio
+async def test_historical_route_rejects_conflicting_associations_before_comparison(monkeypatch):
+    temporary = NS(
+        virtual_key="1:/data2/SERIES",
+        mappings=[
+            dict(arr_instance_id=1, arr_root="/data2/SERIES", plex_root=path, plex_section_id="2")
+            for path in ("/media2/SERIES", "/usb/SERIES")
+        ],
+    )
+    db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: [temporary]))))
+    monkeypatch.setattr(
+        arr, "arr_request", AsyncMock(return_value=[dict(path="/data2/SERIES", accessible=True, freeSpace=100)])
+    )
+    check = AsyncMock()
+    monkeypatch.setattr(arr, "check_mapping", check)
+    with pytest.raises(ValueError, match="Plusieurs correspondances historiques"):
+        await arr.route(db, NS(id=1), "/data2/SERIES", {"plex_roots": []})
+    check.assert_not_awaited()
 
 
 @pytest.mark.asyncio
