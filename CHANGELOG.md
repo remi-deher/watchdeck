@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.77.0 — 2026-10-07
+
+
+### ✨ Nouveautés
+
+- email preheader and status-first subjects for mobile previews ([9a163f7](https://github.com/remi-deher/watchdeck/commit/9a163f7e3e6767f07f7bc7cddbb1883c29b1c33f))
+- sharper backdrops through the image proxy ([6ffc250](https://github.com/remi-deher/watchdeck/commit/6ffc2502ac1b55da489d961b85ad5f1dd7f3314a))
+
+### 🐛 Corrections
+
+- stop select and combobox from shifting the page when opened ([b45f11d](https://github.com/remi-deher/watchdeck/commit/b45f11dcf210415b583d320e0a6cdf570db31975))
+- keep scroll position when switching consecutive playbacks ([ea4c966](https://github.com/remi-deher/watchdeck/commit/ea4c9667b558d6f837095ad02d3442ab145506f6))
 ## 1.76.0 — 2026-10-07
 
 
@@ -16,6 +28,10 @@
 - parse theme bootstrap test with DOMParser ([cd39e53](https://github.com/remi-deher/watchdeck/commit/cd39e539c875c27e3ca6b252c033c1e6b1fac040))
 - preserve page context with compact navigation ([9d48f43](https://github.com/remi-deher/watchdeck/commit/9d48f43fc89ce35e0ba6b08c2196860c61dd2a55))
 - keep search centered with compact rail ([fc409c2](https://github.com/remi-deher/watchdeck/commit/fc409c2ef1cb32997ba902f90eacedbc7315573c))
+
+### 🔧 Maintenance
+
+- v1.76.0 (#740) ([2527e66](https://github.com/remi-deher/watchdeck/commit/2527e66dd9a6bf12d25df190a319ed1e311d6aa6))
 ## 1.75.0 — 2026-10-07
 
 
