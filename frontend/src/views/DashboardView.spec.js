@@ -36,7 +36,6 @@ function mountView() {
         UpcomingReleasesPanel: true,
         RequestsBreakdownPanel: true,
         TopRequestedPanel: true,
-        RecentNotificationsPanel: true,
         DiskSpacePanel: true,
       },
     },
@@ -86,7 +85,7 @@ describe('DashboardView supervision', () => {
     expect(apiMock).toHaveBeenCalledWith('/api/health');
     expect(apiMock).toHaveBeenCalledWith('/api/disk-space', expect.anything());
     expect(apiMock).toHaveBeenCalledWith(
-      '/api/dashboard/snapshot?sections=top_requested,by_user,notifications',
+      '/api/dashboard/snapshot?sections=top_requested,by_user',
     );
   });
 });

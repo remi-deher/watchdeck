@@ -16,6 +16,6 @@ export function blockedQueueRows<T extends AttentionQueueRow>(queue: T[]): T[] {
   });
 }
 
-export function attentionTotal(pendingCount: number, queue: AttentionQueueRow[], failedCount: number): number {
-  return pendingCount + blockedQueueRows(queue).length + Number(failedCount || 0);
+export function attentionTotal(queue: AttentionQueueRow[], failedCount: number): number {
+  return blockedQueueRows(queue).length + Number(failedCount || 0);
 }
