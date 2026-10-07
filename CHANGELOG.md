@@ -1,11 +1,25 @@
 # Changelog
 
+## 1.79.0 — 2026-10-07
+
+
+### test
+
+- hover the hero banner away from the poster ([c3653f4](https://github.com/remi-deher/watchdeck/commit/c3653f4caf897e856c3bddb7b4921e35b69623ef))
+
+### ✨ Nouveautés
+
+- tinted media sheet and image preloading ([ab7163d](https://github.com/remi-deher/watchdeck/commit/ab7163d53b9909e1574a7cb7ba35a56c2eeb1a19))
 ## 1.78.0 — 2026-10-07
 
 
 ### ✨ Nouveautés
 
 - slimmer media sheet header with a single main action and a more-actions menu ([946f988](https://github.com/remi-deher/watchdeck/commit/946f98824c78e96a8952a4f7bd0e6e6b310b96e4))
+
+### 🔧 Maintenance
+
+- v1.78.0 (#748) ([e53c8d8](https://github.com/remi-deher/watchdeck/commit/e53c8d84d5fc3ee24bcdf7f7797e57d2f6a36640))
 ## 1.77.0 — 2026-10-07
 
 
