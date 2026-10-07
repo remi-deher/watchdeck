@@ -116,7 +116,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Demandes & quotas',
     group: 'Demandes & quotas',
     path: '/settings/requests',
-    keywords: ['quota', 'limite de demandes', 'approbation', 'validation', 'watchlist', 'periode', 'source de repli', 'universal watchlist'],
+    keywords: ['quota', 'limite de demandes', 'approbation', 'validation', 'watchlist', 'periode', 'source de repli', 'universal watchlist', 'langue', 'langue par defaut', 'locale', 'anglais'],
   },
   {
     label: 'Utilisateurs',
@@ -125,16 +125,16 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['compte', 'role', 'moderateur', 'admin', 'fusion', 'mot de passe', 'plex user'],
   },
   {
-    label: 'Réseau & langue',
+    label: 'Réseau',
     group: 'Sécurité & API',
     path: '/settings/security',
-    keywords: ['url publique', 'adresse publique', 'proxy', 'reverse-proxy', 'nginx', 'traefik', 'caddy', 'ip', 'x-forwarded-for', 'langue', 'locale', 'anglais'],
+    keywords: ['url publique', 'adresse publique', 'proxy', 'reverse-proxy', 'nginx', 'traefik', 'caddy', 'ip', 'x-forwarded-for', 'securite', 'double authentification', 'https'],
   },
   {
     label: 'API & jeton',
     group: 'Sécurité & API',
     path: '/settings/security/api',
-    keywords: ['api', 'jeton', 'token', 'bearer', 'cle', 'acces externe'],
+    keywords: ['api', 'jeton', 'token', 'bearer', 'cle', 'acces externe', 'curl', 'regenerer', 'revoquer'],
   },
   {
     label: 'Maintenance',

@@ -1,5 +1,26 @@
 <template>
   <div class="settings-rows">
+    <!-- Le verdict avant le détail : l'instance est-elle exposée correctement ? -->
+    <section class="security-verdict" :class="warnCount ? 'is-warn' : 'is-good'" aria-labelledby="security-verdict-title">
+      <h3 id="security-verdict-title">{{ warnCount ? `${warnCount} point${warnCount > 1 ? 's' : ''} à vérifier` : 'Instance correctement protégée' }}</h3>
+      <p>{{ warnCount ? warnLabels : 'Adresse publique, proxies, jeton API et double authentification sont en ordre.' }}</p>
+    </section>
+
+    <SettingsItemList title="Contrôles">
+      <SettingsItem
+        v-for="check in checks"
+        :key="check.key"
+        :title="check.label"
+        :subtitle="check.detail"
+        :status="check.state === 'ok' ? 'active' : 'error'"
+        :status-text="check.badge"
+      >
+        <template #actions>
+          <UiButton size="sm" :variant="check.state === 'warn' ? 'primary' : 'secondary'" :to="check.action.to" :href="check.action.href">{{ check.action.label }}</UiButton>
+        </template>
+      </SettingsItem>
+    </SettingsItemList>
+
     <SettingsSection
       title="Adresse publique"
       subtitle="L'adresse sous laquelle les utilisateurs atteignent Watchdeck depuis l'extérieur."
@@ -34,18 +55,6 @@
       </p>
     </SettingsSection>
 
-    <SettingsSection
-      title="Langue"
-      subtitle="Langue de l'interface pour qui n'a pas choisi la sienne."
-      status="active"
-    >
-      <SettingsRow
-        label="Langue par défaut"
-        description="Appliquée aux nouveaux comptes et aux pages publiques. Chaque utilisateur peut ensuite choisir la sienne."
-      >
-        <UiSelect v-model="locale" :options="LOCALE_OPTIONS" aria-label="Langue par défaut" />
-      </SettingsRow>
-    </SettingsSection>
   </div>
 </template>
 
@@ -54,28 +63,38 @@ import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { RefreshCw } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
-import UiSelect from '@/components/ui/UiSelect.vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
+import { useSession } from '@/composables/useSession';
+import SettingsItem from './SettingsItem.vue';
+import SettingsItemList from './SettingsItemList.vue';
+import { securityCheckRows } from './securityChecks';
 import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';
-
-/* Les langues que le serveur sait servir (`SUPPORTED_LOCALES`, app/i18n.py). */
-const LOCALE_OPTIONS = [
-  { value: 'fr', label: 'Français' },
-  { value: 'en', label: 'English' },
-];
-// Sans choix enregistre, le serveur retombe sur le francais : on l'affiche tel quel.
-const locale = computed({
-  get: () => form.default_locale || 'fr',
-  set: (value: string) => { form.default_locale = value; },
-});
 
 const clientIpQuery = useQuery({
   queryKey: ['settings', 'client-ip'],
   queryFn: () => api<{ connection_ip: string | null; client_ip: string; forwarded_for: string | null }>('/api/settings/client-ip').catch(() => null),
 });
 const clientIp = computed(() => clientIpQuery.data.value);
+const tokenQuery = useQuery({ queryKey: ['settings', 'api-token'], queryFn: () => api<any>('/api/settings/token').catch(() => ({})) });
+// Le compte de l'assistant d'installation n'a pas d'id : rien à demander à /api/me.
+const { session } = useSession();
+const meQuery = useQuery({
+  queryKey: ['me'],
+  queryFn: () => api<{ has_local_password?: boolean; totp_enabled?: boolean }>('/api/me'),
+  enabled: computed(() => Boolean(session.value?.id)),
+});
+const checks = computed(() => securityCheckRows({
+  publicBaseUrl: String(form.public_base_url || ''),
+  trustedProxies: String(form.trusted_proxies || ''),
+  clientIp: clientIp.value ?? null,
+  tokenActive: Boolean(tokenQuery.data.value?.active),
+  account: meQuery.data.value ?? null,
+}));
+const warnings = computed(() => checks.value.filter((check) => check.state === 'warn'));
+const warnCount = computed(() => warnings.value.length);
+const warnLabels = computed(() => warnings.value.map((check) => check.label).join(', '));
 const clientIpDescription = computed(() => {
   const ip = clientIp.value;
   if (!ip) return 'Adresse vue par Watchdeck pour ce navigateur.';
@@ -90,4 +109,14 @@ const clientIpDescription = computed(() => {
   gap: var(--space-4);
 }
 .network-hint { margin: 8px 0 0; }
+.security-verdict {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  background: var(--surface);
+}
+.security-verdict.is-good { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); background: color-mix(in srgb, var(--green) 7%, var(--surface)); }
+.security-verdict.is-warn { border-color: color-mix(in srgb, var(--amber) 45%, var(--border)); background: color-mix(in srgb, var(--amber) 7%, var(--surface)); }
+.security-verdict h3 { margin: 0 0 2px; font-size: var(--fs-md); }
+.security-verdict p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 </style>

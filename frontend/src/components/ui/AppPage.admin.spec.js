@@ -39,8 +39,8 @@ describe('AppPage dans l’Administration', () => {
     restore = stubShellMode('compact');
     const wrapper = await mountAt('/settings/security');
     const labels = wrapper.findAll('.app-subnav__item').map((item) => item.text());
-    expect(labels).toEqual(['Réseau & langue', 'API & jeton']);
-    expect(wrapper.find('.app-subnav__item[aria-current="page"]').text()).toBe('Réseau & langue');
+    expect(labels).toEqual(['Réseau', 'API & jeton']);
+    expect(wrapper.find('.app-subnav__item[aria-current="page"]').text()).toBe('Réseau');
   });
 
   it('garde la page sans rangée de sections hors de l’Administration, où le dock les porte', async () => {

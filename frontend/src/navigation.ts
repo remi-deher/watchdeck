@@ -370,7 +370,7 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       break;
     case 'admin-security':
       sections = [
-        { key: 'network', label: 'Réseau & langue', to: '/settings/security', icon: Network },
+        { key: 'network', label: 'Réseau', to: '/settings/security', icon: Network },
         { key: 'api', label: 'API & jeton', to: '/settings/security/api', icon: KeyRound },
       ];
       break;

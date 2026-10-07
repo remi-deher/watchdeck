@@ -52,10 +52,24 @@
         <UiNumberField v-model="form.quota_period_days" :min="1" :max="365" aria-label="Période des quotas en jours" />
       </SettingsRow>
     </SettingsSection>
+
+    <SettingsSection
+      title="Langue"
+      subtitle="Langue de l'interface pour qui n'a pas choisi la sienne."
+      status="active"
+    >
+      <SettingsRow
+        label="Langue par défaut"
+        description="Appliquée aux nouveaux comptes et aux pages publiques. Chaque utilisateur peut ensuite choisir la sienne."
+      >
+        <UiSelect v-model="locale" :options="LOCALE_OPTIONS" aria-label="Langue par défaut" />
+      </SettingsRow>
+    </SettingsSection>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
@@ -64,6 +78,17 @@ import { presetsFor } from '@/settingsPresets';
 import IntervalPresetInput from './IntervalPresetInput.vue';
 import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';
+
+/* Les langues que le serveur sait servir (`SUPPORTED_LOCALES`, app/i18n.py). */
+const LOCALE_OPTIONS = [
+  { value: 'fr', label: 'Français' },
+  { value: 'en', label: 'English' },
+];
+// Sans choix enregistre, le serveur retombe sur le francais : on l'affiche tel quel.
+const locale = computed({
+  get: () => form.default_locale || 'fr',
+  set: (value: string) => { form.default_locale = value; },
+});
 </script>
 
 <style scoped lang="scss">

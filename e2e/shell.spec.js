@@ -96,7 +96,7 @@ test("sur telephone, l'administration se parcourt en liste puis en detail, sans 
 
   // Les sections de la zone sont des onglets sous l'en-tete, atteignables au pouce.
   const tabs = page.locator("#main-content .app-subnav__item");
-  await expect(tabs).toHaveText(["Réseau & langue", "API & jeton"]);
+  await expect(tabs).toHaveText(["Réseau", "API & jeton"]);
   await tabs.nth(1).click();
   await expect(page).toHaveURL(/\/settings\/security\/api$/);
 
