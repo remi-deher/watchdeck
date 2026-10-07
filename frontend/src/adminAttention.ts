@@ -84,9 +84,12 @@ function serviceName(key: string, info: HealthService): string {
   return instance && instance.toLowerCase() !== base.toLowerCase() ? instance : base;
 }
 
-/** Une action interne seulement : une URL absolue ne doit pas sortir de l'application. */
+/** Une action interne seulement : une URL absolue ne doit pas sortir de l'application.
+ *  Les ancres `#tab-…` du serveur designaient les onglets d'une ancienne page de reglages :
+ *  elles ne menent plus nulle part, on prefere alors l'ecran propre au service. */
 function internalPath(url: string | undefined, fallback: string): string {
-  return url && url.startsWith('/') && !url.startsWith('//') ? url : fallback;
+  if (!url || !url.startsWith('/') || url.startsWith('//') || url.includes('#tab-')) return fallback;
+  return url;
 }
 
 /* Les reponses viennent du reseau : un objet a la place d'une liste (erreur, proxy,

@@ -54,6 +54,11 @@ describe('adminAttention', () => {
     expect(areaSeverity([item], 'admin-security')).toBe('info');
   });
 
+  it('ignore les anciennes ancres d’onglet du serveur au profit de l’écran du service', () => {
+    const [item] = buildAttention({ services: { sonarr: { state: 'error', action_url: '/settings#tab-connexions' } } });
+    expect(item.action.to).toBe('/settings/services/integrations');
+  });
+
   it('attend les réglages avant de parler de configuration', () => {
     expect(buildAttention({ settings: null })).toEqual([]);
     expect(buildAttention({ settings: { public_base_url: '', channels: false } }).map((i) => i.key)).toEqual(['config-public-url', 'config-channels']);
