@@ -153,6 +153,9 @@ class PeerFilesystem:
     def free(self, path):
         return path.fs.free(path)
 
+    def total(self, path):
+        return path.fs.total(path)
+
     def valid(self, src, dst, proof, mode):
         return bool(
             proof

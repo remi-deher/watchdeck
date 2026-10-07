@@ -24,3 +24,21 @@ Supprimer un brouillon ou une tâche terminée retire son historique. Pour une t
 
 
 Pendant un transfert rsync actif, les mesures sont recalculées environ chaque seconde, avec une moyenne glissante courte pour stabiliser le débit. L’interface visible lit chaque seconde un endpoint limité aux mesures des tâches actives. Cette lecture n’interroge ni les stockages, ni Arr/Plex, et ne retransmet pas les inventaires ou les preuves. Le rafraîchissement complet reste à cinq secondes. Une requête lente n’est pas doublée ; les mesures précédentes sont conservées en cas d’erreur réseau.
+
+## Parcours et suivi
+
+La page propose Transferts, Stockages et Historique avec les composants communs de navigation, cartes et tableaux. Les détails d'une tâche terminée restent dans Historique.
+
+La préparation commence par l'objectif, puis les médias et le trajet. Aucune vérification distante n'est requise pour enregistrer les réglages. Les contrôles de sécurité restent effectués à l'aperçu et au démarrage.
+
+Les cartes utilisent le catalogue local pour les affiches et les manifestes enregistrés pour les épisodes et saisons restant à copier. Les fichiers dont le nom ne permet pas d'identifier les épisodes restent sans compte estimé. L'ETA affichée concerne la copie, sans promettre la durée de finalisation Plex. Le débit est actualisé chaque seconde par le suivi existant.
+
+L'historique compte les titres effectivement terminés. Le débit moyen utilise les échantillons de copie, sans les pauses ni les vérifications. Les anciennes tâches sans ces mesures affichent « Non mesuré ».
+
+## Stockages et connexions
+
+La réserve d'espace libre est désactivée par défaut pour un nouveau stockage. Une valeur en Go ou en pourcentage peut être activée ; l'équivalent est affiché lorsque la capacité est connue. La migration `0046_storage_reserve` conserve les réserves existantes.
+
+Une connexion SSH peut conserver une clé privée et un mot de passe, avec une méthode prioritaire. Le recours à l'autre méthode est facultatif et intervient uniquement après un refus d'authentification. Une identité serveur différente ou une erreur réseau interrompt le contrôle. Les secrets enregistrés ne sont jamais renvoyés au formulaire.
+
+Les stockages peuvent être attribués depuis la connexion. Les chemins accessibles sont explicites ; une nouvelle attribution remplace uniquement la connexion de même méthode, sans supprimer l'autre méthode. Une connexion utilisée par une tâche active ne peut pas être modifiée.

@@ -30,6 +30,7 @@ def probe(host, port):
 
 
 def connection_json(connection):
+    credentials = json.loads(connection.credentials or "{}")
     return dict(
         id=connection.id,
         name=connection.name,
@@ -40,6 +41,8 @@ def connection_json(connection):
         tested=connection.tested,
         trusted=bool(connection.fingerprint) or connection.method == "local",
         has_credentials=bool(connection.credentials),
+        has_private_key=bool(credentials.get("private_key")),
+        has_password=bool(credentials.get("password")),
     )
 
 
@@ -51,6 +54,7 @@ def config(connection):
         ssh_port=props.get("port", 22),
         ssh_user=props.get("user"),
         ssh_auth=props.get("auth", "key"),
+        ssh_auth_fallback=props.get("auth_fallback", False),
         ssh_fingerprint=connection.fingerprint,
         ssh_private_key=credentials.get("private_key", ""),
         ssh_password=credentials.get("password", ""),
@@ -63,6 +67,7 @@ def test_connection(connection):
         return
     client = connecter(config(connection))
     try:
+        auth_method = getattr(client, "storage_auth_method", None)
         _, output, _ = client.exec_command(
             'python3 -c \'import shutil,subprocess; p=shutil.which("rsync"); assert p; assert "xxh128" in subprocess.check_output([p,"--version"],text=True)\'',
             timeout=15,
@@ -74,6 +79,7 @@ def test_connection(connection):
             time.sleep(0.1)
         if output.channel.recv_exit_status() != 0:
             raise ValueError("Python 3 ou rsync compatible indisponible.")
+        return auth_method
     finally:
         client.close()
 

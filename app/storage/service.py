@@ -79,7 +79,17 @@ def location_json(location):
             "checked_at",
             "health",
         )
-    } | {"virtual": location.virtual_key is not None}
+    } | {"virtual": location.virtual_key is not None, "reserve_percent": getattr(location, "reserve_percent", None)}
+
+
+def reserve_bytes(location, total_bytes=None):
+    percent = getattr(location, "reserve_percent", None)
+    if percent is None:
+        return getattr(location, "reserve_bytes", 0) or 0
+    total = total_bytes if total_bytes is not None else location.total_bytes
+    if total is None:
+        raise ValueError("Capacité totale inconnue : impossible de calculer la réserve en pourcentage.")
+    return int(total * percent / 100)
 
 
 async def preview(db, body):
@@ -145,7 +155,7 @@ async def _preview(db, body):
                 or (location is source and status != "sample_matched")
             ):
                 raise ValueError("rsync : chemins Arr/Plex/moteur non validés pour la source ou la destination.")
-    available = max(0, (destination.free_bytes or 0) - destination.reserve_bytes)
+    available = max(0, (destination.free_bytes or 0) - reserve_bytes(destination))
     reserved = (
         await db.execute(
             select(func.coalesce(func.sum(StorageTransferItem.size_bytes), 0))
@@ -232,6 +242,10 @@ async def _preview(db, body):
 
 
 async def transfer_json(db, job):
+    from ..models import LibraryItem
+    from ..utils import wrap_image_proxy
+    from .presentation import item_presentation
+
     items = (
         (
             await db.execute(
@@ -243,6 +257,21 @@ async def transfer_json(db, job):
         .scalars()
         .all()
     )
+    identities = {(t.arr_instance_id, t.arr_id) for t in items}
+    from sqlalchemy import tuple_
+
+    media = (
+        (
+            await db.execute(
+                select(LibraryItem).where(tuple_(LibraryItem.arr_instance_id, LibraryItem.arr_id).in_(identities))
+            )
+        )
+        .scalars()
+        .all()
+        if identities
+        else []
+    )
+    media_by_id = {(m.arr_instance_id, m.arr_id): m for m in media}
     return dict(
         id=job.id,
         source_id=job.source_id,
@@ -269,6 +298,11 @@ async def transfer_json(db, job):
                 snapshot=t.snapshot,
                 created_at=t.created_at,
                 updated_at=t.updated_at,
+                presentation=item_presentation(t),
+                poster_url=wrap_image_proxy(
+                    getattr(media_by_id.get((t.arr_instance_id, t.arr_id)), "poster_url", None)
+                ),
+                art_url=wrap_image_proxy(getattr(media_by_id.get((t.arr_instance_id, t.arr_id)), "art_url", None)),
             )
             for t in items
         ],

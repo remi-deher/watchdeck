@@ -1,14 +1,14 @@
 <template>
   <div class="task-actions">
     <UiButton v-if="terminal" variant="primary" :disabled="busy" @click="$emit('relaunch',job)">Relancer</UiButton>
-    <UiButton v-if="terminal" :disabled="busy" @click="$emit('edit',job)">Modifier</UiButton>
+    <UiButton v-if="terminal && !compact" :disabled="busy" @click="$emit('edit',job)">Modifier</UiButton>
     <UiButton v-if="job.status==='draft'" variant="primary" :disabled="busy" @click="$emit('verify',job)">Vérifier et lancer</UiButton>
-    <UiButton v-else-if="!terminal && !cancelRequested" variant="primary" :disabled="busy" @click="$emit('command',job.id,active?'pause':['blocked','failed'].includes(job.status)?'retry':'resume')">{{ active?'Mettre en pause':['blocked','failed'].includes(job.status)?'Réessayer':'Reprendre le lot' }}</UiButton>
+    <UiButton v-else-if="!terminal && !cancelRequested" variant="primary" :disabled="busy" @click="$emit('command',job.id,active?'pause':['blocked','failed'].includes(job.status)?'retry':'resume')">{{ active?'Mettre en pause':['blocked','failed'].includes(job.status)?'Réessayer':'Reprendre' }}</UiButton>
 
     <UiMenu :disabled="busy" :label="job.params?.name || `Tâche #${job.id}`">
       <template #trigger><UiButton icon-only :aria-label="`Actions de la tâche ${job.id}`"><Ellipsis :size="20" /></UiButton></template>
       <UiMenuItem v-if="!terminal" :disabled="cancelling" @select="$emit('cancel',job)">{{ job.status==='cancel_blocked'?'Réessayer l’annulation':'Annuler la tâche' }}</UiMenuItem>
-      <UiMenuItem v-if="job.status==='draft'" @select="$emit('edit',job)">Modifier</UiMenuItem>
+      <UiMenuItem v-if="job.status==='draft' || terminal" @select="$emit('edit',job)">Modifier</UiMenuItem>
       <UiMenuItem :disabled="cancelling" variant="danger" @select="$emit('remove',job)">{{ job.status==='draft'?'Supprimer le brouillon':'Supprimer la tâche' }}</UiMenuItem>
       <UiMenuItem v-if="!terminal && !cancelRequested && job.status!=='draft'" :disabled="job.status==='running'" @select="$emit('command',job.id,'retry')">Réessayer les titres en erreur</UiMenuItem>
       <UiMenuItem @select="$emit('duplicate',job)">Créer une copie</UiMenuItem>
@@ -21,7 +21,7 @@ import {Ellipsis} from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiMenu from '@/components/ui/UiMenu.vue';
 import UiMenuItem from '@/components/ui/UiMenuItem.vue';
-const props=defineProps<{job:any,busy:boolean}>();
+const props=defineProps<{job:any,busy:boolean,compact?:boolean}>();
 const terminal=computed(()=>['completed','cancelled'].includes(props.job.status));
 const cancelRequested=computed(()=>['cancelling','cancel_blocked'].includes(props.job.status));
 const cancelling=computed(()=>props.job.status==='cancelling');

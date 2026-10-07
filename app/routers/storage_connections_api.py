@@ -11,7 +11,7 @@ from sqlalchemy import or_, select
 
 from ..database import get_db_async
 from ..dependencies import require_admin
-from ..models import StorageAccess, StorageConnection, StorageTransfer, StorageTransferItem
+from ..models import StorageAccess, StorageConnection, StorageLocation, StorageTransfer, StorageTransferItem
 from ..storage import connections
 from ..storage.local_mounts import media_path
 from ..storage.planning import absolute_path
@@ -27,6 +27,8 @@ class ProfileBody(BaseModel):
     private_key: str = Field(default="", max_length=32768)
     password: str = Field(default="", max_length=1024)
     passphrase: str = Field(default="", max_length=1024)
+    clear_private_key: bool = False
+    clear_password: bool = False
 
 
 async def get_connection(db, connection_id):
@@ -47,7 +49,10 @@ async def assert_editable(db, accesses):
                         .where(
                             StorageTransferItem.transfer_id == StorageTransfer.id,
                             StorageTransferItem.claimed.is_(True),
-                            StorageTransferItem.snapshot["source_access_id"].as_integer() == access.id,
+                            or_(
+                                StorageTransferItem.snapshot["source_access_id"].as_integer() == access.id,
+                                StorageTransferItem.snapshot["destination_access_id"].as_integer() == access.id,
+                            ),
                         )
                         .exists(),
                     ),
@@ -88,9 +93,18 @@ async def save_profile(body, db, conn=None):
     if conn.method != body.method or any((conn.connection or {}).get(k) != props.get(k) for k in ("host", "port")):
         conn.fingerprint = ""
     credentials = json.loads(conn.credentials or "{}")
+    if body.clear_private_key:
+        credentials.pop("private_key", None)
+        credentials.pop("passphrase", None)
+    if body.clear_password:
+        credentials.pop("password", None)
     for key in ("private_key", "password", "passphrase"):
         if getattr(body, key):
             credentials[key] = getattr(body, key)
+    if props.get("auth") == "key" and not credentials.get("private_key") and credentials.get("password"):
+        props["auth"] = "password"
+    elif props.get("auth") == "password" and not credentials.get("password") and credentials.get("private_key"):
+        props["auth"] = "key"
     conn.name, conn.method, conn.connection = body.name.strip(), body.method, props
     conn.credentials = json.dumps(credentials) if body.method == "ssh" else None
     conn.revision, conn.tested = uuid.uuid4().hex, False
@@ -154,7 +168,7 @@ async def test_connection(connection_id: int, db=Depends(get_db_async)):
     conn = await get_connection(db, connection_id)
     conn.tested = False
     try:
-        await asyncio.to_thread(connections.test_connection, conn)
+        auth_method = await asyncio.to_thread(connections.test_connection, conn)
     except Exception as exc:
         await db.commit()
         raise HTTPException(
@@ -162,11 +176,67 @@ async def test_connection(connection_id: int, db=Depends(get_db_async)):
         ) from exc
     conn.tested = True
     await db.commit()
-    return connections.connection_json(conn)
+    return connections.connection_json(conn) | {"auth_method": auth_method}
 
 
 class BrowseBody(BaseModel):
     path: str = "/"
+
+
+class AssignedRoot(BaseModel):
+    arr_instance_id: int = Field(gt=0)
+    arr_root: str
+    path: str
+
+
+class AssignmentsBody(BaseModel):
+    roots: list[AssignedRoot] = Field(default_factory=list, max_length=200)
+
+
+@router.put("/connections/{connection_id}/assignments")
+async def assign_connection(connection_id: int, body: AssignmentsBody, db=Depends(get_db_async)):
+    """Replace only this method's selected bindings, preserving paths explicitly."""
+    conn = await get_connection(db, connection_id)
+    locations = (await db.execute(select(StorageLocation))).scalars().all()
+    known = {(m["arr_instance_id"], m["arr_root"]) for location in locations for m in location.mappings}
+    roots, seen = [], set()
+    try:
+        for r in body.roots:
+            key = (r.arr_instance_id, absolute_path(r.arr_root))
+            if key not in known or key in seen:
+                raise ValueError("Stockage inconnu ou racine sélectionnée plusieurs fois.")
+            path = absolute_path(r.path)
+            if conn.method == "local":
+                path = media_path(path)
+            roots.append(dict(arr_instance_id=key[0], arr_root=key[1], path=path))
+            seen.add(key)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    accesses = (await db.execute(select(StorageAccess))).scalars().all()
+    affected = [
+        a
+        for a in accesses
+        if a.connection_id == conn.id
+        or (a.method == conn.method and any((r["arr_instance_id"], r["arr_root"]) in seen for r in a.roots))
+    ]
+    await assert_editable(db, affected)
+    target = next((a for a in accesses if a.connection_id == conn.id), None)
+    for a in affected:
+        a.roots = (
+            []
+            if a.connection_id == conn.id
+            else [r for r in a.roots if (r["arr_instance_id"], r["arr_root"]) not in seen]
+        )
+        a.revision, a.validation = uuid.uuid4().hex, {}
+    if roots:
+        if target is None:
+            target = StorageAccess(
+                name=conn.name, method=conn.method, connection_id=conn.id, connection={}, roots=[], validation={}
+            )
+            db.add(target)
+        target.roots, target.revision = roots, uuid.uuid4().hex
+    await db.commit()
+    return {"saved": True}
 
 
 @router.post("/connections/{connection_id}/browse")

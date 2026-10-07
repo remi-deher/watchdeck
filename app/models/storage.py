@@ -18,7 +18,8 @@ class StorageLocation(Base):
     name: Mapped[str]
     mount_path: Mapped[str]
     mappings: Mapped[list] = mapped_column(JSON, default=list)
-    reserve_bytes: Mapped[int] = mapped_column(BigInteger, default=100_000_000_000)
+    reserve_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    reserve_percent: Mapped[Optional[float]]
     enabled: Mapped[bool] = mapped_column(default=True)
     total_bytes: Mapped[Optional[int]] = mapped_column(BigInteger)
     free_bytes: Mapped[Optional[int]] = mapped_column(BigInteger)

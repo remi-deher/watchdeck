@@ -145,6 +145,9 @@ class RemoteFilesystem:
     def free(self, path):
         return self.call("free", path=str(path))
 
+    def total(self, path):
+        return self.call("total", path=str(path))
+
     def remove(self, src, dst, files, signatures, proofs):
         return self.call("remove", src=str(src), dst=str(dst), files=files, signatures=signatures, proofs=proofs)
 
