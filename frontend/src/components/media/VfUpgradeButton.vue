@@ -1,9 +1,9 @@
 <template>
   <span class="vf-upgrade-wrap" @click.stop>
-    <button v-if="label" type="button" class="badge mdh-link vf-upgrade-trigger" :class="{ active: hasSuggestion }" @click="toggle">
+    <button v-if="!hideTrigger && label" type="button" class="badge mdh-link vf-upgrade-trigger" :class="{ active: hasSuggestion }" @click="toggle">
       <Search :size="14" /> {{ label }}<strong v-if="hasSuggestion" class="vf-upgrade-count">{{ publishedReleases.length }}</strong>
     </button>
-    <UiButton v-else class="vf-upgrade-trigger" :class="{ active: hasSuggestion }" :title="triggerTitle" :aria-label="triggerTitle" @click="toggle">
+    <UiButton v-else-if="!hideTrigger" class="vf-upgrade-trigger" :class="{ active: hasSuggestion }" :title="triggerTitle" :aria-label="triggerTitle" @click="toggle">
       <Search v-if="!hasSuggestion" :size="16" />
       <span v-else class="vf-upgrade-count vf-upgrade-badge">{{ publishedReleases.length }}</span>
     </UiButton>
@@ -161,12 +161,15 @@ const props = withDefaults(
     episodeNumber?: number | null;
     mediaTitle?: string;
     label?: string;
+    /** Sans declencheur : la fenetre s'ouvre par `toggle()`, depuis un menu qui porte l'entree. */
+    hideTrigger?: boolean;
   }>(),
   {
     seasonNumber: null,
     episodeNumber: null,
     mediaTitle: '',
     label: '',
+    hideTrigger: false,
   }
 );
 
@@ -418,6 +421,7 @@ async function toggle(): Promise<void> {
   }
 }
 onMounted(load);
+defineExpose({ toggle, count: computed(() => publishedReleases.value.length) });
 </script>
 
 <style scoped lang="scss">
