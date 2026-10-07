@@ -148,14 +148,7 @@ function interceptFirstTap(e: MouseEvent): void {
 }
 .poster-card.is-music { aspect-ratio: 1 / 1; }
 .poster-card.bordered { border: 1px solid var(--border); }
-.poster-card.animated {
-  animation: card-reveal 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  animation-delay: calc(min(var(--card-index, 0), 16) * 24ms);
-  /* Pas de `will-change` ici : il promeut la carte sur sa propre couche graphique, et une
-     grille en compte vingt. Safari finit par manquer de memoire de composition et
-     l'affichage saute. Le navigateur promeut de lui-meme le temps de l'animation, qui
-     dure trois dixiemes de seconde. */
-}
+.poster-card.animated { animation: none; }
 
 /* L'apparition liee au defilement (`animation-timeline: view()`) a ete retiree : elle
  * attachait une timeline a chaque carte, recalculee a chaque image, et ne se terminait

@@ -60,7 +60,7 @@ self.addEventListener('fetch', (event) => {
   //    cache, elle s'affiche des la premiere image -- au lancement comme hors ligne --
   //    au lieu d'un rectangle gris le temps d'un aller-retour. Au-dela de 24 h, elle est
   //    rafraichie en arriere-plan.
-  if (url.origin === self.location.origin && url.pathname.startsWith('/api/image-proxy')) {
+  if (url.origin === self.location.origin && (url.pathname === '/api/image-proxy' || url.pathname === '/api/playback/thumb')) {
     event.respondWith(servirAffiche(event, request));
     return;
   }

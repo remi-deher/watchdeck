@@ -567,9 +567,9 @@ function openSession(item: any, run: any[]=[]): void {
 function userShare(sessions: number): number {return Math.round(Number(sessions||0)/Math.max(1,summary.value.sessions||0)*100)}
 watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!==days.value)days.value=next});
 useRealtime(['activity.updated'],()=>{
-  void queryClient.invalidateQueries({queryKey:queryKeys.playback.live});
-  if(currentView.value!=='live')void queryClient.invalidateQueries({queryKey:['playback','statistics']});
-});
+  void queryClient.invalidateQueries({queryKey:queryKeys.playback.live},{cancelRefetch:false});
+  if(currentView.value!=='live')void queryClient.invalidateQueries({queryKey:['playback','statistics']},{cancelRefetch:false});
+},{refreshOnVisible:false});
 // Horloge locale du libelle « actualise il y a N s » : doit tourner meme onglet masque,
 // sinon l'age affiche au retour sur l'onglet est faux.
 useIntervalFn(()=>{clock.value=Date.now()},1000);

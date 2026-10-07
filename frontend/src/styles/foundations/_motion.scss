@@ -19,38 +19,9 @@
  * rendu par les transitions de vue du navigateur, plus bas dans ce fichier.
  */
 
-/* PageShell provides a shared, capped stagger for headers, feedback and panels. */
-@keyframes page-content-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.page-motion > * {
-  animation: page-content-reveal var(--motion-duration-reveal) var(--motion-ease-emphasized) backwards;
-  animation-delay: calc(min(var(--motion-index, 0), 8) * 35ms);
-}
-
-.page-motion > :nth-child(1) { --motion-index: 0; }
-.page-motion > :nth-child(2) { --motion-index: 1; }
-.page-motion > :nth-child(3) { --motion-index: 2; }
-.page-motion > :nth-child(4) { --motion-index: 3; }
-.page-motion > :nth-child(5) { --motion-index: 4; }
-.page-motion > :nth-child(6) { --motion-index: 5; }
-.page-motion > :nth-child(7) { --motion-index: 6; }
-.page-motion > :nth-child(n + 8) { --motion-index: 7; }
-
-@media (prefers-reduced-motion: reduce) {
-  .page-motion > * {
-    animation: none;
-  }
-}
+/* Les données chaudes sont visibles dès le montage. Le fondu de navigation
+ * est assuré par usePageExit, sans retarder chaque panneau individuellement. */
+.page-motion > * { animation: none; }
 
 /* ─────────────────────────── Retour d'appui ───────────────────────────
  *

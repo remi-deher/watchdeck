@@ -5,6 +5,7 @@ import hashlib
 import logging
 import os as _os
 import re
+import tempfile
 import time
 from io import BytesIO
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -113,6 +114,17 @@ _IMAGE_CACHE_DIR = _os.path.join("data", "image_cache")
 
 _IMAGE_CACHE_TTL = 86400  # aligné sur le Cache-Control déjà envoyé au navigateur
 _image_locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
+_source_locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
+_image_refresh_tasks: dict[str, asyncio.Task] = {}
+_image_refresh_slots = asyncio.Semaphore(3)
+
+
+async def close_image_refreshes() -> None:
+    tasks = list(_image_refresh_tasks.values())
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    _image_refresh_tasks.clear()
 
 
 def _image_cache_paths(url: str) -> tuple[str, str]:
@@ -156,10 +168,17 @@ def _write_image_cache(url: str, content: bytes, content_type: str, cached_at: f
     try:
         _os.makedirs(_IMAGE_CACHE_DIR, exist_ok=True)
         content_path, meta_path = _image_cache_paths(url)
-        with open(content_path, "wb") as f:
-            f.write(content)
-        with open(meta_path, "w", encoding="utf-8") as f:
-            f.write(f"{content_type}\n{cached_at}")
+        # Le worker et l'API partagent ce répertoire. Publier chaque fichier par
+        # remplacement atomique pour ne jamais lire un binaire partiellement écrit.
+        for target, data in ((content_path, content), (meta_path, f"{content_type}\n{cached_at}".encode())):
+            fd, temporary = tempfile.mkstemp(dir=_IMAGE_CACHE_DIR)
+            try:
+                with _os.fdopen(fd, "wb") as f:
+                    f.write(data)
+                _os.replace(temporary, target)
+            finally:
+                if _os.path.exists(temporary):
+                    _os.unlink(temporary)
     except Exception as e:
         logger.warning(f"Cache image : écriture impossible pour {url}: {e}")
 
@@ -315,10 +334,10 @@ async def image_proxy(
         upstream_headers = {"X-Plex-Token": secondary_token}
     variant_key = _variant_key(safe_url, width, height, quality, image_format)
 
-    async def _serve_if_cached() -> Response | None:
+    async def _serve_if_cached(*, allow_stale: bool = False) -> Response | None:
         """Sert la variante depuis le cache disque, en 304 si le navigateur l'a deja."""
         meta = await asyncio.to_thread(_read_image_meta, variant_key)
-        if not meta or time.time() - meta[1] >= _IMAGE_CACHE_TTL:
+        if not meta or (not allow_stale and time.time() - meta[1] >= _IMAGE_CACHE_TTL):
             return None
         content_type, cached_at = meta
         etag = _variant_etag(variant_key, cached_at)
@@ -329,91 +348,118 @@ async def image_proxy(
             return None
         return _image_response(cached[0], cached[1], etag)
 
+    async def _render() -> Response:
+        # Une seule récupération/transformation à la fois par variante, même lors du rendu
+        # simultané de plusieurs cartes qui utilisent la même affiche.
+        lock = _image_locks.setdefault(variant_key, asyncio.Lock())
+        async with lock:
+            response = await _serve_if_cached()
+            if response is not None:
+                return response
+
+            source_lock = _source_locks.setdefault(safe_url, asyncio.Lock())
+            async with source_lock:
+                if _is_missing(safe_url):
+                    raise HTTPException(404, "Image introuvable a la source")
+                source = await asyncio.to_thread(_read_image_cache, safe_url)
+                if not source or time.time() - source[2] >= _IMAGE_CACHE_TTL:
+                    try:
+                        async with httpx.AsyncClient(
+                            timeout=15, follow_redirects=False, verify=await _tls_verify(parsed.hostname)
+                        ) as client:
+                            upstream = await client.get(safe_url, headers=upstream_headers)
+                            if upstream.is_redirect:
+                                # Plex redirige vers sa propre CDN (images.plex.tv, elle-meme
+                                # relais de TMDB) pour une affiche qu'il n'a pas en cache local --
+                                # cas legitime frequent, pas juste une poignee d'items en erreur.
+                                # Un seul saut suivi, et seulement si l'hote cible est LUI AUSSI
+                                # dans l'allowlist (meme verification que l'URL d'origine) : ça
+                                # ferme le cas legitime sans jamais suivre aveuglement une
+                                # redirection vers un hote non autorise (SSRF).
+                                redirect_target = upstream.headers.get("location", "")
+                                redirect_host = (urlparse(redirect_target).hostname or "").lower()
+                                if redirect_target and redirect_host in allowed_hosts:
+                                    async with httpx.AsyncClient(
+                                        timeout=15, follow_redirects=False, verify=await _tls_verify(redirect_host)
+                                    ) as redirect_client:
+                                        upstream = await redirect_client.get(redirect_target)
+                                else:
+                                    logger.warning(
+                                        "Image proxy: redirection vers un hote non autorise refusee (%s -> %s)",
+                                        safe_url,
+                                        redirect_target,
+                                    )
+                            if upstream.status_code == 404 and plex_base:
+                                # Plex change l'horodatage du chemin (`/thumb/<ts>`) a chaque
+                                # rafraichissement des metadonnees : l'ancien chemin memorise
+                                # repond 404. On relit le chemin courant de l'element.
+                                fresh = await _current_plex_image_path(client, plex_base, parsed.path, upstream_headers)
+                                if fresh:
+                                    upstream = await client.get(f"{plex_base}{fresh}", headers=upstream_headers)
+                            if upstream.status_code == 404 and not source:
+                                # Absente a la source, et jamais vue : ce n'est pas une panne (502)
+                                # mais une image qui n'existe pas. Le client affiche son repli.
+                                _missing[safe_url] = time.monotonic() + _MISSING_TTL
+                                raise HTTPException(404, "Image introuvable a la source")
+                            upstream.raise_for_status()
+                        content_type = (
+                            upstream.headers.get("content-type", "application/octet-stream")
+                            .split(";")[0]
+                            .strip()
+                            .lower()
+                        )
+                        if not content_type.startswith("image/"):
+                            raise HTTPException(415, "La ressource n'est pas une image")
+                        fetched_at = time.time()
+                        source = (upstream.content, content_type, fetched_at)
+                        await asyncio.to_thread(
+                            _write_image_cache, safe_url, upstream.content, content_type, fetched_at
+                        )
+                    except HTTPException:
+                        raise
+                    except Exception as exc:
+                        if not source:
+                            raise HTTPException(502, f"Image inaccessible: {safe_error_message(exc)}") from exc
+                        logger.warning(
+                            "Image inaccessible, repli sur le cache périmé pour %s: %s",
+                            safe_url,
+                            exc,
+                        )
+
+            content, content_type, variant_cached_at = source
+            if width or height or image_format != "original":
+                try:
+                    content, content_type = await asyncio.to_thread(
+                        _transform_image, content, width, height, quality, image_format
+                    )
+                except ValueError as exc:
+                    raise HTTPException(415, str(exc)) from exc
+                variant_cached_at = time.time()
+                await asyncio.to_thread(_write_image_cache, variant_key, content, content_type, variant_cached_at)
+            return _image_response(content, content_type, _variant_etag(variant_key, variant_cached_at))
+
     response = await _serve_if_cached()
     if response is not None:
         return response
+    stale = await _serve_if_cached(allow_stale=True)
+    if stale is not None:
+        # Répondre immédiatement, même si Plex est lent ou indisponible.
+        if variant_key not in _image_refresh_tasks and len(_image_refresh_tasks) < 64:
+
+            async def refresh():
+                try:
+                    async with _image_refresh_slots:
+                        await _render()
+                except Exception:
+                    logger.debug("Rafraîchissement d'image différé impossible", exc_info=True)
+                finally:
+                    _image_refresh_tasks.pop(variant_key, None)
+
+            _image_refresh_tasks[variant_key] = asyncio.create_task(refresh())
+        return stale
     if _is_missing(safe_url):
         raise HTTPException(404, "Image introuvable a la source")
-
-    # Une seule récupération/transformation à la fois par variante, même lors du rendu
-    # simultané de plusieurs cartes qui utilisent la même affiche.
-    lock = _image_locks.setdefault(variant_key, asyncio.Lock())
-    async with lock:
-        response = await _serve_if_cached()
-        if response is not None:
-            return response
-
-        source = await asyncio.to_thread(_read_image_cache, safe_url)
-        if not source or time.time() - source[2] >= _IMAGE_CACHE_TTL:
-            try:
-                async with httpx.AsyncClient(
-                    timeout=15, follow_redirects=False, verify=await _tls_verify(parsed.hostname)
-                ) as client:
-                    upstream = await client.get(safe_url, headers=upstream_headers)
-                    if upstream.is_redirect:
-                        # Plex redirige vers sa propre CDN (images.plex.tv, elle-meme
-                        # relais de TMDB) pour une affiche qu'il n'a pas en cache local --
-                        # cas legitime frequent, pas juste une poignee d'items en erreur.
-                        # Un seul saut suivi, et seulement si l'hote cible est LUI AUSSI
-                        # dans l'allowlist (meme verification que l'URL d'origine) : ça
-                        # ferme le cas legitime sans jamais suivre aveuglement une
-                        # redirection vers un hote non autorise (SSRF).
-                        redirect_target = upstream.headers.get("location", "")
-                        redirect_host = (urlparse(redirect_target).hostname or "").lower()
-                        if redirect_target and redirect_host in allowed_hosts:
-                            async with httpx.AsyncClient(
-                                timeout=15, follow_redirects=False, verify=await _tls_verify(redirect_host)
-                            ) as redirect_client:
-                                upstream = await redirect_client.get(redirect_target)
-                        else:
-                            logger.warning(
-                                "Image proxy: redirection vers un hote non autorise refusee (%s -> %s)",
-                                safe_url,
-                                redirect_target,
-                            )
-                    if upstream.status_code == 404 and plex_base:
-                        # Plex change l'horodatage du chemin (`/thumb/<ts>`) a chaque
-                        # rafraichissement des metadonnees : l'ancien chemin memorise
-                        # repond 404. On relit le chemin courant de l'element.
-                        fresh = await _current_plex_image_path(client, plex_base, parsed.path, upstream_headers)
-                        if fresh:
-                            upstream = await client.get(f"{plex_base}{fresh}", headers=upstream_headers)
-                    if upstream.status_code == 404 and not source:
-                        # Absente a la source, et jamais vue : ce n'est pas une panne (502)
-                        # mais une image qui n'existe pas. Le client affiche son repli.
-                        _missing[safe_url] = time.monotonic() + _MISSING_TTL
-                        raise HTTPException(404, "Image introuvable a la source")
-                    upstream.raise_for_status()
-                content_type = (
-                    upstream.headers.get("content-type", "application/octet-stream").split(";")[0].strip().lower()
-                )
-                if not content_type.startswith("image/"):
-                    raise HTTPException(415, "La ressource n'est pas une image")
-                fetched_at = time.time()
-                source = (upstream.content, content_type, fetched_at)
-                await asyncio.to_thread(_write_image_cache, safe_url, upstream.content, content_type, fetched_at)
-            except HTTPException:
-                raise
-            except Exception as exc:
-                if not source:
-                    raise HTTPException(502, f"Image inaccessible: {safe_error_message(exc)}") from exc
-                logger.warning(
-                    "Image inaccessible, repli sur le cache périmé pour %s: %s",
-                    safe_url,
-                    exc,
-                )
-
-        content, content_type, variant_cached_at = source
-        if width or height or image_format != "original":
-            try:
-                content, content_type = await asyncio.to_thread(
-                    _transform_image, content, width, height, quality, image_format
-                )
-            except ValueError as exc:
-                raise HTTPException(415, str(exc)) from exc
-            variant_cached_at = time.time()
-            await asyncio.to_thread(_write_image_cache, variant_key, content, content_type, variant_cached_at)
-        return _image_response(content, content_type, _variant_etag(variant_key, variant_cached_at))
+    return await _render()
 
 
 _PLEX_IMAGE_PATH = re.compile(r"^/library/metadata/(\d+)/(thumb|art|banner|clearLogo)(?:/\d+)?$")

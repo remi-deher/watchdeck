@@ -1,6 +1,6 @@
 <template>
   <div class="media-artwork" :class="size">
-    <img v-if="src && !failed" :src="imageUrl" :alt="alt" loading="lazy" decoding="async" @error="failed=true">
+    <img v-if="src && !failed" :src="imageUrl" :alt="alt" :loading="priority ? 'eager' : 'lazy'" :fetchpriority="priority ? 'high' : 'auto'" decoding="async" @error="failed=true">
     <component :is="fallbackIcon" v-else />
   </div>
 </template>
@@ -15,6 +15,7 @@ const props = withDefaults(
     src?: string;
     alt?: string;
     type?: string;
+    priority?: boolean;
     size?: 'small' | 'medium' | 'history' | 'large' | string;
   }>(),
   {
@@ -22,6 +23,7 @@ const props = withDefaults(
     alt: '',
     type: '',
     size: 'medium',
+    priority: false,
   }
 );
 const failed = ref(false);
@@ -32,12 +34,14 @@ const fallbackIcon = computed(() => (props.type === 'track' ? Music2 : Clapperbo
    sans telecharger l'image pleine. `/api/playback/thumb` est servie par l'application
    elle-meme : `proxyUrl` la laissait telle quelle et l'on recevait la capture Plex
    entiere (1800 px), reduite 7 fois par le navigateur -- d'ou une vignette crenelee. */
-const FRAME_WIDTHS: Record<string, number> = { small: 42, medium: 54, history: 64, large: 104, poster: 210, backdrop: 533 };
+const FRAME_WIDTHS: Record<string, number> = { small: 42, medium: 54, history: 64, large: 104, poster: 210, backdrop: 400 };
 const imageUrl = computed(() => {
   if (!props.src) return undefined;
   const width = Math.min(1600, (FRAME_WIDTHS[props.size] || 104) * 3);
   if (props.src.startsWith('/api/playback/thumb')) {
-    return `${props.src}${props.src.includes('?') ? '&' : '?'}width=${width}`;
+    const url = new URL(props.src, window.location.origin);
+    url.searchParams.set('width', String(width));
+    return url.pathname + url.search;
   }
   return proxyUrl(props.src, { width }) ?? undefined;
 });
