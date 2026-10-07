@@ -27,14 +27,20 @@
         <div class="mdh-info">
           <span class="eyebrow">{{ typeLabel }}</span>
           <h1>{{ detail.title }}</h1>
-          <div class="mdh-badges">
-            <span v-if="isMusic" class="badge music-badge">{{ detail.media_type === 'artist' ? 'Artiste' : detail.media_type === 'album' ? 'Album' : detail.media_type === 'track' ? 'Piste' : 'Musique' }}</span>
-            <span v-if="detail.year" class="badge">{{ detail.year }}</span>
-            <span v-if="detail.vote" class="badge"><Star :size="14" />{{ detail.vote }}</span>
+          <!-- Annee, note et genres tiennent en une phrase : trois lignes de pastilles en moins.
+               L'origine (demande Seerr, ajout *ARR) vit dans l'onglet Demandes, qui la detaille. -->
+          <p v-if="factsLine" class="mdh-facts">{{ factsLine }}</p>
+          <div v-if="statusLabel && !isMusic || movieLanguage" class="mdh-badges">
             <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
-            <!-- « Deja present dans Plex » redit « Disponible dans Plex » : l'origine ne
-                 s'affiche que lorsqu'elle apprend quelque chose (demande Seerr, ajout *ARR). -->
-            <span v-if="detail.origin_label && detail.origin_kind !== 'plex' && !isMusic" class="badge origin-badge">{{ detail.origin_label }}</span>
+            <span v-if="movieLanguage" class="badge language-tag" :class="languageState.variant">{{ languageState.label }}</span>
+          </div>
+          <!-- Une serie detaille sa langue par saison ; un film la porte dans la rangee de
+               badges ci-dessus, au meme endroit. -->
+          <div v-if="isShow && showLanguageSummary && !preview" class="mdh-language-summary">
+            <span v-if="seasonSummary.vf.length" class="badge available">VF : {{ formatSeasonLabel(seasonSummary.vf) }}</span>
+            <span v-if="seasonSummary.vfSecondary.length" class="badge language-tag vf-secondary">VF secondaire : {{ formatSeasonLabel(seasonSummary.vfSecondary) }}</span>
+            <span v-if="seasonSummary.partial.length" class="badge pending_approval">Partielle : {{ formatSeasonLabel(seasonSummary.partial) }}</span>
+            <span v-if="seasonSummary.vo.length" class="badge">VO : {{ formatSeasonLabel(seasonSummary.vo) }}</span>
           </div>
           <p v-if="detail.waiting_reason && !isMusic" class="mdh-waiting">{{ detail.waiting_reason }}</p>
           <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
@@ -49,11 +55,8 @@
           <div v-else class="mdh-overview-wrapper">
             <SheetSummary class="mdh-overview" :text="overviewText" :lines="4" />
           </div>
-          <div v-if="detail.genres?.length" class="tag-row">
-            <span v-for="genre in detail.genres" :key="genre" class="badge">{{ genre }}</span>
-          </div>
           <div v-if="preview" class="mdh-links" aria-hidden="true">
-            <span class="skeleton-pill" /><span class="skeleton-pill" /><span class="skeleton-pill" />
+            <span class="skeleton-pill" /><span class="skeleton-pill" />
           </div>
           <div v-else class="mdh-links">
             <button
@@ -68,45 +71,34 @@
             <button v-if="plexWebUrl" type="button" class="primary-button mdh-listen-btn" @click="openPlexLink(detail?.plex_guid)">
               <Headphones v-if="isMusic" :size="16" /><Film v-else :size="16" /> {{ isMusic ? 'Écouter sur Plex' : 'Regarder sur Plex' }}
             </button>
-            <a v-if="detail.imdb_id && !isMusic" :href="`https://www.imdb.com/title/${detail.imdb_id}`" target="_blank" class="badge mdh-link"><ExternalLink :size="14" /> IMDb</a>
-            <a v-if="detail.tmdb_id && !isMusic" :href="`https://www.themoviedb.org/${detail.media_type === 'show' ? 'tv' : 'movie'}/${detail.tmdb_id}`" target="_blank" class="badge mdh-link"><ExternalLink :size="14" /> TMDB</a>
-            <a v-if="admin && detail.arr_url && !isMusic" :href="detail.arr_url" target="_blank" class="badge available mdh-link"><ExternalLink :size="14" /> {{ detail.media_type === 'movie' ? 'Radarr' : 'Sonarr' }}</a>
-            <button v-if="!isMusic" class="badge danger mdh-link" @click="$emit('report-issue')"><Flag :size="14" /> Signaler un problème</button>
-            <button
-              v-if="!isMusic"
-              type="button"
-              class="badge mdh-link"
-              :disabled="busy || !available"
-              :title="available ? '' : 'Pas encore disponible dans Plex — réessayer une fois le média indexé'"
-              @click="$emit('scan')"
-            ><RefreshCw :size="14" /> Analyser</button>
-            <VfUpgradeButton
-              v-if="canSearchReleases && !isShow"
-              :source-type="releaseSourceType!"
-              :source-id="releaseSourceId!"
-              scope="movie"
-              :media-title="detail.title"
-              label="Rechercher"
-            />
-            <button
-              v-if="canSearchReleases && isShow"
-              type="button"
-              class="badge mdh-link"
-              @click="$emit('open-audio')"
-            ><Search :size="14" /> Rechercher</button>
+            <!-- Le reste des actions tient dans un menu : une seule action principale par fiche. -->
+            <UiMenu v-if="!isMusic" align="end" label="Actions">
+              <template #trigger>
+                <UiButton icon-only class="mdh-more" title="Plus d’actions" aria-label="Plus d’actions"><Ellipsis /></UiButton>
+              </template>
+              <UiMenuItem v-if="canSearchReleases" @select="searchReleases">
+                <Search :size="15" /> Rechercher une version<small v-if="releaseCount" class="mdh-menu-count">{{ releaseCount }}</small>
+              </UiMenuItem>
+              <UiMenuItem :disabled="busy || !available" @select="$emit('scan')"><RefreshCw :size="15" /> Analyser</UiMenuItem>
+              <UiMenuSeparator v-if="externalLinks.length" />
+              <UiMenuItem v-for="link in externalLinks" :key="link.label" @select="openExternal(link.href)">
+                <ExternalLink :size="15" /> {{ link.label }}
+              </UiMenuItem>
+              <UiMenuSeparator />
+              <UiMenuItem variant="danger" @select="$emit('report-issue')"><Flag :size="15" /> Signaler un problème</UiMenuItem>
+            </UiMenu>
           </div>
-          <!-- Zone langue commune aux films et aux series, au meme emplacement : une seule
-               entree pour un film (pas de saisons a detailler), la repartition par saison
-               pour une serie. -->
-          <div v-if="showLanguageSummary && !preview" class="mdh-language-summary">
-            <template v-if="isShow">
-              <span v-if="seasonSummary.vf.length" class="badge available">VF : {{ formatSeasonLabel(seasonSummary.vf) }}</span>
-              <span v-if="seasonSummary.vfSecondary.length" class="badge language-tag vf-secondary">VF secondaire : {{ formatSeasonLabel(seasonSummary.vfSecondary) }}</span>
-              <span v-if="seasonSummary.partial.length" class="badge pending_approval">Partielle : {{ formatSeasonLabel(seasonSummary.partial) }}</span>
-              <span v-if="seasonSummary.vo.length" class="badge">VO : {{ formatSeasonLabel(seasonSummary.vo) }}</span>
-            </template>
-            <span v-else class="badge language-tag" :class="languageState.variant">{{ languageState.label }}</span>
-          </div>
+          <!-- La recherche de release d'un film est une fenetre portee par ce composant ; son
+               entree de menu l'ouvre, il n'a donc pas de declencheur a lui. -->
+          <VfUpgradeButton
+            v-if="canSearchReleases && !isShow && !preview"
+            ref="releaseSearch"
+            hide-trigger
+            :source-type="releaseSourceType!"
+            :source-id="releaseSourceId!"
+            scope="movie"
+            :media-title="detail.title"
+          />
         </div>
   </SheetHero>
 </template>
@@ -115,12 +107,16 @@
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 import { mediaTypeLabel, vfLanguageState, isMusicType } from '@/utils/labels';
 import { computed, ref, watch } from 'vue';
-import { ArrowLeft, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search, Star } from '@lucide/vue';
+import { ArrowLeft, Ellipsis, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
 import SheetHero from '@/components/ui/SheetHero.vue';
 import SheetSummary from '@/components/ui/SheetSummary.vue';
+import UiButton from '@/components/ui/UiButton.vue';
+import UiMenu from '@/components/ui/UiMenu.vue';
+import UiMenuItem from '@/components/ui/UiMenuItem.vue';
+import UiMenuSeparator from '@/components/ui/UiMenuSeparator.vue';
 
 export interface SeasonSummaryGroup {
   vf: number[];
@@ -193,9 +189,39 @@ const canSearchReleases = computed(() => {
   return Boolean(releaseSourceType.value && releaseSourceId.value);
 });
 
+/* « 2024 · ★ 7,8 · Science-fiction, Aventure » : ce que les pastilles d'annee, de note et de
+   genres disaient, sur une ligne. */
+const factsLine = computed(() => {
+  const d = props.detail || {};
+  return [d.year, d.vote ? `★ ${d.vote}` : '', d.genres?.length ? d.genres.join(', ') : '']
+    .filter(Boolean)
+    .join(' · ');
+});
+/* Un film porte sa langue dans la rangee de badges ; une serie, le detail par saison. */
+const movieLanguage = computed(() => !isShow.value && !props.preview && showLanguageSummary.value);
+
+const releaseSearch = ref<InstanceType<typeof VfUpgradeButton> | null>(null);
+const releaseCount = computed(() => releaseSearch.value?.count || 0);
+function searchReleases(): void {
+  if (isShow.value) emit('open-audio');
+  else releaseSearch.value?.toggle();
+}
+
+const externalLinks = computed(() => {
+  const d = props.detail || {};
+  const links: { label: string; href: string }[] = [];
+  if (d.imdb_id) links.push({ label: 'IMDb', href: `https://www.imdb.com/title/${d.imdb_id}` });
+  if (d.tmdb_id) links.push({ label: 'TMDB', href: `https://www.themoviedb.org/${d.media_type === 'show' ? 'tv' : 'movie'}/${d.tmdb_id}` });
+  if (props.admin && d.arr_url) links.push({ label: d.media_type === 'movie' ? 'Radarr' : 'Sonarr', href: d.arr_url });
+  return links;
+});
+function openExternal(href: string): void {
+  window.open(href, '_blank', 'noopener,noreferrer');
+}
+
 const languageState = computed(() => vfLanguageState(props.detail || {}));
 const plexWebUrl = computed(() => formatPlexWebUrl(props.detail?.plex_guid));
-defineEmits<{
+const emit = defineEmits<{
   (e: 'back'): void;
   (e: 'report-issue'): void;
   (e: 'scan'): void;
@@ -334,13 +360,19 @@ const releaseDates = computed(() => {
   line-height: 1.15;
   text-wrap: balance;
 }
+.mdh-facts {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: var(--fs-md);
+}
 .mdh-badges {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: 12px;
 }
-.mdh-badges > .badge {
+/* Le badge de langue garde son habillage plein (vues partagees) : pas le gabarit des autres. */
+.mdh-badges > .badge:not(.language-tag) {
   min-height: 28px;
   padding: 3px 10px;
   border-color: color-mix(in srgb, var(--text) 22%, transparent);
@@ -349,11 +381,6 @@ const releaseDates = computed(() => {
   font-size: var(--fs-sm);
   font-weight: 800;
   line-height: 1.25;
-}
-.mdh-badges > .music-badge {
-  border-color: var(--violet-text);
-  background: var(--violet);
-  color: var(--text);
 }
 .mdh-badges > .badge.available {
   border-color: var(--green);
@@ -397,28 +424,12 @@ const releaseDates = computed(() => {
   color: var(--text);
   font-size: var(--fs-sm);
 }
-.origin-badge {
-  border-color: color-mix(in srgb, var(--text) 24%, transparent);
-}
 .mdh-links {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   margin-top: 14px;
-}
-.mdh-link {
-  text-decoration: none;
-  color: inherit;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  border: none;
-}
-.mdh-link:disabled {
-  opacity: .5;
-  cursor: not-allowed;
 }
 .mdh-language-summary {
   display: flex;
@@ -427,6 +438,11 @@ const releaseDates = computed(() => {
   margin-top: 10px;
 }
 
+.mdh-menu-count {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 700;
+}
 .mdh-listen-btn {
   display: inline-flex;
   align-items: center;
@@ -467,10 +483,10 @@ const releaseDates = computed(() => {
     width: 180px;
     height: 180px;
   }
+  .mdh-facts { text-align: center; }
   .mdh-badges,
   .mdh-links,
   .mdh-language-summary,
-  .tag-row,
   .mdh-dates {
     justify-content: center;
   }
@@ -479,10 +495,9 @@ const releaseDates = computed(() => {
   }
   .mdh-links { order: 1; width: 100%; }
   .mdh-overview-wrapper { order: 2; }
-  .tag-row { order: 3; }
-  .mdh-language-summary { order: 4; }
+  .mdh-links { flex-wrap: nowrap; }
   .mdh-links > .mdh-request-btn,
-  .mdh-links > .mdh-listen-btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
+  .mdh-links > .mdh-listen-btn { flex: 1 1 0; min-width: 0; justify-content: center; min-height: 44px; }
 }
 
 </style>
