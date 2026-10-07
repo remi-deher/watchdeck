@@ -351,10 +351,16 @@ async def validate_transfer_roots(db, job, items):
                 raise ValueError(f"Arr ne confirme plus l’accès à la racine {root_path} du lot.")
 
     if job.params.get("transfer_mode") == "arr":
+        from .service import reserve_bytes
+
+        destination = await db.get(StorageLocation, job.destination_id)
+        if destination is None:
+            raise ValueError("Stockage de destination indisponible au démarrage du lot.")
         for (instance_id, root_path), needed in needed_by_destination.items():
             root = live_by_instance[instance_id][root_path]
             free_space = root.get("freeSpace")
-            if not isinstance(free_space, int) or free_space < needed:
+            reserve = reserve_bytes(destination)
+            if not isinstance(free_space, int) or free_space < needed + reserve:
                 raise ValueError(f"Espace Arr insuffisant sur {root_path} pour lancer le lot entier.")
 
 
@@ -363,6 +369,12 @@ async def update_item(db, item, status, reason=None, **changes):
     previous = item.status
     next_progress = changes.pop("progress", None)
     if next_progress is not None:
+        if previous == "copying" and status == "copying":
+            delta_time = next_progress.get("updated_at", 0) - telemetry.get("updated_at", 0)
+            delta_bytes = next_progress.get("copied_bytes", 0) - telemetry.get("copied_bytes", 0)
+            if 0 < delta_time <= 5 and delta_bytes >= 0:
+                telemetry["copy_seconds"] = telemetry.get("copy_seconds", 0) + delta_time
+                telemetry["measured_copy_bytes"] = telemetry.get("measured_copy_bytes", 0) + delta_bytes
         telemetry.update(next_progress)
     if status in ("prepared", "copying", "verifying", "switching", "plex_pending", "cleaning", "arr_pending"):
         telemetry.setdefault("started_at", now_utc_naive().isoformat())
@@ -524,7 +536,14 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
     if media["path"] == snap["source_arr"]:
         destination = await db.get(StorageLocation, job.destination_id)
         needed = sum((src / name).stat().st_size for name in snap["files"])
-        if free_space(dst.parent) - needed < destination.reserve_bytes:
+        from .service import reserve_bytes
+
+        total_space = (
+            (fs.total(dst.parent) if fs else shutil.disk_usage(dst.parent).total)
+            if getattr(destination, "reserve_percent", None) is not None
+            else None
+        )
+        if free_space(dst.parent) - needed < reserve_bytes(destination, total_space):
             raise ValueError("Réserve de destination insuffisante au début de la copie.")
         if dst.exists():
             found = await asyncio.to_thread(read_inventory, dst, False)
@@ -559,6 +578,7 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
                 progress={
                     "file": name,
                     "bytes": bytes_done,
+                    "file_size_bytes": current_file_size,
                     "copied_bytes": base[0] + bytes_done,
                     "bytes_per_second": speed[0],
                     "updated_at": time.time(),
@@ -579,6 +599,7 @@ async def process_item(db, job, item, stop, *, finalize_only=False, preflight_va
             sample.clear()
             sample.append((time.monotonic(), 0))
             speed[0] = None
+            current_file_size = source.stat().st_size
             await progress(name, 0)
             snap["temporary_files"] = list(dict.fromkeys([*snap.get("temporary_files", []), name]))
             await update_item(db, item, "copying", snapshot=dict(snap))

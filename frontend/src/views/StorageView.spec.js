@@ -9,8 +9,9 @@ const roots = [
   { arr_instance_id: 1, name: 'Radarr', arr_type: 'radarr', arr_roots: ['/data/FILMS','/usb/FILMS'], plex_roots: [{ section_id:'1',library:'Films',path:'/media/FILMS' }, { section_id:'1',library:'Films',path:'/usb/MEDIA/FILMS' }] },
   { arr_instance_id: 2, name: 'Sonarr', arr_type: 'sonarr', arr_roots: ['/data/SERIES'], plex_roots: [{ section_id:'2',library:'Séries',path:'/media/SERIES' }] },
 ];
+async function openPreparation(wrapper){await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Nouveau transfert').trigger('click');await wrapper.find('form').trigger('submit');}
 async function factory(openSettings=true) {
- const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},AppSubnav:{props:['items','active'],emits:['update:active'],template:'<nav class="app-subnav__root"><button v-for="item in items" :key="item.key" @click="$emit(\'update:active\',item.key)">{{ item.label }}<span v-if="item.count!=null"> {{ item.count }}</span></button></nav>'},AppPage:{template:'<main><slot name="tools"/><slot/></main>'}, ModalShell:{props:['open','error'],template:'<div v-if="open" role="dialog"><span>{{ error }}</span><slot/></div>'}}}});
+ const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},AppSubnav:{props:['items','active'],emits:['update:active'],template:'<nav class="app-subnav__root"><button v-for="item in items" :key="item.key" @click="$emit(\'update:active\',item.key)">{{ item.label }}<span v-if="item.count!=null"> {{ item.count }}</span></button></nav>'},AppPage:{template:'<main><slot name="tabs"/><slot name="tools"/><slot/></main>'}, ModalShell:{props:['open','error'],template:'<div v-if="open" role="dialog"><span>{{ error }}</span><slot/></div>'}}}});
  await flushPromises();
  if(openSettings){await wrapper.findAll('button').find(b=>b.text()==='Stockages').trigger('click');await flushPromises();}
  return wrapper;
@@ -25,8 +26,9 @@ describe('Storage root correspondence table', () => {
    return original(path,opts);
   });
   const wrapper=await factory(false);
-  await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Créer une copie').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Détails').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Créer une copie').trigger('click');await wrapper.find('form').trigger('submit');
   await wrapper.findAll('.instance-choice input')[0].setValue(false);
   await wrapper.findAll('.instance-choice input')[1].setValue(true);
   expect(wrapper.findAll('.source-choices input').map(input=>input.element.value)).toEqual(['/data/SERIES']);
@@ -39,7 +41,7 @@ describe('Storage root correspondence table', () => {
   const original=request.getMockImplementation();
   request.mockImplementation(async(path,opts)=>path==='/api/storage/accesses'?[{id:1,method:'ssh',revision:'new',validation:{},roots:[{arr_instance_id:2,arr_root:'/data/SERIES',path:'/mnt/DATA/MEDIA/SERIES'}]}]:original(path,opts));
   const wrapper=await factory(false);
-  await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');
+  await openPreparation(wrapper);
   await wrapper.findAll('.instance-choice').find(label=>label.text().includes('Sonarr')).find('input').setValue(true);
   expect(wrapper.find('.source-choices input').element.value).toBe('/data/SERIES');
   wrapper.unmount();
@@ -47,7 +49,7 @@ describe('Storage root correspondence table', () => {
  it('does not read Arr/Plex roots when opening the overview or preparation',async()=>{
   const wrapper=await factory(false);
   expect(request.mock.calls.some(([path])=>path==='/api/storage/roots')).toBe(false);
-  await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');await flushPromises();
+  await openPreparation(wrapper);await flushPromises();
   expect(request.mock.calls.some(([path])=>path==='/api/storage/roots')).toBe(false);
   wrapper.unmount();
  });
@@ -101,7 +103,7 @@ describe('Storage root correspondence table', () => {
  });
  it('only offers Arr preparation without rsync or engine settings',async()=>{
   const wrapper=await factory();
-  await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');
+  await openPreparation(wrapper);
   expect(wrapper.find('input[value="rsync"]').exists()).toBe(false);
   expect(wrapper.text()).toContain('Stockages');
   expect(wrapper.text()).not.toContain('Watchdeck ne garantit');
@@ -112,24 +114,22 @@ describe('Storage root correspondence table', () => {
  it('prepares multiple instances from saved roots with a shared preview',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/locations'?
    [{id:1,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1'}]},{id:2,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:1,arr_root:'/usb/FILMS',plex_root:'/usb/MEDIA/FILMS',plex_section_id:'1'}]},{id:3,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:2,arr_root:'/data/SERIES',plex_root:'/media/SERIES',plex_section_id:'2'}]},{id:4,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:2,arr_root:'/usb/SERIES',plex_root:'/usb/MEDIA/SERIES',plex_section_id:'2'}]}]:path==='/api/storage/preview'?{source:{free_bytes:10e9},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');
+  const wrapper=await factory();await openPreparation(wrapper);
   const choices=wrapper.findAll('.instance-choice input');await choices[0].setValue(true);await choices[1].setValue(true);
   const sourceChecks=wrapper.findAll('.source-choices input');await sourceChecks[0].setValue(true);await sourceChecks[2].setValue(true);
   const selects=wrapper.findAll('.prepare-route select');await selects[0].setValue('/usb/FILMS');await selects[1].setValue('/usb/SERIES');
-  await wrapper.find('form').trigger('submit');await wrapper.find('form').trigger('submit');await flushPromises();
+  await wrapper.find('form').trigger('submit');await flushPromises();
   const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);expect(JSON.parse(calls[0][1].body).routes.map(r=>r.arr_instance_id)).toEqual([1,2]);
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);wrapper.unmount();
  });
  it('sends multiple checked sources with one shared objective',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/locations'?[{id:1,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1'}]},{id:2,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data2/FILMS',plex_root:'/media2/FILMS',plex_section_id:'1'}]},{id:3,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:1,arr_root:'/usb/FILMS',plex_root:'/usb/MEDIA/FILMS',plex_section_id:'1'}]}]:path==='/api/storage/preview'?{source:{free_bytes:0},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Préparer').trigger('click');
+  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Nouveau transfert').trigger('click');expect(wrapper.findAll('.objective-options input')).toHaveLength(3);await wrapper.find('input[type=number]').setValue(600);await wrapper.find('form').trigger('submit');
   await wrapper.find('.instance-choice input').setValue(true);
   const checks=wrapper.findAll('.source-choices input');await checks[0].setValue(true);await checks[1].setValue(true);
   await wrapper.find('.prepare-route select').setValue('/usb/FILMS');
   expect(wrapper.find('.source-choices input[value="/usb/FILMS"]').element.disabled).toBe(true);
-  await wrapper.find('form').trigger('submit');expect(wrapper.findAll('.objective-options input')).toHaveLength(3);
-  expect(wrapper.text()).toContain('Espace à libérer au total');
-  await wrapper.find('input[type="number"]').setValue(600);
+  expect(wrapper.findAll('.source-choices input').length).toBe(3);
   await wrapper.find('form').trigger('submit');await flushPromises();
   const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);
   expect(JSON.parse(calls[0][1].body)).toMatchObject({goal_gb:600,routes:[{source_roots:['/data/FILMS','/data2/FILMS'],destination_root:'/usb/FILMS',root_goals:{}}]});
@@ -144,14 +144,14 @@ describe('Storage root correspondence table', () => {
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
   expect(wrapper.text()).toContain('Tâche enregistrée, aucun transfert lancé');
   expect(wrapper.findAll('button').some(b=>b.text()==='Reprendre le lot')).toBe(false);
-  await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');await wrapper.find('form').trigger('submit');
   expect(wrapper.find('.source-choices input').element.checked).toBe(true);wrapper.unmount();
  });
  it('verifies a draft without launching and confirms deletion separately',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers' && !opts?[{id:11,status:'draft',desired_state:'pause',params:{name:'Ma tâche',transfer_mode:'arr',arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:0},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  expect(wrapper.findAll('button').some(b=>b.text().replace(/\s/g,'')==='Àlancer1')).toBe(true);
-  await wrapper.findAll('button').find(b=>b.text()==='Supprimer le brouillon').trigger('click');
+  expect(wrapper.findAll('button').some(b=>b.text().replace(/\s/g,'')==='Brouillons1')).toBe(true);
+  await wrapper.findAll('button').find(b=>b.text()==='Voir le détail').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Supprimer le brouillon').trigger('click');
   expect(wrapper.find('[role="dialog"]').text()).toContain('Aucun fichier média');
   await wrapper.findAll('button').find(b=>b.text()==='Annuler').trigger('click');
   expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
@@ -163,25 +163,16 @@ describe('Storage root correspondence table', () => {
  it('filters transfer titles and exposes retry for blocked items',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers' && !opts?[{id:9,source_id:1,destination_id:2,status:'paused',desired_state:'pause',params:{transfer_mode:'arr'},items:[{id:1,title:'À corriger',status:'blocked',size_bytes:100,snapshot:{}},{id:2,title:'Terminé',status:'completed',size_bytes:200,snapshot:{}}]}]:original(path,opts));
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text().startsWith('En pause / À traiter')).trigger('click');
-  const table=wrapper.find('[aria-label="Titres du lot 9"]');expect(table.text()).toContain('À corriger');expect(table.text()).not.toContain('Terminé');
+  await wrapper.findAll('button').find(b=>b.text().startsWith('À traiter')).trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Examiner').trigger('click');const table=wrapper.find('[aria-label="Titres du lot 9"]');expect(table.text()).toContain('À corriger');expect(table.text()).toContain('Terminé');
   await wrapper.findAll('button').find(b=>b.text()==='Réessayer les titres en erreur').trigger('click');await flushPromises();
   expect(request).toHaveBeenCalledWith('/api/storage/transfers/9/command',expect.objectContaining({body:JSON.stringify({action:'retry'})}));wrapper.unmount();
  });
- it('separates remaining volumes from completed releases on the overview',async()=>{
-  request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/locations'?[{id:1,name:'DATA1',mount_path:'/storage/data1',mappings:[],reserve_bytes:1e9,free_bytes:null,health:'not_checked',enabled:true}]:path==='/api/storage/transfers'?[{id:1,source_id:1,status:'paused',items:[{id:1,status:'pending',media_type:'movie',size_bytes:2e9},{id:2,status:'completed',media_type:'series',size_bytes:3e9}]}]:[]);
-  const wrapper=await factory();
-  await wrapper.findAll('button').find(b=>b.text()==='Vue d’ensemble').trigger('click');
-  const text=wrapper.text();
-  expect(text).not.toContain('Go à déplacer');
-  expect(text).not.toContain('Préparer un déplacement');
-  expect(text).toContain('3 Go');
-  expect(text).toContain('1 en pause ou arrêtée(s)');
-  expect(wrapper.find('[aria-label="Titres restants par stockage et type"]').exists()).toBe(false);
-  expect(text).toContain('— libres');
-  expect(wrapper.find('[aria-label="Capacité des stockages"]').exists()).toBe(true);
-  expect(wrapper.find('.capacity-card').exists()).toBe(false);
-  wrapper.unmount();
+ it('keeps capacity in storage and terminal tasks in history',async()=>{
+  request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/locations'?[{id:1,name:'DATA1',mappings:[],free_bytes:null,enabled:true}]:path==='/api/storage/transfers'?[{id:1,source_id:1,status:'paused',items:[{id:1,status:'pending',media_type:'movie',size_bytes:2e9},{id:2,status:'completed',media_type:'series',size_bytes:3e9}]}]:[]);
+  const wrapper=await factory();expect(wrapper.find('[aria-label="Stockages"]').text()).toContain('— libres');
+  await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');expect(wrapper.text()).not.toContain('Tâche #1');
+  await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');expect(wrapper.text()).toContain('Tâche #1');wrapper.unmount();
  });
 
  it('refreshes in the background without replacing rows or clearing the selected pair',async()=>{
@@ -208,15 +199,10 @@ describe('Storage root correspondence table', () => {
    {id:1,source_id:1,destination_id:2,status:'running',desired_state:'run',released_bytes:0,items:[{id:1,title:'Film actif',status:'copying',media_type:'movie',size_bytes:2e9,progress:{copied_bytes:1e9,bytes_per_second:20e6,updated_at:Date.now()/1000}}]},
    {id:2,source_id:1,destination_id:2,status:'completed',released_bytes:3e9,items:[{id:2,status:'completed',media_type:'series',size_bytes:3e9,progress:{started_at:'2026-10-04T10:00:00',finished_at:'2026-10-04T10:10:00'}}]},
   ]:[]);
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Vue d’ensemble').trigger('click');
-  expect(wrapper.find('[aria-label="Capacité des stockages"]').text()).toContain('5 Go libres');
-  expect(wrapper.find('[aria-label="Capacité des stockages"]').text()).toContain('10 Go au total');
-  expect(wrapper.find('[aria-label="Volume copié de la tâche 1"]').attributes('aria-valuenow')).toBe('50');
-  expect(wrapper.text()).toContain('20 Mo/s');expect(wrapper.text()).toContain('≈ 50 s');
-  expect(wrapper.text()).toContain('7 Go');
-  const history=wrapper.find('[aria-label="Historique récent des lots"]');
-  expect(history.text()).toContain('0 film(s) / 1 série(s)');expect(history.text()).toContain('10 min');
-  wrapper.unmount();
+  const wrapper=await factory();expect(wrapper.find('[aria-label="Stockages"]').text()).toContain('5 Go libres');
+  await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  expect(wrapper.find('[aria-label="Volume copié de la tâche 1"]').attributes('aria-valuenow')).toBe('50');expect(wrapper.text()).toContain('20 Mo/s');expect(wrapper.text()).toContain('≈ 50 s');
+  await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');const history=wrapper.find('[aria-label="Historique des transferts"]');expect(history.text()).toContain('0 film(s) · 1 série(s)');expect(history.text()).toContain('Début :');expect(history.text()).toContain('04/10/2026');wrapper.unmount();
  });
 
  it('saves paths for multiple rows without validating the shared connection',async()=>{
@@ -243,8 +229,8 @@ describe('Storage root correspondence table', () => {
 
  it('opens a fresh preview directly when relaunching a cancelled task',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',desired_state:'cancel',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:100e9},destination:{free_bytes:200e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  expect(wrapper.text()).toContain('Créer une copie');
+  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
+  expect(wrapper.text()).toContain('Relancer');
   await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
   expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(true);
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
@@ -254,7 +240,7 @@ describe('Storage root correspondence table', () => {
  it('confirms removal of a paused task before requesting durable cancellation',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:18,status:'paused',desired_state:'pause',params:{transfer_mode:'rsync_ssh'},items:[]}]:path==='/api/storage/transfers/18'&&opts?.method==='DELETE'?{deletion_pending:18}:original(path,opts));
   const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Supprimer la tâche').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Voir le détail').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Supprimer la tâche').trigger('click');
   expect(wrapper.text()).toContain('ses fichiers temporaires nettoyés');
   expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
   await wrapper.findAll('button').find(b=>b.text()==='Annuler et supprimer').trigger('click');await flushPromises();
@@ -264,23 +250,24 @@ describe('Storage root correspondence table', () => {
  it('opens saved settings without calculating a preview when modifying a completed task',async()=>{
   const original=request.getMockImplementation();
   request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'completed',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:original(path,opts));
-  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Détails').trigger('click');
   await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');await flushPromises();
-  expect(wrapper.find('.instance-choice').exists()).toBe(true);
+  expect(wrapper.find('.objective-options').exists()).toBe(true);
   expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(false);
   wrapper.unmount();
  });
  it('shows a loading modal without opening preparation while relaunch preview is pending',async()=>{
   const original=request.getMockImplementation();let rejectPreview;
   request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?new Promise((resolve,reject)=>{rejectPreview=reject;}):original(path,opts));
-  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
   await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
   expect(wrapper.find('[role="dialog"] [role="status"]').exists()).toBe(true);
   expect(wrapper.find('.instance-choice').exists()).toBe(false);
   rejectPreview(new Error('Plex indisponible'));await flushPromises();
   expect(wrapper.find('[role="dialog"]').text()).toContain('Plex indisponible');
   await wrapper.findAll('button').find(b=>b.text()==='Modifier les réglages').trigger('click');
-  expect(wrapper.find('.instance-choice').exists()).toBe(true);
+  expect(wrapper.find('.objective-options').exists()).toBe(true);
   wrapper.unmount();
  });
 
@@ -293,11 +280,11 @@ describe('Storage root correspondence table', () => {
    if(path==='/api/storage/transfers/17'&&opts?.method==='PUT')return {id:17};
    return original(path,opts);
   });
-  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
+  await wrapper.findAll('button').find(b=>b.text()==='Détails').trigger('click');
   await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');
-  await wrapper.find('form').trigger('submit');
   const name=wrapper.findComponent({name:'StorageObjectiveFields'}).find('input');
-  await name.setValue('Renamed task');
+  await name.setValue('Renamed task');await wrapper.find('form').trigger('submit');
   await wrapper.findAll('button').find(b=>b.text()==='Enregistrer les modifications').trigger('click');await flushPromises();
   const update=request.mock.calls.find(([path,opts])=>path==='/api/storage/transfers/17'&&opts?.method==='PUT');
   expect(update).toBeDefined();expect(JSON.parse(update[1].body)).toMatchObject({name:'Renamed task',start_immediately:false,selection:[]});
@@ -315,7 +302,7 @@ describe('Storage root correspondence table', () => {
    if(path==='/api/storage/transfers/17'&&opts?.method==='PUT')return {id:17};
    return original(path,opts);
   });
-  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
   await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
   const previewRequest=request.mock.calls.find(([path])=>path==='/api/storage/preview');
   expect(JSON.parse(previewRequest[1].body)).toMatchObject({task_id:17,name:'Named job'});

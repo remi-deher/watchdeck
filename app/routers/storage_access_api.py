@@ -30,6 +30,7 @@ class ConnectionBody(BaseModel):
     user: str = Field(default="", max_length=100)
     fingerprint: str = Field(default="", max_length=100)
     auth: Literal["key", "password"] = "key"
+    auth_fallback: bool = False
     browse_root: str = Field(default="/storage", max_length=4096)
 
 

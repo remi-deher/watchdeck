@@ -1,30 +1,32 @@
 <template>
  <section class="storage-card prepare-workspace">
   <h2>Préparer un déplacement</h2>
-  <nav class="prepare-steps" aria-label="Étapes de préparation"><span :class="{active:step===1}">1 · Stockages</span><span :class="{active:step===2}">2 · Objectif</span><span>3 · Aperçu</span></nav>
+  <nav class="prepare-steps" aria-label="Étapes de préparation"><span :class="{active:step===1}">1 · Objectif</span><span :class="{active:step===2}">2 · Médias et trajet</span><span>3 · Aperçu</span></nav>
   <form @submit.prevent="step===1?step=2:$emit('preview')">
    <template v-if="step===1">
-    <h3>Instances à déplacer</h3><div class="instance-choices"><label v-for="instance in roots" :key="instance.arr_instance_id" class="check instance-choice"><input type="checkbox" :checked="selected(instance.arr_instance_id)" :disabled="busy || Boolean(instance.error)" @change="toggle(instance)" />{{ instance.name }} · {{ instance.arr_type==='radarr'?'Films':'Séries' }}</label></div>
-    <fieldset class="route-card" v-for="route in form.routes" :key="route.arr_instance_id"><legend>{{ instanceName(route.arr_instance_id) }}</legend><div class="prepare-route"><fieldset class="source-choices"><legend>Déplacer depuis</legend><label v-for="root in rootsFor(route)" :key="root" class="check"><input v-model="route.source_roots" type="checkbox" :value="root" :disabled="busy || root===route.destination_root" />{{ root }}<small class="root-capacity">{{ capacity(route.arr_instance_id,root) }}</small></label></fieldset><span class="route-arrow" aria-hidden="true">→</span><label class="destination-choice">Destination<select v-model="route.destination_root" required :disabled="busy"><option value="" disabled>Choisir la destination</option><option v-for="root in rootsFor(route).filter(r=>!route.source_roots.includes(r))" :key="root" :value="root">{{ root }} · {{ capacity(route.arr_instance_id,root) }}</option></select><small class="root-capacity">{{ capacity(route.arr_instance_id,route.destination_root) }}</small></label></div></fieldset>
-    <StorageTransferMethod v-model="form" :accesses="accesses||[]" :busy="busy" @configure="$emit('configure')" />
-    <div class="prepare-footer"><span>{{ form.routes.length }} instance(s) · {{ form.routes.reduce((n:number,r:any)=>n+r.source_roots.length,0) }} source(s)</span><UiButton type="submit" variant="primary" :disabled="!validRoutes || busy">Continuer vers l’objectif</UiButton></div>
-   </template>
-   <template v-else>
-    <ul class="objective-routes"><li v-for="route in form.routes" :key="route.arr_instance_id"><strong>{{ instanceName(route.arr_instance_id) }}</strong> · {{ route.source_roots.join(', ') }} → {{ route.destination_root }}</li></ul>
     <fieldset class="objective-options"><legend>Que souhaitez-vous faire ?</legend><label v-for="choice in objectives" :key="choice.value" :class="{chosen:form.mode===choice.value}"><input v-model="form.mode" type="radio" :value="choice.value" :disabled="busy" /><strong>{{ choice.label }}</strong><small>{{ choice.description }}</small></label></fieldset>
     <StorageObjectiveFields v-model="form" :busy="busy" :protected-titles="protectedTitles || []" @unprotect="$emit('unprotect',$event)" />
-    <div class="actions"><UiButton :disabled="busy" @click="step=1">Retour aux stockages</UiButton><UiButton v-if="editing" :disabled="busy || !validRoutes" @click="$emit('save')">Enregistrer les modifications</UiButton><UiButton type="submit" variant="primary" :loading="busy">Calculer l’aperçu</UiButton></div>
+    <div class="actions"><UiButton type="submit" variant="primary" :disabled="busy">Choisir les médias et le trajet</UiButton></div>
+   </template>
+   <template v-else>
+    <h3>Instances à déplacer</h3><div class="instance-choices"><label v-for="instance in roots" :key="instance.arr_instance_id" class="check instance-choice"><input type="checkbox" :checked="selected(instance.arr_instance_id)" :disabled="busy || Boolean(instance.error)" @change="toggle(instance)" />{{ instance.name }} · {{ instance.arr_type==='radarr'?'Films':'Séries' }}</label></div>
+    <fieldset class="route-card" v-for="route in form.routes" :key="route.arr_instance_id"><legend>{{ instanceName(route.arr_instance_id) }}</legend><div class="prepare-route"><fieldset class="source-choices"><legend>Déplacer depuis</legend><label v-for="root in rootsFor(route)" :key="root" class="check"><input v-model="route.source_roots" type="checkbox" :value="root" :disabled="busy || root===route.destination_root" />{{ root }}<small class="root-capacity">{{ capacity(route.arr_instance_id,root) }}</small></label></fieldset><span class="route-arrow" aria-hidden="true">→</span><label class="destination-choice">Destination<select v-model="route.destination_root" required :disabled="busy"><option value="" disabled>Choisir la destination</option><option v-for="root in rootsFor(route).filter(r=>!route.source_roots.includes(r))" :key="root" :value="root">{{ root }} · {{ capacity(route.arr_instance_id,root) }}</option></select><small class="root-capacity">{{ capacity(route.arr_instance_id,route.destination_root) }}</small></label></div></fieldset>
+    <div v-if="form.per_source_goal || form.mode===`minimum_free`" class="source-goals"><label v-for="entry in sourceGoals" :key="entry.route.arr_instance_id + entry.root">Objectif pour {{ entry.root }} (Go)<input v-model.number="entry.route.root_goals[entry.root]" type="number" min="0.1" step="0.1" required :disabled="busy" /></label></div>
+    <StorageTransferMethod v-model="form" :accesses="accesses||[]" :busy="busy" @configure="$emit('configure')" />
+    <div class="prepare-footer"><span>{{ form.routes.length }} instance(s) · {{ form.routes.reduce((n:number,r:any)=>n+r.source_roots.length,0) }} source(s)</span><div class="actions"><UiButton :disabled="busy" @click="step=1">Retour à l’objectif</UiButton><UiButton v-if="editing" :disabled="busy || !validRoutes" @click="$emit('save')">Enregistrer les modifications</UiButton><UiButton type="submit" variant="primary" :disabled="!validRoutes || busy" :loading="busy">Préparer l’aperçu</UiButton></div></div>
    </template>
   </form>
  </section>
 </template>
 <script setup lang="ts">
-import {computed,ref} from 'vue';
+import {computed,ref,watch} from 'vue';
 import StorageObjectiveFields from './StorageObjectiveFields.vue';
 import StorageTransferMethod from './StorageTransferMethod.vue';
 import {selectedRootAccess} from './transferAccess';
 import UiButton from '@/components/ui/UiButton.vue';
 const props=defineProps<{roots:any[],accesses?:any[],locations?:any[],protectedTitles?:any[],busy:boolean,editing?:boolean}>();const form=defineModel<any>({required:true});const step=ref(1);
+const sourceGoals=computed(()=>form.value.routes.flatMap((route:any)=>route.source_roots.map((root:string)=>({route,root}))));
+watch(()=>[step.value,form.value.per_source_goal,form.value.mode,JSON.stringify(form.value.routes.map((r:any)=>[r.arr_instance_id,r.source_roots]))],()=>{if(form.value.per_source_goal || form.value.mode===`minimum_free`)for(const route of form.value.routes)route.root_goals=Object.fromEntries(route.source_roots.map((root:string)=>[root,route.root_goals?.[root] ?? form.value.goal_gb]));},{immediate:true});
 const selected=(id:number)=>form.value.routes?.some((r:any)=>r.arr_instance_id===id);
 function toggle(instance:any){const routes=form.value.routes||[];form.value.routes=selected(instance.arr_instance_id)?routes.filter((r:any)=>r.arr_instance_id!==instance.arr_instance_id):[...routes,{arr_instance_id:instance.arr_instance_id,source_roots:[],root_goals:{},destination_root:''}];}
 function capacity(instance:number,root:string){

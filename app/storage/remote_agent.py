@@ -98,6 +98,8 @@ def dispatch(body, integrity, stop):
         return integrity["empreinte"](str(path), stop)
     if op == "free":
         return shutil.disk_usage(path).free
+    if op == "total":
+        return shutil.disk_usage(path).total
     if op == "inventory":
         return inventory(path, body.get("require_video", True))
     if op == "mkdir":
