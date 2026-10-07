@@ -18,6 +18,20 @@ describe('fold', () => {
   });
 });
 
+describe('mots-clés', () => {
+  it('trouvent une entrée par un mot que ni son libellé ni son groupe ne portent', () => {
+    const entry = { label: 'Maintenance', group: 'Maintenance & données', keywords: 'parametres reglages' };
+    expect(commandScore(entry, 'reglages')).toBeGreaterThan(0);
+    expect(commandScore({ label: 'Maintenance', group: 'Maintenance & données' }, 'reglages')).toBe(-1);
+  });
+
+  it('passent après le libellé : une entrée nommée comme la saisie reste devant', () => {
+    const named = { label: 'Paramètres', group: 'Administration' };
+    const tagged = { label: 'Maintenance', group: 'Administration', keywords: 'parametres' };
+    expect(rankCommands([tagged, named], 'parametres')).toEqual([named, tagged]);
+  });
+});
+
 describe('commandScore', () => {
   it('vaut la position de la saisie dans « libellé groupe »', () => {
     expect(commandScore({ label: 'Accueil', group: 'Pilotage' }, 'acc')).toBe(0);

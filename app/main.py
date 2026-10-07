@@ -43,6 +43,7 @@ from .error_handlers import register_domain_exception_handlers
 from .log_buffer import install as install_log_buffer
 from .routers import (
     activity_api,
+    admin_overview_api,
     api_v1,
     arr_instances_api,
     arr_queue_api,
@@ -464,6 +465,7 @@ app.mount("/vue", CacheControlledStaticFiles(directory="app/static/vue", check_d
 
 app.include_router(auth.router)
 app.include_router(activity_api.router)
+app.include_router(admin_overview_api.router)
 app.include_router(settings_api.router)
 app.include_router(system_api.router)
 

@@ -9,7 +9,7 @@
     :total-count="settingsSearch.total.value"
   >
     <template #actions>
-      <UiButton v-if="['plex','services','webhooks','notifications-channels','notifications-rules','downloads','vf-upgrades','scheduled-tasks','data'].includes(tab)" variant="primary" :loading="saving" @click="save"><template #icon><Save/></template>{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</UiButton>
+      <UiButton v-if="formPanels.has(tab)" variant="primary" :loading="saving" @click="save"><template #icon><Save/></template>{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</UiButton>
     </template>
     <!-- La colonne de navigation a disparu : ses groupes sont devenus des destinations
          du rail et ses entrees leurs sections. Un seul panneau reste ici, sur toute la
@@ -43,20 +43,22 @@
         <ConnectionsTab v-else-if="tab==='plex'"/>
         <ServicesTab v-else-if="tab==='services'"/>
         <WebhooksTab v-else-if="tab==='webhooks'"/>
+        <div v-else-if="tab==='download-clients'" class="settings-rows"><DownloadClientsList/></div>
+        <DownloadsTab v-else-if="tab==='downloads'"/>
+        <VfUpgradesSettingsTab v-else-if="tab==='vf-upgrades'"/>
+        <SubtitleSearchSection v-else-if="tab==='subtitles'"/>
+        <ScheduledTasksTab v-else-if="tab==='scheduled-tasks'"/>
         <NotificationsChannelsTab v-else-if="tab==='notifications-channels'"/>
         <NotificationsRulesTab v-else-if="tab==='notifications-rules'"/>
-        <DownloadsTab v-else-if="tab==='downloads'"/>
-        <!-- Les sous-titres suivent les ameliorations VF sur la page, mais pas dans la
-             modale de reglages VF, qui ne monte que l'onglet VF. -->
-        <div v-else-if="tab==='vf-upgrades'" class="settings-rows">
-          <VfUpgradesSettingsTab/>
-          <SubtitleSearchSection/>
-        </div>
-        <PlanningMaintenanceTab v-else-if="tab==='scheduled-tasks'"/>
         <EmailTemplatesPanel v-else-if="tab==='templates'"/>
         <MessageReasonsPanel v-else-if="tab==='reasons'"/>
+        <RequestsTab v-else-if="tab==='requests'"/>
+        <NetworkTab v-else-if="tab==='network'"/>
+        <ApiTokenTab v-else-if="tab==='api'"/>
+        <MaintenanceTab v-else-if="tab==='maintenance'"/>
+        <DataTab v-else-if="tab==='data'"/>
+        <GdprTab v-else-if="tab==='privacy'"/>
         <SystemVersionTab v-else-if="tab==='system-version'"/>
-        <DataPrivacyTab v-else/>
       </div>
     </div>
 
@@ -72,10 +74,8 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { load, save, saving, error, message, isDirty } from '@/settingsForm';
-import { settingsSections } from '@/settingsSections';
-import { notificationSections } from '@/notificationSections';
 import UiButton from '@/components/ui/UiButton.vue';
-import { PANEL_PATHS, panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
+import { panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
 import { SETTINGS_SEARCH_INDEX } from '@/settingsSearchIndex';
 import { matchesQuery, normalizeSearchText, provideSettingsSearch } from '@/composables/useSettingsSearch';
 
@@ -88,14 +88,18 @@ const NotificationsRulesTab = defineAsyncComponent(() => import('@/components/se
 const DownloadsTab = defineAsyncComponent(() => import('@/components/settings/DownloadsTab.vue'));
 const VfUpgradesSettingsTab = defineAsyncComponent(() => import('@/components/settings/VfUpgradesSettingsTab.vue'));
 const SubtitleSearchSection = defineAsyncComponent(() => import('@/components/settings/SubtitleSearchSection.vue'));
-const PlanningMaintenanceTab = defineAsyncComponent(() => import('@/components/settings/PlanningMaintenanceTab.vue'));
+const ScheduledTasksTab = defineAsyncComponent(() => import('@/components/settings/ScheduledTasksTab.vue'));
+const MaintenanceTab = defineAsyncComponent(() => import('@/components/settings/MaintenanceTab.vue'));
+const DownloadClientsList = defineAsyncComponent(() => import('@/components/settings/connections/DownloadClientsList.vue'));
+const RequestsTab = defineAsyncComponent(() => import('@/components/settings/RequestsTab.vue'));
+const NetworkTab = defineAsyncComponent(() => import('@/components/settings/NetworkTab.vue'));
+const ApiTokenTab = defineAsyncComponent(() => import('@/components/settings/ApiTokenTab.vue'));
 const EmailTemplatesPanel = defineAsyncComponent(() => import('@/components/EmailTemplatesPanel.vue'));
 const MessageReasonsPanel = defineAsyncComponent(() => import('@/components/settings/MessageReasonsPanel.vue'));
-const DataPrivacyTab = defineAsyncComponent(() => import('@/components/settings/DataPrivacyTab.vue'));
+const DataTab = defineAsyncComponent(() => import('@/components/settings/DataTab.vue'));
+const GdprTab = defineAsyncComponent(() => import('@/components/settings/GdprTab.vue'));
 const SystemVersionTab = defineAsyncComponent(() => import('@/components/settings/SystemVersionTab.vue'));
 
-const notificationTabDefs = notificationSections.filter((item) => typeof item.to === 'object' && 'path' in item.to && item.to.path === '/settings');
-const tabs = [...settingsSections.filter((item) => !item.to), ...notificationTabDefs];
 const route = useRoute(), router = useRouter();
 // Le panneau se lit desormais dans le chemin. `?tab=` reste accepte le temps d'une
 // redirection : ces liens circulent dans les favoris et les echanges, les laisser tomber
@@ -116,7 +120,16 @@ const elsewhere = computed(() => {
 });
 // L'accueil n'enregistre rien, mais il lit les reglages (canaux actifs, adresse
 // publique) pour sa liste « A traiter » : il les charge comme les autres panneaux.
-const standaloneTabs = new Set(['acquisitions', 'templates', 'system-version']);
+// Les panneaux qui n'editent aucun champ du formulaire general (listes gerees par leur
+// propre API, actions, journaux) ne le chargent pas et n'affichent pas sa barre.
+const standaloneTabs = new Set<SettingsPanel>([
+  'acquisitions', 'templates', 'system-version', 'download-clients', 'api', 'maintenance', 'data',
+]);
+// Ceux dont les champs passent par le bouton Enregistrer de l'en-tete.
+const formPanels = new Set<SettingsPanel>([
+  'plex', 'services', 'webhooks', 'downloads', 'vf-upgrades', 'subtitles', 'scheduled-tasks',
+  'notifications-channels', 'notifications-rules', 'requests', 'network', 'privacy',
+]);
 let settingsLoadPromise: Promise<void> | undefined;
 function ensureSettingsLoaded(value = tab.value): Promise<void> {
   if (standaloneTabs.has(value)) return Promise.resolve();
@@ -127,10 +140,6 @@ function ensureSettingsLoaded(value = tab.value): Promise<void> {
   return settingsLoadPromise;
 }
 const pageTitle = computed(() => (tab.value === 'overview' ? 'Administration' : String(route.meta?.title || 'Administration')));
-const currentTabLabel = computed(() => tabs.find((item) => item.key === tab.value)?.label || "Vue d'ensemble");
-function selectTab(value: string): void {
-  router.push(PANEL_PATHS[value as SettingsPanel] || '/settings');
-}
 function warnUnsaved(event: BeforeUnloadEvent): void { if (!isDirty.value) return; event.preventDefault(); event.returnValue = ''; }
 onBeforeRouteLeave(() => !isDirty.value || askConfirm({ title: 'Quitter sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Quitter cette page ?', confirmLabel: 'Quitter', danger: true }));
 onBeforeRouteUpdate(() => !isDirty.value || askConfirm({ title: 'Changer de section sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Changer de section ?', confirmLabel: 'Continuer', danger: true }));
@@ -143,7 +152,9 @@ onMounted(() => ensureSettingsLoaded().catch(() => {}));
 // Redirection des anciens liens `/settings?tab=...` vers leur chemin canonique.
 function redirectLegacyTab(): void {
   const legacy = pathForLegacyTab(route.query.tab as string | undefined);
-  if (legacy && legacy !== route.path) router.replace(legacy);
+  // Le reste de la requete suit (retour OAuth des e-mails : `email_oauth`, `msg`).
+  const { tab: _tab, ...query } = route.query;
+  if (legacy && legacy !== route.path) router.replace({ path: legacy, query });
 }
 watch(() => route.query.tab, redirectLegacyTab);
 onMounted(redirectLegacyTab);

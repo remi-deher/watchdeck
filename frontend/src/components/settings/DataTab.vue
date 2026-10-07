@@ -1,14 +1,19 @@
 <template>
   <div class="settings-rows">
-    <SettingsSection title="Export et sauvegarde" subtitle="Deux formats : un export JSON portable, et un dump complet de la base. Ces fichiers peuvent contenir des secrets.">
-      <SettingsRow label="Inclure les identifiants" description="Sans cette option, les jetons Plex/*arr et les clés de notification sont omis de l'export JSON : pratique pour partager une configuration.">
-        <ToggleSwitch v-model="includeSecrets" title="Inclure les identifiants" />
+    <!-- De la page la moins risquée à la plus risquée : sauvegarder, importer, puis la zone
+         dangereuse, qui remplace toute l'instance. -->
+    <SettingsSection title="Sauvegarder" subtitle="Ces fichiers peuvent contenir des secrets : gardez-les hors du dépôt et des espaces partagés.">
+      <SettingsRow label="Sauvegarde complète" description="Dump PostgreSQL, clé de chiffrement, fichiers hors base et export JSON de repli. Seule méthode qui restaure tout à l'identique, compte admin et historiques compris.">
+        <UiButton variant="primary" href="/api/backup/full"><ShieldAlert/>Télécharger</UiButton>
       </SettingsRow>
       <SettingsRow label="Export JSON" description="Fichier lisible et réimportable : utilisateurs, paramètres, demandes, instances *arr, clients, fournisseurs et modèles d'email. Journaux et caches y figurent pour référence mais ne sont jamais réimportés.">
         <UiButton :href="includeSecrets?'/api/export?include_secrets=true':'/api/export'"><Download/>Exporter en JSON</UiButton>
       </SettingsRow>
-      <SettingsRow label="Backup de la base" description="Dump PostgreSQL brut, à restaurer avec docker compose --profile operations run --rm restore (voir le README).">
-        <UiButton href="/api/backup/db"><HardDriveDownload/>Backup complet</UiButton>
+      <SettingsRow label="Inclure les identifiants dans l'export" description="Sans cette option, les jetons Plex/*arr et les clés de notification sont omis de l'export JSON : pratique pour partager une configuration.">
+        <ToggleSwitch v-model="includeSecrets" title="Inclure les identifiants" />
+      </SettingsRow>
+      <SettingsRow label="Dump de la base" description="Dump PostgreSQL brut, à restaurer avec docker compose --profile operations run --rm restore (voir le README).">
+        <UiButton href="/api/backup/db"><HardDriveDownload/>Backup de la base</UiButton>
       </SettingsRow>
     </SettingsSection>
 
@@ -21,11 +26,9 @@
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection title="Reprise après sinistre" subtitle="Archive unique : dump PostgreSQL, clé de chiffrement, fichiers hors base et export JSON de repli. Seule méthode qui restaure tout à l'identique, compte admin et historiques compris.">
-      <SettingsRow label="Sauvegarde complète">
-        <UiButton href="/api/backup/full"><ShieldAlert/>Télécharger</UiButton>
-      </SettingsRow>
-      <SettingsRow label="Restaurer une sauvegarde" description="Remplace toute l'instance par le contenu de l'archive." block>
+    <section class="danger-zone" aria-labelledby="danger-zone-title">
+      <h3 id="danger-zone-title"><ShieldAlert aria-hidden="true"/>Zone dangereuse</h3>
+      <SettingsRow label="Restaurer une sauvegarde complète" description="Remplace toute l'instance par le contenu de l'archive. Une sauvegarde de sécurité est prise juste avant." block>
         <input ref="fullBackupInput" type="file" accept=".zip" aria-label="Archive de sauvegarde complète" @change="onFullBackupFileChange">
         <template v-if="fullBackupSelected">
           <p class="warning-text">Cette action remplace ENTIÈREMENT la base de données et la configuration actuelles par celles de l'archive. Rien n'est fusionné : tout ce qui existe aujourd'hui sur cette instance (réglages, utilisateurs, demandes, historiques) sera perdu, hormis une sauvegarde de sécurité automatique prise juste avant. L'application redémarre ensuite.</p>
@@ -36,9 +39,9 @@
         </template>
         <p v-if="restoreRestarting" class="hint">Restauration terminée, l'application redémarre. Cette page va se recharger automatiquement.</p>
       </SettingsRow>
-    </SettingsSection>
+    </section>
 
-    <SettingsSection title="Médias supprimés" subtitle="Supprimés délibérément par un admin : toute nouvelle demande pour l'un d'eux reste en attente d'approbation, même avec l'auto-approbation.">
+    <SettingsSection :title="`Médias supprimés${deletedLog.length ? ` (${deletedLog.length})` : ''}`" subtitle="Supprimés délibérément par un admin : toute nouvelle demande pour l'un d'eux reste en attente d'approbation, même avec l'auto-approbation.">
       <SettingsRow
         v-for="entry in deletedLog"
         :key="entry.id"
@@ -128,6 +131,23 @@ async function restoreFullBackup(): Promise<void> {
   flex: 1 1 240px;
   min-width: 0;
 }
+.danger-zone {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--red) 55%, var(--border));
+  border-radius: var(--panel-radius);
+  background: color-mix(in srgb, var(--red) 5%, var(--surface));
+}
+.danger-zone h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--red-text);
+  font-size: var(--fs-md);
+}
+.danger-zone h3 svg { width: 18px; height: 18px; }
 .data-hint {
   margin: 10px 0 0;
 }

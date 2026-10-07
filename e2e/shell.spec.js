@@ -67,9 +67,54 @@ test("la navigation primaire ne change pas de forme en changeant de domaine", as
   // principale par des raccourcis contextuels dans Explorer et Bibliotheque.
   for (const path of ["/dashboard", "/discover", "/library", "/downloads", "/settings"]) {
     await page.goto(path);
+    // Sur telephone, l'Administration a son propre en-tete et pas de dock : voir le test
+    // dedie plus bas. Au-dela, sa barre laterale prend la place du rail.
+    if (path === "/settings" && isCompact(page)) {
+      await expect(page.locator(".admin-header")).toBeVisible();
+      await expect(page.locator(".app-dock")).toHaveCount(0);
+      continue;
+    }
     await expect(page.locator(primary)).toBeVisible();
     await expect(page.locator(other)).toHaveCount(0);
   }
+});
+
+test("sur telephone, l'administration se parcourt en liste puis en detail, sans dock", async ({ page }) => {
+  test.skip(!isCompact(page), "le dock et son remplacement n'existent qu'en compact");
+  await page.goto("/settings");
+  const header = page.locator(".admin-header");
+  await expect(header).toBeVisible();
+  await expect(page.locator(".app-dock")).toHaveCount(0);
+  // L'apercu est le menu : les zones y sont listees, groupees comme dans la barre laterale.
+  await expect(header.getByRole("link", { name: "Retour à Watchdeck" })).toBeVisible();
+  await expect(page.locator(".zone")).toHaveCount(9);
+
+  await page.locator(".zone", { hasText: "Sécurité & API" }).click();
+  await expect(page).toHaveURL(/\/settings\/security$/);
+  await expect(header.getByRole("link", { name: "Retour à l’aperçu de l’administration" })).toBeVisible();
+  await expect(header.locator(".admin-header__title")).toHaveText("Sécurité & API");
+
+  // Les sections de la zone sont des onglets sous l'en-tete, atteignables au pouce.
+  const tabs = page.locator("#main-content .app-subnav__item");
+  await expect(tabs).toHaveText(["Réseau", "API & jeton"]);
+  await tabs.nth(1).click();
+  await expect(page).toHaveURL(/\/settings\/security\/api$/);
+
+  await header.getByRole("link", { name: "Retour à l’aperçu de l’administration" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+});
+
+test("sur telephone, la barre Enregistrer se pose au-dessus de la recherche, pas dessus", async ({ page }) => {
+  test.skip(!isCompact(page), "la barre du bas n'existe qu'en compact");
+  await page.goto("/settings/security");
+  await page.locator("#public-base-url").fill("https://watchdeck.example");
+  const saveBar = page.locator(".form-save-bar");
+  await expect(saveBar).toBeVisible();
+  const search = page.locator(".app-topbar");
+  await expect(search).toBeVisible();
+  const [saveBox, searchBox] = await Promise.all([saveBar.boundingBox(), search.boundingBox()]);
+  // WebKit arrondit les boites au pixel superieur : un pixel d'ecart n'est pas un recouvrement.
+  expect(saveBox.y + saveBox.height, "l'enregistrement recouvre la recherche").toBeLessThanOrEqual(searchBox.y + 2);
 });
 
 test("chaque page expose un h1 unique, et son titre reste visible dans le shell", async ({ page }) => {
@@ -524,7 +569,7 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
   await drawer.getByRole("button", { name: "Fusionner", exact: true }).click();
 
   // La confirmation doit etre au premier plan : c'est elle qui doit recevoir le clic.
-  // (C'est la premiere des deux : supprimer un compte en demande maintenant deux.)
+  // (Une seule confirmation : elle montre le compte conserve et celui qui disparait.)
   const modal = page.locator(".modal-panel");
   await expect(modal).toBeVisible();
   // Sur telephone la confirmation monte depuis le bas : on attend qu'elle soit posee, sans
@@ -737,6 +782,120 @@ test("l'administration a sa propre barre, et une seule porte dans le rail", asyn
   await rail.getByRole("link", { name: "Retour à Watchdeck" }).click();
   await expect(page).toHaveURL(/\/discover$/);
   await expect(rail).toHaveAttribute("data-space", "app");
+});
+
+test("l'administration range ses reglages en dix zones, chacune atteignable", async ({ page }) => {
+  test.skip(page.viewportSize().width < 768, "en compact, les zones passent par la liste de l'apercu");
+  await page.goto("/settings");
+  const rail = page.locator(".app-rail");
+  await expect(rail).toHaveAttribute("data-space", "admin");
+  for (const href of [
+    "/settings", "/settings/services", "/settings/acquisition", "/settings/automation", "/notifications",
+    "/settings/requests", "/users", "/settings/security", "/settings/maintenance", "/logs",
+  ]) {
+    await expect(rail.locator(`a[href="${href}"]`), href).toHaveCount(1);
+  }
+});
+
+test("chaque section des reglages s'ouvre sans erreur ni debordement", async ({ page }, testInfo) => {
+  // WebKit signale des cles de `viewport` inconnues et echoue des imports dynamiques a la
+  // premiere navigation : du bruit propre au moteur (meme regle que le test des erreurs de
+  // console). Le signal est net sur Chromium.
+  test.skip(testInfo.project.name === "ios", "bruit propre a WebKit, sans rapport avec le code");
+  // Dix-huit pages a la suite : le delai par defaut est calcule pour une seule.
+  test.setTimeout(240_000);
+  // Les listes gerees par leur propre API attendent un tableau : on leur en sert un, pour
+  // ne mesurer que l'assemblage des sections et non les reponses d'un serveur absent.
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
+    if (["/api/download-clients", "/api/arr-instances", "/api/plex-servers", "/api/email-providers", "/api/users", "/api/message-reasons"].includes(pathname)) {
+      return route.fulfill({ json: [] });
+    }
+    if (pathname === "/api/scheduled-tasks") return route.fulfill({ json: [] });
+    if (pathname === "/api/system/version") return route.fulfill({ json: { version: "v1.0.0", is_latest: true, docker_repositories: [] } });
+    return route.fulfill({ json: {} });
+  });
+  const incidents = [];
+  page.on("pageerror", (error) => incidents.push(`exception : ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    if (message.text().startsWith("Failed to load resource") || message.text().includes("EventSource")) return;
+    incidents.push(`console : ${message.text()}`);
+  });
+
+  for (const path of [
+    "/settings/services", "/settings/services/integrations", "/settings/services/webhooks",
+    "/settings/acquisition", "/settings/acquisition/downloads",
+    "/settings/automation", "/settings/automation/subtitles", "/settings/automation/scheduled-tasks",
+    "/settings/notifications/channels", "/settings/notifications/rules", "/settings/notifications/reasons",
+    "/settings/requests", "/settings/security", "/settings/security/api",
+    "/settings/maintenance", "/settings/maintenance/data", "/settings/maintenance/privacy",
+    "/settings/system/version",
+  ]) {
+    incidents.length = 0;
+    await page.goto(path, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#main-content")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("#main-content h1, #main-content .settings-panel").first()).toBeAttached();
+    await page.waitForTimeout(500);
+    expect(incidents, `erreurs sur ${path} : ${incidents.join(" | ")}`).toEqual([]);
+    expect(await pageOverflows(page), `debordement horizontal sur ${path}`).toBe(false);
+  }
+});
+
+test("les anciennes adresses des reglages mènent à leur nouvelle place", async ({ page }) => {
+  for (const [from, to] of [
+    ["/settings/system", "/settings/maintenance/data"],
+    ["/settings/automation/vf-upgrades", "/settings/automation"],
+    ["/maintenance", "/settings/maintenance"],
+    ["/settings?tab=scheduled-tasks", "/settings/automation/scheduled-tasks"],
+    ["/settings?tab=downloads", "/settings/acquisition/downloads"],
+    ["/settings?tab=notifications-channels&email_oauth=success", "/settings/notifications/channels"],
+  ]) {
+    await page.goto(from);
+    await expect(page, `${from} doit mener a ${to}`).toHaveURL((url) => url.pathname === to, { timeout: 15000 });
+  }
+});
+
+test("l'apercu de l'administration donne un verdict, l'activite, les actions et la carte des zones", async ({ page }) => {
+  const started = [];
+  const overview = {
+    requests: { pending_approval: 3, failed: 0 },
+    conflicts: { count: 1 },
+    issues: { open: 0 },
+    notifications: { queue: 0, hold: false, sent_7d: 42, failed_7d: 0, by_day: [1, 2, 3, 4, 5, 6, 7] },
+    users: { total: 14, admins: 1, moderators: 2 },
+    download_clients: { total: 2, enabled: 2 },
+    storage: { connections: 1, running_transfers: 0, blocked_transfers: 0 },
+    images: { files: 900, bytes: 1_500_000_000 },
+    maintenance: {},
+  };
+  await page.route("**/api/**", async (route) => {
+    const { pathname } = new URL(route.request().url());
+    if (pathname === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
+    if (pathname === "/api/admin/overview") return route.fulfill({ json: overview });
+    // Adresse publique et canal renseignes : pas de point de configuration en plus.
+    if (pathname === "/api/settings") return route.fulfill({ json: { plex_url: "http://plex:32400", public_base_url: "https://watchdeck.example", email_enabled: true } });
+    if (pathname === "/api/health") return route.fulfill({ json: { checked_at: new Date().toISOString(), services: { plex: { state: "error", message: "Injoignable" }, sonarr: { state: "ok" } } } });
+    if (pathname === "/api/scheduled-tasks") return route.fulfill({ json: [{ job: "seer", label: "Synchro Seer", state: { status: "failed", finished_at: new Date().toISOString() } }] });
+    if (pathname.startsWith("/api/maintenance/run/")) { started.push(pathname); return route.fulfill({ json: { run_id: "r1" } }); }
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/settings");
+  const verdict = page.locator(".overview-verdict");
+  // Plex en erreur, la tâche en échec, les demandes à approuver et le conflit : quatre points.
+  await expect(verdict.getByRole("heading")).toHaveText(/4\s+points à traiter/, { timeout: 15000 });
+  await expect(page.locator(".overview-kpi")).toHaveCount(4);
+  await expect(page.locator(".overview-todo__item")).toHaveCount(4);
+  await expect(page.locator(".overview-todo__item", { hasText: "3 demandes à approuver" })).toBeVisible();
+  // La carte des zones : les neuf zones, chacune avec sa ligne d'état.
+  await expect(page.locator(".zone")).toHaveCount(9);
+  await expect(page.locator(".zone", { hasText: "Utilisateurs" })).toContainText("14 comptes · 2 modérateurs");
+  await expect(page.locator(".zone", { hasText: "Connexions" })).toContainText("Plex en erreur");
+
+  await page.getByRole("button", { name: "Lancer" }).first().click();
+  await expect.poll(() => started).toEqual(["/api/maintenance/run/warm-images"]);
+  expect(await pageOverflows(page), "debordement horizontal de l'apercu").toBe(false);
 });
 
 test("le niveau 2 s'efface et revient avec la barre du haut", async ({ page }) => {

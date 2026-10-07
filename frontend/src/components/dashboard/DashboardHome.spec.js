@@ -17,10 +17,10 @@ vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
 const global = { stubs: { RouterLink: RouterLinkStub } };
 
 describe('dashboardAttention', () => {
-  it('compte les demandes, les telechargements bloques et les echecs', () => {
+  it('compte les telechargements bloques et les echecs', () => {
     const queue = [{ status: 'downloading' }, { tracked_state: 'importPending' }, { error: 'disque plein' }];
     expect(blockedQueueRows(queue)).toHaveLength(2);
-    expect(attentionTotal(2, queue, 1)).toBe(5);
+    expect(attentionTotal(queue, 1)).toBe(3);
   });
 });
 
@@ -42,19 +42,9 @@ describe('DashboardGreeting', () => {
 });
 
 describe('DashboardActionCenter', () => {
-  it('emet approbation et refus depuis la ligne de la demande', async () => {
-    const row = { id: 7, title: 'Dune', media_type: 'movie', year: 2024, plex_user_id: 'abc123', requested_by: 'Léa' };
-    const wrapper = mount(DashboardActionCenter, { props: { pending: [row] }, global });
-    expect(wrapper.text()).toContain('Film · 2024 · demandé par Léa');
-    const buttons = wrapper.findAll('button');
-    await buttons.find((b) => b.text().includes('Approuver')).trigger('click');
-    await buttons.find((b) => b.text().includes('Refuser')).trigger('click');
-    expect(wrapper.emitted('action')).toEqual([[row, 'approve'], [row, 'reject']]);
-  });
-
   it('liste les imports bloques et les echecs, ou dit qu il n y a rien', () => {
     const calm = mount(DashboardActionCenter, { global });
-    expect(calm.text()).toContain('Aucune demande en attente.');
+    expect(calm.text()).not.toContain('Demandes à valider');
     expect(calm.text()).toContain('Rien à signaler');
 
     const busy = mount(DashboardActionCenter, {

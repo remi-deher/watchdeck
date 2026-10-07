@@ -1,10 +1,12 @@
 import { computed, type ComputedRef, type MaybeRefOrGetter, toValue } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { api } from '@/api';
+import { useAdminOverview } from './useAdminOverview';
 import {
   areaSeverity,
   buildAttention,
   urgentCount,
+  type AdminOverview,
   type AttentionItem,
   type AttentionSettings,
   type AttentionSeverity,
@@ -34,6 +36,7 @@ export function useAdminAttention(options: {
   services: ComputedRef<Record<string, HealthService>>;
   tasks: ComputedRef<ScheduledTaskState[]>;
   version: ComputedRef<VersionState | null>;
+  overview: ComputedRef<AdminOverview | null>;
   checkedAt: ComputedRef<string | null>;
   loading: ComputedRef<boolean>;
 } {
@@ -59,6 +62,10 @@ export function useAdminAttention(options: {
     enabled: fullEnabled,
   });
 
+  // Les chiffres d'activite (demandes, conflits, notifications) entrent dans la meme liste :
+  // le rail et l'aperçu comptent donc les memes points.
+  const { overview } = useAdminOverview(enabled);
+
   const items = computed(() =>
     enabled.value
       ? buildAttention({
@@ -66,6 +73,7 @@ export function useAdminAttention(options: {
           tasks: tasks.data.value,
           version: options.full ? version.data.value : null,
           settings: options.settings ? toValue(options.settings) : null,
+          overview: overview.value,
         })
       : []
   );
@@ -80,6 +88,7 @@ export function useAdminAttention(options: {
     }),
     tasks: computed(() => (Array.isArray(tasks.data.value) ? tasks.data.value : [])),
     version: computed(() => (version.data.value && typeof version.data.value === 'object' ? version.data.value : null)),
+    overview,
     checkedAt: computed(() => health.data.value?.checked_at || null),
     loading: computed(() => health.isPending.value && enabled.value),
   };

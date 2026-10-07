@@ -97,13 +97,23 @@ const routes: RouteRecordRaw[] = [
   { path: '/settings', component: SettingsView, meta: { title: 'Administration' } },
   { path: '/settings/resource/:kind/:id', component: () => import('@/views/SettingsResourceView.vue'), meta: { title: 'Réglage' } },
   { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Connexions' } },
+  { path: '/settings/acquisition/:section?', component: SettingsView, meta: { title: 'Acquisition & stockage' } },
+  // Les ameliorations VF sont desormais la page d'accueil de l'Automatisation : l'ancienne
+  // adresse de leur section circule encore.
+  { path: '/settings/automation/vf-upgrades', redirect: '/settings/automation' },
   { path: '/settings/automation/:section?', component: SettingsView, meta: { title: 'Automatisation' } },
+  { path: '/settings/requests', component: SettingsView, meta: { title: 'Demandes & quotas' } },
+  { path: '/settings/security/:section?', component: SettingsView, meta: { title: 'Sécurité & API' } },
+  { path: '/settings/maintenance/:section?', component: SettingsView, meta: { title: 'Maintenance & données' } },
   // « Exploitation » a ete dissoute : les journaux sont dans le Systeme, les acquisitions
   // et conflits dans l'Acquisition. L'ancien chemin circule encore dans les favoris.
   { path: '/settings/operations/:section?', redirect: '/downloads/acquisitions' },
   { path: '/settings/notifications/:section?', component: SettingsView, meta: { title: 'Notifications' } },
-  { path: '/settings/system/:section?', component: SettingsView, meta: { title: 'Système' } },
-  { path: '/maintenance', redirect: '/settings/automation/scheduled-tasks' },
+  // Les donnees et sauvegardes ont quitte le Systeme pour la Maintenance : l'ancienne
+  // adresse nue de cette section renvoie a leur nouvelle place.
+  { path: '/settings/system', redirect: '/settings/maintenance/data' },
+  { path: '/settings/system/:section', component: SettingsView, meta: { title: 'Journaux & version' } },
+  { path: '/maintenance', redirect: '/settings/maintenance' },
   { path: '/profile', component: ProfileView, meta: { title: 'Profil' } },
   { path: '/releases/:requestId', component: ReleaseSearchView, meta: { title: 'Recherche de version' } },
   { path: '/library/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },

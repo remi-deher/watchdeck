@@ -104,7 +104,6 @@ import ModalShell from '@/components/ui/ModalShell.vue';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { adminAreasFor, destinationsFor, EXPLORER_TABS, LIBRARY_TYPE_TABS, sectionsFor } from '@/navigation';
 import { useDownloadSources } from '@/composables/useDownloadSources';
-import { settingsSections } from '@/settingsSections';
 import { rankCommands } from '@/utils/commandScore';
 import { proxyUrl } from '@/utils/mediaImage';
 
@@ -113,10 +112,15 @@ const props = withDefaults(
   { isAdmin: false, canModerate: false }
 );
 
+/* Les reglages se cherchent par ces mots, que le libelle de leur zone ne porte pas. */
+const ADMIN_KEYWORDS = 'parametres reglages configuration administration';
+
 interface Command {
   id: string;
   label: string;
   group: string;
+  /** Mots qu'on tape sans qu'ils figurent dans le libelle (« parametres » pour un reglage). */
+  keywords?: string;
   to: string | Record<string, any>;
   icon?: any;
   /** Affiche, pour les medias. */
@@ -197,6 +201,7 @@ const commands = computed<Command[]>(() => {
     id: `nav-${destination.key}`,
     label: destination.label,
     group: destination.space === 'admin' ? 'Administration' : destination.group,
+    keywords: destination.space === 'admin' ? ADMIN_KEYWORDS : undefined,
     to: destination.to,
     icon: destination.icon,
   }));
@@ -209,25 +214,17 @@ const commands = computed<Command[]>(() => {
         id: `section-${destination.key}-${section.key}`,
         label: section.label,
         group: destination.label,
+        keywords: destination.space === 'admin' ? ADMIN_KEYWORDS : undefined,
         to: section.to,
         icon: section.icon || destination.icon,
       });
     }
   }
 
-  // Les réglages détaillés et les instances sont des destinations de recherche, pas
-  // des onglets. La palette garde donc l'accès direct apprécié des utilisateurs
-  // avancés sans encombrer le shell visible.
+  // Les instances *arr sont des destinations de recherche, pas des onglets : la palette
+  // garde leur acces direct sans encombrer le shell visible. Les reglages, eux, sont deja
+  // atteignables par leurs sections.
   if (props.isAdmin) {
-    for (const setting of settingsSections) {
-      items.push({
-        id: `setting-${setting.key}`,
-        label: setting.label,
-        group: setting.group || 'Paramètres',
-        to: setting.to || { path: '/settings', query: { tab: setting.key } },
-        icon: setting.icon,
-      });
-    }
     for (const instance of arrInstances.value.filter((item) => item.id != null && item.enabled !== false)) {
       const kind = String(instance.arr_type);
       if (!['radarr', 'sonarr'].includes(kind)) continue;

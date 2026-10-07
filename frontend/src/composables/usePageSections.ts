@@ -1,7 +1,7 @@
 import { computed, type ComputedRef } from 'vue';
 import { useRoute } from 'vue-router';
 import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
-import { activeSectionKey, destinationForPath, sectionsFor } from '@/navigation';
+import { activeSectionKey, destinationForPath, isAdminSpace, sectionsFor } from '@/navigation';
 import { useSession } from './useSession';
 
 /**
@@ -16,6 +16,8 @@ export function usePageSections(): {
   sections: ComputedRef<SubnavItem[]>;
   activeKey: ComputedRef<string>;
   destinationLabel: ComputedRef<string>;
+  /** `admin` pour une page de l'espace Administration. */
+  space: ComputedRef<'app' | 'admin'>;
 } {
   const route = useRoute();
   const { isAdmin, canModerate } = useSession();
@@ -38,5 +40,6 @@ export function usePageSections(): {
     sections,
     activeKey: computed(() => (route ? activeSectionKey(sections.value as any, route as any) : '')),
     destinationLabel: computed(() => destination.value?.label || ''),
+    space: computed(() => (isAdminSpace(destination.value) ? 'admin' : 'app')),
   };
 }

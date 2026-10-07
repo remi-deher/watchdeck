@@ -154,6 +154,9 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 
 @include bp.until(tablet) {
   .form-save-bar { left: max(10px,var(--safe-left)); right: max(10px,var(--safe-right)); bottom: calc(var(--app-shell-offset-bottom) + 10px); width: auto; gap: var(--space-3); }
+  /* La recherche de la page flotte en bas : l'enregistrement se pose au-dessus d'elle plutot
+     que dessus, comme les notifications (voir AppToast). */
+  :root:has(.app-topbar) .form-save-bar { bottom: calc(var(--app-shell-offset-bottom) + var(--app-topbar-h) + 18px); }
   .form-save-bar small { display: none; }
   .form-save-bar .ui-button--primary { min-height: 46px; }
 }
@@ -669,6 +672,11 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 .drawer-backdrop--confirm-modal[data-state] { z-index: var(--z-confirm); }
 .modal-panel.confirm-modal[data-state] { z-index: var(--z-confirm-panel); }
 .confirm-modal__message { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.5; }
+.confirm-modal__items { display: grid; gap: var(--space-1); margin: 0 0 var(--space-4); padding: var(--space-3); list-style: none; border-radius: var(--inset-radius); background: var(--surface-2); }
+.confirm-modal__items li { display: flex; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+.confirm-modal__items span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.confirm-modal__items small, .confirm-modal__more { color: var(--muted); }
+.confirm-modal__typed { display: grid; gap: var(--space-1); margin: 0 0 var(--space-4); font-size: var(--fs-sm); }
 .modal-panel[data-state],
 .detail-drawer[data-state] { z-index: var(--z-modal-panel); }
 .modal-panel { z-index: var(--z-modal-panel); }

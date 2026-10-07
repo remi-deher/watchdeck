@@ -7,7 +7,7 @@
         :icon="Mail"
         :status="form.email_enabled ? 'active' : 'inactive'"
         :status-text="form.email_enabled ? 'Activé' : 'Désactivé'"
-        keywords="smtp expéditeur administrateur import bloqué url publique"
+        keywords="smtp expéditeur administrateur import bloqué"
         saveable
       >
         <template #actions>
@@ -18,7 +18,7 @@
         <label>Email administrateur<input v-model="form.admin_notification_email"><small>Destinataire des alertes techniques (imports bloqués, échecs), distinct des notifications envoyées aux utilisateurs.</small></label>
         <UiCheckboxField v-model="form.notify_import_blocked" label="Alerter l'administrateur en cas d'import Sonarr bloqué" />
         <small class="check-hint">Distinct d'un échec de transmission. Se déclenche souvent avec les épisodes « TBA » : désactivez si trop fréquent.</small>
-        <label>URL publique de l'application<input v-model="form.public_base_url" type="url" placeholder="https://watchdeck.mondomaine.fr"><small>Utilisée pour le lien vers la politique de confidentialité dans le pied de page des emails ; laisser vide pour ne pas l'afficher.</small></label>
+        <small class="check-hint">L'adresse publique des liens dans les emails se règle dans <RouterLink to="/settings/security">Sécurité &amp; API</RouterLink>.</small>
       </SettingsItem>
 
       <SettingsItem
@@ -61,6 +61,7 @@
 <script setup lang="ts">
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import { RouterLink } from 'vue-router';
 import { Bell, Mail, Megaphone, MessageSquare, PlugZap, Send } from '@lucide/vue';
 import { api } from '@/api';
 import { form, success, fail, testSaved, save } from '@/settingsForm';

@@ -24,7 +24,7 @@ interface ResourceKind { form: Component; eyebrow: string; create: string; updat
    ou l'on retombe apres un enregistrement ouvert en pleine page. */
 const KINDS: Record<string, ResourceKind> = {
   arr: { form: ArrInstanceForm, eyebrow: 'Intégrations', create: 'Ajouter une instance', update: 'Modifier l’instance', home: '/settings/services/integrations' },
-  'download-client': { form: DownloadClientForm, eyebrow: 'Intégrations', create: 'Ajouter un client', update: 'Modifier le client', home: '/settings/services/integrations' },
+  'download-client': { form: DownloadClientForm, eyebrow: 'Acquisition', create: 'Ajouter un client', update: 'Modifier le client', home: '/settings/acquisition' },
   'plex-server': { form: PlexServerForm, eyebrow: 'Plex', create: 'Ajouter un serveur', update: 'Modifier le serveur', home: '/settings/services' },
   'email-provider': { form: EmailProviderForm, eyebrow: 'Notifications', create: 'Ajouter un fournisseur', update: 'Modifier le fournisseur', home: '/settings/notifications/channels' },
 };
