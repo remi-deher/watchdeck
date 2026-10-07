@@ -10,6 +10,8 @@
 export interface Rankable {
   label: string;
   group: string;
+  /** Mots supplementaires, comptes apres le libelle et le groupe. */
+  keywords?: string;
 }
 
 /** Insensible a la casse et aux accents : « parametres » doit trouver « Paramètres ». */
@@ -17,11 +19,11 @@ export function fold(value: string): string {
   return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('fr');
 }
 
-/** Position de la saisie dans « libellé groupe », ou -1 si elle n'y figure pas. */
+/** Position de la saisie dans « libellé groupe mots-clés », ou -1 si elle n'y figure pas. */
 export function commandScore(item: Rankable, query: string): number {
   const needle = fold(query.trim());
   if (!needle) return 0;
-  return fold(`${item.label} ${item.group}`).indexOf(needle);
+  return fold(`${item.label} ${item.group} ${item.keywords || ''}`).indexOf(needle);
 }
 
 /** Entrées correspondant à la saisie, les correspondances les plus précoces d'abord. */

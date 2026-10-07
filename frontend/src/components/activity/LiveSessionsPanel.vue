@@ -74,7 +74,7 @@
         <strong>Collecte en direct désactivée</strong>
         <span>Aucune lecture Plex ne peut apparaître tant que ce réglage est désactivé.</span>
       </div>
-      <UiButton :to="{path:'/settings',query:{tab:'services'}}">Activer la collecte</UiButton>
+      <UiButton :to="'/settings/services/integrations'">Activer la collecte</UiButton>
     </div>
     <p v-else class="empty">Aucune lecture en cours.</p>
   </section>

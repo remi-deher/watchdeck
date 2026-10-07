@@ -27,13 +27,17 @@
       @open-palette="openPalette($event)"
     />
 
+    <!-- Sur telephone, l'Administration a son propre en-tete et pas de dock : voir
+         `AdminCompactHeader`. -->
+    <AdminCompactHeader v-if="adminCompact" :title="adminTitle" :overview="onAdminOverview" :app-path="lastAppPath" />
+
     <main id="main-content" class="app-shell__main" tabindex="-1">
       <OfflineBanner />
       <slot />
     </main>
 
     <AppDock
-      v-if="mode === 'compact'"
+      v-if="mode === 'compact' && !adminCompact"
       :active-key="activeDestinationKey"
       :sheet-open="sheetOpen"
       :sections="sections"
@@ -46,7 +50,7 @@
     />
 
     <AppSectionSheet
-      v-if="sectionsOpen"
+      v-if="sectionsOpen && !adminCompact"
       :sections="sections"
       :active-key="activeSectionKey"
       :destination-label="destinationLabel"
@@ -54,7 +58,7 @@
     />
 
     <AppNavSheet
-      v-if="sheetOpen"
+      v-if="sheetOpen && !adminCompact"
       :active-key="activeDestinationKey"
       :sections="sectionsInSheet"
       :active-section-key="activeSectionKey"
@@ -76,6 +80,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { START_LOCATION, useRoute } from 'vue-router';
+import AdminCompactHeader from './AdminCompactHeader.vue';
 import AppDock from './AppDock.vue';
 import AppNavSheet from './AppNavSheet.vue';
 import AppSectionSheet from './AppSectionSheet.vue';
@@ -121,6 +126,12 @@ const activeDestinationKey = computed(() => destination.value?.key || '');
 const space = computed<'app' | 'admin'>(() => (isAdminSpace(destination.value) ? 'admin' : 'app'));
 
 const destinationLabel = computed(() => destination.value?.label || '');
+
+/* Telephone dans l'Administration : pas de dock, un en-tete avec retour, et l'aperçu qui
+   fait office de menu. Les pages de l'application, elles, gardent le shell habituel. */
+const adminCompact = computed(() => mode.value === 'compact' && space.value === 'admin');
+const onAdminOverview = computed(() => route.path === '/settings');
+const adminTitle = computed(() => (onAdminOverview.value ? 'Administration' : destinationLabel.value));
 /* Meme derivation que la page : en compact la rangee de sections disparait et c'est le
    dock qui les porte, mais la source reste `navigation.ts` et non une copie locale. */
 const { sections, activeKey: activeSectionKey } = usePageSections();

@@ -72,7 +72,8 @@ describe('CommandPalette', () => {
     }
     const texts = all.join(' | ');
     expect(texts).toContain('Explorer');
-    expect(texts).toContain('Paramètres');
+    // Le classement garde les 5 premiers résultats : on vérifie qu'une zone d'administration remonte.
+    expect(texts).toContain('Connexions');
     expect(texts).toContain('Sonarr principal');
     expect(texts).toContain('qBittorrent DATA');
     wrapper.unmount();
@@ -83,10 +84,12 @@ describe('CommandPalette', () => {
     pressCtrlK();
     await flushPromises();
 
+    // « parametres » n'est dans aucun libelle : les zones et sections de l'Administration le
+    // portent comme mot-cle, pour qu'on les trouve en cherchant « les parametres ».
     await wrapper.get('.palette-input').setValue('parametres');
 
     const texts = optionTexts(wrapper).join(' | ');
-    expect(texts).toContain('Paramètres');
+    expect(texts).toContain('Connexions');
     expect(texts).not.toContain('Explorer');
     wrapper.unmount();
   });

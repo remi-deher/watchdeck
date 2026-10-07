@@ -1,5 +1,7 @@
 <template>
-  <AppPage title="Notifications" v-model:query="search" placeholder="Filtrer par média, destinataire ou événement" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
+  <!-- Les sections viennent de la zone Notifications de l'Administration (le compteur de la
+       file s'y ajoute) : c'est AppPage qui les affiche, comme pour toute zone. -->
+  <AppPage title="Notifications" :sections="notificationSubnavItems" :active-section="tab" v-model:query="search" placeholder="Filtrer par média, destinataire ou événement" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
 
       <template #tools>
         <div class="notification-control" :class="{paused: holdEnabled}">
@@ -19,10 +21,6 @@
             />
           </div>
         </div>
-      </template>
-
-      <template #tabs>
-        <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
       </template>
 
   <Transition name="notification-feedback">
@@ -105,8 +103,7 @@ const DELIVERY_COLUMNS = [
   { key: 'send_key', label: "Clé d'envoi" },
 ];
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
-import { notificationSections } from '@/notificationSections';
+import { sectionsFor } from '@/navigation';
 import { computed, ref, watch } from 'vue';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { queryKeys } from '@/queryKeys';
@@ -387,11 +384,15 @@ useRealtime(['notification.updated'], () => { void invalidateNotifications(); },
 
 // Le compteur d'attente n'a de sens que sur la file : ailleurs il decrirait un etat
 // qui n'est pas celui de la section affichee.
+// Les sections sont celles de la zone Notifications de l'Administration : une seule liste,
+// pour la page comme pour le menu. Cette page n'est ouverte qu'aux administrateurs.
 const notificationSubnavItems = computed(() =>
-  notificationSections.map((section) => ({
+  sectionsFor('admin-notifications', { isAdmin: true, canModerate: true, arrInstances: [], downloadClients: [] }).map((section) => ({
     key: section.key,
     label: section.label,
     to: section.to,
+    icon: section.icon,
+    group: section.group,
     count: section.key === 'pending' && pendingTotal.value ? pendingTotal.value : null,
   }))
 );

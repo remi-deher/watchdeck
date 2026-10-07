@@ -13,6 +13,7 @@ export const settingsFieldLabels: Record<string, string> = {
   admin_notification_email: 'E-mail des notifications admin',
   tmdb_region: 'Région TMDB',
   seer_mode: 'Mode Seer',
+  default_locale: 'Langue par défaut',
   series_notify_granularity: 'Granularité des notifications séries',
   watchlist_source_priority: 'Source prioritaire de la watchlist',
   availability_confirmation_mode: 'Confirmation de disponibilité',

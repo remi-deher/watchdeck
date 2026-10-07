@@ -14,6 +14,7 @@ import {
   Activity,
   Bell,
   CalendarDays,
+  Captions,
   Clock,
   Compass,
   DatabaseZap,
@@ -24,6 +25,7 @@ import {
   History,
   House,
   Inbox,
+  KeyRound,
   Languages,
   Library,
   Link2,
@@ -32,15 +34,19 @@ import {
   MessageSquareWarning,
   MonitorPlay,
   Music2,
+  Network,
   PackageSearch,
   Plug,
   Radio,
   ScrollText,
+  ShieldCheck,
+  SlidersHorizontal,
   Table,
   MessageSquareText,
   Settings,
   Tv,
   Users,
+  Wrench,
   Zap,
 } from '@lucide/vue';
 
@@ -54,6 +60,8 @@ export interface NavSection {
   icon?: Component;
   /** En-tête de regroupement dans le menu ; les entrées sans groupe viennent en tête. */
   group?: string;
+  /** Mène à une autre page de l'application (marquée d'une flèche), et non à un panneau de la zone. */
+  external?: boolean;
   access?: Access;
   /** État actif quand l'URL seule ne suffit pas (filtres `?type=` de la Bibliothèque). */
   active?: (route: RouteLocationNormalizedLoaded) => boolean;
@@ -121,15 +129,20 @@ export const DESTINATIONS: NavDestination[] = [
   // groupes de cet espace : elles restent des destinations -- avec leurs sections, leur
   // etat actif et leur place dans la palette --, mais `space: 'admin'` les retire du
   // rail, du dock et de la feuille de navigation de l'application.
-  { key: 'admin-overview', label: 'Vue d’ensemble', icon: Gauge, group: '', space: 'admin', access: 'admin', match: (p) => p === '/settings' || p.startsWith('/maintenance'), to: '/settings' },
-  { key: 'admin-connections', label: 'Connexions', icon: Plug, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/services'), to: '/settings/services' },
-  { key: 'admin-automation', label: 'Automatisation', icon: Zap, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/automation'), to: '/settings/automation' },
-  { key: 'admin-notifications', label: 'Notifications', icon: Bell, group: 'Configurer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/notifications') || p.startsWith('/settings/notifications'), to: '/notifications' },
-  { key: 'admin-users', label: 'Utilisateurs', icon: Users, group: 'Gérer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/users'), to: '/users' },
-  // Les journaux rejoignent le Systeme : « Exploitation » ne disait rien de ce qu'elle
-  // contenait, et son autre moitie (acquisitions et conflits) est un outil du quotidien,
-  // rendu a l'Acquisition.
-  { key: 'admin-system', label: 'Système', icon: DatabaseZap, group: 'Gérer', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/system') || p.startsWith('/logs'), to: '/settings/system' },
+  { key: 'admin-overview', label: 'Vue d’ensemble', icon: Gauge, group: '', space: 'admin', access: 'admin', match: (p) => p === '/settings', to: '/settings' },
+  // Les zones se rangent par ce qu'on y fait, et non par la facon dont le code les a
+  // construites : les services qu'on branche, le comportement qu'on regle, les acces qu'on
+  // donne, l'exploitation au quotidien.
+  { key: 'admin-connections', label: 'Connexions', icon: Plug, group: 'Services', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/services'), to: '/settings/services' },
+  { key: 'admin-acquisition', label: 'Acquisition & stockage', icon: Download, group: 'Services', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/acquisition'), to: '/settings/acquisition' },
+  { key: 'admin-automation', label: 'Automatisation', icon: Zap, group: 'Comportement', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/automation'), to: '/settings/automation' },
+  { key: 'admin-notifications', label: 'Notifications', icon: Bell, group: 'Comportement', space: 'admin', access: 'admin', match: (p) => p.startsWith('/notifications') || p.startsWith('/settings/notifications'), to: '/notifications' },
+  { key: 'admin-requests', label: 'Demandes & quotas', icon: Inbox, group: 'Comportement', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/requests'), to: '/settings/requests' },
+  { key: 'admin-users', label: 'Utilisateurs', icon: Users, group: 'Accès', space: 'admin', access: 'admin', match: (p) => p.startsWith('/users'), to: '/users' },
+  { key: 'admin-security', label: 'Sécurité & API', icon: ShieldCheck, group: 'Accès', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/security'), to: '/settings/security' },
+  { key: 'admin-maintenance', label: 'Maintenance & données', icon: Wrench, group: 'Exploitation', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/maintenance'), to: '/settings/maintenance' },
+  // Les journaux et la version se consultent, on n'y regle rien.
+  { key: 'admin-system', label: 'Journaux & version', icon: ScrollText, group: 'Exploitation', space: 'admin', access: 'admin', match: (p) => p.startsWith('/settings/system') || p.startsWith('/logs'), to: '/logs' },
   // Un moderateur sans acces au tableau de bord garde les signalements comme espace propre.
   { key: 'issues', label: 'Problèmes signalés', icon: MessageSquareWarning, group: 'Pilotage', access: 'moderator', moderatorOnly: true, match: (p) => p.startsWith('/issues'), to: '/issues' },
 ];
@@ -302,25 +315,37 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       sections = [
         { key: 'plex', label: 'Plex & Bibliothèque', to: '/settings/services', icon: Tv },
         { key: 'integrations', label: 'Intégrations', to: '/settings/services/integrations', icon: Plug },
-        { key: 'webhooks', label: 'Webhooks & API', to: '/settings/services/webhooks', icon: Link2 },
+        { key: 'webhooks', label: 'Webhooks', to: '/settings/services/webhooks', icon: Link2 },
+      ];
+      break;
+    case 'admin-acquisition':
+      // Les clients et les regles de telechargement se reglent ici ; l'exploitation des
+      // acquisitions et du stockage reste sur leurs pages, dont on garde la porte.
+      sections = [
+        { key: 'clients', label: 'Clients', to: '/settings/acquisition', icon: Download },
+        { key: 'downloads', label: 'Téléchargements', to: '/settings/acquisition/downloads', icon: SlidersHorizontal },
+        { key: 'acquisitions', label: 'Acquisitions & conflits', to: '/downloads/acquisitions', icon: ListRestart, external: true },
+        { key: 'storage', label: 'Stockage et transferts', to: '/storage', icon: DatabaseZap, external: true },
       ];
       break;
     case 'admin-automation':
       sections = [
-        { key: 'downloads', label: 'Téléchargements', to: '/settings/automation', icon: Download },
-        { key: 'vf-upgrades', label: 'Améliorations VF', to: '/settings/automation/vf-upgrades', icon: Languages },
+        { key: 'vf-upgrades', label: 'Améliorations VF', to: '/settings/automation', icon: Languages },
+        { key: 'subtitles', label: 'Sous-titres', to: '/settings/automation/subtitles', icon: Captions },
         { key: 'scheduled-tasks', label: 'Planification', to: '/settings/automation/scheduled-tasks', icon: Clock },
       ];
       break;
     case 'admin-notifications':
       // Le suivi des envois d'abord : la file d'attente (envoi suspendu, envois manuels)
-      // et le journal sont le quotidien de cette zone ; les reglages viennent ensuite.
+      // et le journal sont le quotidien de cette zone ; les reglages viennent ensuite,
+      // separes par un trait (le `group` n'a pas de libelle dans la rangee d'onglets).
       sections = [
         {
           key: 'pending',
           label: 'File d’attente',
           to: { path: '/notifications', query: { tab: 'pending' } },
           icon: Inbox,
+          group: 'Suivi',
           active: (route) => route.path === '/notifications' && route.query.tab === 'pending',
         },
         {
@@ -328,20 +353,36 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
           label: 'Journal des envois',
           to: '/notifications',
           icon: History,
+          group: 'Suivi',
           active: (route) => route.path === '/notifications' && route.query.tab !== 'pending',
         },
-        { key: 'channels', label: 'Canaux', to: '/settings/notifications/channels', icon: Plug },
-        { key: 'rules', label: 'Règles', to: '/settings/notifications/rules', icon: Settings },
-        { key: 'templates', label: 'Modèles d’emails', to: '/settings/notifications/templates', icon: Link2 },
-        { key: 'reasons', label: 'Motifs de message', to: '/settings/notifications/reasons', icon: MessageSquareText },
+        { key: 'channels', label: 'Canaux', to: '/settings/notifications/channels', icon: Plug, group: 'Réglages' },
+        { key: 'rules', label: 'Règles', to: '/settings/notifications/rules', icon: Settings, group: 'Réglages' },
+        { key: 'templates', label: 'Modèles d’emails', to: '/settings/notifications/templates', icon: Link2, group: 'Réglages' },
+        { key: 'reasons', label: 'Motifs de message', to: '/settings/notifications/reasons', icon: MessageSquareText, group: 'Réglages' },
       ];
+      break;
+    case 'admin-requests':
+      sections = [{ key: 'requests', label: 'Demandes & quotas', to: '/settings/requests', icon: Inbox }];
       break;
     case 'admin-users':
       sections = [{ key: 'users', label: 'Utilisateurs', to: '/users', icon: Users }];
       break;
+    case 'admin-security':
+      sections = [
+        { key: 'network', label: 'Réseau', to: '/settings/security', icon: Network },
+        { key: 'api', label: 'API & jeton', to: '/settings/security/api', icon: KeyRound },
+      ];
+      break;
+    case 'admin-maintenance':
+      sections = [
+        { key: 'maintenance', label: 'Maintenance', to: '/settings/maintenance', icon: Wrench },
+        { key: 'data', label: 'Données & sauvegardes', to: '/settings/maintenance/data', icon: DatabaseZap },
+        { key: 'privacy', label: 'Confidentialité & RGPD', to: '/settings/maintenance/privacy', icon: ShieldCheck },
+      ];
+      break;
     case 'admin-system':
       sections = [
-        { key: 'data', label: 'Données & RGPD', to: '/settings/system', icon: DatabaseZap },
         { key: 'logs', label: 'Journaux', to: '/logs', icon: ScrollText },
         { key: 'version', label: 'Version & mises à jour', to: '/settings/system/version', icon: GitBranch },
       ];

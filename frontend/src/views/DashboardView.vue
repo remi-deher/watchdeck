@@ -25,14 +25,13 @@
 
     <UiDisclosure
       :title="attentionCount ? `${attentionCount} élément${attentionCount > 1 ? 's' : ''} à traiter` : 'Aucune intervention nécessaire'"
-      description="Demandes à approuver, imports bloqués et acquisitions en échec."
+      description="Imports bloqués et acquisitions en échec."
       storage-key="dashboard.actionsOpen"
     >
-      <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action" />
+      <DashboardActionCenter :queue="downloadQueue" :failed-count="failedCount" />
     </UiDisclosure>
 
     <MetricGrid aria-label="Vue d’ensemble de la bibliothèque">
-      <MetricCard label="À approuver" :value="counts.pending_approval ?? pending.length" detail="Demandes en attente" to="/library?status=pending_approval" :loading="loading && !updatedAt" />
       <MetricCard label="En téléchargement" :value="queueTotals.downloading" detail="Acquisitions actives" to="/downloads?view=queue&amp;sub=active" :loading="loadingQueue" />
       <MetricCard label="À importer" :value="queueTotals.importPending" detail="Téléchargements terminés" to="/downloads?view=queue&amp;sub=intervention" :loading="loadingQueue" />
       <MetricCard label="Disponibles" :value="counts.available ?? '—'" detail="Dans votre bibliothèque" to="/library?status=available" :loading="loading && !updatedAt" />
@@ -78,7 +77,7 @@
     <UiDisclosure
       title="Supervision"
       eyebrow="Historique"
-      description="Exécutions du planificateur, répartition des demandes et derniers envois."
+      description="Exécutions du planificateur et répartition des demandes."
       storage-key="dashboard.supervisionOpen"
       content-class="dashboard-supervision"
       @open="loadSupervision"
@@ -86,7 +85,6 @@
       <RecentJobsPanel :polls="polls" :next-poll="nextPoll" :countdown="countdown" />
       <RequestsBreakdownPanel :counts="counts"/>
       <TopRequestedPanel :items="topRequested"/>
-      <RecentNotificationsPanel :notifications="recentNotifs"/>
     </UiDisclosure>
   </AppPage>
 </template>
@@ -113,7 +111,6 @@ import DownloadQueuePanel from '@/components/dashboard/DownloadQueuePanel.vue';
 import ActivityChartPanel from '@/components/dashboard/ActivityChartPanel.vue';
 import DiskSpacePanel from '@/components/dashboard/DiskSpacePanel.vue';
 import TopRequestedPanel from '@/components/dashboard/TopRequestedPanel.vue';
-import RecentNotificationsPanel from '@/components/dashboard/RecentNotificationsPanel.vue';
 import ScanStatusPanel from '@/components/dashboard/ScanStatusPanel.vue';
 import ServiceHealthPanel from '@/components/dashboard/ServiceHealthPanel.vue';
 import { etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
@@ -138,7 +135,7 @@ const PRIMARY_SECTIONS = [
   'pending', 'polls', 'timeline', 'onboarding', 'recently_available',
   'recent_requests', 'upcoming', 'next_poll',
 ];
-const SUPERVISION_SECTIONS = ['top_requested', 'by_user', 'notifications'];
+const SUPERVISION_SECTIONS = ['top_requested', 'by_user'];
 // Au-dela, mieux vaut l'ecran de chargement qu'un etat qui n'a plus rien a voir.
 const SNAPSHOT_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
@@ -156,7 +153,6 @@ const topRequested = ref<any[]>([]);
 const recentlyAvailable = ref<any[]>([]);
 const recentRequests = ref<any[]>([]);
 const upcoming = ref<any[]>([]);
-const recentNotifs = ref<any[]>([]);
 const supervisionLoaded = ref(false);
 const supervisionLoading = ref(false);
 /* File Arr, lectures en cours, espace disque et statuts VFF : memes cles que les pages
@@ -217,7 +213,7 @@ const failedCount = computed(() => Number(counts.value.failed || 0));
 // ci-dessous partitionnent la file sans double compte, et chaque chiffre correspond au
 // groupe qu'on trouve en cliquant.
 const queueTotals = computed(() => queueCounts(downloadQueue.value));
-const attentionCount = computed(() => attentionTotal(pending.value.length, downloadQueue.value, failedCount.value));
+const attentionCount = computed(() => attentionTotal(downloadQueue.value, failedCount.value));
 
 const { session } = useSession();
 const userName = computed(() => String(session.value?.display_name || session.value?.username || '').trim());
@@ -300,9 +296,6 @@ function applyDashboardSnapshot(snapshot: Record<string, any>, { savedAt = Date.
   assignments.forEach(([key, target]) => {
     if (snapshot[key] !== undefined) target.value = snapshot[key];
   });
-  if (snapshot.notifications !== undefined) {
-    recentNotifs.value = snapshot.notifications?.items ?? snapshot.notifications ?? [];
-  }
   // Uniquement quand la section est presente : le flux envoie les sections une par une, et
   // reappliquer l'ancienne valeur a chaque trame ferait sauter le compte a rebours en
   // arriere, annulant les decrements de la seconde ecoulee.
@@ -429,19 +422,6 @@ async function load(fresh = false): Promise<void> {
   loading.value = false;
 }
 
-async function action(row: any, type: string): Promise<void> {
-  try {
-    if (type === 'reject') {
-      const reason = prompt('Motif du refus', 'Demande refusée');
-      if (reason === null) return;
-      await api(`/api/requests/${row.id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
-    } else {
-      await api(`/api/requests/${row.id}/approve`, { method: 'POST' });
-    }
-    await load(true);
-  } catch (e: any) { error.value = e.message; }
-}
-
 import { patchedList } from '@/composables/useRealtimeQuery';
 
 /** Reporte un evenement sur une liste locale en la REMPLACANT, sans muter ses elements. */
@@ -467,9 +447,6 @@ useRealtime(['request.updated'], (type, detail) => {
   ], true).catch(() => {});
 });
 useRealtime(['download.updated'], () => loadDownloadQueue().catch(() => {}), { refreshOnVisible: false });
-useRealtime(['notification.updated'], (type) => type
-  ? supervisionLoaded.value && loadDashboardSections(['notifications'], true).catch(() => {})
-  : undefined, { refreshOnVisible: false });
 useRealtime(['activity.updated'], () => loadLiveActivity().catch(() => {}), { refreshOnVisible: false });
 // Les événements appliquent directement les statuts ; TanStack Query assure déjà
 // la resynchronisation au retour sur l'onglet.

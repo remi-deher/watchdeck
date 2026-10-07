@@ -7,7 +7,6 @@
       <TautulliConnectionItem/>
     </SettingsItemList>
     <ArrInstancesList/>
-    <DownloadClientsList/>
   </div>
 </template>
 <script setup lang="ts">
@@ -17,5 +16,4 @@ import TracearrConnectionItem from './connections/TracearrConnectionItem.vue';
 import SeerConnectionItem from './connections/SeerConnectionItem.vue';
 import TmdbConnectionItem from './connections/TmdbConnectionItem.vue';
 import ArrInstancesList from './connections/ArrInstancesList.vue';
-import DownloadClientsList from './connections/DownloadClientsList.vue';
 </script>

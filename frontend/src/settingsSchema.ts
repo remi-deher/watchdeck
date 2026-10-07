@@ -26,6 +26,7 @@ export const settingsPatchSchema = z.object({
   admin_notification_email: optionalEmail,
   tmdb_region: z.string().trim().length(2, 'Le code région doit contenir deux lettres.'),
   seer_mode: z.enum(['observer', 'manager']),
+  default_locale: z.enum(['fr', 'en']),
   series_notify_granularity: z.enum(['jalons', 'episodes']),
   watchlist_source_priority: z.enum(['api', 'rss']),
   availability_confirmation_mode: z.enum(['hybrid', 'plex', 'arr']),
