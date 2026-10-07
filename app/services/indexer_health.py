@@ -98,10 +98,6 @@ async def check_indexers() -> dict[str, Any]:
             continue
         summary["down"] += down
         summary["recovered"] += recovered
-        subject = (
-            f"[Watchdeck] Indexeur en panne : {', '.join(down)}"
-            if down
-            else f"[Watchdeck] Indexeur rétabli : {', '.join(recovered)}"
-        )
+        subject = f"Indexeur en panne : {', '.join(down)}" if down else f"Indexeur rétabli : {', '.join(recovered)}"
         summary["alerts"] += await _notify(settings, subject, alert_text(instance.name, down, recovered, failing))
     return summary

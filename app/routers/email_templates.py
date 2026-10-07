@@ -320,11 +320,9 @@ async def preview_email(body: PreviewRequest, db: AsyncSession = Depends(get_db_
     jinja_ctx["_tmdb_url"] = build_tmdb_url(req)
     jinja_ctx["_plex_deep_link"] = "#"
 
-    generic_fallback = f"[Watchdeck] {'Correction' if event_type == 'correction' else event_def.label} : {req.title}"
+    generic_fallback = f"{'Correction' if event_type == 'correction' else event_def.label} : {req.title}"
     default_subject = (
-        "[Watchdeck] Correction : {titre} {details_saison_episode}"
-        if event_type == "correction"
-        else event_def.default_subject
+        "Correction : {titre} {details_saison_episode}" if event_type == "correction" else event_def.default_subject
     )
     fallback_subject = (
         render_subject(default_subject, tags, fallback=generic_fallback) if default_subject else generic_fallback
@@ -712,11 +710,9 @@ async def test_send_email(
     jinja_ctx["_tmdb_url"] = build_tmdb_url(req)
     jinja_ctx["_plex_deep_link"] = await resolve_plex_deep_link(settings, req)
 
-    generic_fallback = f"[Watchdeck] {'Correction' if event_type == 'correction' else event_def.label} : {req.title}"
+    generic_fallback = f"{'Correction' if event_type == 'correction' else event_def.label} : {req.title}"
     default_subject = (
-        "[Watchdeck] Correction : {titre} {details_saison_episode}"
-        if event_type == "correction"
-        else event_def.default_subject
+        "Correction : {titre} {details_saison_episode}" if event_type == "correction" else event_def.default_subject
     )
     fallback_subject = (
         render_subject(default_subject, tags, fallback=generic_fallback) if default_subject else generic_fallback
