@@ -93,7 +93,8 @@ test("chaque page expose un h1 unique, et son titre reste visible dans le shell"
     // l'espace a la place du titre de la page.
     if (page.viewportSize().width >= 768) {
       const adminSpace = (await page.locator('.app-rail[data-space="admin"]').count()) > 0;
-      const visibleTitle = page.viewportSize().width >= 1200
+      const expandedRail = (await page.locator('.app-rail[data-density="expanded"]').count()) > 0;
+      const visibleTitle = expandedRail
         ? page.locator(adminSpace ? '.app-rail__space-title' : '.app-rail__brand-name')
         : page.locator('.app-topbar__context');
       await expect(visibleTitle, `le shell doit afficher "${title}" sur ${path}`).toHaveText(title);
@@ -293,6 +294,9 @@ test("le contenu n'est masque ni par la barre de contexte ni par le dock", async
 
 test("le rail se replie et se deploie, et le choix survit au rechargement", async ({ page }) => {
   test.skip(page.viewportSize().width < 1200, "le repli n'existe qu'en mode deploye");
+  // Ce scénario commence déployé ; le nouveau choix initial est compact.
+  await page.evaluate(() => localStorage.setItem('watchdeck:rail.collapsed', 'false'));
+  await page.reload();
 
   const rail = page.locator(".app-rail");
   const expanded = (await rail.boundingBox()).width;
@@ -860,6 +864,8 @@ test("les sections changent de surface selon la largeur, sans jamais se duplique
   // Ce test pilote lui-meme sa largeur : le rejouer sur les profils tactiles, qui
   // emulent un appareil, ne verifierait rien de plus et se heurterait a leur viewport.
   test.skip(testInfo.project.name !== "desktop", "test pilote par la largeur, pas par l'appareil");
+  await page.evaluate(() => localStorage.setItem('watchdeck:rail.collapsed', 'false'));
+  await page.reload();
   await page.goto("/downloads");
   const inRail = page.locator(".app-rail__subnav");
   const inPage = page.locator(".app-page__sticky .app-subnav");

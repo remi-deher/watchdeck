@@ -55,7 +55,8 @@ const { revealed, reveal, conceal } = useCardReveal();
  * image en mediane et 358 taches longues, contre 36 ms et 13 une fois la classe retiree
  * a la fin de l'animation -- autant que sans aucune animation.
  */
-const playing = ref(props.animated);
+// L’animation d’apparition a été retirée : aucune animation ne peut émettre animationend.
+const playing = ref(false);
 function onRevealEnd(event: AnimationEvent): void {
   if (event.animationName.startsWith('card-reveal')) playing.value = false;
 }
