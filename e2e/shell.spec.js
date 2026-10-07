@@ -87,9 +87,9 @@ test("sur telephone, l'administration se parcourt en liste puis en detail, sans 
   await expect(page.locator(".app-dock")).toHaveCount(0);
   // L'apercu est le menu : les zones y sont listees, groupees comme dans la barre laterale.
   await expect(header.getByRole("link", { name: "Retour à Watchdeck" })).toBeVisible();
-  await expect(page.locator(".admin-area")).toHaveCount(9);
+  await expect(page.locator(".zone")).toHaveCount(9);
 
-  await page.locator(".admin-area", { hasText: "Sécurité & API" }).click();
+  await page.locator(".zone", { hasText: "Sécurité & API" }).click();
   await expect(page).toHaveURL(/\/settings\/security$/);
   await expect(header.getByRole("link", { name: "Retour à l’aperçu de l’administration" })).toBeVisible();
   await expect(header.locator(".admin-header__title")).toHaveText("Sécurité & API");
@@ -850,6 +850,47 @@ test("les anciennes adresses des reglages mènent à leur nouvelle place", async
     await page.goto(from);
     await expect(page, `${from} doit mener a ${to}`).toHaveURL((url) => url.pathname === to, { timeout: 15000 });
   }
+});
+
+test("l'apercu de l'administration donne un verdict, l'activite, les actions et la carte des zones", async ({ page }) => {
+  const started = [];
+  const overview = {
+    requests: { pending_approval: 3, failed: 0 },
+    conflicts: { count: 1 },
+    issues: { open: 0 },
+    notifications: { queue: 0, hold: false, sent_7d: 42, failed_7d: 0, by_day: [1, 2, 3, 4, 5, 6, 7] },
+    users: { total: 14, admins: 1, moderators: 2 },
+    download_clients: { total: 2, enabled: 2 },
+    storage: { connections: 1, running_transfers: 0, blocked_transfers: 0 },
+    images: { files: 900, bytes: 1_500_000_000 },
+    maintenance: {},
+  };
+  await page.route("**/api/**", async (route) => {
+    const { pathname } = new URL(route.request().url());
+    if (pathname === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
+    if (pathname === "/api/admin/overview") return route.fulfill({ json: overview });
+    // Adresse publique et canal renseignes : pas de point de configuration en plus.
+    if (pathname === "/api/settings") return route.fulfill({ json: { plex_url: "http://plex:32400", public_base_url: "https://watchdeck.example", email_enabled: true } });
+    if (pathname === "/api/health") return route.fulfill({ json: { checked_at: new Date().toISOString(), services: { plex: { state: "error", message: "Injoignable" }, sonarr: { state: "ok" } } } });
+    if (pathname === "/api/scheduled-tasks") return route.fulfill({ json: [{ job: "seer", label: "Synchro Seer", state: { status: "failed", finished_at: new Date().toISOString() } }] });
+    if (pathname.startsWith("/api/maintenance/run/")) { started.push(pathname); return route.fulfill({ json: { run_id: "r1" } }); }
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/settings");
+  const verdict = page.locator(".overview-verdict");
+  // Plex en erreur, la tâche en échec, les demandes à approuver et le conflit : quatre points.
+  await expect(verdict.getByRole("heading")).toHaveText(/4\s+points à traiter/, { timeout: 15000 });
+  await expect(page.locator(".overview-kpi")).toHaveCount(4);
+  await expect(page.locator(".overview-todo__item")).toHaveCount(4);
+  await expect(page.locator(".overview-todo__item", { hasText: "3 demandes à approuver" })).toBeVisible();
+  // La carte des zones : les neuf zones, chacune avec sa ligne d'état.
+  await expect(page.locator(".zone")).toHaveCount(9);
+  await expect(page.locator(".zone", { hasText: "Utilisateurs" })).toContainText("14 comptes · 2 modérateurs");
+  await expect(page.locator(".zone", { hasText: "Connexions" })).toContainText("Plex en erreur");
+
+  await page.getByRole("button", { name: "Lancer" }).first().click();
+  await expect.poll(() => started).toEqual(["/api/maintenance/run/warm-images"]);
+  expect(await pageOverflows(page), "debordement horizontal de l'apercu").toBe(false);
 });
 
 test("le niveau 2 s'efface et revient avec la barre du haut", async ({ page }) => {
