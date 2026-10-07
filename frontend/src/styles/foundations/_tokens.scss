@@ -95,6 +95,8 @@
   /* 46px pour le champ, plus les bordures et le coussin interne de la capsule. */
   --app-topbar-h: 54px;
   --app-dock-h: 64px;
+  /* En-tete de l'Administration sur telephone ; nul partout ailleurs (voir plus bas). */
+  --app-admin-header-h: 0px;
   /* Hauteur réellement occupée en haut : la barre de contexte est fixe dans tous
      les modes, l'encoche s'y ajoute. */
   --app-shell-offset-top: calc(var(--app-topbar-h) + var(--safe-top));
@@ -111,6 +113,14 @@
        donc que le dock. */
     --app-shell-offset-top: var(--safe-top);
   }
+}
+
+/* Administration sur telephone : un en-tete fixe remplace le dock. Le contenu et les rangees
+   collantes se placent sous lui, et plus rien n'est reserve en bas que l'encoche. */
+:root:has(.admin-header) {
+  --app-admin-header-h: 52px;
+  --app-shell-offset-top: calc(var(--safe-top) + var(--app-admin-header-h));
+  --app-shell-offset-bottom: var(--safe-bottom);
 }
 
 @include bp.from(shell-medium) {

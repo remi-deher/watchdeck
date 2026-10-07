@@ -67,9 +67,53 @@ test("la navigation primaire ne change pas de forme en changeant de domaine", as
   // principale par des raccourcis contextuels dans Explorer et Bibliotheque.
   for (const path of ["/dashboard", "/discover", "/library", "/downloads", "/settings"]) {
     await page.goto(path);
+    // Sur telephone, l'Administration a son propre en-tete et pas de dock : voir le test
+    // dedie plus bas. Au-dela, sa barre laterale prend la place du rail.
+    if (path === "/settings" && isCompact(page)) {
+      await expect(page.locator(".admin-header")).toBeVisible();
+      await expect(page.locator(".app-dock")).toHaveCount(0);
+      continue;
+    }
     await expect(page.locator(primary)).toBeVisible();
     await expect(page.locator(other)).toHaveCount(0);
   }
+});
+
+test("sur telephone, l'administration se parcourt en liste puis en detail, sans dock", async ({ page }) => {
+  test.skip(!isCompact(page), "le dock et son remplacement n'existent qu'en compact");
+  await page.goto("/settings");
+  const header = page.locator(".admin-header");
+  await expect(header).toBeVisible();
+  await expect(page.locator(".app-dock")).toHaveCount(0);
+  // L'apercu est le menu : les zones y sont listees, groupees comme dans la barre laterale.
+  await expect(header.getByRole("link", { name: "Retour à Watchdeck" })).toBeVisible();
+  await expect(page.locator(".admin-area")).toHaveCount(9);
+
+  await page.locator(".admin-area", { hasText: "Sécurité & API" }).click();
+  await expect(page).toHaveURL(/\/settings\/security$/);
+  await expect(header.getByRole("link", { name: "Retour à l’aperçu de l’administration" })).toBeVisible();
+  await expect(header.locator(".admin-header__title")).toHaveText("Sécurité & API");
+
+  // Les sections de la zone sont des onglets sous l'en-tete, atteignables au pouce.
+  const tabs = page.locator("#main-content .app-subnav__item");
+  await expect(tabs).toHaveText(["Réseau & langue", "API & jeton"]);
+  await tabs.nth(1).click();
+  await expect(page).toHaveURL(/\/settings\/security\/api$/);
+
+  await header.getByRole("link", { name: "Retour à l’aperçu de l’administration" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+});
+
+test("sur telephone, la barre Enregistrer se pose au-dessus de la recherche, pas dessus", async ({ page }) => {
+  test.skip(!isCompact(page), "la barre du bas n'existe qu'en compact");
+  await page.goto("/settings/security");
+  await page.locator("#public-base-url").fill("https://watchdeck.example");
+  const saveBar = page.locator(".form-save-bar");
+  await expect(saveBar).toBeVisible();
+  const search = page.locator(".app-topbar");
+  await expect(search).toBeVisible();
+  const [saveBox, searchBox] = await Promise.all([saveBar.boundingBox(), search.boundingBox()]);
+  expect(saveBox.y + saveBox.height, "l'enregistrement recouvre la recherche").toBeLessThanOrEqual(searchBox.y + 1);
 });
 
 test("chaque page expose un h1 unique, et son titre reste visible dans le shell", async ({ page }) => {

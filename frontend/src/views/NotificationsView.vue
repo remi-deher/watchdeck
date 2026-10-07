@@ -1,5 +1,7 @@
 <template>
-  <AppPage title="Notifications" v-model:query="search" placeholder="Filtrer par média, destinataire ou événement" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
+  <!-- Les sections viennent de la zone Notifications de l'Administration (le compteur de la
+       file s'y ajoute) : c'est AppPage qui les affiche, comme pour toute zone. -->
+  <AppPage title="Notifications" :sections="notificationSubnavItems" :active-section="tab" v-model:query="search" placeholder="Filtrer par média, destinataire ou événement" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters">
 
       <template #tools>
         <div class="notification-control" :class="{paused: holdEnabled}">
@@ -19,10 +21,6 @@
             />
           </div>
         </div>
-      </template>
-
-      <template #tabs>
-        <AppSubnav :items="notificationSubnavItems" :active="tab" aria-label="Sections des notifications" />
       </template>
 
   <Transition name="notification-feedback">
@@ -105,7 +103,6 @@ const DELIVERY_COLUMNS = [
   { key: 'send_key', label: "Clé d'envoi" },
 ];
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
 import { sectionsFor } from '@/navigation';
 import { computed, ref, watch } from 'vue';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';

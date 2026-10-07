@@ -154,6 +154,9 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
 
 @include bp.until(tablet) {
   .form-save-bar { left: max(10px,var(--safe-left)); right: max(10px,var(--safe-right)); bottom: calc(var(--app-shell-offset-bottom) + 10px); width: auto; gap: var(--space-3); }
+  /* La recherche de la page flotte en bas : l'enregistrement se pose au-dessus d'elle plutot
+     que dessus, comme les notifications (voir AppToast). */
+  :root:has(.app-topbar) .form-save-bar { bottom: calc(var(--app-shell-offset-bottom) + var(--app-topbar-h) + 18px); }
   .form-save-bar small { display: none; }
   .form-save-bar .ui-button--primary { min-height: 46px; }
 }

@@ -195,14 +195,16 @@ const syncToolsAnchor = () => { toolsAnchor.value = Boolean(document.getElementB
    commandes de chacune -- et le selecteur de periode, large de 398px, finissait par la
    recouvrir. Une rangee un peu vide se remarque moins qu'une barre qui bouge. */
 const toolsInBar = computed(() => false);
-const { sections: derivedSections, activeKey, destinationLabel } = usePageSections();
+const { sections: derivedSections, activeKey, destinationLabel, space } = usePageSections();
 /* Meme source que la barre du haut : une seule lecture du defilement pour les deux. */
 const { hidden: chromeHidden } = useChromeAutoHide();
 /* Trois modes, trois porteurs, jamais deux a la fois : le rail en deploye, cette rangee
    en intermediaire, et le dock en compact -- ou une rangee de plus, qui defilait
    horizontalement des quatre sections, s'ajoutait a la barre du haut et au dock sur un
    ecran qui n'a la hauteur d'aucune des trois. */
-const showSections = computed(() => mode.value === 'medium');
+/* Exception : dans l'Administration sur telephone il n'y a pas de dock, et les sections
+   des zones passent en onglets defilables sous l'en-tete. */
+const showSections = computed(() => mode.value === 'medium' || (mode.value === 'compact' && space.value === 'admin'));
 const showStickyRow = computed(
   () => (showSections.value && resolvedSections.value.length > 1) || hasTabs.value || (hasTools.value && !toolsInBar.value)
 );
