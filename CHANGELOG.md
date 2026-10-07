@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.78.0 — 2026-10-07
+
+
+### ✨ Nouveautés
+
+- slimmer media sheet header with a single main action and a more-actions menu ([946f988](https://github.com/remi-deher/watchdeck/commit/946f98824c78e96a8952a4f7bd0e6e6b310b96e4))
 ## 1.77.0 — 2026-10-07
 
 
@@ -12,6 +18,10 @@
 
 - stop select and combobox from shifting the page when opened ([b45f11d](https://github.com/remi-deher/watchdeck/commit/b45f11dcf210415b583d320e0a6cdf570db31975))
 - keep scroll position when switching consecutive playbacks ([ea4c966](https://github.com/remi-deher/watchdeck/commit/ea4c9667b558d6f837095ad02d3442ab145506f6))
+
+### 🔧 Maintenance
+
+- v1.77.0 (#744) ([f7967f6](https://github.com/remi-deher/watchdeck/commit/f7967f6deaeeb45794a2365c17557e4fa81c34a8))
 ## 1.76.0 — 2026-10-07
 
 
