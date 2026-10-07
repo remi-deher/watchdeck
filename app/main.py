@@ -132,6 +132,9 @@ async def lifespan(app: FastAPI):
         async with AsyncSessionLocal() as db:
             await _warn_if_database_superuser(db)
 
+        from .services.image_warmup import register_listeners
+
+        register_listeners()
         logging.info("Background work delegated to ARQ")
         from .services.arr_history import sync_all_enabled_instances
 
@@ -146,9 +149,11 @@ async def lifespan(app: FastAPI):
         history_sync.cancel()
     from .routers.image_proxy_api import close_image_refreshes
     from .services.arr_http_client import close_arr_clients
+    from .services.image_warmup import stop_image_warmup
     from .services.playback_preload import stop_playback_images
 
     await stop_playback_images()
+    await stop_image_warmup()
     await close_image_refreshes()
     await close_arr_clients()
     await cache.close()

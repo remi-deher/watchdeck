@@ -41,6 +41,21 @@ def _isolate_application_cache(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_background_image_warmup(monkeypatch):
+    """Un media insere dans un test ne doit pas lancer de telechargement d'images en fond :
+    les ecouteurs d'ajout empilent la file, mais plus rien ne la vide."""
+    from app.services import image_warmup
+
+    async def idle():
+        return None
+
+    monkeypatch.setattr(image_warmup, "_drain", idle)
+    image_warmup._pending.clear()
+    yield
+    image_warmup._pending.clear()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_shared_scan_state(monkeypatch):
     """Isole le miroir Redis de l'état de scan quand la CI expose un vrai Redis.
 

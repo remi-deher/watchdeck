@@ -39,6 +39,8 @@ class MaintenanceRun:
     logs: list = field(default_factory=list)
     started_at: str = ""
     finished_at: str = ""
+    # Media en cours de traitement (titre, vignette, rang) pour les passes longues.
+    current: dict | None = None
 
 
 _runs: dict[str, MaintenanceRun] = {}
@@ -124,6 +126,27 @@ ACTIONS_META = {
         ),
         "icon": "bi-image",
         "color": "secondary",
+    },
+    "warm-images": {
+        "label": "Précharger les images",
+        "description": (
+            "Télécharge l'affiche et le fond d'écran de chaque média de la bibliothèque et des demandes, "
+            "pour que la première ouverture d'une fiche n'attende pas internet. Les nouveaux médias sont "
+            "préchargés à leur ajout."
+        ),
+        "icon": "bi-images",
+        "color": "secondary",
+    },
+    "clear-image-cache": {
+        "label": "Vider le cache d'images",
+        "description": (
+            "Supprime toutes les images mises en cache sur le serveur. Elles sont retéléchargées à la demande ; "
+            "une affiche dont la source a expiré ne reviendra pas."
+        ),
+        "icon": "bi-trash",
+        "color": "danger",
+        "confirm": "Les images seront retéléchargées à la demande. Une affiche dont la source a expiré "
+        "(ancien lien Plex) ne reviendra pas et sera remplacée par un visuel de repli.",
     },
     "retry-failed": {
         "label": "Relancer les échouées",
@@ -653,6 +676,49 @@ async def _run_repair_posters(run: MaintenanceRun):
         raise
 
 
+async def _run_warm_images(run: MaintenanceRun):
+    emit = _Emit(run, logging.getLogger("app.maintenance"))
+    from ..database import AsyncSessionLocal
+    from ..services.image_warmup import load_warm_targets, warm_targets
+
+    try:
+        async with AsyncSessionLocal() as db:
+            targets = await load_warm_targets(db)
+        if not targets:
+            emit.warn("Aucun média à précharger.")
+            return
+        emit.info(f"Préchargement des images de {len(targets)} média(s)…")
+
+        def on_progress(done: int, total: int, target) -> None:
+            # Reste sous 100 tant que la passe n'est pas terminee : la barre finit avec elle.
+            run.progress = min(99.0, round(done / total * 100, 1))
+            run.current = {
+                "title": target.title,
+                "media_type": target.media_type,
+                "cover_url": target.cover_url,
+                "done": done,
+                "total": total,
+            }
+
+        stats = await warm_targets(targets, on_progress)
+        emit.ok(f"{stats['warmed']} média(s) préchargé(s), {stats['empty']} sans image disponible.")
+    except Exception as e:
+        emit.err(str(e))
+        raise
+
+
+async def _run_clear_image_cache(run: MaintenanceRun):
+    emit = _Emit(run, logging.getLogger("app.maintenance"))
+    from ..services.image_warmup import clear_image_cache
+
+    try:
+        result = await asyncio.to_thread(clear_image_cache)
+        emit.ok(f"{result['files']} fichier(s) supprimé(s), {result['bytes'] / 1_048_576:.1f} Mo libérés.")
+    except Exception as e:
+        emit.err(str(e))
+        raise
+
+
 class _LogCaptureHandler(logging.Handler):
     """Capture les logs du scheduler et les injecte dans le run."""
 
@@ -683,6 +749,8 @@ _ACTION_RUNNERS = {
     "merge-duplicates": _run_merge_duplicates,
     "enrich-and-merge": _run_enrich_and_merge,
     "repair-posters": _run_repair_posters,
+    "warm-images": _run_warm_images,
+    "clear-image-cache": _run_clear_image_cache,
     "resync-availability": _run_resync_availability,
 }
 
@@ -800,4 +868,5 @@ async def get_run(run_id: str, _: None = Depends(require_admin)):
         "logs": run.logs,
         "started_at": run.started_at,
         "finished_at": run.finished_at,
+        "current": run.current,
     }

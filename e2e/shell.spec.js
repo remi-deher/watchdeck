@@ -687,7 +687,9 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
   expect(cadre.rayon).not.toBe("0px");
   // Ni echelle permanente, ni reaction au survol.
   expect(cadre.transform).toBe("none");
-  await hero.hover();
+  // Survol en haut a droite : sur mobile l'affiche couvre le centre de la banniere.
+  const { width } = await hero.boundingBox();
+  await hero.hover({ position: { x: width - 40, y: 60 } });
   await page.waitForTimeout(400);
   expect(await hero.evaluate((node) => getComputedStyle(node).transform)).toBe("none");
 
