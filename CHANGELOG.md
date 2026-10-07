@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.75.0 — 2026-10-07
+
+
+### ✨ Nouveautés
+
+- redesign transfers, connections and history ([9bf6cf4](https://github.com/remi-deher/watchdeck/commit/9bf6cf4a8139b32828847b640eae6e9933f59f54))
 ## 1.74.5 — 2026-10-06
 
 
 ### 🐛 Corrections
 
 - prevent speed label flicker between telemetry ticks ([3719b3f](https://github.com/remi-deher/watchdeck/commit/3719b3f3468b58a76998b491bdb454e6c92d1bb9))
+
+### 🔧 Maintenance
+
+- v1.74.5 (#732) ([ae3997f](https://github.com/remi-deher/watchdeck/commit/ae3997f487bc8669b70b4b51f8f01d0103e5efd5))
 ## 1.74.4 — 2026-10-06
 
 
