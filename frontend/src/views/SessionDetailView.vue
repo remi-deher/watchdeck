@@ -37,11 +37,18 @@ const route = useRoute();
 const router = useRouter();
 const id = computed(() => String(route.params.sessionId || ''));
 
+/* Lectures consecutives de la ligne ouverte : meme mecanique, a l'interieur de la serie. */
+const serie = computed(() => { void route.fullPath; return serieCourante(); });
+
 const query = useQuery({
   queryKey: computed(() => ['playback', 'session', id.value]),
   queryFn: ({ signal }) => api<Record<string, any>>(`/api/playback/sessions/${encodeURIComponent(id.value)}`, { signal }),
   enabled: computed(() => Boolean(id.value)),
   retry: 0,
+  /* D'une lecture a l'autre de la serie, la fiche precedente reste affichee le temps du
+     chargement : la remplacer par un « Chargement… » la raccourcissait et ramenait la
+     fenetre en haut, la ou l'on venait de cliquer. Hors de la serie, on repart de zero. */
+  placeholderData: (precedent) => (serie.value.some((lecture) => String(lecture.id) === id.value) ? precedent : undefined),
 });
 const session = computed(() => query.data.value || null);
 
@@ -62,8 +69,6 @@ function naviguer(direction: number): void {
   if (!suivant) return;
   void router.replace({ path: `/activity/session/${suivant}`, state: etatDeSurfaceCourant() as any });
 }
-/* Lectures consecutives de la ligne ouverte : meme mecanique, a l'interieur de la serie. */
-const serie = computed(() => { void route.fullPath; return serieCourante(); });
 function ouvrirLecture(cible: string): void {
   if (!cible || cible === id.value) return;
   void router.replace({ path: `/activity/session/${cible}`, state: etatDeSurfaceCourant() as any });
