@@ -77,9 +77,12 @@ async def _merge_entries(keeper: MediaRequest, dup: MediaRequest, db: AsyncSessi
     await db.delete(dup)
 
 
-@router.get("/conflicts")
-async def list_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)):
-    """Retourne tous les conflits détectés, filtrés des ignorés."""
+async def compute_conflicts(db: AsyncSession) -> dict:
+    """Tous les conflits détectés, filtrés des ignorés.
+
+    Parcourt toutes les demandes : l'aperçu de l'administration, qui n'a besoin que d'un
+    compte, le garde donc en cache plutôt que de rappeler ceci à chaque visite.
+    """
     ignored = _load_ignored()
     all_reqs = (await db.execute(select(MediaRequest))).scalars().all()
     library_by_id = {item.id: item for item in (await db.execute(select(LibraryItem))).scalars().all()}
@@ -168,6 +171,12 @@ async def list_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Dep
         "long_pending": long_pending,
         "library_link_conflicts": library_link_conflicts,
     }
+
+
+@router.get("/conflicts")
+async def list_conflicts(db: AsyncSession = Depends(get_db_async), _: None = Depends(require_moderator)):
+    """Retourne tous les conflits détectés, filtrés des ignorés."""
+    return await compute_conflicts(db)
 
 
 @router.post("/conflicts/resolve")

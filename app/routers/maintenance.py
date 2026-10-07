@@ -22,6 +22,7 @@ from sqlalchemy.future import select
 from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, Settings
+from ..services.maintenance_history import last_run, record_last_run
 from ..utils import now_utc
 
 router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
@@ -786,7 +787,11 @@ async def _is_action_enabled(action: str, db: AsyncSession) -> tuple[bool, str |
 async def list_actions(db: AsyncSession = Depends(get_db_async), _: None = Depends(require_admin)):
     result = {}
     for key, meta in ACTIONS_META.items():
-        last = _last_runs.get(key)
+        local = _last_runs.get(key)
+        # Le cache partage d'abord : il survit au redemarrage et voit les passages du worker.
+        last = await last_run(key) or (
+            {"status": local.status, "finished_at": local.finished_at, "log_count": len(local.logs)} if local else None
+        )
 
         enabled, disabled_reason = await _is_action_enabled(key, db)
 
@@ -794,13 +799,7 @@ async def list_actions(db: AsyncSession = Depends(get_db_async), _: None = Depen
             **meta,
             "enabled": enabled,
             "disabled_reason": disabled_reason,
-            "last_run": {
-                "status": last.status,
-                "finished_at": last.finished_at,
-                "log_count": len(last.logs),
-            }
-            if last
-            else None,
+            "last_run": last,
         }
     return result
 
@@ -843,6 +842,7 @@ async def start_run(action: str, db: AsyncSession = Depends(get_db_async), _: No
             run.progress = 100
             run.finished_at = now_utc().isoformat()
             _last_runs[action] = run
+            await record_last_run(action, run.status, run.finished_at, len(run.logs))
 
     asyncio.create_task(_execute())
     return {"run_id": run_id}

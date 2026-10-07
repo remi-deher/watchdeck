@@ -189,10 +189,12 @@ async def _manual_result(run_id: str | None, action: str | None, operation):
     if not run_id or not action:
         return await operation
     from .job_queue import set_json
+    from .services.maintenance_history import record_last_run
 
     key = f"watchdeck:maintenance:{run_id}"
     try:
         result = await operation
+        finished = now_utc().isoformat()
         state = {
             "run_id": run_id,
             "action": action,
@@ -200,12 +202,14 @@ async def _manual_result(run_id: str | None, action: str | None, operation):
             "progress": 100,
             "logs": ["[OK] Job ARQ termine."],
             "started_at": "",
-            "finished_at": now_utc().isoformat(),
+            "finished_at": finished,
         }
         await set_json(key, state)
+        await record_last_run(action, "done", finished, 1)
         await publish("job.updated", state, admin_only=True)
         return result
     except Exception as exc:
+        finished = now_utc().isoformat()
         state = {
             "run_id": run_id,
             "action": action,
@@ -213,9 +217,10 @@ async def _manual_result(run_id: str | None, action: str | None, operation):
             "progress": 100,
             "logs": [f"[ERR] {exc}"],
             "started_at": "",
-            "finished_at": now_utc().isoformat(),
+            "finished_at": finished,
         }
         await set_json(key, state)
+        await record_last_run(action, "error", finished, 1)
         await publish("job.updated", state, admin_only=True)
         raise
 
@@ -555,6 +560,7 @@ async def job_send_notification(ctx: dict, pending_id: int, force: bool = False)
 async def job_maintenance(ctx: dict, run_id: str, action: str):
     from .job_queue import set_json
     from .routers.maintenance import _ACTION_RUNNERS, MaintenanceRun
+    from .services.maintenance_history import record_last_run
 
     run = MaintenanceRun(action=action, status="running", started_at=now_utc().isoformat())
     key = f"watchdeck:maintenance:{run_id}"
@@ -591,6 +597,7 @@ async def job_maintenance(ctx: dict, run_id: str, action: str):
         run.progress = 100
         run.finished_at = now_utc().isoformat()
         await set_json(key, {"run_id": run_id, **run.__dict__})
+        await record_last_run(action, run.status, run.finished_at, len(run.logs))
         await publish(
             "job.updated",
             {"run_id": run_id, "action": action, "status": run.status, "progress": 100},
