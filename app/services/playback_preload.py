@@ -18,7 +18,7 @@ async def prepare_playback_images() -> None:
     from .playback_activity import live_activity_snapshot
 
     snapshot = await live_activity_snapshot()
-    variants = {}
+    variants: dict[tuple[str, int], None] = {}
     for session in snapshot.get("active", [])[:12]:
         for field, widths in (("thumb_url", (162, 312, 630)), ("art_url", (1200,)), ("logo_url", (600,))):
             src = session.get(field)
