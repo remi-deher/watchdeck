@@ -1,11 +1,31 @@
 # Changelog
 
+## 1.76.0 — 2026-10-07
+
+
+### test
+
+- open reload fixture without touch timing race ([6267967](https://github.com/remi-deher/watchdeck/commit/626796722bda0f056b862bbfcb136c09cec698fc))
+
+### ✨ Nouveautés
+
+- add interface palettes and redesign dashboard home ([6ec6fad](https://github.com/remi-deher/watchdeck/commit/6ec6fad4674f894976c5ab55f2ddc97c11378f2c))
+
+### 🐛 Corrections
+
+- parse theme bootstrap test with DOMParser ([cd39e53](https://github.com/remi-deher/watchdeck/commit/cd39e539c875c27e3ca6b252c033c1e6b1fac040))
+- preserve page context with compact navigation ([9d48f43](https://github.com/remi-deher/watchdeck/commit/9d48f43fc89ce35e0ba6b08c2196860c61dd2a55))
+- keep search centered with compact rail ([fc409c2](https://github.com/remi-deher/watchdeck/commit/fc409c2ef1cb32997ba902f90eacedbc7315573c))
 ## 1.75.0 — 2026-10-07
 
 
 ### ✨ Nouveautés
 
 - redesign transfers, connections and history ([9bf6cf4](https://github.com/remi-deher/watchdeck/commit/9bf6cf4a8139b32828847b640eae6e9933f59f54))
+
+### 🔧 Maintenance
+
+- v1.75.0 (#736) ([21b6b3c](https://github.com/remi-deher/watchdeck/commit/21b6b3c10fce11e06104ea964b5f25ecc232c89f))
 ## 1.74.5 — 2026-10-06
 
 
