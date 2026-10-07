@@ -10,6 +10,7 @@ from sqlalchemy.future import select
 
 from ..models import LibraryItem, MediaRequest
 from ..serializers import request_status_value
+from ..utils import wrap_rail_poster
 from .operational_projection import plex_library_projection, request_operational_projection
 
 
@@ -98,6 +99,15 @@ async def annotate_media_items(db: AsyncSession, items: list[dict]) -> list[dict
         elif req:
             it.update(request_operational_projection(req))
     return items
+
+
+async def annotate_rail_items(db: AsyncSession, items: list[dict]) -> list[dict]:
+    """`annotate_media_items` pour un rail de la fiche (recommandations, similaires, saga) :
+    leurs affiches TMDB passent en plus par le proxy, qui les garde en cache."""
+    annotated = await annotate_media_items(db, items)
+    for item in annotated:
+        item["poster_url"] = wrap_rail_poster(item.get("poster_url"))
+    return annotated
 
 
 async def annotate_page(db: AsyncSession, payload: dict) -> dict:

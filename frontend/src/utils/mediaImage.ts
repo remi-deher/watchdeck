@@ -152,3 +152,28 @@ export function srcSetFor(url?: string | null, options: ProxyUrlOptions = {}): s
   rungs.push(`${base.replace(TMDB_PATH, '/t/p/original/')} ${originalDescriptor}w`);
   return rungs.join(', ');
 }
+
+/* Portraits du casting : servis par le proxy, qui les garde sur disque -- le serveur les
+   precharge a ces memes largeurs et qualite (voir CAST_PROXY_* dans app/utils.py), de sorte
+   qu'une fiche ne les attend pas sur le CDN de TMDB. Source `h632` : assez grande pour deux
+   fois la taille d'affichage, bien plus legere que l'original. */
+export const CAST_WIDTHS = [185, 370];
+const CAST_QUALITY = 92;
+const TMDB_ANY_SIZE = /\/t\/p\/(w\d+|h\d+|original)\//;
+
+export function castPortrait(url?: string | null): { src?: string; srcset?: string } {
+  if (!url) return {};
+  // Hors TMDB (image locale, autre CDN) : le comportement habituel, sans prechargement.
+  if (!TMDB_IMAGE_HOST.test(url)) {
+    return {
+      src: proxyUrl(url, { width: CAST_WIDTHS[0] }) ?? undefined,
+      srcset: srcSetFor(url, { width: CAST_WIDTHS[0], kind: 'profile' }),
+    };
+  }
+  const source = url.replace(TMDB_ANY_SIZE, '/t/p/h632/');
+  const variant = (width: number) => `/api/image-proxy?url=${encodeURIComponent(source)}&width=${width}&quality=${CAST_QUALITY}&format=webp`;
+  return {
+    src: variant(CAST_WIDTHS[0]),
+    srcset: CAST_WIDTHS.map((width) => `${variant(width)} ${width}w`).join(', '),
+  };
+}

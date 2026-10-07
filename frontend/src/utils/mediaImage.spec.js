@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { proxyUrl, srcSetFor } from './mediaImage';
+import { castPortrait, proxyUrl, srcSetFor } from './mediaImage';
 
 const isProxied = (url) => proxyUrl(url).startsWith('/api/image-proxy');
 
@@ -99,6 +99,22 @@ describe('proxyUrl', () => {
     // Proxifier ce qui marche deja ferait transiter tout le catalogue par le serveur.
     expect(isProxied('https://image.tmdb.org/t/p/w342/abc.jpg')).toBe(false);
     expect(isProxied('https://artworks.thetvdb.com/banners/v4/series/1/posters/x.jpg')).toBe(false);
+  });
+});
+
+describe('castPortrait', () => {
+  it('passe par le proxy, depuis le barreau h632, aux largeurs que le serveur précharge', () => {
+    const { src, srcset } = castPortrait('https://image.tmdb.org/t/p/w185/face.jpg');
+    const source = encodeURIComponent('https://image.tmdb.org/t/p/h632/face.jpg');
+    expect(src).toBe(`/api/image-proxy?url=${source}&width=185&quality=92&format=webp`);
+    expect(srcset).toBe(
+      `/api/image-proxy?url=${source}&width=185&quality=92&format=webp 185w, /api/image-proxy?url=${source}&width=370&quality=92&format=webp 370w`,
+    );
+  });
+
+  it('ne fait rien sans portrait, et garde le chemin habituel hors TMDB', () => {
+    expect(castPortrait(null)).toEqual({});
+    expect(castPortrait('/api/image-proxy?url=x').src).toContain('width=185');
   });
 });
 

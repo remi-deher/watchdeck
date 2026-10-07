@@ -12,22 +12,34 @@
         :keywords="meta.description"
       >
         <template #actions>
-          <UiButton size="sm" :disabled="running || meta.enabled === false" @click="run(String(key))"><Play/>Exécuter</UiButton>
+          <UiButton size="sm" :disabled="running || meta.enabled === false" @click="run(String(key), meta)"><Play/>Exécuter</UiButton>
         </template>
       </SettingsItem>
     </SettingsItemList>
+    <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
     <section v-if="current" class="panel run-panel">
-      <UiSectionHeader :title="current.action">
+      <UiSectionHeader :title="actions[current.action]?.label || current.action">
         <template #meta><StatusBadge :status="current.status" /></template>
       </UiSectionHeader>
       <UiProgress :value="current.progress" label="Progression de la tâche" />
+      <!-- Passes longues (préchargement des images) : le média en cours, avec sa pochette. -->
+      <div v-if="current.current" class="run-media" aria-live="polite">
+        <img v-if="current.current.cover_url" class="run-media__cover" :src="current.current.cover_url" alt="" width="48" height="72" decoding="async">
+        <span v-else class="run-media__cover run-media__cover--empty" aria-hidden="true" />
+        <div class="run-media__text">
+          <strong>{{ current.current.title }}</strong>
+          <small>{{ current.current.done }} sur {{ current.current.total }}</small>
+        </div>
+      </div>
       <pre>{{ (current.logs || []).join('\n') }}</pre>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import ConfirmModal from '@/components/ConfirmModal.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import { useConfirm } from '@/composables/useConfirm';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import { computed, ref } from "vue";
 import { useMutation, useQuery } from '@tanstack/vue-query';
@@ -58,8 +70,17 @@ async function load(): Promise<void> {
 
 const startMutation = useMutation({ mutationFn: (action: string) => api<any>(`/api/maintenance/run/${action}`, { method: 'POST' }), retry: 0 });
 
-async function run(action: string): Promise<void> {
+const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
+
+async function run(action: string, meta?: Record<string, any>): Promise<void> {
   actionError.value = '';
+  // Une action destructive porte son avertissement : rien ne part avant l'accord.
+  if (meta?.confirm && !await askConfirm({
+    title: meta.label,
+    message: meta.confirm,
+    confirmLabel: 'Exécuter',
+    danger: meta.color === 'danger',
+  })) return;
   try {
     const data = await startMutation.mutateAsync(action);
     runId.value = data.run_id;
@@ -79,4 +100,9 @@ useRealtime(['job.updated'], (type?: string, event?: any) => {
 
 <style scoped lang="scss">
 .maintenance-tab { display: flex; flex-direction: column; gap: var(--space-3); }
+.run-media { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); min-width: 0; }
+.run-media__cover { flex: none; width: 48px; height: 72px; border-radius: var(--radius-xs); object-fit: cover; background: var(--surface-2); }
+.run-media__text { display: grid; gap: 2px; min-width: 0; }
+.run-media__text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-media__text small { color: var(--muted); }
 </style>
