@@ -201,8 +201,8 @@ const bannerIsPoster = computed(() => !bannerSource.value && Boolean(props.techn
 const bannerUrl = computed<string | null>(() => {
   const raw = bannerSource.value || props.technical?.poster_url || props.item.thumb_url || '';
   if (!raw) return null;
-  if (raw.startsWith('/api/playback/thumb')) return `${raw}&width=${bannerIsPoster.value ? 400 : 1600}`;
-  return proxyUrl(raw, { width: 1600 });
+  if (raw.startsWith('/api/playback/thumb')) return `${raw}&width=${bannerIsPoster.value ? 400 : 1920}`;
+  return proxyUrl(raw, bannerIsPoster.value ? { width: 1600 } : { kind: 'backdrop' });
 });
 
 /* Debit moyen : celui de Plex quand on l'a, sinon deduit du poids et de la duree. */

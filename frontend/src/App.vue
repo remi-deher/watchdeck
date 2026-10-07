@@ -73,8 +73,15 @@ const routeCourante = useRoute();
    « Session de lecture »...). */
 const libelleSurface = computed(() => String(ficheAffichee.value?.route.meta?.title || 'Détail'));
 const ficheAffichee = shallowRef<{ route: RouteLocationNormalizedLoaded; cle: string } | null>(null);
+/* Cle de la fiche : son adresse, de sorte que passer d'une fiche a une autre la remonte
+   a neuf. Exception, les lectures consecutives d'une session : on passe de l'une a l'autre
+   depuis le bas de la fiche, et la remonter la vidait le temps du chargement, donc la
+   fenetre revenait tout en haut. Elle garde son instance, et sa place. */
+const CHEMIN_SESSION = '/activity/session/:sessionId';
+const cleDeFiche = (route: RouteLocationNormalizedLoaded) =>
+  route.matched[route.matched.length - 1]?.path === CHEMIN_SESSION ? CHEMIN_SESSION : route.fullPath;
 watch(
-  () => [surfaceOuverte.value, routeCourante.fullPath] as const,
+  () => [surfaceOuverte.value, cleDeFiche(routeCourante), routeCourante.fullPath] as const,
   ([ouverte, cle]) => {
     // Tant que la surface est ouverte, elle suit la route (passage d'une fiche a l'autre) ;
     // a la fermeture, on garde la derniere fiche jusqu'a la fin de la sortie.

@@ -34,7 +34,15 @@ from ..services.diagnostics import record_event, update_request_context
 from ..services.email_service import build_correction_email, send_correction_notification
 from ..services.notification_policy import PSEUDO_REQUESTERS
 from ..services.request_lifecycle import transition_request
-from ..utils import arr_image_url, async_get_or_404, identity_keys, now_utc_naive, unwrap_image_proxy, wrap_image_proxy
+from ..utils import (
+    arr_image_url,
+    async_get_or_404,
+    identity_keys,
+    now_utc_naive,
+    unwrap_image_proxy,
+    wrap_backdrop_proxy,
+    wrap_image_proxy,
+)
 from .arr_shared import _resolve_arr_instance
 from .issues_api import _serialize_issue
 
@@ -419,7 +427,7 @@ async def list_library(
             "year": item.year,
             "media_type": item.media_type,
             "poster_url": wrap_image_proxy(item.poster_url),
-            "art_url": wrap_image_proxy(item.art_url),
+            "art_url": wrap_backdrop_proxy(item.art_url),
             "genres": [g.strip() for g in (item.genres or "").split(",") if g.strip()],
             "overview": item.overview,
             "has_vf": item.has_vf,

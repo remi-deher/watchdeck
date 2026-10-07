@@ -302,19 +302,17 @@ async def preview_email_template(
             settings.email_available_subject
             if (settings and isinstance(settings.email_available_subject, str))
             else None
-        ) or "[Watchdeck] {titre} est disponible sur Plex !"
+        ) or "{titre} est disponible sur Plex !"
     else:
         tpl = (
             settings.email_request_template if (settings and isinstance(settings.email_request_template, str)) else None
         ) or DEFAULT_REQUEST_TEMPLATE
         subject_tmpl = (
             settings.email_request_subject if (settings and isinstance(settings.email_request_subject, str)) else None
-        ) or "[Watchdeck] Nouvelle demande : {titre}"
+        ) or "Nouvelle demande : {titre}"
 
     fallback_subject = (
-        f"[Watchdeck] Nouvelle demande : {fake.title}"
-        if event == "request"
-        else f"[Watchdeck] {fake.title} est disponible sur Plex !"
+        f"Nouvelle demande : {fake.title}" if event == "request" else f"{fake.title} est disponible sur Plex !"
     )
     rendered_subject = render_subject(subject_tmpl, tags, fallback=fallback_subject)
 

@@ -22,6 +22,7 @@ _EMAIL_SHELL = """<!DOCTYPE html>
 <style>a{color:{{ _brand_color }};text-decoration:none}</style>
 </head>
 <body style="margin:0;padding:0;background:{{ _bg_color }};font-family:{{ _font_family }};color:#e9e9e9">
+{% if _preheader %}<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">{{ _preheader }}{{ _preheader_padding }}</div>{% endif %}
 {% macro title_block() %}
 <div style="color:#ffffff;font-size:19px;font-weight:bold;line-height:1.3">{{ _title }}{% if _year %} <span style="color:#888888;font-weight:normal">({{ _year }})</span>{% endif %}</div>
 <div style="margin-top:9px">
@@ -109,27 +110,27 @@ Amusez-vous bien !"""
 SERIES_AVAILABILITY_DEFAULTS = {
     "episode_available": (
         "**Un nouvel episode de {titre} est disponible {langue}.**\n\n{resume_disponibilite}",
-        "[Watchdeck] Nouvel episode disponible : {titre} {details_saison_episode}",
+        "Nouvel episode disponible : {titre} {details_saison_episode}",
     ),
     "season_started": (
         "**Une nouvelle saison de {titre} commence a etre disponible {langue}.**\n\n{resume_disponibilite}",
-        "[Watchdeck] Saison disponible : {titre} {details_saison_episode}",
+        "Saison disponible : {titre} {details_saison_episode}",
     ),
     "season_partial": (
         "**Une saison de {titre} est partiellement disponible {langue}.**\n\n{resume_disponibilite}",
-        "[Watchdeck] Saison partiellement disponible : {titre}",
+        "Saison partiellement disponible : {titre}",
     ),
     "season_complete": (
         "**Une saison complete de {titre} est disponible {langue}.**\n\n{resume_disponibilite}",
-        "[Watchdeck] Saison complete disponible : {titre}",
+        "Saison complete disponible : {titre}",
     ),
     "series_partial": (
         "**Plusieurs saisons de {titre} sont maintenant disponibles.**\n\n{resume_disponibilite}",
-        "[Watchdeck] Nouvelles saisons disponibles : {titre}",
+        "Nouvelles saisons disponibles : {titre}",
     ),
     "series_complete": (
         "**La serie complete {titre} est disponible {langue}.**\n\n{resume_disponibilite}",
-        "[Watchdeck] Serie complete disponible : {titre}",
+        "Serie complete disponible : {titre}",
     ),
 }
 
@@ -549,7 +550,7 @@ def render_template(template_str: str, tags: dict, jinja_ctx: dict) -> str:
     # 3. Injection dans la coquille Jinja2 globale
     try:
         html = _EMAIL_SHELL.replace("__CONTENT__", html_content)
-        html = _jinja_env.from_string(html).render(**jinja_ctx)
+        html = _jinja_env.from_string(html).render(**{**jinja_ctx, **_build_preheader_ctx(jinja_ctx, tags)})
     except TemplateError:
         logger.exception("Template render error")
         return "<p>Erreur de rendu du template — voir les journaux serveur pour le détail.</p>"
@@ -568,6 +569,28 @@ def render_subject(template_str: str, tags: dict, fallback: str) -> str:
     # saisi par un utilisateur) ne doit pas pouvoir ajouter d'en-tete au message.
     rendered = " ".join(rendered.split())
     return rendered.strip() or fallback
+
+
+def _build_preheader_ctx(jinja_ctx: dict, tags: dict) -> dict:
+    """Texte d'aperçu caché (préheader) : l'essentiel d'abord, séparé par « · ».
+
+    Sans lui, les clients mail prennent le premier texte du corps, ici le bandeau de
+    marque suivi du badge et du titre, collés bout à bout. Le remplissage final
+    empêche le client d'y accoler le texte du corps après notre résumé."""
+    title = jinja_ctx.get("_title", "")
+    if title and jinja_ctx.get("_year"):
+        title = f"{title} ({jinja_ctx['_year']})"
+    parts = [
+        jinja_ctx.get("_badge_text", ""),
+        title,
+        tags.get("{details_saison_episode}", ""),
+        tags.get("{langue}", ""),
+    ]
+    preheader = " · ".join(str(p).strip() for p in parts if p and str(p).strip())
+    return {
+        "_preheader": _html.escape(preheader),
+        "_preheader_padding": "&zwnj;&nbsp;" * 80 if preheader else "",
+    }
 
 
 async def _send_templated(
@@ -617,8 +640,8 @@ async def send_request_notification(
         template_field="email_request_template",
         default_template=DEFAULT_REQUEST_TEMPLATE,
         subject_field="email_request_subject",
-        default_subject="[Watchdeck] Nouvelle demande : {titre}",
-        subject_fallback=f"[Watchdeck] Nouvelle demande : {request.title}",
+        default_subject="Nouvelle demande : {titre}",
+        subject_fallback=f"Nouvelle demande : {request.title}",
         tags=tags,
         extra_jinja_ctx=extra_ctx,
         dry_run=dry_run,
@@ -645,7 +668,11 @@ async def send_available_notification(
     template_field = "email_upgrade_template" if is_upgrade else "email_available_template"
     subject_field = "email_upgrade_subject" if is_upgrade else "email_available_subject"
     default_template = DEFAULT_UPGRADE_TEMPLATE if is_upgrade else DEFAULT_AVAILABLE_TEMPLATE
-    default_subject = "[Watchdeck] Mise a jour VF : {titre}" if is_upgrade else "[Watchdeck] Disponible : {titre}"
+    default_subject = (
+        "VF disponible : {titre} {details_saison_episode}"
+        if is_upgrade
+        else "Disponible {langue} : {titre} {details_saison_episode}"
+    )
     event_type = "upgrade" if is_upgrade else "available"
 
     if not is_upgrade:
@@ -697,7 +724,7 @@ async def send_available_notification(
         default_template=default_template,
         subject_field=subject_field,
         default_subject=default_subject,
-        subject_fallback=f"[Watchdeck] Disponible : {request.title}",
+        subject_fallback=f"Disponible : {request.title}",
         tags=tags,
         extra_jinja_ctx=extra_ctx,
         dry_run=dry_run,
@@ -738,8 +765,8 @@ async def send_failure_notification(
         template_field="email_failure_template",
         default_template=DEFAULT_FAILURE_TEMPLATE,
         subject_field="email_failure_subject",
-        default_subject="[Watchdeck] Échec de transmission : {titre}",
-        subject_fallback=f"[Watchdeck] Échec de transmission : {request.title}",
+        default_subject="Échec de transmission : {titre}",
+        subject_fallback=f"Échec de transmission : {request.title}",
         tags=tags,
         extra_jinja_ctx=extra_ctx,
         dry_run=dry_run,
@@ -778,8 +805,8 @@ async def send_import_blocked_notification(
 **Intervention manuelle requise :**
 {raison}""",
         subject_field="_import_blocked_subject",
-        default_subject="[Watchdeck] Import bloque : {titre}",
-        subject_fallback=f"[Watchdeck] Import bloque : {request.title}",
+        default_subject="Import bloque : {titre}",
+        subject_fallback=f"Import bloque : {request.title}",
         tags=tags,
         extra_jinja_ctx=extra_ctx,
         dry_run=dry_run,
@@ -816,8 +843,8 @@ async def send_cancelled_notification(
         template_field="email_cancelled_template",
         default_template=DEFAULT_CANCELLED_TEMPLATE,
         subject_field="email_cancelled_subject",
-        default_subject="[Watchdeck] Demande annulée : {titre}",
-        subject_fallback=f"[Watchdeck] Demande annulée : {request.title}",
+        default_subject="Demande annulée : {titre}",
+        subject_fallback=f"Demande annulée : {request.title}",
         tags=tags,
         extra_jinja_ctx=extra_ctx,
         dry_run=dry_run,
@@ -857,10 +884,9 @@ def build_correction_email(
 
     template_str = _resolve_str_setting(settings, "email_correction_template") or DEFAULT_CORRECTION_TEMPLATE
     subject_str = (
-        _resolve_str_setting(settings, "email_correction_subject")
-        or "[Watchdeck] Correction : {titre} {details_saison_episode}"
+        _resolve_str_setting(settings, "email_correction_subject") or "Correction : {titre} {details_saison_episode}"
     )
-    subject = render_subject(subject_str, tags, fallback=f"[Watchdeck] Correction : {media.title}")
+    subject = render_subject(subject_str, tags, fallback=f"Correction : {media.title}")
     html = render_template(template_str, tags, jinja_ctx)
     return subject, html
 

@@ -156,7 +156,7 @@ const props = withDefaults(
 
 /* Fond du hero : l'URL du serveur est une vignette de 600 px, floue une fois etiree sur
    toute la largeur. On demande une variante assez large pour l'ecran. */
-const backdropUrl = computed(() => (props.detail?.backdrop_url ? proxyUrl(props.detail.backdrop_url, { width: 1600 }) : null));
+const backdropUrl = computed(() => (props.detail?.backdrop_url ? proxyUrl(props.detail.backdrop_url, { kind: 'backdrop' }) : null));
 
 /* Affiche introuvable (Plex a change son chemin, source disparue) : le repli plutot
    qu'une image cassee. */

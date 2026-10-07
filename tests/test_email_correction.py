@@ -26,7 +26,7 @@ def test_build_correction_email_renders_corrections_and_note():
         plex_deep_link="#",
     )
 
-    assert subject == "[Watchdeck] Correction : Inception"
+    assert subject == "Correction : Inception"
     assert "Alice" in html
     assert "Son corrigé" in html
     assert "Sous-titres corrigés" in html
