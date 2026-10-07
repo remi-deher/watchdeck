@@ -18,7 +18,7 @@
 import { computed, ref } from 'vue';
 import type { ChartConfiguration, ChartEvent, ActiveElement } from 'chart.js';
 import ChartCanvas from './ChartCanvas.vue';
-import { chartPalette } from './chartJs';
+import { chartColor, chartPalette } from './chartJs';
 import { formatNumber } from '@/utils/format';
 
 export interface PieSlice { label: string; value: number | string; grouped?: boolean; rawValue?: any; [key: string]: any }
@@ -30,7 +30,7 @@ const hovered = ref<number | null>(null);
 const total = computed(() => props.items.reduce((sum, item) => sum + Number(item.value || 0), 0) || 1);
 const slices = computed(() => props.items.map((item, index) => {
   const share = Number(item.value || 0) / total.value;
-  return { ...item, color: item.grouped ? '#6b7280' : chartPalette[index % chartPalette.length], percentLabel: (share * 100).toFixed(share < 0.01 ? 2 : 1) };
+  return { ...item, color: item.grouped ? '#6b7280' : chartColor(chartPalette[index % chartPalette.length]), percentLabel: (share * 100).toFixed(share < 0.01 ? 2 : 1) };
 }));
 const centerValue = computed(() => formatNumber(total.value));
 function isDimmed(slice: PieSlice, index: number): boolean { return hovered.value !== null ? hovered.value !== index : Boolean(props.selected) && slice.label !== props.selected; }

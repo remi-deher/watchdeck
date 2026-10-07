@@ -1,6 +1,7 @@
 <template>
   <AppPage hide-search
-    title="Tableau de bord"
+    title="Accueil"
+    page-class="dashboard-home"
     :error="error"
     error-title="Actualisation partielle"
     retry
@@ -8,8 +9,6 @@
     loading-message="Chargement du tableau de bord…"
     @retry="load(true)"
   >
-
-    <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
 
     <DashboardGreeting :name="userName" :attention-count="attentionCount" :syncing="syncingAll" @sync-all="syncAll" />
 
@@ -22,7 +21,22 @@
       @select="openSession"
     />
 
-    <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action"/>
+    <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
+
+    <UiDisclosure
+      :title="attentionCount ? `${attentionCount} élément${attentionCount > 1 ? 's' : ''} à traiter` : 'Aucune intervention nécessaire'"
+      description="Demandes à approuver, imports bloqués et acquisitions en échec."
+      storage-key="dashboard.actionsOpen"
+    >
+      <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action" />
+    </UiDisclosure>
+
+    <MetricGrid aria-label="Vue d’ensemble de la bibliothèque">
+      <MetricCard label="À approuver" :value="counts.pending_approval ?? pending.length" detail="Demandes en attente" to="/library?status=pending_approval" :loading="loading && !updatedAt" />
+      <MetricCard label="En téléchargement" :value="queueTotals.downloading" detail="Acquisitions actives" to="/downloads?view=queue&amp;sub=active" :loading="loadingQueue" />
+      <MetricCard label="À importer" :value="queueTotals.importPending" detail="Téléchargements terminés" to="/downloads?view=queue&amp;sub=intervention" :loading="loadingQueue" />
+      <MetricCard label="Disponibles" :value="counts.available ?? '—'" detail="Dans votre bibliothèque" to="/library?status=available" :loading="loading && !updatedAt" />
+    </MetricGrid>
 
     <AcquisitionPipelinePanel
       :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
@@ -32,14 +46,14 @@
       :blocked-count="queueTotals.blocked + failedCount"
     />
 
-    <div class="dashboard-bento">
-      <DashboardVfUpgradesPanel class="bento-wide" />
-      <DownloadQueuePanel class="bento-narrow" :queue="downloadQueue" :loading="loadingQueue" />
-    </div>
-
-    <ActivityChartPanel :timeline="timeline" />
+    <DownloadQueuePanel class="dashboard-downloads" :queue="downloadQueue" :loading="loadingQueue" />
 
     <DashboardLibraryTabs :recently-available="recentlyAvailable" :recent-requests="recentRequests" :upcoming="upcoming" />
+
+    <div class="dashboard-bento">
+      <DashboardVfUpgradesPanel class="bento-narrow" />
+      <ActivityChartPanel class="bento-wide" :timeline="timeline" />
+    </div>
 
     <!-- Sante et stockage ne sont lus qu'une fois la zone a l'ecran (ou Supervision
          ouverte) : le bas de page ne doit pas retarder le premier affichage. -->
@@ -82,6 +96,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useElementVisibility } from '@vueuse/core';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
+import MetricCard from '@/components/ui/MetricCard.vue';
+import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
 import DashboardActionCenter from '@/components/dashboard/DashboardActionCenter.vue';
@@ -477,6 +493,16 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.dashboard-home { gap: var(--space-5); }
+.dashboard-downloads { width: 100%; }
+@container page (min-width: 958px) {
+  .dashboard-downloads :deep(.queue-main) { grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr); align-items: center; gap: var(--space-2) var(--space-5); }
+  .dashboard-downloads :deep(.queue-heading) { grid-row: span 2; }
+  .dashboard-downloads :deep(.queue-meta) { white-space: normal; }
+}
+.dashboard-home :deep(.shared-metric-grid) { gap: var(--space-3); }
+.dashboard-home :deep(.pipeline-wrapper) { margin-bottom: 0; }
+
 /* Grille de l'accueil : une colonne large (7/12) et une etroite (5/12), qui passent
    l'une sous l'autre quand le contenu se resserre. Les deux colonnes d'une rangee
    prennent la meme hauteur : un panneau peu rempli s'etire jusqu'au bas de son voisin
