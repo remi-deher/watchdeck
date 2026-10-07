@@ -76,6 +76,7 @@ import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { memoriserApercu } from '@/composables/useFicheApercu';
 import MediaStatusBadge from '@/components/media/MediaStatusBadge.vue';
 import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
+import { proxyUrl } from '@/utils/mediaImage';
 
 const props = withDefaults(
   defineProps<{
@@ -121,7 +122,7 @@ const itemKey = computed(() => {
   return `${activeItem.value.media_type || 'item'}-${id}-${activeIndex.value}`;
 });
 
-const backdropOf = (item: any): string | null => item?.backdrop_url || item?.art_url || null;
+const backdropOf = (item: any): string | null => proxyUrl(item?.backdrop_url || item?.art_url || null, { kind: 'backdrop' });
 /* Les fonds sont charges d'avance : une diapositive qui entrait avant son image glissait
    vide, et le defilement montrait un trou le temps du chargement. Les images restent
    referencees pour que le navigateur les garde decodees. */

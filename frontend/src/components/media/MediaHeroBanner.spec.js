@@ -27,7 +27,8 @@ describe('MediaHeroBanner', () => {
     expect(wrapper.text()).toContain('Un voleur qui s’infiltre dans les rêves.');
     expect(wrapper.text()).toContain('2010');
     expect(wrapper.getComponent(UiHeroBackdrop).props()).toMatchObject({
-      imageUrl: 'https://image.tmdb.org/t/p/w1280/inception.jpg',
+      // Le fond part de l'original TMDB, reduit et mis en cache par le proxy.
+      imageUrl: `/api/image-proxy?url=${encodeURIComponent('https://image.tmdb.org/t/p/original/inception.jpg')}&width=1920&quality=90&format=webp`,
       variant: 'card',
       zoomOnHover: true,
     });

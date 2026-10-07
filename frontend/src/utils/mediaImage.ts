@@ -24,12 +24,18 @@ function isPrivateHost(hostname?: string | null): boolean {
    mises en cache tombent, elles, sur le repli du composant. */
 const ALWAYS_PROXY_HOSTS = new Set(['metadata-static.plex.tv']);
 
+/* Fonds d'ecran : largeur et qualite par defaut. A 82, les degrades sombres montraient du
+   banding ; a 780 de large, un bandeau pleine largeur sortait flou. */
+const BACKDROP_WIDTH = 1920;
+const BACKDROP_QUALITY = 90;
+const TMDB_IMAGE_HOST = /^https?:\/\/image\.tmdb\.org\//;
+
 export interface ProxyUrlOptions {
   width?: number;
   quality?: number;
   forceProxy?: boolean;
   /** Echelle TMDB a utiliser : les portraits n'ont pas les memes barreaux que les affiches. */
-  kind?: 'poster' | 'profile';
+  kind?: 'poster' | 'profile' | 'backdrop';
 }
 
 export function proxyUrl(url: null, options?: ProxyUrlOptions): null;
@@ -40,18 +46,19 @@ export function proxyUrl(url?: string | null, options: ProxyUrlOptions = {}): st
   if (url === null) return null;
   if (url === undefined) return undefined;
   if (!url) return url;
-  const width = options.width || 780;
+  const backdrop = options.kind === 'backdrop';
+  const width = options.width || (backdrop ? BACKDROP_WIDTH : 780);
   /* Qualite d'encodage : 82 laissait des aplats visibles sur les affiches sombres une
      fois l'image agrandie par la densite de l'ecran. 92 coute quelques dizaines de ko
      par affiche et fait disparaitre le banding. */
-  const quality = options.quality || 92;
+  const quality = options.quality || (backdrop ? BACKDROP_QUALITY : 92);
 
   if (url.includes('/api/image-proxy')) {
-    if (options.width) {
+    if (options.width || backdrop) {
       try {
         const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
         const u = new URL(url, origin);
-        u.searchParams.set('width', String(options.width));
+        u.searchParams.set('width', String(width));
         // Les URL du serveur sont encodees en 82 : on remonte a la qualite demandee.
         if (Number(u.searchParams.get('quality') || 0) < quality) u.searchParams.set('quality', String(quality));
         return u.pathname + u.search;
@@ -60,6 +67,14 @@ export function proxyUrl(url?: string | null, options: ProxyUrlOptions = {}): st
       }
     }
     return url;
+  }
+
+  /* Fond servi tel quel par TMDB : son plus grand barreau « w1280 » reste flou etire sur un
+     ecran large, et le proxy ne sait que reduire. On part de l'original, que le proxy ramene
+     a la largeur voulue et garde en cache : le navigateur ne telecharge jamais l'original. */
+  if (backdrop && TMDB_IMAGE_HOST.test(url)) {
+    url = url.replace(TMDB_PATH, '/t/p/original/');
+    options = { ...options, forceProxy: true };
   }
 
   let parsed: URL;

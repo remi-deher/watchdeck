@@ -19,7 +19,7 @@ from app.dependencies import require_admin, require_auth
 from app.main import app
 from app.models import ArrInstance, MediaRequest
 from app.services.notifications import _build_discord_embed
-from app.utils import arr_image_url, public_image_url, unwrap_image_proxy, wrap_image_proxy
+from app.utils import arr_image_url, public_image_url, unwrap_image_proxy, wrap_backdrop_proxy, wrap_image_proxy
 from tests.async_support import make_test_session
 
 TVDB = "https://artworks.thetvdb.com/banners/v4/series/465973/posters/69ed2d3756d09.jpg"
@@ -113,3 +113,25 @@ def test_migration_rewrites_stored_proxy_urls():
     rows = dict(conn.execute(sa.text("SELECT id, poster_url FROM media_requests")).fetchall())
     assert rows == {1: TVDB, 2: TVDB, 3: plex_path}
     assert conn.execute(sa.text("SELECT poster_url FROM download_history")).scalar() == TVDB
+
+
+def test_backdrop_wrapper_asks_for_a_large_high_quality_variant():
+    """Un fond s'etire sur tout l'ecran : 600 px a q82 le rendait flou et bande."""
+    wrapped = wrap_backdrop_proxy(TVDB)
+    assert wrapped == f"/api/image-proxy?url={quote_plus(TVDB)}&width=1920&quality=90&format=webp"
+
+
+def test_backdrop_wrapper_starts_from_the_tmdb_original():
+    """w1280 est le plus grand barreau de TMDB hors `original` : le proxy ne sait que reduire."""
+    wrapped = wrap_backdrop_proxy("https://image.tmdb.org/t/p/w1280/abc.jpg")
+    assert quote_plus("https://image.tmdb.org/t/p/original/abc.jpg") in wrapped
+    # Les affiches, elles, gardent leur taille et leur barreau.
+    poster = wrap_image_proxy("https://image.tmdb.org/t/p/w500/abc.jpg")
+    assert quote_plus("https://image.tmdb.org/t/p/w500/abc.jpg") in poster
+    assert "width=600&quality=82" in poster
+
+
+def test_backdrop_wrapper_applies_to_plex_art_too():
+    wrapped = wrap_backdrop_proxy("http://192.168.1.5:32400/library/metadata/1/art/9?X-Plex-Token=secret")
+    assert "secret" not in wrapped
+    assert wrapped.endswith("&width=1920&quality=90&format=webp")

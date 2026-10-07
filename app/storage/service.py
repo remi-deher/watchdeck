@@ -243,7 +243,7 @@ async def _preview(db, body):
 
 async def transfer_json(db, job):
     from ..models import LibraryItem
-    from ..utils import wrap_image_proxy
+    from ..utils import wrap_backdrop_proxy, wrap_image_proxy
     from .presentation import item_presentation
 
     items = (
@@ -302,7 +302,7 @@ async def transfer_json(db, job):
                 poster_url=wrap_image_proxy(
                     getattr(media_by_id.get((t.arr_instance_id, t.arr_id)), "poster_url", None)
                 ),
-                art_url=wrap_image_proxy(getattr(media_by_id.get((t.arr_instance_id, t.arr_id)), "art_url", None)),
+                art_url=wrap_backdrop_proxy(getattr(media_by_id.get((t.arr_instance_id, t.arr_id)), "art_url", None)),
             )
             for t in items
         ],

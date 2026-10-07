@@ -154,7 +154,7 @@ async def get_activity_history(
 async def playback_thumb(
     request: Request,
     path: str,
-    width: Optional[int] = Query(None, ge=32, le=1600),
+    width: Optional[int] = Query(None, ge=32, le=2560),
     server: Optional[int] = Query(None, description="Serveur Plex supplémentaire de la lecture."),
     settings: Settings = Depends(get_settings_or_404),
 ):

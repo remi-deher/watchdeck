@@ -19,6 +19,22 @@ describe('proxyUrl', () => {
     );
   });
 
+  it('proxifie un fond TMDB depuis son original, en grande definition', () => {
+    // w1280 etire sur un ecran large reste flou : le proxy part de l'original et le reduit.
+    const url = 'https://image.tmdb.org/t/p/w1280/fond.jpg';
+    const original = 'https://image.tmdb.org/t/p/original/fond.jpg';
+    expect(proxyUrl(url, { kind: 'backdrop' })).toBe(
+      `/api/image-proxy?url=${encodeURIComponent(original)}&width=1920&quality=90&format=webp`,
+    );
+  });
+
+  it('releve la definition du fond deja proxifie', () => {
+    const url = '/api/image-proxy?url=x&width=600&quality=82&format=webp';
+    const out = new URL(proxyUrl(url, { kind: 'backdrop' }), 'http://localhost');
+    expect(out.searchParams.get('width')).toBe('1920');
+    expect(out.searchParams.get('quality')).toBe('90');
+  });
+
   it('ne proxifie pas une URL publique dont le chemin ressemble a une IP privee', () => {
     // Regression : l'ancien test travaillait sur la chaine brute et cherchait "/10." ou
     // "/192.168." n'importe ou dans l'URL, chemin compris.
