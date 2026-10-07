@@ -188,6 +188,50 @@ def wrap_image_proxy(
     return f"/api/image-proxy?url={urllib.parse.quote_plus(url)}&width={width}&quality={quality}&format=webp"
 
 
+#: Portraits du casting : l'interface les demande au proxy a ces largeurs (voir `castPortrait`
+#: dans frontend/src/utils/mediaImage.ts), depuis le barreau `h632` de TMDB.
+CAST_PROXY_WIDTHS = (185, 370)
+CAST_PROXY_QUALITY = 92
+_TMDB_ANY_SIZE = re.compile(r"(image\.tmdb\.org/t/p/)(?:w\d+|h\d+|original)/")
+
+
+def profile_source_url(url: str | None) -> str | None:
+    """URL source d'un portrait : `h632`, assez grand pour deux fois sa taille d'affichage et
+    bien plus leger que l'original (~50 Ko contre ~220 Ko)."""
+    return _TMDB_ANY_SIZE.sub(r"\g<1>h632/", url) if url else url
+
+
+#: Affiches des rails de la fiche (recommandations, titres similaires, saga) : l'interface les
+#: reclame au proxy a ces largeurs (barreaux du `srcset` d'une carte), depuis le barreau `w500`.
+RAIL_PROXY_WIDTHS = (185, 342, 500, 780)
+RAIL_PROXY_QUALITY = 92
+_TMDB_POSTER_SIZE = re.compile(r"(image\.tmdb\.org/t/p/)w\d+/")
+
+
+def is_tmdb_poster(url: str | None) -> bool:
+    return bool(url) and bool(_TMDB_POSTER_SIZE.search(url))
+
+
+def rail_poster_source(url: str | None) -> str | None:
+    """URL source d'une affiche de rail : `w500`, net jusqu'a une carte de 180 px sur ecran
+    dense, sans payer l'original."""
+    return _TMDB_POSTER_SIZE.sub(r"\g<1>w500/", url) if url else url
+
+
+def wrap_rail_poster(url: str | None) -> str | None:
+    """Fait passer par le proxy l'affiche TMDB d'un rail, pour qu'elle soit mise en cache (et
+    prechargee) au lieu d'etre lue sur le CDN de TMDB a la premiere consultation. Une affiche
+    deja proxifiee (media de la bibliotheque) ou d'une autre origine reste telle quelle."""
+    if not is_tmdb_poster(url):
+        return url
+    return wrap_image_proxy(rail_poster_source(url))
+
+
+def backdrop_source_url(url: str | None) -> str | None:
+    """URL source d'un fond d'ecran : l'original TMDB plutot que son barreau `w1280`."""
+    return _TMDB_SIZED_IMAGE.sub(r"\g<1>original/", url) if url else url
+
+
 def wrap_backdrop_proxy(url: str | None) -> str | None:
     """Comme `wrap_image_proxy`, pour un fond d'ecran : grande definition, encodage soigne.
 
@@ -195,9 +239,7 @@ def wrap_backdrop_proxy(url: str | None) -> str | None:
     ecran large reste flou quelle que soit la largeur demandee au proxy, qui ne sait que
     reduire. On part donc de l'original ; le proxy le ramene a 1920 px et le garde en cache,
     le navigateur ne telecharge jamais le fichier d'origine."""
-    if url:
-        url = _TMDB_SIZED_IMAGE.sub(r"\g<1>original/", url)
-    return wrap_image_proxy(url, width=BACKDROP_PROXY_WIDTH, quality=BACKDROP_PROXY_QUALITY)
+    return wrap_image_proxy(backdrop_source_url(url), width=BACKDROP_PROXY_WIDTH, quality=BACKDROP_PROXY_QUALITY)
 
 
 def unwrap_image_proxy(url: str | None) -> str | None:

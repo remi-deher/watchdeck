@@ -657,6 +657,12 @@ async def startup(ctx: dict):
         await record_worker_event("startup.db", "error", f"Initialisation base/migrations echouee: {exc}")
         raise
 
+    # Les medias de la bibliotheque sont ajoutes par le worker (synchro Plex) : c'est lui qui
+    # precharge leurs images.
+    from .services.image_warmup import register_listeners
+
+    register_listeners()
+
     async with AsyncSessionLocal() as db:
         pending_ids = (await db.execute(select(PendingNotification.id))).scalars().all()
     for pending_id in pending_ids:
@@ -685,9 +691,11 @@ async def startup(ctx: dict):
 
 async def shutdown(ctx: dict):
     from .routers.image_proxy_api import close_image_refreshes
+    from .services.image_warmup import stop_image_warmup
     from .services.playback_preload import stop_playback_images
 
     await stop_playback_images()
+    await stop_image_warmup()
     await close_image_refreshes()
     task = ctx.get("ws_listener_task")
     if task:

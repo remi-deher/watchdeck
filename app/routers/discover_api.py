@@ -21,6 +21,7 @@ from ..serializers import request_status_value, serialize_media_request, seriali
 from ..services import tmdb
 from ..services.media_annotate import annotate_media_items as _annotate
 from ..services.media_annotate import annotate_page as _annotate_page
+from ..services.media_annotate import annotate_rail_items as _annotate_rail
 from ..utils import run_section_safe
 
 logger = logging.getLogger(__name__)
@@ -691,10 +692,10 @@ async def get_detail(
                         }
                         for row in season_rows
                     ]
-        d["recommendations"] = await _annotate(db, d.get("recommendations", []))
-        d["similar"] = await _annotate(db, d.get("similar", []))
+        d["recommendations"] = await _annotate_rail(db, d.get("recommendations", []))
+        d["similar"] = await _annotate_rail(db, d.get("similar", []))
         if d.get("saga"):
-            d["saga"]["items"] = await _annotate(db, d["saga"].get("items", []))
+            d["saga"]["items"] = await _annotate_rail(db, d["saga"].get("items", []))
         return d
     except Exception as e:
         _guard(e)

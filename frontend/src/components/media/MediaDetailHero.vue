@@ -4,6 +4,7 @@
        les memes elements : la feuille (MediaOverlay) et les tests s'y appuient. -->
   <SheetHero
     class="mdh"
+    :class="{ 'is-music-hero': isMusic }"
     banner-class="mdh-hero"
     content-class="mdh-content"
     :row-class="['mdh-row', { 'is-music': isMusic }]"
@@ -296,6 +297,24 @@ const releaseDates = computed(() => {
 .mdh.is-sheet {
   margin-bottom: var(--space-5);
 }
+/* Le bas de la banniere se fond dans la teinte de la feuille (voir MediaDetailView), avec un
+   flou progressif : pas de bord franc entre l'image et le fond de la page. */
+.mdh :deep(.ui-hero-backdrop)::before,
+.mdh :deep(.ui-hero-backdrop)::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 45%;
+  z-index: 1;
+  pointer-events: none;
+}
+.mdh :deep(.ui-hero-backdrop)::before {
+  background: linear-gradient(to bottom, transparent, var(--poster-wash, var(--bg)));
+}
+.mdh :deep(.ui-hero-backdrop)::after {
+  backdrop-filter: blur(14px);
+  mask-image: linear-gradient(to bottom, transparent, black);
+}
 .mdh :deep(.mdh-content) {
   padding: 0 var(--space-5) var(--space-2);
   max-width: 1280px;
@@ -466,6 +485,12 @@ const releaseDates = computed(() => {
 }
 
 @include bp.until(tablet) {
+  /* L'image va jusqu'au bas de l'affiche : celle-ci tient entierement sur la banniere (140 px
+     de large, 2:3 ; 180 px carre pour la musique), avec de quoi loger le bouton retour. */
+  .mdh.is-stacked { --sheet-hero-overlap: 210px; }
+  .mdh.is-stacked.is-music-hero { --sheet-hero-overlap: 180px; }
+  .mdh.is-stacked :deep(.sheet-hero__banner) { min-height: 274px; }
+  .mdh.is-stacked.is-music-hero :deep(.sheet-hero__banner) { min-height: 244px; }
   .mdh :deep(.mdh-content) {
     padding: 0 var(--space-4) 20px;
   }

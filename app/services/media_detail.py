@@ -21,7 +21,7 @@ from ..models import (
 from ..serializers import format_datetime, serialize_media_request
 from ..utils import async_get_or_404, plex_image_proxy_url, wrap_backdrop_proxy, wrap_image_proxy
 from . import tmdb
-from .media_annotate import annotate_media_items
+from .media_annotate import annotate_rail_items
 from .operational_projection import build_media_history, plex_library_projection
 
 logger = logging.getLogger(__name__)
@@ -304,15 +304,15 @@ async def build_media_detail(
             detail = await tmdb.detail(db, media_obj.media_type, int(media_obj.tmdb_id))
             backdrop_url = detail.get("backdrop_url")
             saga = detail.get("saga")
-            recommendations = await annotate_media_items(db, detail.get("recommendations", []))
-            similar = await annotate_media_items(db, detail.get("similar", []))
+            recommendations = await annotate_rail_items(db, detail.get("recommendations", []))
+            similar = await annotate_rail_items(db, detail.get("similar", []))
             cast = detail.get("cast", [])
             release_dates = detail.get("release_dates")
             first_air_date = detail.get("first_air_date")
             current_season_air_date = detail.get("current_season_air_date")
             next_episode_to_air = detail.get("next_episode_to_air")
             if saga:
-                saga["items"] = await annotate_media_items(db, saga.get("items", []))
+                saga["items"] = await annotate_rail_items(db, saga.get("items", []))
         except Exception as exc:
             logger.debug("TMDB backdrop unavailable: %s", exc)
 

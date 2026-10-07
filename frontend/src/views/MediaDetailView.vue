@@ -1,5 +1,5 @@
 <template>
-  <div class="media-detail-page">
+  <div class="media-detail-page" :class="{ 'has-tint': tint }" :style="tintStyle">
     <!-- Le hero se monte des l'ouverture, avec ce que la carte touchee savait deja --
          affiche, titre, annee -- puis garde sa place quand la fiche complete arrive.
          L'affiche est ainsi a son emplacement final des la premiere image : le
@@ -202,6 +202,8 @@ import { useRoute, useRouter } from "vue-router";
 import { api, ApiError } from "@/api";
 import { useToast } from "@/composables/useToast";
 import { mediaDetailPath, openPlexLink } from "@/mediaUrl";
+import { proxyUrl } from '@/utils/mediaImage';
+import { usePosterTint } from '@/composables/usePosterTint';
 import MediaDetailHero from "@/components/media/MediaDetailHero.vue";
 import { useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { apercuRecent } from "@/composables/useFicheApercu";
@@ -388,6 +390,17 @@ const loading = computed(() => mediaQuery.isPending.value || mediaQuery.isFetchi
 const pending = computed(() => mediaQuery.isPending.value);
 // Ce que la carte touchee savait deja, pour dessiner la fiche avant sa reponse.
 const apercu = apercuRecent();
+
+/* La feuille prend la couleur du bas de l'affiche, celui qui touche son fond. L'affiche est
+   lue a la meme URL que celle que la banniere affiche : le navigateur la a deja. */
+const posterSrc = computed(() => {
+  const source = (detail.value || apercu)?.poster_url;
+  return source ? proxyUrl(source, { width: 780 }) : null;
+});
+const tint = usePosterTint(() => posterSrc.value);
+const tintStyle = computed(() => (tint.value && posterSrc.value
+  ? { '--poster-tint': tint.value, '--poster-image': `url("${posterSrc.value}")` }
+  : undefined));
 const error = computed({
   get: () => actionError.value || (mediaQuery.error.value as Error | null)?.message || '',
   set: (value: string) => { actionError.value = value; },
@@ -641,9 +654,51 @@ watch([requesters, sessionUserId], ([rows, userId]) => {
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 .media-detail-page {
+  position: relative;
+  isolation: isolate;
   min-height: 100%;
   overflow-x: hidden;
+  /* Teinte reprise par la banniere (MediaDetailHero) pour que les deux se raccordent. */
+  --poster-wash: var(--bg);
 }
+/* Le haut de la feuille prend la couleur du bas de l'affiche, puis retombe sur le fond de
+   la page ; un halo flou de l'affiche elle-meme l'accompagne. */
+.media-detail-page.has-tint {
+  --poster-wash: color-mix(in srgb, rgb(var(--poster-tint)) 30%, var(--bg));
+}
+.media-detail-page.has-tint::before,
+.media-detail-page.has-tint::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.media-detail-page.has-tint::before {
+  left: 0;
+  right: 0;
+  height: 900px;
+  background: linear-gradient(to bottom, var(--poster-wash) 0, var(--poster-wash) 320px, var(--bg) 900px);
+}
+.media-detail-page.has-tint::after {
+  left: 50%;
+  width: min(100%, 900px);
+  height: 760px;
+  transform: translateX(-50%);
+  background: var(--poster-image) center 70% / cover no-repeat;
+  filter: blur(64px) saturate(1.5);
+  opacity: 0.28;
+  /* Fondu dans les deux sens : pas de bord franc, ni sous la banniere ni sur les cotes. */
+  mask-image:
+    linear-gradient(to right, transparent, black 30%, black 70%, transparent),
+    linear-gradient(to bottom, transparent 35%, black 60%, transparent);
+  mask-composite: intersect;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .media-detail-page.has-tint::before,
+  .media-detail-page.has-tint::after { animation: media-tint-in var(--motion-duration-base) var(--motion-ease-standard); }
+}
+@keyframes media-tint-in { from { opacity: 0; } }
 .media-detail-body {
   max-width: 1280px;
   margin: 0 auto;
