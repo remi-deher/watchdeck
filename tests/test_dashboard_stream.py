@@ -72,9 +72,9 @@ def test_sections_arrive_as_they_complete(async_db):
         assert response.headers["content-type"].startswith("text/event-stream")
 
         payloads = _frames(response.text)
-        # next_poll ne lit qu'un TTL Redis : il part avant toutes les autres.
-        assert "next_poll" in payloads[0]
-        assert [next(iter(p)) for p in payloads[1:]] == ["rapide", "moyenne", "lente"]
+        # Redis peut être lent : le compte à rebours ne retient plus les sections.
+        assert any("next_poll" in frame for frame in payloads)
+        assert [next(iter(p)) for p in payloads if "next_poll" not in p] == ["rapide", "moyenne", "lente"]
     finally:
         _cleanup()
 
@@ -104,7 +104,7 @@ def test_stream_can_exclude_deferred_sections(async_db):
             response = client.get("/api/dashboard/snapshot/stream?sections=primary,next_poll")
 
         payloads = _frames(response.text)
-        assert "next_poll" in payloads[0]
+        assert any("next_poll" in frame for frame in payloads)
         assert {"primary": {"section": "primary"}} in payloads
         assert not any("supervision" in payload for payload in payloads)
     finally:
@@ -164,18 +164,14 @@ def test_successful_stream_warms_the_shared_cache(async_db):
         ):
             client.get("/api/dashboard/snapshot/stream")
 
-        assert dashboard_api._CACHE_KEY in stored
-        cached = stored[dashboard_api._CACHE_KEY]["value"]
-        assert cached["a"] == {"section": "a"}
-        assert cached["b"] == {"section": "b"}
-        assert "next_poll" in cached
+        assert stored[dashboard_api._SECTION_PREFIX + "a"]["value"] == {"section": "a"}
+        assert stored[dashboard_api._SECTION_PREFIX + "b"]["value"] == {"section": "b"}
     finally:
         _cleanup()
 
 
-def test_partial_failure_does_not_warm_the_cache(async_db):
-    """Mettre en cache un tableau de bord amputé le figerait pour tout le monde pendant
-    la durée du TTL."""
+def test_partial_failure_only_warms_successful_sections(async_db):
+    """Un échec ne doit ni vider les sections saines ni être conservé en cache."""
     stored = {}
 
     async def _set_json(key, value, ttl_seconds):
@@ -197,6 +193,6 @@ def test_partial_failure_does_not_warm_the_cache(async_db):
             patch.object(dashboard_api.cache, "set_json", _set_json),
         ):
             client.get("/api/dashboard/snapshot/stream")
-        assert stored == {}
+        assert list(stored) == [dashboard_api._SECTION_PREFIX + "bonne"]
     finally:
         _cleanup()

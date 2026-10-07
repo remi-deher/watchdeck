@@ -21,7 +21,7 @@
     <!-- La barre du haut ne porte plus la navigation : en compact, « Plus » du dock
          ouvre la meme feuille, et la barre est entierement rendue a la recherche. -->
     <AppTopBar
-      :mode="mode"
+      :mode="mode === 'expanded' && collapsed ? 'medium' : mode"
       :page-title="pageTitle"
       :destination-label="destinationLabel"
       @open-palette="openPalette($event)"

@@ -144,8 +144,12 @@ async def lifespan(app: FastAPI):
     history_sync = getattr(app.state, "arr_history_sync", None)
     if history_sync and not history_sync.done():
         history_sync.cancel()
+    from .routers.image_proxy_api import close_image_refreshes
     from .services.arr_http_client import close_arr_clients
+    from .services.playback_preload import stop_playback_images
 
+    await stop_playback_images()
+    await close_image_refreshes()
     await close_arr_clients()
     await cache.close()
     logging.info("Shutdown complete.")

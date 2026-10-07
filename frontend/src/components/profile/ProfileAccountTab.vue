@@ -17,7 +17,7 @@
 
     <SettingsSection title="Cet appareil" subtitle="Réglages propres à ce navigateur.">
       <SettingsRow label="Thème">
-        <UiSegmentedControl v-model="themeChoice" :options="themeOptions" ariaLabel="Thème de l’interface" />
+        <ThemeSettings />
       </SettingsRow>
       <SettingsRow label="Application Watchdeck" :description="installDescription">
         <span v-if="isInstalled" class="profile-installed">Installée</span>
@@ -45,9 +45,8 @@ import { Download, FileDown } from '@lucide/vue';
 import SettingsRow from '@/components/settings/SettingsRow.vue';
 import SettingsSection from '@/components/settings/SettingsSection.vue';
 import UiButton from '@/components/ui/UiButton.vue';
-import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import ThemeSettings from '@/components/ui/ThemeSettings.vue';
 import { usePwaInstall } from '@/composables/usePwaInstall';
-import { useTheme } from '@/composables/useTheme';
 import { formatDateLong } from '@/utils/format';
 
 defineProps<{
@@ -59,13 +58,6 @@ defineProps<{
     created_at?: string | null;
   } | null;
 }>();
-
-const { choice: themeChoice } = useTheme();
-const themeOptions = [
-  { value: 'system', label: 'Système' },
-  { value: 'dark', label: 'Sombre' },
-  { value: 'light', label: 'Clair' },
-];
 
 const { canInstall, isInstalled, isIos, promptInstall } = usePwaInstall();
 const showIosGuide = ref(false);

@@ -69,6 +69,17 @@ describe('DashboardActionCenter', () => {
 });
 
 describe('DashboardLiveStrip', () => {
+  it('ne présente pas un chargement ou une panne comme une absence de lecture', async () => {
+    const wrapper = mount(DashboardLiveStrip, { props: { loading: true }, global });
+    expect(wrapper.text()).toContain('Récupération des lectures Plex');
+    expect(wrapper.text()).not.toContain('Aucune lecture en cours');
+    await wrapper.setProps({ loading: false, failed: true });
+    expect(wrapper.text()).toContain('momentanément indisponibles');
+    expect(wrapper.text()).not.toContain('Aucune lecture en cours');
+    await wrapper.setProps({ failed: false });
+    expect(wrapper.text()).toContain('Aucune lecture en cours');
+  });
+
   it('resume les lectures et emet la lecture choisie', async () => {
     const sessions = [
       { session_id: 1, title: 'Severance', grandparent_title: 'Severance', season_number: 2, episode_number: 7, user_name: 'Léa', playback_method: 'direct_play', bandwidth_kbps: 20000, state: 'playing' },

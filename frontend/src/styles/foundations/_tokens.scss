@@ -1,3 +1,4 @@
+@use "sass:list";
 @use "breakpoints" as bp;
 
 :root {
@@ -236,6 +237,40 @@
   :root:not([data-theme="dark"]) { @include theme-light; }
 }
 
+/* Palettes : mêmes rôles et composants, deux apparences par palette.
+   Les couleurs de statut et de langue restent celles du thème de base. */
+@mixin palette($bg, $surface, $surface2, $ink, $text, $muted, $accent, $hover, $on) {
+  --bg: #{$bg};
+  --surface-sunken: color-mix(in srgb, #{$bg} 94%, #{$text});
+  --surface: #{$surface};
+  --surface-2: #{$surface2};
+  --surface-3: color-mix(in srgb, #{$surface2} 88%, #{$text});
+  --surface-glass: color-mix(in srgb, #{$surface} 92%, transparent);
+  --ink: #{$ink};
+  --text: #{$text};
+  --muted: #{$muted};
+  --accent: #{$accent};
+  --accent-hover: #{$hover};
+  --on-accent: #{$on};
+}
+@mixin palettes-dark {
+  &[data-palette="mint"] { @include palette(#101312, #191d1b, #253029, '226 240 232', #f1f4f1, #a3b3a9, #a9efc4, #c5f6d7, #12281c); }
+  &[data-palette="ocean"] { @include palette(#0b121b, #141f2b, #1d2d3d, '224 237 248', #eef5fc, #9eafc2, #7dcffa, #a9dfff, #082334); }
+  &[data-palette="lavender"] { @include palette(#131019, #201a2b, #2d253d, '239 231 248', #f4effa, #b4a6c6, #c9b4f3, #ddcef9, #27183c); }
+  &[data-palette="graphite"] { @include palette(#111214, #1c1e21, #2a2d32, '234 235 239', #f1f2f4, #a9adb6, #d2d6de, #e9ebef, #202329); }
+}
+@mixin palettes-light {
+  &[data-palette="mint"] { @include palette(#f1f6f3, #ffffff, #e8f1eb, '24 44 32', #182c20, #51685a, #246b49, #195336, #ffffff); }
+  &[data-palette="ocean"] { @include palette(#f1f5f9, #ffffff, #e7eff7, '23 43 63', #172b3f, #52677d, #17628e, #104d72, #ffffff); }
+  &[data-palette="lavender"] { @include palette(#f6f3fa, #ffffff, #eee8f6, '45 30 65', #2d1e41, #6b5c7d, #7050a0, #583b82, #ffffff); }
+  &[data-palette="graphite"] { @include palette(#f3f4f5, #ffffff, #e9ebee, '35 39 46', #23272e, #5e6570, #515b6a, #3c4552, #ffffff); }
+}
+:root { @include palettes-dark; }
+:root[data-theme="light"] { @include palettes-light; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { @include palettes-light; }
+}
+
 /* Roles derives : identiques dans les deux themes, ils suivent les valeurs ci-dessus.
    Plusieurs etaient deja lus par les composants sans avoir jamais ete definis.
    En mixin : une variable qui en lit une autre est resolue la ou elle est declaree, donc
@@ -284,4 +319,14 @@
   @include theme-dark;
   @include theme-roles;
   color: var(--text);
+}
+
+/* Les médias conservent leur voile sombre, avec l’accent de la palette choisie. */
+@each $name, $colors in ("mint": (#a9efc4, #c5f6d7, #12281c), "ocean": (#7dcffa, #a9dfff, #082334), "lavender": (#c9b4f3, #ddcef9, #27183c), "graphite": (#d2d6de, #e9ebef, #202329)) {
+  :root[data-palette="#{$name}"] .theme-dark-scope {
+    --accent: #{list.nth($colors, 1)};
+    --accent-hover: #{list.nth($colors, 2)};
+    --on-accent: #{list.nth($colors, 3)};
+    --accent-gradient: var(--accent);
+  }
 }

@@ -18,8 +18,8 @@
              `_motion.scss` : plusieurs vues -- la fiche media, entre autres -- ont une
              racine multiple, et Vue ne sait pas animer un fragment. Il avertit, puis
              laisse la vue sortante dans le document, qui se superpose a la nouvelle.
-             L'arrivee du contenu passe donc par la composition echelonnee de
-             `page-motion`, et l'ouverture d'une fiche par la surface ci-dessous. -->
+             Le contenu est visible dès le montage ; usePageExit assure le fondu
+             de navigation, et la surface ci-dessous anime l'ouverture d'une fiche. -->
         <!-- Page de fond restauree apres un rechargement : ses vues paresseuses ne sont
              pas encore chargees (voir `vuesDeRoutePretes`), on attend qu'elles le soient. -->
         <RouteScope v-if="fondPret" :route="routeDeFond">

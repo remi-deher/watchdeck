@@ -233,6 +233,11 @@ watch([() => groups.value.length, () => sections.value.length], () => void nextT
 </script>
 
 <style scoped lang="scss">
+.app-rail[data-density="medium"] .app-rail__brand { background: var(--accent); border-radius: var(--radius-md); }
+.app-rail[data-density="medium"] .app-rail__brand svg { color: var(--on-accent); }
+.app-rail[data-density="medium"] .app-rail__link { border-radius: var(--radius-md); }
+.app-rail[data-density="medium"] .app-rail__link[aria-current='page']::before { content: ''; position: absolute; left: -8px; height: 24px; width: 3px; border-radius: var(--radius-pill); background: var(--accent); }
+
 .app-rail {
   position: sticky;
   top: 0;

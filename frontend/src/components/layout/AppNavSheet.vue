@@ -89,7 +89,7 @@
           </RouterLink>
           <div class="app-sheet__theme">
             <span><Palette aria-hidden="true" />Thème</span>
-            <UiSegmentedControl :model-value="themeChoice" :options="THEME_OPTIONS" ariaLabel="Thème" @update:model-value="(v) => setTheme(v as ThemeChoice)" />
+            <ThemeSettings />
           </div>
           <a class="app-nav-link app-sheet__link" href="/privacy"><ShieldCheck aria-hidden="true" /><span>Confidentialité</span></a>
           <a class="app-nav-link app-sheet__link" href="/logout" @click.prevent="seDeconnecter"><LogOut aria-hidden="true" /><span>Déconnexion</span></a>
@@ -105,8 +105,7 @@ import { laisserAuDock } from './sheetDock';
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { ArrowLeft, LogOut, Palette, Search, ShieldCheck, UserRound, X } from '@lucide/vue';
-import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
-import { THEME_OPTIONS, useTheme, type ThemeChoice } from '@/composables/useTheme';
+import ThemeSettings from '@/components/ui/ThemeSettings.vue';
 import { useQueryClient } from '@tanstack/vue-query';
 import { effacerStockage } from '@/offline/stockage';
 
@@ -125,7 +124,6 @@ import { ADMIN_ENTRY, adminAreasFor, destinationsFor, type NavDestination } from
 import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 import { shortcutLabel } from '@/shortcut';
 
-const { choice: themeChoice, setTheme } = useTheme();
 
 const props = withDefaults(
   defineProps<{
@@ -233,9 +231,8 @@ useBackButtonClose(null, () => emit('close'));
 }
 
 .app-sheet__theme {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  align-items: start;
   gap: var(--space-3);
   min-height: var(--touch-target);
   padding: 0 var(--space-3);

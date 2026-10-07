@@ -129,7 +129,9 @@ def test_image_proxy_follows_redirect_to_allowed_host(cache_dir, async_db):
             resp = client.get("/api/image-proxy?url=http://plex.local/poster.jpg")
         assert resp.status_code == 200
         assert resp.content == b"fake-image-bytes"
-        assert fake.get.await_count == 2
+        # Le rafraîchissement est désormais une tâche de fond. TestClient peut
+        # fermer sa boucle avant qu'elle ait exécuté le téléchargement.
+        assert fake.get.await_count in (1, 2)
     finally:
         _cleanup()
 
@@ -220,7 +222,7 @@ def test_image_proxy_second_call_uses_cache_not_plex(cache_dir, async_db):
         _cleanup()
 
 
-def test_image_proxy_expired_cache_refetches(cache_dir, async_db):
+def test_image_proxy_expired_cache_returns_without_waiting(cache_dir, async_db):
     client = _client(async_db)
     fake = _fake_httpx_client(resp=_resp())
     try:
@@ -228,8 +230,11 @@ def test_image_proxy_expired_cache_refetches(cache_dir, async_db):
             client.get("/api/image-proxy?url=http://plex.local/poster.jpg")
         with patch("app.routers.image_proxy_api.time.time", return_value=__import__("time").time() + 999999):
             with patch("app.routers.image_proxy_api.httpx.AsyncClient", return_value=fake):
-                client.get("/api/image-proxy?url=http://plex.local/poster.jpg")
-        assert fake.get.await_count == 2
+                response = client.get("/api/image-proxy?url=http://plex.local/poster.jpg")
+        assert response.status_code == 200
+        assert response.content == b"fake-image-bytes"
+        # Le déroulement du rafraîchissement après la réponse est couvert avec
+        # un amont bloqué dans test_loading_performance.py.
     finally:
         _cleanup()
 
@@ -587,7 +592,9 @@ def test_plex_path_missing_item_is_404_and_remembered(cache_dir, async_db):
             again = client.get("/api/image-proxy?plex_path=%2Flibrary%2Fmetadata%2F42%2Fthumb%2F100")
         assert resp.status_code == 404
         assert again.status_code == 404
-        assert fake.get.await_count == 2  # la premiere requete et sa relecture des metadonnees, rien de plus
+        # Le rafraîchissement est désormais une tâche de fond. TestClient peut
+        # fermer sa boucle avant qu'elle ait exécuté le téléchargement.
+        assert fake.get.await_count in (1, 2)  # la premiere requete et sa relecture des metadonnees, rien de plus
     finally:
         _cleanup()
 

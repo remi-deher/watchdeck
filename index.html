@@ -12,6 +12,8 @@
     <script>
       (function () {
         try {
+          var p = localStorage.getItem('watchdeck:palette');
+          if (['cinema', 'mint', 'ocean', 'lavender', 'graphite'].indexOf(p) >= 0) document.documentElement.setAttribute('data-palette', p);
           var t = localStorage.getItem('watchdeck:theme');
           var light = t === 'light' || (t !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches);
           if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
