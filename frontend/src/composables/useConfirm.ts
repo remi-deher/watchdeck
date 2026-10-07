@@ -6,6 +6,16 @@ export interface ConfirmDialogOptions {
   message?: string;
   confirmLabel?: string;
   danger?: boolean;
+  /** Ce que l'action touche : les comptes, les médias… (les cinq premiers sont nommés). */
+  items?: ConfirmItem[];
+  /** Texte à taper pour débloquer le bouton : réservé aux actions en masse et irréversibles. */
+  typeToConfirm?: string;
+}
+
+export interface ConfirmItem {
+  key: string | number;
+  label: string;
+  detail?: string;
 }
 
 export interface ConfirmDialogState {
@@ -14,6 +24,8 @@ export interface ConfirmDialogState {
   message: string;
   confirmLabel: string;
   danger: boolean;
+  items: ConfirmItem[];
+  typeToConfirm: string;
 }
 
 export function useConfirm() {
@@ -23,6 +35,8 @@ export function useConfirm() {
     message: '',
     confirmLabel: 'Confirmer',
     danger: false,
+    items: [],
+    typeToConfirm: '',
   });
   let resolver: ((value: boolean) => void) | null = null;
 
@@ -33,6 +47,8 @@ export function useConfirm() {
       message: '',
       confirmLabel: 'Confirmer',
       danger: false,
+      items: [],
+      typeToConfirm: '',
       ...options,
     };
     return new Promise((resolve) => {

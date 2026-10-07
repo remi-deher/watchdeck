@@ -123,7 +123,7 @@ async function setPassword(password) {
 }
 async function deleteUser() {
   await runConfirmed(async () => { await api(`/api/users/${editing.value.id}`, { method: 'DELETE' }); await refreshList(); close(); },
-    { title: 'Supprimer cet utilisateur ?', message: `${displayName(editing.value)} sera supprimé définitivement.`, confirmLabel: 'Supprimer', danger: true }, { reload: false });
+    { title: `Supprimer « ${displayName(editing.value)} » ?`, message: 'Ses demandes et son historique sont supprimés avec lui. Cette action est définitive.', confirmLabel: 'Supprimer le compte', danger: true }, { reload: false });
 }
 async function userAction(action) {
   busy.value = true;
@@ -166,8 +166,9 @@ async function loadSeerCandidates() {
 }
 async function testEmail() { const data = await api(`/api/users/${editing.value.id}/test-email`, { method: 'POST' }); notify(`Email envoyé à ${data.recipient}`); }
 
-/* Deux confirmations, parce qu'un compte disparait pour de bon et que le sens de la
-   fusion se lit mal : la premiere nomme qui est supprime, la seconde redemande. */
+/* Un compte disparait pour de bon et le sens de la fusion se lit mal : la confirmation
+   montre qui est conserve et qui est supprime, avec leurs demandes. */
+const requestsLabel = (user) => { const n = user.stats?.total ?? user.request_count ?? 0; return `${n} demande${n > 1 ? 's' : ''}`; };
 async function mergeUser({ otherId, keep }) {
   const other = users.value.find(user => String(user.id) === String(otherId));
   if (!other) return;
@@ -176,21 +177,18 @@ async function mergeUser({ otherId, keep }) {
   const keeperName = displayName(keeper);
   const removedName = displayName(removed);
 
-  const first = await askConfirm({
-    title: `Supprimer « ${removedName} » ?`,
-    message: `Ses demandes, préférences et historique seront rattachés à « ${keeperName} », puis le compte « ${removedName} » sera supprimé. Cette opération est irréversible.`,
-    confirmLabel: 'Continuer',
-    danger: true,
-  });
-  if (!first) return;
-
-  const second = await askConfirm({
-    title: 'Confirmer la fusion',
-    message: `Dernière vérification : « ${keeperName} » est conservé, « ${removedName} » disparaît définitivement.`,
+  // Une seule confirmation, qui montre le sens de la fusion : qui est conservé, qui disparaît.
+  const confirmed = await askConfirm({
+    title: 'Fusionner deux comptes ?',
+    message: 'Les demandes, préférences et historique du compte supprimé sont rattachés au compte conservé. Cette opération est irréversible.',
     confirmLabel: `Fusionner et supprimer « ${removedName} »`,
     danger: true,
+    items: [
+      { key: 'keep', label: `Conservé : ${keeperName}`, detail: requestsLabel(keeper) },
+      { key: 'remove', label: `Supprimé : ${removedName}`, detail: requestsLabel(removed) },
+    ],
   });
-  if (!second) return;
+  if (!confirmed) return;
 
   busy.value = true;
   try {

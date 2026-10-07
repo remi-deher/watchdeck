@@ -1,15 +1,29 @@
 <template>
+  <!-- Quatre contrôles au lieu de dix : trois menus rangés par intention, et la suppression
+       à part. Les réglages qui changent des droits passent par la vue, qui demande d'abord
+       confirmation. -->
   <BulkActionBar :count="selectedIds.length" singular="utilisateur sélectionné" plural="utilisateurs sélectionnés" @clear="clear">
-    <UiButton size="sm" @click="$emit('bulk-status',true)"><template #icon><Power/></template>Activer</UiButton>
-    <UiButton size="sm" @click="$emit('bulk-status',false)"><template #icon><PowerOff/></template>Désactiver</UiButton>
-    <UiSelect v-model="bulkNotifyField" aria-label="Type de notification à modifier" :options="[...(bulkNotifyFields).map((f) => ({ value: f.value, label: String(f.label) }))]" />
-    <UiButton size="sm" @click="$emit('bulk-notify',bulkNotifyField,true)"><template #icon><Bell/></template>Activer</UiButton>
-    <UiButton size="sm" @click="$emit('bulk-notify',bulkNotifyField,false)"><template #icon><BellOff/></template>Désactiver</UiButton>
-    <UiSelect v-model="bulkRole" aria-label="Rôle à appliquer" :options="[{ value: 'user', label: 'Utilisateur' }, { value: 'moderator', label: 'Modérateur' }, { value: 'admin', label: 'Administrateur' }]" />
-    <UiButton size="sm" @click="$emit('bulk-permissions',{role:bulkRole})"><template #icon><Shield/></template>Appliquer le rôle</UiButton>
-    <UiButton size="sm" @click="$emit('bulk-permissions',{can_login:true})"><template #icon><LogIn/></template>Autoriser la connexion</UiButton>
-    <UiButton size="sm" @click="$emit('bulk-permissions',{can_login:false})"><template #icon><LogOut/></template>Bloquer la connexion</UiButton>
-    <UiButton variant="danger" size="sm" @click="$emit('bulk-delete')"><template #icon><Trash2/></template>Supprimer</UiButton>
+    <UiMenu align="start">
+      <template #trigger><UiButton size="sm"><template #icon><Power/></template>Statut<template #trailing><ChevronDown/></template></UiButton></template>
+      <UiMenuItem @select="$emit('bulk-status',true)"><Power/> Activer les comptes</UiMenuItem>
+      <UiMenuItem @select="$emit('bulk-status',false)"><PowerOff/> Désactiver les comptes</UiMenuItem>
+    </UiMenu>
+    <UiMenu align="start">
+      <template #trigger><UiButton size="sm"><template #icon><Bell/></template>Notifications<template #trailing><ChevronDown/></template></UiButton></template>
+      <template v-for="(field, index) in bulkNotifyFields" :key="field.value">
+        <UiMenuSeparator v-if="index" />
+        <UiMenuItem @select="$emit('bulk-notify',field.value,true)"><Bell/> {{ field.label }} : activer</UiMenuItem>
+        <UiMenuItem @select="$emit('bulk-notify',field.value,false)"><BellOff/> {{ field.label }} : désactiver</UiMenuItem>
+      </template>
+    </UiMenu>
+    <UiMenu align="start">
+      <template #trigger><UiButton size="sm"><template #icon><Shield/></template>Rôle &amp; connexion<template #trailing><ChevronDown/></template></UiButton></template>
+      <UiMenuItem v-for="role in bulkRoles" :key="role.value" @select="$emit('bulk-permissions',{role:role.value})"><Shield/> Rôle : {{ role.label }}</UiMenuItem>
+      <UiMenuSeparator />
+      <UiMenuItem @select="$emit('bulk-permissions',{can_login:true})"><LogIn/> Autoriser la connexion</UiMenuItem>
+      <UiMenuItem @select="$emit('bulk-permissions',{can_login:false})"><LogOut/> Bloquer la connexion</UiMenuItem>
+    </UiMenu>
+    <UiButton variant="danger" size="sm" @click="$emit('bulk-delete')"><template #icon><Trash2/></template>Supprimer…</UiButton>
   </BulkActionBar>
 
   <UiDataTable
@@ -34,14 +48,11 @@
           <strong>{{ accountName(user) }}</strong>
           <small v-if="accountHandle(user)">{{ accountHandle(user) }}</small>
           <small v-if="!user.enabled" class="user-off">Compte désactivé</small>
+          <span v-if="situations(user).length" class="user-situations">
+            <span v-for="item in situations(user)" :key="item.key" class="user-situation" :class="`is-${item.tone}`">{{ item.label }}</span>
+          </span>
         </span>
       </button>
-    </template>
-    <template #cell-notifications="{ row: user }">
-      <div class="user-notification-cell">
-        <span :class="['status-dot',notificationState(user)]"></span>
-        <div>{{ notificationTarget(user) }}<small v-if="user.has_notification_error">Échec récent</small></div>
-      </div>
     </template>
     <!-- Libelles lisibles, et surtout plus d'invention : l'origine absente etait rendue
          « plex », ce qui presentait une supposition comme une donnee. -->
@@ -52,7 +63,7 @@
     <template #cell-role="{ row: user }">
       <span class="badge" :class="user.role==='admin'?'available':user.role==='moderator'?'sent_to_arr':'pending'">{{ roleLabel(user.role) }}</span>
     </template>
-    <template #cell-requests="{ row: user }"><strong>{{ user.stats?.total??user.request_count??0 }}</strong><small v-if="user.stats?.pending_approval" class="pending-copy">{{ user.stats.pending_approval }} à approuver</small></template>
+    <template #cell-requests="{ row: user }"><strong>{{ user.stats?.total??user.request_count??0 }}</strong></template>
     <template #cell-last="{ row: user }">{{ formatDate(user.last_requested_at) }}<small v-if="!user.can_login" class="blocked-copy">Connexion bloquée</small></template>
     <template #cell-actions="{ row: user }">
       <UiButton icon-only :title="`Modifier ${accountName(user)}`" :aria-label="`Modifier ${accountName(user)}`" @click="$emit('open',user.id)"><Pencil/></UiButton>
@@ -62,10 +73,13 @@
 </template>
 
 <script setup lang="ts">
-import UiSelect from '@/components/ui/UiSelect.vue';
 import { formatDateShort } from '@/utils/format';
 import { ref, watch } from 'vue';
-import { Bell, BellOff, LogIn, LogOut, Pencil, Power, PowerOff, Shield, Trash2 } from '@lucide/vue';
+import { Bell, BellOff, ChevronDown, LogIn, LogOut, Pencil, Power, PowerOff, Shield, Trash2 } from '@lucide/vue';
+import UiMenu from '@/components/ui/UiMenu.vue';
+import UiMenuItem from '@/components/ui/UiMenuItem.vue';
+import UiMenuSeparator from '@/components/ui/UiMenuSeparator.vue';
+import { userSituations as situations } from './userSituations';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import UiAvatar from '@/components/ui/UiAvatar.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -114,7 +128,6 @@ defineEmits<{
 const ROLE_RANK: Record<string, number> = { admin: 0, moderator: 1, user: 2 };
 const columns: UiColumn<AppUser>[] = [
   { key: 'person', label: 'Personne', card: 'title', className: 'user-identity-cell', sortable: true, sortValue: (user) => accountName(user).toLocaleLowerCase('fr') },
-  { key: 'notifications', label: 'Notifications' },
   { key: 'source', label: 'Origine du compte', sortable: true, sortValue: (user) => sourceLabel(resolveSource(user)) },
   { key: 'role', label: 'Rôle', sortable: true, sortValue: (user) => ROLE_RANK[String(user.role)] ?? 3 },
   { key: 'requests', label: 'Demandes', sortable: true, sortValue: (user) => Number(user.stats?.total ?? user.request_count ?? 0) },
@@ -128,8 +141,11 @@ watch(() => props.rows, (rows) => {
   const presents = new Set(rows.map((user) => user.id));
   if (selectedIds.value.some((id) => !presents.has(id))) selectedIds.value = selectedIds.value.filter((id) => presents.has(id));
 });
-const bulkNotifyField = ref('notify_on_request');
-const bulkRole = ref('user');
+const bulkRoles = [
+  { value: 'user', label: 'Utilisateur' },
+  { value: 'moderator', label: 'Modérateur' },
+  { value: 'admin', label: 'Administrateur' },
+];
 /* Libelles completes : « Notif. demande », « Digest » et « VF series » etaient abreges
    ou sans accent, dans un menu ou l'on choisit ce qu'on va modifier en masse. */
 const bulkNotifyFields = [
@@ -141,23 +157,12 @@ const bulkNotifyFields = [
   { value: 'notify_vf_series', label: 'VF des séries' },
 ];
 
-function notificationState(user: AppUser): string {
-  return user.has_notification_error ? 'error' : user.notification_email || user.plex_email || user.notify_admin ? 'active' : 'missing';
-}
-
-/** Adresse reellement utilisee pour joindre ce compte, ou la raison de son absence. */
-function notificationTarget(user: AppUser): string {
-  const address = user.notification_email || user.plex_email;
-  if (address) return address;
-  if (user.notify_admin) return 'Alertes vers l’administrateur';
-  return 'Aucun destinataire';
-}
 const formatDate = (value?: string) => formatDateShort(value, 'Aucune');
 // UsersView lit la selection pour ses actions groupees et la vide apres coup.
 defineExpose({ selectedIds, clearSelection: clear });
 </script>
 <style scoped lang="scss">
-.user-notification-cell{display:flex;align-items:center;gap: var(--space-2)}.user-notification-cell>div{display:grid;gap: var(--space-1)}.user-notification-cell small,.card-title small,td>small{display:block;color:var(--muted);font-size:var(--fs-xs)}.status-dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}.status-dot.active{background:var(--success)}.status-dot.error{background:var(--danger)}.status-dot.missing{background:var(--accent)}.pending-copy{color:var(--accent)}.blocked-copy{color: var(--red-text)}
+.card-title small,td>small{display:block;color:var(--muted);font-size:var(--fs-xs)}.blocked-copy{color: var(--red-text)}
 
 /* Un compte desactive reste lisible mais recule visuellement : la seule mention
    textuelle se perdait au milieu de six colonnes. */
@@ -180,5 +185,9 @@ defineExpose({ selectedIds, clearSelection: clear });
 }
 
 .user-off { color: var(--accent); }
+.user-situations { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: 2px; }
+.user-situation { padding: 0 8px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.user-situation.is-warn { background: color-mix(in srgb, var(--amber) 14%, transparent); color: var(--amber-text); }
+.user-situation.is-error { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red-text); }
 .user-seer-link { display: block; color: var(--muted); font-size: var(--fs-xs); }
 </style>

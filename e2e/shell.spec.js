@@ -568,7 +568,7 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
   await drawer.getByRole("button", { name: "Fusionner", exact: true }).click();
 
   // La confirmation doit etre au premier plan : c'est elle qui doit recevoir le clic.
-  // (C'est la premiere des deux : supprimer un compte en demande maintenant deux.)
+  // (Une seule confirmation : elle montre le compte conserve et celui qui disparait.)
   const modal = page.locator(".modal-panel");
   await expect(modal).toBeVisible();
   // Sur telephone la confirmation monte depuis le bas : on attend qu'elle soit posee, sans
