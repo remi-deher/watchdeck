@@ -44,6 +44,7 @@ const initialForm = (): Record<string, any> => ({
   webhook_secret: '',
   public_base_url: '',
   trusted_proxies: '',
+  default_locale: 'fr',
   gdpr_contact_name: '',
   gdpr_contact_email: '',
   email_enabled: false,

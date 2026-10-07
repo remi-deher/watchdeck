@@ -82,22 +82,21 @@ import { computed, markRaw, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
-import { Bell, CheckCircle2, ChevronRight, DatabaseZap, Plug, RefreshCw, Zap } from '@lucide/vue';
+import { CheckCircle2, ChevronRight, RefreshCw } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import { form, secretsPresent } from '@/settingsForm';
 import { adminAreasFor } from '@/navigation';
-import { HEALTH_SERVICES, type AttentionArea, type AttentionSeverity } from '@/adminAttention';
+import { HEALTH_SERVICES, type AttentionSeverity } from '@/adminAttention';
 import { useAdminAttention } from '@/composables/useAdminAttention';
 import { useSession } from '@/composables/useSession';
 import { parseApiDate } from '@/utils/format';
 
-const AREA_ICONS: Record<AttentionArea, any> = {
-  'admin-connections': markRaw(Plug),
-  'admin-automation': markRaw(Zap),
-  'admin-notifications': markRaw(Bell),
-  'admin-system': markRaw(DatabaseZap),
-};
+// Les icones des zones viennent du modele de navigation : une seule source, qui suit
+// les zones qu'on y ajoute.
+const AREA_ICONS: Record<string, any> = Object.fromEntries(
+  adminAreasFor(true).map((area) => [area.key, markRaw(area.icon)]),
+);
 const SEVERITY_LABELS: Record<AttentionSeverity, string> = { error: 'Erreur', warn: 'À surveiller', info: 'Information' };
 
 const { isAdmin } = useSession();
@@ -200,13 +199,19 @@ const areaGroups = computed(() => {
   return groups;
 });
 
+const AREA_SUMMARIES: Record<string, string> = {
+  'admin-connections': 'Plex, Sonarr, Radarr, Seer, TMDB, webhooks',
+  'admin-acquisition': 'Clients de téléchargement, règles, stockage',
+  'admin-automation': 'Améliorations VF, sous-titres, tâches planifiées',
+  'admin-notifications': 'File d’attente, journal, canaux, règles, modèles',
+  'admin-requests': 'Watchlist, approbation, quotas',
+  'admin-users': 'Comptes, rôles, synchronisation',
+  'admin-security': 'Adresse publique, proxys, langue, jeton API',
+  'admin-maintenance': 'Maintenance, images, sauvegardes, RGPD',
+  'admin-system': 'Journaux, version',
+};
 function areaSummary(key: string): string {
-  if (key === 'admin-connections') return 'Plex, Sonarr, Radarr, clients, TMDB, webhooks';
-  if (key === 'admin-automation') return 'Téléchargements, améliorations VF, tâches planifiées';
-  if (key === 'admin-notifications') return 'File d’attente, journal des envois, canaux, règles, modèles';
-  if (key === 'admin-users') return 'Comptes, rôles, synchronisation';
-  if (key === 'admin-system') return 'Données, journaux, version';
-  return '';
+  return AREA_SUMMARIES[key] || '';
 }
 
 const queryClient = useQueryClient();

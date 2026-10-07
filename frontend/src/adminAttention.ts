@@ -13,7 +13,12 @@
 export type AttentionSeverity = 'error' | 'warn' | 'info';
 
 /** Groupe de l'espace Administration qui règle le problème (clé de `navigation.ts`). */
-export type AttentionArea = 'admin-connections' | 'admin-automation' | 'admin-notifications' | 'admin-system';
+export type AttentionArea =
+  | 'admin-connections'
+  | 'admin-automation'
+  | 'admin-notifications'
+  | 'admin-security'
+  | 'admin-system';
 
 export interface AttentionItem {
   key: string;
@@ -149,10 +154,10 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
       items.push({
         key: 'config-public-url',
         severity: 'info',
-        area: 'admin-connections',
+        area: 'admin-security',
         title: 'Adresse publique non définie',
         detail: 'Les liens des notifications pointent vers l’adresse locale.',
-        action: { label: 'Renseigner', to: '/settings/services/webhooks' },
+        action: { label: 'Renseigner', to: '/settings/security' },
       });
     }
     if (!settings.channels) {

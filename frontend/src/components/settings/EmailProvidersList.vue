@@ -129,6 +129,6 @@ onMounted(async () => {
   if (status === 'success') success('Compte Microsoft connecté.');
   else fail(new Error(String(route.query.msg || "Échec de la connexion au compte Microsoft.")));
   const { email_oauth, msg, ...rest } = route.query;
-  router.replace({ path: '/settings', query: rest });
+  router.replace({ path: route.path, query: rest });
 });
 </script>

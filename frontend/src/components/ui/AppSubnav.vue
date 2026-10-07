@@ -34,6 +34,7 @@
               >
                 <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
                 <span>{{ item.label }}</span>
+                <ArrowUpRight v-if="item.external" class="app-subnav__external" aria-hidden="true" />
                 <small v-if="item.count != null">{{ item.count }}</small>
               </NavigationMenuLink>
             </RouterLink>
@@ -50,6 +51,7 @@
           <TabsTrigger :ref="(el) => setItemRef(el, index)" class="app-subnav__item" :value="item.key">
             <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
             <span>{{ item.label }}</span>
+            <ArrowUpRight v-if="item.external" class="app-subnav__external" aria-hidden="true" />
             <small v-if="item.count != null">{{ item.count }}</small>
           </TabsTrigger>
         </template>
@@ -61,6 +63,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { RouterLink } from 'vue-router';
+import { ArrowUpRight } from '@lucide/vue';
 import { NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuRoot, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 
 export interface SubnavItem {
@@ -72,6 +75,8 @@ export interface SubnavItem {
   count?: number | string | null;
   /** Change de valeur pour insérer un séparateur visuel avant l'entrée. */
   group?: string;
+  /** Mène à une autre page de l'application : marquée d'une flèche. */
+  external?: boolean;
 }
 
 const props = withDefaults(
@@ -283,6 +288,7 @@ watch(
   .app-subnav__item { transition: none; }
 }
 .app-subnav__item svg { flex: none; width: 15px; height: 15px; }
+.app-subnav__item .app-subnav__external { width: 13px; height: 13px; opacity: .6; }
 .app-subnav__item[aria-current='page'] svg,
 .app-subnav__item[aria-selected='true'] svg { color: var(--accent); }
 .app-subnav__item small {

@@ -739,6 +739,75 @@ test("l'administration a sa propre barre, et une seule porte dans le rail", asyn
   await expect(rail).toHaveAttribute("data-space", "app");
 });
 
+test("l'administration range ses reglages en dix zones, chacune atteignable", async ({ page }) => {
+  test.skip(page.viewportSize().width < 768, "en compact, les zones passent par la liste de l'apercu");
+  await page.goto("/settings");
+  const rail = page.locator(".app-rail");
+  await expect(rail).toHaveAttribute("data-space", "admin");
+  for (const href of [
+    "/settings", "/settings/services", "/settings/acquisition", "/settings/automation", "/notifications",
+    "/settings/requests", "/users", "/settings/security", "/settings/maintenance", "/logs",
+  ]) {
+    await expect(rail.locator(`a[href="${href}"]`), href).toHaveCount(1);
+  }
+});
+
+test("chaque section des reglages s'ouvre sans erreur ni debordement", async ({ page }) => {
+  // Dix-huit pages a la suite : le delai par defaut est calcule pour une seule.
+  test.setTimeout(240_000);
+  // Les listes gerees par leur propre API attendent un tableau : on leur en sert un, pour
+  // ne mesurer que l'assemblage des sections et non les reponses d'un serveur absent.
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
+    if (["/api/download-clients", "/api/arr-instances", "/api/plex-servers", "/api/email-providers", "/api/users", "/api/message-reasons"].includes(pathname)) {
+      return route.fulfill({ json: [] });
+    }
+    if (pathname === "/api/scheduled-tasks") return route.fulfill({ json: [] });
+    if (pathname === "/api/system/version") return route.fulfill({ json: { version: "v1.0.0", is_latest: true, docker_repositories: [] } });
+    return route.fulfill({ json: {} });
+  });
+  const incidents = [];
+  page.on("pageerror", (error) => incidents.push(`exception : ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    if (message.text().startsWith("Failed to load resource") || message.text().includes("EventSource")) return;
+    incidents.push(`console : ${message.text()}`);
+  });
+
+  for (const path of [
+    "/settings/services", "/settings/services/integrations", "/settings/services/webhooks",
+    "/settings/acquisition", "/settings/acquisition/downloads",
+    "/settings/automation", "/settings/automation/subtitles", "/settings/automation/scheduled-tasks",
+    "/settings/notifications/channels", "/settings/notifications/rules", "/settings/notifications/reasons",
+    "/settings/requests", "/settings/security", "/settings/security/api",
+    "/settings/maintenance", "/settings/maintenance/data", "/settings/maintenance/privacy",
+    "/settings/system/version",
+  ]) {
+    incidents.length = 0;
+    await page.goto(path, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#main-content")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("#main-content h1, #main-content .settings-panel").first()).toBeAttached();
+    await page.waitForTimeout(500);
+    expect(incidents, `erreurs sur ${path} : ${incidents.join(" | ")}`).toEqual([]);
+    expect(await pageOverflows(page), `debordement horizontal sur ${path}`).toBe(false);
+  }
+});
+
+test("les anciennes adresses des reglages mènent à leur nouvelle place", async ({ page }) => {
+  for (const [from, to] of [
+    ["/settings/system", "/settings/maintenance/data"],
+    ["/settings/automation/vf-upgrades", "/settings/automation"],
+    ["/maintenance", "/settings/maintenance"],
+    ["/settings?tab=scheduled-tasks", "/settings/automation/scheduled-tasks"],
+    ["/settings?tab=downloads", "/settings/acquisition/downloads"],
+    ["/settings?tab=notifications-channels&email_oauth=success", "/settings/notifications/channels"],
+  ]) {
+    await page.goto(from);
+    await expect(page, `${from} doit mener a ${to}`).toHaveURL((url) => url.pathname === to, { timeout: 15000 });
+  }
+});
+
 test("le niveau 2 s'efface et revient avec la barre du haut", async ({ page }) => {
   /* La rangee de sections restait collee en haut pendant que la barre du haut, elle,
      s'effacait : sur telephone elle occupait 54px en permanence, seule, au-dessus du

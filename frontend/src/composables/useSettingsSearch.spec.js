@@ -45,6 +45,17 @@ describe('index des réglages', () => {
     expect(trouve('motif annulation')).toContain('Motifs de message');
   });
 
+  it('retrouve les réglages que la refonte a déplacés', () => {
+    // Ils n'ont plus la même page qu'avant : la recherche doit dire où ils sont allés.
+    expect(trouve('quota')).toContain('Demandes & quotas');
+    expect(trouve('proxy')).toContain('Réseau & langue');
+    expect(trouve('url publique')).toEqual(['Réseau & langue']);
+    expect(trouve('jeton api')).toContain('API & jeton');
+    expect(trouve('precharger')).toContain('Maintenance');
+    expect(trouve('qbittorrent')).toContain('Clients de téléchargement');
+    expect(trouve('sauvegarde')).toContain('Données & sauvegardes');
+  });
+
   it('ne propose rien pour un terme inconnu', () => {
     expect(trouve('kubernetes')).toEqual([]);
   });

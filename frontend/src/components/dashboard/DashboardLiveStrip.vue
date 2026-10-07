@@ -88,7 +88,7 @@
         <p v-if="collectionEnabled">Les lectures Plex s’afficheront ici dès qu’elles démarrent.</p>
         <p v-else>La collecte des lectures en direct est désactivée.</p>
       </div>
-      <UiButton v-if="!collectionEnabled" :to="{ path: '/settings', query: { tab: 'services' } }">Activer la collecte</UiButton>
+      <UiButton v-if="!collectionEnabled" :to="'/settings/services/integrations'">Activer la collecte</UiButton>
       <RouterLink v-else :to="{ path: '/activity', query: { view: 'live' } }" class="panel-link">Voir l’activité</RouterLink>
     </div>
   </section>

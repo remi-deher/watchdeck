@@ -121,6 +121,19 @@ describe('AppSubnav', () => {
     });
   });
 
+  it('marque d’une flèche une section qui mène à une autre page', () => {
+    const items = [
+      { key: 'clients', label: 'Clients', to: '/settings/acquisition' },
+      { key: 'storage', label: 'Stockage', to: '/storage', external: true },
+    ];
+    for (const variant of ['links', 'tabs']) {
+      const wrapper = mountSubnav({ items, active: 'clients', variant });
+      const entries = wrapper.findAll('.app-subnav__item');
+      expect(entries[0].find('.app-subnav__external').exists()).toBe(false);
+      expect(entries[1].find('.app-subnav__external').exists()).toBe(true);
+    }
+  });
+
   it('n’intercepte pas les fleches en variante links', async () => {
     const wrapper = mountSubnav({
       items: [

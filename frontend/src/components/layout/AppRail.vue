@@ -83,6 +83,7 @@
                 >
                   <component v-if="section.icon" :is="section.icon" aria-hidden="true" />
                   <span>{{ section.label }}</span>
+                  <ArrowUpRight v-if="section.external" class="app-rail__external" aria-hidden="true" />
                 </RouterLink>
               </li>
             </ul>
@@ -125,7 +126,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { ArrowLeft, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, UserRound } from '@lucide/vue';
+import { ArrowLeft, ArrowUpRight, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, UserRound } from '@lucide/vue';
 import { useTheme } from '@/composables/useTheme';
 import { ADMIN_ENTRY, adminAreasFor, destinationsFor, type NavDestination } from '@/navigation';
 import { useAdminAttention } from '@/composables/useAdminAttention';
@@ -388,8 +389,19 @@ watch([() => groups.value.length, () => sections.value.length], () => void nextT
   text-decoration: none;
 }
 .app-rail__sublink svg { flex: none; width: 15px; height: 15px; }
+.app-rail__sublink .app-rail__external { width: 13px; height: 13px; margin-left: auto; opacity: .6; }
 .app-rail__sublink:hover { color: var(--text); background: var(--surface); }
 .app-rail__sublink[aria-current='page'] { color: var(--accent); font-weight: 700; }
+
+/* L'espace Administration compte dix zones et leurs sections : au pas du rail de
+   l'application, la derniere zone sortait d'un ecran de 900 px. Les cibles se resserrent
+   a la souris ; au doigt elles gardent le seuil tactile. */
+@media (hover: hover) and (pointer: fine) {
+  .app-rail[data-space='admin'] .app-rail__link { min-height: 36px; }
+  .app-rail[data-space='admin'] .app-rail__group + .app-rail__group { padding-top: var(--space-2); }
+  .app-rail[data-space='admin'] .app-rail__group-label { margin-bottom: var(--space-1); }
+  .app-rail[data-space='admin'] .app-rail__sublink { min-height: 30px; }
+}
 
 .app-rail__back {
   display: flex;

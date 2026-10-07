@@ -45,6 +45,12 @@ describe('navigation — destinations', () => {
     expect(destinationForPath('/downloads/acquisitions', true, true)?.key).toBe('downloads');
     expect(destinationForPath('/settings/automation/scheduled-tasks', true, true)?.key).toBe('admin-automation');
     expect(destinationForPath('/settings/system/version', true, true)?.key).toBe('admin-system');
+    // Les zones nees de la refonte des menus.
+    expect(destinationForPath('/settings/acquisition', true, true)?.key).toBe('admin-acquisition');
+    expect(destinationForPath('/settings/acquisition/downloads', true, true)?.key).toBe('admin-acquisition');
+    expect(destinationForPath('/settings/requests', true, true)?.key).toBe('admin-requests');
+    expect(destinationForPath('/settings/security/api', true, true)?.key).toBe('admin-security');
+    expect(destinationForPath('/settings/maintenance/data', true, true)?.key).toBe('admin-maintenance');
     // Le calendrier est une destination a part entiere, et non plus une section d'Explorer.
     expect(destinationForPath('/calendar', false, false)?.key).toBe('calendar');
     expect(destinationForPath('/profile', true, true)).toBeNull();
@@ -63,7 +69,7 @@ describe('navigation — destinations', () => {
 
   it('regroupe les destinations selon le workflow métier', () => {
     expect(new Set(destinationsFor(true, true).map((d) => d.group))).toEqual(new Set(['Pilotage', 'Explorer', 'Workflow', 'Gestion des médias']));
-    expect(new Set(adminAreasFor(true).map((d) => d.group))).toEqual(new Set(['', 'Configurer', 'Gérer']));
+    expect(new Set(adminAreasFor(true).map((d) => d.group))).toEqual(new Set(['', 'Services', 'Comportement', 'Accès', 'Exploitation']));
   });
 
   it('réserve les destinations d’administration aux admins', () => {
@@ -77,7 +83,8 @@ describe('navigation — destinations', () => {
   it('sort l’administration du rail : une porte unique, ses groupes dans un espace à part', () => {
     expect(destinationsFor(true, true).some((d) => d.key.startsWith('admin'))).toBe(false);
     expect(adminAreasFor(true).map((d) => d.key)).toEqual([
-      'admin-overview', 'admin-connections', 'admin-automation', 'admin-notifications', 'admin-users', 'admin-system',
+      'admin-overview', 'admin-connections', 'admin-acquisition', 'admin-automation', 'admin-notifications',
+      'admin-requests', 'admin-users', 'admin-security', 'admin-maintenance', 'admin-system',
     ]);
     expect(isAdminSpace(destinationForPath('/settings/automation', true, true))).toBe(true);
     expect(isAdminSpace(destinationForPath('/downloads', true, true))).toBe(false);
@@ -157,12 +164,55 @@ describe('navigation — sections', () => {
     expect(keys(groups[0].items)).toEqual(['plex', 'integrations', 'webhooks']);
   });
 
-  it('range les journaux dans le Système et l’historique des envois dans les Notifications', () => {
-    expect(keys(sectionsFor('admin-system', ctx()))).toEqual(['data', 'logs', 'version']);
+  it('range les journaux avec la version et l’historique des envois dans les Notifications', () => {
+    expect(keys(sectionsFor('admin-system', ctx()))).toEqual(['logs', 'version']);
     expect(keys(sectionsFor('admin-notifications', ctx()))).toContain('history');
     for (const destination of adminAreasFor(true)) {
       expect(sectionsFor(destination.key, ctx()).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('navigation — zones de l’administration', () => {
+  it('range chaque réglage sous la zone où on le cherche', () => {
+    expect(keys(sectionsFor('admin-connections', ctx()))).toEqual(['plex', 'integrations', 'webhooks']);
+    expect(keys(sectionsFor('admin-acquisition', ctx()))).toEqual(['clients', 'downloads', 'acquisitions', 'storage']);
+    expect(keys(sectionsFor('admin-automation', ctx()))).toEqual(['vf-upgrades', 'subtitles', 'scheduled-tasks']);
+    expect(keys(sectionsFor('admin-requests', ctx()))).toEqual(['requests']);
+    expect(keys(sectionsFor('admin-security', ctx()))).toEqual(['network', 'api']);
+    // La maintenance a sa propre entrée : elle n'est plus cachée sous la planification.
+    expect(keys(sectionsFor('admin-maintenance', ctx()))).toEqual(['maintenance', 'data', 'privacy']);
+  });
+
+  it('marque d’une flèche les sections qui mènent à une autre page', () => {
+    const external = sectionsFor('admin-acquisition', ctx()).filter((section) => section.external);
+    expect(external.map((section) => section.to)).toEqual(['/downloads/acquisitions', '/storage']);
+    // Les panneaux de réglages, eux, restent dans la zone.
+    for (const area of ['admin-connections', 'admin-automation', 'admin-security', 'admin-maintenance']) {
+      expect(sectionsFor(area, ctx()).some((section) => section.external)).toBe(false);
+    }
+  });
+
+  it('sépare le suivi des notifications de leurs réglages', () => {
+    const groups = groupedSections(sectionsFor('admin-notifications', ctx()));
+    expect(groups.map((group) => group.label)).toEqual(['Suivi', 'Réglages']);
+    expect(keys(groups[0].items)).toEqual(['pending', 'history']);
+    expect(keys(groups[1].items)).toEqual(['channels', 'rules', 'templates', 'reasons']);
+  });
+
+  it('ouvre chaque zone sur sa première section', () => {
+    for (const area of adminAreasFor(true)) {
+      const first = sectionsFor(area.key, ctx())[0];
+      expect(typeof first.to === 'string' ? first.to : first.to.path).toBe(area.to);
+    }
+  });
+
+  it('active les sections de la maintenance et de la sécurité depuis leur chemin', () => {
+    const security = sectionsFor('admin-security', ctx());
+    expect(activeSectionKey(security, route('/settings/security'))).toBe('network');
+    expect(activeSectionKey(security, route('/settings/security/api'))).toBe('api');
+    const maintenance = sectionsFor('admin-maintenance', ctx());
+    expect(activeSectionKey(maintenance, route('/settings/maintenance/privacy'))).toBe('privacy');
   });
 });
 

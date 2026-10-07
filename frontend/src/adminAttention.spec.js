@@ -46,6 +46,14 @@ describe('adminAttention', () => {
     expect(item.action.to).toBe('/settings/services/integrations');
   });
 
+  it('range l’adresse publique manquante dans Sécurité & API', () => {
+    const [item] = buildAttention({ settings: { public_base_url: '', channels: true } });
+    expect(item.key).toBe('config-public-url');
+    expect(item.area).toBe('admin-security');
+    expect(item.action.to).toBe('/settings/security');
+    expect(areaSeverity([item], 'admin-security')).toBe('info');
+  });
+
   it('attend les réglages avant de parler de configuration', () => {
     expect(buildAttention({ settings: null })).toEqual([]);
     expect(buildAttention({ settings: { public_base_url: '', channels: false } }).map((i) => i.key)).toEqual(['config-public-url', 'config-channels']);
