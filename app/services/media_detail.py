@@ -19,7 +19,7 @@ from ..models import (
     VfUpgradeSuggestion,
 )
 from ..serializers import format_datetime, serialize_media_request
-from ..utils import async_get_or_404, plex_image_proxy_url, wrap_image_proxy
+from ..utils import async_get_or_404, plex_image_proxy_url, wrap_backdrop_proxy, wrap_image_proxy
 from . import tmdb
 from .media_annotate import annotate_media_items
 from .operational_projection import build_media_history, plex_library_projection
@@ -50,7 +50,7 @@ def _media_payload(
         "year": media_obj.year,
         "media_type": media_obj.media_type,
         "poster_url": wrap_image_proxy(media_obj.poster_url),
-        "backdrop_url": wrap_image_proxy(backdrop_url),
+        "backdrop_url": wrap_backdrop_proxy(backdrop_url),
         "overview": media_obj.overview,
         "has_vf": media_obj.has_vf,
         "vf_granularity": media_obj.vf_granularity,

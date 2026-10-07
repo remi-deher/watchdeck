@@ -309,7 +309,7 @@ async def send_newsletter(
             return {"status": "empty", "items": 0}
 
         html = render_html(entries, since, (settings.public_base_url or "").rstrip("/"))
-        subject = f"[Watchdeck] Nouveautés de la semaine — {len(entries)} ajout(s)"
+        subject = f"{len(entries)} ajout(s) · nouveautés de la semaine"
         email_ready = bool(settings.email_enabled and settings.smtp_from and await has_enabled_provider(db))
         result: dict[str, Any] = {"status": "sent", "items": len(entries), "emails": 0, "errors": 0, "discord": False}
 

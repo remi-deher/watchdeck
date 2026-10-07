@@ -54,7 +54,7 @@ def _scope_label(scope: str, season_number: int | None, episode_number: int | No
 
 def build_message(event: str, title: str, scope_label: str, detail: str | None) -> tuple[str, str]:
     label = _EVENTS[event][1]
-    subject = f"[Watchdeck] {label} : {title}{scope_label}"
+    subject = f"{label} : {title}{scope_label}"
     body = detail or label
     return subject, body
 

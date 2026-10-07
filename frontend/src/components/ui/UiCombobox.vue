@@ -22,7 +22,7 @@
       <ComboboxTrigger class="ui-combobox__trigger" :aria-label="`Ouvrir : ${label}`"><ChevronDown aria-hidden="true" /></ComboboxTrigger>
     </ComboboxAnchor>
     <ComboboxPortal>
-      <ComboboxContent class="ui-combobox__content" position="popper" :side-offset="6">
+      <ComboboxContent class="ui-combobox__content" position="popper" :side-offset="6" :body-lock="false">
         <ComboboxViewport class="ui-combobox__viewport">
           <ComboboxEmpty class="ui-combobox__empty">Aucun résultat</ComboboxEmpty>
           <ComboboxItem

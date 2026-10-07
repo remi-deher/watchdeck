@@ -216,7 +216,20 @@ async def test_send_request_uses_default_template_when_none():
     _db, sender, recipient, subject, _html = mock_send.call_args[0]
     assert sender == "plex@example.com"
     assert recipient == "dest@example.com"
-    assert subject == "[Watchdeck] Nouvelle demande : Inception"
+    assert subject == "Nouvelle demande : Inception"
+
+
+@pytest.mark.asyncio
+async def test_send_request_html_starts_with_hidden_preheader_summary():
+    """Le texte d'aperçu (préheader) résume l'essentiel avant tout le reste du corps."""
+    with _patch_send() as mock_send:
+        await send_request_notification(_settings(), _req(), "dest@example.com")
+
+    html = mock_send.call_args[0][4]
+    body_start = html.index("<body")
+    preheader = html.index("display:none")
+    assert preheader < html.index("WATCHDECK", body_start)
+    assert "Nouvelle demande · Inception" in html
 
 
 @pytest.mark.asyncio

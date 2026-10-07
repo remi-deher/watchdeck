@@ -1,5 +1,6 @@
 """Utilitaires partagés entre les modules de l'application."""
 
+import re
 from datetime import datetime
 from typing import Any, Protocol, TypeVar
 from urllib.parse import urlsplit, urlunsplit
@@ -156,7 +157,19 @@ def local_minute() -> int:
     return datetime.now(timezone.utc).astimezone(ZoneInfo(APP_TIMEZONE)).minute
 
 
-def wrap_image_proxy(url: str | None) -> str | None:
+# Affiches : l'image s'affiche petite, 600 px suffisent. Fonds (bandeaux pleine largeur) :
+# a 600 px de large, l'image etiree sur tout l'ecran sortait floue, et l'encodage a 82 laissait
+# du banding dans les degrades sombres -- d'ou une definition et une qualite dediees.
+POSTER_PROXY_WIDTH = 600
+POSTER_PROXY_QUALITY = 82
+BACKDROP_PROXY_WIDTH = 1920
+BACKDROP_PROXY_QUALITY = 90
+_TMDB_SIZED_IMAGE = re.compile(r"(image\.tmdb\.org/t/p/)(?:w|h)\d+/")
+
+
+def wrap_image_proxy(
+    url: str | None, *, width: int = POSTER_PROXY_WIDTH, quality: int = POSTER_PROXY_QUALITY
+) -> str | None:
     """Wraps HTTP, HTTPS and local IP image URLs through /api/image-proxy for local caching and WebP optimization."""
     if not url:
         return url
@@ -170,9 +183,21 @@ def wrap_image_proxy(url: str | None) -> str | None:
     if any(key.lower() == "x-plex-token" for key, _ in query):
         safe_query = urllib.parse.urlencode([(key, value) for key, value in query if key.lower() != "x-plex-token"])
         plex_path = urllib.parse.urlunsplit(("", "", parsed.path, safe_query, ""))
-        return plex_image_proxy_url(plex_path)
+        return plex_image_proxy_url(plex_path, width=width, quality=quality)
 
-    return f"/api/image-proxy?url={urllib.parse.quote_plus(url)}&width=600&quality=82&format=webp"
+    return f"/api/image-proxy?url={urllib.parse.quote_plus(url)}&width={width}&quality={quality}&format=webp"
+
+
+def wrap_backdrop_proxy(url: str | None) -> str | None:
+    """Comme `wrap_image_proxy`, pour un fond d'ecran : grande definition, encodage soigne.
+
+    TMDB n'a pas de barreau entre w1280 et `original` : a w1280, un fond etire sur un
+    ecran large reste flou quelle que soit la largeur demandee au proxy, qui ne sait que
+    reduire. On part donc de l'original ; le proxy le ramene a 1920 px et le garde en cache,
+    le navigateur ne telecharge jamais le fichier d'origine."""
+    if url:
+        url = _TMDB_SIZED_IMAGE.sub(r"\g<1>original/", url)
+    return wrap_image_proxy(url, width=BACKDROP_PROXY_WIDTH, quality=BACKDROP_PROXY_QUALITY)
 
 
 def unwrap_image_proxy(url: str | None) -> str | None:
@@ -249,7 +274,9 @@ def arr_image_url(url: str | None, inst_url: str | None) -> str | None:
     return wrap_image_proxy(url)
 
 
-def plex_image_proxy_url(path: str | None) -> str | None:
+def plex_image_proxy_url(
+    path: str | None, *, width: int = POSTER_PROXY_WIDTH, quality: int = POSTER_PROXY_QUALITY
+) -> str | None:
     """Construit une URL cliente opaque ; le jeton Plex reste côté serveur."""
     if not path:
         return None
@@ -264,7 +291,9 @@ def plex_image_proxy_url(path: str | None) -> str | None:
         ]
     )
     safe_path = urllib.parse.urlunsplit(("", "", parsed.path, safe_query, ""))
-    return f"/api/image-proxy?plex_path={urllib.parse.quote_plus(safe_path)}&width=600&quality=82&format=webp"
+    return (
+        f"/api/image-proxy?plex_path={urllib.parse.quote_plus(safe_path)}&width={width}&quality={quality}&format=webp"
+    )
 
 
 async def run_section_safe(

@@ -38,7 +38,7 @@ EVENTS: dict[str, NotificationEvent] = {
         mail_flags=("request_mail_sent",),
         template_field="email_request_template",
         subject_field="email_request_subject",
-        default_subject="[Watchdeck] Nouvelle demande : {titre}",
+        default_subject="Nouvelle demande : {titre}",
     ),
     "available": NotificationEvent(
         key="available",
@@ -53,7 +53,7 @@ EVENTS: dict[str, NotificationEvent] = {
         mail_flags=("available_mail_sent",),
         template_field="email_available_template",
         subject_field="email_available_subject",
-        default_subject="[Watchdeck] Disponible : {titre} {langue}",
+        default_subject="Disponible : {titre} {langue}",
         preview_context={
             "scope": "episode",
             "language": "vf",
@@ -72,7 +72,7 @@ EVENTS: dict[str, NotificationEvent] = {
         mail_flags=("failure_mail_sent",),
         template_field="email_failure_template",
         subject_field="email_failure_subject",
-        default_subject="[Watchdeck] Échec de transmission : {titre}",
+        default_subject="Échec de transmission : {titre}",
         preview_context={"reason": "Le serveur Sonarr (ou Radarr) est inaccessible ou a renvoyé une erreur 500."},
     ),
     "import_blocked": NotificationEvent(
@@ -86,7 +86,7 @@ EVENTS: dict[str, NotificationEvent] = {
         ),
         color=0xFD7E14,
         badge_class="bg-warning",
-        default_subject="[Watchdeck] Import bloqué : {titre}",
+        default_subject="Import bloqué : {titre}",
         preview_context={"reason": "Fichier introuvable après extraction : vérifiez le nom de la release."},
     ),
     "cancelled": NotificationEvent(
@@ -101,7 +101,7 @@ EVENTS: dict[str, NotificationEvent] = {
         badge_class="bg-danger",
         template_field="email_cancelled_template",
         subject_field="email_cancelled_subject",
-        default_subject="[Watchdeck] Demande annulée : {titre}",
+        default_subject="Demande annulée : {titre}",
     ),
     "correction": NotificationEvent(
         key="correction",
@@ -112,7 +112,7 @@ EVENTS: dict[str, NotificationEvent] = {
         badge_class="bg-info",
         template_field=None,
         subject_field=None,
-        default_subject="[Watchdeck] Correction : {titre}",
+        default_subject="Correction : {titre}",
     ),
 }
 

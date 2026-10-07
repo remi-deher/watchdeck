@@ -115,7 +115,7 @@ async def _send_digest():
 </table>
 </body></html>"""
 
-            subject = f"[Watchdeck] Récap du {now_utc_naive().strftime('%d/%m/%Y')} — {count} demande{plural}"
+            subject = f"{count} demande{plural} · récap du {now_utc_naive().strftime('%d/%m/%Y')}"
             for user in users:
                 recipient = user.notification_email or user.plex_email
                 if not recipient:

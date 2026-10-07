@@ -183,6 +183,9 @@ def _write_image_cache(url: str, content: bytes, content_type: str, cached_at: f
         logger.warning(f"Cache image : écriture impossible pour {url}: {e}")
 
 
+_MAX_DIMENSION = 2560  # un fond pleine largeur sur un ecran large a forte densite
+
+
 def _variant_key(url: str, width: int | None, height: int | None, quality: int, image_format: str) -> str:
     if not width and not height and image_format == "original":
         return url
@@ -201,7 +204,16 @@ def _transform_image(
             if output_format in {"WEBP", "AVIF"} and image.mode not in ("RGB", "RGBA"):
                 image = image.convert("RGB")
             output = BytesIO()
-            image.save(output, format=output_format, quality=quality, optimize=True)
+            save_options: dict = {"quality": quality, "optimize": True}
+            if output_format == "WEBP":
+                # method=6 : encodage le plus lent, donc le plus fin a qualite egale -- le
+                # resultat est mis en cache, on ne le paie qu'une fois par variante.
+                save_options["method"] = 6
+            icc_profile = image.info.get("icc_profile")
+            if icc_profile and output_format in {"WEBP", "JPEG", "PNG"}:
+                # Sans profil, un fond en espace colorimetrique large ressortait delave.
+                save_options["icc_profile"] = icc_profile
+            image.save(output, format=output_format, **save_options)
             mime_format = "jpeg" if output_format.upper() == "JPEG" else output_format.lower()
             return output.getvalue(), f"image/{mime_format}"
     except (UnidentifiedImageError, OSError, ValueError) as exc:
@@ -247,8 +259,8 @@ async def image_proxy(
     request: Request,
     url: str | None = None,
     plex_path: str | None = None,
-    width: int | None = Query(None, ge=32, le=1600),
-    height: int | None = Query(None, ge=32, le=1600),
+    width: int | None = Query(None, ge=32, le=_MAX_DIMENSION),
+    height: int | None = Query(None, ge=32, le=_MAX_DIMENSION),
     quality: int = Query(82, ge=40, le=95),
     image_format: str = Query("original", alias="format", pattern="^(original|webp|avif)$"),
     plex_server: int | None = Query(None, alias="server"),
@@ -521,8 +533,8 @@ async def _proxy_stored_poster(
 async def library_image_proxy(
     request: Request,
     library_item_id: int,
-    width: int | None = Query(500, ge=32, le=1600),
-    height: int | None = Query(None, ge=32, le=1600),
+    width: int | None = Query(500, ge=32, le=_MAX_DIMENSION),
+    height: int | None = Query(None, ge=32, le=_MAX_DIMENSION),
     quality: int = Query(82, ge=40, le=95),
     image_format: str = Query("webp", alias="format", pattern="^(original|webp|avif)$"),
 ):
@@ -539,8 +551,8 @@ async def library_image_proxy(
 async def request_image_proxy(
     request: Request,
     request_id: int,
-    width: int | None = Query(500, ge=32, le=1600),
-    height: int | None = Query(None, ge=32, le=1600),
+    width: int | None = Query(500, ge=32, le=_MAX_DIMENSION),
+    height: int | None = Query(None, ge=32, le=_MAX_DIMENSION),
     quality: int = Query(82, ge=40, le=95),
     image_format: str = Query("webp", alias="format", pattern="^(original|webp|avif)$"),
 ):

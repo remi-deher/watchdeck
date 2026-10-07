@@ -12,7 +12,9 @@
       <ChevronDown class="ui-select-chevron" aria-hidden="true" />
     </SelectTrigger>
     <SelectPortal>
-      <SelectContent class="ui-select-content" position="popper" :side-offset="6">
+      <!-- body-lock a faux : Reka retirait la barre de defilement de la page a l'ouverture,
+           ce qui la decalait (et tout ce qui est fixe) de la largeur de la barre. -->
+      <SelectContent class="ui-select-content" position="popper" :side-offset="6" :body-lock="false">
         <SelectViewport class="ui-select-viewport">
           <SelectGroup v-for="section in sections" :key="section.key">
             <SelectLabel v-if="section.label" class="ui-select-group-label">{{ section.label }}</SelectLabel>
