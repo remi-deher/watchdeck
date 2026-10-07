@@ -36,7 +36,7 @@ describe('palettes et apparence', () => {
   it('restaure la même palette avant le premier rendu', async () => {
     const { PALETTE_OPTIONS } = await import('./useTheme');
     const html = readFileSync('index.html', 'utf8');
-    const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/)![1];
+    const bootstrap = new DOMParser().parseFromString(html, 'text/html').querySelector('script')!.textContent!;
     document.head.innerHTML = '<meta name="theme-color" content="">';
     for (const palette of PALETTE_OPTIONS) {
       localStorage.setItem('watchdeck:palette', palette.value);
