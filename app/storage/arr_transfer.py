@@ -208,7 +208,7 @@ async def configured_route(db, instance, root):
     return declared, mapping, location
 
 
-async def preview_arr(db, body, capacity_overrides=None):
+async def preview_arr(db, body, capacity_overrides=None, destination_total=None):
     from .preview_progress import report
 
     instance = await db.get(ArrInstance, body.arr_instance_id)
@@ -265,6 +265,9 @@ async def preview_arr(db, body, capacity_overrides=None):
             )
         )
     ).scalar()
+    from .service import reserve_bytes
+
+    reserved = (reserved or 0) + reserve_bytes(dl, destination_total)
     await report(f"Lecture du catalogue {instance.arr_type.title()}…")
     candidates = []
     from .inventory import arr_catalog

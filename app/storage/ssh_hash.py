@@ -55,30 +55,53 @@ def connecter(config=None):
         allow_agent=False,
         look_for_keys=False,
     )
-    if config.get("ssh_auth", "password") == "key":
-        cle = config.get("ssh_private_key", "")
-        mot = config.get("ssh_passphrase") or None
-        pkey = None
-        for classe in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
-            try:
-                pkey = classe.from_private_key(io.StringIO(cle), password=mot)
-                break
-            except (paramiko.SSHException, ValueError):
+    primary = config.get("ssh_auth", "password")
+    methods = [primary]
+    if config.get("ssh_auth_fallback"):
+        methods.append("password" if primary == "key" else "key")
+    # A single available credential is used automatically. Legacy key profiles
+    # without a key still report an invalid key instead of using an empty password.
+    available = {"key": bool(config.get("ssh_private_key")), "password": bool(config.get("ssh_password"))}
+    alternate = "password" if primary == "key" else "key"
+    if not available[primary] and available[alternate]:
+        methods = [alternate]
+    for index, method in enumerate(methods):
+        auth_args = dict(args)
+        if method == "key":
+            pkey = None
+            for classe in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
+                try:
+                    pkey = classe.from_private_key(
+                        io.StringIO(config.get("ssh_private_key", "")), password=config.get("ssh_passphrase") or None
+                    )
+                    break
+                except (paramiko.SSHException, ValueError):
+                    continue
+            if pkey is None:
+                client.close()
+                raise RuntimeError("Clé privée SSH invalide ou phrase secrète incorrecte")
+            auth_args["pkey"] = pkey
+        else:
+            auth_args["password"] = config.get("ssh_password", "")
+        try:
+            client.connect(**auth_args)
+            client.storage_auth_method = method
+            return client
+        except paramiko.AuthenticationException:
+            client.close()
+            if index + 1 < len(methods) and available[methods[index + 1]]:
+                client = paramiko.SSHClient()
+                client.set_missing_host_key_policy(Epingle())
                 continue
-        if pkey is None:
-            raise RuntimeError("Clé privée SSH invalide ou phrase secrète incorrecte")
-        args["pkey"] = pkey
-    else:
-        args["password"] = config.get("ssh_password", "")
-    try:
-        client.connect(**args)
-        return client
-    except RuntimeError:
-        client.close()
-        raise
-    except Exception:
-        client.close()
-        raise RuntimeError("Connexion SSH refusée ou indisponible ; vérifier identité et authentification") from None
+            raise RuntimeError("Authentification SSH refusée ; vérifier la clé ou le mot de passe") from None
+        except RuntimeError:
+            client.close()
+            raise
+        except Exception:
+            client.close()
+            raise RuntimeError(
+                "Connexion SSH refusée ou indisponible ; vérifier identité et authentification"
+            ) from None
 
 
 def executer(script, stop=None):

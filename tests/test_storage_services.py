@@ -245,6 +245,9 @@ async def test_migration_guard_requires_live_worker():
 async def test_saved_job_payload_preserves_telemetry(monkeypatch):
     item = NS(
         id=1,
+        arr_instance_id=1,
+        arr_id=1,
+        proofs={},
         title="Film",
         media_type="movie",
         size_bytes=100,
@@ -268,7 +271,11 @@ async def test_saved_job_payload_preserves_telemetry(monkeypatch):
         updated_at=now_utc_naive(),
         worker_seen_at=now_utc_naive(),
     )
-    db = NS(execute=AsyncMock(return_value=NS(scalars=lambda: NS(all=lambda: [item]))))
+    db = NS(
+        execute=AsyncMock(
+            side_effect=[NS(scalars=lambda: NS(all=lambda: [item])), NS(scalars=lambda: NS(all=lambda: []))]
+        )
+    )
     data = await service.transfer_json(db, job)
     assert data["planned_bytes"] == 100 and data["released_bytes"] == 0
     assert data["items"][0]["progress"]["copied_bytes"] == 50

@@ -1,6 +1,6 @@
 <template>
  <section class="job-list">
-  <AppSubnav v-model:active="filter" :items="filterItems" variant="tabs" class="compact-subnav" aria-label="Filtrer les tâches" />
+  <AppSubnav v-if="!detailMode" v-model:active="filter" :items="filterItems" variant="tabs" class="compact-subnav" aria-label="Filtrer les tâches" />
   <UiEmptyState v-if="!filteredJobs.length" title="Aucune tâche" message="Aucune tâche dans cette section." compact />
   <PanelCard v-for="job in filteredJobs" :key="job.id" class="transfer-batch">
    <StorageTransferSummary :job="job" :instance="instanceName(job)" :source="locationName(job.source_id)" :destination="locationName(job.destination_id)" :status="status" :gb="gb" :date="date"><template #actions><StorageTaskActions :job="job" :busy="busy" @relaunch="$emit('relaunch',$event)" @verify="$emit('verify',$event)" @edit="$emit('edit',$event)" @duplicate="$emit('duplicate',$event)" @remove="removing=$event" @cancel="cancelling=$event" @command="(id,action)=>$emit('command',id,action)" /></template></StorageTransferSummary>
@@ -39,7 +39,7 @@ import StorageItemDialog from './StorageItemDialog.vue';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import {computed,ref,toRef} from 'vue';import UiButton from '@/components/ui/UiButton.vue';import UiDataTable,{type UiColumn} from '@/components/ui/UiDataTable.vue';import {useStorageTelemetry} from './useStorageTelemetry';
-const props=defineProps<{jobs:any[],locations:any[],busy:boolean,tab:string,instances?:any[]}>();const tab=toRef(props,'tab');
+const props=defineProps<{jobs:any[],locations:any[],busy:boolean,tab:string,instances?:any[],detailMode?:boolean}>();const tab=toRef(props,'tab');
 const {visibleJobs,gb,date,locationName,status,activeItem,copyPercent,rateLabel,jobStart,jobEnd,elapsed}=useStorageTelemetry(toRef(props,'locations'),toRef(props,'jobs'),tab,ref(null),ref<string[]>([]));
 const instanceName=(job:any)=>props.instances?.find(i=>i.id===job.params?.arr_instance_id)?.name||`Instance ${job.params?.arr_instance_id || 'non précisée'}`;
 function advice(reason:string){if(/lecture|playing/i.test(reason))return 'Attendre la fin de la lecture, puis reprendre.';if(/espace.*insuffisant|réserve.*insuffisante|capacity.*insufficient/i.test(reason))return 'Libérer de la place à destination avant de réessayer.';if(/connexion|accès|accessible|rsync\/SSH/i.test(reason))return 'Vérifier les services, les chemins et leurs accès avant de réessayer.';return 'Vérifier le motif et les chemins dans les détails avant de réessayer.';}
@@ -50,12 +50,13 @@ const issues=(job:any)=>job.items.filter((i:any)=>['blocked','failed','deferred'
 function reasons(job:any){const counts=new Map<string,number>();for(const item of issues(job)){const reason=item.reason||status(item.status);counts.set(reason,(counts.get(reason)||0)+1);}return [...counts].map(([reason,count])=>({reason,count}));}
 function matchesJob(job:any,key:string){return key==='all'||(key==='draft'?job.status==='draft':key==='active'?['running','queued','finalizing'].includes(job.status):key==='completed'?job.status==='completed':key==='cancelled'?job.status==='cancelled':['paused','stopped','blocked','failed','cancel_blocked'].includes(job.status)||issues(job).length>0);}
 const taskPool=computed(()=>props.tab==='history'?props.jobs.filter(j=>['completed','blocked','stopped','paused','failed','cancelled','cancel_blocked'].includes(j.status)):props.jobs);
-const filteredJobs=computed(()=>taskPool.value.filter(j=>matchesJob(j,filter.value)));
+const filteredJobs=computed(()=>props.detailMode?props.jobs:taskPool.value.filter(j=>matchesJob(j,filter.value)));
 const countJobs=(key:string)=>taskPool.value.filter(j=>matchesJob(j,key)).length;
 const items=(job:any)=>filter.value==='issues'?issues(job):job.items;const finished=(job:any)=>job.items.filter((i:any)=>i.status==='completed').length;
 const awaitingCleanup=(job:any)=>job.items.filter((i:any)=>['switching','plex_pending','cleaning'].includes(i.status)).reduce((n:number,i:any)=>n+i.size_bytes,0);
 const columns:UiColumn[]=[{key:'title',label:'Titre',card:'title'},{key:'size',label:'Volume'},{key:'state',label:'Étape / état'},{key:'updated',label:'Dernière activité',card:'hidden'},{key:'details',label:'Détails',card:'actions'}];
 defineEmits<{command:[id:number,action:string],create:[],edit:[job:any],duplicate:[job:any],verify:[job:any],remove:[id:number],relaunch:[job:any]}>();
+defineExpose({confirmRemove:(job:any)=>removing.value=job,confirmCancel:(job:any)=>cancelling.value=job});
 </script>
 
 <style scoped lang="scss">

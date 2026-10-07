@@ -19,11 +19,11 @@ import {computed,ref,watch} from 'vue';
 import UiButton from '@/components/ui/UiButton.vue';
 const props=defineProps<{busy:boolean,protectedTitles:any[]}>();
 const form=defineModel<any>({required:true});
-const perSource=ref(form.value.routes.some((r:any)=>Object.keys(r.root_goals||{}).length));
+const perSource=ref(form.value.per_source_goal ?? form.value.routes.some((r:any)=>Object.keys(r.root_goals||{}).length));
 const distribution=ref(form.value.target_titles?'count':'auto');
-watch(()=>form.value.mode,()=>{perSource.value=false;for(const route of form.value.routes)route.root_goals={};if(form.value.mode==='selection'){form.value.target_titles=null;distribution.value='auto';}});
+watch(()=>form.value.mode,()=>{perSource.value=false;form.value.per_source_goal=false;for(const route of form.value.routes)route.root_goals={};if(form.value.mode==='selection'){form.value.target_titles=null;distribution.value='auto';}});
 function setGeneral(value:string){form.value.goal_gb=value===''?null:Number(value);for(const route of form.value.routes)route.root_goals={};if(perSource.value)resetScope();}
-function resetScope(){for(const route of form.value.routes)route.root_goals=perSource.value?Object.fromEntries(route.source_roots.map((root:string)=>[root,form.value.goal_gb])):{};}
+function resetScope(){form.value.per_source_goal=perSource.value;for(const route of form.value.routes)route.root_goals=perSource.value?Object.fromEntries(route.source_roots.map((root:string)=>[root,form.value.goal_gb])):{};}
 const summary=computed(()=>form.value.mode==='selection'?'Choisissez les titres dans l’aperçu.':`${form.value.mode==='minimum_free'?'Atteindre':'Libérer'} ${form.value.goal_gb || 0} Go ${form.value.mode==='minimum_free'||perSource.value?'par source':'au total'}${form.value.target_titles?` sur ${form.value.target_titles} titres`:''}.`);
 defineEmits<{unprotect:[key:string]}>();
 </script>

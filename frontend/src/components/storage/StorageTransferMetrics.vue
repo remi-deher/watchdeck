@@ -1,5 +1,5 @@
 <template>
-  <div class="transfer-metrics">
+  <div class="transfer-metrics" :class="{compact}">
     <div class="copy-heading"><span><strong>{{ Math.round(metrics.percent) }} %</strong> du volume copié</span><span>{{ job.items.filter((i:any)=>i.status==='completed').length }} / {{ job.items.length }} titres terminés</span></div>
     <UiProgress v-if="job.params?.transfer_mode!=='arr' && metrics.total>0" :value="metrics.percent" :label="`Volume copié de la tâche ${job.id}`" />
     <dl>
@@ -20,7 +20,7 @@
 import {computed,onMounted,onUnmounted,ref} from 'vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import {transferMetrics,copyDuration} from './transferMetrics';
-const props=defineProps<{job:any}>();
+const props=defineProps<{job:any,compact?:boolean}>();
 const now=ref(Date.now()/1000);
 let timer:ReturnType<typeof setInterval>|undefined;
 onMounted(()=>{timer=setInterval(()=>{now.value=Date.now()/1000;},1000);});
@@ -32,4 +32,4 @@ const gb=(bytes:number)=>`${(bytes/1e9).toLocaleString('fr-FR',{maximumFractionD
 @use '@/styles/foundations/breakpoints' as bp;
 .transfer-metrics{min-width:0;margin:12px 0}.transfer-metrics dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,135px),1fr));gap:12px;margin:0 0 10px}.transfer-metrics dl>div{min-width:0}.transfer-metrics dt{font-size:var(--fs-sm);color:var(--muted);line-height:1.4}.transfer-metrics dd{margin:4px 0 0;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.transfer-metrics small{display:block;color:var(--muted);font-size:var(--fs-sm);line-height:1.5;margin-top:8px}
 .copy-heading{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:var(--fs-sm);color:var(--muted);margin-bottom:8px}.copy-heading strong{font-size:24px;color:var(--text)}.transfer-metrics :deep(.ui-progress){margin-bottom:18px;height:8px}.transfer-metrics dd{font-size:20px}.transfer-metrics dl>div:nth-last-child(-n+2) dd{color:var(--accent)}@include bp.until(phablet){.transfer-metrics dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.transfer-metrics dl>div:last-child{grid-column:1/-1}}
-</style>
+.compact dl>div:nth-child(1),.compact dl>div:nth-child(3),.compact dl>div:nth-child(5){display:none}.compact dl{grid-template-columns:repeat(3,minmax(0,1fr))}.compact dd{font-size:var(--fs-lg)}.compact small{font-size:var(--fs-xs)}</style>

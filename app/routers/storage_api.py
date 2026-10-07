@@ -31,7 +31,8 @@ class LocationBody(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     mount_path: str = ""
     mappings: list[MappingBody] = Field(min_length=1)
-    reserve_gb: float = Field(default=100, ge=0, le=1000000)
+    reserve_gb: float = Field(default=0, ge=0, le=1000000)
+    reserve_percent: float | None = Field(default=None, ge=0, le=100)
     enabled: bool = True
 
 
@@ -195,6 +196,7 @@ async def save_location(db, body, location=None):
     location.mount_path = mount
     location.mappings = [m.model_dump() for m in body.mappings]
     location.reserve_bytes = int(body.reserve_gb * 1e9)
+    location.reserve_percent = body.reserve_percent
     location.enabled = body.enabled
     location.health = "not_checked"
     location.checked_at = None

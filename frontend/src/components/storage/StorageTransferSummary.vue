@@ -4,11 +4,12 @@
   <div class="route"><div><small>Depuis</small><strong>{{ job.params?.source_roots?.join(' · ') || source }}</strong></div><ArrowRight :size="20" aria-hidden="true" /><div><small>Vers</small><strong>{{ job.params?.destination_root || destination }}</strong></div></div>
   <StorageTransferMetrics :job="job" />
   <StoragePlexFinalization :job="job" :gb="gb" />
-  <div v-if="current" class="current"><span class="current-icon"><ArrowUpRight :size="20" aria-hidden="true" /></span><div><small>{{ status(current.status) }} · {{ current.status==='copying'?'Fichier en cours':'Titre en cours' }}</small><strong>{{ current.title }}</strong><p v-if="current.progress?.file">{{ current.progress.file }}</p></div></div>
+  <StorageCurrentMedia :job="job" :status="status" hero />
   <footer><span><b>{{ gb(job.released_bytes || 0) }} réellement libérés</b><template v-if="awaiting"> · {{ gb(awaiting) }} en attente de suppression</template></span><span>Créé : {{ date(job.created_at) }}</span></footer>
  </div>
 </template>
 <script setup lang="ts">
+import StorageCurrentMedia from './StorageCurrentMedia.vue';
 import {computed} from 'vue';
 import {ArrowRight,ArrowUpRight} from '@lucide/vue';
 import UiBadge from '@/components/ui/UiBadge.vue';

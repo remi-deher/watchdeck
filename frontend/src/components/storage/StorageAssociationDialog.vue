@@ -1,22 +1,23 @@
 <template>
-      <ModalShell :open="open" title="Association Arr / Plex" panel-class="storage-association-modal" :error="error" :busy="busy" @close="$emit('close')">
+      <ModalShell :open="open" title="Configurer le stockage" panel-class="storage-association-modal" :error="error" :busy="busy" @close="$emit('close')">
       <p>Associez les racines Arr et Plex. Les dossiers utilisés seront contrôlés lors de l’aperçu du déplacement.</p>
       <form class="association-form" @submit.prevent="$emit('save')">
         <h3>{{ editId ? 'Modifier le stockage' : 'Ajouter un stockage' }}</h3>
         <div class="form-grid"><label>Nom<input v-model="locationForm.name" required maxlength="100" /></label><label class="check"><input v-model="locationForm.enabled" type="checkbox" /> Actif</label></div>
         <fieldset v-for="(mapping, index) in locationForm.mappings" :key="index"><legend>Correspondance {{ index + 1 }}</legend><div class="form-grid"><label>Instance<select v-model.number="mapping.arr_instance_id" required @change="resetMappingRoots(mapping)"><option v-for="i in instances" :key="i.id" :value="i.id">{{ i.name }} · {{ i.arr_type }}</option></select></label><label>Dossier racine déclaré dans Arr<select v-model="mapping.arr_root" required><option value="" disabled>Choisir un dossier</option><option v-for="root in rootsFor(mapping).arr_roots" :key="root" :value="root">{{ root }}</option></select></label><label>Dossier déclaré dans Plex<select :value="plexChoice(mapping)" required @change="selectPlexRoot(mapping, ($event.target as HTMLSelectElement).value)"><option value="" disabled>Choisir la bibliothèque et son dossier</option><option v-for="root in rootsFor(mapping).plex_roots" :key="JSON.stringify([root.section_id, root.path])" :value="JSON.stringify([root.section_id, root.path])">{{ root.library }} · {{ root.path }}</option></select></label><p v-if="rootsFor(mapping).error" class="warning">{{ rootsFor(mapping).error }}</p></div><UiButton v-if="locationForm.mappings.length > 1" @click="locationForm.mappings.splice(index, 1)">Retirer cette correspondance</UiButton></fieldset>
-        <div class="actions"><UiButton @click="locationForm.mappings.push(newMapping())">Ajouter une correspondance</UiButton><UiButton type="submit" variant="primary" :loading="busy">Enregistrer</UiButton><UiButton v-if="editId" @click="$emit('close')">Annuler</UiButton></div>
+        <StorageReserveField v-model="locationForm" :total-bytes="totalBytes" /><slot name="connections" /><div class="actions"><UiButton @click="locationForm.mappings.push(newMapping())">Ajouter une correspondance</UiButton><UiButton type="submit" variant="primary" :loading="busy">Enregistrer</UiButton><UiButton v-if="editId" @click="$emit('close')">Annuler</UiButton></div>
       </form>
       </ModalShell>
 </template>
 <script setup lang="ts">
+import StorageReserveField from './StorageReserveField.vue';
 import {plexChoice,selectPlexRoot,resetMappingRoots,newAssociationMapping} from './storageAssociations';
 import UiButton from '@/components/ui/UiButton.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
-const props=defineProps<{open:boolean,busy:boolean,error?:string,editId:number|null,instances:any[],roots:any[],}>();
+const props=defineProps<{open:boolean,busy:boolean,error?:string,editId:number|null,instances:any[],roots:any[],totalBytes?:number|null}>();
 const rootsFor=(mapping:any)=>props.roots.find(r=>r.arr_instance_id===mapping.arr_instance_id)||{arr_roots:[],plex_roots:[]};
 const newMapping=()=>newAssociationMapping(props.instances[0]?.id||0);
-const locationForm=defineModel<{name:string,mount_path:string,reserve_gb:number,enabled:boolean,mappings:any[]}>({required:true});
+const locationForm=defineModel<{name:string,mount_path:string,reserve_gb:number,reserve_percent?:number|null,enabled:boolean,mappings:any[]}>({required:true});
 defineEmits<{save:[],close:[]}>();
 </script>
 

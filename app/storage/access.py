@@ -36,6 +36,7 @@ def ssh_config(access):
         ssh_user=connection.get("user"),
         ssh_fingerprint=connection.get("fingerprint"),
         ssh_auth=connection.get("auth", "key"),
+        ssh_auth_fallback=connection.get("auth_fallback", False),
         ssh_private_key=credentials.get("private_key", ""),
         ssh_password=credentials.get("password", ""),
         ssh_passphrase=credentials.get("passphrase", ""),
@@ -262,7 +263,9 @@ async def preview_rsync(db, body):
             proof = cached_root(source_access, source)
             if proof.get("identity") and proof.get("identity") == destination.get("identity"):
                 raise ValueError("Source et destination désignent le même dossier physique.")
-    result = await preview_arr(db, body, capacity_overrides=capacities)
+    result = await preview_arr(
+        db, body, capacity_overrides=capacities, destination_total=destination.get("total_bytes")
+    )
     if isinstance(destination.get("free_bytes"), int) and result["planned_bytes"] > destination["free_bytes"]:
         raise ValueError("Espace destination insuffisant selon le serveur rsync.")
     for item in result["items"]:
