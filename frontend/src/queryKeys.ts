@@ -23,6 +23,9 @@ export const queryKeys = {
     globalStats: (clientId: string | number | null | undefined) => ['downloads', 'global-stats', clientId ? String(clientId) : 'all'] as const,
   },
   diskSpace: ['disk-space'] as const,
+  admin: {
+    overview: ['admin', 'overview'] as const,
+  },
   vff: {
     all: ['settings', 'vff'] as const,
     scanStatus: ['settings', 'vff', 'scan-status'] as const,

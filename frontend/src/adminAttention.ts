@@ -14,9 +14,12 @@ export type AttentionSeverity = 'error' | 'warn' | 'info';
 
 /** Groupe de l'espace Administration qui règle le problème (clé de `navigation.ts`). */
 export type AttentionArea =
+  | 'admin-overview'
   | 'admin-connections'
+  | 'admin-acquisition'
   | 'admin-automation'
   | 'admin-notifications'
+  | 'admin-requests'
   | 'admin-security'
   | 'admin-system';
 
@@ -51,6 +54,19 @@ export interface VersionState {
   latest_release?: { tag_name?: string; name?: string } | null;
 }
 
+/** Chiffres de `GET /api/admin/overview` ; un bloc vaut `null` quand le serveur n'a pu le calculer. */
+export interface AdminOverview {
+  requests?: { pending_approval: number; failed: number } | null;
+  conflicts?: { count: number } | null;
+  issues?: { open: number } | null;
+  notifications?: { queue: number; hold: boolean; sent_7d: number; failed_7d: number; by_day: number[] } | null;
+  users?: { total: number; admins: number; moderators: number } | null;
+  download_clients?: { total: number; enabled: number } | null;
+  storage?: { connections: number; running_transfers: number; blocked_transfers: number } | null;
+  images?: { files: number; bytes: number } | null;
+  maintenance?: Record<string, { status: string; finished_at: string; log_count?: number }> | null;
+}
+
 export interface AttentionSettings {
   plex_url?: string | null;
   public_base_url?: string | null;
@@ -63,6 +79,8 @@ export interface AttentionInput {
   version?: VersionState | null;
   /** Absent tant que les réglages ne sont pas chargés : rien n'est alors signalé. */
   settings?: AttentionSettings | null;
+  /** Chiffres d'activité (demandes, conflits, notifications…) ; absents, rien n'en est dit. */
+  overview?: AdminOverview | null;
 }
 
 /** Libellé et écran de réglage de chaque service suivi par `/api/health`. */
@@ -96,6 +114,100 @@ function internalPath(url: string | undefined, fallback: string): string {
    version de l'API) ne doit jamais faire tomber la page qui les affiche. */
 function asRecord<T>(value: unknown): Record<string, T> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, T>) : {};
+}
+
+const many = (count: number, one: string, other: string) => (count > 1 ? other : one);
+
+/**
+ * Ce que l'activité de l'instance demande à un administrateur : demandes qui attendent sa
+ * validation, conflits, signalements, notifications bloquées. Tiré de l'aperçu serveur, qui
+ * peut manquer tout ou partie (bloc `null`) sans que rien ne soit alors affirmé.
+ */
+function activityAttention(overview: AdminOverview | null | undefined): AttentionItem[] {
+  if (!overview) return [];
+  const items: AttentionItem[] = [];
+
+  const pending = overview.requests?.pending_approval ?? 0;
+  if (pending > 0) {
+    items.push({
+      key: 'requests-approval',
+      severity: 'warn',
+      area: 'admin-requests',
+      title: `${pending} ${many(pending, 'demande à approuver', 'demandes à approuver')}`,
+      detail: 'Elles attendent la validation d’un administrateur avant d’être transmises.',
+      action: { label: 'Examiner', to: '/discover/requests' },
+    });
+  }
+  const failed = overview.requests?.failed ?? 0;
+  if (failed > 0) {
+    items.push({
+      key: 'requests-failed',
+      severity: 'warn',
+      area: 'admin-acquisition',
+      title: `${failed} ${many(failed, 'demande en échec', 'demandes en échec')}`,
+      detail: 'Leur transmission à Sonarr ou Radarr a échoué.',
+      action: { label: 'Voir', to: '/library?status=failed' },
+    });
+  }
+  const conflicts = overview.conflicts?.count ?? 0;
+  if (conflicts > 0) {
+    items.push({
+      key: 'conflicts',
+      severity: 'warn',
+      area: 'admin-acquisition',
+      title: `${conflicts} ${many(conflicts, 'conflit à résoudre', 'conflits à résoudre')}`,
+      detail: 'Des doublons ou des entrées incohérentes dans les demandes.',
+      action: { label: 'Résoudre', to: '/downloads/acquisitions' },
+    });
+  }
+  const blocked = overview.storage?.blocked_transfers ?? 0;
+  if (blocked > 0) {
+    items.push({
+      key: 'storage-blocked',
+      severity: 'warn',
+      area: 'admin-acquisition',
+      title: `${blocked} ${many(blocked, 'transfert bloqué', 'transferts bloqués')}`,
+      detail: 'Un transfert de stockage attend une intervention.',
+      action: { label: 'Voir', to: '/storage' },
+    });
+  }
+  const issues = overview.issues?.open ?? 0;
+  if (issues > 0) {
+    items.push({
+      key: 'issues-open',
+      severity: 'warn',
+      area: 'admin-overview',
+      title: `${issues} ${many(issues, 'problème signalé', 'problèmes signalés')}`,
+      detail: 'Des utilisateurs ont signalé un souci sur un média.',
+      action: { label: 'Traiter', to: '/issues' },
+    });
+  }
+
+  const notifications = overview.notifications;
+  if (notifications?.hold) {
+    items.push({
+      key: 'notifications-hold',
+      severity: 'warn',
+      area: 'admin-notifications',
+      title: 'Envoi des notifications suspendu',
+      detail: notifications.queue
+        ? `${notifications.queue} ${many(notifications.queue, 'notification attend', 'notifications attendent')} dans la file.`
+        : 'Les nouvelles notifications restent dans la file.',
+      action: { label: 'Reprendre', to: '/notifications?tab=pending' },
+    });
+  }
+  const unsent = notifications?.failed_7d ?? 0;
+  if (unsent > 0) {
+    items.push({
+      key: 'notifications-failed',
+      severity: 'info',
+      area: 'admin-notifications',
+      title: `${unsent} ${many(unsent, 'notification en échec', 'notifications en échec')} cette semaine`,
+      detail: 'Vérifiez le canal concerné dans le journal des envois.',
+      action: { label: 'Voir le journal', to: '/notifications' },
+    });
+  }
+  return items;
 }
 
 export function buildAttention(input: AttentionInput): AttentionItem[] {
@@ -174,6 +286,8 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
       });
     }
   }
+
+  items.push(...activityAttention(input.overview));
 
   const version = input.version;
   if (version && typeof version === 'object' && version.is_latest === false && version.latest_release) {
