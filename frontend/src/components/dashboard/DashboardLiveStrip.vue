@@ -17,7 +17,7 @@
 
       <div class="live-strip-list" :class="`is-${layout}`" :style="{ '--live-count': sessions.length }">
         <button
-          v-for="session in sessions"
+          v-for="(session, index) in sessions"
           :key="session.session_id"
           type="button"
           class="live-card"
@@ -28,11 +28,11 @@
           <span class="live-poster">
             <template v-if="wide">
               <span class="live-backdrop">
-                <MediaArtwork v-if="session.art_url" :src="session.art_url" :alt="''" :type="session.media_type" size="backdrop" />
+                <MediaArtwork v-if="session.art_url" :src="session.art_url" :alt="''" :type="session.media_type" size="backdrop" :priority="index === 0" />
                 <span v-else-if="session.thumb_url" class="live-backdrop-blur" :style="{ backgroundImage: `url(&quot;${posterUrl(session)}&quot;)` }"></span>
               </span>
             </template>
-            <MediaArtwork v-else :src="session.thumb_url" :alt="''" :type="session.media_type" size="poster" />
+            <MediaArtwork v-else :src="session.thumb_url" :alt="''" :type="session.media_type" size="poster" :priority="index === 0" />
             <span class="live-poster-shade" aria-hidden="true"></span>
             <span v-if="isPaused(session)" class="live-poster-pause" aria-hidden="true"><Pause /></span>
             <span class="live-poster-top">
@@ -41,7 +41,7 @@
             </span>
             <span class="live-poster-bottom">
               <span v-if="wide" class="live-inset" aria-hidden="true">
-                <MediaArtwork :src="session.thumb_url" :alt="''" :type="session.media_type" size="poster" />
+                <MediaArtwork :src="session.thumb_url" :alt="''" :type="session.media_type" size="poster" :priority="index === 0" />
               </span>
               <span class="live-poster-text">
                 <template v-if="wide && showLogo(session)">
@@ -71,6 +71,13 @@
 
     <!-- Au repos, le bandeau tient sur une ligne : un grand cadre vide au sommet de la
          page prenait la place la plus visible pour dire qu'il ne se passait rien. -->
+    <div v-else-if="loading || failed" class="live-strip-idle" :aria-busy="loading">
+      <span class="live-strip-idle-icon"><MonitorPlay aria-hidden="true" /></span>
+      <div class="live-strip-idle-text" role="status">
+        <h2 id="live-strip-title">{{ loading ? 'Lectures en direct' : 'Lectures momentanément indisponibles' }}</h2>
+        <p>{{ loading ? 'Récupération des lectures Plex…' : 'La connexion sera réessayée automatiquement.' }}</p>
+      </div>
+    </div>
     <div v-else class="live-strip-idle">
       <span class="live-strip-idle-icon" :class="{ off: !collectionEnabled }">
         <PowerOff v-if="!collectionEnabled" aria-hidden="true" />
@@ -107,8 +114,10 @@ const props = withDefaults(
   defineProps<{
     sessions?: LiveSession[];
     collectionEnabled?: boolean;
+    loading?: boolean;
+    failed?: boolean;
   }>(),
-  { sessions: () => [], collectionEnabled: true }
+  { sessions: () => [], collectionEnabled: true, loading: false, failed: false }
 );
 defineEmits<{ (e: 'select', session: LiveSession): void }>();
 

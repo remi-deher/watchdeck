@@ -492,7 +492,7 @@ async def stats_by_user(db: AsyncSession = Depends(get_db_async)):
 
 _ORPHAN_SONARR_PROGRESS_CACHE_KEY = "watchdeck:stats:orphan_sonarr_progress"
 _ORPHAN_RADARR_MISSING_CACHE_KEY = "watchdeck:stats:orphan_radarr_missing"
-_ORPHAN_ARR_CACHE_TTL = 120
+_ORPHAN_ARR_CACHE_TTL = 900
 
 
 async def _count_orphan_sonarr_progress(db: AsyncSession) -> int:
@@ -507,11 +507,13 @@ async def _count_orphan_sonarr_progress(db: AsyncSession) -> int:
     page Demandes — voir `app.services.arr_orphans`.
     """
     cached = await cache.get_json(_ORPHAN_SONARR_PROGRESS_CACHE_KEY)
-    if cached is not None:
+    if cached is not None and time.time() - cached.get("cached_at", time.time()) < 120:
         return cached.get("count", 0)
 
     count = len(await arr_orphans.find_orphan_shows(db))
-    await cache.set_json(_ORPHAN_SONARR_PROGRESS_CACHE_KEY, {"count": count}, ttl_seconds=_ORPHAN_ARR_CACHE_TTL)
+    await cache.set_json(
+        _ORPHAN_SONARR_PROGRESS_CACHE_KEY, {"count": count, "cached_at": time.time()}, ttl_seconds=_ORPHAN_ARR_CACHE_TTL
+    )
     return count
 
 
@@ -520,12 +522,14 @@ async def _count_orphan_radarr_missing(db: AsyncSession) -> int:
     (ajoutés directement dans Radarr) et sans fichier. Voir `_count_orphan_sonarr_progress`.
     """
     cached = await cache.get_json(_ORPHAN_RADARR_MISSING_CACHE_KEY)
-    if cached is not None:
+    if cached is not None and time.time() - cached.get("cached_at", time.time()) < 120:
         return cached.get("count", 0)
 
     count = len(await arr_orphans.find_orphan_movies(db))
 
-    await cache.set_json(_ORPHAN_RADARR_MISSING_CACHE_KEY, {"count": count}, ttl_seconds=_ORPHAN_ARR_CACHE_TTL)
+    await cache.set_json(
+        _ORPHAN_RADARR_MISSING_CACHE_KEY, {"count": count, "cached_at": time.time()}, ttl_seconds=_ORPHAN_ARR_CACHE_TTL
+    )
     return count
 
 
@@ -566,7 +570,7 @@ async def _count_incomplete_show_requests(db: AsyncSession) -> int:
 
 
 @router.get("/stats/counts")
-async def stats_counts(db: AsyncSession = Depends(get_db_async)):
+async def stats_counts(db: AsyncSession = Depends(get_db_async), *, allow_remote: bool = True):
     """Retourne les compteurs par statut, globaux et ventilés par type de média."""
     from sqlalchemy import func
 
@@ -597,8 +601,15 @@ async def stats_counts(db: AsyncSession = Depends(get_db_async)):
         globals_["total"] += n
 
     show_in_progress = await _count_incomplete_show_requests(db)
-    orphan_shows = await _count_orphan_sonarr_progress(db)
-    orphan_movies = await _count_orphan_radarr_missing(db)
+    if allow_remote:
+        orphan_shows = await _count_orphan_sonarr_progress(db)
+        orphan_movies = await _count_orphan_radarr_missing(db)
+    else:
+        # Le dashboard ne dépend jamais d'un aller-retour Sonarr/Radarr.
+        shows = await cache.get_json(_ORPHAN_SONARR_PROGRESS_CACHE_KEY)
+        movies = await cache.get_json(_ORPHAN_RADARR_MISSING_CACHE_KEY)
+        orphan_shows = (shows or {}).get("count", 0)
+        orphan_movies = (movies or {}).get("count", 0)
 
     by_type["show"]["sent_to_arr"] = show_in_progress + orphan_shows
     by_type["show"]["total"] += orphan_shows

@@ -684,6 +684,11 @@ async def startup(ctx: dict):
 
 
 async def shutdown(ctx: dict):
+    from .routers.image_proxy_api import close_image_refreshes
+    from .services.playback_preload import stop_playback_images
+
+    await stop_playback_images()
+    await close_image_refreshes()
     task = ctx.get("ws_listener_task")
     if task:
         task.cancel()
@@ -758,6 +763,44 @@ async def cron_storage_inventory(ctx: dict):
         logger.warning("Storage inventory refresh interrupted", exc_info=True)
 
 
+async def cron_prepare_dashboard(ctx: dict):
+    from .routers.dashboard_api import prepare_dashboard
+
+    try:
+        result = await prepare_dashboard()
+        if result.get("errors"):
+            logger.warning("Sections du dashboard indisponibles : %s", result["errors"])
+    except Exception:
+        logger.warning("Préparation du dashboard interrompue", exc_info=True)
+
+
+async def cron_prepare_dashboard_counts(ctx: dict):
+    from .cache import cache
+    from .routers.metrics_api import (
+        _ORPHAN_ARR_CACHE_TTL,
+        _ORPHAN_RADARR_MISSING_CACHE_KEY,
+        _ORPHAN_SONARR_PROGRESS_CACHE_KEY,
+    )
+    from .services import arr_orphans
+
+    # Sessions séparées et concurrence bornée : une source indisponible n'efface
+    # pas la dernière valeur connue de l'autre.
+    async def prepare(key, find):
+        try:
+            async with asyncio.timeout(45):
+                async with AsyncSessionLocal() as db:
+                    count = len(await find(db))
+                await cache.set_json(key, {"count": count, "cached_at": time.time()}, _ORPHAN_ARR_CACHE_TTL)
+        except Exception:
+            logger.warning("Compteur Arr du dashboard indisponible", exc_info=True)
+
+    await asyncio.gather(
+        prepare(_ORPHAN_SONARR_PROGRESS_CACHE_KEY, arr_orphans.find_orphan_shows),
+        prepare(_ORPHAN_RADARR_MISSING_CACHE_KEY, arr_orphans.find_orphan_movies),
+    )
+    await cron_prepare_dashboard(ctx)
+
+
 async def cron_playback_activity(ctx: dict):
     return await job_playback_activity(ctx)
 
@@ -813,6 +856,8 @@ class WorkerSettings:
         job_maintenance,
     ]
     cron_jobs = [
+        cron(cron_prepare_dashboard, second={2, 32}, unique=True, run_at_startup=True),
+        cron(cron_prepare_dashboard_counts, minute=set(range(0, 60, 2)), second=12, unique=True, run_at_startup=True),
         cron(cron_storage_inventory, minute={3, 18, 33, 48}, unique=True),
         cron(cron_watchlist, second={0, 30}, unique=True, run_at_startup=True),
         cron(cron_arr_statuses, minute={0, 15, 30, 45}, unique=True),

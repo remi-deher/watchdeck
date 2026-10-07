@@ -1,7 +1,4 @@
 <template>
-  <!-- `page-motion` etale l'arrivee des blocs de la page, avec un plafond pour qu'une
-       longue page ne se deroule pas indefiniment. La regle vit dans `_motion.scss`,
-       ecrite elle aussi de longue date et jusqu'ici sans emploi. -->
   <div class="app-page page-motion" :class="pageClass">
     <!-- Le titre reste dans le document mais pas a l'ecran : la barre de contexte
          affiche deja le meme intitule, en permanence et sans jamais defiler. Le h1

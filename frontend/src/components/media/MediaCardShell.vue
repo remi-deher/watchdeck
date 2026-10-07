@@ -55,7 +55,8 @@ const { revealed, reveal, conceal } = useCardReveal();
  * image en mediane et 358 taches longues, contre 36 ms et 13 une fois la classe retiree
  * a la fin de l'animation -- autant que sans aucune animation.
  */
-const playing = ref(props.animated);
+// L’animation d’apparition a été retirée : aucune animation ne peut émettre animationend.
+const playing = ref(false);
 function onRevealEnd(event: AnimationEvent): void {
   if (event.animationName.startsWith('card-reveal')) playing.value = false;
 }
@@ -148,14 +149,7 @@ function interceptFirstTap(e: MouseEvent): void {
 }
 .poster-card.is-music { aspect-ratio: 1 / 1; }
 .poster-card.bordered { border: 1px solid var(--border); }
-.poster-card.animated {
-  animation: card-reveal 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  animation-delay: calc(min(var(--card-index, 0), 16) * 24ms);
-  /* Pas de `will-change` ici : il promeut la carte sur sa propre couche graphique, et une
-     grille en compte vingt. Safari finit par manquer de memoire de composition et
-     l'affichage saute. Le navigateur promeut de lui-meme le temps de l'animation, qui
-     dure trois dixiemes de seconde. */
-}
+.poster-card.animated { animation: none; }
 
 /* L'apparition liee au defilement (`animation-timeline: view()`) a ete retiree : elle
  * attachait une timeline a chaque carte, recalculee a chaque image, et ne se terminait

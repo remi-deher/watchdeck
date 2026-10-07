@@ -2,7 +2,7 @@ import { usePreference } from './usePreference';
 
 const STORAGE_KEY = 'watchdeck.rail.collapsed';
 
-const collapsed = usePreference('rail.collapsed', false, { legacyKeys: [STORAGE_KEY] });
+const collapsed = usePreference('rail.collapsed', true, { legacyKeys: [STORAGE_KEY] });
 
 /**
  * Repli du rail, partagé et persistant.

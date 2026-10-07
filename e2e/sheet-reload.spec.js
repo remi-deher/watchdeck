@@ -23,11 +23,11 @@ test("recharger une fiche ouverte depuis une page garde la page de fond", async 
   await page.goto("/library?type=movie&query=Film");
   await expect(page.getByText("6 médias affichés")).toBeVisible({ timeout: 15_000 });
   await page.goto("/library?type=movie&query=Film");
-  await page.locator(".media-grid > .poster-card a, .media-grid > .poster-card [role=link]").first().click();
-  if (!(await page.locator(".media-overlay__panel").isVisible())) {
-    // Au doigt, le premier appui revele la carte : le second ouvre la fiche.
-    await page.locator(".media-grid > .poster-card a, .media-grid > .poster-card [role=link]").first().click();
-  }
+  // L'ouverture au clavier évite de confondre la révélation tactile avec le
+  // chargement asynchrone de la fiche : ce test vérifie le rechargement du fond.
+  const poster = page.locator(".media-grid > .poster-card a, .media-grid > .poster-card [role=link]").first();
+  await poster.focus();
+  await poster.press("Enter");
   await expect(page.locator(".media-overlay__panel")).toBeVisible();
 
   await page.reload();

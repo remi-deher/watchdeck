@@ -536,6 +536,8 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
 }
 
 @include bp.from(shell-expanded) {
+  // Le titre du rail replié reste à gauche du champ, hors de son flux.
+  .app-topbar__context { position: absolute; left: -140px; max-width: 128px; }
   /* Une seule largeur, un seul centre, sur toutes les pages.
      La barre portait aussi les commandes de la page : elles la partageaient avec le
      champ, qui prenait alors une largeur differente partout -- 562px sur Activite,

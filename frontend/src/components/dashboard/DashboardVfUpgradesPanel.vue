@@ -89,9 +89,9 @@ function releaseLabel(item: VfUpgradeItem): string {
 }
 
 useRealtime(['vf_upgrade.updated'], () => {
-  void queryClient.invalidateQueries({ queryKey: PENDING_KEY });
-  void queryClient.invalidateQueries({ queryKey: queryKeys.vff.metrics });
-});
+  void queryClient.invalidateQueries({ queryKey: PENDING_KEY }, { cancelRefetch: false });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.vff.metrics }, { cancelRefetch: false });
+}, { refreshOnVisible: false });
 </script>
 
 <style scoped lang="scss">

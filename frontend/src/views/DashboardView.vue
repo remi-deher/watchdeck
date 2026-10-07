@@ -1,26 +1,42 @@
 <template>
   <AppPage hide-search
-    title="Tableau de bord"
+    title="Accueil"
+    page-class="dashboard-home"
     :error="error"
     error-title="Actualisation partielle"
     retry
     :loading="loading && !updatedAt"
     loading-message="Chargement du tableau de bord…"
-    @retry="load"
+    @retry="load(true)"
   >
-
-    <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
 
     <DashboardGreeting :name="userName" :attention-count="attentionCount" :syncing="syncingAll" @sync-all="syncAll" />
 
     <!-- Activite Plex en direct, sur toute la largeur, juste sous l'en-tete. -->
     <DashboardLiveStrip
       :sessions="liveActivity.active || []"
+      :loading="liveActivityQuery.isPending.value"
+      :failed="liveActivityQuery.isError.value"
       :collection-enabled="liveActivity.enabled !== false"
       @select="openSession"
     />
 
-    <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action"/>
+    <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
+
+    <UiDisclosure
+      :title="attentionCount ? `${attentionCount} élément${attentionCount > 1 ? 's' : ''} à traiter` : 'Aucune intervention nécessaire'"
+      description="Demandes à approuver, imports bloqués et acquisitions en échec."
+      storage-key="dashboard.actionsOpen"
+    >
+      <DashboardActionCenter :pending="pending" :queue="downloadQueue" :failed-count="failedCount" @action="action" />
+    </UiDisclosure>
+
+    <MetricGrid aria-label="Vue d’ensemble de la bibliothèque">
+      <MetricCard label="À approuver" :value="counts.pending_approval ?? pending.length" detail="Demandes en attente" to="/library?status=pending_approval" :loading="loading && !updatedAt" />
+      <MetricCard label="En téléchargement" :value="queueTotals.downloading" detail="Acquisitions actives" to="/downloads?view=queue&amp;sub=active" :loading="loadingQueue" />
+      <MetricCard label="À importer" :value="queueTotals.importPending" detail="Téléchargements terminés" to="/downloads?view=queue&amp;sub=intervention" :loading="loadingQueue" />
+      <MetricCard label="Disponibles" :value="counts.available ?? '—'" detail="Dans votre bibliothèque" to="/library?status=available" :loading="loading && !updatedAt" />
+    </MetricGrid>
 
     <AcquisitionPipelinePanel
       :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
@@ -30,14 +46,14 @@
       :blocked-count="queueTotals.blocked + failedCount"
     />
 
-    <div class="dashboard-bento">
-      <DashboardVfUpgradesPanel class="bento-wide" />
-      <DownloadQueuePanel class="bento-narrow" :queue="downloadQueue" :loading="loadingQueue" />
-    </div>
-
-    <ActivityChartPanel :timeline="timeline" />
+    <DownloadQueuePanel class="dashboard-downloads" :queue="downloadQueue" :loading="loadingQueue" />
 
     <DashboardLibraryTabs :recently-available="recentlyAvailable" :recent-requests="recentRequests" :upcoming="upcoming" />
+
+    <div class="dashboard-bento">
+      <DashboardVfUpgradesPanel class="bento-narrow" />
+      <ActivityChartPanel class="bento-wide" :timeline="timeline" />
+    </div>
 
     <!-- Sante et stockage ne sont lus qu'une fois la zone a l'ecran (ou Supervision
          ouverte) : le bas de page ne doit pas retarder le premier affichage. -->
@@ -76,10 +92,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useElementVisibility } from '@vueuse/core';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
+import MetricCard from '@/components/ui/MetricCard.vue';
+import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
 import DashboardActionCenter from '@/components/dashboard/DashboardActionCenter.vue';
@@ -317,8 +335,8 @@ function cacheSnapshot(snapshot: Record<string, any>): void {
   writeCache(SNAPSHOT_CACHE_KEY, { ...(previous || {}), ...sections });
 }
 
-async function loadDashboardSections(sections: string[]): Promise<void> {
-  const snapshot = await api(`/api/dashboard/snapshot?sections=${sections.join(',')}`);
+async function loadDashboardSections(sections: string[], fresh = false): Promise<void> {
+  const snapshot = await api(`/api/dashboard/snapshot?sections=${sections.join(',')}${fresh ? '&refresh=true' : ''}`);
   applyDashboardSnapshot(snapshot);
   cacheSnapshot(snapshot);
 }
@@ -338,14 +356,27 @@ async function loadSupervision(): Promise<void> {
 }
 
 let loadedOnce = false;
-async function load(): Promise<void> {
+let loadController: AbortController | undefined;
+let disposed = false;
+let loadTimeout: ReturnType<typeof setTimeout> | undefined;
+onBeforeUnmount(() => {
+  disposed = true;
+  loadController?.abort();
+  if (loadTimeout) clearTimeout(loadTimeout);
+});
+async function load(fresh = false): Promise<void> {
   if (loading.value) return;
   loading.value = true;
   error.value = '';
+  const controller = new AbortController();
+  loadController = controller;
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  loadTimeout = timeout;
   const failures: string[] = [];
   const sections = supervisionLoaded.value
     ? [...PRIMARY_SECTIONS, ...SUPERVISION_SECTIONS]
     : PRIMARY_SECTIONS;
+  const receivedSections: Record<string, any> = {};
   // Chaque section s'affiche des qu'elle arrive, sans attendre la plus lente des dix.
   function applyChunk(chunk: Record<string, any>): void {
     if (chunk.errors?.length) {
@@ -353,30 +384,41 @@ async function load(): Promise<void> {
       return;
     }
     applyDashboardSnapshot(chunk);
-    cacheSnapshot(chunk);
+    Object.assign(receivedSections, chunk);
   }
 
   try {
     await streamEvents(
-      `/api/dashboard/snapshot/stream?sections=${sections.join(',')}`,
+      `/api/dashboard/snapshot/stream?sections=${sections.join(',')}${fresh ? '&refresh=true' : ''}`,
       applyChunk,
+      { signal: controller.signal },
     );
   } catch (streamError) {
+    if (disposed || controller.signal.aborted) {
+      clearTimeout(timeout);
+      loading.value = false;
+      if (!disposed) error.value = 'Le chargement prend trop de temps. Réessayez.';
+      return;
+    }
     // Repli d'un bloc : proxy qui tamponne, navigateur sans ReadableStream, coupure
     // reseau en cours de flux. Les sections deja recues restent affichees.
     try {
-      const snapshot = await api(`/api/dashboard/snapshot?sections=${sections.join(',')}`);
+      const snapshot = await api(`/api/dashboard/snapshot?sections=${sections.join(',')}${fresh ? '&refresh=true' : ''}`, { signal: controller.signal });
       applyDashboardSnapshot(snapshot);
-      cacheSnapshot(snapshot);
+      Object.assign(receivedSections, snapshot);
       if (snapshot.errors?.length) failures.push(...snapshot.errors);
     } catch (e) {
       failures.push('snapshot du tableau de bord');
     }
   }
+  clearTimeout(timeout);
+  loadController = undefined;
+  if (disposed) return;
   // Les donnees externes completent la vue au fil de l'eau et ne retardent jamais le
   // premier affichage du snapshot local. Au premier chargement, leurs requetes viennent
   // d'etre lancees par le montage : inutile de les relire.
-  if (loadedOnce) {
+  if (Object.keys(receivedSections).length) cacheSnapshot(receivedSections);
+  if (loadedOnce && fresh) {
     loadDownloadQueue().catch(() => {});
     loadLiveActivity().catch(() => {});
     loadVffStatus().catch(() => {});
@@ -396,7 +438,7 @@ async function action(row: any, type: string): Promise<void> {
     } else {
       await api(`/api/requests/${row.id}/approve`, { method: 'POST' });
     }
-    await load();
+    await load(true);
   } catch (e: any) { error.value = e.message; }
 }
 
@@ -411,10 +453,9 @@ function patchItem(list: { value: any[] }, detail: any, options: { keyFields: st
 
 useRealtime(['request.updated'], (type, detail) => {
   if (detail && (detail.request_id || detail.id)) {
-    const p1 = patchItem(pending, detail, { keyFields: ['request_id', 'id'] });
-    const p2 = patchItem(recentlyAvailable, detail, { keyFields: ['request_id', 'id'] });
-    const p3 = patchItem(recentRequests, detail, { keyFields: ['request_id', 'id'] });
-    if (p1 || p2 || p3) return;
+    patchItem(pending, detail, { keyFields: ['request_id', 'id'] });
+    patchItem(recentlyAvailable, detail, { keyFields: ['request_id', 'id'] });
+    patchItem(recentRequests, detail, { keyFields: ['request_id', 'id'] });
   }
   if (!type) return load();
   return loadDashboardSections([
@@ -423,20 +464,19 @@ useRealtime(['request.updated'], (type, detail) => {
     'counts',
     'pending', 'timeline', 'recently_available', 'recent_requests', 'upcoming', 'next_poll',
     ...(supervisionLoaded.value ? ['by_user', 'top_requested'] : []),
-  ]).catch(() => {});
+  ], true).catch(() => {});
 });
-useRealtime(['download.updated'], (type) => type ? loadDownloadQueue().catch(() => {}) : load());
+useRealtime(['download.updated'], () => loadDownloadQueue().catch(() => {}), { refreshOnVisible: false });
 useRealtime(['notification.updated'], (type) => type
-  ? supervisionLoaded.value && loadDashboardSections(['notifications']).catch(() => {})
-  : load());
-useRealtime(['activity.updated'], () => loadLiveActivity().catch(() => {}));
-// Remplace un sondage a 5 s (3 appels HTTP, soit 36 requetes/minute en permanence, meme
-// au repos). `type` absent = retour sur l'onglet apres une possible perte du flux SSE :
-// on resynchronise alors par un appel unique.
+  ? supervisionLoaded.value && loadDashboardSections(['notifications'], true).catch(() => {})
+  : undefined, { refreshOnVisible: false });
+useRealtime(['activity.updated'], () => loadLiveActivity().catch(() => {}), { refreshOnVisible: false });
+// Les événements appliquent directement les statuts ; TanStack Query assure déjà
+// la resynchronisation au retour sur l'onglet.
 useRealtime(['vff.updated'], (type, detail) => {
   if (!type) return loadVffStatus().catch(() => {});
   applyVffEvent(detail);
-});
+}, { refreshOnVisible: false });
 
 // Compte a rebours et horloge : locaux, ils doivent avancer meme onglet masque pour que
 // « prochaine verification dans X » soit juste au retour sur l'onglet. Les donnees, elles,
@@ -453,6 +493,16 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.dashboard-home { gap: var(--space-5); }
+.dashboard-downloads { width: 100%; }
+@container page (min-width: 958px) {
+  .dashboard-downloads :deep(.queue-main) { grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr); align-items: center; gap: var(--space-2) var(--space-5); }
+  .dashboard-downloads :deep(.queue-heading) { grid-row: span 2; }
+  .dashboard-downloads :deep(.queue-meta) { white-space: normal; }
+}
+.dashboard-home :deep(.shared-metric-grid) { gap: var(--space-3); }
+.dashboard-home :deep(.pipeline-wrapper) { margin-bottom: 0; }
+
 /* Grille de l'accueil : une colonne large (7/12) et une etroite (5/12), qui passent
    l'une sous l'autre quand le contenu se resserre. Les deux colonnes d'une rangee
    prennent la meme hauteur : un panneau peu rempli s'etire jusqu'au bas de son voisin

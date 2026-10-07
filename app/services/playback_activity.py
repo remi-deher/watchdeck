@@ -1816,6 +1816,10 @@ async def collect_plex_activity() -> dict:
             result = await _collect_plex_activity_unlocked()
         finally:
             await release_distributed_lock(_PLEX_COLLECTION_LOCK_KEY, token)
+    if result.get("active", 0):
+        from .playback_preload import schedule_playback_images
+
+        schedule_playback_images()
     try:
         await enrich_decisions_from_plex_logs()
     except Exception as exc:  # un journal illisible ne doit jamais casser la collecte
