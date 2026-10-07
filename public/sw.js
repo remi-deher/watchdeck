@@ -53,8 +53,9 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. Ignorer les requêtes non-GET et les requêtes tierces (sauf fonts.gstatic.com / fonts.googleapis.com)
-  if (request.method !== 'GET') return;
+  // 1. Laisser les ressources tierces au navigateur : leur chargement utilise
+  // style-src/font-src, tandis qu'un fetch du SW serait soumis à connect-src.
+  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
   // 2. Affiches : une adresse donnee designe toujours la meme image. Servie depuis le
   //    cache, elle s'affiche des la premiere image -- au lancement comme hors ligne --
@@ -86,9 +87,7 @@ self.addEventListener('fetch', (event) => {
   if (
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.svg') ||
-    url.pathname.endsWith('.woff2') ||
-    url.hostname === 'fonts.gstatic.com' ||
-    url.hostname === 'fonts.googleapis.com'
+    url.pathname.endsWith('.woff2')
   ) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
@@ -100,7 +99,7 @@ self.addEventListener('fetch', (event) => {
             }
             return networkResponse;
           })
-          .catch(() => cachedResponse);
+          .catch(() => cachedResponse || Response.error());
 
         return cachedResponse || fetchPromise;
       })
