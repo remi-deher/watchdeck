@@ -1,6 +1,25 @@
 # Changelog
 
-## 1.80.0 — 2026-10-07
+## 1.81.0 — 2026-10-08
+
+
+### ✨ Nouveautés
+
+- connections show their real state, sorted by service, with webhook auto-configuration per instance ([f77205b](https://github.com/remi-deher/watchdeck/commit/f77205b811f59f6722e41b14ffcd141d2b40e7a9))
+- acquisition clients show their real state, release rules in plain words with a per-type split and a release tester ([2b96e9e](https://github.com/remi-deher/watchdeck/commit/2b96e9e3cc286a868e5201c077bf64b1e3e80f8f))
+- notification channels show their last send, rules in plain words, reasons edited in a dialog with preview ([7acc38e](https://github.com/remi-deher/watchdeck/commit/7acc38e9b18845b933a7ce9cc1f2d0ced64b9c41))
+- automation with VF rhythms and folded advanced settings, tasks sorted by failure with next run and a run button ([b153b37](https://github.com/remi-deher/watchdeck/commit/b153b37186dfed60d43ca6e09c2151605ecd6404))
+- requests and quotas show who nears their quota and every per-account exception ([90e0738](https://github.com/remi-deher/watchdeck/commit/90e07385dc8721a053b442af861c1a30d4f0b1b1))
+- per-account option to always require approval ([c2f8ebd](https://github.com/remi-deher/watchdeck/commit/c2f8ebde1ac9f3b253944765ade4acd52341837c))
+- logs with a 24h verdict, detail panel and CSV export; version page with releases since yours and a check-now button ([f36c097](https://github.com/remi-deher/watchdeck/commit/f36c097ea4c638befb6906087eeb4b839e6054ce))
+
+### 🐛 Corrections
+
+- download client passwords no longer leave the server ([dfbe7fd](https://github.com/remi-deher/watchdeck/commit/dfbe7fdbca9eb60ec420555b085ca628db08f932))
+- arr instance API keys no longer leave the server ([b1e8e39](https://github.com/remi-deher/watchdeck/commit/b1e8e395e6eb8be440126038dab8ca5c7a484553))
+- logs page survives an incomplete summary; cover release fetching ([e097bc5](https://github.com/remi-deher/watchdeck/commit/e097bc5fecf3fef0536cb7a5c91b62948367d98b))
+- check-now forgets the release cache even right after a reboot ([7880b1d](https://github.com/remi-deher/watchdeck/commit/7880b1df4964b2e7d64c7dd448d4cf52171ed1aa))
+## 1.80.0 — 2026-10-08
 
 
 ### test
@@ -26,6 +45,10 @@
 ### 🐛 Corrections
 
 - send health actions to the service's own settings screen ([4ab66c2](https://github.com/remi-deher/watchdeck/commit/4ab66c23255642ec2c50266ffa4146cb8eb4c3bf))
+
+### 🔧 Maintenance
+
+- v1.80.0 (#756) ([a52059e](https://github.com/remi-deher/watchdeck/commit/a52059e1d52d3b3c80686f7d7bff6d834f60338e))
 ## 1.79.0 — 2026-10-07
 
 
