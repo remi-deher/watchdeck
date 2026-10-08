@@ -17,6 +17,16 @@ export interface FileflowsMedia {
   poster_url?: string | null;
 }
 
+export interface FileflowsTiming {
+  /** Duree affichee par FileFlows : depuis la prise du fichier par un runner. */
+  total_seconds: number;
+  /** Temps passe a attendre que le disque se libere (verrou du flow). */
+  wait_seconds: number;
+  /** Vrai temps de traitement : total moins l'attente. */
+  processing_seconds: number;
+  steps: Array<{ name: string; seconds: number; output: number | null }>;
+}
+
 export interface FileflowsFile {
   uid: string;
   name: string;
@@ -32,6 +42,7 @@ export interface FileflowsFile {
   date: string | null;
   tags: string[];
   media?: FileflowsMedia | null;
+  timing?: FileflowsTiming | null;
 }
 
 export interface FileflowsRunner {
@@ -94,6 +105,15 @@ export function fileStatusTone(status: number): string {
 /** Nom du fichier sans ses dossiers, plus lisible dans une liste. */
 export function fileBaseName(path: string): string {
   return (path || '').split('/').filter(Boolean).pop() || path;
+}
+
+/** Duree lisible : « 42 s », « 4 min 42 », « 1 h 03 ». */
+export function formatSeconds(value: number | null | undefined): string {
+  const total = Math.max(0, Math.round(Number(value) || 0));
+  if (total < 60) return `${total} s`;
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes} min ${String(total % 60).padStart(2, '0')}`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
 }
 
 /** Gain (negatif) ou perte de taille apres traitement, en pourcentage. */

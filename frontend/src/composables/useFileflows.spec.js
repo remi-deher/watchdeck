@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FILEFLOWS_STATUS, fileBaseName, fileStatusTone, sizeChange } from './useFileflows';
+import { FILEFLOWS_STATUS, fileBaseName, fileStatusTone, formatSeconds, sizeChange } from './useFileflows';
 
 describe('useFileflows', () => {
   it('donne le nom du fichier sans ses dossiers', () => {
@@ -19,5 +19,12 @@ describe('useFileflows', () => {
     expect(fileStatusTone(FILEFLOWS_STATUS.failed)).toBe('danger');
     expect(fileStatusTone(FILEFLOWS_STATUS.queued)).toBe('neutral');
     expect(fileStatusTone(-2)).toBe('warning');
+  });
+
+  it('formate une duree en secondes, minutes ou heures', () => {
+    expect(formatSeconds(42.4)).toBe('42 s');
+    expect(formatSeconds(282.5)).toBe('4 min 43');
+    expect(formatSeconds(3780)).toBe('1 h 03');
+    expect(formatSeconds(null)).toBe('0 s');
   });
 });
