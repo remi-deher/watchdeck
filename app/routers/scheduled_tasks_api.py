@@ -188,6 +188,15 @@ JOB_CATALOG = [
         "default_seconds": 900,
         "fixed_schedule": "Toutes les 15 minutes",
     },
+    {
+        "job": "fileflows-monitor",
+        "label": "Suivi FileFlows",
+        "description": "Previent l'administrateur des traitements FileFlows en echec et reanalyse la VF des medias traites.",
+        "settings_field": None,
+        "settings_unit": None,
+        "default_seconds": 300,
+        "fixed_schedule": "Toutes les 5 minutes",
+    },
 ]
 
 

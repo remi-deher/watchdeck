@@ -38,7 +38,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Médias',
     group: 'Connexions',
     path: '/settings/services/media',
-    keywords: ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'sous-titres', 'instance', 'cle api', 'sante', 'tester'],
+    keywords: ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'fileflows', 'encodage', 'sous-titres', 'instance', 'cle api', 'sante', 'tester'],
   },
   {
     label: 'Informations',

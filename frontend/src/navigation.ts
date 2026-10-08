@@ -14,6 +14,7 @@ import {
   Activity,
   Bell,
   CalendarDays,
+  Cpu,
   Clapperboard,
   Captions,
   Clock,
@@ -116,6 +117,8 @@ export const DESTINATIONS: NavDestination[] = [
   { key: 'requests', label: 'Demandes', icon: Inbox, group: 'Workflow', match: (p) => p.startsWith('/discover/requests') || p.startsWith('/releases/'), to: '/discover/requests' },
   { key: 'downloads', label: 'Acquisition', icon: GitBranch, group: 'Gestion des médias', access: 'admin', match: (p) => p.startsWith('/downloads'), to: '/downloads' },
   { key: 'storage', label: 'Stockage et transferts', icon: DatabaseZap, group: 'Gestion des médias', access: 'admin', match: (p) => p.startsWith('/storage'), to: '/storage' },
+  // Traitements FileFlows (reencodage, correction des sous-titres) : suivi et relance.
+  { key: 'encoding', label: 'Encodage', icon: Cpu, group: 'Gestion des médias', access: 'admin', match: (p) => p.startsWith('/encoding'), to: '/encoding' },
   // Lectures Plex et analyse du catalogue sont deux espaces distincts, pas deux
   // sections d'un meme : les regrouper obligeait chaque page a empiler sa propre
   // rangee d'onglets sous celle de la destination.
@@ -394,6 +397,9 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       break;
     case 'storage':
       sections = [{ key: 'storage', label: 'Stockage et transferts', to: '/storage', icon: DatabaseZap }];
+      break;
+    case 'encoding':
+      sections = [{ key: 'encoding', label: 'Encodage', to: '/encoding', icon: Cpu }];
       break;
     case 'downloads':
       sections = pipelineSections();

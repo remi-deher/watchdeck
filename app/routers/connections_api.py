@@ -2,7 +2,7 @@
 
 `/api/health` ne vérifie que l'instance par défaut de chaque type : avec deux Radarr, celui
 qui tombe peut passer inaperçu. Ici, chaque connexion configurée est vérifiée une à une
-(Plex, chaque instance Sonarr/Radarr/Prowlarr/Bazarr, TMDB, Seer, Tracearr, Tautulli), en
+(Plex, chaque instance Sonarr/Radarr/Prowlarr/Bazarr/FileFlows, TMDB, Seer, Tracearr, Tautulli), en
 parallèle et avec un délai borné. Le résultat est gardé une minute ; `refresh=true` le
 relance (bouton « Tout tester »).
 """
@@ -20,7 +20,7 @@ from ..cache import cache
 from ..database import get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, Settings
-from ..services import bazarr, prowlarr, radarr, sonarr
+from ..services import bazarr, fileflows, prowlarr, radarr, sonarr
 from ..services import service_health_details as health_details
 from ..utils import now_utc
 
@@ -63,6 +63,7 @@ _ARR_CHECKS: dict[str, Callable[[str, str], Awaitable[Any]]] = {
     "radarr": radarr.check_connection,
     "prowlarr": prowlarr.check_connection,
     "bazarr": bazarr.check_connection,
+    "fileflows": fileflows.check_connection,
 }
 _ARR_DETAILS_VERSION = {"sonarr": "v3", "radarr": "v3", "prowlarr": "v1"}
 

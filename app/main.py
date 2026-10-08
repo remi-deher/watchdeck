@@ -63,6 +63,7 @@ from .routers import (
     email_providers_api,
     email_templates,
     events_api,
+    fileflows_api,
     i18n_api,
     image_proxy_api,
     importexport,
@@ -476,6 +477,7 @@ app.include_router(storage_access_api.router)
 app.include_router(storage_connections_api.router)
 app.include_router(storage_api.router)
 app.include_router(arr_instances_api.router)
+app.include_router(fileflows_api.router)
 app.include_router(plex_servers_api.router)
 app.include_router(acquisition_api.router)
 app.include_router(download_clients_api.router)

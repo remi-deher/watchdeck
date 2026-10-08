@@ -1,4 +1,4 @@
-"""CRUD des instances Sonarr/Radarr/Prowlarr/Bazarr et lecture de leur configuration (profils de qualite, dossiers racine, tags)."""
+"""CRUD des instances Sonarr/Radarr/Prowlarr/Bazarr/FileFlows et lecture de leur configuration (profils de qualite, dossiers racine, tags)."""
 
 import asyncio
 import logging
@@ -12,7 +12,7 @@ from sqlalchemy.future import select
 from ..database import get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, DownloadClient, PlexServer
-from ..services import bazarr, prowlarr, radarr, sonarr
+from ..services import bazarr, fileflows, prowlarr, radarr, sonarr
 from ..services import integration_configuration as configuration
 from .arr_shared import (
     _arr_call,
@@ -71,6 +71,10 @@ def public_instance(inst: ArrInstance) -> dict[str, Any]:
     }
 
 
+# FileFlows n'a pas d'authentification par defaut : sa cle est facultative.
+KEYLESS_TYPES = {"fileflows"}
+
+
 @router.get("/arr-instances")
 async def list_arr_instances(db: AsyncSession = Depends(get_db_async)):
     return [public_instance(inst) for inst in (await db.execute(select(ArrInstance))).scalars().all()]
@@ -91,6 +95,7 @@ async def arr_capabilities(db: AsyncSession = Depends(get_db_async)):
         "has_radarr": "radarr" in enabled_types,
         "has_prowlarr": "prowlarr" in enabled_types,
         "has_bazarr": "bazarr" in enabled_types,
+        "has_fileflows": "fileflows" in enabled_types,
         "sonarr_configured": "sonarr" in configured_types,
         "radarr_configured": "radarr" in configured_types,
         "prowlarr_configured": "prowlarr" in configured_types,
@@ -124,9 +129,11 @@ async def _instance_values(db: AsyncSession, data: ArrInstanceCreate) -> dict:
 
 @router.post("/arr-instances")
 async def create_arr_instance(data: ArrInstanceCreate, db: AsyncSession = Depends(get_db_async)):
-    if not data.api_key:
+    if not data.api_key and data.arr_type not in KEYLESS_TYPES:
         raise HTTPException(422, "Clé API requise")
-    inst = await configuration.create_arr_instance(db, await _instance_values(db, data))
+    values = await _instance_values(db, data)
+    values.setdefault("api_key", "")
+    inst = await configuration.create_arr_instance(db, values)
     if inst.arr_type in {"sonarr", "radarr"}:
         await invalidate_arr_queue_cache()
         await invalidate_arr_wanted_cache(inst.arr_type)
@@ -194,6 +201,9 @@ async def test_arr_instance(body: TestArrInstanceBody, db: AsyncSession = Depend
     if not body.api_key and body.id is not None:
         stored = await db.get(ArrInstance, body.id)
         body.api_key = stored.api_key if stored else None
+    if body.arr_type == "fileflows":
+        ok, msg = await fileflows.check_connection(body.url, body.api_key)
+        return {"success": ok, "message": msg}
     if not body.api_key:
         return {"success": False, "message": "Clé API manquante"}
     if body.arr_type == "prowlarr":
