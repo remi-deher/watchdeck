@@ -1,11 +1,27 @@
 # Changelog
 
+## 1.82.0 — 2026-10-08
+
+
+### test
+
+- cover FileFlows client, routes and monitor job ([1eef6ac](https://github.com/remi-deher/watchdeck/commit/1eef6ac93aa71424e2ccaec4c36aa4b40aa412a8))
+- follow the renamed instances card title ([45a391c](https://github.com/remi-deher/watchdeck/commit/45a391c4e431ae1a2509c247af679166cfa2d9b9))
+
+### ✨ Nouveautés
+
+- security & API as one page; VF settings and Plex split into inner sections kept in the address ([51a8536](https://github.com/remi-deher/watchdeck/commit/51a8536c08bc0bb416577757a8f7b93fed14fa01))
+- FileFlows encoding supervision (page, dashboard panel, media tab, monitor) ([8f87d61](https://github.com/remi-deher/watchdeck/commit/8f87d616f13553a06eb52f0fe0ac22d92f97318e))
 ## 1.81.2 — 2026-10-08
 
 
 ### 🐛 Corrections
 
 - rules matrix renders as a table, not the old grid ([48c85d4](https://github.com/remi-deher/watchdeck/commit/48c85d48363caf1170b32d7ea17e3f5f28c66725))
+
+### 🔧 Maintenance
+
+- v1.81.2 (#772) ([68e419a](https://github.com/remi-deher/watchdeck/commit/68e419a92560d8816c56de4c0b22586aa9bcb10e))
 ## 1.81.1 — 2026-10-08
 
 
