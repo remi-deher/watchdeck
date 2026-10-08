@@ -994,3 +994,10 @@ async def bulk_delete_users(payload: BulkDeleteUpdate, request: Request, db: Asy
         await db.delete(user)
     await db.commit()
     return {"deleted": count}
+
+
+@router.get("/request-quotas/overview")
+async def request_quotas_overview(db: AsyncSession = Depends(get_db_async)):
+    """Écran Demandes & quotas : les comptes proches de leur quota, et les exceptions par compte."""
+    settings = (await db.execute(select(Settings))).scalars().first()
+    return await request_quotas.quotas_overview(db, settings)
