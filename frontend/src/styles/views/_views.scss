@@ -747,20 +747,8 @@ button:disabled {
   }
 }
 
-.span-two,
-.event-matrix {
+.span-two {
   grid-column: 1 / -1;
-}
-
-.event-matrix {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.event-matrix {
-  grid-template-columns: minmax(150px, 1fr) repeat(5, minmax(70px, auto));
-  align-items: center;
-  overflow-x: auto;
 }
 
 .markdown-toolbar {
