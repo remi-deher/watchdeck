@@ -967,3 +967,41 @@ async def resend_notification(log_id: int, db: AsyncSession = Depends(get_db_asy
     )
     await enqueue_notification(event, req.id, [log.recipient], context, triggered_by="manual")
     return {"status": "queued", "recipient": log.recipient, "event": event}
+
+
+NOTIFICATION_CHANNELS = ("email", "discord", "telegram", "ntfy", "gotify")
+
+
+def last_send_line(row: Any) -> dict[str, Any] | None:
+    """Le dernier envoi d'un canal, tel que l'écran Canaux l'affiche."""
+    if row is None:
+        return None
+    return {
+        "sent_at": format_datetime(row.sent_at),
+        "success": bool(row.success),
+        "error": row.error_msg,
+        "event": row.event,
+        "media_title": row.media_title,
+        "recipient": row.recipient,
+    }
+
+
+@router.get("/notifications/channels/last")
+async def notification_channels_last(db: AsyncSession = Depends(get_db_async)):
+    """Dernier envoi de chaque canal : l'écran dit si le canal fonctionne, pas seulement s'il est activé."""
+    result: dict[str, Any] = {}
+    for channel in NOTIFICATION_CHANNELS:
+        row = (
+            (
+                await db.execute(
+                    select(NotificationLog)
+                    .filter(NotificationLog.channel == channel)
+                    .order_by(NotificationLog.sent_at.desc())
+                    .limit(1)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        result[channel] = last_send_line(row)
+    return result

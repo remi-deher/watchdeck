@@ -3,10 +3,10 @@
     <SettingsItemList title="Canaux" subtitle="Où partent les notifications. Ouvrez un canal pour le configurer ; les événements se choisissent dans Règles.">
       <SettingsItem
         title="Email"
-        :subtitle="form.smtp_from ? `Depuis ${form.smtp_from}` : 'Notifications par email (demandes, disponibilité, échecs)'"
+        :subtitle="stateOf('email').status === 'error' ? stateOf('email').detail : [form.smtp_from ? `Depuis ${form.smtp_from}` : 'Notifications par email (demandes, disponibilité, échecs)', stateOf('email').detail].filter(Boolean).join(' · ')"
         :icon="Mail"
-        :status="form.email_enabled ? 'active' : 'inactive'"
-        :status-text="form.email_enabled ? 'Activé' : 'Désactivé'"
+        :status="stateOf('email').status"
+        :status-text="stateOf('email').text"
         keywords="smtp expéditeur administrateur import bloqué"
         saveable
       >
@@ -25,15 +25,15 @@
         v-for="channel in channels"
         :key="channel.key"
         :title="channel.label"
-        :subtitle="channel.subtitle"
+        :subtitle="stateOf(channel.key).status === 'error' ? stateOf(channel.key).detail : [channel.subtitle, stateOf(channel.key).detail].filter(Boolean).join(' · ')"
         :icon="channel.icon"
-        :status="form[`${channel.key}_enabled`] ? 'active' : 'inactive'"
-        :status-text="form[`${channel.key}_enabled`] ? 'Activé' : 'Désactivé'"
+        :status="stateOf(channel.key).status"
+        :status-text="stateOf(channel.key).text"
         :keywords="channel.keywords"
         saveable
       >
         <template #actions>
-          <UiButton size="sm" :disabled="!form[`${channel.key}_enabled`]" @click="testSaved(`/api/test/${channel.key}`)"><PlugZap/>Tester</UiButton>
+          <UiButton size="sm" :disabled="!form[`${channel.key}_enabled`]" @click="testChannel(channel.key)"><PlugZap/>Tester</UiButton>
         </template>
         <UiCheckboxField v-model="form[`${channel.key}_enabled`]" :label="`Activer ${channel.label}`" />
         <template v-if="channel.key==='discord'">
@@ -68,6 +68,22 @@ import { form, success, fail, testSaved, save } from '@/settingsForm';
 import SettingsItem from './SettingsItem.vue';
 import SettingsItemList from './SettingsItemList.vue';
 import EmailProvidersList from './EmailProvidersList.vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { channelState, type LastSend } from './channelLastSend';
+
+/* Dernier envoi de chaque canal : la ligne dit si le canal fonctionne vraiment. */
+const queryClient = useQueryClient();
+const lastQuery = useQuery({
+  queryKey: ['settings', 'notification-channels-last'],
+  queryFn: () => api<Record<string, LastSend | null>>('/api/notifications/channels/last'),
+  staleTime: 30_000,
+});
+const stateOf = (key: string) => channelState(Boolean(form[`${key}_enabled`]), lastQuery.data.value?.[key]);
+const refreshLast = () => queryClient.invalidateQueries({ queryKey: ['settings', 'notification-channels-last'] });
+async function testChannel(key: string): Promise<void> {
+  await testSaved(`/api/test/${key}`);
+  void refreshLast();
+}
 
 const channels = [
   { key: 'discord', label: 'Discord', icon: MessageSquare, subtitle: 'Un salon Discord, via un webhook', keywords: 'webhook salon' },
@@ -84,5 +100,6 @@ async function testSmtp(): Promise<void> {
     const data = await api('/api/test/smtp', { method: 'POST', body: JSON.stringify({ recipient }) });
     success(data.message || 'Email envoyé.');
   } catch (e) { fail(e); }
+  void refreshLast();
 }
 </script>

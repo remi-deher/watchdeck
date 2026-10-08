@@ -1,25 +1,38 @@
 <template>
+  <!-- Les règles à gauche, ce qu'elles font à droite : qui est prévenu de quoi, par quel
+       canal, dit en une phrase qui reste visible pendant qu'on coche. -->
+  <div class="notify-rules">
   <div class="settings-rows">
-    <SettingsSection title="Événements et canaux" subtitle="Pour chaque type d'événement, les canaux qui envoient une notification. Un canal doit d'abord être activé dans Canaux pour que sa case ait un effet.">
-      <SettingsRow label="Matrice des envois" block>
-        <dl class="event-legend">
-          <div v-for="event in notificationEvents" :key="event.key">
-            <dt>{{ event.label }}</dt>
-            <dd>{{ event.description }}</dd>
-          </div>
-        </dl>
-        <div class="event-matrix">
-          <div></div><strong>Email</strong><strong>Discord</strong><strong>Telegram</strong><strong>ntfy</strong><strong>Gotify</strong>
-          <template v-for="event in notificationEvents" :key="event.key">
-            <strong :title="event.description">{{ event.label }}</strong>
-            <!-- Une case au croisement d'une ligne et d'une colonne n'a de sens que
-                 reliee aux deux : le libelle enveloppant etait vide, et un lecteur
-                 d'ecran n'annoncait qu'« case à cocher ». -->
-            <label class="check"><UiCheckbox v-model="form[`email_on_${event.key}`]" :aria-label="`${event.label} — Email`" /></label>
-            <label v-for="channel in channels" :key="channel.key" class="check"><UiCheckbox v-model="form[`${channel.key}_send_${event.key}`]" :aria-label="`${event.label} — ${channel.label}`" /></label>
-          </template>
-        </div>
-      </SettingsRow>
+    <SettingsSection title="Qui est prévenu, par quel canal" subtitle="Une ligne par événement, une colonne par canal. Un canal désactivé se rallume dans Canaux.">
+      <div class="matrix-wrap">
+        <table class="event-matrix">
+          <caption class="sr-only">Canaux utilisés pour chaque événement</caption>
+          <thead>
+            <tr>
+              <th scope="col"><span class="sr-only">Événement</span></th>
+              <th v-for="channel in allChannels" :key="channel.key" scope="col" :class="{ 'is-off': !channelOn(channel.key) }">
+                <component :is="channel.icon" aria-hidden="true" />
+                <span>{{ channel.label }}</span>
+                <small v-if="!channelOn(channel.key)">désactivé</small>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="event in notificationEvents" :key="event.key">
+              <th scope="row"><strong>{{ event.label }}</strong><small>{{ event.description }}</small></th>
+              <!-- Une case n'a de sens que reliée à sa ligne et à sa colonne : son nom dit les deux. -->
+              <td v-for="channel in allChannels" :key="channel.key">
+                <UiCheckbox
+                  v-model="form[fieldOf(event.key, channel.key)]"
+                  :disabled="!channelOn(channel.key)"
+                  :aria-label="`${event.label} par ${channel.label}`"
+                  :title="channelOn(channel.key) ? '' : `Activez ${channel.label} dans Canaux`"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <SettingsRow label="Alerte de panne d'indexeur" description="Prévient l'email administrateur, et Discord s'il est actif, quand un indexeur Prowlarr tombe en panne ou fonctionne de nouveau.">
         <ToggleSwitch v-model="form.indexer_alerts_enabled" title="Alerte de panne d'indexeur" />
       </SettingsRow>
@@ -75,13 +88,18 @@
       </SettingsRow>
     </SettingsSection>
   </div>
+  <aside class="notify-summary" aria-live="polite">
+    <strong>En clair</strong>
+    <p v-for="line in summary" :key="line">{{ line }}</p>
+  </aside>
+  </div>
 </template>
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import { Bell, Eye, MailCheck, Megaphone, MessageSquare, Send } from '@lucide/vue';
-import { ref } from 'vue';
+import { Bell, Eye, Mail, MailCheck, Megaphone, MessageSquare, Send } from '@lucide/vue';
+import { computed, ref } from 'vue';
 import { api } from '@/api';
 import UiButton from '@/components/ui/UiButton.vue';
 import { form, success, fail } from '@/settingsForm';
@@ -103,12 +121,16 @@ async function sendTest(): Promise<void> {
   } catch (e) { fail(e); } finally { sendingTest.value = false; }
 }
 
-const channels = [
+const allChannels = [
+  { key: 'email', label: 'Email', icon: Mail },
   { key: 'discord', label: 'Discord', icon: MessageSquare },
   { key: 'telegram', label: 'Telegram', icon: Send },
   { key: 'ntfy', label: 'ntfy', icon: Bell },
   { key: 'gotify', label: 'Gotify', icon: Megaphone },
 ];
+const channelOn = (key: string) => Boolean(form[`${key}_enabled`]);
+/* Les cases email s'appellent `email_on_<événement>`, les autres `<canal>_send_<événement>`. */
+const fieldOf = (event: string, channel: string) => (channel === 'email' ? `email_on_${event}` : `${channel}_send_${event}`);
 // Descriptions alignees sur app/services/notification_catalog.py (source de verite
 // utilisee aussi par l'editeur de modeles d'email) pour ne pas raconter une autre
 // histoire que celle des emails reellement envoyes.
@@ -117,17 +139,47 @@ const notificationEvents = [
   { key: 'available', label: 'Disponibilité', description: "Un média (ou un épisode/une saison suivie) est disponible sur Plex — VO, VF, amélioration VO→VF, ou jalon de série, selon le contexte." },
   { key: 'failure', label: 'Échec', description: "La demande n'a pas pu être transmise à Sonarr ou Radarr." },
 ];
+
+const GRANULARITY: Record<string, string> = {
+  minimal: 'quand la série est complète',
+  jalons: 'au début et à la fin de chaque saison',
+  tout: 'à chaque épisode',
+};
+const WEEKDAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const pad = (value: unknown) => String(value ?? 0).padStart(2, '0');
+/* Ce que font ces règles, en phrases : ce qu'on vérifie d'un coup d'œil avant d'enregistrer. */
+const summary = computed(() => {
+  const lines = notificationEvents.map((event) => {
+    const who = allChannels.filter((channel) => channelOn(channel.key) && form[fieldOf(event.key, channel.key)]).map((channel) => channel.label);
+    return `${event.label} : ${who.length ? who.join(', ') : 'personne n’est prévenu'}.`;
+  });
+  const series = GRANULARITY[String(form.series_notify_granularity)] || GRANULARITY.jalons;
+  lines.push(`Pour une série, on prévient ${series}${form.series_notify_language ? ', puis à l’arrivée de la VF' : ''}.`);
+  if (form.digest_enabled) lines.push(`Un résumé part chaque jour à ${pad(form.digest_hour)} h ${pad(form.digest_minute)}.`);
+  if (form.newsletter_enabled) lines.push(`La lettre de la semaine part le ${WEEKDAYS[Number(form.newsletter_weekday)] || 'dimanche'} à ${pad(form.newsletter_hour)} h.`);
+  return lines;
+});
 </script>
 <style scoped lang="scss">
-.event-matrix { width: 100%; }
+@use '@/styles/foundations/breakpoints' as bp;
+
+.notify-rules { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem); gap: var(--space-4); align-items: start; }
+.notify-summary { position: sticky; top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--panel-radius); background: var(--surface-2); font-size: var(--fs-sm); line-height: 1.55; }
+.notify-summary p { margin: var(--space-1) 0 0; }
 .newsletter-when { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.event-legend {
-  display: grid;
-  gap: var(--space-1) var(--space-4);
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  margin: 0 0 var(--space-2);
+.matrix-wrap { overflow-x: auto; }
+.event-matrix { width: 100%; border-collapse: collapse; }
+.event-matrix th, .event-matrix td { padding: var(--space-2); border-top: 1px solid var(--border); text-align: center; vertical-align: middle; }
+.event-matrix thead th { border-top: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.event-matrix thead th > * { display: block; margin: 0 auto; }
+.event-matrix thead th svg { width: 16px; height: 16px; margin-bottom: 2px; }
+.event-matrix thead th.is-off { opacity: .55; }
+.event-matrix tbody th { min-width: 12rem; text-align: left; font-weight: 400; }
+.event-matrix tbody th strong { display: block; }
+.event-matrix tbody th small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }
+
+@include bp.until(desktop) {
+  .notify-rules { grid-template-columns: minmax(0, 1fr); }
+  .notify-summary { position: static; order: -1; }
 }
-.event-legend > div { display: flex; flex-direction: column; gap: 2px; }
-.event-legend dt { font-weight: 600; font-size: var(--fs-sm); }
-.event-legend dd { margin: 0; color: var(--muted); font-size: var(--fs-sm); line-height: 1.4; }
 </style>
