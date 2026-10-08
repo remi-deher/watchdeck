@@ -19,6 +19,7 @@ def _user(**extra):
         quota_movie_limit=None,
         quota_show_limit=None,
         auto_approve=False,
+        always_require_approval=False,
     )
     base.update(extra)
     return SimpleNamespace(**base)
@@ -68,3 +69,22 @@ async def test_overview_ranks_users_by_how_close_they_are(monkeypatch):
     assert [entry["name"] for entry in result["usage"]] == ["Illan", "Noah"]
     assert result["usage"][0]["show"] == {"used": 3, "limit": 3}
     assert [entry["name"] for entry in result["exceptions"]] == ["Léa", "Noah"]
+
+
+def test_approval_rule_per_account():
+    from app.services.request_quotas import needs_approval
+
+    on = SimpleNamespace(require_approval=True)
+    off = SimpleNamespace(require_approval=False)
+    assert needs_approval(on, _user()) is True
+    assert needs_approval(on, _user(auto_approve=True)) is False
+    assert needs_approval(off, _user()) is False
+    # « Toujours soumis à approbation » s'applique même approbation coupée, et prime sur l'auto-approbation.
+    assert needs_approval(off, _user(always_require_approval=True)) is True
+    assert needs_approval(on, _user(always_require_approval=True, auto_approve=True)) is True
+
+
+def test_always_approval_is_an_exception():
+    exception = quota_exception(_user(always_require_approval=True, auto_approve=True))
+    assert exception["always_require_approval"] is True
+    assert exception["auto_approve"] is False

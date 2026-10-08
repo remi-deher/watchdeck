@@ -45,7 +45,17 @@
              haut de la fiche, avec effet immediat : les garder ici en aurait fait des
              champs de formulaire concurrents, portant deja un autre nom pour le meme
              etat (« Compte actif »). -->
-        <UiCheckboxField v-model="form.auto_approve" label="Auto-approuver ses demandes" />
+        <!-- Trois positions exclusives : suivre la règle générale, toujours passer, ou
+             toujours attendre un administrateur (même approbation coupée). -->
+        <UiRadioCards
+          v-model="approvalMode"
+          label="Approbation de ses demandes"
+          :options="[
+            { value: 'default', label: 'Règle générale', description: 'Suit le réglage « Approbation requise » de Demandes & quotas.' },
+            { value: 'auto', label: 'Auto-approuvées', description: 'Partent directement vers Sonarr ou Radarr.' },
+            { value: 'always', label: 'Toujours soumises à approbation', description: 'Attendent un administrateur, même si l’approbation est coupée.' },
+          ]"
+        />
       </div>
       <div v-if="form.role === 'user'" class="quota-section">
         <h3>Quotas de demandes</h3>
@@ -365,6 +375,15 @@ defineExpose({
     initialPassword.value = '';
   },
   initialPassword,
+});
+
+/* Les deux booléens du serveur, présentés comme un seul choix à trois positions. */
+const approvalMode = computed({
+  get: () => (props.form.always_require_approval ? 'always' : props.form.auto_approve ? 'auto' : 'default'),
+  set: (mode: string) => {
+    props.form.always_require_approval = mode === 'always';
+    props.form.auto_approve = mode === 'auto';
+  },
 });
 </script>
 <style scoped lang="scss">

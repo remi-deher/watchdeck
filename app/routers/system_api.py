@@ -105,11 +105,82 @@ async def _fetch_latest_release() -> dict | None:
         return _release_cache
 
 
+def version_key(tag: str | None) -> tuple[int, ...] | None:
+    """`v1.80.0` → (1, 80, 0) ; None pour une étiquette qui n'est pas une version."""
+    parts = str(tag or "").lstrip("vV").split("-")[0].split(".")
+    try:
+        return tuple(int(part) for part in parts) if parts and parts[0] else None
+    except ValueError:
+        return None
+
+
+def newer_releases(releases: list[dict], current: str | None) -> list[dict]:
+    """Les releases publiées après `current`, de la plus récente à la plus ancienne."""
+    mine = version_key(current)
+    out = []
+    for release in releases:
+        key = version_key(release.get("tag_name"))
+        if key is None or release.get("draft") or release.get("prerelease"):
+            continue
+        if mine is None or key > mine:
+            out.append(
+                {
+                    "tag_name": release.get("tag_name"),
+                    "name": release.get("name"),
+                    "html_url": release.get("html_url"),
+                    "published_at": release.get("published_at"),
+                    "body": release.get("body"),
+                }
+            )
+    out.sort(key=lambda release: version_key(release["tag_name"]) or (), reverse=True)
+    return out
+
+
+_releases_cache: list[dict] | None = None
+_releases_cache_at: float = 0.0
+
+
+async def _fetch_releases() -> list[dict]:
+    """Les 20 dernières releases GitHub, gardées aussi longtemps que la dernière release."""
+    global _releases_cache, _releases_cache_at
+    now = time.monotonic()
+    if _releases_cache is not None and now - _releases_cache_at < _RELEASE_CACHE_TTL_SECONDS:
+        return _releases_cache
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/releases",
+                params={"per_page": 20},
+                headers={"Accept": "application/vnd.github+json"},
+            )
+            if resp.status_code != 200:
+                return _releases_cache or []
+            data = resp.json()
+            _releases_cache = data if isinstance(data, list) else []
+            _releases_cache_at = now
+            return _releases_cache
+    except (httpx.HTTPError, ValueError):
+        logger.warning("Impossible de lister les releases GitHub", exc_info=True)
+        return _releases_cache or []
+
+
+def forget_release_cache() -> None:
+    """« Vérifier maintenant » : la prochaine lecture repart chez GitHub."""
+    global _release_cache_at, _releases_cache_at
+    # -inf et non 0 : l'horloge monotone part du démarrage de la machine ; juste après un
+    # redémarrage, « maintenant - 0 » reste sous la durée du cache et l'oubli serait sans effet.
+    _release_cache_at = float("-inf")
+    _releases_cache_at = float("-inf")
+
+
 @router.get("/version")
-async def get_version_info():
+async def get_version_info(refresh: bool = False):
+    if refresh:
+        forget_release_cache()
     local = _read_local_version()
     branch = local.get("branch", "unknown")
     latest_release = await _fetch_latest_release()
+    releases_since = newer_releases(await _fetch_releases(), local.get("version"))
 
     is_latest = bool(latest_release) and local.get("version") == latest_release.get("tag_name")
     commit_matches_release = None
@@ -133,4 +204,5 @@ async def get_version_info():
         "commit_matches_release": commit_matches_release,
         "main_comparison": main_comparison,
         "release_checked_at": _release_cache_checked_at,
+        "releases_since": releases_since,
     }

@@ -1,68 +1,62 @@
 <template>
   <div class="settings-merged system-version">
-    <section class="panel">
-      <UiSectionHeader eyebrow="Application" title="Version en cours d'exécution">
-        <template #meta>
-          <span v-if="statusBadge" class="status-badge" :class="`status-${statusBadge.tone}`">{{ statusBadge.label }}</span>
-        </template>
-        <template #actions>
-          <UiButton size="sm" :loading="loading" @click="load"><template #icon><RefreshCw/></template>Actualiser</UiButton>
-        </template>
-      </UiSectionHeader>
-      <UiFeedback v-if="error" type="error" title="Impossible de récupérer les informations de version" :message="error" retry @retry="load"/>
-      <template v-else-if="info">
+    <UiFeedback v-if="error" type="error" title="Impossible de récupérer les informations de version" :message="error" retry @retry="load"/>
+    <template v-else-if="info">
+      <!-- Le verdict d'abord : à jour, mise à jour disponible, ou image différente du tag. -->
+      <section class="version-verdict" :class="`is-${verdict.tone}`" aria-live="polite">
+        <div>
+          <h2>{{ verdict.title }}</h2>
+          <p>{{ verdict.detail }}</p>
+        </div>
+        <UiButton size="sm" :loading="checking" @click="checkNow"><template #icon><RefreshCw/></template>Vérifier maintenant</UiButton>
+        <small v-if="info.release_checked_at" class="version-checked">GitHub vérifié {{ formatRelative(info.release_checked_at) }}</small>
+      </section>
+
+      <!-- Watchdeck ne se met pas à jour tout seul : on dit comment, là où on en a besoin. -->
+      <section v-if="verdict.tone !== 'success' && verdict.tone !== 'info'" class="panel version-update">
+        <h3>Mettre à jour</h3>
+        <p>Watchdeck ne se met pas à jour tout seul : tirez la nouvelle image puis redémarrez.</p>
+        <UiSegmentedControl v-model="installKind" ariaLabel="Type d’installation" :options="[{ value: 'compose', label: 'Docker Compose' }, { value: 'truenas', label: 'TrueNAS' }]" />
+        <pre class="version-command"><code>{{ installCommand }}</code></pre>
+        <UiButton size="sm" @click="copy(installCommand, 'command')"><Check v-if="copied === 'command'" :size="14"/><Copy v-else :size="14"/>{{ copied === 'command' ? 'Copié' : 'Copier' }}</UiButton>
+      </section>
+
+      <section class="panel">
+        <h3 class="version-h3">Ce qui tourne</h3>
         <dl class="version-grid">
-          <div><dt>Branche</dt><dd><span class="branch-badge" :class="`branch-${info.branch}`">{{ info.branch }}</span></dd></div>
           <div><dt>Version</dt><dd>{{ info.version }}</dd></div>
+          <div><dt>Branche</dt><dd><span class="branch-badge" :class="`branch-${info.branch}`">{{ info.branch }}</span></dd></div>
           <div>
             <dt>Commit</dt>
             <dd class="commit-cell">
               <a v-if="info.repo_url" class="mono" :href="`${info.repo_url}/commit/${info.git_sha}`" target="_blank" rel="noopener noreferrer">{{ shortSha(info.git_sha) }}</a>
               <span v-else class="mono">{{ shortSha(info.git_sha) }}</span>
-              <UiButton variant="ghost" size="sm" icon-only v-if="isRealSha(info.git_sha)" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copySha(info.git_sha)">
-                <Check v-if="copied" :size="14"/><Copy v-else :size="14"/>
+              <UiButton variant="ghost" size="sm" icon-only v-if="isRealSha(info.git_sha)" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copy(info.git_sha, 'sha')">
+                <Check v-if="copied === 'sha'" :size="14"/><Copy v-else :size="14"/>
               </UiButton>
             </dd>
           </div>
-          <div><dt>Build</dt><dd :title="formatDate(info.build_date)">{{ formatRelative(info.build_date) }}</dd></div>
-          <div><dt>Image Docker</dt><dd>{{ info.docker_repositories.join(', ') }}</dd></div>
+          <div><dt>Construite</dt><dd :title="formatDate(info.build_date)">{{ formatRelative(info.build_date) }}</dd></div>
+          <div><dt>Image</dt><dd>{{ info.docker_repositories.join(', ') }}</dd></div>
         </dl>
-        <UiFeedback
-          v-if="info.main_comparison"
-          type="info"
-          :message="mainComparisonMessage(info.main_comparison)"
-        />
-        <UiFeedback
-          v-if="info.latest_release && !info.is_latest"
-          type="warning"
-          title="Une nouvelle version est disponible"
-          :message="`${info.latest_release.tag_name} a été publiée${info.latest_release.published_at ? ' le ' + formatDate(info.latest_release.published_at) : ''}. Vous exécutez ${info.version}.`"
-        />
-        <UiFeedback
-          v-else-if="info.commit_matches_release === false"
-          type="error"
-          title="Version désalignée"
-          message="La version annoncée correspond à la dernière release GitHub, mais le commit de l'image Docker en cours d'exécution ne correspond pas à celui du tag de cette release."
-        />
-        <UiFeedback
-          v-else-if="info.is_latest && info.commit_matches_release"
-          type="success"
-          message="Vous exécutez la dernière version publiée, et le commit correspond exactement au tag de release."
-        />
-        <UiFeedback v-else-if="!info.latest_release" type="info" message="Dernière release GitHub introuvable (pas de connexion à l'API GitHub, ou aucune release publiée)."/>
-        <p v-if="info.release_checked_at" class="checked-at">Dernière vérification GitHub : {{ formatRelative(info.release_checked_at) }}</p>
-      </template>
-    </section>
+        <p v-if="info.main_comparison" class="version-comparison">{{ mainComparisonMessage(info.main_comparison) }}</p>
+      </section>
 
-    <section v-if="info?.latest_release" class="panel">
-      <UiSectionHeader eyebrow="Release notes" :title="info.latest_release.name || info.latest_release.tag_name">
-        <template #meta>
-          <span v-if="info.latest_release.published_at" :title="formatDate(info.latest_release.published_at)">{{ formatRelative(info.latest_release.published_at) }}</span>
-          <a :href="info.latest_release.html_url" target="_blank" rel="noopener noreferrer">Voir sur GitHub<ExternalLink/></a>
-        </template>
-      </UiSectionHeader>
-      <div class="release-body" v-html="renderedReleaseNotes"/>
-    </section>
+      <section v-if="releases.length" class="panel">
+        <h3 class="version-h3">{{ newer.length ? 'Nouveautés depuis votre version' : `Notes de ${releases[0].tag_name}` }}</h3>
+        <CollapsibleRoot v-for="(release, index) in releases" :key="release.tag_name" class="version-release" :default-open="index === 0">
+          <CollapsibleTrigger class="version-release__head">
+            <strong>{{ release.name || release.tag_name }}</strong>
+            <small v-if="release.published_at" :title="formatDate(release.published_at)">{{ formatRelative(release.published_at) }}</small>
+            <ChevronDown class="version-release__chevron" aria-hidden="true"/>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div class="release-body" v-html="renderMarkdown(release.body || 'Aucune note de version.')"/>
+            <a v-if="release.html_url" class="version-release__link" :href="release.html_url" target="_blank" rel="noopener noreferrer">Voir sur GitHub<ExternalLink/></a>
+          </CollapsibleContent>
+        </CollapsibleRoot>
+      </section>
+    </template>
   </div>
 </template>
 
@@ -70,10 +64,12 @@
 import { formatDateTimeSeconds, parseApiDate } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { Check, Copy, ExternalLink, RefreshCw } from '@lucide/vue';
+import { Check, ChevronDown, Copy, ExternalLink, RefreshCw } from '@lucide/vue';
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import { useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { humanizeError } from '@/utils/apiError';
-import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 
@@ -103,6 +99,7 @@ interface VersionInfo {
   commit_matches_release: boolean | null;
   main_comparison: MainComparison | null;
   release_checked_at: string | null;
+  releases_since?: LatestRelease[];
 }
 
 const versionQuery = useQuery({
@@ -112,7 +109,42 @@ const versionQuery = useQuery({
 const info = computed(() => versionQuery.data.value ?? null);
 const loading = computed(() => versionQuery.isFetching.value);
 const error = computed(() => (versionQuery.error.value ? humanizeError(versionQuery.error.value) : ''));
-const copied = ref(false);
+const copied = ref<string | null>(null);
+const queryClient = useQueryClient();
+const checking = ref(false);
+/* « Vérifier maintenant » : le serveur oublie son cache et repart chez GitHub. */
+async function checkNow(): Promise<void> {
+  checking.value = true;
+  try {
+    queryClient.setQueryData(['settings', 'system-version'], await api<VersionInfo>('/api/system/version?refresh=true'));
+  } finally {
+    checking.value = false;
+  }
+}
+const newer = computed(() => info.value?.releases_since || []);
+/* Toutes les versions publiées depuis la vôtre ; à jour, seulement les notes de la dernière. */
+const releases = computed<LatestRelease[]>(() => (newer.value.length ? newer.value : info.value?.latest_release ? [info.value.latest_release] : []));
+const verdict = computed<{ tone: 'success' | 'warning' | 'error' | 'info'; title: string; detail: string }>(() => {
+  const v = info.value;
+  if (!v) return { tone: 'info', title: '', detail: '' };
+  if (v.latest_release && !v.is_latest) {
+    const count = newer.value.length;
+    return {
+      tone: 'warning',
+      title: `Mise à jour disponible : ${v.latest_release.tag_name}`,
+      detail: `Vous exécutez ${v.version}${count ? ` · ${count} version${count > 1 ? 's' : ''} publiée${count > 1 ? 's' : ''} depuis` : ''}${v.latest_release.published_at ? ` · dernière ${formatRelative(v.latest_release.published_at)}` : ''}.`,
+    };
+  }
+  if (v.commit_matches_release === false) {
+    return { tone: 'error', title: `Image différente de la release ${v.version}`, detail: 'Le numéro annonce la dernière release, mais le commit de l’image ne correspond pas à celui du tag. Retirer l’image corrige souvent l’écart.' };
+  }
+  if (v.is_latest) return { tone: 'success', title: 'Watchdeck est à jour', detail: `Vous exécutez ${v.version}, la dernière version publiée${v.commit_matches_release ? ', et son commit correspond au tag' : ''}.` };
+  return { tone: 'info', title: `Version ${v.version}`, detail: 'Dernière release GitHub introuvable : pas de connexion à GitHub, ou aucune release publiée.' };
+});
+const installKind = ref<'compose' | 'truenas'>('compose');
+const installCommand = computed(() => (installKind.value === 'compose'
+  ? 'docker compose pull && docker compose up -d'
+  : 'midclt call -j app.pull_images watchdeck \'{"redeploy": true}\''));
 
 function isRealSha(sha: string): boolean {
   return !!sha && sha !== 'unknown';
@@ -152,22 +184,16 @@ function formatRelative(value: string | null): string {
   return formatDate(value);
 }
 
-async function copySha(sha: string): Promise<void> {
-  await navigator.clipboard.writeText(sha);
-  copied.value = true;
-  setTimeout(() => { copied.value = false; }, 1500);
+async function copy(text: string, what: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    copied.value = what;
+    setTimeout(() => { copied.value = null; }, 1500);
+  } catch {
+    // Presse-papiers refusé : le texte reste sélectionnable à l'écran.
+  }
 }
 
-type BadgeTone = 'success' | 'warning' | 'error' | 'info';
-const statusBadge = computed<{ label: string; tone: BadgeTone } | null>(() => {
-  if (!info.value) return null;
-  const v = info.value;
-  if (v.latest_release && !v.is_latest) return { label: 'Mise à jour disponible', tone: 'warning' };
-  if (v.commit_matches_release === false) return { label: 'Désaligné', tone: 'error' };
-  if (v.is_latest && v.commit_matches_release) return { label: 'À jour', tone: 'success' };
-  if (!v.latest_release) return { label: 'Inconnu', tone: 'info' };
-  return null;
-});
 
 // Petit rendu Markdown -> HTML, volontairement minimal (juste ce que produit le
 // changelog genere par git-cliff : titres ###, listes a puces, gras, code inline,
@@ -212,9 +238,6 @@ function renderMarkdown(md: string): string {
   return html.join('\n');
 }
 
-const renderedReleaseNotes = computed(() =>
-  info.value?.latest_release?.body ? renderMarkdown(info.value.latest_release.body) : '<p>Aucune note de version.</p>',
-);
 
 function load(): void {
   void versionQuery.refetch();
@@ -245,4 +268,26 @@ function load(): void {
 .release-body :deep(ul) { margin: 0 0 var(--space-2); padding-left: 1.3em; }
 .release-body :deep(p) { margin: 0 0 var(--space-2); }
 .release-body :deep(code) { padding: 1px 5px; border-radius: var(--radius-sm); background: var(--surface-1); font-family: var(--font-mono, monospace); font-size: .9em; }
+.version-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); }
+.version-verdict > div { flex: 1 1 16rem; min-width: 0; }
+.version-verdict h2 { margin: 0 0 2px; font-size: var(--fs-md); }
+.version-verdict p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.version-verdict.is-success { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); background: color-mix(in srgb, var(--green) 7%, var(--surface)); }
+.version-verdict.is-warning { border-color: color-mix(in srgb, var(--amber) 45%, var(--border)); background: color-mix(in srgb, var(--amber) 7%, var(--surface)); }
+.version-verdict.is-error { border-color: color-mix(in srgb, var(--red) 45%, var(--border)); background: color-mix(in srgb, var(--red) 7%, var(--surface)); }
+.version-checked { color: var(--muted); font-size: var(--fs-xs); }
+.version-update { display: grid; gap: var(--space-2); justify-items: start; }
+.version-update h3, .version-h3 { margin: 0 0 var(--space-2); font-size: var(--fs-md); }
+.version-update p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.version-command { width: 100%; max-width: 100%; margin: 0; padding: var(--space-3); overflow-x: auto; border-radius: var(--inset-radius); background: var(--surface-2); font-size: var(--fs-sm); }
+.version-comparison { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.version-release { border: 1px solid var(--border); border-radius: var(--inset-radius); }
+.version-release + .version-release { margin-top: var(--space-2); }
+.version-release__head { display: flex; width: 100%; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.version-release__head small { color: var(--muted); }
+.version-release__chevron { width: 16px; height: 16px; margin-left: auto; transition: transform var(--motion-duration-fast) var(--motion-ease-standard); }
+.version-release__head[data-state='open'] .version-release__chevron { transform: rotate(180deg); }
+.version-release .release-body { margin: 0 var(--space-3) var(--space-2); }
+.version-release__link { display: inline-flex; gap: 4px; align-items: center; margin: 0 var(--space-3) var(--space-3); font-size: var(--fs-sm); }
+.version-release__link svg { width: 14px; height: 14px; }
 </style>
