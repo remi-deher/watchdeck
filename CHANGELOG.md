@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.81.2 — 2026-10-08
+
+
+### 🐛 Corrections
+
+- rules matrix renders as a table, not the old grid ([48c85d4](https://github.com/remi-deher/watchdeck/commit/48c85d48363caf1170b32d7ea17e3f5f28c66725))
 ## 1.81.1 — 2026-10-08
 
 
@@ -7,6 +13,10 @@
 
 - qBittorrent test message shows a single v before the version ([b5cc8f0](https://github.com/remi-deher/watchdeck/commit/b5cc8f06b91c3d15ce937cec09bd727bb4206c5d))
 - rules matrix headers stay on one line, disabled channels greyed; next-run wording ([8a8a957](https://github.com/remi-deher/watchdeck/commit/8a8a95778271b191f06b555790a6061d9664ea82))
+
+### 🔧 Maintenance
+
+- v1.81.1 (#768) ([b2c92ae](https://github.com/remi-deher/watchdeck/commit/b2c92ae01be19fa0b4b80b2b5107ea8c0a537fcf))
 ## 1.81.0 — 2026-10-08
 
 
