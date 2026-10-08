@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.83.0 — 2026-10-08
+
+
+### ✨ Nouveautés
+
+- real processing time without disk wait, optional queue interleaving by disk ([78db58b](https://github.com/remi-deher/watchdeck/commit/78db58b275d4b317b4893a065d7a5fa5e0ecfa32))
 ## 1.82.0 — 2026-10-08
 
 
@@ -12,6 +18,10 @@
 
 - security & API as one page; VF settings and Plex split into inner sections kept in the address ([51a8536](https://github.com/remi-deher/watchdeck/commit/51a8536c08bc0bb416577757a8f7b93fed14fa01))
 - FileFlows encoding supervision (page, dashboard panel, media tab, monitor) ([8f87d61](https://github.com/remi-deher/watchdeck/commit/8f87d616f13553a06eb52f0fe0ac22d92f97318e))
+
+### 🔧 Maintenance
+
+- v1.82.0 (#777) ([b2a959b](https://github.com/remi-deher/watchdeck/commit/b2a959b8df8741bbe8b9245ca1491474d07bfdea))
 ## 1.81.2 — 2026-10-08
 
 
