@@ -10,12 +10,13 @@ import json
 import os
 from typing import Optional, cast
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from ..database import get_db_async
 from ..dependencies import require_admin
+from ..job_queue import enqueue_job
 from ..models import (
     JobRunLog,
     MediaRequest,
@@ -363,3 +364,25 @@ async def scheduled_task_history(job: str, limit: int = 50, db: AsyncSession = D
         }
         for r in rows
     ]
+
+
+def job_function_name(job: str) -> str | None:
+    """Nom de la fonction ARQ d'une tâche du catalogue (`watchlist` → `job_watchlist`), ou None."""
+    if job not in {entry["job"] for entry in JOB_CATALOG}:
+        return None
+    from .. import jobs
+
+    name = f"job_{job.replace('-', '_')}"
+    return name if callable(getattr(jobs, name, None)) else None
+
+
+@router.post("/scheduled-tasks/{job}/run")
+async def run_scheduled_task(job: str):
+    """Lance une tâche tout de suite, sans attendre son prochain passage (bouton « Lancer »)."""
+    function = job_function_name(job)
+    if function is None:
+        raise HTTPException(404, "Tâche inconnue")
+    job_id = await enqueue_job(function, force=True)
+    if job_id is None:
+        raise HTTPException(503, "La file des tâches n'est pas disponible : la tâche n'a pas été lancée.")
+    return {"job": job, "job_id": job_id}
