@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.81.1 — 2026-10-08
+
+
+### 🐛 Corrections
+
+- qBittorrent test message shows a single v before the version ([b5cc8f0](https://github.com/remi-deher/watchdeck/commit/b5cc8f06b91c3d15ce937cec09bd727bb4206c5d))
+- rules matrix headers stay on one line, disabled channels greyed; next-run wording ([8a8a957](https://github.com/remi-deher/watchdeck/commit/8a8a95778271b191f06b555790a6061d9664ea82))
 ## 1.81.0 — 2026-10-08
 
 
@@ -19,6 +26,10 @@
 - arr instance API keys no longer leave the server ([b1e8e39](https://github.com/remi-deher/watchdeck/commit/b1e8e395e6eb8be440126038dab8ca5c7a484553))
 - logs page survives an incomplete summary; cover release fetching ([e097bc5](https://github.com/remi-deher/watchdeck/commit/e097bc5fecf3fef0536cb7a5c91b62948367d98b))
 - check-now forgets the release cache even right after a reboot ([7880b1d](https://github.com/remi-deher/watchdeck/commit/7880b1df4964b2e7d64c7dd448d4cf52171ed1aa))
+
+### 🔧 Maintenance
+
+- v1.81.0 (#764) ([79368dd](https://github.com/remi-deher/watchdeck/commit/79368dd504feed571f3637c8e675dc6175ddd2c6))
 ## 1.80.0 — 2026-10-08
 
 
