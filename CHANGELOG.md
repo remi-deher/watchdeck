@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.80.0 — 2026-10-07
+
+
+### test
+
+- keep WebKit noise and one-pixel rounding out of the shell e2e ([9289a2b](https://github.com/remi-deher/watchdeck/commit/9289a2bc59d3e79c7ae27629a33e0066646f4368))
+
+### ♻️ Refactoring
+
+- take approvals and notifications off the home page ([94336af](https://github.com/remi-deher/watchdeck/commit/94336af03eaa88b2fad83953164bbbba0ef8aafc))
+
+### ✨ Nouveautés
+
+- reorganise the administration menus into ten zones ([63bf25f](https://github.com/remi-deher/watchdeck/commit/63bf25f07c712f2445f4f4f3250b5adeca5e1a5d))
+- dock-free administration on phones ([d5f060b](https://github.com/remi-deher/watchdeck/commit/d5f060bf72ffca70ad5f007abb2282b4c883cff9))
+- one endpoint for the administration overview figures ([9f20ce1](https://github.com/remi-deher/watchdeck/commit/9f20ce1e3b6b006b6e414b1b4fdb01671c9ddc52))
+- activity points and zone states for the administration overview ([aaa38f6](https://github.com/remi-deher/watchdeck/commit/aaa38f66a182012d07a51e201a4923fdb42f3bd7))
+- administration overview as an operations dashboard ([630a777](https://github.com/remi-deher/watchdeck/commit/630a777e8e4d98d031f7f0efa1fa05b7145951d1))
+- logs as a readable feed with severity, live follow and no notification queue ([b1bb90e](https://github.com/remi-deher/watchdeck/commit/b1bb90e9216ff39b932a7e6b988f83d0dc013e7e))
+- maintenance grouped by intent, data page ordered by risk, privacy page with verdict ([545d512](https://github.com/remi-deher/watchdeck/commit/545d51222e8d502b13aeb3fcc0e9c89cc755a990))
+- security checks and detailed API token page, language moved to requests ([5700f0e](https://github.com/remi-deher/watchdeck/commit/5700f0e4241269d6672b6e6bf642a27f72f50011))
+- users list with one situations row and grouped bulk menus, richer confirmation dialogs ([4a5d870](https://github.com/remi-deher/watchdeck/commit/4a5d870f85f06a8af3298696e8f171e6a1b8c0f8))
+
+### 🐛 Corrections
+
+- send health actions to the service's own settings screen ([4ab66c2](https://github.com/remi-deher/watchdeck/commit/4ab66c23255642ec2c50266ffa4146cb8eb4c3bf))
 ## 1.79.0 — 2026-10-07
 
 
@@ -10,6 +36,10 @@
 ### ✨ Nouveautés
 
 - tinted media sheet and image preloading ([ab7163d](https://github.com/remi-deher/watchdeck/commit/ab7163d53b9909e1574a7cb7ba35a56c2eeb1a19))
+
+### 🔧 Maintenance
+
+- v1.79.0 (#752) ([3ce322b](https://github.com/remi-deher/watchdeck/commit/3ce322b8784f85828377f98b7bedd3458a1c3ff6))
 ## 1.78.0 — 2026-10-07
 
 
