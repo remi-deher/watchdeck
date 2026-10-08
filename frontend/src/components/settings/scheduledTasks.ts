@@ -42,12 +42,12 @@ export function nextRun(task: ScheduledTask, now: Date = new Date()): Date | nul
   return next < now ? now : next;
 }
 
-/** « dans 12 min », « dans 2 h », « demain 04:00 », « imminent ». */
+/** « dans 12 min », « dans 2 h », « demain 04:00 », « imminente ». */
 export function nextRunLabel(task: ScheduledTask, now: Date = new Date()): string {
   const next = nextRun(task, now);
   if (!next) return '';
   const minutes = Math.round((next.getTime() - now.getTime()) / 60000);
-  if (minutes <= 0) return 'imminent';
+  if (minutes <= 0) return 'imminente';
   if (minutes < 60) return `dans ${minutes} min`;
   if (minutes < 24 * 60 && next.getDate() === now.getDate()) return `dans ${Math.round(minutes / 60)} h`;
   const time = `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
