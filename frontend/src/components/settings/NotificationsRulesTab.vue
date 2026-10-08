@@ -5,7 +5,7 @@
   <div class="settings-rows">
     <SettingsSection title="Qui est prévenu, par quel canal" subtitle="Une ligne par événement, une colonne par canal. Un canal désactivé se rallume dans Canaux.">
       <div class="matrix-wrap">
-        <table class="event-matrix">
+        <table class="notify-matrix">
           <caption class="sr-only">Canaux utilisés pour chaque événement</caption>
           <thead>
             <tr>
@@ -168,18 +168,18 @@ const summary = computed(() => {
 .notify-summary p { margin: var(--space-1) 0 0; }
 .newsletter-when { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .matrix-wrap { overflow-x: auto; }
-.event-matrix { width: 100%; border-collapse: collapse; }
-.event-matrix th, .event-matrix td { padding: var(--space-2); border-top: 1px solid var(--border); text-align: center; vertical-align: middle; }
+.notify-matrix { width: 100%; border-collapse: collapse; }
+.notify-matrix th, .notify-matrix td { padding: var(--space-2); border-top: 1px solid var(--border); text-align: center; vertical-align: middle; }
 /* Les en-têtes globaux sont en capitales : ici, des noms de canaux, lus tels quels et sur une ligne. */
-.event-matrix th { text-transform: none; letter-spacing: normal; }
-.event-matrix thead th { min-width: 4.5rem; border-top: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
-.event-matrix thead th > * { display: block; margin: 0 auto; }
-.event-matrix thead th svg { width: 16px; height: 16px; margin-bottom: 2px; }
-.event-matrix thead th.is-off { opacity: .55; }
-.event-matrix tbody th { min-width: 12rem; color: var(--text); font-size: var(--fs-sm); text-align: left; font-weight: 400; }
-.event-matrix td.is-off { opacity: .35; }
-.event-matrix tbody th strong { display: block; }
-.event-matrix tbody th small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }
+.notify-matrix th { text-transform: none; letter-spacing: normal; }
+.notify-matrix thead th { min-width: 4.5rem; border-top: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.notify-matrix thead th > * { display: block; margin: 0 auto; }
+.notify-matrix thead th svg { width: 16px; height: 16px; margin-bottom: 2px; }
+.notify-matrix thead th.is-off { opacity: .55; }
+.notify-matrix tbody th { min-width: 12rem; color: var(--text); font-size: var(--fs-sm); text-align: left; font-weight: 400; }
+.notify-matrix td.is-off { opacity: .35; }
+.notify-matrix tbody th strong { display: block; }
+.notify-matrix tbody th small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }
 
 @include bp.until(wide) {
   .notify-rules { grid-template-columns: minmax(0, 1fr); }
