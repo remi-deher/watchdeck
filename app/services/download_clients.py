@@ -140,7 +140,8 @@ async def check_qbittorrent(url: str, username: Optional[str], password: Optiona
         try:
             r = await client.get(version_url, cookies=cookies, timeout=10)
             r.raise_for_status()
-            return True, f"Connecté à qBittorrent v{r.text}"
+            # qBittorrent répond déjà « v5.2.4 » : sans ce nettoyage, le message disait « vv5.2.4 ».
+            return True, f"Connecté à qBittorrent v{r.text.strip().lstrip('vV')}"
         except Exception as e:
             return False, f"Erreur API: {str(e)}"
 

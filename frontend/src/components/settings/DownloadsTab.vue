@@ -186,7 +186,7 @@ async function check(): Promise<void> {
 .release-verdict li.is-ko { color: var(--red-text); }
 .release-error { margin: 0; color: var(--red-text); font-size: var(--fs-sm); }
 
-@include bp.until(desktop) {
+@include bp.until(wide) {
   .release-rules { grid-template-columns: minmax(0, 1fr); }
   .release-rules__aside { position: static; order: -1; }
 }
