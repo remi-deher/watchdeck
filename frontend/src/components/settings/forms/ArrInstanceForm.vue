@@ -9,7 +9,7 @@
     </label>
     <label>URL<input v-model="form.url" type="url"></label>
     <label>Clé API
-      <input v-model="form.api_key" type="password">
+      <input v-model="form.api_key" type="password" autocomplete="new-password" :placeholder="form.has_api_key ? 'Enregistrée : laisser vide pour la garder' : ''">
       <small>Disponible dans Sonarr/Radarr/Prowlarr/Bazarr sous Réglages -> Général -> Clé API.</small>
     </label>
     <small v-if="form.arr_type === 'bazarr'" class="check-hint">Bazarr doit être relié aux mêmes instances Radarr/Sonarr que Watchdeck : il retrouve les médias par leur identifiant Radarr/Sonarr.</small>
@@ -31,9 +31,9 @@
 
     <div class="form-actions">
       <UiButton v-if="hasArrOptions" @click="loadOptions"><ListRestart />Charger profils et dossiers</UiButton>
-      <ConnectionTestAction :loading="testing" :disabled="!form.url || !form.api_key" label="Tester" @test="test" />
+      <ConnectionTestAction :loading="testing" :disabled="!form.url || (!form.api_key && !form.has_api_key)" label="Tester" @test="test" />
       <UiButton @click="emit('cancel')">Annuler</UiButton>
-      <UiButton variant="primary" type="submit" :loading="saving" :disabled="!form.name || !form.url || !form.api_key"><Save />{{ creating ? 'Ajouter' : 'Mettre à jour' }}</UiButton>
+      <UiButton variant="primary" type="submit" :loading="saving" :disabled="!form.name || !form.url || (!form.api_key && !form.has_api_key)"><Save />{{ creating ? 'Ajouter' : 'Mettre à jour' }}</UiButton>
     </div>
   </form>
 </template>
@@ -89,7 +89,7 @@ async function loadOptions(): Promise<void> {
 watch(item, (value) => { if (value) void loadOptions(); }, { immediate: true });
 
 const testMutation = useMutation({
-  mutationFn: () => api<any>('/api/test/arr-instance', { method: 'POST', body: JSON.stringify({ url: form.url, api_key: form.api_key, arr_type: form.arr_type }) }),
+  mutationFn: () => api<any>('/api/test/arr-instance', { method: 'POST', body: JSON.stringify({ id: creating.value ? undefined : form.id, url: form.url, api_key: form.api_key || undefined, arr_type: form.arr_type }) }),
   retry: 0,
 });
 const testing = computed(() => testMutation.isPending.value);

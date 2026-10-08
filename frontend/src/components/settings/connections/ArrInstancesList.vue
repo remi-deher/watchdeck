@@ -48,7 +48,7 @@ function openSheet(instance?: any): void {
 }
 
 const testArrMutation = useMutation({
-  mutationFn: (instance: any) => api<any>('/api/test/arr-instance', { method: 'POST', body: JSON.stringify({ url: instance.url, api_key: instance.api_key, arr_type: instance.arr_type }) }),
+  mutationFn: (instance: any) => api<any>('/api/test/arr-instance', { method: 'POST', body: JSON.stringify({ id: instance.id, url: instance.url, arr_type: instance.arr_type }) }),
   retry: 0,
 });
 
