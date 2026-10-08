@@ -1,5 +1,5 @@
 <template>
-  <div ref="racine" class="app-subnav" :class="{ 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing, 'app-subnav--more': more }">
+  <div ref="racine" class="app-subnav" :class="{ 'app-subnav--inner': inner, 'app-subnav--scrolled': scrolled, 'app-subnav--overflowing': overflowing, 'app-subnav--more': more }">
     <!-- Deux variantes, un seul composant, parce que le besoin est le même et que la
          différence est purement sémantique :
          · `links`  → chaque entrée change d'URL. C'est une navigation : `<nav>` +
@@ -85,8 +85,10 @@ const props = withDefaults(
     active?: string;
     ariaLabel?: string;
     variant?: 'links' | 'tabs';
+    /** Rang interne à une page, sous les onglets de zone : plus discret, aligné à gauche. */
+    inner?: boolean;
   }>(),
-  { active: '', ariaLabel: 'Sections', variant: 'links' }
+  { active: '', ariaLabel: 'Sections', variant: 'links', inner: false }
 );
 
 const emit = defineEmits<{ (e: 'update:active', value: string): void }>();
@@ -301,6 +303,21 @@ watch(
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
   font-size: var(--fs-xs);
+}
+
+/* Rang interne : il découpe une page déjà placée sous les onglets de zone. Fond gris et
+   alignement à gauche, pour ne pas se lire comme un second rang de zones. */
+.app-subnav--inner {
+  margin-inline: 0;
+  border-color: transparent;
+  background: var(--surface-2);
+}
+.app-subnav--inner .app-subnav__item[aria-selected='true'] {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+@include bp.from(tablet) {
+  .app-subnav--inner .app-subnav__item { min-height: 32px; font-size: var(--fs-sm); }
 }
 
 .app-subnav__separator {

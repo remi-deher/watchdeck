@@ -57,7 +57,8 @@
         <MessageReasonsPanel v-else-if="tab==='reasons'"/>
         <RequestsTab v-else-if="tab==='requests'"/>
         <NetworkTab v-else-if="tab==='network'"/>
-        <ApiTokenTab v-else-if="tab==='api'"/>
+        <!-- Sécurité & API tient en une page : l'ancienne adresse du jeton y ouvre son bloc. -->
+        <NetworkTab v-else-if="tab==='api'"/>
         <MaintenanceTab v-else-if="tab==='maintenance'"/>
         <DataTab v-else-if="tab==='data'"/>
         <GdprTab v-else-if="tab==='privacy'"/>
@@ -99,7 +100,6 @@ const MaintenanceTab = defineAsyncComponent(() => import('@/components/settings/
 const DownloadClientsList = defineAsyncComponent(() => import('@/components/settings/connections/DownloadClientsList.vue'));
 const RequestsTab = defineAsyncComponent(() => import('@/components/settings/RequestsTab.vue'));
 const NetworkTab = defineAsyncComponent(() => import('@/components/settings/NetworkTab.vue'));
-const ApiTokenTab = defineAsyncComponent(() => import('@/components/settings/ApiTokenTab.vue'));
 const EmailTemplatesPanel = defineAsyncComponent(() => import('@/components/EmailTemplatesPanel.vue'));
 const MessageReasonsPanel = defineAsyncComponent(() => import('@/components/settings/MessageReasonsPanel.vue'));
 const DataTab = defineAsyncComponent(() => import('@/components/settings/DataTab.vue'));
@@ -129,12 +129,12 @@ const elsewhere = computed(() => {
 // Les panneaux qui n'editent aucun champ du formulaire general (listes gerees par leur
 // propre API, actions, journaux) ne le chargent pas et n'affichent pas sa barre.
 const standaloneTabs = new Set<SettingsPanel>([
-  'acquisitions', 'templates', 'system-version', 'download-clients', 'api', 'maintenance', 'data',
+  'acquisitions', 'templates', 'system-version', 'download-clients', 'maintenance', 'data',
 ]);
 // Ceux dont les champs passent par le bouton Enregistrer de l'en-tete.
 const formPanels = new Set<SettingsPanel>([
   'plex', 'services', 'media', 'webhooks', 'downloads', 'vf-upgrades', 'subtitles', 'scheduled-tasks',
-  'notifications-channels', 'notifications-rules', 'requests', 'network', 'privacy',
+  'notifications-channels', 'notifications-rules', 'requests', 'network', 'api', 'privacy',
 ]);
 let settingsLoadPromise: Promise<void> | undefined;
 function ensureSettingsLoaded(value = tab.value): Promise<void> {
