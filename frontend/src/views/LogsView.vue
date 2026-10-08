@@ -195,7 +195,11 @@ function badgeTone(r: any): string { if (r.status === 'error' || r.level === 'ER
 /* Verdict : erreurs des dernières 24 h par source, envois de notification compris. */
 interface LogsSummary { total: number; errors: { diagnostic: number; app: number; polls: number; notifications: number } }
 const summaryQuery = useSummaryQuery({ queryKey: ['logs', 'summary'], queryFn: () => api<LogsSummary>('/api/logs/summary'), staleTime: 30_000 });
-const summary = computed(() => summaryQuery.data.value || null);
+// Une réponse incomplète (serveur ancien, proxy) ne doit jamais faire tomber la page : pas de verdict.
+const summary = computed(() => {
+  const data = summaryQuery.data.value;
+  return data && data.errors && typeof data.total === 'number' ? data : null;
+});
 const SOURCE_LABELS: Record<string, string> = { diagnostic: 'demandes', app: 'application', polls: 'tâches', notifications: 'envois de notification' };
 const verdictDetail = computed(() => {
   const errors = summary.value?.errors;

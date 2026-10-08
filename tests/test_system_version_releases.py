@@ -51,3 +51,65 @@ async def test_refresh_forgets_the_cache(monkeypatch):
     info = await system_api.get_version_info(refresh=True)
     assert forgotten == [True]
     assert [release["tag_name"] for release in info["releases_since"]] == ["v1.81.0"]
+
+
+class _Resp:
+    def __init__(self, status, data):
+        self.status_code = status
+        self._data = data
+
+    def json(self):
+        return self._data
+
+
+class _Client:
+    def __init__(self, response):
+        self._response = response
+        self.calls = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, *args, **kwargs):
+        self.calls += 1
+        if isinstance(self._response, Exception):
+            raise self._response
+        return self._response
+
+
+@pytest.mark.asyncio
+async def test_releases_are_fetched_once_then_kept(monkeypatch):
+    client = _Client(_Resp(200, [{"tag_name": "v1.81.0"}]))
+    monkeypatch.setattr(system_api.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(system_api, "_releases_cache", None)
+    monkeypatch.setattr(system_api, "_releases_cache_at", 0.0)
+
+    assert await system_api._fetch_releases() == [{"tag_name": "v1.81.0"}]
+    assert await system_api._fetch_releases() == [{"tag_name": "v1.81.0"}]
+    assert client.calls == 1
+
+    system_api.forget_release_cache()
+    await system_api._fetch_releases()
+    assert client.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_github_errors_keep_what_was_known(monkeypatch):
+    monkeypatch.setattr(system_api, "_releases_cache", [{"tag_name": "v1.80.0"}])
+    monkeypatch.setattr(system_api, "_releases_cache_at", 0.0)
+    monkeypatch.setattr(system_api.httpx, "AsyncClient", lambda **kwargs: _Client(_Resp(503, None)))
+    assert await system_api._fetch_releases() == [{"tag_name": "v1.80.0"}]
+
+    monkeypatch.setattr(system_api, "_releases_cache", None)
+    monkeypatch.setattr(
+        system_api.httpx, "AsyncClient", lambda **kwargs: _Client(system_api.httpx.ConnectError("hors ligne"))
+    )
+    assert await system_api._fetch_releases() == []
+
+    monkeypatch.setattr(
+        system_api.httpx, "AsyncClient", lambda **kwargs: _Client(_Resp(200, {"message": "pas une liste"}))
+    )
+    assert await system_api._fetch_releases() == []
