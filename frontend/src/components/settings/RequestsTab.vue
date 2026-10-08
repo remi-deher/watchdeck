@@ -1,6 +1,6 @@
 <template>
   <div class="settings-rows">
-    <SettingsSection title="Approbation" subtitle="Ce qui attend un administrateur avant de partir vers Sonarr ou Radarr.">
+    <SettingsSection title="Approbation" subtitle="Ce qui attend un administrateur avant de partir vers Sonarr ou Radarr. Chaque compte peut être auto-approuvé ou toujours soumis à approbation depuis sa fiche.">
       <SettingsRow label="Approbation requise" description="Chaque nouvelle demande reste en attente de validation. Un compte « auto-approuvé » y échappe.">
         <ToggleSwitch v-model="form.require_approval" title="Approbation requise" />
       </SettingsRow>
@@ -55,6 +55,7 @@
           <span class="quota-exceptions__tags">
             <span v-if="customQuota(entry)" class="quota-tag is-warn">{{ customQuota(entry) }}</span>
             <span v-if="entry.auto_approve" class="quota-tag is-ok">Auto-approuvé</span>
+            <span v-if="entry.always_require_approval" class="quota-tag is-error">Toujours soumis à approbation</span>
           </span>
           <UiButton size="sm" :to="`/users/${entry.user_id}`">Ouvrir la fiche</UiButton>
         </li>
@@ -101,7 +102,7 @@ import SettingsSection from './SettingsSection.vue';
 
 interface QuotaUse { used: number; limit: number | null }
 interface UsageEntry { user_id: number; name: string; movie?: QuotaUse; show?: QuotaUse; [key: string]: any }
-interface QuotaException { user_id: number; name: string; role: string; quota_movie_limit: number | null; quota_show_limit: number | null; auto_approve: boolean }
+interface QuotaException { user_id: number; name: string; role: string; quota_movie_limit: number | null; quota_show_limit: number | null; auto_approve: boolean; always_require_approval?: boolean }
 
 const KINDS = [
   { key: 'movie', label: 'films' },
@@ -177,6 +178,7 @@ const locale = computed({
 .quota-exceptions__tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .quota-tag { padding: 1px 9px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600; }
 .quota-tag.is-warn { background: color-mix(in srgb, var(--amber) 14%, transparent); color: var(--amber-text); }
+.quota-tag.is-error { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red-text); }
 .quota-tag.is-ok { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green-text); }
 .quota-state { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--inset-radius); font-size: var(--fs-sm); }
 .quota-state.is-ok { background: color-mix(in srgb, var(--green) 9%, transparent); color: var(--green-text); }

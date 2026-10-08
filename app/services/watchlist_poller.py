@@ -844,9 +844,8 @@ async def _process_watchlist_item(
             details={"source": item.get("source"), "origin": "watchlist"},
         )
 
-    needs_approval = bool(
-        settings.require_approval and not (user_obj and ((user_obj.role or "user") == "admin" or user_obj.auto_approve))
-    )
+    is_admin = bool(user_obj and (user_obj.role or "user") == "admin")
+    needs_approval = not is_admin and request_quotas.needs_approval(settings, user_obj)
     # Un media qu'un admin a deliberement supprime revient parfois via la watchlist
     # (l'API Plex ne permet pas de retirer une entree d'une watchlist) -- on force une
     # nouvelle approbation humaine plutot que de le re-soumettre silencieusement.

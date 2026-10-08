@@ -149,10 +149,24 @@ def account_name(user: PlexUser) -> str:
     return user.custom_name or user.display_name or user.plex_user_id
 
 
+def needs_approval(settings: Optional[Settings], user: Optional[PlexUser]) -> bool:
+    """Règle d'approbation d'un compte, sans les cas particuliers (média supprimé, rôle).
+
+    « Toujours soumis à approbation » l'emporte sur tout ; sinon l'auto-approbation lève
+    l'approbation générale.
+    """
+    if user is not None and getattr(user, "always_require_approval", False):
+        return True
+    if not (settings and getattr(settings, "require_approval", False)):
+        return False
+    return not (user is not None and user.auto_approve)
+
+
 def quota_exception(user: PlexUser) -> dict | None:
     """Ce qui distingue un compte des règles générales, ou None s'il les suit."""
     custom = user.quota_movie_limit is not None or user.quota_show_limit is not None
-    if not custom and not user.auto_approve:
+    always = bool(getattr(user, "always_require_approval", False))
+    if not custom and not user.auto_approve and not always:
         return None
     return {
         "user_id": user.id,
@@ -160,7 +174,8 @@ def quota_exception(user: PlexUser) -> dict | None:
         "role": user.role or "user",
         "quota_movie_limit": user.quota_movie_limit,
         "quota_show_limit": user.quota_show_limit,
-        "auto_approve": bool(user.auto_approve),
+        "auto_approve": bool(user.auto_approve) and not always,
+        "always_require_approval": always,
     }
 
 

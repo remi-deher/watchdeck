@@ -71,6 +71,7 @@ class UserCreate(BaseModel):
     role: str = "user"
     can_login: bool = True
     auto_approve: bool = False
+    always_require_approval: bool = False
     # None = suit le quota global ; 0 = illimité pour ce compte.
     quota_movie_limit: Optional[int] = Field(default=None, ge=0)
     quota_show_limit: Optional[int] = Field(default=None, ge=0)
