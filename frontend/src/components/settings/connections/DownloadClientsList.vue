@@ -10,6 +10,7 @@
     @open-modal="openSheet"
     @toggle="toggleClient"
     @remove="removeClient"
+    :item-live="(item: any) => status.rowFor(item.id)"
     @test="testClient"
   />
 
@@ -28,7 +29,10 @@ import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
 import { success, fail } from '@/settingsForm';
 
-const CLIENT_LABELS: Record<string, string> = { qbittorrent: 'qBittorrent', transmission: 'Transmission', deluge: 'Deluge' };
+import { useClientsStatus } from './clientsStatus';
+
+const status = useClientsStatus();
+const CLIENT_LABELS: Record<string, string> = { qbittorrent: 'qBittorrent', transmission: 'Transmission', watch_folder: 'Dossier surveillé' };
 function clientLabel(type: string): string { return CLIENT_LABELS[type] || type || ''; }
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
@@ -60,6 +64,8 @@ async function testClient(client: any): Promise<void> {
     const data = await testClientMutation.mutateAsync(client);
     success(data.message || 'Client joignable.');
   } catch (error) { fail(error); }
+  // Le résultat reste sur la ligne : l'état des clients est relu après le test.
+  status.refreshAll().catch(() => {});
 }
 
 </script>

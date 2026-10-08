@@ -326,7 +326,7 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       // acquisitions et du stockage reste sur leurs pages, dont on garde la porte.
       sections = [
         { key: 'clients', label: 'Clients', to: '/settings/acquisition', icon: Download },
-        { key: 'downloads', label: 'Téléchargements', to: '/settings/acquisition/downloads', icon: SlidersHorizontal },
+        { key: 'downloads', label: 'Règles', to: '/settings/acquisition/downloads', icon: SlidersHorizontal },
         { key: 'acquisitions', label: 'Acquisitions & conflits', to: '/downloads/acquisitions', icon: ListRestart, external: true },
         { key: 'storage', label: 'Stockage et transferts', to: '/storage', icon: DatabaseZap, external: true },
       ];

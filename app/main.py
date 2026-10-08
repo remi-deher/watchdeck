@@ -42,6 +42,7 @@ from .dependencies import require_admin
 from .error_handlers import register_domain_exception_handlers
 from .log_buffer import install as install_log_buffer
 from .routers import (
+    acquisition_api,
     activity_api,
     admin_overview_api,
     api_v1,
@@ -476,6 +477,7 @@ app.include_router(storage_connections_api.router)
 app.include_router(storage_api.router)
 app.include_router(arr_instances_api.router)
 app.include_router(plex_servers_api.router)
+app.include_router(acquisition_api.router)
 app.include_router(download_clients_api.router)
 app.include_router(prowlarr_api.router)
 app.include_router(subtitles_api.router)

@@ -37,7 +37,7 @@ describe('index des réglages', () => {
     expect(trouve('tautulli')).toEqual(['Plex']);
     expect(trouve('radarr')).toEqual(['Médias']);
     expect(trouve('smtp')).toEqual(['Canaux']);
-    expect(trouve('seed')).toEqual(['Téléchargements']);
+    expect(trouve('seed')).toEqual(['Règles']);
   });
 
   it('mène au bon panneau pour un terme métier', () => {

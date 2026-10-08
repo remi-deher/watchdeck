@@ -44,7 +44,7 @@
         <ServicesTab v-else-if="tab==='services'"/>
         <MediaConnectionsTab v-else-if="tab==='media'"/>
         <WebhooksTab v-else-if="tab==='webhooks'"/>
-        <div v-else-if="tab==='download-clients'" class="settings-rows"><DownloadClientsList/></div>
+        <div v-else-if="tab==='download-clients'" class="settings-rows"><ClientsVerdict/><DownloadClientsList/></div>
         <DownloadsTab v-else-if="tab==='downloads'"/>
         <!-- L'analyse VF de la bibliothèque vivait dans Connexions → Plex : elle décide de ce
              qui doit être amélioré, sa place est avec les améliorations VF. -->
@@ -92,6 +92,7 @@ const DownloadsTab = defineAsyncComponent(() => import('@/components/settings/Do
 const VfScanSection = defineAsyncComponent(() => import('@/components/settings/VfScanSection.vue'));
 const VfUpgradesSettingsTab = defineAsyncComponent(() => import('@/components/settings/VfUpgradesSettingsTab.vue'));
 const SubtitleSearchSection = defineAsyncComponent(() => import('@/components/settings/SubtitleSearchSection.vue'));
+const ClientsVerdict = defineAsyncComponent(() => import('@/components/settings/connections/ClientsVerdict.vue'));
 const MediaConnectionsTab = defineAsyncComponent(() => import('@/components/settings/MediaConnectionsTab.vue'));
 const ScheduledTasksTab = defineAsyncComponent(() => import('@/components/settings/ScheduledTasksTab.vue'));
 const MaintenanceTab = defineAsyncComponent(() => import('@/components/settings/MaintenanceTab.vue'));

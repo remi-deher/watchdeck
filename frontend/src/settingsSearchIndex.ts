@@ -59,10 +59,10 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['qbittorrent', 'transmission', 'deluge', 'client torrent', 'client direct', 'download client'],
   },
   {
-    label: 'Téléchargements',
+    label: 'Règles',
     group: 'Acquisition & stockage',
     path: '/settings/acquisition/downloads',
-    keywords: ['torrent', 'seed', 'ratio', 'mots interdits', 'taille', 'import bloque', 'rapprochement', 'disponibilite', 'filtres de release'],
+    keywords: ['torrent', 'seed', 'ratio', 'mots interdits', 'taille', 'import bloque', 'rapprochement', 'disponibilite', 'filtres de release', 'telechargements', 'tester une release', 'series', 'episode'],
   },
   {
     label: 'Acquisitions & conflits',
