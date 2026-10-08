@@ -85,7 +85,10 @@ async def test_releases_are_fetched_once_then_kept(monkeypatch):
     client = _Client(_Resp(200, [{"tag_name": "v1.81.0"}]))
     monkeypatch.setattr(system_api.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(system_api, "_releases_cache", None)
-    monkeypatch.setattr(system_api, "_releases_cache_at", 0.0)
+    monkeypatch.setattr(system_api, "_releases_cache_at", float("-inf"))
+    monkeypatch.setattr(system_api, "_release_cache_at", float("-inf"))
+    # Juste après le démarrage de la machine, l'horloge monotone est encore petite.
+    monkeypatch.setattr(system_api.time, "monotonic", lambda: 5.0)
 
     assert await system_api._fetch_releases() == [{"tag_name": "v1.81.0"}]
     assert await system_api._fetch_releases() == [{"tag_name": "v1.81.0"}]
@@ -99,7 +102,7 @@ async def test_releases_are_fetched_once_then_kept(monkeypatch):
 @pytest.mark.asyncio
 async def test_github_errors_keep_what_was_known(monkeypatch):
     monkeypatch.setattr(system_api, "_releases_cache", [{"tag_name": "v1.80.0"}])
-    monkeypatch.setattr(system_api, "_releases_cache_at", 0.0)
+    monkeypatch.setattr(system_api, "_releases_cache_at", float("-inf"))
     monkeypatch.setattr(system_api.httpx, "AsyncClient", lambda **kwargs: _Client(_Resp(503, None)))
     assert await system_api._fetch_releases() == [{"tag_name": "v1.80.0"}]
 

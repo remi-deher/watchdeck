@@ -167,8 +167,10 @@ async def _fetch_releases() -> list[dict]:
 def forget_release_cache() -> None:
     """« Vérifier maintenant » : la prochaine lecture repart chez GitHub."""
     global _release_cache_at, _releases_cache_at
-    _release_cache_at = 0.0
-    _releases_cache_at = 0.0
+    # -inf et non 0 : l'horloge monotone part du démarrage de la machine ; juste après un
+    # redémarrage, « maintenant - 0 » reste sous la durée du cache et l'oubli serait sans effet.
+    _release_cache_at = float("-inf")
+    _releases_cache_at = float("-inf")
 
 
 @router.get("/version")
