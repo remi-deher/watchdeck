@@ -59,6 +59,7 @@
     <div ref="healthZone" class="dashboard-bento">
       <ServiceHealthPanel v-if="healthShown" class="bento-wide" />
       <div class="bento-narrow bento-stack">
+        <DashboardFileflowsPanel />
         <ScanStatusPanel
           :vff-scan="vffScan"
           :plex-sync="plexSync"
@@ -102,6 +103,7 @@ import DashboardActionCenter from '@/components/dashboard/DashboardActionCenter.
 import DashboardGreeting from '@/components/dashboard/DashboardGreeting.vue';
 import DashboardLiveStrip from '@/components/dashboard/DashboardLiveStrip.vue';
 import DashboardVfUpgradesPanel from '@/components/dashboard/DashboardVfUpgradesPanel.vue';
+import DashboardFileflowsPanel from '@/components/dashboard/DashboardFileflowsPanel.vue';
 import DashboardLibraryTabs from '@/components/dashboard/DashboardLibraryTabs.vue';
 import { attentionTotal } from '@/components/dashboard/dashboardAttention';
 import AcquisitionPipelinePanel from '@/components/dashboard/AcquisitionPipelinePanel.vue';

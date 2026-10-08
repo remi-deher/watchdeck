@@ -1,17 +1,19 @@
 <template>
-  <!-- Instance Sonarr, Radarr, Prowlarr ou Bazarr, dans la feuille ouverte depuis Integrations. -->
+  <!-- Instance Sonarr, Radarr, Prowlarr, Bazarr ou FileFlows, dans la feuille ouverte depuis Integrations. -->
   <UiFeedback v-if="notFound" type="error" message="Cette instance n’existe plus." />
   <form v-else class="compact-form" @submit.prevent="enregistrer">
     <UiFeedback v-if="error" type="error" :message="error" />
     <label>Nom<input v-model="form.name"></label>
     <label>Type
-      <UiSelect v-model="form.arr_type" :options="[{ value: 'sonarr', label: 'Sonarr' }, { value: 'radarr', label: 'Radarr' }, { value: 'prowlarr', label: 'Prowlarr' }, { value: 'bazarr', label: 'Bazarr' }]" />
+      <UiSelect v-model="form.arr_type" :options="[{ value: 'sonarr', label: 'Sonarr' }, { value: 'radarr', label: 'Radarr' }, { value: 'prowlarr', label: 'Prowlarr' }, { value: 'bazarr', label: 'Bazarr' }, { value: 'fileflows', label: 'FileFlows' }]" />
     </label>
     <label>URL<input v-model="form.url" type="url"></label>
-    <label>Clé API
+    <label>Clé API{{ keyless ? ' (facultative)' : '' }}
       <input v-model="form.api_key" type="password" autocomplete="new-password" :placeholder="form.has_api_key ? 'Enregistrée : laisser vide pour la garder' : ''">
-      <small>Disponible dans Sonarr/Radarr/Prowlarr/Bazarr sous Réglages -> Général -> Clé API.</small>
+      <small v-if="keyless">Seulement si l'authentification est activée dans FileFlows (Réglages → Sécurité).</small>
+      <small v-else>Disponible dans Sonarr/Radarr/Prowlarr/Bazarr sous Réglages -> Général -> Clé API.</small>
     </label>
+    <small v-if="form.arr_type === 'fileflows'" class="check-hint">Adresse de l'interface web FileFlows (ex. http://192.168.1.51:19200). Watchdeck y suit les traitements et peut relancer un fichier ou mettre FileFlows en pause.</small>
     <small v-if="form.arr_type === 'bazarr'" class="check-hint">Bazarr doit être relié aux mêmes instances Radarr/Sonarr que Watchdeck : il retrouve les médias par leur identifiant Radarr/Sonarr.</small>
     <template v-if="hasArrOptions">
     <label>Profil
@@ -31,9 +33,9 @@
 
     <div class="form-actions">
       <UiButton v-if="hasArrOptions" @click="loadOptions"><ListRestart />Charger profils et dossiers</UiButton>
-      <ConnectionTestAction :loading="testing" :disabled="!form.url || (!form.api_key && !form.has_api_key)" label="Tester" @test="test" />
+      <ConnectionTestAction :loading="testing" :disabled="!form.url || (!keyless && !form.api_key && !form.has_api_key)" label="Tester" @test="test" />
       <UiButton @click="emit('cancel')">Annuler</UiButton>
-      <UiButton variant="primary" type="submit" :loading="saving" :disabled="!form.name || !form.url || (!form.api_key && !form.has_api_key)"><Save />{{ creating ? 'Ajouter' : 'Mettre à jour' }}</UiButton>
+      <UiButton variant="primary" type="submit" :loading="saving" :disabled="!form.name || !form.url || (!keyless && !form.api_key && !form.has_api_key)"><Save />{{ creating ? 'Ajouter' : 'Mettre à jour' }}</UiButton>
     </div>
   </form>
 </template>
@@ -76,6 +78,8 @@ const plexServerOptions = computed(() => (Array.isArray(plexServersQuery.data.va
 
 /* Profils, dossiers et serveur Plex n'ont de sens que pour Sonarr et Radarr. */
 const hasArrOptions = computed(() => form.arr_type === 'sonarr' || form.arr_type === 'radarr');
+/* FileFlows n'a pas d'authentification par defaut : sa cle est facultative. */
+const keyless = computed(() => form.arr_type === 'fileflows');
 const profiles = ref<any[]>([]), folders = ref<any[]>([]);
 async function loadOptions(): Promise<void> {
   if (!hasArrOptions.value) { profiles.value = []; folders.value = []; return; }

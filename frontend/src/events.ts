@@ -11,6 +11,7 @@ export const REALTIME_EVENT_TYPES = [
   'library.analytics.updated',
   'vff.updated',
   'vf_upgrade.updated',
+  'fileflows.updated',
 ] as const;
 
 export type RealtimeEventType = (typeof REALTIME_EVENT_TYPES)[number];

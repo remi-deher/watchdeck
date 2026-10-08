@@ -94,6 +94,7 @@ const routes: RouteRecordRaw[] = [
   // Un chemin par section : partageable, marquable en favori, et coherent avec le reste
   // de l'application. Le parametre `?tab=` reste accepte et redirige (voir SettingsView).
   { path: '/storage', component: () => import('@/views/StorageView.vue'), meta: { title: 'Stockages et transferts' } },
+  { path: '/encoding', component: () => import('@/views/EncodingView.vue'), meta: { title: 'Encodage' } },
   { path: '/settings', component: SettingsView, meta: { title: 'Administration' } },
   { path: '/settings/resource/:kind/:id', component: () => import('@/views/SettingsResourceView.vue'), meta: { title: 'Réglage' } },
   { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Connexions' } },
