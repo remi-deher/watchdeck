@@ -83,6 +83,11 @@
       <p v-else class="diag-hint">Aucune instance Sonarr/Radarr activée.</p>
     </SettingsSection>
 
+    <section class="vf-rhythm" aria-labelledby="vf-rhythm-title">
+      <h3 id="vf-rhythm-title" class="vf-advanced-title">Rythme</h3>
+      <VfPresetPicker :disabled="!form.vf_upgrade_enabled" />
+    </section>
+
     <SettingsSection title="Langues et confiance" subtitle="Filtre et ordonne les releases candidates.">
       <SettingsRow label="Marqueurs acceptés" description="Séparés par des virgules.">
         <input v-model="form.vf_upgrade_markers" placeholder="truefrench,vff,multi,vfi,vfq">
@@ -104,7 +109,9 @@
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection title="Qualité et sécurité" subtitle="Empêche un gain de langue au prix d'une régression technique.">
+    <!-- Réglages avancés : repliés, chacun résume en une ligne ce qu'il fait. -->
+    <h3 class="vf-advanced-title">Réglages avancés</h3>
+    <SettingsSection title="Qualité et sécurité" :subtitle="summaries.quality" collapsible :default-open="false">
       <SettingsRow label="Bloquer les rejets *arr">
         <ToggleSwitch v-model="form.vf_upgrade_block_arr_rejected" title="Bloquer les rejets *arr" />
       </SettingsRow>
@@ -128,7 +135,7 @@
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection title="Recherche et performances" subtitle="Cadence les indexeurs sans les saturer.">
+    <SettingsSection title="Recherche et rythme" :subtitle="summaries.search" collapsible :default-open="false">
       <SettingsRow label="Cooldown" description="En heures, entre deux recherches sur un même média.">
         <UiNumberField v-model="form.vf_upgrade_cooldown_hours" :min="1" :max="720" />
       </SettingsRow>
@@ -167,7 +174,7 @@
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection title="Validation et historique" subtitle="Confirme la VF après import et conserve une trace exploitable.">
+    <SettingsSection title="Validation et historique" :subtitle="summaries.validation" collapsible :default-open="false">
       <SettingsRow label="Vérifier les pistes après import">
         <ToggleSwitch v-model="form.vf_upgrade_verify_after_import" title="Vérifier les pistes après import" />
       </SettingsRow>
@@ -188,7 +195,7 @@
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection title="Notifications" subtitle="Étapes du cycle d'amélioration qui déclenchent un envoi.">
+    <SettingsSection title="Notifications" :subtitle="summaries.notifications" collapsible :default-open="false">
       <SettingsRow label="Release trouvée">
         <ToggleSwitch v-model="form.vf_upgrade_notify_found" title="Release trouvée" />
       </SettingsRow>
@@ -218,6 +225,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { form } from '@/settingsForm';
+import VfPresetPicker from './VfPresetPicker.vue';
 import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';
 
@@ -226,6 +234,32 @@ const selectedScopes = computed(() => [
   form.vf_upgrade_include_vo && 'médias VO',
   form.vf_upgrade_include_vf && !form.vf_upgrade_protect_existing_vf && 'médias VF',
 ].filter(Boolean));
+/* Résumé d'une ligne de chaque bloc replié : on sait ce qu'il fait sans l'ouvrir. */
+const summaries = computed(() => {
+  const size = [form.vf_upgrade_min_size_gb, form.vf_upgrade_max_size_gb];
+  const quality = [
+    form.vf_upgrade_protect_resolution ? 'résolution conservée' : '',
+    form.vf_upgrade_preserve_hdr ? 'HDR conservé' : '',
+    form.vf_upgrade_protect_custom_format_score ? 'score CF protégé' : '',
+    size[0] || size[1] ? `${size[0] || 0}–${size[1] || '∞'} Go` : '',
+    form.vf_upgrade_allow_technical_downgrade ? 'régression permise après confirmation' : '',
+  ].filter(Boolean);
+  const notified = [
+    form.vf_upgrade_notify_found && 'release trouvée',
+    form.vf_upgrade_notify_accepted && 'acceptée',
+    form.vf_upgrade_notify_downloading && 'téléchargement',
+    form.vf_upgrade_notify_failed && 'échec',
+    form.vf_upgrade_notify_verified && 'VF validée',
+  ].filter(Boolean);
+  return {
+    quality: quality.join(' · ') || 'Aucune protection technique',
+    search: `${form.vf_upgrade_max_searches_per_run ?? '–'} recherches par passage · ${form.vf_upgrade_search_concurrency ?? '–'} en parallèle · pause ${form.vf_upgrade_cooldown_hours ?? '–'} h${form.vf_upgrade_episodic_fallback ? ' · épisodes en secours' : ''}`,
+    validation: form.vf_upgrade_verify_after_import
+      ? `Vérifiée ${form.vf_upgrade_verification_timeout_minutes ?? '–'} min après import${form.vf_upgrade_blacklist_failed ? ' · liste noire si non validée' : ''}`
+      : 'Pas de vérification après import',
+    notifications: notified.length ? `Prévenir : ${notified.join(', ')}` : 'Aucune notification',
+  };
+});
 const effectiveSummary = computed(() => {
   if (!form.vf_upgrade_enabled) return 'Aucune recherche automatique ne sera lancée.';
   const scopes = selectedScopes.value.length ? selectedScopes.value.join(', ') : 'aucun média';
@@ -430,4 +464,6 @@ select:disabled {
     flex-direction: column;
   }
 }
+.vf-advanced-title { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.vf-rhythm { display: grid; gap: var(--space-2); }
 </style>

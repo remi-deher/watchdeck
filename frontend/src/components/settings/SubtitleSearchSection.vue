@@ -9,6 +9,8 @@
     <template #actions>
       <UiButton :loading="running" @click="runNow"><Captions />Chercher maintenant</UiButton>
     </template>
+    <!-- Le dernier passage avant le détail : une recherche qui échoue en silence se voit ici. -->
+    <p v-if="lastPass" class="subtitle-last" :class="lastPass.failed ? 'is-error' : 'is-ok'" aria-live="polite">{{ lastPass.text }}</p>
     <p v-if="summary" class="subtitle-summary">
       {{ summary.missing }} média(s) sans sous-titres français, dont {{ summary.due }} à chercher.
       <template v-if="summary.bazarr">
@@ -45,6 +47,18 @@ import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';
+import { formatRelativeDate } from '@/utils/format';
+
+/* Dernier passage de la recherche planifiée, lu dans les tâches (même requête que Planification). */
+const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
+const lastPass = computed(() => {
+  const state = (tasksQuery.data.value || []).find((task: any) => task.job === 'subtitle-search')?.state;
+  if (!state?.finished_at) return null;
+  const when = formatRelativeDate(state.finished_at).toLowerCase();
+  return state.status === 'failed'
+    ? { failed: true, text: `Dernier passage en échec ${when}${state.last_error ? ` : ${state.last_error}` : ''}` }
+    : { failed: false, text: `Dernier passage réussi ${when}.` };
+});
 
 const providerOptions = [
   { value: 'auto', label: 'Automatique' },
@@ -75,4 +89,7 @@ const runNow = () => runMutation.mutate();
 
 <style scoped>
 .subtitle-summary { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.subtitle-last { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--inset-radius); font-size: var(--fs-sm); }
+.subtitle-last.is-ok { background: color-mix(in srgb, var(--green) 9%, transparent); color: var(--green-text); }
+.subtitle-last.is-error { background: color-mix(in srgb, var(--red) 9%, transparent); color: var(--red-text); }
 </style>
