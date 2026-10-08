@@ -7,19 +7,21 @@ dont l'interface ralentit déjà sous la charge.
 """
 
 import asyncio
+import json
 import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from ..cache import cache
 from ..database import get_db_async
 from ..dependencies import require_admin
-from ..models import ArrInstance, LibraryItem
+from ..models import ArrInstance, LibraryItem, Settings
 from ..realtime import publish
-from ..services import fileflows
+from ..services import fileflows, fileflows_queue
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +95,12 @@ async def fileflows_status(refresh: bool = False, db: AsyncSession = Depends(get
         "connected": True,
         **state,
         "runners": [{**r, "media": fileflows.match_media(index, r["name"])} for r in state["runners"]],
-        "recent_failed": _with_media(failed[:RECENT_LIMIT], index),
-        "recent_processed": _with_media(processed[:RECENT_LIMIT], index),
+        "recent_failed": await fileflows.with_timings(
+            inst.url, inst.api_key, _with_media(failed[:RECENT_LIMIT], index)
+        ),
+        "recent_processed": await fileflows.with_timings(
+            inst.url, inst.api_key, _with_media(processed[:RECENT_LIMIT], index)
+        ),
     }
     try:
         await cache.set_json(key, payload, ttl_seconds=STATUS_CACHE_TTL)
@@ -118,7 +124,18 @@ async def fileflows_files(
         _guard(fileflows.dashboard(inst.url, inst.api_key)),
     )
     index = await fileflows.folder_index(db)
-    return {"files": _with_media(rows, index), "page": page, "has_more": len(rows) >= state["page_size"]}
+    files = _with_media(rows, index)
+    # Vraie duree de traitement (attente du disque exclue) pour les fichiers termines.
+    if status in (fileflows.STATUS_PROCESSED, fileflows.STATUS_FAILED):
+        files = await fileflows.with_timings(inst.url, inst.api_key, files)
+    return {"files": files, "page": page, "has_more": len(rows) >= state["page_size"]}
+
+
+@router.get("/files/{uid}/timing")
+async def fileflows_file_timing(uid: str, db: AsyncSession = Depends(get_db_async)):
+    """Durees d'un traitement : total FileFlows, attente du disque, traitement reel, etapes."""
+    inst = await _instance(db)
+    return await _guard(fileflows.file_timing(inst.url, inst.api_key, uid))
 
 
 @router.get("/files/{uid}/log")
@@ -162,7 +179,8 @@ async def fileflows_media(item_id: int, db: AsyncSession = Depends(get_db_async)
     """Traitements FileFlows des fichiers d'un média de la bibliothèque."""
     if await fileflows.get_instance(db) is None:
         return {"configured": False, "files": []}
-    _, folder, files = await _media_files(db, item_id)
+    inst, folder, files = await _media_files(db, item_id)
+    files = await fileflows.with_timings(inst.url, inst.api_key, files, limit=20)
     return {"configured": True, "folder": folder, "files": files}
 
 
@@ -179,4 +197,56 @@ async def fileflows_media_reprocess(
     result = await _guard(fileflows.reprocess(inst.url, inst.api_key, uids[: fileflows.MAX_REPROCESS]))
     await _invalidate(inst)
     await publish("fileflows.updated", {"queued": result["queued"], "media_ids": [item_id]}, admin_only=True)
+    return result
+
+
+# --------------------------------------------------------------------------- alternance
+
+
+class ReorderBody(BaseModel):
+    enabled: bool
+    libraries: list[str] = Field(default_factory=list, max_length=100)
+
+
+async def _settings(db: AsyncSession) -> Settings:
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if settings is None:
+        raise HTTPException(404, "Réglages introuvables")
+    return settings
+
+
+@router.get("/reorder")
+async def fileflows_reorder_state(db: AsyncSession = Depends(get_db_async)):
+    """Option d'alternance de la file par disque, bibliothèques activées et dernier passage."""
+    inst = await _instance(db)
+    settings = await _settings(db)
+    chosen = set(fileflows_queue.parse_libraries(settings.fileflows_reorder_libraries))
+    libraries = await _guard(fileflows_queue.enabled_libraries(inst.url, inst.api_key))
+    return {
+        "enabled": bool(settings.fileflows_reorder_enabled),
+        "libraries": [{**lib, "included": lib["uid"] in chosen} for lib in libraries],
+        "last_run": await fileflows_queue.last_run(),
+    }
+
+
+@router.put("/reorder")
+async def fileflows_reorder_save(body: ReorderBody, db: AsyncSession = Depends(get_db_async)):
+    settings = await _settings(db)
+    settings.fileflows_reorder_enabled = body.enabled
+    settings.fileflows_reorder_libraries = json.dumps(list(dict.fromkeys(body.libraries)))
+    await db.commit()
+    return {"enabled": body.enabled, "libraries": list(dict.fromkeys(body.libraries))}
+
+
+@router.post("/reorder/run")
+async def fileflows_reorder_run(db: AsyncSession = Depends(get_db_async)):
+    """Réordonne maintenant, avec les bibliothèques enregistrées (même si la boucle est coupée)."""
+    inst = await _instance(db)
+    settings = await _settings(db)
+    result = await _guard(
+        fileflows_queue.reorder(
+            inst.url, inst.api_key, fileflows_queue.parse_libraries(settings.fileflows_reorder_libraries)
+        )
+    )
+    await publish("fileflows.updated", {"reordered": result.get("changed", False)}, admin_only=True)
     return result

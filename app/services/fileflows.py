@@ -26,6 +26,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from ..cache import cache
 from ..models import ArrInstance, LibraryItem
 from . import arr_catalog
 from .arr_http_client import ArrClient
@@ -202,6 +203,89 @@ async def file_detail(url: str, api_key: str | None, uid: str) -> dict[str, Any]
     if not UUID_RE.fullmatch(uid):
         raise ValueError("Identifiant de fichier invalide")
     return await _call(url, api_key, "GET", f"library-file/{uid}")
+
+
+# --------------------------------------------------------------------------- durées
+
+# Etape du flow ou un fichier attend que son disque se libere (verrou par disque) : son
+# temps n'est pas du traitement. FileFlows compte pourtant sa duree depuis la prise du
+# fichier par un runner, attente comprise.
+WAIT_STEP_PREFIX = "0. Verrou"
+TIMING_CACHE_TTL = 30 * 24 * 3600
+
+
+def _seconds(value: Any) -> float:
+    """`01:02:03.456` -> 3723.456 ; FileFlows note parfois une duree negative ou vide."""
+    match = re.fullmatch(r"-?(?:(\d+)\.)?(\d+):(\d+):(\d+(?:\.\d+)?)", str(value or "").strip())
+    if not match:
+        return 0.0
+    days, hours, minutes, seconds = match.groups()
+    return int(days or 0) * 86400 + int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def timing_from_detail(detail: dict[str, Any]) -> dict[str, Any]:
+    """Durees d'un traitement : total FileFlows, attente du disque, traitement reel, etapes."""
+    steps = [
+        {
+            "name": node.get("NodeName") or "",
+            "seconds": round(_seconds(node.get("ProcessingTime")), 1),
+            "output": node.get("Output"),
+        }
+        for node in detail.get("ExecutedNodes") or []
+        if isinstance(node, dict)
+    ]
+    total = _seconds(detail.get("ProcessingTime"))
+    wait = sum(s["seconds"] for s in steps if s["name"].startswith(WAIT_STEP_PREFIX))
+    return {
+        "total_seconds": round(total, 1),
+        "wait_seconds": round(wait, 1),
+        "processing_seconds": round(max(0.0, total - wait), 1),
+        "steps": steps,
+    }
+
+
+async def file_timing(url: str, api_key: str | None, uid: str) -> dict[str, Any]:
+    """Durees d'un fichier termine, gardees en cache : un traitement fini ne change plus.
+
+    La cle inclut la date de fin : un fichier relance a une nouvelle entree."""
+    detail = await file_detail(url, api_key, uid)
+    if detail.get("Status") not in (STATUS_PROCESSED, STATUS_FAILED):
+        return timing_from_detail(detail)
+    key = f"watchdeck:fileflows:timing:{uid}:{detail.get('ProcessingEnded') or ''}"
+    try:
+        cached = await cache.get_json(key)
+    except Exception:  # noqa: BLE001 -- sans cache, on recalcule
+        cached = None
+    if cached:
+        return cached
+    timing = timing_from_detail(detail)
+    try:
+        await cache.set_json(key, timing, ttl_seconds=TIMING_CACHE_TTL)
+    except Exception:  # noqa: BLE001
+        logger.debug("Cache des durees FileFlows indisponible", exc_info=True)
+    return timing
+
+
+async def with_timings(
+    url: str, api_key: str | None, rows: list[dict[str, Any]], *, limit: int = 50
+) -> list[dict[str, Any]]:
+    """Ajoute `timing` aux fichiers termines (traites ou en echec) des premieres lignes.
+
+    Le detail par etape n'existe que fichier par fichier dans l'API : on le demande pour
+    au plus `limit` fichiers, quelques-uns a la fois, et le cache evite de le redemander."""
+    semaphore = asyncio.Semaphore(6)
+
+    async def one(row: dict[str, Any]) -> dict[str, Any]:
+        if row.get("status") not in (STATUS_PROCESSED, STATUS_FAILED) or not row.get("uid"):
+            return row
+        async with semaphore:
+            try:
+                return {**row, "timing": await file_timing(url, api_key, row["uid"])}
+            except (FileFlowsError, ValueError):
+                return row
+
+    head = await asyncio.gather(*(one(row) for row in rows[:limit]))
+    return list(head) + rows[limit:]
 
 
 class _LogText(HTMLParser):

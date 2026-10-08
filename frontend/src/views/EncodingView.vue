@@ -83,6 +83,8 @@
           <UiButton size="sm" :disabled="!hasMore" @click="page++">Suivant<ChevronRight /></UiButton>
         </div>
       </section>
+
+      <FileflowsReorderPanel />
     </template>
 
     <FileflowsLogModal :file="logFile" @close="logFile = null" />
@@ -113,6 +115,7 @@ import UiMenuItem from '@/components/ui/UiMenuItem.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import FileflowsFileRow from '@/components/encoding/FileflowsFileRow.vue';
 import FileflowsLogModal from '@/components/encoding/FileflowsLogModal.vue';
+import FileflowsReorderPanel from '@/components/encoding/FileflowsReorderPanel.vue';
 
 /* La pause laisse finir le fichier en cours (FileFlows ne l'interrompt pas). */
 const PAUSE_OPTIONS = [

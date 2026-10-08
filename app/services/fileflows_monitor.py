@@ -11,6 +11,9 @@ précédent, gardé en cache :
 
 Le premier passage ne fait que mémoriser l'état : brancher FileFlows n'envoie pas d'alerte
 pour tout son historique.
+
+Si l'option est activée, la même tâche alterne aussi la file par disque
+(voir services/fileflows_queue.py).
 """
 
 import logging
@@ -22,7 +25,7 @@ from ..cache import cache
 from ..database import AsyncSessionLocal
 from ..models import Settings
 from ..realtime import publish
-from . import fileflows
+from . import fileflows, fileflows_queue
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +77,8 @@ async def check_fileflows() -> dict[str, Any]:
         if inst is None:
             return {"status": "not_configured"}
         url, api_key, name = inst.url, inst.api_key, inst.name
+        # Alternance de la file par disque, si l'option est activee (desactivee par defaut).
+        reorder = await fileflows_queue.reorder_if_enabled(db, url, api_key)
         processed = await fileflows.list_files(url, api_key, fileflows.STATUS_PROCESSED)
         failed = await fileflows.list_files(url, api_key, fileflows.STATUS_FAILED)
         index = await fileflows.folder_index(db) if processed else {}
@@ -86,7 +91,7 @@ async def check_fileflows() -> dict[str, Any]:
     previous = await cache.get_json(key)
     await cache.set_json(key, current, ttl_seconds=STATE_TTL)
     if previous is None:
-        return {"status": "initialized", "processed": len(processed), "failed": len(failed)}
+        return {"status": "initialized", "processed": len(processed), "failed": len(failed), "reorder": reorder}
 
     new_failed_ids = set(changes(previous.get("failed") or {}, current["failed"]))
     new_failed = [row for row in failed if row["uid"] in new_failed_ids]
@@ -116,4 +121,5 @@ async def check_fileflows() -> dict[str, Any]:
         "new_processed": len(new_processed_ids),
         "rescanned": rescanned,
         "alerts": alerts,
+        "reorder": reorder,
     }
