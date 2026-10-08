@@ -52,7 +52,7 @@ function removeClient(client: any): Promise<void> { return remove(client, askCon
 
 const testClientMutation = useMutation({
   mutationFn: async (client: any) => {
-    const data = await api('/api/test/download-client', { method: 'POST', body: JSON.stringify(client) });
+    const data = await api('/api/test/download-client', { method: 'POST', body: JSON.stringify({ ...client, password: undefined }) });
     if (!data.success) throw new Error(data.message || 'Connexion impossible.');
     return data;
   },
