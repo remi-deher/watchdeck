@@ -1,0 +1,134 @@
+"""Alternance de la file FileFlows entre bibliothèques (= disques).
+
+FileFlows traite sa file dans l'ordre et, sans licence, ne limite pas les runners par
+bibliothèque. Ses scans ajoutent les fichiers groupés par bibliothèque : avec plusieurs
+runners, ils tomberaient tous sur le même disque. Quand l'option est activée (désactivée
+par défaut), la tâche `fileflows-monitor` réordonne la file en alternant les bibliothèques
+choisies : A, B, C, A, B, C… Le verrou par disque du flow règle les collisions restantes.
+
+Ordre produit :
+1. les fichiers relancés (déjà traités puis remis en file, à la main ou depuis Watchdeck),
+   dans leur ordre : une relance garde sa priorité ;
+2. les bibliothèques choisies, en alternance (ordre interne de chacune conservé) ;
+3. le reste, dans son ordre actuel.
+
+La file n'est réécrite que si elle n'est pas déjà dans cet ordre.
+"""
+
+import itertools
+import json
+import logging
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from ..cache import cache
+from ..models import Settings
+from ..utils import now_utc
+from . import fileflows
+
+logger = logging.getLogger(__name__)
+
+LAST_RUN_KEY = "watchdeck:fileflows:reorder:last"
+LAST_RUN_TTL = 7 * 24 * 3600
+
+
+def relaunched(row: dict[str, Any]) -> bool:
+    """Un fichier jamais traité n'a pas encore de flow ; un fichier relancé garde celui de
+    son dernier passage (`fu`)."""
+    return bool(row.get("fu"))
+
+
+def desired_order(rows: list[dict[str, Any]], included: set[str]) -> tuple[list[str], dict[str, int], int]:
+    protected = [row["u"] for row in rows if relaunched(row)]
+    groups: dict[str, list[str]] = {}
+    for row in rows:
+        if row.get("lu") in included and not relaunched(row):
+            groups.setdefault(row["lu"], []).append(row["u"])
+    alternated = [u for batch in itertools.zip_longest(*groups.values()) for u in batch if u]
+    others = [row["u"] for row in rows if row.get("lu") not in included and not relaunched(row)]
+    return protected + alternated + others, {k: len(v) for k, v in groups.items()}, len(protected)
+
+
+def parse_libraries(value: str | None) -> list[str]:
+    try:
+        parsed = json.loads(value or "[]")
+    except ValueError:
+        return []
+    return [str(x) for x in parsed if isinstance(x, str)] if isinstance(parsed, list) else []
+
+
+async def enabled_libraries(url: str, api_key: str | None) -> list[dict[str, Any]]:
+    """Bibliothèques activées dans FileFlows, avec leur nombre de fichiers en attente."""
+    libraries, queue = await _libraries(url, api_key), await _queue(url, api_key)
+    waiting: dict[str, int] = {}
+    for row in queue:
+        waiting[row.get("lu")] = waiting.get(row.get("lu"), 0) + 1
+    return [
+        {
+            "uid": lib["Uid"],
+            "name": lib.get("Name") or "",
+            "path": lib.get("Path") or "",
+            "waiting": waiting.get(lib["Uid"], 0),
+        }
+        for lib in sorted(libraries, key=lambda x: x.get("Name") or "")
+    ]
+
+
+async def _libraries(url: str, api_key: str | None) -> list[dict[str, Any]]:
+    rows = await fileflows._call(url, api_key, "GET", "library")
+    return [lib for lib in rows or [] if isinstance(lib, dict) and lib.get("Enabled") and lib.get("Uid")]
+
+
+async def _queue(url: str, api_key: str | None) -> list[dict[str, Any]]:
+    rows = await fileflows._call(
+        url, api_key, "GET", "library-file/list-all", params={"status": fileflows.STATUS_QUEUED, "page": 0}, timeout=60
+    )
+    return [row for row in rows or [] if isinstance(row, dict) and row.get("u")]
+
+
+async def reorder(url: str, api_key: str | None, library_uids: list[str]) -> dict[str, Any]:
+    """Réordonne la file ; renvoie ce qui a été fait (et le garde pour l'affichage)."""
+    active = {lib["Uid"] for lib in await _libraries(url, api_key)}
+    included = [uid for uid in library_uids if uid in active]
+    rows = await _queue(url, api_key)
+    result: dict[str, Any] = {"at": now_utc().isoformat(), "queue": len(rows), "changed": False}
+    if len(included) < 2:
+        result["message"] = f"Rien à alterner : {len(included)} bibliothèque choisie et activée."
+    else:
+        order, counts, protected = desired_order(rows, set(included))
+        result.update({"alternated": sum(counts.values()), "protected": protected})
+        if order == [row["u"] for row in rows]:
+            result["message"] = f"File déjà alternée ({len(rows)} fichiers, {protected} relancé(s) en tête)."
+        else:
+            await fileflows._call(url, api_key, "POST", "library-file/move-to-top", json={"Uids": order}, timeout=120)
+            result["changed"] = True
+            result["message"] = (
+                f"File réordonnée : {len(order)} fichiers, {protected} relancé(s) gardé(s) en tête, "
+                f"{sum(counts.values())} en alternance."
+            )
+    try:
+        await cache.set_json(LAST_RUN_KEY, result, ttl_seconds=LAST_RUN_TTL)
+    except Exception:  # noqa: BLE001 -- l'affichage du dernier passage n'est pas essentiel
+        logger.debug("Cache indisponible pour le dernier réordonnancement", exc_info=True)
+    return result
+
+
+async def last_run() -> dict[str, Any] | None:
+    try:
+        return await cache.get_json(LAST_RUN_KEY)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def reorder_if_enabled(db: AsyncSession, url: str, api_key: str | None) -> dict[str, Any] | None:
+    """Appelé par la tâche planifiée : ne fait rien tant que l'option est désactivée."""
+    settings = (await db.execute(select(Settings))).scalars().first()
+    if settings is None or not settings.fileflows_reorder_enabled:
+        return None
+    try:
+        return await reorder(url, api_key, parse_libraries(settings.fileflows_reorder_libraries))
+    except fileflows.FileFlowsError as exc:
+        logger.warning("Réordonnancement FileFlows impossible : %s", exc)
+        return {"error": str(exc)}

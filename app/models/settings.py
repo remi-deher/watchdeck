@@ -251,6 +251,12 @@ class Settings(Base):
     # (voir services/indexer_health.py).
     indexer_alerts_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
 
+    # Alternance de la file FileFlows par bibliotheque (= disque) : avec plusieurs runners,
+    # chacun travaille sur un disque different (voir services/fileflows_queue.py). Liste
+    # JSON des identifiants de bibliotheques FileFlows concernees.
+    fileflows_reorder_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
+    fileflows_reorder_libraries: Mapped[Optional[str]] = mapped_column(Text, default=None)
+
     # --- Sécurité réseau ---
     plex_verify_ssl: Mapped[bool] = mapped_column(default=True)
 
