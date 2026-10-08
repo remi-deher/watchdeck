@@ -162,6 +162,7 @@ async def merge_user_records(db: AsyncSession, source: PlexUser, keeper: PlexUse
     keeper.seer_active = keeper.seer_active or source.seer_active
     keeper.can_login = keeper.can_login or source.can_login
     keeper.auto_approve = keeper.auto_approve or source.auto_approve
+    keeper.always_require_approval = keeper.always_require_approval or source.always_require_approval
     if source.role == "admin":
         keeper.role = "admin"
     if not keeper.source and source.source:

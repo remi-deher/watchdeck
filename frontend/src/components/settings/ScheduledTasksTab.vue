@@ -1,5 +1,13 @@
 <template>
   <div class="settings-rows scheduled-tab">
+    <!-- Le verdict avant le tableau : une tâche en échec se voit sans le parcourir. -->
+    <section class="scheduled-verdict" :class="failed.length ? 'is-error' : 'is-good'" aria-live="polite">
+      <div>
+        <h2>{{ failed.length ? `${failed.length} tâche${failed.length > 1 ? 's' : ''} en échec` : 'Toutes les tâches passent' }}</h2>
+        <p>{{ tasks.length }} tâches{{ upcoming ? ` · prochaine : ${upcoming.task.label} ${upcoming.label}` : '' }}</p>
+      </div>
+    </section>
+
     <SettingsSection title="Historique" subtitle="Conservation de l'historique d'exécution des tâches ci-dessous.">
       <SettingsRow label="Historique de polling" description="En jours.">
         <RetentionDaysInput v-model="form.poll_history_retention_days" :default-days="30"/>
@@ -9,7 +17,7 @@
     <!-- Les tâches se comparent : un tableau aligne fréquence, dernière exécution et état
          d'une tâche à l'autre, là où onze cartes faisaient défiler plus de trois écrans. -->
     <SettingsSection title="Tâches planifiées" subtitle="Fréquence de chaque tâche de fond et résultat de sa dernière exécution.">
-      <UiDataTable label="Tâches planifiées" :rows="tasks" :columns="TASK_COLUMNS" :row-key="(task: any) => task.job" class="scheduled-table">
+      <UiDataTable label="Tâches planifiées" :rows="sortedTasks" :columns="TASK_COLUMNS" :row-key="(task: any) => task.job" class="scheduled-table">
         <template #empty><p class="empty">Aucune tâche planifiée.</p></template>
         <template #cell-task="{ row: task }">
           <strong>{{ task.label }}</strong>
@@ -32,12 +40,16 @@
         <template #cell-last="{ row: task }">
           <span v-if="task.state?.finished_at" class="scheduled-last">{{ formatDate(task.state.finished_at) }}<small>{{ formatDuration(task.state.duration_ms) }}</small></span>
           <span v-else class="scheduled-never">Jamais</span>
+          <small v-if="nextRunLabel(task, now)" class="scheduled-next">Prochaine {{ nextRunLabel(task, now) }}</small>
         </template>
         <template #cell-status="{ row: task }">
           <span class="scheduled-status" :class="taskStatus(task)">{{ taskStatusText(task) }}</span>
         </template>
         <template #cell-actions="{ row: task }">
-          <UiButton size="sm" @click="openHistory = task.job"><History/>Historique</UiButton>
+          <div class="scheduled-actions">
+            <UiButton size="sm" :loading="launching === task.job" :disabled="task.state?.status === 'running'" @click="launch(task)"><template #icon><Play/></template>Lancer</UiButton>
+            <UiButton size="sm" @click="openHistory = task.job"><History/>Historique</UiButton>
+          </div>
         </template>
       </UiDataTable>
     </SettingsSection>
@@ -60,8 +72,13 @@
 import UiButton from '@/components/ui/UiButton.vue';
 import { formatElapsed as formatDuration, formatDateTimeSeconds as formatDate } from '@/utils/format';
 import { computed, ref } from 'vue';
-import { useQuery } from '@tanstack/vue-query';
-import { History } from '@lucide/vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { useIntervalFn } from '@vueuse/core';
+import { useRealtime } from '@/events';
+import { useToast } from '@/composables/useToast';
+import { humanizeError } from '@/utils/apiError';
+import { nextRun, nextRunLabel, sortTasks } from './scheduledTasks';
+import { History, Play } from '@lucide/vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
 import { presetsFor } from '@/settingsPresets';
@@ -86,6 +103,34 @@ const TASK_COLUMNS: UiColumn[] = [
 const openHistory = ref<string | null>(null);
 const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
 const tasks = computed(() => tasksQuery.data.value || []);
+const sortedTasks = computed(() => sortTasks(tasks.value));
+const failed = computed(() => tasks.value.filter((task: any) => task.state?.status === 'failed'));
+const now = ref(new Date());
+useIntervalFn(() => { now.value = new Date(); }, 30_000);
+const upcoming = computed(() => {
+  const next = tasks.value
+    .map((task: any) => ({ task, at: nextRun(task, now.value) }))
+    .filter((entry: any) => entry.at)
+    .sort((a: any, b: any) => a.at.getTime() - b.at.getTime())[0];
+  return next ? { task: next.task, label: nextRunLabel(next.task, now.value) } : null;
+});
+
+/* « Lancer » met la tâche dans la file tout de suite ; son état revient par les événements. */
+const queryClient = useQueryClient();
+const { addToast } = useToast();
+const launching = ref<string | null>(null);
+async function launch(task: any): Promise<void> {
+  launching.value = task.job;
+  try {
+    await api(`/api/scheduled-tasks/${task.job}/run`, { method: 'POST' });
+    addToast({ type: 'success', title: `${task.label} : lancée` });
+  } catch (error) {
+    addToast({ type: 'error', title: `${task.label} : non lancée`, message: humanizeError(error) });
+  } finally {
+    launching.value = null;
+  }
+}
+useRealtime(['job.updated'], () => { void queryClient.invalidateQueries({ queryKey: ['settings', 'scheduled-tasks'] }); }, { refreshOnVisible: false });
 const historyQuery = useQuery({
   queryKey: computed(() => ['settings', 'scheduled-tasks', openHistory.value, 'history']),
   queryFn: () => api<any[]>(`/api/scheduled-tasks/${openHistory.value}/history`),
@@ -122,6 +167,13 @@ function formatInterval(seconds: number): string {
 </script>
 <style scoped lang="scss">
 .scheduled-table :deep(td) { vertical-align: middle; }
+.scheduled-verdict { padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); }
+.scheduled-verdict.is-good { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); background: color-mix(in srgb, var(--green) 7%, var(--surface)); }
+.scheduled-verdict.is-error { border-color: color-mix(in srgb, var(--red) 45%, var(--border)); background: color-mix(in srgb, var(--red) 7%, var(--surface)); }
+.scheduled-verdict h2 { margin: 0 0 2px; font-size: var(--fs-md); }
+.scheduled-verdict p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.scheduled-next { display: block; color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
+.scheduled-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
 .scheduled-desc {
   display: block;
   max-width: 48ch;

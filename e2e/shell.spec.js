@@ -631,13 +631,13 @@ test("la recherche des reglages mene au bon panneau", async ({ page }) => {
   const input = page.locator(".app-topbar__field input").first();
   await expect(input).toBeVisible({ timeout: 15000 });
 
-  await input.pressSequentially("tracearr", { delay: 60 });
+  await input.pressSequentially("radarr", { delay: 60 });
 
   const ailleurs = page.locator(".settings-elsewhere a").first();
   await expect(ailleurs).toBeVisible({ timeout: 10000 });
-  await expect(ailleurs).toContainText("Intégrations");
+  await expect(ailleurs).toContainText("Médias");
   await ailleurs.click();
-  await expect(page).toHaveURL(/\/settings\/services\/integrations/);
+  await expect(page).toHaveURL(/\/settings\/services\/media/);
 });
 
 test("la recherche est centree sur le contenu et occupe la barre", async ({ page }) => {
@@ -825,7 +825,7 @@ test("chaque section des reglages s'ouvre sans erreur ni debordement", async ({ 
   });
 
   for (const path of [
-    "/settings/services", "/settings/services/integrations", "/settings/services/webhooks",
+    "/settings/services", "/settings/services/media", "/settings/services/integrations", "/settings/services/webhooks",
     "/settings/acquisition", "/settings/acquisition/downloads",
     "/settings/automation", "/settings/automation/subtitles", "/settings/automation/scheduled-tasks",
     "/settings/notifications/channels", "/settings/notifications/rules", "/settings/notifications/reasons",

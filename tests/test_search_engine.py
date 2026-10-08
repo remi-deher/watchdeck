@@ -45,6 +45,9 @@ def test_crud_download_clients(async_db):
         assert resp.status_code == 200
         assert len(resp.json()) == 1
         assert resp.json()[0]["name"] == "Seedbox"
+        # Le mot de passe ne part jamais vers le navigateur : seulement le fait qu'il existe.
+        assert "password" not in resp.json()[0]
+        assert resp.json()[0]["has_password"] is True
 
         # Create
         resp_create = client.post(
@@ -63,6 +66,18 @@ def test_crud_download_clients(async_db):
         )
         assert resp_create.status_code == 200
         assert async_db.query(DownloadClient).filter(DownloadClient.name == "New Client").first() is not None
+        assert "password" not in resp_create.json()
+
+        # Enregistrer sans retaper le mot de passe garde celui en base.
+        created = async_db.query(DownloadClient).filter(DownloadClient.name == "New Client").first()
+        resp_update = client.put(
+            f"/api/download-clients/{created.id}",
+            json={"name": "Renamed", "client_type": "transmission", "url": "http://trans", "password": ""},
+        )
+        assert resp_update.status_code == 200
+        async_db.expire_all()
+        kept = async_db.query(DownloadClient).filter(DownloadClient.id == created.id).first()
+        assert (kept.name, kept.password) == ("Renamed", "p")
 
     finally:
         _cleanup()

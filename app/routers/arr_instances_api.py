@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -29,7 +29,8 @@ class ArrInstanceCreate(BaseModel):
     name: str
     arr_type: str
     url: str
-    api_key: str
+    # Vide à la modification : la clé en base est gardée (l'interface ne la relit plus).
+    api_key: Optional[str] = None
     quality_profile_id: Optional[int] = None
     root_folder: Optional[str] = None
     minimum_availability: Optional[str] = "released"
@@ -42,13 +43,37 @@ class ArrInstanceCreate(BaseModel):
 
 class TestArrInstanceBody(BaseModel):
     url: str
-    api_key: str
+    api_key: Optional[str] = None
     arr_type: str
+    # Instance déjà enregistrée : sans clé saisie, on teste avec celle en base.
+    id: Optional[int] = None
+
+
+def public_instance(inst: ArrInstance) -> dict[str, Any]:
+    """Une instance telle que l'interface la voit : jamais sa clé API, seulement s'il en a une.
+
+    La liste renvoyait l'objet entier, clé déchiffrée comprise : elle partait dans le
+    navigateur à chaque ouverture des réglages, des téléchargements ou de la recherche.
+    """
+    return {
+        "id": inst.id,
+        "name": inst.name,
+        "arr_type": inst.arr_type,
+        "url": inst.url,
+        "has_api_key": bool(inst.api_key),
+        "quality_profile_id": inst.quality_profile_id,
+        "root_folder": inst.root_folder,
+        "minimum_availability": inst.minimum_availability,
+        "enabled": inst.enabled,
+        "is_default": inst.is_default,
+        "indexer_ids": inst.indexer_ids,
+        "plex_server_id": inst.plex_server_id,
+    }
 
 
 @router.get("/arr-instances")
 async def list_arr_instances(db: AsyncSession = Depends(get_db_async)):
-    return (await db.execute(select(ArrInstance))).scalars().all()
+    return [public_instance(inst) for inst in (await db.execute(select(ArrInstance))).scalars().all()]
 
 
 @router.get("/arr/capabilities")
@@ -84,6 +109,8 @@ async def arr_capabilities(db: AsyncSession = Depends(get_db_async)):
 async def _instance_values(db: AsyncSession, data: ArrInstanceCreate) -> dict:
     """Valeurs a enregistrer ; le serveur principal se note NULL, comme ailleurs."""
     values = data.model_dump()
+    if not values.get("api_key"):
+        values.pop("api_key", None)
     if values.get("plex_server_id") is not None:
         server = (
             (await db.execute(select(PlexServer).filter(PlexServer.id == values["plex_server_id"]))).scalars().first()
@@ -97,6 +124,8 @@ async def _instance_values(db: AsyncSession, data: ArrInstanceCreate) -> dict:
 
 @router.post("/arr-instances")
 async def create_arr_instance(data: ArrInstanceCreate, db: AsyncSession = Depends(get_db_async)):
+    if not data.api_key:
+        raise HTTPException(422, "Clé API requise")
     inst = await configuration.create_arr_instance(db, await _instance_values(db, data))
     if inst.arr_type in {"sonarr", "radarr"}:
         await invalidate_arr_queue_cache()
@@ -105,7 +134,7 @@ async def create_arr_instance(data: ArrInstanceCreate, db: AsyncSession = Depend
         from ..services.arr_history import sync_instance_after_event
 
         asyncio.create_task(sync_instance_after_event(inst.id, inst.arr_type, delay=0))
-    return inst
+    return public_instance(inst)
 
 
 @router.put("/arr-instances/{instance_id}")
@@ -119,7 +148,7 @@ async def update_arr_instance(instance_id: int, data: ArrInstanceCreate, db: Asy
         from ..services.arr_history import sync_instance_after_event
 
         asyncio.create_task(sync_instance_after_event(inst.id, inst.arr_type, delay=0))
-    return inst
+    return public_instance(inst)
 
 
 @router.delete("/arr-instances/{instance_id}")
@@ -161,7 +190,12 @@ async def toggle_arr_instances_by_type(arr_type: str, db: AsyncSession = Depends
 
 
 @router.post("/test/arr-instance")
-async def test_arr_instance(body: TestArrInstanceBody):
+async def test_arr_instance(body: TestArrInstanceBody, db: AsyncSession = Depends(get_db_async)):
+    if not body.api_key and body.id is not None:
+        stored = await db.get(ArrInstance, body.id)
+        body.api_key = stored.api_key if stored else None
+    if not body.api_key:
+        return {"success": False, "message": "Clé API manquante"}
     if body.arr_type == "prowlarr":
         ok = await prowlarr.check_connection(body.url, body.api_key)
         return {"success": ok, "message": "Prowlarr connecté" if ok else "Erreur de connexion Prowlarr"}

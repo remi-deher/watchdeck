@@ -259,6 +259,13 @@ class Settings(Base):
     torrent_forbidden_keywords: Mapped[Optional[str]]
     torrent_min_size_gb: Mapped[Optional[float]]
     torrent_max_size_gb: Mapped[Optional[float]]
+    # Règles propres aux séries (taille par épisode) ; sans `torrent_split_by_type`, films et
+    # séries partagent les règles ci-dessus (voir services/release_rules.py).
+    torrent_split_by_type: Mapped[bool] = mapped_column(default=False)
+    torrent_show_required_keywords: Mapped[Optional[str]]
+    torrent_show_forbidden_keywords: Mapped[Optional[str]]
+    torrent_show_min_size_gb: Mapped[Optional[float]]
+    torrent_show_max_size_gb: Mapped[Optional[float]]
     torrent_ratio_limit: Mapped[Optional[float]]
     torrent_seed_time_limit_hours: Mapped[Optional[int]]
     # La suppression des donnees est explicitement opt-in : le fichier peut etre celui

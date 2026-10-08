@@ -959,13 +959,10 @@ async def _needs_approval(
         imdb_id=body.imdb_id,
     ):
         return True
-    if not (settings and settings.require_approval):
-        return False
+    pu = None
     if plex_user_id:
         pu = (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id == plex_user_id))).scalars().first()
-        if pu and pu.auto_approve:
-            return False
-    return True
+    return request_quotas.needs_approval(settings, pu)
 
 
 async def _enforce_request_quota(db: AsyncSession, settings, caller: dict, body: "MediaAddRequest") -> None:

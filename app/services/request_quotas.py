@@ -143,3 +143,91 @@ def exceeded_message(state: QuotaState) -> str:
         local = state.next_slot_at.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(APP_TIMEZONE))
         message += f" Prochaine demande possible le {local.strftime('%d/%m/%Y à %H:%M')}."
     return message
+
+
+def account_name(user: PlexUser) -> str:
+    return user.custom_name or user.display_name or user.plex_user_id
+
+
+def needs_approval(settings: Optional[Settings], user: Optional[PlexUser]) -> bool:
+    """Règle d'approbation d'un compte, sans les cas particuliers (média supprimé, rôle).
+
+    « Toujours soumis à approbation » l'emporte sur tout ; sinon l'auto-approbation lève
+    l'approbation générale.
+    """
+    if user is not None and getattr(user, "always_require_approval", False):
+        return True
+    if not (settings and getattr(settings, "require_approval", False)):
+        return False
+    return not (user is not None and user.auto_approve)
+
+
+def quota_exception(user: PlexUser) -> dict | None:
+    """Ce qui distingue un compte des règles générales, ou None s'il les suit."""
+    custom = user.quota_movie_limit is not None or user.quota_show_limit is not None
+    always = bool(getattr(user, "always_require_approval", False))
+    if not custom and not user.auto_approve and not always:
+        return None
+    return {
+        "user_id": user.id,
+        "name": account_name(user),
+        "role": user.role or "user",
+        "quota_movie_limit": user.quota_movie_limit,
+        "quota_show_limit": user.quota_show_limit,
+        "auto_approve": bool(user.auto_approve) and not always,
+        "always_require_approval": always,
+    }
+
+
+async def quotas_overview(db: AsyncSession, settings: Optional[Settings], limit: int = 5) -> dict:
+    """Écran Demandes & quotas : qui approche de son quota, et quels comptes ont une exception.
+
+    Un seul décompte groupé par compte et par type, avec les mêmes conditions que
+    `quota_state` : l'écran montre exactement ce que le contrôle appliquera.
+    """
+    period = period_days(settings)
+    cutoff = now_utc_naive() - timedelta(days=period)
+    rows = (
+        await db.execute(
+            select(MediaRequest.plex_user_id, MediaRequest.media_type, func.count())
+            .filter(
+                MediaRequest.requested_at >= cutoff,
+                MediaRequest.status != RequestStatus.rejected,
+                func.coalesce(MediaRequest.source, "").notin_(TECHNICAL_ORIGINS),
+                MediaRequest.media_type.in_(QUOTA_MEDIA_TYPES),
+            )
+            .group_by(MediaRequest.plex_user_id, MediaRequest.media_type)
+        )
+    ).all()
+    used: dict[str, dict[str, int]] = {}
+    for plex_user_id, media_type, count in rows:
+        used.setdefault(plex_user_id, {})[media_type] = int(count)
+
+    users = (await db.execute(select(PlexUser).filter(PlexUser.enabled))).scalars().all()
+    usage = []
+    exceptions = []
+    for user in users:
+        exception = quota_exception(user)
+        if exception:
+            exceptions.append(exception)
+        if is_exempt(user):
+            continue
+        entry: dict = {"user_id": user.id, "name": account_name(user)}
+        ratio = 0.0
+        for media_type in QUOTA_MEDIA_TYPES:
+            cap = effective_limit(settings, user, media_type)
+            count = used.get(user.plex_user_id, {}).get(media_type, 0)
+            entry[media_type] = {"used": count, "limit": cap}
+            if cap:
+                ratio = max(ratio, count / cap)
+        if ratio > 0:
+            entry["ratio"] = round(ratio, 3)
+            usage.append(entry)
+    usage.sort(key=lambda item: item["ratio"], reverse=True)
+    exceptions.sort(key=lambda item: item["name"].casefold())
+    return {
+        "period_days": period,
+        "limits": {media_type: effective_limit(settings, None, media_type) for media_type in QUOTA_MEDIA_TYPES},
+        "usage": usage[:limit],
+        "exceptions": exceptions,
+    }

@@ -71,6 +71,7 @@ class UserCreate(BaseModel):
     role: str = "user"
     can_login: bool = True
     auto_approve: bool = False
+    always_require_approval: bool = False
     # None = suit le quota global ; 0 = illimité pour ce compte.
     quota_movie_limit: Optional[int] = Field(default=None, ge=0)
     quota_show_limit: Optional[int] = Field(default=None, ge=0)
@@ -994,3 +995,10 @@ async def bulk_delete_users(payload: BulkDeleteUpdate, request: Request, db: Asy
         await db.delete(user)
     await db.commit()
     return {"deleted": count}
+
+
+@router.get("/request-quotas/overview")
+async def request_quotas_overview(db: AsyncSession = Depends(get_db_async)):
+    """Écran Demandes & quotas : les comptes proches de leur quota, et les exceptions par compte."""
+    settings = (await db.execute(select(Settings))).scalars().first()
+    return await request_quotas.quotas_overview(db, settings)

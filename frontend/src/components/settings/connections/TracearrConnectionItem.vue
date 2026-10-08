@@ -1,10 +1,10 @@
 <template>
   <SettingsItem
     title="Enrichissement Tracearr"
-    subtitle="Complète les lectures dont Plex n’a pas conservé la décision"
+    :subtitle="live.status === 'error' ? live.detail : [baseSubtitle, live.detail].filter(Boolean).join(' · ')"
     :icon="Sparkles"
-    :status="form.tracearr_enabled ? 'active' : 'inactive'"
-    :status-text="form.tracearr_enabled ? 'Activé' : 'Désactivé'"
+    :status="live.status === 'neutral' ? (form.tracearr_enabled ? 'active' : 'inactive') : live.status"
+    :status-text="live.text || (form.tracearr_enabled ? 'Activé' : 'Désactivé')"
     keywords="url clé api enrichir import lectures"
     saveable
   >
@@ -48,13 +48,21 @@
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { PlugZap, Sparkles } from '@lucide/vue';
 import { api } from '@/api';
 import { form, save, secretsPresent } from '@/settingsForm';
 import SecretField from '@/components/ui/SecretField.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import SettingsItem from '../SettingsItem.vue';
+import { useConnectionsStatus } from './connectionsStatus';
+
+/* État réel lu par la zone (`useConnectionsStatus`) : la ligne dit ce que le service
+   a répondu, plus seulement s'il est configuré. */
+const connections = useConnectionsStatus();
+const live = computed(() => connections.rowFor('tracearr'));
+const baseSubtitle = computed(() => 'Complète les lectures dont Plex n’a pas conservé la décision');
+
 
 const busy = ref(false);
 const status = ref('');

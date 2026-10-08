@@ -33,10 +33,11 @@ describe('index des réglages', () => {
   it('répond « où vit ce réglage » pour les services qu’on cherche par leur nom', () => {
     // C'est le besoin qui a motivé l'index : les groupes sont devenus sept destinations,
     // et le nom d'un service n'apparaît dans aucun titre de panneau.
-    expect(trouve('tracearr')).toEqual(['Intégrations']);
-    expect(trouve('tautulli')).toEqual(['Intégrations']);
+    expect(trouve('tracearr')).toEqual(['Plex']);
+    expect(trouve('tautulli')).toEqual(['Plex']);
+    expect(trouve('radarr')).toEqual(['Médias']);
     expect(trouve('smtp')).toEqual(['Canaux']);
-    expect(trouve('seed')).toEqual(['Téléchargements']);
+    expect(trouve('seed')).toEqual(['Règles']);
   });
 
   it('mène au bon panneau pour un terme métier', () => {

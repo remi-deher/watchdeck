@@ -25,6 +25,7 @@ export const queryKeys = {
   diskSpace: ['disk-space'] as const,
   admin: {
     overview: ['admin', 'overview'] as const,
+    connections: ['admin', 'connections'] as const,
   },
   vff: {
     all: ['settings', 'vff'] as const,

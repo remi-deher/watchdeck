@@ -30,6 +30,8 @@ export const settingsFieldLabels: Record<string, string> = {
   vf_upgrade_max_searches_per_run: 'Recherches VF par passage',
   torrent_min_size_gb: 'Taille minimale des torrents',
   torrent_max_size_gb: 'Taille maximale des torrents',
+  torrent_show_min_size_gb: 'Taille minimale par épisode',
+  torrent_show_max_size_gb: 'Taille maximale par épisode',
   torrent_ratio_limit: 'Limite de ratio',
   torrent_seed_time_limit_hours: 'Durée de seed maximale',
 };

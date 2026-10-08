@@ -8,7 +8,7 @@ import sqlalchemy
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from sqlalchemy import bindparam, text
+from sqlalchemy import bindparam, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -967,3 +967,96 @@ async def resend_notification(log_id: int, db: AsyncSession = Depends(get_db_asy
     )
     await enqueue_notification(event, req.id, [log.recipient], context, triggered_by="manual")
     return {"status": "queued", "recipient": log.recipient, "event": event}
+
+
+NOTIFICATION_CHANNELS = ("email", "discord", "telegram", "ntfy", "gotify")
+
+
+def last_send_line(row: Any) -> dict[str, Any] | None:
+    """Le dernier envoi d'un canal, tel que l'écran Canaux l'affiche."""
+    if row is None:
+        return None
+    return {
+        "sent_at": format_datetime(row.sent_at),
+        "success": bool(row.success),
+        "error": row.error_msg,
+        "event": row.event,
+        "media_title": row.media_title,
+        "recipient": row.recipient,
+    }
+
+
+@router.get("/notifications/channels/last")
+async def notification_channels_last(db: AsyncSession = Depends(get_db_async)):
+    """Dernier envoi de chaque canal : l'écran dit si le canal fonctionne, pas seulement s'il est activé."""
+    result: dict[str, Any] = {}
+    for channel in NOTIFICATION_CHANNELS:
+        row = (
+            (
+                await db.execute(
+                    select(NotificationLog)
+                    .filter(NotificationLog.channel == channel)
+                    .order_by(NotificationLog.sent_at.desc())
+                    .limit(1)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        result[channel] = last_send_line(row)
+    return result
+
+
+def app_log_errors_since(entries: list[dict], cutoff: datetime) -> int:
+    """Erreurs du journal applicatif (buffer mémoire) depuis `cutoff` (UTC naïf)."""
+    count = 0
+    for entry in entries:
+        if str(entry.get("level", "")).upper() not in ("ERROR", "CRITICAL"):
+            continue
+        try:
+            when = datetime.strptime(str(entry.get("time")), "%Y-%m-%d %H:%M:%S")
+        except (TypeError, ValueError):
+            continue
+        if when >= cutoff:
+            count += 1
+    return count
+
+
+@router.get("/logs/summary")
+async def logs_summary(hours: int = Query(24, ge=1, le=168), db: AsyncSession = Depends(get_db_async)):
+    """Verdict de l'écran Journaux : erreurs récentes par source, envois de notification compris.
+
+    Les envois en échec restent consultables dans Notifications (journal des envois) : on les
+    compte ici pour que le verdict dise tout ce qui ne va pas, sans dupliquer leur liste.
+    """
+    from ..log_buffer import get_logs as _get_logs
+    from ..models import PollHistory
+
+    cutoff = now_utc_naive() - timedelta(hours=hours)
+
+    async def count(query) -> int:
+        return int((await db.execute(query)).scalar() or 0)
+
+    requests = await count(
+        select(func.count())
+        .select_from(DiagnosticEvent)
+        .filter(
+            DiagnosticEvent.created_at >= cutoff,
+            DiagnosticEvent.status == "error",
+            DiagnosticEvent.category.notin_(NON_JOURNEY_CATEGORIES),
+        )
+    )
+    tasks = await count(
+        select(func.count()).select_from(PollHistory).filter(PollHistory.started_at >= cutoff, PollHistory.errors > 0)
+    )
+    notifications = await count(
+        select(func.count())
+        .select_from(NotificationLog)
+        .filter(NotificationLog.sent_at >= cutoff, NotificationLog.success.is_(False))
+    )
+    app_errors = app_log_errors_since(_get_logs(), cutoff)
+    return {
+        "hours": hours,
+        "errors": {"diagnostic": requests, "app": app_errors, "polls": tasks, "notifications": notifications},
+        "total": requests + app_errors + tasks + notifications,
+    }

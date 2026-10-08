@@ -24,8 +24,8 @@ async function mockApi(page, calls) {
 test("ajouter une instance *arr se fait dans la feuille, puis la referme", async ({ page }) => {
   const calls = [];
   await mockApi(page, calls);
-  await page.goto("/settings/services/integrations");
-  const card = page.locator(".settings-item-list").filter({ hasText: "Instances Sonarr, Radarr, Prowlarr et Bazarr" });
+  await page.goto("/settings/services/media");
+  const card = page.locator(".settings-item-list").filter({ hasText: "Sonarr, Radarr, Prowlarr et Bazarr" });
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
   await card.getByRole("button", { name: "Ajouter" }).first().click();
@@ -41,14 +41,14 @@ test("ajouter une instance *arr se fait dans la feuille, puis la referme", async
 
   await expect.poll(() => calls.includes("POST /api/arr-instances")).toBe(true);
   await expect(sheet).toHaveCount(0);
-  await expect(page).toHaveURL(/\/settings\/services\/integrations$/);
+  await expect(page).toHaveURL(/\/settings\/services\/media$/);
 });
 
 test("modifier une instance ouvre sa fiche préremplie, à son adresse", async ({ page }) => {
   const calls = [];
   await mockApi(page, calls);
-  await page.goto("/settings/services/integrations");
-  const card = page.locator(".settings-item-list").filter({ hasText: "Instances Sonarr, Radarr, Prowlarr et Bazarr" });
+  await page.goto("/settings/services/media");
+  const card = page.locator(".settings-item-list").filter({ hasText: "Sonarr, Radarr, Prowlarr et Bazarr" });
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
   // La ligne de l'instance ouvre sa fiche.

@@ -43,11 +43,16 @@ export const settingsPatchSchema = z.object({
   vf_upgrade_max_searches_per_run: integer(1, 1000),
   torrent_min_size_gb: nullablePositive,
   torrent_max_size_gb: nullablePositive,
+  torrent_show_min_size_gb: nullablePositive,
+  torrent_show_max_size_gb: nullablePositive,
   torrent_ratio_limit: nullablePositive,
   torrent_seed_time_limit_hours: nullablePositive,
 }).partial().catchall(z.unknown()).superRefine((data, ctx) => {
   if (typeof data.torrent_min_size_gb === 'number' && typeof data.torrent_max_size_gb === 'number' && data.torrent_min_size_gb > data.torrent_max_size_gb) {
     ctx.addIssue({ code: 'custom', path: ['torrent_max_size_gb'], message: 'La taille maximale doit être supérieure à la taille minimale.' });
+  }
+  if (typeof data.torrent_show_min_size_gb === 'number' && typeof data.torrent_show_max_size_gb === 'number' && data.torrent_show_min_size_gb > data.torrent_show_max_size_gb) {
+    ctx.addIssue({ code: 'custom', path: ['torrent_show_max_size_gb'], message: 'La taille maximale par épisode doit être supérieure à la minimale.' });
   }
 });
 
