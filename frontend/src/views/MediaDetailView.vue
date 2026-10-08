@@ -66,6 +66,8 @@
 
           <MediaCalendarTab v-else-if="tab === 'calendar'" :events="detail.calendar" />
 
+          <MediaEncodingTab v-else-if="tab === 'encoding' && libraryItemId" :item-id="libraryItemId" />
+
           <MediaAudioSection
             v-else-if="tab === 'audio' || tab === 'missing'"
             :vf-detail="mergedVfDetail"
@@ -210,6 +212,8 @@ import { apercuRecent } from "@/composables/useFicheApercu";
 import MediaSummaryTab from "@/components/media/MediaSummaryTab.vue";
 import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
 import MediaCalendarTab from "@/components/media/MediaCalendarTab.vue";
+import MediaEncodingTab from '@/components/media/MediaEncodingTab.vue';
+import { useFileflowsConfigured } from '@/composables/useFileflows';
 import MediaAudioSection from "@/components/media/MediaAudioSection.vue";
 import RequestOptionsModal from "@/components/media/RequestOptionsModal.vue";
 import MediaRecommendations from "@/components/media/MediaRecommendations.vue";
@@ -265,7 +269,14 @@ const albumTracks = computed(() => detail.value?.tracks || []);
 const tabs = computed(() => {
   if (isMusic.value) return [];
   if (kind.value === 'discover') return ['summary'];
-  return ['summary', ...(detail.value?.media_type === 'show' ? ['missing'] : []), 'audio', 'requests', 'calendar'];
+  return [
+    'summary',
+    ...(detail.value?.media_type === 'show' ? ['missing'] : []),
+    'audio',
+    'requests',
+    'calendar',
+    ...(fileflowsConfigured.value && libraryItemId.value ? ['encoding'] : []),
+  ];
 });
 const mediaTabItems = computed(() => tabs.value.map((key) => ({ key, label: tabLabel(key) })));
 const admin = ref(false);
@@ -305,6 +316,15 @@ const releaseSourceType = computed(() => {
   }
   return null;
 });
+
+/* Element de bibliotheque du media (FileFlows ne connait que des fichiers presents). */
+const libraryItemId = computed<number | null>(() => {
+  if (detail.value?.library_id) return Number(detail.value.library_id);
+  if (detail.value?._kind === 'library' && detail.value?.id) return Number(detail.value.id);
+  if (kind.value === 'library' && route.params.id) return Number(route.params.id);
+  return null;
+});
+const fileflowsConfigured = useFileflowsConfigured(admin);
 
 const releaseSourceId = computed(() => {
   if (detail.value?.vf_source_id) return Number(detail.value.vf_source_id);
@@ -359,7 +379,7 @@ const correctionMutation = useMutation({
 
 function tabLabel(value: string): string {
   const audioLabel = detail.value?.media_type === 'show' ? 'Saisons & épisodes' : 'Pistes & langues';
-  return ({ summary: 'Résumé', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier' } as Record<string, string>)[value];
+  return ({ summary: 'Résumé', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier', encoding: 'Encodage' } as Record<string, string>)[value];
 }
 
 function mediaPath(core = false): string {

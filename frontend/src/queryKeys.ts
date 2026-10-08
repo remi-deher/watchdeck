@@ -27,6 +27,12 @@ export const queryKeys = {
     overview: ['admin', 'overview'] as const,
     connections: ['admin', 'connections'] as const,
   },
+  fileflows: {
+    all: ['fileflows'] as const,
+    status: ['fileflows', 'status'] as const,
+    files: (status: number, page: number, search: string) => ['fileflows', 'files', status, page, search] as const,
+    media: (itemId: number | string) => ['fileflows', 'media', String(itemId)] as const,
+  },
   vff: {
     all: ['settings', 'vff'] as const,
     scanStatus: ['settings', 'vff', 'scan-status'] as const,

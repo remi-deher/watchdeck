@@ -37,10 +37,10 @@ afterEach(() => restore());
 describe('AppPage dans l’Administration', () => {
   it('rend les sections de la zone en onglets sur téléphone : il n’y a pas de dock pour les porter', async () => {
     restore = stubShellMode('compact');
-    const wrapper = await mountAt('/settings/security');
+    const wrapper = await mountAt('/settings/maintenance/data');
     const labels = wrapper.findAll('.app-subnav__item').map((item) => item.text());
-    expect(labels).toEqual(['Réseau', 'API & jeton']);
-    expect(wrapper.find('.app-subnav__item[aria-current="page"]').text()).toBe('Réseau');
+    expect(labels).toEqual(['Maintenance', 'Données & sauvegardes', 'Confidentialité & RGPD']);
+    expect(wrapper.find('.app-subnav__item[aria-current="page"]').text()).toBe('Données & sauvegardes');
   });
 
   it('garde la page sans rangée de sections hors de l’Administration, où le dock les porte', async () => {

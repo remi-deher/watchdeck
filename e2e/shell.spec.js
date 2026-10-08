@@ -94,11 +94,12 @@ test("sur telephone, l'administration se parcourt en liste puis en detail, sans 
   await expect(header.getByRole("link", { name: "Retour à l’aperçu de l’administration" })).toBeVisible();
   await expect(header.locator(".admin-header__title")).toHaveText("Sécurité & API");
 
-  // Les sections de la zone sont des onglets sous l'en-tete, atteignables au pouce.
-  const tabs = page.locator("#main-content .app-subnav__item");
-  await expect(tabs).toHaveText(["Réseau", "API & jeton"]);
-  await tabs.nth(1).click();
-  await expect(page).toHaveURL(/\/settings\/security\/api$/);
+  // La zone tient en une page : ses blocs sont un rang d'onglets interne, gardé dans l'adresse.
+  const blocks = page.locator("#main-content .app-subnav--inner .app-subnav__item");
+  // Un bloc qui a un point à vérifier porte une pastille « ! » : le texte la comprend.
+  await expect(blocks).toHaveText([/^Adresse publique/, /^Proxies/, /^Jeton API/, /^Double authentification/]);
+  await blocks.nth(2).click();
+  await expect(page).toHaveURL(/\/settings\/security\?section=token$/);
 
   await header.getByRole("link", { name: "Retour à l’aperçu de l’administration" }).click();
   await expect(page).toHaveURL(/\/settings$/);

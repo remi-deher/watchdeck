@@ -38,7 +38,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Médias',
     group: 'Connexions',
     path: '/settings/services/media',
-    keywords: ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'sous-titres', 'instance', 'cle api', 'sante', 'tester'],
+    keywords: ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'fileflows', 'encodage', 'sous-titres', 'instance', 'cle api', 'sante', 'tester'],
   },
   {
     label: 'Informations',
@@ -131,13 +131,13 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['compte', 'role', 'moderateur', 'admin', 'fusion', 'mot de passe', 'plex user'],
   },
   {
-    label: 'Réseau',
+    label: 'Sécurité & API',
     group: 'Sécurité & API',
     path: '/settings/security',
     keywords: ['url publique', 'adresse publique', 'proxy', 'reverse-proxy', 'nginx', 'traefik', 'caddy', 'ip', 'x-forwarded-for', 'securite', 'double authentification', 'https'],
   },
   {
-    label: 'API & jeton',
+    label: 'Jeton API',
     group: 'Sécurité & API',
     path: '/settings/security/api',
     keywords: ['api', 'jeton', 'token', 'bearer', 'cle', 'acces externe', 'curl', 'regenerer', 'revoquer'],

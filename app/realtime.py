@@ -23,6 +23,7 @@ EVENT_TYPES = {
     "library.analytics.updated",
     "vff.updated",
     "vf_upgrade.updated",
+    "fileflows.updated",
     # L'import complet remplace toute la base : les onglets ouverts affichent alors des
     # donnees qui n'existent plus (et, depuis le cache SWR, pourraient les repeindre au
     # prochain montage). Voir le consommateur dans App.vue.

@@ -508,6 +508,13 @@ async def job_indexer_health(ctx: dict, force: bool = False):
     return await _run(ctx, "indexer-health", check_indexers, force=force, interval_seconds=15 * 60)
 
 
+async def job_fileflows_monitor(ctx: dict, force: bool = False):
+    """Alerte sur les traitements FileFlows en echec, reanalyse VF des fichiers traites."""
+    from .services.fileflows_monitor import check_fileflows
+
+    return await _run(ctx, "fileflows-monitor", check_fileflows, force=force, interval_seconds=5 * 60)
+
+
 PURGE_LOCAL_HOUR = 3  # repli quand aucun reglage n'est encore charge
 
 
@@ -844,6 +851,10 @@ async def cron_indexer_health(ctx: dict):
     return await job_indexer_health(ctx)
 
 
+async def cron_fileflows_monitor(ctx: dict):
+    return await job_fileflows_monitor(ctx)
+
+
 class WorkerSettings:
     functions = [
         job_watchlist,
@@ -867,6 +878,7 @@ class WorkerSettings:
         job_subtitle_search,
         job_newsletter,
         job_indexer_health,
+        job_fileflows_monitor,
         job_send_notification,
         job_maintenance,
     ]
@@ -916,6 +928,7 @@ class WorkerSettings:
         # Chaque heure pile ; job_newsletter n'envoie qu'au jour et a l'heure reglés.
         cron(cron_newsletter, minute=1, second=0, unique=True),
         cron(cron_indexer_health, minute={7, 22, 37, 52}, unique=True),
+        cron(cron_fileflows_monitor, minute=set(range(3, 60, 5)), second=30, unique=True),
     ]
     on_startup = startup
     on_shutdown = shutdown

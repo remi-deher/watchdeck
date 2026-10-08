@@ -25,7 +25,7 @@ test("ajouter une instance *arr se fait dans la feuille, puis la referme", async
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/settings/services/media");
-  const card = page.locator(".settings-item-list").filter({ hasText: "Sonarr, Radarr, Prowlarr et Bazarr" });
+  const card = page.locator(".settings-item-list").filter({ hasText: "Sonarr, Radarr, Prowlarr, Bazarr et FileFlows" });
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
   await card.getByRole("button", { name: "Ajouter" }).first().click();
@@ -48,7 +48,7 @@ test("modifier une instance ouvre sa fiche préremplie, à son adresse", async (
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/settings/services/media");
-  const card = page.locator(".settings-item-list").filter({ hasText: "Sonarr, Radarr, Prowlarr et Bazarr" });
+  const card = page.locator(".settings-item-list").filter({ hasText: "Sonarr, Radarr, Prowlarr, Bazarr et FileFlows" });
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
   // La ligne de l'instance ouvre sa fiche.
