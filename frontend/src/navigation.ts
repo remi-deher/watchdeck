@@ -27,7 +27,6 @@ import {
   House,
   Inbox,
   Info,
-  KeyRound,
   Languages,
   Library,
   Link2,
@@ -373,8 +372,8 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       break;
     case 'admin-security':
       sections = [
-        { key: 'network', label: 'Réseau', to: '/settings/security', icon: Network },
-        { key: 'api', label: 'API & jeton', to: '/settings/security/api', icon: KeyRound },
+        // Une seule page : l'ancienne adresse du jeton (/settings/security/api) y reste rattachée.
+        { key: 'network', label: 'Sécurité & API', to: '/settings/security', icon: Network, active: (route) => route.path.startsWith('/settings/security') },
       ];
       break;
     case 'admin-maintenance':

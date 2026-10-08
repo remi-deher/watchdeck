@@ -179,7 +179,7 @@ describe('navigation — zones de l’administration', () => {
     expect(keys(sectionsFor('admin-acquisition', ctx()))).toEqual(['clients', 'downloads', 'acquisitions', 'storage']);
     expect(keys(sectionsFor('admin-automation', ctx()))).toEqual(['vf-upgrades', 'subtitles', 'scheduled-tasks']);
     expect(keys(sectionsFor('admin-requests', ctx()))).toEqual(['requests']);
-    expect(keys(sectionsFor('admin-security', ctx()))).toEqual(['network', 'api']);
+    expect(keys(sectionsFor('admin-security', ctx()))).toEqual(['network']);
     // La maintenance a sa propre entrée : elle n'est plus cachée sous la planification.
     expect(keys(sectionsFor('admin-maintenance', ctx()))).toEqual(['maintenance', 'data', 'privacy']);
   });
@@ -210,7 +210,8 @@ describe('navigation — zones de l’administration', () => {
   it('active les sections de la maintenance et de la sécurité depuis leur chemin', () => {
     const security = sectionsFor('admin-security', ctx());
     expect(activeSectionKey(security, route('/settings/security'))).toBe('network');
-    expect(activeSectionKey(security, route('/settings/security/api'))).toBe('api');
+    // Sécurité & API tient en une page : l'ancienne adresse du jeton y reste rattachée.
+    expect(activeSectionKey(security, route('/settings/security/api'))).toBe('network');
     const maintenance = sectionsFor('admin-maintenance', ctx());
     expect(activeSectionKey(maintenance, route('/settings/maintenance/privacy'))).toBe('privacy');
   });

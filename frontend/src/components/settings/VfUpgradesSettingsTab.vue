@@ -5,7 +5,16 @@
       <span>{{ form.vf_upgrade_enabled ? 'Actif' : 'Désactivé' }}</span>
     </section>
 
+    <section class="vf-rhythm" aria-labelledby="vf-rhythm-title">
+      <h3 id="vf-rhythm-title" class="vf-advanced-title">Rythme</h3>
+      <VfPresetPicker :disabled="!form.vf_upgrade_enabled" />
+    </section>
+
+    <!-- Un bloc à la fois : la page faisait défiler neuf sections, ouvertes ou repliées. -->
+    <AppSubnav variant="tabs" inner :items="SECTION_ITEMS" :active="section" aria-label="Sections des améliorations VF" @update:active="section = $event" />
+
     <SettingsSection
+      v-if="section === 'scope'"
       title="Activation et périmètre"
       subtitle="Choisit quels médias peuvent recevoir une meilleure release française."
       :status="form.vf_upgrade_enabled ? 'active' : 'inactive'"
@@ -35,6 +44,7 @@
     </SettingsSection>
 
     <SettingsSection
+      v-if="section === 'arr'"
       title="Ce que sait déjà faire ton Sonarr / Radarr"
       subtitle="Sonarr et Radarr peuvent récupérer une VF seuls, via un custom format « French » noté dans le profil : leur RSS sync s'en charge en continu, sans aucun appel indexeur."
     >
@@ -83,12 +93,7 @@
       <p v-else class="diag-hint">Aucune instance Sonarr/Radarr activée.</p>
     </SettingsSection>
 
-    <section class="vf-rhythm" aria-labelledby="vf-rhythm-title">
-      <h3 id="vf-rhythm-title" class="vf-advanced-title">Rythme</h3>
-      <VfPresetPicker :disabled="!form.vf_upgrade_enabled" />
-    </section>
-
-    <SettingsSection title="Langues et confiance" subtitle="Filtre et ordonne les releases candidates.">
+    <SettingsSection v-if="section === 'scope'" title="Langues et confiance" subtitle="Filtre et ordonne les releases candidates.">
       <SettingsRow label="Marqueurs acceptés" description="Séparés par des virgules.">
         <input v-model="form.vf_upgrade_markers" placeholder="truefrench,vff,multi,vfi,vfq">
       </SettingsRow>
@@ -109,9 +114,7 @@
       </SettingsRow>
     </SettingsSection>
 
-    <!-- Réglages avancés : repliés, chacun résume en une ligne ce qu'il fait. -->
-    <h3 class="vf-advanced-title">Réglages avancés</h3>
-    <SettingsSection title="Qualité et sécurité" :subtitle="summaries.quality" collapsible :default-open="false">
+    <SettingsSection v-if="section === 'quality'" title="Qualité et sécurité" :subtitle="summaries.quality">
       <SettingsRow label="Bloquer les rejets *arr">
         <ToggleSwitch v-model="form.vf_upgrade_block_arr_rejected" title="Bloquer les rejets *arr" />
       </SettingsRow>
@@ -135,7 +138,7 @@
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection title="Recherche et rythme" :subtitle="summaries.search" collapsible :default-open="false">
+    <SettingsSection v-if="section === 'search'" title="Recherche et rythme" :subtitle="summaries.search">
       <SettingsRow label="Cooldown" description="En heures, entre deux recherches sur un même média.">
         <UiNumberField v-model="form.vf_upgrade_cooldown_hours" :min="1" :max="720" />
       </SettingsRow>
@@ -174,7 +177,7 @@
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection title="Validation et historique" :subtitle="summaries.validation" collapsible :default-open="false">
+    <SettingsSection v-if="section === 'validation'" title="Validation et historique" :subtitle="summaries.validation">
       <SettingsRow label="Vérifier les pistes après import">
         <ToggleSwitch v-model="form.vf_upgrade_verify_after_import" title="Vérifier les pistes après import" />
       </SettingsRow>
@@ -195,7 +198,7 @@
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection title="Notifications" :subtitle="summaries.notifications" collapsible :default-open="false">
+    <SettingsSection v-if="section === 'notifications'" title="Notifications" :subtitle="summaries.notifications">
       <SettingsRow label="Release trouvée">
         <ToggleSwitch v-model="form.vf_upgrade_notify_found" title="Release trouvée" />
       </SettingsRow>
@@ -226,6 +229,20 @@ import { api } from '@/api';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { form } from '@/settingsForm';
 import VfPresetPicker from './VfPresetPicker.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
+import { useInnerSection } from '@/composables/useInnerSection';
+import { useRoute } from 'vue-router';
+
+const SECTION_ITEMS = [
+  { key: 'scope', label: 'Quoi améliorer' },
+  { key: 'arr', label: 'Sonarr / Radarr' },
+  { key: 'quality', label: 'Qualité' },
+  { key: 'search', label: 'Recherche' },
+  { key: 'validation', label: 'Validation' },
+  { key: 'notifications', label: 'Notifications' },
+];
+/* Dans les réglages, la section suit l'adresse ; dans la fenêtre de la page VF, elle reste locale. */
+const section = useInnerSection(SECTION_ITEMS.map((item) => item.key), undefined, { inUrl: Boolean(useRoute()?.path.startsWith('/settings')) });
 import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';
 

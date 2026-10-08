@@ -6,22 +6,12 @@
       <p>{{ warnCount ? warnLabels : 'Adresse publique, proxies, jeton API et double authentification sont en ordre.' }}</p>
     </section>
 
-    <SettingsItemList title="Contrôles">
-      <SettingsItem
-        v-for="check in checks"
-        :key="check.key"
-        :title="check.label"
-        :subtitle="check.detail"
-        :status="check.state === 'ok' ? 'active' : 'error'"
-        :status-text="check.badge"
-      >
-        <template #actions>
-          <UiButton size="sm" :variant="check.state === 'warn' ? 'primary' : 'secondary'" :to="check.action.to" :href="check.action.href">{{ check.action.label }}</UiButton>
-        </template>
-      </SettingsItem>
-    </SettingsItemList>
+    <!-- Une page, quatre blocs : on n'en voit qu'un à la fois, celui qu'on vient régler. Un
+         bloc qui a un point à vérifier porte une pastille. -->
+    <AppSubnav variant="tabs" inner :items="sectionItems" :active="section" aria-label="Sections de sécurité" @update:active="section = $event" />
 
     <SettingsSection
+      v-if="section === 'address'"
       title="Adresse publique"
       subtitle="L'adresse sous laquelle les utilisateurs atteignent Watchdeck depuis l'extérieur."
       :status="form.public_base_url ? 'active' : 'inactive'"
@@ -36,6 +26,7 @@
     </SettingsSection>
 
     <SettingsSection
+      v-if="section === 'proxies'"
       title="Reverse-proxy"
       subtitle="Adresse IP réelle des visiteurs derrière Nginx Proxy Manager, Traefik ou Caddy."
       :status="form.trusted_proxies ? 'active' : 'inactive'"
@@ -55,6 +46,13 @@
       </p>
     </SettingsSection>
 
+    <ApiTokenTab v-if="section === 'token'" />
+
+    <SettingsSection v-if="section === 'account'" title="Double authentification" subtitle="Elle protège la connexion par mot de passe local, et se règle dans votre profil.">
+      <SettingsRow :label="totpRow.label" :description="totpRow.detail">
+        <UiButton :variant="totpRow.state === 'warn' ? 'primary' : 'secondary'" to="/profile">{{ totpRow.action }}</UiButton>
+      </SettingsRow>
+    </SettingsSection>
   </div>
 </template>
 
@@ -66,8 +64,10 @@ import UiButton from '@/components/ui/UiButton.vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
 import { useSession } from '@/composables/useSession';
-import SettingsItem from './SettingsItem.vue';
-import SettingsItemList from './SettingsItemList.vue';
+import AppSubnav from '@/components/ui/AppSubnav.vue';
+import { useInnerSection } from '@/composables/useInnerSection';
+import { useRoute } from 'vue-router';
+import ApiTokenTab from './ApiTokenTab.vue';
 import { securityCheckRows } from './securityChecks';
 import SettingsRow from './SettingsRow.vue';
 import SettingsSection from './SettingsSection.vue';
@@ -95,6 +95,26 @@ const checks = computed(() => securityCheckRows({
 const warnings = computed(() => checks.value.filter((check) => check.state === 'warn'));
 const warnCount = computed(() => warnings.value.length);
 const warnLabels = computed(() => warnings.value.map((check) => check.label).join(', '));
+
+/* Les quatre blocs de la page ; l'ancienne adresse /settings/security/api ouvre le jeton. */
+const SECTIONS = [
+  { key: 'address', label: 'Adresse publique', check: 'url' },
+  { key: 'proxies', label: 'Proxies', check: 'proxy' },
+  { key: 'token', label: 'Jeton API', check: 'token' },
+  { key: 'account', label: 'Double authentification', check: 'totp' },
+] as const;
+const route = useRoute();
+const section = useInnerSection(SECTIONS.map((entry) => entry.key), () => (route.path.endsWith('/api') ? 'token' : 'address'));
+const sectionItems = computed(() => SECTIONS.map((entry) => ({
+  key: entry.key,
+  label: entry.label,
+  count: checks.value.some((check) => check.key === entry.check && check.state === 'warn') ? '!' : null,
+})));
+const totpRow = computed(() => {
+  const check = checks.value.find((entry) => entry.key === 'totp');
+  if (!check) return { label: 'Connexion avec Plex', detail: 'Votre compte se connecte par Plex : la double authentification ne s’applique pas.', action: 'Ouvrir le profil', state: 'ok' };
+  return { label: `${check.label} : ${check.badge.toLowerCase()}`, detail: check.detail, action: check.action.label, state: check.state };
+});
 const clientIpDescription = computed(() => {
   const ip = clientIp.value;
   if (!ip) return 'Adresse vue par Watchdeck pour ce navigateur.';

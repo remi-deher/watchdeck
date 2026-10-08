@@ -53,7 +53,7 @@ export function securityCheckRows(input: SecurityInputs): SecurityCheckRow[] {
     state: 'ok',
     badge: input.tokenActive ? 'Actif' : 'Aucun jeton',
     detail: input.tokenActive ? 'Accès complet à l’API, jamais réaffiché après sa génération.' : 'Aucun accès externe à l’API n’est ouvert.',
-    action: { label: 'Gérer', to: '/settings/security/api' },
+    action: { label: 'Gérer', to: '/settings/security?section=token' },
   });
 
   // Comme sur la page Profil : la double authentification ne protège que le mot de passe local.
