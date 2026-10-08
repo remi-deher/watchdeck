@@ -21,7 +21,7 @@
             <tr v-for="event in notificationEvents" :key="event.key">
               <th scope="row"><strong>{{ event.label }}</strong><small>{{ event.description }}</small></th>
               <!-- Une case n'a de sens que reliée à sa ligne et à sa colonne : son nom dit les deux. -->
-              <td v-for="channel in allChannels" :key="channel.key">
+              <td v-for="channel in allChannels" :key="channel.key" :class="{ 'is-off': !channelOn(channel.key) }">
                 <UiCheckbox
                   v-model="form[fieldOf(event.key, channel.key)]"
                   :disabled="!channelOn(channel.key)"
@@ -170,15 +170,18 @@ const summary = computed(() => {
 .matrix-wrap { overflow-x: auto; }
 .event-matrix { width: 100%; border-collapse: collapse; }
 .event-matrix th, .event-matrix td { padding: var(--space-2); border-top: 1px solid var(--border); text-align: center; vertical-align: middle; }
-.event-matrix thead th { border-top: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+/* Les en-têtes globaux sont en capitales : ici, des noms de canaux, lus tels quels et sur une ligne. */
+.event-matrix th { text-transform: none; letter-spacing: normal; }
+.event-matrix thead th { min-width: 4.5rem; border-top: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
 .event-matrix thead th > * { display: block; margin: 0 auto; }
 .event-matrix thead th svg { width: 16px; height: 16px; margin-bottom: 2px; }
 .event-matrix thead th.is-off { opacity: .55; }
-.event-matrix tbody th { min-width: 12rem; text-align: left; font-weight: 400; }
+.event-matrix tbody th { min-width: 12rem; color: var(--text); font-size: var(--fs-sm); text-align: left; font-weight: 400; }
+.event-matrix td.is-off { opacity: .35; }
 .event-matrix tbody th strong { display: block; }
 .event-matrix tbody th small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }
 
-@include bp.until(desktop) {
+@include bp.until(wide) {
   .notify-rules { grid-template-columns: minmax(0, 1fr); }
   .notify-summary { position: static; order: -1; }
 }

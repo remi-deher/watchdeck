@@ -4,7 +4,7 @@
     <section class="scheduled-verdict" :class="failed.length ? 'is-error' : 'is-good'" aria-live="polite">
       <div>
         <h2>{{ failed.length ? `${failed.length} tâche${failed.length > 1 ? 's' : ''} en échec` : 'Toutes les tâches passent' }}</h2>
-        <p>{{ tasks.length }} tâches{{ upcoming ? ` · prochaine : ${upcoming.task.label} ${upcoming.label}` : '' }}</p>
+        <p>{{ tasks.length }} tâches{{ upcoming ? ` · prochaine : ${upcoming.task.label} (${upcoming.label})` : '' }}</p>
       </div>
     </section>
 
@@ -40,7 +40,7 @@
         <template #cell-last="{ row: task }">
           <span v-if="task.state?.finished_at" class="scheduled-last">{{ formatDate(task.state.finished_at) }}<small>{{ formatDuration(task.state.duration_ms) }}</small></span>
           <span v-else class="scheduled-never">Jamais</span>
-          <small v-if="nextRunLabel(task, now)" class="scheduled-next">Prochaine {{ nextRunLabel(task, now) }}</small>
+          <small v-if="nextRunLabel(task, now)" class="scheduled-next">Prochaine : {{ nextRunLabel(task, now) }}</small>
         </template>
         <template #cell-status="{ row: task }">
           <span class="scheduled-status" :class="taskStatus(task)">{{ taskStatusText(task) }}</span>
