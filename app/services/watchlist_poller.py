@@ -23,6 +23,7 @@ from .download_clients import add_torrent_to_client
 from .notification_orchestrator import _add_co_requester, catch_up_requester_notifications
 from .poster_repair import poster_is_fragile
 from .radarr import add_movie, lookup_movie, resolve_tmdb_id, resolve_tmdb_id_by_title
+from .release_rules import release_accepted, rules_for
 from .request_lifecycle import transition_request
 from .seer import _resolve_tmdb_id as _seer_resolve_tmdb_id
 from .seer import request_media as seer_request
@@ -234,31 +235,14 @@ async def _submit_to_arr(
     return None, False, None
 
 
-def _filter_torrent_results(results: list[dict], settings: Settings) -> list[dict]:
-    """Filtre les résultats de recherche Prowlarr selon taille et mots-clés requis/interdits."""
-    filtered_results = []
-    for r in results:
-        title = r.get("title", "")
-        size = r.get("size", 0)
-        size_gb = size / (1024 * 1024 * 1024)
+def _filter_torrent_results(results: list[dict], settings: Settings, media_type: str | None = None) -> list[dict]:
+    """Filtre les résultats de recherche Prowlarr selon taille et mots-clés requis/interdits.
 
-        if settings.torrent_min_size_gb is not None and size_gb < settings.torrent_min_size_gb:
-            continue
-        if settings.torrent_max_size_gb is not None and size_gb > settings.torrent_max_size_gb:
-            continue
-
-        if settings.torrent_required_keywords:
-            req_words = [w.strip().lower() for w in settings.torrent_required_keywords.split(",") if w.strip()]
-            if req_words and not any(w in title.lower() for w in req_words):
-                continue
-
-        if settings.torrent_forbidden_keywords:
-            forb_words = [w.strip().lower() for w in settings.torrent_forbidden_keywords.split(",") if w.strip()]
-            if any(w in title.lower() for w in forb_words):
-                continue
-
-        filtered_results.append(r)
-    return filtered_results
+    Les règles viennent de `release_rules` : la même source que l'outil de test de
+    l'administration, et des règles propres aux séries si elles sont séparées.
+    """
+    rules = rules_for(settings, media_type)
+    return [r for r in results if release_accepted(r.get("title", ""), r.get("size", 0), rules)]
 
 
 async def _prowlarr_search_and_download(
@@ -312,7 +296,7 @@ async def _prowlarr_search_and_download(
         logger.info(f"Prowlarr: Aucun résultat de recherche pour '{query}'")
         return None, None, None
 
-    filtered_results = _filter_torrent_results(results, settings)
+    filtered_results = _filter_torrent_results(results, settings, item.get("media_type"))
     if not filtered_results:
         logger.info(f"Prowlarr: Tous les résultats pour '{query}' ont été filtrés")
         return None, None, None

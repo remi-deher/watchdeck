@@ -1,12 +1,12 @@
 <template>
-  <!-- Client torrent (qBittorrent, Transmission, Deluge), dans la feuille ouverte depuis
+  <!-- Client torrent (qBittorrent, Transmission, dossier surveillé), dans la feuille ouverte depuis
        Integrations. -->
   <UiFeedback v-if="notFound" type="error" message="Ce client n’existe plus." />
   <form v-else class="compact-form" @submit.prevent="enregistrer">
     <UiFeedback v-if="error" type="error" :message="error" />
     <label>Nom<input v-model="form.name"></label>
     <label>Type
-      <UiSelect v-model="form.client_type" :options="[{ value: 'qbittorrent', label: 'qBittorrent' }, { value: 'transmission', label: 'Transmission' }, { value: 'deluge', label: 'Deluge' }]" />
+      <UiSelect v-model="form.client_type" :options="[{ value: 'qbittorrent', label: 'qBittorrent' }, { value: 'transmission', label: 'Transmission' }, { value: 'watch_folder', label: 'Dossier surveillé' }]" />
     </label>
     <label>URL<input v-model="form.url" type="url"></label>
     <label>Utilisateur <small>(facultatif)</small>
@@ -14,7 +14,7 @@
       <small>Laisser vide si le client autorise Watchdeck par adresse IP ou sous-réseau.</small>
     </label>
     <label>Mot de passe <small>(facultatif)</small>
-      <input v-model="form.password" type="password" autocomplete="current-password">
+      <input v-model="form.password" type="password" autocomplete="new-password" :placeholder="form.has_password ? 'Enregistré : laisser vide pour le garder' : ''">
     </label>
     <label>Catégorie
       <input v-model="form.category">
@@ -64,7 +64,7 @@ async function enregistrer(): Promise<void> {
 
 const testMutation = useMutation({
   mutationFn: async () => {
-    const data = await api<any>('/api/test/download-client', { method: 'POST', body: JSON.stringify(form) });
+    const data = await api<any>('/api/test/download-client', { method: 'POST', body: JSON.stringify({ ...form, id: creating.value ? undefined : form.id }) });
     if (!data.success) throw new Error(data.message || 'Connexion impossible.');
     return data;
   },

@@ -1,10 +1,10 @@
 <template>
   <SettingsItem
     title="Import historique Tautulli"
-    subtitle="Source facultative pour rapatrier manuellement les anciennes lectures"
+    :subtitle="live.status === 'error' ? live.detail : [baseSubtitle, live.detail].filter(Boolean).join(' · ')"
     :icon="History"
-    :status="form.tautulli_enabled ? 'active' : 'inactive'"
-    :status-text="form.tautulli_enabled ? 'Activé' : 'Désactivé'"
+    :status="live.status === 'neutral' ? (form.tautulli_enabled ? 'active' : 'inactive') : live.status"
+    :status-text="live.text || (form.tautulli_enabled ? 'Activé' : 'Désactivé')"
     keywords="url clé api importer normaliser historique sessions"
     saveable
   >
@@ -45,6 +45,14 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import SettingsItem from '../SettingsItem.vue';
+import { useConnectionsStatus } from './connectionsStatus';
+
+/* État réel lu par la zone (`useConnectionsStatus`) : la ligne dit ce que le service
+   a répondu, plus seulement s'il est configuré. */
+const connections = useConnectionsStatus();
+const live = computed(() => connections.rowFor('tautulli'));
+const baseSubtitle = computed(() => 'Source facultative pour rapatrier manuellement les anciennes lectures');
+
 
 const status=ref(''),importLength=ref(2000);
 const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();

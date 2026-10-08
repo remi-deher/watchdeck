@@ -151,6 +151,11 @@ class SettingsUpdate(BaseModel):
     torrent_forbidden_keywords: Optional[str] = None
     torrent_min_size_gb: Optional[float] = None
     torrent_max_size_gb: Optional[float] = None
+    torrent_split_by_type: Optional[bool] = None
+    torrent_show_required_keywords: Optional[str] = None
+    torrent_show_forbidden_keywords: Optional[str] = None
+    torrent_show_min_size_gb: Optional[float] = None
+    torrent_show_max_size_gb: Optional[float] = None
     digest_enabled: Optional[bool] = None
     digest_hour: Optional[int] = None
     digest_minute: Optional[int] = None
@@ -380,6 +385,10 @@ async def update_settings(
         "torrent_forbidden_keywords",
         "torrent_min_size_gb",
         "torrent_max_size_gb",
+        "torrent_show_required_keywords",
+        "torrent_show_forbidden_keywords",
+        "torrent_show_min_size_gb",
+        "torrent_show_max_size_gb",
         "torrent_ratio_limit",
         "torrent_seed_time_limit_hours",
         "vf_upgrade_min_size_gb",

@@ -34,6 +34,9 @@ def test_list_arr_instances(async_db):
         data = resp.json()
         assert len(data) == 1
         assert data[0]["name"] == "Sonarr 1"
+        # La clé API ne part jamais vers le navigateur : seulement le fait qu'elle existe.
+        assert "api_key" not in data[0]
+        assert data[0]["has_api_key"] is True
     finally:
         _cleanup()
 
@@ -54,6 +57,21 @@ def test_create_arr_instance(async_db):
         assert resp.status_code == 200
         created = async_db.query(ArrInstance).filter(ArrInstance.name == "Sonarr 4K").one()
         assert created.is_default is True
+        assert "api_key" not in resp.json()
+
+        # Modifier sans retaper la clé garde celle en base.
+        resp_update = client.put(
+            f"/api/arr-instances/{created.id}",
+            json={"name": "Sonarr UHD", "arr_type": "sonarr", "url": "http://sonarr4k", "api_key": ""},
+        )
+        assert resp_update.status_code == 200
+        async_db.expire_all()
+        kept = async_db.query(ArrInstance).filter(ArrInstance.id == created.id).one()
+        assert (kept.name, kept.api_key) == ("Sonarr UHD", "apikey")
+
+        # Créer une instance sans clé est refusé.
+        missing = client.post("/api/arr-instances", json={"name": "X", "arr_type": "radarr", "url": "http://x"})
+        assert missing.status_code == 422
     finally:
         _cleanup()
 
