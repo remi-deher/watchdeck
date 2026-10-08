@@ -16,6 +16,7 @@ export type SettingsPanel =
   | 'overview'
   | 'plex'
   | 'services'
+  | 'media'
   | 'webhooks'
   | 'download-clients'
   | 'downloads'
@@ -40,6 +41,7 @@ export const PANEL_PATHS: Record<SettingsPanel, string> = {
   overview: '/settings',
   plex: '/settings/services',
   services: '/settings/services/integrations',
+  media: '/settings/services/media',
   webhooks: '/settings/services/webhooks',
   'download-clients': '/settings/acquisition',
   downloads: '/settings/acquisition/downloads',

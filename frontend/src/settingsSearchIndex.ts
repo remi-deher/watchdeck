@@ -29,22 +29,28 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['configuration', 'etat', 'sante', 'diagnostic', 'ce qui manque', 'a traiter', 'alertes'],
   },
   {
-    label: 'Plex & Bibliothèque',
+    label: 'Plex',
     group: 'Connexions',
     path: '/settings/services',
-    keywords: ['plex', 'jeton', 'token', 'url plex', 'bibliotheque', 'scan', 'analyse vf', 'sections', 'activite en direct', 'serveur'],
+    keywords: ['plex', 'jeton', 'token', 'url plex', 'serveur', 'activite en direct', 'lectures', 'tautulli', 'tracearr', 'watchlist', 'sante', 'tester'],
   },
   {
-    label: 'Intégrations',
+    label: 'Médias',
+    group: 'Connexions',
+    path: '/settings/services/media',
+    keywords: ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'sous-titres', 'instance', 'cle api', 'sante', 'tester'],
+  },
+  {
+    label: 'Informations',
     group: 'Connexions',
     path: '/settings/services/integrations',
-    keywords: ['sonarr', 'radarr', 'prowlarr', 'bazarr', 'sous-titres', 'seer', 'overseerr', 'jellyseerr', 'tautulli', 'tracearr', 'tmdb', 'cle api'],
+    keywords: ['seer', 'overseerr', 'jellyseerr', 'tmdb', 'metadonnees', 'cle api', 'integrations'],
   },
   {
     label: 'Webhooks',
     group: 'Connexions',
     path: '/settings/services/webhooks',
-    keywords: ['webhook', 'secret', 'temps reel', 'integration externe'],
+    keywords: ['webhook', 'secret', 'temps reel', 'integration externe', 'configurer automatiquement', 'connect'],
   },
   {
     label: 'Clients de téléchargement',

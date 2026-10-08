@@ -53,6 +53,7 @@ from .routers import (
     calendar_api,
     client_capabilities_api,
     conflicts_api,
+    connections_api,
     corrections_api,
     dashboard_api,
     discover_api,
@@ -466,6 +467,7 @@ app.mount("/vue", CacheControlledStaticFiles(directory="app/static/vue", check_d
 app.include_router(auth.router)
 app.include_router(activity_api.router)
 app.include_router(admin_overview_api.router)
+app.include_router(connections_api.router)
 app.include_router(settings_api.router)
 app.include_router(system_api.router)
 

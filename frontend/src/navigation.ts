@@ -14,6 +14,7 @@ import {
   Activity,
   Bell,
   CalendarDays,
+  Clapperboard,
   Captions,
   Clock,
   Compass,
@@ -25,6 +26,7 @@ import {
   History,
   House,
   Inbox,
+  Info,
   KeyRound,
   Languages,
   Library,
@@ -313,8 +315,9 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       break;
     case 'admin-connections':
       sections = [
-        { key: 'plex', label: 'Plex & Bibliothèque', to: '/settings/services', icon: Tv },
-        { key: 'integrations', label: 'Intégrations', to: '/settings/services/integrations', icon: Plug },
+        { key: 'plex', label: 'Plex', to: '/settings/services', icon: Tv },
+        { key: 'media', label: 'Médias', to: '/settings/services/media', icon: Clapperboard },
+        { key: 'integrations', label: 'Informations', to: '/settings/services/integrations', icon: Info },
         { key: 'webhooks', label: 'Webhooks', to: '/settings/services/webhooks', icon: Link2 },
       ];
       break;

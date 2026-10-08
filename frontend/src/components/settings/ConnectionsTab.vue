@@ -1,16 +1,19 @@
 <template>
   <div class="settings-rows">
+    <ConnectionsVerdict/>
     <PlexServersList/>
+    <SettingsItemList title="Activité en direct" subtitle="Lectures en cours et historique : Plex d'abord, Tracearr et Tautulli en complément.">
+      <TracearrConnectionItem/>
+      <TautulliConnectionItem/>
+    </SettingsItemList>
     <PlexActivitySection/>
-    <h2 class="settings-merged-heading">Bibliothèque & VF</h2>
-    <VfScanSection/>
   </div>
 </template>
 <script setup lang="ts">
+import SettingsItemList from './SettingsItemList.vue';
+import ConnectionsVerdict from './connections/ConnectionsVerdict.vue';
 import PlexServersList from './connections/PlexServersList.vue';
 import PlexActivitySection from './connections/PlexActivitySection.vue';
-import VfScanSection from './VfScanSection.vue';
+import TautulliConnectionItem from './connections/TautulliConnectionItem.vue';
+import TracearrConnectionItem from './connections/TracearrConnectionItem.vue';
 </script>
-<style scoped lang="scss">
-.settings-merged-heading { margin: var(--space-2) 0 0; font-size: var(--fs-lg); }
-</style>

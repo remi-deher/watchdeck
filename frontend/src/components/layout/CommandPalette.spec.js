@@ -254,7 +254,7 @@ describe('CommandPalette', () => {
     await wrapper.get('.palette-input').setValue('plex');
     await flushPromises();
     const labels = wrapper.findAll('.palette-option .palette-label').map((n) => n.text());
-    expect(labels.filter((l) => l === 'Plex & Bibliothèque')).toHaveLength(1);
+    expect(labels.filter((l) => l === 'Plex')).toHaveLength(1);
     wrapper.unmount();
   });
 });

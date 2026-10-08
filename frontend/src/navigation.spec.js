@@ -161,7 +161,7 @@ describe('navigation — sections', () => {
   it('regroupe en conservant l’ordre de première apparition', () => {
     const groups = groupedSections(sectionsFor('admin-connections', ctx()));
     expect(groups.map((g) => g.label)).toEqual(['']);
-    expect(keys(groups[0].items)).toEqual(['plex', 'integrations', 'webhooks']);
+    expect(keys(groups[0].items)).toEqual(['plex', 'media', 'integrations', 'webhooks']);
   });
 
   it('range les journaux avec la version et l’historique des envois dans les Notifications', () => {
@@ -175,7 +175,7 @@ describe('navigation — sections', () => {
 
 describe('navigation — zones de l’administration', () => {
   it('range chaque réglage sous la zone où on le cherche', () => {
-    expect(keys(sectionsFor('admin-connections', ctx()))).toEqual(['plex', 'integrations', 'webhooks']);
+    expect(keys(sectionsFor('admin-connections', ctx()))).toEqual(['plex', 'media', 'integrations', 'webhooks']);
     expect(keys(sectionsFor('admin-acquisition', ctx()))).toEqual(['clients', 'downloads', 'acquisitions', 'storage']);
     expect(keys(sectionsFor('admin-automation', ctx()))).toEqual(['vf-upgrades', 'subtitles', 'scheduled-tasks']);
     expect(keys(sectionsFor('admin-requests', ctx()))).toEqual(['requests']);
