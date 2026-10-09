@@ -1,7 +1,7 @@
 <template>
   <!-- La carte des zones : celle de la barre latérale, avec l'état de chacune. Sur
        téléphone il n'y a plus de dock ni de barre latérale : c'est le menu. -->
-  <nav class="zone-map" aria-label="Zones de l’administration">
+  <nav class="zone-map" :aria-label="label">
     <section v-for="group in groups" :key="group.label" class="zone-map__group">
       <h2 v-if="group.label" class="zone-map__label">{{ group.label }}</h2>
       <ul class="zone-map__grid">
@@ -25,18 +25,10 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
 import { ChevronRight } from '@lucide/vue';
-import type { AttentionSeverity } from '@/adminAttention';
+import type { MonitorSeverity as AttentionSeverity, MonitorZoneGroup } from './types';
 
-export interface ZoneCard {
-  key: string;
-  label: string;
-  to: any;
-  icon: any;
-  line: string;
-  severity: AttentionSeverity | null;
-}
 
-defineProps<{ groups: Array<{ label: string; items: ZoneCard[] }> }>();
+withDefaults(defineProps<{ groups: MonitorZoneGroup[]; label?: string }>(), { label: 'Zones de l’administration' });
 
 const SEVERITY_LABELS: Record<AttentionSeverity, string> = { error: 'Erreur', warn: 'À surveiller', info: 'Information' };
 </script>

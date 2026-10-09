@@ -1,5 +1,5 @@
 <template>
-  <section class="overview-kpis" aria-label="Activité de l’instance">
+  <section class="overview-kpis" :aria-label="label">
     <RouterLink v-for="kpi in kpis" :key="kpi.key" class="overview-kpi" :to="kpi.to">
       <span class="overview-kpi__label">{{ kpi.label }}</span>
       <strong class="overview-kpi__value">{{ kpi.value }}<small v-if="kpi.unit">{{ kpi.unit }}</small></strong>
@@ -14,19 +14,9 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
 
-export interface OverviewKpi {
-  key: string;
-  label: string;
-  value: string;
-  unit?: string;
-  status: string;
-  tone: 'ok' | 'warn' | 'error' | 'info' | 'off';
-  to: string;
-  /** Une valeur par jour, du plus ancien au plus récent : dessine la courbe. */
-  spark?: number[];
-}
+import type { MonitorKpi } from './types';
 
-defineProps<{ kpis: OverviewKpi[] }>();
+withDefaults(defineProps<{ kpis: MonitorKpi[]; label?: string }>(), { label: 'Activité de l’instance' });
 
 /** Courbe sur 100×24 : l'échelle suit le jour le plus chargé, une série vide reste à plat. */
 function sparkPoints(values: number[]): string {

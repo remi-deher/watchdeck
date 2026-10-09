@@ -1,13 +1,13 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import OverviewKpis from './OverviewKpis.vue';
+import OverviewKpis from '@/components/templates/monitor/MonitorKpis.vue';
 import OverviewQuickActions from './OverviewQuickActions.vue';
 import OverviewServices from './OverviewServices.vue';
 import OverviewTasks from './OverviewTasks.vue';
-import OverviewTodo from './OverviewTodo.vue';
-import OverviewVerdict from './OverviewVerdict.vue';
-import OverviewZoneMap from './OverviewZoneMap.vue';
+import OverviewTodo from '@/components/templates/monitor/MonitorAttention.vue';
+import OverviewVerdict from '@/components/templates/monitor/MonitorVerdict.vue';
+import OverviewZoneMap from '@/components/templates/monitor/MonitorZones.vue';
 
 const api = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => api(...args) }));

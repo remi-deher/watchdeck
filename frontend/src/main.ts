@@ -99,6 +99,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/encoding/queue', component: () => import('@/views/encoding/EncodingQueueView.vue'), meta: { title: "File d'attente" } },
   { path: '/encoding/libraries', component: () => import('@/views/encoding/EncodingLibrariesView.vue'), meta: { title: 'Bibliothèques FileFlows' } },
   { path: '/encoding/history', component: () => import('@/views/encoding/EncodingHistoryView.vue'), meta: { title: 'Historique FileFlows' } },
+  { path: '/encoding/stats', component: () => import('@/views/encoding/EncodingStatsView.vue'), meta: { title: 'Statistiques FileFlows' } },
   { path: '/encoding/flows', component: () => import('@/views/encoding/EncodingFlowsView.vue'), meta: { title: 'Flows FileFlows' } },
   { path: '/encoding/settings', component: () => import('@/views/encoding/EncodingSettingsView.vue'), meta: { title: 'Réglages FileFlows' } },
   { path: '/settings', component: SettingsView, meta: { title: 'Administration' } },
@@ -127,6 +128,16 @@ const routes: RouteRecordRaw[] = [
   { path: '/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
   { path: '/:pathMatch(.*)*', redirect: '/discover' },
 ];
+
+// Galerie des gabarits : en developpement seulement, pour en affiner le design avec des
+// donnees realistes. Absente du build de production (le bloc est elimine).
+if (import.meta.env.DEV) {
+  routes.splice(routes.length - 1, 0, {
+    path: '/dev/gabarits',
+    component: () => import('./views/dev/TemplateGalleryView.vue'),
+    meta: { title: 'Galerie des gabarits', devOnly: true },
+  });
+}
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -169,7 +180,7 @@ router.afterEach((to) => {
 
 const PLAIN_USER_ALLOWED_PREFIXES = ['/discover', '/calendar', '/profile', '/media', '/releases'];
 router.beforeEach(async (to) => {
-  if (to.meta.public) return true;
+  if (to.meta.public || (import.meta.env.DEV && to.meta.devOnly)) return true;
   const session = await loadSession();
   const originalPath = to.redirectedFrom?.path ?? to.path;
   if (originalPath === '/') {

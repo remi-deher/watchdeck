@@ -84,6 +84,8 @@ const props = withDefaults(
     items: SubnavItem[];
     active?: string;
     ariaLabel?: string;
+    /** `tabs` est deprecie : les parties d'un element passent par UiTabs, un filtre par
+        UiSegmentedControl (voir AGENTS.md, « trois roles »). */
     variant?: 'links' | 'tabs';
     /** Rang interne à une page, sous les onglets de zone : plus discret, aligné à gauche. */
     inner?: boolean;
