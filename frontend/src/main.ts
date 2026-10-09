@@ -128,6 +128,16 @@ const routes: RouteRecordRaw[] = [
   { path: '/:pathMatch(.*)*', redirect: '/discover' },
 ];
 
+// Galerie des gabarits : en developpement seulement, pour en affiner le design avec des
+// donnees realistes. Absente du build de production (le bloc est elimine).
+if (import.meta.env.DEV) {
+  routes.splice(routes.length - 1, 0, {
+    path: '/dev/gabarits',
+    component: () => import('./views/dev/TemplateGalleryView.vue'),
+    meta: { title: 'Galerie des gabarits', devOnly: true },
+  });
+}
+
 const router = createRouter({
   history: createWebHistory('/'),
   routes,
@@ -169,7 +179,7 @@ router.afterEach((to) => {
 
 const PLAIN_USER_ALLOWED_PREFIXES = ['/discover', '/calendar', '/profile', '/media', '/releases'];
 router.beforeEach(async (to) => {
-  if (to.meta.public) return true;
+  if (to.meta.public || (import.meta.env.DEV && to.meta.devOnly)) return true;
   const session = await loadSession();
   const originalPath = to.redirectedFrom?.path ?? to.path;
   if (originalPath === '/') {

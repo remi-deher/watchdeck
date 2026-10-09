@@ -6,7 +6,7 @@
     </header>
     <ul v-if="items.length" class="overview-todo__list">
       <li v-for="item in items" :key="item.key" class="overview-todo__item" :class="`is-${item.severity}`">
-        <span class="overview-todo__icon"><component :is="icons[item.area]" v-if="item.area && icons[item.area]" aria-hidden="true" /></span>
+        <span v-if="item.area && icons[item.area]" class="overview-todo__icon"><component :is="icons[item.area]" aria-hidden="true" /></span>
         <span class="sr-only">{{ SEVERITY_LABELS[item.severity] }} :</span>
         <div class="overview-todo__text">
           <strong>{{ item.title }}</strong>
@@ -73,8 +73,7 @@ const SEVERITY_LABELS: Record<AttentionSeverity, string> = { error: 'Erreur', wa
 }
 .overview-todo__item {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-4) + 4px);
@@ -85,12 +84,13 @@ const SEVERITY_LABELS: Record<AttentionSeverity, string> = { error: 'Erreur', wa
 .overview-todo__item::before { content: ''; position: absolute; left: 8px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--muted); }
 .overview-todo__item.is-error::before { background: var(--red); }
 .overview-todo__item.is-warn::before { background: var(--amber); }
-.overview-todo__icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--muted); }
+.overview-todo__icon { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--muted); }
 .overview-todo__icon svg { width: 17px; height: 17px; }
-.overview-todo__text { display: grid; gap: 2px; min-width: 0; }
+.overview-todo__text { display: grid; flex: 1 1 auto; gap: 2px; min-width: 0; }
 .overview-todo__text strong { font-size: var(--fs-md); }
 .overview-todo__text span { color: var(--muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .overview-todo__action {
+  flex: none;
   padding: 6px 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--btn-radius);
@@ -105,7 +105,7 @@ const SEVERITY_LABELS: Record<AttentionSeverity, string> = { error: 'Erreur', wa
 .overview-todo__action.is-primary:hover { background: var(--accent-hover); color: var(--on-accent); }
 
 @include bp.until(shell-medium) {
-  .overview-todo__item { grid-template-columns: minmax(0, 1fr) auto; }
+
   .overview-todo__icon { display: none; }
 }
 </style>

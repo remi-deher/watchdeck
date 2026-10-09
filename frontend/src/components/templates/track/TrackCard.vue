@@ -1,10 +1,10 @@
 <template>
   <!-- Un element suivi. Bloque, le diagnostic passe avant la progression : savoir pourquoi
        et quoi faire compte plus qu'un pourcentage fige. -->
-  <article class="track-card" :class="`is-${item.state}`">
-    <div class="track-card__cover">
+  <article class="track-card" :class="[`is-${item.state}`, { 'has-cover': item.poster || item.icon }]">
+    <div v-if="item.poster || item.icon" class="track-card__cover">
       <img v-if="item.poster && !posterFailed" :src="proxyUrl(item.poster, { width: 200 })" :alt="''" loading="lazy" @error="posterFailed = true" />
-      <component :is="item.icon || Activity" v-else aria-hidden="true" />
+      <component :is="item.icon" v-else aria-hidden="true" />
     </div>
 
     <div class="track-card__body">
@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { RouterLink } from 'vue-router';
-import { Activity, AlertTriangle } from '@lucide/vue';
+import { AlertTriangle } from '@lucide/vue';
 import { proxyUrl } from '@/utils/mediaImage';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
@@ -68,7 +68,8 @@ const posterFailed = ref(false);
 </script>
 
 <style scoped lang="scss">
-.track-card { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); min-width: 0; }
+.track-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); min-width: 0; }
+.track-card.has-cover { grid-template-columns: 64px minmax(0, 1fr); }
 .track-card.is-blocked { border-color: color-mix(in srgb, var(--red) 45%, var(--border)); }
 .track-card__cover { display: grid; place-items: center; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--muted); }
 .track-card__cover img { width: 100%; height: 100%; object-fit: cover; }

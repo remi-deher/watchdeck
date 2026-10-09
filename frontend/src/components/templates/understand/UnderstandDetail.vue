@@ -13,13 +13,12 @@
 
     <p v-if="detail.cause" class="understand-detail__cause" :class="`is-${detail.outcome}`">{{ detail.cause }}</p>
 
-    <dl v-if="detail.comparison?.length" class="understand-detail__compare">
-      <template v-for="row in detail.comparison" :key="row.label">
-        <dt>{{ row.label }}</dt>
-        <dd><span>Avant</span>{{ row.before }}</dd>
-        <dd><span>Après</span>{{ row.after }}</dd>
-      </template>
-    </dl>
+    <table v-if="detail.comparison?.length" class="understand-detail__compare">
+      <thead><tr><th scope="col"><span class="sr-only">Élément</span></th><th scope="col">Avant</th><th scope="col">Après</th></tr></thead>
+      <tbody>
+        <tr v-for="row in detail.comparison" :key="row.label"><th scope="row">{{ row.label }}</th><td>{{ row.before }}</td><td>{{ row.after }}</td></tr>
+      </tbody>
+    </table>
 
     <ol v-if="detail.steps?.length" class="understand-detail__steps">
       <li v-for="step in detail.steps" :key="step.label" :class="`is-${step.outcome}`">
@@ -59,10 +58,11 @@ const OUTCOME_LABELS: Record<UnderstandOutcome, string> = { success: 'Réussi', 
 .understand-detail__badge.is-warning { color: var(--amber-text); }
 .understand-detail__cause { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--fs-sm); }
 .understand-detail__cause.is-failed { background: color-mix(in srgb, var(--red) 8%, var(--surface)); color: var(--red-text); }
-.understand-detail__compare { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px var(--space-2); margin: 0; font-size: var(--fs-sm); }
-.understand-detail__compare dt { color: var(--muted); }
-.understand-detail__compare dd { margin: 0; }
-.understand-detail__compare dd span { display: block; color: var(--muted); font-size: var(--fs-xs); }
+.understand-detail__compare { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.understand-detail__compare th, .understand-detail__compare td { padding: 4px var(--space-2) 4px 0; text-align: left; }
+.understand-detail__compare thead th { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.understand-detail__compare tbody th { color: var(--muted); font-weight: 400; }
+.understand-detail__compare tbody tr + tr { border-top: 1px solid var(--border); }
 .understand-detail__steps { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); }
 .understand-detail__steps li { display: flex; align-items: center; gap: var(--space-2); }
 .understand-detail__steps svg { flex: none; width: 16px; height: 16px; color: var(--green); }
