@@ -1,11 +1,25 @@
 # Changelog
 
-## 1.83.0 — 2026-10-08
+## 1.84.0 — 2026-10-09
+
+
+### test
+
+- fix guard test expectations ([71c6157](https://github.com/remi-deher/watchdeck/commit/71c615751c380f700028397a01bc221e4f88be87))
+
+### ✨ Nouveautés
+
+- FileFlows command center ([790ed4d](https://github.com/remi-deher/watchdeck/commit/790ed4d28250d2a369b6e9bd4d8da0428caa2f7d))
+## 1.83.0 — 2026-10-09
 
 
 ### ✨ Nouveautés
 
 - real processing time without disk wait, optional queue interleaving by disk ([78db58b](https://github.com/remi-deher/watchdeck/commit/78db58b275d4b317b4893a065d7a5fa5e0ecfa32))
+
+### 🔧 Maintenance
+
+- v1.83.0 (#781) ([8e822ec](https://github.com/remi-deher/watchdeck/commit/8e822ec3f231c54e1746ed0b447e4347cfce3727))
 ## 1.82.0 — 2026-10-08
 
 
