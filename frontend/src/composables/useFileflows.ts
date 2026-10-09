@@ -202,9 +202,9 @@ export const PLEX_PAUSE_LABELS: Record<FileflowsControl['plex_pause'], string> =
 
 export interface FileflowsSummary {
   size?: number | null;
-  video?: { codec?: string } | null;
-  audio?: Array<{ codec?: string }>;
-  subtitles?: Array<{ codec?: string }>;
+  video?: { codec?: string; height?: number | null; pix_fmt?: string | null } | null;
+  audio?: Array<{ codec?: string; title?: string | null }>;
+  subtitles?: Array<{ codec?: string; title?: string | null }>;
 }
 
 /** Un passage enregistre par Watchdeck (avant / apres, duree reelle). */
@@ -253,6 +253,30 @@ export function fileflowsHistoryQuery(days: MaybeRefOrGetter<number>, offset: Ma
 }
 
 /** Ce qui a change entre avant et apres : codec video, codecs audio, sous-titres texte, taille. */
+const CODEC_NAMES: Record<string, string> = { eac3: 'E-AC3', ac3: 'AC3', dts: 'DTS', truehd: 'TrueHD', aac: 'AAC', opus: 'Opus', flac: 'FLAC', mp3: 'MP3', pcm_s16le: 'PCM', pcm_s24le: 'PCM' };
+const codecName = (codec: string) => CODEC_NAMES[codec] || codec.toUpperCase();
+
+/** Ce qui a ete retouche, en etiquettes courtes (« Vidéo », « Audio DTS », « Sous-titres
+    SRT », « Pistes renommées »…), deduites de l'avant / apres du passage. */
+export function passTags(pass: FileflowsPass): string[] {
+  const before = pass.before || {}, after = pass.after;
+  if (!after || pass.status === 'failed') return [];
+  const tags: string[] = [];
+  const bv = before.video, av = after.video;
+  if (bv?.codec && av?.codec && (bv.codec !== av.codec || bv.pix_fmt !== av.pix_fmt || bv.height !== av.height)) tags.push('Vidéo');
+  /* Un codec audio qui ne se retrouve plus apres a ete converti (ou retire). */
+  const kept = new Set((after.audio || []).map((a) => a.codec));
+  const converted = new Set((before.audio || []).filter((a) => a.codec && !kept.has(a.codec)).map((a) => codecName(a.codec!)));
+  for (const codec of converted) tags.push(`Audio ${codec}`);
+  const srt = (s: FileflowsSummary) => (s.subtitles || []).filter((t) => t.codec === 'subrip').length;
+  if (srt(before) > srt(after)) tags.push('Sous-titres SRT');
+  const count = (s: FileflowsSummary) => (s.audio || []).length + (s.subtitles || []).length;
+  if (count(after) < count(before)) tags.push('Pistes retirées');
+  const titles = (s: FileflowsSummary) => [...(s.audio || []), ...(s.subtitles || [])].map((t) => t.title || '').join('|');
+  if (count(after) === count(before) && titles(before) !== titles(after)) tags.push('Pistes renommées');
+  return tags;
+}
+
 export function passChanges(pass: FileflowsPass): string[] {
   const before = pass.before || {}, after = pass.after;
   if (!after) return [];

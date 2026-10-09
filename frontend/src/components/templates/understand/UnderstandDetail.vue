@@ -12,6 +12,7 @@
     </header>
 
     <p v-if="detail.cause" class="understand-detail__cause" :class="`is-${detail.outcome}`">{{ detail.cause }}</p>
+    <p v-if="detail.tags?.length" class="understand-detail__tags"><UiBadge v-for="tag in detail.tags" :key="tag">{{ tag }}</UiBadge></p>
 
     <table v-if="detail.comparison?.length" class="understand-detail__compare">
       <thead><tr><th scope="col"><span class="sr-only">Élément</span></th><th scope="col">Avant</th><th scope="col">Après</th></tr></thead>
@@ -37,6 +38,7 @@
 
 <script setup lang="ts">
 import { CheckCircle2, X, XCircle } from '@lucide/vue';
+import UiBadge from '@/components/ui/UiBadge.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import type { UnderstandDetail, UnderstandOutcome } from './types';
 
@@ -56,6 +58,7 @@ const OUTCOME_LABELS: Record<UnderstandOutcome, string> = { success: 'Réussi', 
 .understand-detail__badge.is-success { color: var(--green-text, var(--green)); }
 .understand-detail__badge.is-failed { background: color-mix(in srgb, var(--red) 14%, var(--surface)); color: var(--red-text); }
 .understand-detail__badge.is-warning { color: var(--amber-text); }
+.understand-detail__tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
 .understand-detail__cause { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--fs-sm); }
 .understand-detail__cause.is-failed { background: color-mix(in srgb, var(--red) 8%, var(--surface)); color: var(--red-text); }
 .understand-detail__compare { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }

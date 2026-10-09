@@ -11,6 +11,8 @@ export interface UnderstandEvent {
   title: string;
   /** Ce qui s'est passe, en une ligne (« Reencodage · -4,1 Go », la cause d'un echec…). */
   detail?: string;
+  /** Ce qui a change, en etiquettes courtes (« Vidéo », « Audio DTS »…). */
+  tags?: string[];
   /** Contexte court : disque, instance, utilisateur… */
   context?: string;
 }
@@ -30,6 +32,8 @@ export interface UnderstandDetail {
   outcome: UnderstandOutcome;
   /** La cause, en clair (un echec, un avertissement). */
   cause?: string;
+  /** Ce qui a change, en etiquettes courtes. */
+  tags?: string[];
   /** Comparaison avant / apres, ligne par ligne. */
   comparison?: Array<{ label: string; before: string; after: string }>;
   steps?: Array<{ label: string; outcome: UnderstandOutcome; duration?: string }>;
