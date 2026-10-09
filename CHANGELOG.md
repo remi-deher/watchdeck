@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.86.0 — 2026-10-09
+
+
+### ✨ Nouveautés
+
+- keep runners off a busy disk ([df2f7f6](https://github.com/remi-deher/watchdeck/commit/df2f7f6453e53e77502d8e60e1e70c295417d634))
 ## 1.85.0 — 2026-10-09
 
 
@@ -10,6 +16,10 @@
 ### 🐛 Corrections
 
 - pause the disk of a Plex playback even when its FileFlows library is disabled ([704021b](https://github.com/remi-deher/watchdeck/commit/704021bba905aed9f989f89f5998d8dc328505c3))
+
+### 🔧 Maintenance
+
+- v1.85.0 (#789) ([2937aa7](https://github.com/remi-deher/watchdeck/commit/2937aa7c8fd2a734a12be999df399e85447b6c74))
 ## 1.84.0 — 2026-10-09
 
 
