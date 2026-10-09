@@ -197,6 +197,15 @@ JOB_CATALOG = [
         "default_seconds": 300,
         "fixed_schedule": "Toutes les 5 minutes",
     },
+    {
+        "job": "fileflows-guard",
+        "label": "Pilotage FileFlows",
+        "description": "Pause pendant les lectures Plex, runners automatiques et ordre de la file, selon les reglages d'Encodage.",
+        "settings_field": None,
+        "settings_unit": None,
+        "default_seconds": 60,
+        "fixed_schedule": "Toutes les minutes",
+    },
 ]
 
 

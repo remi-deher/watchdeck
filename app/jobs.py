@@ -515,6 +515,13 @@ async def job_fileflows_monitor(ctx: dict, force: bool = False):
     return await _run(ctx, "fileflows-monitor", check_fileflows, force=force, interval_seconds=5 * 60)
 
 
+async def job_fileflows_guard(ctx: dict, force: bool = False):
+    """Pause FileFlows pendant les lectures Plex, runners automatiques, ordre de la file."""
+    from .services.fileflows_guard import run
+
+    return await _run(ctx, "fileflows-guard", run, force=force, interval_seconds=50, log_history=False)
+
+
 PURGE_LOCAL_HOUR = 3  # repli quand aucun reglage n'est encore charge
 
 
@@ -855,6 +862,10 @@ async def cron_fileflows_monitor(ctx: dict):
     return await job_fileflows_monitor(ctx)
 
 
+async def cron_fileflows_guard(ctx: dict):
+    return await job_fileflows_guard(ctx)
+
+
 class WorkerSettings:
     functions = [
         job_watchlist,
@@ -879,6 +890,7 @@ class WorkerSettings:
         job_newsletter,
         job_indexer_health,
         job_fileflows_monitor,
+        job_fileflows_guard,
         job_send_notification,
         job_maintenance,
     ]
@@ -929,6 +941,7 @@ class WorkerSettings:
         cron(cron_newsletter, minute=1, second=0, unique=True),
         cron(cron_indexer_health, minute={7, 22, 37, 52}, unique=True),
         cron(cron_fileflows_monitor, minute=set(range(3, 60, 5)), second=30, unique=True),
+        cron(cron_fileflows_guard, minute=None, second=15, unique=True),
     ]
     on_startup = startup
     on_shutdown = shutdown

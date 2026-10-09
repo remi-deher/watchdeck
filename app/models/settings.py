@@ -256,6 +256,20 @@ class Settings(Base):
     # JSON des identifiants de bibliotheques FileFlows concernees.
     fileflows_reorder_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
     fileflows_reorder_libraries: Mapped[Optional[str]] = mapped_column(Text, default=None)
+    # Runners FileFlows : "manual" (on n'y touche pas) ou "auto" (un par disque ayant des
+    # fichiers en attente). Voir services/fileflows_guard.py.
+    fileflows_runners_mode: Mapped[str] = mapped_column(default="manual", server_default="manual")
+    # Pendant une lecture Plex : "off", "all" (tous les traitements attendent) ou "disk"
+    # (seul le disque du fichier lu attend ; les runners passent aux autres disques).
+    fileflows_plex_pause: Mapped[str] = mapped_column(default="off", server_default="off")
+    # Fichiers relances a la main : "follow" (ils suivent la pause) ou "ignore".
+    fileflows_plex_pause_relaunched: Mapped[str] = mapped_column(default="follow", server_default="follow")
+    # Minutes sans lecture avant de reprendre (evite de relancer a chaque pause du film).
+    fileflows_plex_resume_minutes: Mapped[int] = mapped_column(default=5, server_default="5")
+    # Correspondances confirmees {uid bibliotheque FileFlows: dossier Plex} (JSON). Une
+    # bibliotheque absente garde la correspondance proposee automatiquement ; une valeur
+    # vide la dissocie (elle n'est alors pas concernee par la pause).
+    fileflows_plex_locations: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
     # --- Sécurité réseau ---
     plex_verify_ssl: Mapped[bool] = mapped_column(default=True)

@@ -20,11 +20,7 @@ import json
 import logging
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-
 from ..cache import cache
-from ..models import Settings
 from ..utils import now_utc
 from . import fileflows
 
@@ -40,15 +36,31 @@ def relaunched(row: dict[str, Any]) -> bool:
     return bool(row.get("fu"))
 
 
-def desired_order(rows: list[dict[str, Any]], included: set[str]) -> tuple[list[str], dict[str, int], int]:
-    protected = [row["u"] for row in rows if relaunched(row)]
+def desired_order(
+    rows: list[dict[str, Any]],
+    included: set[str],
+    paused: frozenset[str] | set[str] = frozenset(),
+    relaunched_pass: bool = True,
+) -> tuple[list[str], dict[str, int], int]:
+    """Ordre voulu : relancés, bibliothèques incluses en alternance, reste, puis les
+    bibliothèques en pause (lecture Plex) à la fin pour que les runners passent ailleurs.
+
+    `relaunched_pass=False` : un fichier relancé d'une bibliothèque en pause attend avec elle."""
+
+    def protected_row(row: dict[str, Any]) -> bool:
+        return relaunched(row) and (relaunched_pass or row.get("lu") not in paused)
+
+    protected = [row["u"] for row in rows if protected_row(row)]
+    rest = [row for row in rows if not protected_row(row)]
+    active = [row for row in rest if row.get("lu") not in paused]
     groups: dict[str, list[str]] = {}
-    for row in rows:
-        if row.get("lu") in included and not relaunched(row):
+    for row in active:
+        if row.get("lu") in included:
             groups.setdefault(row["lu"], []).append(row["u"])
     alternated = [u for batch in itertools.zip_longest(*groups.values()) for u in batch if u]
-    others = [row["u"] for row in rows if row.get("lu") not in included and not relaunched(row)]
-    return protected + alternated + others, {k: len(v) for k, v in groups.items()}, len(protected)
+    others = [row["u"] for row in active if row.get("lu") not in included]
+    held = [row["u"] for row in rest if row.get("lu") in paused]
+    return protected + alternated + others + held, {k: len(v) for k, v in groups.items()}, len(protected)
 
 
 def parse_libraries(value: str | None) -> list[str]:
@@ -120,15 +132,3 @@ async def last_run() -> dict[str, Any] | None:
         return await cache.get_json(LAST_RUN_KEY)
     except Exception:  # noqa: BLE001
         return None
-
-
-async def reorder_if_enabled(db: AsyncSession, url: str, api_key: str | None) -> dict[str, Any] | None:
-    """Appelé par la tâche planifiée : ne fait rien tant que l'option est désactivée."""
-    settings = (await db.execute(select(Settings))).scalars().first()
-    if settings is None or not settings.fileflows_reorder_enabled:
-        return None
-    try:
-        return await reorder(url, api_key, parse_libraries(settings.fileflows_reorder_libraries))
-    except fileflows.FileFlowsError as exc:
-        logger.warning("Réordonnancement FileFlows impossible : %s", exc)
-        return {"error": str(exc)}

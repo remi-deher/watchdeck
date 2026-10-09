@@ -114,6 +114,9 @@ async def arr_capabilities(db: AsyncSession = Depends(get_db_async)):
 async def _instance_values(db: AsyncSession, data: ArrInstanceCreate) -> dict:
     """Valeurs a enregistrer ; le serveur principal se note NULL, comme ailleurs."""
     values = data.model_dump()
+    # Une instance par defaut n'a de sens que pour choisir un Sonarr/Radarr ; FileFlows n'en a pas.
+    if values.get("arr_type") == "fileflows":
+        values["is_default"] = False
     if not values.get("api_key"):
         values.pop("api_key", None)
     if values.get("plex_server_id") is not None:

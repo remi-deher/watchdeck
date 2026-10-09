@@ -11,6 +11,12 @@
       </UiButton>
     </div>
 
+    <!-- Tester un autre flow sur ce media, sans changer le flow de sa bibliotheque. -->
+    <div v-if="files.length" class="encoding-other">
+      <UiSelect v-model="otherFlow" :options="flowOptions" placeholder="Relancer avec un autre flow…" aria-label="Autre flow" />
+      <UiButton size="sm" :disabled="!otherFlow" :loading="withFlow.isPending.value" @click="withFlow.mutate()">Relancer avec ce flow</UiButton>
+    </div>
+
     <UiFeedback v-if="mediaQuery.isError.value" type="error" :message="humanizeError(mediaQuery.error.value)" />
     <p v-else-if="mediaQuery.isPending.value" class="encoding-loading">Recherche dans FileFlows…</p>
     <UiEmptyState v-else-if="!files.length" compact title="Aucun fichier dans FileFlows" message="Ce média n'est dans aucune bibliothèque FileFlows, ou son dossier porte un autre nom." />
@@ -34,7 +40,7 @@ import { computed, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { RotateCcw } from '@lucide/vue';
 import { api } from '@/api';
-import type { FileflowsFile } from '@/composables/useFileflows';
+import { FILEFLOWS_STATUS, type FileflowsFile } from '@/composables/useFileflows';
 import { useToast } from '@/composables/useToast';
 import { useRealtime } from '@/events';
 import { queryKeys } from '@/queryKeys';
@@ -42,6 +48,7 @@ import { humanizeError } from '@/utils/apiError';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
+import UiSelect from '@/components/ui/UiSelect.vue';
 import FileflowsFileRow from '@/components/encoding/FileflowsFileRow.vue';
 import FileflowsLogModal from '@/components/encoding/FileflowsLogModal.vue';
 
@@ -64,6 +71,27 @@ useRealtime(['fileflows.updated'], () => {
 });
 
 /* Sans liste : tous les fichiers du media que FileFlows connait. */
+const flowsQuery = useQuery({
+  queryKey: [...queryKeys.fileflows.all, 'flows'] as const,
+  queryFn: ({ signal }) => api<{ flows: Array<{ uid: string; name: string; used_by: string[] }> }>('/api/fileflows/flows', { signal }),
+  enabled: computed(() => files.value.length > 0),
+  staleTime: 60_000,
+});
+const flowOptions = computed(() => (flowsQuery.data.value?.flows || []).map((flow) => ({ value: flow.uid, label: flow.name })));
+const otherFlow = ref<string | null>(null);
+const withFlow = useMutation({
+  mutationFn: () => {
+    const uids = files.value.filter((f) => f.status !== FILEFLOWS_STATUS.queued && f.status !== FILEFLOWS_STATUS.processing).map((f) => f.uid);
+    return api<{ queued: number; flow: string }>('/api/fileflows/reprocess-with-flow', { method: 'POST', body: JSON.stringify({ uids, flow_uid: otherFlow.value }) });
+  },
+  onSuccess: (result) => {
+    addToast({ type: 'success', message: `${result.queued} fichier${result.queued > 1 ? 's' : ''} relancé${result.queued > 1 ? 's' : ''} avec « ${result.flow} »` });
+    otherFlow.value = null;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.fileflows.all });
+  },
+  onError: (error) => addToast({ type: 'error', message: humanizeError(error) }),
+});
+
 const reprocessAll = useMutation({
   mutationFn: (uids?: string[]) =>
     api<{ queued: number; skipped: number; warnings: string[] }>(`/api/fileflows/media/${props.itemId}/reprocess`, {
@@ -87,4 +115,6 @@ const reprocessAll = useMutation({
 .encoding-hint { flex: 1; min-width: 240px; margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .encoding-hint strong { color: var(--text); overflow-wrap: anywhere; }
 .encoding-loading { margin: 0; color: var(--muted); }
+.encoding-other { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.encoding-other > :first-child { flex: 1; min-width: 220px; }
 </style>

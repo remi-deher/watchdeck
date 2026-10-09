@@ -143,6 +143,8 @@ def normalize_file(row: dict) -> dict[str, Any]:
         "duration": _clean_duration(row.get("pt")),
         "date": row.get("dt"),
         "tags": [t for t in (row.get("t") or []) if isinstance(t, str)],
+        # En file avec un flow deja associe : fichier deja traite puis relance.
+        "relaunched": status == STATUS_QUEUED and bool(row.get("fu")),
     }
 
 
@@ -240,8 +242,23 @@ def timing_from_detail(detail: dict[str, Any]) -> dict[str, Any]:
         "total_seconds": round(total, 1),
         "wait_seconds": round(wait, 1),
         "processing_seconds": round(max(0.0, total - wait), 1),
+        "kind": processing_kind(steps),
         "steps": steps,
     }
+
+
+# Sorties de l'etape d'assemblage du flow V3 : 1 = fichier reecrit, 2 = rien a changer,
+# 3 = titres/flags/polices modifies sur place.
+_ASSEMBLY_KINDS = {1: "rewrite", 2: "conform", 3: "in_place"}
+
+
+def processing_kind(steps: list[dict[str, Any]]) -> str | None:
+    """Ce que le traitement a fait : `encode`, `rewrite`, `in_place`, `conform` (ou None)."""
+    names = [s["name"] for s in steps]
+    if any(n.startswith("Exécuteur") for n in names):
+        return "encode"
+    assembly = next((s for s in steps if s["name"].startswith("4. Assemblage")), None)
+    return _ASSEMBLY_KINDS.get(assembly["output"]) if assembly else None
 
 
 async def file_timing(url: str, api_key: str | None, uid: str) -> dict[str, Any]:
@@ -251,7 +268,7 @@ async def file_timing(url: str, api_key: str | None, uid: str) -> dict[str, Any]
     detail = await file_detail(url, api_key, uid)
     if detail.get("Status") not in (STATUS_PROCESSED, STATUS_FAILED):
         return timing_from_detail(detail)
-    key = f"watchdeck:fileflows:timing:{uid}:{detail.get('ProcessingEnded') or ''}"
+    key = f"watchdeck:fileflows:timing:v2:{uid}:{detail.get('ProcessingEnded') or ''}"
     try:
         cached = await cache.get_json(key)
     except Exception:  # noqa: BLE001 -- sans cache, on recalcule

@@ -3,7 +3,7 @@
   <article class="ff-row" :class="{ 'is-failed': file.status === FILEFLOWS_STATUS.failed }">
     <UiCheckbox v-if="selectable" :model-value="selected" :aria-label="`Sélectionner ${fileBaseName(file.name)}`" @update:model-value="emit('toggle', file.uid)" />
     <div class="ff-main">
-      <strong :title="file.name">{{ fileBaseName(file.name) }}</strong>
+      <strong :title="file.name"><span v-if="position" class="ff-position">{{ position }}</span>{{ fileBaseName(file.name) }}<span v-if="file.relaunched" class="ff-relaunched">relancé</span></strong>
       <span class="ff-meta">
         <RouterLink v-if="file.media && showMedia" :to="mediaLink" class="ff-media" @click="ouvrirFicheAuClic($event, mediaLink)">{{ mediaLabel }}</RouterLink>
         <span v-if="file.library">{{ file.library }}</span>
@@ -15,7 +15,7 @@
       <!-- Duree de traitement reelle : FileFlows compte aussi l'attente du disque (verrou). -->
       <div v-if="timing" :title="`Total FileFlows : ${formatSeconds(timing.total_seconds)}`">
         <dt>Traitement</dt>
-        <dd>{{ formatSeconds(timing.processing_seconds) }}<small v-if="timing.wait_seconds >= 1" class="ff-wait"> + {{ formatSeconds(timing.wait_seconds) }} d'attente disque</small></dd>
+        <dd>{{ formatSeconds(timing.processing_seconds) }}<small v-if="timing.kind" class="ff-wait">{{ PROCESSING_KIND_LABELS[timing.kind] }}</small><small v-if="timing.wait_seconds >= 1" class="ff-wait">+ {{ formatSeconds(timing.wait_seconds) }} d'attente disque</small></dd>
       </div>
       <div v-else-if="file.duration"><dt>Durée</dt><dd>{{ file.duration }}</dd></div>
       <div v-if="change != null"><dt>Taille</dt><dd :class="{ 'is-smaller': change < 0 }">{{ change > 0 ? '+' : '' }}{{ change }} %</dd></div>
@@ -26,6 +26,7 @@
       <UiButton v-if="timing?.steps.length" size="sm" :aria-expanded="showSteps" @click="showSteps = !showSteps"><ListTree />Étapes</UiButton>
       <UiButton size="sm" @click="emit('log', file)"><ScrollText />Journal</UiButton>
       <UiButton v-if="canReprocess" size="sm" :loading="busy" @click="emit('reprocess', file)"><RotateCcw />Relancer</UiButton>
+      <UiButton v-if="file.status === FILEFLOWS_STATUS.queued && position !== 1" size="sm" aria-label="Mettre en tête de file" title="Mettre en tête de file" @click="emit('top', file)"><ArrowUpToLine /></UiButton>
     </div>
     <ol v-if="showSteps && timing" class="ff-steps">
       <li v-for="(step, index) in timing.steps" :key="index" :class="{ 'is-wait': step.name.startsWith('0. Verrou') }">
@@ -39,18 +40,23 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ListTree, RotateCcw, ScrollText } from '@lucide/vue';
-import { FILEFLOWS_STATUS, fileBaseName, fileStatusTone, formatSeconds, sizeChange, type FileflowsFile } from '@/composables/useFileflows';
+import { ArrowUpToLine, ListTree, RotateCcw, ScrollText } from '@lucide/vue';
+import { FILEFLOWS_STATUS, PROCESSING_KIND_LABELS, fileBaseName, fileStatusTone, formatSeconds, sizeChange, type FileflowsFile } from '@/composables/useFileflows';
 import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { formatDateTimeShort } from '@/utils/format';
 import UiBadge from '@/components/ui/UiBadge.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 
-const props = withDefaults(defineProps<{ file: FileflowsFile; selectable?: boolean; selected?: boolean; busy?: boolean; showMedia?: boolean }>(), {
-  selectable: false, selected: false, busy: false, showMedia: true,
+const props = withDefaults(defineProps<{ file: FileflowsFile; selectable?: boolean; selected?: boolean; busy?: boolean; showMedia?: boolean; position?: number | null }>(), {
+  selectable: false, selected: false, busy: false, showMedia: true, position: null,
 });
-const emit = defineEmits<{ (e: 'toggle', uid: string): void; (e: 'log', file: FileflowsFile): void; (e: 'reprocess', file: FileflowsFile): void }>();
+const emit = defineEmits<{
+  (e: 'toggle', uid: string): void;
+  (e: 'log', file: FileflowsFile): void;
+  (e: 'reprocess', file: FileflowsFile): void;
+  (e: 'top', file: FileflowsFile): void;
+}>();
 
 const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
 const mediaLink = computed(() => `/library/media/library/${props.file.media?.id}`);
@@ -88,6 +94,8 @@ const canReprocess = computed(() => props.file.status !== FILEFLOWS_STATUS.queue
 .ff-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ff-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font-size: var(--fs-xs); }
 .ff-media { color: var(--accent); font-weight: 650; text-decoration: none; }
+.ff-position { margin-right: 8px; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 500; }
+.ff-relaunched { margin-left: 8px; padding: 1px 7px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-size: var(--fs-xs); font-weight: 650; }
 .ff-media:hover { text-decoration: underline; }
 .ff-reason { color: var(--red-text); font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .ff-stats { display: flex; gap: var(--space-3); margin: 0; }
