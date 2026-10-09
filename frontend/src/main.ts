@@ -99,6 +99,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/encoding/queue', component: () => import('@/views/encoding/EncodingQueueView.vue'), meta: { title: "File d'attente" } },
   { path: '/encoding/libraries', component: () => import('@/views/encoding/EncodingLibrariesView.vue'), meta: { title: 'Bibliothèques FileFlows' } },
   { path: '/encoding/history', component: () => import('@/views/encoding/EncodingHistoryView.vue'), meta: { title: 'Historique FileFlows' } },
+  { path: '/encoding/stats', component: () => import('@/views/encoding/EncodingStatsView.vue'), meta: { title: 'Statistiques FileFlows' } },
   { path: '/encoding/flows', component: () => import('@/views/encoding/EncodingFlowsView.vue'), meta: { title: 'Flows FileFlows' } },
   { path: '/encoding/settings', component: () => import('@/views/encoding/EncodingSettingsView.vue'), meta: { title: 'Réglages FileFlows' } },
   { path: '/settings', component: SettingsView, meta: { title: 'Administration' } },

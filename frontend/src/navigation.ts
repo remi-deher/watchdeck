@@ -395,7 +395,7 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'overview', label: 'Vue d’ensemble', to: '/encoding', icon: Gauge },
         // File et historique, puis bibliotheques, flows et reglages : chaque groupe a ses
         // onglets dans la page (EncodingShell), le menu ne garde que trois entrees.
-        { key: 'activity', label: 'Traitements', to: '/encoding/queue', icon: ListOrdered, active: (r) => ['/encoding/queue', '/encoding/history'].includes(r.path) },
+        { key: 'activity', label: 'Traitements', to: '/encoding/queue', icon: ListOrdered, active: (r) => ['/encoding/queue', '/encoding/history', '/encoding/stats'].includes(r.path) },
         { key: 'config', label: 'Configuration', to: '/encoding/libraries', icon: SlidersHorizontal, active: (r) => ['/encoding/libraries', '/encoding/flows', '/encoding/settings'].includes(r.path) },
       ];
       break;
