@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.85.0 — 2026-10-09
+
+
+### ✨ Nouveautés
+
+- processing history, multi-channel alerts, schedule presets ([48da3f7](https://github.com/remi-deher/watchdeck/commit/48da3f79bdad6d69bbfc5013e5c9583c8a30cc79))
+
+### 🐛 Corrections
+
+- pause the disk of a Plex playback even when its FileFlows library is disabled ([704021b](https://github.com/remi-deher/watchdeck/commit/704021bba905aed9f989f89f5998d8dc328505c3))
 ## 1.84.0 — 2026-10-09
 
 
@@ -10,6 +20,10 @@
 ### ✨ Nouveautés
 
 - FileFlows command center ([790ed4d](https://github.com/remi-deher/watchdeck/commit/790ed4d28250d2a369b6e9bd4d8da0428caa2f7d))
+
+### 🔧 Maintenance
+
+- v1.84.0 (#785) ([8a05824](https://github.com/remi-deher/watchdeck/commit/8a058248339050032071f946221ab7afee03d9c6))
 ## 1.83.0 — 2026-10-09
 
 
