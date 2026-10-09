@@ -3,6 +3,8 @@
    disposition ; la page traduit ses objets en cartes. */
 
 import type { MediaRef } from '@/types';
+import type { PersonRef } from '@/utils/userLabels';
+import type { PlexClientRef } from '@/utils/plexClient';
 
 export type LiveTone = 'neutral' | 'accent' | 'warn' | 'remote' | 'hdr' | 'ok';
 
@@ -37,9 +39,11 @@ export interface LiveItem {
   /** En haut a gauche : mode de lecture, etape, client… (remplacable par l'emplacement `badge`). */
   badge?: { label: string; tone?: LiveTone } | null;
   /** En haut a droite : qui (avatar) ou ou (disque, client). */
-  corner?: { avatar?: string | null; name?: string; label?: string; icon?: any } | null;
+  corner?: { person?: PersonRef; avatar?: string | null; name?: string; label?: string; icon?: any } | null;
   /** Sous l'image : qui et sur quoi (« Rémi · Apple TV », « usb2 · Films »). */
   who?: string;
+  person?: PersonRef;
+  client?: PlexClientRef;
   facts?: LiveFact[];
   /** Ce qui merite une explication (raison d'une conversion, d'un blocage). */
   note?: string;

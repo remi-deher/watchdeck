@@ -13,7 +13,8 @@
     :loading="loading"
     @select="(item) => $emit('select', item.session)"
   >
-    <template #badge="{ item }"><PlaybackMethodBadge :method="item.session.playback_method" compact /></template>
+    <template #note="{ item }"><PlaybackMethodBadge :playback="item.session" reason-only /></template>
+    <template #badge="{ item }"><PlaybackMethodBadge :playback="item.session" compact /></template>
   </LiveStrip>
 </template>
 
@@ -28,7 +29,6 @@ import { episodeLabel } from '@/utils/episode';
 import { timecode } from '@/utils/format';
 import { formatBandwidth, formatTime } from '@/utils/format';
 import { channelsLabel } from '@/utils/mediaTechnical';
-import { plexPhrase } from '@/utils/plexDecisionText';
 import { proxyUrl } from '@/utils/mediaImage';
 
 const props = withDefaults(
@@ -90,10 +90,6 @@ function displayTitle(session: LiveSession): string {
   const episode = episodeLabel(session);
   return episode ? `${session.grandparent_title} · ${episode}` : session.grandparent_title;
 }
-function deviceLabel(session: LiveSession): string {
-  return session.player || session.product || session.platform || 'Appareil inconnu';
-}
-
 /* Heure de fin si la lecture va au bout sans nouvelle pause ; en pause, si elle reprend
    maintenant. Rien sans duree connue. */
 function endsAt(session: LiveSession): number | null {
@@ -157,13 +153,6 @@ function networkTone(session: LiveSession): string {
   if (session.stream_details?.relayed) return 'warn';
   return networkLabel(session) === 'Local' ? '' : 'remote';
 }
-function reasonText(session: LiveSession): string {
-  if (session.playback_method !== 'transcode' && session.playback_method !== 'mixed') return '';
-  const reason = session.transcode_reason;
-  if (!reason?.text) return '';
-  return reason.source === 'plex' ? plexPhrase(reason.text) : reason.text;
-}
-
 const headline = computed(() => {
   const total = props.sessions.length;
   if (!total) return 'Aucune lecture';
@@ -203,10 +192,10 @@ const items = computed<LiveItem[]>(() => props.sessions.map((session) => ({
   paused: isPaused(session),
   backdrop: session.art_url || null,
   poster: session.thumb_url ? posterUrl(session) : null,
-  corner: { avatar: session.user_avatar_url || null, name: session.user_name || 'Plex' },
-  who: [session.user_name || 'Utilisateur Plex', deviceLabel(session)].join(' · '),
+  corner: { person: session },
+  person: session,
+  client: session,
   facts: facts(session),
-  note: reasonText(session),
 })));
 const idle = computed<LiveIdle>(() => {
   if (props.loading) return { title: 'Lectures en direct', message: 'Récupération des lectures Plex…', icon: MonitorPlay };

@@ -41,14 +41,14 @@
     <SheetSummary v-if="summary" class="session-summary" :text="summary" />
 
     <div class="session-who">
-      <PlaybackMethodBadge :method="session.playback_method"/>
+      <PlaybackMethodBadge :playback="session"/>
       <!-- Un telechargement (synchro hors ligne) reste dans l'historique, mais ne se
            confond pas avec une lecture. -->
       <span v-if="session.is_download" class="session-flag download"><Download/>Téléchargement</span>
       <UiTooltip v-if="stream.relayed" text="Débit limité par le relais Plex (~2 Mb/s) : souvent la cause d'une qualité réduite"><span class="session-flag relay"><RadioTower/>Relais Plex</span></UiTooltip>
       <UiTooltip v-if="dynamicRange" :text="toneMapping ? 'HDR converti en SDR : le transcodage le plus coûteux' : undefined"><span class="session-flag hdr" :class="{ tonemap: toneMapping }">{{ dynamicRange }}</span></UiTooltip>
       <span><User/>{{ session.user_name || 'Utilisateur Plex' }}</span>
-      <span><MonitorPlay/>{{ session.player || session.product || session.platform || 'Lecteur Plex' }}</span>
+      <UiClientIdentity :client="session" />
       <UiTooltip v-if="stream.secure != null" :text="stream.secure ? 'Connexion chiffrée (HTTPS)' : 'Connexion non chiffrée (HTTP)'"><span class="session-secure" :class="{ insecure: !stream.secure }"><Lock v-if="stream.secure"/><LockOpen v-else/>{{ stream.secure ? 'Chiffrée' : 'Non chiffrée' }}</span></UiTooltip>
       <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
            fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
@@ -123,6 +123,7 @@
 </template>
 
 <script setup lang="ts">
+import UiClientIdentity from '@/components/ui/UiClientIdentity.vue';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import ConversionPanel from './ConversionPanel.vue';
 import ConsecutivePlaybacks from './ConsecutivePlaybacks.vue';

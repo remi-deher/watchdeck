@@ -34,16 +34,16 @@
 
         <div class="live-main">
           <div class="live-user">
-            <UiAvatar class="live-avatar" :name="session.user_name" size="sm" tone="accent" />
+            <UiAvatar class="live-avatar" :person="session" size="sm" tone="accent" />
             <span>{{ session.user_name || 'Utilisateur Plex' }}</span>
-            <component :is="deviceIcon(session)" class="live-device" :aria-label="session.player || session.platform || 'Lecteur Plex'" />
+            <UiClientIdentity :client="session" :show-label="false" class="live-device" />
           </div>
           <div class="live-title">
             <strong>{{ displayTitle(session) }}</strong>
             <span>{{ mediaSubtitle(session) }}</span>
           </div>
           <div class="live-client">
-            <span><component :is="deviceIcon(session)"/>{{ deviceLabel(session) }}</span>
+            <UiClientIdentity :client="session" />
             <span><Network/>{{ addressLabel(session) }}</span>
             <span v-if="session.server_name" class="live-server"><Server/>{{ session.server_name }}</span>
           </div>
@@ -58,7 +58,7 @@
           <span v-if="session.quality || locationLabel(session)" class="live-quality">
             {{ session.quality || 'Auto' }}<template v-if="locationLabel(session)"> · {{ locationLabel(session) }}</template>
           </span>
-          <PlaybackMethodBadge :method="session.playback_method" :title="decisionDetail(session)" />
+          <PlaybackMethodBadge :playback="session" />
           <span v-if="session.is_download" class="live-flag">Téléchargement</span>
           <UiTooltip :focusable="false" v-if="session.stream_details?.relayed" text="Débit limité par le relais Plex"><span class="live-flag relay">Relais</span></UiTooltip>
           <span v-if="session.bandwidth_kbps" class="live-bandwidth">{{ formatBandwidth(session.bandwidth_kbps) }}</span>
@@ -81,6 +81,7 @@
 </template>
 
 <script setup lang="ts">
+import UiClientIdentity from '@/components/ui/UiClientIdentity.vue';
 import UiAvatar from '@/components/ui/UiAvatar.vue';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import TranscodeReason, { type TranscodeReasonData } from './TranscodeReason.vue';
@@ -89,7 +90,7 @@ import { streamTracksSummary } from '@/utils/streamTracks';
 import { bufferIsLow, formatBuffer, hasTranscodeBuffer, transcodeSpeedLabel } from '@/utils/transcodeBuffer';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref, watch } from 'vue';
-import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Server, Smartphone, Tablet, Tv } from '@lucide/vue';
+import { Loader, MapPin, Network, Pause, PowerOff, Server } from '@lucide/vue';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 import { useIntervalFn } from '@vueuse/core';
@@ -221,35 +222,12 @@ function locationLabel(session: LiveSession): string {
   return '';
 }
 
-const DECISION_LABELS: Record<string, string> = { transcode: 'transcodée', copy: 'copiée', directplay: 'directe' };
-function decisionDetail(session: LiveSession): string {
-  const parts: string[] = [];
-  if (session.video_decision) parts.push(`Vidéo ${DECISION_LABELS[session.video_decision] || session.video_decision}`);
-  if (session.audio_decision) parts.push(`Audio ${DECISION_LABELS[session.audio_decision] || session.audio_decision}`);
-  if (session.subtitle_decision) {
-    parts.push(`Sous-titres ${DECISION_LABELS[session.subtitle_decision] || session.subtitle_decision}`);
-  }
-  return parts.join(' · ');
-}
-
 function mediaSubtitle(session: LiveSession): string {
   return [episodeLabel(session), session.year].filter(Boolean).join(' · ') || 'Lecture Plex';
 }
 
-function deviceLabel(session: LiveSession): string {
-  return session.player || session.product || session.platform || 'Appareil inconnu';
-}
-
 function addressLabel(session: LiveSession): string {
   return session.address || 'IP indisponible';
-}
-
-function deviceIcon(session: LiveSession): any {
-  const value = [session.platform, session.player, session.product].filter(Boolean).join(' ').toLowerCase();
-  if (/iphone|android|mobile/.test(value)) return Smartphone;
-  if (/ipad|tablet/.test(value)) return Tablet;
-  if (/tv|roku|shield|chromecast|firestick/.test(value)) return Tv;
-  return Monitor;
 }
 
 function geoLabel(session: LiveSession): string {

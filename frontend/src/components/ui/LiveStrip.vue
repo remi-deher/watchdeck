@@ -41,7 +41,7 @@
                 <span v-if="item.badge" class="live-badge" :class="`is-${item.badge.tone || 'neutral'}`">{{ item.badge.label }}</span>
               </slot>
               <span v-if="item.corner?.label" class="live-corner"><component :is="item.corner.icon" v-if="item.corner.icon" aria-hidden="true" />{{ item.corner.label }}</span>
-              <UiAvatar v-else-if="item.corner" :src="item.corner.avatar" :name="item.corner.name || '?'" size="sm" tone="accent" />
+              <UiAvatar v-else-if="item.corner" :person="item.corner.person || item.person" :src="item.corner.avatar" :name="item.corner.name" size="sm" tone="accent" />
             </span>
             <span class="live-poster-bottom">
               <span v-if="wide && item.poster" class="live-inset" aria-hidden="true">
@@ -65,7 +65,7 @@
             </span>
             <span v-if="item.facts.length > FACTS_SHOWN" class="live-chip live-chip-more" :title="item.facts.slice(FACTS_SHOWN).map((fact) => fact.label).join(' · ')">+{{ item.facts.length - FACTS_SHOWN }}</span>
           </span>
-          <span v-if="item.note" class="live-card-reason" :title="item.note">{{ item.note }}</span>
+          <span v-if="item.note || $slots.note" class="live-card-reason"><slot name="note" :item="item"><span :title="item.note">{{ item.note }}</span></slot></span>
         </button>
       </div>
     </template>
@@ -90,6 +90,8 @@
 import { computed, reactive, useId } from 'vue';
 import { Activity, Pause } from '@lucide/vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
+import { personName } from '@/utils/userLabels';
+import { plexClientName } from '@/utils/plexClient';
 import UiAvatar from './UiAvatar.vue';
 import UiButton from './UiButton.vue';
 import type { LiveIdle, LiveItem } from './liveStrip';
@@ -132,6 +134,7 @@ const wide = computed(() => layout.value !== 'posters');
    forcement son affiche et son fond quand ils existent. */
 const cards = computed<LiveItem[]>(() => props.items.map((item) => ({
   ...item,
+  who: item.who || [item.person && personName(item.person), item.client && plexClientName(item.client)].filter(Boolean).join(' · '),
   poster: item.poster || item.media?.poster_url || null,
   backdrop: item.backdrop || item.media?.backdrop_url || null,
 })));
