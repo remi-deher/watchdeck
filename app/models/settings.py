@@ -270,6 +270,9 @@ class Settings(Base):
     # bibliotheque absente garde la correspondance proposee automatiquement ; une valeur
     # vide la dissocie (elle n'est alors pas concernee par la pause).
     fileflows_plex_locations: Mapped[Optional[str]] = mapped_column(Text, default=None)
+    # Canaux des alertes FileFlows (traitement en echec), liste JSON parmi email, discord,
+    # telegram, ntfy, gotify. Vide = pas d'alerte. NULL = email et Discord (ancien comportement).
+    fileflows_alert_channels: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
     # --- Sécurité réseau ---
     plex_verify_ssl: Mapped[bool] = mapped_column(default=True)

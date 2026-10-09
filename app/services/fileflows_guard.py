@@ -199,6 +199,35 @@ async def set_runners(url: str, api_key: str | None, runners: int) -> int | None
     return previous
 
 
+# --------------------------------------------------------------------------- planning
+
+# Planning d'un nœud FileFlows : 672 caractères « 1 » (autorisé) / « 0 », jour par jour en
+# commençant le DIMANCHE, 96 quarts d'heure par jour, à l'heure locale du serveur
+# FileFlows (format vérifié expérimentalement : il n'est pas documenté).
+SCHEDULE_PRESETS: dict[str, tuple[int, int] | None] = {
+    "always": None,
+    "night": (0, 8),  # de 0 h à 8 h
+    "not_evening": (0, 18),  # pas de 18 h à minuit
+    "daytime": (8, 18),
+}
+
+
+def schedule_for(preset: str) -> str:
+    hours = SCHEDULE_PRESETS[preset]
+    day = "".join("1" if hours is None or hours[0] <= q // 4 < hours[1] else "0" for q in range(96))
+    return day * 7
+
+
+def preset_of(schedule: str | None) -> str:
+    """Préréglage correspondant au planning, sinon "custom". Vide = toujours."""
+    if not schedule or set(schedule) == {"1"}:
+        return "always"
+    for name in SCHEDULE_PRESETS:
+        if schedule_for(name) == schedule:
+            return name
+    return "custom"
+
+
 # --------------------------------------------------------------------------- passage
 
 
@@ -243,14 +272,20 @@ async def run() -> dict[str, Any]:
         playing = await playing_files(db, settings) if mode != "off" else []
 
     try:
-        libraries = await fileflows_queue._libraries(url, api_key)
+        # Toutes les bibliothèques, activées ou non : un fichier lu dans une bibliothèque
+        # que FileFlows ne traite pas (des séries, par exemple) occupe quand même son disque.
+        all_libraries = [
+            lib
+            for lib in await fileflows._call(url, api_key, "GET", "library") or []
+            if isinstance(lib, dict) and lib.get("Uid")
+        ]
         queue = await fileflows_queue._queue(url, api_key)
         status = await fileflows._call(url, api_key, "GET", "status") or {}
     except fileflows.FileFlowsError as exc:
         return {"status": "error", "error": str(exc)}
     await _record_sample(int(status.get("processed") or 0))
 
-    disk_of_lib = {lib["Uid"]: disk_of(lib.get("Path")) for lib in libraries}
+    disk_of_lib = {lib["Uid"]: disk_of(lib.get("Path")) for lib in all_libraries}
     result: dict[str, Any] = {"status": "ok", "pause_mode": mode}
 
     # Fichiers relancés : vus en file avec un flow déjà associé. On les retient un jour, pour
@@ -263,7 +298,7 @@ async def run() -> dict[str, Any]:
     paused_disks: list[str] = []
     playing_disks: list[str] = []
     if mode != "off":
-        mapping = effective_locations(settings, suggest_locations(libraries, locations))
+        mapping = effective_locations(settings, suggest_locations(all_libraries, locations))
         for path in playing:
             uid = library_for_file(path, mapping)
             if uid and disk_of_lib.get(uid) and disk_of_lib[uid] not in playing_disks:

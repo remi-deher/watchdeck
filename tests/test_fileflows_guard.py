@@ -26,6 +26,33 @@ LIBS = [
 PLEX = [{"path": "/data/usb/MEDIA/FILMS"}, {"path": "/data/usb2/MEDIA/FILMS"}, {"path": "/data/usb2/MEDIA/SERIES"}]
 
 
+@pytest.mark.asyncio
+async def test_guard_pauses_disk_of_a_disabled_library():
+    """Une série lue sur usb2 (bibliothèque Séries désactivée) met quand même usb2 en pause."""
+    db = make_test_session()
+    try:
+        db.add_all(
+            [
+                ArrInstance(name="FF", arr_type="fileflows", url="http://ff", api_key=""),
+                Settings(fileflows_plex_pause="disk"),
+            ]
+        )
+        db.commit()
+        queue = [{"u": "a", "lu": "L2"}, {"u": "b", "lu": "L1"}]
+        _, calls, patches = _guard_env(db, queue, {"processed": 1}, ["/data/usb2/MEDIA/SERIES/S/S01E01.mkv"])
+        for p in patches:
+            p.start()
+        try:
+            result = await fileflows_guard.run()
+        finally:
+            for p in patches:
+                p.stop()
+        assert result["paused_disks"] == ["usb2"]
+        assert next(c for c in calls if c[1] == "library-file/move-to-top")[2]["Uids"] == ["b", "a"]
+    finally:
+        db.close()
+
+
 def test_paths_and_suggestions():
     assert fileflows_guard.disk_of("/usb2/MEDIA/FILMS/x.mkv") == "usb2" and fileflows_guard.disk_of("") == ""
     assert fileflows_guard.suffix_score("/data/usb2/MEDIA/FILMS", "/usb2/MEDIA/FILMS") == 3
@@ -228,7 +255,7 @@ async def test_guard_off_and_all_modes():
         db.query(Settings).first().fileflows_plex_pause_relaunched = "ignore"
         db.commit()
         result = await _run_with(db, ["/anywhere/file.mkv"])
-        assert result["paused_disks"] == ["usb", "usb2"]  # bibliothèques activées seulement
+        assert result["paused_disks"] == ["media", "usb", "usb2"]  # tous les disques connus de FileFlows
     finally:
         db.close()
 
@@ -434,3 +461,45 @@ def test_control_routes_without_fileflows():
         for dep in (require_auth, require_admin, get_db_async):
             app.dependency_overrides.pop(dep, None)
         db.close()
+
+
+def test_schedule_presets():
+    night = fileflows_guard.schedule_for("night")
+    assert len(night) == 672 and night[:32] == "1" * 32 and night[32:96] == "0" * 64
+    assert night[96:128] == "1" * 32  # même plage chaque jour (lundi = 2e bloc après dimanche)
+    assert fileflows_guard.preset_of(night) == "night"
+    assert fileflows_guard.preset_of("") == "always" and fileflows_guard.preset_of("1" * 672) == "always"
+    assert fileflows_guard.preset_of("0" + "1" * 671) == "custom"
+    evening = fileflows_guard.schedule_for("not_evening")
+    assert evening[72:96] == "0" * 24 and evening[71] == "1"
+
+
+def test_control_applies_schedule_preset(client_db):
+    client, _ = client_db
+    posted = []
+
+    async def call(url, key, method, path, **kwargs):
+        if method == "POST":
+            posted.append((path, kwargs.get("json")))
+        return await _control_call(url, key, method, path, **kwargs)
+
+    body = {
+        "runners_mode": "auto",
+        "runners": 1,
+        "plex_pause": "off",
+        "plex_pause_relaunched": "follow",
+        "plex_resume_minutes": 5,
+        "reorder_enabled": False,
+        "alert_channels": ["ntfy"],
+        "schedule_preset": "night",
+    }
+    with (
+        patch.object(fileflows, "_call", new=call),
+        patch.object(fileflows_guard, "last_state", new=AsyncMock(return_value=None)),
+    ):
+        assert client.put("/api/fileflows/control", json=body).json() == {"ok": True}
+        assert client.put("/api/fileflows/control", json={**body, "schedule_preset": "custom"}).json() == {"ok": True}
+        state = client.get("/api/fileflows/control").json()
+    assert [p[0] for p in posted] == ["node"]
+    assert posted[0][1]["Schedule"] == fileflows_guard.schedule_for("night")
+    assert state["alert_channels"] == ["ntfy"] and state["schedule_preset"] == "custom"
