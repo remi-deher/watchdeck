@@ -72,8 +72,9 @@ const routes: RouteRecordRaw[] = [
   { path: '/discover/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
   { path: '/discover/person/:id', component: PersonDetailView, meta: { title: 'Personne' } },
   { path: '/discover', component: DiscoverView, meta: { title: 'Explorer' } },
-  { path: '/downloads', component: DownloadsView, meta: { title: 'Acquisition' } },
-  { path: '/downloads/acquisitions', component: () => import('@/views/AcquisitionsView.vue'), meta: { title: 'Acquisitions & conflits' } },
+  // Les elements manquants sont devenus un onglet des Demandes : les anciens liens y menent.
+  { path: '/downloads', component: DownloadsView, meta: { title: 'Acquisition' }, beforeEnter: (to) => (to.query.view === 'missing' ? { path: '/discover/requests', query: { onglet: 'manquants' } } : true) },
+  { path: '/downloads/acquisitions', redirect: '/downloads' },
   { path: '/downloads/indexers/:instanceId', component: () => import('@/views/IndexerHealthView.vue'), meta: { title: 'Santé des indexeurs' } },
   { path: '/downloads/torrent/:clientId/:hash', component: () => import('@/views/TorrentDetailView.vue'), meta: { title: 'Torrent' } },
   { path: '/activity', component: ActivityView, meta: { title: 'Activité & Insights' } },
@@ -113,7 +114,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/settings/maintenance/:section?', component: SettingsView, meta: { title: 'Maintenance & données' } },
   // « Exploitation » a ete dissoute : les journaux sont dans le Systeme, les acquisitions
   // et conflits dans l'Acquisition. L'ancien chemin circule encore dans les favoris.
-  { path: '/settings/operations/:section?', redirect: '/downloads/acquisitions' },
+  { path: '/settings/operations/:section?', redirect: '/downloads' },
   { path: '/settings/notifications/:section?', component: SettingsView, meta: { title: 'Notifications' } },
   // Les donnees et sauvegardes ont quitte le Systeme pour la Maintenance : l'ancienne
   // adresse nue de cette section renvoie a leur nouvelle place.

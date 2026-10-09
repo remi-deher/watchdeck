@@ -23,7 +23,6 @@ export type SettingsPanel =
   | 'vf-upgrades'
   | 'subtitles'
   | 'scheduled-tasks'
-  | 'acquisitions'
   | 'notifications-channels'
   | 'notifications-rules'
   | 'templates'
@@ -48,7 +47,6 @@ export const PANEL_PATHS: Record<SettingsPanel, string> = {
   'vf-upgrades': '/settings/automation',
   subtitles: '/settings/automation/subtitles',
   'scheduled-tasks': '/settings/automation/scheduled-tasks',
-  acquisitions: '/downloads/acquisitions',
   'notifications-channels': '/settings/notifications/channels',
   'notifications-rules': '/settings/notifications/rules',
   templates: '/settings/notifications/templates',

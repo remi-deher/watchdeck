@@ -65,12 +65,6 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['torrent', 'seed', 'ratio', 'mots interdits', 'taille', 'import bloque', 'rapprochement', 'disponibilite', 'filtres de release', 'telechargements', 'tester une release', 'series', 'episode'],
   },
   {
-    label: 'Acquisitions & conflits',
-    group: 'Acquisition & stockage',
-    path: '/downloads/acquisitions',
-    keywords: ['conflit', 'doublon', 'acquisition', 'lots de series'],
-  },
-  {
     label: 'Stockage et transferts',
     group: 'Acquisition & stockage',
     path: '/storage',

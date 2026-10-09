@@ -40,7 +40,7 @@ function choisir(cle: unknown): void {
 }
 </script>
 <style scoped lang="scss">
-.ui-segmented-list{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-sunken,var(--surface))}
+.ui-segmented-list{display:inline-flex;max-width:100%;overflow-x:auto;scrollbar-width:none;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-sunken,var(--surface))}
 .ui-segmented-item{display:inline-flex;align-items:center;gap:var(--space-2);min-height:32px;padding:0 12px;border:0;border-radius:calc(var(--radius-md) - 3px);background:transparent;color:var(--muted);font:inherit;font-size:var(--fs-sm);font-weight:600;white-space:nowrap;cursor:pointer;transition:background-color var(--motion-duration-instant) var(--motion-ease-standard),color var(--motion-duration-instant) var(--motion-ease-standard)}
 .ui-segmented-item:hover{color:var(--text)}
 .ui-segmented-item[data-state="on"]{background:var(--surface-3);color:var(--text);box-shadow:0 1px 2px rgb(var(--shadow-color) / calc(0.25 * var(--shadow-scale)))}

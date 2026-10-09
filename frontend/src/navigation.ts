@@ -32,12 +32,10 @@ import {
   Library,
   Link2,
   ListOrdered,
-  ListRestart,
   MessageSquareWarning,
   MonitorPlay,
   Music2,
   Network,
-  PackageSearch,
   Plug,
   Radio,
   ScrollText,
@@ -254,17 +252,12 @@ function pipelineSections(): NavSection[] {
   // sections pour une seule liste, qui obligeaient a choisir une porte d'entree avant
   // meme de savoir ce qu'on cherche. Le type est devenu un filtre de la file.
   //
-  // « Elements manquants » sort en revanche de la file : ce n'est pas un etat de
-  // telechargement mais son complement -- ce qui devrait etre la et n'y est pas --,
-  // avec sa propre source et son propre gabarit.
+  // « Elements manquants » vit dans les Demandes (onglet admin) : ce n'est pas un etat
+  // de telechargement mais le complement des demandes -- ce qui devrait etre la.
   return [
     { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge },
     { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered },
-    { key: 'missing', label: 'Éléments manquants', to: { path: '/downloads', query: { view: 'missing' } }, icon: PackageSearch },
     { key: 'clients', label: 'Clients', to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } }, icon: Download },
-    // Le suivi des lots de series et la resolution des conflits sont des taches du
-    // quotidien : ils vivaient caches dans les reglages, sous « Exploitation ».
-    { key: 'acquisitions', label: 'Acquisitions & conflits', to: '/downloads/acquisitions', icon: ListRestart },
   ];
 }
 
@@ -329,7 +322,6 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       sections = [
         { key: 'clients', label: 'Clients', to: '/settings/acquisition', icon: Download },
         { key: 'downloads', label: 'Règles', to: '/settings/acquisition/downloads', icon: SlidersHorizontal },
-        { key: 'acquisitions', label: 'Acquisitions & conflits', to: '/downloads/acquisitions', icon: ListRestart, external: true },
         { key: 'storage', label: 'Stockage et transferts', to: '/storage', icon: DatabaseZap, external: true },
       ];
       break;
