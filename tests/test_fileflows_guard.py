@@ -503,3 +503,43 @@ def test_control_applies_schedule_preset(client_db):
     assert [p[0] for p in posted] == ["node"]
     assert posted[0][1]["Schedule"] == fileflows_guard.schedule_for("night")
     assert state["alert_channels"] == ["ntfy"] and state["schedule_preset"] == "custom"
+
+
+def test_desired_order_defers_busy_disks():
+    rows = [
+        {"u": "r", "lu": "L1", "fu": "f"},
+        {"u": "a1", "lu": "L1"},
+        {"u": "b1", "lu": "L2"},
+        {"u": "a2", "lu": "L1"},
+        {"u": "b2", "lu": "L2"},
+    ]
+    order, _, _ = fileflows_queue.desired_order(rows, {"L1", "L2"}, busy={"L1"})
+    # Le relancé reste en tête ; L1 (disque occupé) passe derrière L2, dans son ordre.
+    assert order == ["r", "b1", "b2", "a1", "a2"]
+
+
+@pytest.mark.asyncio
+async def test_guard_defers_files_of_a_busy_disk():
+    db = make_test_session()
+    try:
+        db.add_all(
+            [
+                ArrInstance(name="FF", arr_type="fileflows", url="http://ff", api_key=""),
+                Settings(fileflows_reorder_enabled=True, fileflows_reorder_libraries='["L1", "L2"]'),
+            ]
+        )
+        db.commit()
+        queue = [{"u": "a1", "lu": "L1"}, {"u": "b1", "lu": "L2"}, {"u": "a2", "lu": "L1"}]
+        status = {"processed": 1, "processingFiles": [{"name": "/usb2/MEDIA/FILMS/X/X.mkv"}]}
+        _, calls, patches = _guard_env(db, queue, status, [])
+        for p in patches:
+            p.start()
+        try:
+            await fileflows_guard.run()
+        finally:
+            for p in patches:
+                p.stop()
+        moved = next(c for c in calls if c[1] == "library-file/move-to-top")[2]["Uids"]
+        assert moved == ["a1", "a2", "b1"]  # usb2 occupé : son fichier attend derrière usb
+    finally:
+        db.close()

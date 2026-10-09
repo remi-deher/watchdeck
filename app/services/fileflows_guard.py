@@ -333,10 +333,18 @@ async def run() -> dict[str, Any]:
 
     # --- Ordre de la file
     paused_libs = {uid for uid, disk in disk_of_lib.items() if disk in paused_disks}
+    # Disques qui traitent déjà un fichier (attente du verrou comprise) : avec l'alternance,
+    # leurs fichiers passent après ceux des disques libres.
+    busy_disks = {disk_of(r.get("name")) for r in status.get("processingFiles") or []}
+    busy_libs = {uid for uid, disk in disk_of_lib.items() if disk in busy_disks} if reorder_on else set()
     if reorder_on or paused_libs:
         relaunched_pass = not paused_libs or settings.fileflows_plex_pause_relaunched == "ignore"
         order, _, _ = fileflows_queue.desired_order(
-            queue, set(chosen) if reorder_on else set(), paused=paused_libs, relaunched_pass=relaunched_pass
+            queue,
+            set(chosen) if reorder_on else set(),
+            paused=paused_libs,
+            relaunched_pass=relaunched_pass,
+            busy=busy_libs,
         )
         if order != [row["u"] for row in queue]:
             try:
