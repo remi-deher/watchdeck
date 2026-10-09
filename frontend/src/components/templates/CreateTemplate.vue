@@ -11,7 +11,7 @@
          4. le recapitulatif, chaque ligne modifiable, avant « Creer » ;
          5. le resultat et ses suites, ou « Creer un autre ».
        Pas de brouillon : fermer en cours de saisie demande confirmation. -->
-  <ModalShell :open="open" :title="`Ajouter ${definition.noun}`" :error="error" :busy="busy" panel-class="create-modal" @close="requestClose">
+  <ModalShell :open="open" :title="mode === 'edit' ? (definition.editTitle || `Modifier ${definition.noun}`) : `Ajouter ${definition.noun}`" :error="error" :busy="busy" panel-class="create-modal" @close="requestClose">
     <ol v-if="showStepper" class="create__steps" aria-label="Étapes">
       <li v-for="(entry, index) in allSteps" :key="entry.key" :class="{ 'is-current': index === stepIndex && !result, 'is-done': index < furthest || result }">
         <button type="button" :disabled="index >= furthest || Boolean(result)" :aria-current="index === stepIndex ? 'step' : undefined" @click="goTo(index)">
@@ -64,11 +64,12 @@
     <template #actions>
       <template v-if="result">
         <UiButton v-for="link in result.links || []" :key="link.label" :to="link.to" @click="close">{{ link.label }}</UiButton>
-        <UiButton variant="primary" @click="restart">Ajouter {{ definition.another }}</UiButton>
+        <UiButton v-if="mode === 'create'" variant="primary" @click="restart">Ajouter {{ definition.another }}</UiButton>
+        <UiButton v-else variant="primary" @click="close">Fermer</UiButton>
       </template>
       <template v-else>
         <UiButton :disabled="stepIndex === 0 || busy" @click="goTo(stepIndex - 1)">Retour</UiButton>
-        <UiButton variant="primary" :loading="busy" @click="next">{{ isLast ? 'Créer' : 'Continuer' }}</UiButton>
+        <UiButton variant="primary" :loading="busy" @click="next">{{ isLast ? (mode === 'edit' ? 'Enregistrer' : 'Créer') : 'Continuer' }}</UiButton>
       </template>
     </template>
   </ModalShell>
@@ -92,7 +93,9 @@ import type { CreateDefinition, CreateField, CreateResult, CreateStep, CreateTes
 
 export type { CreateDefinition, CreateField, CreateResult, CreateStep, CreateTestResult, CreateValues } from './create/types';
 
-const props = defineProps<{ open: boolean; definition: CreateDefinition }>();
+/* `edit` : la meme fenetre et la meme definition pour modifier une ressource existante,
+   ouverte sur ses valeurs actuelles (`values`). */
+const props = withDefaults(defineProps<{ open: boolean; definition: CreateDefinition; mode?: 'create' | 'edit'; values?: CreateValues | null }>(), { mode: 'create', values: null });
 const emit = defineEmits<{ close: []; created: [result: CreateResult, values: CreateValues] }>();
 
 const INPUT_TYPES: Record<string, string> = { text: 'text', url: 'url', email: 'email', number: 'number' };
@@ -109,7 +112,7 @@ const testResult = ref<CreateTestResult | null>(null);
 
 function restart(): void {
   for (const key of Object.keys(values)) delete values[key];
-  Object.assign(values, props.definition.initial());
+  Object.assign(values, props.definition.initial(), props.values || {});
   for (const key of Object.keys(errors)) delete errors[key];
   stepIndex.value = 0;
   furthest.value = 0;
@@ -217,7 +220,7 @@ const summaryRows = computed(() => steps.value.flatMap((entry, index) => visible
 
 /* Pas de brouillon : fermer pendant la saisie demande confirmation. */
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
-const touched = computed(() => JSON.stringify(values) !== JSON.stringify(props.definition.initial()));
+const touched = computed(() => JSON.stringify(values) !== JSON.stringify({ ...props.definition.initial(), ...(props.values || {}) }));
 async function requestClose(): Promise<void> {
   if (!result.value && touched.value) {
     const ok = await askConfirm({ title: 'Abandonner la saisie ?', message: 'Ce qui a été saisi ne sera pas gardé.', confirmLabel: 'Abandonner', danger: true });

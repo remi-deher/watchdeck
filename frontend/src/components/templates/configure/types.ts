@@ -25,9 +25,17 @@ export interface ConfigureResource {
   key: string;
   label: string;
   subtitle?: string;
-  enabled: boolean;
+  /** Absent : pas d'interrupteur (ressource en lecture seule, flow…). */
+  enabled?: boolean;
   /** Etat en une ligne (« Correspondance Plex OK », « Injoignable »…). */
   state?: { tone: ResourceTone; text: string };
   /** Propose « Tester » pour cette ressource. */
   testable?: boolean;
+  /** Faux : pas de « Modifier ». */
+  editable?: boolean;
+  /** Actions propres (« Scanner »…), remontees par `action`. */
+  actions?: Array<{ key: string; label: string; icon?: any; loading?: boolean }>;
+  /** Se deplie sur son detail (emplacement `detail` de ResourceList). */
+  expandable?: boolean;
+  [key: string]: any;
 }

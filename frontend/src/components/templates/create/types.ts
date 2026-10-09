@@ -55,6 +55,8 @@ export interface CreateResult {
 }
 
 export interface CreateDefinition {
+  /** Modification : « Modifier » + `noun` sans article (« la bibliothèque »), « Enregistrer ». */
+  editTitle?: string;
   /** « une instance », « un utilisateur » : titre de la fenetre et du bouton. */
   noun: string;
   /** « une autre instance » : le bouton qui recommence apres creation. */
