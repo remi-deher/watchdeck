@@ -157,3 +157,34 @@ describe('HandleTemplate', () => {
     expect(mount(HandleTemplate, { props: { items: [] }, global }).text()).toContain('Rien à traiter');
   });
 });
+
+describe('ExploreTemplate', () => {
+  const films = [{ id: 1, title: 'Dune' }, { id: 2, title: 'Tenet' }];
+  const item = '<template #item="{ item }"><article class="card">{{ item.title }}</article></template>';
+
+  it('rend chaque élément par la carte de la page, et compte les résultats', async () => {
+    const { default: ExploreTemplate } = await import('./ExploreTemplate.vue');
+    const wrapper = mount(ExploreTemplate, { props: { items: films, total: 37, unit: ['film', 'films'] }, slots: { item }, global });
+    expect(wrapper.findAll('.card').map((n) => n.text())).toEqual(['Dune', 'Tenet']);
+    expect(wrapper.find('.explore__count').text()).toBe('37 films');
+  });
+
+  it('montre les filtres actifs en pastilles retirables, et « Tout effacer »', async () => {
+    const { default: ExploreTemplate } = await import('./ExploreTemplate.vue');
+    let removed = '';
+    const chips = [{ key: 'vf', label: 'Sans VF', onRemove: () => { removed = 'vf'; } }];
+    const wrapper = mount(ExploreTemplate, { props: { items: films, chips, unit: ['film', 'films'] }, slots: { item }, global });
+    expect(wrapper.find('.explore__count').text()).toBe('2 films correspondent');
+    await wrapper.find('.filter-chip').trigger('click');
+    expect(removed).toBe('vf');
+    await wrapper.find('.explore__clear').trigger('click');
+    expect(wrapper.emitted('reset')).toHaveLength(1);
+  });
+
+  it('distingue l’absence de résultat filtré du catalogue vide', async () => {
+    const { default: ExploreTemplate } = await import('./ExploreTemplate.vue');
+    const chips = [{ key: 'vf', label: 'Sans VF', onRemove: () => {} }];
+    expect(mount(ExploreTemplate, { props: { items: [], chips }, global }).text()).toContain('Aucun élément ne correspond aux filtres actifs.');
+    expect(mount(ExploreTemplate, { props: { items: [], emptyTitle: 'Bibliothèque vide' }, global }).text()).toContain('Bibliothèque vide');
+  });
+});

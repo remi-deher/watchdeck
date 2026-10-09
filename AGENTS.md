@@ -31,7 +31,8 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `MonitorTemplate.vue` (+ `monitor/`) | Surveiller : verdict, indicateurs, attention, parties de la section | Disponible |
 | `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause (cartes), file d'attente compacte et repliable, derniers terminés | Disponible |
 | `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
-| Explorer, Comprendre, Configurer, Fiche | — | À créer |
+| `ExploreTemplate.vue` | Explorer : panneau de filtres, pastilles des filtres actifs, compteur, tri, grille / liste, défilement continu | Disponible |
+| Comprendre, Configurer, Fiche | — | À créer |
 
 Une page Surveiller s'écrit `PageTemplate` > `MonitorTemplate`, en ne fournissant que
 ses données (`items`, `kpis`, `zones`, `labels`).
@@ -40,6 +41,10 @@ progression, cause, actions), `recent`, `historyTo`, et réagit à l'événement
 Une page Traiter s'écrit `PageTemplate` > `HandleTemplate` : elle fournit `issues` et
 `items`, réagit à `action`, `bulk` et `selection`, retire l'élément traité de `items` et
 l'annonce par `useToast().undoable`. « Ignorer » est une décision durable côté serveur.
+Une page Explorer s'écrit `PageTemplate` (types en `tabs`, recherche de la barre du haut
+par `v-model:query` et `:hide-search="false"`) > `ExploreTemplate` : elle fournit les
+filtres (emplacement `filters`), les pastilles actives (`chips`), et la carte commune de
+chaque élément (emplacement `item`).
 
 Les gabarits ne sont pas figés : chacun s'adosse à des blocs, qui sont des composants
 communs (`monitor/`, `track/`…). Pour faire évoluer un gabarit, on remplace ou on fait
