@@ -1,17 +1,28 @@
 <template>
   <!-- Galerie des gabarits, en developpement seulement (route absente en production) :
        chaque gabarit rendu avec des donnees realistes, pour en affiner le design. -->
-  <PageTemplate title="Galerie des gabarits" :tabs="TABS" :active-tab="current">
+  <PageTemplate
+    v-model:query="query"
+    title="Galerie des gabarits"
+    :tabs="TABS"
+    :active-tab="current"
+    :search="current === 'explore' ? { placeholder: 'Filtrer les films…', scope: 'Bibliothèque' } : null"
+    :filter-count="chips.length"
+    :filter-chips="chips"
+    :match-count="37"
+    @reset-filters="chips = []"
+  >
+    <template v-if="current === 'explore'" #filters>
+      <FilterGroup label="Version"><UiChipGroup label="Version" :options="[{ value: '', label: 'Toutes' }, { value: 'vf', label: 'VF' }, { value: 'vo', label: 'Sans VF' }]" model-value="vo" /></FilterGroup>
+      <ExploreDisplay v-model:sort="sort" v-model:view="view" :sort-options="SORTS" />
+    </template>
     <MonitorTemplate v-if="current === 'monitor'" :items="monitorItems" :icons="{ queue: ListOrdered, disks: FolderTree }" :kpis="kpis" :zones="zones" :labels="{ okTitle: 'L’encodage tourne', kpisLabel: 'Activité de l’encodage', zonesLabel: 'Parties de l’encodage', checkingTitle: 'Vérification de FileFlows…' }" />
 
     <TrackTemplate v-else-if="current === 'track'" :items="trackItems" :recent="recent" history-to="/dev/gabarits?g=understand" updated="Mis à jour il y a 10 s" :labels="{ items: 'traitements' }" @action="log" />
 
     <HandleTemplate v-else-if="current === 'handle'" :issues="issues" :items="handleItems" :selection-actions="[{ key: 'ignore', label: 'Ignorer' }, { key: 'fix', label: 'Corriger', tone: 'primary' }]" :labels="{ items: 'films' }" @action="log" @bulk="log" @selection="log" />
 
-    <ExploreTemplate v-else-if="current === 'explore'" :hub="chips.length ? null : hub" v-model:filters-open="filtersOpen" v-model:view="view" v-model:sort="sort" :items="films" :total="37" :unit="['film', 'films']" :chips="chips" :sort-options="SORTS" @reset="chips = []">
-      <template #filters>
-        <FilterGroup label="Version"><UiChipGroup label="Version" :options="[{ value: '', label: 'Toutes' }, { value: 'vf', label: 'VF' }, { value: 'vo', label: 'Sans VF' }]" model-value="vo" /></FilterGroup>
-      </template>
+    <ExploreTemplate v-else-if="current === 'explore'" :hub="chips.length ? null : hub" :view="view" :items="films" :total="37" :unit="['film', 'films']" :chips="chips" @reset="chips = []">
       <template #item="{ item, view: shown }"><LibraryCard :item="item" :view="shown" /></template>
     </ExploreTemplate>
 
@@ -51,6 +62,7 @@ import MonitorTemplate, { type MonitorAttentionItem, type MonitorKpi, type Monit
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import HandleTemplate, { type HandleIssue, type HandleItem } from '@/components/templates/HandleTemplate.vue';
 import ExploreTemplate from '@/components/templates/ExploreTemplate.vue';
+import ExploreDisplay from '@/components/templates/explore/ExploreDisplay.vue';
 import UnderstandTemplate, { type UnderstandDetail, type UnderstandEvent } from '@/components/templates/UnderstandTemplate.vue';
 import ConfigureTemplate, { type ConfigureResource } from '@/components/templates/ConfigureTemplate.vue';
 import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
@@ -107,9 +119,9 @@ const handleItems: HandleItem[] = [
 ];
 
 /* Explorer */
-const filtersOpen = ref(false);
+const query = ref('');
 const view = ref<'grid' | 'list'>('grid');
-const sort = ref<unknown>('recent');
+const sort = ref('recent');
 const SORTS = [{ value: 'recent', label: 'Ajout récent' }, { value: 'title', label: 'Titre' }];
 const chips = ref([{ key: 'vo', label: 'Sans VF', onRemove: () => { chips.value = chips.value.filter((c) => c.key !== 'vo'); } }, { key: '4k', label: '4K', onRemove: () => { chips.value = chips.value.filter((c) => c.key !== '4k'); } }]);
 const hubItems = () => ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien', 'Arrival', 'Sicario'].map((title, i) => ({ id: i, title, year: 2023 - i, media_type: 'movie', poster_url: POSTER, backdrop_url: BACKDROP, overview: 'Un film de la bibliothèque.', status: 'available' }));

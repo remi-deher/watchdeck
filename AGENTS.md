@@ -27,7 +27,7 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 
 | Fichier | Rôle | État |
 |---|---|---|
-| `PageTemplate.vue` | Socle : page du shell, rangée d'onglets unique, états chargement / erreur / non configuré / vide | Disponible |
+| `PageTemplate.vue` | Socle : page du shell, rangée d'onglets unique, recherche et filtres (barre du haut `UiSearchField` + bouton Filtres + feuille `FilterSidebar`), états chargement / erreur / non configuré / vide | Disponible |
 | `MonitorTemplate.vue` (+ `monitor/`) | Surveiller : verdict, indicateurs, attention, parties de la section | Disponible |
 | `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause (cartes), file d'attente compacte et repliable, derniers terminés | Disponible |
 | `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
@@ -43,10 +43,16 @@ progression, cause, actions), `recent`, `historyTo`, et réagit à l'événement
 Une page Traiter s'écrit `PageTemplate` > `HandleTemplate` : elle fournit `issues` et
 `items`, réagit à `action`, `bulk` et `selection`, retire l'élément traité de `items` et
 l'annonce par `useToast().undoable`. « Ignorer » est une décision durable côté serveur.
-Une page Explorer s'écrit `PageTemplate` (types en `tabs`, recherche de la barre du haut
-par `v-model:query` et `:hide-search="false"`) > `ExploreTemplate` : elle fournit les
-filtres (emplacement `filters`), les pastilles actives (`chips`), et la carte commune de
-chaque élément (emplacement `item`).
+Recherche et filtres passent toujours par le socle, avec les mêmes interactions sur
+toutes les pages : `search` (placeholder, nature, périmètre) et `v-model:query`, les
+groupes de filtres dans l'emplacement `filters`, `filter-count`, `filter-chips`,
+`@reset-filters`. Jamais de `FilterSidebar`, de bouton Filtres ni de champ de recherche
+posés par une page ou un gabarit.
+
+Une page Explorer s'écrit `PageTemplate` (types en `tabs`, `search`, filtres, et le bloc
+`ExploreDisplay` pour le tri et l'affichage dans la feuille) > `ExploreTemplate` : elle
+fournit les pastilles actives (`chips`), un `hub` sans filtre ni recherche (hero,
+rangées), et la carte commune de chaque élément (emplacement `item`).
 Une page Comprendre s'écrit `PageTemplate` > `UnderstandTemplate` : elle fournit
 `events`, charge le `detail` de l'événement ouvert (`open`), et éventuellement `summary`.
 Aucune action dans la liste ; au plus une dans le détail.

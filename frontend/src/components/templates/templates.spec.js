@@ -168,12 +168,12 @@ describe('ExploreTemplate', () => {
     expect(wrapper.find('.explore__count').text()).toBe('37 films');
   });
 
-  it('montre les filtres actifs en pastilles retirables, et « Tout effacer »', async () => {
+  it('montre les filtres actifs en pastilles retirables, et « Tout effacer » à partir de deux', async () => {
     let removed = '';
-    const chips = [{ key: 'vf', label: 'Sans VF', onRemove: () => { removed = 'vf'; } }];
+    const chips = [{ key: 'vf', label: 'Sans VF', onRemove: () => { removed = 'vf'; } }, { key: '4k', label: '4K', onRemove: () => {} }];
     const wrapper = mount(ExploreTemplate, { props: { items: films, chips, unit: ['film', 'films'] }, slots: { item }, global });
     expect(wrapper.find('.explore__count').text()).toBe('2 films correspondent');
-    await wrapper.find('.filter-chip').trigger('click');
+    await wrapper.findAll('.filter-chip')[0].trigger('click');
     expect(removed).toBe('vf');
     await wrapper.find('.explore__clear').trigger('click');
     expect(wrapper.emitted('reset')).toHaveLength(1);
@@ -323,5 +323,22 @@ describe('UiTabs', () => {
     await tabs[1].trigger('mousedown', { button: 0 });
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['files']);
     wrapper.unmount();
+  });
+});
+
+describe('PageTemplate · recherche et filtres', () => {
+  it('branche la feuille des filtres commune quand la page fournit des filtres', () => {
+    const wrapper = mount(PageTemplate, {
+      props: { title: 'Bibliothèque', search: { placeholder: 'Filtrer…' }, filterCount: 2 },
+      slots: { filters: '<p class="group">Version</p>', default: '<p>Contenu</p>' },
+      global,
+    });
+    expect(wrapper.findComponent({ name: 'FilterSidebar' }).exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'FilterSidebar' }).props('activeCount')).toBe(2);
+  });
+
+  it('sans filtres ni recherche, garde la recherche globale', () => {
+    const wrapper = mount(PageTemplate, { props: { title: 'Encodage' }, slots: { default: '<p>Contenu</p>' }, global });
+    expect(wrapper.findComponent({ name: 'FilterSidebar' }).exists()).toBe(false);
   });
 });
