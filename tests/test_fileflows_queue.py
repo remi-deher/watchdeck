@@ -120,6 +120,17 @@ LIBRARIES = [
 
 
 @pytest.mark.asyncio
+def test_desired_order_defers_relaunched_file_of_a_busy_disk():
+    rows = [
+        {"u": "r-busy", "lu": "B", "fu": "flow"},
+        {"u": "r-free", "lu": "A", "fu": "flow"},
+        {"u": "a1", "lu": "A"},
+        {"u": "b1", "lu": "B"},
+    ]
+    order, _, _ = fileflows_queue.desired_order(rows, set(), busy={"B"})
+    assert order == ["r-free", "a1", "r-busy", "b1"]
+
+
 async def test_reorder_moves_only_when_needed():
     queue = [{"u": "a1", "lu": "A"}, {"u": "a2", "lu": "A"}, {"u": "b1", "lu": "B"}]
     moved: list = []
