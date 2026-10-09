@@ -62,3 +62,39 @@ describe('PageTemplate', () => {
     expect(wrapper.find('.content').exists()).toBe(true);
   });
 });
+
+describe('TrackTemplate', () => {
+  const tracked = (key, state, extra = {}) => ({ key, state, title: `Fichier ${key}`, ...extra });
+
+  it('groupe par état dans un ordre fixe : bloqués d’abord, attente en dernier', async () => {
+    const { default: TrackTemplate } = await import('./TrackTemplate.vue');
+    const wrapper = mount(TrackTemplate, {
+      props: { items: [tracked('w', 'waiting'), tracked('r', 'running', { progress: 42 }), tracked('b', 'blocked', { cause: { headline: 'Import refusé' } })] },
+      global,
+    });
+    const heads = wrapper.findAll('.track__group h2').map((node) => node.text());
+    expect(heads).toEqual(['Demande une intervention', 'En cours', 'En attente']);
+    expect(wrapper.find('.track__group.is-blocked').text()).toContain('Import refusé');
+    expect(wrapper.find('.track__group.is-running').text()).toContain('42 %');
+  });
+
+  it('remonte l’action choisie avec son élément', async () => {
+    const { default: TrackTemplate } = await import('./TrackTemplate.vue');
+    const item = tracked('b', 'blocked', { actions: [{ key: 'retry', label: 'Relancer', tone: 'primary' }] });
+    const wrapper = mount(TrackTemplate, { props: { items: [item] }, global });
+    await wrapper.find('.track-card__actions button').trigger('click');
+    expect(wrapper.emitted('action')[0]).toEqual([item, 'retry']);
+  });
+
+  it('dit que rien ne tourne, et garde les derniers terminés', async () => {
+    const { default: TrackTemplate } = await import('./TrackTemplate.vue');
+    const wrapper = mount(TrackTemplate, {
+      props: { items: [], recent: [{ key: 'd', title: 'Dune', detail: 'il y a 5 min' }], historyTo: '/encoding/history', labels: { items: 'traitements' } },
+      global,
+    });
+    expect(wrapper.text()).toContain('Rien ne tourne');
+    expect(wrapper.text()).toContain('Aucun traitement en cours ni en attente.');
+    expect(wrapper.find('.track__recent').text()).toContain('Dune');
+    expect(wrapper.find('.track__history').attributes('href')).toBe('/encoding/history');
+  });
+});

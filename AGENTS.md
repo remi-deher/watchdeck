@@ -29,10 +29,13 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 |---|---|---|
 | `PageTemplate.vue` | Socle : page du shell, rangée d'onglets unique, états chargement / erreur / non configuré / vide | Disponible |
 | `MonitorTemplate.vue` (+ `monitor/`) | Surveiller : verdict, indicateurs, attention, parties de la section | Disponible |
-| Traiter, Suivre, Explorer, Comprendre, Configurer, Fiche | — | À créer |
+| `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause / en attente, derniers terminés | Disponible |
+| Traiter, Explorer, Comprendre, Configurer, Fiche | — | À créer |
 
 Une page Surveiller s'écrit `PageTemplate` > `MonitorTemplate`, en ne fournissant que
 ses données (`items`, `kpis`, `zones`, `labels`).
+Une page Suivre s'écrit `PageTemplate` > `TrackTemplate` : elle fournit `items` (état,
+progression, cause, actions), `recent`, `historyTo`, et réagit à l'événement `action`.
 
 ## 2. Pas de dérive : on suit le gabarit
 
