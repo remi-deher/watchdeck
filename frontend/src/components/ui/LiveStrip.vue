@@ -15,7 +15,7 @@
         <p v-if="summary" class="live-strip-summary">{{ summary }}</p>
         <RouterLink v-if="link" :to="link.to" class="panel-link">{{ link.label }}</RouterLink>
       </header>
-      <div class="live-strip-list" :class="`is-${layout}`" :style="{ '--live-count': items.length }">
+      <div class="live-strip-list" :class="[`is-${layout}`, { 'is-plain': plain }]" :style="{ '--live-count': items.length }">
         <button
           v-for="(item, index) in items"
           :key="item.key"
@@ -88,7 +88,6 @@
 
 <script setup lang="ts">
 import { computed, reactive, useId } from 'vue';
-import { RouterLink } from 'vue-router';
 import { Activity, Pause } from '@lucide/vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import UiAvatar from './UiAvatar.vue';
@@ -127,6 +126,9 @@ const layout = computed<'banner' | 'fanart' | 'posters'>(() => {
   return total <= 5 ? 'fanart' : 'posters';
 });
 const wide = computed(() => layout.value !== 'posters');
+/* Sans aucune image (un fichier sans fiche media), une grande banniere ne montrerait
+   qu'un fond vide : elle se reduit a une bande. */
+const plain = computed(() => props.items.every((item) => !item.backdrop && !item.poster));
 /* Un logo introuvable rend la main au titre ecrit. */
 const brokenLogos = reactive(new Set<string>());
 </script>
@@ -179,6 +181,8 @@ const brokenLogos = reactive(new Set<string>());
 
 .is-fanart .live-poster { aspect-ratio: 16 / 9; }
 .is-banner .live-poster { aspect-ratio: auto; height: clamp(220px, 22vw, 340px); }
+.is-plain .live-poster, .is-plain.is-banner .live-poster { aspect-ratio: auto; height: 132px; }
+.is-plain .live-poster-icon { justify-items: end; padding-right: var(--space-5); }
 .live-backdrop { position: absolute; inset: 0; overflow: hidden; }
 .live-backdrop :deep(.media-artwork) { position: absolute; inset: 0; }
 .live-backdrop-blur { position: absolute; inset: -24px; background-position: center; background-size: cover; filter: blur(22px) saturate(1.2); opacity: .7; }

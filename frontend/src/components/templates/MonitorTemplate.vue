@@ -26,6 +26,9 @@
       :ok-title="labels.okTitle"
       :ok-detail="labels.okDetail"
     />
+    <!-- Ce qui tourne maintenant (LiveStrip) : facultatif, une page sans en-cours n'en
+         fournit pas. -->
+    <div v-if="$slots.live" class="monitor__live"><slot name="live" /></div>
     <MonitorKpis v-if="kpis.length" class="monitor__kpis" :kpis="kpis" :label="labels.kpisLabel" />
     <MonitorAttention
       class="monitor__attention"
@@ -77,15 +80,16 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
 .monitor {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'verdict' 'kpis' 'attention' 'zones';
+  grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'zones';
   gap: var(--space-5) var(--space-4);
   min-width: 0;
 }
 .monitor.has-details {
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  grid-template-areas: 'verdict verdict' 'kpis kpis' 'attention details' 'zones zones';
+  grid-template-areas: 'verdict verdict' 'live live' 'kpis kpis' 'attention details' 'zones zones';
 }
 .monitor__verdict { grid-area: verdict; }
+.monitor__live { grid-area: live; min-width: 0; }
 .monitor__kpis { grid-area: kpis; }
 .monitor__attention { grid-area: attention; }
 .monitor__details { grid-area: details; display: grid; align-content: start; gap: var(--space-4); min-width: 0; }
@@ -94,7 +98,7 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
 @include bp.until(desktop) {
   .monitor.has-details {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'verdict' 'kpis' 'attention' 'details' 'zones';
+    grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'details' 'zones';
   }
 }
 
@@ -102,7 +106,7 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
   .monitor,
   .monitor.has-details {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'verdict' 'attention' 'zones' 'kpis' 'details';
+    grid-template-areas: 'verdict' 'attention' 'live' 'zones' 'kpis' 'details';
     gap: var(--space-4);
   }
 }

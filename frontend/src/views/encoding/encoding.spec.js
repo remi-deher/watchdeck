@@ -88,9 +88,10 @@ describe('Encodage sur les gabarits', { timeout: 20_000 }, () => {
 
   it('la file suit : échec bloqué, runner en cours, attente dans l’ordre', async () => {
     const wrapper = await mountAt('/encoding/queue', EncodingQueueView);
-    expect(wrapper.findAll('.track__group h2').map((n) => n.text())).toEqual(['Demande une intervention', 'En cours', 'En attente']);
+    expect(wrapper.findAll('.track__group h2').map((n) => n.text())).toEqual(['Demande une intervention', '1 en cours', 'En attente']);
     expect(wrapper.find('.track__group.is-blocked').text()).toContain('Durée audio différente');
-    expect(wrapper.find('.track__group.is-running').text()).toContain('88 %');
+    expect(wrapper.find('.track__group.is-running').text()).toContain('4. Assemblage');
+    expect(wrapper.find('.track__group.is-running .live-card-track i').attributes('style')).toContain('width: 88%');
     expect(wrapper.find('.track-queue').text()).toContain('relancé à la main');
   });
 

@@ -15,7 +15,19 @@
 
     <p v-if="loading && !items.length" class="track__loading">Chargement des {{ text.items }}…</p>
     <template v-else-if="visibleGroups.length">
-      <section v-for="group in visibleGroups" :key="group.state" class="track__group" :class="`is-${group.state}`" :aria-labelledby="`track-${group.state}`">
+      <template v-for="group in visibleGroups" :key="group.state">
+      <!-- Ce qui tourne : le bandeau commun (LiveStrip), image, etape et progression ; un
+           clic ouvre la fiche de l'element. -->
+      <LiveStrip
+        v-if="group.state === 'running'"
+        class="track__group is-running"
+        :items="group.items.map(toLive)"
+        :title="`${group.items.length} en cours`"
+        live-label="En cours"
+        :idle="{ title: 'Rien en cours' }"
+        @select="(live) => live.to && router.push(live.to)"
+      />
+      <section v-else class="track__group" :class="`is-${group.state}`" :aria-labelledby="`track-${group.state}`">
         <header class="track__group-head">
           <component :is="GROUPS[group.state].icon" aria-hidden="true" />
           <h2 :id="`track-${group.state}`">{{ GROUPS[group.state].title }}</h2>
@@ -29,6 +41,7 @@
           </li>
         </ol>
       </section>
+      </template>
     </template>
     <UiEmptyState v-else :icon="CheckCircle2" :title="text.empty" :message="text.emptyDetail" />
 
@@ -51,7 +64,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
+import LiveStrip, { type LiveItem } from '@/components/ui/LiveStrip.vue';
 import { AlertTriangle, CheckCircle2, Clock, History, Loader, PauseCircle, XCircle } from '@lucide/vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
@@ -96,6 +110,25 @@ const text = computed(() => {
     history: props.labels.history || 'Voir l’historique',
   };
 });
+
+const router = useRouter();
+/* Un element en cours, en carte du bandeau commun : l'etape en badge, le temps restant
+   sous le titre, l'identification dessous, les etiquettes en faits. */
+function toLive(item: TrackItem): LiveItem {
+  return {
+    key: item.key,
+    title: item.title,
+    status: item.eta || '',
+    progress: item.progress ?? null,
+    poster: item.poster || null,
+    icon: item.icon,
+    badge: item.step ? { label: item.step, tone: 'accent' } : null,
+    who: item.subtitle || '',
+    facts: (item.tags || []).map((tag) => ({ key: tag, label: tag })),
+    note: item.note || '',
+    to: item.to || null,
+  };
+}
 
 const filter = ref<'all' | TrackState>('all');
 const groups = computed(() =>
