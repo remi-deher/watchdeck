@@ -8,7 +8,7 @@
 
     <HandleTemplate v-else-if="current === 'handle'" :issues="issues" :items="handleItems" :selection-actions="[{ key: 'ignore', label: 'Ignorer' }, { key: 'fix', label: 'Corriger', tone: 'primary' }]" :labels="{ items: 'films' }" @action="log" @bulk="log" @selection="log" />
 
-    <ExploreTemplate v-else-if="current === 'explore'" v-model:filters-open="filtersOpen" v-model:view="view" v-model:sort="sort" :items="films" :total="37" :unit="['film', 'films']" :chips="chips" :sort-options="SORTS" @reset="chips = []">
+    <ExploreTemplate v-else-if="current === 'explore'" :hub="chips.length ? null : hub" v-model:filters-open="filtersOpen" v-model:view="view" v-model:sort="sort" :items="films" :total="37" :unit="['film', 'films']" :chips="chips" :sort-options="SORTS" @reset="chips = []">
       <template #filters>
         <FilterGroup label="Version"><UiChipGroup label="Version" :options="[{ value: '', label: 'Toutes' }, { value: 'vf', label: 'VF' }, { value: 'vo', label: 'Sans VF' }]" model-value="vo" /></FilterGroup>
       </template>
@@ -30,8 +30,8 @@
       </template>
     </ConfigureTemplate>
 
-    <DetailTemplate v-else-if="current === 'detail'" v-model:tab="detailTab" title="Anaconda" :meta="['1997', 'Film', '1 h 29']" :badges="badges" :actions="detailActions" :alert="{ tone: 'danger', message: 'Le dernier encodage a échoué : durée audio différente de la source.', link: { label: 'Voir l’encodage', tab: 'encoding' } }" :tabs="DETAIL_TABS" :facts="facts" @action="log">
-      <template #tab-summary><p>Une équipe de documentaire en Amazonie croise un chasseur obsédé par un serpent géant.</p></template>
+    <DetailTemplate v-else-if="current === 'detail'" v-model:tab="detailTab" title="Anaconda" eyebrow="Film" :poster="POSTER" :backdrop="BACKDROP" summary="Une équipe de documentaire en Amazonie croise un chasseur obsédé par un serpent géant, qui détourne l’expédition pour le capturer vivant." :meta="['1997', 'Film', '1 h 29']" :badges="badges" :actions="detailActions" :alert="{ tone: 'danger', message: 'Le dernier encodage a échoué : durée audio différente de la source.', link: { label: 'Voir l’encodage', tab: 'encoding' } }" :tabs="DETAIL_TABS" :facts="facts" @action="log">
+      <template #tab-summary><p>Distribution : Jennifer Lopez, Ice Cube, Jon Voight.</p></template>
       <template #tab-files><p>Vidéo H.264 1080p · Audio Français AC3 5.1 (défaut), Anglais DTS 5.1 · Sous-titres français forcés.</p></template>
       <template #tab-encoding><p>Échec aujourd’hui à 04:12 · Assemblage et contrôles.</p></template>
     </DetailTemplate>
@@ -66,6 +66,7 @@ const current = computed(() => (KEYS as readonly string[]).includes(String(route
 const log = (...args: unknown[]) => console.info('[galerie]', ...args);
 
 const POSTER = 'https://image.tmdb.org/t/p/w300/ehIzBOg7wtHKgtWnSoNHRDuh0GJ.jpg';
+const BACKDROP = 'https://image.tmdb.org/t/p/w1280/9MdDpjeLzGT4xaYiTRmgyzDTmSB.jpg';
 
 /* Surveiller */
 const monitorItems: MonitorAttentionItem[] = [
@@ -111,6 +112,8 @@ const view = ref<'grid' | 'list'>('grid');
 const sort = ref<unknown>('recent');
 const SORTS = [{ value: 'recent', label: 'Ajout récent' }, { value: 'title', label: 'Titre' }];
 const chips = ref([{ key: 'vo', label: 'Sans VF', onRemove: () => { chips.value = chips.value.filter((c) => c.key !== 'vo'); } }, { key: '4k', label: '4K', onRemove: () => { chips.value = chips.value.filter((c) => c.key !== '4k'); } }]);
+const hubItems = () => ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien', 'Arrival', 'Sicario'].map((title, i) => ({ id: i, title, year: 2023 - i, media_type: 'movie', poster_url: POSTER, backdrop_url: BACKDROP, overview: 'Un film de la bibliothèque.', status: 'available' }));
+const hub = { hero: hubItems().slice(0, 5), rows: [{ key: 'recent', title: 'Derniers ajouts', items: hubItems() }, { key: 'requests', title: 'Dernières demandes', items: hubItems().reverse() }, { key: 'scifi', title: 'Science-fiction', items: hubItems() }] };
 const films = ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien'].map((title, i) => ({ id: i, title, year: 2023 - i * 3, media_type: 'movie', poster_url: POSTER, status: 'available', _kind: 'library' }));
 
 /* Comprendre */

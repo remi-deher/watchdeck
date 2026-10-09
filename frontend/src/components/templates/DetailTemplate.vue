@@ -1,6 +1,7 @@
 <template>
   <!-- Gabarit « Fiche » : repond a « tout sur cet element ».
-         1. l'en-tete : affiche ou icone, titre, informations cles, etat en badges, et les
+         1. l'en-tete (SheetHero, celui de la fiche media) : banniere, affiche ou icone,
+            type, titre, informations cles, etat en badges, resume (SheetSummary), et les
             actions -- la principale en avant, deux secondaires au plus, le reste dans « … » ;
          2. une seule alerte d'etat, la plus importante, avec le lien qui la traite ;
          3. les onglets de detail (UiTabs, « consulter ») : la seule rangee de la fiche (emplacements
@@ -8,17 +9,24 @@
          4. les faits, en panneau lateral sur grand ecran, sous les onglets sur telephone.
        Les actions vivent dans l'en-tete, jamais dans un onglet. -->
   <article class="detail">
-    <header class="detail__hero">
-      <div class="detail__cover">
-        <img v-if="poster && !posterFailed" :src="proxyUrl(poster, { width: 300 })" alt="" @error="posterFailed = true" />
-        <component :is="icon || FileQuestion" v-else aria-hidden="true" />
-      </div>
+    <!-- L'en-tete commun des fiches (SheetHero), celui de la fiche media : banniere qui ne
+         porte que l'image, affiche qui en chevauche le bas, texte dessous. -->
+    <SheetHero :image-url="backdrop || null" :variant="variant" stack-on-mobile class="detail__hero">
+      <template v-if="$slots.overlay" #overlay><slot name="overlay" /></template>
+      <template #poster>
+        <div class="detail__cover">
+          <img v-if="poster && !posterFailed" :src="proxyUrl(poster, { width: 500 })" alt="" @error="posterFailed = true" />
+          <component :is="icon || FileQuestion" v-else aria-hidden="true" />
+        </div>
+      </template>
       <div class="detail__identity">
+        <span v-if="eyebrow" class="eyebrow">{{ eyebrow }}</span>
         <h1 class="detail__title">{{ title }}</h1>
         <p v-if="meta.length" class="detail__meta">{{ meta.join(' · ') }}</p>
         <ul v-if="badges.length" class="detail__badges" aria-label="État">
           <li v-for="badge in badges" :key="badge.key" :class="`is-${badge.tone}`">{{ badge.label }}</li>
         </ul>
+        <SheetSummary v-if="summary" :text="summary" :lines="4" />
         <div v-if="actions.length" class="detail__actions">
           <UiButton
             v-for="(action, index) in shownActions"
@@ -32,13 +40,13 @@
           >
             <template v-if="action.icon" #icon><component :is="action.icon" /></template>{{ action.label }}
           </UiButton>
-          <UiMenu v-if="menuActions.length" align="end">
+          <UiMenu v-if="menuActions.length" align="end" label="Actions">
             <template #trigger><UiButton size="sm" icon-only aria-label="Plus d’actions" title="Plus d’actions"><MoreHorizontal /></UiButton></template>
             <UiMenuItem v-for="action in menuActions" :key="action.key" :variant="action.danger ? 'danger' : 'default'" :disabled="action.disabled" @select="emit('action', action.key)">{{ action.label }}</UiMenuItem>
           </UiMenu>
         </div>
       </div>
-    </header>
+    </SheetHero>
 
     <div v-if="alert" class="detail__alert" :class="`is-${alert.tone}`" role="status">
       <AlertTriangle aria-hidden="true" />
@@ -67,6 +75,8 @@ import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { AlertTriangle, FileQuestion, MoreHorizontal } from '@lucide/vue';
 import { proxyUrl } from '@/utils/mediaImage';
+import SheetHero from '@/components/ui/SheetHero.vue';
+import SheetSummary from '@/components/ui/SheetSummary.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiMenu from '@/components/ui/UiMenu.vue';
 import UiMenuItem from '@/components/ui/UiMenuItem.vue';
@@ -79,6 +89,14 @@ const props = withDefaults(
   defineProps<{
     title: string;
     poster?: string | null;
+    /** Image de la banniere (fond de film, pochette…). */
+    backdrop?: string | null;
+    /** Type de l'element, au-dessus du titre (« Film », « Utilisateur »…). */
+    eyebrow?: string;
+    /** Resume, replie a quelques lignes. */
+    summary?: string;
+    /** `sheet` dans la feuille de l'overlay, `card` en page. */
+    variant?: 'card' | 'sheet';
     icon?: any;
     /** Informations cles : annee, type, duree… */
     meta?: string[];
@@ -90,7 +108,7 @@ const props = withDefaults(
     tab?: string;
     facts?: DetailFact[];
   }>(),
-  { poster: null, icon: null, meta: () => [], badges: () => [], actions: () => [], alert: null, tabs: () => [], tab: '', facts: () => [] },
+  { poster: null, backdrop: null, eyebrow: '', summary: '', variant: 'sheet', icon: null, meta: () => [], badges: () => [], actions: () => [], alert: null, tabs: () => [], tab: '', facts: () => [] },
 );
 const emit = defineEmits<{ action: [key: string]; 'update:tab': [key: string] }>();
 
@@ -104,8 +122,8 @@ const activeTab = computed(() => props.tab || props.tabs[0]?.key || 'main');
 @use '@/styles/foundations/breakpoints' as bp;
 
 .detail { display: grid; gap: var(--space-4); min-width: 0; }
-.detail__hero { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-4); }
-.detail__cover { display: grid; place-items: center; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-md); background: var(--surface-2); color: var(--muted); }
+/* Meme affiche que la fiche media (.mdh-poster) : 180px, ombree, chevauchant la banniere. */
+.detail__cover { display: grid; place-items: center; width: 180px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-md); background: var(--surface-2); color: var(--muted); box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
 .detail__cover img { width: 100%; height: 100%; object-fit: cover; }
 .detail__cover svg { width: 32px; height: 32px; }
 .detail__identity { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
@@ -133,8 +151,8 @@ const activeTab = computed(() => props.tab || props.tabs[0]?.key || 'main');
 .detail__facts dt { color: var(--muted); }
 .detail__facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 
-@include bp.until(phablet) {
-  .detail__hero { grid-template-columns: 84px minmax(0, 1fr); }
+@include bp.until(tablet) {
+  .detail__cover { width: 140px; }
 }
 @include bp.until(desktop) {
   .detail__body.has-facts { grid-template-columns: minmax(0, 1fr); }
