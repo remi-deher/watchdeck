@@ -76,9 +76,16 @@ for (const [path, selector, name] of PAGES) {
     await mockApi(page);
     await page.goto(path);
     await expect(page.locator(selector).first()).toBeVisible({ timeout: 15_000 });
-    // Une seule rangee d'onglets propres a la page. Sur tablette, le shell y ajoute les
-    // sections du menu (rail replie), comme pour la Bibliotheque : elles ne comptent pas.
-    expect(await page.locator('.app-page__sticky [aria-label="Vues de l’encodage"]').count()).toBeLessThanOrEqual(1);
+    // Une seule rangee de navigation : les sections, dont la courante porte ses vues en
+    // menu ; plus de rangee d'onglets a part, sur aucun ecran.
+    expect(await page.locator('.app-page__sticky .app-subnav').count()).toBe(1);
+    if (path !== "/encoding") {
+      const current = page.locator('.app-page__sticky .app-subnav__item--parent');
+      await expect(current).toBeVisible();
+      await current.click();
+      await expect(page.locator('.app-subnav__menu [role="menuitem"]')).toHaveCount(3);
+      await page.keyboard.press('Escape');
+    }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(overflow, "débordement horizontal").toBe(false);
     if (process.env.ENCODING_SHOTS) await page.screenshot({ path: `${process.env.ENCODING_SHOTS}/${testInfo.project.name}-${name}.png`, fullPage: true });

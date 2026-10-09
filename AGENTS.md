@@ -113,6 +113,12 @@ la liste qu'il filtre, et une bascule qui cadre toute la page (période, vue) pa
 les outils de page. Pas de filtre qui répète ce que la page montre déjà (Suivre n'a pas
 de filtre d'état : ses groupes portent titre et nombre).
 
+Navigation d'une page sur gabarit : une seule rangée, la même sur tous les écrans, celle
+des sections de l'entrée du menu. Les vues de la section courante (`tabs` de
+`PageTemplate`) ne forment plus une rangée à part : elles s'ouvrent en menu depuis la
+section courante (« Traitements · File ▾ ») ; toucher une autre section mène à sa
+première vue. Sans sections, les vues gardent leur rangée d'onglets.
+
 Blocs communs hors gabarit : `MiniCalendar` (dates d'un élément en liste, par mois,
 couleur et icône par type : cinéma, streaming, physique, épisode), à utiliser dans une
 fiche plutôt qu'un calendrier.

@@ -28,6 +28,9 @@
     retry
     @update:query="emit('update:query', $event)"
     @toggle-filters="filtersOpen = !filtersOpen"
+    sections-everywhere
+    :subsections="tabs"
+    :active-subsection="activeTab"
     @retry="emit('retry')"
   >
     <!-- La seule rangee d'onglets de la page : une page n'en ajoute pas d'autre. -->

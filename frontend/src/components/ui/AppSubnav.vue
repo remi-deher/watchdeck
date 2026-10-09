@@ -20,11 +20,28 @@
         <template v-for="(item, index) in items" :key="item.key">
           <li v-if="separe(index)" class="app-subnav__separator" role="none" aria-hidden="true" />
           <NavigationMenuItem :value="item.key" class="app-subnav__entry">
+            <!-- Section courante qui a des sous-sections : la retoucher ouvre leur menu.
+                 L'entree dit ou l'on est (« Traitements · File »). -->
+            <UiMenu v-if="item.children?.length && item.key === active" align="center" content-class="app-subnav__menu">
+              <template #trigger>
+                <button :ref="(el) => setItemRef(el as any, index)" type="button" class="app-subnav__item app-subnav__item--parent" aria-current="page">
+                  <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
+                  <span>{{ item.label }}</span>
+                  <small v-if="activeChild(item)" class="app-subnav__child">· {{ activeChild(item)!.label }}</small>
+                  <ChevronDown class="app-subnav__chevron" aria-hidden="true" />
+                </button>
+              </template>
+              <UiMenuItem v-for="child in item.children" :key="child.key" :class="{ 'is-current': child.key === item.activeChild }" @select="router.push(child.to!)">
+                <component :is="child.icon" v-if="child.icon" aria-hidden="true" />
+                <span>{{ child.label }}</span>
+                <Check v-if="child.key === item.activeChild" class="app-subnav__check" aria-hidden="true" />
+              </UiMenuItem>
+            </UiMenu>
             <!-- `RouterLink` en mode `custom` ne fournit que l'adresse et la navigation ;
                  c'est le lien de Reka qui rend l'element et porte seul `aria-current`.
                  Imbriques autrement, RouterLink effacait l'attribut des qu'on n'etait
                  pas exactement a son adresse (Accueil actif sur /discover/explore). -->
-            <RouterLink v-slot="{ href, navigate }" :to="item.to!" custom>
+            <RouterLink v-else v-slot="{ href, navigate }" :to="item.to!" custom>
               <NavigationMenuLink
                 :ref="(el) => setItemRef(el, index)"
                 class="app-subnav__item"
@@ -36,6 +53,7 @@
                 <span>{{ item.label }}</span>
                 <ArrowUpRight v-if="item.external" class="app-subnav__external" aria-hidden="true" />
                 <small v-if="item.count != null">{{ item.count }}</small>
+                <ChevronDown v-if="item.children?.length" class="app-subnav__chevron" aria-hidden="true" />
               </NavigationMenuLink>
             </RouterLink>
           </NavigationMenuItem>
@@ -62,8 +80,10 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
-import { RouterLink } from 'vue-router';
-import { ArrowUpRight } from '@lucide/vue';
+import { RouterLink, useRouter } from 'vue-router';
+import { ArrowUpRight, Check, ChevronDown } from '@lucide/vue';
+import UiMenu from './UiMenu.vue';
+import UiMenuItem from './UiMenuItem.vue';
 import { NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuRoot, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 
 export interface SubnavItem {
@@ -77,6 +97,9 @@ export interface SubnavItem {
   group?: string;
   /** Mène à une autre page de l'application : marquée d'une flèche. */
   external?: boolean;
+  /** Sous-sections : l'entree courante les ouvre en menu ; `activeChild` est la courante. */
+  children?: SubnavItem[];
+  activeChild?: string;
 }
 
 const props = withDefaults(
@@ -94,6 +117,8 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ (e: 'update:active', value: string): void }>();
+const router = useRouter();
+const activeChild = (item: SubnavItem) => item.children?.find((child) => child.key === item.activeChild);
 /* Seul un vrai changement d'onglet remonte : Reka peut signaler une valeur vide (montage,
    liste d'onglets qui change), que la palette de commandes prenait pour un perimetre. */
 function choisir(key: string | number | undefined): void {
@@ -292,6 +317,17 @@ watch(
   .app-subnav__item { transition: none; }
 }
 .app-subnav__item svg { flex: none; width: 15px; height: 15px; }
+.app-subnav__item--parent { border: 0; font: inherit; cursor: pointer; }
+.app-subnav__item .app-subnav__child { padding: 0; background: transparent; color: var(--muted); font-size: inherit; font-weight: 500; }
+.app-subnav__item .app-subnav__chevron { width: 13px; height: 13px; opacity: .7; }
+/* Sur telephone, les icones des sections cedent la place : la section courante et sa
+   sous-section doivent tenir avec les autres sans defiler. */
+@include bp.until(phablet) {
+  .app-subnav__item > svg:not(.app-subnav__chevron) { display: none; }
+  .app-subnav__item { padding-inline: 10px; gap: 4px; }
+}
+:global(.app-subnav__menu .ui-menu-item.is-current) { color: var(--accent); }
+:global(.app-subnav__menu .app-subnav__check) { margin-left: auto; width: 15px; height: 15px; }
 .app-subnav__item .app-subnav__external { width: 13px; height: 13px; opacity: .6; }
 .app-subnav__item[aria-current='page'] svg,
 .app-subnav__item[aria-selected='true'] svg { color: var(--accent); }
