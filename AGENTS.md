@@ -30,12 +30,16 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `PageTemplate.vue` | Socle : page du shell, rangée d'onglets unique, états chargement / erreur / non configuré / vide | Disponible |
 | `MonitorTemplate.vue` (+ `monitor/`) | Surveiller : verdict, indicateurs, attention, parties de la section | Disponible |
 | `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause (cartes), file d'attente compacte et repliable, derniers terminés | Disponible |
-| Traiter, Explorer, Comprendre, Configurer, Fiche | — | À créer |
+| `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
+| Explorer, Comprendre, Configurer, Fiche | — | À créer |
 
 Une page Surveiller s'écrit `PageTemplate` > `MonitorTemplate`, en ne fournissant que
 ses données (`items`, `kpis`, `zones`, `labels`).
 Une page Suivre s'écrit `PageTemplate` > `TrackTemplate` : elle fournit `items` (état,
 progression, cause, actions), `recent`, `historyTo`, et réagit à l'événement `action`.
+Une page Traiter s'écrit `PageTemplate` > `HandleTemplate` : elle fournit `issues` et
+`items`, réagit à `action`, `bulk` et `selection`, retire l'élément traité de `items` et
+l'annonce par `useToast().undoable`. « Ignorer » est une décision durable côté serveur.
 
 Les gabarits ne sont pas figés : chacun s'adosse à des blocs, qui sont des composants
 communs (`monitor/`, `track/`…). Pour faire évoluer un gabarit, on remplace ou on fait

@@ -110,3 +110,50 @@ describe('TrackTemplate · attente', () => {
     expect(wrapper.findAll('.track-queue__row')).toHaveLength(8);
   });
 });
+
+describe('HandleTemplate', () => {
+  const row = (key, issue, urgency, extra = {}) => ({ key, issue, urgency, title: `Film ${key}`, problem: 'Aucune piste française', ...extra });
+  const issues = [
+    { key: 'vf', label: 'VF manquante', count: 2, fixable: 1, bulk: { key: 'fix-all', label: 'Corriger les 1' } },
+    { key: 'subs', label: 'Sous-titres absents', count: 1 },
+  ];
+
+  it('trie par urgence, filtre par type et propose l’action groupée du type', async () => {
+    const { default: HandleTemplate } = await import('./HandleTemplate.vue');
+    const wrapper = mount(HandleTemplate, {
+      props: { issues, items: [row('a', 'vf', 'low'), row('b', 'subs', 'medium'), row('c', 'vf', 'high')] },
+      global,
+    });
+    expect(wrapper.findAll('.handle-row__title').map((n) => n.text())).toEqual(['Film c', 'Film b', 'Film a']);
+    expect(wrapper.findAll('.handle-issue__fix').map((n) => n.text())).toEqual(['1 corrigeable', 'À décider']);
+    await wrapper.findAll('.handle-issue')[0].trigger('click');
+    expect(wrapper.findAll('.handle-row__title').map((n) => n.text())).toEqual(['Film c', 'Film a']);
+    await wrapper.find('.handle__bulk button').trigger('click');
+    expect(wrapper.emitted('bulk')[0]).toEqual(['fix-all', 'vf']);
+  });
+
+  it('montre l’affiche seulement quand l’élément en a une', async () => {
+    const { default: HandleTemplate } = await import('./HandleTemplate.vue');
+    const wrapper = mount(HandleTemplate, {
+      props: { items: [row('a', 'vf', 'high', { poster: 'https://img/a.jpg' }), row('b', 'vf', 'high')] },
+      global,
+    });
+    expect(wrapper.findAll('.handle-row__poster')).toHaveLength(1);
+  });
+
+  it('agit sur la sélection, et oublie un élément traité', async () => {
+    const { default: HandleTemplate } = await import('./HandleTemplate.vue');
+    const items = [row('a', 'vf', 'high'), row('b', 'vf', 'high')];
+    const wrapper = mount(HandleTemplate, { props: { items, selectionActions: [{ key: 'ignore', label: 'Ignorer' }] }, global });
+    await wrapper.findAll('.handle-row [role="checkbox"], .handle-row input[type="checkbox"]')[0].trigger('click');
+    await wrapper.find('.bulk-bar button').trigger('click');
+    expect(wrapper.emitted('selection')[0]).toEqual(['ignore', ['a']]);
+    await wrapper.setProps({ items: [items[1]] });
+    expect(wrapper.find('.bulk-bar').exists()).toBe(false);
+  });
+
+  it('dit qu’il n’y a rien à traiter', async () => {
+    const { default: HandleTemplate } = await import('./HandleTemplate.vue');
+    expect(mount(HandleTemplate, { props: { items: [] }, global }).text()).toContain('Rien à traiter');
+  });
+});
