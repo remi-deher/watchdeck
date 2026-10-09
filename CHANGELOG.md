@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.87.0 — 2026-10-09
+
+
+### test
+
+- views on templates with a simulated FileFlows (unit and e2e); compact command bar on phones ([94b9f1f](https://github.com/remi-deher/watchdeck/commit/94b9f1f5eab4565e4362c229a7699ea905c91ecb))
+- encoding counts only its own tab row; shell sections join it on tablet like the library ([d8eac31](https://github.com/remi-deher/watchdeck/commit/d8eac311798aaec9adc5f31169e9eb0fa1a1873a))
+
+### ♻️ Refactoring
+
+- shell on PageTemplate, overview on Monitor template ([7b09cc5](https://github.com/remi-deher/watchdeck/commit/7b09cc59034203bd598450d44c63496d962e1d57))
+- queue on Track template ([6b1f488](https://github.com/remi-deher/watchdeck/commit/6b1f4881a88d46b44779eb032c19e1f9da97910c))
+- history on Understand template, new statistics view on Analyze template; history API accepts longer periods and an offset ([f784468](https://github.com/remi-deher/watchdeck/commit/f784468b3df83fef470ea85084473c3b40972ac3))
+- settings, libraries and flows on Configure template; ResourceList actions/details, Create edit mode ([291a9d0](https://github.com/remi-deher/watchdeck/commit/291a9d0750cda774469a8b01d8995ab337296a64))
+
+### ✨ Nouveautés
+
+- group sections into three menu entries with in-page tabs ([d9320a1](https://github.com/remi-deher/watchdeck/commit/d9320a17f4dafe5a1fbcdeefd85180e1d934a057))
+- missing items move to Requests, drop acquisitions & conflicts, single tab row per page ([f761bc6](https://github.com/remi-deher/watchdeck/commit/f761bc6538727d6cf98f573806d066d7f3dad318))
+- page base and Monitor template built from the admin overview blocks ([bff52b3](https://github.com/remi-deher/watchdeck/commit/bff52b3e84385cee1b5e2d1e82ce7b31987f5679))
+- Track template for running work ([2fa93ba](https://github.com/remi-deher/watchdeck/commit/2fa93bac98cff2c54f2f3e455ae58dd88b6a935c))
+- compact folding queue for waiting items in Track ([b0df067](https://github.com/remi-deher/watchdeck/commit/b0df067bbb8583a4b3610e6f56d3624ff5d61e05))
+- Handle template for items awaiting a decision ([b35e2f2](https://github.com/remi-deher/watchdeck/commit/b35e2f23c8e83d52824cedc8643e076863581e60))
+- Explore template with active filter chips ([47d7aa1](https://github.com/remi-deher/watchdeck/commit/47d7aa1601c2df26e69680036dc1d35f77d51afa))
+- Understand template for histories and logs ([0ee54b3](https://github.com/remi-deher/watchdeck/commit/0ee54b32ecd867d87167c88b1223e0855c8a8e38))
+- Configure template with global save, connection test and resource list ([4927c7e](https://github.com/remi-deher/watchdeck/commit/4927c7e3e2431674ad7e3e6f266a112e2d1a257b))
+- Detail template for item sheets ([fad4fec](https://github.com/remi-deher/watchdeck/commit/fad4fecb71e185ffd012622bde876614d16a3d19))
+- UiTabs for consulting parts of an item; three tab roles rule ([583733e](https://github.com/remi-deher/watchdeck/commit/583733ebde22b3814a5f9577daf6e16d7037a51e))
+- dev-only gallery of templates with realistic data; rendering fixes ([df539dc](https://github.com/remi-deher/watchdeck/commit/df539dc671e971a0c2759a8e15c2bce3bd72a8e9))
+- Explore hub state (hero, rows) and Detail header on SheetHero like the media sheet ([7ab3e44](https://github.com/remi-deher/watchdeck/commit/7ab3e44c7b220f5037ed0e602e1b685fdcee7015))
+- page base owns search and filters (shared bar, button and sheet); Explore top slimmed to one line ([ee1ac08](https://github.com/remi-deher/watchdeck/commit/ee1ac08fae4a54fbf86580085e714cf1c412532f))
+- Browse template (hero and rails) split from Explore ([5f03b87](https://github.com/remi-deher/watchdeck/commit/5f03b87ca5dec3920b34ff4a00e81e8d8f445d6f))
+- Plan template from the production calendar, and MiniCalendar list ([0daf0dd](https://github.com/remi-deher/watchdeck/commit/0daf0dda65d3ac3a5e622ef5c8050fa63209d16b))
+- Choose template; rejected candidates stay in the sort order ([842ed53](https://github.com/remi-deher/watchdeck/commit/842ed537929f5b68e7a8ba5e1365d86565717aea))
+- Create template driven by definitions, with service and user creations ([e891ff8](https://github.com/remi-deher/watchdeck/commit/e891ff855775d4d5540e4f71dc4e3bb57858f06b))
+- Analyze template (period comparison, server leads, drill-down) ([65f4fe1](https://github.com/remi-deher/watchdeck/commit/65f4fe1e9d77980d894fd4f0cf4e1b2a5953a474))
+
+### 📖 Documentation
+
+- AI rules for page templates and shared components ([9c344b8](https://github.com/remi-deher/watchdeck/commit/9c344b87391eccd1d8ba5d18c7066c542604f151))
 ## 1.86.1 — 2026-10-09
 
 
@@ -10,6 +50,10 @@
 ### 🐛 Corrections
 
 - defer relaunched files of a busy disk too ([3a1bdb6](https://github.com/remi-deher/watchdeck/commit/3a1bdb60e302b0c1c2c62eabe583f66c06e04d48))
+
+### 🔧 Maintenance
+
+- v1.86.1 (#798) ([b4dca1a](https://github.com/remi-deher/watchdeck/commit/b4dca1a308d9c72007b8217a7163ca0f95e6618e))
 ## 1.86.0 — 2026-10-09
 
 
