@@ -3,7 +3,7 @@
          1. le resume des etats, qui sert aussi de filtre ;
          2. les elements groupes par etat, dans un ordre fixe : bloques (avec leur cause
             et l'action qui debloque), en cours (progression, temps restant), en pause,
-            en attente (dans l'ordre de passage) ;
+            en attente (liste compacte dans l'ordre de passage, repliee au-dela de quelques lignes) ;
          3. les derniers termines, puis le lien vers l'historique complet.
        Pas de reglage ni d'analyse : ce sont les besoins des gabarits Configurer et
        Comprendre. La page fournit les elements et reagit aux actions (`action`). -->
@@ -21,7 +21,9 @@
           <h2 :id="`track-${group.state}`">{{ GROUPS[group.state].title }}</h2>
           <span class="track__count">{{ group.items.length }}</span>
         </header>
-        <ol class="track__list">
+        <!-- L'attente est une liste compacte dans l'ordre de passage ; le reste, des cartes. -->
+        <TrackQueue v-if="group.state === 'waiting'" :items="group.items" :limit="queueLimit" @action="(target, key) => emit('action', target, key)" />
+        <ol v-else class="track__list">
           <li v-for="item in group.items" :key="item.key">
             <TrackCard :item="item" @action="(target, key) => emit('action', target, key)" />
           </li>
@@ -54,6 +56,7 @@ import { AlertTriangle, CheckCircle2, Clock, History, Loader, PauseCircle, XCirc
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import TrackCard from './track/TrackCard.vue';
+import TrackQueue from './track/TrackQueue.vue';
 import type { TrackItem, TrackLabels, TrackRecent, TrackState } from './track/types';
 
 export type { TrackAction, TrackCause, TrackItem, TrackLabels, TrackRecent, TrackState } from './track/types';
@@ -68,8 +71,10 @@ const props = withDefaults(
     updated?: string;
     loading?: boolean;
     labels?: TrackLabels;
+    /** Lignes d'attente montrees avant repli. */
+    queueLimit?: number;
   }>(),
-  { recent: () => [], historyTo: null, updated: '', loading: false, labels: () => ({}) },
+  { recent: () => [], historyTo: null, updated: '', loading: false, labels: () => ({}), queueLimit: 5 },
 );
 const emit = defineEmits<{ action: [item: TrackItem, key: string] }>();
 

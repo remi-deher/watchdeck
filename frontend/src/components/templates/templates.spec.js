@@ -98,3 +98,15 @@ describe('TrackTemplate', () => {
     expect(wrapper.find('.track__history').attributes('href')).toBe('/encoding/history');
   });
 });
+
+describe('TrackTemplate · attente', () => {
+  it('liste l’attente en lignes numérotées, repliées au-delà de la limite', async () => {
+    const { default: TrackTemplate } = await import('./TrackTemplate.vue');
+    const items = Array.from({ length: 8 }, (_, i) => ({ key: `w${i}`, state: 'waiting', title: `Fichier ${i}` }));
+    const wrapper = mount(TrackTemplate, { props: { items, queueLimit: 3 }, global });
+    expect(wrapper.findAll('.track-queue__row')).toHaveLength(3);
+    expect(wrapper.find('.track-queue__rank').text()).toBe('1');
+    await wrapper.find('.track-queue__more button').trigger('click');
+    expect(wrapper.findAll('.track-queue__row')).toHaveLength(8);
+  });
+});
