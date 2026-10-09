@@ -35,9 +35,9 @@
         <dl v-if="detail.media_type==='show'">
           <div><dt>Saisons complètes</dt><dd>{{ coverage.complete }} / {{ coverage.total }}</dd></div>
           <div><dt>Épisodes</dt><dd>{{ coverage.available }} / {{ coverage.episodes }}</dd></div>
-          <div><dt>Langue</dt><dd>{{ languageLabel }}</dd></div>
+          <div><dt>Langue</dt><dd><MediaLanguageBadge :state="detail" /></dd></div>
         </dl>
-        <dl v-else><div><dt>Disponibilité</dt><dd>{{ detail.in_library ? 'Dans Plex' : 'En attente' }}</dd></div><div><dt>Langue</dt><dd>{{ languageLabel }}</dd></div></dl>
+        <dl v-else><div><dt>Disponibilité</dt><dd>{{ detail.in_library ? 'Dans Plex' : 'En attente' }}</dd></div><div><dt>Langue</dt><dd><MediaLanguageBadge :state="detail" /></dd></div></dl>
       </article>
 
       <article class="information-card">
@@ -62,9 +62,10 @@
 
 <script setup lang="ts">
 import { formatDateTime } from '@/utils/format';
+import MediaLanguageBadge from './MediaLanguageBadge.vue';
 import { computed } from 'vue';
 import { Activity, BellRing, CalendarClock, Layers3, Users } from '@lucide/vue';
-import { vfLanguageState, isMusicType } from '@/utils/labels';
+import { isMusicType } from '@/utils/labels';
 
 const props = withDefaults(
   defineProps<{
@@ -113,10 +114,6 @@ const coverageTitle = computed(() =>
     ? 'Film disponible'
     : 'Film attendu'
 );
-const languageLabel = computed(() => {
-  const state = vfLanguageState(props.detail);
-  return state.variant === 'unknown' ? 'Non analysée' : state.label;
-});
 const upcoming = computed(() =>
   (props.detail.calendar || []).filter((event: any) => new Date(event.date) > new Date()).slice(0, 3)
 );

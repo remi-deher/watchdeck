@@ -136,7 +136,8 @@ import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime,
 import { computed, ref } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
 import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Download, Flag, Gauge, Lock, LockOpen, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
-import { estimateProgressMs, estimatedEnd, isAdvancing, timecode } from '@/utils/playbackClock';
+import { timecode } from '@/utils/format';
+import { estimateProgressMs, estimatedEnd, isAdvancing } from '@/utils/playbackClock';
 import UiButton from '@/components/ui/UiButton.vue';
 import SheetHero from '@/components/ui/SheetHero.vue';
 import SheetSummary from '@/components/ui/SheetSummary.vue';

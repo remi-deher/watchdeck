@@ -53,6 +53,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatLongDay, formatTime } from '@/utils/format';
 import { computed } from 'vue';
 import { AlertTriangle, CheckCircle2, Download, History, Info, XCircle } from '@lucide/vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
@@ -121,9 +122,9 @@ function dayLabel(date: Date): string {
   yesterday.setDate(today.getDate() - 1);
   if (dayKey(date) === dayKey(today)) return 'Aujourd’hui';
   if (dayKey(date) === dayKey(yesterday)) return 'Hier';
-  return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return formatLongDay(date);
 }
-const timeOf = (at: string) => parseApiDate(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const timeOf = (at: string) => formatTime(at);
 
 /* Du plus recent au plus ancien, un groupe par jour. */
 const days = computed(() => {

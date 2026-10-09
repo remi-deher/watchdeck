@@ -93,7 +93,7 @@ import { Loader, MapPin, Monitor, Network, Pause, PowerOff, Server, Smartphone, 
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 import { useIntervalFn } from '@vueuse/core';
-import { timecode } from '@/utils/playbackClock';
+import { timecode } from '@/utils/format';
 import { formatBandwidth } from '@/utils/format';
 
 export interface LiveSession {

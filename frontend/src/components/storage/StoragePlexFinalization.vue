@@ -2,10 +2,11 @@
  <div v-if="pending.length" class="plex-finalization" role="status" aria-live="polite">
   <strong>{{ copyDone ? 'Copie terminée · ' : '' }}Finalisation Plex {{ job.desired_state==='run'?'en arrière-plan':'en pause' }}</strong>
   <p>{{ pending.length }} titre(s) à confirmer<template v-if="job.params?.transfer_mode!=='arr'"> · {{ gb(retained) }} conservés à la source</template>.</p>
-  <small>Scans ciblés et contrôles automatiques. La fiche Plex existante doit reconnaître la destination avant la finalisation.<template v-if="checked"> Dernier contrôle : {{ new Date(checked*1000).toLocaleTimeString('fr-FR') }}.</template></small>
+  <small>Scans ciblés et contrôles automatiques. La fiche Plex existante doit reconnaître la destination avant la finalisation.<template v-if="checked"> Dernier contrôle : {{ formatTimeSeconds(checked*1000) }}.</template></small>
  </div>
 </template>
 <script setup lang="ts">
+import { formatTimeSeconds } from '@/utils/format';
 import {computed} from 'vue';
 const props=defineProps<{job:any,gb:(value:any)=>string}>();
 const pending=computed(()=>props.job.items.filter((i:any)=>['plex_pending','cleaning'].includes(i.status)));

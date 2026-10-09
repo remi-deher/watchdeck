@@ -26,7 +26,8 @@
     </section>
   </SheetPage>
 </template>
-<script setup lang="ts">import { computed,ref } from "vue";import { Download,FolderOpen,RefreshCw } from "@lucide/vue";import { useRoute } from "vue-router";import { useQuery } from '@tanstack/vue-query';import { api } from "@/api";import { humanizeError } from '@/utils/apiError';import UiButton from '@/components/ui/UiButton.vue';import UiEmptyState from '@/components/ui/UiEmptyState.vue';import UiFeedback from '@/components/ui/UiFeedback.vue';import SheetPage from '@/components/layout/SheetPage.vue';
+<script setup lang="ts">import { formatBytes } from '@/utils/format';
+import { computed,ref } from "vue";import { Download,FolderOpen,RefreshCw } from "@lucide/vue";import { useRoute } from "vue-router";import { useQuery } from '@tanstack/vue-query';import { api } from "@/api";import { humanizeError } from '@/utils/apiError';import UiButton from '@/components/ui/UiButton.vue';import UiEmptyState from '@/components/ui/UiEmptyState.vue';import UiFeedback from '@/components/ui/UiFeedback.vue';import SheetPage from '@/components/layout/SheetPage.vue';
 interface Release { guid: string; title?: string; indexer?: string; quality?: string; protocol?: string; size?: number; seeders?: number; custom_format_score?: number; rejections?: string[]; is_french?: boolean; indexer_id?: number | string; }
 interface MediaRequest { id: number | string; title?: string; media_type: string; arr_instance_id?: number | string; }
 const route=useRoute(),grabbing=ref<string|null>(null),actionError=ref('');
@@ -58,7 +59,7 @@ const loading=computed(()=>requestQuery.isFetching.value||releasesQuery.isFetchi
 const loadError=computed(()=>[requestQuery.error.value,releasesQuery.error.value].filter(Boolean).map(humanizeError)[0]||'');
 const subtitle=computed(()=>{if(!request.value)return'';const type=request.value.media_type==='show'?'Série':'Film';return releases.value.length?`${type} · ${releases.value.length} release${releases.value.length>1?'s':''}`:type});
 const firstEnglish=computed(()=>releases.value.findIndex(r=>!r.is_french));
-function formatSize(v?: number): string {if(!v)return'-';return `${(v/1024/1024/1024).toFixed(1)} Go`}
+const formatSize = (value?: number) => value ? formatBytes(value) : '-';
 function load(): void {actionError.value='';void (request.value?releasesQuery.refetch():requestQuery.refetch())}
 async function grab(release: Release): Promise<void> {if(grabbing.value)return;grabbing.value=release.guid;const tab=window.open('about:blank','_blank');if(tab)tab.opener=null;actionError.value='';try{await api('/api/arr/grab',{method:'POST',body:JSON.stringify({media_type:request.value!.media_type,guid:release.guid,indexer_id:release.indexer_id,instance_id:request.value!.arr_instance_id,request_id:request.value!.id})});if(tab)tab.location.href='/downloads'}catch(e:any){if(tab)tab.close();actionError.value=e.message}finally{grabbing.value=null}}</script>
 <style scoped lang="scss">

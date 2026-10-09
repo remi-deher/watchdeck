@@ -1,3 +1,4 @@
+import { formatBuffer as formatBuffer } from '@/utils/format';
 /* Tampon d'un transcodage en direct : l'avance du transcodeur de Plex sur la tete de
    lecture. Tant qu'il reste du tampon, la lecture ne s'arrete pas ; un tampon qui fond
    annonce une coupure. */
@@ -49,14 +50,7 @@ export function bufferSpan(session: TranscodeState): { played: number; buffered:
 }
 
 /** « 45 s », « 1 min 12 s », « 12 min ». */
-export function formatBuffer(ms: number | null | undefined): string {
-  const seconds = Math.max(0, Math.round((ms || 0) / 1000));
-  if (seconds < 60) return `${seconds} s`;
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  if (minutes >= 10 || !rest) return `${minutes} min`;
-  return `${minutes} min ${rest} s`;
-}
+export { formatBuffer as formatBuffer } from '@/utils/format';
 
 /** Vitesse du transcodeur (« ×2,4 ») et bridage, pour le detail. */
 export function transcodeSpeedLabel(session: TranscodeState): string {

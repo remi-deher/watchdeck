@@ -25,8 +25,8 @@ import LiveStrip, { type LiveFact, type LiveIdle, type LiveItem } from '@/compon
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import type { LiveSession } from '@/components/activity/LiveSessionsPanel.vue';
 import { episodeLabel } from '@/utils/episode';
-import { timecode } from '@/utils/playbackClock';
-import { formatBandwidth } from '@/utils/format';
+import { timecode } from '@/utils/format';
+import { formatBandwidth, formatTime } from '@/utils/format';
 import { channelsLabel } from '@/utils/mediaTechnical';
 import { plexPhrase } from '@/utils/plexDecisionText';
 import { proxyUrl } from '@/utils/mediaImage';
@@ -100,11 +100,10 @@ function endsAt(session: LiveSession): number | null {
   if (!session.duration_ms) return null;
   return now.value + Math.max(0, session.duration_ms - elapsedMs(session));
 }
-const clock = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 function endLabel(session: LiveSession): string {
   const end = endsAt(session);
   if (end === null) return '';
-  return isPaused(session) ? `fin vers ${clock.format(end)} si reprise` : `fin vers ${clock.format(end)}`;
+  return isPaused(session) ? `fin vers ${formatTime(end)} si reprise` : `fin vers ${formatTime(end)}`;
 }
 
 /* Plex note la hauteur du flux : 1080 pour un 1920x800 recadre se lit par la largeur. */
@@ -177,7 +176,7 @@ const transcodeCount = computed(() => props.sessions.filter((s) => s.playback_me
 const freeAt = computed(() => {
   const ends = props.sessions.map(endsAt);
   if (!ends.length || ends.some((end) => end === null)) return '';
-  return clock.format(Math.max(...(ends as number[])));
+  return formatTime(Math.max(...(ends as number[])));
 });
 /* Une lecture traduite en carte du bandeau commun. */
 function facts(session: LiveSession): LiveFact[] {

@@ -8,6 +8,7 @@
   >
     <template #badges>
       <div class="badge-group">
+        <MediaLanguageBadge v-if="!isMusic && item._kind === 'library'" :state="item" />
         <span v-for="badge in badges" :key="badge.key" :class="badge.cls">{{ badge.label }}</span>
       </div>
       <label v-if="canModerate && item._kind === 'request' && !item.orphan" class="select-tag" @click.stop>
@@ -53,6 +54,7 @@
         <template v-else-if="item._kind === 'request' && item.source"> · {{ item.source }}</template>
       </span>
       <div class="badge-row card-badges">
+        <MediaLanguageBadge v-if="!isMusic && item._kind === 'library'" :state="item" />
         <span v-for="badge in badges" :key="badge.key" :class="badge.cls">{{ badge.label }}</span>
       </div>
       <!-- Une demande en echec n'affichait que son badge : ni la raison, ni le moyen de
@@ -75,8 +77,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { mediaDetailPath } from '@/mediaUrl';
-import { mediaTypeLabel, vfLanguageState, isMusicType } from '@/utils/labels';
+import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import { requesterName } from '@/utils/userLabels';
+import MediaLanguageBadge from '@/components/media/MediaLanguageBadge.vue';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import { statusLabel, statusShortLabel } from '@/components/media/mediaListHelpers';
@@ -159,8 +162,7 @@ const badges = computed(() => {
   if (isMusic.value) {
     // Pas de badge type de media pour la musique
   } else if (item._kind === 'library') {
-    const { label, variant } = vfLanguageState(item);
-    list.push({ key: 'langue', cls: `language-tag ${variant}`, label });
+    // Le badge commun reçoit directement l’état de langue.
   } else {
     const label = props.view === 'list' ? statusLabel(item.status) : statusShortLabel(item.status);
     list.push({ key: 'statut', cls: `badge status-tag ${item.status}`, label });

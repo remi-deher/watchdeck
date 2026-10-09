@@ -155,6 +155,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatImportSize as formatSize } from '@/utils/format';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -195,13 +196,7 @@ function candidateName(candidate: any): string {
   return String(raw).split(/[\\/]/).pop() || String(raw);
 }
 
-function formatSize(bytes: number | null | undefined): string {
-  if (!bytes || bytes <= 0) return '';
-  const units = ['o', 'Ko', 'Mo', 'Go', 'To'];
-  let value = bytes, unit = 0;
-  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
-  return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1).replace('.', ',')} ${units[unit]}`;
-}
+
 
 /** Qualite, langues et taille : de quoi distinguer deux fichiers d'un meme pack sans lire le chemin complet. */
 function candidateDetails(candidate: any): string {

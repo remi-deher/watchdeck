@@ -1,3 +1,4 @@
+import { formatTransferDuration as copyDuration } from '@/utils/format';
 /** Copy telemetry, independent from source cleanup and space actually freed. */
 export function transferMetrics(job:any, now=Date.now()/1000) {
   const items=job.items || [];
@@ -17,8 +18,4 @@ export function transferMetrics(job:any, now=Date.now()/1000) {
   return {total,copied,remaining,rate,lastRate,elapsed,seconds:rate && remaining>0?remaining/rate:null,percent:total>0?copied/total*100:0};
 }
 
-export function copyDuration(seconds:number|null) {
-  if(seconds==null)return '—';
-  const minutes=Math.ceil(seconds/60);
-  return seconds<60?`${Math.ceil(seconds)} s`:minutes<60?`${minutes} min`:`${Math.floor(minutes/60)} h${minutes%60?` ${minutes%60} min`:''}`;
-}
+export { formatTransferDuration as copyDuration } from '@/utils/format';

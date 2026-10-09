@@ -60,6 +60,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatUptime, formatCheckedAgo } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
@@ -123,14 +124,6 @@ function statusOf(info: ServiceInfo | undefined, tone: Tone): string {
   return info?.response_ms != null ? 'Opérationnel' : 'Configuré';
 }
 /* « depuis 3 j » : depuis quand le service tourne sans redemarrage. */
-function uptimeOf(startedAt: string | undefined, now: Date): string {
-  if (!startedAt) return '';
-  const minutes = Math.floor((now.getTime() - parseApiDate(startedAt).getTime()) / 60_000);
-  if (!Number.isFinite(minutes) || minutes < 0) return '';
-  if (minutes < 60) return `actif depuis ${Math.max(1, minutes)} min`;
-  if (minutes < 48 * 60) return `actif depuis ${Math.floor(minutes / 60)} h`;
-  return `actif depuis ${Math.floor(minutes / 1440)} j`;
-}
 /* « 4.0.9.2244 » devient « 4.0.9 » : le numero de build n'aide pas a lire la carte. */
 function shortVersion(version: string): string {
   return version.split('.').slice(0, 3).join('.');
@@ -157,7 +150,7 @@ function factsOf(key: string, info: ServiceInfo | undefined, tone: Tone, now: Da
     if (key === 'plex' && info?.sessions != null) {
       facts.push(info.sessions ? `${info.sessions} lecture${info.sessions > 1 ? 's' : ''} en cours` : 'aucune lecture');
     }
-    const uptime = uptimeOf(info?.started_at, now);
+    const uptime = formatUptime(info?.started_at, now);
     if (uptime) facts.push(uptime);
   }
   return facts.length ? facts.join(' · ') : statusOf(info, tone);
@@ -229,10 +222,7 @@ const meterLabel = computed(() => {
 const updatedLabel = computed(() => {
   const checkedAt = health.value?.checked_at ? parseApiDate(health.value.checked_at) : null;
   if (!checkedAt) return 'Première vérification en cours';
-  const seconds = Math.max(0, Math.floor((now.value.getTime() - checkedAt.getTime()) / 1000));
-  if (seconds < 60) return 'Vérifié à l’instant';
-  if (seconds < 3600) return `Vérifié il y a ${Math.floor(seconds / 60)} min`;
-  return `Vérifié il y a ${Math.floor(seconds / 3600)} h`;
+  return formatCheckedAgo(checkedAt, now.value);
 });
 
 function refresh() {

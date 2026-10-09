@@ -1,3 +1,4 @@
+import { formatNextRun } from '@/utils/format';
 /* Ordre et prochain passage des tâches planifiées : les échecs d'abord, et pour chaque tâche
  * quand elle repartira. Fonctions pures, testées sans monter l'écran. */
 
@@ -46,10 +47,5 @@ export function nextRun(task: ScheduledTask, now: Date = new Date()): Date | nul
 export function nextRunLabel(task: ScheduledTask, now: Date = new Date()): string {
   const next = nextRun(task, now);
   if (!next) return '';
-  const minutes = Math.round((next.getTime() - now.getTime()) / 60000);
-  if (minutes <= 0) return 'imminente';
-  if (minutes < 60) return `dans ${minutes} min`;
-  if (minutes < 24 * 60 && next.getDate() === now.getDate()) return `dans ${Math.round(minutes / 60)} h`;
-  const time = `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
-  return minutes < 48 * 60 ? `demain ${time}` : next.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ` ${time}`;
+  return formatNextRun(next, now);
 }

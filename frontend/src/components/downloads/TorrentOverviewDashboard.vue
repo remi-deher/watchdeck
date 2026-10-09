@@ -68,6 +68,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatPreciseBytes as formatBytes } from '@/utils/format';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 const TRACKER_COLUMNS: UiColumn[] = [
   { key: 'name', label: 'Tracker', card: 'title', sortable: true },
@@ -133,7 +134,6 @@ function clientState(client: any): { label: string; className: string } {
 }
 function clientLabel(client: any): string { return client.client_type === 'qbittorrent' ? 'qBittorrent' : client.client_type === 'transmission' ? 'Transmission' : client.client_type; }
 function formatHost(url: string): string { try { return new URL(url).host; } catch { return url || '—'; } }
-function formatBytes(value: number): string { if (!value) return '0 o'; const units = ['o', 'Ko', 'Mo', 'Go', 'To']; const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1); return `${(value / (1024 ** index)).toFixed(index > 1 ? 2 : 0)} ${units[index]}`; }
 function formatSpeed(value: number): string { return `${formatBytes(value)}/s`; }
 function formatRatio(value: number): string { return Number(value || 0).toFixed(2); }
 function trackerName(value: string): string { try { return new URL(value).host; } catch { return value; } }

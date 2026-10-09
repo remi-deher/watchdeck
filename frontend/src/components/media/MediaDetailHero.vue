@@ -33,7 +33,7 @@
           <p v-if="factsLine" class="mdh-facts">{{ factsLine }}</p>
           <div v-if="statusLabel && !isMusic || movieLanguage" class="mdh-badges">
             <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
-            <span v-if="movieLanguage" class="badge language-tag" :class="languageState.variant">{{ languageState.label }}</span>
+            <MediaLanguageBadge class="badge" v-if="movieLanguage" :state="detail" />
           </div>
           <!-- Une serie detaille sa langue par saison ; un film la porte dans la rangee de
                badges ci-dessus, au meme endroit. -->
@@ -106,7 +106,8 @@
 
 <script setup lang="ts">
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
-import { mediaTypeLabel, vfLanguageState, isMusicType } from '@/utils/labels';
+import { mediaTypeLabel, isMusicType } from '@/utils/labels';
+import MediaLanguageBadge from './MediaLanguageBadge.vue';
 import { computed, ref, watch } from 'vue';
 import { ArrowLeft, Ellipsis, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
@@ -220,7 +221,7 @@ function openExternal(href: string): void {
   window.open(href, '_blank', 'noopener,noreferrer');
 }
 
-const languageState = computed(() => vfLanguageState(props.detail || {}));
+
 const plexWebUrl = computed(() => formatPlexWebUrl(props.detail?.plex_guid));
 const emit = defineEmits<{
   (e: 'back'): void;

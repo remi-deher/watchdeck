@@ -91,6 +91,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatCountdown } from '@/utils/format';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useElementVisibility } from '@vueuse/core';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -220,7 +221,7 @@ const attentionCount = computed(() => attentionTotal(downloadQueue.value, failed
 const { session } = useSession();
 const userName = computed(() => String(session.value?.display_name || session.value?.username || '').trim());
 
-const countdown = computed(() => seconds.value == null ? '-' : seconds.value < 60 ? `${seconds.value}s` : `${Math.floor(seconds.value / 60)} min`);
+const countdown = computed(() => formatCountdown(seconds.value));
 
 /* `cancelRefetch: false` : une lecture deja en vol (celle du montage) est reprise
    plutot qu'annulee puis relancee. */

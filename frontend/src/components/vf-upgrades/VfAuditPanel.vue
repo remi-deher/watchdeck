@@ -56,7 +56,7 @@
             <Volume2 v-if="item.has_vf" :size="15" />
             <VolumeX v-else :size="15" />
             <span class="diag-label">Audio FR :</span>
-            <strong class="diag-status">{{ audioStatusLabel(item) }}</strong>
+            <MediaLanguageBadge class="diag-status" :state="item" kind="audio" />
           </div>
 
           <!-- Ligne Sous-titres FR -->
@@ -64,14 +64,14 @@
             <MessageSquare v-if="item.sub_fr_status !== 'absent'" :size="15" />
             <MessageSquareOff v-else :size="15" />
             <span class="diag-label">Sous-titres :</span>
-            <strong class="diag-status">{{ subtitleStatusLabel(item.sub_fr_status) }}</strong>
+            <MediaLanguageBadge class="diag-status" :state="item" kind="subtitles" />
           </div>
 
           <!-- Ligne Sous-titres forcés (si VF présente) -->
           <div v-if="item.has_vf" class="diag-row" :class="forcedRowClass(item)">
             <span class="diag-icon-dot" />
             <span class="diag-label">ST Forcés :</span>
-            <strong class="diag-status">{{ forcedStatusLabel(item.forced_fr_status) }}</strong>
+            <MediaLanguageBadge class="diag-status" :state="item" kind="forced" />
           </div>
         </div>
 
@@ -205,6 +205,7 @@
 </template>
 
 <script setup lang="ts">
+import MediaLanguageBadge from '@/components/media/MediaLanguageBadge.vue';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -218,7 +219,7 @@ import SeasonEpisodeList from '@/components/media/SeasonEpisodeList.vue';
 import { useAuditShowDetails } from '@/composables/vf/useAuditShowDetails';
 import type { AuditItem } from '@/composables/vf/types';
 import {
-  audioRowClass, audioStatusLabel, canFixStreams, forcedRowClass, forcedStatusLabel, subtitleRowClass, subtitleStatusLabel,
+  audioRowClass, canFixStreams, forcedRowClass, subtitleRowClass,
 } from '@/utils/vfUpgradeLabels';
 
 /**

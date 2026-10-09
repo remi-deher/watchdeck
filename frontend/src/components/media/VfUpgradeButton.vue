@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatBytes } from '@/utils/format';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { humanizeError } from '@/utils/apiError';
@@ -295,7 +296,7 @@ function technicalSummary(value: any): string {
   return [...new Set(entries.filter(Boolean))].join(' · ') || 'Marqueurs inconnus';
 }
 function formatSize(value: number | undefined): string {
-  return value ? `${(value / 1024 ** 3).toFixed(1)} Go` : '—';
+  return value ? formatBytes(value) : '—';
 }
 function formatReleaseDate(value: string | number): string {
   return formatSharedDate(value, '—');
