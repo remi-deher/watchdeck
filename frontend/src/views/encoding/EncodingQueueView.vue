@@ -1,158 +1,163 @@
 <template>
-  <!-- File d'attente FileFlows : par statut, recherche, bibliotheque ; relance, mise en
-       tete, journal et duree reelle de chaque traitement. -->
-  <EncodingShell title="File d'attente">
-    <section class="queue" aria-label="Fichiers">
-      <div class="queue-toolbar">
-        <UiSearchField v-model:query="search" kind="search" placeholder="Rechercher un fichier…" aria-label="Rechercher un fichier" />
-        <UiSelect v-model="library" :options="libraryOptions" aria-label="Bibliothèque" />
-      </div>
-      <div class="queue-toolbar">
-        <UiChipGroup label="Statut" :options="statusOptions" :model-value="filterStatus" @update:model-value="(value) => (filterStatus = Number(value))" />
-        <div v-if="selection.size" class="queue-selection">
-          <span>{{ selection.size }} sélectionné{{ selection.size > 1 ? 's' : '' }}</span>
-          <UiButton size="sm" @click="selection.clear()">Effacer</UiButton>
-          <UiButton size="sm" variant="primary" :loading="reprocessMutation.isPending.value" @click="reprocessMutation.mutate([...selection])"><RotateCcw />Relancer</UiButton>
-        </div>
-        <UiButton v-else-if="selectableFiles.length" size="sm" @click="selectableFiles.forEach((file) => selection.add(file.uid))">Tout sélectionner</UiButton>
-      </div>
+  <!-- File de l'encodage (gabarit Suivre) : ou en est ce qui tourne ? Les echecs d'abord
+       (cause et relance), puis ce que font les runners, puis la file dans l'ordre de
+       passage (mise en tete), et les derniers termines avant l'historique. La recherche
+       est celle de la barre du haut, la bibliotheque un filtre de la feuille commune. -->
+  <EncodingShell
+    v-model:query="search"
+    title="File"
+    :search="{ placeholder: 'Rechercher un fichier…', kind: 'search', scope: 'File d’encodage' }"
+    :filter-count="library ? 1 : 0"
+    :filter-chips="library ? [{ key: 'library', label: library, onRemove: () => (library = '') }] : []"
+    @reset-filters="library = ''"
+  >
+    <template #filters>
+      <FilterGroup label="Bibliothèque">
+        <UiChipGroup label="Bibliothèque" :options="libraryOptions" v-model="library" />
+      </FilterGroup>
+    </template>
 
-      <UiFeedback v-if="filesQuery.isError.value" type="error" :message="humanizeError(filesQuery.error.value)" />
-      <p v-else-if="filesQuery.isPending.value" class="queue-muted">Chargement des fichiers…</p>
-      <UiEmptyState v-else-if="!files.length" compact :title="search || library ? 'Aucun fichier ne correspond' : 'Aucun fichier dans cet état'" />
-      <ol v-else class="queue-list">
-        <li v-for="(file, index) in files" :key="file.uid">
-          <FileflowsFileRow
-            :file="file"
-            :position="showPositions ? index + 1 : null"
-            :selectable="isSelectable(file)"
-            :selected="selection.has(file.uid)"
-            :busy="reprocessMutation.isPending.value && reprocessMutation.variables.value?.includes(file.uid)"
-            @toggle="toggle"
-            @log="logFile = $event"
-            @reprocess="reprocessMutation.mutate([$event.uid])"
-            @top="topMutation.mutate($event.uid)"
-          />
-        </li>
-      </ol>
-      <div v-if="page > 0 || hasMore" class="queue-pager">
-        <UiButton size="sm" :disabled="page === 0" @click="page--"><ChevronLeft />Précédent</UiButton>
-        <span>Page {{ page + 1 }}</span>
-        <UiButton size="sm" :disabled="!hasMore" @click="page++">Suivant<ChevronRight /></UiButton>
-      </div>
-    </section>
+    <TrackTemplate
+      :items="items"
+      :recent="recent"
+      history-to="/encoding/history"
+      :updated="updated"
+      :loading="queuedQuery.isPending.value"
+      :labels="{ items: 'traitements', empty: 'Rien ne tourne', emptyDetail: 'Aucun fichier en cours, en attente ni en échec.' }"
+      @action="onAction"
+    />
     <FileflowsLogModal :file="logFile" @close="logFile = null" />
   </EncodingShell>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { refDebounced } from '@vueuse/core';
-import { ChevronLeft, ChevronRight, RotateCcw } from '@lucide/vue';
+import { ArrowUpToLine, Film, RotateCcw, ScrollText } from '@lucide/vue';
 import { api } from '@/api';
-import { FILEFLOWS_STATUS, useFileflowsStatus, type FileflowsFile } from '@/composables/useFileflows';
+import { FILEFLOWS_STATUS, fileBaseName, formatSeconds, useFileflowsStatus, type FileflowsFile, type FileflowsMedia } from '@/composables/useFileflows';
 import { useToast } from '@/composables/useToast';
 import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
-import UiButton from '@/components/ui/UiButton.vue';
+import { formatRelativeDate } from '@/utils/format';
+import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
-import UiEmptyState from '@/components/ui/UiEmptyState.vue';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
-import UiSearchField from '@/components/ui/UiSearchField.vue';
-import UiSelect from '@/components/ui/UiSelect.vue';
+import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import EncodingShell from '@/components/encoding/EncodingShell.vue';
-import FileflowsFileRow from '@/components/encoding/FileflowsFileRow.vue';
 import FileflowsLogModal from '@/components/encoding/FileflowsLogModal.vue';
-
-const STATUS_VALUES: number[] = [FILEFLOWS_STATUS.queued, FILEFLOWS_STATUS.processing, FILEFLOWS_STATUS.processed, FILEFLOWS_STATUS.failed];
 
 const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
 const { addToast } = useToast();
-const { status } = useFileflowsStatus();
+const { status, query: statusQuery } = useFileflowsStatus();
 const connected = computed(() => Boolean(status.value?.configured && status.value?.connected));
 
-/* Les filtres vivent dans l'adresse : un lien (« 3 en échec ») y mene directement. */
-function statusFromRoute(): number {
-  const value = Number(route.query.status);
-  return STATUS_VALUES.includes(value) ? value : FILEFLOWS_STATUS.queued;
-}
-const filterStatus = ref<number>(statusFromRoute());
-watch(() => route.query.status, () => { filterStatus.value = statusFromRoute(); });
+/* Recherche et bibliotheque dans l'adresse : un lien y mene directement. */
 const search = ref(String(route.query.q || ''));
 const library = ref(String(route.query.library || ''));
 const debouncedSearch = refDebounced(search, 350);
-const page = ref(0);
-watch([filterStatus, debouncedSearch, library], () => {
-  page.value = 0;
-  selection.clear();
-  const query: Record<string, string> = { status: String(filterStatus.value) };
+watch([debouncedSearch, library], () => {
+  const query: Record<string, string> = {};
   if (debouncedSearch.value.trim()) query.q = debouncedSearch.value.trim();
   if (library.value) query.library = library.value;
   void router.replace({ query });
 });
 
-const statusOptions = computed(() => [
-  { value: FILEFLOWS_STATUS.queued, label: `En attente${countSuffix(status.value?.queue)}` },
-  { value: FILEFLOWS_STATUS.processing, label: 'En cours' },
-  { value: FILEFLOWS_STATUS.processed, label: 'Traités' },
-  { value: FILEFLOWS_STATUS.failed, label: `En échec${countSuffix(status.value?.failed)}` },
-]);
-function countSuffix(value?: number): string {
-  return value ? ` (${value})` : '';
+function filesQuery(state: number) {
+  return useQuery({
+    queryKey: computed(() => queryKeys.fileflows.files(state, 0, debouncedSearch.value.trim())),
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({ status: String(state), page: '0', search: debouncedSearch.value.trim() });
+      return api<{ files: FileflowsFile[]; has_more: boolean }>(`/api/fileflows/files?${params}`, { signal });
+    },
+    enabled: connected,
+    placeholderData: keepPreviousData,
+    refetchInterval: 30_000,
+  });
 }
+const queuedQuery = filesQuery(FILEFLOWS_STATUS.queued);
+const failedQuery = filesQuery(FILEFLOWS_STATUS.failed);
 
-const filesQuery = useQuery({
-  queryKey: computed(() => queryKeys.fileflows.files(filterStatus.value, page.value, debouncedSearch.value.trim())),
-  queryFn: ({ signal }) => {
-    const params = new URLSearchParams({ status: String(filterStatus.value), page: String(page.value), search: debouncedSearch.value.trim() });
-    return api<{ files: FileflowsFile[]; has_more: boolean }>(`/api/fileflows/files?${params}`, { signal });
-  },
-  enabled: connected,
-  placeholderData: keepPreviousData,
-  refetchInterval: 30_000,
+/* FileFlows ne filtre pas sa liste par bibliotheque : le filtre porte sur ce qui est charge. */
+const inLibrary = (name: string) => !library.value || name === library.value;
+const queued = computed(() => (queuedQuery.data.value?.files || []).filter((file) => inLibrary(file.library)));
+const failed = computed(() => (failedQuery.data.value?.files || []).filter((file) => inLibrary(file.library)));
+const libraryOptions = computed(() => {
+  const names = new Set([...(queuedQuery.data.value?.files || []), ...(failedQuery.data.value?.files || [])].map((file) => file.library).filter(Boolean));
+  for (const runner of status.value?.runners || []) if (runner.library) names.add(runner.library);
+  return [{ value: '', label: 'Toutes' }, ...[...names].sort().map((name) => ({ value: name, label: name }))];
 });
-/* Le filtre par bibliotheque porte sur la page chargee : FileFlows ne sait pas filtrer
-   sa liste par bibliotheque. */
-const allFiles = computed<FileflowsFile[]>(() => filesQuery.data.value?.files || []);
-const libraryOptions = computed(() => [
-  { value: '', label: 'Toutes les bibliothèques' },
-  ...[...new Set(allFiles.value.map((file) => file.library).filter(Boolean))].sort().map((name) => ({ value: name, label: name })),
-]);
-const files = computed(() => (library.value ? allFiles.value.filter((file) => file.library === library.value) : allFiles.value));
-const hasMore = computed(() => Boolean(filesQuery.data.value?.has_more));
-/* Le rang dans la file n'a de sens que sur la liste complete des fichiers en attente. */
-const showPositions = computed(() => filterStatus.value === FILEFLOWS_STATUS.queued && page.value === 0 && !library.value && !debouncedSearch.value.trim());
 
-const selection = reactive(new Set<string>());
-const isSelectable = (file: FileflowsFile) => file.status !== FILEFLOWS_STATUS.queued && file.status !== FILEFLOWS_STATUS.processing;
-const selectableFiles = computed(() => files.value.filter(isSelectable));
-function toggle(uid: string): void {
-  if (selection.has(uid)) selection.delete(uid);
-  else selection.add(uid);
+function mediaTitle(media: FileflowsMedia): string {
+  return media.year ? `${media.title} (${media.year})` : media.title;
 }
+const titleOf = (file: { name: string; media?: FileflowsMedia | null }) => (file.media ? mediaTitle(file.media) : fileBaseName(file.name));
+const linkOf = (media?: FileflowsMedia | null) => (media ? `/library/media/library/${media.id}` : null);
+const searched = (name: string) => !debouncedSearch.value.trim() || name.toLowerCase().includes(debouncedSearch.value.trim().toLowerCase());
+
+/* Echecs (bloques), runners (en cours), file (en attente, dans l'ordre de passage). */
+const items = computed<TrackItem[]>(() => [
+  ...failed.value.map((file): TrackItem => ({
+    key: `failed-${file.uid}`,
+    state: 'blocked',
+    title: titleOf(file),
+    subtitle: [file.library, file.flow].filter(Boolean).join(' · '),
+    poster: file.media?.poster_url || null,
+    icon: Film,
+    to: linkOf(file.media),
+    cause: { headline: file.failure_reason || 'Traitement en échec', hint: 'Le journal donne le détail de l’étape qui a échoué.' },
+    actions: [
+      { key: `reprocess:${file.uid}`, label: 'Relancer', tone: 'primary', icon: RotateCcw, disabled: reprocessMutation.isPending.value },
+      { key: `log:${file.uid}`, label: 'Journal', icon: ScrollText },
+    ],
+  })),
+  ...(status.value?.runners || []).filter((runner) => inLibrary(runner.library) && searched(runner.name)).map((runner): TrackItem => ({
+    key: `run-${runner.path}`,
+    state: 'running',
+    title: runner.media ? mediaTitle(runner.media) : fileBaseName(runner.name),
+    subtitle: runner.library,
+    poster: runner.media?.poster_url || null,
+    icon: Film,
+    to: linkOf(runner.media),
+    step: runner.step || 'Démarrage…',
+    progress: runner.percent || null,
+  })),
+  ...queued.value.map((file, index): TrackItem => ({
+    key: `queued-${file.uid}`,
+    state: 'waiting',
+    title: titleOf(file),
+    subtitle: file.library,
+    note: file.relaunched ? 'relancé à la main' : '',
+    to: linkOf(file.media),
+    actions: index === 0 ? [] : [{ key: `top:${file.uid}`, label: 'En tête', icon: ArrowUpToLine, title: 'Mettre en tête de file' }],
+  })),
+]);
+
+const recent = computed<TrackRecent[]>(() => (status.value?.recent_processed || []).slice(0, 5).map((file) => ({
+  key: file.uid,
+  title: titleOf(file),
+  detail: file.timing ? formatSeconds(file.timing.processing_seconds) : (file.date ? formatRelativeDate(file.date) : ''),
+  to: linkOf(file.media),
+})));
+const updated = computed(() => (statusQuery.dataUpdatedAt.value ? `Mis à jour ${formatRelativeDate(new Date(statusQuery.dataUpdatedAt.value))}` : ''));
 
 const logFile = ref<FileflowsFile | null>(null);
-
 function refreshAll(): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.fileflows.all });
 }
-
 const reprocessMutation = useMutation({
   mutationFn: (uids: string[]) => api<{ queued: number; skipped: number; warnings: string[] }>('/api/fileflows/reprocess', { method: 'POST', body: JSON.stringify({ uids }) }),
   onSuccess: (result) => {
     const parts = [`${result.queued} fichier${result.queued > 1 ? 's' : ''} remis en file`];
     if (result.skipped) parts.push(`${result.skipped} déjà en file ou en cours`);
     addToast({ type: result.queued ? 'success' : 'info', message: [...parts, ...result.warnings].join(' · '), duration: result.warnings.length ? 8000 : 4000 });
-    selection.clear();
     refreshAll();
   },
   onError: (error) => addToast({ type: 'error', message: humanizeError(error) }),
 });
-
 const topMutation = useMutation({
   mutationFn: (uid: string) => api(`/api/fileflows/files/${uid}/top`, { method: 'POST' }),
   onSuccess: () => {
@@ -161,14 +166,11 @@ const topMutation = useMutation({
   },
   onError: (error) => addToast({ type: 'error', message: humanizeError(error) }),
 });
-</script>
 
-<style scoped lang="scss">
-.queue { display: grid; gap: var(--space-3); }
-.queue-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.queue-toolbar > :first-child { flex: 1; min-width: 220px; }
-.queue-selection { display: flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--fs-sm); }
-.queue-muted { margin: 0; color: var(--muted); }
-.queue-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.queue-pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); color: var(--muted); font-size: var(--fs-sm); }
-</style>
+function onAction(_item: TrackItem, key: string): void {
+  const [action, uid] = key.split(':');
+  if (action === 'reprocess') reprocessMutation.mutate([uid]);
+  else if (action === 'top') topMutation.mutate(uid);
+  else if (action === 'log') logFile.value = failed.value.find((file) => file.uid === uid) || null;
+}
+</script>
