@@ -31,6 +31,12 @@
       <template #row-genres><p class="muted">Rails de genres, chargés à l’ouverture.</p></template>
     </BrowseTemplate>
 
+    <template v-else-if="current === 'plan'">
+      <PlanTemplate v-model:cursor="planCursor" :events="planEvents" :states="PLAN_STATES" :unit="['sortie', 'sorties']" preference-key="gallery.plan" @open="log" />
+      <h2 class="gallery-sub">Mini-calendrier (dans une fiche)</h2>
+      <MiniCalendar :entries="miniEntries" />
+    </template>
+
     <UnderstandTemplate v-else-if="current === 'understand'" v-model:period="period" v-model:outcome="outcome" :periods="PERIODS" :outcomes="OUTCOMES" :events="events" :summary="summary" :open-key="openKey" :detail="openKey ? detail : null" @open="openKey = $event.key" @close="openKey = ''" @action="log" @export="log('export')" />
 
     <ConfigureTemplate v-else-if="current === 'configure'" :sections="sections" :dirty="dirty" @save="savePause" @cancel="pause = savedPause">
@@ -57,7 +63,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { Cog, FolderTree, ListOrdered } from '@lucide/vue';
+import { Clapperboard, Cog, FolderTree, ListOrdered, Tv } from '@lucide/vue';
+import MiniCalendar, { type MiniCalendarEntry } from '@/components/ui/MiniCalendar.vue';
+import PlanTemplate, { type PlanEvent, type PlanState } from '@/components/templates/PlanTemplate.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
@@ -76,8 +84,8 @@ import ConfigureTest from '@/components/templates/configure/ConfigureTest.vue';
 import ResourceList from '@/components/templates/configure/ResourceList.vue';
 import DetailTemplate, { type DetailAction, type DetailBadge } from '@/components/templates/DetailTemplate.vue';
 
-const KEYS = ['monitor', 'track', 'handle', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
-const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
+const KEYS = ['monitor', 'track', 'handle', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
+const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
 const TABS = KEYS.map((key, i) => ({ key, label: LABELS[i], to: { path: '/dev/gabarits', query: { g: key } } }));
 const route = useRoute();
 const current = computed(() => (KEYS as readonly string[]).includes(String(route.query.g)) ? String(route.query.g) : 'monitor');
@@ -138,6 +146,24 @@ const browseRows: BrowseRow[] = [
 ];
 const films = ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien'].map((title, i) => ({ id: i, title, year: 2023 - i * 3, media_type: 'movie', poster_url: POSTER, status: 'available', _kind: 'library' }));
 
+/* Anticiper */
+const planCursor = ref(new Date());
+const PLAN_STATES: PlanState[] = [
+  { key: 'available', label: 'Disponible', color: 'var(--success)' },
+  { key: 'late', label: 'En retard', color: 'var(--danger)', emphasize: true },
+  { key: 'upcoming', label: 'À venir', color: 'var(--accent)' },
+];
+const day = (offset: number, hour = 0) => { const d = new Date(); d.setDate(d.getDate() + offset); d.setHours(hour, 0, 0, 0); return d.toISOString(); };
+const planEvents: PlanEvent[] = [
+  ['Dune : Prophecy', 'S01E05', 'upcoming', 1, 21], ['The Last of Us', 'S02E03', 'available', -2, 3], ['Gladiator II', 'Film', 'late', -5, 0], ['Severance', 'S02E08', 'upcoming', 3, 9],
+  ['Andor', 'S02E01', 'upcoming', 3, 3], ['Shōgun', 'S02E02', 'available', -1, 0], ['Silo', 'S02E06', 'upcoming', 3, 4], ['Arcane', 'S02E09', 'upcoming', 3, 6], ['Wicked', 'Film', 'upcoming', 9, 0],
+].map(([title, subtitle, state, offset, hour], i) => ({ key: `e${i}`, title: String(title), subtitle: String(subtitle), state: String(state), date: day(Number(offset), Number(hour)), icon: subtitle === 'Film' ? Clapperboard : Tv }));
+const miniEntries: MiniCalendarEntry[] = [
+  { key: 'c', date: day(-40), title: 'Sortie au cinéma', kind: 'cinema' },
+  { key: 's', date: day(12), title: 'Sortie en streaming', subtitle: 'Prime Video', kind: 'streaming' },
+  { key: 'p', date: day(55), title: 'Sortie en Blu-ray', subtitle: 'Édition 4K', kind: 'physical' },
+];
+
 /* Comprendre */
 const period = ref('7d');
 const outcome = ref('all');
@@ -186,3 +212,7 @@ const badges: DetailBadge[] = [{ key: 'plex', label: 'Dans Plex', tone: 'success
 const detailActions: DetailAction[] = [{ key: 'play', label: 'Lire dans Plex' }, { key: 'relaunch', label: 'Relancer l’encodage' }, { key: 'vf', label: 'Chercher une VF' }, { key: 'delete', label: 'Supprimer', danger: true }];
 const facts = [{ label: 'Qualité', value: '1080p' }, { label: 'Taille', value: '8,2 Go' }, { label: 'Audio', value: 'FR, EN' }, { label: 'Disque', value: 'USB 3' }, { label: 'Source', value: 'Radarr' }];
 </script>
+
+<style scoped>
+.gallery-sub { margin: var(--space-6) 0 var(--space-3); font-size: var(--fs-md); }
+</style>

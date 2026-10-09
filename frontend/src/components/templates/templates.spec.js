@@ -368,3 +368,46 @@ describe('BrowseTemplate', () => {
     expect(wrapper.emitted('open-row')?.[0]).toEqual(['genres']);
   });
 });
+
+describe('PlanTemplate', () => {
+  const at = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); d.setHours(0, 0, 0, 0); return d.toISOString(); };
+  const states = [{ key: 'available', label: 'Disponible', color: 'green' }, { key: 'upcoming', label: 'À venir', color: 'blue' }, { key: 'late', label: 'En retard', color: 'red' }];
+  const events = [
+    { key: 'a', date: at(0), title: 'A', state: 'upcoming' },
+    { key: 'b', date: at(0), title: 'B', state: 'upcoming' },
+    { key: 'c', date: at(0), title: 'C', state: 'available' },
+    { key: 'd', date: at(0), title: 'D', state: 'upcoming' },
+  ];
+
+  it('légende les états présents avec leur nombre, et replie au-delà de trois par jour', async () => {
+    const { default: PlanTemplate } = await import('./PlanTemplate.vue');
+    const wrapper = mount(PlanTemplate, { props: { events, states, cursor: new Date(), preferenceKey: 'test.plan.month' }, global });
+    await wrapper.findAll('.calendar-view-switch button').find((b) => b.text() === 'Mois')?.trigger('click');
+    expect(wrapper.findAll('.calendar-legend li').map((n) => n.text().replace(/\s+/g, ' '))).toEqual(['Disponible 1', 'À venir 3']);
+    expect(wrapper.find('.month-more').text()).toContain('+ 1 autre');
+  });
+
+  it('bascule en Agenda pendant une recherche, sans navigation de période', async () => {
+    const { default: PlanTemplate } = await import('./PlanTemplate.vue');
+    const wrapper = mount(PlanTemplate, { props: { events, states, cursor: new Date(), searching: true, searchScope: 'sur un an' }, global });
+    expect(wrapper.find('.calendar-agenda').exists()).toBe(true);
+    expect(wrapper.find('.calendar-navigation').exists()).toBe(false);
+    expect(wrapper.find('.calendar-search-scope').text()).toBe('4 résultats sur un an');
+  });
+});
+
+describe('MiniCalendar', () => {
+  const at = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toISOString(); };
+
+  it('liste par date avec le type de sortie, et marque aujourd’hui entre passé et à venir', async () => {
+    const { default: MiniCalendar } = await import('@/components/ui/MiniCalendar.vue');
+    const wrapper = mount(MiniCalendar, { props: { entries: [
+      { key: 's', date: at(12), title: 'Streaming', kind: 'streaming' },
+      { key: 'c', date: at(-40), title: 'Cinéma', kind: 'cinema' },
+    ] } });
+    expect(wrapper.findAll('.mini-date__text strong').map((n) => n.text())).toEqual(['Cinéma', 'Streaming']);
+    expect(wrapper.find('.mini-date.is-cinema').classes()).toContain('is-past');
+    expect(wrapper.find('.mini-calendar__today').exists()).toBe(true);
+    expect(wrapper.find('.mini-date.is-streaming').text()).toContain('En streaming');
+  });
+});

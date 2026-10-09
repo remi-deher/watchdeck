@@ -17,6 +17,7 @@ Chaque page relève d'un seul besoin, donc d'un seul gabarit :
 | **Suivre** | « Où en est ce qui tourne ? » | Éléments en cours, progression en direct, blocages et leur cause, actions débloquer / relancer / pause / annuler. |
 | **Parcourir** | « Qu'est-ce qu'il y a d'intéressant ? » | Bannière, rails thématiques ; le titre d'un rail mène à la liste complète déjà réglée (Explorer). On n'y règle rien. |
 | **Explorer** | « Je cherche précisément ceci » | On explore pour affiner : recherche, filtres, types en onglets, compteur et filtres actifs, grille d'affiches, ouverture de la fiche. |
+| **Anticiper** | « Qu'est-ce qui arrive, et quand ? » | Calendrier : vues Mois / Semaine / Agenda, navigation de période, légende des états, recherche en Agenda. Dans une fiche, le mini-calendrier en liste. |
 | **Comprendre** | « Que s'est-il passé ? » | Chronologie, filtres de période et d'état, détail d'un événement, avant / après, export. |
 | **Configurer** | « Comment je veux que ça marche ? » | Réglages groupés par intention, effet expliqué, enregistrement sûr, test de connexion. |
 | **Fiche** | « Tout sur cet élément » | Identité et état, actions possibles, détails par onglets. |
@@ -33,6 +34,7 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause (cartes), file d'attente compacte et repliable, derniers terminés | Disponible |
 | `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
 | `BrowseTemplate.vue` | Parcourir : bannière (MediaHeroBanner), rangées `posters` (MediaPosterCollection en rail, carte de la page), `section`, `collapsible` chargée à l'ouverture | Disponible |
+| `PlanTemplate.vue` (+ `plan/`) | Anticiper : le calendrier de production devenu commun ; la page charge la période (`update:cursor`, `periodBounds`), fournit ses états (libellé, couleur) et, au besoin, une carte d'Agenda (`agenda-item`) | Disponible |
 | `ExploreTemplate.vue` (+ `explore/`) | Explorer : compteur et filtres actifs, grille / liste, défilement continu ; tri et affichage dans la feuille (ExploreDisplay) | Disponible |
 | `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille | Disponible |
 | `ConfigureTemplate.vue` (+ `configure/`) | Configurer : sections par intention avec sommaire, enregistrement global (Enregistrer / Annuler, confirmation avant de quitter), blocs `ConfigureField`, `ConfigureTest`, `ResourceList` | Disponible |
@@ -76,6 +78,10 @@ Les gabarits ne sont pas figés : chacun s'adosse à des blocs, qui sont des com
 communs (`monitor/`, `track/`…). Pour faire évoluer un gabarit, on remplace ou on fait
 évoluer le bloc concerné, et toutes les pages qui l'utilisent suivent. On ne contourne
 jamais un gabarit depuis une page.
+
+Blocs communs hors gabarit : `MiniCalendar` (dates d'un élément en liste, par mois,
+couleur et icône par type : cinéma, streaming, physique, épisode), à utiliser dans une
+fiche plutôt qu'un calendrier.
 
 ## 2. Pas de dérive : on suit le gabarit
 
