@@ -7,6 +7,8 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.services.media_ref import media_ref
+
 from ..models import (
     ArrInstance,
     DiagnosticEvent,
@@ -41,6 +43,7 @@ def _media_payload(
     next_episode_to_air: dict | None = None,
 ) -> dict:
     return {
+        **media_ref(media_obj),
         "kind": "library" if library_item else "request",
         "library_id": library_item.id if library_item else None,
         "request_id": selected_request.id if selected_request else None,
@@ -50,7 +53,7 @@ def _media_payload(
         "year": media_obj.year,
         "media_type": media_obj.media_type,
         "poster_url": wrap_image_proxy(media_obj.poster_url),
-        "backdrop_url": wrap_backdrop_proxy(backdrop_url),
+        "backdrop_url": wrap_backdrop_proxy(backdrop_url or (media_ref(media_obj) or {}).get("backdrop_url")),
         "overview": media_obj.overview,
         "has_vf": media_obj.has_vf,
         "vf_granularity": media_obj.vf_granularity,
@@ -345,6 +348,7 @@ async def build_media_detail(
                     "title": item.title,
                     "year": item.year,
                     "media_type": item.media_type,
+                    **media_ref(item),
                     "poster_url": wrap_image_proxy(item.poster_url),
                     "overview": item.overview,
                 }

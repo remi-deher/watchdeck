@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .models import LibraryItem, MediaRequest, PlexUser
+from .services.media_ref import media_ref
 from .utils import wrap_image_proxy
 
 
@@ -48,6 +49,7 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
         requester_ids = requester_ids[1:]
     requesters = [users.get(uid, uid) for uid in requester_ids]
     return {
+        **media_ref(req),
         "id": req.id,
         "title": req.title,
         "year": req.year,
@@ -99,10 +101,7 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
 
 def serialize_library_item(item: LibraryItem) -> dict:
     return {
-        "id": item.id,
-        "title": item.title,
-        "year": item.year,
-        "media_type": item.media_type,
+        **media_ref(item),
         "has_vf": item.has_vf,
         "arr_id": item.arr_id,
         "arr_instance_id": item.arr_instance_id,
@@ -138,6 +137,7 @@ def serialize_media_summary(
     """Sérialise un résumé média standardisé pour les sections de découverte et listes compactes."""
     if isinstance(item, LibraryItem):
         return {
+            **media_ref(item),
             "tmdb_id": item.tmdb_id,
             "media_type": item.media_type,
             "title": item.title,
@@ -163,6 +163,7 @@ def serialize_media_summary(
             else available
         )
         summary = {
+            **media_ref(item),
             "tmdb_id": item.tmdb_id,
             "media_type": item.media_type,
             "title": item.title,
@@ -186,6 +187,8 @@ def serialize_media_summary(
         return summary
     if isinstance(item, dict):
         summary = {
+            "id": item.get("id") or item.get("tmdb_id"),
+            "backdrop_url": item.get("backdrop_url"),
             "tmdb_id": item.get("tmdb_id"),
             "media_type": item.get("media_type"),
             "title": item.get("title"),

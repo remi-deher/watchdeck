@@ -2,7 +2,7 @@
   <MediaPosterCard
     v-if="view !== 'list'"
     class="interactive"
-    :item="item"
+    :media="item"
     bordered
     @open="handleOpen"
   >

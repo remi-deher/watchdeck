@@ -1,3 +1,5 @@
+import type { MediaRef } from '@/types';
+
 /* Gabarit « Traiter » : les donnees qu'une page lui confie. Elle repond a la question
    « que dois-je faire maintenant ? » : ce qui n'avancera pas sans decision. */
 
@@ -37,6 +39,7 @@ export interface HandleItem {
   proposal?: string;
   /** Affiche selon le contexte : un media en a une, un service ou un reglage non. */
   poster?: string | null;
+  media?: MediaRef;
   subtitle?: string;
   to?: string | Record<string, any> | null;
   /** La premiere est l'action principale ; « Ignorer » est une decision durable :

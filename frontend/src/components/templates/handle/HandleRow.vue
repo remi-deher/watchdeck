@@ -4,7 +4,7 @@
   <li class="handle-row" :class="[`is-${item.urgency}`, { 'has-poster': hasPoster }]">
     <UiCheckbox v-if="selectable" :model-value="selected" :aria-label="`Sélectionner ${item.title}`" @update:model-value="emit('toggle', item.key)" />
     <div v-if="hasPoster" class="handle-row__poster">
-      <img :src="proxyUrl(item.poster!, { width: 120 })" alt="" loading="lazy" @error="posterFailed = true" />
+      <img :src="proxyUrl(poster!, { width: 120 })" alt="" loading="lazy" @error="posterFailed = true" />
     </div>
     <div class="handle-row__text">
       <component :is="item.to ? RouterLink : 'strong'" :to="item.to || undefined" class="handle-row__title">{{ item.title }}</component>
@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { proxyUrl } from '@/utils/mediaImage';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -40,7 +40,9 @@ const props = withDefaults(defineProps<{ item: HandleItem; selectable?: boolean;
 const emit = defineEmits<{ action: [item: HandleItem, key: string]; toggle: [key: string] }>();
 
 const posterFailed = ref(false);
-const hasPoster = computed(() => Boolean(props.item.poster) && !posterFailed.value);
+const poster = computed(() => props.item.poster || props.item.media?.poster_url || null);
+watch(poster, () => { posterFailed.value = false; });
+const hasPoster = computed(() => Boolean(poster.value) && !posterFailed.value);
 </script>
 
 <style scoped lang="scss">

@@ -12,6 +12,8 @@ from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.services.media_ref import media_ref
+
 from ..cache import cache
 from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import current_user, require_admin, require_auth, require_moderator
@@ -426,6 +428,7 @@ async def list_library(
             "title": item.title,
             "year": item.year,
             "media_type": item.media_type,
+            **media_ref(item),
             "poster_url": wrap_image_proxy(item.poster_url),
             "art_url": wrap_backdrop_proxy(item.art_url),
             "genres": [g.strip() for g in (item.genres or "").split(",") if g.strip()],

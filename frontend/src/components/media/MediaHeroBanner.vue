@@ -68,6 +68,7 @@
 </template>
 
 <script setup lang="ts">
+import type { MediaRef } from '@/types';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mediaDetailPath } from '@/mediaUrl';
@@ -80,6 +81,8 @@ import { proxyUrl } from '@/utils/mediaImage';
 
 const props = withDefaults(
   defineProps<{
+    media?: MediaRef;
+    backdrop?: string | null;
     item?: any;
     items?: any[];
     loading?: boolean;
@@ -106,6 +109,7 @@ const LABELS: Record<string, string> = { movie: 'Film', show: 'Série', artist: 
 
 const normalizedItems = computed(() => {
   if (props.items?.length) return props.items.filter(Boolean);
+  if (props.media) return [props.media];
   if (props.item) return [props.item];
   return [];
 });
@@ -122,7 +126,7 @@ const itemKey = computed(() => {
   return `${activeItem.value.media_type || 'item'}-${id}-${activeIndex.value}`;
 });
 
-const backdropOf = (item: any): string | null => proxyUrl(item?.backdrop_url || item?.art_url || null, { kind: 'backdrop' });
+const backdropOf = (item: any): string | null => proxyUrl(props.backdrop || item?.backdrop_url || null, { kind: 'backdrop' });
 /* Les fonds sont charges d'avance : une diapositive qui entrait avant son image glissait
    vide, et le defilement montrait un trou le temps du chargement. Les images restent
    referencees pour que le navigateur les garde decodees. */

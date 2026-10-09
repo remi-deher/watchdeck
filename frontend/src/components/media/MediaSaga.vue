@@ -10,7 +10,7 @@
       <MediaPosterCard
         v-for="item in saga.items"
         :key="mediaRequestKey(item)"
-        :item="item"
+        :media="item"
         :to="detailPath(item)"
         :action-label="cardActionLabel(item)"
         :requestable="canRequest(item)"

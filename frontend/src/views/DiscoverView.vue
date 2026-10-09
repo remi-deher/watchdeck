@@ -369,7 +369,7 @@
               :key="mediaRequestKey(item)"
               :style="{ '--card-index': index % 20 }"
               :to="detailPath(item)"
-              :item="item"
+              :media="item"
               :action-label="cardActionLabel(item)"
               :requestable="canRequest(item)"
               :request-busy="requesting.includes(mediaRequestKey(item))"

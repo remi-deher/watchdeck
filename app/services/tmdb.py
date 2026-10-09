@@ -207,6 +207,7 @@ def _norm(item: dict, forced_type: Optional[str] = None) -> Optional[dict]:
     date = (item.get("release_date") if is_movie else item.get("first_air_date")) or ""
     year = int(date[:4]) if date[:4].isdigit() else None
     return {
+        "id": item.get("id"),
         "tmdb_id": item.get("id"),
         "media_type": "movie" if is_movie else "show",  # convention interne du reste de l'app
         "title": title or "",

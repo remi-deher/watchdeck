@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.services.media_ref import media_ref
+
 from ..cache import cache
 from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import require_auth
@@ -289,6 +291,7 @@ async def _compute_calendar(
             "requested_by_ids": [],
             "request_sources": [],
             "has_vf": li.has_vf,
+            **media_ref(li),
             "poster_url": wrap_image_proxy(li.poster_url),
         }
         library_items_by_id[li.id] = entry

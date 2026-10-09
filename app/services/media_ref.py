@@ -19,5 +19,5 @@ def media_ref(item: Any) -> Optional[dict[str, Any]]:
         "year": item.year,
         "media_type": item.media_type,
         "poster_url": item.poster_url,
-        "backdrop_url": item.art_url,
+        "backdrop_url": getattr(item, "art_url", None),
     }

@@ -14,7 +14,7 @@
         v-for="card in cards"
         :key="card.key"
         class="interactive"
-        :item="card"
+        :media="card"
         bordered
         @open="open(card)"
       >
@@ -50,6 +50,7 @@ import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 
 interface MissingCard {
+  id: number;
   key: string;
   source: 'sonarr' | 'radarr';
   instance_id: string | number;
@@ -90,13 +91,13 @@ const allCards = computed<MissingCard[]>(() => {
       const current = series.get(key);
       if (current) current.episodes += 1;
       else series.set(key, {
-        key, source: 'sonarr', instance_id: row.instance_id, instance_name: row.instance_name, arr_id: row.arr_id,
-        title: row.series_title || row.title, poster_url: row.poster_url, media_type: 'show', badge: '', episodes: 1,
+        ...row, id: Number(row.arr_id), key, source: 'sonarr', instance_id: row.instance_id, instance_name: row.instance_name, arr_id: row.arr_id,
+        title: row.series_title || row.title, media_type: 'show', badge: '', episodes: 1,
       });
     } else {
       movies.push({
-        key: `movie-${row.instance_id}-${row.id}`, source: 'radarr', instance_id: row.instance_id, instance_name: row.instance_name,
-        arr_id: row.arr_id ?? row.id, title: row.title, year: row.year, poster_url: row.poster_url, media_type: 'movie', badge: 'Manquant',
+        ...row, id: Number(row.arr_id ?? row.id), key: `movie-${row.instance_id}-${row.id}`, source: 'radarr', instance_id: row.instance_id, instance_name: row.instance_name,
+        arr_id: row.arr_id ?? row.id, title: row.title, year: row.year, media_type: 'movie', badge: 'Manquant',
       });
     }
   }
