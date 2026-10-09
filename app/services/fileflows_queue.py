@@ -37,11 +37,15 @@ def desired_order(
     included: set[str],
     paused: frozenset[str] | set[str] = frozenset(),
     relaunched_pass: bool = True,
+    busy: frozenset[str] | set[str] = frozenset(),
 ) -> tuple[list[str], dict[str, int], int]:
     """Ordre voulu : relancés, bibliothèques incluses en alternance, reste, puis les
     bibliothèques en pause (lecture Plex) à la fin pour que les runners passent ailleurs.
 
-    `relaunched_pass=False` : un fichier relancé d'une bibliothèque en pause attend avec elle."""
+    `relaunched_pass=False` : un fichier relancé d'une bibliothèque en pause attend avec elle.
+    `busy` : bibliothèques dont le disque traite déjà un fichier ; leurs fichiers passent après
+    ceux des disques libres, pour qu'un runner libre ne vienne pas attendre ce disque (un
+    disque lent immobiliserait sinon un runner après l'autre)."""
 
     def protected_row(row: dict[str, Any]) -> bool:
         return relaunched(row) and (relaunched_pass or row.get("lu") not in paused)
@@ -56,7 +60,11 @@ def desired_order(
     alternated = [u for batch in itertools.zip_longest(*groups.values()) for u in batch if u]
     others = [row["u"] for row in active if row.get("lu") not in included]
     held = [row["u"] for row in rest if row.get("lu") in paused]
-    return protected + alternated + others + held, {k: len(v) for k, v in groups.items()}, len(protected)
+    library_of = {row["u"]: row.get("lu") for row in rows}
+    ordered = alternated + others
+    free = [u for u in ordered if library_of[u] not in busy]
+    waiting = [u for u in ordered if library_of[u] in busy]
+    return protected + free + waiting + held, {k: len(v) for k, v in groups.items()}, len(protected)
 
 
 def parse_libraries(value: str | None) -> list[str]:
