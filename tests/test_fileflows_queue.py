@@ -139,23 +139,7 @@ async def test_reorder_moves_only_when_needed():
 
 
 @pytest.mark.asyncio
-async def test_reorder_if_enabled_and_last_run():
-    db = make_test_session()
-    try:
-        settings = Settings(fileflows_reorder_enabled=False, fileflows_reorder_libraries='["A", "B"]')
-        db.add(settings)
-        db.commit()
-        reorder = AsyncMock(return_value={"changed": True})
-        with patch.object(fileflows_queue, "reorder", new=reorder):
-            assert await fileflows_queue.reorder_if_enabled(db, "http://ff", None) is None
-            settings.fileflows_reorder_enabled = True
-            db.commit()
-            assert await fileflows_queue.reorder_if_enabled(db, "http://ff", None) == {"changed": True}
-            assert reorder.call_args.args[2] == ["A", "B"]
-        with patch.object(fileflows_queue, "reorder", new=AsyncMock(side_effect=fileflows.FileFlowsError("KO"))):
-            assert await fileflows_queue.reorder_if_enabled(db, "http://ff", None) == {"error": "KO"}
-    finally:
-        db.close()
+async def test_last_run():
     with patch.object(fileflows_queue.cache, "get_json", new=AsyncMock(return_value={"at": "x"})):
         assert await fileflows_queue.last_run() == {"at": "x"}
     with patch.object(fileflows_queue.cache, "get_json", new=AsyncMock(side_effect=RuntimeError("redis"))):

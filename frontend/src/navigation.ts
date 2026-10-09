@@ -22,6 +22,7 @@ import {
   DatabaseZap,
   Download,
   Film,
+  FolderTree,
   Gauge,
   GitBranch,
   History,
@@ -43,6 +44,7 @@ import {
   ScrollText,
   ShieldCheck,
   SlidersHorizontal,
+  Workflow,
   Table,
   MessageSquareText,
   Settings,
@@ -399,7 +401,13 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       sections = [{ key: 'storage', label: 'Stockage et transferts', to: '/storage', icon: DatabaseZap }];
       break;
     case 'encoding':
-      sections = [{ key: 'encoding', label: 'Encodage', to: '/encoding', icon: Cpu }];
+      sections = [
+        { key: 'overview', label: 'Vue d’ensemble', to: '/encoding', icon: Gauge },
+        { key: 'queue', label: 'File d’attente', to: '/encoding/queue', icon: ListOrdered },
+        { key: 'libraries', label: 'Bibliothèques', to: '/encoding/libraries', icon: FolderTree },
+        { key: 'flows', label: 'Flows', to: '/encoding/flows', icon: Workflow },
+        { key: 'settings', label: 'Réglages', to: '/encoding/settings', icon: SlidersHorizontal },
+      ];
       break;
     case 'downloads':
       sections = pipelineSections();

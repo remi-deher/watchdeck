@@ -12,7 +12,7 @@
     <template #action><RouterLink to="/encoding" class="panel-link">Tout voir</RouterLink></template>
 
     <template v-if="status.connected">
-      <RouterLink v-for="runner in status.runners || []" :key="runner.path" to="/encoding?status=2" class="ff-runner">
+      <RouterLink v-for="runner in status.runners || []" :key="runner.path" to="/encoding" class="ff-runner">
         <span class="ff-runner-head">
           <LoaderCircle class="spin" aria-hidden="true" />
           <strong>{{ runner.media ? mediaTitle(runner.media) : fileBaseName(runner.name) }}</strong>
@@ -28,7 +28,7 @@
 
       <div v-if="failures.length" class="ff-failures">
         <span class="ff-label">Derniers échecs</span>
-        <RouterLink v-for="file in failures" :key="file.uid" to="/encoding?status=4" class="ff-failure" :title="file.failure_reason || file.name">
+        <RouterLink v-for="file in failures" :key="file.uid" to="/encoding/queue?status=4" class="ff-failure" :title="file.failure_reason || file.name">
           <XCircle aria-hidden="true" />
           <span>{{ file.media ? mediaTitle(file.media) : fileBaseName(file.name) }}</span>
         </RouterLink>

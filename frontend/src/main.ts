@@ -94,7 +94,11 @@ const routes: RouteRecordRaw[] = [
   // Un chemin par section : partageable, marquable en favori, et coherent avec le reste
   // de l'application. Le parametre `?tab=` reste accepte et redirige (voir SettingsView).
   { path: '/storage', component: () => import('@/views/StorageView.vue'), meta: { title: 'Stockages et transferts' } },
-  { path: '/encoding', component: () => import('@/views/EncodingView.vue'), meta: { title: 'Encodage' } },
+  { path: '/encoding', component: () => import('@/views/encoding/EncodingOverviewView.vue'), meta: { title: 'Encodage' } },
+  { path: '/encoding/queue', component: () => import('@/views/encoding/EncodingQueueView.vue'), meta: { title: "File d'attente" } },
+  { path: '/encoding/libraries', component: () => import('@/views/encoding/EncodingLibrariesView.vue'), meta: { title: 'Bibliothèques FileFlows' } },
+  { path: '/encoding/flows', component: () => import('@/views/encoding/EncodingFlowsView.vue'), meta: { title: 'Flows FileFlows' } },
+  { path: '/encoding/settings', component: () => import('@/views/encoding/EncodingSettingsView.vue'), meta: { title: 'Réglages FileFlows' } },
   { path: '/settings', component: SettingsView, meta: { title: 'Administration' } },
   { path: '/settings/resource/:kind/:id', component: () => import('@/views/SettingsResourceView.vue'), meta: { title: 'Réglage' } },
   { path: '/settings/services/:section?', component: SettingsView, meta: { title: 'Connexions' } },
