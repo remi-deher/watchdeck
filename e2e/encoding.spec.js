@@ -76,8 +76,9 @@ for (const [path, selector, name] of PAGES) {
     await mockApi(page);
     await page.goto(path);
     await expect(page.locator(selector).first()).toBeVisible({ timeout: 15_000 });
-    // Une seule rangee d'onglets : celle de la page.
-    expect(await page.locator(".app-page__sticky .app-subnav").count()).toBeLessThanOrEqual(1);
+    // Une seule rangee d'onglets propres a la page. Sur tablette, le shell y ajoute les
+    // sections du menu (rail replie), comme pour la Bibliotheque : elles ne comptent pas.
+    expect(await page.locator('.app-page__sticky [aria-label="Vues de l’encodage"]').count()).toBeLessThanOrEqual(1);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(overflow, "débordement horizontal").toBe(false);
     if (process.env.ENCODING_SHOTS) await page.screenshot({ path: `${process.env.ENCODING_SHOTS}/${testInfo.project.name}-${name}.png`, fullPage: true });
