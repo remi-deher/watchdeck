@@ -1,21 +1,18 @@
 <template>
   <!-- Gabarit « Suivre » : repond a « ou en est ce qui tourne ? ».
-         1. le resume des etats, qui sert aussi de filtre ;
-         2. les elements groupes par etat, dans un ordre fixe : bloques (avec leur cause
+         1. les elements groupes par etat, dans un ordre fixe : bloques (avec leur cause
             et l'action qui debloque), en cours (progression, temps restant), en pause,
             en attente (liste compacte dans l'ordre de passage, repliee au-dela de quelques lignes) ;
-         3. les derniers termines, puis le lien vers l'historique complet.
+         2. les derniers termines, puis le lien vers l'historique complet.
        Pas de reglage ni d'analyse : ce sont les besoins des gabarits Configurer et
        Comprendre. La page fournit les elements et reagit aux actions (`action`). -->
   <div class="track">
-    <div class="track__summary">
-      <UiSegmentedControl v-model="filter" :options="filterOptions" ariaLabel="Filtrer par état" />
-      <small v-if="updated" class="track__updated" aria-live="polite">{{ updated }}</small>
-    </div>
+    <!-- Pas de filtre d'etat : chaque groupe porte deja son titre et son nombre. -->
+    <small v-if="updated" class="track__updated" aria-live="polite">{{ updated }}</small>
 
     <p v-if="loading && !items.length" class="track__loading">Chargement des {{ text.items }}…</p>
-    <template v-else-if="visibleGroups.length">
-      <template v-for="group in visibleGroups" :key="group.state">
+    <template v-else-if="groups.length">
+      <template v-for="group in groups" :key="group.state">
       <!-- Ce qui tourne : le bandeau commun (LiveStrip), image, etape et progression ; un
            clic ouvre la fiche de l'element. -->
       <LiveStrip
@@ -63,12 +60,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import LiveStrip, { type LiveItem } from '@/components/ui/LiveStrip.vue';
 import { AlertTriangle, CheckCircle2, Clock, History, Loader, PauseCircle, XCircle } from '@lucide/vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
-import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import TrackCard from './track/TrackCard.vue';
 import TrackQueue from './track/TrackQueue.vue';
 import type { TrackItem, TrackLabels, TrackRecent, TrackState } from './track/types';
@@ -93,11 +89,11 @@ const props = withDefaults(
 const emit = defineEmits<{ action: [item: TrackItem, key: string] }>();
 
 const ORDER: TrackState[] = ['blocked', 'running', 'paused', 'waiting'];
-const GROUPS: Record<TrackState, { title: string; filter: string; icon: any }> = {
-  blocked: { title: 'Demande une intervention', filter: 'Bloqués', icon: AlertTriangle },
-  running: { title: 'En cours', filter: 'En cours', icon: Loader },
-  paused: { title: 'En pause', filter: 'En pause', icon: PauseCircle },
-  waiting: { title: 'En attente', filter: 'En attente', icon: Clock },
+const GROUPS: Record<TrackState, { title: string; icon: any }> = {
+  blocked: { title: 'Demande une intervention', icon: AlertTriangle },
+  running: { title: 'En cours', icon: Loader },
+  paused: { title: 'En pause', icon: PauseCircle },
+  waiting: { title: 'En attente', icon: Clock },
 };
 
 const text = computed(() => {
@@ -130,23 +126,14 @@ function toLive(item: TrackItem): LiveItem {
   };
 }
 
-const filter = ref<'all' | TrackState>('all');
 const groups = computed(() =>
   ORDER.map((state) => ({ state, items: props.items.filter((item) => item.state === state) })).filter((group) => group.items.length),
 );
-/* « Tout » et les etats presents ; un etat filtre qui se vide reste propose tant qu'il
-   est choisi, pour ne pas faire sauter le selecteur sous le doigt. */
-const filterOptions = computed(() => [
-  { value: 'all' as const, label: 'Tout', count: props.items.length },
-  ...ORDER.filter((state) => filter.value === state || groups.value.some((group) => group.state === state))
-    .map((state) => ({ value: state, label: GROUPS[state].filter, count: props.items.filter((item) => item.state === state).length })),
-]);
-const visibleGroups = computed(() => (filter.value === 'all' ? groups.value : groups.value.filter((group) => group.state === filter.value)));
 </script>
 
 <style scoped lang="scss">
 .track { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); min-width: 0; }
-.track__summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.track__updated { justify-self: end; }
 .track__updated, .track__loading { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .track__group, .track__recent { display: grid; gap: var(--space-3); min-width: 0; }
 .track__group-head { display: flex; align-items: center; gap: var(--space-2); }

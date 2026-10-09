@@ -106,6 +106,13 @@ collante ne porte que les onglets, centrés sur la page. La feuille des filtres 
 pied : les filtres s'appliquent en direct, chacun se retire par sa pastille, « Tout
 effacer » à partir de deux.
 
+Un gabarit ou un bloc qui a besoin d'un outil de page (période d'Analyser ou de
+Comprendre, vue d'Anticiper) le pose dans `PageTools`. Un `UiSegmentedControl` ne se
+pose jamais en haut de page pour filtrer : un filtre de liste se place juste au-dessus de
+la liste qu'il filtre, et une bascule qui cadre toute la page (période, vue) passe dans
+les outils de page. Pas de filtre qui répète ce que la page montre déjà (Suivre n'a pas
+de filtre d'état : ses groupes portent titre et nombre).
+
 Blocs communs hors gabarit : `MiniCalendar` (dates d'un élément en liste, par mois,
 couleur et icône par type : cinéma, streaming, physique, épisode), à utiliser dans une
 fiche plutôt qu'un calendrier.

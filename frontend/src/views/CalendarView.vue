@@ -2,6 +2,8 @@
     <AppPage title="Calendrier" v-model:query="search" placeholder="Filtrer les titres" has-filters :active-count="activeFilterCount" :filters-open="filtersOpen" @toggle-filters="toggleFilters" page-class="calendar-page">
 
       <template #tools>
+        <!-- La vue cadre toute la page : elle vit dans la capsule de recherche. -->
+        <UiSegmentedControl v-if="!searching" class="calendar-view-switch" :model-value="view" :options="viewOptions" :ariaLabel="'Mode d’affichage'" @update:model-value="setView" />
         <div class="calendar-navigation">
           <UiButton variant="ghost" icon-only :disabled="searching" :title="previousLabel" :aria-label="previousLabel" @click="move(-1)"><ChevronLeft/></UiButton>
           <CalendarPeriodPicker :model-value="cursor" :label="periodLabel" @update:model-value="jumpTo" />
@@ -33,8 +35,7 @@
       </FilterSidebar>
       <div ref="swipeArea" class="psh-main">
     <div class="calendar-toolbar">
-      <UiSegmentedControl v-if="!searching" class="calendar-view-switch" :model-value="view" :options="viewOptions" :ariaLabel="'Mode d’affichage'" @update:model-value="setView" />
-      <p v-else class="calendar-search-scope" role="status">
+      <p v-if="searching" class="calendar-search-scope" role="status">
         {{ filtered.length }} résultat{{ filtered.length > 1 ? 's' : '' }} de {{ searchScopeLabel }}
       </p>
 

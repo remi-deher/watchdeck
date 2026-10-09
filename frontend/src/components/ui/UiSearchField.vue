@@ -212,6 +212,10 @@ function onInput(event: Event): void {
   white-space: nowrap;
 }
 .ui-search-field__tools::-webkit-scrollbar { display: none; }
+/* Variante compacte d'un selecteur dans la capsule : sans cadre ni fond, le choix actif
+   en pastille. */
+.ui-search-field__tools :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
+.ui-search-field__tools :deep(.ui-segmented-item) { min-height: 28px; padding: 0 10px; }
 .ui-search-field__filter {
   display: inline-flex;
   flex: none;

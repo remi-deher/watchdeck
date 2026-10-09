@@ -13,8 +13,9 @@
        (emplacement `agenda-item`). -->
   <div ref="swipeArea" class="plan">
     <div class="calendar-toolbar">
-      <UiSegmentedControl v-if="!searching" class="calendar-view-switch" :model-value="view" :options="viewOptions" ariaLabel="Mode d’affichage" @update:model-value="setView(String($event))" />
-      <p v-else class="calendar-search-scope" role="status">{{ shown.length }} résultat{{ shown.length > 1 ? 's' : '' }} {{ searchScope }}</p>
+      <!-- La vue cadre toute la page : elle vit dans la capsule de recherche. -->
+      <PageTools v-if="!searching"><UiSegmentedControl class="calendar-view-switch" :model-value="view" :options="viewOptions" ariaLabel="Mode d’affichage" @update:model-value="setView(String($event))" /></PageTools>
+      <p v-if="searching" class="calendar-search-scope" role="status">{{ shown.length }} résultat{{ shown.length > 1 ? 's' : '' }} {{ searchScope }}</p>
 
       <div v-if="!searching" class="calendar-navigation">
         <UiButton variant="ghost" icon-only :title="previousLabel" :aria-label="previousLabel" @click="move(-1)"><ChevronLeft /></UiButton>
@@ -109,6 +110,7 @@ import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
+import PageTools from '@/components/ui/PageTools.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { usePreference } from '@/composables/usePreference';
 import { formatLongDay, formatMonthYear, formatTime } from '@/utils/format';

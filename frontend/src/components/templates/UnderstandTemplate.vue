@@ -11,7 +11,8 @@
   <div class="understand" :class="{ 'has-detail': detail }">
     <div class="understand__main">
       <div class="understand__bar">
-        <UiSegmentedControl v-if="periods.length" :model-value="period" :options="periods" ariaLabel="Période" @update:model-value="emit('update:period', String($event))" />
+        <!-- La periode cadre toute la page (capsule de recherche) ; l'etat filtre la liste. -->
+        <PageTools v-if="periods.length"><UiSegmentedControl :model-value="period" :options="periods" ariaLabel="Période" @update:model-value="emit('update:period', String($event))" /></PageTools>
         <UiSegmentedControl v-if="outcomes.length" :model-value="outcome" :options="outcomes" ariaLabel="Résultat" @update:model-value="emit('update:outcome', String($event))" />
         <UiButton v-if="exportable" size="sm" class="understand__export" @click="emit('export')"><template #icon><Download /></template>Exporter</UiButton>
       </div>
@@ -56,6 +57,7 @@ import { AlertTriangle, CheckCircle2, Download, History, Info, XCircle } from '@
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
+import PageTools from '@/components/ui/PageTools.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { parseApiDate } from '@/utils/format';
 import UnderstandDetailPanel from './understand/UnderstandDetail.vue';

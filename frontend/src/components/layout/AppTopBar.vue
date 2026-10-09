@@ -407,6 +407,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   white-space: nowrap;
 }
 .app-topbar__tools::-webkit-scrollbar { display: none; }
+.app-topbar__tools :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
 .app-topbar__filter-only {
   display: none;
   align-items: center;
