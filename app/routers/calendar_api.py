@@ -291,7 +291,7 @@ async def _compute_calendar(
             "requested_by_ids": [],
             "request_sources": [],
             "has_vf": li.has_vf,
-            **media_ref(li),
+            "media": media_ref(li),
             "poster_url": wrap_image_proxy(li.poster_url),
         }
         library_items_by_id[li.id] = entry
@@ -448,6 +448,7 @@ async def _compute_calendar(
 
                     events.append(
                         {
+                            "media": (tracked or {}).get("media"),
                             "type": "episode",
                             "release_type": "episode",
                             "date": date,
@@ -549,6 +550,7 @@ async def _compute_calendar(
                     for rdate, rtype, rlabel in release_events:
                         events.append(
                             {
+                                "media": (tracked or {}).get("media"),
                                 "type": "movie",
                                 "release_type": rtype,
                                 "date": rdate,

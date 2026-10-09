@@ -27,7 +27,15 @@ def _empty_arr_queues():
 async def test_calendar_marks_tracked_show_and_reuses_poster():
     db = _make_db()
     db.add(ArrInstance(id=1, name="Sonarr", arr_type="sonarr", url="http://sonarr", api_key="key", enabled=True))
-    db.add(LibraryItem(title="Breaking Bad", media_type="show", tvdb_id="81189", poster_url="http://poster/bb.jpg"))
+    db.add(
+        LibraryItem(
+            title="Breaking Bad",
+            media_type="show",
+            tvdb_id="81189",
+            poster_url="http://poster/bb.jpg",
+            art_url="http://poster/bb-art.jpg",
+        )
+    )
     db.commit()
 
     episodes = [
@@ -42,6 +50,9 @@ async def test_calendar_marks_tracked_show_and_reuses_poster():
     ]
     with patch("app.routers.calendar_api.sonarr.get_calendar", new=AsyncMock(return_value=episodes)):
         events = await unified_calendar(start=None, end=None, tracked_only=False, db=db)
+
+    assert events[0]["media"]["poster_url"] == "http://poster/bb.jpg"
+    assert events[0]["media"]["backdrop_url"] == "http://poster/bb-art.jpg"
 
     assert len(events) == 1
     e = events[0]
