@@ -32,7 +32,8 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause (cartes), file d'attente compacte et repliable, derniers terminés | Disponible |
 | `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
 | `ExploreTemplate.vue` | Explorer : panneau de filtres, pastilles des filtres actifs, compteur, tri, grille / liste, défilement continu | Disponible |
-| Comprendre, Configurer, Fiche | — | À créer |
+| `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille | Disponible |
+| Configurer, Fiche | — | À créer |
 
 Une page Surveiller s'écrit `PageTemplate` > `MonitorTemplate`, en ne fournissant que
 ses données (`items`, `kpis`, `zones`, `labels`).
@@ -45,6 +46,9 @@ Une page Explorer s'écrit `PageTemplate` (types en `tabs`, recherche de la barr
 par `v-model:query` et `:hide-search="false"`) > `ExploreTemplate` : elle fournit les
 filtres (emplacement `filters`), les pastilles actives (`chips`), et la carte commune de
 chaque élément (emplacement `item`).
+Une page Comprendre s'écrit `PageTemplate` > `UnderstandTemplate` : elle fournit
+`events`, charge le `detail` de l'événement ouvert (`open`), et éventuellement `summary`.
+Aucune action dans la liste ; au plus une dans le détail.
 
 Les gabarits ne sont pas figés : chacun s'adosse à des blocs, qui sont des composants
 communs (`monitor/`, `track/`…). Pour faire évoluer un gabarit, on remplace ou on fait

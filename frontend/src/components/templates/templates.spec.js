@@ -188,3 +188,42 @@ describe('ExploreTemplate', () => {
     expect(mount(ExploreTemplate, { props: { items: [], emptyTitle: 'Bibliothèque vide' }, global }).text()).toContain('Bibliothèque vide');
   });
 });
+
+describe('UnderstandTemplate', () => {
+  const now = new Date();
+  const at = (daysAgo, hour) => { const d = new Date(now); d.setDate(d.getDate() - daysAgo); d.setHours(hour, 0, 0, 0); return d.toISOString(); };
+  const events = [
+    { key: 'a', at: at(1, 9), outcome: 'success', title: 'Tenet' },
+    { key: 'b', at: at(0, 4), outcome: 'failed', title: 'Anaconda', detail: 'Contrôle de durée audio' },
+    { key: 'c', at: at(0, 3), outcome: 'success', title: 'Dune' },
+  ];
+
+  it('groupe par jour, du plus récent au plus ancien', async () => {
+    const { default: UnderstandTemplate } = await import('./UnderstandTemplate.vue');
+    const wrapper = mount(UnderstandTemplate, { props: { events }, global });
+    expect(wrapper.findAll('.understand__day h2').map((n) => n.text())).toEqual(['Aujourd’hui', 'Hier']);
+    expect(wrapper.findAll('.understand-row strong').map((n) => n.text())).toEqual(['Anaconda', 'Dune', 'Tenet']);
+  });
+
+  it('ouvre le détail sans action dans la liste, au plus une dans le détail', async () => {
+    const { default: UnderstandTemplate } = await import('./UnderstandTemplate.vue');
+    const wrapper = mount(UnderstandTemplate, { props: { events }, global });
+    await wrapper.find('.understand-row').trigger('click');
+    expect(wrapper.emitted('open')[0][0].key).toBe('b');
+    await wrapper.setProps({
+      openKey: 'b',
+      detail: { title: 'Anaconda', outcome: 'failed', cause: 'Durée audio différente', steps: [{ label: 'Audio', outcome: 'success' }, { label: 'Assemblage', outcome: 'failed' }], action: { key: 'retry', label: 'Relancer' } },
+    });
+    expect(wrapper.find('.understand-detail').text()).toContain('Durée audio différente');
+    expect(wrapper.findAll('.understand__list button.ui-button, .understand__list .ui-button')).toHaveLength(0);
+    await wrapper.find('.understand-detail__links button').trigger('click');
+    expect(wrapper.emitted('action')[0]).toEqual(['retry']);
+  });
+
+  it('montre le bilan seulement si la page le fournit', async () => {
+    const { default: UnderstandTemplate } = await import('./UnderstandTemplate.vue');
+    expect(mount(UnderstandTemplate, { props: { events }, global }).find('.understand__summary').exists()).toBe(false);
+    const withSummary = mount(UnderstandTemplate, { props: { events, summary: [{ key: 'ok', label: 'traités', value: '142' }] }, global });
+    expect(withSummary.find('.understand__summary').text()).toContain('142 traités');
+  });
+});
