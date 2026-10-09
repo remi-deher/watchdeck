@@ -12,19 +12,19 @@
        taches…), places a cote de l'attention. Sur telephone, le verdict et l'attention
        passent d'abord, puis les parties (qui y servent de menu), puis les chiffres. -->
   <div class="monitor" :class="{ 'has-details': $slots.details }">
+    <!-- Le verdict ne parle que s'il y a quelque chose a dire : quand tout va bien, la
+         page commence directement par ce qui tourne et les chiffres. -->
     <MonitorVerdict
+      v-if="loading || urgent"
       class="monitor__verdict"
       :urgent="urgent"
       :errors="count('error')"
       :warnings="count('warn')"
       :loading="loading"
-      :refreshing="refreshing"
-      :checked-label="labels.refresh"
       :checking-title="labels.checkingTitle"
       :checking-detail="labels.checkingDetail"
       :ok-title="labels.okTitle"
       :ok-detail="labels.okDetail"
-      @refresh="emit('refresh')"
     />
     <MonitorKpis v-if="kpis.length" class="monitor__kpis" :kpis="kpis" :label="labels.kpisLabel" />
     <MonitorAttention
@@ -59,13 +59,11 @@ const props = withDefaults(
     /** Icone par partie (`area` des points d'attention). */
     icons?: Record<string, any>;
     loading?: boolean;
-    refreshing?: boolean;
     /** Textes propres a la page ; les manquants gardent ceux par defaut des blocs. */
     labels?: MonitorLabels;
   }>(),
-  { kpis: () => [], zones: () => [], icons: () => ({}), loading: false, refreshing: false, labels: () => ({}) },
+  { kpis: () => [], zones: () => [], icons: () => ({}), loading: false, labels: () => ({}) },
 );
-const emit = defineEmits<{ refresh: [] }>();
 
 const count = (severity: MonitorSeverity) => props.items.filter((item) => item.severity === severity).length;
 /* Une information n'est pas un point a traiter : seuls erreurs et avertissements comptent. */

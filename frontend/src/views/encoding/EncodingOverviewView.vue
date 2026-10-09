@@ -10,9 +10,7 @@
       :zones="zones"
       :icons="{ queue: ListOrdered, disk: HardDrive }"
       :loading="overviewQuery.isPending.value"
-      :refreshing="overviewQuery.isFetching.value"
       :labels="LABELS"
-      @refresh="overviewQuery.refetch()"
     />
   </EncodingShell>
 </template>
@@ -33,7 +31,6 @@ const LABELS = {
   checkingDetail: 'File, disques et échecs récents.',
   okTitle: 'L’encodage tourne',
   okDetail: 'Aucun échec récent, aucun disque bloqué.',
-  refresh: 'Actualiser',
   kpisLabel: 'Activité de l’encodage',
   zonesLabel: 'Parties de l’encodage',
 };

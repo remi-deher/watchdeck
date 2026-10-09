@@ -11,16 +11,12 @@
       <h2 id="overview-verdict-title"><span v-if="urgent && !loading" class="sr-only">{{ spokenCount }}</span>{{ title }}</h2>
       <p>{{ subtitle }}</p>
     </div>
-    <UiButton variant="ghost" size="sm" :loading="refreshing" @click="emit('refresh')">
-      <template #icon><RefreshCw /></template>{{ checkedLabel }}
-    </UiButton>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { CheckCircle2, RefreshCw } from '@lucide/vue';
-import UiButton from '@/components/ui/UiButton.vue';
+import { CheckCircle2 } from '@lucide/vue';
 
 const props = withDefaults(
   defineProps<{
@@ -29,8 +25,6 @@ const props = withDefaults(
     errors?: number;
     warnings?: number;
     loading?: boolean;
-    refreshing?: boolean;
-    checkedLabel?: string;
     /** Textes propres a la page ; ceux de l'administration par defaut. */
     checkingTitle?: string;
     checkingDetail?: string;
@@ -38,14 +32,13 @@ const props = withDefaults(
     okDetail?: string;
   }>(),
   {
-    errors: 0, warnings: 0, loading: false, refreshing: false, checkedLabel: 'Vérifier',
+    errors: 0, warnings: 0, loading: false,
     checkingTitle: 'Vérification de l’instance…',
     checkingDetail: 'Services, tâches et configuration.',
     okTitle: 'Tout fonctionne',
     okDetail: 'Les services répondent, les tâches passent et la configuration est complète.',
   }
 );
-const emit = defineEmits<{ refresh: [] }>();
 
 // Le chiffre affiché est décoratif : le titre doit le dire lui-même, espace comprise.
 const spokenCount = computed(() => `${props.urgent} `);
@@ -94,7 +87,6 @@ const subtitle = computed(() => {
 .overview-verdict.is-warn .overview-verdict__mark { color: var(--amber-text); }
 .overview-verdict.is-error .overview-verdict__mark { color: var(--red-text); }
 .overview-verdict__text { display: grid; flex: 1 1 9rem; min-width: 0; gap: 2px; }
-.overview-verdict > :deep(.ui-button) { margin-left: auto; }
 .overview-verdict__text h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); }
 .overview-verdict__text p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 </style>

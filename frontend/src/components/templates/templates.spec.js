@@ -38,12 +38,12 @@ describe('MonitorTemplate', () => {
     expect(order).toEqual(['monitor__verdict', 'monitor__kpis', 'monitor__attention', 'monitor__zones']);
   });
 
-  it('affiche les textes de la page quand tout va bien', () => {
+  it('se tait quand tout va bien : pas de verdict, le message de la page dans l’attention', () => {
     const wrapper = mount(MonitorTemplate, {
       props: { items: [], labels: { okTitle: 'L’encodage tourne', okDetail: 'Aucun échec, aucun disque bloqué.' } },
       global,
     });
-    expect(wrapper.find('.overview-verdict').text()).toContain('L’encodage tourne');
+    expect(wrapper.find('.overview-verdict').exists()).toBe(false);
     expect(wrapper.find('.overview-todo').text()).toContain('Aucun échec, aucun disque bloqué.');
     expect(wrapper.find('.monitor__kpis').exists()).toBe(false);
   });
