@@ -3,7 +3,7 @@
          1. l'en-tete : affiche ou icone, titre, informations cles, etat en badges, et les
             actions -- la principale en avant, deux secondaires au plus, le reste dans « … » ;
          2. une seule alerte d'etat, la plus importante, avec le lien qui la traite ;
-         3. les onglets de detail : la seule rangee d'onglets de la fiche (emplacements
+         3. les onglets de detail (UiTabs, « consulter ») : la seule rangee de la fiche (emplacements
             `tab-<cle>`) ;
          4. les faits, en panneau lateral sur grand ecran, sous les onglets sur telephone.
        Les actions vivent dans l'en-tete, jamais dans un onglet. -->
@@ -49,10 +49,12 @@
       </template>
     </div>
 
-    <AppSubnav v-if="tabs.length > 1" variant="tabs" :items="tabItems" :active="activeTab" aria-label="Sections de la fiche" @update:active="emit('update:tab', $event)" />
-
     <div class="detail__body" :class="{ 'has-facts': facts.length }">
-      <div class="detail__panel" role="tabpanel"><slot :name="`tab-${activeTab}`" /></div>
+      <!-- Onglets « consulter » (UiTabs) : les parties de cet element, pas une navigation. -->
+      <UiTabs v-if="tabs.length > 1" :model-value="activeTab" :items="tabs" ariaLabel="Sections de la fiche" @update:model-value="emit('update:tab', $event)">
+        <template #default="{ tab: shown }"><slot :name="`tab-${shown}`" /></template>
+      </UiTabs>
+      <div v-else class="detail__panel"><slot :name="`tab-${activeTab}`" /></div>
       <dl v-if="facts.length" class="detail__facts">
         <div v-for="fact in facts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
       </dl>
@@ -65,10 +67,10 @@ import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { AlertTriangle, FileQuestion, MoreHorizontal } from '@lucide/vue';
 import { proxyUrl } from '@/utils/mediaImage';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiMenu from '@/components/ui/UiMenu.vue';
 import UiMenuItem from '@/components/ui/UiMenuItem.vue';
+import UiTabs from '@/components/ui/UiTabs.vue';
 import type { DetailAction, DetailAlert, DetailBadge, DetailFact, DetailTab } from './detail/types';
 
 export type { DetailAction, DetailAlert, DetailBadge, DetailFact, DetailTab, DetailTone } from './detail/types';
@@ -96,7 +98,6 @@ const posterFailed = ref(false);
 const shownActions = computed(() => props.actions.slice(0, 3));
 const menuActions = computed(() => props.actions.slice(3));
 const activeTab = computed(() => props.tab || props.tabs[0]?.key || 'main');
-const tabItems = computed(() => props.tabs.map((entry) => ({ key: entry.key, label: entry.label, count: entry.count })));
 </script>
 
 <style scoped lang="scss">

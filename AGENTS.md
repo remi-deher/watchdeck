@@ -72,8 +72,17 @@ jamais un gabarit depuis une page.
 - Pas d'invention : ne pas ajouter d'emplacement, de mise en page ou de comportement
   que le gabarit ne prévoit pas. Si le besoin n'est pas couvert, faire évoluer le
   gabarit lui-même (pour toutes les pages), et le signaler.
-- Jamais de seconde barre d'onglets dans une page : un filtre secondaire est un
-  sélecteur (`UiSegmentedControl`), pas un `AppSubnav`.
+- Jamais de seconde barre d'onglets dans une page. Trois rôles, trois composants,
+  jamais mélangés :
+
+  | Rôle | Question | Composant | Où |
+  |---|---|---|---|
+  | Naviguer | « Quelle vue de cette entrée du menu ? » | `AppSubnav` (variante `links`, change l'adresse) | Rangée collante en haut de page, seulement via `PageTemplate` (`tabs`) |
+  | Consulter | « Quelle partie de cet élément ? » | `UiTabs` (onglets soulignés) | Dans le contenu : fiches, sous-parties d'une page de réglages |
+  | Filtrer | « Quels éléments de cette liste ? » | `UiSegmentedControl` | Au-dessus d'une liste : états, période, type |
+
+  La variante `tabs` d'`AppSubnav` est dépréciée : ses usages passent à `UiTabs` (ou
+  `UiSegmentedControl`) lors de la migration de chaque page vers son gabarit.
 
 ## 3. Composants communs exclusivement
 

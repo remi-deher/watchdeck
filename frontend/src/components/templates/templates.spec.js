@@ -306,3 +306,22 @@ describe('DetailTemplate', () => {
     expect(wrapper.find('.detail__facts').text()).toContain('8,2 Go');
   });
 });
+
+describe('UiTabs', () => {
+  it('est un tablist relié à son panneau, et remonte l’onglet choisi', async () => {
+    const { default: UiTabs } = await import('@/components/ui/UiTabs.vue');
+    const items = [{ key: 'sum', label: 'Résumé' }, { key: 'files', label: 'Fichiers', count: 3 }];
+    const wrapper = mount(UiTabs, {
+      props: { modelValue: 'sum', items, ariaLabel: 'Sections' },
+      slots: { default: '<template #default="{ tab }"><p class="panel">{{ tab }}</p></template>' },
+      attachTo: document.body,
+    });
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(true);
+    expect(wrapper.find('.panel').text()).toBe('sum');
+    const tabs = wrapper.findAll('[role="tab"]');
+    expect(tabs[0].attributes('aria-selected')).toBe('true');
+    await tabs[1].trigger('mousedown', { button: 0 });
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['files']);
+    wrapper.unmount();
+  });
+});
