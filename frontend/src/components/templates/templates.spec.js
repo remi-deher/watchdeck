@@ -3,6 +3,13 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import { describe, expect, it } from 'vitest';
 import MonitorTemplate from './MonitorTemplate.vue';
 import PageTemplate from './PageTemplate.vue';
+import ConfigureTemplate from './ConfigureTemplate.vue';
+import ConfigureTest from './configure/ConfigureTest.vue';
+import ExploreTemplate from './ExploreTemplate.vue';
+import HandleTemplate from './HandleTemplate.vue';
+import ResourceList from './configure/ResourceList.vue';
+import TrackTemplate from './TrackTemplate.vue';
+import UnderstandTemplate from './UnderstandTemplate.vue';
 
 const router = createRouter({
   history: createMemoryHistory(),
@@ -67,7 +74,6 @@ describe('TrackTemplate', () => {
   const tracked = (key, state, extra = {}) => ({ key, state, title: `Fichier ${key}`, ...extra });
 
   it('groupe par état dans un ordre fixe : bloqués d’abord, attente en dernier', async () => {
-    const { default: TrackTemplate } = await import('./TrackTemplate.vue');
     const wrapper = mount(TrackTemplate, {
       props: { items: [tracked('w', 'waiting'), tracked('r', 'running', { progress: 42 }), tracked('b', 'blocked', { cause: { headline: 'Import refusé' } })] },
       global,
@@ -79,7 +85,6 @@ describe('TrackTemplate', () => {
   });
 
   it('remonte l’action choisie avec son élément', async () => {
-    const { default: TrackTemplate } = await import('./TrackTemplate.vue');
     const item = tracked('b', 'blocked', { actions: [{ key: 'retry', label: 'Relancer', tone: 'primary' }] });
     const wrapper = mount(TrackTemplate, { props: { items: [item] }, global });
     await wrapper.find('.track-card__actions button').trigger('click');
@@ -87,7 +92,6 @@ describe('TrackTemplate', () => {
   });
 
   it('dit que rien ne tourne, et garde les derniers terminés', async () => {
-    const { default: TrackTemplate } = await import('./TrackTemplate.vue');
     const wrapper = mount(TrackTemplate, {
       props: { items: [], recent: [{ key: 'd', title: 'Dune', detail: 'il y a 5 min' }], historyTo: '/encoding/history', labels: { items: 'traitements' } },
       global,
@@ -101,7 +105,6 @@ describe('TrackTemplate', () => {
 
 describe('TrackTemplate · attente', () => {
   it('liste l’attente en lignes numérotées, repliées au-delà de la limite', async () => {
-    const { default: TrackTemplate } = await import('./TrackTemplate.vue');
     const items = Array.from({ length: 8 }, (_, i) => ({ key: `w${i}`, state: 'waiting', title: `Fichier ${i}` }));
     const wrapper = mount(TrackTemplate, { props: { items, queueLimit: 3 }, global });
     expect(wrapper.findAll('.track-queue__row')).toHaveLength(3);
@@ -119,7 +122,6 @@ describe('HandleTemplate', () => {
   ];
 
   it('trie par urgence, filtre par type et propose l’action groupée du type', async () => {
-    const { default: HandleTemplate } = await import('./HandleTemplate.vue');
     const wrapper = mount(HandleTemplate, {
       props: { issues, items: [row('a', 'vf', 'low'), row('b', 'subs', 'medium'), row('c', 'vf', 'high')] },
       global,
@@ -133,7 +135,6 @@ describe('HandleTemplate', () => {
   });
 
   it('montre l’affiche seulement quand l’élément en a une', async () => {
-    const { default: HandleTemplate } = await import('./HandleTemplate.vue');
     const wrapper = mount(HandleTemplate, {
       props: { items: [row('a', 'vf', 'high', { poster: 'https://img/a.jpg' }), row('b', 'vf', 'high')] },
       global,
@@ -142,7 +143,6 @@ describe('HandleTemplate', () => {
   });
 
   it('agit sur la sélection, et oublie un élément traité', async () => {
-    const { default: HandleTemplate } = await import('./HandleTemplate.vue');
     const items = [row('a', 'vf', 'high'), row('b', 'vf', 'high')];
     const wrapper = mount(HandleTemplate, { props: { items, selectionActions: [{ key: 'ignore', label: 'Ignorer' }] }, global });
     await wrapper.findAll('.handle-row [role="checkbox"], .handle-row input[type="checkbox"]')[0].trigger('click');
@@ -153,7 +153,6 @@ describe('HandleTemplate', () => {
   });
 
   it('dit qu’il n’y a rien à traiter', async () => {
-    const { default: HandleTemplate } = await import('./HandleTemplate.vue');
     expect(mount(HandleTemplate, { props: { items: [] }, global }).text()).toContain('Rien à traiter');
   });
 });
@@ -163,14 +162,12 @@ describe('ExploreTemplate', () => {
   const item = '<template #item="{ item }"><article class="card">{{ item.title }}</article></template>';
 
   it('rend chaque élément par la carte de la page, et compte les résultats', async () => {
-    const { default: ExploreTemplate } = await import('./ExploreTemplate.vue');
     const wrapper = mount(ExploreTemplate, { props: { items: films, total: 37, unit: ['film', 'films'] }, slots: { item }, global });
     expect(wrapper.findAll('.card').map((n) => n.text())).toEqual(['Dune', 'Tenet']);
     expect(wrapper.find('.explore__count').text()).toBe('37 films');
   });
 
   it('montre les filtres actifs en pastilles retirables, et « Tout effacer »', async () => {
-    const { default: ExploreTemplate } = await import('./ExploreTemplate.vue');
     let removed = '';
     const chips = [{ key: 'vf', label: 'Sans VF', onRemove: () => { removed = 'vf'; } }];
     const wrapper = mount(ExploreTemplate, { props: { items: films, chips, unit: ['film', 'films'] }, slots: { item }, global });
@@ -182,7 +179,6 @@ describe('ExploreTemplate', () => {
   });
 
   it('distingue l’absence de résultat filtré du catalogue vide', async () => {
-    const { default: ExploreTemplate } = await import('./ExploreTemplate.vue');
     const chips = [{ key: 'vf', label: 'Sans VF', onRemove: () => {} }];
     expect(mount(ExploreTemplate, { props: { items: [], chips }, global }).text()).toContain('Aucun élément ne correspond aux filtres actifs.');
     expect(mount(ExploreTemplate, { props: { items: [], emptyTitle: 'Bibliothèque vide' }, global }).text()).toContain('Bibliothèque vide');
@@ -199,14 +195,12 @@ describe('UnderstandTemplate', () => {
   ];
 
   it('groupe par jour, du plus récent au plus ancien', async () => {
-    const { default: UnderstandTemplate } = await import('./UnderstandTemplate.vue');
     const wrapper = mount(UnderstandTemplate, { props: { events }, global });
     expect(wrapper.findAll('.understand__day h2').map((n) => n.text())).toEqual(['Aujourd’hui', 'Hier']);
     expect(wrapper.findAll('.understand-row strong').map((n) => n.text())).toEqual(['Anaconda', 'Dune', 'Tenet']);
   });
 
   it('ouvre le détail sans action dans la liste, au plus une dans le détail', async () => {
-    const { default: UnderstandTemplate } = await import('./UnderstandTemplate.vue');
     const wrapper = mount(UnderstandTemplate, { props: { events }, global });
     await wrapper.find('.understand-row').trigger('click');
     expect(wrapper.emitted('open')[0][0].key).toBe('b');
@@ -221,9 +215,55 @@ describe('UnderstandTemplate', () => {
   });
 
   it('montre le bilan seulement si la page le fournit', async () => {
-    const { default: UnderstandTemplate } = await import('./UnderstandTemplate.vue');
     expect(mount(UnderstandTemplate, { props: { events }, global }).find('.understand__summary').exists()).toBe(false);
     const withSummary = mount(UnderstandTemplate, { props: { events, summary: [{ key: 'ok', label: 'traités', value: '142' }] }, global });
     expect(withSummary.find('.understand__summary').text()).toContain('142 traités');
+  });
+});
+
+describe('ConfigureTemplate', () => {
+  const sections = [
+    { key: 'conn', title: 'Connexion' },
+    { key: 'plex', title: 'Pendant une lecture Plex', dirty: true },
+    { key: 'libs', title: 'Bibliothèques' },
+  ];
+
+  it('rend les sections par intention, signale les modifiées et propose un enregistrement global', async () => {
+    const wrapper = mount(ConfigureTemplate, {
+      props: { sections, dirty: true },
+      slots: { 'section-plex': '<p class="plex-body">Pause</p>' },
+      global,
+    });
+    expect(wrapper.findAll('.configure__toc-link').map((n) => n.text())).toEqual(['Connexion', 'Pendant une lecture Plexmodifié', 'Bibliothèques']);
+    expect(wrapper.find('#configure-plex .plex-body').exists()).toBe(true);
+    expect(wrapper.find('#configure-plex').classes()).toContain('is-dirty');
+    const buttons = wrapper.findAll('.form-save-bar button');
+    expect(buttons.map((b) => b.text())).toEqual(['Annuler', 'Enregistrer']);
+    await buttons[1].trigger('click');
+    await buttons[0].trigger('click');
+    expect(wrapper.emitted('save')).toHaveLength(1);
+    expect(wrapper.emitted('cancel')).toHaveLength(1);
+  });
+
+  it('cache la barre tant que rien n’est modifié', async () => {
+    expect(mount(ConfigureTemplate, { props: { sections }, global }).find('.form-save-bar').exists()).toBe(false);
+  });
+});
+
+describe('Blocs Configurer', () => {
+  it('le test de connexion dit le résultat, et quand il est périmé', async () => {
+    const ok = mount(ConfigureTest, { props: { result: { ok: true, message: 'Connecté · 4 runners' } } });
+    expect(ok.text()).toContain('Connecté · 4 runners');
+    const stale = mount(ConfigureTest, { props: { result: { ok: true, message: 'Connecté' }, stale: true } });
+    expect(stale.text()).toContain('testez à nouveau');
+  });
+
+  it('la liste de ressources dit l’état, et remonte activer, tester, modifier', async () => {
+    const usb4 = { key: 'u4', label: 'Films — USB 4', enabled: true, testable: true, state: { tone: 'error', text: 'Dossier Plex introuvable' } };
+    const wrapper = mount(ResourceList, { props: { resources: [usb4, { key: 's', label: 'Séries', enabled: false }], addLabel: 'Ajouter' } });
+    expect(wrapper.findAll('.resource__state').map((n) => n.text())).toEqual(['Dossier Plex introuvable', 'Désactivée']);
+    const buttons = wrapper.findAll('.resource')[0].findAll('button.ui-button, .ui-button');
+    await buttons.find((b) => b.text() === 'Tester').trigger('click');
+    expect(wrapper.emitted('test')[0][0].key).toBe('u4');
   });
 });

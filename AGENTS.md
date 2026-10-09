@@ -33,7 +33,8 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
 | `ExploreTemplate.vue` | Explorer : panneau de filtres, pastilles des filtres actifs, compteur, tri, grille / liste, défilement continu | Disponible |
 | `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille | Disponible |
-| Configurer, Fiche | — | À créer |
+| `ConfigureTemplate.vue` (+ `configure/`) | Configurer : sections par intention avec sommaire, enregistrement global (Enregistrer / Annuler, confirmation avant de quitter), blocs `ConfigureField`, `ConfigureTest`, `ResourceList` | Disponible |
+| Fiche | — | À créer |
 
 Une page Surveiller s'écrit `PageTemplate` > `MonitorTemplate`, en ne fournissant que
 ses données (`items`, `kpis`, `zones`, `labels`).
@@ -49,6 +50,10 @@ chaque élément (emplacement `item`).
 Une page Comprendre s'écrit `PageTemplate` > `UnderstandTemplate` : elle fournit
 `events`, charge le `detail` de l'événement ouvert (`open`), et éventuellement `summary`.
 Aucune action dans la liste ; au plus une dans le détail.
+Une page Configurer s'écrit `PageTemplate` > `ConfigureTemplate` : elle fournit
+`sections` (avec `dirty` par section), leur contenu (emplacements `section-<clé>`, faits
+de `ConfigureField`, `ConfigureTest` et `ResourceList`), `dirty` global, et réagit à
+`save` / `cancel`. Un seul enregistrement pour toute la page.
 
 Les gabarits ne sont pas figés : chacun s'adosse à des blocs, qui sont des composants
 communs (`monitor/`, `track/`…). Pour faire évoluer un gabarit, on remplace ou on fait
