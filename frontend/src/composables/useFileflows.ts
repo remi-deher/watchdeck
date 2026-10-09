@@ -1,3 +1,4 @@
+import type { MediaRef } from '@/types';
 /* FileFlows : types, requete d'etat partagee et libelles.
  *
  * L'accueil, la page Encodage et la fiche media lisent le meme `/api/fileflows/status` :
@@ -9,15 +10,8 @@ import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { queryKeys } from '@/queryKeys';
 
-export interface FileflowsMedia {
-  id: number;
-  title: string;
-  year?: number | null;
-  media_type: string;
-  poster_url?: string | null;
-  /** Fond paysage (fanart) : le bandeau « En cours » s'en sert en grand format. */
-  backdrop_url?: string | null;
-}
+/** Le media d'un fichier : la description commune (MediaRef). */
+export type FileflowsMedia = MediaRef;
 
 export interface FileflowsTiming {
   /** Duree affichee par FileFlows : depuis la prise du fichier par un runner. */

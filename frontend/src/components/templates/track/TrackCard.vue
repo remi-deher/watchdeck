@@ -1,9 +1,9 @@
 <template>
   <!-- Un element suivi. Bloque, le diagnostic passe avant la progression : savoir pourquoi
        et quoi faire compte plus qu'un pourcentage fige. -->
-  <article class="track-card" :class="[`is-${item.state}`, { 'has-cover': item.poster || item.icon }]">
-    <div v-if="item.poster || item.icon" class="track-card__cover">
-      <img v-if="item.poster && !posterFailed" :src="proxyUrl(item.poster, { width: 200 })" :alt="''" loading="lazy" @error="posterFailed = true" />
+  <article class="track-card" :class="[`is-${item.state}`, { 'has-cover': poster || item.icon }]">
+    <div v-if="poster || item.icon" class="track-card__cover">
+      <img v-if="poster && !posterFailed" :src="proxyUrl(poster, { width: 200 })" :alt="''" loading="lazy" @error="posterFailed = true" />
       <component :is="item.icon" v-else aria-hidden="true" />
     </div>
 
@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { AlertTriangle } from '@lucide/vue';
 import { proxyUrl } from '@/utils/mediaImage';
@@ -60,7 +60,9 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import type { TrackItem, TrackState } from './types';
 
-defineProps<{ item: TrackItem }>();
+const props = defineProps<{ item: TrackItem }>();
+/* L'affiche vient du media quand il y en a un (MediaRef). */
+const poster = computed(() => props.item.poster || props.item.media?.poster_url || null);
 const emit = defineEmits<{ action: [item: TrackItem, key: string] }>();
 
 const STATE_LABELS: Record<TrackState, string> = { blocked: 'Bloqué', running: 'En cours', paused: 'En pause', waiting: 'En attente' };

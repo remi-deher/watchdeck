@@ -2,6 +2,8 @@
    fichiers en cours d'encodage, telechargements, transferts. Le composant decide de la
    disposition ; la page traduit ses objets en cartes. */
 
+import type { MediaRef } from '@/types';
+
 export type LiveTone = 'neutral' | 'accent' | 'warn' | 'remote' | 'hdr' | 'ok';
 
 /** Un fait lisible sous la carte : une icone qui dit ce qu'il est, et sa valeur. */
@@ -24,6 +26,9 @@ export interface LiveItem {
   /** 0 a 100 ; absent, pas de barre. */
   progress?: number | null;
   paused?: boolean;
+  /** Le media montre : son affiche et son fond s'affichent d'office (voir MediaRef).
+      `poster` / `backdrop` ne servent qu'a ce qui n'est pas un media de la bibliotheque. */
+  media?: MediaRef | null;
   /** Fond (dispositions larges) et affiche. */
   backdrop?: string | null;
   poster?: string | null;

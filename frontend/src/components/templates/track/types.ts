@@ -1,3 +1,5 @@
+import type { MediaRef } from '@/types';
+
 /* Gabarit « Suivre » : les donnees qu'une page lui confie. Elle repond a la question
    « ou en est ce qui tourne ? » ; le gabarit decide de l'ordre et de la presentation. */
 
@@ -29,10 +31,10 @@ export interface TrackItem {
   title: string;
   /** Une ligne d'identification : instance, disque, client… */
   subtitle?: string;
-  /** Affiche ; a defaut, l'icone. */
+  /** Le media concerne : son affiche (et son fond en cours) s'affichent d'office. */
+  media?: MediaRef | null;
+  /** Affiche hors media de la bibliotheque ; a defaut, l'icone. */
   poster?: string | null;
-  /** Fond paysage, pour la carte en cours en grand format. */
-  backdrop?: string | null;
   icon?: any;
   /** Etiquettes courtes : episode, qualite, taille… */
   tags?: string[];

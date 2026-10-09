@@ -17,7 +17,7 @@
       </header>
       <div class="live-strip-list" :class="[`is-${layout}`, { 'is-plain': plain }]" :style="{ '--live-count': items.length }">
         <button
-          v-for="(item, index) in items"
+          v-for="(item, index) in cards"
           :key="item.key"
           type="button"
           class="live-card"
@@ -128,7 +128,14 @@ const layout = computed<'banner' | 'fanart' | 'posters'>(() => {
 const wide = computed(() => layout.value !== 'posters');
 /* Sans aucune image (un fichier sans fiche media), une grande banniere ne montrerait
    qu'un fond vide : elle se reduit a une bande. */
-const plain = computed(() => props.items.every((item) => !item.backdrop && !item.poster));
+/* Les images d'un media viennent du media lui-meme : une carte qui en a un montre
+   forcement son affiche et son fond quand ils existent. */
+const cards = computed<LiveItem[]>(() => props.items.map((item) => ({
+  ...item,
+  poster: item.poster || item.media?.poster_url || null,
+  backdrop: item.backdrop || item.media?.backdrop_url || null,
+})));
+const plain = computed(() => cards.value.every((item) => !item.backdrop && !item.poster));
 /* Un logo introuvable rend la main au titre ecrit. */
 const brokenLogos = reactive(new Set<string>());
 </script>

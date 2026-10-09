@@ -90,6 +90,12 @@ créable : `service.ts`, `user.ts`…) : étapes, champs typés, règles, étape
 conditionnels, test, création, résultat. Jamais de formulaire de création écrit dans une
 page ; un type de champ manquant s'ajoute au gabarit, pour tous.
 
+Un média de la bibliothèque se transmet toujours entier : côté serveur par
+`services/media_ref.py` (`media_ref`, toutes ses images), côté interface en `MediaRef`
+(`@/types`). Un composant commun qui affiche un média le reçoit dans `media` et montre
+d'office toute image disponible (affiche, fond) ; la page ne recopie jamais `poster` /
+`backdrop` d'un média (ces champs restent pour ce qui n'en est pas un : client, disque).
+
 Ce qui tourne maintenant s'affiche toujours avec `LiveStrip` (lectures Plex, fichiers en
 cours d'encodage, téléchargements, transferts) : la page traduit ses objets en cartes
 (`LiveItem` : image, badge, coin, titre ou logo, état, progression, « qui / sur quoi »,

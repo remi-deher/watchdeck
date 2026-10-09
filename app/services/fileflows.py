@@ -30,6 +30,7 @@ from ..cache import cache
 from ..models import ArrInstance, LibraryItem
 from . import arr_catalog
 from .arr_http_client import ArrClient
+from .media_ref import media_ref
 
 logger = logging.getLogger(__name__)
 
@@ -547,14 +548,7 @@ async def _build_folder_index(db: AsyncSession) -> dict[str, dict[str, Any]]:
             name = folder_name(entry.get("path"))
             if row is None or not name:
                 continue
-            index[name.casefold()] = {
-                "id": row.id,
-                "title": row.title,
-                "year": row.year,
-                "media_type": row.media_type,
-                "poster_url": row.poster_url,
-                "backdrop_url": row.art_url,
-            }
+            index[name.casefold()] = media_ref(row)
     return index
 
 
