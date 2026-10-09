@@ -26,6 +26,33 @@ LIBS = [
 PLEX = [{"path": "/data/usb/MEDIA/FILMS"}, {"path": "/data/usb2/MEDIA/FILMS"}, {"path": "/data/usb2/MEDIA/SERIES"}]
 
 
+@pytest.mark.asyncio
+async def test_guard_pauses_disk_of_a_disabled_library():
+    """Une série lue sur usb2 (bibliothèque Séries désactivée) met quand même usb2 en pause."""
+    db = make_test_session()
+    try:
+        db.add_all(
+            [
+                ArrInstance(name="FF", arr_type="fileflows", url="http://ff", api_key=""),
+                Settings(fileflows_plex_pause="disk"),
+            ]
+        )
+        db.commit()
+        queue = [{"u": "a", "lu": "L2"}, {"u": "b", "lu": "L1"}]
+        _, calls, patches = _guard_env(db, queue, {"processed": 1}, ["/data/usb2/MEDIA/SERIES/S/S01E01.mkv"])
+        for p in patches:
+            p.start()
+        try:
+            result = await fileflows_guard.run()
+        finally:
+            for p in patches:
+                p.stop()
+        assert result["paused_disks"] == ["usb2"]
+        assert next(c for c in calls if c[1] == "library-file/move-to-top")[2]["Uids"] == ["b", "a"]
+    finally:
+        db.close()
+
+
 def test_paths_and_suggestions():
     assert fileflows_guard.disk_of("/usb2/MEDIA/FILMS/x.mkv") == "usb2" and fileflows_guard.disk_of("") == ""
     assert fileflows_guard.suffix_score("/data/usb2/MEDIA/FILMS", "/usb2/MEDIA/FILMS") == 3
@@ -228,7 +255,7 @@ async def test_guard_off_and_all_modes():
         db.query(Settings).first().fileflows_plex_pause_relaunched = "ignore"
         db.commit()
         result = await _run_with(db, ["/anywhere/file.mkv"])
-        assert result["paused_disks"] == ["usb", "usb2"]  # bibliothèques activées seulement
+        assert result["paused_disks"] == ["media", "usb", "usb2"]  # tous les disques connus de FileFlows
     finally:
         db.close()
 

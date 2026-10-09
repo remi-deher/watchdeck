@@ -272,14 +272,20 @@ async def run() -> dict[str, Any]:
         playing = await playing_files(db, settings) if mode != "off" else []
 
     try:
-        libraries = await fileflows_queue._libraries(url, api_key)
+        # Toutes les bibliothèques, activées ou non : un fichier lu dans une bibliothèque
+        # que FileFlows ne traite pas (des séries, par exemple) occupe quand même son disque.
+        all_libraries = [
+            lib
+            for lib in await fileflows._call(url, api_key, "GET", "library") or []
+            if isinstance(lib, dict) and lib.get("Uid")
+        ]
         queue = await fileflows_queue._queue(url, api_key)
         status = await fileflows._call(url, api_key, "GET", "status") or {}
     except fileflows.FileFlowsError as exc:
         return {"status": "error", "error": str(exc)}
     await _record_sample(int(status.get("processed") or 0))
 
-    disk_of_lib = {lib["Uid"]: disk_of(lib.get("Path")) for lib in libraries}
+    disk_of_lib = {lib["Uid"]: disk_of(lib.get("Path")) for lib in all_libraries}
     result: dict[str, Any] = {"status": "ok", "pause_mode": mode}
 
     # Fichiers relancés : vus en file avec un flow déjà associé. On les retient un jour, pour
@@ -292,7 +298,7 @@ async def run() -> dict[str, Any]:
     paused_disks: list[str] = []
     playing_disks: list[str] = []
     if mode != "off":
-        mapping = effective_locations(settings, suggest_locations(libraries, locations))
+        mapping = effective_locations(settings, suggest_locations(all_libraries, locations))
         for path in playing:
             uid = library_for_file(path, mapping)
             if uid and disk_of_lib.get(uid) and disk_of_lib[uid] not in playing_disks:
