@@ -129,7 +129,7 @@ const elsewhere = computed(() => {
 // Les panneaux qui n'editent aucun champ du formulaire general (listes gerees par leur
 // propre API, actions, journaux) ne le chargent pas et n'affichent pas sa barre.
 const standaloneTabs = new Set<SettingsPanel>([
-  'acquisitions', 'templates', 'system-version', 'download-clients', 'maintenance', 'data',
+  'templates', 'system-version', 'download-clients', 'maintenance', 'data',
 ]);
 // Ceux dont les champs passent par le bouton Enregistrer de l'en-tete.
 const formPanels = new Set<SettingsPanel>([

@@ -31,7 +31,7 @@
              vivait dans une rangee d'onglets sur Films et Series, et dans ce tiroir
              sous « Affichage » sur les autres pages -- deux idiomes pour la meme
              chose, repartis au hasard des sections. -->
-        <FilterGroup v-if="section === 'queue' || section === 'missing'" label="Type de média">
+        <FilterGroup v-if="section === 'queue'" label="Type de média">
           <UiChipGroup label="Type de média" :options="MEDIA_TYPE_OPTIONS" v-model="mediaType" />
         </FilterGroup>
 
@@ -39,7 +39,7 @@
           <UiChipGroup label="État" :options="QUEUE_STATE_OPTIONS" :model-value="subview" @update:model-value="selectSubview" />
         </FilterGroup>
 
-        <FilterGroup v-if="(section === 'queue' || section === 'missing') && typedArrInstances.length > 1" label="Instance">
+        <FilterGroup v-if="section === 'queue' && typedArrInstances.length > 1" label="Instance">
           <UiChipGroup label="Instance" :options="[{ value: '', label: 'Toutes' }, ...typedArrInstances.map((source: any) => ({ value: String(source.id), label: source.name }))]" :model-value="selectedInstanceId || ''" @update:model-value="selectInstanceId" />
         </FilterGroup>
 
@@ -122,7 +122,7 @@
         </section>
 
         <DownloadQueueGroups
-          v-if="section!=='clients'&&section!=='missing'&&!showHistory&&!sourceNeedsConfiguration"
+          v-if="section!=='clients'&&!showHistory&&!sourceNeedsConfiguration"
           :groups="queueGroups"
           :history="filteredHistory"
           :show-recent="subview==='all'"
@@ -131,14 +131,6 @@
           :acting-keys="actingKeys"
           @manual="openManual"
           @action="queueAction"
-        />
-
-        <MissingItemsSection
-          v-else-if="section==='missing'"
-          :items="wantedItems"
-          :media-type="mediaType"
-          :loading="loadingWanted"
-          @error="setSourceError('wanted', $event)"
         />
 
         <section v-else-if="section==='clients'&&subview==='instances'&&!sourceNeedsConfiguration" class="client-table-main" role="tabpanel">
@@ -185,7 +177,6 @@ import DownloadHistoryTable from '@/components/downloads/DownloadHistoryTable.vu
 import DownloadQueueGroups, { type QueueGroup } from '@/components/downloads/DownloadQueueGroups.vue';
 import DownloadsOverview from '@/components/downloads/DownloadsOverview.vue';
 import ManualImportModal from '@/components/downloads/ManualImportModal.vue';
-import MissingItemsSection from '@/components/downloads/MissingItemsSection.vue';
 import TorrentOverviewDashboard from '@/components/downloads/TorrentOverviewDashboard.vue';
 import UnmatchedImportsBanner from '@/components/downloads/UnmatchedImportsBanner.vue';
 
@@ -216,11 +207,10 @@ function asList<T>(value: unknown): T[] { return Array.isArray(value) ? (value a
  * l'instance et du client -- tous au meme endroit, dans le tiroir, au lieu d'etre
  * repartis entre une rangee d'onglets et un tiroir a moitie vide selon la page.
  */
-const section = computed((): string => ['queue', 'missing', 'clients'].includes(String(route.query.view)) ? String(route.query.view) : 'overview');
+const section = computed((): string => ['queue', 'clients'].includes(String(route.query.view)) ? String(route.query.view) : 'overview');
 const VALID_SUBVIEWS: Record<string, string[]> = {
   overview: ['all'],
   queue: ['all', 'active', 'waiting', 'completed', 'errors', 'intervention'],
-  missing: ['all'],
   clients: ['overview', 'instances'],
 };
 const subview = computed((): string => {
@@ -337,7 +327,7 @@ const error = computed({
 /* ---- Sources ---- */
 
 const readsClients = () => ['overview', 'clients'].includes(section.value);
-const readsWanted = () => ['overview', 'queue', 'missing'].includes(section.value);
+const readsWanted = () => ['overview', 'queue'].includes(section.value);
 const readsHistory = () => section.value === 'overview' || showHistory.value || section.value === 'queue';
 
 const { arrInstances: configuredArr, downloadClients: configuredClients, loading: configurationsLoading, error: configurationError, load: loadDownloadSources } = useDownloadSources();
@@ -432,7 +422,6 @@ const wantedQuery = useQuery({
   placeholderData: keepPreviousData,
 });
 const wantedItems = computed<any[]>(() => wantedQuery.data.value || []);
-const loadingWanted = computed(() => wantedQuery.isFetching.value && !wantedItems.value.length);
 watch(wantedQuery.error, (value) => setSourceError('wanted', value ? `Éléments manquants : ${value.message}` : ''), { immediate: true });
 function loadWanted(): Promise<unknown> {
   return wantedQuery.refetch({ cancelRefetch: false });
@@ -551,17 +540,16 @@ const sourceNeedsConfiguration = computed(() => !configurationsLoading.value && 
 
 /* ---- En-tete de page ---- */
 
-const SECTION_TITLES: Record<string, string> = { overview: 'Vue d’ensemble', queue: 'File d’attente', missing: 'Éléments manquants', clients: 'Clients' };
+const SECTION_TITLES: Record<string, string> = { overview: 'Vue d’ensemble', queue: 'File d’attente', clients: 'Clients' };
 const pageTitle = computed(() => section.value === 'clients' ? selectedClientName.value || 'Clients' : SECTION_TITLES[section.value] || 'Acquisition');
 const searchPlaceholder = computed(() => {
   if (section.value === 'clients') return 'Filtrer les torrents (ex: cat:radarr is:downloading)…';
-  if (section.value === 'missing') return 'Filtrer les éléments manquants…';
   return 'Filtrer les téléchargements…';
 });
 /* Reprend a l'identique les conditions des `FilterGroup` du gabarit : si aucune ne
    passe, il n'y a pas de filtres a proposer et la surface entiere -- colonne, bouton de
    la barre du haut, feuille modale -- n'a pas lieu d'exister. */
-const hasFilterGroups = computed(() => ['queue', 'missing', 'clients'].includes(section.value) || instances.value.length > 1);
+const hasFilterGroups = computed(() => ['queue', 'clients'].includes(section.value) || instances.value.length > 1);
 const isSet = (v: unknown) => Array.isArray(v) ? v.length > 0 : Boolean(v);
 const totalActiveFilterCount = computed(() => section.value === 'clients'
   ? [query.value, status.value, clientCategory.value, clientOwnership.value, clientTracker.value].filter(isSet).length

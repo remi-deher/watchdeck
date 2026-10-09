@@ -133,9 +133,12 @@ def test_history_route():
         )
         db.commit()
         client = TestClient(app, raise_server_exceptions=False)
-        data = client.get("/api/fileflows/history?days=9999").json()
-        assert data["stats"]["days"] == 365 and data["stats"]["kinds"] == {"in_place": 1}
+        data = client.get("/api/fileflows/history?days=99999").json()
+        assert data["stats"]["days"] == 36500 and data["stats"]["kinds"] == {"in_place": 1}
         assert data["recent"][0]["kind"] == "in_place"
+        # La période précédente (décalée de toute la période) ne contient pas ce passage.
+        previous = client.get("/api/fileflows/history?days=36500&offset=36500").json()
+        assert previous["stats"]["processed"] == 0 and previous["stats"]["kinds"] == {}
     finally:
         for dep in (require_auth, require_admin, get_db_async):
             app.dependency_overrides.pop(dep, None)

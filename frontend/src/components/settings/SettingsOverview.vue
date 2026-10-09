@@ -34,13 +34,14 @@ import { queryKeys } from '@/queryKeys';
 import { useAdminAttention } from '@/composables/useAdminAttention';
 import { useSession } from '@/composables/useSession';
 import { formatFileSize, formatRelativeDate, parseApiDate } from '@/utils/format';
-import OverviewKpis, { type OverviewKpi } from './overview/OverviewKpis.vue';
+import OverviewKpis from '@/components/templates/monitor/MonitorKpis.vue';
 import OverviewQuickActions from './overview/OverviewQuickActions.vue';
 import OverviewServices, { type ServiceRow } from './overview/OverviewServices.vue';
 import OverviewTasks from './overview/OverviewTasks.vue';
-import OverviewTodo from './overview/OverviewTodo.vue';
-import OverviewVerdict from './overview/OverviewVerdict.vue';
-import OverviewZoneMap, { type ZoneCard } from './overview/OverviewZoneMap.vue';
+import OverviewTodo from '@/components/templates/monitor/MonitorAttention.vue';
+import OverviewVerdict from '@/components/templates/monitor/MonitorVerdict.vue';
+import OverviewZoneMap from '@/components/templates/monitor/MonitorZones.vue';
+import type { MonitorKpi as OverviewKpi, MonitorZone as ZoneCard } from '@/components/templates/monitor/types';
 
 // Les icônes des zones viennent du modèle de navigation : une seule source, qui suit
 // les zones qu'on y ajoute.
@@ -96,7 +97,6 @@ const plural = (count: number, one: string, other: string) => `${count} ${count 
 const kpis = computed<OverviewKpi[]>(() => {
   const data = attention.overview.value;
   const pending = data?.requests?.pending_approval;
-  const conflicts = data?.conflicts?.count;
   const notifications = data?.notifications;
   const images = data?.images;
   const warm = data?.maintenance?.['warm-images'];
@@ -110,15 +110,6 @@ const kpis = computed<OverviewKpi[]>(() => {
       unit: '',
       tone: !known(pending) ? 'off' : pending ? 'warn' : 'ok',
       status: !known(pending) ? 'Chargement…' : pending ? plural(pending, 'demande', 'demandes') : 'Aucune en attente',
-    },
-    {
-      key: 'conflicts',
-      label: 'Conflits',
-      to: '/downloads/acquisitions',
-      value: known(conflicts) ? String(conflicts) : '–',
-      unit: '',
-      tone: !known(conflicts) ? 'off' : conflicts ? 'warn' : 'ok',
-      status: !known(conflicts) ? 'Chargement…' : conflicts ? 'À résoudre' : 'Aucun',
     },
     {
       key: 'notifications',

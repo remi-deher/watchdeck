@@ -171,9 +171,22 @@ async def record_many(url: str, api_key: Optional[str], uids: list[str], *, with
 # --------------------------------------------------------------------------- statistiques
 
 
-async def statistics(db: AsyncSession, days: int = 30) -> dict[str, Any]:
-    since = now_utc_naive() - timedelta(days=days)
-    rows = (await db.execute(select(FileflowsProcessing).filter(FileflowsProcessing.ended_at >= since))).scalars().all()
+async def statistics(db: AsyncSession, days: int = 30, offset: int = 0) -> dict[str, Any]:
+    """Bilan des `days` jours qui se terminent `offset` jours avant maintenant : `offset`
+    egal a `days` donne la periode precedente, pour la comparaison."""
+    until = now_utc_naive() - timedelta(days=offset)
+    since = until - timedelta(days=days)
+    rows = (
+        (
+            await db.execute(
+                select(FileflowsProcessing).filter(
+                    FileflowsProcessing.ended_at >= since, FileflowsProcessing.ended_at < until
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     per_day: dict[str, dict[str, int]] = defaultdict(lambda: {"processed": 0, "failed": 0})
     kinds: dict[str, int] = defaultdict(int)
     disks: dict[str, dict[str, Any]] = defaultdict(lambda: {"count": 0, "seconds": 0.0, "wait": 0.0})

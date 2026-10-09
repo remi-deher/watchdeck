@@ -1,85 +1,63 @@
 <template>
-  <!-- Reglages d'exploitation de FileFlows : runners, pause pendant les lectures Plex,
-       alternance de la file. Applique par la tache « Pilotage FileFlows » (chaque minute). -->
+  <!-- Reglages de l'encodage (gabarit Configurer) : sections par intention, un seul
+       enregistrement pour la page. Appliques par la tache « Pilotage FileFlows » (chaque
+       minute). -->
   <EncodingShell title="Réglages">
     <UiFeedback v-if="controlQuery.isError.value" type="error" :message="humanizeError(controlQuery.error.value)" />
-    <p v-else-if="controlQuery.isPending.value" class="set-muted">Chargement des réglages…</p>
-    <form v-else class="settings" @submit.prevent="saveMutation.mutate()">
-      <section class="set-block">
-        <h2>Runners</h2>
+    <ConfigureTemplate v-else :sections="sections" :dirty="dirty" :saving="saveMutation.isPending.value" @save="saveMutation.mutate()" @cancel="reset">
+      <template #section-runners>
         <UiRadioCards v-model="form.runners_mode" label="Nombre de runners" :options="runnersModes" />
-        <label v-if="form.runners_mode === 'manual'" class="set-row">
-          <span>Nombre de runners<small>Fichiers traités en même temps (offre gratuite : {{ control?.max_runners }} au plus).</small></span>
+        <ConfigureField v-if="form.runners_mode === 'manual'" label="Nombre de runners" :help="`Fichiers traités en même temps (offre gratuite : ${control?.max_runners} au plus).`">
           <UiNumberField v-model="form.runners" :min="1" :max="control?.max_runners || 5" aria-label="Nombre de runners" />
-        </label>
-      </section>
-
-      <section class="set-block">
-        <h2>Pendant une lecture Plex</h2>
+        </ConfigureField>
+      </template>
+      <template #section-plex>
         <UiRadioCards v-model="form.plex_pause" label="Pause pendant une lecture Plex" :options="pauseModes" />
         <template v-if="form.plex_pause !== 'off'">
           <UiRadioCards v-model="form.plex_pause_relaunched" label="Fichiers relancés à la main" :options="relaunchedModes" />
-          <label class="set-row">
-            <span>Délai de reprise<small>Minutes sans lecture avant de reprendre : une pause du film ne relance pas tout.</small></span>
+          <ConfigureField label="Délai de reprise" help="Minutes sans lecture avant de reprendre : une pause du film ne relance pas tout.">
             <UiNumberField v-model="form.plex_resume_minutes" :min="0" :max="120" aria-label="Délai de reprise en minutes" />
-          </label>
-          <p class="set-muted">Le disque d'un fichier lu est retrouvé grâce aux correspondances de la section Bibliothèques.</p>
+          </ConfigureField>
         </template>
-      </section>
-
-      <section class="set-block">
-        <h2>File d'attente</h2>
-        <ToggleSwitch v-model="form.reorder_enabled" label="Alterner la file entre les bibliothèques cochées" />
-        <p class="set-muted">Les bibliothèques concernées se cochent dans la section Bibliothèques. Les fichiers relancés à la main restent en tête.</p>
-      </section>
-
-      <section class="set-block">
-        <h2>Alertes</h2>
-        <p class="set-muted">Un traitement en échec prévient l'administrateur sur les canaux cochés.</p>
-        <div class="set-channels">
-          <UiCheckboxField
-            v-for="channel in CHANNELS"
-            :key="channel.value"
-            :model-value="form.alert_channels.includes(channel.value)"
-            :label="channel.label"
-            :hint="control?.channels_ready[channel.value] ? '' : 'Désactivé ou non configuré dans Notifications'"
-            @update:model-value="(on: boolean) => toggleChannel(channel.value, on)"
-          />
-        </div>
-      </section>
-
-      <section class="set-block">
-        <h2>Plages horaires</h2>
+      </template>
+      <template #section-queue>
+        <ConfigureField label="Alterner la file entre les bibliothèques cochées" help="Les bibliothèques concernées se cochent dans l’onglet Bibliothèques. Les fichiers relancés à la main restent en tête.">
+          <ToggleSwitch v-model="form.reorder_enabled" aria-label="Alterner la file" />
+        </ConfigureField>
+      </template>
+      <template #section-alerts>
+        <UiCheckboxField
+          v-for="channel in CHANNELS"
+          :key="channel.value"
+          :model-value="form.alert_channels.includes(channel.value)"
+          :label="channel.label"
+          :hint="control?.channels_ready[channel.value] ? '' : 'Désactivé ou non configuré dans Notifications'"
+          @update:model-value="(on: boolean) => toggleChannel(channel.value, on)"
+        />
+      </template>
+      <template #section-schedule>
         <UiRadioCards v-model="form.schedule_preset" label="Plages de traitement" :options="scheduleOptions" />
-        <p class="set-muted">Heure locale du serveur FileFlows, tous les jours. Un fichier en cours à la fin d'une plage se termine normalement.</p>
-      </section>
-
-      <div class="set-actions">
-        <UiButton type="submit" variant="primary" :loading="saveMutation.isPending.value" :disabled="!dirty"><Save />Enregistrer</UiButton>
-        <UiButton :disabled="!dirty" @click="reset">Annuler</UiButton>
-        <small v-if="lastRun" class="set-muted">Dernier passage du pilotage : {{ formatDateTime(lastRun) }}</small>
-      </div>
-    </form>
+      </template>
+    </ConfigureTemplate>
   </EncodingShell>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Save } from '@lucide/vue';
 import { api } from '@/api';
 import { fileflowsControlQuery, useFileflowsStatus, type AlertChannel, type FileflowsControl, type SchedulePreset } from '@/composables/useFileflows';
 import { useToast } from '@/composables/useToast';
 import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
-import { formatDateTime } from '@/utils/format';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import UiButton from '@/components/ui/UiButton.vue';
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiRadioCards from '@/components/ui/UiRadioCards.vue';
 import EncodingShell from '@/components/encoding/EncodingShell.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
 
 const runnersModes = [
   { value: 'manual' as const, label: 'Fixe', description: 'Le nombre choisi ci-dessous.' },
@@ -115,7 +93,6 @@ const { addToast } = useToast();
 const { status } = useFileflowsStatus();
 const controlQuery = useQuery({ ...fileflowsControlQuery(), enabled: computed(() => Boolean(status.value?.connected)) });
 const control = computed(() => controlQuery.data.value || null);
-const lastRun = computed(() => control.value?.guard?.at || null);
 /* Un planning regle autrement dans FileFlows reste tel quel tant qu'on ne choisit rien d'autre. */
 const scheduleOptions = computed(() => control.value?.schedule_preset === 'custom'
   ? [...SCHEDULE_PRESETS, { value: 'custom' as const, label: 'Personnalisé', description: 'Réglé dans FileFlows, conservé.' }]
@@ -144,6 +121,18 @@ function toggleChannel(channel: AlertChannel, on: boolean): void {
 }
 watch(control, reset, { immediate: true });
 const dirty = computed(() => JSON.stringify(snapshot()) !== JSON.stringify({ ...form }));
+/* Une section est modifiee quand un de ses champs differe de ce qui est enregistre. */
+function changed(keys: Array<keyof Form>): boolean {
+  const saved = snapshot();
+  return Boolean(saved) && keys.some((key) => JSON.stringify(saved![key]) !== JSON.stringify(form[key]));
+}
+const sections = computed(() => [
+  { key: 'runners', title: 'Runners', description: 'Combien de fichiers FileFlows traite en même temps.', dirty: changed(['runners_mode', 'runners']) },
+  { key: 'plex', title: 'Pendant une lecture Plex', description: 'Éviter de ralentir un film en cours de lecture.', dirty: changed(['plex_pause', 'plex_pause_relaunched', 'plex_resume_minutes']) },
+  { key: 'queue', title: 'File d’attente', description: 'L’ordre dans lequel les fichiers passent.', dirty: changed(['reorder_enabled']) },
+  { key: 'alerts', title: 'Alertes', description: 'Un traitement en échec prévient l’administrateur sur les canaux cochés.', dirty: changed(['alert_channels']) },
+  { key: 'schedule', title: 'Plages horaires', description: 'Heure locale du serveur FileFlows, tous les jours. Un fichier en cours à la fin d’une plage se termine normalement.', dirty: changed(['schedule_preset']) },
+]);
 
 const saveMutation = useMutation({
   mutationFn: () => api('/api/fileflows/control', { method: 'PUT', body: JSON.stringify({ ...form, runners: Number(form.runners) || 1, plex_resume_minutes: Number(form.plex_resume_minutes) || 0 }) }),
@@ -154,15 +143,3 @@ const saveMutation = useMutation({
   onError: (error) => addToast({ type: 'error', message: humanizeError(error) }),
 });
 </script>
-
-<style scoped lang="scss">
-.settings { display: grid; gap: var(--space-4); }
-.set-block { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
-.set-block h2 { margin: 0; font-size: var(--fs-md); }
-.set-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.set-row > span { display: grid; gap: 2px; }
-.set-row small, .set-muted { color: var(--muted); font-size: var(--fs-sm); }
-.set-muted { margin: 0; }
-.set-channels { display: grid; gap: var(--space-2); }
-.set-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-</style>

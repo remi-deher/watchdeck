@@ -34,7 +34,11 @@
       <!-- Les etats d'une demande en onglets, avec leur nombre : « En cours » d'abord, la
            ou il y a quelque chose a suivre. Ils remplacent le filtre de statut, qui
            cachait les demandes a surveiller dans le panneau de filtres. -->
-      <AppSubnav :items="tabItems" :active="activeTab" aria-label="États des demandes" />
+      <AppSubnav :items="tabItems" :active="missingTab ? 'manquants' : activeTab" aria-label="États des demandes" />
+
+      <!-- Ce qui manque dans Sonarr et Radarr : le complement des demandes, pour les admins. -->
+      <MissingItemsPanel v-if="missingTab" />
+      <template v-else>
 
       <UiFeedback v-if="error" type="error" title="Impossible de charger vos demandes" :message="error" retry @retry="load" />
       <UiFeedback v-else-if="loading && !items.length" type="loading" message="Chargement de vos demandes…" />
@@ -83,6 +87,7 @@
            Place apres l'etat vide : intercale entre le `v-if` et le `v-else-if`, il
            casserait la chaine conditionnelle. -->
       <InfiniteScrollTrigger :has-more="hasMore" @load="showMore" />
+      </template>
     </div>
 
     <ReasonPickerModal
@@ -124,6 +129,7 @@ import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import LibraryCard from '@/components/library/LibraryCard.vue';
 import RequestTrackingCard from '@/components/requests/RequestTrackingCard.vue';
+import MissingItemsPanel from './MissingItemsPanel.vue';
 import AppSubnav, { type SubnavItem } from '@/components/ui/AppSubnav.vue';
 import ReasonPickerModal from '@/components/requests/ReasonPickerModal.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -291,14 +297,16 @@ const activeTab = computed<TabKey>(() => {
 });
 /* « A approuver » et « Echecs » ne s'affichent que s'ils ont un contenu, ou s'ils sont
    l'onglet courant (lien partage). */
-const tabItems = computed<SubnavItem[]>(() => TABS
+const tabItems = computed<SubnavItem[]>(() => [...TABS
   .filter((tab) => !['a-approuver', 'echecs'].includes(tab.key) || tabCounts.value[tab.key] || activeTab.value === tab.key)
   .map((tab) => ({
     key: tab.key,
     label: tab.label,
     count: tabCounts.value[tab.key] || 0,
     to: { path: route.path, query: { ...route.query, onglet: tab.key } },
-  })));
+  })),
+  ...(isAdmin.value ? [{ key: 'manquants', label: 'Éléments manquants', to: { path: route.path, query: { ...route.query, onglet: 'manquants' } } }] : [])]);
+const missingTab = computed(() => isAdmin.value && route.query.onglet === 'manquants');
 const sorted = computed(() => {
   const list = items.value.filter((item) => tabOf(item).includes(activeTab.value));
   if (sort.value === 'oldest') list.sort((a, b) => (a.requested_at || '').localeCompare(b.requested_at || ''));

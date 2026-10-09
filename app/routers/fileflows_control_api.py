@@ -418,10 +418,14 @@ async def fileflows_control_save(body: ControlBody, db: AsyncSession = Depends(g
 
 
 @router.get("/history")
-async def fileflows_history_route(days: int = 30, db: AsyncSession = Depends(get_db_async)):
-    """Statistiques des traitements sur la période, et derniers passages enregistrés."""
-    days = max(1, min(days, 365))
+async def fileflows_history_route(
+    days: int = 30, offset: int = 0, recent_limit: int = 50, db: AsyncSession = Depends(get_db_async)
+):
+    """Statistiques des traitements sur la période (jusqu'à cent ans : « Tout »), décalées
+    de `offset` jours pour la période précédente, et derniers passages enregistrés."""
+    days = max(1, min(days, 36500))
+    offset = max(0, min(offset, 36500))
     return {
-        "stats": await fileflows_history.statistics(db, days),
-        "recent": await fileflows_history.recent(db, 50),
+        "stats": await fileflows_history.statistics(db, days, offset),
+        "recent": await fileflows_history.recent(db, max(1, min(recent_limit, 500))),
     }

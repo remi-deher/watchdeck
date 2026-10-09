@@ -9,11 +9,6 @@
     <UiButton size="sm" :loading="refreshing" @click="refresh"><template #icon><RefreshCw /></template>Tout tester</UiButton>
   </section>
   <div class="clients-links">
-    <RouterLink class="clients-link" to="/downloads/acquisitions">
-      <small>Acquisitions</small>
-      <strong>{{ conflicts ?? '–' }}</strong>
-      <span>{{ conflicts === 1 ? 'conflit à résoudre' : 'conflits à résoudre' }} ↗</span>
-    </RouterLink>
     <RouterLink class="clients-link" to="/storage">
       <small>Stockage</small>
       <strong>{{ blocked ?? '–' }}</strong>
@@ -55,7 +50,6 @@ const subtitle = computed(() => {
 });
 
 const data = computed(() => overview.value as any);
-const conflicts = computed<number | null>(() => data.value?.conflicts?.count ?? null);
 const blocked = computed<number | null>(() => data.value?.storage?.blocked_transfers ?? data.value?.storage?.failed_transfers ?? null);
 const connections = computed<number>(() => data.value?.storage?.connections || 0);
 

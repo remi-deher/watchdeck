@@ -197,3 +197,74 @@ export const PLEX_PAUSE_LABELS: Record<FileflowsControl['plex_pause'], string> =
   all: 'Tous les runners',
   disk: 'Disque concerné',
 };
+
+/* ------------------------------------------------------------ historique */
+
+export interface FileflowsSummary {
+  size?: number | null;
+  video?: { codec?: string } | null;
+  audio?: Array<{ codec?: string }>;
+  subtitles?: Array<{ codec?: string }>;
+}
+
+/** Un passage enregistre par Watchdeck (avant / apres, duree reelle). */
+export interface FileflowsPass {
+  id: number;
+  file_uid: string;
+  status: 'processed' | 'failed' | string;
+  kind: ProcessingKind | null;
+  path: string;
+  library: string | null;
+  disk: string | null;
+  flow: string | null;
+  library_item_id: number | null;
+  ended_at: string;
+  processing_seconds: number | null;
+  wait_seconds: number | null;
+  original_size: number | null;
+  final_size: number | null;
+  failure_reason: string | null;
+  before: FileflowsSummary | null;
+  after: FileflowsSummary | null;
+}
+
+export interface FileflowsStats {
+  days: number;
+  processed: number;
+  failed: number;
+  saved_bytes: number;
+  average_seconds: number | null;
+  per_day: Array<{ day: string; processed: number; failed: number }>;
+  kinds: Record<string, number>;
+  disks: Array<{ disk: string; count: number; average_seconds: number; average_wait_seconds: number }>;
+  steps: Array<{ name: string; count: number; average_seconds: number }>;
+}
+
+/** Bilan des `days` jours finissant `offset` jours avant maintenant, et derniers passages. */
+export function fileflowsHistoryQuery(days: MaybeRefOrGetter<number>, offset: MaybeRefOrGetter<number> = 0, recentLimit = 50) {
+  return {
+    queryKey: computed(() => [...queryKeys.fileflows.all, 'history', toValue(days), toValue(offset), recentLimit] as const),
+    queryFn: ({ signal }: { signal?: AbortSignal }) => api<{ stats: FileflowsStats; recent: FileflowsPass[] }>(
+      `/api/fileflows/history?days=${toValue(days)}&offset=${toValue(offset)}&recent_limit=${recentLimit}`,
+      { signal },
+    ),
+    staleTime: 60_000,
+  };
+}
+
+/** Ce qui a change entre avant et apres : codec video, codecs audio, sous-titres texte, taille. */
+export function passChanges(pass: FileflowsPass): string[] {
+  const before = pass.before || {}, after = pass.after;
+  if (!after) return [];
+  const out: string[] = [];
+  if (before.video?.codec && after.video?.codec && before.video.codec !== after.video.codec) out.push(`Vidéo ${before.video.codec} → ${after.video.codec}`);
+  const audio = (s: FileflowsSummary) => (s.audio || []).map((a) => a.codec).join('+');
+  if (audio(before) && audio(before) !== audio(after)) out.push(`Audio ${audio(before)} → ${audio(after)}`);
+  const srt = (s: FileflowsSummary) => (s.subtitles || []).filter((t) => t.codec === 'subrip').length;
+  if (srt(before) > srt(after)) out.push(`${srt(before) - srt(after)} SRT → ASS`);
+  if (pass.original_size && pass.final_size && pass.original_size !== pass.final_size) {
+    const delta = Math.round(((pass.final_size - pass.original_size) / pass.original_size) * 100);
+    out.push(`taille ${delta > 0 ? '+' : ''}${delta} %`);
+  }
+  return out;
+}

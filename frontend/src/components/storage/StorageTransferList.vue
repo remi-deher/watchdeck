@@ -1,6 +1,6 @@
 <template>
  <section class="job-list">
-  <AppSubnav v-if="!detailMode" v-model:active="filter" :items="filterItems" variant="tabs" class="compact-subnav" aria-label="Filtrer les tâches" />
+  <UiSegmentedControl v-if="!detailMode" v-model="filter" class="task-filter" :options="filterItems" ariaLabel="Filtrer les tâches" />
   <UiEmptyState v-if="!filteredJobs.length" title="Aucune tâche" message="Aucune tâche dans cette section." compact />
   <PanelCard v-for="job in filteredJobs" :key="job.id" class="transfer-batch">
    <StorageTransferSummary :job="job" :instance="instanceName(job)" :source="locationName(job.source_id)" :destination="locationName(job.destination_id)" :status="status" :gb="gb" :date="date"><template #actions><StorageTaskActions :job="job" :busy="busy" @relaunch="$emit('relaunch',$event)" @verify="$emit('verify',$event)" @edit="$emit('edit',$event)" @duplicate="$emit('duplicate',$event)" @remove="removing=$event" @cancel="cancelling=$event" @command="(id,action)=>$emit('command',id,action)" /></template></StorageTransferSummary>
@@ -36,7 +36,7 @@ import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import StorageTaskActions from './StorageTaskActions.vue';
 import StorageTransferSummary from './StorageTransferSummary.vue';
 import StorageItemDialog from './StorageItemDialog.vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
+import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import {computed,ref,toRef} from 'vue';import UiButton from '@/components/ui/UiButton.vue';import UiDataTable,{type UiColumn} from '@/components/ui/UiDataTable.vue';import {useStorageTelemetry} from './useStorageTelemetry';
 const props=defineProps<{jobs:any[],locations:any[],busy:boolean,tab:string,instances?:any[],detailMode?:boolean}>();const tab=toRef(props,'tab');
@@ -45,7 +45,7 @@ const instanceName=(job:any)=>props.instances?.find(i=>i.id===job.params?.arr_in
 function advice(reason:string){if(/lecture|playing/i.test(reason))return 'Attendre la fin de la lecture, puis reprendre.';if(/espace.*insuffisant|réserve.*insuffisante|capacity.*insufficient/i.test(reason))return 'Libérer de la place à destination avant de réessayer.';if(/connexion|accès|accessible|rsync\/SSH/i.test(reason))return 'Vérifier les services, les chemins et leurs accès avant de réessayer.';return 'Vérifier le motif et les chemins dans les détails avant de réessayer.';}
 const filters=[{key:'all',label:'Toutes'},{key:'draft',label:'À lancer'},{key:'active',label:'En cours'},{key:'issues',label:'En pause / À traiter'},{key:'completed',label:'Terminées'},{key:'cancelled',label:'Annulées'}];const filter=ref('all'),removing=ref<any>(null),cancelling=ref<any>(null),detailItem=ref<any>(null);
 const terminal=(job:any)=>['completed','cancelled'].includes(job.status);
-const filterItems=computed(()=>filters.map(choice=>({...choice,count:countJobs(choice.key)})));
+const filterItems=computed(()=>filters.map(choice=>({value:choice.key,label:choice.label,count:countJobs(choice.key)})));
 const issues=(job:any)=>job.items.filter((i:any)=>['blocked','failed','deferred'].includes(i.status));
 function reasons(job:any){const counts=new Map<string,number>();for(const item of issues(job)){const reason=item.reason||status(item.status);counts.set(reason,(counts.get(reason)||0)+1);}return [...counts].map(([reason,count])=>({reason,count}));}
 function matchesJob(job:any,key:string){return key==='all'||(key==='draft'?job.status==='draft':key==='active'?['running','queued','finalizing'].includes(job.status):key==='completed'?job.status==='completed':key==='cancelled'?job.status==='cancelled':['paused','stopped','blocked','failed','cancel_blocked'].includes(job.status)||issues(job).length>0);}
@@ -61,9 +61,9 @@ defineExpose({confirmRemove:(job:any)=>removing.value=job,confirmCancel:(job:any
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.job-list{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0;max-width:100%}.compact-subnav :deep(.app-subnav__scroller){justify-content:center}.transfer-batch{padding:22px;min-width:0;width:100%;max-width:100%;box-sizing:border-box}.task-main{display:flex;justify-content:space-between;align-items:center;gap:12px}.task-heading{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}.task-heading h2{margin:0;font-size:var(--fs-base);overflow-wrap:anywhere}.task-subline{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;color:var(--muted);font-size:var(--fs-sm);margin:8px 0}.task-route{min-width:0;overflow-wrap:anywhere}.batch-summary{display:flex;flex-wrap:wrap;gap:12px;font-size:var(--fs-sm);padding:8px 0}.task-titles,.task-metadata{margin-top:8px;min-width:0}.task-titles>summary,.task-metadata>summary{min-height:44px;cursor:pointer;align-content:center}.task-issues{font-size:var(--fs-sm)}.task-issues small{display:block}.transfer-batch :deep(.ui-data-table){margin:8px 0;max-height:none}.transfer-batch :deep(.ui-data-table button){min-height:44px}.transfer-batch p{font-size:var(--fs-sm);overflow-wrap:anywhere}
+.job-list{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0;max-width:100%}.task-filter{justify-self:start;max-width:100%;overflow-x:auto}.transfer-batch{padding:22px;min-width:0;width:100%;max-width:100%;box-sizing:border-box}.task-main{display:flex;justify-content:space-between;align-items:center;gap:12px}.task-heading{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}.task-heading h2{margin:0;font-size:var(--fs-base);overflow-wrap:anywhere}.task-subline{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;color:var(--muted);font-size:var(--fs-sm);margin:8px 0}.task-route{min-width:0;overflow-wrap:anywhere}.batch-summary{display:flex;flex-wrap:wrap;gap:12px;font-size:var(--fs-sm);padding:8px 0}.task-titles,.task-metadata{margin-top:8px;min-width:0}.task-titles>summary,.task-metadata>summary{min-height:44px;cursor:pointer;align-content:center}.task-issues{font-size:var(--fs-sm)}.task-issues small{display:block}.transfer-batch :deep(.ui-data-table){margin:8px 0;max-height:none}.transfer-batch :deep(.ui-data-table button){min-height:44px}.transfer-batch p{font-size:var(--fs-sm);overflow-wrap:anywhere}
 @container card (max-width:600px){.task-main{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}}
-@include bp.until(phablet){.task-main{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}.task-actions{width:100%}.compact-subnav :deep(.app-subnav__scroller){justify-content:flex-start}.transfer-batch :deep(.table-cards){overflow:visible}.transfer-batch :deep(.table-cards td){padding:6px 0}.transfer-batch :deep(.table-cards td.card-actions){justify-content:flex-end}.transfer-batch :deep(.table-cards tr){padding:10px;margin-bottom:8px}}
+@include bp.until(phablet){.task-main{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}.task-actions{width:100%}.transfer-batch :deep(.table-cards){overflow:visible}.transfer-batch :deep(.table-cards td){padding:6px 0}.transfer-batch :deep(.table-cards td.card-actions){justify-content:flex-end}.transfer-batch :deep(.table-cards tr){padding:10px;margin-bottom:8px}}
 </style>
 
 <style scoped lang="scss">

@@ -149,17 +149,6 @@ function activityAttention(overview: AdminOverview | null | undefined): Attentio
       action: { label: 'Voir', to: '/library?status=failed' },
     });
   }
-  const conflicts = overview.conflicts?.count ?? 0;
-  if (conflicts > 0) {
-    items.push({
-      key: 'conflicts',
-      severity: 'warn',
-      area: 'admin-acquisition',
-      title: `${conflicts} ${many(conflicts, 'conflit à résoudre', 'conflits à résoudre')}`,
-      detail: 'Des doublons ou des entrées incohérentes dans les demandes.',
-      action: { label: 'Résoudre', to: '/downloads/acquisitions' },
-    });
-  }
   const blocked = overview.storage?.blocked_transfers ?? 0;
   if (blocked > 0) {
     items.push({
