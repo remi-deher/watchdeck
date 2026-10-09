@@ -91,6 +91,6 @@ const emit = defineEmits<{
 </script>
 
 <style scoped lang="scss">
-.browse { display: grid; gap: var(--space-5); min-width: 0; }
+.browse { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); min-width: 0; }
 .browse__section { min-width: 0; }
 </style>

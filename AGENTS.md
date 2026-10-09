@@ -90,6 +90,29 @@ créable : `service.ts`, `user.ts`…) : étapes, champs typés, règles, étape
 conditionnels, test, création, résultat. Jamais de formulaire de création écrit dans une
 page ; un type de champ manquant s'ajoute au gabarit, pour tous.
 
+Ce qui tourne maintenant s'affiche toujours avec `LiveStrip` (lectures Plex, fichiers en
+cours d'encodage, téléchargements, transferts) : la page traduit ses objets en cartes
+(`LiveItem` : image, badge, coin, titre ou logo, état, progression, « qui / sur quoi »,
+faits avec icône — quatre au plus —, note). Surveiller l'accueille dans son emplacement
+`live`, Suivre l'utilise pour son groupe « En cours ».
+
+Le verdict de Surveiller n'apparaît que s'il y a quelque chose à traiter, et n'a pas de
+bouton d'actualisation (les données se rafraîchissent seules).
+
+Les outils de page (état d'un service, pause…) ne forment plus de rangée : `PageTemplate`
+les confie à la barre du haut (`usePageTools`), qui les affiche dans la capsule de
+recherche, à gauche de « Filtres » (ou à droite de la recherche globale). La rangée
+collante ne porte que les onglets, centrés sur la page. La feuille des filtres n'a pas de
+pied : les filtres s'appliquent en direct, chacun se retire par sa pastille, « Tout
+effacer » à partir de deux.
+
+Un gabarit ou un bloc qui a besoin d'un outil de page (période d'Analyser ou de
+Comprendre, vue d'Anticiper) le pose dans `PageTools`. Un `UiSegmentedControl` ne se
+pose jamais en haut de page pour filtrer : un filtre de liste se place juste au-dessus de
+la liste qu'il filtre, et une bascule qui cadre toute la page (période, vue) passe dans
+les outils de page. Pas de filtre qui répète ce que la page montre déjà (Suivre n'a pas
+de filtre d'état : ses groupes portent titre et nombre).
+
 Blocs communs hors gabarit : `MiniCalendar` (dates d'un élément en liste, par mois,
 couleur et icône par type : cinéma, streaming, physique, épisode), à utiliser dans une
 fiche plutôt qu'un calendrier.

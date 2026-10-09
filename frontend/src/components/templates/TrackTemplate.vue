@@ -1,21 +1,30 @@
 <template>
   <!-- Gabarit « Suivre » : repond a « ou en est ce qui tourne ? ».
-         1. le resume des etats, qui sert aussi de filtre ;
-         2. les elements groupes par etat, dans un ordre fixe : bloques (avec leur cause
+         1. les elements groupes par etat, dans un ordre fixe : bloques (avec leur cause
             et l'action qui debloque), en cours (progression, temps restant), en pause,
             en attente (liste compacte dans l'ordre de passage, repliee au-dela de quelques lignes) ;
-         3. les derniers termines, puis le lien vers l'historique complet.
+         2. les derniers termines, puis le lien vers l'historique complet.
        Pas de reglage ni d'analyse : ce sont les besoins des gabarits Configurer et
        Comprendre. La page fournit les elements et reagit aux actions (`action`). -->
   <div class="track">
-    <div class="track__summary">
-      <UiSegmentedControl v-model="filter" :options="filterOptions" ariaLabel="Filtrer par état" />
-      <small v-if="updated" class="track__updated" aria-live="polite">{{ updated }}</small>
-    </div>
+    <!-- Pas de filtre d'etat : chaque groupe porte deja son titre et son nombre. -->
+    <small v-if="updated" class="track__updated" aria-live="polite">{{ updated }}</small>
 
     <p v-if="loading && !items.length" class="track__loading">Chargement des {{ text.items }}…</p>
-    <template v-else-if="visibleGroups.length">
-      <section v-for="group in visibleGroups" :key="group.state" class="track__group" :class="`is-${group.state}`" :aria-labelledby="`track-${group.state}`">
+    <template v-else-if="groups.length">
+      <template v-for="group in groups" :key="group.state">
+      <!-- Ce qui tourne : le bandeau commun (LiveStrip), image, etape et progression ; un
+           clic ouvre la fiche de l'element. -->
+      <LiveStrip
+        v-if="group.state === 'running'"
+        class="track__group is-running"
+        :items="group.items.map(toLive)"
+        :title="`${group.items.length} en cours`"
+        live-label="En cours"
+        :idle="{ title: 'Rien en cours' }"
+        @select="(live) => live.to && router.push(live.to)"
+      />
+      <section v-else class="track__group" :class="`is-${group.state}`" :aria-labelledby="`track-${group.state}`">
         <header class="track__group-head">
           <component :is="GROUPS[group.state].icon" aria-hidden="true" />
           <h2 :id="`track-${group.state}`">{{ GROUPS[group.state].title }}</h2>
@@ -29,6 +38,7 @@
           </li>
         </ol>
       </section>
+      </template>
     </template>
     <UiEmptyState v-else :icon="CheckCircle2" :title="text.empty" :message="text.emptyDetail" />
 
@@ -50,11 +60,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { computed } from 'vue';
+import { RouterLink, useRouter } from 'vue-router';
+import LiveStrip, { type LiveItem } from '@/components/ui/LiveStrip.vue';
 import { AlertTriangle, CheckCircle2, Clock, History, Loader, PauseCircle, XCircle } from '@lucide/vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
-import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import TrackCard from './track/TrackCard.vue';
 import TrackQueue from './track/TrackQueue.vue';
 import type { TrackItem, TrackLabels, TrackRecent, TrackState } from './track/types';
@@ -79,11 +89,11 @@ const props = withDefaults(
 const emit = defineEmits<{ action: [item: TrackItem, key: string] }>();
 
 const ORDER: TrackState[] = ['blocked', 'running', 'paused', 'waiting'];
-const GROUPS: Record<TrackState, { title: string; filter: string; icon: any }> = {
-  blocked: { title: 'Demande une intervention', filter: 'Bloqués', icon: AlertTriangle },
-  running: { title: 'En cours', filter: 'En cours', icon: Loader },
-  paused: { title: 'En pause', filter: 'En pause', icon: PauseCircle },
-  waiting: { title: 'En attente', filter: 'En attente', icon: Clock },
+const GROUPS: Record<TrackState, { title: string; icon: any }> = {
+  blocked: { title: 'Demande une intervention', icon: AlertTriangle },
+  running: { title: 'En cours', icon: Loader },
+  paused: { title: 'En pause', icon: PauseCircle },
+  waiting: { title: 'En attente', icon: Clock },
 };
 
 const text = computed(() => {
@@ -97,23 +107,33 @@ const text = computed(() => {
   };
 });
 
-const filter = ref<'all' | TrackState>('all');
+const router = useRouter();
+/* Un element en cours, en carte du bandeau commun : l'etape en badge, le temps restant
+   sous le titre, l'identification dessous, les etiquettes en faits. */
+function toLive(item: TrackItem): LiveItem {
+  return {
+    key: item.key,
+    title: item.title,
+    status: item.eta || '',
+    progress: item.progress ?? null,
+    poster: item.poster || null,
+    icon: item.icon,
+    badge: item.step ? { label: item.step, tone: 'accent' } : null,
+    who: item.subtitle || '',
+    facts: (item.tags || []).map((tag) => ({ key: tag, label: tag })),
+    note: item.note || '',
+    to: item.to || null,
+  };
+}
+
 const groups = computed(() =>
   ORDER.map((state) => ({ state, items: props.items.filter((item) => item.state === state) })).filter((group) => group.items.length),
 );
-/* « Tout » et les etats presents ; un etat filtre qui se vide reste propose tant qu'il
-   est choisi, pour ne pas faire sauter le selecteur sous le doigt. */
-const filterOptions = computed(() => [
-  { value: 'all' as const, label: 'Tout', count: props.items.length },
-  ...ORDER.filter((state) => filter.value === state || groups.value.some((group) => group.state === state))
-    .map((state) => ({ value: state, label: GROUPS[state].filter, count: props.items.filter((item) => item.state === state).length })),
-]);
-const visibleGroups = computed(() => (filter.value === 'all' ? groups.value : groups.value.filter((group) => group.state === filter.value)));
 </script>
 
 <style scoped lang="scss">
-.track { display: grid; gap: var(--space-5); min-width: 0; }
-.track__summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.track { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); min-width: 0; }
+.track__updated { justify-self: end; }
 .track__updated, .track__loading { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .track__group, .track__recent { display: grid; gap: var(--space-3); min-width: 0; }
 .track__group-head { display: flex; align-items: center; gap: var(--space-2); }

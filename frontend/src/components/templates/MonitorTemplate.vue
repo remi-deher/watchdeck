@@ -12,20 +12,23 @@
        taches…), places a cote de l'attention. Sur telephone, le verdict et l'attention
        passent d'abord, puis les parties (qui y servent de menu), puis les chiffres. -->
   <div class="monitor" :class="{ 'has-details': $slots.details }">
+    <!-- Le verdict ne parle que s'il y a quelque chose a dire : quand tout va bien, la
+         page commence directement par ce qui tourne et les chiffres. -->
     <MonitorVerdict
+      v-if="loading || urgent"
       class="monitor__verdict"
       :urgent="urgent"
       :errors="count('error')"
       :warnings="count('warn')"
       :loading="loading"
-      :refreshing="refreshing"
-      :checked-label="labels.refresh"
       :checking-title="labels.checkingTitle"
       :checking-detail="labels.checkingDetail"
       :ok-title="labels.okTitle"
       :ok-detail="labels.okDetail"
-      @refresh="emit('refresh')"
     />
+    <!-- Ce qui tourne maintenant (LiveStrip) : facultatif, une page sans en-cours n'en
+         fournit pas. -->
+    <div v-if="$slots.live" class="monitor__live"><slot name="live" /></div>
     <MonitorKpis v-if="kpis.length" class="monitor__kpis" :kpis="kpis" :label="labels.kpisLabel" />
     <MonitorAttention
       class="monitor__attention"
@@ -59,13 +62,11 @@ const props = withDefaults(
     /** Icone par partie (`area` des points d'attention). */
     icons?: Record<string, any>;
     loading?: boolean;
-    refreshing?: boolean;
     /** Textes propres a la page ; les manquants gardent ceux par defaut des blocs. */
     labels?: MonitorLabels;
   }>(),
-  { kpis: () => [], zones: () => [], icons: () => ({}), loading: false, refreshing: false, labels: () => ({}) },
+  { kpis: () => [], zones: () => [], icons: () => ({}), loading: false, labels: () => ({}) },
 );
-const emit = defineEmits<{ refresh: [] }>();
 
 const count = (severity: MonitorSeverity) => props.items.filter((item) => item.severity === severity).length;
 /* Une information n'est pas un point a traiter : seuls erreurs et avertissements comptent. */
@@ -79,15 +80,16 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
 .monitor {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'verdict' 'kpis' 'attention' 'zones';
+  grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'zones';
   gap: var(--space-5) var(--space-4);
   min-width: 0;
 }
 .monitor.has-details {
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  grid-template-areas: 'verdict verdict' 'kpis kpis' 'attention details' 'zones zones';
+  grid-template-areas: 'verdict verdict' 'live live' 'kpis kpis' 'attention details' 'zones zones';
 }
 .monitor__verdict { grid-area: verdict; }
+.monitor__live { grid-area: live; min-width: 0; }
 .monitor__kpis { grid-area: kpis; }
 .monitor__attention { grid-area: attention; }
 .monitor__details { grid-area: details; display: grid; align-content: start; gap: var(--space-4); min-width: 0; }
@@ -96,7 +98,7 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
 @include bp.until(desktop) {
   .monitor.has-details {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'verdict' 'kpis' 'attention' 'details' 'zones';
+    grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'details' 'zones';
   }
 }
 
@@ -104,7 +106,7 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
   .monitor,
   .monitor.has-details {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'verdict' 'attention' 'zones' 'kpis' 'details';
+    grid-template-areas: 'verdict' 'attention' 'live' 'zones' 'kpis' 'details';
     gap: var(--space-4);
   }
 }

@@ -11,7 +11,8 @@
   <div class="understand" :class="{ 'has-detail': detail }">
     <div class="understand__main">
       <div class="understand__bar">
-        <UiSegmentedControl v-if="periods.length" :model-value="period" :options="periods" ariaLabel="Période" @update:model-value="emit('update:period', String($event))" />
+        <!-- La periode cadre toute la page (capsule de recherche) ; l'etat filtre la liste. -->
+        <PageTools v-if="periods.length"><UiSegmentedControl :model-value="period" :options="periods" ariaLabel="Période" @update:model-value="emit('update:period', String($event))" /></PageTools>
         <UiSegmentedControl v-if="outcomes.length" :model-value="outcome" :options="outcomes" ariaLabel="Résultat" @update:model-value="emit('update:outcome', String($event))" />
         <UiButton v-if="exportable" size="sm" class="understand__export" @click="emit('export')"><template #icon><Download /></template>Exporter</UiButton>
       </div>
@@ -56,6 +57,7 @@ import { AlertTriangle, CheckCircle2, Download, History, Info, XCircle } from '@
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
+import PageTools from '@/components/ui/PageTools.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { parseApiDate } from '@/utils/format';
 import UnderstandDetailPanel from './understand/UnderstandDetail.vue';
@@ -138,7 +140,7 @@ const days = computed(() => {
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
-.understand { display: grid; gap: var(--space-4); min-width: 0; }
+.understand { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
 .understand.has-detail { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
 .understand__main { display: grid; align-content: start; gap: var(--space-3); min-width: 0; }
 .understand__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }

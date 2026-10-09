@@ -51,8 +51,6 @@ export interface MonitorLabels {
   /** Titre et texte quand rien ne demande d'attention. */
   okTitle?: string;
   okDetail?: string;
-  /** Bouton de verification. */
-  refresh?: string;
   /** Nom accessible des indicateurs et des zones. */
   kpisLabel?: string;
   zonesLabel?: string;

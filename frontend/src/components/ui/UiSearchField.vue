@@ -28,6 +28,9 @@
     >
       <X aria-hidden="true" />
     </button>
+    <!-- Outils de la page (etat d'un service, pause…), a gauche de « Filtres » : largeur
+         bornee, ce qui deborde defile, la recherche ne bouge jamais. -->
+    <div v-if="$slots.tools" class="ui-search-field__tools"><slot name="tools" /></div>
     <template v-if="hasFilters">
       <button
         type="button"
@@ -194,6 +197,25 @@ function onInput(event: Event): void {
   .ui-search-field input::placeholder { color: color-mix(in srgb, var(--text) 62%, transparent); }
 }
 
+.ui-search-field__tools {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 55%;
+  height: 100%;
+  padding: 0 10px;
+  border-left: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+.ui-search-field__tools::-webkit-scrollbar { display: none; }
+/* Variante compacte d'un selecteur dans la capsule : sans cadre ni fond, le choix actif
+   en pastille. */
+.ui-search-field__tools :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
+.ui-search-field__tools :deep(.ui-segmented-item) { min-height: 28px; padding: 0 10px; }
 .ui-search-field__filter {
   display: inline-flex;
   flex: none;

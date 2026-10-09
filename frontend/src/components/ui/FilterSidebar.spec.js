@@ -38,7 +38,7 @@ function monter() {
   return { wrapper, type, statut, genres };
 }
 
-const puces = () => [...document.querySelectorAll('.filter-chip')].map((node) => node.textContent.trim());
+const puces = () => [...document.querySelectorAll('.filter-chip:not(.is-clear)')].map((node) => node.textContent.trim());
 
 describe('FilterSidebar — puces des filtres actifs', () => {
   it('n’affiche aucune puce tant que les filtres sont neutres', async () => {
@@ -56,6 +56,8 @@ describe('FilterSidebar — puces des filtres actifs', () => {
     await stable();
     // « Tous » n'est pas le neutre du statut (c'est « Dans Plex ») : il devient une puce.
     expect(puces()).toEqual(['Films', 'Tous', 'Rock', 'Sauf Jazz']);
+    // A partir de deux filtres, une pastille les retire tous.
+    expect(document.querySelector('.filter-chip.is-clear')?.textContent.trim()).toBe('Tout effacer');
     wrapper.unmount();
   });
 

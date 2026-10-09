@@ -119,7 +119,7 @@ function emitSelection(actionKey: string): void {
 </script>
 
 <style scoped lang="scss">
-.handle { display: grid; gap: var(--space-4); min-width: 0; }
+.handle { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
 .handle__bulk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); font-size: var(--fs-sm); }
 .handle__bulk > span { flex: 1 1 14rem; }
 .handle__loading { margin: 0; color: var(--muted); font-size: var(--fs-sm); }

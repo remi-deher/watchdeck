@@ -55,11 +55,8 @@ describe('OverviewVerdict', () => {
     expect(loading.get('section').classes()).toContain('is-idle');
   });
 
-  it('demande une relecture au clic', async () => {
-    const wrapper = verdict({ urgent: 0, checkedLabel: 'Vérifié à l’instant' });
-    await wrapper.get('button').trigger('click');
-    expect(wrapper.emitted('refresh')).toHaveLength(1);
-    expect(wrapper.text()).toContain('Vérifié à l’instant');
+  it('n’a plus de bouton de relecture', () => {
+    expect(verdict({ urgent: 2, errors: 1, warnings: 1 }).find('button').exists()).toBe(false);
   });
 });
 
