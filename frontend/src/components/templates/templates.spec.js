@@ -411,3 +411,31 @@ describe('MiniCalendar', () => {
     expect(wrapper.find('.mini-date.is-streaming').text()).toContain('En streaming');
   });
 });
+
+describe('ChooseTemplate', () => {
+  const c = (key, score, size, rejected) => ({ key, title: `Release ${key}`, badges: [{ label: 'VF' }], facts: [`${size} Go`], metrics: { score, size }, rejected });
+  const sorts = [{ key: 'score', label: 'Score' }, { key: 'size', label: 'Taille', direction: 'asc' }];
+
+  it('garde les rejetées à leur place dans le tri, et recommande la meilleure non rejetée', async () => {
+    const { default: ChooseTemplate } = await import('./ChooseTemplate.vue');
+    const wrapper = mount(ChooseTemplate, { props: { candidates: [c('a', 10, 5), c('b', 30, 1, 'CAM refusée'), c('c', 20, 9)], sorts }, global });
+    expect(wrapper.findAll('.choose-card__title').map((n) => n.text())).toEqual(['Release b', 'Release c', 'Release a']);
+    expect(wrapper.find('.choose-card.is-recommended .choose-card__title').text()).toBe('Release c');
+    expect(wrapper.find('.choose-card.is-rejected').text()).toContain('Rejetée : CAM refusée');
+  });
+
+  it('masque les rejets seulement à la demande', async () => {
+    const { default: ChooseTemplate } = await import('./ChooseTemplate.vue');
+    const wrapper = mount(ChooseTemplate, { props: { candidates: [c('a', 10, 5), c('b', 30, 1, 'CAM')], sorts }, global });
+    expect(wrapper.findAll('.choose-card')).toHaveLength(2);
+    await wrapper.find('.ui-checkbox, [role="checkbox"], input[type="checkbox"]').trigger('click');
+    expect(wrapper.findAll('.choose-card')).toHaveLength(1);
+  });
+
+  it('remonte le choix d’un candidat accepté sans confirmation', async () => {
+    const { default: ChooseTemplate } = await import('./ChooseTemplate.vue');
+    const wrapper = mount(ChooseTemplate, { props: { candidates: [c('a', 10, 5)] }, global });
+    await wrapper.find('.choose-card button').trigger('click');
+    expect(wrapper.emitted('choose')[0][1]).toBe(false);
+  });
+});

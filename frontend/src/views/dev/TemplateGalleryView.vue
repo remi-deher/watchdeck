@@ -37,6 +37,10 @@
       <MiniCalendar :entries="miniEntries" />
     </template>
 
+    <ChooseTemplate v-else-if="current === 'choose'" v-model:mode="chooseMode" :candidates="chooseMode === 'vf' ? candidates.filter((c) => c.vf) : candidates" :modes="[{ value: 'vf', label: 'VF' }, { value: 'all', label: 'Toutes' }]" :sorts="SORTS_CHOOSE" :result="chosen" @choose="(c) => (chosen = { message: `Envoyé à Radarr : ${c.title}`, to: '/dev/gabarits?g=track' })" @reset="chosen = null">
+      <template #context><p class="muted">Dune : deuxième partie · version voulue : VF, 2160p · candidats via Radarr</p></template>
+    </ChooseTemplate>
+
     <UnderstandTemplate v-else-if="current === 'understand'" v-model:period="period" v-model:outcome="outcome" :periods="PERIODS" :outcomes="OUTCOMES" :events="events" :summary="summary" :open-key="openKey" :detail="openKey ? detail : null" @open="openKey = $event.key" @close="openKey = ''" @action="log" @export="log('export')" />
 
     <ConfigureTemplate v-else-if="current === 'configure'" :sections="sections" :dirty="dirty" @save="savePause" @cancel="pause = savedPause">
@@ -74,6 +78,7 @@ import PageTemplate from '@/components/templates/PageTemplate.vue';
 import MonitorTemplate, { type MonitorAttentionItem, type MonitorKpi, type MonitorZoneGroup } from '@/components/templates/MonitorTemplate.vue';
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import HandleTemplate, { type HandleIssue, type HandleItem } from '@/components/templates/HandleTemplate.vue';
+import ChooseTemplate, { type ChooseCandidate, type ChooseResult, type ChooseSort } from '@/components/templates/ChooseTemplate.vue';
 import BrowseTemplate, { type BrowseRow } from '@/components/templates/BrowseTemplate.vue';
 import ExploreTemplate from '@/components/templates/ExploreTemplate.vue';
 import ExploreDisplay from '@/components/templates/explore/ExploreDisplay.vue';
@@ -84,8 +89,8 @@ import ConfigureTest from '@/components/templates/configure/ConfigureTest.vue';
 import ResourceList from '@/components/templates/configure/ResourceList.vue';
 import DetailTemplate, { type DetailAction, type DetailBadge } from '@/components/templates/DetailTemplate.vue';
 
-const KEYS = ['monitor', 'track', 'handle', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
-const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
+const KEYS = ['monitor', 'track', 'handle', 'choose', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
+const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Choisir', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
 const TABS = KEYS.map((key, i) => ({ key, label: LABELS[i], to: { path: '/dev/gabarits', query: { g: key } } }));
 const route = useRoute();
 const current = computed(() => (KEYS as readonly string[]).includes(String(route.query.g)) ? String(route.query.g) : 'monitor');
@@ -145,6 +150,23 @@ const browseRows: BrowseRow[] = [
   { kind: 'collapsible', key: 'genres', title: 'Explorer par genre', eyebrow: 'Catalogue' },
 ];
 const films = ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien'].map((title, i) => ({ id: i, title, year: 2023 - i * 3, media_type: 'movie', poster_url: POSTER, status: 'available', _kind: 'library' }));
+
+/* Choisir */
+const chooseMode = ref('vf');
+const chosen = ref<ChooseResult | null>(null);
+const SORTS_CHOOSE: ChooseSort[] = [{ key: 'score', label: 'Meilleur score' }, { key: 'size', label: 'Taille', direction: 'asc' }, { key: 'seeds', label: 'Seeds' }];
+const release = (key: string, title: string, vf: boolean, res: string, extra: string[], size: number, seeds: number, score: number, rejected = '') => ({
+  key, title, vf, rejected,
+  badges: [{ label: vf ? 'VF' : 'VO', tone: vf ? 'success' as const : undefined }, { label: res, tone: res === '2160p' ? 'accent' as const : undefined }, ...extra.map((label) => ({ label }))],
+  facts: [`${size.toLocaleString('fr-FR')} Go`, `${seeds} seeds`, `score ${score}`],
+  metrics: { size, seeds, score },
+});
+const candidates: Array<ChooseCandidate & { vf: boolean }> = [
+  release('a', 'Dune.Part.Two.2024.MULTi.VFF.2160p.WEB-DL.DV.HDR.x265', true, '2160p', ['DV · HDR', 'WEB-DL', 'x265'], 18.4, 142, 1850),
+  release('b', 'Dune.Part.Two.2024.FRENCH.CAM.x264', true, '720p', ['CAM', 'x264'], 1.4, 12, 1900, 'Qualité CAM refusée par le profil'),
+  release('c', 'Dune.Part.Two.2024.MULTi.TRUEFRENCH.2160p.BluRay.REMUX.HDR', true, '2160p', ['HDR', 'REMUX', 'HEVC'], 61.2, 38, 1700),
+  release('d', 'Dune.Part.Two.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR', false, '2160p', ['DV · HDR', 'WEB-DL', 'x265'], 21, 520, 900),
+];
 
 /* Anticiper */
 const planCursor = ref(new Date());
