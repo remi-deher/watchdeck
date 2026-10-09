@@ -476,3 +476,38 @@ describe('CreateTemplate', () => {
     wrapper.unmount();
   });
 });
+
+describe('AnalyzeTemplate', () => {
+  const leads = Array.from({ length: 7 }, (_, i) => ({ key: `l${i}`, text: `Constat ${i}` }));
+
+  it('montre cinq pistes puis « Voir toutes », et remonte la piste ouverte', async () => {
+    const { default: AnalyzeTemplate } = await import('./AnalyzeTemplate.vue');
+    const wrapper = mount(AnalyzeTemplate, { props: { period: '30d', leads }, global });
+    expect(wrapper.findAll('.analyze-lead')).toHaveLength(5);
+    await wrapper.find('.analyze__more').trigger('click');
+    expect(wrapper.findAll('.analyze-lead')).toHaveLength(7);
+    await wrapper.find('.analyze-lead').trigger('click');
+    expect(wrapper.emitted('drill')[0][0]).toMatchObject({ key: 'l0', title: 'Constat 0' });
+  });
+
+  it('compare à la période précédente, sauf sur « Tout », et colore selon le bon sens', async () => {
+    const { default: AnalyzeTemplate } = await import('./AnalyzeTemplate.vue');
+    const kpis = [{ key: 'novf', label: 'Sans VF', value: '312', change: -6, better: 'down' }];
+    const month = mount(AnalyzeTemplate, { props: { period: '30d', kpis }, global });
+    expect(month.find('.metric-trend').classes()).toContain('up');
+    expect(month.find('.analyze__compare').text()).toContain('Comparé aux 30 jours précédents');
+    const all = mount(AnalyzeTemplate, { props: { period: 'all', kpis }, global });
+    expect(all.find('.metric-trend').exists()).toBe(false);
+  });
+
+  it('ouvre la liste concernée avec Explorer, et Traiter quand il y a à corriger', async () => {
+    const { default: AnalyzeTemplate } = await import('./AnalyzeTemplate.vue');
+    const wrapper = mount(AnalyzeTemplate, {
+      props: { period: '30d', drill: { key: 'novf', title: 'Films sans VF', exploreTo: '/library?vf=vo', handleTo: '/vf-upgrades' } },
+      slots: { drill: '<p class="rows">Dune</p>' },
+      global,
+    });
+    expect(wrapper.find('.analyze__drill .rows').exists()).toBe(true);
+    expect(wrapper.findAll('.analyze__drill footer a').map((a) => a.text())).toEqual(['Ouvrir dans Explorer', 'Traiter']);
+  });
+});

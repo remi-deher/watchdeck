@@ -48,6 +48,15 @@
       <CreateTemplate v-if="creating" :open="Boolean(creating)" :definition="creating" @close="creating = null" />
     </div>
 
+    <AnalyzeTemplate v-else-if="current === 'analyze'" v-model:period="analyzePeriod" :kpis="analyzeKpis" :leads="analyzeLeads" :drill="drill" @drill="openDrill" @close-drill="drill = null">
+      <template #drill><ul class="gallery-drill"><li v-for="title in ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar']" :key="title">{{ title }} <small>8,4 Go</small></li></ul></template>
+      <template #blocks>
+        <BreakdownPanel title="Résolutions" eyebrow="Vidéo" interactive :items="[{ label: '2160p', value: 22, suffix: ' %' }, { label: '1080p', value: 61, suffix: ' %' }, { label: '720p', value: 12, suffix: ' %' }, { label: 'SD', value: 5, suffix: ' %' }]" @select="(v) => openDrill({ key: `res-${v}`, title: `Résolutions · ${v}`, kind: 'block' })" />
+        <BreakdownPanel title="Codecs vidéo" eyebrow="Vidéo" interactive :items="[{ label: 'HEVC', value: 48, suffix: ' %' }, { label: 'H.264', value: 46, suffix: ' %' }, { label: 'AV1', value: 6, suffix: ' %' }]" @select="(v) => openDrill({ key: `codec-${v}`, title: `Codecs · ${v}`, kind: 'block' })" />
+        <ActivityHeatmap :points="heatmap" />
+      </template>
+    </AnalyzeTemplate>
+
     <UnderstandTemplate v-else-if="current === 'understand'" v-model:period="period" v-model:outcome="outcome" :periods="PERIODS" :outcomes="OUTCOMES" :events="events" :summary="summary" :open-key="openKey" :detail="openKey ? detail : null" @open="openKey = $event.key" @close="openKey = ''" @action="log" @export="log('export')" />
 
     <ConfigureTemplate v-else-if="current === 'configure'" :sections="sections" :dirty="dirty" @save="savePause" @cancel="pause = savedPause">
@@ -86,6 +95,9 @@ import MonitorTemplate, { type MonitorAttentionItem, type MonitorKpi, type Monit
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import HandleTemplate, { type HandleIssue, type HandleItem } from '@/components/templates/HandleTemplate.vue';
 import ChooseTemplate, { type ChooseCandidate, type ChooseResult, type ChooseSort } from '@/components/templates/ChooseTemplate.vue';
+import AnalyzeTemplate, { type AnalyzeDrill, type AnalyzeDrillRequest, type AnalyzeKpi, type AnalyzeLead, type AnalyzePeriod } from '@/components/templates/AnalyzeTemplate.vue';
+import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
+import ActivityHeatmap from '@/components/activity/ActivityHeatmap.vue';
 import CreateTemplate, { type CreateDefinition } from '@/components/templates/CreateTemplate.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { serviceCreation } from '@/creations/service';
@@ -100,8 +112,8 @@ import ConfigureTest from '@/components/templates/configure/ConfigureTest.vue';
 import ResourceList from '@/components/templates/configure/ResourceList.vue';
 import DetailTemplate, { type DetailAction, type DetailBadge } from '@/components/templates/DetailTemplate.vue';
 
-const KEYS = ['monitor', 'track', 'handle', 'choose', 'create', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
-const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Choisir', 'Créer', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
+const KEYS = ['monitor', 'track', 'handle', 'analyze', 'choose', 'create', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
+const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Analyser', 'Choisir', 'Créer', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
 const TABS = KEYS.map((key, i) => ({ key, label: LABELS[i], to: { path: '/dev/gabarits', query: { g: key } } }));
 const route = useRoute();
 const current = computed(() => (KEYS as readonly string[]).includes(String(route.query.g)) ? String(route.query.g) : 'monitor');
@@ -161,6 +173,28 @@ const browseRows: BrowseRow[] = [
   { kind: 'collapsible', key: 'genres', title: 'Explorer par genre', eyebrow: 'Catalogue' },
 ];
 const films = ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien'].map((title, i) => ({ id: i, title, year: 2023 - i * 3, media_type: 'movie', poster_url: POSTER, status: 'available', _kind: 'library' }));
+
+/* Analyser */
+const analyzePeriod = ref<AnalyzePeriod>('30d');
+const analyzeKpis: AnalyzeKpi[] = [
+  { key: 'files', label: 'Fichiers', value: '12 480', change: 4 },
+  { key: 'size', label: 'Poids total', value: '12,4 To', change: 3 },
+  { key: 'duration', label: 'Durée cumulée', value: '21 000 h', change: 4 },
+  { key: 'novf', label: 'Sans VF', value: '312', change: -6, better: 'down' },
+];
+const analyzeLeads: AnalyzeLead[] = [
+  { key: 'novf', text: '312 films sans VF occupent 2,1 To', action: 'handle' },
+  { key: 'h264', text: '1 180 fichiers en H.264 de plus de 10 Go' },
+  { key: 'unwatched', text: '28 % de la bibliothèque n’a jamais été regardée' },
+  { key: 'pgs', text: '40 % des lectures transcodées viennent des sous-titres PGS', action: 'handle' },
+  { key: 'dup', text: '46 films existent en deux versions' },
+  { key: 'old', text: '210 films ajoutés il y a plus de 5 ans, jamais revus' },
+];
+const drill = ref<AnalyzeDrill | null>(null);
+function openDrill(request: AnalyzeDrillRequest): void {
+  drill.value = { key: request.key, title: request.title, exploreTo: '/dev/gabarits?g=explore', handleTo: request.action === 'handle' ? '/dev/gabarits?g=handle' : null };
+}
+const heatmap = Array.from({ length: 7 * 24 }, (_, i) => ({ weekday: Math.floor(i / 24), hour: i % 24, sessions: Math.max(0, Math.round(Math.sin(((i % 24) - 14) / 4) * (Math.floor(i / 24) > 4 ? 10 : 6))) }));
 
 /* Creer : les vraies definitions, test et creation simules (pas de serveur ici). */
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -261,5 +295,7 @@ const facts = [{ label: 'Qualité', value: '1080p' }, { label: 'Taille', value: 
 
 <style scoped>
 .gallery-create { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.gallery-drill { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); }
+.gallery-drill small { color: var(--muted); }
 .gallery-sub { margin: var(--space-6) 0 var(--space-3); font-size: var(--fs-md); }
 </style>
