@@ -1,11 +1,25 @@
 # Changelog
 
+## 1.86.1 — 2026-10-09
+
+
+### test
+
+- relaunched file of a busy disk waits behind free disks ([7c42d57](https://github.com/remi-deher/watchdeck/commit/7c42d575cd17650d0bdf07f5935b6032b7c06e21))
+
+### 🐛 Corrections
+
+- defer relaunched files of a busy disk too ([3a1bdb6](https://github.com/remi-deher/watchdeck/commit/3a1bdb60e302b0c1c2c62eabe583f66c06e04d48))
 ## 1.86.0 — 2026-10-09
 
 
 ### ✨ Nouveautés
 
 - keep runners off a busy disk ([df2f7f6](https://github.com/remi-deher/watchdeck/commit/df2f7f6453e53e77502d8e60e1e70c295417d634))
+
+### 🔧 Maintenance
+
+- v1.86.0 (#793) ([22fbf39](https://github.com/remi-deher/watchdeck/commit/22fbf39a8613bdcff41c5c1057c767677f754116))
 ## 1.85.0 — 2026-10-09
 
 
