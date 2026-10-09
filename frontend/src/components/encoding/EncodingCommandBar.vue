@@ -74,6 +74,7 @@ const pauseMutation = useMutation({
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
 .cmd { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
 .cmd.is-compact { padding: var(--space-2) var(--space-3); }
 .cmd-state { display: flex; align-items: center; gap: var(--space-2); }
@@ -87,4 +88,9 @@ const pauseMutation = useMutation({
 .cmd-pill svg { width: 13px; height: 13px; }
 .cmd-pill.is-accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .cmd-pill.is-warning { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber-text); }
+/* En outil de page sur petit ecran : l'etat et la pause seulement ; les automatismes se
+   lisent dans la Vue d'ensemble et les Reglages. */
+@include bp.until(phablet) {
+  .cmd.is-compact .cmd-pill, .cmd.is-compact .cmd-meta { display: none; }
+}
 </style>

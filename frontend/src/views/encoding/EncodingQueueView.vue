@@ -142,7 +142,7 @@ const recent = computed<TrackRecent[]>(() => (status.value?.recent_processed || 
   detail: file.timing ? formatSeconds(file.timing.processing_seconds) : (file.date ? formatRelativeDate(file.date) : ''),
   to: linkOf(file.media),
 })));
-const updated = computed(() => (statusQuery.dataUpdatedAt.value ? `Mis à jour ${formatRelativeDate(new Date(statusQuery.dataUpdatedAt.value))}` : ''));
+const updated = computed(() => (statusQuery.dataUpdatedAt.value ? `Mis à jour ${formatRelativeDate(new Date(statusQuery.dataUpdatedAt.value)).replace(/^\p{Lu}/u, (c) => c.toLowerCase())}` : ''));
 
 const logFile = ref<FileflowsFile | null>(null);
 function refreshAll(): void {
