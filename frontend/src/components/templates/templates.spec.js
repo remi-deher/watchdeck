@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { describe, expect, it } from 'vitest';
 import MonitorTemplate from './MonitorTemplate.vue';
@@ -437,5 +437,42 @@ describe('ChooseTemplate', () => {
     const wrapper = mount(ChooseTemplate, { props: { candidates: [c('a', 10, 5)] }, global });
     await wrapper.find('.choose-card button').trigger('click');
     expect(wrapper.emitted('choose')[0][1]).toBe(false);
+  });
+});
+
+describe('CreateTemplate', () => {
+  const definition = {
+    noun: 'un service',
+    another: 'un autre service',
+    initial: () => ({ type: 'prowlarr', name: '' }),
+    steps: [
+      { key: 'service', label: 'Service', title: 'Quel service ?', fields: [{ key: 'type', type: 'cards', label: 'Service', options: [{ value: 'radarr', label: 'Radarr' }, { value: 'prowlarr', label: 'Prowlarr' }] }] },
+      { key: 'connection', label: 'Connexion', title: 'Où ?', fields: [{ key: 'name', type: 'text', label: 'Nom', required: true }] },
+      { key: 'settings', label: 'Réglages', title: 'Réglages', when: (v) => v.type === 'radarr', fields: [] },
+    ],
+    submit: async (v) => ({ message: `${v.name} branché` }),
+  };
+  const text = () => document.body.textContent;
+  const button = (label) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+
+  it('adapte les étapes au contexte, valide avant de continuer, puis crée', async () => {
+    const { default: CreateTemplate } = await import('./CreateTemplate.vue');
+    const wrapper = mount(CreateTemplate, { props: { open: true, definition }, attachTo: document.body, global });
+    await flushPromises();
+    // Prowlarr : pas d'étape Réglages.
+    expect(text()).toContain('Récapitulatif');
+    expect(text()).not.toContain('Réglages');
+    button('Continuer').click(); await flushPromises();
+    button('Continuer').click(); await flushPromises();
+    expect(text()).toContain('Ce champ est requis.');
+    const input = document.querySelector('.create-modal input');
+    input.value = 'Prowlarr'; input.dispatchEvent(new Event('input')); await flushPromises();
+    expect(text()).not.toContain('Ce champ est requis.');
+    button('Continuer').click(); await flushPromises();
+    expect(text()).toContain('Tout est prêt ?');
+    button('Créer').click(); await flushPromises();
+    expect(text()).toContain('Prowlarr branché');
+    expect(wrapper.emitted('created')).toHaveLength(1);
+    wrapper.unmount();
   });
 });

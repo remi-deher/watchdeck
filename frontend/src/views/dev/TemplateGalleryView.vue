@@ -41,6 +41,13 @@
       <template #context><p class="muted">Dune : deuxième partie · version voulue : VF, 2160p · candidats via Radarr</p></template>
     </ChooseTemplate>
 
+    <div v-else-if="current === 'create'" class="gallery-create">
+      <p class="muted">Un seul gabarit, deux définitions : il s’adapte à ce qu’on crée.</p>
+      <UiButton variant="primary" @click="creating = galleryService">Ajouter un service</UiButton>
+      <UiButton @click="creating = galleryUser">Ajouter un utilisateur</UiButton>
+      <CreateTemplate v-if="creating" :open="Boolean(creating)" :definition="creating" @close="creating = null" />
+    </div>
+
     <UnderstandTemplate v-else-if="current === 'understand'" v-model:period="period" v-model:outcome="outcome" :periods="PERIODS" :outcomes="OUTCOMES" :events="events" :summary="summary" :open-key="openKey" :detail="openKey ? detail : null" @open="openKey = $event.key" @close="openKey = ''" @action="log" @export="log('export')" />
 
     <ConfigureTemplate v-else-if="current === 'configure'" :sections="sections" :dirty="dirty" @save="savePause" @cancel="pause = savedPause">
@@ -79,6 +86,10 @@ import MonitorTemplate, { type MonitorAttentionItem, type MonitorKpi, type Monit
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import HandleTemplate, { type HandleIssue, type HandleItem } from '@/components/templates/HandleTemplate.vue';
 import ChooseTemplate, { type ChooseCandidate, type ChooseResult, type ChooseSort } from '@/components/templates/ChooseTemplate.vue';
+import CreateTemplate, { type CreateDefinition } from '@/components/templates/CreateTemplate.vue';
+import UiButton from '@/components/ui/UiButton.vue';
+import { serviceCreation } from '@/creations/service';
+import { userCreation } from '@/creations/user';
 import BrowseTemplate, { type BrowseRow } from '@/components/templates/BrowseTemplate.vue';
 import ExploreTemplate from '@/components/templates/ExploreTemplate.vue';
 import ExploreDisplay from '@/components/templates/explore/ExploreDisplay.vue';
@@ -89,8 +100,8 @@ import ConfigureTest from '@/components/templates/configure/ConfigureTest.vue';
 import ResourceList from '@/components/templates/configure/ResourceList.vue';
 import DetailTemplate, { type DetailAction, type DetailBadge } from '@/components/templates/DetailTemplate.vue';
 
-const KEYS = ['monitor', 'track', 'handle', 'choose', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
-const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Choisir', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
+const KEYS = ['monitor', 'track', 'handle', 'choose', 'create', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
+const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Choisir', 'Créer', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
 const TABS = KEYS.map((key, i) => ({ key, label: LABELS[i], to: { path: '/dev/gabarits', query: { g: key } } }));
 const route = useRoute();
 const current = computed(() => (KEYS as readonly string[]).includes(String(route.query.g)) ? String(route.query.g) : 'monitor');
@@ -150,6 +161,19 @@ const browseRows: BrowseRow[] = [
   { kind: 'collapsible', key: 'genres', title: 'Explorer par genre', eyebrow: 'Catalogue' },
 ];
 const films = ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien'].map((title, i) => ({ id: i, title, year: 2023 - i * 3, media_type: 'movie', poster_url: POSTER, status: 'available', _kind: 'library' }));
+
+/* Creer : les vraies definitions, test et creation simules (pas de serveur ici). */
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const galleryService: CreateDefinition = {
+  ...serviceCreation,
+  test: { ...serviceCreation.test!, run: async (values) => { await wait(600); return /:\d+/.test(values.url) ? { ok: true, message: 'Connecté · Radarr 5.14' } : { ok: false, message: 'Injoignable : vérifiez l’adresse et le port.' }; } },
+  submit: async (values) => { await wait(500); return { message: `« ${values.name} » branché`, detail: 'Il est actif et sera pris en compte à la prochaine synchronisation.', links: [{ label: 'Voir les connexions', to: '/dev/gabarits?g=configure' }] }; },
+};
+const galleryUser: CreateDefinition = {
+  ...userCreation,
+  submit: async (values) => { await wait(500); return { message: `${values.display_name} a été ajouté`, detail: 'Il peut se connecter avec son compte Plex.' }; },
+};
+const creating = ref<CreateDefinition | null>(null);
 
 /* Choisir */
 const chooseMode = ref('vf');
@@ -236,5 +260,6 @@ const facts = [{ label: 'Qualité', value: '1080p' }, { label: 'Taille', value: 
 </script>
 
 <style scoped>
+.gallery-create { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .gallery-sub { margin: var(--space-6) 0 var(--space-3); font-size: var(--fs-md); }
 </style>
