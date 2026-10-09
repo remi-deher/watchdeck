@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.88.0 — 2026-10-09
+
+
+### ✨ Nouveautés
+
+- page tools live in the search capsule; filter sheet without footer, clear-all pill; template columns clamped ([fba504e](https://github.com/remi-deher/watchdeck/commit/fba504e83fb1e6d58ee1625e7ce1e05144fc81d5))
+- verdict only when something needs attention; no refresh button ([29546f3](https://github.com/remi-deher/watchdeck/commit/29546f31cc56570af9d746ea289770bff8597fd1))
+- common LiveStrip from the home live strip, with readable facts (icons, four at most) ([163ac8a](https://github.com/remi-deher/watchdeck/commit/163ac8a72c7d2d224d7731c4c8f89871dfc630c3))
+- optional running block in Monitor, running group of Track on LiveStrip; encoding overview shows what runners do ([b58168e](https://github.com/remi-deher/watchdeck/commit/b58168e1b2c517229f4ac369b011b1e8f330ded5))
+- no state filter in Track; page-wide switches (period, calendar view) move to the search capsule via PageTools ([0a2247c](https://github.com/remi-deher/watchdeck/commit/0a2247ceca17f4286a37e176e1cbb495d31ab1de))
+
+### 📖 Documentation
+
+- LiveStrip, verdict, page tools and filter sheet rules ([24ef443](https://github.com/remi-deher/watchdeck/commit/24ef443c432f3cc09143e42c25b882df6a655aa3))
 ## 1.87.0 — 2026-10-09
 
 
@@ -40,6 +54,10 @@
 ### 📖 Documentation
 
 - AI rules for page templates and shared components ([9c344b8](https://github.com/remi-deher/watchdeck/commit/9c344b87391eccd1d8ba5d18c7066c542604f151))
+
+### 🔧 Maintenance
+
+- v1.87.0 (#803) ([d33db60](https://github.com/remi-deher/watchdeck/commit/d33db600b3daf9faea9d8cde43debc4df89507ab))
 ## 1.86.1 — 2026-10-09
 
 
