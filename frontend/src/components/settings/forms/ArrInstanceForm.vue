@@ -28,8 +28,11 @@
       <UiSelect v-model="form.plex_server_id" :options="plexServerOptions" />
       <small>Serveur dont les bibliothèques sont rafraîchies après un import de cette instance.</small>
     </label>
-    <UiCheckboxField v-model="form.is_default" label="Instance par défaut" />
-    <small class="check-hint">Instance utilisée par défaut pour ce type (Sonarr/Radarr) quand plusieurs sont configurées et qu'aucune n'est explicitement choisie pour une demande.</small>
+    <!-- Une instance par defaut sert a choisir un Sonarr/Radarr pour une demande : FileFlows n'en a pas. -->
+    <template v-if="!keyless">
+      <UiCheckboxField v-model="form.is_default" label="Instance par défaut" />
+      <small class="check-hint">Instance utilisée par défaut pour ce type (Sonarr/Radarr) quand plusieurs sont configurées et qu'aucune n'est explicitement choisie pour une demande.</small>
+    </template>
 
     <div class="form-actions">
       <UiButton v-if="hasArrOptions" @click="loadOptions"><ListRestart />Charger profils et dossiers</UiButton>

@@ -24,6 +24,7 @@ export interface FileflowsTiming {
   wait_seconds: number;
   /** Vrai temps de traitement : total moins l'attente. */
   processing_seconds: number;
+  kind?: ProcessingKind | null;
   steps: Array<{ name: string; seconds: number; output: number | null }>;
 }
 
@@ -43,6 +44,7 @@ export interface FileflowsFile {
   tags: string[];
   media?: FileflowsMedia | null;
   timing?: FileflowsTiming | null;
+  relaunched?: boolean;
 }
 
 export interface FileflowsRunner {
@@ -134,3 +136,58 @@ export function useFileflowsConfigured(enabled: MaybeRefOrGetter<boolean>) {
   });
   return computed(() => Boolean(query.data.value));
 }
+
+/* ------------------------------------------------------------ centre de commande */
+
+export type ProcessingKind = 'encode' | 'rewrite' | 'in_place' | 'conform';
+
+export const PROCESSING_KIND_LABELS: Record<ProcessingKind, string> = {
+  encode: 'Réencodage',
+  rewrite: 'Réécriture',
+  in_place: 'Sur place',
+  conform: 'Déjà conforme',
+};
+
+export interface FileflowsDiskLane {
+  disk: string;
+  libraries: string[];
+  waiting: number;
+  running: FileflowsRunner[];
+  lock_waiting: number;
+  plex_paused: boolean;
+  plex_playing: boolean;
+}
+
+export interface FileflowsOverview {
+  state: { queue: number; processing: number; processed: number; failed: number; paused: boolean; paused_until: string | null };
+  disks: FileflowsDiskLane[];
+  throughput: { per_hour: number | null; window_minutes: number };
+  eta_hours: number | null;
+  automations: { reorder: boolean; plex_pause: 'off' | 'all' | 'disk'; runners_mode: 'manual' | 'auto' };
+}
+
+export interface FileflowsControl {
+  runners_mode: 'manual' | 'auto';
+  runners: number;
+  max_runners: number;
+  plex_pause: 'off' | 'all' | 'disk';
+  plex_pause_relaunched: 'follow' | 'ignore';
+  plex_resume_minutes: number;
+  reorder_enabled: boolean;
+  schedule_restricted: boolean;
+  guard: Record<string, any> | null;
+}
+
+export function fileflowsControlQuery() {
+  return {
+    queryKey: [...queryKeys.fileflows.all, 'control'] as const,
+    queryFn: ({ signal }: { signal?: AbortSignal }) => api<FileflowsControl>('/api/fileflows/control', { signal }),
+    staleTime: 30_000,
+  };
+}
+
+export const PLEX_PAUSE_LABELS: Record<FileflowsControl['plex_pause'], string> = {
+  off: 'Désactivée',
+  all: 'Tous les runners',
+  disk: 'Disque concerné',
+};
