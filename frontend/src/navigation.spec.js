@@ -42,7 +42,7 @@ describe('navigation — destinations', () => {
     expect(destinationForPath('/settings', true, true)?.key).toBe('admin-overview');
     expect(destinationForPath('/settings/services/webhooks', true, true)?.key).toBe('admin-connections');
     expect(destinationForPath('/users/12', true, true)?.key).toBe('admin-users');
-    expect(destinationForPath('/downloads/acquisitions', true, true)?.key).toBe('downloads');
+    expect(destinationForPath('/downloads/torrent/1/abc', true, true)?.key).toBe('downloads');
     expect(destinationForPath('/settings/automation/scheduled-tasks', true, true)?.key).toBe('admin-automation');
     expect(destinationForPath('/settings/system/version', true, true)?.key).toBe('admin-system');
     // Les zones nees de la refonte des menus.
@@ -138,7 +138,7 @@ describe('navigation — sections', () => {
 
     // Films et Series ont fusionne dans la file : c'etaient deux vues filtrees de la
     // meme liste. Le type de media est desormais un filtre, pas une section.
-    expect(keys(sections)).toEqual(['overview', 'queue', 'missing', 'clients', 'acquisitions']);
+    expect(keys(sections)).toEqual(['overview', 'queue', 'clients']);
   });
 
   it('ne transforme pas les instances désactivées en navigation', () => {
@@ -151,7 +151,7 @@ describe('navigation — sections', () => {
     );
     // Films et Series ont fusionne dans la file : c'etaient deux vues filtrees de la
     // meme liste. Le type de media est desormais un filtre, pas une section.
-    expect(keys(sections)).toEqual(['overview', 'queue', 'missing', 'clients', 'acquisitions']);
+    expect(keys(sections)).toEqual(['overview', 'queue', 'clients']);
   });
 
   it('retourne une liste vide pour une destination inconnue', () => {
@@ -176,7 +176,7 @@ describe('navigation — sections', () => {
 describe('navigation — zones de l’administration', () => {
   it('range chaque réglage sous la zone où on le cherche', () => {
     expect(keys(sectionsFor('admin-connections', ctx()))).toEqual(['plex', 'media', 'integrations', 'webhooks']);
-    expect(keys(sectionsFor('admin-acquisition', ctx()))).toEqual(['clients', 'downloads', 'acquisitions', 'storage']);
+    expect(keys(sectionsFor('admin-acquisition', ctx()))).toEqual(['clients', 'downloads', 'storage']);
     expect(keys(sectionsFor('admin-automation', ctx()))).toEqual(['vf-upgrades', 'subtitles', 'scheduled-tasks']);
     expect(keys(sectionsFor('admin-requests', ctx()))).toEqual(['requests']);
     expect(keys(sectionsFor('admin-security', ctx()))).toEqual(['network']);
@@ -186,7 +186,7 @@ describe('navigation — zones de l’administration', () => {
 
   it('marque d’une flèche les sections qui mènent à une autre page', () => {
     const external = sectionsFor('admin-acquisition', ctx()).filter((section) => section.external);
-    expect(external.map((section) => section.to)).toEqual(['/downloads/acquisitions', '/storage']);
+    expect(external.map((section) => section.to)).toEqual(['/storage']);
     // Les panneaux de réglages, eux, restent dans la zone.
     for (const area of ['admin-connections', 'admin-automation', 'admin-security', 'admin-maintenance']) {
       expect(sectionsFor(area, ctx()).some((section) => section.external)).toBe(false);

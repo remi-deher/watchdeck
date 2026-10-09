@@ -40,9 +40,9 @@ describe('adminAttention — activité de l’instance', () => {
         storage: { connections: 1, running_transfers: 0, blocked_transfers: 2 },
       },
     });
-    expect(keys(items)).toEqual(['requests-failed', 'conflicts', 'storage-blocked']);
+    expect(keys(items)).toEqual(['requests-failed', 'storage-blocked']);
     expect(items.every((item) => item.area === 'admin-acquisition')).toBe(true);
-    expect(items.map((item) => item.action.to)).toEqual(['/library?status=failed', '/downloads/acquisitions', '/storage']);
+    expect(items.map((item) => item.action.to)).toEqual(['/library?status=failed', '/storage']);
     expect(areaSeverity(items, 'admin-acquisition')).toBe('warn');
   });
 

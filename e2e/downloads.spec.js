@@ -66,14 +66,19 @@ test("la file d'attente regroupe les interventions et confirme avant de retirer"
   expect(calls.some((call) => call.startsWith("DELETE"))).toBe(false);
 });
 
-test("les episodes manquants sont regroupes par serie", async ({ page }) => {
+test("les episodes manquants sont regroupes par serie, dans l'onglet des Demandes", async ({ page }) => {
   await mockApi(page);
+  // L'ancienne adresse mene a l'onglet des Demandes.
   await page.goto("/downloads?view=missing");
-  const section = page.locator(".wanted-section");
+  await expect(page).toHaveURL(/\/discover\/requests\?onglet=manquants$/);
+  const panel = page.locator(".missing-panel");
   // Une serie (deux episodes) et un film.
-  await expect(section.locator(".panel-head .badge")).toHaveText("2 item(s)");
-  await expect(section).toContainText("Série A");
-  await expect(section).toContainText("Film manquant");
+  await expect(panel.locator(".missing-panel__count")).toHaveText("2 éléments");
+  await expect(panel).toContainText("Série A");
+  await expect(panel).toContainText("Film manquant");
+  await panel.getByRole("radio", { name: "Séries" }).or(panel.getByRole("button", { name: "Séries" })).click();
+  await expect(panel.locator(".missing-panel__count")).toHaveText("1 élément");
+  await expect(panel).not.toContainText("Film manquant");
 });
 
 test("le tableau des torrents filtre, affiche les debits et ouvre l'inspecteur", async ({ page }) => {

@@ -884,10 +884,10 @@ test("l'apercu de l'administration donne un verdict, l'activite, les actions et 
   });
   await page.goto("/settings");
   const verdict = page.locator(".overview-verdict");
-  // Plex en erreur, la tâche en échec, les demandes à approuver et le conflit : quatre points.
-  await expect(verdict.getByRole("heading")).toHaveText(/4\s+points à traiter/, { timeout: 15000 });
-  await expect(page.locator(".overview-kpi")).toHaveCount(4);
-  await expect(page.locator(".overview-todo__item")).toHaveCount(4);
+  // Plex en erreur, la tâche en échec et les demandes à approuver : trois points.
+  await expect(verdict.getByRole("heading")).toHaveText(/3\s+points à traiter/, { timeout: 15000 });
+  await expect(page.locator(".overview-kpi")).toHaveCount(3);
+  await expect(page.locator(".overview-todo__item")).toHaveCount(3);
   await expect(page.locator(".overview-todo__item", { hasText: "3 demandes à approuver" })).toBeVisible();
   // La carte des zones : les neuf zones, chacune avec sa ligne d'état.
   await expect(page.locator(".zone")).toHaveCount(9);

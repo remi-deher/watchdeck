@@ -96,7 +96,6 @@ const plural = (count: number, one: string, other: string) => `${count} ${count 
 const kpis = computed<OverviewKpi[]>(() => {
   const data = attention.overview.value;
   const pending = data?.requests?.pending_approval;
-  const conflicts = data?.conflicts?.count;
   const notifications = data?.notifications;
   const images = data?.images;
   const warm = data?.maintenance?.['warm-images'];
@@ -110,15 +109,6 @@ const kpis = computed<OverviewKpi[]>(() => {
       unit: '',
       tone: !known(pending) ? 'off' : pending ? 'warn' : 'ok',
       status: !known(pending) ? 'Chargement…' : pending ? plural(pending, 'demande', 'demandes') : 'Aucune en attente',
-    },
-    {
-      key: 'conflicts',
-      label: 'Conflits',
-      to: '/downloads/acquisitions',
-      value: known(conflicts) ? String(conflicts) : '–',
-      unit: '',
-      tone: !known(conflicts) ? 'off' : conflicts ? 'warn' : 'ok',
-      status: !known(conflicts) ? 'Chargement…' : conflicts ? 'À résoudre' : 'Aucun',
     },
     {
       key: 'notifications',
