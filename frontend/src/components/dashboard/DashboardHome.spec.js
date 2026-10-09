@@ -99,7 +99,10 @@ describe('DashboardLiveStrip', () => {
     }];
     const wrapper = mount(DashboardLiveStrip, { props: { sessions }, global });
     const chips = wrapper.findAll('.live-chip').map((chip) => chip.text());
-    expect(chips).toEqual(['4K → 1080p', 'HDR10 → SDR', '7.1 · FR', 'ST EN', 'Distant · Lyon']);
+    // Quatre faits au plus, chacun avec son icone ; le reste en « +N », detaille au survol.
+    expect(chips).toEqual(['4K → 1080p', 'HDR10 → SDR', '7.1 · FR', 'ST EN', '+1']);
+    expect(wrapper.find('.live-chip-more').attributes('title')).toBe('Distant · Lyon');
+    expect(wrapper.findAll('.live-chip-icon')).toHaveLength(4);
     expect(wrapper.find('.live-card-reason').text()).toBe('Codec HEVC non lu par le lecteur');
     expect(wrapper.find('.live-card-who').text()).toBe('Rémi · Apple TV');
     expect(wrapper.text()).toContain('serveur libre vers');
