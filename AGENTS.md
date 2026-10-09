@@ -15,7 +15,8 @@ Chaque page relève d'un seul besoin, donc d'un seul gabarit :
 | **Surveiller** | « Est-ce que tout va bien ? » | Verdict global, indicateurs de santé, points d'attention, accès aux pages qui les règlent. Pas de liste exhaustive. |
 | **Traiter** | « Que dois-je faire maintenant ? » | Éléments triés par urgence, indicateurs qui filtrent, actions unitaires et groupées toujours visibles, retour immédiat. |
 | **Suivre** | « Où en est ce qui tourne ? » | Éléments en cours, progression en direct, blocages et leur cause, actions débloquer / relancer / pause / annuler. |
-| **Explorer** | « Qu'est-ce que j'ai, qu'est-ce que je cherche ? » | Recherche, filtres, types en onglets, cartes d'affiche, ouverture de la fiche. |
+| **Parcourir** | « Qu'est-ce qu'il y a d'intéressant ? » | Bannière, rails thématiques ; le titre d'un rail mène à la liste complète déjà réglée (Explorer). On n'y règle rien. |
+| **Explorer** | « Je cherche précisément ceci » | On explore pour affiner : recherche, filtres, types en onglets, compteur et filtres actifs, grille d'affiches, ouverture de la fiche. |
 | **Comprendre** | « Que s'est-il passé ? » | Chronologie, filtres de période et d'état, détail d'un événement, avant / après, export. |
 | **Configurer** | « Comment je veux que ça marche ? » | Réglages groupés par intention, effet expliqué, enregistrement sûr, test de connexion. |
 | **Fiche** | « Tout sur cet élément » | Identité et état, actions possibles, détails par onglets. |
@@ -31,7 +32,8 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `MonitorTemplate.vue` (+ `monitor/`) | Surveiller : verdict, indicateurs, attention, parties de la section | Disponible |
 | `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause (cartes), file d'attente compacte et repliable, derniers terminés | Disponible |
 | `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
-| `ExploreTemplate.vue` | Explorer : panneau de filtres, pastilles des filtres actifs, compteur, tri, grille / liste, défilement continu | Disponible |
+| `BrowseTemplate.vue` | Parcourir : bannière (MediaHeroBanner), rangées `posters` (MediaPosterCollection en rail, carte de la page), `section`, `collapsible` chargée à l'ouverture | Disponible |
+| `ExploreTemplate.vue` (+ `explore/`) | Explorer : compteur et filtres actifs, grille / liste, défilement continu ; tri et affichage dans la feuille (ExploreDisplay) | Disponible |
 | `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille | Disponible |
 | `ConfigureTemplate.vue` (+ `configure/`) | Configurer : sections par intention avec sommaire, enregistrement global (Enregistrer / Annuler, confirmation avant de quitter), blocs `ConfigureField`, `ConfigureTest`, `ResourceList` | Disponible |
 | `DetailTemplate.vue` (+ `detail/`) | Fiche : en-tête (état en badges, action principale + deux secondaires, reste dans « … »), une seule alerte d'état, onglets de détail, faits | Disponible |
@@ -49,10 +51,16 @@ groupes de filtres dans l'emplacement `filters`, `filter-count`, `filter-chips`,
 `@reset-filters`. Jamais de `FilterSidebar`, de bouton Filtres ni de champ de recherche
 posés par une page ou un gabarit.
 
+Parcourir et Explorer se répondent : le titre d'un rail de Parcourir mène à Explorer
+déjà réglé, par l'adresse (filtre, tri ou section dans la requête), et le retour ramène
+au rail. Une page Parcourir s'écrit `PageTemplate` > `BrowseTemplate` : elle fournit
+`hero`, `rows`, la carte de chaque élément (emplacement `item`) et ses rangées propres
+(emplacements `row-<clé>`), et charge une section repliable sur `open-row`.
+
 Une page Explorer s'écrit `PageTemplate` (types en `tabs`, `search`, filtres, et le bloc
 `ExploreDisplay` pour le tri et l'affichage dans la feuille) > `ExploreTemplate` : elle
-fournit les pastilles actives (`chips`), un `hub` sans filtre ni recherche (hero,
-rangées), et la carte commune de chaque élément (emplacement `item`).
+fournit les pastilles actives (`chips`) et la carte commune de chaque élément
+(emplacement `item`).
 Une page Comprendre s'écrit `PageTemplate` > `UnderstandTemplate` : elle fournit
 `events`, charge le `detail` de l'événement ouvert (`open`), et éventuellement `summary`.
 Aucune action dans la liste ; au plus une dans le détail.

@@ -22,9 +22,14 @@
 
     <HandleTemplate v-else-if="current === 'handle'" :issues="issues" :items="handleItems" :selection-actions="[{ key: 'ignore', label: 'Ignorer' }, { key: 'fix', label: 'Corriger', tone: 'primary' }]" :labels="{ items: 'films' }" @action="log" @bulk="log" @selection="log" />
 
-    <ExploreTemplate v-else-if="current === 'explore'" :hub="chips.length ? null : hub" :view="view" :items="films" :total="37" :unit="['film', 'films']" :chips="chips" @reset="chips = []">
+    <ExploreTemplate v-else-if="current === 'explore'" :view="view" :items="films" :total="37" :unit="['film', 'films']" :chips="chips" @reset="chips = []">
       <template #item="{ item, view: shown }"><LibraryCard :item="item" :view="shown" /></template>
     </ExploreTemplate>
+
+    <BrowseTemplate v-else-if="current === 'browse'" :rows="browseRows" :hero="hubItems().slice(0, 5)" @title-click="log" @open-row="log">
+      <template #item="{ item }"><LibraryCard :item="item" view="grid" /></template>
+      <template #row-genres><p class="muted">Rails de genres, chargés à l’ouverture.</p></template>
+    </BrowseTemplate>
 
     <UnderstandTemplate v-else-if="current === 'understand'" v-model:period="period" v-model:outcome="outcome" :periods="PERIODS" :outcomes="OUTCOMES" :events="events" :summary="summary" :open-key="openKey" :detail="openKey ? detail : null" @open="openKey = $event.key" @close="openKey = ''" @action="log" @export="log('export')" />
 
@@ -61,6 +66,7 @@ import PageTemplate from '@/components/templates/PageTemplate.vue';
 import MonitorTemplate, { type MonitorAttentionItem, type MonitorKpi, type MonitorZoneGroup } from '@/components/templates/MonitorTemplate.vue';
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import HandleTemplate, { type HandleIssue, type HandleItem } from '@/components/templates/HandleTemplate.vue';
+import BrowseTemplate, { type BrowseRow } from '@/components/templates/BrowseTemplate.vue';
 import ExploreTemplate from '@/components/templates/ExploreTemplate.vue';
 import ExploreDisplay from '@/components/templates/explore/ExploreDisplay.vue';
 import UnderstandTemplate, { type UnderstandDetail, type UnderstandEvent } from '@/components/templates/UnderstandTemplate.vue';
@@ -70,8 +76,8 @@ import ConfigureTest from '@/components/templates/configure/ConfigureTest.vue';
 import ResourceList from '@/components/templates/configure/ResourceList.vue';
 import DetailTemplate, { type DetailAction, type DetailBadge } from '@/components/templates/DetailTemplate.vue';
 
-const KEYS = ['monitor', 'track', 'handle', 'explore', 'understand', 'configure', 'detail'] as const;
-const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
+const KEYS = ['monitor', 'track', 'handle', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
+const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
 const TABS = KEYS.map((key, i) => ({ key, label: LABELS[i], to: { path: '/dev/gabarits', query: { g: key } } }));
 const route = useRoute();
 const current = computed(() => (KEYS as readonly string[]).includes(String(route.query.g)) ? String(route.query.g) : 'monitor');
@@ -125,7 +131,11 @@ const sort = ref('recent');
 const SORTS = [{ value: 'recent', label: 'Ajout récent' }, { value: 'title', label: 'Titre' }];
 const chips = ref([{ key: 'vo', label: 'Sans VF', onRemove: () => { chips.value = chips.value.filter((c) => c.key !== 'vo'); } }, { key: '4k', label: '4K', onRemove: () => { chips.value = chips.value.filter((c) => c.key !== '4k'); } }]);
 const hubItems = () => ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien', 'Arrival', 'Sicario'].map((title, i) => ({ id: i, title, year: 2023 - i, media_type: 'movie', poster_url: POSTER, backdrop_url: BACKDROP, overview: 'Un film de la bibliothèque.', status: 'available' }));
-const hub = { hero: hubItems().slice(0, 5), rows: [{ key: 'recent', title: 'Derniers ajouts', items: hubItems() }, { key: 'requests', title: 'Dernières demandes', items: hubItems().reverse() }, { key: 'scifi', title: 'Science-fiction', items: hubItems() }] };
+const browseRows: BrowseRow[] = [
+  { kind: 'posters', key: 'recent', title: 'Derniers ajouts', items: hubItems(), moreTo: '/dev/gabarits?g=explore' },
+  { kind: 'posters', key: 'requests', title: 'Dernières demandes', items: hubItems().reverse(), moreTo: '/dev/gabarits?g=explore' },
+  { kind: 'collapsible', key: 'genres', title: 'Explorer par genre', eyebrow: 'Catalogue' },
+];
 const films = ['Oppenheimer', 'Dune', 'Tenet', 'Interstellar', 'Heat', 'Alien'].map((title, i) => ({ id: i, title, year: 2023 - i * 3, media_type: 'movie', poster_url: POSTER, status: 'available', _kind: 'library' }));
 
 /* Comprendre */

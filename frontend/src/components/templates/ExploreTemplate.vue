@@ -8,25 +8,11 @@
            filtres actifs en pastilles retirables ;
          - les elements (emplacement `item`, une carte commune qui ouvre la fiche), en
            defilement continu.
-       Deux etats, comme la Bibliotheque : sans filtre ni recherche, la page peut fournir un
-       `hub` -- banniere hero (MediaHeroBanner) puis rangees horizontales (MusicHubRow) ;
-       des qu'on filtre ou cherche, la grille des resultats.
+       On y arrive pour affiner : depuis la recherche, les filtres, ou le titre d'un rail du
+       gabarit Parcourir, qui y mene deja regle par l'adresse.
        On n'y decide ni n'y corrige rien : c'est la fiche qui porte les actions. -->
   <div class="explore">
-    <div v-if="hub" class="explore__main explore__hub">
-      <MediaHeroBanner v-if="hub.hero?.length" :items="hub.hero" :discover-context="false" @open="emit('open', $event)" />
-      <MusicHubRow
-        v-for="row in hub.rows"
-        :key="row.key"
-        :title="row.title"
-        :items="row.items"
-        :loading="row.loading"
-        :more-to="row.moreTo || null"
-        @open="emit('open', $event)"
-      />
-    </div>
-
-    <div v-else class="explore__main">
+    <div class="explore__main">
       <div class="explore__summary">
         <p class="explore__count" aria-live="polite">{{ countText }}</p>
         <div v-if="chips.length" class="explore__chips">
@@ -55,18 +41,11 @@ import { computed } from 'vue';
 import type { FilterChip } from '@/composables/useFiltersDrawer';
 import FilterChips from '@/components/ui/FilterChips.vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
-import MediaHeroBanner from '@/components/media/MediaHeroBanner.vue';
-import MusicHubRow from '@/components/library/MusicHubRow.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 
 export type ExploreView = 'grid' | 'list';
 
-/** L'accueil d'une page Explorer, sans filtre ni recherche : hero, puis rangees. */
-export interface ExploreHub {
-  hero?: any[];
-  rows: Array<{ key: string; title: string; items: any[]; loading?: boolean; moreTo?: string | Record<string, any> | null }>;
-}
 
 const props = withDefaults(
   defineProps<{
@@ -85,8 +64,6 @@ const props = withDefaults(
     loadingMore?: boolean;
     emptyTitle?: string;
     emptyMessage?: string;
-    /** Fourni sans filtre ni recherche : remplace la grille par l'accueil (hero, rangees). */
-    hub?: ExploreHub | null;
   }>(),
   {
     itemKey: undefined,
@@ -99,15 +76,12 @@ const props = withDefaults(
     loadingMore: false,
     emptyTitle: 'Rien ici pour l’instant',
     emptyMessage: '',
-    hub: null,
   },
 );
 const emit = defineEmits<{
   /** Retirer tous les filtres. */
   reset: [];
   'load-more': [];
-  /** Ouvrir la fiche d'un element du hub. */
-  open: [item: any];
 }>();
 
 /* Les pastilles viennent de la page : pas de registre de groupes a lire ici. */
@@ -122,7 +96,6 @@ const countText = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.explore__main.explore__hub { gap: var(--space-5); }
 .explore__main { display: grid; align-content: start; gap: var(--space-3); min-width: 0; }
 .explore__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
 .explore__chips { display: flex; flex: 1 1 auto; align-items: center; gap: var(--space-2); min-width: 0; overflow-x: auto; scrollbar-width: none; }

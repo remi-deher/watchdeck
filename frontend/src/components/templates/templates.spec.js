@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import { describe, expect, it } from 'vitest';
 import MonitorTemplate from './MonitorTemplate.vue';
 import PageTemplate from './PageTemplate.vue';
+import BrowseTemplate from './BrowseTemplate.vue';
 import ConfigureTemplate from './ConfigureTemplate.vue';
 import DetailTemplate from './DetailTemplate.vue';
 import ConfigureTest from './configure/ConfigureTest.vue';
@@ -340,5 +341,30 @@ describe('PageTemplate · recherche et filtres', () => {
   it('sans filtres ni recherche, garde la recherche globale', () => {
     const wrapper = mount(PageTemplate, { props: { title: 'Encodage' }, slots: { default: '<p>Contenu</p>' }, global });
     expect(wrapper.findComponent({ name: 'FilterSidebar' }).exists()).toBe(false);
+  });
+});
+
+describe('BrowseTemplate', () => {
+  const rows = [
+    { kind: 'posters', key: 'recent', title: 'Derniers ajouts', items: [{ id: 1, title: 'Dune' }], moreTo: '/library?sort=added_desc' },
+    { kind: 'section', key: 'sources' },
+    { kind: 'collapsible', key: 'genres', title: 'Explorer par genre' },
+  ];
+
+  it('rend les rails avec la carte de la page, et le titre mène à la liste complète', () => {
+    const wrapper = mount(BrowseTemplate, {
+      props: { rows },
+      slots: { item: '<template #item="{ item }"><article class="card">{{ item.title }}</article></template>', 'row-sources': '<p class="logos">Netflix</p>' },
+      global,
+    });
+    expect(wrapper.find('.card').text()).toBe('Dune');
+    expect(wrapper.find('a.rail-title').attributes('href')).toBe('/library?sort=added_desc');
+    expect(wrapper.find('.logos').exists()).toBe(true);
+  });
+
+  it('remonte l’ouverture d’une section repliable, pour la charger à ce moment-là', async () => {
+    const wrapper = mount(BrowseTemplate, { props: { rows }, slots: { 'row-genres': '<p class="g">Aventure</p>' }, global });
+    await wrapper.find('.ui-disclosure button, button[aria-expanded]').trigger('click');
+    expect(wrapper.emitted('open-row')?.[0]).toEqual(['genres']);
   });
 });
