@@ -15,6 +15,7 @@ pour tout son historique.
 L'ordre de la file (alternance, pause Plex) est géré par la tâche `fileflows-guard`.
 """
 
+import json
 import logging
 from typing import Any
 
@@ -24,7 +25,7 @@ from ..cache import cache
 from ..database import AsyncSessionLocal
 from ..models import Settings
 from ..realtime import publish
-from . import fileflows
+from . import admin_alerts, fileflows, fileflows_history
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,20 @@ ALERT_LIST_LIMIT = 10
 # Un réencodage en masse peut terminer beaucoup de fichiers entre deux passages ; chaque
 # réanalyse interroge Plex, on en borne le nombre par passage.
 RESCAN_LIMIT = 20
+# Traitements enregistres dans l'historique par passage (journal lu pour chacun).
+HISTORY_LIMIT = 30
+HISTORY_BACKFILL = 50
+
+
+def alert_channels(settings: Settings) -> list[str]:
+    """Canaux choisis pour les alertes FileFlows (email et Discord si rien n'est réglé)."""
+    if settings.fileflows_alert_channels is None:
+        return ["email", "discord"]
+    try:
+        chosen = json.loads(settings.fileflows_alert_channels)
+    except ValueError:
+        return []
+    return [c for c in chosen if c in admin_alerts.CHANNELS] if isinstance(chosen, list) else []
 
 
 def changes(previous: dict[str, str], current: dict[str, str]) -> list[str]:
@@ -68,8 +83,6 @@ async def _rescan(media_ids: list[int]) -> int:
 
 
 async def check_fileflows() -> dict[str, Any]:
-    from .indexer_health import _notify
-
     async with AsyncSessionLocal() as db:
         settings = (await db.execute(select(Settings))).scalars().first()
         inst = await fileflows.get_instance(db)
@@ -88,7 +101,12 @@ async def check_fileflows() -> dict[str, Any]:
     previous = await cache.get_json(key)
     await cache.set_json(key, current, ttl_seconds=STATE_TTL)
     if previous is None:
-        return {"status": "initialized", "processed": len(processed), "failed": len(failed)}
+        # Premier passage : on reprend les derniers traitements connus dans l'historique
+        # (sans lire leurs journaux, trop lourds en nombre).
+        history = await fileflows_history.record_many(
+            url, api_key, [row["uid"] for row in processed[:HISTORY_BACKFILL]], with_log=False
+        )
+        return {"status": "initialized", "processed": len(processed), "failed": len(failed), "history": history}
 
     new_failed_ids = set(changes(previous.get("failed") or {}, current["failed"]))
     new_failed = [row for row in failed if row["uid"] in new_failed_ids]
@@ -101,10 +119,16 @@ async def check_fileflows() -> dict[str, Any]:
         if media and media["id"] not in media_ids and media["media_type"] in ("movie", "show"):
             media_ids.append(media["id"])
 
+    history = await fileflows_history.record_many(
+        url,
+        api_key,
+        [row["uid"] for row in processed + failed if row["uid"] in new_processed_ids | new_failed_ids][:HISTORY_LIMIT],
+    )
+
     alerts = 0
     if new_failed and settings is not None:
         subject = f"FileFlows : {len(new_failed)} traitement(s) en échec"
-        alerts = await _notify(settings, subject, alert_text(name, new_failed))
+        alerts = await admin_alerts.send(settings, subject, alert_text(name, new_failed), alert_channels(settings))
     rescanned = await _rescan(media_ids[:RESCAN_LIMIT]) if media_ids else 0
     if new_failed or new_processed_ids:
         await publish(
@@ -118,4 +142,5 @@ async def check_fileflows() -> dict[str, Any]:
         "new_processed": len(new_processed_ids),
         "rescanned": rescanned,
         "alerts": alerts,
+        "history": history,
     }

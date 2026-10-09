@@ -405,6 +405,7 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
         { key: 'overview', label: 'Vue d’ensemble', to: '/encoding', icon: Gauge },
         { key: 'queue', label: 'File d’attente', to: '/encoding/queue', icon: ListOrdered },
         { key: 'libraries', label: 'Bibliothèques', to: '/encoding/libraries', icon: FolderTree },
+        { key: 'history', label: 'Historique', to: '/encoding/history', icon: History },
         { key: 'flows', label: 'Flows', to: '/encoding/flows', icon: Workflow },
         { key: 'settings', label: 'Réglages', to: '/encoding/settings', icon: SlidersHorizontal },
       ];

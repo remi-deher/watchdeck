@@ -199,6 +199,35 @@ async def set_runners(url: str, api_key: str | None, runners: int) -> int | None
     return previous
 
 
+# --------------------------------------------------------------------------- planning
+
+# Planning d'un nœud FileFlows : 672 caractères « 1 » (autorisé) / « 0 », jour par jour en
+# commençant le DIMANCHE, 96 quarts d'heure par jour, à l'heure locale du serveur
+# FileFlows (format vérifié expérimentalement : il n'est pas documenté).
+SCHEDULE_PRESETS: dict[str, tuple[int, int] | None] = {
+    "always": None,
+    "night": (0, 8),  # de 0 h à 8 h
+    "not_evening": (0, 18),  # pas de 18 h à minuit
+    "daytime": (8, 18),
+}
+
+
+def schedule_for(preset: str) -> str:
+    hours = SCHEDULE_PRESETS[preset]
+    day = "".join("1" if hours is None or hours[0] <= q // 4 < hours[1] else "0" for q in range(96))
+    return day * 7
+
+
+def preset_of(schedule: str | None) -> str:
+    """Préréglage correspondant au planning, sinon "custom". Vide = toujours."""
+    if not schedule or set(schedule) == {"1"}:
+        return "always"
+    for name in SCHEDULE_PRESETS:
+        if schedule_for(name) == schedule:
+            return name
+    return "custom"
+
+
 # --------------------------------------------------------------------------- passage
 
 

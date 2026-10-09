@@ -127,8 +127,9 @@ async def test_check_fileflows_alerts_and_rescans_only_on_change():
             patch.object(fileflows, "list_files", new=list_files),
             patch.object(fileflows, "folder_index", new=AsyncMock(return_value=index)),
             patch.object(fileflows_monitor, "_rescan", new=rescan),
+            patch.object(fileflows_monitor.fileflows_history, "record_many", new=AsyncMock(return_value=1)),
             patch.object(fileflows_monitor, "publish", new=AsyncMock()),
-            patch("app.services.indexer_health._notify", new=notify),
+            patch.object(fileflows_monitor.admin_alerts, "send", new=notify),
         ):
             first = await fileflows_monitor.check_fileflows()
             assert first["status"] == "initialized"

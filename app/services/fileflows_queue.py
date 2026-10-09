@@ -20,14 +20,10 @@ import json
 import logging
 from typing import Any
 
-from ..cache import cache
 from ..utils import now_utc
 from . import fileflows
 
 logger = logging.getLogger(__name__)
-
-LAST_RUN_KEY = "watchdeck:fileflows:reorder:last"
-LAST_RUN_TTL = 7 * 24 * 3600
 
 
 def relaunched(row: dict[str, Any]) -> bool:
@@ -71,23 +67,6 @@ def parse_libraries(value: str | None) -> list[str]:
     return [str(x) for x in parsed if isinstance(x, str)] if isinstance(parsed, list) else []
 
 
-async def enabled_libraries(url: str, api_key: str | None) -> list[dict[str, Any]]:
-    """Bibliothèques activées dans FileFlows, avec leur nombre de fichiers en attente."""
-    libraries, queue = await _libraries(url, api_key), await _queue(url, api_key)
-    waiting: dict[str, int] = {}
-    for row in queue:
-        waiting[row.get("lu")] = waiting.get(row.get("lu"), 0) + 1
-    return [
-        {
-            "uid": lib["Uid"],
-            "name": lib.get("Name") or "",
-            "path": lib.get("Path") or "",
-            "waiting": waiting.get(lib["Uid"], 0),
-        }
-        for lib in sorted(libraries, key=lambda x: x.get("Name") or "")
-    ]
-
-
 async def _libraries(url: str, api_key: str | None) -> list[dict[str, Any]]:
     rows = await fileflows._call(url, api_key, "GET", "library")
     return [lib for lib in rows or [] if isinstance(lib, dict) and lib.get("Enabled") and lib.get("Uid")]
@@ -120,15 +99,4 @@ async def reorder(url: str, api_key: str | None, library_uids: list[str]) -> dic
                 f"File réordonnée : {len(order)} fichiers, {protected} relancé(s) gardé(s) en tête, "
                 f"{sum(counts.values())} en alternance."
             )
-    try:
-        await cache.set_json(LAST_RUN_KEY, result, ttl_seconds=LAST_RUN_TTL)
-    except Exception:  # noqa: BLE001 -- l'affichage du dernier passage n'est pas essentiel
-        logger.debug("Cache indisponible pour le dernier réordonnancement", exc_info=True)
     return result
-
-
-async def last_run() -> dict[str, Any] | None:
-    try:
-        return await cache.get_json(LAST_RUN_KEY)
-    except Exception:  # noqa: BLE001
-        return None

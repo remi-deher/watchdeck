@@ -31,6 +31,7 @@ from .downloads import (
     SonarrQueueObservation,
 )
 from .email_config import EmailBranding, EmailTemplate, MessageReason
+from .fileflows import FileflowsProcessing
 from .logs import (
     AdminActionLog,
     DeletedMediaLog,
@@ -76,6 +77,7 @@ from .users import (
 )
 
 __all__ = [
+    "FileflowsProcessing",
     "AdminActionLog",
     "ArrInstance",
     "LibraryItemLocation",

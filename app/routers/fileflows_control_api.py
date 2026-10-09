@@ -18,7 +18,7 @@ from ..database import get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, Settings
 from ..realtime import publish
-from ..services import fileflows, fileflows_guard, fileflows_queue
+from ..services import admin_alerts, fileflows, fileflows_guard, fileflows_history, fileflows_monitor, fileflows_queue
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +355,9 @@ class ControlBody(BaseModel):
     plex_pause_relaunched: Literal["follow", "ignore"]
     plex_resume_minutes: int = Field(ge=0, le=120)
     reorder_enabled: bool
+    alert_channels: list[Literal["email", "discord", "telegram", "ntfy", "gotify"]] = Field(default_factory=list)
+    # None (ou "custom") : le planning du nœud n'est pas modifié.
+    schedule_preset: Optional[Literal["always", "night", "not_evening", "daytime", "custom"]] = None
 
 
 async def _node(inst: ArrInstance) -> dict[str, Any]:
@@ -379,8 +382,11 @@ async def fileflows_control(db: AsyncSession = Depends(get_db_async)):
         "plex_pause_relaunched": settings.fileflows_plex_pause_relaunched,
         "plex_resume_minutes": settings.fileflows_plex_resume_minutes,
         "reorder_enabled": bool(settings.fileflows_reorder_enabled),
-        # Le planning se règle dans FileFlows ; on signale seulement s'il restreint les heures.
         "schedule_restricted": bool(schedule) and set(schedule) != {"1"},
+        "schedule_preset": fileflows_guard.preset_of(schedule),
+        "alert_channels": fileflows_monitor.alert_channels(settings),
+        # Canal activé et configuré dans Notifications : sinon, le cocher n'enverrait rien.
+        "channels_ready": {c: admin_alerts.channel_ready(settings, c) for c in admin_alerts.CHANNELS},
         "guard": await fileflows_guard.last_state(),
     }
 
@@ -394,8 +400,28 @@ async def fileflows_control_save(body: ControlBody, db: AsyncSession = Depends(g
     settings.fileflows_plex_pause_relaunched = body.plex_pause_relaunched
     settings.fileflows_plex_resume_minutes = body.plex_resume_minutes
     settings.fileflows_reorder_enabled = body.reorder_enabled
+    settings.fileflows_alert_channels = json.dumps(list(dict.fromkeys(body.alert_channels)))
     await db.commit()
     if body.runners_mode == "manual":
         await _guard(fileflows_guard.set_runners(inst.url, inst.api_key, body.runners))
+    if body.schedule_preset and body.schedule_preset != "custom":
+        node = await _guard(_node(inst))
+        schedule = fileflows_guard.schedule_for(body.schedule_preset)
+        if node.get("Schedule") != schedule:
+            node["Schedule"] = schedule
+            await _guard(fileflows._call(inst.url, inst.api_key, "POST", "node", json=node))
     await _changed()
     return {"ok": True}
+
+
+# --------------------------------------------------------------------------- historique
+
+
+@router.get("/history")
+async def fileflows_history_route(days: int = 30, db: AsyncSession = Depends(get_db_async)):
+    """Statistiques des traitements sur la période, et derniers passages enregistrés."""
+    days = max(1, min(days, 365))
+    return {
+        "stats": await fileflows_history.statistics(db, days),
+        "recent": await fileflows_history.recent(db, 50),
+    }

@@ -434,3 +434,45 @@ def test_control_routes_without_fileflows():
         for dep in (require_auth, require_admin, get_db_async):
             app.dependency_overrides.pop(dep, None)
         db.close()
+
+
+def test_schedule_presets():
+    night = fileflows_guard.schedule_for("night")
+    assert len(night) == 672 and night[:32] == "1" * 32 and night[32:96] == "0" * 64
+    assert night[96:128] == "1" * 32  # même plage chaque jour (lundi = 2e bloc après dimanche)
+    assert fileflows_guard.preset_of(night) == "night"
+    assert fileflows_guard.preset_of("") == "always" and fileflows_guard.preset_of("1" * 672) == "always"
+    assert fileflows_guard.preset_of("0" + "1" * 671) == "custom"
+    evening = fileflows_guard.schedule_for("not_evening")
+    assert evening[72:96] == "0" * 24 and evening[71] == "1"
+
+
+def test_control_applies_schedule_preset(client_db):
+    client, _ = client_db
+    posted = []
+
+    async def call(url, key, method, path, **kwargs):
+        if method == "POST":
+            posted.append((path, kwargs.get("json")))
+        return await _control_call(url, key, method, path, **kwargs)
+
+    body = {
+        "runners_mode": "auto",
+        "runners": 1,
+        "plex_pause": "off",
+        "plex_pause_relaunched": "follow",
+        "plex_resume_minutes": 5,
+        "reorder_enabled": False,
+        "alert_channels": ["ntfy"],
+        "schedule_preset": "night",
+    }
+    with (
+        patch.object(fileflows, "_call", new=call),
+        patch.object(fileflows_guard, "last_state", new=AsyncMock(return_value=None)),
+    ):
+        assert client.put("/api/fileflows/control", json=body).json() == {"ok": True}
+        assert client.put("/api/fileflows/control", json={**body, "schedule_preset": "custom"}).json() == {"ok": True}
+        state = client.get("/api/fileflows/control").json()
+    assert [p[0] for p in posted] == ["node"]
+    assert posted[0][1]["Schedule"] == fileflows_guard.schedule_for("night")
+    assert state["alert_channels"] == ["ntfy"] and state["schedule_preset"] == "custom"
