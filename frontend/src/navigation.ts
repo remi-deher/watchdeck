@@ -22,7 +22,6 @@ import {
   DatabaseZap,
   Download,
   Film,
-  FolderTree,
   Gauge,
   GitBranch,
   History,
@@ -44,7 +43,6 @@ import {
   ScrollText,
   ShieldCheck,
   SlidersHorizontal,
-  Workflow,
   Table,
   MessageSquareText,
   Settings,
@@ -403,11 +401,10 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
     case 'encoding':
       sections = [
         { key: 'overview', label: 'Vue d’ensemble', to: '/encoding', icon: Gauge },
-        { key: 'queue', label: 'File d’attente', to: '/encoding/queue', icon: ListOrdered },
-        { key: 'libraries', label: 'Bibliothèques', to: '/encoding/libraries', icon: FolderTree },
-        { key: 'history', label: 'Historique', to: '/encoding/history', icon: History },
-        { key: 'flows', label: 'Flows', to: '/encoding/flows', icon: Workflow },
-        { key: 'settings', label: 'Réglages', to: '/encoding/settings', icon: SlidersHorizontal },
+        // File et historique, puis bibliotheques, flows et reglages : chaque groupe a ses
+        // onglets dans la page (EncodingShell), le menu ne garde que trois entrees.
+        { key: 'activity', label: 'Traitements', to: '/encoding/queue', icon: ListOrdered, active: (r) => ['/encoding/queue', '/encoding/history'].includes(r.path) },
+        { key: 'config', label: 'Configuration', to: '/encoding/libraries', icon: SlidersHorizontal, active: (r) => ['/encoding/libraries', '/encoding/flows', '/encoding/settings'].includes(r.path) },
       ];
       break;
     case 'downloads':
