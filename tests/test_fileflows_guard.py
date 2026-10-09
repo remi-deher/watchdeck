@@ -514,8 +514,8 @@ def test_desired_order_defers_busy_disks():
         {"u": "b2", "lu": "L2"},
     ]
     order, _, _ = fileflows_queue.desired_order(rows, {"L1", "L2"}, busy={"L1"})
-    # Le relancé reste en tête ; L1 (disque occupé) passe derrière L2, dans son ordre.
-    assert order == ["r", "b1", "b2", "a1", "a2"]
+    # L1 (disque occupé) passe derrière L2 ; son relancé reste en tête de ses fichiers.
+    assert order == ["b1", "b2", "r", "a1", "a2"]
 
 
 @pytest.mark.asyncio

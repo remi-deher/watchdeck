@@ -64,7 +64,15 @@ def desired_order(
     ordered = alternated + others
     free = [u for u in ordered if library_of[u] not in busy]
     waiting = [u for u in ordered if library_of[u] in busy]
-    return protected + free + waiting + held, {k: len(v) for k, v in groups.items()}, len(protected)
+    # Un fichier relancé dont le disque est occupé immobiliserait lui aussi un runner : il passe
+    # après les disques libres, mais reste devant les autres fichiers de son disque.
+    protected_free = [u for u in protected if library_of[u] not in busy]
+    protected_busy = [u for u in protected if library_of[u] in busy]
+    return (
+        protected_free + free + protected_busy + waiting + held,
+        {k: len(v) for k, v in groups.items()},
+        len(protected),
+    )
 
 
 def parse_libraries(value: str | None) -> list[str]:
