@@ -118,7 +118,7 @@ function trendOf(kpi: AnalyzeKpi): { direction: string; label: string } {
 </script>
 
 <style scoped lang="scss">
-.analyze { display: grid; gap: var(--space-4); min-width: 0; }
+.analyze { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
 .analyze__scope { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .analyze__compare { color: var(--muted); font-size: var(--fs-sm); }
 .analyze__leads { display: grid; gap: var(--space-2); }

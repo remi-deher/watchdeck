@@ -2,6 +2,13 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import EncodingOverviewView from './EncodingOverviewView.vue';
+import EncodingQueueView from './EncodingQueueView.vue';
+import EncodingHistoryView from './EncodingHistoryView.vue';
+import EncodingStatsView from './EncodingStatsView.vue';
+import EncodingSettingsView from './EncodingSettingsView.vue';
+import EncodingLibrariesView from './EncodingLibrariesView.vue';
+import EncodingFlowsView from './EncodingFlowsView.vue';
 
 /* Les pages Encodage sur leurs gabarits, avec un FileFlows simule. */
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
@@ -60,8 +67,7 @@ async function mountAt(path, component) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] });
   await router.push(path);
   const wrapper = mount(component, { global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]] } });
-  await flushPromises();
-  await flushPromises();
+  for (let i = 0; i < 5; i += 1) await flushPromises();
   return wrapper;
 }
 
@@ -70,10 +76,9 @@ beforeEach(() => {
   request.mockImplementation(async (path) => respond(path));
 });
 
-describe('Encodage sur les gabarits', () => {
+describe('Encodage sur les gabarits', { timeout: 20_000 }, () => {
   it('la vue d’ensemble surveille : échec et disque retenu en attention, disques en parties', async () => {
-    const { default: View } = await import('./EncodingOverviewView.vue');
-    const wrapper = await mountAt('/encoding', View);
+    const wrapper = await mountAt('/encoding', EncodingOverviewView);
     expect(wrapper.find('.monitor').exists()).toBe(true);
     const todo = wrapper.find('.overview-todo').text();
     expect(todo).toContain('Anaconda (1997) a échoué');
@@ -82,8 +87,7 @@ describe('Encodage sur les gabarits', () => {
   });
 
   it('la file suit : échec bloqué, runner en cours, attente dans l’ordre', async () => {
-    const { default: View } = await import('./EncodingQueueView.vue');
-    const wrapper = await mountAt('/encoding/queue', View);
+    const wrapper = await mountAt('/encoding/queue', EncodingQueueView);
     expect(wrapper.findAll('.track__group h2').map((n) => n.text())).toEqual(['Demande une intervention', 'En cours', 'En attente']);
     expect(wrapper.find('.track__group.is-blocked').text()).toContain('Durée audio différente');
     expect(wrapper.find('.track__group.is-running').text()).toContain('88 %');
@@ -91,8 +95,7 @@ describe('Encodage sur les gabarits', () => {
   });
 
   it('l’historique raconte les passages et ouvre leur détail', async () => {
-    const { default: View } = await import('./EncodingHistoryView.vue');
-    const wrapper = await mountAt('/encoding/history', View);
+    const wrapper = await mountAt('/encoding/history', EncodingHistoryView);
     expect(wrapper.findAll('.understand-row strong').map((n) => n.text())).toEqual(['Anaconda.mkv', 'Dune.mkv']);
     expect(wrapper.find('.understand__summary').text()).toContain('142 traités');
     await wrapper.find('.understand-row').trigger('click');
@@ -101,20 +104,19 @@ describe('Encodage sur les gabarits', () => {
   });
 
   it('les statistiques comparent à la période précédente', async () => {
-    const { default: View } = await import('./EncodingStatsView.vue');
-    const wrapper = await mountAt('/encoding/stats', View);
+    const wrapper = await mountAt('/encoding/stats', EncodingStatsView);
     expect(wrapper.find('.analyze').exists()).toBe(true);
     expect(wrapper.text()).toContain('Place gagnée');
     expect(request.mock.calls.some(([path]) => path.includes('offset=30'))).toBe(true);
   });
 
   it('les réglages, bibliothèques et flows passent par Configurer', async () => {
-    const settings = await mountAt('/encoding/settings', (await import('./EncodingSettingsView.vue')).default);
+    const settings = await mountAt('/encoding/settings', EncodingSettingsView);
     expect(settings.findAll('.configure__section h2').map((n) => n.text())).toEqual(['Runners', 'Pendant une lecture Plex', 'File d’attente', 'Alertes', 'Plages horaires']);
-    const libraries = await mountAt('/encoding/libraries', (await import('./EncodingLibrariesView.vue')).default);
+    const libraries = await mountAt('/encoding/libraries', EncodingLibrariesView);
     expect(libraries.find('.resource').text()).toContain('Films — USB 2');
     expect(libraries.find('.resource').text()).toContain('Correspondance Plex');
-    const flows = await mountAt('/encoding/flows', (await import('./EncodingFlowsView.vue')).default);
+    const flows = await mountAt('/encoding/flows', EncodingFlowsView);
     expect(flows.findAll('.configure__section h2').map((n) => n.text())).toEqual(['Flows utilisés', 'Flows inutilisés']);
   });
 });

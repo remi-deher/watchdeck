@@ -152,7 +152,7 @@ async function choose(candidate: ChooseCandidate): Promise<void> {
 </script>
 
 <style scoped lang="scss">
-.choose { display: grid; gap: var(--space-3); min-width: 0; }
+.choose { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
 .choose__toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 .choose__count { color: var(--muted); font-size: var(--fs-sm); }
 .choose__notice { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--fs-sm); }

@@ -112,7 +112,7 @@ const visibleGroups = computed(() => (filter.value === 'all' ? groups.value : gr
 </script>
 
 <style scoped lang="scss">
-.track { display: grid; gap: var(--space-5); min-width: 0; }
+.track { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); min-width: 0; }
 .track__summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .track__updated, .track__loading { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .track__group, .track__recent { display: grid; gap: var(--space-3); min-width: 0; }

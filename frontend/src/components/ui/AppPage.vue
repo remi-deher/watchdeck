@@ -40,15 +40,6 @@
       </div>
     </div>
 
-    <!-- En mode deploye les sections vivent dans le rail : garder ici une rangee collante
-         pour les seuls outils coutait une ligne entiere a un ou deux controles. Ils
-         rejoignent donc la barre du haut, contre la recherche. -->
-    <Teleport v-if="hasTools && toolsInBar" to="#app-page-tools">
-      <div class="app-page__tool-actions">
-        <slot name="tools" />
-        <slot name="actions" />
-      </div>
-    </Teleport>
 
     <UiFeedback
       v-if="error"
@@ -67,12 +58,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useSlots, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, useSlots, watch, type Slot } from 'vue';
 import { useIntersectionObserver } from '@vueuse/core';
 import AppSubnav, { type SubnavItem } from './AppSubnav.vue';
 import { providePageSearch, type PageSearch, type PageSearchKind } from '@/composables/usePageSearch';
 import { usePageSections } from '@/composables/usePageSections';
 import { providePageTitle } from '@/composables/usePageTitle';
+import { providePageTools, usePageTools } from '@/composables/usePageTools';
 import { useShellMode } from '@/composables/useShellMode';
 import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
 import UiFeedback from './UiFeedback.vue';
@@ -183,18 +175,16 @@ const mode = useShellMode();
 const slots = useSlots();
 const hasTools = computed(() => Boolean(slots.tools || slots.actions));
 const hasTabs = computed(() => Boolean(slots.tabs));
-/* La cible du teleport appartient a la barre du haut, montee avant la page : elle est
-   donc la des le premier rendu. On la verifie quand meme, pour qu'un AppPage monte hors
-   du shell (tests isoles, tiroirs) retombe simplement sur sa rangee collante. */
-const toolsAnchor = ref(false);
-const syncToolsAnchor = () => { toolsAnchor.value = Boolean(document.getElementById('app-page-tools')); };
-/* Les commandes de la page restent dans sa rangee, a toutes les largeurs.
-   Elles ont ete remontees un temps dans la barre du haut, pour eviter une rangee qui
-   n'aurait porte qu'un controle isole. Mais elles y partageaient la place avec la
-   recherche, qui changeait alors de largeur et de centre d'une page a l'autre selon les
-   commandes de chacune -- et le selecteur de periode, large de 398px, finissait par la
-   recouvrir. Une rangee un peu vide se remarque moins qu'une barre qui bouge. */
-const toolsInBar = computed(() => false);
+/* Les outils de la page vont dans la capsule de recherche de la barre du haut, a gauche
+   de « Filtres » (usePageTools) : la rangee collante ne porte plus que les onglets, seuls
+   et centres sur la page. Hors du shell (tests isoles, fenetres), ils restent dans la
+   rangee. Ils avaient deja ete remontes une fois, a cote de la recherche, qui changeait
+   alors de largeur d'une page a l'autre : dans la capsule, leur largeur est bornee et ce
+   qui deborde defile, sans jamais deplacer la recherche. */
+const { hostReady } = usePageTools();
+const toolsInBar = computed(() => hostReady.value);
+const toolsSlot: Slot = () => [...(slots.tools?.() ?? []), ...(slots.actions?.() ?? [])];
+providePageTools(() => (hasTools.value && toolsInBar.value ? toolsSlot : null));
 const { sections: derivedSections, activeKey, destinationLabel, space } = usePageSections();
 /* Meme source que la barre du haut : une seule lecture du defilement pour les deux. */
 const { hidden: chromeHidden } = useChromeAutoHide();
@@ -218,8 +208,6 @@ const resolvedActiveSection = computed(() =>
 const stickySentinel = ref<HTMLElement | null>(null);
 const isStuck = ref(false);
 
-watch(mode, () => nextTick(syncToolsAnchor));
-onMounted(syncToolsAnchor);
 useIntersectionObserver(stickySentinel, ([entry]) => {
   if (entry) isStuck.value = !entry.isIntersecting;
 });
