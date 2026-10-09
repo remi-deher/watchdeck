@@ -162,7 +162,7 @@ def _guard_env(db, queue, status, playing):
         if path == "node":
             return [{"Uid": "N"}] if method == "GET" else {}
         if path == "node/N":
-            return {"Uid": "N", "FlowRunners": 1}
+            return {"Uid": "N", "FlowRunners": 3}
         return {}
 
     patches = [
@@ -199,7 +199,7 @@ async def test_guard_pauses_the_played_disk_and_sets_runners():
             assert json.loads(variable["Value"])["disks"] == ["usb2"]
             moved = next(c for c in calls if c[1] == "library-file/move-to-top")[2]["Uids"]
             assert moved == ["b", "c", "a"]
-            assert result["runners"] == {"from": 1, "to": 1}  # seul usb (usb2 en pause)
+            assert result["runners"] == {"from": 3, "to": 1}  # seul usb (usb2 en pause)
             # La lecture s'arrête : le disque reste en pause pendant le délai de reprise.
             fileflows_guard.playing_files.return_value = []
             assert (await fileflows_guard.run())["paused_disks"] == ["usb2"]
@@ -228,7 +228,7 @@ async def test_guard_off_and_all_modes():
         db.query(Settings).first().fileflows_plex_pause_relaunched = "ignore"
         db.commit()
         result = await _run_with(db, ["/anywhere/file.mkv"])
-        assert result["paused_disks"] == ["media", "usb", "usb2"]
+        assert result["paused_disks"] == ["usb", "usb2"]  # bibliothèques activées seulement
     finally:
         db.close()
 
