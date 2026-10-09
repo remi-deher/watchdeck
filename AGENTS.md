@@ -34,7 +34,7 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `ExploreTemplate.vue` | Explorer : panneau de filtres, pastilles des filtres actifs, compteur, tri, grille / liste, défilement continu | Disponible |
 | `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille | Disponible |
 | `ConfigureTemplate.vue` (+ `configure/`) | Configurer : sections par intention avec sommaire, enregistrement global (Enregistrer / Annuler, confirmation avant de quitter), blocs `ConfigureField`, `ConfigureTest`, `ResourceList` | Disponible |
-| Fiche | — | À créer |
+| `DetailTemplate.vue` (+ `detail/`) | Fiche : en-tête (état en badges, action principale + deux secondaires, reste dans « … »), une seule alerte d'état, onglets de détail, faits | Disponible |
 
 Une page Surveiller s'écrit `PageTemplate` > `MonitorTemplate`, en ne fournissant que
 ses données (`items`, `kpis`, `zones`, `labels`).
@@ -54,6 +54,9 @@ Une page Configurer s'écrit `PageTemplate` > `ConfigureTemplate` : elle fournit
 `sections` (avec `dirty` par section), leur contenu (emplacements `section-<clé>`, faits
 de `ConfigureField`, `ConfigureTest` et `ResourceList`), `dirty` global, et réagit à
 `save` / `cancel`. Un seul enregistrement pour toute la page.
+Une fiche s'écrit `DetailTemplate` : elle fournit identité, `badges`, `actions`, au plus
+une `alert`, `tabs` et leur contenu (emplacements `tab-<clé>`), `facts`, et réagit à
+`action`. Les actions vivent dans l'en-tête, jamais dans un onglet.
 
 Les gabarits ne sont pas figés : chacun s'adosse à des blocs, qui sont des composants
 communs (`monitor/`, `track/`…). Pour faire évoluer un gabarit, on remplace ou on fait

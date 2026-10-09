@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import MonitorTemplate from './MonitorTemplate.vue';
 import PageTemplate from './PageTemplate.vue';
 import ConfigureTemplate from './ConfigureTemplate.vue';
+import DetailTemplate from './DetailTemplate.vue';
 import ConfigureTest from './configure/ConfigureTest.vue';
 import ExploreTemplate from './ExploreTemplate.vue';
 import HandleTemplate from './HandleTemplate.vue';
@@ -265,5 +266,43 @@ describe('Blocs Configurer', () => {
     const buttons = wrapper.findAll('.resource')[0].findAll('button.ui-button, .ui-button');
     await buttons.find((b) => b.text() === 'Tester').trigger('click');
     expect(wrapper.emitted('test')[0][0].key).toBe('u4');
+  });
+});
+
+describe('DetailTemplate', () => {
+  const actions = [
+    { key: 'play', label: 'Lire dans Plex' },
+    { key: 'relaunch', label: 'Relancer l’encodage' },
+    { key: 'search', label: 'Chercher une VF' },
+    { key: 'delete', label: 'Supprimer', danger: true },
+  ];
+
+  it('met l’action principale en avant, deux secondaires au plus, le reste dans le menu', () => {
+    const wrapper = mount(DetailTemplate, { props: { title: 'Anaconda', actions }, global });
+    const buttons = wrapper.findAll('.detail__actions > .ui-button');
+    expect(buttons.slice(0, 3).map((b) => b.text())).toEqual(['Lire dans Plex', 'Relancer l’encodage', 'Chercher une VF']);
+    expect(buttons[0].classes().join(' ')).toContain('primary');
+    expect(wrapper.text()).not.toContain('Supprimer');
+  });
+
+  it('montre une seule alerte, dont le lien peut ouvrir l’onglet concerné', async () => {
+    const wrapper = mount(DetailTemplate, {
+      props: { title: 'Anaconda', alert: { tone: 'danger', message: 'Le dernier encodage a échoué', link: { label: 'Voir', tab: 'encoding' } }, tabs: [{ key: 'summary', label: 'Résumé' }, { key: 'encoding', label: 'Encodage' }] },
+      global,
+    });
+    expect(wrapper.findAll('.detail__alert')).toHaveLength(1);
+    await wrapper.find('.detail__alert-link').trigger('click');
+    expect(wrapper.emitted('update:tab')[0]).toEqual(['encoding']);
+  });
+
+  it('rend l’onglet actif et les faits', () => {
+    const wrapper = mount(DetailTemplate, {
+      props: { title: 'Anaconda', tabs: [{ key: 'summary', label: 'Résumé' }, { key: 'files', label: 'Fichiers' }], tab: 'files', facts: [{ label: 'Taille', value: '8,2 Go' }] },
+      slots: { 'tab-summary': '<p class="s">Résumé</p>', 'tab-files': '<p class="f">Pistes</p>' },
+      global,
+    });
+    expect(wrapper.find('.f').exists()).toBe(true);
+    expect(wrapper.find('.s').exists()).toBe(false);
+    expect(wrapper.find('.detail__facts').text()).toContain('8,2 Go');
   });
 });
