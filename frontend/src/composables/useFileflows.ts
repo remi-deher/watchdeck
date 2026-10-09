@@ -175,8 +175,14 @@ export interface FileflowsControl {
   plex_resume_minutes: number;
   reorder_enabled: boolean;
   schedule_restricted: boolean;
+  schedule_preset: SchedulePreset;
+  alert_channels: AlertChannel[];
+  channels_ready: Record<AlertChannel, boolean>;
   guard: Record<string, any> | null;
 }
+
+export type AlertChannel = 'email' | 'discord' | 'telegram' | 'ntfy' | 'gotify';
+export type SchedulePreset = 'always' | 'night' | 'not_evening' | 'daytime' | 'custom';
 
 export function fileflowsControlQuery() {
   return {

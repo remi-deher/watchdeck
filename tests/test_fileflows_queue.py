@@ -125,7 +125,6 @@ async def test_reorder_moves_only_when_needed():
     moved: list = []
     with (
         patch.object(fileflows_queue.fileflows, "_call", new=_fake_api(queue, LIBRARIES, moved)),
-        patch.object(fileflows_queue.cache, "set_json", new=AsyncMock()),
     ):
         result = await fileflows_queue.reorder("http://ff", None, ["A", "B", "Z"])
         assert result["changed"] is True and moved == [["a1", "b1", "a2"]]
@@ -133,17 +132,7 @@ async def test_reorder_moves_only_when_needed():
         assert (await fileflows_queue.reorder("http://ff", None, ["A", "B"]))["changed"] is False
         lone = await fileflows_queue.reorder("http://ff", None, ["A", "Z"])
         assert lone["changed"] is False and "1 bibliothèque" in lone["message"]
-        libs = await fileflows_queue.enabled_libraries("http://ff", None)
     assert len(moved) == 1
-    assert [(lib["uid"], lib["waiting"]) for lib in libs] == [("A", 2), ("B", 1)]
-
-
-@pytest.mark.asyncio
-async def test_last_run():
-    with patch.object(fileflows_queue.cache, "get_json", new=AsyncMock(return_value={"at": "x"})):
-        assert await fileflows_queue.last_run() == {"at": "x"}
-    with patch.object(fileflows_queue.cache, "get_json", new=AsyncMock(side_effect=RuntimeError("redis"))):
-        assert await fileflows_queue.last_run() is None
 
 
 @pytest.fixture
@@ -168,24 +157,11 @@ def client_db():
         db.close()
 
 
-def test_reorder_routes(client_db):
+def test_reorder_run_route(client_db):
     client, db = client_db
-    libs = [
-        {"uid": "A", "name": "USB 1", "path": "/usb", "waiting": 3},
-        {"uid": "B", "name": "USB 2", "path": "/usb2", "waiting": 0},
-    ]
-    with (
-        patch.object(fileflows_queue, "enabled_libraries", new=AsyncMock(return_value=libs)),
-        patch.object(fileflows_queue, "last_run", new=AsyncMock(return_value=None)),
-    ):
-        state = client.get("/api/fileflows/reorder").json()
-        assert state["enabled"] is False and [lib["included"] for lib in state["libraries"]] == [False, False]
-        saved = client.put("/api/fileflows/reorder", json={"enabled": True, "libraries": ["A", "B", "A"]}).json()
-        assert saved == {"enabled": True, "libraries": ["A", "B"]}
-        state = client.get("/api/fileflows/reorder").json()
-        assert state["enabled"] is True and [lib["included"] for lib in state["libraries"]] == [True, True]
     settings = db.query(Settings).first()
-    assert settings.fileflows_reorder_enabled is True and settings.fileflows_reorder_libraries == '["A", "B"]'
+    settings.fileflows_reorder_libraries = '["A", "B"]'
+    db.commit()
     with patch.object(
         fileflows_queue, "reorder", new=AsyncMock(return_value={"changed": True, "message": "ok"})
     ) as run:

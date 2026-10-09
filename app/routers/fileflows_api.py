@@ -7,7 +7,6 @@ dont l'interface ralentit déjà sous la charge.
 """
 
 import asyncio
-import json
 import logging
 from typing import Any, Optional
 
@@ -203,39 +202,11 @@ async def fileflows_media_reprocess(
 # --------------------------------------------------------------------------- alternance
 
 
-class ReorderBody(BaseModel):
-    enabled: bool
-    libraries: list[str] = Field(default_factory=list, max_length=100)
-
-
 async def _settings(db: AsyncSession) -> Settings:
     settings = (await db.execute(select(Settings))).scalars().first()
     if settings is None:
         raise HTTPException(404, "Réglages introuvables")
     return settings
-
-
-@router.get("/reorder")
-async def fileflows_reorder_state(db: AsyncSession = Depends(get_db_async)):
-    """Option d'alternance de la file par disque, bibliothèques activées et dernier passage."""
-    inst = await _instance(db)
-    settings = await _settings(db)
-    chosen = set(fileflows_queue.parse_libraries(settings.fileflows_reorder_libraries))
-    libraries = await _guard(fileflows_queue.enabled_libraries(inst.url, inst.api_key))
-    return {
-        "enabled": bool(settings.fileflows_reorder_enabled),
-        "libraries": [{**lib, "included": lib["uid"] in chosen} for lib in libraries],
-        "last_run": await fileflows_queue.last_run(),
-    }
-
-
-@router.put("/reorder")
-async def fileflows_reorder_save(body: ReorderBody, db: AsyncSession = Depends(get_db_async)):
-    settings = await _settings(db)
-    settings.fileflows_reorder_enabled = body.enabled
-    settings.fileflows_reorder_libraries = json.dumps(list(dict.fromkeys(body.libraries)))
-    await db.commit()
-    return {"enabled": body.enabled, "libraries": list(dict.fromkeys(body.libraries))}
 
 
 @router.post("/reorder/run")
