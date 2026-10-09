@@ -530,6 +530,7 @@ async def _build_folder_index(db: AsyncSession) -> dict[str, dict[str, Any]]:
                 LibraryItem.year,
                 LibraryItem.media_type,
                 LibraryItem.poster_url,
+                LibraryItem.art_url,
                 LibraryItem.arr_instance_id,
                 LibraryItem.arr_id,
             ).filter(LibraryItem.arr_instance_id.in_([i.id for i in instances]), LibraryItem.arr_id.isnot(None))
@@ -552,6 +553,7 @@ async def _build_folder_index(db: AsyncSession) -> dict[str, dict[str, Any]]:
                 "year": row.year,
                 "media_type": row.media_type,
                 "poster_url": row.poster_url,
+                "backdrop_url": row.art_url,
             }
     return index
 

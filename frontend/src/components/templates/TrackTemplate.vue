@@ -117,6 +117,7 @@ function toLive(item: TrackItem): LiveItem {
     status: item.eta || '',
     progress: item.progress ?? null,
     poster: item.poster || null,
+    backdrop: item.backdrop || null,
     icon: item.icon,
     badge: item.step ? { label: item.step, tone: 'accent' } : null,
     who: item.subtitle || '',

@@ -2,9 +2,9 @@
   <!-- Bibliotheques FileFlows (gabarit Configurer) : chacune s'active, se scanne et se
        modifie (flow, dossier Plex correspondant, alternance) dans la fenetre commune. Les
        changements s'appliquent aussitot : rien a enregistrer pour la page. -->
-  <EncodingShell title="Bibliothèques">
+  <EncodingShell title="Bibliothèques" v-model:query="query" :search="{ placeholder: 'Rechercher un réglage…', kind: 'filter', scope: 'Bibliothèques de l’encodage' }">
     <UiFeedback v-if="librariesQuery.isError.value" type="error" :message="humanizeError(librariesQuery.error.value)" />
-    <ConfigureTemplate v-else :sections="SECTIONS">
+    <ConfigureTemplate v-else :sections="SECTIONS" :query="query">
       <template #section-libraries>
         <p v-if="librariesQuery.isPending.value" class="libs-muted">Chargement des bibliothèques…</p>
         <ResourceList v-else :resources="resources" empty-text="Aucune bibliothèque dans FileFlows." @toggle="(r, on) => patch(r.key, { enabled: on })" @action="onAction" @edit="openEdit" />
@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { ListRestart, RefreshCw } from '@lucide/vue';
+import { FolderTree, ListRestart, RefreshCw, Shuffle } from '@lucide/vue';
 import { api } from '@/api';
 import { useFileflowsStatus } from '@/composables/useFileflows';
 import { useToast } from '@/composables/useToast';
@@ -60,9 +60,10 @@ const librariesQuery = useQuery({
 });
 const data = computed(() => librariesQuery.data.value || null);
 
+const query = ref('');
 const SECTIONS = [
-  { key: 'libraries', title: 'Bibliothèques', description: 'Ce que FileFlows traite, avec quel flow, et la correspondance avec Plex.' },
-  { key: 'order', title: 'Alternance', description: 'Les bibliothèques cochées passent à tour de rôle, disque par disque.' },
+  { key: 'libraries', icon: FolderTree, keywords: ['flow', 'plex', 'scanner'], title: 'Bibliothèques', description: 'Ce que FileFlows traite, avec quel flow, et la correspondance avec Plex.' },
+  { key: 'order', icon: Shuffle, keywords: ['alterner', 'ordre'], title: 'Alternance', description: 'Les bibliothèques cochées passent à tour de rôle, disque par disque.' },
 ];
 
 /* Etat de la correspondance Plex, en une ligne. */

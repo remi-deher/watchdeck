@@ -77,6 +77,7 @@ const running = computed<LiveItem[]>(() => (status.value?.runners || []).map((ru
   status: runner.percent ? `${Math.round(runner.percent)} % de l’étape` : 'Démarrage…',
   progress: runner.percent || 0,
   poster: runner.media?.poster_url || null,
+  backdrop: runner.media?.backdrop_url || null,
   icon: Cpu,
   badge: { label: runner.step || 'Démarrage', tone: 'accent' },
   corner: { label: diskOf(runner.name), icon: HardDrive },

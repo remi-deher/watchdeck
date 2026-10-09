@@ -31,6 +31,8 @@ export interface TrackItem {
   subtitle?: string;
   /** Affiche ; a defaut, l'icone. */
   poster?: string | null;
+  /** Fond paysage, pour la carte en cours en grand format. */
+  backdrop?: string | null;
   icon?: any;
   /** Etiquettes courtes : episode, qualite, taille… */
   tags?: string[];

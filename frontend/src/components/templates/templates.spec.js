@@ -237,7 +237,9 @@ describe('ConfigureTemplate', () => {
       slots: { 'section-plex': '<p class="plex-body">Pause</p>' },
       global,
     });
-    expect(wrapper.findAll('.configure__toc-link').map((n) => n.text())).toEqual(['Connexion', 'Pendant une lecture Plexmodifié', 'Bibliothèques']);
+    expect(wrapper.find('.configure__toc').exists()).toBe(false);
+    expect(wrapper.findAll('.configure__section-head h2').map((n) => n.text())).toEqual(['Connexion', 'Pendant une lecture Plex', 'Bibliothèques']);
+    expect(wrapper.find('#configure-plex .configure__dirty').text()).toBe('Non enregistré');
     expect(wrapper.find('#configure-plex .plex-body').exists()).toBe(true);
     expect(wrapper.find('#configure-plex').classes()).toContain('is-dirty');
     const buttons = wrapper.findAll('.form-save-bar button');
@@ -246,6 +248,15 @@ describe('ConfigureTemplate', () => {
     await buttons[0].trigger('click');
     expect(wrapper.emitted('save')).toHaveLength(1);
     expect(wrapper.emitted('cancel')).toHaveLength(1);
+  });
+
+  it('ne garde que les sections qui repondent a la recherche, sans tenir compte des accents', async () => {
+    const wrapper = mount(ConfigureTemplate, { props: { sections: [...sections, { key: 'alerts', title: 'Alertes', keywords: ['ntfy'] }], query: 'NTFY' }, global });
+    expect(wrapper.findAll('.configure__section-head h2').map((n) => n.text())).toEqual(['Alertes']);
+    await wrapper.setProps({ query: 'bibliotheque' });
+    expect(wrapper.findAll('.configure__section-head h2').map((n) => n.text())).toEqual(['Bibliothèques']);
+    await wrapper.setProps({ query: 'zzz' });
+    expect(wrapper.text()).toContain('Aucun réglage');
   });
 
   it('cache la barre tant que rien n’est modifié', async () => {

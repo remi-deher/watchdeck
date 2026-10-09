@@ -28,7 +28,6 @@
     retry
     @update:query="emit('update:query', $event)"
     @toggle-filters="filtersOpen = !filtersOpen"
-    sections-everywhere
     :subsections="tabs"
     :active-subsection="activeTab"
     @retry="emit('retry')"
@@ -38,6 +37,8 @@
       <AppSubnav :items="tabs" :active="activeTab" :aria-label="tabsLabel || `Vues de ${title}`" />
     </template>
     <template v-if="$slots.tools" #tools><slot name="tools" /></template>
+    <!-- L'action du contexte, dans le segment de droite de la capsule de recherche. -->
+    <template v-if="$slots['quick-action']" #quick-action><slot name="quick-action" /></template>
 
     <FilterSidebar
       v-if="$slots.filters"

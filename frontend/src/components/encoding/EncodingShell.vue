@@ -15,7 +15,10 @@
     :unconfigured="UNCONFIGURED"
     @retry="statusQuery.refetch()"
   >
-    <template #tools><EncodingCommandBar compact /></template>
+    <!-- La capsule : l'etat de FileFlows en retour, et la pause en action la ou l'on
+         surveille ce qui tourne (Vue d'ensemble, File). -->
+    <template #tools><EncodingCommandBar compact part="state" /></template>
+    <template v-if="PAUSE_HERE.includes(route.path)" #quick-action><EncodingCommandBar compact part="pause" /></template>
     <template v-for="(_, name) in $slots" #[name]="scope"><slot :name="name" v-bind="scope || {}" /></template>
   </PageTemplate>
 </template>
@@ -55,6 +58,7 @@ const GROUPS: SubnavItem[][] = [
   ],
 ];
 const route = useRoute();
+const PAUSE_HERE = ['/encoding', '/encoding/queue'];
 const tabs = computed(() => GROUPS.find((group) => group.some((item) => item.key === route.path)) || []);
 
 const { query: statusQuery, status } = useFileflowsStatus();

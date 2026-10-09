@@ -15,6 +15,8 @@ export interface FileflowsMedia {
   year?: number | null;
   media_type: string;
   poster_url?: string | null;
+  /** Fond paysage (fanart) : le bandeau « En cours » s'en sert en grand format. */
+  backdrop_url?: string | null;
 }
 
 export interface FileflowsTiming {
