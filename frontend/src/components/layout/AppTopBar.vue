@@ -35,7 +35,10 @@
         @search="pageSearch.onSearch($event)"
         @toggle-filters="pageSearch.onToggleFilters()"
         @keydown.enter="rememberCurrentSearch"
-      />
+      >
+        <!-- Les outils de la page, a gauche de « Filtres » (usePageTools). -->
+        <template v-if="pageTools" #tools><RenderSlot :slot-fn="pageTools" /></template>
+      </UiSearchField>
       <!-- Echappee vers la recherche globale. Elle compte double sur une page qui
            filtre : ce que l'on cherche n'est peut-etre pas dans cette liste, et le
            champ ne peut alors rien faire apparaitre. Le libelle dit donc ou l'on va,
@@ -56,31 +59,36 @@
       </div>
     </div>
 
-    <button
-      v-else-if="pageSearch?.hasFilters"
-      type="button"
-      class="app-topbar__filter-only"
-      :class="{ active: pageSearch.filtersOpen || pageSearch.activeCount > 0 }"
-      :aria-expanded="pageSearch.filtersOpen"
-      :aria-label="pageSearch.filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'"
-      @click="pageSearch.onToggleFilters()"
-    >
-      <SlidersHorizontal aria-hidden="true" />
-      <span>Filtres</span>
-      <strong v-if="pageSearch.activeCount">{{ pageSearch.activeCount }}</strong>
-    </button>
+    <div v-if="!pageSearch?.showSearch" class="app-topbar__group">
+      <button
+        v-if="!pageSearch?.showSearch && pageSearch?.hasFilters"
+        type="button"
+        class="app-topbar__filter-only"
+        :class="{ active: pageSearch.filtersOpen || pageSearch.activeCount > 0 }"
+        :aria-expanded="pageSearch.filtersOpen"
+        :aria-label="pageSearch.filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'"
+        @click="pageSearch.onToggleFilters()"
+      >
+        <SlidersHorizontal aria-hidden="true" />
+        <span>Filtres</span>
+        <strong v-if="pageSearch.activeCount">{{ pageSearch.activeCount }}</strong>
+      </button>
 
-    <button
-      v-else
-      type="button"
-      class="app-topbar__search"
-      @click="$emit('open-palette')"
-    >
-      <Search aria-hidden="true" />
-      <span>Rechercher…</span>
-      <kbd>{{ shortcutLabel }}</kbd>
-    </button>
+      <button
+        v-else-if="!pageSearch?.showSearch"
+        type="button"
+        class="app-topbar__search"
+        @click="$emit('open-palette')"
+      >
+        <Search aria-hidden="true" />
+        <span>Rechercher…</span>
+        <kbd>{{ shortcutLabel }}</kbd>
+      </button>
 
+      <!-- Les outils de la page, a droite de la recherche globale (la ou serait
+           « Filtres ») : dans le meme bloc, pour que la barre garde sa largeur. -->
+      <div v-if="pageTools" class="app-topbar__tools"><RenderSlot :slot-fn="pageTools" /></div>
+    </div>
     <!-- La loupe ne subsiste que sans recherche de page : elle ouvre alors la
          recherche globale, seul recours depuis un telephone. -->
     <button
@@ -100,6 +108,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { History, Search, SlidersHorizontal } from '@lucide/vue';
 import UiSearchField from '@/components/ui/UiSearchField.vue';
+import RenderSlot from '@/components/ui/RenderSlot.vue';
+import { setPageToolsHost, usePageTools } from '@/composables/usePageTools';
 import { usePageSearch } from '@/composables/usePageSearch';
 import { usePageTitle } from '@/composables/usePageTitle';
 import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
@@ -138,10 +148,13 @@ const { hidden: toolbarHidden, setHold, reveal } = useChromeAutoHide();
    filtres du telephone, non modale, tient elle-meme la barre visible : voir FilterSidebar. */
 watch(searchFocused, (active) => setHold('topbar', active), { immediate: true });
 
+const { tools: pageTools } = usePageTools();
 onMounted(() => {
+  setPageToolsHost(true);
   window.addEventListener('keydown', focusContextSearch);
 });
 onUnmounted(() => {
+  setPageToolsHost(false);
   setHold('topbar', false);
   window.removeEventListener('keydown', focusContextSearch);
 });
@@ -214,7 +227,7 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
  * vide : elle y porte le titre de la page, et sa position ne doit pas sauter d'une
  * page a l'autre.
  */
-const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.value));
+const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.value) || Boolean(pageTools.value));
 
 /* Les sections ne remontent ici qu'en mode deploye : plus bas, la barre n'a pas la
    largeur de les porter sans chasser le titre, seul repere visible depuis que le
@@ -375,6 +388,26 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
   color: var(--text);
   font-weight: 700;
 }
+.app-topbar__group { display: flex; flex: 1 1 auto; align-items: center; gap: var(--space-2); min-width: 0; }
+.app-topbar__group > .app-topbar__search, .app-topbar__group > .app-topbar__filter-only { flex: 1 1 auto; min-width: 0; }
+.app-topbar__tools {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: min(40%, 360px);
+  height: 46px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+.app-topbar__tools::-webkit-scrollbar { display: none; }
+.app-topbar__tools :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
 .app-topbar__filter-only {
   display: none;
   align-items: center;
@@ -548,7 +581,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
      Le bouton de recherche globale (pages sans recherche propre, comme l'Accueil)
      prend la meme largeur : sans cela il s'etirait sur toute la barre. */
   .app-topbar__field,
-  .app-topbar__search {
+  .app-topbar__group {
     flex: 0 1 auto;
     /* Largeur DEFINIE, pas `min(720px, 100%)` : la barre se dimensionne desormais sur
        son contenu, donc un pourcentage ici se resoudrait sur un parent qui depend
@@ -580,7 +613,7 @@ const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.va
     max-width: 90px;
   }
   .app-topbar__field,
-  .app-topbar__search {
+  .app-topbar__group {
     /* Base `auto` et non 520px : une base flex explicite l'emporte sur `width`, et le
        champ gardait ses 520px sur une tablette en portrait (~800px), recouvrant le
        titre. La reserve de 196px (98 par cote) doit rester garantie. */

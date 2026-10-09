@@ -12,9 +12,9 @@
     <span v-if="control && control.plex_pause !== 'off'" class="cmd-pill is-warning">Pause lecture : {{ PLEX_PAUSE_LABELS[control.plex_pause].toLowerCase() }}</span>
     <span v-if="pausedDisks.length" class="cmd-pill is-warning"><CirclePause aria-hidden="true" />{{ pausedDisks.join(', ') }} en pause</span>
     <template v-if="status?.connected">
-      <UiButton v-if="status.paused" size="sm" variant="primary" :loading="pauseMutation.isPending.value" @click="pauseMutation.mutate(0)"><Play />Reprendre</UiButton>
+      <UiButton v-if="status.paused" size="sm" variant="primary" :loading="pauseMutation.isPending.value" @click="pauseMutation.mutate(0)"><Play /><span class="cmd-label">Reprendre</span></UiButton>
       <UiMenu v-else label="Mettre en pause" align="end">
-        <template #trigger><UiButton size="sm" :loading="pauseMutation.isPending.value"><Pause />Pause</UiButton></template>
+        <template #trigger><UiButton size="sm" :loading="pauseMutation.isPending.value"><Pause /><span class="cmd-label">Pause</span></UiButton></template>
         <UiMenuItem v-for="option in PAUSE_OPTIONS" :key="option.minutes" @select="pauseMutation.mutate(option.minutes)">{{ option.label }}</UiMenuItem>
       </UiMenu>
     </template>
@@ -76,7 +76,7 @@ const pauseMutation = useMutation({
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 .cmd { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
-.cmd.is-compact { padding: var(--space-2) var(--space-3); }
+.cmd.is-compact { flex-wrap: nowrap; padding: 0; border: 0; background: transparent; }
 .cmd-state { display: flex; align-items: center; gap: var(--space-2); }
 .cmd-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .cmd-dot.is-success { background: var(--green); }
@@ -88,9 +88,11 @@ const pauseMutation = useMutation({
 .cmd-pill svg { width: 13px; height: 13px; }
 .cmd-pill.is-accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .cmd-pill.is-warning { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber-text); }
-/* En outil de page sur petit ecran : l'etat et la pause seulement ; les automatismes se
-   lisent dans la Vue d'ensemble et les Reglages. */
+/* En outil de page (dans la barre de recherche) : l'etat et la pause seulement ; les
+   automatismes se lisent dans la Vue d'ensemble et les Reglages. */
+.cmd.is-compact .cmd-pill, .cmd.is-compact .cmd-meta, .cmd.is-compact .cmd-spacer { display: none; }
+/* Sur telephone, dans la barre : un point d'etat et un bouton sans texte. */
 @include bp.until(phablet) {
-  .cmd.is-compact .cmd-pill, .cmd.is-compact .cmd-meta { display: none; }
+  .cmd.is-compact .cmd-state strong, .cmd.is-compact .cmd-label { display: none; }
 }
 </style>

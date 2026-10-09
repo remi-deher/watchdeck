@@ -15,7 +15,8 @@
        Des constats, pas des alertes : les alertes relevent de Surveiller. -->
   <div class="analyze">
     <div class="analyze__scope">
-      <UiSegmentedControl :model-value="period" :options="PERIODS" ariaLabel="Période" @update:model-value="emit('update:period', $event as AnalyzePeriod)" />
+      <!-- La periode cadre toute la page : elle vit dans la capsule de recherche. -->
+      <PageTools><UiSegmentedControl :model-value="period" :options="PERIODS" ariaLabel="Période" @update:model-value="emit('update:period', $event as AnalyzePeriod)" /></PageTools>
       <small class="analyze__compare">{{ period === 'all' ? 'Depuis le début · pas de comparaison' : `Comparé aux ${periodLabel} précédents` }}</small>
     </div>
 
@@ -67,6 +68,7 @@ import { ChevronRight, Lightbulb, X } from '@lucide/vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
 import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import PageTools from '@/components/ui/PageTools.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import type { AnalyzeDrill, AnalyzeKpi, AnalyzeLead, AnalyzePeriod } from './analyze/types';
 
@@ -118,7 +120,7 @@ function trendOf(kpi: AnalyzeKpi): { direction: string; label: string } {
 </script>
 
 <style scoped lang="scss">
-.analyze { display: grid; gap: var(--space-4); min-width: 0; }
+.analyze { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
 .analyze__scope { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .analyze__compare { color: var(--muted); font-size: var(--fs-sm); }
 .analyze__leads { display: grid; gap: var(--space-2); }

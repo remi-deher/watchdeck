@@ -6,19 +6,12 @@
   <ModalShell :open="open" title="Filtres" panel-class="filter-sheet" :modal="false" @close="$emit('close')">
     <!-- Ce qui est actif, en tete : on le voit en ouvrant, et on le retire d'un appui
          sans chercher le groupe qui le porte. -->
-    <FilterChips :groups="groups" :chips="chips" />
+    <FilterChips :groups="groups" :chips="chips" clearable @clear="$emit('reset')" />
     <div class="filter-modal-body">
       <slot />
     </div>
-    <!-- Un pied, toujours.
-         « Réinitialiser » n'apparaissait qu'avec un filtre actif, et rien ne permettait
-         de conclure : il fallait remonter chercher la croix tout en haut d'un panneau
-         qu'on venait de parcourir. L'action principale ferme, et dit ce qu'elle ferme --
-         avec le décompte quand la page le fournit. -->
-    <template #actions>
-      <UiButton v-if="activeCount" @click="$emit('reset')">Réinitialiser</UiButton>
-      <UiButton variant="primary" class="filter-apply" @click="$emit('close')">{{ applyLabel }}</UiButton>
-    </template>
+    <!-- Pas de pied : les filtres s'appliquent en direct, les pastilles en tete les
+         retirent (« Tout effacer » a partir de deux), et la croix ferme la feuille. -->
   </ModalShell>
 </template>
 
@@ -27,7 +20,6 @@ import { computed, onUnmounted, provide, shallowReactive, watch } from 'vue';
 import { FILTER_CHIP_REGISTRY, type FilterChip } from '@/composables/useFiltersDrawer';
 import FilterChips from './FilterChips.vue';
 import ModalShell from './ModalShell.vue';
-import UiButton from './UiButton.vue';
 import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
 
 const props = withDefaults(
@@ -37,7 +29,7 @@ const props = withDefaults(
     /** Filtres actifs, en puces retirables en tete du panneau. Facultatif : par defaut
      *  elles sont deduites des groupes de puces du panneau (voir FILTER_CHIP_REGISTRY). */
     chips?: FilterChip[];
-    /** Nombre de resultats retenus, quand la page sait le donner avant fermeture. */
+    /** Nombre de resultats retenus (garde pour les appelants ; le pied qui l'affichait a disparu). */
     matchCount?: number | null;
   }>(),
   {
@@ -62,13 +54,6 @@ provide(FILTER_CHIP_REGISTRY, {
    dialogue Reka, et y lire le registre -- que les groupes remplissent a leur montage,
    donc pendant ce meme rendu -- le relancait en boucle (« Maximum recursive updates »). */
 
-/* Le libelle annonce le resultat quand la page le connait. Sans decompte fiable il
-   reste generique : un chiffre faux serait pire que pas de chiffre. */
-const applyLabel = computed(() => {
-  const count = props.matchCount;
-  if (count == null) return 'Voir les résultats';
-  return count === 1 ? 'Voir 1 résultat' : `Voir ${count.toLocaleString('fr-FR')} résultats`;
-});
 
 /* L'habillage de la barre (coins droits, capsule pleine hauteur) suit cet attribut et
    non la presence de la feuille dans le document : celle-ci peut y trainer le temps

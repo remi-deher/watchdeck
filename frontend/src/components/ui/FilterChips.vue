@@ -15,6 +15,11 @@
         <X aria-hidden="true" />
       </button>
     </li>
+    <!-- A partir de deux filtres, une pastille les retire tous ; un seul se retire par
+         sa croix. -->
+    <li v-if="clearable && active.length > 1">
+      <button type="button" class="filter-chip is-clear" @click="emit('clear')">Tout effacer</button>
+    </li>
   </ul>
 </template>
 
@@ -28,7 +33,10 @@ const props = defineProps<{
   groups: Map<symbol, () => FilterChip[]>;
   /** Puces fournies par la page ; prioritaires sur celles deduites des groupes. */
   chips: FilterChip[];
+  /** Propose « Tout effacer » (emet `clear`). */
+  clearable?: boolean;
 }>();
+const emit = defineEmits<{ clear: [] }>();
 
 const active = computed<FilterChip[]>(() =>
   props.chips.length ? props.chips : [...props.groups.values()].flatMap((chips) => chips())
@@ -60,4 +68,6 @@ const active = computed<FilterChip[]>(() =>
 }
 .filter-chip svg { width: 13px; height: 13px; }
 .filter-chip:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.filter-chip.is-clear { border-color: var(--border); background: transparent; color: var(--muted); }
+.filter-chip.is-clear:hover { color: var(--text); }
 </style>

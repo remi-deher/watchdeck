@@ -38,12 +38,12 @@ describe('MonitorTemplate', () => {
     expect(order).toEqual(['monitor__verdict', 'monitor__kpis', 'monitor__attention', 'monitor__zones']);
   });
 
-  it('affiche les textes de la page quand tout va bien', () => {
+  it('se tait quand tout va bien : pas de verdict, le message de la page dans l’attention', () => {
     const wrapper = mount(MonitorTemplate, {
       props: { items: [], labels: { okTitle: 'L’encodage tourne', okDetail: 'Aucun échec, aucun disque bloqué.' } },
       global,
     });
-    expect(wrapper.find('.overview-verdict').text()).toContain('L’encodage tourne');
+    expect(wrapper.find('.overview-verdict').exists()).toBe(false);
     expect(wrapper.find('.overview-todo').text()).toContain('Aucun échec, aucun disque bloqué.');
     expect(wrapper.find('.monitor__kpis').exists()).toBe(false);
   });
@@ -81,9 +81,10 @@ describe('TrackTemplate', () => {
       global,
     });
     const heads = wrapper.findAll('.track__group h2').map((node) => node.text());
-    expect(heads).toEqual(['Demande une intervention', 'En cours', 'En attente']);
+    expect(heads).toEqual(['Demande une intervention', '1 en cours', 'En attente']);
     expect(wrapper.find('.track__group.is-blocked').text()).toContain('Import refusé');
-    expect(wrapper.find('.track__group.is-running').text()).toContain('42 %');
+    // En cours : le bandeau commun, progression en barre.
+    expect(wrapper.find('.track__group.is-running .live-card-track i').attributes('style')).toContain('width: 42%');
   });
 
   it('remonte l’action choisie avec son élément', async () => {

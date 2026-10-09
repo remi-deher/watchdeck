@@ -10,17 +10,29 @@
       :zones="zones"
       :icons="{ queue: ListOrdered, disk: HardDrive }"
       :loading="overviewQuery.isPending.value"
-      :refreshing="overviewQuery.isFetching.value"
       :labels="LABELS"
-      @refresh="overviewQuery.refetch()"
-    />
+    >
+      <template #live>
+        <LiveStrip
+          :items="running"
+          :title="`${running.length} fichier${running.length > 1 ? 's' : ''} en cours`"
+          live-label="En cours"
+          :summary="runningSummary"
+          :link="{ label: 'Voir la file', to: '/encoding/queue' }"
+          :idle="{ title: 'Aucun traitement en cours', message: status?.queue ? `${status.queue} fichiers attendent un runner.` : 'La file est vide.', icon: Cpu }"
+          @select="(item) => item.to && router.push(item.to)"
+        />
+      </template>
+    </MonitorTemplate>
   </EncodingShell>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Cog, HardDrive, History, ListOrdered } from '@lucide/vue';
+import { useRouter } from 'vue-router';
+import { Cog, Cpu, HardDrive, History, ListOrdered } from '@lucide/vue';
+import LiveStrip, { type LiveItem } from '@/components/ui/LiveStrip.vue';
 import { api } from '@/api';
 import { fileBaseName, useFileflowsStatus, type FileflowsMedia, type FileflowsOverview } from '@/composables/useFileflows';
 import { useRealtime } from '@/events';
@@ -33,7 +45,6 @@ const LABELS = {
   checkingDetail: 'File, disques et échecs récents.',
   okTitle: 'L’encodage tourne',
   okDetail: 'Aucun échec récent, aucun disque bloqué.',
-  refresh: 'Actualiser',
   kpisLabel: 'Activité de l’encodage',
   zonesLabel: 'Parties de l’encodage',
 };
@@ -56,6 +67,26 @@ const overview = computed(() => overviewQuery.data.value || null);
 function mediaTitle(media: FileflowsMedia): string {
   return media.year ? `${media.title} (${media.year})` : media.title;
 }
+
+/* Ce que font les runners : l'etape en badge, le disque en coin, la progression. */
+const router = useRouter();
+const diskOf = (path: string) => (path.split('/').filter(Boolean)[0] || '');
+const running = computed<LiveItem[]>(() => (status.value?.runners || []).map((runner) => ({
+  key: runner.path,
+  title: runner.media ? mediaTitle(runner.media) : fileBaseName(runner.name),
+  status: runner.percent ? `${Math.round(runner.percent)} % de l’étape` : 'Démarrage…',
+  progress: runner.percent || 0,
+  poster: runner.media?.poster_url || null,
+  icon: Cpu,
+  badge: { label: runner.step || 'Démarrage', tone: 'accent' },
+  corner: { label: diskOf(runner.name), icon: HardDrive },
+  who: runner.library,
+  to: runner.media ? `/library/media/library/${runner.media.id}` : null,
+})));
+const runningSummary = computed(() => {
+  const state = overview.value?.state;
+  return state ? `${state.queue} en attente${overview.value?.throughput.per_hour != null ? ` · ${Math.round(overview.value.throughput.per_hour)} / h` : ''}` : '';
+});
 
 /* Points d'attention : chaque echec recent, puis les disques ou des fichiers attendent
    le verrou pendant qu'un autre disque a du travail, et les disques en pause lecture. */

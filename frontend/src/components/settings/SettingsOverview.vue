@@ -4,14 +4,12 @@
        passe devant et sert de menu (voir l'ordre des zones plus bas). -->
   <div class="admin-overview">
     <OverviewVerdict
+      v-if="attention.loading.value || attention.urgent.value"
       class="ov-verdict"
       :urgent="attention.urgent.value"
       :errors="severityCount('error')"
       :warnings="severityCount('warn')"
       :loading="attention.loading.value"
-      :refreshing="refreshing"
-      :checked-label="checkedLabel"
-      @refresh="refresh"
     />
     <OverviewKpis class="ov-kpis" :kpis="kpis" />
     <OverviewTodo class="ov-todo" :items="attention.items.value" :loading="attention.loading.value" :icons="AREA_ICONS" />
@@ -194,14 +192,6 @@ async function refresh(): Promise<void> {
 
 const now = ref(new Date());
 useIntervalFn(() => { now.value = new Date(); }, 30_000);
-const checkedLabel = computed(() => {
-  const raw = attention.checkedAt.value;
-  if (!raw) return 'Vérifier';
-  const seconds = Math.max(0, Math.floor((now.value.getTime() - parseApiDate(raw).getTime()) / 1000));
-  if (seconds < 60) return 'Vérifié à l’instant';
-  if (seconds < 3600) return `Vérifié il y a ${Math.floor(seconds / 60)} min`;
-  return `Vérifié il y a ${Math.floor(seconds / 3600)} h`;
-});
 </script>
 
 <style scoped lang="scss">
