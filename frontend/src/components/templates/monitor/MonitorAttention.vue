@@ -1,12 +1,12 @@
 <template>
   <section class="overview-todo" aria-labelledby="overview-todo-title">
     <header class="overview-head">
-      <h2 id="overview-todo-title">À traiter</h2>
+      <h2 id="overview-todo-title">{{ title }}</h2>
       <span v-if="items.length" class="overview-head__meta">par gravité</span>
     </header>
     <ul v-if="items.length" class="overview-todo__list">
       <li v-for="item in items" :key="item.key" class="overview-todo__item" :class="`is-${item.severity}`">
-        <span class="overview-todo__icon"><component :is="icons[item.area]" v-if="icons[item.area]" aria-hidden="true" /></span>
+        <span class="overview-todo__icon"><component :is="icons[item.area]" v-if="item.area && icons[item.area]" aria-hidden="true" /></span>
         <span class="sr-only">{{ SEVERITY_LABELS[item.severity] }} :</span>
         <div class="overview-todo__text">
           <strong>{{ item.title }}</strong>
@@ -21,9 +21,9 @@
       v-else-if="!loading"
       :icon="CheckCircle2"
       title="Rien à traiter"
-      message="Les services répondent, les tâches passent et la configuration est complète."
+      :message="emptyDetail"
     />
-    <p v-else class="overview-head__loading">Vérification des services…</p>
+    <p v-else class="overview-head__loading">{{ loadingText }}</p>
   </section>
 </template>
 
@@ -31,14 +31,23 @@
 import { RouterLink } from 'vue-router';
 import { CheckCircle2 } from '@lucide/vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
-import type { AttentionItem, AttentionSeverity } from '@/adminAttention';
+import type { MonitorAttentionItem, MonitorSeverity as AttentionSeverity } from './types';
 
-defineProps<{
-  items: AttentionItem[];
+withDefaults(defineProps<{
+  items: MonitorAttentionItem[];
   loading?: boolean;
-  /** Icône de la zone concernée, par clé de zone. */
-  icons: Record<string, any>;
-}>();
+  /** Icône de la partie concernée, par clé de partie. */
+  icons?: Record<string, any>;
+  title?: string;
+  emptyDetail?: string;
+  loadingText?: string;
+}>(), {
+  loading: false,
+  icons: () => ({}),
+  title: 'À traiter',
+  emptyDetail: 'Les services répondent, les tâches passent et la configuration est complète.',
+  loadingText: 'Vérification des services…',
+});
 
 const SEVERITY_LABELS: Record<AttentionSeverity, string> = { error: 'Erreur', warn: 'À surveiller', info: 'Information' };
 </script>

@@ -23,6 +23,17 @@ Chaque page relève d'un seul besoin, donc d'un seul gabarit :
 Une page qui mélange deux besoins se découpe (onglets ou pages distinctes), chaque
 partie suivant son propre gabarit.
 
+Les gabarits vivent dans `frontend/src/components/templates/` :
+
+| Fichier | Rôle | État |
+|---|---|---|
+| `PageTemplate.vue` | Socle : page du shell, rangée d'onglets unique, états chargement / erreur / non configuré / vide | Disponible |
+| `MonitorTemplate.vue` (+ `monitor/`) | Surveiller : verdict, indicateurs, attention, parties de la section | Disponible |
+| Traiter, Suivre, Explorer, Comprendre, Configurer, Fiche | — | À créer |
+
+Une page Surveiller s'écrit `PageTemplate` > `MonitorTemplate`, en ne fournissant que
+ses données (`items`, `kpis`, `zones`, `labels`).
+
 ## 2. Pas de dérive : on suit le gabarit
 
 - Toute page passe par le gabarit de son besoin. Aucune page « sur mesure ».

@@ -31,8 +31,19 @@ const props = withDefaults(
     loading?: boolean;
     refreshing?: boolean;
     checkedLabel?: string;
+    /** Textes propres a la page ; ceux de l'administration par defaut. */
+    checkingTitle?: string;
+    checkingDetail?: string;
+    okTitle?: string;
+    okDetail?: string;
   }>(),
-  { errors: 0, warnings: 0, loading: false, refreshing: false, checkedLabel: 'Vérifier' }
+  {
+    errors: 0, warnings: 0, loading: false, refreshing: false, checkedLabel: 'Vérifier',
+    checkingTitle: 'Vérification de l’instance…',
+    checkingDetail: 'Services, tâches et configuration.',
+    okTitle: 'Tout fonctionne',
+    okDetail: 'Les services répondent, les tâches passent et la configuration est complète.',
+  }
 );
 const emit = defineEmits<{ refresh: [] }>();
 
@@ -40,13 +51,13 @@ const emit = defineEmits<{ refresh: [] }>();
 const spokenCount = computed(() => `${props.urgent} `);
 const tone = computed(() => (props.loading ? 'idle' : props.errors ? 'error' : props.urgent ? 'warn' : 'good'));
 const title = computed(() => {
-  if (props.loading) return 'Vérification de l’instance…';
-  if (!props.urgent) return 'Tout fonctionne';
+  if (props.loading) return props.checkingTitle;
+  if (!props.urgent) return props.okTitle;
   return props.urgent > 1 ? 'points à traiter' : 'point à traiter';
 });
 const subtitle = computed(() => {
-  if (props.loading) return 'Services, tâches et configuration.';
-  if (!props.urgent) return 'Les services répondent, les tâches passent et la configuration est complète.';
+  if (props.loading) return props.checkingDetail;
+  if (!props.urgent) return props.okDetail;
   const parts: string[] = [];
   if (props.errors) parts.push(`${props.errors} ${props.errors > 1 ? 'erreurs' : 'erreur'}`);
   if (props.warnings) parts.push(`${props.warnings} à surveiller`);
