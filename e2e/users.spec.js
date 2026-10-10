@@ -50,14 +50,15 @@ test("un compte s'active depuis sa ligne, sans passer par la sélection", async 
 test("bloquer la connexion de la sélection demande confirmation", async ({ page }) => {
   const calls = await mockApi(page);
   await page.goto("/users");
-  await page.getByRole("checkbox", { name: "Tout sélectionner" }).click();
-  await expect(page.getByRole("toolbar", { name: "Actions groupées" })).toContainText("3 utilisateurs sélectionnés");
+  // La case d'une ligne, et non celle de l'en-tete : en cartes (telephone), l'en-tete est recouvert.
+  await page.getByRole("checkbox", { name: "Sélectionner Alice" }).click();
+  await expect(page.getByRole("toolbar", { name: "Actions groupées" })).toContainText("1 utilisateur sélectionné");
 
   await page.getByRole("button", { name: /Rôle & connexion/ }).click();
   await page.getByRole("menuitem", { name: /Bloquer la connexion/ }).click();
-  await expect(page.getByRole("alertdialog")).toContainText("Bloquer la connexion de 3 comptes ?");
+  await expect(page.getByRole("alertdialog")).toContainText("Bloquer la connexion de 1 compte ?");
   expect(calls.some((call) => call.path === "/api/users/bulk/permissions")).toBe(false);
 
   await page.getByRole("alertdialog").getByRole("button", { name: "Bloquer la connexion" }).click();
-  await expect.poll(() => calls.find((call) => call.path === "/api/users/bulk/permissions")?.body).toBe(JSON.stringify({ user_ids: [1, 2, 3], can_login: false }));
+  await expect.poll(() => calls.find((call) => call.path === "/api/users/bulk/permissions")?.body).toBe(JSON.stringify({ user_ids: [1], can_login: false }));
 });
