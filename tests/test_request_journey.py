@@ -122,8 +122,8 @@ def test_live_download_progress_is_part_of_complete_journey():
 
 
 def test_paginated_endpoint_has_required_journey_and_consistent_availability(async_db):
-    from app.models import MediaRequest, RequestStatus, FulfillmentStatus
-    from tests.test_library_filters import _client, _cleanup
+    from app.models import FulfillmentStatus, MediaRequest, RequestStatus
+    from tests.test_library_filters import _cleanup, _client
 
     async_db.add(
         MediaRequest(

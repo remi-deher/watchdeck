@@ -1,13 +1,15 @@
 import pytest
 from pydantic import ValidationError
 
-from app.services.work_ref import WorkRecord, download_work, encoding_work, transfer_work
-from app.services.fileflows import WAIT_STEP_PREFIX
 from app.services.arr_common import queue_progress
 from app.services.arr_queue_common import classify_queue_record
+from app.services.fileflows import WAIT_STEP_PREFIX
+from app.services.work_ref import WorkRecord, download_work, encoding_work, transfer_work
 
 
-@pytest.mark.parametrize("value, expected", [(None, None), (0, 0), (100, 100), (-5, 0), (125, 100), (float("nan"), None)])
+@pytest.mark.parametrize(
+    "value, expected", [(None, None), (0, 0), (100, 100), (-5, 0), (125, 100), (float("nan"), None)]
+)
 def test_encoding_step_progress(value, expected):
     work = encoding_work({"path": "/a", "step": "Vidéo", "percent": value}, instance_id=1, runner=True)
     assert work["progress"]["percent"] == expected
@@ -21,9 +23,14 @@ def test_disk_lock_is_automatic_waiting():
     assert work["reason"]
 
 
-@pytest.mark.parametrize("tracked,state", [("importPending", "waiting"), ("importing", "running"), ("imported", "completed"), (None, "waiting")])
+@pytest.mark.parametrize(
+    "tracked,state",
+    [("importPending", "waiting"), ("importing", "running"), ("imported", "completed"), (None, "waiting")],
+)
 def test_download_finished_does_not_certify_import(tracked, state):
-    work = download_work({"arr_type": "sonarr", "instance_id": 1, "queue_id": 2, "progress": 100, "tracked_state": tracked})
+    work = download_work(
+        {"arr_type": "sonarr", "instance_id": 1, "queue_id": 2, "progress": 100, "tracked_state": tracked}
+    )
     assert work["state"] == state
     assert work["progress"]["scope"] == "download"
 
@@ -45,7 +52,12 @@ def test_unknown_arr_measurement_is_not_zero_or_complete():
 
 
 def test_copy_finished_still_requires_finalization_and_observed_pause():
-    row = {"id": 1, "status": "finalizing", "desired_state": "pause", "items": [{"status": "plex_pending", "size_bytes": 100}]}
+    row = {
+        "id": 1,
+        "status": "finalizing",
+        "desired_state": "pause",
+        "items": [{"status": "plex_pending", "size_bytes": 100}],
+    }
     work = transfer_work(row)
     assert work["state"] == "running"
     assert work["stage"] == "Finalisation Plex"
@@ -63,6 +75,13 @@ def test_work_contract_is_required_and_rejects_incomplete_projection():
 
 
 def test_external_arr_move_has_no_observed_copy_percentage():
-    work = transfer_work({"id": 2, "status": "running", "params": {"transfer_mode": "arr"}, "items": [{"status": "arr_pending", "size_bytes": 100}]})
+    work = transfer_work(
+        {
+            "id": 2,
+            "status": "running",
+            "params": {"transfer_mode": "arr"},
+            "items": [{"status": "arr_pending", "size_bytes": 100}],
+        }
+    )
     assert work["progress"]["percent"] is None
     assert work["stage"] == "Déplacement confié à Arr"

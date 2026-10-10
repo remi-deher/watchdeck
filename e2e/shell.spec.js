@@ -19,7 +19,7 @@ async function mockApi(page) {
       await route.fulfill({ json: { role: "admin", is_owner: true } });
       return;
     }
-    if (pathname === "/api/users") {
+    if (["/api/users", "/api/scheduled-tasks"].includes(pathname)) {
       await route.fulfill({ json: [] });
       return;
     }

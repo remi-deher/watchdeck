@@ -1,8 +1,8 @@
 """La disponibilité ne confond jamais Plex et les fichiers *ARR."""
 
 from app.models import LibraryItem, MediaRequest, RequestStatus
-from app.services.media_availability import media_availability, MediaAvailability
-from app.serializers import serialize_media_request, serialize_library_item
+from app.serializers import serialize_library_item, serialize_media_request
+from app.services.media_availability import MediaAvailability, media_availability
 
 
 def test_movie_absent_from_plex_even_when_import_completed():
@@ -57,7 +57,7 @@ def test_generated_contract_matches_openapi():
 
 
 def test_library_endpoint_exposes_validated_availability(async_db):
-    from tests.test_library_filters import _client, _cleanup
+    from tests.test_library_filters import _cleanup, _client
 
     film = LibraryItem(title="Sans VF", media_type="movie", has_vf=False)
     async_db.add(film)
@@ -107,7 +107,7 @@ def test_detail_does_not_mix_selected_request_with_another_request_seasons():
 
 
 def test_in_plex_filter_excludes_completed_imports_without_library_confirmation(async_db):
-    from tests.test_library_filters import _client, _cleanup
+    from tests.test_library_filters import _cleanup, _client
 
     library = LibraryItem(title="Série partielle", media_type="show", has_vf=False)
     async_db.add(library)

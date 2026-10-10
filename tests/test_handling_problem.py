@@ -26,16 +26,33 @@ def test_closed_report_only_offers_reopening():
     assert problem["proposal"] is None
 
 
-@pytest.mark.parametrize("status", ["submitted", "queued", "downloading", "importing", "awaiting_plex", "completed", "rejected", "awaiting_submission"])
+@pytest.mark.parametrize(
+    "status",
+    [
+        "submitted",
+        "queued",
+        "downloading",
+        "importing",
+        "awaiting_plex",
+        "completed",
+        "rejected",
+        "awaiting_submission",
+    ],
+)
 def test_normal_waiting_and_terminal_decisions_are_not_problems(status):
     assert request_problems(SimpleNamespace(id=2, status="pending"), {"status": status}) == []
 
 
 def test_request_failure_uses_the_observed_journey():
-    problem = request_problems(SimpleNamespace(id=2), {
-        "status": "failed", "label": "En échec",
-        "blocker": {"label": "Radarr ne répond pas"}, "next_step": {"label": "Corriger puis relancer"},
-    })[0]
+    problem = request_problems(
+        SimpleNamespace(id=2),
+        {
+            "status": "failed",
+            "label": "En échec",
+            "blocker": {"label": "Radarr ne répond pas"},
+            "next_step": {"label": "Corriger puis relancer"},
+        },
+    )[0]
     assert problem["urgency"] == "high"
     assert problem["consequence"] == "Radarr ne répond pas"
     assert not problem["fixable"]
@@ -56,9 +73,15 @@ def test_required_consequence_cannot_be_omitted():
 
 def test_approval_is_a_decision_not_an_automatic_fix():
     from app.models import RequestStatus
-    problem = request_problems(SimpleNamespace(id=2, status=RequestStatus.pending_approval), {
-        "status": "not_submitted", "label": "À approuver", "blocker": None,
-        "next_step": {"label": "Approuver la demande"},
-    })[0]
+
+    problem = request_problems(
+        SimpleNamespace(id=2, status=RequestStatus.pending_approval),
+        {
+            "status": "not_submitted",
+            "label": "À approuver",
+            "blocker": None,
+            "next_step": {"label": "Approuver la demande"},
+        },
+    )[0]
     assert problem["proposal"] == "Approuver la demande"
     assert not problem["fixable"]

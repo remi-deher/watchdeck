@@ -41,7 +41,9 @@ async def test_unreachable_client_is_an_integration_error_not_a_work(async_db):
     async_db.add(client)
     await async_db.commit()
     downloads_api._torrent_client_cache.pop(client.id, None)
-    with patch("app.services.download_clients.list_client_torrents", new=AsyncMock(side_effect=RuntimeError("Offline"))):
+    with patch(
+        "app.services.download_clients.list_client_torrents", new=AsyncMock(side_effect=RuntimeError("Offline"))
+    ):
         rows = await downloads_api._compute_download_client_queue(async_db)
     assert rows == [{"client_id": client.id, "client_name": "Offline", "client_error": "Offline"}]
 
@@ -53,7 +55,10 @@ async def test_cached_torrent_cannot_confirm_current_activity(async_db):
     await async_db.commit()
     downloads_api._torrent_client_cache.pop(client.id, None)
     torrent = {"hash": "ABC", "name": "Film", "state": "downloading", "progress": 0.5}
-    with patch("app.services.download_clients.list_client_torrents", new=AsyncMock(side_effect=[[torrent], RuntimeError("Offline")])):
+    with patch(
+        "app.services.download_clients.list_client_torrents",
+        new=AsyncMock(side_effect=[[torrent], RuntimeError("Offline")]),
+    ):
         first = await downloads_api._compute_download_client_queue(async_db)
         stale = await downloads_api._compute_download_client_queue(async_db)
     assert first[0]["work"]["state"] == "running"

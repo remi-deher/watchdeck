@@ -53,7 +53,7 @@ async function mockApi(page, { snapshot = null } = {}) {
     }
     // Les endpoints de liste doivent renvoyer un tableau : un objet vide declenche
     // un avertissement Vue de type de prop et brouille la sortie des tests.
-    if (pathname === "/api/users") {
+    if (["/api/users", "/api/scheduled-tasks"].includes(pathname)) {
       await route.fulfill({ json: [] });
       return;
     }

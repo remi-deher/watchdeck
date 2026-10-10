@@ -8,10 +8,13 @@ def test_configuration_is_not_connectivity():
 
 
 def test_alerts_degrade_healthy_payload_even_when_details_are_truncated():
-    payload = health_payload({
-        "status": "healthy", "checked_at": "2026-10-10T00:00:00Z",
-        "services": {"sonarr": {"state": "ok", "response_ms": 12, "issue_count": 3}},
-    })
+    payload = health_payload(
+        {
+            "status": "healthy",
+            "checked_at": "2026-10-10T00:00:00Z",
+            "services": {"sonarr": {"state": "ok", "response_ms": 12, "issue_count": 3}},
+        }
+    )
     assert payload["status"] == "degraded"
     assert payload["services"]["sonarr"]["health"]["state"] == "warning"
     HealthResponse.model_validate(payload)

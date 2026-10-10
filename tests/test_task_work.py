@@ -3,7 +3,10 @@ import pytest
 from app.services.work_ref import WorkRecord, task_work
 
 
-@pytest.mark.parametrize("status,expected", [("running", "running"), ("complete", "completed"), ("failed", "blocked"), ("unexpected", "unknown")])
+@pytest.mark.parametrize(
+    "status,expected",
+    [("running", "running"), ("complete", "completed"), ("failed", "blocked"), ("unexpected", "unknown")],
+)
 def test_execution_is_observed_not_inferred_from_percent(status, expected):
     work = task_work("watchlist", {"status": status, "progress": 100})
     assert work["state"] == expected

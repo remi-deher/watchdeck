@@ -64,7 +64,7 @@ def request_operational_projection(
         "failed": error or "Une erreur technique bloque le parcours.",
         "removed": "Le media n'est plus suivi par *ARR.",
     }
-    projection = {
+    projection: dict[str, Any] = {
         "origin_kind": origin["kind"],
         "origin_label": origin["label"],
         "operational_status": fulfillment,

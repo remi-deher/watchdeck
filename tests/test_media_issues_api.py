@@ -68,7 +68,9 @@ def test_list_exposes_the_available_types_for_filtering(client, async_db):
 
 def test_list_resolves_the_poster_from_the_linked_media(client, async_db):
     """La carte a besoin d'une affiche ; le signalement ne la porte pas lui-même."""
-    item = LibraryItem(title="Le Voyage de Chihiro", media_type="movie", poster_url="/poster.jpg", art_url="/fanart.jpg")
+    item = LibraryItem(
+        title="Le Voyage de Chihiro", media_type="movie", poster_url="/poster.jpg", art_url="/fanart.jpg"
+    )
     async_db.add(item)
     async_db.commit()
     _issue(async_db, library_item_id=item.id)
@@ -128,6 +130,7 @@ def test_the_status_vocabulary_has_a_single_terminal_state(client, async_db):
 
 def test_audit_endpoint_serves_the_whole_problem_contract(client, async_db):
     from app.services.handling_problem import HandlingProblem
+
     item = LibraryItem(title="Pistes", media_type="movie", has_vf=True, fr_is_default=False, art_url="/fanart.jpg")
     async_db.add(item)
     async_db.commit()
@@ -142,8 +145,11 @@ def test_audit_endpoint_serves_the_whole_problem_contract(client, async_db):
 
 def test_request_poster_is_preserved_when_library_has_only_fanart(client, async_db):
     from app.models import MediaRequest
+
     library = LibraryItem(title="Deux images", media_type="movie", art_url="/fanart.jpg")
-    request = MediaRequest(title="Deux images", media_type="movie", poster_url="/request-poster.jpg", plex_user_id="alice")
+    request = MediaRequest(
+        title="Deux images", media_type="movie", poster_url="/request-poster.jpg", plex_user_id="alice"
+    )
     async_db.add(library)
     async_db.add(request)
     async_db.commit()

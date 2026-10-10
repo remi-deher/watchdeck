@@ -51,7 +51,10 @@ export function useAdminAttention(options: {
   });
   const tasks = useQuery({
     queryKey: ['settings', 'scheduled-tasks'],
-    queryFn: () => api<ScheduledTaskState[]>('/api/scheduled-tasks'),
+    queryFn: async () => {
+      const data = await api<ScheduledTaskState[]>('/api/scheduled-tasks');
+      return Array.isArray(data) ? data : [];
+    },
     staleTime: 60_000,
     enabled,
   });
