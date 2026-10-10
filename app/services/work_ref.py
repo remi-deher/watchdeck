@@ -9,14 +9,14 @@ from pydantic import BaseModel, ConfigDict, Field
 class WorkProgress(BaseModel):
     model_config = ConfigDict(extra="forbid")
     percent: float | None = Field(ge=0, le=100)
-    scope: Literal["step", "download", "copy"]
+    scope: Literal["step", "download", "copy", "items", "execution"]
     label: str
 
 
 class WorkRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str
-    source: Literal["encoding", "download", "transfer"]
+    source: Literal["encoding", "download", "transfer", "task", "scan"]
     state: Literal["running", "waiting", "paused", "blocked", "completed", "cancelled", "unknown"]
     label: str
     stage: str | None
@@ -82,7 +82,13 @@ def _ref(key, source, state, stage, value, scope, reason=None, stale=False):
         "cancelled": "Annulé",
         "unknown": "État inconnu",
     }
-    progress_labels = {"step": "Progression de l’étape", "download": "Téléchargement", "copy": "Copie uniquement"}
+    progress_labels = {
+        "step": "Progression de l’étape",
+        "download": "Téléchargement",
+        "copy": "Copie uniquement",
+        "items": "Éléments traités",
+        "execution": "Exécution",
+    }
     return WorkRef(
         key=key,
         source=source,
@@ -250,3 +256,43 @@ def transfer_work(row):
     if mode == "arr" and state != "completed":
         value = None
     return _ref(f"transfer:{row['id']}", "transfer", state, stage, value, "copy", reason)
+
+
+def task_work(name: str, row: dict | None, *, scan: bool = False) -> dict:
+    row = row or {}
+    raw = row.get("status")
+    reason = row.get("last_error") or row.get("error")
+    states = {
+        "running": "running",
+        "complete": "completed",
+        "success": "completed",
+        "failed": "blocked",
+        "error": "blocked",
+        "cancelled": "cancelled",
+        "queued": "waiting",
+        "skipped": "waiting",
+    }
+    state = states.get(raw, "unknown")
+    if raw == "idle":
+        state = "blocked" if reason else "completed" if row.get("finished_at") else "waiting"
+    if raw == "skipped":
+        reason = row.get("message")
+    current = row.get("items_scanned", row.get("items_synced"))
+    total = row.get("total_items")
+    value = None
+    if scan and isinstance(total, (int, float)) and total > 0 and isinstance(current, (int, float)):
+        value = current / total * 100
+    stale = bool(row.get("stale"))
+    if stale:
+        state, value, reason = "unknown", None, "Dernière observation : le verrou d’exécution a expiré"
+    # ARQ's historical progress=5/100 marks lifecycle, not measured progress.
+    return _ref(
+        f"{'scan' if scan else 'task'}:{name}",
+        "scan" if scan else "task",
+        state,
+        row.get("stage"),
+        value,
+        "items" if scan else "execution",
+        reason,
+        stale=stale,
+    )

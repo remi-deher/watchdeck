@@ -44,6 +44,7 @@ export interface HealthService {
 }
 
 export interface ScheduledTaskState {
+  work?: import("@/types").WorkRef;
   job: string;
   label: string;
   state?: { status?: string; last_error?: string | null; finished_at?: string | null } | null;
@@ -242,13 +243,13 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
   }
 
   for (const task of Array.isArray(input.tasks) ? input.tasks : []) {
-    if (task?.state?.status !== 'failed') continue;
+    if (task.work ? task.work.state !== 'blocked' : task?.state?.status !== 'failed') continue;
     items.push({
       key: `task-${task.job}`,
       severity: 'warn',
       area: 'admin-automation',
       title: `« ${task.label} » a échoué`,
-      detail: task.state.last_error?.trim() || 'La dernière exécution s’est terminée en erreur.',
+      detail: (task.work?.reason || task.state?.last_error)?.trim() || 'La dernière exécution s’est terminée en erreur.',
       action: { label: 'Voir la tâche', to: '/settings/automation/scheduled-tasks' },
     });
   }

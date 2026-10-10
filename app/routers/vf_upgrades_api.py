@@ -56,6 +56,7 @@ from ..services.vf_upgrade_scanner import (
     scan_vf_upgrades,
     vf_upgrade_scan_state,
 )
+from ..services.work_ref import WorkRecord, task_work
 from ..utils import now_utc_naive
 from .arr_shared import _resolve_arr_instance
 
@@ -455,7 +456,7 @@ async def vf_upgrade_dashboard(
     await db.commit()
     return {
         "items": items,
-        "scan": vf_upgrade_scan_state,
+        "scan": {**vf_upgrade_scan_state, "work": task_work("vf-upgrades", vf_upgrade_scan_state, scan=True)},
         "waiting_total": waiting_total,
         "waiting_limit": waiting_limit,
     }
@@ -1256,9 +1257,9 @@ async def vf_upgrade_install_custom_format(instance_id: int, db: AsyncSession = 
     }
 
 
-@router.get("/vf-upgrades/scan-status")
+@router.get("/vf-upgrades/scan-status", response_model=WorkRecord)
 async def vf_upgrade_scan_status():
-    return vf_upgrade_scan_state
+    return {**vf_upgrade_scan_state, "work": task_work("vf-upgrades", vf_upgrade_scan_state, scan=True)}
 
 
 @router.get("/vf-upgrades/scan-runs")

@@ -307,3 +307,12 @@ export function formatNextRun(next: Date, now: Date): string {
   const time = formatTime(next);
   return minutes < 48 * 60 ? `demain ${time}` : formatLongDay(next, { day: 'numeric', month: 'short' }) + ` ${time}`;
 }
+
+
+export function formatInterval(seconds: number): string {
+  if (!seconds) return '-';
+  if (seconds < 60) return `${seconds} s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} h`;
+  return `${Math.round(seconds / 86400)} j`;
+}

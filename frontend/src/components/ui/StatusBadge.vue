@@ -1,5 +1,5 @@
 <template>
-  <UiBadge :tone="tone" dot pill :title="description || undefined">{{ displayLabel }}</UiBadge>
+  <UiBadge :tone="tone" dot pill :title="description || work?.reason || undefined">{{ displayLabel }}</UiBadge>
 </template>
 
 <script setup lang="ts">
@@ -9,6 +9,7 @@ import UiBadge from './UiBadge.vue';
 
 const props = withDefaults(
   defineProps<{
+    work?: import("@/types").WorkRef;
     status?: string;
     label?: string;
     description?: string;
@@ -70,11 +71,11 @@ const OWN_LABELS: Record<string, string> = {
   waiting_release: 'En attente de release',
 };
 
-const normalized = computed(() => String(props.status || 'neutral').toLowerCase());
+const normalized = computed(() => String(props.work?.state || props.status || 'neutral').toLowerCase());
 const tone = computed(() => TONES[normalized.value] || 'neutral');
 const displayLabel = computed(
   () =>
-    props.label ||
+    props.label || props.work?.label ||
     OWN_LABELS[normalized.value] ||
     REQUEST_STATUS_LABELS[normalized.value] ||
     String(props.status || '—')

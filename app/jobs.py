@@ -18,6 +18,7 @@ from .database import AsyncSessionLocal, init_db
 from .log_buffer import install_redaction as install_log_redaction
 from .models import JobRunLog, PendingNotification, Settings
 from .realtime import publish
+from .services.work_ref import task_work
 from .utils import local_hour, local_minute, now_utc, now_utc_naive
 
 # Le worker ARQ est un process séparé (commande `arq app.jobs.WorkerSettings`) qui
@@ -45,6 +46,7 @@ async def _state(redis, name: str, **changes: Any) -> dict[str, Any]:
     current_raw = await redis.get(key)
     current = json.loads(current_raw) if current_raw else {"name": name}
     current.update(changes)
+    current["work"] = task_work(name, current)
     await redis.set(key, json.dumps(current, ensure_ascii=True), ex=STATE_TTL)
     await publish("job.updated", current, admin_only=True)
     return current
@@ -112,7 +114,7 @@ async def _run(
     lock_key = f"watchdeck:jobs:lock:{name}"
     token = uuid.uuid4().hex
     if not await redis.set(lock_key, token, ex=LOCK_TTL, nx=True):
-        await _state(redis, name, status="skipped", progress=0, message="already running")
+        # A skipped trigger must not overwrite the execution holding this lock.
         return {"status": "skipped"}
     started = time.monotonic()
     started_at_naive = now_utc_naive()

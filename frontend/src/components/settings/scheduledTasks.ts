@@ -9,6 +9,7 @@ export interface TaskState {
 }
 
 export interface ScheduledTask {
+  work?: import("@/types").WorkRef;
   job: string;
   label: string;
   interval_seconds?: number;
@@ -19,13 +20,13 @@ export interface ScheduledTask {
   state?: TaskState | null;
 }
 
-const RANK: Record<string, number> = { failed: 0, running: 1, complete: 2 };
+const RANK: Record<string, number> = { failed: 0, blocked: 0, running: 1, complete: 2, completed: 2 };
 
 /** Les échecs en tête, puis les tâches en cours, puis les autres ; l'ordre du catalogue sinon. */
 export function sortTasks<T extends ScheduledTask>(tasks: T[]): T[] {
   return tasks
     .map((task, index) => ({ task, index }))
-    .sort((a, b) => (RANK[a.task.state?.status || ''] ?? 3) - (RANK[b.task.state?.status || ''] ?? 3) || a.index - b.index)
+    .sort((a, b) => (RANK[a.task.work?.state || a.task.state?.status || ''] ?? 3) - (RANK[b.task.work?.state || b.task.state?.status || ''] ?? 3) || a.index - b.index)
     .map(({ task }) => task);
 }
 

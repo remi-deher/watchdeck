@@ -20,13 +20,13 @@ export interface HealthResponse {
 
 export interface WorkProgress {
   percent: number | null;
-  scope: "step" | "download" | "copy";
+  scope: "step" | "download" | "copy" | "items" | "execution";
   label: string;
 }
 
 export interface WorkRef {
   key: string;
-  source: "encoding" | "download" | "transfer";
+  source: "encoding" | "download" | "transfer" | "task" | "scan";
   state: "running" | "waiting" | "paused" | "blocked" | "completed" | "cancelled" | "unknown";
   label: string;
   stage: string | null;

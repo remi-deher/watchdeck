@@ -59,6 +59,7 @@ export interface ScanRunItem {
 }
 
 export interface LiveScan {
+  work?: import("@/types").WorkRef;
   status?: string;
   [field: string]: unknown;
 }

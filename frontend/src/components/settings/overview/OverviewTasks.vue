@@ -9,13 +9,14 @@
       <li v-for="row in rows" :key="row.job" class="overview-tasks__row">
         <span class="overview-tasks__name">{{ row.label }}</span>
         <small>{{ row.when }}</small>
-        <span class="overview-pill" :class="`is-${row.tone}`">{{ row.status }}</span>
+        <StatusBadge v-if="row.work" :work="row.work" /><span v-else class="overview-pill" :class="`is-${row.tone}`">{{ row.status }}</span>
       </li>
     </ul>
   </section>
 </template>
 
 <script setup lang="ts">
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import type { ScheduledTaskState } from '@/adminAttention';
@@ -27,12 +28,13 @@ const props = withDefaults(defineProps<{ tasks: ScheduledTaskState[]; limit?: nu
 const rows = computed(() => {
   const stamp = (task: ScheduledTaskState) => (task.state?.finished_at ? parseApiDate(task.state.finished_at).getTime() : 0);
   return [...props.tasks]
-    .sort((a, b) => Number(b.state?.status === 'failed') - Number(a.state?.status === 'failed') || stamp(b) - stamp(a))
+    .sort((a, b) => Number(b.work ? b.work.state === 'blocked' : b.state?.status === 'failed') - Number(a.work ? a.work.state === 'blocked' : a.state?.status === 'failed') || stamp(b) - stamp(a))
     .slice(0, props.limit)
     .map((task) => {
       const failed = task.state?.status === 'failed';
       const finished = task.state?.finished_at;
       return {
+        work: task.work,
         job: task.job,
         label: task.label,
         when: finished ? formatRelativeDate(finished) : 'Jamais exécutée',

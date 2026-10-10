@@ -52,11 +52,13 @@ import { formatRelativeDate } from '@/utils/format';
 /* Dernier passage de la recherche planifiée, lu dans les tâches (même requête que Planification). */
 const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
 const lastPass = computed(() => {
-  const state = (tasksQuery.data.value || []).find((task: any) => task.job === 'subtitle-search')?.state;
+  const task = (tasksQuery.data.value || []).find((task: any) => task.job === 'subtitle-search');
+  const state = task?.state;
+  if (task?.work && !['completed', 'blocked'].includes(task.work.state)) return { failed: false, text: `${task.work.label}${task.work.reason ? ` : ${task.work.reason}` : ''}` };
   if (!state?.finished_at) return null;
   const when = formatRelativeDate(state.finished_at).toLowerCase();
-  return state.status === 'failed'
-    ? { failed: true, text: `Dernier passage en échec ${when}${state.last_error ? ` : ${state.last_error}` : ''}` }
+  return (task.work ? task.work.state === 'blocked' : state.status === 'failed')
+    ? { failed: true, text: `Dernier passage en échec ${when}${(task.work?.reason || state.last_error) ? ` : ${task.work?.reason || state.last_error}` : ''}` }
     : { failed: false, text: `Dernier passage réussi ${when}.` };
 });
 

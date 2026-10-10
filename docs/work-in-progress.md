@@ -35,5 +35,13 @@ fournisseur expose un UID pour les fichiers et seulement un chemin pour les
 runners. L’interface ne prétend pas connaître une correspondance non observée.
 
 Les lectures Plex gardent leur contrat métier propre (session, personne, client,
-mode de lecture). Les tâches planifiées et scans ne sont pas encore intégrés à
-ce contrat de travaux médias.
+mode de lecture). Les tâches planifiées et scans transmettent aussi `work`
+(sources `task` et `scan`). Les scans mesurent les éléments traités ; les tâches
+ARQ sans mesure gardent une progression inconnue, même si leur ancien champ
+`progress` vaut 5 ou 100. Un déclenchement accepté ne prouve pas le démarrage
+ni la fin de l'exécution. Les états métier viennent du worker, les événements
+transportent la même projection que les réponses HTTP.
+
+La santé des services expose `health` : configuration, connexion observée,
+alertes et absence d'observation restent distinctes. Les détails manquants ne
+constituent pas une panne, et une configuration seule ne prouve pas la connexion.

@@ -114,6 +114,8 @@ async def test_publishes_each_change_then_stops_when_idle():
 
     assert [event_type for event_type, _ in published] == ["vff.updated"] * 3
     assert published[0][1]["scan"]["items_scanned"] == 0
+    assert published[0][1]["scan"]["work"]["progress"]["percent"] == 0
+    assert published[2][1]["scan"]["work"]["state"] == "completed"
     assert published[1][1]["scan"]["items_scanned"] == 5
     assert published[2][1]["scan"]["status"] == "idle"
 

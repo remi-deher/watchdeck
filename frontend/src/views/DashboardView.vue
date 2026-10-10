@@ -196,8 +196,17 @@ const vffCountsQueryState = useQuery(vffCountsQuery());
 const orIdle = (data: Record<string, any> | undefined, idle: Record<string, any>) => (data && Object.keys(data).length ? data : idle);
 const vffScan = computed(() => orIdle(vffScanQuery.data.value, { status: 'idle', items_scanned: 0, total_items: 0, finished_at: null }));
 const plexSync = computed(() => orIdle(plexSyncQuery.data.value, { status: 'idle', items_synced: 0, total_items: 0, finished_at: null }));
-const arrSync = ref<Record<string, any>>({ status: 'idle', finished_at: null });
-const watchlistSync = ref<Record<string, any>>({ status: 'idle', finished_at: null });
+const scheduledTasksQuery = useQuery({
+  queryKey: ['settings', 'scheduled-tasks'],
+  queryFn: async () => { const data = await api<any[]>('/api/scheduled-tasks'); return Array.isArray(data) ? data : []; },
+  enabled: healthShown,
+});
+const taskState = (job: string) => {
+  const task = scheduledTasksQuery.data.value?.find((row: any) => row.job === job);
+  return task ? { ...task.state, work: task.work } : { status: 'unknown' };
+};
+const arrSync = computed(() => taskState('arr-statuses'));
+const watchlistSync = computed(() => taskState('watchlist'));
 const vffCounts = computed<Record<string, any>>(() => vffCountsQueryState.data.value || {});
 
 const onboardingHidden = usePreference('onboarding.hidden', false, { legacyKeys: ['hide_onboarding'] });
@@ -240,8 +249,10 @@ const loadVffStatus = () => refresh(queryKeys.vff.all);
 function applyVffEvent(detail: any): void {
   const payload = detail?.payload;
   if (!payload) return;
-  if (payload.scan) queryClient.setQueryData(queryKeys.vff.scanStatus, payload.scan);
-  if (payload.sync) queryClient.setQueryData(queryKeys.vff.syncStatus, payload.sync);
+  if (payload.scan?.work) queryClient.setQueryData(queryKeys.vff.scanStatus, payload.scan);
+  else if (payload.scan) void refresh(queryKeys.vff.scanStatus);
+  if (payload.sync?.work) queryClient.setQueryData(queryKeys.vff.syncStatus, payload.sync);
+  else if (payload.sync) void refresh(queryKeys.vff.syncStatus);
   if (payload.counts) queryClient.setQueryData(queryKeys.vff.counts, payload.counts);
 }
 
@@ -253,27 +264,15 @@ async function triggerPlexSync(): Promise<void> {
   try { await api('/api/vff/sync-plex', { method: 'POST' }); await loadVffStatus(); } catch (e: any) { error.value = e.message; }
 }
 
-async function triggerArrSync(): Promise<void> {
-  arrSync.value = { status: 'running' };
+async function triggerTask(job: string): Promise<void> {
   try {
-    await api('/api/maintenance/run/check-arr-statuses', { method: 'POST' });
-    arrSync.value = { status: 'idle', finished_at: new Date().toISOString() };
-  } catch (e: any) {
-    arrSync.value = { status: 'failed' };
-    error.value = e.message;
-  }
+    await api(`/api/scheduled-tasks/${job}/run`, { method: 'POST' });
+    await refresh(['settings', 'scheduled-tasks']);
+  } catch (e: any) { error.value = e.message; }
 }
-
-async function triggerWatchlistSync(): Promise<void> {
-  watchlistSync.value = { status: 'running' };
-  try {
-    await api('/api/maintenance/run/discover-users', { method: 'POST' });
-    watchlistSync.value = { status: 'idle', finished_at: new Date().toISOString() };
-  } catch (e: any) {
-    watchlistSync.value = { status: 'failed' };
-    error.value = e.message;
-  }
-}
+const triggerArrSync = () => triggerTask('arr-statuses');
+const triggerWatchlistSync = () => triggerTask('watchlist');
+useRealtime(['job.updated'], () => { void refresh(['settings', 'scheduled-tasks']); });
 
 /* « Tout synchroniser » : Plex, statuts *arr et watchlists en parallele. Chaque synchro
    garde son propre etat dans « Etat des scans » ; le bouton attend la plus lente. */

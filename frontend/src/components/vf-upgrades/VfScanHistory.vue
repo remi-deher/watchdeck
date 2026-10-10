@@ -1,6 +1,7 @@
 <template>
   <section class="scan-history">
-    <div v-if="liveScan?.status === 'running'" class="scan-live-banner">
+    <LiveStrip title="Recherche VF" :idle="{ title: 'Aucune recherche en cours' }" v-if="liveScan?.work?.state === 'running'" :items="[{ key: liveScan.work.key, title: 'Recherche VF', work: liveScan.work }]" />
+    <div v-else-if="liveScan?.status === 'running'" class="scan-live-banner">
       <span class="scan-live-dot" aria-hidden="true" />
       <div class="scan-live-text">
         <strong>Recherche en cours…</strong>
@@ -98,6 +99,7 @@
 </template>
 
 <script setup>
+import LiveStrip from "@/components/ui/LiveStrip.vue";
 import { computed } from "vue";
 import { ChevronDown, ChevronUp } from "@lucide/vue";
 import StatusBadge from "@/components/ui/StatusBadge.vue";
