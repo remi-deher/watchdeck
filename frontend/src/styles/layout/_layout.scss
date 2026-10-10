@@ -51,6 +51,13 @@
   .app-shell__main { --main-pad-x: 14px; }
 }
 
+/* Telephone : la capsule de recherche flotte au-dessus du dock. Le bas de la page lui
+   reserve sa hauteur, sinon le dernier element (un bouton, une carte) reste dessous
+   sans pouvoir defiler plus loin. */
+@include bp.until(shell-medium) {
+  :root:has(.app-topbar) .app-shell__main { padding-bottom: calc(var(--app-shell-offset-bottom) + var(--app-topbar-h) + var(--space-5)); }
+}
+
 /* Pliable ouvert : le contenu occupe le second volet, le rail restant sur le premier. */
 @include bp.from(tablet) {
   @media (horizontal-viewport-segments: 2) {

@@ -194,6 +194,7 @@
 </template>
 
 <script setup lang="ts">
+import type { MediaDetailResponse } from "@/types/generated/mediaAvailability";
 import { isMusicType } from '@/utils/labels';
 import { humanizeError } from '@/utils/apiError';
 import { computed, reactive, ref, watch } from "vue";
@@ -397,8 +398,9 @@ function mediaPath(core = false): string {
 const mediaQuery = useQuery({
   queryKey: mediaQueryKey,
   queryFn: async () => {
-    const payload = await api(mediaPath());
-    return kind.value === 'discover' ? payload : { ...payload.media, ...payload };
+    if (kind.value === 'discover') return api(mediaPath());
+    const payload = await api<MediaDetailResponse>(mediaPath());
+    return { ...payload.media, ...payload };
   },
   staleTime: 60_000,
 });

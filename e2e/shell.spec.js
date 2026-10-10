@@ -332,10 +332,10 @@ test("le contenu n'est masque ni par la barre de contexte ni par le dock", async
   );
   // Le dock est opaque et fixe : sans reserve, il recouvrirait la fin du contenu.
   expect(reserved, "le dock reste degage").toBeGreaterThanOrEqual(dock.height - 1);
-  // La barre, elle, ne reserve rien : elle flotte, et c'est son masquage au defilement
-  // qui decouvre ce qu'elle couvre. Lui reserver sa hauteur reprendrait en bas la place
-  // qu'on vient de rendre en haut.
-  expect(reserved, "la barre ne reserve aucune place").toBeLessThan(dock.height + topbar.height);
+  // La barre flotte au-dessus du dock et se masque au defilement ; mais une page trop
+  // courte pour defiler laissait son dernier element dessous, sans recours (le bouton
+  // « Recherche interactive » des Demandes). Le bas lui reserve donc sa hauteur.
+  expect(reserved, "la barre reste degagee").toBeGreaterThanOrEqual(dock.height + topbar.height - 1);
 });
 
 test("le rail se replie et se deploie, et le choix survit au rechargement", async ({ page }) => {

@@ -404,6 +404,7 @@
 </template>
 
 <script setup lang="ts">
+import { isInPlex } from "@/utils/mediaAvailability";
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 const SORT_OPTIONS = [
@@ -679,9 +680,9 @@ const { filtersOpen, activeCount: activeFilterCount, toggle: toggleFilters, clos
   }
 );
 const displayedItems = computed(() => items.value.filter(item => {
-  if (availability.value === 'available') return item.available || item.in_library;
-  if (availability.value === 'requested') return item.requested && !item.available && !item.in_library;
-  if (availability.value === 'new') return !item.requested && !item.available && !item.in_library;
+  if (availability.value === 'available') return isInPlex(item);
+  if (availability.value === 'requested') return item.requested && !isInPlex(item);
+  if (availability.value === 'new') return !item.requested && !isInPlex(item);
   return true;
 }));
 const hasMore = computed(() => Boolean(catalogQuery.hasNextPage.value));

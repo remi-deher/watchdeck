@@ -17,3 +17,8 @@ describe('MediaLanguageBadge', () => {
     expect(w.classes()).toContain(tone);
   });
 });
+
+it('utilise la projection serveur même si un ancien champ contredit son état', () => {
+  const wrapper = mount(MediaLanguageBadge, { props: { state: { has_vf: true, availability: { languages: { has_vf: false, vf_granularity: null, fr_is_default: null, sub_fr_status: null, forced_fr_status: null } } } } });
+  expect(wrapper.text()).toBe('VO');
+});
