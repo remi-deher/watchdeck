@@ -11,17 +11,21 @@
 
     <TorrentSpeedBar v-model:compact="isCompact" v-model:incognito="isIncognito" :rows="rows" :client-id="clientId" @refresh="emit('refresh')" @error="emit('error', $event)" />
 
-    <div v-if="selectedRows.length" class="bulk-toolbar" role="toolbar" aria-label="Actions sur la sélection">
-      <strong>{{ selectedRows.length }} sélectionné(s)</strong>
-      <UiButton :disabled="busy" @click="runAction('pause', selectedRows)"><Pause />Mettre en pause</UiButton>
-      <UiButton :disabled="busy" @click="runAction('resume', selectedRows)"><Play />Reprendre</UiButton>
-      <UiButton :disabled="busy" @click="runAction('recheck', selectedRows)"><RotateCcw />Revérifier</UiButton>
-      <UiButton :disabled="busy" @click="runAction('reannounce', selectedRows)"><Radio />Réannoncer</UiButton>
-      <UiButton :disabled="busy" @click="openMetaModal(selectedRows)"><Tag />Catégorie & Tags</UiButton>
-      <UiButton variant="danger" :disabled="busy" @click="confirmRemoval(selectedRows, false)"><Trash2 />Retirer</UiButton>
-      <UiButton variant="danger" :disabled="busy" @click="confirmRemoval(selectedRows, true)"><FileX2 />Supprimer avec les fichiers</UiButton>
-      <button class="text-button" :disabled="busy" @click="clearSelection">Annuler la sélection</button>
-    </div>
+    <BulkActionBar :count="selectedRows.length" singular="torrent sélectionné" plural="torrents sélectionnés" @clear="clearSelection">
+      <UiButton size="sm" :disabled="busy" @click="runAction('pause', selectedRows)"><template #icon><Pause /></template>Mettre en pause</UiButton>
+      <UiButton size="sm" :disabled="busy" @click="runAction('resume', selectedRows)"><template #icon><Play /></template>Reprendre</UiButton>
+      <UiMenu align="start">
+        <template #trigger><UiButton size="sm" :disabled="busy"><template #icon><RotateCcw /></template>Maintenance<template #trailing><ChevronDown /></template></UiButton></template>
+        <UiMenuItem @select="runAction('recheck', selectedRows)"><RotateCcw /> Revérifier les fichiers</UiMenuItem>
+        <UiMenuItem @select="runAction('reannounce', selectedRows)"><Radio /> Réannoncer aux trackers</UiMenuItem>
+      </UiMenu>
+      <UiButton size="sm" :disabled="busy" @click="openMetaModal(selectedRows)"><template #icon><Tag /></template>Catégorie &amp; Tags</UiButton>
+      <UiMenu align="start">
+        <template #trigger><UiButton variant="danger" size="sm" :disabled="busy"><template #icon><Trash2 /></template>Retirer<template #trailing><ChevronDown /></template></UiButton></template>
+        <UiMenuItem variant="danger" @select="confirmTorrentRemoval(selectedRows, false)"><Trash2 /> Retirer du client</UiMenuItem>
+        <UiMenuItem variant="danger" @select="confirmTorrentRemoval(selectedRows, true)"><FileX2 /> Supprimer avec les fichiers</UiMenuItem>
+      </UiMenu>
+    </BulkActionBar>
 
     <!-- Clic droit (ou appui long) sur le tableau : le menu contextuel s'ouvre au pointeur,
          sur la ligne visee, que la ligne selectionne d'abord (son evenement remonte avant). -->
@@ -76,9 +80,10 @@
       <template #cell-added_on="{ row }">{{ formatTimestamp(row.added_on) }}</template>
       <template #cell-completed_on="{ row }">{{ formatTimestamp(row.completed_on) }}</template>
       <template #cell-actions="{ row }">
-        <UiButton class="action-trigger-btn" :disabled="isBusy(row)" title="Actions sur ce torrent" @click.stop="actionTarget=row">
-          Actions
-        </UiButton>
+        <UiMenu :disabled="isBusy(row)" :label="row.title">
+          <template #trigger><UiButton class="action-trigger-btn" :disabled="isBusy(row)" title="Actions sur ce torrent" @click.stop>Actions<template #trailing><ChevronDown /></template></UiButton></template>
+          <TorrentActionItems :paused="isPaused(row)" inspectable @action="onTorrentAction($event, [row])" />
+        </UiMenu>
       </template>
       <template #after>
         <div ref="sentinelRef" class="load-more-sentinel">
@@ -91,39 +96,8 @@
 
     <TorrentColumnPicker :open="showColumnPicker" :prefs="columnPrefs" @close="showColumnPicker = false" />
 
-    <!-- Actions d'un seul torrent, depuis le bouton de sa ligne -->
-    <ModalShell :open="!!actionTarget" title="Actions sur le torrent" :subtitle="actionTarget?.title" @close="actionTarget=null">
-      <div v-if="actionTarget" class="torrent-actions-menu">
-        <UiButton class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="actOnTarget(isPaused(actionTarget) ? 'resume' : 'pause')">
-          <Play v-if="isPaused(actionTarget)" /><Pause v-else />
-          {{ isPaused(actionTarget) ? 'Reprendre le téléchargement' : 'Mettre en pause' }}
-        </UiButton>
-        <UiButton class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="actOnTarget('recheck')">
-          <RotateCcw /> Revérifier les fichiers
-        </UiButton>
-        <UiButton class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="actOnTarget('reannounce')">
-          <Radio /> Réannoncer aux trackers
-        </UiButton>
-        <UiButton class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="openMetaModal([actionTarget]); actionTarget=null">
-          <Tag /> Modifier Catégorie & Tags
-        </UiButton>
-        <UiButton variant="danger" class="action-menu-btn" :disabled="isBusy(actionTarget)" @click="removalTarget=actionTarget; actionTarget=null">
-          <Trash2 /> Supprimer ou retirer...
-        </UiButton>
-      </div>
-    </ModalShell>
-
     <TorrentMetaModal :targets="metaTargets" :busy="busy" @close="metaTargets=null" @save="saveMetadata" />
 
-    <ModalShell :open="!!removalTarget" title="Supprimer ce torrent" subtitle="Choisis si les données téléchargées doivent être conservées." @close="removalTarget=null">
-      <p><strong>{{ removalTarget?.title }}</strong></p>
-      <p class="removal-warning">La suppression des fichiers est définitive et peut retirer des médias encore utilisés ailleurs.</p>
-      <template #actions>
-        <UiButton :disabled="busy" @click="removalTarget=null">Annuler</UiButton>
-        <UiButton variant="danger" :disabled="busy" @click="confirmRemoval([removalTarget],false)"><Trash2 />Retirer seulement</UiButton>
-        <UiButton variant="danger" :disabled="busy" @click="confirmRemoval([removalTarget],true)"><FileX2 />Supprimer avec les fichiers</UiButton>
-      </template>
-    </ModalShell>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
   </section>
 </template>
@@ -131,7 +105,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useEventListener, useIntersectionObserver } from '@vueuse/core';
-import { AlertTriangle, FileX2, Pause, Play, Radio, RotateCcw, Tag, Trash2 } from '@lucide/vue';
+import { AlertTriangle, ChevronDown, FileX2, Pause, Play, Radio, RotateCcw, Tag, Trash2 } from '@lucide/vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useTableColumns } from '@/composables/useTableColumns';
 import { usePreference } from '@/composables/usePreference';
@@ -142,10 +116,13 @@ import { useRoute, useRouter } from 'vue-router';
 import { formatBytes, formatEta, formatSpeed, formatTimestamp, formatTracker, isPaused, maskTitle } from '@/downloads/torrentFormat';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import LoadMore from '@/components/ui/LoadMore.vue';
-import ModalShell from '@/components/ui/ModalShell.vue';
+import BulkActionBar from '@/components/ui/BulkActionBar.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
+import UiMenu from '@/components/ui/UiMenu.vue';
+import UiMenuItem from '@/components/ui/UiMenuItem.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
+import TorrentActionItems, { type TorrentAction } from './TorrentActionItems.vue';
 import TorrentColumnPicker from './TorrentColumnPicker.vue';
 import TorrentContextMenu from './TorrentContextMenu.vue';
 import TorrentMetaModal from './TorrentMetaModal.vue';
@@ -324,8 +301,6 @@ useIntersectionObserver(sentinelRef, (entries) => {
 
 /* ---- Actions ---- */
 
-const actionTarget = ref<any>(null);
-const removalTarget = ref<any>(null);
 const metaTargets = ref<any[] | null>(null);
 const contextTarget = ref<any>(null);
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
@@ -334,11 +309,6 @@ const { busy, isBusy, runAction, saveMetadata: saveTorrentMetadata, confirmRemov
   onError: (message) => emit('error', message),
   askConfirm,
 });
-
-function actOnTarget(action: string): void {
-  void runAction(action, [actionTarget.value]);
-  actionTarget.value = null;
-}
 
 function openMetaModal(rows: any[]): void {
   const targets = rows.filter(Boolean);
@@ -350,11 +320,6 @@ async function saveMetadata(category: string, tags: string): Promise<void> {
   metaTargets.value = null;
 }
 
-async function confirmRemoval(rows: any[], deleteFiles: boolean): Promise<void> {
-  removalTarget.value = null;
-  await confirmTorrentRemoval(rows, deleteFiles);
-}
-
 function openContextMenu(row: any, index: number): void {
   const key = rowKey(row);
   if (!selected.value.has(key)) {
@@ -364,15 +329,18 @@ function openContextMenu(row: any, index: number): void {
   contextTarget.value = row;
 }
 
-function handleContextMenuAction(actionType: string): void {
-  const targets = selectedRows.value.length ? selectedRows.value : (contextTarget.value ? [contextTarget.value] : []);
+/* Une seule traduction action -> geste, pour le menu de ligne comme pour le clic droit. */
+function onTorrentAction(action: TorrentAction, targets: any[]): void {
   if (!targets.length) return;
+  if (action === 'details') openDetails(targets[0]);
+  else if (action === 'meta') openMetaModal(targets);
+  else if (action === 'remove-torrent') void confirmTorrentRemoval(targets, false);
+  else if (action === 'remove-files') void confirmTorrentRemoval(targets, true);
+  else void runAction(action, targets);
+}
 
-  if (actionType === 'details') openDetails(targets[0]);
-  else if (actionType === 'meta') openMetaModal(targets);
-  else if (actionType === 'remove-torrent') confirmRemoval(targets, false);
-  else if (actionType === 'remove-files') confirmRemoval(targets, true);
-  else if (['pause', 'resume', 'recheck', 'reannounce'].includes(actionType)) runAction(actionType, targets);
+function handleContextMenuAction(action: TorrentAction): void {
+  onTorrentAction(action, selectedRows.value.length ? selectedRows.value : (contextTarget.value ? [contextTarget.value] : []));
 }
 </script>
 
@@ -392,10 +360,6 @@ function handleContextMenuAction(actionType: string): void {
 .torrent-status-bar span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .torrent-status-bar .stale-state{color: var(--amber-text)}
 
-.bulk-toolbar{position:sticky;top:8px;z-index:4;display:flex;align-items:center;gap:var(--space-2);padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(12px)}
-.bulk-toolbar strong{margin-right:auto}
-.bulk-toolbar button{display:inline-flex;align-items:center;gap:6px}
-.bulk-toolbar svg{width:14px;height:14px}
 
 .torrent-name{min-width:0}
 .torrent-title{display:block;max-width:100%;overflow:hidden;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap}
@@ -408,11 +372,6 @@ function handleContextMenuAction(actionType: string): void {
 .tracker-display span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .action-trigger-btn{display:inline-flex;align-items:center;gap:6px;min-width:100px;padding:5px 9px;font-size:var(--fs-xs);white-space:nowrap}
 
-.torrent-actions-menu{display:flex;flex-direction:column;gap:var(--space-2)}
-.action-menu-btn{display:inline-flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:10px 14px;font-size:var(--fs-sm)}
-.action-menu-btn svg{width:16px;height:16px}
-.removal-warning{color: var(--red-text)}
-
 .stale-cache-banner{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--warning) 40%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--warning) 12%,transparent);color:var(--text)}
 .stale-cache-banner svg{width:20px;height:20px;color: var(--amber-text);flex-shrink:0}
 .stale-cache-banner strong{font-size:var(--fs-xs);color: var(--amber-text)}
@@ -421,20 +380,12 @@ function handleContextMenuAction(actionType: string): void {
 @include bp.from(tablet) {
   .torrent-title{font-size:var(--fs-sm)}
   .torrent-name small{color:var(--accent);font-size:var(--fs-xs);font-weight:600}
-  .action-trigger-btn,.bulk-toolbar button{font-size:var(--fs-sm)}
+  .action-trigger-btn{font-size:var(--fs-sm)}
 }
 @include bp.until(tablet) {
   .torrent-manager{min-width:0}
-  .bulk-toolbar{top:4px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:hidden}
-  .bulk-toolbar strong{grid-column:1/-1;margin:0}
-  .bulk-toolbar button{justify-content:center;min-width:0;white-space:normal;text-align:center}
-  .bulk-toolbar .text-button{grid-column:1/-1}
   .action-trigger-btn{width:100%;justify-content:center}
   .torrent-name{min-width:0;max-width:none}
   .torrent-status-bar{justify-content:flex-start;max-width:100%;overflow-x:auto}
-}
-@container page (max-width: 352px) {
-  .bulk-toolbar{grid-template-columns:1fr}
-  .bulk-toolbar strong,.bulk-toolbar .text-button{grid-column:auto}
 }
 </style>

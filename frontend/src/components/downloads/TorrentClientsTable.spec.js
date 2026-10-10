@@ -1,5 +1,5 @@
 ﻿import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 
@@ -30,20 +30,31 @@ const rows = [
 
 function factory() {
   return mount(TorrentClientsTable, {
+    attachTo: document.body,
     props: { rows },
     global: {
       plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
-      stubs: {
-        ModalShell: { props: ['open', 'title'], template: '<div v-if="open"><h2>{{ title }}</h2><slot/><slot name="actions"/></div>' },
-        ConfirmModal: true,
-      },
+      stubs: { ConfirmModal: true },
     },
   });
+}
+
+// Le menu de ligne est un menu Reka teleporte dans <body> : on l'ouvre au clavier, comme
+// UiMenu.spec.js, et on lit ses entrees dans le document.
+async function ouvrirMenuLigne(wrapper) {
+  await wrapper.find('.action-trigger-btn').trigger('keydown', { key: 'Enter' });
+  await nextTick();
+}
+const menuItems = () => [...document.body.querySelectorAll('.ui-menu-item')].map(node => node.textContent.trim());
+function choisirItem(label) {
+  const item = [...document.body.querySelectorAll('.ui-menu-item')].find(node => node.textContent.trim() === label);
+  item.dispatchEvent(new Event('click', { bubbles: true }));
 }
 
 // Le demontage apres chaque test est global : voir testSetup.js.
 
 describe('TorrentClientsTable', () => {
+  afterEach(() => { document.body.innerHTML = ''; });
   beforeEach(() => {
     api.mockReset().mockResolvedValue({ ok: true });
     push.mockReset();
@@ -62,7 +73,7 @@ describe('TorrentClientsTable', () => {
     await wrapper.find('thead [role="checkbox"]').trigger('click');
     await nextTick();
     expect(wrapper.text()).toContain('2 sélectionné(s)');
-    await wrapper.find('.bulk-toolbar button').trigger('click');
+    await wrapper.find('.bulk-bar button').trigger('click');
     await vi.waitFor(() => {
       const controlCalls = api.mock.calls.filter(call => call[0].includes('/control'));
       expect(controlCalls).toHaveLength(2);
@@ -94,12 +105,16 @@ describe('TorrentClientsTable', () => {
 
   it('ouvre le détail au clic sur une carte mobile sans la sélectionner', async () => {
     const originalMatchMedia = window.matchMedia;
-    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    const wrapper = factory();
-    await wrapper.find('tbody tr').trigger('click');
-    expect(openedPath()).toBe('/downloads/torrent/2/aaa');
-    expect(wrapper.text()).not.toContain('1 sélectionné(s)');
-    window.matchMedia = originalMatchMedia;
+    // Un vrai MediaQueryList écoute les changements : les menus (Reka) s'y abonnent.
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    try {
+      const wrapper = factory();
+      await wrapper.find('tbody tr').trigger('click');
+      expect(openedPath()).toBe('/downloads/torrent/2/aaa');
+      expect(wrapper.text()).not.toContain('1 sélectionné(s)');
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 
   it('ne contient pas la colonne Origine', () => {
@@ -129,19 +144,39 @@ describe('TorrentClientsTable', () => {
     expect(wrapper.text()).toContain('2 sélectionné(s)');
   });
 
-  it('ouvre le sélecteur de colonnes et la modale d actions', async () => {
+  it('ouvre le sélecteur de colonnes et le menu d actions', async () => {
     const wrapper = factory();
     wrapper.vm.openColumnPicker();
     await nextTick();
     expect(wrapper.text()).toContain('Tracker');
-    await wrapper.find('.action-trigger-btn').trigger('click');
-    expect(wrapper.text()).toContain('Actions sur le torrent');
+    await ouvrirMenuLigne(wrapper);
+    expect(menuItems()).toContain('Réannoncer aux trackers');
+  });
+
+  it('propose Reprendre ou Pause selon l état du torrent, et retirer en deux gestes', async () => {
+    const wrapper = factory();
+    await ouvrirMenuLigne(wrapper);
+    // La première ligne triée (Alpha) est en pause.
+    expect(menuItems()).toEqual([
+      'Reprendre', 'Revérifier les fichiers', 'Réannoncer aux trackers', 'Catégorie & Tags...',
+      'Inspecter le torrent', 'Retirer du client', 'Supprimer avec les fichiers',
+    ]);
+  });
+
+  it('regroupe les actions de la sélection dans la barre commune', async () => {
+    const wrapper = factory();
+    await wrapper.find('thead [role="checkbox"]').trigger('click');
+    await nextTick();
+    expect(wrapper.find('.bulk-bar').text()).toContain('2 torrents sélectionnés');
+    await wrapper.find('.bulk-bar [aria-label="Désélectionner"]').trigger('click');
+    await nextTick();
+    expect(wrapper.find('.bulk-bar').exists()).toBe(false);
   });
 
   it('permet de reprendre un torrent en pause depuis ses actions', async () => {
     const wrapper = factory();
-    await wrapper.find('.action-trigger-btn').trigger('click');
-    await wrapper.find('.action-menu-btn').trigger('click');
+    await ouvrirMenuLigne(wrapper);
+    choisirItem('Reprendre');
     await vi.waitFor(() => expect(api).toHaveBeenCalled());
     const call = api.mock.calls.find(entry => entry[0].includes('/control'));
     expect(JSON.parse(call[1].body).action).toBe('resume');

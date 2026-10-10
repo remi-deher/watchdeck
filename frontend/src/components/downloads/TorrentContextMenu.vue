@@ -8,27 +8,17 @@
     <slot />
     <template #items>
       <UiMenuSeparator />
-      <UiMenuItem @select="emit('action', 'pause')"><Pause /> Mettre en pause</UiMenuItem>
-      <UiMenuItem @select="emit('action', 'resume')"><Play /> Reprendre</UiMenuItem>
-      <UiMenuItem @select="emit('action', 'recheck')"><RotateCcw /> Revérifier les fichiers</UiMenuItem>
-      <UiMenuItem @select="emit('action', 'reannounce')"><Radio /> Réannoncer aux trackers</UiMenuItem>
-      <UiMenuSeparator />
-      <UiMenuItem @select="emit('action', 'meta')"><Tag /> Catégorie & Tags...</UiMenuItem>
-      <UiMenuItem v-if="selection.length === 1" @select="emit('action', 'details')"><Info /> Inspecter le torrent</UiMenuItem>
-      <UiMenuSeparator />
-      <UiMenuItem variant="danger" @select="emit('action', 'remove-torrent')"><Trash2 /> Retirer du client</UiMenuItem>
-      <UiMenuItem variant="danger" @select="emit('action', 'remove-files')"><FileX2 /> Supprimer avec les fichiers</UiMenuItem>
+      <TorrentActionItems :inspectable="selection.length === 1" @action="emit('action', $event)" />
     </template>
   </UiContextMenu>
 </template>
 
 <script setup lang="ts">
-import { FileX2, Info, Pause, Play, Radio, RotateCcw, Tag, Trash2 } from '@lucide/vue';
 import UiContextMenu from '@/components/ui/UiContextMenu.vue';
-import UiMenuItem from '@/components/ui/UiMenuItem.vue';
 import UiMenuSeparator from '@/components/ui/UiMenuSeparator.vue';
+import TorrentActionItems, { type TorrentAction } from './TorrentActionItems.vue';
 
-export type TorrentAction = 'pause' | 'resume' | 'recheck' | 'reannounce' | 'meta' | 'details' | 'remove-torrent' | 'remove-files';
+export type { TorrentAction };
 
 export interface TorrentItem {
   title?: string;
