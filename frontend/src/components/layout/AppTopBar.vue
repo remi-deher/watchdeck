@@ -38,6 +38,7 @@
       >
         <!-- Les outils de la page, a gauche de « Filtres » (usePageTools). -->
         <template v-if="pageTools" #tools><RenderSlot :slot-fn="pageTools" /></template>
+        <template v-if="pageAction" #action><RenderSlot :slot-fn="pageAction" /></template>
       </UiSearchField>
       <!-- Echappee vers la recherche globale. Elle compte double sur une page qui
            filtre : ce que l'on cherche n'est peut-etre pas dans cette liste, et le
@@ -88,6 +89,7 @@
       <!-- Les outils de la page, a droite de la recherche globale (la ou serait
            « Filtres ») : dans le meme bloc, pour que la barre garde sa largeur. -->
       <div v-if="pageTools" class="app-topbar__tools"><RenderSlot :slot-fn="pageTools" /></div>
+      <div v-if="pageAction" class="app-topbar__tools"><RenderSlot :slot-fn="pageAction" /></div>
     </div>
     <!-- La loupe ne subsiste que sans recherche de page : elle ouvre alors la
          recherche globale, seul recours depuis un telephone. -->
@@ -148,7 +150,7 @@ const { hidden: toolbarHidden, setHold, reveal } = useChromeAutoHide();
    filtres du telephone, non modale, tient elle-meme la barre visible : voir FilterSidebar. */
 watch(searchFocused, (active) => setHold('topbar', active), { immediate: true });
 
-const { tools: pageTools } = usePageTools();
+const { tools: pageTools, action: pageAction } = usePageTools();
 onMounted(() => {
   setPageToolsHost(true);
   window.addEventListener('keydown', focusContextSearch);
@@ -227,7 +229,7 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
  * vide : elle y porte le titre de la page, et sa position ne doit pas sauter d'une
  * page a l'autre.
  */
-const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.value) || Boolean(pageTools.value));
+const showBar = computed(() => props.mode !== 'compact' || Boolean(pageSearch.value) || Boolean(pageTools.value) || Boolean(pageAction.value));
 
 /* Les sections ne remontent ici qu'en mode deploye : plus bas, la barre n'a pas la
    largeur de les porter sans chasser le titre, seul repere visible depuis que le

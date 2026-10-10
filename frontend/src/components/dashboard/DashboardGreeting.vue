@@ -18,6 +18,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatLongDay } from '@/utils/format';
 import { computed } from 'vue';
 import { Plus, RefreshCw } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -40,7 +41,7 @@ const salutation = computed(() => {
   return hour >= 5 && hour < 18 ? 'Bonjour' : 'Bonsoir';
 });
 const today = computed(() => {
-  const label = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(date.value);
+  const label = formatLongDay(date.value);
   return label.charAt(0).toUpperCase() + label.slice(1);
 });
 </script>

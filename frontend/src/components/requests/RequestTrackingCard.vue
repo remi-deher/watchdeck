@@ -34,8 +34,8 @@
 
       <!-- Fil de vie en quatre traits ; masque une fois la demande disponible (VF
            manquante) : toutes les etapes y seraient cochees, sans rien apprendre. -->
-      <ol v-if="item.lifecycle?.length && kind !== 'vf'" class="rt-life" :aria-label="lifeLabel" :title="lifeLabel">
-        <li v-for="step in item.lifecycle" :key="step.key" :class="{ done: step.done }" />
+      <ol v-if="lifecycle.length && kind !== 'vf'" class="rt-life" :style="{ gridTemplateColumns: `repeat(${lifecycle.length}, 1fr)` }" :aria-label="lifeLabel" :title="lifeLabel">
+        <li v-for="step in lifecycle" :key="step.key" :class="{ done: step.done }" />
       </ol>
 
       <!-- Une seule action visible (la principale) ; les autres passent dans le menu. -->
@@ -77,9 +77,13 @@ const props = withDefaults(defineProps<{ item: any; canModerate?: boolean; busy?
 });
 defineEmits<{ (e: 'open', item: any): void; (e: 'act', item: any, action: string): void }>();
 
-const kind = computed<string>(() => props.item.tracking?.kind || (props.item.vf_missing ? 'vf' : 'available'));
+const tracking = computed(() => props.item.journey ? props.item.journey.tracking : props.item.tracking);
+const lifecycle = computed(() => props.item.journey
+  ? props.item.journey.steps.map((step: any) => ({ ...step, done: step.state === 'completed' }))
+  : props.item.lifecycle || []);
+const kind = computed<string>(() => tracking.value?.kind || (props.item.vf_missing ? 'vf' : 'available'));
 const motifLabel = computed(() => {
-  if (props.item.tracking?.label) return props.item.tracking.label;
+  if (tracking.value?.label) return tracking.value.label;
   return props.item.vf_missing ? 'Disponible en VO · VF recherchée' : 'Disponible';
 });
 
@@ -107,7 +111,7 @@ const meta = computed(() => {
 });
 
 /* Depuis quand la demande attend dans son etat actuel (sinon depuis la demande). */
-const since = computed<string | null>(() => props.item.tracking?.since || props.item.requested_at || null);
+const since = computed<string | null>(() => tracking.value?.since || props.item.requested_at || null);
 const sinceDays = computed(() => (since.value ? (Date.now() - new Date(since.value).getTime()) / 86_400_000 : 0));
 function duree(jours: number): string {
   if (jours < 1 / 24) return 'à l’instant';
@@ -124,19 +128,19 @@ const sinceTitle = computed(() => (since.value ? `Depuis le ${new Date(since.val
 const late = computed(() => ['not_found', 'missing_episodes', 'failed'].includes(kind.value) && sinceDays.value > 7);
 
 const progress = computed<number | null>(() => {
-  const value = props.item.tracking?.download?.progress;
+  const value = tracking.value?.download?.progress;
   return typeof value === 'number' ? value : null;
 });
 /* Bas de l'affiche : avancement du telechargement, des episodes, ou date de sortie. */
 const footer = computed(() => {
-  const download = props.item.tracking?.download;
+  const download = tracking.value?.download;
   if (download && typeof download.progress === 'number') {
     const reste = download.timeleft ? ` · encore ${String(download.timeleft).replace(/^00:/, '')}` : '';
     return `${Math.round(download.progress)} %${reste}`;
   }
   if (episodes.value) return episodes.value.text;
   if (kind.value === 'unreleased') {
-    const label = String(props.item.tracking?.label || '');
+    const label = String(tracking.value?.label || '');
     return label.includes(' · ') ? label.split(' · ').slice(1).join(' · ') : '';
   }
   return '';
@@ -144,7 +148,8 @@ const footer = computed(() => {
 /* Sous le titre : la raison d'un echec, seule information qui ne tient pas sur l'image. */
 const note = computed(() => (kind.value === 'failed' ? props.item.fulfillment_error || '' : ''));
 const lifeLabel = computed(() => {
-  const steps = props.item.lifecycle || [];
+  if (props.item.journey) return props.item.journey.label;
+  const steps = lifecycle.value;
   const done = steps.filter((step: any) => step.done);
   return done.length ? `Étape ${done.length} sur ${steps.length} : ${done[done.length - 1].label}` : 'Étapes de la demande';
 });

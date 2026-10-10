@@ -63,7 +63,7 @@ export function arrName(row: any): string {
 }
 
 const AVAILABLE_STATUSES = ['available', 'partially_available'];
-const isAvailable = (row: any): boolean => AVAILABLE_STATUSES.includes(row?.status);
+const isAvailable = (row: any): boolean => row?.journey ? row.journey.availability.plex === 'present' : AVAILABLE_STATUSES.includes(row?.status);
 
 /** « 20 sept. 10:02 », avec l'année quand elle diffère de l'année en cours. */
 export function shortDateTime(value?: string | null, now: Date = new Date()): string {
@@ -157,6 +157,10 @@ const REACHED: Record<string, number> = {
  * connaît pas l'instant n'affiche que son libellé.
  */
 export function journeySteps(row: any): JourneyStep[] {
+  if (row.journey) return row.journey.steps.map((step: any) => ({
+    key: step.key, label: step.label, at: step.occurred_at,
+    state: step.state === 'completed' ? 'done' : step.state,
+  }));
   const arr = arrName(row);
   const fromArr = row.origin_kind === 'arr';
   const steps: Omit<JourneyStep, 'state'>[] = [
@@ -230,6 +234,7 @@ const HEADLINES: Record<string, (arr: string) => string> = {
 
 /** Titre d'état en une phrase : « Disponible dans Plex depuis 2 jours ». */
 export function journeyHeadline(row: any, now: Date = new Date()): string {
+  if (row.journey) return row.journey.label;
   const arr = arrName(row);
   if (row.status === 'rejected') return 'Demande refusée';
   if (row.status === 'failed' || row.operational_status === 'failed') return 'Traitement en erreur';
@@ -271,15 +276,16 @@ export function journeySubtitle(row: any, now: Date = new Date()): string {
 
 /** Pastille de statut : ton selon l'état de la demande. */
 export function statusTone(status?: string | null): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
-  if (status === 'available') return 'success';
+  if (status === 'available' || status === 'completed') return 'success';
   if (status === 'failed' || status === 'rejected') return 'danger';
   if (status === 'pending_approval' || status === 'partially_available') return 'warning';
-  if (status === 'sent_to_arr' || status === 'processing') return 'info';
+  if (['sent_to_arr', 'processing', 'awaiting_submission', 'submitted', 'queued', 'downloading', 'importing', 'awaiting_plex'].includes(status || '')) return 'info';
   return 'neutral';
 }
 
 /** Origine lisible, avec accents (le serveur envoie un libellé technique). */
 export function originLabel(row: any): string {
+  if (row.journey) return row.journey.origin.label;
   if (row.origin_kind === 'arr') return `Ajoutée dans ${arrName(row)}`;
   if (row.origin_kind === 'plex') return 'Déjà dans Plex';
   if (/seerr/i.test(row.origin_label || '') || /seerr/i.test(row.source || '')) return 'Demande via Seerr';

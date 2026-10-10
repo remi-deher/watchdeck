@@ -1,3 +1,4 @@
+import { formatNextRun } from '@/utils/format';
 /* Ordre et prochain passage des tâches planifiées : les échecs d'abord, et pour chaque tâche
  * quand elle repartira. Fonctions pures, testées sans monter l'écran. */
 
@@ -8,6 +9,7 @@ export interface TaskState {
 }
 
 export interface ScheduledTask {
+  work?: import("@/types").WorkRef;
   job: string;
   label: string;
   interval_seconds?: number;
@@ -18,13 +20,13 @@ export interface ScheduledTask {
   state?: TaskState | null;
 }
 
-const RANK: Record<string, number> = { failed: 0, running: 1, complete: 2 };
+const RANK: Record<string, number> = { failed: 0, blocked: 0, running: 1, complete: 2, completed: 2 };
 
 /** Les échecs en tête, puis les tâches en cours, puis les autres ; l'ordre du catalogue sinon. */
 export function sortTasks<T extends ScheduledTask>(tasks: T[]): T[] {
   return tasks
     .map((task, index) => ({ task, index }))
-    .sort((a, b) => (RANK[a.task.state?.status || ''] ?? 3) - (RANK[b.task.state?.status || ''] ?? 3) || a.index - b.index)
+    .sort((a, b) => (RANK[a.task.work?.state || a.task.state?.status || ''] ?? 3) - (RANK[b.task.work?.state || b.task.state?.status || ''] ?? 3) || a.index - b.index)
     .map(({ task }) => task);
 }
 
@@ -46,10 +48,5 @@ export function nextRun(task: ScheduledTask, now: Date = new Date()): Date | nul
 export function nextRunLabel(task: ScheduledTask, now: Date = new Date()): string {
   const next = nextRun(task, now);
   if (!next) return '';
-  const minutes = Math.round((next.getTime() - now.getTime()) / 60000);
-  if (minutes <= 0) return 'imminente';
-  if (minutes < 60) return `dans ${minutes} min`;
-  if (minutes < 24 * 60 && next.getDate() === now.getDate()) return `dans ${Math.round(minutes / 60)} h`;
-  const time = `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
-  return minutes < 48 * 60 ? `demain ${time}` : next.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ` ${time}`;
+  return formatNextRun(next, now);
 }

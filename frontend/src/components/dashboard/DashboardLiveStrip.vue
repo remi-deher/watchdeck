@@ -13,7 +13,8 @@
     :loading="loading"
     @select="(item) => $emit('select', item.session)"
   >
-    <template #badge="{ item }"><PlaybackMethodBadge :method="item.session.playback_method" compact /></template>
+    <template #note="{ item }"><PlaybackMethodBadge :playback="item.session" reason-only /></template>
+    <template #badge="{ item }"><PlaybackMethodBadge :playback="item.session" compact /></template>
   </LiveStrip>
 </template>
 
@@ -25,10 +26,9 @@ import LiveStrip, { type LiveFact, type LiveIdle, type LiveItem } from '@/compon
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import type { LiveSession } from '@/components/activity/LiveSessionsPanel.vue';
 import { episodeLabel } from '@/utils/episode';
-import { timecode } from '@/utils/playbackClock';
-import { formatBandwidth } from '@/utils/format';
+import { timecode } from '@/utils/format';
+import { formatBandwidth, formatTime } from '@/utils/format';
 import { channelsLabel } from '@/utils/mediaTechnical';
-import { plexPhrase } from '@/utils/plexDecisionText';
 import { proxyUrl } from '@/utils/mediaImage';
 
 const props = withDefaults(
@@ -90,21 +90,16 @@ function displayTitle(session: LiveSession): string {
   const episode = episodeLabel(session);
   return episode ? `${session.grandparent_title} · ${episode}` : session.grandparent_title;
 }
-function deviceLabel(session: LiveSession): string {
-  return session.player || session.product || session.platform || 'Appareil inconnu';
-}
-
 /* Heure de fin si la lecture va au bout sans nouvelle pause ; en pause, si elle reprend
    maintenant. Rien sans duree connue. */
 function endsAt(session: LiveSession): number | null {
   if (!session.duration_ms) return null;
   return now.value + Math.max(0, session.duration_ms - elapsedMs(session));
 }
-const clock = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 function endLabel(session: LiveSession): string {
   const end = endsAt(session);
   if (end === null) return '';
-  return isPaused(session) ? `fin vers ${clock.format(end)} si reprise` : `fin vers ${clock.format(end)}`;
+  return isPaused(session) ? `fin vers ${formatTime(end)} si reprise` : `fin vers ${formatTime(end)}`;
 }
 
 /* Plex note la hauteur du flux : 1080 pour un 1920x800 recadre se lit par la largeur. */
@@ -158,13 +153,6 @@ function networkTone(session: LiveSession): string {
   if (session.stream_details?.relayed) return 'warn';
   return networkLabel(session) === 'Local' ? '' : 'remote';
 }
-function reasonText(session: LiveSession): string {
-  if (session.playback_method !== 'transcode' && session.playback_method !== 'mixed') return '';
-  const reason = session.transcode_reason;
-  if (!reason?.text) return '';
-  return reason.source === 'plex' ? plexPhrase(reason.text) : reason.text;
-}
-
 const headline = computed(() => {
   const total = props.sessions.length;
   if (!total) return 'Aucune lecture';
@@ -177,7 +165,7 @@ const transcodeCount = computed(() => props.sessions.filter((s) => s.playback_me
 const freeAt = computed(() => {
   const ends = props.sessions.map(endsAt);
   if (!ends.length || ends.some((end) => end === null)) return '';
-  return clock.format(Math.max(...(ends as number[])));
+  return formatTime(Math.max(...(ends as number[])));
 });
 /* Une lecture traduite en carte du bandeau commun. */
 function facts(session: LiveSession): LiveFact[] {
@@ -204,10 +192,10 @@ const items = computed<LiveItem[]>(() => props.sessions.map((session) => ({
   paused: isPaused(session),
   backdrop: session.art_url || null,
   poster: session.thumb_url ? posterUrl(session) : null,
-  corner: { avatar: session.user_avatar_url || null, name: session.user_name || 'Plex' },
-  who: [session.user_name || 'Utilisateur Plex', deviceLabel(session)].join(' · '),
+  corner: { person: session },
+  person: session,
+  client: session,
   facts: facts(session),
-  note: reasonText(session),
 })));
 const idle = computed<LiveIdle>(() => {
   if (props.loading) return { title: 'Lectures en direct', message: 'Récupération des lectures Plex…', icon: MonitorPlay };

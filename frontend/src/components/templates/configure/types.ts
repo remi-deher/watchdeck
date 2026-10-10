@@ -7,7 +7,11 @@ export interface ConfigureSection {
   title: string;
   /** Ce que la section regle, en une phrase. */
   description?: string;
-  /** Modifiee et pas encore enregistree : signalee dans la section et le sommaire. */
+  /** Icone de l'en-tete de la carte. */
+  icon?: any;
+  /** Mots qui retrouvent la section depuis la recherche, en plus du titre et de la phrase. */
+  keywords?: string[];
+  /** Modifiee et pas encore enregistree : signalee dans l'en-tete de la carte. */
   dirty?: boolean;
 }
 

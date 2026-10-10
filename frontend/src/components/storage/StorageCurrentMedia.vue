@@ -1,5 +1,6 @@
 <template>
-  <section v-if="current" class="current-media" :class="{hero}" :style="hero && current.art_url ? {'--media-art':`url(${proxyUrl(current.art_url)})`}:{}">
+  <LiveStrip v-if="current && job.work" :items="[live]" title="Transfert" live-label="Transfert" :idle="{title: 'Aucun transfert'}" />
+  <section v-else-if="current" class="current-media" :class="{hero}" :style="hero && current.art_url ? {'--media-art':`url(${proxyUrl(current.art_url)})`}:{}">
     <MediaPoster class="current-poster" :poster-url="current.poster_url" :alt="`Affiche de ${current.title}`" sizes="90px" />
     <div class="current-body">
       <small>{{ job.desired_state==='run'?'Média en cours de transfert':'Dernier média traité' }} · {{ status(current.status) }}</small>
@@ -16,6 +17,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import LiveStrip from '@/components/ui/LiveStrip.vue';
 import {computed,onMounted,onUnmounted,ref} from 'vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
@@ -30,6 +32,16 @@ const filePercent=computed(()=>{const p=current.value?.progress;return p?.file_s
 const now=ref(Date.now()/1000);let timer:ReturnType<typeof setInterval>|undefined;
 onMounted(()=>timer=setInterval(()=>now.value=Date.now()/1000,1000));onUnmounted(()=>clearInterval(timer));
 const eta=computed(()=>{const m=transferMetrics(props.job,now.value);return m.rate && current.value?.status==='copying'?copyDuration(Math.max(0,current.value.size_bytes-(current.value.progress?.copied_bytes||0))/m.rate):null;});
+const live=computed(()=>({
+  key:props.job.work.key,title:current.value.title,media:current.value.media,work:props.job.work,note:filename.value,
+  facts:[
+    ...(filePercent.value!=null?[{key:'file',label:`Fichier : ${filePercent.value} %`}]:[]),
+    ...(counts.value?.episodes!=null?[{key:'episodes',label:`${counts.value.episodes} épisode(s) à finir`}]:[]),
+    ...(counts.value?.seasons!=null?[{key:'seasons',label:`${counts.value.seasons} saison(s) concernée(s)`}]:[]),
+    ...(eta.value?[{key:'eta',label:`Cette série : ≈ ${eta.value} de copie`}]:[]),
+  ],
+}));
+
 </script>
 <style scoped>
 .current-media{display:grid;grid-template-columns:68px minmax(0,1fr);gap:16px;border-top:1px solid var(--border);padding-top:16px;margin-top:16px;min-width:0}.current-poster{width:68px;aspect-ratio:2/3;border-radius:var(--radius-md);overflow:hidden}.current-body{min-width:0}.current-body h3{font-size:var(--fs-base);margin:4px 0 8px}.current-body small{color:var(--muted);font-size:var(--fs-xs)}.current-file{font-size:var(--fs-sm);overflow-wrap:anywhere;margin:4px 0 10px;color:var(--muted)}.current-counts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 6px;font-size:var(--fs-xs)}.current-counts>span{color:var(--accent)}.hero{background:linear-gradient(90deg,var(--surface),transparent),var(--media-art,none) center/cover;padding:20px;border:1px solid var(--border);border-radius:var(--panel-radius)}

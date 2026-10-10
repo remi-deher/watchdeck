@@ -1,8 +1,8 @@
 <template>
   <!-- Barre de commande des sections Encodage : etat de FileFlows, automatismes actifs,
        pause generale. Une seule source pour toutes les sections. -->
-  <div class="cmd" :class="{ 'is-compact': compact }" role="region" aria-label="État de FileFlows">
-    <span class="cmd-state">
+  <div class="cmd" :class="{ 'is-compact': compact }" role="region" :aria-label="part === 'pause' ? 'Pause de FileFlows' : 'État de FileFlows'">
+    <span v-if="part !== 'pause'" class="cmd-state">
       <span class="cmd-dot" :class="dotClass" aria-hidden="true" />
       <strong>{{ stateLabel }}</strong>
     </span>
@@ -11,7 +11,7 @@
     <span v-if="control?.reorder_enabled" class="cmd-pill is-accent">Alternance</span>
     <span v-if="control && control.plex_pause !== 'off'" class="cmd-pill is-warning">Pause lecture : {{ PLEX_PAUSE_LABELS[control.plex_pause].toLowerCase() }}</span>
     <span v-if="pausedDisks.length" class="cmd-pill is-warning"><CirclePause aria-hidden="true" />{{ pausedDisks.join(', ') }} en pause</span>
-    <template v-if="status?.connected">
+    <template v-if="status?.connected && part !== 'state'">
       <UiButton v-if="status.paused" size="sm" variant="primary" :loading="pauseMutation.isPending.value" @click="pauseMutation.mutate(0)"><Play /><span class="cmd-label">Reprendre</span></UiButton>
       <UiMenu v-else label="Mettre en pause" align="end">
         <template #trigger><UiButton size="sm" :loading="pauseMutation.isPending.value"><Pause /><span class="cmd-label">Pause</span></UiButton></template>
@@ -34,7 +34,9 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiMenu from '@/components/ui/UiMenu.vue';
 import UiMenuItem from '@/components/ui/UiMenuItem.vue';
 
-withDefaults(defineProps<{ compact?: boolean }>(), { compact: false });
+/* `part` : la barre entiere, ou seulement l'etat (retour de la capsule) ou la pause
+   (action de la capsule). */
+withDefaults(defineProps<{ compact?: boolean; part?: 'all' | 'state' | 'pause' }>(), { compact: false, part: 'all' });
 
 /* La pause laisse finir le fichier en cours (FileFlows ne l'interrompt pas). */
 const PAUSE_OPTIONS = [

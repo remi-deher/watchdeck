@@ -1,3 +1,6 @@
+import type { WorkRef } from '@/types/generated/mediaAvailability';
+import { formatSeconds as formatSeconds } from '@/utils/format';
+import type { MediaRef } from '@/types';
 /* FileFlows : types, requete d'etat partagee et libelles.
  *
  * L'accueil, la page Encodage et la fiche media lisent le meme `/api/fileflows/status` :
@@ -9,13 +12,8 @@ import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { queryKeys } from '@/queryKeys';
 
-export interface FileflowsMedia {
-  id: number;
-  title: string;
-  year?: number | null;
-  media_type: string;
-  poster_url?: string | null;
-}
+/** Le media d'un fichier : la description commune (MediaRef). */
+export type FileflowsMedia = MediaRef;
 
 export interface FileflowsTiming {
   /** Duree affichee par FileFlows : depuis la prise du fichier par un runner. */
@@ -29,6 +27,7 @@ export interface FileflowsTiming {
 }
 
 export interface FileflowsFile {
+  work?: WorkRef;
   uid: string;
   name: string;
   library: string;
@@ -48,11 +47,12 @@ export interface FileflowsFile {
 }
 
 export interface FileflowsRunner {
+  work?: WorkRef;
   path: string;
   name: string;
   library: string;
   step: string;
-  percent: number;
+  percent: number | null;
   media?: FileflowsMedia | null;
 }
 
@@ -110,13 +110,7 @@ export function fileBaseName(path: string): string {
 }
 
 /** Duree lisible : « 42 s », « 4 min 42 », « 1 h 03 ». */
-export function formatSeconds(value: number | null | undefined): string {
-  const total = Math.max(0, Math.round(Number(value) || 0));
-  if (total < 60) return `${total} s`;
-  const minutes = Math.floor(total / 60);
-  if (minutes < 60) return `${minutes} min ${String(total % 60).padStart(2, '0')}`;
-  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
-}
+export { formatSeconds as formatSeconds } from '@/utils/format';
 
 /** Gain (negatif) ou perte de taille apres traitement, en pourcentage. */
 export function sizeChange(file: Pick<FileflowsFile, 'original_size' | 'final_size'>): number | null {
@@ -202,9 +196,9 @@ export const PLEX_PAUSE_LABELS: Record<FileflowsControl['plex_pause'], string> =
 
 export interface FileflowsSummary {
   size?: number | null;
-  video?: { codec?: string } | null;
-  audio?: Array<{ codec?: string }>;
-  subtitles?: Array<{ codec?: string }>;
+  video?: { codec?: string; height?: number | null; pix_fmt?: string | null } | null;
+  audio?: Array<{ codec?: string; title?: string | null }>;
+  subtitles?: Array<{ codec?: string; title?: string | null }>;
 }
 
 /** Un passage enregistre par Watchdeck (avant / apres, duree reelle). */
@@ -253,6 +247,30 @@ export function fileflowsHistoryQuery(days: MaybeRefOrGetter<number>, offset: Ma
 }
 
 /** Ce qui a change entre avant et apres : codec video, codecs audio, sous-titres texte, taille. */
+const CODEC_NAMES: Record<string, string> = { eac3: 'E-AC3', ac3: 'AC3', dts: 'DTS', truehd: 'TrueHD', aac: 'AAC', opus: 'Opus', flac: 'FLAC', mp3: 'MP3', pcm_s16le: 'PCM', pcm_s24le: 'PCM' };
+const codecName = (codec: string) => CODEC_NAMES[codec] || codec.toUpperCase();
+
+/** Ce qui a ete retouche, en etiquettes courtes (« Vidéo », « Audio DTS », « Sous-titres
+    SRT », « Pistes renommées »…), deduites de l'avant / apres du passage. */
+export function passTags(pass: FileflowsPass): string[] {
+  const before = pass.before || {}, after = pass.after;
+  if (!after || pass.status === 'failed') return [];
+  const tags: string[] = [];
+  const bv = before.video, av = after.video;
+  if (bv?.codec && av?.codec && (bv.codec !== av.codec || bv.pix_fmt !== av.pix_fmt || bv.height !== av.height)) tags.push('Vidéo');
+  /* Un codec audio qui ne se retrouve plus apres a ete converti (ou retire). */
+  const kept = new Set((after.audio || []).map((a) => a.codec));
+  const converted = new Set((before.audio || []).filter((a) => a.codec && !kept.has(a.codec)).map((a) => codecName(a.codec!)));
+  for (const codec of converted) tags.push(`Audio ${codec}`);
+  const srt = (s: FileflowsSummary) => (s.subtitles || []).filter((t) => t.codec === 'subrip').length;
+  if (srt(before) > srt(after)) tags.push('Sous-titres SRT');
+  const count = (s: FileflowsSummary) => (s.audio || []).length + (s.subtitles || []).length;
+  if (count(after) < count(before)) tags.push('Pistes retirées');
+  const titles = (s: FileflowsSummary) => [...(s.audio || []), ...(s.subtitles || [])].map((t) => t.title || '').join('|');
+  if (count(after) === count(before) && titles(before) !== titles(after)) tags.push('Pistes renommées');
+  return tags;
+}
+
 export function passChanges(pass: FileflowsPass): string[] {
   const before = pass.before || {}, after = pass.after;
   if (!after) return [];

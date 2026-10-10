@@ -51,4 +51,6 @@ async def test_torrent_clients_are_not_requeried_inside_soft_ttl(async_db):
 
     assert first == second
     assert first[0]["title"] == "Film"
+    assert first[0]["work"]["state"] == "running"
+    assert first[0]["work"]["progress"]["percent"] == 50
     fetch.assert_awaited_once()

@@ -36,9 +36,11 @@
         v-for="item in visible"
         :key="item.key"
         :item="item"
+        :busy="busy"
         :selectable="selectionActions.length > 0"
         :selected="selected.has(item.key)"
         @toggle="toggle"
+        @note="(target, value) => emit('note', target, value)"
         @action="(target, key) => emit('action', target, key)"
       />
       <li v-if="hidden > 0" class="handle__more"><button type="button" @click="limit += pageSize">+ {{ hidden }} {{ hidden > 1 ? 'autres' : 'autre' }}</button></li>
@@ -66,6 +68,7 @@ const props = withDefaults(
     /** Actions proposees sur une selection d'elements (cases a cocher). */
     selectionActions?: HandleAction[];
     loading?: boolean;
+    busy?: boolean;
     labels?: HandleLabels;
     /** Lignes montrees, puis par paquets de cette taille. */
     pageSize?: number;
@@ -73,6 +76,7 @@ const props = withDefaults(
   { issues: () => [], selectionActions: () => [], loading: false, labels: () => ({}), pageSize: 25 },
 );
 const emit = defineEmits<{
+  note: [item: HandleItem, value: string];
   action: [item: HandleItem, key: string];
   /** Action groupee d'un type de probleme. */
   bulk: [actionKey: string, issueKey: string];
@@ -92,9 +96,9 @@ const activeIssue = computed(() => props.issues.find((entry) => entry.key === is
 const URGENCY: Record<HandleUrgency, number> = { high: 0, medium: 1, low: 2 };
 const sorted = computed(() =>
   props.items
-    .filter((item) => !issue.value || item.issue === issue.value)
+    .filter((item) => !issue.value || (item.handling?.kind || item.issue) === issue.value)
     .slice()
-    .sort((a, b) => URGENCY[a.urgency] - URGENCY[b.urgency]),
+    .sort((a, b) => URGENCY[a.handling?.urgency || a.urgency || 'medium'] - URGENCY[b.handling?.urgency || b.urgency || 'medium']),
 );
 const limit = ref(props.pageSize);
 watch(issue, () => { limit.value = props.pageSize; });

@@ -18,7 +18,7 @@
     <MediaPosterCard
       v-for="(item, index) in items"
       :key="`${item.media_type}:${item.tmdb_id || item.id}`"
-      :item="item"
+      :media="item"
       :style="{ '--card-index': index }"
       :to="resolveItemPath(item)"
       :action-label="resolveActionLabel(item)"

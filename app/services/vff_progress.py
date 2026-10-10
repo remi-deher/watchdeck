@@ -17,6 +17,7 @@ from typing import Any
 
 from ..realtime import publish
 from . import scan_state
+from .work_ref import task_work
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,10 @@ async def _watch() -> None:
             # process meurt en plein scan.
             await _mirror_to_shared_state(snapshot, touched)
             if snapshot != previous:
-                payload = dict(snapshot)
+                payload = {
+                    name: {**row, "work": task_work("vff" if name == "scan" else "plex", row, scan=True)}
+                    for name, row in snapshot.items()
+                }
                 # `previous is None` = tout premier tour, donc le demarrage : les compteurs
                 # n'ont pas encore bouge, inutile de payer trois COUNT.
                 if previous is not None and not _is_running(snapshot):

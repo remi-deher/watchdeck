@@ -16,9 +16,8 @@
         <RouterLink v-if="link" :to="link.to" class="panel-link">{{ link.label }}</RouterLink>
       </header>
       <div class="live-strip-list" :class="[`is-${layout}`, { 'is-plain': plain }]" :style="{ '--live-count': items.length }">
+        <div v-for="(item, index) in cards" :key="item.key" class="live-entry">
         <button
-          v-for="(item, index) in items"
-          :key="item.key"
           type="button"
           class="live-card"
           :class="{ paused: item.paused }"
@@ -41,7 +40,7 @@
                 <span v-if="item.badge" class="live-badge" :class="`is-${item.badge.tone || 'neutral'}`">{{ item.badge.label }}</span>
               </slot>
               <span v-if="item.corner?.label" class="live-corner"><component :is="item.corner.icon" v-if="item.corner.icon" aria-hidden="true" />{{ item.corner.label }}</span>
-              <UiAvatar v-else-if="item.corner" :src="item.corner.avatar" :name="item.corner.name || '?'" size="sm" tone="accent" />
+              <UiAvatar v-else-if="item.corner" :person="item.corner.person || item.person" :src="item.corner.avatar" :name="item.corner.name" size="sm" tone="accent" />
             </span>
             <span class="live-poster-bottom">
               <span v-if="wide && item.poster" class="live-inset" aria-hidden="true">
@@ -65,8 +64,12 @@
             </span>
             <span v-if="item.facts.length > FACTS_SHOWN" class="live-chip live-chip-more" :title="item.facts.slice(FACTS_SHOWN).map((fact) => fact.label).join(' · ')">+{{ item.facts.length - FACTS_SHOWN }}</span>
           </span>
-          <span v-if="item.note" class="live-card-reason" :title="item.note">{{ item.note }}</span>
+          <span v-if="item.note || $slots.note" class="live-card-reason"><slot name="note" :item="item"><span :title="item.note">{{ item.note }}</span></slot></span>
         </button>
+        <div v-if="item.actions?.length" class="live-actions">
+          <UiButton v-for="action in item.actions" :key="action.key" size="sm" :disabled="action.disabled" :title="action.title" :variant="action.tone === 'danger' ? 'danger' : action.tone === 'primary' ? 'primary' : 'secondary'" @click="emit('action', item, action.key)">{{ action.label }}</UiButton>
+        </div>
+        </div>
       </div>
     </template>
 
@@ -87,9 +90,12 @@
 </template>
 
 <script setup lang="ts">
+import { resolveLiveItem } from '@/composables/workPresentation';
 import { computed, reactive, useId } from 'vue';
 import { Activity, Pause } from '@lucide/vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
+import { personName } from '@/utils/userLabels';
+import { plexClientName } from '@/utils/plexClient';
 import UiAvatar from './UiAvatar.vue';
 import UiButton from './UiButton.vue';
 import type { LiveIdle, LiveItem } from './liveStrip';
@@ -114,7 +120,7 @@ const props = withDefaults(
   }>(),
   { summary: '', liveLabel: 'En direct', liveExtra: '', link: null, loading: false, type: 'movie' },
 );
-const emit = defineEmits<{ select: [item: LiveItem] }>();
+const emit = defineEmits<{ select: [item: LiveItem]; action: [item: LiveItem, key: string] }>();
 
 const FACTS_SHOWN = 4;
 const titleId = `live-strip-${useId()}`;
@@ -128,7 +134,15 @@ const layout = computed<'banner' | 'fanart' | 'posters'>(() => {
 const wide = computed(() => layout.value !== 'posters');
 /* Sans aucune image (un fichier sans fiche media), une grande banniere ne montrerait
    qu'un fond vide : elle se reduit a une bande. */
-const plain = computed(() => props.items.every((item) => !item.backdrop && !item.poster));
+/* Les images d'un media viennent du media lui-meme : une carte qui en a un montre
+   forcement son affiche et son fond quand ils existent. */
+const cards = computed<LiveItem[]>(() => props.items.map(resolveLiveItem).map((item) => ({
+  ...item,
+  who: item.who || [item.person && personName(item.person), item.client && plexClientName(item.client)].filter(Boolean).join(' · '),
+  poster: item.poster || item.media?.poster_url || null,
+  backdrop: item.backdrop || item.media?.backdrop_url || null,
+})));
+const plain = computed(() => cards.value.every((item) => !item.backdrop && !item.poster));
 /* Un logo introuvable rend la main au titre ecrit. */
 const brokenLogos = reactive(new Set<string>());
 </script>
@@ -149,6 +163,8 @@ const brokenLogos = reactive(new Set<string>());
 .live-strip-list.is-fanart { grid-template-columns: repeat(var(--live-count), minmax(0, 1fr)); }
 .live-strip-list.is-banner { grid-template-columns: minmax(0, 1fr); }
 .live-strip-list.is-fanart, .live-strip-list.is-banner { overflow-x: visible; }
+.live-entry { min-width: 0; display: grid; align-content: start; gap: var(--space-2); }
+.live-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .live-card { display: grid; gap: var(--space-2); align-content: start; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; scroll-snap-align: start; }
 .live-card:focus-visible { outline: none; }
 .live-card:hover .live-poster, .live-card:focus-visible .live-poster { outline: 3px solid var(--accent); outline-offset: 3px; }

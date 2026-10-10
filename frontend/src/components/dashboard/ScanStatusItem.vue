@@ -1,12 +1,13 @@
 <template>
   <div class="scan-block">
-    <div class="scan-block-header">
+    <LiveStrip :title="title" :idle="{ title: 'Aucun scan en cours' }" v-if="work?.state === 'running'" :items="[{ key: work.key, title, work }]" />
+    <div v-if="work?.state !== 'running'" class="scan-block-header">
       <div class="scan-identity">
         <div class="scan-icon-wrap"><slot name="icon" /></div>
         <div class="scan-titles">
           <div class="scan-title-row">
             <strong>{{ title }}</strong>
-            <span class="badge" :class="statusClass">{{ statusLabel }}</span>
+            <StatusBadge v-if="work" :work="work" /><span v-else class="badge" :class="statusClass">{{ statusLabel }}</span>
           </div>
           <span class="scan-subtitle">{{ subtitle }}</span>
         </div>
@@ -16,18 +17,21 @@
         <span>{{ actionLabel }}</span>
       </UiButton>
     </div>
-    <div v-if="running && progress != null" class="progress-bar-wrap">
+    <div v-if="!work && running && progress != null" class="progress-bar-wrap">
       <div class="progress-bar animated" :style="{ width: `${progress}%` }" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import LiveStrip from '@/components/ui/LiveStrip.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed } from 'vue';
 import { RefreshCw } from '@lucide/vue';
 
 const props = withDefaults(defineProps<{
+  work?: import("@/types").WorkRef;
   title: string;
   subtitle: string;
   status?: string;
@@ -37,7 +41,7 @@ const props = withDefaults(defineProps<{
 
 defineEmits<{ (e: 'action'): void }>();
 
-const running = computed(() => props.status === 'running');
+const running = computed(() => props.work ? props.work.state === 'running' : props.status === 'running');
 /* « Inactif » portait la pastille verte de `available` : le vert dit « tout va bien,
    ca tourne », alors que la tache est justement a l'arret. Un etat neutre n'est ni bon
    ni mauvais et prend donc la couleur neutre ; seuls « En cours » et « Erreur » gardent

@@ -1,10 +1,10 @@
 <template>
   <PanelCard title="État des scans" eyebrow="Maintenance" panel-class="scan-status-panel">
     <div class="scan-blocks">
-      <ScanStatusItem title="Synchronisation Plex" :subtitle="statusSubtitle(plexSync, 'Médiathèque Plex', plexSync.items_synced, plexSync.total_items)" :status="plexSync.status" action-label="Sync" :progress="progress(plexSync.items_synced, plexSync.total_items)" @action="$emit('sync-plex')"><template #icon><Tv /></template></ScanStatusItem>
-      <ScanStatusItem title="Analyse VF" :subtitle="statusSubtitle(vffScan, 'Détection des pistes audio', vffScan.items_scanned, vffScan.total_items)" :status="vffScan.status" action-label="Scan VF" :progress="progress(vffScan.items_scanned, vffScan.total_items)" @action="$emit('scan-vff')"><template #icon><Languages /></template></ScanStatusItem>
-      <ScanStatusItem title="Vérification *arr" :subtitle="statusSubtitle(arrSync, 'Sonarr & Radarr', undefined, undefined, 'Vérification des instances...')" :status="arrSync.status" action-label="Sync Arr" @action="$emit('sync-arr')"><template #icon><Download /></template></ScanStatusItem>
-      <ScanStatusItem title="Watchlists Plex" :subtitle="statusSubtitle(watchlistSync, 'Flux RSS & utilisateurs', undefined, undefined, 'Relève des flux RSS/Watchlist...')" :status="watchlistSync.status" action-label="Sync" @action="$emit('sync-watchlist')"><template #icon><BookmarkCheck /></template></ScanStatusItem>
+      <ScanStatusItem title="Synchronisation Plex" :subtitle="statusSubtitle(plexSync, 'Médiathèque Plex', plexSync.items_synced, plexSync.total_items)" :status="plexSync.status" :work="plexSync.work" action-label="Sync" :progress="progress(plexSync.items_synced, plexSync.total_items)" @action="$emit('sync-plex')"><template #icon><Tv /></template></ScanStatusItem>
+      <ScanStatusItem title="Analyse VF" :subtitle="statusSubtitle(vffScan, 'Détection des pistes audio', vffScan.items_scanned, vffScan.total_items)" :status="vffScan.status" :work="vffScan.work" action-label="Scan VF" :progress="progress(vffScan.items_scanned, vffScan.total_items)" @action="$emit('scan-vff')"><template #icon><Languages /></template></ScanStatusItem>
+      <ScanStatusItem title="Vérification *arr" :subtitle="statusSubtitle(arrSync, 'Sonarr & Radarr', undefined, undefined, 'Vérification des instances...')" :status="arrSync.status" :work="arrSync.work" action-label="Sync Arr" @action="$emit('sync-arr')"><template #icon><Download /></template></ScanStatusItem>
+      <ScanStatusItem title="Watchlists Plex" :subtitle="statusSubtitle(watchlistSync, 'Flux RSS & utilisateurs', undefined, undefined, 'Relève des flux RSS/Watchlist...')" :status="watchlistSync.status" :work="watchlistSync.work" action-label="Sync" @action="$emit('sync-watchlist')"><template #icon><BookmarkCheck /></template></ScanStatusItem>
     </div>
 
     <div v-if="vffCounts.vf_available != null" class="scan-counts-grid">
@@ -21,7 +21,7 @@ import { BookmarkCheck, Download, Languages, Tv } from '@lucide/vue';
 import PanelCard from '@/components/ui/PanelCard.vue';
 import ScanStatusItem from './ScanStatusItem.vue';
 
-export interface ScanStatus { status?: string; total_items?: number; items_scanned?: number; items_synced?: number; finished_at?: string; }
+export interface ScanStatus { work?: import("@/types").WorkRef; status?: string; total_items?: number; items_scanned?: number; items_synced?: number; finished_at?: string; }
 export interface VffCounts { vf_available?: number; vo_pending?: number; unchecked?: number; }
 
 withDefaults(defineProps<{ vffScan?: ScanStatus; plexSync?: ScanStatus; arrSync?: ScanStatus; watchlistSync?: ScanStatus; vffCounts?: VffCounts; }>(), {
@@ -30,12 +30,14 @@ withDefaults(defineProps<{ vffScan?: ScanStatus; plexSync?: ScanStatus; arrSync?
 defineEmits<{ (e: 'scan-vff'): void; (e: 'sync-plex'): void; (e: 'sync-arr'): void; (e: 'sync-watchlist'): void; }>();
 
 function statusSubtitle(status: ScanStatus, fallback: string, current?: number, total?: number, runningText?: string): string {
+  if (status.work?.reason) return status.work.reason;
+  if (status.work?.state === 'blocked' || status.status === 'failed') return 'Échec de la dernière exécution';
   if (status.status === 'running') return runningText || `${current || 0} / ${total || '?'} items`;
   if (status.finished_at) return `Terminé le ${formatDate(status.finished_at)}`;
   return fallback;
 }
 function progress(current?: number, total?: number): number | null {
-  if (!total) return 5;
+  if (!total || current == null) return null;
   return Math.min(100, Math.max(0, Math.round(((current || 0) / total) * 100)));
 }
 </script>

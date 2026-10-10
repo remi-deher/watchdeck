@@ -25,6 +25,7 @@ from ..models import (
     SonarrQueueObservation,
 )
 from ..serializers import format_datetime
+from ..services.work_ref import WorkRecord, task_work
 
 router = APIRouter(prefix="/api", tags=["scheduled-tasks"], dependencies=[Depends(require_admin)])
 
@@ -309,6 +310,8 @@ async def _job_states() -> dict[str, dict]:
                 if raw:
                     data = json.loads(raw)
                     name = data.get("name") or key.rsplit(":", 1)[-1]
+                    if data.get("status") == "running" and not await redis.exists(f"watchdeck:jobs:lock:{name}"):
+                        data = {**data, "stale": True}
                     states[name] = data
         finally:
             await redis.aclose()
@@ -317,7 +320,7 @@ async def _job_states() -> dict[str, dict]:
     return states
 
 
-@router.get("/scheduled-tasks")
+@router.get("/scheduled-tasks", response_model=list[WorkRecord])
 async def list_scheduled_tasks(db: AsyncSession = Depends(get_db_async)):
     settings = (await db.execute(select(Settings))).scalars().first()
     states = await _job_states()
@@ -353,6 +356,7 @@ async def list_scheduled_tasks(db: AsyncSession = Depends(get_db_async)):
                 "settings_minute_value": settings_minute_value,
                 "fixed_schedule": entry["fixed_schedule"],
                 "state": states.get(cast(str, entry["job"])),
+                "work": task_work(str(entry["job"]), states.get(str(entry["job"]))),
             }
         )
     return out

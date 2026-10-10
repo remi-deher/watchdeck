@@ -8,6 +8,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatLongDay } from '@/utils/format';
 import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { Gauge } from '@lucide/vue';
@@ -27,7 +28,7 @@ const quota = computed(() => quotaQuery.data.value || {});
 function line(entry: QuotaEntry | undefined, label: string): string | null {
   if (!entry || entry.limit == null) return null;
   if (!entry.exceeded) return `${entry.used}/${entry.limit} ${label}`;
-  const next = entry.next_slot_at ? new Date(`${entry.next_slot_at}Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : null;
+  const next = entry.next_slot_at ? formatLongDay(entry.next_slot_at, { day: 'numeric', month: 'long' }) : null;
   return `${label} : quota atteint${next ? `, prochaine place le ${next}` : ''}`;
 }
 

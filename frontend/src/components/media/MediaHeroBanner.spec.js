@@ -55,8 +55,8 @@ describe('MediaHeroBanner', () => {
     const wrapper = mount(MediaHeroBanner, {
       props: {
         items: [
-          { id: 1, title: 'Film 1', art_url: 'http://example.com/1.jpg' },
-          { id: 2, title: 'Film 2', art_url: 'http://example.com/2.jpg' },
+          { id: 1, title: 'Film 1', backdrop_url: 'http://example.com/1.jpg' },
+          { id: 2, title: 'Film 2', backdrop_url: 'http://example.com/2.jpg' },
         ],
       },
       global: {

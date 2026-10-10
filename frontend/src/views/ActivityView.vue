@@ -190,7 +190,7 @@
             <button v-for="item in qualityHistory" :key="sessionKey(item)" @click="openSession(item)">
               <MediaArtwork :src="item.thumb_url" :alt="displayTitle(item)" :type="item.media_type" size="small"/>
               <span><strong>{{ displayTitle(item) }}</strong><small>{{ item.player||item.platform||'Plex' }} · {{ item.quality||'Auto' }}</small></span>
-              <PlaybackMethodBadge :method="item.playback_method"/>
+              <PlaybackMethodBadge :playback="item"/>
             </button>
             <p v-if="!qualityHistory.length" class="empty">Aucune donnée de qualité sur cette période.</p>
           </div>
@@ -203,7 +203,7 @@
         <div v-balanced-grid="{ min: 340 }" class="user-cards">
           <article v-for="(user,index) in filteredAnalyticsUsers" :key="user.name" class="panel user-card">
             <button type="button" class="user-card-open" :aria-label="`Voir l’activité de ${user.name}`" @click="openUserScope(user.name)"></button>
-            <UiAvatar class="user-avatar" :name="user.name" size="lg" tone="accent" />
+            <UiAvatar class="user-avatar" :person="user" size="lg" tone="accent" />
             <div><h3>{{ user.name }}</h3><p>{{ user.sessions }} session{{ user.sessions>1?'s':'' }} sur {{ periodLabel }}</p></div>
             <strong>{{ formatDuration(user.watch_ms) }}</strong>
             <div class="user-share"><i :style="{width:`${userShare(user.sessions)}%`}"></i></div>

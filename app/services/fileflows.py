@@ -30,6 +30,7 @@ from ..cache import cache
 from ..models import ArrInstance, LibraryItem
 from . import arr_catalog
 from .arr_http_client import ArrClient
+from .media_ref import media_ref
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +104,41 @@ async def _call(
         raise FileFlowsError("Réponse FileFlows illisible") from exc
 
 
+# Le nœud de traitement (runners, planning) s'appelle « agent » depuis FileFlows 26.09 ;
+# les versions précédentes l'exposent sous « node ». Mêmes champs dans les deux cas.
+NODE_ROUTES = ("agent", "node")
+
+
+async def list_nodes(url: str, api_key: str | None, *, timeout: int = 20) -> tuple[str, list[dict[str, Any]]]:
+    """Route du nœud qui répond et liste des nœuds."""
+    error: FileFlowsError | None = None
+    for route in NODE_ROUTES:
+        try:
+            nodes = await _call(url, api_key, "GET", route, timeout=timeout)
+        except FileFlowsError as exc:
+            error = exc
+            continue
+        if isinstance(nodes, list):
+            return route, [n for n in nodes if isinstance(n, dict)]
+    raise error or FileFlowsError("Route FileFlows inconnue (version incompatible ?)")
+
+
+async def main_node(url: str, api_key: str | None) -> tuple[str, dict[str, Any]]:
+    """Détail du nœud principal (premier nœud), avec la route qui permet de l'enregistrer."""
+    route, nodes = await list_nodes(url, api_key)
+    node = next((n for n in nodes if n.get("Uid")), None)
+    if node is None:
+        raise FileFlowsError("Aucun nœud FileFlows")
+    return route, await _call(url, api_key, "GET", f"{route}/{node['Uid']}")
+
+
+async def save_node(url: str, api_key: str | None, route: str, node: dict[str, Any]) -> None:
+    await _call(url, api_key, "POST", route, json=node)
+
+
 async def check_connection(url: str, api_key: str | None = None) -> tuple[bool, str]:
     try:
-        nodes = await _call(url, api_key, "GET", "node", timeout=10)
+        _, nodes = await list_nodes(url, api_key, timeout=10)
     except FileFlowsError as exc:
         return False, str(exc)
     version = next((n.get("Version") for n in nodes if isinstance(n, dict) and n.get("Version")), "")
@@ -162,7 +195,7 @@ async def dashboard(url: str, api_key: str | None) -> dict[str, Any]:
             "name": runner.get("relativePath") or runner.get("name") or "",
             "library": runner.get("library") or "",
             "step": runner.get("step") or "",
-            "percent": runner.get("stepPercent") or 0,
+            "percent": runner.get("stepPercent"),
         }
         for runner in status.get("processingFiles") or []
     ]
@@ -498,6 +531,7 @@ async def _build_folder_index(db: AsyncSession) -> dict[str, dict[str, Any]]:
                 LibraryItem.year,
                 LibraryItem.media_type,
                 LibraryItem.poster_url,
+                LibraryItem.art_url,
                 LibraryItem.arr_instance_id,
                 LibraryItem.arr_id,
             ).filter(LibraryItem.arr_instance_id.in_([i.id for i in instances]), LibraryItem.arr_id.isnot(None))
@@ -514,13 +548,7 @@ async def _build_folder_index(db: AsyncSession) -> dict[str, dict[str, Any]]:
             name = folder_name(entry.get("path"))
             if row is None or not name:
                 continue
-            index[name.casefold()] = {
-                "id": row.id,
-                "title": row.title,
-                "year": row.year,
-                "media_type": row.media_type,
-                "poster_url": row.poster_url,
-            }
+            index[name.casefold()] = media_ref(row)
     return index
 
 

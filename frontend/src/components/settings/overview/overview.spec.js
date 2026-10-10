@@ -216,3 +216,19 @@ describe('OverviewQuickActions', () => {
     expect(wrapper.findAll('button').some((button) => button.attributes('disabled') !== undefined)).toBe(false);
   });
 });
+
+
+it('les blocs de supervision lisent les objets métier entiers', () => {
+  const health = mount(OverviewServices, { props: { rows: [{ key: 'smtp', label: 'E-mail', to: '/settings',
+    service: { state: 'ok', health: { key: 'smtp', state: 'configured', label: 'Configuré', reason: null } },
+  }] }, global });
+  expect(health.text()).toContain('Configuré');
+  expect(health.text()).not.toContain('Opérationnel');
+  const task = mount(OverviewTasks, { props: { tasks: [{ job: 'watchlist', label: 'Watchlist',
+    state: { status: 'complete', finished_at: '2026-10-10T00:00:00Z' },
+    work: { key: 'task:watchlist', source: 'task', state: 'unknown', label: 'État inconnu', stage: null,
+      progress: { percent: null, scope: 'execution', label: 'Exécution' }, reason: null, stale: false },
+  }] }, global });
+  expect(task.text()).toContain('État inconnu');
+  expect(task.text()).not.toContain('OK');
+});

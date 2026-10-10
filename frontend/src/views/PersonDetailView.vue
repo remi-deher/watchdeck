@@ -25,7 +25,7 @@
           :items="visibleCredits"
           empty-message="Aucun média trouvé dans cette catégorie."
         >
-          <MediaPosterCard v-for="item in visibleCredits" :key="`${item.media_type}:${item.tmdb_id}`" :item="item" :to="detailPath(item)" :action-label="item.character || 'Voir la fiche'" />
+          <MediaPosterCard v-for="item in visibleCredits" :key="`${item.media_type}:${item.tmdb_id}`" :media="item" :to="detailPath(item)" :action-label="item.character || 'Voir la fiche'" />
         </MediaGrid>
       </section>
     </template>
@@ -46,8 +46,9 @@ import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { formatDateLong } from '@/utils/format';
 import { humanizeError } from '@/utils/apiError';
 
-interface Credit {
-  media_type?: string;
+import type { MediaRef } from '@/types';
+
+interface Credit extends MediaRef {
   tmdb_id?: number | string;
   character?: string;
   library_id?: number | string;

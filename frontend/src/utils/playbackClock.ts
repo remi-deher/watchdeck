@@ -32,13 +32,7 @@ export function estimateProgressMs(session: PlaybackClockSession, now: number): 
 }
 
 /** « 1:04:09 », « 12:07 » : la position telle que l'affiche un lecteur. */
-export function timecode(ms: number | null | undefined): string {
-  const total = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = String(total % 60).padStart(2, '0');
-  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
-}
+export { timecode } from '@/utils/format';
 
 /** Heure de fin estimee (ETA), seulement tant que la lecture avance. */
 export function estimatedEnd(session: PlaybackClockSession, now: number): Date | null {

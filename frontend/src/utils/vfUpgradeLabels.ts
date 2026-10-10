@@ -59,22 +59,14 @@ export function runStatusLabel(status: string): string {
   return 'Échec';
 }
 
-export function formatRunDuration(startedAt?: string | null, finishedAt?: string | null, now = Date.now()): string {
-  if (!startedAt) return '—';
-  const start = parseApiDate(startedAt);
-  const end = finishedAt ? parseApiDate(finishedAt).getTime() : now;
-  const seconds = Math.max(0, Math.round((end - start.getTime()) / 1000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m${String(seconds % 60).padStart(2, '0')}s`;
-}
+export { formatRunDuration } from '@/utils/format';
 
-export function audioStatusLabel(item: Pick<AuditItem, 'has_vf' | 'fr_is_default'>): string {
+export function audioStatusLabel(item: Partial<Pick<AuditItem, 'has_vf' | 'fr_is_default'>>): string {
   if (!item.has_vf) return 'Absente (VO)';
   return item.fr_is_default ? 'Présente (par défaut)' : 'Piste secondaire';
 }
 
-export function audioRowClass(item: Pick<AuditItem, 'has_vf' | 'fr_is_default'>): string {
+export function audioRowClass(item: Partial<Pick<AuditItem, 'has_vf' | 'fr_is_default'>>): string {
   if (!item.has_vf) return 'is-muted';
   return item.fr_is_default ? 'is-ok' : 'is-warning';
 }
@@ -113,8 +105,9 @@ export function forcedRowClass(item: Pick<AuditItem, 'forced_fr_status'>): strin
 }
 
 /** Un media peut etre realigne sur Plex s'il a une VF ou une piste mal activee. */
-export function canFixStreams(item?: Pick<AuditItem, 'has_vf' | 'issues'> | null): boolean {
+export function canFixStreams(item?: Pick<AuditItem, 'has_vf' | 'issues' | 'problems'> | null): boolean {
   if (!item) return false;
+  if (item.problems) return item.problems.some(problem => problem.fixable);
   return Boolean(
     item.has_vf ||
     item.issues?.includes('audio_secondary') ||

@@ -1,37 +1,18 @@
-import { formatDateTime } from '@/utils/format';
+import { formatTorrentBytes as formatBytes } from '@/utils/format';
 
 /* Mise en forme des torrents, partagee par le tableau, sa barre de debits et son tiroir
    d'inspection. */
 
-export function formatBytes(value: number): string {
-  const bytes = Number(value || 0);
-  if (!bytes) return '—';
-  const units = ['o', 'Ko', 'Mo', 'Go', 'To'];
-  const rank = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** rank).toFixed(rank > 2 ? 1 : 0)} ${units[rank]}`;
-}
+export { formatTorrentBytes as formatBytes } from '@/utils/format';
 
 export function formatSpeed(value: number): string {
   return `${formatBytes(value)}/s`;
 }
 
-export function formatEta(value: number): string {
-  const seconds = Number(value || 0);
-  if (!seconds || seconds >= 8640000) return '—';
-  const hours = Math.floor(seconds / 3600),
-    minutes = Math.floor((seconds % 3600) / 60);
-  return hours ? `${hours} h ${minutes} min` : `${minutes} min`;
-}
+export { formatEtaSeconds as formatEta } from '@/utils/format';
 
 /** Les clients donnent des secondes, parfois des millisecondes. */
-export function formatTimestamp(val: number | string): string {
-  if (!val) return '—';
-  let date: number | string = val;
-  if (typeof val === 'number') {
-    date = val > 1e11 ? val : val * 1000;
-  }
-  return formatDateTime(date);
-}
+export { formatTimestamp } from '@/utils/format';
 
 export function formatTracker(val: string): string {
   if (!val) return '—';
@@ -53,11 +34,13 @@ export function maskTitle(title: string, index: number): string {
 }
 
 export function isPaused(row: any): boolean {
+  if (row.work) return row.work.state === 'paused';
   const state = String(row.status || '').toLowerCase();
   return state.includes('paused') || state.includes('stopped');
 }
 
 export function statusClass(row: any): string {
+  if (row.work) return ({running: 'active', waiting: 'paused', paused: 'paused', blocked: 'error', completed: 'complete', cancelled: 'complete', unknown: 'paused'} as Record<string,string>)[row.work.state];
   const state = String(row.status || '').toLowerCase();
   if (state.includes('error') || state.includes('missing')) return 'error';
   if (isPaused(row)) return 'paused';
@@ -66,6 +49,7 @@ export function statusClass(row: any): string {
 }
 
 export function statusLabel(row: any): string {
+  if (row.work) return row.work.state === 'unknown' ? row.work.label : row.work.stage || row.work.label;
   const state = String(row.status || '').toLowerCase();
   if (state.includes('error')) return 'Erreur';
   if (state.includes('missing')) return 'Fichiers manquants';

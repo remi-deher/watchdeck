@@ -19,8 +19,8 @@
       :class="{ 'is-stuck': isStuck, 'is-hidden': chromeHidden }"
     >
       <AppSubnav
-        v-if="showSections && resolvedSections.length > 1"
-        :items="resolvedSections"
+        v-if="resolvedSections.length > 1"
+        :items="sectionItems"
         :active="resolvedActiveSection"
         :variant="sectionsVariant"
         :aria-label="`Sections ${destinationLabel || title}`"
@@ -30,7 +30,7 @@
       <!-- Onglets propres a la page (types de Bibliotheque, vues d'Explorer) : ils
            partagent le collage, l'ombre et l'effacement de la rangee au lieu d'en
            reimplementer une copie dans la feuille globale. -->
-      <slot name="tabs" />
+      <slot v-if="!nested" name="tabs" />
 
       <div v-if="hasTools && !toolsInBar" class="app-page__tools">
         <div class="app-page__tool-actions">
@@ -65,7 +65,6 @@ import { providePageSearch, type PageSearch, type PageSearchKind } from '@/compo
 import { usePageSections } from '@/composables/usePageSections';
 import { providePageTitle } from '@/composables/usePageTitle';
 import { providePageTools, usePageTools } from '@/composables/usePageTools';
-import { useShellMode } from '@/composables/useShellMode';
 import { useChromeAutoHide } from '@/composables/useChromeAutoHide';
 import UiFeedback from './UiFeedback.vue';
 
@@ -79,6 +78,11 @@ const props = withDefaults(
      */
     sections?: SubnavItem[];
     activeSection?: string;
+    /** Sous-sections de la section courante (vues d'une entree du menu) : quand la page a
+        des sections, elles s'ouvrent en menu depuis la section courante, sur tous les
+        ecrans ; sinon elles forment la rangee d'onglets (emplacement `tabs`). */
+    subsections?: SubnavItem[];
+    activeSubsection?: string;
     sectionsVariant?: 'links' | 'tabs';
     /** Opt-out de la recherche, comme sur l'ancien PageSearchHeader. */
     hideSearch?: boolean;
@@ -109,6 +113,8 @@ const props = withDefaults(
     pageClass: '',
     sections: () => [],
     activeSection: '',
+    subsections: () => [],
+    activeSubsection: '',
     sectionsVariant: 'links',
     hideSearch: false,
     query: '',
@@ -171,7 +177,6 @@ providePageSearch(
 /* Au-dela du seuil `expanded`, les sections remontent dans la barre de contexte : la
    page ne les rend alors plus, sous peine de les afficher deux fois. En dessous, la
    barre n'a pas la largeur de les accueillir et elles restent ici. */
-const mode = useShellMode();
 const slots = useSlots();
 const hasTools = computed(() => Boolean(slots.tools || slots.actions));
 const hasTabs = computed(() => Boolean(slots.tabs));
@@ -185,18 +190,17 @@ const { hostReady } = usePageTools();
 const toolsInBar = computed(() => hostReady.value);
 const toolsSlot: Slot = () => [...(slots.tools?.() ?? []), ...(slots.actions?.() ?? [])];
 providePageTools(() => (hasTools.value && toolsInBar.value ? toolsSlot : null));
-const { sections: derivedSections, activeKey, destinationLabel, space } = usePageSections();
+/* L'action du contexte (pause, ajouter…) prend le segment de droite de la capsule, a la
+   place de « Filtres ». */
+const actionSlot: Slot = () => slots['quick-action']?.() ?? [];
+providePageTools(() => (slots['quick-action'] && toolsInBar.value ? actionSlot : null), 'action');
+const { sections: derivedSections, activeKey, destinationLabel } = usePageSections();
 /* Meme source que la barre du haut : une seule lecture du defilement pour les deux. */
 const { hidden: chromeHidden } = useChromeAutoHide();
-/* Trois modes, trois porteurs, jamais deux a la fois : le rail en deploye, cette rangee
-   en intermediaire, et le dock en compact -- ou une rangee de plus, qui defilait
-   horizontalement des quatre sections, s'ajoutait a la barre du haut et au dock sur un
-   ecran qui n'a la hauteur d'aucune des trois. */
-/* Exception : dans l'Administration sur telephone il n'y a pas de dock, et les sections
-   des zones passent en onglets defilables sous l'en-tete. */
-const showSections = computed(() => mode.value === 'medium' || (mode.value === 'compact' && space.value === 'admin'));
+/* Les sections d'une entree du menu vivent ici, sur tous les ecrans : le menu ne porte
+   qu'un niveau (l'entree), cette rangee porte les sections et, en menu, leurs vues. */
 const showStickyRow = computed(
-  () => (showSections.value && resolvedSections.value.length > 1) || hasTabs.value || (hasTools.value && !toolsInBar.value)
+  () => resolvedSections.value.length > 1 || hasTabs.value || (hasTools.value && !toolsInBar.value)
 );
 const resolvedSections = computed<SubnavItem[]>(() =>
   props.sections.length ? props.sections : derivedSections.value
@@ -204,6 +208,16 @@ const resolvedSections = computed<SubnavItem[]>(() =>
 const resolvedActiveSection = computed(() =>
   props.sections.length ? props.activeSection : activeKey.value
 );
+
+/* Une seule rangee de navigation, la meme sur tous les ecrans : les sections, dont la
+   courante porte ses sous-sections en menu. */
+const nested = computed(() => props.subsections.length > 1 && resolvedSections.value.length > 1
+  && resolvedSections.value.some((item) => item.key === resolvedActiveSection.value));
+const sectionItems = computed<SubnavItem[]>(() => (nested.value
+  ? resolvedSections.value.map((item) => (item.key === resolvedActiveSection.value
+    ? { ...item, children: props.subsections, activeChild: props.activeSubsection }
+    : item))
+  : resolvedSections.value));
 
 const stickySentinel = ref<HTMLElement | null>(null);
 const isStuck = ref(false);

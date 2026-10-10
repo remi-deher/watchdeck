@@ -10,7 +10,9 @@ from ..database import get_db_async
 from ..dependencies import current_user, require_auth, require_moderator
 from ..models import LibraryItem, MediaIssue, MediaRequest
 from ..services import radarr, sonarr
-from ..utils import async_get_or_404, now_utc_naive, wrap_image_proxy
+from ..services.handling_problem import REPORT_TYPES, IssueResponse, IssuesResponse, issue_media_refs, report_problem
+from ..services.media_ref import media_ref
+from ..utils import async_get_or_404, now_utc_naive, wrap_backdrop_proxy, wrap_image_proxy
 from .arr_shared import _resolve_arr_instance
 
 logger = logging.getLogger(__name__)
@@ -34,11 +36,22 @@ class MediaIssueUpdate(BaseModel):
     admin_note: Optional[str] = Field(default=None, max_length=2000)
 
 
-def _serialize_issue(issue: MediaIssue, poster_url: str | None = None) -> dict:
+def _serialize_issue(issue: MediaIssue, media_obj=None, *, retry_obj=None, fallback_media=None) -> dict:
+    media = media_ref(media_obj)
+    if media:
+        fallback = media_ref(fallback_media) or {}
+        media["poster_url"] = media["poster_url"] or fallback.get("poster_url")
+        media["backdrop_url"] = media["backdrop_url"] or fallback.get("backdrop_url")
+        media["poster_url"] = wrap_image_proxy(media["poster_url"])
+        media["backdrop_url"] = wrap_backdrop_proxy(media["backdrop_url"])
+    target = retry_obj or media_obj
+    can_retry = bool(target and target.arr_id and target.arr_instance_id)
     return {
         # L'affiche vient du media rattache, pas du signalement : elle est resolue a
-        # part (voir `_posters_for`) pour eviter une requete par ligne.
-        "poster_url": wrap_image_proxy(poster_url),
+        # part (voir `issue_media_refs`) pour eviter une requete par ligne.
+        "poster_url": (media or {}).get("poster_url"),
+        "media": media,
+        "problem": report_problem(issue, can_retry=can_retry),
         "id": issue.id,
         "created_at": issue.created_at.isoformat() if issue.created_at else None,
         "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
@@ -55,7 +68,7 @@ def _serialize_issue(issue: MediaIssue, poster_url: str | None = None) -> dict:
     }
 
 
-@router.post("/media/issues")
+@router.post("/media/issues", response_model=IssueResponse)
 async def create_media_issue(
     body: MediaIssueCreate,
     request: Request,
@@ -96,40 +109,15 @@ async def create_media_issue(
     db.add(issue)
     await db.commit()
     await db.refresh(issue)
-    return _serialize_issue(issue)
+    return _serialize_issue(
+        issue,
+        media_obj,
+        retry_obj=library_item if library_item and library_item.arr_id else media_request,
+        fallback_media=media_request if library_item else None,
+    )
 
 
-async def _posters_for(db: AsyncSession, issues: list[MediaIssue]) -> dict[int, str]:
-    """Affiche de chaque signalement, resolue en deux requetes plutot qu'une par ligne.
-
-    Un signalement pointe soit un element de bibliotheque, soit une demande ; les deux
-    portent l'affiche. Sans cette resolution groupee, une liste de deux cents lignes
-    declenchait deux cents requetes.
-    """
-    library_ids = {issue.library_item_id for issue in issues if issue.library_item_id}
-    request_ids = {issue.request_id for issue in issues if issue.request_id}
-
-    posters: dict[int, str] = {}
-    if library_ids:
-        rows = (
-            await db.execute(select(LibraryItem.id, LibraryItem.poster_url).filter(LibraryItem.id.in_(library_ids)))
-        ).all()
-        by_library = {row[0]: row[1] for row in rows if row[1]}
-        for issue in issues:
-            if issue.library_item_id in by_library:
-                posters[issue.id] = by_library[issue.library_item_id]
-    if request_ids:
-        rows = (
-            await db.execute(select(MediaRequest.id, MediaRequest.poster_url).filter(MediaRequest.id.in_(request_ids)))
-        ).all()
-        by_request = {row[0]: row[1] for row in rows if row[1]}
-        for issue in issues:
-            if issue.id not in posters and issue.request_id in by_request:
-                posters[issue.id] = by_request[issue.request_id]
-    return posters
-
-
-@router.get("/media/issues", dependencies=[Depends(require_moderator)])
+@router.get("/media/issues", response_model=IssuesResponse, dependencies=[Depends(require_moderator)])
 async def list_media_issues(
     status: Optional[str] = "open",
     issue_type: Optional[str] = None,
@@ -149,15 +137,19 @@ async def list_media_issues(
     if issue_type:
         q = q.filter(MediaIssue.issue_type == issue_type)
     issues = (await db.execute(q.order_by(MediaIssue.created_at.desc()).limit(200))).scalars().all()
-    posters = await _posters_for(db, list(issues))
+    media = await issue_media_refs(db, list(issues))
     types = (await db.execute(select(MediaIssue.issue_type).distinct().order_by(MediaIssue.issue_type))).scalars().all()
     return {
-        "items": [_serialize_issue(issue, posters.get(issue.id)) for issue in issues],
+        "items": [
+            _serialize_issue(issue, media[issue.id][0], retry_obj=media[issue.id][1], fallback_media=media[issue.id][2])
+            for issue in issues
+        ],
         "types": [value for value in types if value],
+        "type_labels": {value: REPORT_TYPES.get(value, value) for value in types if value},
     }
 
 
-@router.patch("/media/issues/{issue_id}", dependencies=[Depends(require_moderator)])
+@router.patch("/media/issues/{issue_id}", response_model=IssueResponse, dependencies=[Depends(require_moderator)])
 async def update_media_issue(issue_id: int, body: MediaIssueUpdate, db: AsyncSession = Depends(get_db_async)):
     issue = await async_get_or_404(db, MediaIssue, issue_id, "Issue not found")
     if body.status is not None:
@@ -169,7 +161,8 @@ async def update_media_issue(issue_id: int, body: MediaIssueUpdate, db: AsyncSes
     issue.updated_at = now_utc_naive()
     await db.commit()
     await db.refresh(issue)
-    return _serialize_issue(issue)
+    media = (await issue_media_refs(db, [issue]))[issue.id]
+    return _serialize_issue(issue, media[0], retry_obj=media[1], fallback_media=media[2])
 
 
 @router.post("/media/issues/{issue_id}/retry", dependencies=[Depends(require_moderator)])

@@ -83,3 +83,14 @@ describe('MediaRequestsTab', () => {
     expect(viewer.find('.nobody-card form').exists()).toBe(false);
   });
 });
+
+it('montre la cause et la prochaine étape du parcours sans annoncer une disponibilité historique', () => {
+  const wrapper = render(false, { requests: [{ ...row, status: 'available', journey: {
+    label: 'À confirmer dans Plex', status: 'awaiting_plex', origin: { kind: 'request', label: 'Demande via Seerr' },
+    availability: { plex: 'absent' }, blocker: { label: 'Indexation manquante' }, next_step: { label: 'Confirmer Plex' },
+  } }] });
+  expect(wrapper.find('.journey-title').text()).toBe('À confirmer dans Plex');
+  expect(wrapper.find('.journey-card').text()).toContain('Indexation manquante');
+  expect(wrapper.find('.journey-card').text()).toContain('Prochaine étape : Confirmer Plex');
+  expect(wrapper.find('.journey-badges').text()).not.toContain('Disponible');
+});

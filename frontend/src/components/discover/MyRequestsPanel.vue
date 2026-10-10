@@ -137,6 +137,7 @@ import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 import { usePreference } from '@/composables/usePreference';
+import type { AvailabilityPage, RequestJourneyRecord } from '@/types/generated/mediaAvailability';
 
 defineEmits<{
   (e: 'explore'): void;
@@ -179,7 +180,7 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 function tabOf(item: any): TabKey[] {
-  const kind = item.tracking?.kind;
+  const kind = (item.journey ? item.journey.tracking : item.tracking)?.kind;
   const tabs: TabKey[] = [];
   if (kind === 'approval') tabs.push('a-approuver');
   else if (kind === 'failed' || kind === 'rejected') tabs.push('echecs');
@@ -258,7 +259,7 @@ function _params(): URLSearchParams {
    chargee est ensuite filtree sur place a chaque frappe. `submittedQuery` fige donc la
    saisie a ces moments-la, comme le faisait le chargement manuel. */
 const submittedQuery = ref('');
-interface RequestsPayload { items?: any[]; facets?: { requesters?: Array<{ id: string; label: string }> } }
+type RequestsPayload = AvailabilityPage & { facets?: { requesters?: Array<{ id: string; label: string }> } };
 const requestsKey = computed(() => ['requests', 'mine', _params().toString()]);
 const requestsQuery = useQuery({
   queryKey: requestsKey,
@@ -413,8 +414,9 @@ function onSearch(): void {
 // recherche en cours, comme le faisait le rechargement d'avant.
 watch([typeKey, vf, requesterKey], () => { submittedQuery.value = query.value.trim(); });
 
-// Un evenement met a jour la demande dans le cache ; faute de correspondance, relecture.
-useRealtimeQuery<RequestsPayload>(requestsKey, ['request.updated', 'download.updated'], {
+// Les événements invalident le parcours projeté, qui est recalculé par le serveur.
+useRealtimeQuery<RequestsPayload, RequestJourneyRecord>(requestsKey, ['request.updated', 'download.updated'], {
+  invalidateOnly: true,
   keyFields: ['request_id', 'id'],
   getList: (data) => data.items || [],
   setList: (data, list) => ({ ...data, items: list }),

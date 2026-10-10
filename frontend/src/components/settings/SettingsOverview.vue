@@ -72,20 +72,15 @@ const attention = useAdminAttention({
 
 const severityCount = (severity: AttentionSeverity) => attention.items.value.filter((item) => item.severity === severity).length;
 
-type Tone = 'ok' | 'warn' | 'error' | 'off';
 
 const serviceRows = computed<ServiceRow[]>(() =>
   Object.entries(HEALTH_SERVICES)
-    .map(([key, meta]) => {
+    .map<ServiceRow | null>(([key, meta]) => {
       const info = attention.services.value[key];
-      if (!info?.state) return null;
-      const tone: Tone = info.state === 'error' ? 'error' : info.state === 'ok' ? (Array.isArray(info.issues) && info.issues.length ? 'warn' : 'ok') : 'off';
-      const instance = info.instance_name && info.instance_name.toLowerCase() !== meta.label.toLowerCase() ? info.instance_name : '';
-      const state = tone === 'error' ? 'En erreur' : tone === 'warn' ? 'À surveiller' : tone === 'ok' ? 'Opérationnel' : info.state === 'disabled' ? 'Désactivé' : 'Non configuré';
-      return { key, label: instance || meta.label, to: meta.to, tone, state };
+      if (!info?.state && !info?.health) return null;
+      return { key, label: meta.label, to: meta.to, service: info };
     })
     .filter((row): row is ServiceRow => row !== null)
-    .sort((a, b) => ['error', 'warn', 'ok', 'off'].indexOf(a.tone) - ['error', 'warn', 'ok', 'off'].indexOf(b.tone))
 );
 
 const plural = (count: number, one: string, other: string) => `${count} ${count > 1 ? other : one}`;

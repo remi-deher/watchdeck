@@ -38,6 +38,7 @@ from ..services.episode_availability import sync_episode_availability_for_show
 from ..services.notification_orchestrator import _notify, _queue_milestone
 from ..services.radarr import lookup_movie
 from ..services.sonarr import get_episodes, lookup_series
+from ..services.work_ref import WorkRecord, task_work
 from ..utils import arr_image_url, async_get_or_404, now_utc_naive, plex_image_proxy_url, wrap_image_proxy
 from .arr_shared import _resolve_arr_instance
 
@@ -563,7 +564,7 @@ async def vff_scan_all(force: bool = False, db: AsyncSession = Depends(get_db_as
     return {"status": "started"}
 
 
-@router.get("/vff/scan-status")
+@router.get("/vff/scan-status", response_model=WorkRecord)
 async def get_vff_scan_status():
     """État actuel de l'analyse VFF, quel que soit le process qui la mène.
 
@@ -572,7 +573,8 @@ async def get_vff_scan_status():
     """
     from ..services import scan_state
 
-    return await scan_state.resolve("scan", vff_scan_state)
+    row = await scan_state.resolve("scan", vff_scan_state)
+    return {**row, "work": task_work("vff", row, scan=True)}
 
 
 @router.post("/vff/sync-plex", dependencies=[Depends(require_admin)])
@@ -590,12 +592,13 @@ async def vff_sync_plex():
     return {"status": "started"}
 
 
-@router.get("/vff/sync-status")
+@router.get("/vff/sync-status", response_model=WorkRecord)
 async def get_vff_sync_status():
     """État actuel de la synchronisation Plex, quel que soit le process qui la mène."""
     from ..services import scan_state
 
-    return await scan_state.resolve("sync", plex_sync_state)
+    row = await scan_state.resolve("sync", plex_sync_state)
+    return {**row, "work": task_work("plex", row, scan=True)}
 
 
 @router.post("/requests/{request_id}/vff-scan", dependencies=[Depends(require_moderator)])

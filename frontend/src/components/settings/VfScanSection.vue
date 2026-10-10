@@ -66,8 +66,8 @@
              interface francaise, et le nombre d'echecs ne menait nulle part alors que
              c'est la seule valeur sur laquelle on veut agir. -->
         <div class="status-stack">
-          <span>Scan VF : <strong>{{ taskStateLabel(scanStatus.status || scanStatus.state) }}</strong></span>
-          <span>Synchronisation Plex : <strong>{{ taskStateLabel(syncStatus.status || syncStatus.state) }}</strong></span>
+          <span>Scan VF : <StatusBadge v-if="scanStatus.work" :work="scanStatus.work" /><strong v-else>{{ taskStateLabel(scanStatus.status || scanStatus.state) }}</strong></span>
+          <span>Synchronisation Plex : <StatusBadge v-if="syncStatus.work" :work="syncStatus.work" /><strong v-else>{{ taskStateLabel(syncStatus.status || syncStatus.state) }}</strong></span>
           <span>Upgrades VF : {{ upgradeMetrics.found || 0 }} trouvé(s) · {{ upgradeMetrics.accepted || 0 }} accepté(s) · {{ upgradeMetrics.verified || 0 }} vérifié(s) ·
             <RouterLink v-if="upgradeMetrics.failed" class="status-failed-link" :to="{ path: '/vf-upgrades', query: { status: 'failed' } }">{{ upgradeMetrics.failed }} échec(s)</RouterLink>
             <template v-else>0 échec</template>
@@ -79,6 +79,7 @@
 </template>
 
 <script setup lang="ts">
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 

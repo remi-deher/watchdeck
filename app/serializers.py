@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .models import LibraryItem, MediaRequest, PlexUser
+from .services.media_availability import media_availability
+from .services.media_ref import media_ref
 from .utils import wrap_image_proxy
 
 
@@ -19,7 +21,7 @@ def request_status_value(status: Any) -> str:
     return status.value if hasattr(status, "value") else str(status)
 
 
-def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
+def serialize_media_request(req: MediaRequest, users: dict[str, str], *, availability: dict | None = None) -> dict:
     from .services.operational_projection import request_operational_projection
 
     # Deduplique par plex_user_id : quelques lignes historiques ont le demandeur
@@ -48,6 +50,8 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
         requester_ids = requester_ids[1:]
     requesters = [users.get(uid, uid) for uid in requester_ids]
     return {
+        **media_ref(req),
+        "availability": availability if availability is not None else media_availability(req),
         "id": req.id,
         "title": req.title,
         "year": req.year,
@@ -93,16 +97,14 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
         "torrent_content_path": req.torrent_content_path,
         "torrent_completed_at": format_datetime(req.torrent_completed_at),
         "torrent_import_verified_at": format_datetime(req.torrent_import_verified_at),
-        **request_operational_projection(req),
+        **request_operational_projection(req, availability=availability),
     }
 
 
 def serialize_library_item(item: LibraryItem) -> dict:
     return {
-        "id": item.id,
-        "title": item.title,
-        "year": item.year,
-        "media_type": item.media_type,
+        **media_ref(item),
+        "availability": media_availability(item, library=item),
         "has_vf": item.has_vf,
         "arr_id": item.arr_id,
         "arr_instance_id": item.arr_instance_id,
@@ -138,6 +140,8 @@ def serialize_media_summary(
     """Sérialise un résumé média standardisé pour les sections de découverte et listes compactes."""
     if isinstance(item, LibraryItem):
         return {
+            **media_ref(item),
+            "availability": media_availability(item, library=item),
             "tmdb_id": item.tmdb_id,
             "media_type": item.media_type,
             "title": item.title,
@@ -163,6 +167,8 @@ def serialize_media_summary(
             else available
         )
         summary = {
+            **media_ref(item),
+            "availability": media_availability(item),
             "tmdb_id": item.tmdb_id,
             "media_type": item.media_type,
             "title": item.title,
@@ -186,6 +192,9 @@ def serialize_media_summary(
         return summary
     if isinstance(item, dict):
         summary = {
+            "availability": item.get("availability") or media_availability(item, plex_present=item.get("in_library")),
+            "id": item.get("id") or item.get("tmdb_id"),
+            "backdrop_url": item.get("backdrop_url"),
             "tmdb_id": item.get("tmdb_id"),
             "media_type": item.get("media_type"),
             "title": item.get("title"),

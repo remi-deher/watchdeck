@@ -43,13 +43,13 @@ describe('AppPage dans l’Administration', () => {
     expect(wrapper.find('.app-subnav__item[aria-current="page"]').text()).toBe('Données & sauvegardes');
   });
 
-  it('garde la page sans rangée de sections hors de l’Administration, où le dock les porte', async () => {
+  it('porte les sections dans la page hors de l’Administration aussi, sur téléphone', async () => {
     restore = stubShellMode('compact');
     const wrapper = await mountAt('/library');
-    expect(wrapper.find('.app-subnav__item').exists()).toBe(false);
+    expect(wrapper.find('.app-subnav__item').exists()).toBe(true);
   });
 
-  it('laisse le rail porter les sections en mode déployé', async () => {
+  it('n’ajoute pas de rangée à une zone qui n’a qu’une section', async () => {
     restore = stubShellMode('expanded');
     const wrapper = await mountAt('/settings/security');
     expect(wrapper.find('.app-subnav__item').exists()).toBe(false);

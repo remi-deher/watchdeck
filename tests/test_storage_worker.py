@@ -289,8 +289,20 @@ async def test_queue_continues_and_durable_commands(tmp_path, monkeypatch, outco
     job = NS(id=1, status="queued", desired_state="pause" if outcome == "pause" else "run")
     items = [
         NS(id=1, status="completed", claimed=False),
-        NS(id=2, status="pending", progress={}, claimed=True),
-        NS(id=3, status="pending", progress={}, claimed=True),
+        NS(
+            id=2,
+            status="pending",
+            progress={},
+            claimed=True,
+            snapshot={"source_arr": "/source/Two", "destination_arr": "/target/Two"},
+        ),
+        NS(
+            id=3,
+            status="pending",
+            progress={},
+            claimed=True,
+            snapshot={"source_arr": "/source/Three", "destination_arr": "/target/Three"},
+        ),
     ]
     result = NS(scalars=lambda: NS(all=lambda: items))
     db = NS(
@@ -593,6 +605,16 @@ async def test_engine_processes_cancellation_and_pending_arr_does_not_block_next
     queued = NS(status="queued", desired_state="cancel")
     job = NS(id=1, status="cancelling")
     results = [NS(scalars=lambda: [restart]), NS(scalars=lambda: [queued]), NS(scalar_one_or_none=lambda: job)]
+    results.append(
+        NS(
+            scalars=lambda: NS(
+                all=lambda: [
+                    NS(status="copying", snapshot={"source_arr": "/source/Film", "destination_arr": "/target/Film"}),
+                    NS(status="completed", snapshot={}),
+                ]
+            )
+        )
+    )
     if not done:
         results.append(NS(scalar_one_or_none=lambda: NS(id=2)))
     db = NS(execute=AsyncMock(side_effect=results), commit=AsyncMock())

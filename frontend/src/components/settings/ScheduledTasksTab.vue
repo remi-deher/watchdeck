@@ -1,7 +1,7 @@
 <template>
   <div class="settings-rows scheduled-tab">
     <!-- Le verdict avant le tableau : une tâche en échec se voit sans le parcourir. -->
-    <section class="scheduled-verdict" :class="failed.length ? 'is-error' : 'is-good'" aria-live="polite">
+    <section v-if="failed.length" class="scheduled-verdict" :class="failed.length ? 'is-error' : 'is-good'" aria-live="polite">
       <div>
         <h2>{{ failed.length ? `${failed.length} tâche${failed.length > 1 ? 's' : ''} en échec` : 'Toutes les tâches passent' }}</h2>
         <p>{{ tasks.length }} tâches{{ upcoming ? ` · prochaine : ${upcoming.task.label} (${upcoming.label})` : '' }}</p>
@@ -16,13 +16,14 @@
 
     <!-- Les tâches se comparent : un tableau aligne fréquence, dernière exécution et état
          d'une tâche à l'autre, là où onze cartes faisaient défiler plus de trois écrans. -->
+    <LiveStrip v-if="runningTasks.length" title="Tâches en cours" :items="runningTasks" :idle="{ title: 'Aucune tâche en cours' }" />
     <SettingsSection title="Tâches planifiées" subtitle="Fréquence de chaque tâche de fond et résultat de sa dernière exécution.">
       <UiDataTable label="Tâches planifiées" :rows="sortedTasks" :columns="TASK_COLUMNS" :row-key="(task: any) => task.job" class="scheduled-table">
         <template #empty><p class="empty">Aucune tâche planifiée.</p></template>
         <template #cell-task="{ row: task }">
           <strong>{{ task.label }}</strong>
           <small class="scheduled-desc">{{ task.description }}</small>
-          <small v-if="task.state?.status === 'failed' && task.state?.last_error" class="scheduled-task-error">{{ task.state.last_error }}</small>
+          <small v-if="(task.work ? task.work.state === 'blocked' : task.state?.status === 'failed') && (task.work?.reason || task.state?.last_error)" class="scheduled-task-error">{{ task.work?.reason || task.state.last_error }}</small>
         </template>
         <template #cell-frequency="{ row: task }">
           <UiTimeField
@@ -43,11 +44,11 @@
           <small v-if="nextRunLabel(task, now)" class="scheduled-next">Prochaine : {{ nextRunLabel(task, now) }}</small>
         </template>
         <template #cell-status="{ row: task }">
-          <span class="scheduled-status" :class="taskStatus(task)">{{ taskStatusText(task) }}</span>
+          <StatusBadge v-if="task.work" :work="task.work" /><span v-else class="scheduled-status" :class="taskStatus(task)">{{ taskStatusText(task) }}</span>
         </template>
         <template #cell-actions="{ row: task }">
           <div class="scheduled-actions">
-            <UiButton size="sm" :loading="launching === task.job" :disabled="task.state?.status === 'running'" @click="launch(task)"><template #icon><Play/></template>Lancer</UiButton>
+            <UiButton size="sm" :loading="launching === task.job" :disabled="task.work ? task.work.state === 'running' : task.state?.status === 'running'" @click="launch(task)"><template #icon><Play/></template>Lancer</UiButton>
             <UiButton size="sm" @click="openHistory = task.job"><History/>Historique</UiButton>
           </div>
         </template>
@@ -69,8 +70,10 @@
   </div>
 </template>
 <script setup lang="ts">
+import LiveStrip from '@/components/ui/LiveStrip.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import UiButton from '@/components/ui/UiButton.vue';
-import { formatElapsed as formatDuration, formatDateTimeSeconds as formatDate } from '@/utils/format';
+import { formatInterval, formatElapsed as formatDuration, formatDateTimeSeconds as formatDate } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
@@ -103,8 +106,9 @@ const TASK_COLUMNS: UiColumn[] = [
 const openHistory = ref<string | null>(null);
 const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
 const tasks = computed(() => tasksQuery.data.value || []);
+const runningTasks = computed(() => tasks.value.filter((task: any) => task.work?.state === 'running').map((task: any) => ({ key: task.work.key, title: task.label, work: task.work })));
 const sortedTasks = computed(() => sortTasks(tasks.value));
-const failed = computed(() => tasks.value.filter((task: any) => task.state?.status === 'failed'));
+const failed = computed(() => tasks.value.filter((task: any) => (task.work ? task.work.state === 'blocked' : task.state?.status === 'failed')));
 const now = ref(new Date());
 useIntervalFn(() => { now.value = new Date(); }, 30_000);
 const upcoming = computed(() => {
@@ -156,13 +160,7 @@ function taskStatusText(task: any): string {
   return 'Jamais exécutée';
 }
 
-function formatInterval(seconds: number): string {
-  if (!seconds) return '-';
-  if (seconds < 60) return `${seconds} s`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)} h`;
-  return `${Math.round(seconds / 86400)} j`;
-}
+
 
 </script>
 <style scoped lang="scss">

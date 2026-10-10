@@ -65,7 +65,9 @@ export function patchedAll<T extends Record<string, unknown>>(
   return { list: next, patched };
 }
 
-export interface RealtimeQueryOptions<TData> {
+export interface RealtimeQueryOptions<TData, TItem extends Record<string, unknown> = Record<string, unknown>> {
+  /** Une projection serveur se relit, même quand la liste est encore vide. */
+  invalidateOnly?: boolean;
   keyFields?: string[];
   debounceMs?: number;
   refreshOnVisible?: boolean;
@@ -74,8 +76,8 @@ export interface RealtimeQueryOptions<TData> {
   /** Transforme la charge utile avant de l'appliquer (champs derives, renommages). */
   mapper?: (payload: Record<string, unknown>) => Record<string, unknown>;
   /** Ou se trouve la liste dans les donnees de la query, et comment l'y remettre. */
-  getList?: (data: TData) => Record<string, unknown>[];
-  setList?: (data: TData, list: Record<string, unknown>[]) => TData;
+  getList?: (data: TData) => TItem[];
+  setList?: (data: TData, list: TItem[]) => TData;
 }
 
 /**
@@ -84,27 +86,30 @@ export interface RealtimeQueryOptions<TData> {
  * Evenement sans charge utile (retour d'onglet, flux SSE perdu) ou sans element
  * correspondant : invalidation, donc relecture.
  */
-export function useRealtimeQuery<TData>(
+export function useRealtimeQuery<TData, TItem extends Record<string, unknown> = Record<string, unknown>>(
   queryKey: MaybeRefOrGetter<QueryKey>,
   eventTypes: RealtimeEventType[] | string[],
   {
+    invalidateOnly = false,
     keyFields = DEFAULT_KEYS,
     debounceMs = 120,
     refreshOnVisible = true,
     patchAll = false,
     mapper = (payload) => payload,
-    getList = (data) => data as unknown as Record<string, unknown>[],
+    getList = (data) => data as unknown as TItem[],
     setList = (_data, list) => list as unknown as TData,
-  }: RealtimeQueryOptions<TData> = {},
+  }: RealtimeQueryOptions<TData, TItem> = {},
 ) {
   const queryClient = useQueryClient();
 
   function apply(detail: Record<string, unknown>): boolean {
+    if (invalidateOnly) return false;
     const key = toValue(queryKey);
     const current = queryClient.getQueryData<TData>(key);
     if (current === undefined) return false;
     const source = getList(current) || [];
     const change = mapper(detail);
+    if (source.some((item) => item.availability || item.journey || item.work)) return false;
     const { list, patched } = patchAll ? patchedAll(source, change, keyFields) : patchedList(source, change, { keyFields });
     if (patched) queryClient.setQueryData<TData>(key, setList(current, list));
     return patched;

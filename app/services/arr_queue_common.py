@@ -20,7 +20,7 @@ def classify_queue_record(record: dict) -> QueueClassification:
     progress = float(record.get("progress") or 0)
     size = float(record.get("size") or 0)
     sizeleft = float(record.get("sizeleft") or 0)
-    complete = progress >= FULL_PROGRESS or (size > 0 and sizeleft <= 0)
+    complete = progress >= FULL_PROGRESS or (size > 0 and record.get("sizeleft") is not None and sizeleft <= 0)
     status = str(record.get("status") or "").strip().lower()
     tracked_state = str(record.get("tracked_state") or "").strip().lower()
     tracked_status = str(record.get("tracked_status") or "").strip().lower()

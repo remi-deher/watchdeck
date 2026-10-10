@@ -159,3 +159,13 @@ export function requesterName(row: { plex_user_id?: string | null; requested_by?
   if (isPseudoRequester(row.plex_user_id)) return '';
   return row.custom_name || row.requested_by || row.plex_user || row.plex_user_id || '';
 }
+
+/** Personne complète, qu’elle provienne des comptes ou d’une lecture Plex. */
+export interface PersonRef extends AccountLike {
+  name?: string | null;
+  user_name?: string | null;
+  user_avatar_url?: string | null;
+}
+export function personName(person: PersonRef): string {
+  return person.custom_name?.trim() || person.display_name?.trim() || person.name?.trim() || person.user_name?.trim() || accountName(person);
+}

@@ -96,7 +96,8 @@ def test_vff_counts_reflects_library_state(db, client):
 def test_vff_scan_status_returns_current_state(client):
     resp = client.get("/api/vff/scan-status")
     assert resp.status_code == 200
-    assert resp.json() == vff_scan_state
+    assert {key: value for key, value in resp.json().items() if key != "work"} == vff_scan_state
+    assert resp.json()["work"]["source"] == "scan"
 
 
 def test_vff_sync_status_returns_current_state(client):
@@ -407,7 +408,9 @@ def test_scan_status_surfaces_a_scan_running_in_another_process(client):
         resp = client.get("/api/vff/scan-status")
 
     assert resp.status_code == 200
-    assert resp.json() == worker_state
+    assert {key: value for key, value in resp.json().items() if key != "work"} == worker_state
+    assert resp.json()["work"]["state"] == "running"
+    assert resp.json()["work"]["progress"]["percent"] == pytest.approx(100 / 3)
 
 
 def test_scan_status_prefers_the_local_run(client):

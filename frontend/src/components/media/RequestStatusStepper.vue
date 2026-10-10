@@ -25,11 +25,12 @@
 import { computed } from 'vue';
 import { Check, X } from '@lucide/vue';
 import { journeySteps, shortDateTime } from './requestRules';
+import type { RequestJourney } from '@/types/generated/mediaAvailability';
 
 const STATE_LABELS = { done: 'étape franchie', current: 'étape en cours', upcoming: 'étape à venir', error: 'étape en erreur' };
 
 const props = defineProps<{
-  row: any;
+  row: { journey?: RequestJourney | null; [key: string]: any };
 }>();
 
 const steps = computed(() => journeySteps(props.row));

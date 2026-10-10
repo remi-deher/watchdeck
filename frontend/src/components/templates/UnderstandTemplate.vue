@@ -33,6 +33,7 @@
                 <span class="understand-row__text">
                   <strong>{{ event.title }}</strong>
                   <small v-if="event.detail">{{ event.detail }}</small>
+                  <span v-if="event.tags?.length" class="understand-tags"><UiBadge v-for="tag in event.tags" :key="tag">{{ tag }}</UiBadge></span>
                 </span>
                 <small v-if="event.context" class="understand-row__context">{{ event.context }}</small>
               </button>
@@ -52,9 +53,11 @@
 </template>
 
 <script setup lang="ts">
+import { formatLongDay, formatTime } from '@/utils/format';
 import { computed } from 'vue';
 import { AlertTriangle, CheckCircle2, Download, History, Info, XCircle } from '@lucide/vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
+import UiBadge from '@/components/ui/UiBadge.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import PageTools from '@/components/ui/PageTools.vue';
@@ -119,9 +122,9 @@ function dayLabel(date: Date): string {
   yesterday.setDate(today.getDate() - 1);
   if (dayKey(date) === dayKey(today)) return 'Aujourd’hui';
   if (dayKey(date) === dayKey(yesterday)) return 'Hier';
-  return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return formatLongDay(date);
 }
-const timeOf = (at: string) => parseApiDate(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const timeOf = (at: string) => formatTime(at);
 
 /* Du plus recent au plus ancien, un groupe par jour. */
 const days = computed(() => {
@@ -155,6 +158,8 @@ const days = computed(() => {
 .understand__list { margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); list-style: none; overflow: hidden; }
 .understand__list > li + li { border-top: 1px solid var(--border); }
 .understand-row { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-2) var(--space-3); border: 0; background: transparent; color: var(--text); font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
+.understand-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.understand-tags :deep(.ui-badge) { min-height: 20px; padding: 0 6px; }
 .understand-row:hover { background: var(--surface-2); }
 .understand-row.is-open { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
 .understand-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

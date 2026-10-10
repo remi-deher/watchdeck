@@ -3,9 +3,9 @@
        utilisent, etapes depliables. L'edition reste dans l'editeur graphique de FileFlows ;
        pour essayer un flow sur un fichier, « Relancer avec un autre flow » depuis l'onglet
        Encodage d'une fiche media. -->
-  <EncodingShell title="Flows">
+  <EncodingShell title="Flows" v-model:query="query" :search="{ placeholder: 'Rechercher un flow…', kind: 'filter', scope: 'Flows de l’encodage' }">
     <UiFeedback v-if="flowsQuery.isError.value" type="error" :message="humanizeError(flowsQuery.error.value)" />
-    <ConfigureTemplate v-else :sections="sections">
+    <ConfigureTemplate v-else :sections="sections" :query="query">
       <template #section-used>
         <p v-if="flowsQuery.isPending.value" class="flows-muted">Chargement des flows…</p>
         <ResourceList v-else :resources="used" empty-text="Aucun flow n’est utilisé par une bibliothèque.">
@@ -22,7 +22,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { CircleOff, Workflow } from '@lucide/vue';
 import { useQuery } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { useFileflowsStatus } from '@/composables/useFileflows';
@@ -59,9 +60,10 @@ function resource(flow: Flow): ConfigureResource {
 }
 const used = computed(() => flows.value.filter((flow) => flow.used_by.length).map(resource));
 const unused = computed(() => flows.value.filter((flow) => !flow.used_by.length).map(resource));
+const query = ref('');
 const sections = computed(() => [
-  { key: 'used', title: 'Flows utilisés', description: 'Ils se modifient dans FileFlows. Pour essayer un flow sur un fichier, « Relancer avec un autre flow » depuis l’onglet Encodage d’une fiche média.' },
-  ...(unused.value.length ? [{ key: 'unused', title: 'Flows inutilisés', description: 'Aucune bibliothèque ne les utilise.' }] : []),
+  { key: 'used', icon: Workflow, title: 'Flows utilisés', description: 'Ils se modifient dans FileFlows. Pour essayer un flow sur un fichier, « Relancer avec un autre flow » depuis l’onglet Encodage d’une fiche média.' },
+  ...(unused.value.length ? [{ key: 'unused', icon: CircleOff, title: 'Flows inutilisés', description: 'Aucune bibliothèque ne les utilise.' }] : []),
 ]);
 </script>
 

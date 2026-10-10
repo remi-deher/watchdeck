@@ -1,6 +1,6 @@
 <template>
   <section class="drawer-section">
-    <MediaWorkflowTimeline v-if="!isMusic" :steps="detail.workflow_timeline" :history="detail.media_history" />
+    <MediaWorkflowTimeline v-if="!isMusic" :journey="detail.journey" :steps="detail.workflow_timeline" :history="detail.media_history" />
     <MediaInformationGrid :detail="detail" :vf-detail="vfDetail" />
 
     <MediaSaga v-if="!isMusic" :saga="detail.saga" />
@@ -28,7 +28,7 @@
     />
 
     <article v-for="issue in (isMusic ? [] : (detail.issues || []))" :key="issue.id" class="detail-row" style="margin-top: 1rem;">
-      <div><strong>{{ issue.issue_type }}</strong><span>{{ issue.message || 'Sans commentaire' }}</span></div>
+      <div><strong>{{ issue.problem?.label || issue.issue_type }}</strong><span>{{ issue.message || 'Sans commentaire' }}</span><span v-if="issue.problem?.consequence">{{ issue.problem.consequence }}</span></div>
       <span class="badge">{{ issue.status }}</span>
     </article>
   </section>
