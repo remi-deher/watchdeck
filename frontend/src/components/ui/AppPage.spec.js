@@ -67,9 +67,15 @@ describe('AppPage', () => {
     expect(wrapper.emitted('toggle-filters')).toHaveLength(1);
   });
 
-  it('ne fournit aucune recherche quand la page n’en a pas', () => {
+  it('conserve le contexte de la barre sans recherche locale', () => {
     mountPage({ hideSearch: true });
-    expect(usePageSearch().value).toBeNull();
+    expect(usePageSearch().value).toMatchObject({
+      showSearch: false,
+      kind: 'search',
+      placeholder: 'Rechercher…',
+      scopeLabel: 'Bibliothèque',
+      hasFilters: false,
+    });
   });
 
   it('rend la sous-navigation en mode intermediaire, quand la largeur lui laisse une rangee', () => {
