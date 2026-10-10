@@ -1,5 +1,52 @@
 // Généré par python -m scripts.generate_availability_types ; ne pas modifier.
 
+export interface WorkProgress {
+  percent: number | null;
+  scope: "step" | "download" | "copy";
+  label: string;
+}
+
+export interface WorkRef {
+  key: string;
+  source: "encoding" | "download" | "transfer";
+  state: "running" | "waiting" | "paused" | "blocked" | "completed" | "cancelled" | "unknown";
+  label: string;
+  stage: string | null;
+  progress: WorkProgress;
+  reason: string | null;
+  stale: boolean;
+}
+
+export interface WorkRecord {
+  work: WorkRef;
+  [key: string]: unknown;
+}
+
+export interface EncodingStatusResponse {
+  configured: boolean;
+  runners?: WorkRecord[];
+  recent_failed?: WorkRecord[];
+  recent_processed?: WorkRecord[];
+  [key: string]: unknown;
+}
+
+export interface EncodingFilesResponse {
+  files: WorkRecord[];
+  page: number;
+  has_more: boolean;
+}
+
+export interface EncodingDiskResponse {
+  disk: string;
+  running: WorkRecord[];
+  [key: string]: unknown;
+}
+
+export interface EncodingOverviewResponse {
+  disks: EncodingDiskResponse[];
+  [key: string]: unknown;
+}
+
 export interface ProblemAction {
   key: string;
   label: string;

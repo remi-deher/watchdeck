@@ -1,5 +1,6 @@
 <template>
   <div class="downloads-overview">
+    <LiveStrip v-if="live.length" :items="live" title="Téléchargements en cours" live-label="En cours" :idle="{title: 'Aucun téléchargement'}" @select="item => item.to && router.push(item.to)" />
     <div class="health-kpi-grid">
       <MetricCard
         label="Attention"
@@ -176,6 +177,9 @@
 </template>
 
 <script setup lang="ts">
+import LiveStrip from '@/components/ui/LiveStrip.vue';
+import { useRouter } from 'vue-router';
+import { queueDetailPath } from '@/downloads/queueRules';
 import { computed, ref } from "vue";
 import {
   Clock3,
@@ -231,6 +235,8 @@ const props = withDefaults(
 );
 defineEmits<{ resolve: [item: any] }>();
 
+const router = useRouter();
+const live = computed(() => props.queue.filter(row => row.work?.state === 'running').map(row => ({key: row.work.key, work: row.work, title: row.title, media: row.media, poster: row.media ? undefined : row.poster_url, backdrop: row.media ? undefined : row.backdrop_url, to: queueDetailPath(row), who: row.instance || row.download_client})));
 const failedPosters = ref(new Set<string>());
 const counts = computed(() => queueCounts(props.queue));
 const attentionItems = computed(() =>

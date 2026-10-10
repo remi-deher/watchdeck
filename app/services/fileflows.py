@@ -195,7 +195,7 @@ async def dashboard(url: str, api_key: str | None) -> dict[str, Any]:
             "name": runner.get("relativePath") or runner.get("name") or "",
             "library": runner.get("library") or "",
             "step": runner.get("step") or "",
-            "percent": runner.get("stepPercent") or 0,
+            "percent": runner.get("stepPercent"),
         }
         for runner in status.get("processingFiles") or []
     ]

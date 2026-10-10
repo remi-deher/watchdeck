@@ -58,14 +58,16 @@ import { AlertTriangle } from '@lucide/vue';
 import { proxyUrl } from '@/utils/mediaImage';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
+import { resolveTrackItem } from '@/composables/workPresentation';
 import type { TrackItem, TrackState } from './types';
 
 const props = defineProps<{ item: TrackItem }>();
+const item = computed(() => resolveTrackItem(props.item));
 /* L'affiche vient du media quand il y en a un (MediaRef). */
 const poster = computed(() => props.item.poster || props.item.media?.poster_url || null);
 const emit = defineEmits<{ action: [item: TrackItem, key: string] }>();
 
-const STATE_LABELS: Record<TrackState, string> = { blocked: 'Bloqué', running: 'En cours', paused: 'En pause', waiting: 'En attente' };
+const STATE_LABELS: Record<TrackState, string> = { blocked: 'Bloqué', running: 'En cours', paused: 'En pause', waiting: 'En attente', unknown: 'État inconnu', completed: 'Terminé', cancelled: 'Annulé' };
 const posterFailed = ref(false);
 </script>
 

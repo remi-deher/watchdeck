@@ -15,7 +15,7 @@ export function transferMetrics(job:any, now=Date.now()/1000) {
   const starts=items.map((item:any)=>item.progress?.started_at).filter(Boolean).map((value:string)=>Date.parse(value.endsWith('Z')?value:value+'Z')/1000);
   const ends=items.map((item:any)=>item.progress?.finished_at).filter(Boolean).map((value:string)=>Date.parse(value.endsWith('Z')?value:value+'Z')/1000);
   const elapsed=starts.length?Math.max(0,(['completed','cancelled'].includes(job.status)&&ends.length?Math.max(...ends):now)-Math.min(...starts)):null;
-  return {total,copied,remaining,rate,lastRate,elapsed,seconds:rate && remaining>0?remaining/rate:null,percent:total>0?copied/total*100:0};
+  return {total,copied,remaining,rate,lastRate,elapsed,seconds:rate && remaining>0?remaining/rate:null,percent:job.work?job.work.progress.percent:total>0?copied/total*100:0};
 }
 
 export { formatTransferDuration as copyDuration } from '@/utils/format';

@@ -20,3 +20,15 @@ describe('LiveStrip', () => {
     expect(wrapper.find('.art').attributes('data-src')).toBe('http://x/bg.jpg');
   });
 });
+
+it('transmet le travail entier, ses images, zéro et ses actions accessibles séparément', async () => {
+  const work = {key: 'encoding:1', source: 'encoding', state: 'running', label: 'En cours', stage: 'Vidéo', progress: {percent: 0, scope: 'step', label: 'Progression de l’étape'}, reason: null, stale: false};
+  const wrapper = mount(LiveStrip, {props: {items: [{key: 'legacy', title: 'Dune', media, work, actions: [{key: 'pause', label: 'Pause'}]}], title: 'Encodage', idle: {title: 'Rien'}}, global: {stubs}});
+  expect(wrapper.findAll('.art')).toHaveLength(2);
+  expect(wrapper.find('.live-card-track i').attributes('style')).toContain('width: 0%');
+  expect(wrapper.find('.live-card button').exists()).toBe(false);
+  await wrapper.find('.live-actions button').trigger('click');
+  expect(wrapper.emitted('action')[0][1]).toBe('pause');
+  expect(wrapper.emitted('action')[0][0].work).toEqual(work);
+  expect(wrapper.emitted('select')).toBeUndefined();
+});

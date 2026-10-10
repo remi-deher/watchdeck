@@ -1,3 +1,5 @@
+import type { TrackAction } from '@/components/templates/track/types';
+import type { WorkRef } from '@/types/generated/mediaAvailability';
 /* Bandeau « en direct » commun (LiveStrip) : ce qui se passe maintenant -- lectures Plex,
    fichiers en cours d'encodage, telechargements, transferts. Le composant decide de la
    disposition ; la page traduit ses objets en cartes. */
@@ -17,6 +19,8 @@ export interface LiveFact {
 }
 
 export interface LiveItem {
+  work?: WorkRef;
+  actions?: TrackAction[];
   key: string;
   /** Titre ecrit ; remplace par le logo quand il y en a un (dispositions larges). */
   title: string;

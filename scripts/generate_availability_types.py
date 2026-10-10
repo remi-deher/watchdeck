@@ -8,9 +8,18 @@ from app.routers.library_api import router
 from app.routers.requests_api import router as requests_router
 from app.routers.issues_api import router as issues_router
 from app.routers.vf_upgrades_api import router as audit_router
+from app.routers.fileflows_api import router as encoding_router
+from app.routers.fileflows_control_api import router as encoding_control_router
 
 TARGET = Path("frontend/src/types/generated/mediaAvailability.ts")
 NAMES = (
+    "WorkProgress",
+    "WorkRef",
+    "WorkRecord",
+    "EncodingStatusResponse",
+    "EncodingFilesResponse",
+    "EncodingDiskResponse",
+    "EncodingOverviewResponse",
     "ProblemAction",
     "HandlingProblem",
     "ProblemMedia",
@@ -53,7 +62,7 @@ def ts_type(schema):
 
 
 def generate():
-    schemas = get_openapi(title="Watchdeck", version="1.0.0", routes=[*router.routes, *requests_router.routes, *issues_router.routes, *audit_router.routes])[
+    schemas = get_openapi(title="Watchdeck", version="1.0.0", routes=[*router.routes, *requests_router.routes, *issues_router.routes, *audit_router.routes, *encoding_router.routes, *encoding_control_router.routes])[
         "components"
     ]["schemas"]
     output = ["// Généré par python -m scripts.generate_availability_types ; ne pas modifier.\n"]

@@ -19,6 +19,7 @@ from ..dependencies import require_admin
 from ..models import ArrInstance, Settings
 from ..realtime import publish
 from ..services import admin_alerts, fileflows, fileflows_guard, fileflows_history, fileflows_monitor, fileflows_queue
+from ..services.work_ref import EncodingOverviewResponse, encoding_work
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ async def _changed() -> None:
 # --------------------------------------------------------------------------- vue d'ensemble
 
 
-@router.get("/overview")
+@router.get("/overview", response_model=EncodingOverviewResponse)
 async def fileflows_overview(db: AsyncSession = Depends(get_db_async)):
     """Une ligne par disque : fichier en cours, attente du verrou, file, pause Plex."""
     inst = await _instance(db)
@@ -101,7 +102,13 @@ async def fileflows_overview(db: AsyncSession = Depends(get_db_async)):
         if (runner.get("step") or "").startswith(WAIT_STEP):
             entry["lock_waiting"] += 1
             continue
-        entry["running"].append({**runner, "media": fileflows.match_media(index, runner["name"])})
+        entry["running"].append(
+            {
+                **runner,
+                "media": fileflows.match_media(index, runner["name"]),
+                "work": encoding_work(runner, instance_id=inst.id, runner=True),
+            }
+        )
 
     rate = await fileflows_guard.throughput()
     per_hour = rate.get("per_hour")

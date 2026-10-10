@@ -34,11 +34,13 @@ export function maskTitle(title: string, index: number): string {
 }
 
 export function isPaused(row: any): boolean {
+  if (row.work) return row.work.state === 'paused';
   const state = String(row.status || '').toLowerCase();
   return state.includes('paused') || state.includes('stopped');
 }
 
 export function statusClass(row: any): string {
+  if (row.work) return ({running: 'active', waiting: 'paused', paused: 'paused', blocked: 'error', completed: 'complete', cancelled: 'complete', unknown: 'paused'} as Record<string,string>)[row.work.state];
   const state = String(row.status || '').toLowerCase();
   if (state.includes('error') || state.includes('missing')) return 'error';
   if (isPaused(row)) return 'paused';
@@ -47,6 +49,7 @@ export function statusClass(row: any): string {
 }
 
 export function statusLabel(row: any): string {
+  if (row.work) return row.work.state === 'unknown' ? row.work.label : row.work.stage || row.work.label;
   const state = String(row.status || '').toLowerCase();
   if (state.includes('error')) return 'Erreur';
   if (state.includes('missing')) return 'Fichiers manquants';

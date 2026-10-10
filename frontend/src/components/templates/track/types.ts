@@ -1,3 +1,4 @@
+import type { WorkRef } from '@/types/generated/mediaAvailability';
 import type { MediaRef } from '@/types';
 
 /* Gabarit « Suivre » : les donnees qu'une page lui confie. Elle repond a la question
@@ -5,7 +6,7 @@ import type { MediaRef } from '@/types';
 
 /** Etat d'un element suivi. L'ordre d'affichage est fixe : bloque, en cours, en pause,
     en attente -- ce qui demande d'agir d'abord, ce qui patiente ensuite. */
-export type TrackState = 'blocked' | 'running' | 'paused' | 'waiting';
+export type TrackState = 'blocked' | 'running' | 'paused' | 'waiting' | 'unknown' | 'completed' | 'cancelled';
 
 export interface TrackAction {
   key: string;
@@ -26,6 +27,7 @@ export interface TrackCause {
 }
 
 export interface TrackItem {
+  work?: WorkRef;
   key: string;
   state: TrackState;
   title: string;

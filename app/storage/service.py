@@ -243,6 +243,8 @@ async def _preview(db, body):
 
 async def transfer_json(db, job):
     from ..models import LibraryItem
+    from ..services.media_ref import media_ref
+    from ..services.work_ref import transfer_work
     from ..utils import wrap_backdrop_proxy, wrap_image_proxy
     from .presentation import item_presentation
 
@@ -272,7 +274,7 @@ async def transfer_json(db, job):
         else []
     )
     media_by_id = {(m.arr_instance_id, m.arr_id): m for m in media}
-    return dict(
+    result = dict(
         id=job.id,
         source_id=job.source_id,
         destination_id=job.destination_id,
@@ -299,6 +301,7 @@ async def transfer_json(db, job):
                 created_at=t.created_at,
                 updated_at=t.updated_at,
                 presentation=item_presentation(t),
+                media=media_ref(media_by_id.get((t.arr_instance_id, t.arr_id))),
                 poster_url=wrap_image_proxy(
                     getattr(media_by_id.get((t.arr_instance_id, t.arr_id)), "poster_url", None)
                 ),
@@ -307,6 +310,9 @@ async def transfer_json(db, job):
             for t in items
         ],
     )
+
+    result["work"] = transfer_work(result)
+    return result
 
 
 async def check_mapping(db, location, mapping_index, discovered=None):

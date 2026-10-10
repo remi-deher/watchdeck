@@ -91,3 +91,15 @@ for (const [path, selector, name] of PAGES) {
     if (process.env.ENCODING_SHOTS) await page.screenshot({ path: `${process.env.ENCODING_SHOTS}/${testInfo.project.name}-${name}.png`, fullPage: true });
   });
 }
+
+
+test('la file lit le travail entier : zéro réel et verrou en attente', async ({ page }) => {
+  await mockApi(page);
+  const work = {key: 'encoding:1:runner:a', source: 'encoding', state: 'running', label: 'En cours', stage: 'Vidéo', progress: {percent: 0, scope: 'step', label: 'Progression de l’étape'}, reason: null, stale: false};
+  await page.route('**/api/fileflows/status', route => route.fulfill({json: {...STATUS, runners: [{...RUNNER, work}, {...RUNNER, path: '/usb3/locked.mkv', name: 'Verrou.mkv', work: {...work, key: 'encoding:1:runner:b', state: 'waiting', stage: 'Verrou', reason: 'Attente du verrou de disque'}}]}}));
+  await page.goto('/encoding/queue');
+  await expect(page.locator('.live-card')).toHaveCount(1);
+  await expect(page.locator('.live-card-track i')).toHaveAttribute('style', /width: 0%/);
+  await expect(page.locator('.track-queue')).toContainText('Attente du verrou de disque');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
+});

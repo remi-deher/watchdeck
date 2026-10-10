@@ -84,7 +84,8 @@ const searched = (name: string) => !debouncedSearch.value.trim() || name.toLower
 /* Echecs (bloques), runners (en cours), file (en attente, dans l'ordre de passage). */
 const items = computed<TrackItem[]>(() => [
   ...failed.value.map((file): TrackItem => ({
-    key: `failed-${file.uid}`,
+    key: file.work?.key || `failed-${file.uid}`,
+    work: file.work,
     state: 'blocked',
     title: titleOf(file),
     subtitle: [file.library, file.flow].filter(Boolean).join(' · '),
@@ -98,7 +99,8 @@ const items = computed<TrackItem[]>(() => [
     ],
   })),
   ...(status.value?.runners || []).filter((runner) => searched(runner.name)).map((runner): TrackItem => ({
-    key: `run-${runner.path}`,
+    key: runner.work?.key || `run-${runner.path}`,
+    work: runner.work,
     state: 'running',
     title: runner.media ? mediaTitle(runner.media) : fileBaseName(runner.name),
     subtitle: runner.library,
@@ -106,10 +108,12 @@ const items = computed<TrackItem[]>(() => [
     icon: Film,
     to: linkOf(runner.media),
     step: runner.step || 'Démarrage…',
-    progress: runner.percent || null,
+    progress: runner.percent ?? null,
   })),
   ...queued.value.map((file, index): TrackItem => ({
-    key: `queued-${file.uid}`,
+    key: file.work?.key || `queued-${file.uid}`,
+    work: file.work,
+    media: file.media,
     state: 'waiting',
     title: titleOf(file),
     subtitle: file.library,

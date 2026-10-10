@@ -1,3 +1,4 @@
+import type { WorkRef } from '@/types/generated/mediaAvailability';
 import { formatSeconds as formatSeconds } from '@/utils/format';
 import type { MediaRef } from '@/types';
 /* FileFlows : types, requete d'etat partagee et libelles.
@@ -26,6 +27,7 @@ export interface FileflowsTiming {
 }
 
 export interface FileflowsFile {
+  work?: WorkRef;
   uid: string;
   name: string;
   library: string;
@@ -45,11 +47,12 @@ export interface FileflowsFile {
 }
 
 export interface FileflowsRunner {
+  work?: WorkRef;
   path: string;
   name: string;
   library: string;
   step: string;
-  percent: number;
+  percent: number | null;
   media?: FileflowsMedia | null;
 }
 

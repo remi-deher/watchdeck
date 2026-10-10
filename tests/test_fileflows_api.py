@@ -245,6 +245,8 @@ def test_action_routes(client_db):
     ):
         listed = client.get("/api/fileflows/files?status=4").json()
         assert listed["has_more"] is True and listed["files"][0]["media"] is None
+        assert listed["files"][0]["work"]["state"] == "blocked"
+        assert listed["files"][0]["work"]["source"] == "encoding"
         assert client.get("/api/fileflows/files?status=99").status_code == 422
         assert client.get(f"/api/fileflows/files/{UID_A}/log").json() == {"text": "ligne"}
         assert client.post("/api/fileflows/reprocess", json={"uids": [UID_A]}).json() == result

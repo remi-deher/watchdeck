@@ -71,11 +71,12 @@ function mediaTitle(media: FileflowsMedia): string {
 /* Ce que font les runners : l'etape en badge, le disque en coin, la progression. */
 const router = useRouter();
 const diskOf = (path: string) => (path.split('/').filter(Boolean)[0] || '');
-const running = computed<LiveItem[]>(() => (status.value?.runners || []).map((runner) => ({
-  key: runner.path,
+const running = computed<LiveItem[]>(() => (status.value?.runners || []).filter(runner => !runner.work || runner.work.state === 'running').map((runner) => ({
+  key: runner.work?.key || runner.path,
+  work: runner.work,
   title: runner.media ? mediaTitle(runner.media) : fileBaseName(runner.name),
   status: runner.percent ? `${Math.round(runner.percent)} % de l’étape` : 'Démarrage…',
-  progress: runner.percent || 0,
+  progress: runner.percent ?? null,
   media: runner.media || null,
   icon: Cpu,
   badge: { label: runner.step || 'Démarrage', tone: 'accent' },

@@ -95,6 +95,15 @@ describe('useRealtimeQuery', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
   });
 
+  it('relit un travail entier au lieu de mélanger état brut et progression connue', () => {
+    const before = {items: [{id: 1, work: {state: 'running', progress: {percent: 45}}, media: {backdrop_url: '/art.jpg'}}]};
+    queryClient.setQueryData(['demandes'], before);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    realtimeHandler('request.updated', {payload: {id: 1, status: 'completed'}});
+    expect(queryClient.getQueryData(['demandes'])).toEqual(before);
+    expect(invalidate).toHaveBeenCalledWith({queryKey: ['demandes']});
+  });
+
   it('expose apply pour les mises a jour locales', () => {
     expect(api.apply({ id: 1, status: 'rejected' })).toBe(true);
     expect(queryClient.getQueryData(['demandes']).items[0].status).toBe('rejected');

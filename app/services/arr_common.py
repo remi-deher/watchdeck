@@ -75,11 +75,11 @@ def normalize_release(r: dict) -> dict:
     }
 
 
-def queue_progress(r: dict) -> tuple[int, int, float]:
+def queue_progress(r: dict) -> tuple[int, int | None, float | None]:
     """(size, sizeleft, progress %) d'un enregistrement de file *arr."""
     size = r.get("size") or 0
-    sizeleft = r.get("sizeleft") or 0
-    return size, sizeleft, round((size - sizeleft) / size * 100, 1) if size else 0
+    sizeleft = r.get("sizeleft")
+    return size, sizeleft, round((size - sizeleft) / size * 100, 1) if size and sizeleft is not None else None
 
 
 # ---------------------------------------------------------------------------

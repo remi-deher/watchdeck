@@ -1,7 +1,9 @@
+import type { WorkRef } from '@/types/generated/mediaAvailability';
 import { mediaDetailPath } from '@/mediaUrl';
 import { parseReleaseEpisodeInfo, type ParsedEpisodeInfo } from '@/utils/releaseTitle';
 
 export interface QueueRow {
+  work?: WorkRef;
   instance_id?: number | string | null;
   instance?: string | null;
   queue_id?: number | string | null;
@@ -20,7 +22,7 @@ export interface QueueRow {
   [key: string]: any;
 }
 
-export type QueueStatusKey = 'error' | 'paused' | 'queued' | 'completed' | 'downloading';
+export type QueueStatusKey = 'error' | 'paused' | 'queued' | 'completed' | 'downloading' | 'unknown';
 
 /** Identifiant stable d'une ligne, y compris pour un téléchargement direct sans queue_id. */
 export function rowKey(row: QueueRow = {}): string {
@@ -36,6 +38,7 @@ export function canAct(row: QueueRow = {}): boolean {
  * Statut normalisé : 'error' | 'paused' | 'queued' | 'completed' | 'downloading'.
  */
 export function statusKey(row: QueueRow = {}): QueueStatusKey {
+  if (row.work) return ({ running: 'downloading', waiting: 'queued', blocked: 'error', paused: 'paused', completed: 'completed', cancelled: 'completed', unknown: 'unknown' } as const)[row.work.state];
   const value = (row.status || '').toLowerCase();
   if (row.error || value.includes('error') || value.includes('warning') || value.includes('failed')) return 'error';
   if (value.includes('pause')) return 'paused';
@@ -50,10 +53,11 @@ const STATUS_LABELS: Record<QueueStatusKey, string> = {
   queued: 'En file',
   completed: 'Terminé',
   downloading: 'En cours',
+  unknown: 'État inconnu',
 };
 
 export function statusLabel(row: QueueRow = {}): string {
-  return STATUS_LABELS[statusKey(row)];
+  return row.work?.stage || row.work?.label || STATUS_LABELS[statusKey(row)];
 }
 
 /** Fichier téléchargé que *arr n'arrive pas à importer (fréquent sur les épisodes « TBA »). */
@@ -73,6 +77,7 @@ export function needsEpisodeImport(row: QueueRow = {}): boolean {
 
 /** Une intervention humaine est nécessaire pour que ce téléchargement aboutisse. */
 export function requiresIntervention(row: QueueRow = {}): boolean {
+  if (row.work) return row.work.state === 'blocked' || isUnmatched(row);
   return isUnmatched(row) || needsEpisodeImport(row) || isImportPending(row) || statusKey(row) === 'error';
 }
 
@@ -145,6 +150,7 @@ export interface QueueCountsResult {
   queued: number;
   paused: number;
   completed: number;
+  unknown: number;
   intervention: number;
   importPending: number;
   blocked: number;
@@ -159,6 +165,7 @@ export function queueCounts(rows: QueueRow[] = []): QueueCountsResult {
     queued: 0,
     paused: 0,
     completed: 0,
+    unknown: 0,
     intervention: 0,
     importPending: 0,
     blocked: 0,

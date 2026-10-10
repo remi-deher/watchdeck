@@ -217,7 +217,7 @@ async def get_qbittorrent_status(
             if "error" in state or "missing" in state:
                 status = "error"
             else:
-                status = _QB_STATE_MAP.get(state, "completed")
+                status = _QB_STATE_MAP.get(state, "unknown")
 
             return {
                 "name": t.get("name", ""),
@@ -617,7 +617,7 @@ async def list_transmission_torrents(url: str, username: Optional[str], password
                 "hash": torrent.get("hashString") or "",
                 "name": torrent.get("name") or "Torrent sans nom",
                 "state": status_names.get(torrent.get("status"), "unknown"),
-                "progress": torrent.get("percentDone") or 0,
+                "progress": torrent.get("percentDone"),
                 "size": torrent.get("totalSize") or 0,
                 "dlspeed": torrent.get("rateDownload") or 0,
                 "upspeed": torrent.get("rateUpload") or 0,
