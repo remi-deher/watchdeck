@@ -9,6 +9,7 @@ import pytest
 from app.models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
 from app.storage import plex_finalization as finalizer
 from app.storage import worker
+from app.storage.locks import item_paths, mutation_lock
 
 
 class Context:
@@ -31,6 +32,9 @@ def item_state():
         reason=None,
         progress={},
         snapshot={
+            "source_mount": "/data",
+            "destination_mount": "/usb",
+            "relative": "Film",
             "plex_machine": "server",
             "plex_section_id": "3",
             "destination_plex": "/usb/Film",
@@ -79,7 +83,6 @@ def context(monkeypatch):
     monkeypatch.setattr(finalizer, "AsyncSessionLocal", lambda: Context(db))
     monkeypatch.setattr(finalizer, "request_scan", AsyncMock())
     monkeypatch.setattr(finalizer, "settle_job", AsyncMock())
-    monkeypatch.setattr(finalizer, "MUTATION_LOCK", asyncio.Lock())
     monkeypatch.setattr(worker, "process_item", AsyncMock())
     return NS(item=item, job=job, db=db, lease=NS(execute=AsyncMock()), shutdown=threading.Event())
 
@@ -95,7 +98,7 @@ async def test_durable_commands_prevent_scans_and_cleanup(context, desired):
 
 @pytest.mark.asyncio
 async def test_scan_continues_during_copy_but_cleanup_never_overlaps(context):
-    async with finalizer.MUTATION_LOCK:
+    async with mutation_lock(item_paths(context.item)):
         await finalizer.finalize_item(1, {}, context.lease, context.shutdown)
     finalizer.request_scan.assert_awaited_once()
     worker.process_item.assert_not_awaited()
@@ -192,3 +195,12 @@ async def test_persisted_finalization_settles_without_overwriting_pause(async_da
         await db.commit()
         await finalizer.settle_job(db, job.id)
         assert job.status == "completed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("paths", [("/B/Other", "/C/Other"), ("/data/Other", "/usb/Other")])
+async def test_finalization_continues_during_unrelated_copy(context, paths):
+    async with mutation_lock(paths):
+        await finalizer.finalize_item(1, {}, context.lease, context.shutdown)
+        worker.process_item.assert_awaited_once()
+        assert worker.process_item.await_args.kwargs == {"finalize_only": True}

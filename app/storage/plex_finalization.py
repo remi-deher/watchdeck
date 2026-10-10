@@ -14,12 +14,12 @@ from ..models import ArrInstance, StorageTransfer, StorageTransferItem
 from ..services.plex_servers import connection_for
 from ..utils import now_utc_naive
 from .integrite import Interrompu
+from .locks import item_paths, mutation_lock
 
 log = logging.getLogger(__name__)
 CHECK_INTERVAL = 30
 SCAN_INTERVAL = 300
 FINALIZATION_STATES = ("plex_pending", "cleaning")
-MUTATION_LOCK = asyncio.Lock()
 
 
 def transfer_status(items):
@@ -132,11 +132,10 @@ async def finalize_item(item_id, scans, lease, shutdown):
             await request_scan(db, item, scans, now)
             if stop.is_set() or shutdown.is_set():
                 raise Interrompu()
-            # SSH filesystem operations are serialized with copying/cancellation.
-            # Plex scans above still run while the copy is in progress.
-            if MUTATION_LOCK.locked():
-                return
-            async with MUTATION_LOCK:
+            # Un dossier occupe sera repris au prochain passage, sans attendre la copie.
+            async with mutation_lock(item_paths(item), wait=False) as acquired:
+                if not acquired:
+                    return
                 if stop.is_set() or shutdown.is_set():
                     raise Interrompu()
                 await process_item(db, job, item, stop, finalize_only=True)

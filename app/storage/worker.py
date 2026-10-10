@@ -765,7 +765,8 @@ async def refresh_storage():
 
 
 async def run_transfer(transfer_id, lease):
-    from .plex_finalization import FINALIZATION_STATES, MUTATION_LOCK, transfer_status
+    from .locks import item_paths, mutation_lock
+    from .plex_finalization import FINALIZATION_STATES, transfer_status
 
     stop = threading.Event()
     lease_failed = threading.Event()
@@ -831,7 +832,9 @@ async def run_transfer(transfer_id, lease):
                 if stop.is_set():
                     break
                 try:
-                    async with MUTATION_LOCK:
+                    async with mutation_lock(item_paths(item)):
+                        if stop.is_set():
+                            raise Interrompu()
                         await process_item(db, job, item, stop, preflight_validated=True)
                 except Interrompu:
                     break
@@ -882,7 +885,8 @@ async def run_engine():
                     job.status = "paused"
                     job.desired_state = "pause"
             await db.commit()
-        from .plex_finalization import MUTATION_LOCK, run_finalizer
+        from .locks import item_paths, mutation_lock
+        from .plex_finalization import run_finalizer
 
         finalizer = asyncio.create_task(run_finalizer(SHUTDOWN))
 
@@ -940,7 +944,24 @@ async def run_engine():
 
                         pulse = asyncio.create_task(heartbeat())
                         try:
-                            async with MUTATION_LOCK:
+                            cancellation_items = (
+                                (
+                                    await db.execute(
+                                        select(StorageTransferItem).where(
+                                            StorageTransferItem.transfer_id == cancellation.id
+                                        )
+                                    )
+                                )
+                                .scalars()
+                                .all()
+                            )
+                            paths = [
+                                path
+                                for item in cancellation_items
+                                if item.status not in ("completed", "cancelled")
+                                for path in item_paths(item)
+                            ]
+                            async with mutation_lock(paths):
                                 cancellation_done = await cancel_transfer(db, cancellation, lease)
                         finally:
                             pulse.cancel()
