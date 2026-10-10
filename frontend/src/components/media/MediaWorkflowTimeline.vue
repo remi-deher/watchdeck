@@ -54,6 +54,7 @@ import { formatDateTime as formatDate, formatRelativeDate } from '@/utils/format
 import { computed, ref, watch } from 'vue';
 import { Check, ChevronDown, ChevronUp, Circle, RefreshCw, Sparkles, TriangleAlert } from '@lucide/vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import type { RequestJourney } from '@/types/generated/mediaAvailability';
 
 const HISTORY_VISIBLE_LIMIT = 5;
 
@@ -75,6 +76,7 @@ export interface WorkflowHistoryEvent {
 const props = withDefaults(
   defineProps<{
     steps?: WorkflowStep[];
+    journey?: RequestJourney | null;
     history?: WorkflowHistoryEvent[];
   }>(),
   {
@@ -82,9 +84,10 @@ const props = withDefaults(
     history: () => [],
   }
 );
+const steps = computed(() => props.journey?.steps ?? props.steps);
 const progressLabel = computed(() => {
-  const current = props.steps.find((step) => step.state === 'current' || step.state === 'error');
-  return current?.label || props.steps.at(-1)?.label || '';
+  const current = steps.value.find((step) => step.state === 'current' || step.state === 'error');
+  return current?.label || steps.value.at(-1)?.label || '';
 });
 
 const HISTORY_ICONS: Record<string, any> = { vf_upgrade: Sparkles, file_replaced: RefreshCw, issue: TriangleAlert };

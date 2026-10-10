@@ -214,3 +214,9 @@ it('le contrat de disponibilité prime sur un ancien libellé opérationnel', ()
   } });
   expect(wrapper.get('.mdh-badges').text()).toBe('À confirmer dans Plex');
 });
+
+it('utilise la prochaine étape du parcours plutôt qu’un motif historique contradictoire', () => {
+  const wrapper = mount(MediaDetailHero, { props: { detail: { title: 'Film', media_type: 'movie',
+    waiting_reason: 'Disponible depuis longtemps', journey: { blocker: null, next_step: { label: 'Confirmer Plex' } } } } });
+  expect(wrapper.find('.mdh-waiting').text()).toBe('Confirmer Plex');
+});

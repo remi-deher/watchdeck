@@ -10,11 +10,13 @@
             <p v-if="journeySubtitle(row)" class="journey-subtitle">{{ journeySubtitle(row) }}</p>
           </div>
           <div class="journey-badges">
-            <UiBadge pill :tone="statusTone(row.status)">{{ requestStatusLabel(row.status) }}</UiBadge>
+            <UiBadge pill :tone="statusTone(row.journey?.status || row.status)">{{ row.journey?.label || requestStatusLabel(row.status) }}</UiBadge>
             <span class="journey-origin">{{ originLabel(row) }}</span>
           </div>
         </div>
         <RequestStatusStepper :row="row" />
+        <p v-if="row.journey?.blocker" class="journey-subtitle">{{ row.journey.blocker.label }}</p>
+        <p v-if="row.journey?.next_step" class="journey-subtitle">Prochaine étape : {{ row.journey.next_step.label }}</p>
         <div v-if="row.media_type === 'show' && row.seasons?.length" class="journey-seasons">
           <span class="journey-seasons-title">Par saison · {{ seasonsSummary(row.seasons) }}</span>
           <ul class="journey-season-list">

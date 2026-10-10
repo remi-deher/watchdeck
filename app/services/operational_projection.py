@@ -29,7 +29,11 @@ def request_origin(source: str | None) -> dict[str, str]:
     return {"kind": "request", "label": "Demande utilisateur"}
 
 
-def request_operational_projection(req: Any) -> dict[str, Any]:
+def request_operational_projection(
+    req: Any, *, availability: dict | None = None, queue_entry: dict | None = None
+) -> dict[str, Any]:
+    from .request_journey import request_journey
+
     origin = request_origin(getattr(req, "source", None))
     fulfillment = _value(getattr(req, "fulfillment_status", None)) or "not_submitted"
     error = getattr(req, "fulfillment_error", None)
@@ -59,7 +63,7 @@ def request_operational_projection(req: Any) -> dict[str, Any]:
         "failed": error or "Une erreur technique bloque le parcours.",
         "removed": "Le media n'est plus suivi par *ARR.",
     }
-    return {
+    projection = {
         "origin_kind": origin["kind"],
         "origin_label": origin["label"],
         "operational_status": fulfillment,
@@ -67,6 +71,8 @@ def request_operational_projection(req: Any) -> dict[str, Any]:
         "waiting_reason": waiting_reasons.get(fulfillment),
         "workflow_timeline": request_workflow_timeline(req, origin=origin, fulfillment=fulfillment),
     }
+    projection["journey"] = request_journey(req, projection, availability=availability, queue_entry=queue_entry)
+    return projection
 
 
 def request_workflow_timeline(

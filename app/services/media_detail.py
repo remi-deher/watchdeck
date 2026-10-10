@@ -25,7 +25,7 @@ from ..serializers import format_datetime, serialize_media_request
 from ..utils import async_get_or_404, plex_image_proxy_url, wrap_backdrop_proxy, wrap_image_proxy
 from . import tmdb
 from .media_annotate import annotate_rail_items
-from .operational_projection import build_media_history, plex_library_projection
+from .operational_projection import build_media_history, plex_library_projection, request_operational_projection
 
 logger = logging.getLogger(__name__)
 
@@ -44,14 +44,20 @@ def _media_payload(
     current_season_air_date: str | None = None,
     next_episode_to_air: dict | None = None,
 ) -> dict:
+    availability = media_availability(
+        selected_request or media_obj,
+        library=library_item,
+        plex_present=library_item is not None,
+        season_rows=season_rows,
+    )
+    journey = (
+        request_operational_projection(selected_request, availability=availability)["journey"]
+        if selected_request
+        else None
+    )
     return {
         **media_ref(media_obj),
-        "availability": media_availability(
-            selected_request or media_obj,
-            library=library_item,
-            plex_present=library_item is not None,
-            season_rows=season_rows,
-        ),
+        "availability": availability,
         "kind": "library" if library_item else "request",
         "library_id": library_item.id if library_item else None,
         "request_id": selected_request.id if selected_request else None,
@@ -82,6 +88,7 @@ def _media_payload(
         "operational_status_label": operational.get("operational_status_label"),
         "waiting_reason": operational.get("waiting_reason"),
         "workflow_timeline": operational.get("workflow_timeline", []),
+        "journey": journey,
         "release_dates": release_dates,
         "first_air_date": first_air_date,
         "current_season_air_date": current_season_air_date,
@@ -216,7 +223,16 @@ async def build_media_detail(
         raw = (user.notification_email if user else None) or ""
         return {address.strip().lower() for address in raw.split(",") if address.strip()}
 
-    request_payloads = [serialize_media_request(row, users) for row in related_requests]
+    request_payloads = [
+        serialize_media_request(
+            row,
+            users,
+            availability=media_availability(
+                row, library=library_item, plex_present=library_item is not None, season_rows=seasons.get(row.id)
+            ),
+        )
+        for row in related_requests
+    ]
     for payload, row in zip(request_payloads, related_requests):
         payload["seasons"] = seasons.get(row.id, [])
         payload["last_request_mail"] = last_mail.get((row.id, "request"))
@@ -481,8 +497,9 @@ async def build_media_detail(
                 logger.debug("Plex direct tracks fetch error: %s", exc)
 
     availability_request = selected_request or (related_requests[0] if related_requests else None)
-    operational = (
-        request_payloads[0] if request_payloads else (plex_library_projection(library_item) if library_item else {})
+    operational = next(
+        (payload for payload in request_payloads if availability_request and payload["id"] == availability_request.id),
+        plex_library_projection(library_item) if library_item else {},
     )
     return {
         "media": _media_payload(

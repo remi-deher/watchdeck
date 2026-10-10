@@ -43,7 +43,7 @@
             <span v-if="seasonSummary.partial.length" class="badge pending_approval">Partielle : {{ formatSeasonLabel(seasonSummary.partial) }}</span>
             <span v-if="seasonSummary.vo.length" class="badge">VO : {{ formatSeasonLabel(seasonSummary.vo) }}</span>
           </div>
-          <p v-if="detail.waiting_reason && !isMusic" class="mdh-waiting">{{ detail.waiting_reason }}</p>
+          <p v-if="waitingReason && !isMusic" class="mdh-waiting">{{ waitingReason }}</p>
           <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
             <div v-for="entry in releaseDates" :key="entry.label">
               <dt>{{ entry.label }}</dt>
@@ -195,6 +195,9 @@ const canSearchReleases = computed(() => {
 
 /* « 2024 · ★ 7,8 · Science-fiction, Aventure » : ce que les pastilles d'annee, de note et de
    genres disaient, sur une ligne. */
+const waitingReason = computed(() => props.detail?.journey
+  ? props.detail.journey.blocker?.label || props.detail.journey.next_step?.label
+  : props.detail?.waiting_reason);
 const factsLine = computed(() => {
   const d = props.detail || {};
   return [d.year, d.vote ? `★ ${d.vote}` : '', d.genres?.length ? d.genres.join(', ') : '']

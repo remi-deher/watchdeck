@@ -24,10 +24,10 @@
         <header><Activity/><div><span>État actuel</span><strong>{{ currentState }}</strong></div></header>
         <dl>
           <div><dt>Plex</dt><dd>{{ plexPresenceLabel(detail) }}</dd></div>
-          <div><dt>Source</dt><dd>{{ detail.origin_label || 'Ajout direct' }}</dd></div>
+          <div><dt>Source</dt><dd>{{ detail.journey?.origin.label || detail.origin_label || 'Ajout direct' }}</dd></div>
           <div><dt>Prochaine action</dt><dd>{{ nextAction }}</dd></div>
         </dl>
-        <p v-if="detail.waiting_reason" class="information-note">{{ detail.waiting_reason }}</p>
+        <p v-if="waitingReason" class="information-note">{{ waitingReason }}</p>
       </article>
 
       <article class="information-card">
@@ -53,7 +53,7 @@
 
       <article class="information-card">
         <header><Users/><div><span>Demandes</span><strong>{{ requestersCount }} demandeur{{ requestersCount>1?'s':'' }}</strong></div></header>
-        <dl><div><dt>Première demande</dt><dd>{{ firstRequestDate }}</dd></div><div><dt>Source</dt><dd>{{ detail.origin_label || 'Inconnue' }}</dd></div><div><dt>Demandes liées</dt><dd>{{ requests.length }}</dd></div></dl>
+        <dl><div><dt>Première demande</dt><dd>{{ firstRequestDate }}</dd></div><div><dt>Source</dt><dd>{{ detail.journey?.origin.label || detail.origin_label || 'Inconnue' }}</dd></div><div><dt>Demandes liées</dt><dd>{{ requests.length }}</dd></div></dl>
       </article>
 
       <article class="information-card notification-card">
@@ -85,8 +85,10 @@ const props = withDefaults(
 const isMusic = computed(() => isMusicType(props.detail?.media_type));
 const requests = computed(() => props.detail.requests || []);
 const notifications = computed(() => props.detail.notification_history || []);
-const currentState = computed(() => (props.detail.availability ? mediaAvailabilityBadge(props.detail)?.label : null) || props.detail.operational_status_label || (isInPlex(props.detail) ? 'Disponible' : 'En attente'));
+const waitingReason = computed(() => props.detail.journey ? props.detail.journey.blocker?.label : props.detail.waiting_reason);
+const currentState = computed(() => props.detail.journey?.label || (props.detail.availability ? mediaAvailabilityBadge(props.detail)?.label : null) || props.detail.operational_status_label || (isInPlex(props.detail) ? 'Disponible' : 'En attente'));
 const nextAction = computed(() =>
+  props.detail.journey ? props.detail.journey.next_step?.label || 'Aucune étape attendue' :
   isInPlex(props.detail)
     ? 'Aucune action requise'
     : props.detail.waiting_reason

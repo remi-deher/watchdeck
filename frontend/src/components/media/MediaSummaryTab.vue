@@ -1,6 +1,6 @@
 <template>
   <section class="drawer-section">
-    <MediaWorkflowTimeline v-if="!isMusic" :steps="detail.workflow_timeline" :history="detail.media_history" />
+    <MediaWorkflowTimeline v-if="!isMusic" :journey="detail.journey" :steps="detail.workflow_timeline" :history="detail.media_history" />
     <MediaInformationGrid :detail="detail" :vf-detail="vfDetail" />
 
     <MediaSaga v-if="!isMusic" :saga="detail.saga" />

@@ -86,19 +86,3 @@ def media_availability(
         ),
         languages=MediaLanguages(**{key: _get(language_source, key) for key in MediaLanguages.model_fields}),
     ).model_dump()
-
-
-class AvailabilityRecord(BaseModel):
-    # Les autres champs restent compatibles pendant la migration des contrats.
-    model_config = ConfigDict(extra="allow")
-    availability: MediaAvailability
-
-
-class MediaDetailResponse(BaseModel):
-    model_config = ConfigDict(extra="allow")
-    media: AvailabilityRecord
-
-
-class AvailabilityPage(BaseModel):
-    model_config = ConfigDict(extra="allow")
-    items: list[AvailabilityRecord]

@@ -14,3 +14,11 @@ it('sépare la présence Plex et la couverture de fichiers ARR, sans transformer
   expect(wrapper.text()).not.toContain('0 / 0');
   expect(wrapper.text()).not.toContain('Disponible dans Plex');
 });
+
+it('affiche la prochaine étape métier du parcours même si le média est présent dans Plex', () => {
+  const wrapper = mount(MediaInformationGrid, { props: { detail: { title: 'Série', media_type: 'show', in_library: true,
+    journey: { label: 'Série partielle', origin: { label: 'Demande via Seerr' }, next_step: { label: 'Compléter les épisodes diffusés' } } } } });
+  expect(wrapper.text()).toContain('Série partielle');
+  expect(wrapper.text()).toContain('Compléter les épisodes diffusés');
+  expect(wrapper.text()).not.toContain('Aucune action requise');
+});

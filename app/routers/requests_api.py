@@ -29,9 +29,11 @@ from ..models import (
 from ..pagination import PaginationParams, paginated_response, pagination_params
 from ..scheduler import check_arr_statuses, poll_watchlists
 from ..services import arr_orphans, deleted_media, email_service, radarr, request_tracking, sonarr
-from ..services.media_availability import AvailabilityPage, media_availability
+from ..services.media_availability import media_availability
+from ..services.media_response import AvailabilityPage, RequestJourneyRecord
 from ..services.notification_orchestrator import _get_recipients, _notify, _resolve_requester_users, notify_single_user
 from ..services.notification_policy import is_pseudo_requester
+from ..services.operational_projection import request_operational_projection
 from ..services.request_lifecycle import transition_request
 from ..services.vf_cache import delete_request_episode_cache
 from ..utils import async_get_or_404, now_utc_naive, parse_email_list, plex_image_proxy_url, wrap_image_proxy
@@ -288,7 +290,7 @@ async def notify_single_requester(request_id: int, body: NotifyUserRequest, db: 
     return {"status": "ok", "queued": queued}
 
 
-@router.get("/requests")
+@router.get("/requests", response_model=list[RequestJourneyRecord])
 async def list_requests(query: Optional[str] = None, request: Request = None, db: AsyncSession = Depends(get_db_async)):
     q = select(MediaRequest)
     uid = _caller_plex_user_id(request, db) if request else None
@@ -307,7 +309,20 @@ async def list_requests(query: Optional[str] = None, request: Request = None, db
     # disparaissaient de la vue alors qu'ils etaient toujours reellement en cours cote
     # Radarr). Relevee tres au-dela d'un volume realiste plutot que supprimee : garde un
     # garde-fou contre une croissance non bornee.
-    return (await db.execute(q.order_by(MediaRequest.requested_at.desc()).limit(5000))).scalars().all()
+    from ..serializers import serialize_media_request
+
+    rows = (await db.execute(q.order_by(MediaRequest.requested_at.desc()).limit(5000))).scalars().all()
+    users = {
+        user.plex_user_id: user.custom_name or user.display_name or user.plex_user_id
+        for user in (await db.execute(select(PlexUser))).scalars().all()
+    }
+    return [
+        {
+            **{column.name: getattr(row, column.name) for column in row.__table__.columns},
+            **serialize_media_request(row, users),
+        }
+        for row in rows
+    ]
 
 
 @router.get("/requests-list", response_model=AvailabilityPage)
@@ -441,7 +456,9 @@ async def list_requests_compact(
                 MediaRequest.next_release_at,
                 MediaRequest.next_release_label,
                 MediaRequest.arr_processed_at,
+                MediaRequest.approved_at,
                 MediaRequest.torrent_completed_at,
+                MediaRequest.torrent_import_verified_at,
                 MediaRequest.available_at,
                 MediaRequest.vf_tracking_disabled,
             )
@@ -483,9 +500,12 @@ async def list_requests_compact(
     # Suivi de la page Demandes : motif d'attente, progression, fil de vie. La file de
     # telechargement n'est lue que si une demande est encore en cours, depuis le cache
     # commun ; indisponible, les cartes gardent leur motif sans pourcentage.
-    now = now_utc_naive()
     queue_index: dict[int, dict] = {}
-    if any((row.status.value if hasattr(row.status, "value") else row.status) != "available" for row in rows):
+    if any(
+        (row.status.value if hasattr(row.status, "value") else row.status) != "available"
+        or row.fulfillment_status in {"queued", "downloading", "importing"}
+        for row in rows
+    ):
         try:
             from .arr_queue_api import cached_download_queue
 
@@ -493,39 +513,50 @@ async def list_requests_compact(
         except Exception as exc:  # file illisible : le suivi reste utile sans elle
             logger.debug("File de telechargement indisponible pour le suivi des demandes: %s", exc)
 
+    def compact_item(row):
+        availability = media_availability(row, library=row.LibraryItem)
+        projection = request_operational_projection(row, availability=availability, queue_entry=queue_index.get(row.id))
+        return {
+            "availability": availability,
+            **projection,
+            "tracking": projection["journey"]["tracking"],
+            "lifecycle": [
+                {
+                    "key": step["key"],
+                    "label": step["label"],
+                    "done": step["state"] == "completed",
+                    "at": step["occurred_at"],
+                }
+                for step in projection["journey"]["steps"]
+            ],
+            "vf_missing": request_tracking.vf_missing(row),
+            "episodes_total_count": row.episodes_total_count,
+            "fulfillment_error": row.fulfillment_error,
+            "id": row.id,
+            "title": row.title,
+            "year": row.year,
+            "media_type": row.media_type,
+            "status": row.status.value if hasattr(row.status, "value") else row.status,
+            "source": row.source,
+            "plex_user_id": row.plex_user_id,
+            "plex_user": None if is_pseudo_requester(row.plex_user_id) else row.plex_user,
+            "custom_name": row.custom_name,
+            "requested_by": None
+            if is_pseudo_requester(row.plex_user_id)
+            else row.custom_name or row.plex_user or row.plex_user_id,
+            "poster_url": wrap_image_proxy(row.poster_url),
+            "has_vf": row.has_vf,
+            "fr_is_default": row.fr_is_default,
+            "library_item_id": row.library_item_id,
+            "arr_instance_id": row.arr_instance_id,
+            "arr_id": row.arr_id,
+            "episodes_available_count": row.episodes_available_count,
+            "episodes_aired_count": row.episodes_aired_count,
+            "requested_at": row.requested_at.isoformat() if row.requested_at else None,
+        }
+
     return paginated_response(
-        items=[
-            {
-                "availability": media_availability(row, library=row.LibraryItem),
-                "tracking": request_tracking.tracking_state(row, now, queue_index.get(row.id)),
-                "lifecycle": request_tracking.lifecycle(row),
-                "vf_missing": request_tracking.vf_missing(row),
-                "episodes_total_count": row.episodes_total_count,
-                "fulfillment_error": row.fulfillment_error,
-                "id": row.id,
-                "title": row.title,
-                "year": row.year,
-                "media_type": row.media_type,
-                "status": row.status.value if hasattr(row.status, "value") else row.status,
-                "source": row.source,
-                "plex_user_id": row.plex_user_id,
-                "plex_user": None if is_pseudo_requester(row.plex_user_id) else row.plex_user,
-                "custom_name": row.custom_name,
-                "requested_by": None
-                if is_pseudo_requester(row.plex_user_id)
-                else row.custom_name or row.plex_user or row.plex_user_id,
-                "poster_url": wrap_image_proxy(row.poster_url),
-                "has_vf": row.has_vf,
-                "fr_is_default": row.fr_is_default,
-                "library_item_id": row.library_item_id,
-                "arr_instance_id": row.arr_instance_id,
-                "arr_id": row.arr_id,
-                "episodes_available_count": row.episodes_available_count,
-                "episodes_aired_count": row.episodes_aired_count,
-                "requested_at": row.requested_at.isoformat() if row.requested_at else None,
-            }
-            for row in rows
-        ],
+        items=[compact_item(row) for row in rows],
         total=total,
         offset=pagination.offset,
         limit=pagination.limit,
@@ -673,7 +704,7 @@ async def plex_library_search(query: str, db: AsyncSession = Depends(get_db_asyn
         return []
 
 
-@router.get("/requests/pending", dependencies=[Depends(require_moderator)])
+@router.get("/requests/pending", response_model=list[RequestJourneyRecord], dependencies=[Depends(require_moderator)])
 async def list_pending_requests(db: AsyncSession = Depends(get_db_async)):
     """File des demandes en attente de validation (admin). Déclaré avant
     /requests/{request_id} pour ne pas être capté par le param int."""
@@ -703,7 +734,7 @@ async def resolve_bulk_requests(body: BulkResolveFilters, db: AsyncSession = Dep
     return {"status": "success", "count": len(ids), "ids": ids}
 
 
-@router.get("/requests/{request_id}")
+@router.get("/requests/{request_id}", response_model=RequestJourneyRecord)
 async def get_request(request_id: int, request: Request, db: AsyncSession = Depends(get_db_async)):
     req = await async_get_or_404(db, MediaRequest, request_id, "Request not found")
     await _ensure_request_visible(req, request, db)
@@ -757,6 +788,9 @@ async def get_request(request_id: int, request: Request, db: AsyncSession = Depe
         d["extra_requesters"] = _json.dumps(extras)
     except Exception:
         pass
+    from ..serializers import serialize_media_request
+
+    d.update(serialize_media_request(req, users))
     return d
 
 

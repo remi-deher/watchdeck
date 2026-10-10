@@ -99,7 +99,7 @@ async def annotate_media_items(db: AsyncSession, items: list[dict]) -> list[dict
         if li:
             it.update(plex_library_projection())
         elif req:
-            it.update(request_operational_projection(req))
+            it.update(request_operational_projection(req, availability=it["availability"]))
     return items
 
 

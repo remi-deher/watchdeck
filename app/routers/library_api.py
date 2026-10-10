@@ -34,7 +34,8 @@ from ..services import deleted_media, radarr, request_quotas, sonarr
 from ..services import seer as seer_service
 from ..services.diagnostics import record_event, update_request_context
 from ..services.email_service import build_correction_email, send_correction_notification
-from ..services.media_availability import AvailabilityRecord, MediaDetailResponse, media_availability
+from ..services.media_availability import media_availability
+from ..services.media_response import AvailabilityRecord, MediaDetailResponse
 from ..services.notification_policy import PSEUDO_REQUESTERS
 from ..services.request_lifecycle import transition_request
 from ..utils import (
@@ -273,7 +274,7 @@ def _split_values(raw: Optional[str]) -> list[str]:
     return [value.strip() for value in (raw or "").split(",") if value.strip()]
 
 
-@router.get("/library", response_model=list[AvailabilityRecord])
+@router.get("/library", response_model=list[AvailabilityRecord], response_model_exclude_unset=True)
 async def list_library(
     query: Optional[str] = None,
     media_type: Optional[str] = None,
@@ -432,6 +433,7 @@ async def list_library(
             **media_ref(item),
             "availability": media_availability(item, library=item),
             "poster_url": wrap_image_proxy(item.poster_url),
+            "backdrop_url": wrap_backdrop_proxy(item.art_url),
             "art_url": wrap_backdrop_proxy(item.art_url),
             "genres": [g.strip() for g in (item.genres or "").split(",") if g.strip()],
             "overview": item.overview,
@@ -516,7 +518,7 @@ async def get_library_item(item_id: int, db: AsyncSession = Depends(get_db_async
     return serialize_library_item(item)
 
 
-@router.get("/media/detail", response_model=MediaDetailResponse)
+@router.get("/media/detail", response_model=MediaDetailResponse, response_model_exclude_unset=True)
 async def media_detail(
     library_id: Optional[int] = None,
     request_id: Optional[int] = None,

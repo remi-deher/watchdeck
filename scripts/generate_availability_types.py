@@ -13,6 +13,13 @@ NAMES = (
     "MediaLanguages",
     "MediaQuality",
     "MediaAvailability",
+    "JourneyOrigin",
+    "JourneyStep",
+    "JourneyExpectation",
+    "JourneyDownload",
+    "JourneyTracking",
+    "RequestJourney",
+    "RequestJourneyRecord",
     "AvailabilityRecord",
     "MediaDetailResponse",
     "AvailabilityPage",
@@ -30,7 +37,7 @@ def ts_type(schema):
         return " | ".join(json.dumps(value) for value in schema["enum"])
     if "const" in schema:
         return json.dumps(schema["const"])
-    return {"string": "string", "integer": "number", "boolean": "boolean", "null": "null"}[schema["type"]]
+    return {"string": "string", "integer": "number", "number": "number", "boolean": "boolean", "null": "null"}[schema["type"]]
 
 
 def generate():

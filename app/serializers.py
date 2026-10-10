@@ -21,7 +21,7 @@ def request_status_value(status: Any) -> str:
     return status.value if hasattr(status, "value") else str(status)
 
 
-def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
+def serialize_media_request(req: MediaRequest, users: dict[str, str], *, availability: dict | None = None) -> dict:
     from .services.operational_projection import request_operational_projection
 
     # Deduplique par plex_user_id : quelques lignes historiques ont le demandeur
@@ -51,7 +51,7 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
     requesters = [users.get(uid, uid) for uid in requester_ids]
     return {
         **media_ref(req),
-        "availability": media_availability(req),
+        "availability": availability if availability is not None else media_availability(req),
         "id": req.id,
         "title": req.title,
         "year": req.year,
@@ -97,7 +97,7 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
         "torrent_content_path": req.torrent_content_path,
         "torrent_completed_at": format_datetime(req.torrent_completed_at),
         "torrent_import_verified_at": format_datetime(req.torrent_import_verified_at),
-        **request_operational_projection(req),
+        **request_operational_projection(req, availability=availability),
     }
 
 
