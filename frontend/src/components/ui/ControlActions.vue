@@ -15,7 +15,7 @@
         </UiMenuItem>
       </template>
     </UiMenu>
-    <UiButton v-else size="sm" :variant="variantOf(action)" :disabled="action.disabled" :title="action.title" @click="emit('run', action)">
+    <UiButton v-else size="sm" :variant="variantOf(action)" :class="{ 'is-pressed': action.pressed }" :aria-pressed="action.pressed" :disabled="action.disabled" :title="action.title" @click="emit('run', action)">
       <template v-if="action.icon" #icon><component :is="action.icon" /></template>{{ action.label }}
     </UiButton>
   </template>
@@ -34,3 +34,7 @@ const emit = defineEmits<{ run: [action: ControlAction<T>] }>();
 
 const variantOf = (action: ControlAction<T>) => (action.tone === 'danger' ? 'danger' : action.tone === 'primary' ? 'primary' : 'secondary');
 </script>
+
+<style scoped lang="scss">
+.is-pressed { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); color: var(--accent); }
+</style>

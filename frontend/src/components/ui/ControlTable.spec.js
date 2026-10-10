@@ -159,4 +159,72 @@ describe('ControlTable', () => {
     const sans = factory({ hasMore: false });
     expect(sans.find('.infinite-scroll-trigger').exists()).toBe(false);
   });
+
+  it('Ctrl+A sélectionne toute la liste, puis la vide, sauf dans un champ de saisie', async () => {
+    const wrapper = factory();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }));
+    await nextTick();
+    expect(wrapper.find('.bulk-bar').text()).toContain('3 ');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }));
+    await nextTick();
+    expect(wrapper.find('.bulk-bar').exists()).toBe(false);
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true }));
+    await nextTick();
+    expect(wrapper.find('.bulk-bar').exists()).toBe(false);
+  });
+
+  it('Ctrl-clic bascule la ligne au lieu de l’ouvrir ; un clic simple l’ouvre', async () => {
+    const wrapper = factory();
+    await wrapper.find('tbody tr').trigger('click', { ctrlKey: true });
+    expect(wrapper.emitted('open')).toBeUndefined();
+    expect(wrapper.find('.bulk-bar').text()).toContain('1 ');
+    await wrapper.findAll('tbody tr')[2].trigger('click', { shiftKey: true });
+    expect(wrapper.find('.bulk-bar').text()).toContain('3 ');
+    await wrapper.findAll('tbody tr')[1].trigger('click');
+    expect(wrapper.emitted('open')[0][0]).toEqual(rows[1]);
+  });
+
+  it('retient l’ordre et les colonnes visibles sous sa clé, et propose de les personnaliser', async () => {
+    const wide = [{ key: 'name', label: 'Nom', required: true }, { key: 'role', label: 'Rôle' }, { key: 'extra', label: 'Extra' }];
+    const wrapper = factory({ columns: wide, columnsKey: 'watchdeck:test-columns', defaultVisible: ['name', 'role'] });
+    expect([...wrapper.findAll('thead th')].map((node) => node.text()).filter(Boolean)).toEqual(expect.arrayContaining(['Nom', 'Rôle']));
+    expect(wrapper.text()).not.toContain('Extra');
+    await wrapper.find('button[aria-label="Personnaliser les colonnes"]').trigger('click');
+    await nextTick();
+    expect(document.body.textContent).toContain('Personnaliser les colonnes');
+    expect(document.body.textContent).toContain('2 sur 3 colonnes affichées');
+  });
+
+  it('n’affiche pas le choix des colonnes sans clé de rangement', () => {
+    expect(factory().find('button[aria-label="Personnaliser les colonnes"]').exists()).toBe(false);
+  });
+
+  it('monte les lignes par paquets, puis la suite au défilement', async () => {
+    const many = Array.from({ length: 5 }, (_, i) => ({ id: i + 1, name: `P${i + 1}`, on: true }));
+    const wrapper = factory({ rows: many, batch: 2, columns: [{ key: 'name', label: 'Nom' }] });
+    expect(wrapper.findAll('tbody tr')).toHaveLength(2);
+    expect(wrapper.find('.infinite-scroll-trigger').exists()).toBe(true);
+    wrapper.findComponent({ name: 'InfiniteScrollTrigger' }).vm.$emit('load');
+    await nextTick();
+    expect(wrapper.findAll('tbody tr')).toHaveLength(4);
+    expect(wrapper.emitted('load-more')).toBeUndefined();
+  });
+
+  it('montre une action à bascule enfoncée', () => {
+    const wrapper = factory({ globalActions: [{ key: 'compact', label: 'Compact', pressed: true }] });
+    expect(wrapper.find('.control-table__global button[aria-pressed="true"]').text()).toContain('Compact');
+  });
+
+  it('propose en clic droit les actions de la ligne, ou celles de la sélection', async () => {
+    const wrapper = factory({ contextMenu: true });
+    await wrapper.findAll('tbody tr')[1].trigger('contextmenu');
+    await nextTick();
+    expect(wrapper.find('.bulk-bar').text()).toContain('1 ');
+    await wrapper.findAll('tbody tr')[1].trigger('contextmenu');
+    await nextTick();
+    expect(items()).toEqual(expect.arrayContaining(['Activer', 'Retirer']));
+  });
 });
+

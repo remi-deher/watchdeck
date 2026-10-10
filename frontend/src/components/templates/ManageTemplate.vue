@@ -20,6 +20,8 @@
       :options="options"
       @update:model-value="situation = $event === ALL ? '' : String($event)"
     />
+    <!-- Ce qui altere la lecture de la liste (client injoignable, donnees en cache). -->
+    <UiFeedback v-for="notice in notices" :key="notice.key" :type="notice.type" :title="notice.title" :message="notice.message" />
     <ControlTable
       :label="label"
       :rows="rows"
@@ -33,6 +35,15 @@
       :global-actions="globalActions"
       :row-actions="rowActions"
       :openable="openable"
+      :inline-actions="inlineActions"
+      :initial-sort="initialSort"
+      :columns-key="columnsKey"
+      :default-visible="defaultVisible"
+      :resizable="resizable"
+      :reorderable="reorderable"
+      :density="density"
+      :context-menu="contextMenu"
+      :batch="batch"
       :has-more="hasMore"
       :loading-more="loadingMore"
       @action="(key, targets) => emit('action', key, targets)"
@@ -47,10 +58,19 @@
 <script setup lang="ts" generic="T">
 import { computed } from 'vue';
 import ControlTable, { type ControlAction, type ControlLabels } from '@/components/ui/ControlTable.vue';
-import type { UiColumn } from '@/components/ui/UiDataTable.vue';
+import type { UiColumn, UiSort } from '@/components/ui/UiDataTable.vue';
+import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 
 export type { ControlAction, ControlLabels } from '@/components/ui/ControlTable.vue';
+
+/** Un bandeau d'état de la liste. */
+export interface ManageNotice {
+  key: string;
+  type: 'error' | 'warning' | 'info' | 'success';
+  title?: string;
+  message: string;
+}
 
 /** Une situation à traiter : sert de filtre et dit combien d'éléments elle touche. */
 export interface ManageSituation {
@@ -79,10 +99,23 @@ const props = withDefaults(defineProps<{
   loadingMore?: boolean;
   rowActions?: ((row: T) => ControlAction<T>[]) | null;
   openable?: boolean;
+  inlineActions?: number;
+  initialSort?: UiSort | null;
+  /** Colonnes personnalisables et memorisees sous cette cle (voir ControlTable). */
+  columnsKey?: string;
+  defaultVisible?: string[];
+  resizable?: boolean;
+  reorderable?: boolean;
+  density?: 'comfortable' | 'compact';
+  contextMenu?: boolean;
+  batch?: number;
+  /** Bandeaux au-dessus de la liste : ce qui altere sa lecture. */
+  notices?: ManageNotice[];
 }>(), {
   rowLabel: undefined, rowClass: undefined, loading: false, labels: () => ({}),
   situations: () => [], total: undefined, bulkActions: () => [], globalActions: () => [],
-  hasMore: false, loadingMore: false, rowActions: null, openable: false,
+  hasMore: false, loadingMore: false, rowActions: null, openable: false, inlineActions: 2, initialSort: null, columnsKey: '',
+  defaultVisible: undefined, resizable: false, reorderable: false, density: 'comfortable', contextMenu: false, batch: 0, notices: () => [],
 });
 const emit = defineEmits<{
   action: [key: string, rows: T[]];

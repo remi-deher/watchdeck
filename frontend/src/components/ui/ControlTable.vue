@@ -4,61 +4,83 @@
          - la barre d'actions groupees (BulkActionBar) sur la selection ;
          - les actions d'une ligne : les deux premieres visibles, le reste dans « … » ;
          - la confirmation, quand l'action en demande une (`confirm`) ;
-         - l'ouverture de la ligne (`open`).
+         - l'ouverture de la ligne (`open`) ; Maj / Ctrl-clic etend ou bascule la selection ;
+         - en option : les colonnes que l'utilisateur ordonne, masque et redimensionne
+           (`columnsKey`), le menu contextuel (`contextMenu`), le rendu par paquets (`batch`).
        Il ne fait rien lui-meme : il emet `action(cle, lignes)` et la page agit. Les cellules
        propres a la page passent par les emplacements `cell-<cle>`. -->
   <div class="control-table">
     <BulkActionBar :count="selectedRows.length" :singular="labels.singular" :plural="labels.plural" @clear="selected = []">
       <ControlActions :actions="bulkActions" @run="(action) => run(action, selectedRows, 'bulk')" />
     </BulkActionBar>
-    <!-- Sans selection, les actions qui portent sur toute la liste (vider la file…). -->
-    <div v-if="globalActions.length && !selectedRows.length" class="control-table__global" role="toolbar" :aria-label="labels.global">
-      <ControlActions :actions="globalActions" @run="(action) => run(action, [], 'global')" />
+    <!-- Sans selection, les actions qui portent sur toute la liste (vider la file…) ; le choix
+         des colonnes reste a portee. -->
+    <div v-if="(globalActions.length && !selectedRows.length) || columnPrefs" class="control-table__global" role="toolbar" :aria-label="labels.global">
+      <ControlActions v-if="!selectedRows.length" :actions="globalActions" @run="(action) => run(action, [], 'global')" />
+      <UiButton v-if="columnPrefs" size="sm" icon-only title="Personnaliser les colonnes" aria-label="Personnaliser les colonnes" @click="pickerOpen = true"><Columns /></UiButton>
     </div>
 
-    <UiDataTable
-      class="panel"
-      :label="label"
-      :rows="rows"
-      :columns="allColumns"
-      :row-key="rowKey"
-      :row-label="rowLabel"
-      :row-class="rowClass"
-      :clickable="openable"
-      :selectable="bulkActions.length > 0"
-      v-model:selection="selected"
-      @row-click="onRowClick"
-    >
-      <template #empty><UiEmptyState v-if="!loading" :title="labels.empty" compact /></template>
-      <template v-for="name in forwarded" :key="name" #[name]="scope"><slot :name="name" v-bind="scope || {}" /></template>
-      <template v-if="hasMore" #after><InfiniteScrollTrigger :has-more="hasMore" :loading="loadingMore" @load="emit('load-more')" /></template>
-      <template v-if="rowActions" #cell-actions="{ row }">
-        <span class="control-table__actions">
-          <UiButton
-            v-for="action in inline(row)"
-            :key="action.key"
-            :icon-only="Boolean(action.icon)"
-            :variant="action.tone === 'danger' ? 'danger' : 'secondary'"
-            :disabled="action.disabled"
-            :title="action.title || action.label"
-            :aria-label="`${action.label} ${nameOf(row)}`"
-            @click.stop="run(action, [row], 'row')"
-          ><component :is="action.icon" v-if="action.icon" /><template v-else>{{ action.label }}</template></UiButton>
-          <UiMenu v-if="overflow(row).length" :label="nameOf(row)">
-            <template #trigger>
-              <UiButton icon-only title="Plus d’actions" :aria-label="`Plus d’actions pour ${nameOf(row)}`" @click.stop><Ellipsis /></UiButton>
-            </template>
-            <template v-for="item in overflow(row)" :key="item.key">
-              <UiMenuSeparator v-if="item.separated" />
-              <UiMenuItem :variant="item.tone === 'danger' ? 'danger' : 'default'" :disabled="item.disabled" @select="run(item, [row], 'row')">
-                <component :is="item.icon" v-if="item.icon" /> {{ item.label }}
-              </UiMenuItem>
-            </template>
-          </UiMenu>
-        </span>
+    <UiContextMenu :disabled="!contextMenu" :label="contextLabel">
+      <UiDataTable
+        class="panel"
+        :label="label"
+        :rows="rows"
+        :columns="allColumns"
+        :column-prefs="columnPrefs"
+        :row-key="rowKey"
+        :row-label="rowLabel"
+        :row-class="rowClass"
+        :sort="initialSort"
+        :resizable="resizable"
+        :reorderable="reorderable"
+        :density="density"
+        :limit="batch > 0 ? shown : 0"
+        :clickable="openable"
+        :selectable="bulkActions.length > 0"
+        v-model:selection="selected"
+        @row-click="onRowClick"
+        @row-contextmenu="onContextMenu"
+      >
+        <template #empty><UiEmptyState v-if="!loading" :title="labels.empty" compact /></template>
+        <template v-for="name in forwarded" :key="name" #[name]="scope"><slot :name="name" v-bind="scope || {}" /></template>
+        <template v-if="moreToLoad" #after><InfiniteScrollTrigger :has-more="moreToLoad" :loading="loadingMore" @load="loadMore" /></template>
+        <template v-if="rowActions" #cell-actions="{ row }">
+          <span class="control-table__actions">
+            <UiButton
+              v-for="action in inline(row)"
+              :key="action.key"
+              :icon-only="Boolean(action.icon)"
+              :variant="action.tone === 'danger' ? 'danger' : 'secondary'"
+              :disabled="action.disabled"
+              :title="action.title || action.label"
+              :aria-label="`${action.label} ${nameOf(row)}`"
+              @click.stop="run(action, [row], 'row')"
+            ><component :is="action.icon" v-if="action.icon" /><template v-else>{{ action.label }}</template></UiButton>
+            <UiMenu v-if="overflow(row).length" :label="nameOf(row)">
+              <template #trigger>
+                <UiButton icon-only :title="inlineActions ? 'Plus d’actions' : 'Actions'" :aria-label="`${inlineActions ? 'Plus d’actions pour' : 'Actions sur'} ${nameOf(row)}`" @click.stop><Ellipsis /></UiButton>
+              </template>
+              <template v-for="item in overflow(row)" :key="item.key">
+                <UiMenuSeparator v-if="item.separated" />
+                <UiMenuItem :variant="item.tone === 'danger' ? 'danger' : 'default'" :disabled="item.disabled" @select="run(item, [row], 'row')">
+                  <component :is="item.icon" v-if="item.icon" /> {{ item.label }}
+                </UiMenuItem>
+              </template>
+            </UiMenu>
+          </span>
+        </template>
+      </UiDataTable>
+      <template #items>
+        <template v-for="item in contextItems" :key="item.key">
+          <UiMenuSeparator v-if="item.separated" />
+          <UiMenuItem :variant="item.tone === 'danger' ? 'danger' : 'default'" :disabled="item.disabled" @select="run(item, contextTargets, 'row')">
+            <component :is="item.icon" v-if="item.icon" /> {{ item.label }}
+          </UiMenuItem>
+        </template>
       </template>
-    </UiDataTable>
+    </UiContextMenu>
 
+    <ColumnPickerModal v-if="columnPrefs" :open="pickerOpen" :prefs="columnPrefs" :defaults="columns" @close="pickerOpen = false" />
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
   </div>
 </template>
@@ -74,6 +96,8 @@ export interface ControlAction<T = any> {
   icon?: any;
   tone?: 'default' | 'primary' | 'danger';
   disabled?: boolean;
+  /** Bascule : l'action est enfoncee quand son etat est actif (densite, mode discret…). */
+  pressed?: boolean;
   title?: string;
   /** Un trait avant cette entree, dans un menu. */
   separated?: boolean;
@@ -95,14 +119,18 @@ export interface ControlLabels {
 
 <script setup lang="ts" generic="T">
 import { computed, ref, useSlots, watch } from 'vue';
-import { Ellipsis } from '@lucide/vue';
+import { useEventListener } from '@vueuse/core';
+import { Columns, Ellipsis } from '@lucide/vue';
 import { useConfirm } from '@/composables/useConfirm';
+import { useTableColumns } from '@/composables/useTableColumns';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import BulkActionBar from './BulkActionBar.vue';
+import ColumnPickerModal from './ColumnPickerModal.vue';
 import ControlActions from './ControlActions.vue';
 import InfiniteScrollTrigger from './InfiniteScrollTrigger.vue';
 import UiButton from './UiButton.vue';
-import UiDataTable, { type UiColumn } from './UiDataTable.vue';
+import UiContextMenu from './UiContextMenu.vue';
+import UiDataTable, { type UiColumn, type UiSort } from './UiDataTable.vue';
 import UiEmptyState from './UiEmptyState.vue';
 import UiMenu from './UiMenu.vue';
 import UiMenuItem from './UiMenuItem.vue';
@@ -131,10 +159,25 @@ const props = withDefaults(defineProps<{
   inlineActions?: number;
   /** Un clic sur la ligne (hors boutons) l'ouvre : evenement `open`. */
   openable?: boolean;
+  /** Tri de depart ; l'en-tete trie ensuite. */
+  initialSort?: UiSort | null;
+  /** Cle de rangement des colonnes : l'utilisateur les ordonne, les masque et les
+   *  redimensionne, et le tableau s'en souvient. Absente, les colonnes sont fixes. */
+  columnsKey?: string;
+  /** Colonnes montrees a la premiere ouverture (par defaut, toutes). */
+  defaultVisible?: string[];
+  resizable?: boolean;
+  reorderable?: boolean;
+  density?: 'comfortable' | 'compact';
+  /** Clic droit (ou appui long) : les actions de la ligne, ou de la selection. */
+  contextMenu?: boolean;
+  /** Rendu par paquets de N lignes, au defilement (listes longues chargees en une fois). */
+  batch?: number;
 }>(), {
   rowLabel: undefined, rowClass: undefined, loading: false, labels: () => ({}),
   bulkActions: () => [], globalActions: () => [], hasMore: false, loadingMore: false,
-  rowActions: null, inlineActions: 2, openable: false,
+  rowActions: null, inlineActions: 2, openable: false, initialSort: null, columnsKey: '',
+  defaultVisible: undefined, resizable: false, reorderable: false, density: 'comfortable', contextMenu: false, batch: 0,
 });
 const emit = defineEmits<{
   action: [key: string, rows: T[]];
@@ -158,6 +201,18 @@ const allColumns = computed<UiColumn<T>[]>(() => [
 /* Les emplacements de cellule de la page, sauf ceux que le tableau tient lui-meme. */
 const forwarded = computed(() => Object.keys(slots).filter((name) => name.startsWith('cell-') && !(props.rowActions && name === 'cell-actions')));
 
+/* Colonnes memorisees : ordre, visibilite, largeurs. Deux colonnes au minimum : un tableau
+   reduit a une colonne ne dit plus rien. */
+const columnPrefs = props.columnsKey
+  ? useTableColumns(() => props.columns, {
+    storageKey: props.columnsKey,
+    defaultVisible: props.defaultVisible,
+    defaultWidths: Object.fromEntries(props.columns.filter((column) => column.width).map((column) => [column.key, column.width as number])),
+    minimumVisible: 2,
+  })
+  : null;
+const pickerOpen = ref(false);
+
 const selected = ref<Array<string | number>>([]);
 const selectedRows = computed(() => {
   const keys = new Set(selected.value.map(String));
@@ -168,6 +223,42 @@ watch(() => props.rows, (rows) => {
   const present = new Set(rows.map((row) => String(props.rowKey(row))));
   if (selected.value.some((key) => !present.has(String(key)))) selected.value = selected.value.filter((key) => present.has(String(key)));
 });
+
+/* Ctrl+A selectionne toute la liste (ou la vide si elle l'est deja), hors champ de saisie. */
+useEventListener(window, 'keydown', (event: KeyboardEvent) => {
+  if (!props.bulkActions.length || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'a') return;
+  const target = event.target as HTMLElement | null;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+  event.preventDefault();
+  selected.value = selected.value.length === props.rows.length ? [] : props.rows.map(props.rowKey);
+});
+
+/* Rendu par paquets : on monte N lignes, puis N de plus tant que le defilement en demande. */
+const shown = ref(props.batch);
+const moreToLoad = computed(() => props.hasMore || (props.batch > 0 && shown.value < props.rows.length));
+function loadMore(): void {
+  if (props.batch > 0 && shown.value < props.rows.length) shown.value += props.batch;
+  else emit('load-more');
+}
+
+/* Menu contextuel : un clic droit sur une ligne non cochee la selectionne seule ; le menu
+   porte alors sur la selection (ses actions groupees) ou, pour une ligne, ses actions. */
+const contextRow = ref<T | null>(null) as { value: T | null };
+function onContextMenu(row: T): void {
+  if (!props.contextMenu) return;
+  if (!selected.value.map(String).includes(String(props.rowKey(row)))) selected.value = [props.rowKey(row)];
+  contextRow.value = row;
+}
+const contextTargets = computed<T[]>(() => (selectedRows.value.length ? selectedRows.value : contextRow.value ? [contextRow.value] : []));
+const flatten = (actions: ControlAction<T>[]): ControlAction<T>[] => actions.flatMap((action, index) => (action.items?.length
+  ? action.items.map((item, position) => ({ ...item, separated: item.separated || (position === 0 && index > 0) }))
+  : [{ ...action, separated: action.separated || index > 0 && Boolean(actions[index - 1].items?.length) }]));
+const contextItems = computed<ControlAction<T>[]>(() => {
+  const targets = contextTargets.value;
+  if (targets.length === 1 && props.rowActions) return flatten(props.rowActions(targets[0]));
+  return flatten(props.bulkActions);
+});
+const contextLabel = computed(() => (contextTargets.value.length > 1 ? `${contextTargets.value.length} ${labels.value.plural}` : contextRow.value ? nameOf(contextRow.value) : ''));
 
 const inline = (row: T) => (props.rowActions ? props.rowActions(row).slice(0, props.inlineActions) : []);
 const overflow = (row: T) => (props.rowActions ? props.rowActions(row).slice(props.inlineActions) : []);

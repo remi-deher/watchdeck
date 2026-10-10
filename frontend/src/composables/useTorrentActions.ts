@@ -4,6 +4,23 @@ import { api } from '@/api';
 /** Cle stable d'un torrent : son client et son empreinte. */
 export const torrentKey = (row: any): string => `${row.client_id}:${row.hash}`;
 
+/** Ce que dit la confirmation d'un retrait : les fichiers ne reviennent pas, le client si. */
+export function removalConfirmation(count: number, deleteFiles: boolean) {
+  return deleteFiles
+    ? {
+      title: `Supprimer ${count} torrent(s) et leurs fichiers ?`,
+      message: 'Les fichiers téléchargés seront supprimés définitivement. Cette action ne peut pas être annulée.',
+      confirmLabel: 'Supprimer définitivement',
+      danger: true,
+    }
+    : {
+      title: `Retirer ${count} torrent(s) ?`,
+      message: 'Les torrents seront retirés du client, mais leurs fichiers seront conservés.',
+      confirmLabel: 'Retirer',
+      danger: true,
+    };
+}
+
 type AskConfirm = (options: { title: string; message: string; confirmLabel: string; danger?: boolean }) => Promise<boolean>;
 
 /**
@@ -56,19 +73,7 @@ export function useTorrentActions(options: {
   async function confirmRemoval(rows: any[], deleteFiles: boolean): Promise<Set<string>> {
     const targets = rows.filter(Boolean);
     if (!targets.length) return new Set();
-    const confirmed = await options.askConfirm(deleteFiles
-      ? {
-        title: `Supprimer ${targets.length} torrent(s) et leurs fichiers ?`,
-        message: 'Les fichiers téléchargés seront supprimés définitivement. Cette action ne peut pas être annulée.',
-        confirmLabel: 'Supprimer définitivement',
-        danger: true,
-      }
-      : {
-        title: `Retirer ${targets.length} torrent(s) ?`,
-        message: 'Les torrents seront retirés du client, mais leurs fichiers seront conservés.',
-        confirmLabel: 'Retirer',
-        danger: true,
-      });
+    const confirmed = await options.askConfirm(removalConfirmation(targets.length, deleteFiles));
     if (!confirmed) return new Set();
     return runAction('delete', targets, deleteFiles);
   }
