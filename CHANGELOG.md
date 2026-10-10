@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.89.0 — 2026-10-10
+
+
+### revert
+
+- take back files swept from a parallel work-in-progress (kept on disk) ([75c2a31](https://github.com/remi-deher/watchdeck/commit/75c2a316935e74f017d7e318544d09f4126b75cb))
+
+### ♻️ Refactoring
+
+- transmettre les médias complets aux cartes communes ([12040e2](https://github.com/remi-deher/watchdeck/commit/12040e288743381450443a4d6d562fcfb9eb2e89))
+- centraliser les badges de langue et les formats ([ab9a87e](https://github.com/remi-deher/watchdeck/commit/ab9a87ece026f836417247680d6ed9cd9bada195))
+- transmettre les personnes et clients complets aux composants ([f2d63ba](https://github.com/remi-deher/watchdeck/commit/f2d63bacf7e01215caa30f4442558534da16b1d0))
+- centraliser la disponibilite observee et son contrat ([bf077e0](https://github.com/remi-deher/watchdeck/commit/bf077e0573a2c6a718eca2ce76f5f03327ffe4b8))
+- centraliser le parcours métier des demandes ([adb14e1](https://github.com/remi-deher/watchdeck/commit/adb14e14c3a85ffa5d487146514e0b9e6e70ea19))
+- centraliser les problèmes à traiter ([c9fd74c](https://github.com/remi-deher/watchdeck/commit/c9fd74ccaade9eced2f1a7874c9e7d1cf8acb214))
+- centraliser les travaux en cours ([8705d4a](https://github.com/remi-deher/watchdeck/commit/8705d4ac5d200561fb9e28d92ce2cb20ab231f69))
+- centraliser la santé observée des services ([724265b](https://github.com/remi-deher/watchdeck/commit/724265b0891a5aee931690be2e3634781cd56e69))
+- centraliser les tâches et scans ([17cff3a](https://github.com/remi-deher/watchdeck/commit/17cff3a7db4d557ed146cb679493e3f13ba83a70))
+
+### ✨ Nouveautés
+
+- history shows what was reworked as tags (video, audio codec, SRT subtitles, tracks renamed or removed) ([c9a1ec3](https://github.com/remi-deher/watchdeck/commit/c9a1ec32f797c474d216a653528bb9c75b99bb1a))
+- one navigation row on every screen; the current section opens its views in a menu ([e900624](https://github.com/remi-deher/watchdeck/commit/e900624f1bd89c70f766bc620a15686ba40b8933))
+- menu carries one level, sections live in the page everywhere; search capsule with a contextual action segment; Configure as cards without table of contents; running cards get the fanart ([49630af](https://github.com/remi-deher/watchdeck/commit/49630aff0e9647a3c986d621cc7523f4302bda8e))
+- one server-side media description with every image; common components take the media and show its poster and fanart; shell E2E follows the one-level menu ([d070ef4](https://github.com/remi-deher/watchdeck/commit/d070ef4bad9deacf8778b128cad7e25ba005d5a6))
+
+### 🐛 Corrections
+
+- FileFlows 26.09 exposes the processing node as /api/agent; runners, schedule and connection check use it, falling back to /api/node ([e3f5cdf](https://github.com/remi-deher/watchdeck/commit/e3f5cdf07eefdaec4288dfca8bbe22ba950ee9c7))
+- propager le média complet dans les événements du calendrier ([6623bc6](https://github.com/remi-deher/watchdeck/commit/6623bc6f209d25140f1f2215e3dd5d547b64e901))
+- on phones the page keeps room for the floating search bar; the filter sheet ignores taps on its own toggle ([8db9789](https://github.com/remi-deher/watchdeck/commit/8db9789e482f4bf8441a602dbc6aa472fe2285e5))
+- finalize independent folders while another title copies ([4ee4035](https://github.com/remi-deher/watchdeck/commit/4ee40352b92c8f5296f509c25d9b3668e7d390b0))
+- align work fixtures and repair lint and type checks ([fba3353](https://github.com/remi-deher/watchdeck/commit/fba3353a1c359a22076ff28e5d82c62dc578eef5))
 ## 1.88.0 — 2026-10-09
 
 
@@ -14,6 +47,10 @@
 ### 📖 Documentation
 
 - LiveStrip, verdict, page tools and filter sheet rules ([24ef443](https://github.com/remi-deher/watchdeck/commit/24ef443c432f3cc09143e42c25b882df6a655aa3))
+
+### 🔧 Maintenance
+
+- v1.88.0 (#807) ([9ca1cd8](https://github.com/remi-deher/watchdeck/commit/9ca1cd8128b10bd5973bb2ae7af76ad813569894))
 ## 1.87.0 — 2026-10-09
 
 
