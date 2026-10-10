@@ -1,5 +1,7 @@
 # Changelog
 
+## 1.90.1 — 2026-10-10
+
 ## 1.90.0 — 2026-10-10
 
 
@@ -16,6 +18,10 @@
 
 - preserve contextual input and responsive bar layout ([67196ac](https://github.com/remi-deher/watchdeck/commit/67196ac34528d8bac8d635bbb94849b9d4787ea5))
 - retain shortcut focus and nested control sizing ([cacacff](https://github.com/remi-deher/watchdeck/commit/cacacff27a685c9c57bc79ada480145b0d5db7a2))
+
+### 🔧 Maintenance
+
+- v1.90.0 (#815) ([cfc5d29](https://github.com/remi-deher/watchdeck/commit/cfc5d297cffcae56f7225b05ae3de7f44f3e265b))
 ## 1.89.0 — 2026-10-10
 
 
