@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
+    if (url.pathname === '/api/events') return route.fulfill({ status: 204, contentType: 'text/event-stream', body: '' });
     if (url.pathname === '/api/session') return route.fulfill({ json: { role: 'admin', is_owner: true } });
     if (url.pathname === '/api/library') return route.fulfill({ json: [{ id: 12, title: 'Dune', media_type: 'movie' }] });
     if (url.pathname === '/api/discover/search') return route.fulfill({ json: { items: [{ id: 438631, tmdb_id: 438631, title: 'Dune', media_type: 'movie' }] } });

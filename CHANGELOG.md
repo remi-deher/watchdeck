@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.90.0 — 2026-10-10
+
+
+### test
+
+- align page context expectations with unified bar ([52b0302](https://github.com/remi-deher/watchdeck/commit/52b03023baebec9795e4dc81f6d9c1e9b945d2ab))
+- serve the correct event stream response ([369744e](https://github.com/remi-deher/watchdeck/commit/369744e8f9f9aed817a3cd790e590ab6207f6c9f))
+
+### ✨ Nouveautés
+
+- unify contextual search across page templates ([c8a2f9d](https://github.com/remi-deher/watchdeck/commit/c8a2f9dc60f7b4d6d928d0355b68c78e44cdc4cc))
+
+### 🐛 Corrections
+
+- preserve contextual input and responsive bar layout ([67196ac](https://github.com/remi-deher/watchdeck/commit/67196ac34528d8bac8d635bbb94849b9d4787ea5))
+- retain shortcut focus and nested control sizing ([cacacff](https://github.com/remi-deher/watchdeck/commit/cacacff27a685c9c57bc79ada480145b0d5db7a2))
 ## 1.89.0 — 2026-10-10
 
 
@@ -33,6 +49,10 @@
 - on phones the page keeps room for the floating search bar; the filter sheet ignores taps on its own toggle ([8db9789](https://github.com/remi-deher/watchdeck/commit/8db9789e482f4bf8441a602dbc6aa472fe2285e5))
 - finalize independent folders while another title copies ([4ee4035](https://github.com/remi-deher/watchdeck/commit/4ee40352b92c8f5296f509c25d9b3668e7d390b0))
 - align work fixtures and repair lint and type checks ([fba3353](https://github.com/remi-deher/watchdeck/commit/fba3353a1c359a22076ff28e5d82c62dc578eef5))
+
+### 🔧 Maintenance
+
+- v1.89.0 (#811) ([7e14d06](https://github.com/remi-deher/watchdeck/commit/7e14d068fab47b2dbedeeede6905d0e23c93fdd7))
 ## 1.88.0 — 2026-10-09
 
 
