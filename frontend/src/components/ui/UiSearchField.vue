@@ -143,7 +143,7 @@ function onInput(event: Event): void {
    non comme une pastille posee dedans. Sans cela il restait un liseré de fond entre le
    bouton et le contour -- huit pixels a droite, un en haut et en bas. */
 .ui-search-field:has(.ui-search-field__filter),
-.ui-search-field:has(.ui-search-field__action) { padding-right: 0; }
+.ui-search-field:has(.ui-search-field__action:not(:empty)) { padding-right: 0; }
 .ui-search-field__search { display: flex; flex: 1 1 auto; align-items: center; gap: var(--space-2); min-width: 0; padding: 0 12px; }
 .ui-search-field__more { flex: none; border: 0; padding: 8px 4px; background: transparent; color: var(--accent); font-size: var(--fs-xs); white-space: nowrap; cursor: pointer; }
 .ui-search-field__icon { flex: none; width: 16px; height: 16px; color: var(--muted); }
@@ -229,6 +229,14 @@ function onInput(event: Event): void {
 .ui-search-field__action :deep(> button) { height: 100%; }
 .ui-search-field__action :deep(.ui-button:hover),
 .ui-search-field__action :deep(> button:hover) { background: rgb(var(--ink) / .05); }
+/* Le segment est a plat : un bouton principal y perd son fond, et son texte clair (fait
+   pour ce fond) disparaissait sur celui de la capsule. L'action principale prend donc la
+   couleur d'accent, en gras, comme « Filtres » quand il est actif. */
+.ui-search-field__action :deep(.ui-button--primary) { color: var(--accent); font-weight: 700; }
+.ui-search-field__action :deep(.ui-button--primary:hover:not(:disabled)) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* Rien a porter (action conditionnelle absente, outils vides) : ni segment, ni separateur.
+   `:empty` ignore les commentaires que Vue laisse a la place d'un `v-if` faux. */
+.ui-search-field__action:empty { display: none; }
 .ui-search-field__filter.active { color: var(--accent); }
 .ui-search-field__filter svg { width: 15px; height: 15px; }
 .ui-search-field__count {
@@ -248,10 +256,10 @@ function onInput(event: Event): void {
 .ui-search-field__action :deep(.ui-segmented-item) { min-height: 28px; padding: 0 10px; }
 .ui-search-field__filter.active { background: color-mix(in srgb, var(--accent) 25%, var(--surface-2)); }
 @include bp.until(tablet) {
-  .ui-search-field:has(.ui-search-field__action) { flex-wrap: wrap; height: auto; }
-  .ui-search-field:has(.ui-search-field__action) .ui-search-field__search { flex-basis: 100%; min-height: 44px; border-bottom: 1px solid var(--border); }
+  .ui-search-field:has(.ui-search-field__action:not(:empty)) { flex-wrap: wrap; height: auto; }
+  .ui-search-field:has(.ui-search-field__action:not(:empty)) .ui-search-field__search { flex-basis: 100%; min-height: 44px; border-bottom: 1px solid var(--border); }
   .ui-search-field__action { flex: 1 1 auto; max-width: none; min-height: 44px; border-left: 0; border-radius: 0; }
-  .ui-search-field:has(.ui-search-field__action) .ui-search-field__filter { min-height: 44px; border-radius: 0 0 calc(var(--radius-lg) - 1px) 0; }
+  .ui-search-field:has(.ui-search-field__action:not(:empty)) .ui-search-field__filter { min-height: 44px; border-radius: 0 0 calc(var(--radius-lg) - 1px) 0; }
   .ui-search-field__matches { display: none; }
 }
 </style>
